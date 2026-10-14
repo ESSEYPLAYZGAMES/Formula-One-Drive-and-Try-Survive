@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>F1 Simulator</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="src/ui/style.css">
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body class="home">
+<canvas id="gl"></canvas>
+<div id="fade"></div>
+<div id="shot-label" class="hidden"></div>
+
+<!-- ===== HUD ===== -->
+<div id="hud" class="hidden">
+  <div id="hud-top">
+    <div id="hud-lap"><span class="lbl">LAP</span><span id="lap-num">1/5</span></div>
+    <div id="hud-pos"><span id="pos-num">P20</span></div>
+    <div id="hud-time"><span class="lbl">LAP TIME</span><span id="lap-time">0:00.000</span><span class="lbl">LAST</span><span id="last-time">--</span><span class="lbl">BEST</span><span id="best-time">--</span><div id="hud-sectors"><i></i><i></i><i></i></div><div id="hud-delta"><span>Δ BEST</span><b>--</b><em><u></u></em></div></div>
+    <div id="hud-gap"><span class="lbl">AHEAD</span><span id="gap-ahead">--</span><span class="lbl">BEHIND</span><span id="gap-behind">--</span></div>
+  </div>
+
+  <div id="hud-lights" class="hidden">
+    <div class="light"></div><div class="light"></div><div class="light"></div><div class="light"></div><div class="light"></div>
+  </div>
+
+  <div id="hud-msg"></div>
+  <div id="hud-reset" class="hidden">BEACHED<br><span>reverse: hold brake · hold R to retire</span></div>
+
+  <div id="hud-bottom-left">
+    <div id="tyre-box">
+      <div id="tyre-compound">SOFT</div>
+      <div class="bar"><div id="tyre-wear" class="fill"></div></div>
+      <div id="tyre-temp" class="small">TEMP OK</div>
+    </div>
+    <div id="damage-box">
+      <svg viewBox="0 0 60 120" width="60" height="120">
+        <rect id="dmg-fwl" x="4" y="8" width="24" height="10" rx="2"/>
+        <rect id="dmg-fwr" x="32" y="8" width="24" height="10" rx="2"/>
+        <rect id="dmg-body" x="20" y="24" width="20" height="60" rx="6"/>
+        <rect id="dmg-susp" x="6" y="30" width="10" height="20" rx="2"/>
+        <rect id="dmg-susp2" x="44" y="30" width="10" height="20" rx="2"/>
+        <rect id="dmg-eng" x="22" y="60" width="16" height="18" rx="2"/>
+        <rect id="dmg-rw" x="8" y="100" width="44" height="10" rx="2"/>
+      </svg>
+      <div id="dmg-label" class="small">CAR OK</div>
+    </div>
+    <canvas id="minimap" width="220" height="220"></canvas>
+  </div>
+
+  <div id="hud-bottom-right">
+    <div id="gear">N</div>
+    <div id="speed"><span id="speed-num">0</span><span class="unit">km/h</span></div>
+    <div id="rpm-bar"><div id="rpm-fill"></div></div>
+    <div id="drs-ers"><span id="drs-lbl" class="off">DRS</span><span id="ers-lbl">ERS</span><div class="bar"><div id="ers-fill" class="fill"></div></div><span id="limiter" class="hidden">PIT LIMITER 80</span></div>
+    <div id="inputs"><div class="ibar"><div id="thr-fill"></div></div><div class="ibar"><div id="brk-fill"></div></div></div>
+  </div>
+
+  <div id="standings"></div>
+  <div id="radio" class="hidden"><b>ENGINEER</b><span></span></div>
+  <div id="box-cue" class="hidden"><b>YOUR BOX</b><span id="box-dist">--</span></div>
+  <div id="hud-help">WASD/Arrows drive · Space handbrake · Shift/X ERS (hold) · DRS automatic (F to shut) · Backspace flashback · P pit · L racing line · V camera · C look back · Q/E look left/right · T telemetry · H halo · M mute · Esc menu</div>
+</div>
+
+<!-- ===== PIT MENU ===== -->
+<div id="pit-menu" class="panel hidden">
+  <h2>PIT STOP</h2>
+  <div class="row"><span>Tyres</span>
+    <div class="seg" id="pit-tyres">
+      <button data-c="SOFT" class="c-soft">SOFT</button>
+      <button data-c="MEDIUM" class="c-medium">MEDIUM</button>
+      <button data-c="HARD" class="c-hard">HARD</button>
+      <button data-c="INTER" class="c-inter">INTER</button>
+      <button data-c="WET" class="c-wet">WET</button>
+    </div></div>
+  <div class="row"><span>Repairs</span>
+    <div class="seg" id="pit-repairs">
+      <button data-r="none">None +0.0s</button>
+      <button data-r="wing">Front wing +4.0s</button>
+      <button data-r="full">Wing + body/susp +7.0s</button>
+    </div></div>
+  <div class="row"><span id="pit-eta">Stop time: 2.4s</span><button id="pit-confirm" class="go small">CONFIRM</button></div>
+  <div class="hint">1-5 tyre · 7/8/9 repair · Enter confirm</div>
+</div>
+
+<!-- ===== MENU ===== -->
+<div id="menu">
+  <div class="brand">
+    <div class="brand-line"></div>
+    <h1 id="brand-title">FORMULA 1<span id="brand-sub">SIMULATOR</span></h1>
+    <div id="menu-sub">Real circuits built from OpenStreetMap</div>
+  </div>
+  <div id="loading" class="hidden"><div class="ld"><i></i></div><span>Building the circuit from OpenStreetMap…</span></div>
+
+  <!-- home: the three modes (with what each holds for you: your last race, your career), the last race again, a quiet
+       footer; a circuit is chosen in the race settings and built when the weekend starts -->
+  <section id="step-mode" class="step">
+    <div class="cards">
+      <button class="card" data-v="quick"><span class="ci"></span><em>01</em><b>Quick Race</b><i>Practice, qualifying, lights out, race to the flag</i><small class="live"></small></button>
+      <button class="card" data-v="tt"><span class="ci"></span><em>02</em><b>Time Trial</b><i>Empty track, chase the perfect lap</i><small class="live"></small></button>
+      <button class="card" data-v="champ"><span class="ci"></span><em>03</em><b>Career</b><i>Your driver, your team, season after season</i><small class="live"></small></button>
+    </div>
+    <button id="race-again" class="ghost hidden"><b>↻ RACE AGAIN</b><span></span></button>
+    <footer class="home-foot">
+      <div id="memoriam-home" class="memoriam hidden"></div>
+      <span class="credit">Real circuits built from OpenStreetMap</span>
+      <span class="keys"><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> choose<span id="keys-r" class="hidden">&nbsp;· <kbd>R</kbd> race again</span></span>
+      <button id="dl-offline" class="ghost small hidden">⬇ Download the offline version (one HTML file, 4 MB)</button>
+      <div id="dl-msg" class="small hidden"></div>
+    </footer>
+  </section>
+
+  <!-- the race settings: five pages under tabs that show what each one holds (a time trial: three), a summary column
+       with START always in view; nothing scrolls -->
+  <section id="step-setup" class="step hidden">
+    <header class="su-head">
+      <button id="btn-back" class="back" title="Back (Esc)" aria-label="Back">←</button>
+      <div class="crumb"><small>FORMULA 1 SIMULATOR</small><b id="setup-title">QUICK RACE</b></div>
+      <nav id="su-tabs" class="k-tabs su-tabs" aria-label="Race settings">
+        <button data-p="driver"><i>1</i>DRIVER<em>Choose a driver</em></button>
+        <button data-p="event"><i>2</i>EVENT<em></em></button>
+        <button data-p="rivals" class="race-only"><i>3</i>RIVALS<em></em></button>
+        <button data-p="rules" class="race-only"><i>4</i>RULES<em></em></button>
+        <button data-p="driving"><i>5</i>DRIVING<em></em></button>
+        <span class="k-ind"></span>
+      </nav>
+    </header>
+    <div class="su-body">
+      <div class="su-view">
+        <div id="su-pages" class="m-pages su-pages">
+          <section class="m-pg" data-p="driver">
+            <div class="su-drv">
+              <div class="lbl">Your team, then your driver</div>
+              <div id="team-grid" class="teams"></div>
+              <div class="su-slot">
+                <div id="su-pickhint" class="su-pickhint">Pick a team above, then one of its two drivers</div>
+                <div id="driver-pick" class="drivers hidden"></div>
+                <div id="custom-row" class="custom hidden"><input id="opt-cname" value="E. Esselink" maxlength="18" placeholder="Your name" aria-label="Your name"><input id="opt-ccolor" type="color" value="#00d4ff" aria-label="Livery colour"><select id="opt-ctier" aria-label="Car performance"><option value="0">Top Tier</option><option value="1" selected>Upper Midfield</option><option value="2">Lower Midfield</option><option value="3">Backmarker</option></select><small>Your own 23rd car in its own garage: your name, your colour, how quick the car is.</small></div>
+              </div>
+              <div id="memoriam" class="memoriam hidden"></div>
+              <div class="su-drv-foot"><button id="restore-grid" class="ghost small hidden">Restore the original grid</button></div>
+            </div>
+            <div id="su-mem" class="su-mem m-calm hidden"></div>
+          </section>
+          <section class="m-pg" data-p="event">
+            <div class="opt"><div class="lbl">Circuit</div><div id="opt-track" class="tracks"><button data-v="lasvegas" class="circ sel"><span class="map"></span><b>Las Vegas</b><small></small></button><button data-v="silverstone" class="circ"><span class="map"></span><b>Silverstone</b><small></small></button></div></div>
+            <div class="opt race-only"><div class="lbl">Distance</div><div class="seg k-seg" id="opt-len"><button data-v="3">3 laps</button><button data-v="5" class="sel">5 laps</button><button data-v="8">8 laps</button><button data-v="13">25%</button><button data-v="25">50%</button><button data-v="50">Full</button></div></div>
+            <div class="grid2">
+              <div class="opt"><div class="lbl">Time</div><div class="seg k-seg" id="opt-time"><button data-v="night" class="sel">Midnight</button><button data-v="day">Midday</button></div><small id="time-note" class="su-note"></small></div>
+              <div class="opt"><div class="lbl">Weather</div><div class="seg k-seg" id="opt-weather"><button data-v="dry" class="sel">Dry</button><button data-v="damp">Damp</button><button data-v="wet">Wet</button></div></div>
+            </div>
+          </section>
+          <section class="m-pg race-only" data-p="rivals">
+            <div class="opt"><div class="lbl su-lr"><span>AI pace · <span id="diff-val">75</span><em id="diff-name">Pro</em></span><span id="diff-presets" class="su-presets"><button data-diff="10">Rookie</button><button data-diff="75">Pro</button><button data-diff="100">Legend</button></span></div><input type="range" id="opt-diff" class="slider" min="0" max="100" value="75" aria-label="AI pace"><small class="su-desc">How hard the other drivers commit to every corner. 75 is the pace the field is tuned to.</small></div>
+            <div class="opt"><div class="lbl">AI racecraft</div><div class="seg k-seg" id="opt-aggr"><button data-v="0.6">Normal</button><button data-v="1.0" class="sel">Aggressive</button><button data-v="1.4">Ruthless</button></div><small class="su-desc">How hard they race you wheel to wheel: the lunges, the defending, the door closed late.</small></div>
+            <div class="opt"><div class="lbl">Stewards · <span id="stew-val">50</span><em id="stew-name">Standard</em></div><input type="range" id="opt-stew" class="slider" min="0" max="100" value="50" aria-label="Stewards"><small class="su-desc">Track limits and collisions: from no penalties at all, through lenient, to harsh.</small></div>
+          </section>
+          <section class="m-pg race-only" data-p="rules">
+            <div class="opt"><div class="lbl">Grid</div><div class="seg k-seg" id="opt-grid"><button data-v="quali" class="sel">Flying lap</button><button data-v="pick">Pick slot</button></div><small id="grid-desc" class="su-desc"></small></div>
+            <div id="grid-pick" class="opt hidden"><div class="lbl">Starting position · <span id="slot-val">P1</span></div><div class="gridpick" id="opt-slot"></div></div>
+            <div class="grid2">
+              <div class="opt"><div class="lbl">Safety car &amp; red flags</div><div class="seg k-seg" id="opt-sc"><button data-v="off">Off</button><button data-v="on" class="sel">On</button></div></div>
+              <div class="opt"><div class="lbl">Mechanical failures</div><div class="seg k-seg" id="opt-fail"><button data-v="off">Off</button><button data-v="on" class="sel">On</button></div></div>
+            </div>
+          </section>
+          <section class="m-pg" data-p="driving">
+            <div class="grid2">
+              <div class="opt"><div class="lbl">Starting tyre</div><div class="seg k-seg" id="opt-tyre" data-tyre><button data-v="SOFT" class="c-soft sel">S</button><button data-v="MEDIUM" class="c-medium">M</button><button data-v="HARD" class="c-hard">H</button><button data-v="INTER" class="c-inter">I</button><button data-v="WET" class="c-wet">W</button></div></div>
+              <div class="opt"><div class="lbl">Assists</div><div class="seg k-seg" id="opt-assist"><button data-v="full" class="sel">TC+ABS</button><button data-v="abs">ABS</button><button data-v="none">None</button></div></div>
+              <div class="opt"><div class="lbl">Racing line (L)</div><div class="seg k-seg" id="opt-line"><button data-v="on" class="sel">On</button><button data-v="off">Off</button></div></div>
+              <div class="opt"><div class="lbl">Flashbacks</div><div class="seg k-seg" id="opt-fb"><button data-v="off">Off</button><button data-v="inf" class="sel">Unlimited</button></div></div>
+            </div>
+            <div class="su-keys"><div class="lbl">Controls · keyboard or gamepad</div><dl>
+              <div><dt><kbd>WASD</kbd> <kbd>Arrows</kbd></dt><dd>Drive</dd></div>
+              <div><dt><kbd>Space</kbd></dt><dd>Handbrake</dd></div>
+              <div><dt><kbd>Shift</kbd> <kbd>X</kbd></dt><dd>ERS boost (hold)</dd></div>
+              <div><dt><kbd>F</kbd></dt><dd>Shut the DRS (it opens itself)</dd></div>
+              <div><dt><kbd>Backspace</kbd></dt><dd>Flashback</dd></div>
+              <div><dt><kbd>P</kbd></dt><dd>Pit stop</dd></div>
+              <div><dt><kbd>V</kbd></dt><dd>Camera: cockpit, T-cam, chase, TV</dd></div>
+              <div><dt><kbd>C</kbd> <kbd>Q</kbd> <kbd>E</kbd></dt><dd>Look back, left, right</dd></div>
+              <div><dt><kbd>L</kbd></dt><dd>Racing line</dd></div>
+              <div><dt><kbd>T</kbd></dt><dd>Telemetry</dd></div>
+              <div><dt><kbd>H</kbd> <kbd>M</kbd></dt><dd>Halo · mute</dd></div>
+              <div><dt><kbd>Esc</kbd></dt><dd>Pause</dd></div>
+            </dl></div>
+          </section>
+        </div>
+      </div>
+      <aside id="su-sum" aria-label="Your weekend">
+        <div class="su-who"><i class="sw"></i><div><b id="su-name">No driver yet</b><small id="su-team">Choose one on the first page</small></div></div>
+        <div class="su-map"><span id="su-map"></span><b id="su-trk"></b><small id="su-trkm"></small></div>
+        <div class="su-rows">
+          <button data-goto="event" class="race-only"><span>Distance</span><b data-sum="len"></b></button>
+          <button data-goto="event"><span>Conditions</span><b data-sum="cond"></b></button>
+          <button data-goto="rivals" class="race-only"><span>Rivals</span><b data-sum="rivals"></b></button>
+          <button data-goto="rules" class="race-only"><span>Rules</span><b data-sum="rules"></b></button>
+          <button data-goto="driving"><span>Aids</span><b data-sum="aids"></b></button>
+        </div>
+        <button id="btn-start" class="go">START WEEKEND<span>→</span></button>
+      </aside>
+    </div>
+    <footer class="su-foot"><span class="hint" id="su-hint"><kbd>←</kbd> <kbd>→</kbd> pages · <kbd>1</kbd>-<kbd>5</kbd> · <kbd>Enter</kbd> start · <kbd>Esc</kbd> back</span><button id="su-next" class="ghost small">NEXT · EVENT →</button></footer>
+  </section>
+</div>
+
+<div id="quali-panel" class="panel hidden">
+  <h2>QUALIFYING · FLYING LAP</h2>
+  <div id="quali-info">Rolling start. Cross the line to begin your one timed lap.</div>
+  <div id="quali-results"></div>
+  <div class="row center"><button id="btn-practice" class="ghost">FREE PRACTICE</button><button id="btn-quali-go" class="go">QUALIFY<span>→</span></button><button id="btn-quali-sim" class="ghost">SIMULATE QUALIFYING</button><button id="btn-quali-done" class="go hidden">TO THE GRID<span>→</span></button></div>
+</div>
+
+<div id="results" class="panel hidden">
+  <h2 id="results-title">RACE RESULT</h2>
+  <div id="results-table"></div>
+  <div id="champ-table"></div>
+  <div class="row center"><button id="btn-next" class="go">CONTINUE<span>→</span></button><button id="btn-res-tel" class="ghost">TELEMETRY</button><button id="btn-menu" class="ghost">MAIN MENU</button></div>
+</div>
+
+<div id="pause" class="panel hidden">
+  <h2>PAUSED</h2>
+  <div class="row center"><button id="btn-resume" class="go">RESUME<span>→</span></button><button id="btn-tel" class="ghost">TELEMETRY</button><button id="btn-photo" class="ghost">PHOTO MODE</button><button id="btn-finish" class="ghost hidden">FINISH SESSION</button><button id="btn-end" class="ghost hidden">END SESSION</button><button id="btn-quit" class="ghost">QUIT TO MENU</button></div>
+  <div class="hint">Photo mode: WASD fly · Q/E down/up · Shift fast · drag or arrow keys to look · H toggle HUD · Esc back</div>
+</div>
+<div id="photo-hint" class="hidden"><span>PHOTO MODE · WASD fly · Q/E · Shift · drag to look · H HUD · P/Space play · Esc back</span><button id="photo-play">▶ PLAY</button></div>
+
+<script type="module" src="src/main.js"></script>
+</body>
+</html>
