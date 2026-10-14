@@ -197,6 +197,36 @@ Built 02:07 (`dist/index.html` 31.7 MB, `dist/artifact.html` 8.5 MB, 112 modules
   - no photographers in the Memorial/Mourning3D scenes;
   - grief headlines say "him".
 
+## v83 (2026-10-14): photographers reworked (src/ui/PapsConfront.js)
+- **Who comes, and why.** The flat per-frame roll in Hangout._events and the grave week's random long lens are gone (the old roll still runs if `PAPS_CONFRONT_ON` is off).
+  - A night's *pressure* is the product of factors you can read: fame (yours, or your date's), PR heat, the venue (Vegas and the clubs high, a private room hardly ever, your flat never), the hour, a story still running, a partner or famous date with you, and a confrontation last round.
+  - The pressure sets a budget of 0–3 photographers a night and the triggers that spend it: a tip-off, one drifting in, the late shift at 00:30. Event triggers: an argument in public, a photographed hug or kiss (via `_flash`), and the party's photographed front door (`papsDoor`, at the start of the exit moment).
+  - Each arrival toasts its cause. A cooldown follows each confrontation (60–300 s by how far it went).
+  - Never on a quiet or grave evening. Memorial and Mourning3D never open an evening.
+- **Photographers are people** (`Pap`): makePerson plus a camera prop, an invented name and agency, and a temper (timid / pro / pushy). They walk in, stand, turn to follow you (a pushy one follows you about), raise the camera, and every flash comes from the lens. They leave when they have their pictures or have lost you. A small pose flipbook ('talk', 'stagger', 'restrain') swaps bodies the way Brawl's Kit does.
+- **Confrontations.**
+  - Walk up and press P ("Face Rocco"); the party's exit brings it to you. The four answers open it.
+  - Then escalation menus: say sorry, keep at him, push the camera, let someone take you away, walk away. Esc is walking away.
+  - His answer comes by temper, heat and what you did: back off, keep filming (video, a red light on the camera), call backup (two more arrive), grab your arm, or run.
+  - Bystanders: your date, a driver you came with, party security or a venue's staff, the car at the door.
+  - "Shove him off" after a grab is the real Brawl through PartyBrawl, which got an optional `lines`. The other photographers can be separators. A real-driver player gets no scuffle (PartyPlay's own rule).
+- **Fallout** (papsFallout, the same c.pr model):
+  - outcomes: calm / words taken back / words / shove / scuffle, plus viral footage (more likely if he was filming) and an assault complaint (less likely if he grabbed first);
+  - its own crisis kind `'paps'` in PR.js (SEV between reckless and clash, titles by source: shove / scuffle / viral);
+  - an argument in public (Hangout talk ending offended, party drama row/scuffle) counts as `personal`;
+  - headlines are pronoun-free (no more "him"), and a real-driver player is "the <team> driver".
+- **Test switches:** `__hangoutPaps` (budget 2, one at once), `__partyPaps`, `__papsComplaint`, `__papsViral`, `__papsReact`, `__papsTemper`, `__papsGrief`; `__hangout.paps` (state, `spawn`, `act`, `note`, `clear`).
+- **Tested headless (Playwright + SwiftShader, 0 console errors):**
+  - Vegas rooftop: spawn, cause and lens flashes; each opener answer; escalations; backup; grab → pull free; far shove (walk over); date and staff stepping in; grab → scuffle (Brawl QTE).
+  - Halo Room: an in-room spawn; a photographed front door (photographers at the door, then car / scuffle → the night ends).
+  - Party drama row → personal. Quiet evening → none. Full evenings at three venues.
+  - papsFallout for every outcome, including grief, a real driver, forced viral and forced complaint.
+- **Not verified:**
+  - by eye at full frame rate, or on a real GPU;
+  - the PR page's answer UI for a 'paps' crisis (only crisisFrom / crisisAdvice);
+  - the Halo Room exit camera shows the lift doors, not the photographers (its porte-cochère is not built, as before);
+  - Affection's photographed-kiss path (the date was not far enough along in the test).
+
 ## Resume checklist (FINAL pause 2026-10-11 ~07:00 after v76, weekly usage 89%; the user caps the week at 93%; weekly reset 2026-10-16 05:00)
 Workflow scripts are in `C:\Users\Ethan\.claude\projects\C--Users-Ethan-Desktop-Porn\e04a0948-beb7-4317-b214-5c51c321084c\workflows\scripts\`. Copies are in the b0ed918f session scratchpad `wfscripts\`; use those if a scriptPath outside the working directory is refused. The journals are in the `b0ed918f-b235-4956-8498-4cdd9130b784` session's `subagents\workflows\wf_*`.
 All background processes are stopped: shot server, checkpoints, wake lock and agent headless Edges. The dev server on 8766 is still up.

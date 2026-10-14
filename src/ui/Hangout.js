@@ -48,7 +48,7 @@ import { PartyCrowd } from '../world/PartyCrowd.js';
 import { POOL_PLACES, POOL_ALIAS, POOL_HOSTED, POOL_FOOTPRINT, POOL_ORDERS, poolOccasion, poolDriverLook } from './PartyPool.js';
 // affection hook: hugs, holding, a slow dance, a kiss - and the drink - at any evening (ui/Affection.js)
 import { Affection, AFFECTION_ON } from './Affection.js';
-import { papsSeen, papsPrompt, papsKey, papsTick, papsResultInto } from './PapsConfront.js';
+import { papsSeen, papsPrompt, papsKey, papsTick, papsResultInto, papsLens, papsNote, papsDispose, papsLab } from './PapsConfront.js';
 export const HANGOUT_CSS = `
 #hangout { position: fixed; inset: 0; z-index: 47; background: #000; color: #fff; font-family: 'Segoe UI', Roboto, Arial, sans-serif; overflow: hidden; user-select: none; -webkit-user-select: none; --hc: #e10600; }
 #hangout canvas.hg-3d { position: absolute; inset: 0; width: 100%; height: 100%; display: block; outline: none; }
@@ -2821,7 +2821,7 @@ class Evening {
     if (o.fx?.deep && (g.fx.deep || 0) === 1) R.moments.push(`A real conversation with ${g.first}.`);
     if (o.fx?.invite && (g.fx.invite || 0) === 1) R.moments.push(`Made plans with ${g.first} for another time.`);
     const lines = o.t.startsWith('[') ? [] : [`› ${o.t}`]; if (o.r) lines.push(o.r);
-    if (o.end) { g.offended = true; T0.step = 2; this._queue(lines, null); return; }
+    if (o.end) { g.offended = true; T0.step = 2; this._queue(lines, null); try { papsNote(this, 'row', g); } catch (_) { /* */ } return; }   // (paps hook: an argument in public)
     if (T0.step === 0 && o.then) { T0.step = 1; lines.push(o.then.say); this._queue(lines, o.then.opts); return; }
     T0.step = 2; lines.push(this._bye(g, T0.dm)); this._queue(lines, null);
   }
@@ -3044,7 +3044,10 @@ class Evening {
   }
   _events(dt) {
     if (this.papT >= 0) { this.papT += dt; const t = this.papT; this.paps.visible = t < 0.06 || (t > 0.16 && t < 0.23); if (t > 0.3) { this.papT = -1; this.paps.visible = false; } }
-    if (!this.quiet && this.V.paps?.length && this.R.flashes < 2 && !this.game && this.t > 25) {
+    // paps hook (ui/PapsConfront.js): the photographers - who comes, when and why, each a person in the room; with it
+    // off, the old long lens now and then
+    let papsOn = false; try { papsOn = papsTick(this, dt); } catch (_) { papsOn = false; }
+    if (!papsOn && !this.quiet && this.V.paps?.length && this.R.flashes < 2 && !this.game && this.t > 25) {
       const fame = this._present().reduce((m, g) => Math.max(m, g.kind === 'celeb' ? (g.C?.fame ?? 60) / 100 : 0.42), 0);
       if (Math.random() < Math.pow(1 - this.privacy, 2) * fame * 0.0045 * (flag('__hangoutPaps') ? 300 : 1) * dt) this._flash();
     }
@@ -3055,20 +3058,20 @@ class Evening {
       a.glanceAt = b.person.group.position.clone(); a.glance = 3; a.nod = 2.2; b.glanceAt = a.person.group.position.clone(); b.glance = 2.6;
       if (a.kind === 'driver' && b.kind === 'driver' && Math.hypot(a.person.group.position.x - this.pos.x, a.person.group.position.z - this.pos.z) < 5) this._bark(a, pick(BARK.group), 2.8, b.first);
     }
-    try { papsTick(this, dt); } catch (_) { /* */ }   // paps hook: a grave week's long lens
     if (this.vid === 'pub' && Math.random() < dt * 4) this.snd.hit(1800 + Math.random() * 3000, 0.02, 0.016, 2);
   }
-  /** a camera flash out in the night (a long lens): they were seen */
-  _flash() {
-    const P = this.V.paps; if (!P?.length || this.quiet) return; const p = pick(P), d = p.distanceTo(this.pos);
-    this.paps.position.copy(p); this.paps.scale.setScalar(Math.max(2.2, d * 0.05)); this.papT = 0; this.R.flashes++; this.R.seen = true;
+  /** a camera flash (at: a photographer's lens; line: what the toast says): they were seen */
+  _flash(at = null, line = null) {
+    if (this.quiet) return; let p = at || null; if (!p) { try { p = papsLens(this); } catch (_) { p = null; } }   // paps hook: from a photographer's lens (one steps in when none is about)
+    const P = this.V.paps; if (!p) { if (!P?.length) return; p = pick(P); } const d = p.distanceTo(this.pos);
+    this.paps.position.copy(p); this.paps.scale.setScalar(Math.max(d < 12 ? 0.7 : 2.2, d * 0.05)); this.papT = 0; this.R.flashes++; this.R.seen = true;
     if (!REDUCED) { const f = this.$('.hg-flash'); f.style.transition = 'none'; f.style.opacity = '0.08'; requestAnimationFrame(() => { f.style.transition = 'opacity .2s'; f.style.opacity = '0'; }); }
     this.snd.shutter();
     for (const g of this._present()) { g.glanceAt = p.clone(); g.glance = 1.8; }
     const shy = this._present().find((g) => g.kind === 'celeb' && (g.C?.traits?.privacy || 0) >= 0.6), by = shy || this._present()[0];
     if (by && !this.talk) this._bark(by, pick(BARK.flash)); if (shy) shy.dm -= 1;
-    this._toast('A camera flash, outside. Someone got a picture.', 'warn');
-    try { papsSeen(this, p); } catch (_) { /* */ }   // paps hook
+    this._toast(line || 'A camera flash, outside. Someone got a picture.', 'warn');
+    if (!at) { try { papsSeen(this, p); } catch (_) { /* */ } }   // paps hook (a photographer's own flash tells it himself)
   }
   /** your phone, buzzing on the table: someone else you are seeing (1 ignore it, 2 step away and answer, 3 tell her it is work) */
   _buzz() {
@@ -3248,6 +3251,7 @@ class Evening {
       // 'casino' | 'garage' | 'room' | ''); the party's play layer, its crowd, its cast, for tests)
       get seal() { return ev._sealed(); }, get zone() { return ev.zone || ''; }, get party() { return ev.party; }, get crowd() { return ev.crowd; }, get cast() { return ev.cast; }, get venue() { return ev.V || null; },
       get aff() { return ev.aff; },   // affection hook: the play layer (tests: menuFor, tryIt, state)
+      get paps() { try { return papsLab(ev); } catch (_) { return null; } },   // paps hook: the night's photographers (tests)
       use: (id) => { const h = ev.hots?.find((x) => x.id === id); if (h && ev.ready && !ev.closing) ev._use(h); return !!h; },
       talk: (i = 0) => { const g = ev.gs[i]; if (g && ev.ready && !ev.talk) ev._open(g); ev._skipToOpts(); return ev.talk ? ev.talk.opts?.map((o) => o.t) || [] : null; },
       choose: (i = 0) => { ev._skipToOpts(); ev._choose(i); ev._skipToOpts(); return ev.talk ? (ev.talk.closing ? 'done' : ev.talk.opts?.map((o) => o.t) || []) : null; },
@@ -3326,6 +3330,7 @@ class Evening {
   _dispose() {
     if (this.disposed) return; this.disposed = true; this.on = false;
     try { this.aff?.dispose?.(); } catch (e) { console.warn('Hangout: affection did not tidy up', e); } this.aff = null;   // affection hook: first (its pair frames before PartyPlay's and the people's)
+    try { papsDispose(this); } catch (_) { /* */ }   // paps hook: the photographers out of the room
     // party hook: the play layer first (its HUD, its pseudo-games), then the crowd out of the room (its templates and shared
     // material are the session's: they must not be freed with the room's own)
     try { this.party?.dispose?.(); } catch (e) { console.warn('Hangout: the party did not tidy up', e); } this.party = null;
