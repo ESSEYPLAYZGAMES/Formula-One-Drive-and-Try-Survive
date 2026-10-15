@@ -950,7 +950,7 @@ export function prEvent(c, kind, data = {}) {
 
 // ---- crises -----------------------------------------------------------------------------------------------------------
 // (the order of severity: a new story more serious than the pending one takes its place; a lesser one folds in)
-const SEV = ['nightout', 'slump', 'feud', 'cruel', 'reckless', 'clash', 'scandal', 'brawl', 'ban'];
+const SEV = ['nightout', 'slump', 'feud', 'cruel', 'reckless', 'paps', 'clash', 'scandal', 'brawl', 'ban'];
 /** each: sev (how hard its answers land), the outlet that runs it, the answers on offer, title / story / text, alt (the same without names) */
 const CRISES = {
   ban: { sev: 1.3, outlet: 'f1news', opts: ['apologise', 'explain', 'silence', 'defiant'], title: `A one-race ban`, story: `the ban`,
@@ -962,6 +962,13 @@ const CRISES = {
     // (a club after the race (career/Party.js): an invented man, never a driver, so nobody is named; the 4th line has no tokens)
     by: { club: [`A scuffle at a club`, `the scuffle at the club`, `Footage of you being separated by security at {place} after the {gp} is all over The Paddock Post. The serious press wants to know what happened.`,
       `Footage of you being separated by security at a club is all over The Paddock Post. The serious press wants to know what happened.`] } },
+  // (a photographer (ui/PapsConfront.js papsFallout): an invented man, never named; by how far it went)
+  paps: { sev: 1.05, outlet: 'post', opts: ['apologise', 'explain', 'silence', 'defiant', 'joke'], title: `The photographer`, story: `the photographer you pushed`,
+    text: `Footage of you pushing a photographer's camera away is all over The Paddock Post. The serious press wants to know what happened.`,
+    alt: [`The photographer`, `the photographer you pushed`, `Footage of you pushing a photographer's camera away is all over The Paddock Post. The serious press wants to know what happened.`],
+    by: { shove: [`The photographer`, `the photographer you pushed`, `Footage of you pushing a photographer's camera away is all over The Paddock Post. The serious press wants to know what happened.`],
+      scuffle: [`A scuffle with a photographer`, `the scuffle with the photographer`, `Footage of you being pulled apart from a photographer is all over The Paddock Post. The serious press wants to know what happened.`],
+      viral: [`The clip with the photographer`, `the clip with the photographer`, `A clip of you laying into a photographer has been watched millions of times. The Paddock Post wants a comment.`] } },
   scandal: { sev: 1.1, outlet: 'post', personal: true, opts: ['privacy', 'apologise', 'explain', 'silence', 'joke'], title: `Caught flirting on camera`, story: `the grid-walk flirting`,
     text: `The cameras caught you flirting with {other} on the grid, with {her} looking on. The Paddock Post has the pictures and wants a comment.`,
     alt: [`Caught flirting on camera`, `the grid-walk flirting`, `The cameras caught you flirting on the grid while you are seeing someone. The Paddock Post has the pictures and wants a comment.`],
@@ -1037,7 +1044,7 @@ const VOICE_OUT = { serious: 'f1news', tv: 'race24', pod: 'pitlane', radio: 'gri
 /** a crisis that came with no headline of its own gets one (a slump, a pattern of penalties, a feud) */
 const announce = (c, P, K, x) => { const H = HL.crisis[K.kind]; if (H) story(c, P, 'crisis', K.kind, Object.keys(H).map((v) => VOICE_OUT[v] || v), K.positive ? 1 : -1, x); };
 /**
- * A story that wants an answer (kinds: ban, brawl, scandal, clash, reckless, cruel, feud, slump, nightout, and the
+ * A story that wants an answer (kinds: ban, brawl, scandal, clash, paps, reckless, cruel, feud, slump, nightout, and the
  * positive moment): it waits in c.pr.crisis until answered (resolveCrisis) or until two rounds have passed (then the
  * story runs without you). One at a time: the more severe stays, the lesser folds into it (heat +10). Never for
  * anything touching injury or death, never in a grave week, never while you are out injured. -> the crisis | null
@@ -1154,7 +1161,7 @@ export function crisisAdvice(c) {
   let k;
   if (K.positive) k = num(P.image, 0) < 25 || sh.humble > 0.4 ? 'stayHumble' : 'capitalise';
   else if (has('privacy')) k = 'privacy';
-  else if (['ban', 'brawl', 'clash', 'reckless'].includes(K.kind)) k = rv >= 25 && has('explain') ? 'explain' : 'apologise';
+  else if (['ban', 'brawl', 'clash', 'reckless', 'paps'].includes(K.kind)) k = rv >= 25 && has('explain') ? 'explain' : 'apologise';
   else if (has('joke') && sh.showman > 0.4 && num(P.media?.pitlane, 0) >= 20 && m.composure >= 55 && !K.near) k = 'joke';
   else if (K.kind === 'slump') k = rv >= 0 ? 'explain' : 'silence';
   else k = rv >= 25 && has('explain') ? 'explain' : 'apologise';

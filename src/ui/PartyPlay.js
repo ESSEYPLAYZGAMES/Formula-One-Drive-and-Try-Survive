@@ -110,7 +110,7 @@ import { zoneAt, inZone } from './PartyVenues.js';
 import { HeroFrames } from '../world/PartyCrowd.js';
 import { makePerson } from '../world/People.js';
 import { PartyBrawl, partyBrawlFx } from './PartyBrawl.js';
-import { papsSeen, papsExit } from './PapsConfront.js';
+import { papsSeen, papsExit, papsDoor, papsNote } from './PapsConfront.js';
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const ss = (x) => { const u = clamp(x, 0, 1); return u * u * (3 - 2 * u); };
@@ -777,6 +777,7 @@ export class PartyPlay {
       // (the columnist: talked out of it - the diary never heard a thing; or it runs)
       if (D.id === 'overheard') { const pc = D.g.cid; if (D.quote === false) { for (const L of this.Rp.loose) L.near = (L.near || []).filter((q) => q !== pc); } else if (!this.Rp.loose.some((L) => (L.near || []).includes(pc))) { const L = this.Rp.loose[this.Rp.loose.length - 1]; if (L) (L.near || (L.near = [])).push(pc); } }
       this.Rp.drama.push({ id: D.planId || D.id, cid: D.g.cid, choice: D.choice || null, outcome, out: raw });
+      if (outcome === 'row' || outcome === 'scuffle') { try { papsNote(ev, 'row', D.g); } catch (_) { /* */ } }   // (paps hook: an argument in public is a private moment too)
       if (D.g === this.ant || this._ant(D.g)) D.g.talked = true;
       if (D.scuffle) this.pend.push({ kind: 'scuffle', g: D.g, started: true });
       else if (outcome === 'walked' && raw === 'security') this.pend.push({ kind: 'act', act: 'security', g: D.g });
@@ -1371,6 +1372,7 @@ export class PartyPlay {
     const cam = at?.cam && at?.look ? () => ev._look(this._v1.set(at.cam.x, at.cam.y, at.cam.z), this._v2.set(at.look.x, at.look.y, at.look.z)) : null;
     const go = () => this._moment({ id: 'exit-' + kind, dur: kind === 'moveon' ? 2.2 : 4.6, min: 1.4, flashes, flashAt: at?.paps || null, caption: cap, cam,
       start: () => {
+        if (roll.photographed && !this.team && kind !== 'moveon') { try { papsDoor(ev); } catch (_) { /* */ } }   // (paps hook: the photographers waiting at the door, in the shot)
         if (at === E.street || at?.open) this.exitOpen = !!at?.open; if (Rp.stumble && kind === 'front') { const s = this._say('stumble'); if (s) setTimeout(() => this.on && ev._toast(s, 'warn'), 1600); }
         // (photographed on the way out: their frame is the picture the papers have - outside, so London's too)
         const pz = Array.isArray(at?.paps) && at.paps.length ? at.paps[(at.paps.length / 2) | 0] : at?.cam || null;

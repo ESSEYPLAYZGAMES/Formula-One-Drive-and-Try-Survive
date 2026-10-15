@@ -40,6 +40,7 @@ const _m = new THREE.Matrix4(), _s = new THREE.Vector3();
  *      ('security' | 'friend' | 'mate' | 'boss'), person, opts, holds: 'you' | 'tgt', disc? }] (who may run in to split
  *      it up; disc: their standing room in the room's discs, which never blocks the scuffle's own moves), qte
  *      (your windows' multiplier), sleeve, skin (your arms), noise(level, tc) (the room's crowd noise, optional),
+ *      lines (Brawl's wording to lay over the grid's; default CLUB_LINES - ui/PapsConfront.js has a photographer's),
  *      onDone(outcome) (Brawl's outcome) }
  * Game shape for Hangout: name, done, result (always null: Hangout's _gameOver drops it), update(dt), key(code, down),
  * mouse(), skip() (Q/Esc: back off / walk away at a choice), info(), dispose().
@@ -68,7 +69,7 @@ export class PartyBrawl {
       walk, npc: this.foe, qte: o.qte ?? 1, started: o.started !== false, onDone: (out) => this._end(out),
       // (their extra bodies in their own clothes tonight - the pose and the head are Brawl's)
       kitOf: (W, n) => { const { pose, headless, ...k } = n.opts || {}; return { ...k, detail: 0.35 }; },
-      lines: CLUB_LINES, armsParent: ev.scene, seps: (m) => m.holds || null,
+      lines: o.lines || CLUB_LINES, armsParent: ev.scene, seps: (m) => m.holds || null,
       lit: (obj) => { try { ev._hostLit?.(obj); } catch (_) { /* (unhosted: the room's own lights) */ } },
       sleeve: o.sleeve || null, skin: o.skin || null,
     });
