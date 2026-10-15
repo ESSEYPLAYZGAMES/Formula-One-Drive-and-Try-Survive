@@ -14,7 +14,7 @@ async function hangout() {
   const rep = (a, b) => { if (!src.includes(a)) throw new Error('pooltest: patch anchor not found: ' + a.slice(0, 60)); src = src.replace(a, b); };
   rep("antialias: true, powerPreference: 'high-performance'", "antialias: true, preserveDrawingBuffer: true, powerPreference: 'high-performance'");
   rep('this.api = this._api(); window.__hangout = this.api;', 'this.api = this._api(); window.__hangout = this.api; window.__ev = this;');
-  rep('this.isParty = isPartyVenue(this.vid);', "this.isParty = isPartyVenue(this.vid) || (!!window.__poolParty && (this.vid === 'poolclub' || this.vid === 'dayclub'));");
+  rep('this.isParty = isPartyVenue(this.vid)', "this.isParty = (!!window.__poolParty && (this.vid === 'poolclub' || this.vid === 'dayclub')) || isPartyVenue(this.vid)");
   // (the swimwear crowd hook Hangout would need: the venue's own crowd when it brings one)
   if (!src.includes('V.crowdMake')) rep('const C = this.crowd = new PartyCrowd({', 'const C = this.crowd = (V.crowdMake || ((q) => new PartyCrowd(q)))({');
   // (Hangout registers the pool club itself - its '// pool hook' block)

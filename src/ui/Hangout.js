@@ -2323,7 +2323,7 @@ class Evening {
   _partyUpdate(dt) {
     this._partyZone(dt);
     // (a raised deck, the steps up to it: the eye stays 1.66 m over whatever is underfoot)
-    if (this.V?.heightAt && !this.seat && !this.moment) { const want = 1.66 + (this.V.heightAt(this.pos.x, this.pos.z) || 0); this.pos.y += (want - this.pos.y) * Math.min(1, dt * 12); }
+    if (this.V?.heightAt && !this.V.life && !this.seat && !this.moment) { const want = 1.66 + (this.V.heightAt(this.pos.x, this.pos.z) || 0); this.pos.y += (want - this.pos.y) * Math.min(1, dt * 12); }
     if (this.party) { try { this.party.update?.(dt); } catch (e) { if (!this.partyErr) console.warn('Hangout: the party frame failed', e); this.partyErr = (this.partyErr || 0) + 1; } }
     // (the crowd, driven here (PartyPlay sets its energy and calls arrive / near / flashes): its detail about the camera
     // - wherever a moment has put it - on the music's beat, as full as the clock and the mood make the room; and the
@@ -2585,6 +2585,7 @@ class Evening {
     else if (this.moment) this._momentUpdate(dt);
     else if (this.talk) this._talkUpdate(dt);
     else if (!this.menu && !this.ask && !this.sty) this._walk(dt);
+    if (this.V?.life && !this.game) { try { this.V.life.frame(dt); } catch (e) { if (!this.lifeErr) console.warn('Hangout: the pool frame failed', e); this.lifeErr = true; } }   // pool hook (ui/PoolPlay.js): the water, your eye in it
     if (!this.game && !this.moment && !this.talk) this._camera(dt);
     this._tags(); this._hud(dt);
   }
@@ -2639,7 +2640,7 @@ class Evening {
     const mf = (k.has('KeyW') || k.has('ArrowUp') ? 1 : 0) - (k.has('KeyS') || k.has('ArrowDown') ? 1 : 0), ms = (k.has('KeyD') ? 1 : 0) - (k.has('KeyA') ? 1 : 0);
     if (this.seat) { if (mf || ms) this._stand(); this._prompt(); return; }
     if (mf || ms) {
-      const fx = Math.cos(this.yaw), fz = Math.sin(this.yaw), sp = (k.has('ShiftLeft') || k.has('ShiftRight') ? 2.6 : 1.45) * dt * (this.crowdSlow ? 1 - 0.45 * this.crowdSlow : 1) * (this.pressSlow ? 1 - 0.35 * this.pressSlow : 1), len = Math.hypot(mf, ms);   // (party hook: a packed floor slows you; so does easing past a guest)
+      const fx = Math.cos(this.yaw), fz = Math.sin(this.yaw), sp = (k.has('ShiftLeft') || k.has('ShiftRight') ? 2.6 : 1.45) * dt * (this.V?.life?.speed ?? 1) * (this.crowdSlow ? 1 - 0.45 * this.crowdSlow : 1) * (this.pressSlow ? 1 - 0.35 * this.pressSlow : 1), len = Math.hypot(mf, ms);   // (party hook: a packed floor slows you; so does easing past a guest)
       const vx = ((fx * mf - fz * ms) / len) * sp, vz = ((fz * mf + fx * ms) / len) * sp;
       if (this._free(this.pos.x + vx, this.pos.z, 0.24, null, true)) this.pos.x += vx; if (this._free(this.pos.x, this.pos.z + vz, 0.24, null, true)) this.pos.z += vz;   // (people are soft: _pressPeople)
       this.pressSlow = this._pressPeople(dt, true);
@@ -2661,6 +2662,7 @@ class Evening {
     for (const g of this.gs) if (g.person && !g.gone) consider({ g }, g.person.group.position.x, g.person.group.position.z, this.seat ? 2.9 : 2.5, this.isParty && g.talks >= 3 ? -0.3 : 0);
     for (const h of this.hots) { if ((h.kind === 'seat' && this.seat) || (this.quiet && (h.kind === 'game' || h.kind === 'photo'))) continue; consider({ h }, h.p.x, h.p.z, h.reach, this.isParty && h.kind === 'bar' ? 0.12 : 0); }
     if (this.staff?.person && !this.staff.hot) consider({ s: this.staff }, this.staff.x, this.staff.z, 2.4);
+    try { const n = !best || best.h ? this.V?.life?.target?.(p.x, p.z, fx, fz) : null; if (n && (!best || n.d + (best.h?.kind === 'bar' || best.h?.kind === 'door' ? 0 : 0.15) > bs)) best = { n: n.n }; } catch (_) { /* */ }   // pool hook: a guest of the crowd
     return best;
   }
   _prompt() {
@@ -2669,6 +2671,7 @@ class Evening {
     if (t?.g) { const g = t.g, look = this._styleOk(g) ? '<span><kbd>L</kbd>Her look</span>' : ''; html = g.offended || g.shaken > 0 ? `${esc(g.first)}<small>Needs a minute</small>` : g.talks >= 3 ? `${look ? `${look} ` : ''}${esc(g.first)}<small>Happy just being here</small>` : `<span><kbd>E</kbd>Talk to ${esc(g.first)}</span>${this._canCheers(g) ? '<span><kbd>F</kbd>Cheers</span>' : ''}${look}<small>${esc(this._sub(g))}</small>`; }
     else if (t?.h) html = `<span><kbd>E</kbd>${O(t.h.label)}</span>${t.h.sub ? `<small>${O(t.h.sub)}</small>` : ''}`;
     else if (t?.s) html = `<span><kbd>E</kbd>Say hello to ${esc(t.s.name)}</span><small>${esc(t.s.role)}</small>`;
+    else if (t?.n) html = this.V?.life?.prompt?.(t) || '';
     if (this.seat) html = `<span><kbd>W</kbd>Stand up</span>${html ? ' ' + html : ''}`;
     try { if (this.aff) html = this.aff.prompt(t, html); } catch (e) { console.warn('Hangout: the affection prompt', e); }   // affection hook: G, and who you are with
     try { html = papsPrompt(this, html); } catch (_) { /* */ }   // paps hook (ui/PapsConfront.js): P, the photographers
@@ -2688,6 +2691,7 @@ class Evening {
   _styleClose(relock = true) { const S = this.sty; if (!S) return; this.sty = null; try { const r = S.close(); this.R.style = r || null; } catch (e) { console.warn('Hangout: her look', e); } if (relock) this._lock(); }
   _interact() {
     const t = this._target(); if (!t) return; this.helpT = Math.min(this.helpT, 3);
+    try { if ((t.n || t.h?.id === 'towels') && this.V?.life?.use?.(t)) return; } catch (e) { console.warn('Hangout: the pool chat', e); }   // pool hook
     if (t.g) this._open(t.g); else if (t.h) this._use(t.h);
     else if (t.s) this._bark({ first: t.s.name }, pick(['Evening. Enjoy yourselves.', 'Shout if you need anything.', "Track's yours whenever you're ready.", 'Good to see you.']));
   }
@@ -3302,6 +3306,7 @@ class Evening {
       if (this.buzzE?.open && /^(Digit|Numpad)[1-3]$/.test(c)) { e.preventDefault(); this._buzzPick(+c.slice(-1) - 1); return; }
       if (MOVE.includes(c)) { e.preventDefault(); this.keys.add(c); }
       if (e.repeat) return;
+      try { if (this.V?.life?.key?.(c)) { e.preventDefault(); return; } } catch (err) { console.warn('Hangout: the pool key', err); }   // pool hook: Space - in, under, out
       if (c === 'KeyE') { e.preventDefault(); this._interact(); } else if (c === 'KeyF') { e.preventDefault(); this._cheers(); } else if (c === 'KeyL') { e.preventDefault(); this._styleOpen(); } else if (c === 'KeyQ' || c === 'Escape') { e.preventDefault(); this._askLeave(); } else if (c === 'Space') e.preventDefault();
     };
     this._ku = (e) => { this.keys.delete(e.code); if (this.game && !this.closing) this.game.key(e.code, false); };
@@ -3330,6 +3335,7 @@ class Evening {
     // material are the session's: they must not be freed with the room's own)
     try { this.party?.dispose?.(); } catch (e) { console.warn('Hangout: the party did not tidy up', e); } this.party = null;
     try { this.crowd?.dispose?.(); } catch (e) { console.warn('Hangout: the crowd did not tidy up', e); } this.crowd = null;
+    try { this.V?.life?.dispose?.(); } catch (e) { console.warn('Hangout: the pool did not tidy up', e); }   // pool hook
     for (const g of Object.values(this.cast || {})) { if (!g?.person || this.gs.includes(g) || g === this.staff) continue; this.scene?.remove(g.person.group); try { g.person.dispose(); } catch (_) { /* */ } g.person = null; }
     window.removeEventListener('keydown', this._kd, true); window.removeEventListener('keyup', this._ku, true); window.removeEventListener('mouseup', this._mu); window.removeEventListener('mousemove', this._mm); window.removeEventListener('blur', this._bl);
     this.canvas?.removeEventListener('mousedown', this._md); this._unlock();
