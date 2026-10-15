@@ -336,7 +336,7 @@ on), timing the GPU, not just the main thread. Grid start, 1200 x 640, 4x MSAA:
 
 ## Tracks
 
-Two circuits are registered in `src/track/tracks.js`: `lasvegas` and `silverstone`. The game opens on a home
+Three circuits are registered in `src/track/tracks.js`: `lasvegas`, `silverstone` and `montreal`. The game opens on a home
 screen with a card per circuit (outline from `outline` in the definition) and builds nothing until one is picked
 (`switchTrack(id)`, also on `__F1`); the built circuit is kept, so going back to the list and picking it again is
 instant, and picking the other one replaces it. Going back to the circuit list unloads the circuit completely
@@ -352,6 +352,54 @@ p-norm of the path curvature, projected Gauss-Seidel on a 40/20/10 m grid). Fast
 Las Vegas keeps it 1.5 m off the white lines (`lineMargin: 2.5`): walls, not grass, if a car runs wide. Where the OSM
 chain steps sideways between two parallel carriageways (Sands Avenue at Koval, T10), `easeJogs` in `TrackBuilder.js`
 spreads the step over 160 m of road instead of letting the spline turn it into two 15 m hairpins.
+### Montreal: the Circuit Gilles Villeneuve
+
+`data/montreal.geojson` (the OSM export: the raceway, the pit lane, the island's buildings) holds the lap as one
+closed one-way raceway (4.356 km built, 4.361 km real); the start line sits on the pit straight, the grid backs up to
+the last chicane. It is a park circuit (`verge: 'park'`): grass verges, red and white kerbs and escape areas like a
+permanent circuit, but concrete walls with debris fences all the way round (`Track.walled`), a TecPro run across the
+back of the deep escape areas. The Wall of Champions is `Track.pinWall`: the outside of the T14 exit pulled in to
+1.7 m of green paint behind the kerb, the yellow "BIENVENUE AU QUÉBEC" wall, "WALL OF CHAMPIONS" painted on the strip.
+The pit lane is led in and out along the left edge of the road (`pitLeads`: the export draws it from the racing
+line's own nodes) and its wall starts clear of the T13 kerb (`pitWallClear`).
+
+`src/world/Montreal.js` is everything the export does not carry, drawn by hand against the buildings it does: the
+Olympic rowing basin parallel to the pit building, the Seaway, the lake and its beach inside the Senna end, the Chenal
+Le Moyne, Ile Sainte-Hélène; the Biosphère (a see-through double-layer geodesic lattice, 76 m), the casino (the French
+pavilion's aluminium fins, the Quebec pavilion's gold cube), the pit building with the Paddock Club on its roof, the
+Tour de Lévis, the hairpin's screen, Habitat 67, downtown's towers and Mount Royal with its cross, the Jacques Cartier
+Bridge; 14 grandstands by their real numbers (1 Gold, Platinum, 11/12/15 at the Senna S, 21, 24, 31/33/34, 46/47/47B at
+the hairpin, the infield stand); the logos painted on the grass and run-offs (Rolex, AWS, Shell, the maple leaf);
+and about 5,600 trees of five kinds (maples, green ash, Lombardy poplars in rows along the basin, weeping willows on
+the shores, white spruce on Sainte-Hélène's hill) - two instanced meshes per kind, a detailed model within 300 m of
+the camera and a 26-triangle one beyond (10 draw calls for every tree; the whole circuit draws ~90 calls / ~230 k
+triangles a frame, under Las Vegas). The water and shores are approximations: the export has no water polygons.
+
+Career: a kiss of the Wall of Champions in a race (`RaceDirector.onImpact`, `car.wocKiss`) is kept with the season it
+came in; win the title that season and the **Wall of Champions** trophy is yours.
+
+### AI calibration: training, and telemetry
+
+`src/ai/Calibration.js` holds, per circuit and corner, how much the AI commits on top of the physics: `v` (corner
+speed over the planner's grip limit around the apex), `b` (braking commitment into it), `err` (how often a mistake
+happens there), `scrape` (the share of those that brush the outside wall - Montreal's T14). The planner reads them per
+sample (`track.aiV`, `track.aiB`).
+
+* `node tools/ai_train.mjs montreal [--target s] [--dry]`: headless laps of one AI car (seeded, neutral form, softs,
+  no stops, mistakes off - `__calRun` in tools/harness.js). Makes every corner clean first, then tries every corner
+  group a step faster and slower, keeps what is quicker by more than the run-to-run noise and stays clean, confirms
+  it, shrinks the steps; takes a margin back; writes the result into Calibration.js.
+* `node tools/ai_fit.mjs montreal lap.csv [more...] [--offset m] [--blend 0.7] [--dry]`: fits the calibration to
+  telemetry - the game's own export (`f1sim-telemetry/2`), a CSV with Distance / Speed / Brake columns (FastF1's
+  telemetry saved with `to_csv` works as is; the fastest lap when there is a Lap column), or JSON. The trace is lined
+  up against the AI's own lap by its shape; each corner's minimum speed and braking point, relative to that lap's
+  average, move the AI's numbers toward it (the sim car is not the real car: the shape of the lap is fitted, its
+  overall pace is left alone); the AI then drives the result and any corner that is no longer clean goes back.
+
+Both need Playwright and a Chromium (the scripts find `/opt/pw-browsers`, or set `CHROME`). After a fit, rebuild the
+game (`tools/bundle.py`, or `tools/splice_artifact.py <commit>` for the published Artifact, which carries changes of
+its own that a rebuild from src/ would lose).
+
 ### AI: a planner
 
 `src/ai/Planner.js` plans, `src/ai/AIDriver.js` drives. About ten times a second (staggered across the field) each AI

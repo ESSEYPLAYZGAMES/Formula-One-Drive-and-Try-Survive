@@ -119,7 +119,7 @@ export const isPartyVenue = (id) => PARTY_VENUE_IDS.includes(String(id || ''));
 // half eleven; Silverstone races at 15:00 and the hospitality unit fills at half seven. Nevada has no legal last call
 // - the club's lights come up at five; London's licence says last orders at a quarter to three, out by three)
 const CLOCK = {
-  teamparty: { lasvegas: { start: 23.5, late: 24.9, close: 25.25, lastCall: null, rate: 14, night: true }, silverstone: { start: 19.5, late: 21.6, close: 22, lastCall: null, rate: 14, night: false } },
+  teamparty: { lasvegas: { start: 23.5, late: 24.9, close: 25.25, lastCall: null, rate: 14, night: true }, silverstone: { start: 19.5, late: 21.6, close: 22, lastCall: null, rate: 14, night: false }, montreal: { start: 21, late: 23.5, close: 24, lastCall: null, rate: 14, night: true } },
   vegasclub: { start: 24.75, late: 28, close: 29, lastCall: null, rate: 18, night: true },
   londonclub: { start: 23, late: 26.25, close: 27, lastCall: 26.75, rate: 16, night: true },
   poolclub: { start: 23.75, late: 27.5, close: 28.5, lastCall: null, rate: 18, night: true },
@@ -859,7 +859,7 @@ function teamparty(K, E) {
   K.solid(5.2, -5.4, 8, -1.85); K.pool('#fff2dc', 5.4, -3.6, 1.6, 0.12);
   // ---- the big screen: the race again, on a loop
   const scr = L.screen ? L.screen(K, 512, 288, -7.92, 1.75, 0, 3.6, 2.02, Math.PI / 2) : null; K.box(black, -7.96, 0.7, 0, 0.06, 2.12, 3.72);
-  if (scr) { let acc = 0; const tk = String(track === 'silverstone' ? 'SILVERSTONE' : 'LAS VEGAS'); K.anim((t, dt) => { acc += dt; if (acc < 0.16) return; acc = 0; replay(scr, t, tk, race, col, E.meName || 'You', track === 'silverstone' ? 'silverstone' : 'lasvegas'); }); }
+  if (scr) { let acc = 0; const tk = String(track === 'silverstone' ? 'SILVERSTONE' : track === 'montreal' ? 'MONTRÉAL' : 'LAS VEGAS'); K.anim((t, dt) => { acc += dt; if (acc < 0.16) return; acc = 0; replay(scr, t, tk, race, col, E.meName || 'You', track === 'silverstone' || track === 'montreal' ? track : 'lasvegas'); }); }
   // ---- the trophy on its plinth (a podium tonight), the lounge corner by the glass
   if (podium) { K.box(K.m('#f4f4f2', 0.4), -6.2, 0, 3.8, 0.55, 1.0, 0.55); K.lathe(K.m('#d8b04a', 0.22, 0.85), -6.2, 1.0, 3.8, won ? [[0, 0], [0.12, 0], [0.12, 0.05], [0.04, 0.08], [0.035, 0.3], [0.17, 0.42], [0.2, 0.62], [0.02, 0.6]] : [[0, 0], [0.1, 0], [0.1, 0.04], [0.03, 0.07], [0.03, 0.22], [0.12, 0.3], [0.14, 0.44], [0.02, 0.42]], 24); K.pool('#fff4d0', -6.2, 3.8, 1.2, 0.2); K.solid(-6.5, 3.5, -5.9, 4.1); }
   if (L.sofa) L.sofa(K, { frame: K.m('#2a2c30', 0.9), cushion: teamM, foot: steel }, 2.0, 4.4, 2.6, -Math.PI / 2);
@@ -880,7 +880,7 @@ function teamparty(K, E) {
   const group = [S(0.4, 3.6, toward(0.4, 3.6, 1.5, 2.6), 'floor'), S(2.2, 3.7, toward(2.2, 3.7, 1.5, 2.6), 'floor'), S(1.4, 1.9, toward(1.4, 1.9, 1.5, 2.6), 'floor')];
   // ---- the crowd: the team (polos), its guests, the mechanics coming in from the pack-down. Dinner is long over: they
   // stand about the tables with a drink (and nobody sits through a party), a few at the ends of the benches
-  const C = crowdList(heroSpots(E, spots, group, [spots.partner[0]])), mechAt = track === 'silverstone' ? 20.75 : 24.5;
+  const C = crowdList(heroSpots(E, spots, group, [spots.partner[0]])), mechAt = track === 'silverstone' ? 20.75 : track === 'montreal' ? 22.25 : 24.5;
   for (const [z, s] of [[-2.3, -1], [2.6, 1]]) for (let i = 0; i < 5; i++) if (R() < 0.75) C.add(-5.0 + i * 1.1 + (R() - 0.5) * 0.3, z, facing(0, -s) + (R() - 0.5) * 0.9, 'staff', 'vip', R() < 0.5 ? 'drink' : 'talk', start - 0.2 + R() * 0.4, { group: 400 + i });
   for (const [x, z] of [[-6.3, -1.0], [0.55, -1.0], [-6.3, 1.35], [0.55, 1.35]]) C.add(x + (R() - 0.5) * 0.2, z, facing(x < -3 ? 1 : -1, 0), 'staff', 'vip', 'drink', start + R() * 0.3);
   for (const [x, z] of [[-4.6, -3.6], [-2.4, -3.7], [-0.2, -3.6], [1.6, -3.9], [2.6, 0.6], [1.2, -0.4], [-6.6, -2.6], [-6.4, 4.6], [-4.6, 4.2], [-3.0, 4.6], [4.6, 1.2], [6.6, 0.8]]) C.add(x + (R() - 0.5) * 0.3, z + (R() - 0.5) * 0.3, R() * 6.28, 'staff', 'floor', R() < 0.5 ? 'talk' : 'drink', start - 0.2 + R() * 0.5, { group: Math.round(x) });

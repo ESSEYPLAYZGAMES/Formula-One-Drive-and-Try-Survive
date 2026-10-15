@@ -55,6 +55,8 @@ export const TROPHIES = [
   ['board', 'The board is delighted', 'Beat the board\'s target for a season', (x) => x.season && x.season.teamPos < x.season.target],
   ['champ', 'World Champion', 'Win the drivers\' championship', (x) => x.season && x.season.youPos === 1],
   ['cons', 'Constructors\' Champions', 'Win the constructors\' championship', (x) => x.season && x.season.teamPos === 1],
+  // (Montreal: the wall at the exit of the last chicane has caught world champions - Hill, Schumacher, Villeneuve in 1999)
+  ['woc', 'Wall of Champions', 'Kiss the Wall of Champions in Montreal and still win the title that season', (x) => x.season && x.season.youPos === 1 && (x.c.wocSeasons || []).includes(x.season.season)],
   // (the life around the racing: a clean licence, the public, the papers, the grid walk, the sponsors)
   ['clean', 'Clean licence', 'A whole season without a penalty point', (x) => x.season && x.season.youPos && x.c.me && !(x.c.me.licence || []).some((e) => e.season === x.season.season) && x.c.me.ptsSeason !== x.season.season],
   ['darling', 'Fan favourite', 'Win the public over: an image of 60 or more', (x) => (x.c?.pr?.image ?? -100) >= 60],
@@ -62,8 +64,8 @@ export const TROPHIES = [
   ['handbags', 'Handbags on the grid', 'Hold your own in a scuffle you didn\'t start', (x) => x.brawl && !x.brawl.started && x.brawl.result !== 'lost' && !x.brawl.walkedAway && !x.brawl.aborted],
   ['mogul', 'Brand ambassador', 'Hold three endorsement deals at once', (x) => (x.c?.pr?.deals?.length || 0) >= 3],
 ].map(([id, name, desc, check]) => ({ id, name, desc, check }));
-// (a simulated weekend's pole lap, s: the real ones - Las Vegas 2024 1:32.3, Silverstone 2024 1:25.8)
-const SIM_LAP = { lasvegas: 92.3, silverstone: 85.8 };
+// (a simulated weekend's pole lap, s: the real ones - Las Vegas 2024 1:32.3, Silverstone 2024 1:25.8, Montreal 2025 1:10.9)
+const SIM_LAP = { lasvegas: 92.3, silverstone: 85.8, montreal: 70.9 };
 const gauss = () => { let u = 0, v = 0; while (!u) u = Math.random(); while (!v) v = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
 const pick = (a) => a[(Math.random() * a.length) | 0];
 const r1 = (v) => Math.round(v * 10) / 10;
@@ -508,6 +510,8 @@ export class Career {
     // (you: your driver - or, while they are out hurt or banned, the stand-in you drove in their place)
     const meRow = rows.find((r) => r.car.careerId === this.playerId) || rows.find((r) => r.car.isPlayer), mate = this.teammate(), mateRow = mate ? rows.find((r) => r.car.careerId === mate.id) : null;
     const flRow = rows.filter((r) => isFinite(r.car.bestLap) && r.car.bestLap > 20).sort((a, b) => a.car.bestLap - b.car.bestLap)[0];
+    // (a kiss of the Wall of Champions: the season it came in, for the trophy if the title follows)
+    if (X.woc && meRow) { this.wocSeasons = this.wocSeasons || []; if (!this.wocSeasons.includes(S0)) { this.wocSeasons.push(S0); this.addNews('You kissed the Wall of Champions in Montreal. It has caught world champions before: win the title now and it is a story.'); } }
     if (flRow) { const fd = this.drivers[flRow.car.careerId]; if (fd) fd.fl = (fd.fl || 0) + 1; }
     // (the round is yours to talk about only when your own driver raced it and nobody was hurt)
     const mine = !!meRow && meRow.car.careerId === this.playerId, live = mine && !grave, fin = !!meRow && !meRow.car.retired;

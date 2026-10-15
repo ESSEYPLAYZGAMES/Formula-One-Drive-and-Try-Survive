@@ -11,6 +11,7 @@ import { COMPOUNDS } from '../vehicle/Tyres.js';
 import { CAR } from '../vehicle/Car.js';
 import { Planner, DS, NMAX } from './Planner.js';
 import { neutralForm } from '../career/Morale.js';
+import { zoneCal } from './Calibration.js';
 
 const G = 9.81;
 const BEACHED_T = 30;   // seconds an AI car tries to get itself out (off the road, not getting anywhere) before it retires
@@ -286,10 +287,13 @@ export class AIDriver {
     const look = Math.min(T.lookMax, Math.max(T.lookMin, T.lookK * v + T.lookBase));
     const sA = c.s + look;
     let dT = P.at(B.d, sA); if (dT == null) dT = this.line.offsetAt(sA);
-    if (this.error && this.error.type === 'scrape' && zone) dT = -zone.dir * (tr.halfWidth + 0.6);
+    // (a wall kiss: on the pinned wall's stretch only, the car runs out to a hand's width of it)
+    const kiss = this.error?.type === 'scrape' && this.error.wall && tr.pinAt?.(c.s + 8, this.error.side) ? this.error.side : 0;
+    if (kiss) dT = kiss * (tr.wallAt(c.trackIdx, kiss) - 0.95);
+    else if (this.error && this.error.type === 'scrape' && !this.error.wall && zone) dT = -zone.dir * (tr.halfWidth + 0.6);
     // (a feud, alongside you: it squeezes you - steers onto your line and leans on you; the stewards may have a view)
     if (this._feudD != null && this._me) { const me = this._me, ds = P.ds(c.s, me.s); if (ds > -8 && ds < 8) dT += (me.d - dT) * Math.min(1, 0.95 * (c.feud || 0)); }
-    const lim = tr.halfWidth - 0.9 + (this.error?.type === 'scrape' ? 2 : 0);
+    const lim = kiss ? tr.wallAt(c.trackIdx, kiss) - 0.9 : tr.halfWidth - 0.9 + (this.error?.type === 'scrape' && !this.error.wall ? 2 : 0);
     dT = Math.max(-lim, Math.min(lim, dT));
     const f = tr.sample(sA, dT, this._f || (this._f = {}));
     const dx = f.x - c.x, dz = f.z - c.z, cth = Math.cos(c.th), sth = Math.sin(c.th);
@@ -536,7 +540,8 @@ export class AIDriver {
     // (the driver's form: focus sets how often, composure how much a car on the gearbox gets to him - FORM.err and
     //  FORM.pressure; the cap stays the cap)
     const F = c.form || NF;
-    const p = Math.min(0.08, AI_TUNE.errBase * (1 - c.rating) * 4 * worn * (1 + 1.6 * this.pressure * F.pressure) * cold * (0.6 + 0.4 * this.aggression) * (1 + 0.6 * ((zone.runoff || 0) / 16)) * F.err);   // braking mistakes happen where the run-off invites them
+    const zc = zoneCal(this.track, zone);   // (the circuit's calibration: some corners invite more mistakes, ai/Calibration.js)
+    const p = Math.min(0.08, AI_TUNE.errBase * (1 - c.rating) * 4 * worn * (1 + 1.6 * this.pressure * F.pressure) * cold * (0.6 + 0.4 * this.aggression) * (1 + 0.6 * ((zone.runoff || 0) / 16)) * F.err * (zc?.err ?? 1));   // braking mistakes happen where the run-off invites them
     if (rnd() > p) return;
     const tight = zone.maxCurv > 1 / 45, r = rnd();
     // mostly lock-ups (they run wide into the run-off, no spin); the bigger the run-off, the more of them; snaps are
@@ -544,6 +549,8 @@ export class AIDriver {
     const runoff = zone.runoff || 0, lockBias = runoff >= 16 ? 0.85 : runoff >= 10 ? 0.72 : 0.55;
     if (zone.maxCurv < 1 / 55) this.error = { type: 'wide', t: 0, dur: 1.2 };
     else if (zone.turn === 14 && this.track.def.id === 'lasvegas' && this.pressure > 0.4 && r > 0.9 && tight) this.error = { type: 'scrape', t: 0, dur: 1.4 };
+    // a wall right off the exit kerb (Montreal's Wall of Champions): the mistake there is using a little too much of it
+    else if (zc?.scrape && r < zc.scrape && (this.track.pins || []).some((p) => p.side === -zone.dir)) this.error = { type: 'scrape', t: 0, dur: 4, wall: true, side: -zone.dir };
     else if (r < lockBias) this.error = { type: 'lockup', t: 0, dur: 1.3 + 0.3 * (runoff / 16) };
     else this.error = { type: 'snap', t: 0, dur: 0.7, sign: -zone.dir };
     world.onAIError?.(c, this.error.type, zone);

@@ -97,6 +97,11 @@ const FACTS = {
     'Silverstone began as a Second World War RAF airfield. The first races used its runways and perimeter roads.',
     'Silverstone is 5.891 km long with 18 corners. Maggotts, Becketts and Chapel is one of the fastest sequences of direction changes on the calendar.',
   ],
+  montreal: [
+    'The Circuit Gilles Villeneuve is 4.361 km long, on Ile Notre-Dame, an island built in the St. Lawrence for Expo 67 from the rock dug out for the Montreal metro.',
+    'The wall at the exit of the last chicane is the Wall of Champions: in 1999 Damon Hill, Michael Schumacher and Jacques Villeneuve, three world champions, all hit it in the same race.',
+    'The Biosphère, the geodesic dome across the Chenal Le Moyne, was the United States pavilion at Expo 67. Buckminster Fuller designed it.',
+  ],
   any: [
     'The fastest pit stop in Formula 1 so far took 1.80 s: McLaren, for Lando Norris, at the 2023 Qatar Grand Prix.',
     'The halo has been mandatory since 2018. It is tested to withstand a load of 125 kN, more than twelve tonnes.',
@@ -113,8 +118,8 @@ const FACTS = {
     'Photo mode saves your shots, and the best of them come back here.',
   ],
 };
-const GP = { lasvegas: 'Las Vegas Grand Prix', silverstone: 'British Grand Prix' };
-const CIRCUIT = { lasvegas: 'Las Vegas Strip Circuit', silverstone: 'Silverstone Circuit' };
+const GP = { lasvegas: 'Las Vegas Grand Prix', silverstone: 'British Grand Prix', montreal: 'Canadian Grand Prix' };
+const CIRCUIT = { lasvegas: 'Las Vegas Strip Circuit', silverstone: 'Silverstone Circuit', montreal: 'Circuit Gilles Villeneuve' };
 /**
  * The circuit's map (ui/TrackMaps.js), north up: the lap in white on a dark casing, the pit lane dashed, the start line
  * and the way the cars go, every corner's number set off the track to the outside; a red line drawing itself round the

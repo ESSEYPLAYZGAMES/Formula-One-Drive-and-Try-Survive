@@ -193,6 +193,7 @@ export const TOPICS2 = {
 
 /** the venue's lines (the tokens {venueOpen}, {venueLove}, {venueJoke}) */
 export function venueLines(id) {
+  if (id === 'montreal') return { venueOpen: ["Montreal. The crowd here is something else.", "The island, the walls, the hairpin. Proper old-school."], venueLove: ["The fans here are mad for it. Every grandstand's full on Friday.", "Getting the last chicane right, inches off the wall. Best feeling there is."], venueJoke: ["Had poutine three nights running. The engineers are worried about the weight.", "Somebody's always going to kiss the Wall of Champions. Just not me, please."] };
   return id === 'silverstone'
     ? { venueOpen: ["Silverstone. Doesn't matter how many times, it gets you.", "The old airfield. Still the fastest corners we do all year."], venueLove: ["Maggotts and Becketts. Nothing like it anywhere.", "The crowd here knows racing. You feel it."], venueJoke: ["I've seen a field. And another field. Lovely fields.", "Took two hours to get out of the car park last night."] }
     : { venueOpen: ["Racing down the Strip at night. Still feels unreal.", "Did you see the Sphere at the start of practice? Mad."], venueLove: ["The lights, the Strip, the Sphere. There's nowhere like it.", "Racing past the casinos at three hundred an hour never gets old."], venueJoke: ["I went to a casino. Lost my phone. Not even gambling.", "Seen a lot of neon. My eyes need a holiday."] };

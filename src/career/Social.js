@@ -51,7 +51,7 @@ const now = (c) => ({ season: c.season, round: c.round });
 const rk = (c) => `${c.season}|${c.round}`;
 /** rounds since a stamp ({ season, round }) -> n (99 for never) */
 const ago = (c, at) => (at && at.season != null && at.round != null ? (c.season - at.season) * SPAN(c) + (c.round - at.round) : 99);
-const TRACK = { lasvegas: 'Las Vegas', silverstone: 'Silverstone' };
+const TRACK = { lasvegas: 'Las Vegas', silverstone: 'Silverstone', montreal: 'Montreal' };
 const trackName = (id) => TRACK[id] || cap(id || '');
 /** this week's circuit - the race about to be run - counted the way the phone counts it */
 const trackOf = (c) => (c?.calendar?.length ? c.calendar[(Math.max(1, c.round) - 1) % c.calendar.length] : null);
@@ -314,6 +314,8 @@ const TIPS = {
     `The grip comes in a lot over the weekend there. Don't chase the set-up on Friday.`, `The stop at the end of the Strip is huge and it catches people out. Brake in a straight line.`],
   silverstone: [`Maggotts and Becketts: commit early and let the car flow.`, `Watch the wind at Silverstone. It changes the balance more than you'd think.`, `Copse is flat if the car's right. Trust it.`,
     `It's hard on the front-left there. Look after it through the quick stuff.`],
+  montreal: [`Use every bit of the exit kerb at the last chicane, and not a centimetre more. The wall is right there.`, `It's all braking and traction there. Get the car stopped for the hairpin and the final chicane and the lap comes to you.`,
+    `The track's green on Friday and rubbers in fast. Don't chase the balance too early.`, `Ride the kerbs at Turns 8 and 9, they're your friend. The ones at 3 and 4 will launch you.`],
   any: [`The out-lap matters more than you think. Get the tyres in properly.`, `Stay off the dirty side at the start.`, `Don't overthink it. You're quicker when you're relaxed.`, `Look after the rears in the first stint. It pays back later.`],
 };
 const tipOf = (c, R = Math.random) => pick(TIPS[trackOf(c)] || TIPS.any, R);

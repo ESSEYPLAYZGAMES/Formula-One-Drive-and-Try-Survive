@@ -150,6 +150,63 @@ PANELS.push((x) => {
   text(x, 'QATAR', PW * 0.2, PH * 0.5, PH * 0.56, '#ffffff', { weight: 800, spacing: 8 });
   text(x, 'AIRWAYS', PW * 0.53, PH * 0.5, PH * 0.56, '#d9c9d2', { weight: 300, spacing: 8 });
 });
+// 12 Rolex, 13 Grand Prix du Canada, 14 AWS, 15 MONTRÉAL, 16 the Wall of Champions' yellow, 17 Lenovo, 18 Tourisme
+// Québec, 19 Crypto.com: the Montreal set (the walls of Ile Notre-Dame as the TV pictures show them)
+function crown(x, cx, cy, h, color) {
+  x.save(); x.fillStyle = color; x.beginPath();
+  const w = h * 1.25, b = cy + h * 0.32;
+  x.moveTo(cx - w * 0.42, b); x.lineTo(cx - w * 0.5, cy - h * 0.18);
+  for (let k = 0; k < 5; k++) { const px = cx - w * 0.5 + k * w * 0.25; x.lineTo(px + w * 0.06, cy - h * 0.05); x.lineTo(px + w * 0.125, cy - h * (k === 2 ? 0.5 : 0.36)); }
+  x.lineTo(cx + w * 0.42, b); x.closePath(); x.fill();
+  for (let k = 0; k < 5; k++) { x.beginPath(); x.arc(cx - w * 0.5 + w * 0.125 + k * w * 0.25 - w * 0.0, cy - h * (k === 2 ? 0.58 : 0.44), h * 0.07, 0, Math.PI * 2); x.fill(); }
+  x.fillRect(cx - w * 0.42, b + h * 0.05, w * 0.84, h * 0.1);
+  x.restore();
+}
+function maple(x, cx, cy, r, color) {
+  // the eleven-point leaf of the flag, as a polygon (unit coordinates, y down)
+  const P = [[0, -1], [0.14, -0.72], [0.3, -0.8], [0.25, -0.38], [0.52, -0.62], [0.58, -0.48], [0.86, -0.54], [0.76, -0.24], [0.9, -0.16], [0.46, 0.2], [0.52, 0.36], [0.06, 0.3], [0.08, 0.78], [-0.08, 0.78], [-0.06, 0.3], [-0.52, 0.36], [-0.46, 0.2], [-0.9, -0.16], [-0.76, -0.24], [-0.86, -0.54], [-0.58, -0.48], [-0.52, -0.62], [-0.25, -0.38], [-0.3, -0.8], [-0.14, -0.72]];
+  x.save(); x.fillStyle = color; x.beginPath(); P.forEach(([px, py], k) => (k ? x.lineTo : x.moveTo).call(x, cx + px * r, cy + py * r)); x.closePath(); x.fill(); x.restore();
+}
+PANELS.push((x) => {   // 12 Rolex: the green board with the gold crown
+  x.fillStyle = '#006039'; x.fillRect(0, 0, PW, PH);
+  crown(x, PW * 0.2, PH * 0.42, PH * 0.5, '#a37e2c'); text(x, 'ROLEX', PW * 0.2, PH * 0.8, PH * 0.22, '#a37e2c', { weight: 700, align: 'center', spacing: 4 });
+  crown(x, PW * 0.7, PH * 0.42, PH * 0.5, '#a37e2c'); text(x, 'ROLEX', PW * 0.7, PH * 0.8, PH * 0.22, '#a37e2c', { weight: 700, align: 'center', spacing: 4 });
+});
+PANELS.push((x) => {   // 13 Grand Prix du Canada
+  x.fillStyle = '#ffffff'; x.fillRect(0, 0, PW, PH); x.fillStyle = '#d52b1e'; x.fillRect(0, 0, PW * 0.16, PH); x.fillRect(PW * 0.84, 0, PW * 0.16, PH);
+  maple(x, PW * 0.08, PH * 0.48, PH * 0.34, '#ffffff'); maple(x, PW * 0.92, PH * 0.48, PH * 0.34, '#ffffff');
+  text(x, 'GRAND PRIX DU CANADA', PW * 0.5, PH * 0.52, PH * 0.4, '#d52b1e', { weight: 900, align: 'center', spacing: 3 });
+});
+PANELS.push((x) => {   // 14 AWS: navy, the white letters and the orange smile
+  x.fillStyle = '#232f3e'; x.fillRect(0, 0, PW, PH);
+  for (const cx of [PW * 0.25, PW * 0.75]) {
+    text(x, 'aws', cx, PH * 0.42, PH * 0.6, '#ffffff', { weight: 800, align: 'center' });
+    x.strokeStyle = '#ff9900'; x.lineWidth = PH * 0.07; x.lineCap = 'round'; x.beginPath(); x.moveTo(cx - PH * 0.42, PH * 0.74); x.quadraticCurveTo(cx, PH * 0.94, cx + PH * 0.4, PH * 0.72); x.stroke();
+  }
+});
+PANELS.push((x) => {   // 15 MONTRÉAL
+  x.fillStyle = '#0b2a6b'; x.fillRect(0, 0, PW, PH); x.fillStyle = '#d52b1e'; x.fillRect(0, PH * 0.86, PW, PH * 0.14);
+  text(x, 'MONTRÉAL', PW * 0.5, PH * 0.46, PH * 0.6, '#ffffff', { weight: 900, align: 'center', spacing: 16 });
+});
+PANELS.push((x) => {   // 16 the Wall of Champions: the yellow concrete of the last chicane's exit and its welcome
+  x.fillStyle = '#f2c230'; x.fillRect(0, 0, PW, PH); x.fillStyle = 'rgba(120,80,0,0.18)'; for (let i = 0; i < 40; i++) x.fillRect(Math.random() * PW, Math.random() * PH, 3 + Math.random() * 30, 2);
+  x.fillStyle = 'rgba(30,30,30,0.35)'; for (let i = 0; i < 6; i++) x.fillRect(Math.random() * PW, PH * (0.55 + Math.random() * 0.35), 40 + Math.random() * 160, 3);   // tyre marks: everyone kisses it
+  text(x, 'BIENVENUE AU QUÉBEC', PW * 0.5, PH * 0.5, PH * 0.42, '#1b3f94', { weight: 900, align: 'center', spacing: 6 });
+});
+PANELS.push((x) => {   // 17 Lenovo
+  x.fillStyle = '#e2231a'; x.fillRect(0, 0, PW, PH);
+  text(x, 'Lenovo', PW * 0.5, PH * 0.52, PH * 0.6, '#ffffff', { weight: 700, align: 'center', spacing: 2 });
+});
+PANELS.push((x) => {   // 18 Québec
+  x.fillStyle = '#095797'; x.fillRect(0, 0, PW, PH);
+  x.strokeStyle = '#ffffff'; x.lineWidth = 6; x.strokeRect(PW * 0.03, PH * 0.2, PH * 0.6, PH * 0.6); x.beginPath(); x.moveTo(PW * 0.03 + PH * 0.3, PH * 0.2); x.lineTo(PW * 0.03 + PH * 0.3, PH * 0.8); x.moveTo(PW * 0.03, PH * 0.5); x.lineTo(PW * 0.03 + PH * 0.6, PH * 0.5); x.stroke();
+  text(x, 'BONJOUR QUÉBEC', PW * 0.55, PH * 0.52, PH * 0.44, '#ffffff', { weight: 800, align: 'center', spacing: 6 });
+});
+PANELS.push((x) => {   // 19 Crypto.com
+  x.fillStyle = '#0d1b33'; x.fillRect(0, 0, PW, PH);
+  text(x, 'crypto.com', PW * 0.5, PH * 0.52, PH * 0.54, '#ffffff', { weight: 700, align: 'center', spacing: 2 });
+});
+export const WOC_PANEL = 16;
 /** sponsor per 180 m wall zone (both sides use the same sequence, offset on the right so they don't mirror) */
 export const ZONE_SEQ = [0, 3, 1, 2, 0, 4, 5, 7, 1, 6, 0, 2, 3, 0, 1, 5];
 export const ZONE_LEN = 180;
@@ -203,11 +260,17 @@ export function runoffTextTexture(label = 'LAS VEGAS', mirror = false) {
   x.scale(1, -1);                                     // letters' tops point toward the road (u = 0 edge)
   const size = W * 0.78;
   x.font = `900 ${size}px ${F}`; try { x.letterSpacing = '30px'; } catch (e) { /* older engines */ }
-  const len = x.measureText(label).width; const fit = Math.min(1, (H * 0.92) / len); x.scale(fit, fit);
+  if (String(label).includes('\n')) x.font = `900 ${size * 0.5}px ${F}`;
+  const len = Math.max(...String(label).split('\n').map((r) => x.measureText(r).width)); const fit = Math.min(1, (H * 0.92) / len); x.scale(fit, fit);
   const g = x.createLinearGradient(-len / 2, 0, len / 2, 0);
-  if (label === 'LAS VEGAS') { g.addColorStop(0, '#ff5ec4'); g.addColorStop(0.5, '#ffffff'); g.addColorStop(1, '#33e6ff'); }
+  if (label.startsWith('WALL OF')) { g.addColorStop(0, '#ffffff'); g.addColorStop(1, '#ffffff'); }
+  else if (label === 'LAS VEGAS') { g.addColorStop(0, '#ff5ec4'); g.addColorStop(0.5, '#ffffff'); g.addColorStop(1, '#33e6ff'); }
   else { g.addColorStop(0, '#ffffff'); g.addColorStop(1, '#e8eef8'); }   // plain white paint elsewhere
-  x.fillStyle = g; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(label, 0, 0);
+  x.fillStyle = g; x.textAlign = 'center'; x.textBaseline = 'middle';
+  // two lines ('WALL OF\nCHAMPIONS'): stacked across the strip, each at half the height
+  const rows = String(label).split('\n');
+  if (rows.length > 1) { x.font = `900 ${size * 0.5}px ${F}`; rows.forEach((r, i) => x.fillText(r, 0, (i - (rows.length - 1) / 2) * size * 0.56)); }
+  else x.fillText(label, 0, 0);
   x.restore();
   return canvasTex(c);
 }

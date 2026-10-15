@@ -15,6 +15,8 @@ import { buildGrandstands } from './world/Grandstands.js';
 import { StandCrowds } from './world/StandCrowds.js';
 import { crowdTime } from './world/Crowd.js';
 import { buildVenue, standFootprints } from './world/Venue.js';
+import { buildMontreal } from './world/Montreal.js';
+import { WOC_PANEL } from './track/Branding.js';
 import { TrackLights, floodlitAll } from './world/Lighting.js';
 import { PitCrews } from './world/PitCrew.js';
 import { Marshals } from './world/Marshals.js';
@@ -70,6 +72,7 @@ import * as BrawlMod from './ui/Brawl.js';
 import { makeHelmet, bloodPool } from './world/People.js';
 import { RaceDirector } from './race/RaceDirector.js';
 import { AIDriver, AI_TUNE } from './ai/AIDriver.js';
+import { AI_CAL, applyCalibration } from './ai/Calibration.js';
 import { HUD, fmtTime } from './ui/HUD.js';
 import { TelemetryView } from './ui/TelemetryView.js';
 import * as Kit from './ui/Motion.js';
@@ -173,10 +176,16 @@ async function loadWorld(def) {
     track.capRunoff(rings, 4); track.capSelf();
     track.layoutBarriers(rings);   // barriers only where something stands behind the verge
   }
+  // Montreal's Wall of Champions: the outside of the last chicane's exit, the kerb, 1.7 m of green paint and the wall
+  if (def.wallOfChampions) {
+    const w = def.wallOfChampions, c = def.corners.find((k) => k.n === w.turn);
+    if (c && c.s != null) track.pinWall(c.s + (w.from || 0), c.s + (w.from || 0) + w.len, w.side || -1, track.halfWidth + track.kerbWidth + 1.75, { panel: WOC_PANEL, name: 'Wall of Champions' });
+  }
   track.layoutSurfaces();
+  applyCalibration(track);   // the AI's corner-by-corner commitment on this circuit (ai/Calibration.js)
   env.setGround(def.ground || 'city');
   const pitWay = geo.roadById(def.pitLaneWayId);
-  const pit = pitWay ? buildPitLane(track, pitWay.pts) : null;
+  const pit = pitWay ? buildPitLane(track, pitLaneLeads(track, pitWay.pts, def.pitLeads)) : null;
   await set('Computing the racing line…', 26);
   const line = new RacingLine(track, { optimal: def.line === 'optimal', ...(def.lineMargin ? { maxOffset: track.halfWidth - def.lineMargin } : {}) });
   // the car's cornering limit (fitted to the four-wheel model's steady state: Chassis.fitGrip), with a margin that
@@ -204,8 +213,11 @@ async function loadWorld(def) {
   // venue pieces taken from the OSM footprints (a permanent circuit's pit building and real grandstands)
   const venue = (def.osmStands || def.pitBuilding) ? buildVenue(geo, track, def, pit) : null;
   if (venue) scene.add(venue.group);
+  // a circuit's own scenery (Montreal: the islands' water and trees, the Biosphere, the casino, the stands, the paint on the grass)
+  const scenery = def.scenery === 'montreal' ? buildMontreal(geo, track, def, pit) : null;
+  if (scenery) scene.add(scenery.group);
   await set('Raising the city…', 68);
-  const buildings = buildGenericBuildings(geo, track, new Set([...lm.claimed, ...(venue ? venue.claimed : [])]), pit);
+  const buildings = buildGenericBuildings(geo, track, new Set([...lm.claimed, ...(venue ? venue.claimed : []), ...(scenery ? scenery.claimed : [])]), pit);
   scene.add(buildings);
   // branded pit garages: one per team, the Independent entry gets the last one
   const pitBoxes = pit ? buildPitBoxes(pit, [...TEAMS, { name: 'Independent', color: '#00d4ff', color2: '#ffffff' }]) : null;
@@ -213,7 +225,7 @@ async function loadWorld(def) {
   await set('Filling the grandstands…', 80);
   // grandstands only where nothing else stands: corridor + margin, masts, landmarks and every kept footprint are avoided
   const lmBoxes = lm.group.children.map((o) => new THREE.Box3().setFromObject(o)).filter((b) => !b.isEmpty());
-  const stands = buildGrandstands(track, pit, { rings: buildings.userData.rings, boxes: lmBoxes, masts: trackMesh.userData.masts }, { auto: def.autoStands !== false, fixed: venue ? venue.stands : [] });
+  const stands = buildGrandstands(track, pit, { rings: buildings.userData.rings, boxes: lmBoxes, masts: trackMesh.userData.masts }, { auto: def.autoStands !== false, fixed: [...(venue ? venue.stands : []), ...(scenery ? scenery.stands : [])] });
   scene.add(stands.group);
   // the solid things beside the circuit (buildings, landmarks, grandstands: nothing drives or flies through them), and
   // catch fences on the barriers in front of the grandstands
@@ -233,7 +245,7 @@ async function loadWorld(def) {
   const sphereInfo = sphereObj ? (() => { const b = new THREE.Box3().setFromObject(sphereObj); const c = new THREE.Vector3(); b.getCenter(c); return { center: c, radius: (b.max.y - b.min.y) / 2 }; })() : null;
   const lights = new TrackLights(scene, trackMesh.userData.masts, sphereInfo, 8);
   floodlitAll(scene);   // (the still world: lit by the baked light field, not the scene's spot lights)
-  Object.assign(W, { geo, track, pit, line, profile, trackMesh, landmarks: lm, buildings, circuit, pitBoxes, stands, lights, sphereInfo, venue, obstacles, fences });
+  Object.assign(W, { geo, track, pit, line, profile, trackMesh, landmarks: lm, buildings, circuit, pitBoxes, stands, lights, sphereInfo, venue, obstacles, fences, scenery });
   chunks.track = track; chunks.obstacles = obstacles;
   // big debris lying on the racing surface is dragged off by the marshals: to the verge (inside the barrier)
   debris.sweep = (x, z) => {
@@ -251,6 +263,21 @@ async function loadWorld(def) {
   return W;
 }
 
+/**
+ * A pit lane mapped from the middle of the road (Montreal's leaves from the racing line at the last chicane's turn-in
+ * and rejoins on it after the Senna S) gets a lead-in and a lead-out along the road's pit-side edge (def.pitLeads:
+ * { side, d (m off the centreline), in, out (m of lead) }): the lane's own points still on the road are dropped and the
+ * edge run joins them, so a car peels off from the edge of the road and comes back to it, as at the real circuit.
+ */
+function pitLaneLeads(track, pts, L) {
+  if (!L) return pts;
+  const q = {}, on = (p) => Math.abs(track.nearest(p[0], p[1], -1, q).d) < L.d + 1.2;
+  let a = 0, b = pts.length - 1; while (a < b && on(pts[a])) a++; while (b > a && on(pts[b])) b--;
+  const sA = track.nearest(pts[a][0], pts[a][1], -1, q).s, sB = track.nearest(pts[b][0], pts[b][1], -1, q).s;
+  const edge = (s0, s1) => { const o = []; for (let s = s0; s <= s1; s += 6) { const f = track.sample(s, L.side * L.d); o.push([f.x, f.z]); } return o; };
+  return [...edge(sA - (L.in || 100), sA - 12), ...pts.slice(a, b + 1), ...edge(sB + 12, sB + (L.out || 100))];
+}
+
 /** Remove everything loadWorld built (switching circuits): scene objects, lights, the racing line, the title shots. */
 function unloadWorld() {
   clearAmbient(); CINE.shots = null; CINE.i = -1; CINE.look = null; debris.clear(); ANCHORS.clear();
@@ -260,14 +287,14 @@ function unloadWorld() {
     if (m.uniforms) for (const k in m.uniforms) { const v = m.uniforms[k].value; if (v && v.isTexture) v.dispose(); }
     m.dispose();
   };
-  for (const o of [W.trackMesh, W.landmarks?.group, W.buildings, W.pitBoxes?.group, W.stands?.group, W.venue?.group, W.fences, RL.group]) {
+  for (const o of [W.trackMesh, W.landmarks?.group, W.buildings, W.pitBoxes?.group, W.stands?.group, W.venue?.group, W.scenery?.group, W.fences, RL.group]) {
     if (!o) continue; scene.remove(o);
     o.traverse((x) => { x.geometry?.dispose?.(); const ms = Array.isArray(x.material) ? x.material : x.material ? [x.material] : []; for (const m of ms) freeMat(m); });
   }
   W.lights?.dispose(scene); W.standHD?.dispose(); W.standHD = null;
   feed?.dispose(); show?.texture.dispose(); feed = null; show = null;
   RL.group = null; RL.main = null; RL.pitGuide = null;
-  for (const k of ['geo', 'track', 'pit', 'line', 'profile', 'trackMesh', 'landmarks', 'buildings', 'circuit', 'pitBoxes', 'stands', 'lights', 'sphereInfo', 'venue', 'faceAngle0']) W[k] = null;
+  for (const k of ['geo', 'track', 'pit', 'line', 'profile', 'trackMesh', 'landmarks', 'buildings', 'circuit', 'pitBoxes', 'stands', 'lights', 'sphereInfo', 'venue', 'scenery', 'faceAngle0']) W[k] = null;
 }
 /** brand header + track chips follow the selected circuit */
 function applyTrackUI() {
@@ -338,6 +365,7 @@ function setTimeOfDay(mode) {
   if (W.buildings) applyTimeToMaterials(W.buildings, mode);
   if (W.pitBoxes) applyTimeToMaterials(W.pitBoxes.group, mode);
   if (W.stands) applyTimeToMaterials(W.stands.group, mode);
+  if (W.scenery) { applyTimeToMaterials(W.scenery.group, mode); W.scenery.setTime?.(mode); }
   if (W.lights) W.lights.setDay(mode === 'day');
 }
 
@@ -1608,7 +1636,9 @@ function beginRace() {
         // (fought: the driver you squared up to on the grid - a real scuffle, not a shove you walked away from - over
         //  anyone you only touched on track; Career keeps it for a live round only)
         const extra = { dotd: !!facts?.dotd?.[0]?.me, overtakes: pc?.overtakes || 0, grave: !!(NEWS.abandoned || NEWS.cancelled || S.cars.some((c) => c.injured) || memorial), hurtIds: S.cars.filter((c) => c.injured && c.careerId).map((c) => c.careerId),
-          fought: bw && !bw.aborted && !bw.walkedAway ? bw.did || bw.id || null : null };
+          fought: bw && !bw.aborted && !bw.walkedAway ? bw.did || bw.id || null : null,
+          // (your car touched the Wall of Champions today - Montreal's last chicane: the season remembers it)
+          woc: !!pc?.wocKiss && !pc.standInFor };
         // (who of yours was here this weekend, as the race leaves it - asked about in the pen; before the round moves on)
         let seen = []; if (!extra.grave) try { seen = Celebs.seeingAtRace(C); } catch (e) { console.warn('[career] celebs', e); }
         C.applyRace(rows, W.def.id, contacts, table, extra);
@@ -2209,6 +2239,7 @@ function preFrame(dt) {
   if (W.lights) W.lights.update(camera.position, simTime);
   for (const m of S.meshes.values()) m.detail(camera.position);
   if (W.stands) W.stands.update(simTime);
+  W.scenery?.update?.(simTime, camera);
   if (W.landmarks) for (const fn of W.landmarks.anims) fn(simTime, dt);
   if (W.buildings) W.buildings.material.uniforms.uTime.value = simTime;
   cullBuildings(); env.sky.position.copy(camera.position);
@@ -2224,6 +2255,7 @@ function newsFrame(dt) {
   if (W.lights) W.lights.update(camera.position, simTime);
   for (const m of S.meshes.values()) m.detail(camera.position);
   if (W.stands) W.stands.update(simTime);
+  W.scenery?.update?.(simTime, camera);
   if (W.landmarks) for (const fn of W.landmarks.anims) fn(simTime, dt);
   if (W.buildings) W.buildings.material.uniforms.uTime.value = simTime;
   cullBuildings(); env.sky.position.copy(camera.position);
@@ -2273,7 +2305,7 @@ async function careerHangout(launch, done, c0 = null) {
   if (c?.drivers) syncLooks(c);   // (you at the evening as your save has you: face, hair, skin)
   const next = c?.calendar?.[(c.round || 1) - 1];
   const id = (party ? [L0.track, W.track ? W.def?.id : null, 'lasvegas'] : [V?.where, W.track ? W.def?.id : null, next, 'lasvegas']).find((t) => t && TRACKS[t]);
-  const fc = c?.forecastAt?.() || null, mode = party ? (L0.night === false ? 'day' : 'night') : vid === 'rooftop' || vid === 'pub' || vid === 'poolclub' ? 'night' : (id === next && fc?.time) || TRACKS[id]?.defaultTime || 'night';
+  const fc = c?.forecastAt?.() || null, mode = party ? (L0.night === false || vid === 'dayclub' ? 'day' : 'night') : vid === 'dayclub' ? 'day' : vid === 'rooftop' || vid === 'pub' || vid === 'poolclub' ? 'night' : (id === next && fc?.time) || TRACKS[id]?.defaultTime || 'night';
   let sent = false;
   const back = (r) => { if (sent) return; sent = true; HANG.busy = false; try { done?.(r); } catch (e) { console.error('[hangout] hub', e); } };
   // (no world to stage it in: the venue in its own little scene, over the hub)
@@ -2352,6 +2384,7 @@ function hangFrame(dt, interval) {
   if (sealed) input.endFrame();
   else {
     if (W.stands) W.stands.update(simTime);
+    W.scenery?.update?.(simTime, camera);
     if (W.landmarks) for (const fn of W.landmarks.anims) fn(simTime, dt);
     const seen = sphereShow();
     input.endFrame(); sphereFeed(seen);
@@ -2468,7 +2501,8 @@ function hangoutAnchor(venueId, o = {}) {
   let a = null;
   if (W.sphereInfo && (venueId === 'rooftop' || venueId === 'apartment' || venueId === 'vegasclub')) { try { a = skyAnchor(venueId); } catch (e) { console.warn('[hangout] sky anchor', e); } }
   if (!a && venueId === 'teamparty') { try { a = paddockAnchor(venueId, o.team); } catch (e) { console.warn('[hangout] paddock anchor', e); } }
-  if (!a) { try { a = groundAnchor(venueId, venueId === 'rooftop' ? 70 : venueId === 'apartment' ? 9 : venueId === 'vegasclub' ? 60 : 0); } catch (e) { console.warn('[hangout] anchor', e); } }
+  // (the pool club: the roof of the resort's podium, 7 m up - at street level the world's ground covered its sunken basin)
+  if (!a) { try { a = groundAnchor(venueId, venueId === 'rooftop' ? 70 : venueId === 'apartment' ? 9 : venueId === 'vegasclub' ? 60 : venueId === 'poolclub' || venueId === 'dayclub' ? 7 : 0); } catch (e) { console.warn('[hangout] anchor', e); } }
   if (!a) { const f = tr.sample(0, tr.wallAt(0, 1) + 40); a = anchorAt(f.x, 0, f.z, tr.px[0], 0, tr.pz[0]); }
   a.trackId = W.def.id; a.venue = venueId; ANCHORS.set(key, a);
   return { ...a, look: { ...a.look } };
@@ -2480,7 +2514,7 @@ function hangoutAnchor(venueId, o = {}) {
  */
 function footClear(vid, x, z, tx, tz, margin) {
   const [f, b, w] = footOf(vid), L = Math.hypot(tx - x, tz - z) || 1, fx = (tx - x) / L, fz = (tz - z) / L, oh = {};
-  const at = (u, v) => { const px = x + fx * v - fz * u, pz = z + fz * v + fx * u; return corridorSigned(W.track, W.pit, px, pz, margin) >= 0 && !W.obstacles?.hit(px, pz, 0, oh) && !onVenueBuilding(px, pz); };
+  const at = (u, v) => { const px = x + fx * v - fz * u, pz = z + fz * v + fx * u; return corridorSigned(W.track, W.pit, px, pz, margin) >= 0 && !W.obstacles?.hit(px, pz, 0, oh) && !onVenueBuilding(px, pz) && !W.scenery?.blocked?.(px, pz); };
   if (!at(0, 0) || !at(-w - 1, f + 1) || !at(w + 1, f + 1) || !at(-w - 1, -b - 1) || !at(w + 1, -b - 1)) return false;
   const nu = Math.ceil((2 * w + 2) / 5), nv = Math.ceil((f + b + 2) / 5);
   for (let i = 0; i <= nu; i++) for (let j = 0; j <= nv; j++) if (!at(-w - 1 + (2 * w + 2) * i / nu, -b - 1 + (f + b + 2) * j / nv)) return false;
@@ -2776,6 +2810,7 @@ function buildShots() {
   // (by arc length, negative = before the line, or by turn number: the tripod stands 90 m before the corner)
   for (const sh of (W.def.shots || [])) {
     if (sh.lm) objShot(W.landmarks?.group.children.find((c) => c.name === `lm:${sh.lm}`), sh.label, sh.rMul, sh.az);
+    else if (sh.scene) objShot(W.scenery?.group.children.find((c) => c.name === `mtl:${sh.scene}`), sh.label, sh.rMul, sh.az);
     else if (sh.building) objShot(W.venue?.group.children.find((c) => c.name === 'venue:wing'), sh.label, sh.rMul, sh.az);
     else {
       let s = sh.s ?? 0;
@@ -3073,6 +3108,7 @@ function frame(now) {
   if (W.lights) W.lights.update(camera.position, simTime);
   for (const m of S.meshes.values()) m.detail(camera.position);
   if (W.stands) W.stands.update(simTime);
+  W.scenery?.update?.(simTime, camera);
   if (W.landmarks) for (const fn of W.landmarks.anims) fn(simTime, halted ? 0 : dt);
   if (W.buildings) W.buildings.material.uniforms.uTime.value = simTime;
   const sphereSeen = sphereShow();
@@ -3088,7 +3124,7 @@ function frame(now) {
 // ---------------------------------------------------------------------------
 {
   document.body.classList.add('home');   // (also in index.html; an Artifact host supplies its own <body>)
-  window.__F1 = { PRE, W, S, settings, scene, camera, renderer, input, hud, AIDriver, AI_TUNE, camCtl, setTimeOfDay, corridorSigned, CINE, cinematic, get feed() { return feed; }, get show() { return show; }, frame, ensureAmbient, PHOTO, TRACKS, switchTrack, NEWS, playNews, nextAfterResults, crashNews, helmetURL, openCareerHub, simToEnd, strings, get audio() { return audio; },
+  window.__F1 = { PRE, W, S, settings, scene, camera, renderer, input, hud, AIDriver, AI_TUNE, AI_CAL, applyCalibration, camCtl, setTimeOfDay, corridorSigned, CINE, cinematic, get feed() { return feed; }, get show() { return show; }, frame, ensureAmbient, PHOTO, TRACKS, switchTrack, NEWS, playNews, nextAfterResults, crashNews, helmetURL, openCareerHub, simToEnd, strings, get audio() { return audio; },
     restart() { if (settings.driver == null) settings.driver = 0; /* test hook: the field needs a player */ S.noStrategy = !window.__keepStrategy; endSession(); $('results').classList.add('hidden'); $('quali-panel').classList.add('hidden'); $('pause').classList.add('hidden'); S.paused = false; startWeekend(); if (PRE.show && !window.__keepPre) PRE.show.finish(); },   // (tests: no pre-race show unless asked for)
     // the driver's life (tests): the engines as modules, the career class, the scuffle module, the walk, the evening out.
     // Test switches read where they matter: window.__forceStars (ui/PreRace.js), window.__forceJab, window.__qteAuto,

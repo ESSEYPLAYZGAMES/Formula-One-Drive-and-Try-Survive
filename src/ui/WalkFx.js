@@ -21,7 +21,7 @@ import { meetDriver, relateFriend, friendStage, FRIEND_STAGES } from '../career/
 const pick = (a) => a[(Math.random() * a.length) | 0];
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const first = (s) => String(s || '').split(' ')[0], last = (s) => String(s || '').split(' ').pop();
-const TRACK = { lasvegas: 'Las Vegas', silverstone: 'Silverstone' };
+const TRACK = { lasvegas: 'Las Vegas', silverstone: 'Silverstone', montreal: 'Montreal' };
 const REACTIONS = ['laugh', 'glare', 'push'];
 // (canJab's answers that need no name in them: made once, as the walk may ask every frame for its prompt)
 const YES = { ok: true, why: '' }, NO = { ok: false, why: '' };

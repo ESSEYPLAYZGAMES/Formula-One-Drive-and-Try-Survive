@@ -167,4 +167,80 @@ export const TRACKS = {
     ],
     landmarkAnchors: {},
   },
+
+  montreal: {
+    id: 'montreal',
+    name: 'Circuit Gilles Villeneuve',
+    title: ['MONTRÉAL', 'CIRCUIT GILLES VILLENEUVE'],
+    outline: 'M60.2 71.3L60.4 72.3L60.7 73.3L60.9 74.3L61.1 75.3L61.3 76.3L61.5 77.3L61.7 78.3L61.9 79.3L62.1 80.3L62.3 81.3L62.4 82.3L62.4 83.4L62.4 84.4L62.3 85.4L62.2 86.4L62.1 87.4L61.9 88.4L61.8 89.5L61.7 90.5L62.1 91.4L63.0 91.9L63.9 92.3L64.6 93.1L64.4 94.1L63.7 94.8L62.7 95.0L61.7 94.9L60.7 94.6L59.8 94.3L58.8 94.0L57.8 93.7L56.9 93.2L56.0 92.7L55.2 92.1L54.4 91.4L53.6 90.8L52.8 90.1L52.0 89.5L51.3 88.8L50.5 88.1L49.8 87.3L49.7 86.4L50.0 85.4L50.1 84.4L49.6 83.5L48.9 82.7L48.3 81.9L47.6 81.1L47.0 80.3L46.4 79.5L45.7 78.8L44.8 78.2L44.0 77.6L43.3 76.8L42.8 75.9L42.5 75.0L42.3 74.0L42.2 73.0L42.2 71.9L42.2 70.9L42.2 69.9L42.2 68.9L42.3 67.9L42.3 66.8L42.1 65.8L41.4 65.1L40.4 65.1L39.4 65.3L38.4 65.1L37.6 64.5L36.9 63.7L36.5 62.8L36.2 61.8L36.0 60.8L35.9 59.8L35.8 58.8L35.7 57.8L35.7 56.7L35.6 55.7L35.6 54.7L35.5 53.7L35.4 52.6L35.4 51.6L35.4 50.6L35.5 49.6L35.5 48.6L35.6 47.5L35.7 46.5L35.8 45.5L35.9 44.5L36.1 43.5L36.2 42.5L36.5 41.5L36.7 40.5L37.0 39.5L37.3 38.5L37.5 37.5L37.8 36.5L38.1 35.6L38.4 34.6L39.2 34.1L40.2 34.0L41.1 33.5L41.7 32.6L42.1 31.7L42.4 30.7L42.7 29.8L43.0 28.8L43.3 27.8L43.5 26.8L43.8 25.8L44.0 24.8L44.2 23.8L44.3 22.8L44.5 21.8L44.7 20.8L44.8 19.8L45.0 18.7L45.1 17.7L45.1 16.7L45.2 15.7L45.2 14.7L45.1 13.6L45.0 12.6L44.8 11.6L44.6 10.6L44.4 9.6L44.2 8.6L44.0 7.6L43.8 6.6L43.7 5.6L44.4 5.0L45.2 5.5L45.5 6.5L45.7 7.5L45.7 8.5L45.8 9.6L46.1 10.5L46.4 11.5L46.9 12.4L47.3 13.3L47.8 14.3L48.2 15.2L48.6 16.1L48.9 17.1L49.3 18.1L49.7 19.0L50.0 20.0L50.4 20.9L50.8 21.9L51.1 22.8L51.5 23.8L51.8 24.8L52.2 25.7L52.5 26.7L52.8 27.7L53.0 28.7L53.2 29.7L53.4 30.7L53.6 31.7L53.8 32.7L54.0 33.7L54.2 34.7L54.4 35.7L54.6 36.7L54.8 37.7L55.0 38.7L55.2 39.7L55.4 40.7L55.7 41.7L55.9 42.7L56.1 43.7L56.3 44.7L56.5 45.7L56.7 46.7L56.9 47.7L57.1 48.7L57.4 49.7L57.6 50.7L57.8 51.7L58.0 52.7L58.2 53.7L58.4 54.7L58.6 55.7L58.8 56.7L59.0 57.7L59.1 58.7L58.4 59.4L58.0 60.3L58.1 61.3L58.3 62.3L58.5 63.3L58.8 64.3L59.0 65.3L59.2 66.3L59.4 67.3L59.6 68.3L59.8 69.3L60.0 70.3Z',
+    geojson: 'data/montreal.geojson',
+    // Start/finish line: on the pit straight, a third of the way down from the last chicane, opposite the middle of
+    // the pit building (the grid runs back toward the Wall of Champions)
+    origin: [-73.5231651, 45.5015981],
+    // The lap is one closed, one-way raceway (way 136717490, 4.34 km): the Casino straight, the last chicane (T13-T14),
+    // the pit straight, the Senna S (T1-T2), the run along the lake (T3-T4, T5), T6-T7, the back straight beside the
+    // Chenal Le Moyne, T8-T9, L'Epingle (the T10 hairpin) and back down the Casino straight
+    ways: ['way/136717490'],
+    pitLaneWayId: 'way/413000959',   // in at the last chicane, out after the Senna S
+    // (the export draws the lane from the racing line's own nodes: led in and out along the left edge of the road)
+    pitLeads: { side: 1, d: 5.2, in: 110, out: 90 }, pitWallClear: 9.6,
+    // the 80 km/h zone brackets the garages; calibrated to the real stop: about 18.5 s lost against staying out
+    pitLimit: { before: 85, after: 70 },
+    // DRS: three zones (the real ones): T7 -> T8, the Casino straight after the hairpin, the pit straight
+    drs: [
+      { detect: { turn: 6, at: 'start', off: -30 }, open: { turn: 7, at: 'end', off: 60 }, close: { turn: 8, at: 'start', off: -60 } },
+      { detect: { turn: 9, at: 'end', off: 40 }, open: { turn: 10, at: 'end', off: 90 }, close: { turn: 13, at: 'start', off: -90 } },
+      { detect: { turn: 9, at: 'end', off: 40 }, open: { turn: 14, at: 'end', off: 70 }, close: { turn: 1, at: 'start', off: -70 } },
+    ],
+    direction: 1,
+    width: 13,
+    laps100: 70,
+    // A park circuit: grass verges and kerbs like a permanent circuit, but concrete walls all the way round a few
+    // metres back (verge 'park'). Escape areas are short: asphalt at the Senna S, T8-T9, the hairpin and the last
+    // chicane (its straight-on escape road), gravel at T3-T4 and T6-T7, grass at the T5 kink
+    verge: 'park', vergeWidth: 3.5,
+    runoffCaps: [42, 20, 8],
+    runoff: { asphalt: [1, 2, 8, 9, 10, 13, 14], grass: [5] },
+    // the Wall of Champions: the outside of the T14 exit, 1.7 m of green paint behind the kerb and then the yellow wall
+    wallOfChampions: { turn: 14, side: -1, from: -6, len: 78 },
+    fillet: false, smoothSigma: 8,
+    line: 'optimal', lineMargin: 1.6,
+    // ---- venue dressing
+    defaultTime: 'day',
+    ground: 'park',
+    kerb: 'redwhite',
+    runoffText: 'MONTRÉAL',
+    landmarkSet: null,
+    autoStands: false,
+    scenery: 'montreal',             // world/Montreal.js: the water, the trees, the Biosphere, the stands, the paint on the grass
+    defaultBuildingHeight: 8,
+    buildingStyle: { base: 0x8a8d90, litProb: 0.1 },
+    zoneSeq: [12, 13, 1, 14, 12, 17, 5, 15, 12, 19, 1, 18, 13, 12, 0, 15],
+    sponsorZones: [{ panel: 14, fromTurn: 10, toTurn: 10, before: 160, after: 140 }, { panel: 12, fromTurn: 1, toTurn: 2, before: 120, after: 40 }],
+    runoffPaint: [{ turns: [10], color: [0.14, 0.18, 0.28] }, { turns: [13, 14], color: [0.62, 0.14, 0.14] }, { turns: [1, 2], color: [0.12, 0.42, 0.24] }],
+    runoffDecalTurns: [1, 10, 13],
+    shots: [
+      { scene: 'biosphere', label: 'BIOSPHÈRE', rMul: 1.2, az: 0.5 }, { s: -150, label: 'PIT STRAIGHT', side: -1 },
+      { turn: 1, label: 'VIRAGE SENNA', side: 1 }, { turn: 10, label: "L'ÉPINGLE", side: -1 },
+      { scene: 'casino', label: 'CASINO DE MONTRÉAL', rMul: 1.1, az: -0.5 }, { turn: 14, label: 'WALL OF CHAMPIONS', side: -1 },
+      { turn: 6, label: 'TURN 6', side: 1 }, { turn: 3, label: 'TURN 3', side: -1 }, { turn: 8, label: 'TURN 8', side: 1 },
+    ],
+    corners: [
+      { n: 1, name: 'Virage Senna', ll: [-73.5224243, 45.4977084] },
+      { n: 2, name: 'Virage Senna', ll: [-73.5219885, 45.4973400] },
+      { n: 3, name: 'Turn 3', ll: [-73.5260260, 45.4985797] },
+      { n: 4, name: 'Turn 4', ll: [-73.5259235, 45.4991187] },
+      { n: 5, name: 'Turn 5', ll: [-73.5277820, 45.5005560] },
+      { n: 6, name: 'Turn 6', ll: [-73.5282050, 45.5027569] },
+      { n: 7, name: 'Turn 7', ll: [-73.5292176, 45.5028288] },
+      { n: 8, name: 'Turn 8', ll: [-73.5290253, 45.5086858] },
+      { n: 9, name: 'Turn 9', ll: [-73.5282050, 45.5089822] },
+      { n: 10, name: "L'Épingle", ll: [-73.5274616, 45.5142284] },
+      { n: 11, name: 'Casino straight', ll: [-73.5264490, 45.5122790] },
+      { n: 12, name: 'Casino straight', ll: [-73.5251031, 45.5095481] },
+      { n: 13, name: 'Final chicane', ll: [-73.5235394, 45.5039157] },
+      { n: 14, name: 'Wall of Champions', ll: [-73.5237958, 45.5037360] },
+    ],
+    landmarkAnchors: {},
+  },
 };

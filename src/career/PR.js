@@ -28,9 +28,9 @@ const usd = (v) => `$${r2(v)}M`;
 const sgn = (v) => `${v > 0 ? '+' : ''}${r1(v)}`;
 const PR_V = 1, FEED_CAP = 60, POSTS_CAP = 20, HIST_CAP = 80, PAST_CAP = 12, MAX_DEALS = 4, MAX_OFFERS = 3;
 const POSTS_A_ROUND = 2, POST_IMAGE_CAP = 3, NEWS_A_ROUND = 3;
-const TRACK = { lasvegas: 'Las Vegas', silverstone: 'Silverstone' };
-const GP = { lasvegas: 'Las Vegas Grand Prix', silverstone: 'British Grand Prix' };
-const CITY = { lasvegas: 'Las Vegas', silverstone: 'London' };
+const TRACK = { lasvegas: 'Las Vegas', silverstone: 'Silverstone', montreal: 'Montreal' };
+const GP = { lasvegas: 'Las Vegas Grand Prix', silverstone: 'British Grand Prix', montreal: 'Canadian Grand Prix' };
+const CITY = { lasvegas: 'Las Vegas', silverstone: 'London', montreal: 'Montreal' };
 const ORD = ['', 'first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth', 'ninth', 'tenth', 'eleventh', 'twelfth', 'thirteenth', 'fourteenth', 'fifteenth',
   'sixteenth', 'seventeenth', 'eighteenth', 'nineteenth', 'twentieth', 'twenty-first', 'twenty-second', 'twenty-third'];
 // (the romance roster's fixed ids - each name is its id in title case; PR never imports Celebs.js)

@@ -112,8 +112,11 @@ export class Planner {
     const N = this.node || (this.node = { cx: new Float32Array(NMAX), cz: new Float32Array(NMAX), nx: new Float32Array(NMAX), nz: new Float32Array(NMAX), dl: new Float32Array(NMAX), lk: new Float32Array(NMAX) });
     const X = this._lx || (this._lx = new Float32Array(NMAX)), Z = this._lz || (this._lz = new Float32Array(NMAX));
     this.lineK = this.lineK || new Float32Array(NMAX);
+    // the circuit's calibration under each node (ai/Calibration.js: corner speed and braking commitment, 1 = physics)
+    const cV = this.calV || (this.calV = new Float32Array(NMAX)), cB = this.calB || (this.calB = new Float32Array(NMAX)), aV = tr.aiV, aB = tr.aiB;
     for (let i = 0; i < n; i++) {
       const s = ctx.s0 + i * DS; tr.sample(s, 0, f);
+      const ci = tr.idxAtS(s); cV[i] = aV ? aV[ci] : 1; cB[i] = aB ? aB[ci] : 1;
       N.cx[i] = f.x; N.cz[i] = f.z; const idx = tr.idxAtS(s); N.nx[i] = f.nx; N.nz[i] = f.nz;
       N.dl[i] = line.offsetAt(s); N.lk[i] = line.lineCurv[idx];
       X[i] = f.x + N.nx[i] * N.dl[i]; Z[i] = f.z + N.nz[i] * N.dl[i];
@@ -128,8 +131,8 @@ export class Planner {
     return den > 1e-6 ? Math.min(VMAX, Math.sqrt(g.mu * G / den)) : VMAX;
   }
   /** braking available at speed v while cornering at curvature k (friction circle, the rear axle's trail-brake limit, drag) */
-  brakeA(v, k, g) {
-    const aMax = Math.min(BRAKE_A, g.mu * (G + g.dfm * v * v)) * g.brake;
+  brakeA(v, k, g, cal = 1) {
+    const aMax = Math.min(BRAKE_A, g.mu * (G + g.dfm * v * v)) * g.brake * cal;
     const aLat = v * v * Math.abs(k), circle = Math.sqrt(Math.max(0.12 * aMax * aMax, aMax * aMax - aLat * aLat));
     const ax = this.line.grip.axle; if (!ax) return circle + DRAG_M * v * v;
     const load = Math.min(1, 2 * aLat / (g.mu * (G + g.dfm * v * v)));
@@ -157,9 +160,10 @@ export class Planner {
   speeds(P, ctx) {
     const n = P.n, g = ctx.grip, v = P.v, vb = P.vm;
     // the most it may do at every node: the corner, any cap, and braking in time for what comes after
-    for (let i = 0; i < n; i++) vb[i] = Math.min(P.cap[i], this.cornerV(P.k[i], g) * g.scale);
+    const cV = this.calV, cB = this.calB;
+    for (let i = 0; i < n; i++) vb[i] = Math.min(P.cap[i], this.cornerV(P.k[i], g) * g.scale * cV[i]);
     vb[n - 1] = Math.min(vb[n - 1], ctx.vEnd);
-    for (let i = n - 2; i >= 0; i--) { const b = Math.sqrt(vb[i + 1] * vb[i + 1] + 2 * this.brakeA(vb[i + 1], P.k[i + 1], g) * DS); if (b < vb[i]) vb[i] = b; }
+    for (let i = n - 2; i >= 0; i--) { const b = Math.sqrt(vb[i + 1] * vb[i + 1] + 2 * this.brakeA(vb[i + 1], P.k[i + 1], g, cB[i + 1]) * DS); if (b < vb[i]) vb[i] = b; }
     // ... and out of a corner no faster than the tyres can put the power down while still cornering (the throttle is
     // fed in, not floored at the apex); on a straight that limit is far above the engine's, so it stays flat out there
     for (let i = 0; i < n - 1; i++) { const a = this.tractionA(vb[i], P.k[i], g), u = Math.sqrt(vb[i] * vb[i] + 2 * a * DS); if (u < vb[i + 1]) vb[i + 1] = u; }
@@ -167,7 +171,7 @@ export class Planner {
     v[0] = Math.max(0.5, ctx.v);
     for (let i = 0; i < n - 1; i++) {
       const up = Math.sqrt(v[i] * v[i] + 2 * Math.max(0, this.accelA(v[i], P.k[i], g)) * DS);
-      const down = Math.sqrt(Math.max(0.25, v[i] * v[i] - 2 * this.brakeA(v[i], P.k[i], g) * DS));
+      const down = Math.sqrt(Math.max(0.25, v[i] * v[i] - 2 * this.brakeA(v[i], P.k[i], g, cB[i]) * DS));
       v[i + 1] = Math.min(up, Math.max(down, vb[i + 1]));
     }
     P.t[0] = 0; for (let i = 1; i < n; i++) P.t[i] = P.t[i - 1] + DS / Math.max(0.5, (v[i - 1] + v[i]) / 2);

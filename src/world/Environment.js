@@ -3,6 +3,19 @@ import * as THREE from 'three';
 
 function groundTexture(day, style = 'city') {
   const gc = document.createElement('canvas'); gc.width = gc.height = 512; const ctx = gc.getContext('2d');
+  if (style === 'park') {
+    // Ile Notre-Dame in June: lush, freshly mown parkland grass, clover and a few worn patches
+    ctx.fillStyle = day ? '#4f8a35' : '#0e1c0f'; ctx.fillRect(0, 0, 512, 512);
+    for (let i = 0; i < 12000; i++) {
+      const g = Math.random();
+      ctx.fillStyle = day ? `rgba(${48 + g * 46},${112 + g * 64},${30 + g * 30},0.5)` : `rgba(${14 + g * 14},${32 + g * 26},${14 + g * 12},0.5)`;
+      ctx.fillRect(Math.random() * 512, Math.random() * 512, 1.5 + Math.random() * 2.5, 2 + Math.random() * 4);
+    }
+    for (let i = 0; i < 40; i++) { ctx.fillStyle = day ? 'rgba(120,130,60,0.12)' : 'rgba(30,30,20,0.12)'; ctx.beginPath(); ctx.arc(Math.random() * 512, Math.random() * 512, 6 + Math.random() * 18, 0, 7); ctx.fill(); }
+    for (let i = 0; i < 512; i += 24) { ctx.fillStyle = day ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.01)'; if ((i / 24) % 2) ctx.fillRect(0, i, 512, 24); }
+    const t = new THREE.CanvasTexture(gc); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(300, 300); t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  }
   if (style === 'grass') {
     // countryside circuit: mown grass with darker / lighter tufts (no street grid)
     ctx.fillStyle = day ? '#4c7a34' : '#0d1a0e'; ctx.fillRect(0, 0, 512, 512);

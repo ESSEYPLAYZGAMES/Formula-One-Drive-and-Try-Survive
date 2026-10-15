@@ -208,7 +208,10 @@ export class Track {
     this.kerbWidth = 1.2;
     // A street circuit (def.verge unset) is walled in: 3 m of paved verge, then concrete. A permanent circuit
     // (def.verge = 'circuit') has grass verges, gravel or asphalt run-offs and its barriers far back.
-    this.circuit = def.verge === 'circuit';
+    // def.verge = 'park' (Montreal): a permanent circuit's grass verges, kerbs, gravel and asphalt run-offs, but walled
+    // in all the way round like a street circuit (the concrete of Ile Notre-Dame, a few metres off the white line)
+    this.circuit = def.verge === 'circuit' || def.verge === 'park';
+    this.walled = def.verge === 'park';
     this.runoffWidth = def.vergeWidth ?? 3.0;
     this.minWall = this.halfWidth + this.kerbWidth + 3.0;                     // a barrier never stands closer than this (11.7 m)
     this.barrierOffset = this.halfWidth + this.kerbWidth + this.runoffWidth;  // where it stands along a plain straight
@@ -239,6 +242,13 @@ export class Track {
    */
   layoutBarriers(rings) {
     if (!this.circuit) return;
+    if (this.walled) {
+      // a walled park circuit: concrete everywhere, except across the back of a deep escape area, where the wall
+      // gives way to a run of TecPro / tyre barrier under its banners
+      const deep = this.barrierOffset + 9;
+      for (const [bar, wall] of [[this.barL, this.wallL], [this.barR, this.wallR]]) for (let i = 0; i < this.n; i++) bar[i] = wall[i] > deep ? BAR.TYRES : BAR.WALL;
+      return;
+    }
     const inside = insideRings(rings), n = this.n;
     for (const [bar, cap, wall, side] of [[this.barL, this.capL, this.wallL, 1], [this.barR, this.capR, this.wallR, -1]]) {
       const raw = new Uint8Array(n);
@@ -419,6 +429,25 @@ export class Track {
     const b = side > 0 ? this.barL[i] : this.barR[i]; if (!b) return 0;
     const f = side > 0 ? this.fenceL?.[i] : this.fenceR?.[i];
     return Math.max(BAR_HEIGHT[b], f ? FENCE_H : 0);
+  }
+  /**
+   * A wall pinned close to the road over [s0, s1] on one side (+1 left / -1 right): Montreal's Wall of Champions, a
+   * kerb and a painted strip off the exit of the last chicane. The wall eases in and out over `ease` metres. Kept in
+   * track.pins ({ a, b, side, d, panel, name }) for the panels, the paint and the race director.
+   */
+  pinWall(s0, s1, side, d, { ease = 25, panel = null, name = null } = {}) {
+    const arr = side > 0 ? this.wallL : this.wallR, bar = side > 0 ? this.barL : this.barR, n = this.n;
+    const len = this.wrapS(s1 - s0), e = Math.max(1, Math.round(ease / this.ds)), k0 = this.idxAtS(s0), m = Math.round(len / this.ds);
+    for (let k = -e; k <= m + e; k++) {
+      const i = (k0 + k + n) % n, t = k < 0 ? 1 + k / e : k > m ? 1 - (k - m) / e : 1, w = t * t * (3 - 2 * t);
+      arr[i] = Math.min(arr[i], d * w + arr[i] * (1 - w)); if (w > 0.5) bar[i] = BAR.WALL;
+    }
+    (this.pins || (this.pins = [])).push({ a: this.wrapS(s0), b: this.wrapS(s1), side, d, panel, name });
+  }
+  /** the pinned wall (pinWall) that a point at arc length s, lateral d is up against, or null */
+  pinAt(s, d) {
+    for (const p of this.pins || []) if (Math.sign(d) === p.side && (p.a <= p.b ? s >= p.a && s <= p.b : s >= p.a || s <= p.b)) return p;
+    return null;
   }
   /** min-filter a wall line so a capped sample pulls its neighbours in gradually (no steps in the barrier) */
   _easeWall(arr, slope = 1.2, r = 50) {
@@ -777,6 +806,16 @@ export function buildTrackMeshes(track, pit, gridSlots) {
   const cA = sz && cs.find((c) => c.n === sz.fromTurn), cB = sz && cs.find((c) => c.n === sz.toTurn);
   const tmobile = cA && cB && cA.s != null && cB.s != null ? [tr.wrapS(cA.s - (sz.before || 0)), tr.wrapS(cB.s + (sz.after || 0))] : null;
   const inTMobile = (z) => tmobile && inRangeS(tr.wrapS(z * ZONE_LEN + ZONE_LEN / 2), tmobile[0], tmobile[1]);
+  // panels by the metre: a wall pinned with its own panel (Track.pinWall: the Wall of Champions) and the named sponsor
+  // stretches of def.sponsorZones ([{ panel, fromTurn, toTurn, before, after, side? }]) take their stretch of wall
+  // from the 180 m zone sequence
+  const over = [];
+  for (const p of tr.pins || []) if (p.panel != null) over.push({ a: p.a, b: p.b, side: p.side, panel: p.panel });
+  for (const z of tr.def.sponsorZones || []) {
+    const A = cs.find((c) => c.n === z.fromTurn), B = cs.find((c) => c.n === (z.toTurn ?? z.fromTurn)); if (!A || !B || A.s == null || B.s == null) continue;
+    for (const side of z.side ? [z.side] : [1, -1]) over.push({ a: tr.wrapS(A.s - (z.before || 0)), b: tr.wrapS(B.s + (z.after || 0)), side, panel: z.panel });
+  }
+  const overAt = (i, side) => { for (const o of over) if (o.side === side && inRangeS(tr.s[i], o.a, o.b)) return o; return null; };
   // What stands at the barrier line (Track.barL / barR). A street circuit is concrete wall, fence and LED rail all
   // the way round. A permanent circuit has mostly nothing: a banner-covered tyre wall in front of stands and
   // buildings, Armco between close parts of the lap, the concrete pit wall.
@@ -786,9 +825,17 @@ export function buildTrackMeshes(track, pit, gridSlots) {
     for (let z = 0; z < nZones; z++) {
       const p = inTMobile(z) ? sz.panel : seq[(z + (side < 0 ? 5 : 0)) % seq.length];
       const keep = seg(side, (st) => st >= BAR.TYRES);
-      const g = ribbon(tr, (i) => side * wallAt(i, side), (i) => side * wallAt(i, side), 0, { yB: 1.2, mask: (i) => zoneOf(i) === z && keep(i), uvFn: (i) => -side * tr.s[i] / PANEL_LEN });
+      const g = ribbon(tr, (i) => side * wallAt(i, side), (i) => side * wallAt(i, side), 0, { yB: 1.2, mask: (i) => zoneOf(i) === z && keep(i) && !overAt(i, side), uvFn: (i) => -side * tr.s[i] / PANEL_LEN });
       if (!g.index.count) continue;
       const uv = g.attributes.uv; for (let k = 0; k < uv.count; k++) uv.setX(k, atlasU(p, uv.getX(k)));   // this zone's tile of the atlas
+      panelGeos.push(g);
+    }
+    for (const o of over) {
+      if (o.side !== side) continue;
+      const keep = seg(side, (st) => st >= BAR.TYRES);
+      const g = ribbon(tr, (i) => side * wallAt(i, side), (i) => side * wallAt(i, side), 0, { yB: 1.2, mask: (i) => keep(i) && inRangeS(tr.s[i], o.a, o.b), uvFn: (i) => -side * tr.s[i] / PANEL_LEN });
+      if (!g.index.count) continue;
+      const uv = g.attributes.uv; for (let k = 0; k < uv.count; k++) uv.setX(k, atlasU(o.panel, uv.getX(k)));
       panelGeos.push(g);
     }
   }
@@ -1015,7 +1062,9 @@ export function buildPitLane(track, rawPts, boxCount = 12) {
     // (or 0.4 m past the kerb in a corner zone): where the OSM lane hugs the circuit the wall simply sits at the road edge
     const edge = hwT + (track.inCornerZone(q.i) ? kwT + 0.4 : 0.6);
     wallPos[i] = Math.min(wallOff, D - edge);
-    wallIn[i] = wallPos[i] >= 3.0 && !overlapsTrack[i] ? wallPos[i] : Infinity;   // a wall only once the lane is at least ~8.5 m wide
+    // a wall only once the lane is at least ~8.5 m wide - and (def.pitWallClear) only where it stands that far from the
+    // centreline: Montreal's pit entry leaves from a corner's turn-in, where the strip beside the kerb is paint and bollards
+    wallIn[i] = wallPos[i] >= 3.0 && !overlapsTrack[i] && D - wallPos[i] >= (track.def.pitWallClear || 0) ? wallPos[i] : Infinity;
   }
   let divergeI = 0; while (divergeI < n - 1 && overlapsTrack[divergeI]) divergeI++;
   let mergeI = n - 1; while (mergeI > 0 && overlapsTrack[mergeI]) mergeI--;
@@ -1046,7 +1095,9 @@ export function buildPitLane(track, rawPts, boxCount = 12) {
   for (let k = entryI; ; k = (k + 1) % track.n) { wallD[k] = NaN; if (k === exitI) break; }
   for (let i = 0; i < n; i++) {
     if (overlapsTrack[i]) continue;
-    const ti = trackI[i]; const v = isFinite(wallIn[i]) ? Math.min(track.minWall, trackD[i] - wallIn[i]) : NaN;
+    // (with def.pitWallClear, never on the road or its kerb: where the circuit bends away from a straight lane -
+    //  Montreal's last chicane - a lane sample's nearest point of the circuit can be one the wall is not beside)
+    const ti = trackI[i]; const v = isFinite(wallIn[i]) ? Math.max(track.def.pitWallClear ? hwT + kwT + 0.5 : 0, Math.min(track.minWall, trackD[i] - wallIn[i])) : NaN;
     wallD[ti] = v; set[ti] = 1;
   }
   let prev = NaN;

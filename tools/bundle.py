@@ -161,6 +161,8 @@ def main():
     out = OUT
     if artifact:
         out = os.path.join(ROOT, 'dist', 'artifact.html')
+    if '--out' in sys.argv:   # (tools/splice_artifact.py: a build to compare against, not the shipped file)
+        out = os.path.abspath(sys.argv[sys.argv.index('--out') + 1])
         head = re.search(r'<head>(.*?)</head>', html, re.S).group(1)
         body = re.search(r'<body[^>]*>(.*?)</body>', html, re.S).group(1)
         head = re.sub(r'<title>.*?</title>|<meta name="viewport"[^>]*>', '', head, flags=re.S)   # keep the charset meta: the file holds UTF-8 text

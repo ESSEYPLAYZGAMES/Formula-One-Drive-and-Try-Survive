@@ -26,7 +26,7 @@ const pick = (a) => a[(Math.random() * a.length) | 0];
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const r1 = (v) => Math.round(v * 10) / 10;
 const first = (s) => String(s || '').split(' ')[0];
-const TRACK = { lasvegas: 'Las Vegas', silverstone: 'Silverstone' };
+const TRACK = { lasvegas: 'Las Vegas', silverstone: 'Silverstone', montreal: 'Montreal' };
 // (made-up men a tabloid might pair her with: the other guests of the grid show - never a driver, never anyone real)
 const MEN = ['Jonah Reese', 'Dex Okoro', 'Theo Quinn', 'Kai Brennan'];
 
@@ -66,7 +66,7 @@ export const CELEBS = [
     wear: { grid: fit('bomber', '#1f2a44', '#f4f4f2', '#2a3550', ['lanyard', 'shades']), night: [fit('jumpsuit', '#16161a', '#e8c25a', '#16161a', ['lanyard', 'earrings']), fit('bodycon', '#16161a', '#e8c25a', null, ['lanyard', 'earrings'], '#c9a24a')], wet: fit('athleisure', '#1f2a44', '#e8c25a', '#16161a', ['lanyard']), evening: [fit('gown', '#c9a24a', '#f4f4f2', null, ['earrings', 'clutch']), fit('halter', '#c9a24a', '#f4f4f2', null, ['earrings']), fit('slitgown', '#16161a', '#e8c25a', null, ['earrings', 'clutch'])], dinner: [fit('pantsuit', '#f4f4f2', '#16161a', '#f4f4f2', ['earrings']), fit('blazerdress', '#f4f4f2', '#e8c25a', null, ['earrings'], '#c9a24a')], casual: fit('casual', '#f4f4f2', '#e8c25a', '#2c3e66', ['shadesUp']), sporty: fit('athleisure', '#f4f4f2', '#e8c25a', '#1f2a44', ['watch']), home: fit('coord', '#8a8f99', '#e8c25a', '#8a8f99'),
       // (black and gold, an athlete's confidence: a cut-out mini, a gold sequin halter micro-mini, a corset crop over low-rise jeans, an open white blazer over a bralette)
       club: [cfit('cutoutmini', '#16161a', '#e8c25a', null, ['earrings'], '#16161a', { jewel: { earrings: 'hoop', metal: 'gold' } }), cfit('haltermicro', '#c9a24a', '#e8c25a', null, ['earrings'], '#c9a24a', { shoeFinish: 'metallic', jewel: { earrings: 'hoop' } }), cfit('cropjeans', '#16161a', '#e8c25a', '#2a3550', ['earrings'], '#16161a', { jewel: { earrings: 'hoop' } }), cfit('blazerbra', '#f4f4f2', '#16161a', null, ['earrings'], '#f4f4f2')] } },
-  { id: 'sasha-ivers', name: 'Sasha Ivers', job: 'Film director', from: 'Toronto, Canada', home: 'Los Angeles', age: 34, fame: 55, often: ['lasvegas', 'silverstone'],
+  { id: 'sasha-ivers', name: 'Sasha Ivers', job: 'Film director', from: 'Toronto, Canada', home: 'Los Angeles', age: 34, fame: 55, often: ['lasvegas', 'silverstone', 'montreal'],
     vibe: 'Dry, watchful and allergic to small talk',
     bio: 'Canadian director whose second feature took the jury prize at a European festival. Now shooting a documentary about the people who build a night race - the caterers, the riggers, the crews who close a city overnight - and she notices everything.',
     work: ['the new film', 'her documentary about a night race', 'the festival cut', 'location scouting in the desert'], hobby: 'shooting and developing her own black-and-white film',
