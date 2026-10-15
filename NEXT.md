@@ -197,6 +197,20 @@ Built 02:07 (`dist/index.html` 31.7 MB, `dist/artifact.html` 8.5 MB, 112 modules
   - no photographers in the Memorial/Mourning3D scenes;
   - grief headlines say "him".
 
+## Artifact Version 93 (2026-10-15): Tidewater pool club fixes (dist/artifact.html only)
+- **Source not updated:** dist/artifact.html is the published artifact (Version 93) and is AHEAD of src/. It contains src/world/PoolLife.js and src/ui/PoolPlay.js, which are not in the repo. Port them back to src/ before the next bundle, or the next `tools/bundle.py` run loses them.
+- **Black water:** not a shader bug. The pool club was anchored at street level (main.js hangoutAnchor), so the world's ground plane (y -0.05, polygon offset) covered the sunken basin when looking down; how much depended on the driver. poolclub/dayclub now anchor 7 m up, on the podium PartyPool.js always expected.
+- **Ordinary evenings:** with no PartyPlay, the clock now moves the phase (Warm-up, then Peak time, then Last hour) and each phase's `occ`. Before, the brain stayed in Warm-up (energy 0.5) and almost nobody danced.
+- **PoolBrain fixes:**
+  - a stronger dance urge at peak; groups of 3+ dance as a crew;
+  - the long bar's slots every 0.8 m, kept 0.62 m from hero spots (it had one); the queue serves the first one actually waiting, with no duplicate entries and no re-route loop;
+  - go() snaps targets to the nearest cell the guest may stand in: no guests in furniture, no non-swimwear in the water;
+  - float drift stays in the water; a leaver with no path just goes;
+  - bump() radius +0.3 m (excuse-me lines now fire);
+  - swimwear wardrobes are barefoot.
+- **careerHangout:** dayclub runs by day.
+- **Measured headless:** sim 0.25 ms per frame, 146 draw calls / 322k triangles at peak with 168 guests (unchanged from before). GPU fps on the Intel UHD is still not measured.
+
 ## v83 (2026-10-14): photographers reworked (src/ui/PapsConfront.js)
 - **Who comes, and why.** The flat per-frame roll in Hangout._events and the grave week's random long lens are gone (the old roll still runs if `PAPS_CONFRONT_ON` is off).
   - A night's *pressure* is the product of factors you can read: fame (yours, or your date's), PR heat, the venue (Vegas and the clubs high, a private room hardly ever, your flat never), the hour, a story still running, a partner or famous date with you, and a confrontation last round.

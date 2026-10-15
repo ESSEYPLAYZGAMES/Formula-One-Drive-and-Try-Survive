@@ -110964,7 +110964,7 @@ class PartyCrowd {
     list.sort((a, b) => (STAFF.has(b.role) - STAFF.has(a.role)) || a.ord - b.ord);
     const women = pools.women ?? (kind === 'team' ? 0.3 : 0.55);
     const byRole = (role, fig) => T.filter((t) => t.role === role && t.fig === fig && t.w > 0);
-    for (const { s, role: r0, ord } of list.slice(0, MAXP)) {
+    for (const { s, role: r0, ord } of list.slice(0, this.maxP || MAXP)) {   // (a subclass may hold more: the pool club's maxP)
       let role = r0, fig = role === 'security' || role === 'photographer' || role === 'mechanic' ? 'm' : role === 'performer' || role === 'promo' || role === 'server' ? (kind === 'team' && role === 'server' ? 'm' : 'f') : Rp() < women ? 'f' : 'm';
       // (a sofa's seat: a woman sitting back on it; a counter: a man's forearms on it, else a drink in his hand)
       let cand;
@@ -110986,6 +110986,7 @@ class PartyCrowd {
       };
       p.want = p.yaw;
       this._colours(p, t, pools, Rp);
+      this._wardrobe?.(p, t, s, Rp);   // (a subclass's own: everything else this person can wear - p.can, the templates' indices)
       // (iMisc: x - the phase against the beat (most on it, some on the off-beat); y - how hard they dance; z - a nod;
       // w - how much the shoulders turn)
       const off = Rp() < 0.8 ? 0 : Math.PI;
@@ -110995,8 +110996,8 @@ class PartyCrowd {
     }
     // ---- the steps: each template near and mid, then its far one (as tall as the near one), two bakes a step - one
     // baked before costs nothing (no step of its own); a far body is a quarter of one
-    const used = new Map(); for (const p of this.people) { used.set(p.t, (used.get(p.t) || 0) + 1); if (p.alt >= 0) used.set(p.alt, (used.get(p.alt) || 0) + 1); }
-    this.tpl.forEach((t, i) => { t.used = used.has(i); t.few = (used.get(i) || 0) <= 3; });
+    const used = new Map(); for (const p of this.people) { used.set(p.t, (used.get(p.t) || 0) + 1); if (p.alt >= 0) used.set(p.alt, (used.get(p.alt) || 0) + 1); for (const i of p.can || []) if (i !== p.t && i !== p.alt) used.set(i, (used.get(i) || 0) + 1); }
+    this.tpl.forEach((t, i) => { t.used = used.has(i); t.few = (used.get(i) || 0) <= 3 || !!t.rare; });   // (t.rare: a pose worn only now and then - no middle body of its own)
     const steps = []; let cur = [], cost = 0;
     const put = (f, c) => { cur.push(f); cost += c; if (cost >= 2) { const fs = cur; steps.push(() => { for (const g of fs) g(); }); cur = []; cost = 0; } };
     for (const t of T) {
@@ -111041,7 +111042,7 @@ class PartyCrowd {
   _make() {
     if (this.gone) return;
     const cap = new Map();
-    for (const p of this.people) { cap.set(p.t, (cap.get(p.t) || 0) + 1); if (p.alt >= 0) cap.set(p.alt, (cap.get(p.alt) || 0) + 1); }
+    for (const p of this.people) { cap.set(p.t, (cap.get(p.t) || 0) + 1); if (p.alt >= 0) cap.set(p.alt, (cap.get(p.alt) || 0) + 1); for (const i of p.can || []) if (i !== p.t && i !== p.alt) cap.set(i, (cap.get(i) || 0) + 1); }
     this.recs = [];
     this.tpl.forEach((t, i) => {
       const n = cap.get(i) || 0; t.M = [null, null, null]; if (!n || !t.geo) return;
@@ -111149,7 +111150,7 @@ class PartyCrowd {
       this._occ(occupancy);
       for (const p of this.people) {
         // (out of sight - or, kept waiting half a minute while you watch, further off than 6 m among the others)
-        if (p.wantOn !== p.on) { p.waitT = (p.waitT || 0) + 0.5; if (this._unseen(p, fwd) || (p.waitT > 30 && Math.hypot(p.hx - this._cam.x, p.hz - this._cam.z) > 6)) { p.on = p.wantOn; p.waitT = 0; this._dirty = true; if (p.on) { p.x = p.hx; p.z = p.hz; } } }
+        if (p.wantOn !== p.on && !this.walkIn) { p.waitT = (p.waitT || 0) + 0.5; if (this._unseen(p, fwd) || (p.waitT > 30 && Math.hypot(p.hx - this._cam.x, p.hz - this._cam.z) > 6)) { p.on = p.wantOn; p.waitT = 0; this._dirty = true; if (p.on) { p.x = p.hx; p.z = p.hz; } } }
         const l = this._lodOf(p, p.lod); if (l !== p.lod) { p.lod = l; if (p.on) this._dirty = true; }
       }
     }
@@ -113188,12 +113189,786 @@ function makePersonSafe(o) { try { return makePerson(o); } catch (e) { console.w
 return { PartyPlay };
 })();
 
+// ---- src/world/PoolLife.js
+__m['src/world/PoolLife.js'] = (() => {
+
+// The pool club's crowd, alive (world/PartyCrowd.js's people, ui/PartyPool.js's PoolCrowd): every guest someone of their
+// own - a name, a drink they always order, a mood, the friends they came with - and four needs that rise and fall (thirst,
+// company, the urge to dance, the heat) picking what they do next, re-weighed every few seconds and leant on by the night's
+// phase (the music's energy and how full the place is). What they do: walk to a bar, queue, order, wait for the pour, drink
+// it where they like; stand about in twos and threes talking in turns, laughing, toasting, hugging hello; dance (alone, in
+// a crew that keeps the same moves, round a circle with one in the middle, in couples) and throw their hands up when the DJ
+// drops it; wade in off the shelf, swim, float, splash each other, race a cannonball to the far wall, then grab a towel and
+// dry off in the sun; lounge on the daybeds and in the cabanas, sit by the fire. The house works the room: servers carry
+// bottles out to the tables (sparklers for a birthday), security walks the deck, the photographer goes from group to group.
+//
+// Built for the Intel UHD laptop as the rest of the venue: nothing allocated per frame (typed arrays, objects made once at
+// the build), no light, no new draw call of its own - a person's activity is the crowd's template swap (each guest can wear
+// their own kit in a dozen poses, all baked behind the cover), their walk two poses in turn, a swimmer or a floater a body
+// laid flat in the instance matrix. The way about is a 0.5 m grid of the deck and the water (A* on typed arrays, the path
+// pulled straight), the people re-sorted for their detail as PartyCrowd does.
+//
+// ==== THE CONTRACT ======================================================================================================
+// new PoolBrain(crowd, plan) - plan (ui/PartyPool.js): { K (the Kit: areas, solids, discs), deck { x0, z0, x1, z1 }, pool
+//   { x0, z0, x1, z1, shelf, wl, deep, ledge }, heightAt(x, z), night, door { x, z }, bars [{ id, slots [{ x, z, yaw }],
+//   queue [{ x, z }] }], service { x, z }, towel { x, z, yaw }, dance [{ x, z, y, yaw, water }], chat [{ x, z, water? }],
+//   seats [{ x, z, y, yaw, kind }], swim [{ x, z }], edge [{ x, z, ix, iz }] (cannonballs: on the deck, the point in the
+//   water), patrol [{ x, z }], sun [{ x, z }], fire [{ x, z, y, yaw }], dj { x, z }, birthday { x, z }, say(text) (the LED) }
+// .init()                  once the crowd's meshes are made: identities, groups, the grid
+// .pre(dt)                 every frame before PartyCrowd.update: needs, choices, walking, poses (crowd._dirty on a swap)
+// .bump(x, z, r)           you pushed through at (x, z): a word from whoever you shoved
+// .counts() -> { act: n }  how many are doing what (the debug counter)
+// .info(p) -> {...}        one person's state (the debug panel)
+// .lines(cam, r) -> [p]    who is saying something within r of the camera now (p.L.say, p.L.sayT)
+// .chat(p, cam)            you talking to p (ui/PartyPool.js's E key): they turn to you; -> [lines] the exchange
+// ======================================================================================================================
+const TAU = Math.PI * 2;
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const rng = (seed) => { let a = seed >>> 0; return () => { a = (a + 0x6d2b79f5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; };
+const pickR = (R, a) => a[Math.floor(R() * a.length) % a.length];
+const fill = (s, L) => s.replace(/\{(\w+)\}/g, (_, k) => (L[k] != null ? L[k] : ''));
+
+// ---- who they are -------------------------------------------------------------------------------------------------------
+const NAMES_F = ['Ava', 'Mia', 'Zoe', 'Lena', 'Kiki', 'Nadia', 'Sofia', 'Jade', 'Tess', 'Priya', 'Mara', 'Luz', 'Skye', 'Ines', 'Becca', 'Yara', 'Coco', 'Dani', 'Elle', 'Rosa', 'Nina', 'Maya', 'Gigi', 'Talia', 'Ana', 'Brooke', 'Sasha', 'Imani', 'Noor', 'Remi'];
+const NAMES_M = ['Leo', 'Marco', 'Jay', 'Theo', 'Kai', 'Andre', 'Sam', 'Nico', 'Omar', 'Ravi', 'Ben', 'Diego', 'Tom', 'Jonah', 'Felix', 'Ike', 'Luca', 'Max', 'Rafa', 'Cole', 'Eli', 'Hugo', 'Zane', 'Malik', 'Owen', 'Seb', 'Teo', 'Vince'];
+const DRINKS = ['frozen margarita', 'flute of champagne', 'tequila soda', 'cold beer', 'rosé', 'mojito', 'Aperol spritz', 'vodka cran', 'water, lots of ice', 'piña colada'];
+const MOODS = ['buzzing', 'chill', 'flirty', 'tipsy', 'hyped', 'sunkissed', 'sleepy', 'chatty'];
+// (a line someone says - to their friends, or to you: {name} theirs, {drink} theirs, {friend} one of their group, {dj})
+const SAY = {
+  order: ['A {drink}, please!', 'Two {drink}s?', 'Can I get a {drink}?', 'Same again!', 'Whatever is coldest.'],
+  serve: ['Thank you!', 'Amazing, cheers!', 'Keep the change.', 'Perfect.'],
+  hello: ['{friend}! You made it!', 'There you are!', 'Hiii!', 'Look who it is!', 'Finally!'],
+  toast: ['Cheers!', 'To Vegas!', 'To us!', 'Salud!', 'Bottoms up!'],
+  laugh: ['Ha! Stop.', 'No way.', 'I am crying.', 'You did not!', 'Classic {friend}.'],
+  drop: ['Here it comes!', 'HANDS UP!', 'Oh this one!', 'Let\'s gooo!', 'Tune!'],
+  splash: ['Hey!', 'You\'re dead!', 'Not the hair!', 'Truce! Truce!', 'Ha! Got you!'],
+  cannon: ['Race you to the wall!', 'Three, two, one...', 'Cannonball!', 'Loser buys shots!'],
+  towel: ['That was amazing.', 'I need sun.', 'Towel me.', 'So refreshing.'],
+  bump: ['Excuse me!', 'Whoa, easy.', 'Sorry, sorry.', 'Careful, I\'ve got a drink!', 'Oop, after you.', 'Watch it!'],
+  bumpW: ['Hey! You\'re splashing me!', 'Watch the drink!', 'Ha, whoops.', 'Easy there, swimmer.'],
+  birthday: ['Happy birthday!!', 'Speech! Speech!', 'Make a wish!'],
+  count: ['Three!', 'Two!', 'One!', 'SHOTS!'],
+  chant: ['Go! Go! Go!', 'Ayyy!', 'Get it!', 'Oh-oh-oh!'],
+  photo: ['Everyone squeeze in!', 'Say Tidewater!', 'One more!', 'Get my good side.'],
+  welcome: ['ID, please.', 'Have a great one.', 'Enjoy, folks.', 'Wristbands on.'],
+};
+// (two-way exchanges: A says, B answers - picked by the topic of the moment)
+const TALK = [
+  ['Is the water warm?', 'Like a bath. Get in.'], ['Who is this DJ?', '{dj}. Always plays here on race weekend.'], ['Did you see the race?', 'Saw the start. Then I saw the bar.'],
+  ['I love this song.', 'You say that about every song.'], ['My feet are on fire.', 'Then stand in the pool, genius.'], ['Should we get a cabana?', 'With whose money?'],
+  ['Where is {friend}?', 'Bar. Obviously.'], ['I could stay here forever.', 'Your flight is at nine.'], ['Look at that view.', 'Never gets old.'],
+  ['Another {drink}?', 'Twist my arm.'], ['Who does she think she is?', 'A podium dancer. Literally.'], ['I am so sunburnt.', 'I told you. Factor fifty.'],
+  ['Are you swimming later?', 'After this drink. Maybe two.'], ['This place is packed.', 'Peak time, babe.'], ['Shots?', 'Shots.'],
+  ['Your swimsuit is so cute.', 'Thank you! It was on sale.'], ['I lost my sunglasses.', 'They\'re on your head.'], ['What time is it?', 'Doesn\'t matter.'],
+  ['Who\'s the guy at the DJ booth?', 'Some driver. They\'re everywhere this weekend.'], ['Did you get the photo?', 'Sixty of them. One is good.'],
+];
+// (you, talking to one of them: their opening, your answer, theirs)
+const MEET = [
+  ['Hey! I\'m {name}. First time at Tidewater?', 'Something like that.', 'You picked the right weekend.'],
+  ['{name}. Nice to meet you! Love the energy tonight.', 'Same. The music is unreal.', 'Wait till the drop. Trust me.'],
+  ['Oh hi! I\'m {name}, I\'m with {friend}. Have you tried the {drink}?', 'Not yet. Any good?', 'Dangerously good.'],
+  ['{name}! Hey. Are you racing this weekend? You look familiar.', 'Maybe.', 'Ha. Mysterious. I like it.'],
+  ['I\'m {name}. Feeling {mood} - is that obvious?', 'A little.', 'Good. Come dance later.'],
+  ['Hi! {name}. Have you been in the pool yet?', 'Thinking about it.', 'Do it. Cannonball off the side.'],
+];
+
+// ---- the grid ----------------------------------------------------------------------------------------------------------
+// (0 blocked, 1 deck, 2 the shelf's water, 3 deep water; a deck cell only meets water at the shelf - the steps in)
+const CS = 0.5, PMAX = 24;
+class Nav {
+  constructor(plan) {
+    const D = plan.deck, P = plan.pool, K = plan.K;
+    this.x0 = D.x0; this.z0 = D.z0; this.W = Math.ceil((D.x1 - D.x0) / CS); this.H = Math.ceil((D.z1 - D.z0) / CS); const N = this.N = this.W * this.H;
+    this.type = new Uint8Array(N); this.g = new Float32Array(N); this.from = new Int32Array(N); this.stamp = new Uint32Array(N); this.closed = new Uint32Array(N); this.gen = 1;
+    this.heap = new Int32Array(N); this.hf = new Float32Array(N); this.hn = 0; this.tmp = new Int32Array(256);
+    const inA = (x, z) => (K.areas || []).some((a) => x > a.x0 && x < a.x1 && z > a.z0 && z < a.z1);
+    for (let j = 0; j < this.H; j++) for (let i = 0; i < this.W; i++) {
+      const x = this.x0 + (i + 0.5) * CS, z = this.z0 + (j + 0.5) * CS, k = j * this.W + i;
+      let t = inA(x, z) ? 1 : 0;
+      if (x > P.x0 + 0.05 && x < P.x1 - 0.05 && z > P.z0 + 0.05 && z < P.z1 - 0.05) t = z > P.shelf ? 2 : 3;
+      if (t) for (const s of K.solids || []) if (x > s.x0 - 0.22 && x < s.x1 + 0.22 && z > s.z0 - 0.22 && z < s.z1 + 0.22) { t = 0; break; }
+      if (t) for (const d of K.discs || []) if (!d.pp && (x - d.x) ** 2 + (z - d.z) ** 2 < (d.r + 0.22) ** 2) { t = 0; break; }
+      this.type[k] = t;
+    }
+    // (the podiums rising out of the water, and the floats)
+    for (const [cx, cz, r] of plan.blockW || []) for (let j = 0; j < this.H; j++) for (let i = 0; i < this.W; i++) { const x = this.x0 + (i + 0.5) * CS, z = this.z0 + (j + 0.5) * CS; if ((x - cx) ** 2 + (z - cz) ** 2 < r * r) this.type[j * this.W + i] = 0; }
+  }
+  cell(x, z) { const i = Math.floor((x - this.x0) / CS), j = Math.floor((z - this.z0) / CS); return i < 0 || j < 0 || i >= this.W || j >= this.H ? -1 : j * this.W + i; }
+  /** may an agent (swim: allowed in the water) stand in cell k */
+  ok(k, swim) { if (k < 0) return false; const t = this.type[k]; return t === 1 || (swim && t >= 2); }
+  /** may it step from a to b (a deck cell meets the water only at the shelf) */
+  step(a, b, swim) { if (!this.ok(b, swim)) return false; const ta = this.type[a], tb = this.type[b]; return !((ta === 1 && tb === 3) || (ta === 3 && tb === 1)); }
+  typeAt(x, z) { const k = this.cell(x, z); return k < 0 ? 0 : this.type[k]; }
+  /** the nearest cell an agent may stand in, within r cells -> cell | -1 */
+  near(x, z, swim, r = 6) {
+    const c = this.cell(x, z); if (this.ok(c, swim)) return c;
+    const i0 = Math.floor((x - this.x0) / CS), j0 = Math.floor((z - this.z0) / CS); let best = -1, bd = 1e9;
+    for (let d = 1; d <= r && best < 0; d++) for (let j = j0 - d; j <= j0 + d; j++) for (let i = i0 - d; i <= i0 + d; i++) {
+      if (i < 0 || j < 0 || i >= this.W || j >= this.H) continue; const k = j * this.W + i; if (!this.ok(k, swim)) continue;
+      const dd = (i - i0) ** 2 + (j - j0) ** 2; if (dd < bd) { bd = dd; best = k; }
+    }
+    return best;
+  }
+  cx(k) { return this.x0 + ((k % this.W) + 0.5) * CS; }
+  cz(k) { return this.z0 + (Math.floor(k / this.W) + 0.5) * CS; }
+  /** a straight line an agent may walk (sampled every 0.25 m) */
+  clear(ax, az, bx, bz, swim) {
+    const L = Math.hypot(bx - ax, bz - az), n = Math.max(1, Math.ceil(L / 0.25)); let pk = this.cell(ax, az);
+    for (let s = 1; s <= n; s++) { const k = this.cell(ax + ((bx - ax) * s) / n, az + ((bz - az) * s) / n); if (k !== pk) { if (!this.step(pk, k, swim)) return false; pk = k; } }
+    return true;
+  }
+  _push(k, f) { let i = this.hn++; const H = this.heap, F = this.hf; while (i > 0) { const p = (i - 1) >> 1; if (F[p] <= f) break; H[i] = H[p]; F[i] = F[p]; i = p; } H[i] = k; F[i] = f; }
+  _pop() {
+    const H = this.heap, F = this.hf, top = H[0], n = --this.hn; if (n <= 0) return top;
+    const k = H[n], f = F[n]; let i = 0;
+    for (;;) { let c = 2 * i + 1; if (c >= n) break; if (c + 1 < n && F[c + 1] < F[c]) c++; if (F[c] >= f) break; H[i] = H[c]; F[i] = F[c]; i = c; }
+    H[i] = k; F[i] = f; return top;
+  }
+  /** A* from (ax, az) to (bx, bz) for a walker (or a swimmer): the corners of the path pulled straight into out (x, z
+   * pairs, the goal last) -> how many points, 0 when there is no way */
+  find(ax, az, bx, bz, swim, out) {
+    const s = this.near(ax, az, swim), e = this.near(bx, bz, swim); if (s < 0 || e < 0) return 0;
+    if (s === e || this.clear(ax, az, bx, bz, swim)) { out[0] = bx; out[1] = bz; return 1; }
+    const gen = ++this.gen, W = this.W, ex = e % W, ez = (e / W) | 0; this.hn = 0;
+    this.stamp[s] = gen; this.g[s] = 0; this.from[s] = -1; this._push(s, 0);
+    let found = false, it = 0;
+    while (this.hn && it++ < 9000) {
+      const k = this._pop(); if (k === e) { found = true; break; } if (this.closed[k] === gen) continue; this.closed[k] = gen;
+      const i = k % W, j = (k / W) | 0;
+      for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+        if (!di && !dj) continue; const ni = i + di, nj = j + dj; if (ni < 0 || nj < 0 || ni >= W || nj >= this.H) continue;
+        const n = nj * W + ni; if (this.closed[n] === gen || !this.step(k, n, swim)) continue;
+        if (di && dj && (!this.ok(j * W + ni, swim) || !this.ok(nj * W + i, swim))) continue;   // (no corner cut)
+        const t = this.type[n], c = (di && dj ? 1.414 : 1) * (t >= 2 && !swim ? 9 : t === 3 ? 1.6 : t === 2 ? 1.3 : 1), g = this.g[k] + c;
+        if (this.stamp[n] === gen && this.g[n] <= g) continue;
+        this.stamp[n] = gen; this.g[n] = g; this.from[n] = k;
+        const hx = Math.abs(ni - ex), hz = Math.abs(nj - ez); this._push(n, g + Math.max(hx, hz) + 0.414 * Math.min(hx, hz));
+      }
+    }
+    if (!found) return 0;
+    // (the cells back to the start, then pulled straight: the furthest one still in a clear line, each time)
+    const T = this.tmp; let m = 0; for (let k = e; k >= 0 && m < T.length; k = this.from[k]) T[m++] = k;
+    let n = 0, px = ax, pz = az, a = m - 1;
+    while (a > 0 && n < PMAX - 1) {
+      let b = 0; while (b < a - 1 && !this.clear(px, pz, this.cx(T[b]), this.cz(T[b]), swim)) b++;
+      if (b === 0) break;
+      px = this.cx(T[b]); pz = this.cz(T[b]); out[n * 2] = px; out[n * 2 + 1] = pz; n++; a = b;
+    }
+    out[n * 2] = bx; out[n * 2 + 1] = bz; return n + 1;
+  }
+}
+
+// ---- the brain ---------------------------------------------------------------------------------------------------------
+const WALK = 1.15, WADE = 0.55, SWIM = 0.7;
+// (activities: what the counter and the debug panel call them)
+const ACTS = ['walk', 'queue', 'order', 'sip', 'chat', 'dance', 'circle', 'couple', 'crew', 'swim', 'float', 'wade', 'splash', 'cannon', 'towel', 'dry', 'lounge', 'fire', 'photo', 'serve', 'parade', 'patrol', 'perform', 'cheer', 'greet', 'toast', 'arrive', 'leave', 'idle'];
+class PoolBrain {
+  constructor(crowd, plan) {
+    this.C = crowd; this.plan = plan; this.R = rng(0x7d1e); this.t = 0; this.ready = false;
+    this.path = null; this.nav = null; this.walkClock = 0; this.walkPh = 0; this.dropUntil = -1; this.nextDrop = 24; this.lastBeat = 0;
+    this.queues = []; this.groups = []; this.circles = []; this.seats = []; this.events = { parade: 60, splash: 20, cannon: 30, chant: 40 };
+    this.phase = 'Warm-up'; this.energy = 0.6; this.sayN = 0;
+  }
+  init() {
+    const C = this.C, plan = this.plan, R = this.R;
+    try { this.nav = new Nav(plan); } catch (e) { console.warn('PoolLife: no grid', e); return; }
+    this.path = new Float32Array(C.people.length * PMAX * 2);
+    // (each bar: its slots at the counter (who stands there), its queue behind)
+    for (const b of plan.bars || []) this.queues.push({ id: b.id, slots: b.slots.map((s) => ({ ...s, p: null })), line: [], spots: b.queue });
+    this.seats = (plan.seats || []).map((s) => ({ ...s, p: null }));
+    this.fires = (plan.fire || []).map((s) => ({ ...s, p: null }));
+    this.dances = (plan.dance || []).map((s) => ({ ...s, p: null }));
+    // (identities: a name, a drink, a mood; the friends they came with - the patrons in their order, twos to fours)
+    const pats = C.people.filter((p) => !p.staff);
+    let gi = 0, left = 0, G = null;
+    for (const p of C.people) {
+      const fem = p.fig === 'f', W = p.W || null, L = p.L = {
+        name: pickR(R, fem ? NAMES_F : NAMES_M), drink: pickR(R, DRINKS), mood: pickR(R, MOODS), grp: null, act: 'idle', goal: '', at: 0, dwell: 2 + R() * 3, think: R() * 3,
+        thirst: R() * 0.7, social: 0.3 + R() * 0.5, dance: R() * 0.8, heat: R() * 0.6, wet: 0, stam: 0.6 + R() * 0.4,
+        tx: p.x, tz: p.z, ty: p.y, tyaw: p.yaw, pi: 0, pn: 0, spd: WALK * (0.88 + R() * 0.24), stuck: 0, sx: p.x, sz: p.z, then: null, slot: null, q: null, say: '', sayT: 0, sayTo: null,
+        swim: !!(plan.wet !== false && p.water && W && W.walk1 != null), anchor: !W || W.walk1 == null || p.role === 'performer' || p.zone === 'dj' || (p.y > 0.3 && p.zone === 'vip'),
+        hx: p.hx, hz: p.hz, hy: p.y, hyaw: p.base, pose: '', roll: 0, bob: R() * TAU, last: '', meet: 0, you: 0, spk: 0, partner: null, i: C.people.indexOf(p),
+      };
+      if (p.staff) { L.name = p.role === 'security' ? pickR(R, ['Big Mike', 'Andre', 'Tank', 'Ray']) : p.role === 'photographer' ? pickR(R, ['Jules', 'Kofi', 'Mateo']) : p.role === 'server' ? pickR(R, ['Bianca', 'Lori', 'Gabi']) : pickR(R, ['Starla', 'Vee', 'Roxy']); L.mood = 'working'; L.drink = 'water'; continue; }
+      if (L.anchor) continue;
+      if (left <= 0) { G = { id: gi++, m: [], x: p.hx, z: p.hz, water: false, act: '', bday: false, spot: null }; this.groups.push(G); left = R() < 0.25 ? 1 : 2 + Math.floor(R() * 3); }
+      G.m.push(p); L.grp = G; left--;
+    }
+    for (const G of this.groups) for (const p of G.m) { const o = G.m.filter((q) => q !== p); p.L.friend = o.length ? o[0].L.name : 'Sam'; }
+    // (the birthday: a group by the host's cabana, its bottle on the way when the night peaks)
+    const big = this.groups.filter((g) => g.m.length >= 3); if (big.length) { const B = pickR(R, big); B.bday = true; this.bday = B; }
+    for (const p of C.people) if (p.L) { p.L.hx = p.hx; p.L.hz = p.hz; p.L.home = { x: p.hx, z: p.hz, y: p.y, yaw: p.base, pose: p.t }; }
+    this.ready = true;
+    void pats;
+  }
+
+  // ---- poses: a person's own kit in another pose (their W: pose -> template index) -----------------------------------
+  pose(p, pose, alt = null, swap = false) {
+    const W = p.W; if (!W) return;
+    const t = W[pose] ?? W[FALL[pose]] ?? W.talk ?? p.t, a = alt ? W[alt] ?? -1 : -1;
+    if (p.t !== t || p.alt !== a || p.swap !== swap) { p.t = t; p.alt = a; p.swap = swap; p.cur = 0; this.C._dirty = true; }
+    p.L.pose = pose;
+  }
+  say(p, list, dur = 3, to = null) {
+    const L = p.L; if (!L) return; const s = typeof list === 'string' ? list : pickR(this.R, list);
+    L.say = fill(s, { name: L.name, drink: L.drink, friend: L.friend || 'babe', dj: this.plan.djName || 'the DJ', mood: L.mood }); L.sayT = dur; L.sayTo = to; this.sayN++;
+  }
+  /** off somewhere: a path to (x, z), then (act, pose) there, facing yaw */
+  go(p, x, z, then, swim = null) {
+    const L = p.L, sw = swim ?? (L.swim && this.nav.typeAt(x, z) >= 2), o = (L.i * PMAX) * 2;
+    if (!then?.seat) { const N = this.nav, k = N.cell(x, z); if (!N.ok(k, sw && L.swim)) { const c = N.near(x, z, sw && L.swim); if (c >= 0) { x = N.cx(c); z = N.cz(c); } } }
+    const n = this.nav.find(p.x, p.z, x, z, sw || this.nav.typeAt(p.x, p.z) >= 2, this.path.subarray(o, o + PMAX * 2));
+    L.then = then; L.tx = x; L.tz = z; L.stuck = 0; L.sx = p.x; L.sz = p.z;
+    if (!n) { L.pn = 0; return false; }
+    L.pn = n; L.pi = 0; L.act = then?.walk || 'walk'; L.at = 0; L.roll = 0; p.seat = false;
+    return true;
+  }
+  /** arrived: what they came for */
+  _arrive(p) {
+    const L = p.L, T = L.then; L.pn = 0; L.at = 0;
+    if (!T) { L.act = 'idle'; this.pose(p, 'talk'); return; }
+    if (T.y != null) p.y = T.y; if (T.yaw != null) L.tyaw = T.yaw;
+    L.act = T.act; L.dwell = T.dwell ?? 6 + this.R() * 8; p.seat = !!T.seat;
+    this.pose(p, T.pose || 'talk', T.alt || null, !!T.swap);
+    if (T.fn) T.fn(p);
+  }
+  _free(list) { const f = list.filter((s) => !s.p); return f.length ? pickR(this.R, f) : null; }
+  /** of a few picked at random (free ones, k of them), the nearest to p: people mostly go somewhere close by */
+  _near(p, list, k = 3, free = true) {
+    let best = null, bd = 1e9; const n = list.length; if (!n) return null;
+    for (let i = 0, got = 0; i < k * 4 && got < k; i++) { const s = list[Math.floor(this.R() * n) % n]; if (free && s.p) continue; got++; const d = (s.x - p.x) ** 2 + (s.z - p.z) ** 2; if (d < bd) { bd = d; best = s; } }
+    return best || (free ? this._free(list) : list[0]);
+  }
+  _release(p) {
+    const L = p.L; if (L.slot) { if (L.slot.p === p) L.slot.p = null; L.slot = null; }
+    if (L.q) { const i = L.q.line.indexOf(p); if (i >= 0) L.q.line.splice(i, 1); L.q = null; }
+    if (L.partner?.L?.partner === p) L.partner.L.partner = null; L.partner = null;
+  }
+
+  // ---- what next: needs, the phase, who they are with --------------------------------------------------------------
+  _decide(p) {
+    const L = p.L, R = this.R, E = this.energy, night = this.plan.night, G = L.grp, inW = this.nav.typeAt(p.x, p.z) >= 2;
+    if (p.staff) return this._staff(p);
+    // (a group's lead chooses for all of them, now and then; the others follow, unless a need of their own is pressing)
+    const lead = G && G.m[0] === p, wet = L.wet > 0.3 && !inW;
+    const U = {
+      bar: L.thirst * 1.3 + (L.mood === 'tipsy' ? 0.2 : 0),
+      dance: (L.dance * (0.2 + E * 1.3) + Math.max(0, E - 0.75) * 0.6) * (this.phase === 'Quiet' ? 0 : 1) + (this.dropUntil > this.C.B ? 0.5 : 0),
+      swim: L.swim ? L.heat * (night ? 1.05 : 1.45) + (inW ? 0.35 : 0) + 0.1 : -1,
+      chat: L.social * 0.9 + (G && G.m.length > 1 ? 0.15 : 0),
+      lounge: (1 - L.stam) * 0.9 + (this.phase === 'Last hour' || this.phase === 'Quiet' ? 0.35 : 0) + (1 - E) * 0.2,
+      dry: wet ? 1.4 : -1,
+    };
+    let best = 'chat', bv = -9; for (const k in U) { const v = U[k] + R() * 0.25; if (v > bv) { bv = v; best = k; } }
+    if (G && !lead && G.act && L.thirst < 0.8 && !wet && R() < 0.75) best = G.act;
+    if (best === 'swim' && !L.swim) best = 'chat';
+    if (lead && G) G.act = best;
+    this._release(p);
+    if (inW && best !== 'swim' && best !== 'dance') { this._leaveWater(p, best); return; }
+    this['_' + best](p);
+  }
+  _staff(p) {
+    const L = p.L, R = this.R, P = this.plan;
+    if (p.role === 'security') { const w = P.patrol[(L.wp = ((L.wp ?? Math.floor(R() * P.patrol.length)) + 1) % P.patrol.length)]; this.go(p, w.x, w.z, { act: 'patrol', pose: 'cross', dwell: 3 + R() * 5, walk: 'patrol' }); return; }
+    if (p.role === 'photographer') {
+      const tg = pickR(R, this.groups.filter((g) => g.spot && g.m.length > 1 && g.m.every((q) => q.on))) || null;
+      if (!tg) { L.dwell = 3; return; }
+      const a = R() * TAU, x = tg.spot.x + Math.cos(a) * 2.2, z = tg.spot.z + Math.sin(a) * 2.2;
+      if (this.nav.typeAt(x, z) !== 1) { L.dwell = 2; return; }
+      this.go(p, x, z, { act: 'photo', pose: 'photo', dwell: 4.5, yaw: Math.atan2(-(tg.spot.z - z), tg.spot.x - x), fn: () => { for (const q of tg.m) if (q.on && q.L.act !== 'walk') { q.L.tyaw = Math.atan2(-(z - q.z), x - q.x); this.pose(q, pickR(R, ['cheer', 'toast', 'talk'])); q.L.dwell = Math.max(q.L.dwell, q.L.at + 4); } this.say(pickR(R, tg.m), SAY.photo); } });
+      return;
+    }
+    if (p.role === 'server') {
+      if (L.parade) return;
+      if (L.act === 'serve' || !L.out) {   // (out with a bottle to a table someone is at, then back for the next)
+        const busy = this.seats.filter((s) => s.p && (s.kind === 'cabana' || s.kind === 'daybed')), s = pickR(R, busy);
+        if (!s) { L.dwell = 4; return; }
+        const x = s.x + Math.cos(s.yaw) * 0.9, z = s.z - Math.sin(s.yaw) * 0.9; L.out = true;
+        this.go(p, x, z, { act: 'serve', pose: 'drink', dwell: 3 + R() * 2, yaw: s.yaw + Math.PI, walk: 'serve', fn: () => { if (s.p) this.say(s.p, SAY.serve, 2.2); } });
+      } else { L.out = false; this.go(p, P.service.x, P.service.z, { act: 'serve', pose: 'drink', dwell: 4 + R() * 6, yaw: Math.PI / 2, walk: 'serve' }); }
+      return;
+    }
+    L.dwell = 9999;   // (the podium's dancers stay up there)
+  }
+  _leaveWater(p, next) {
+    const P = this.plan.pool, x = clamp(p.x, P.x0 + 1, P.x1 - 1), z = P.z1 + 0.9;
+    this.go(p, x, z, { act: 'idle', pose: 'talk', dwell: 0.1, fn: () => { p.L.wet = 1; } }, true);
+    p.L.act = 'wade';
+  }
+  _bar(p) {
+    const L = p.L, Q = this.R() < 0.75 ? this._near(p, this.queues.map((q) => ({ q, x: q.spots[0].x, z: q.spots[0].z })), 2, false)?.q : pickR(this.R, this.queues); if (!Q) return this._chat(p);
+    for (const O of this.queues) { const j = O.line.indexOf(p); if (j >= 0) O.line.splice(j, 1); }
+    L.q = Q; Q.line.push(p); const k = Q.line.length - 1, s = Q.spots[Math.min(k, Q.spots.length - 1)];
+    this.go(p, s.x + (k >= Q.spots.length ? (this.R() - 0.5) * 0.6 : 0), s.z, { act: 'queue', pose: 'talk', dwell: 999, yaw: s.yaw ?? Math.PI / 2 });
+  }
+  /** the queues move up: the first in line to a free slot at the counter, the rest a place forward */
+  _queues() {
+    for (const Q of this.queues) {
+      for (let i = Q.line.length - 1; i >= 0; i--) { const q = Q.line[i]; if (!q.on || q.L.q !== Q) Q.line.splice(i, 1); }
+      const s = Q.slots.find((x) => !x.p), hi = Q.line.findIndex((q) => q.L.act === 'queue' && !q.L.pn), h = hi >= 0 ? Q.line[hi] : null;
+      if (s && h) {
+        Q.line.splice(hi, 1); s.p = h; h.L.slot = s; h.L.q = null;
+        this.go(h, s.x, s.z, { act: 'order', pose: 'gesture', dwell: 2.5 + this.R() * 2, yaw: s.yaw, fn: (p) => this.say(p, SAY.order, 2.4) });
+      }
+      Q.line.forEach((p, i) => { const sp = Q.spots[Math.min(i, Q.spots.length - 1)]; if (p.L.act === 'queue' && Math.hypot(p.x - sp.x, p.z - sp.z) > 0.5 && Math.hypot(p.L.tx - sp.x, p.L.tz - sp.z) > 0.75 && i < Q.spots.length) this.go(p, sp.x, sp.z, { act: 'queue', pose: pickR(this.R, ['talk', 'drink']), dwell: 999, yaw: sp.yaw ?? Math.PI / 2 }); });
+    }
+  }
+  _chat(p) {
+    const L = p.L, G = L.grp, R = this.R, P = this.plan;
+    // (with their group: where the lead stands, else a spot of their own on the deck (or the shelf, wet ones))
+    let c = G?.spot && G.m[0] !== p ? G.spot : null;
+    if (!c) { const W = L.swim && R() < 0.3 && L.wet > 0.2 ? P.chat.filter((s) => s.water) : P.chat.filter((s) => !s.water); c = this._near(p, W.length ? W : P.chat, 3, false); if (G) G.spot = c; }
+    const n = G ? G.m.length : 1, k = G ? G.m.indexOf(p) : 0, a = (k / Math.max(1, n)) * TAU + (G?.id || 0), r = n <= 1 ? 0 : 0.42 + n * 0.08;
+    const x = c.x + Math.cos(a) * r, z = c.z + Math.sin(a) * r;
+    this.go(p, x, z, { act: 'chat', pose: R() < 0.5 ? 'drink' : 'talk', dwell: 35 + R() * 40, yaw: Math.atan2(-(c.z - z), c.x - x), y: this._floor(x, z) });
+  }
+  _dance(p) {
+    const L = p.L, R = this.R, G = L.grp, water = L.swim && R() < 0.65;
+    const opts = this.dances.filter((s) => !s.p && (s.water ? water : true)); const s = this._near(p, opts.length ? opts : this.dances, 4); if (!s || s.p) return this._chat(p);
+    s.p = p; L.slot = s;
+    // (a couple: two of a group facing each other; the rest of the floor faces the DJ - a crew keeps one phase)
+    const mate = G && G.m.length === 2 && G.m[0] === p ? G.m[1] : null;
+    this.go(p, s.x, s.z, { act: 'dance', pose: 'dance1', alt: 'dance2', swap: true, dwell: 40 + R() * 45, yaw: s.yaw, y: s.y, fn: (q) => { q.misc[0] = G ? (G.id % 4) * 0.4 : q.misc[0]; this.C._dirty = true; } });
+    if (mate && mate.L.act !== 'walk') {
+      const a = s.yaw, x = s.x + Math.cos(a) * 0.75, z = s.z - Math.sin(a) * 0.75; this._release(mate); L.partner = mate; mate.L.partner = p;
+      this.go(mate, x, z, { act: 'couple', pose: 'dance1', alt: 'dance2', swap: true, dwell: 40 + R() * 40, yaw: a + Math.PI, y: this._floor(x, z) });
+      L.then.act = 'couple'; L.then.yaw = a;
+    }
+    // (three or more of a group: a crew - the lead's friends on the spots nearest theirs, all keeping the same moves)
+    if (G && G.m.length >= 3 && G.m[0] === p && L.then) {
+      const crew = G.m.filter((q) => q !== p && q.on && q.L && !q.L.anchor && q.L.act !== 'leave' && q.L.act !== 'arrive' && (!s.water || q.L.swim)).slice(0, 4);
+      if (crew.length) {
+        L.then.act = 'crew'; const ph = (G.id % 4) * 0.4, d2 = (d) => (d.x - s.x) ** 2 + (d.z - s.z) ** 2;
+        for (const q of crew) {
+          let t = null, td = 16; for (const d of this.dances) if (!d.p && !!d.water === !!s.water && d2(d) < td) { td = d2(d); t = d; }
+          if (!t) break; this._release(q); t.p = q; q.L.slot = t;
+          this.go(q, t.x, t.z, { act: 'crew', pose: 'dance1', alt: 'dance2', swap: true, dwell: 40 + R() * 40, yaw: t.yaw, y: t.y, fn: (w) => { w.misc[0] = ph; this.C._dirty = true; } }, t.water ? true : null);
+        }
+      }
+    }
+  }
+  _swim(p) {
+    const L = p.L, R = this.R, S = this.plan.swim, s = this._near(p, S, 3, false), f = R() < 0.35;
+    L.wet = 1;
+    this.go(p, s.x + (R() - 0.5) * 2, s.z + (R() - 0.5) * 1.5, { act: f ? 'float' : 'swim', pose: f ? 'talk' : 'walk1', dwell: 30 + R() * 35, yaw: R() * TAU, walk: 'swim' }, true);
+  }
+  _lounge(p) {
+    const L = p.L, R = this.R, night = this.plan.night;
+    const pool = night && R() < 0.4 && this.fires.some((s) => !s.p) ? this.fires : this.seats; const s = this._near(p, pool, 3); if (!s || s.p) return this._chat(p);
+    s.p = p; L.slot = s;
+    this.go(p, s.x, s.z, { act: pool === this.fires ? 'fire' : 'lounge', pose: 'sitBooth', seat: true, dwell: 60 + R() * 70, yaw: s.yaw, y: s.y ?? 0 });
+  }
+  _dry(p) {
+    const L = p.L, T = this.plan.towel, R = this.R;
+    this.go(p, T.x + (R() - 0.5) * 1.2, T.z, { act: 'towel', pose: 'talk', dwell: 2.5, yaw: T.yaw, fn: (q) => { this.say(q, SAY.towel, 2); const s = pickR(R, this.plan.sun); q.L.after = s; } });
+  }
+  _floor(x, z) { try { return +this.plan.heightAt(x, z) || 0; } catch (_) { return 0; } }
+
+  // ---- every frame --------------------------------------------------------------------------------------------------
+  pre(dt) {
+    if (!this.ready) return;
+    const C = this.C, R = this.R, B = C.B; this.t += dt; this.budget = 3; const t0 = performance.now();
+    // (the walk: every walker on one clock, two poses in turn - one re-pack a step, not one a person)
+    this.walkClock += dt; let flip = false; if (this.walkClock > 0.34) { this.walkClock = 0; this.walkPh ^= 1; flip = true; }
+    // (the DJ's drop: at the peak, every so often - the floor's hands up and jumping for a bar or two)
+    const bi = Math.floor(B);
+    if (bi !== this.lastBeat) {
+      this.lastBeat = bi;
+      if (bi >= this.nextDrop) { this.nextDrop = bi + 32 * (1 + Math.floor(R() * 2)); if (this.energy > 0.7 && R() < 0.75) { this.dropUntil = B + 8; this._drop(); } }
+    }
+    this.thinkAcc = (this.thinkAcc || 0) + dt; const slow = this.thinkAcc > 0.25; if (slow) { try { this.phase = this.plan.phase?.() || this.phase; } catch (_) { /* */ } this._queues(); this._events(this.thinkAcc); this.thinkAcc = 0; }
+    for (const p of C.people) {
+      const L = p.L; if (!L) continue;
+      if (L.sayT > 0) L.sayT -= dt;
+      // (arriving: in at the door, through the host's check; leaving: out the same way)
+      if (p.wantOn && !p.on) { if (!L.anchor && !p.staff && this.plan.door) this._enter(p); else { p.on = true; C._dirty = true; } continue; }
+      if (!p.on) continue;
+      if (p.wantOn) L.offT = 0; else L.offT = (L.offT || 0) + dt;   // (a share of the room going: only once the night has been thinning a while - never a walk-out as the room is shown)
+      if (!p.wantOn && L.act !== 'leave' && L.offT > 25) { if (L.anchor || p.staff) { p.on = false; C._dirty = true; continue; } this._release(p); if (!this.go(p, this.plan.door.x, this.plan.door.z + 0.6, { act: 'leave', pose: 'talk', dwell: 0.1, fn: (q) => { q.on = false; C._dirty = true; q.L.act = 'gone'; } })) { p.on = false; C._dirty = true; L.act = 'gone'; continue; } L.act = 'leave'; continue; }
+      // (needs: thirst and the rest rise; what they are doing eases them)
+      const a = L.act;
+      L.thirst = clamp(L.thirst + dt * (a === 'sip' ? -0.03 : 0.0065), 0, 1.2); L.social = clamp(L.social + dt * (a === 'chat' || a === 'greet' ? -0.012 : 0.006), 0, 1.2);
+      L.dance = clamp(L.dance + dt * (a === 'dance' || a === 'couple' || a === 'circle' ? -0.01 : 0.006 * (0.4 + this.energy)), 0, 1.2);
+      L.heat = clamp(L.heat + dt * (a === 'swim' || a === 'float' || a === 'splash' || a === 'wade' ? -0.03 : this.plan.night ? 0.003 : 0.009), 0, 1.2);
+      L.stam = clamp(L.stam + dt * (a === 'lounge' || a === 'fire' ? 0.02 : a === 'dance' || a === 'swim' ? -0.008 : -0.001), 0, 1); if (L.wet > 0 && a !== 'swim' && a !== 'float' && a !== 'splash') L.wet = Math.max(0, L.wet - dt * (a === 'dry' ? 0.05 : 0.01));
+      if (L.pn) this._walk(p, dt, flip); else if (!L.anchor) this._stay(p, dt);
+      else if (p.staff) this._stay(p, dt);
+    }
+    // (people walking through others step round them: a little separation, only for whoever is on the move)
+    if (slow) this._apart();
+    this.ms = (this.ms || 0) * 0.95 + (performance.now() - t0) * 0.05;
+  }
+  _walk(p, dt, flip) {
+    const L = p.L, o = L.i * PMAX * 2, P = this.path; let x = P[o + L.pi * 2], z = P[o + L.pi * 2 + 1];
+    const typ = this.nav.typeAt(p.x, p.z), water = typ >= 2, deep = typ === 3, swimming = deep || L.act === 'swim' && water;
+    const sp = (swimming ? SWIM : water ? WADE : L.spd) * (L.act === 'leave' ? 1.15 : 1);
+    let dx = x - p.x, dz = z - p.z, d = Math.hypot(dx, dz);
+    if (d < 0.12) { if (++L.pi >= L.pn) { this._arrive(p); return; } x = P[o + L.pi * 2]; z = P[o + L.pi * 2 + 1]; dx = x - p.x; dz = z - p.z; d = Math.hypot(dx, dz); }
+    const k = Math.min(d, sp * dt); p.x += (dx / d) * k; p.z += (dz / d) * k; p.hx = p.x; p.hz = p.z;
+    const yaw = Math.atan2(-dz, dx); let dy = yaw - p.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); p.yaw += dy * Math.min(1, dt * 8); p.want = p.yaw; p.base = p.yaw;
+    // (the body: on its feet over the floor; swimming, laid flat at the surface; wading, sunk to the knees or the waist)
+    const fl = this._floor(p.x, p.z);
+    if (swimming) { L.roll = -Math.PI / 2; p.y = this.plan.pool.wl - 0.07 + Math.sin(this.t * 3 + L.bob) * 0.025; if (L.pose !== 'walk1') this.pose(p, 'walk1', null, false); }
+    else { L.roll = 0; p.y += (fl - p.y) * Math.min(1, dt * 10); const w = L.act === 'serve' || L.then?.walk === 'serve' ? 'walkS' : L.act === 'patrol' ? 'walk1' : 'walk1'; if (flip || (L.pose !== 'walk1' && L.pose !== 'walk3')) this.pose(p, (this.walkPh ^ (L.i & 1)) ? 'walk3' : 'walk1'); void w; }
+    // (stuck: hardly a step in three seconds - another way, else somewhere else)
+    L.stuck += dt; if (L.stuck > 3) { if (Math.hypot(p.x - L.sx, p.z - L.sz) < 0.25) { L.fail = (L.fail || 0) + 1; if (L.fail > 2) { L.fail = 0; const c = this.nav.near(p.x, p.z, L.swim || water); if (c >= 0) { p.x = this.nav.cx(c); p.z = this.nav.cz(c); } L.pn = 0; L.act = 'idle'; L.dwell = 0.5; L.at = 0; } else this.go(p, L.tx, L.tz, L.then); } L.stuck = 0; L.sx = p.x; L.sz = p.z; }
+    C_write(this.C, p);
+  }
+  /** standing (sitting, swimming) where they are: turns, turns to talk, a sip, the floor's jumps - and, their time up, what next */
+  _stay(p, dt) {
+    const L = p.L, R = this.R, C = this.C; L.at += dt;
+    let dy = Math.atan2(Math.sin(L.tyaw - p.yaw), Math.cos(L.tyaw - p.yaw)); if (Math.abs(dy) > 0.01 && !p.staff) { p.yaw += dy * Math.min(1, dt * 4); p.want = p.yaw; p.base = p.yaw; C_write(C, p); }
+    const a = L.act;
+    if (a === 'swim' || a === 'float') {   // (drifting about the deep water: a stroke, a float on the back)
+      L.roll = a === 'float' ? Math.PI / 2 : -Math.PI / 2; p.y = this.plan.pool.wl - (a === 'float' ? 0.04 : 0.07) + Math.sin(this.t * 2 + L.bob) * 0.03;
+      if (a === 'swim') { const sp = SWIM * 0.6 * dt, nx = p.x + Math.cos(p.yaw) * sp, nz = p.z - Math.sin(p.yaw) * sp; if (this.nav.typeAt(nx, nz) === 3) { p.x = nx; p.z = nz; } else { L.tyaw = p.yaw + Math.PI * (0.6 + R() * 0.8); } }
+      else { const nx = p.x + Math.cos(this.t * 0.2 + L.bob) * dt * 0.05; if (this.nav.typeAt(nx, p.z) >= 2) p.x = nx; }
+      p.hx = p.x; p.hz = p.z; C_write(C, p);
+    } else if (L.roll) { L.roll = 0; C_write(C, p); }
+    if (a === 'chat' && L.grp) {   // (taking turns: one talks - their hands going - the others listen, sip, laugh)
+      const G = L.grp; if (G.m[0] === p && (G.spkT = (G.spkT || 0) - dt) <= 0) {
+        const near = G.m.filter((q) => q.on && q.L.act === 'chat'); G.spkT = 2.5 + R() * 3;
+        if (near.length > 1) { const s = pickR(R, near); for (const q of near) this.pose(q, q === s ? 'gesture' : R() < 0.4 ? 'drink' : 'talk'); const ex = pickR(R, TALK), o = near.find((q) => q !== s); this.say(s, ex[0], 2.6, o?.L.name); if (o) setTimeoutLine(this, o, ex[1], 1.6); if (R() < 0.18) { const l = pickR(R, near.filter((q) => q !== s)); if (l) { this.pose(l, 'cheer'); this.say(l, SAY.laugh, 2); } } if (R() < 0.08) for (const q of near) { this.pose(q, 'toast'); if (q === s) this.say(q, SAY.toast, 2); } }
+      }
+    }
+    if (a === 'dance' || a === 'couple' || a === 'circle' || a === 'crew') {   // (the drop: hands up, a jump on every beat)
+      const up = this.dropUntil > C.B; if (up && L.pose !== 'cheer') this.pose(p, 'cheer'); else if (!up && L.pose === 'cheer') this.pose(p, 'dance1', 'dance2', true);
+      const base = L.then?.y ?? this._floor(p.x, p.z), j = up && base > -0.5 ? 0.11 * Math.abs(Math.sin(Math.PI * C.B)) : 0; if (Math.abs(p.y - (base + j)) > 0.004) { p.y = base + j; C_write(C, p); }
+    }
+    if (a === 'towel' && L.at > L.dwell && L.after) { const s = L.after; L.after = null; this.go(p, s.x + (R() - 0.5), s.z + (R() - 0.5), { act: 'dry', pose: 'talk', dwell: 15 + R() * 15, yaw: R() * TAU }); return; }
+    if (a === 'order' && L.at > L.dwell) { this.say(p, SAY.serve, 1.6); this.plan.served?.(L.slot); L.thirst = Math.max(0, L.thirst - 0.4); L.act = 'sip'; L.at = 0; L.dwell = 8 + R() * 8; this.pose(p, 'drink'); if (L.slot) { L.slot.p = null; L.slot = null; } return; }
+    if (a === 'sip' && L.at > L.dwell) { L.thirst = 0; this._chat(p); return; }
+    if (a === 'queue') return;
+    if (a === 'greet' && L.at > 1.4) { this.pose(p, 'talk'); L.act = 'chat'; }
+    if (a === 'arrive' && L.at > L.dwell) {
+      if (L.meet && L.grp?.spot) { L.meet = 0; this._chat(p); if (L.then) { L.then.act = 'greet'; L.then.pose = 'cheer'; L.then.fn = (q) => this.say(q, SAY.hello, 2.4); } return; }
+      this._decide(p); return;
+    }
+    if (a === 'photo' && L.at > L.dwell) this.pose(p, 'talk');
+    if (a === 'splash' && L.at > L.dwell) { L.roll = 0; this._swim(p); return; }
+    if (a === 'perform') return;
+    if (a === 'cannon' && L.jump) { this._jump(p, dt); return; }
+    if (a === 'cannon' && L.at > 8) { L.dwell = 0; }
+    // (time to choose again: every 2-4 s once their dwell is up)
+    if (L.at > L.dwell && (L.think -= dt) <= 0) { if (this.budget-- <= 0) { L.think = 0.05; return; } L.think = 2 + R() * 2; this._decide(p); }
+  }
+  /** a cannonball: off the edge in an arc, a splash, then a race to the far wall */
+  _jump(p, dt) {
+    const L = p.L, J = L.jump, P = this.plan.pool;
+    if (L.at < J.wait) return;
+    J.t = Math.min(1, J.t + dt / 0.8); const u = J.t;
+    p.x = J.x0 + (J.x1 - J.x0) * u; p.z = J.z0 + (J.z1 - J.z0) * u; p.hx = p.x; p.hz = p.z;
+    p.y = 0.75 * Math.sin(Math.PI * Math.min(1, u * 1.15)) + (P.wl - 0.9) * u * u; C_write(this.C, p);
+    if (u >= 1) {
+      L.jump = null; L.wet = 1; L.heat = 0; this.plan.splash?.(p.x, p.z, 1.3);
+      const f = J.far || { x: -Math.sign(p.x || 1) * (P.x1 - 1.2), z: p.z }; this.go(p, f.x, clamp(f.z, P.z0 + 1, P.shelf - 0.6), { act: 'swim', pose: 'walk1', dwell: 4 + this.R() * 6, yaw: this.R() * TAU, walk: 'swim', fn: (q) => this.say(q, ['Ha! I win!', 'Touch!', 'Rematch!', 'Again!'], 2) }, true);
+    }
+  }
+  _enter(p) {
+    const L = p.L, D = this.plan.door, R = this.R, C = this.C;
+    p.on = true; C._dirty = true; p.x = D.x + (R() - 0.5) * 1.6; p.z = D.z; p.y = 0; p.yaw = -Math.PI / 2; p.hx = p.x; p.hz = p.z; L.act = 'arrive';
+    const H = this.plan.host; this.go(p, H.x + (R() - 0.5) * 0.6, H.z - R() * 0.8, { act: 'arrive', pose: 'talk', dwell: 1.2 + R() * 1.6, yaw: -Math.PI / 2 });
+    // (the friends they came with: hello on meeting, the first of them already in)
+    const G = L.grp; if (G && G.m.some((q) => q !== p && q.on && q.L.act !== 'arrive' && q.L.act !== 'leave')) L.meet = 1;
+  }
+  /** the drop: everyone dancing throws their hands up; a few on the deck rush the floor */
+  _drop() {
+    const R = this.R; let n = 0;
+    for (const p of this.C.people) { const L = p.L; if (!L || !p.on || L.anchor) continue; const a = L.act; if (a === 'dance' || a === 'couple' || a === 'circle' || a === 'crew') { if (R() < 0.12 && n++ < 4) this.say(p, SAY.drop, 2); } else if ((a === 'chat' || a === 'sip') && !L.pn && R() < 0.22) { L.dance += 0.6; L.dwell = 0; L.think = 0; } }
+  }
+  /** the night's set pieces, now and then: a splash fight, a cannonball race, a chant round a circle, the birthday's bottle */
+  _events(dt) {
+    const E = this.events, R = this.R, C = this.C, P = this.plan; for (const k in E) E[k] -= dt;
+    const ppl = C.people;
+    if (E.splash <= 0) {
+      E.splash = 25 + R() * 30; const sw = ppl.filter((p) => p.on && p.L && (p.L.act === 'swim' || p.L.act === 'float') && !p.L.pn);
+      const a = pickR(R, sw), b = a && sw.filter((q) => q !== a && Math.hypot(q.x - a.x, q.z - a.z) < 5).sort((u, v) => Math.hypot(u.x - a.x, u.z - a.z) - Math.hypot(v.x - a.x, v.z - a.z))[0];
+      if (a && b) for (const [p, q] of [[a, b], [b, a]]) { const L = p.L; L.act = 'splash'; L.at = 0; L.dwell = 5 + R() * 3; L.roll = 0; p.y = this._floor(p.x, p.z); L.tyaw = Math.atan2(-(q.z - p.z), q.x - p.x); this.pose(p, 'cheer'); this.say(p, SAY.splash, 2); P.splash?.(p.x, p.z, 0.6); C_write(C, p); }
+    }
+    if (E.cannon <= 0) {
+      E.cannon = 40 + R() * 40; const dry = ppl.filter((p) => p.on && p.L?.swim && !p.L.pn && (p.L.act === 'chat' || p.L.act === 'sip' || p.L.act === 'dry') && p.L.grp && p.L.grp.m.length > 1).slice(0, 40);
+      const a = pickR(R, dry); if (a) { const G = a.L.grp, e = pickR(R, P.edge); G.m.slice(0, 3).forEach((p, i) => { if (!p.on || !p.L.swim) return; this._release(p); const ox = Math.abs(e.ix - e.x) > Math.abs(e.iz - e.z) ? 0 : (i - 1) * 1.1, oz = ox ? 0 : (i - 1) * 1.1, ex = e.x + ox, ez = e.z + oz; this.go(p, ex, ez, { act: 'cannon', pose: 'cheer', dwell: 99, yaw: Math.atan2(-(e.iz - e.z), e.ix - e.x), fn: (q) => { if (i === 0) this.say(q, SAY.cannon, 2); q.L.jump = { t: 0, wait: 1.6 + i * 0.3, x0: q.x, z0: q.z, x1: e.ix + ox, z1: e.iz + oz, far: e.far }; } }); }); }
+    }
+    if (E.chant <= 0) {
+      E.chant = 30 + R() * 30; const d = ppl.filter((p) => p.on && p.L && (p.L.act === 'dance' || p.L.act === 'crew') && !p.L.pn && this.nav.typeAt(p.x, p.z) === 1);
+      const c = pickR(R, d); if (c && this.energy > 0.6) { const ring = d.filter((q) => q !== c && Math.hypot(q.x - c.x, q.z - c.z) < 4).slice(0, 6); ring.forEach((q, i) => { const a = (i / ring.length) * TAU, x = c.x + Math.cos(a) * 1.2, z = c.z + Math.sin(a) * 1.2; if (this.nav.typeAt(x, z) !== 1) return; this._release(q); this.go(q, x, z, { act: 'circle', pose: 'cheer', dwell: 10 + R() * 6, yaw: Math.atan2(-(c.z - z), c.x - x) }); if (i < 2) setTimeoutLine(this, q, pickR(R, SAY.chant), 2 + i); }); if (ring.length >= 3) { c.L.act = 'circle'; c.L.at = 0; c.L.dwell = 12; this.pose(c, 'dance1', 'dance2', true); } }
+    }
+    if (E.parade <= 0) {
+      E.parade = 80 + R() * 60;
+      const B = this.bday; if (B && this.energy > 0.85 && B.m.some((p) => p.on)) {
+        const at = P.birthday, sv = ppl.filter((p) => p.on && p.role === 'server');
+        sv.forEach((s, i) => { s.L.parade = true; s.L.sp = true; this.go(s, at.x + 1.2, at.z + (i - 0.5) * 0.8, { act: 'parade', pose: 'drink', dwell: 9, yaw: Math.PI, walk: 'parade', fn: (q) => { q.L.sp = false; q.L.parade = false; } }); s.L.act = 'parade'; });
+        B.m.forEach((p, i) => { if (!p.on) return; this._release(p); const x = at.x + 0.3 + Math.cos(i * 1.3) * 0.7, z = at.z + Math.sin(i * 1.3) * 0.8; this.go(p, x, z, { act: 'cheer', pose: 'cheer', dwell: 14, yaw: Math.atan2(-(at.z - z), at.x - x), fn: (q) => { if (i === 0) this.say(q, SAY.birthday, 2.5); } }); });
+        P.say?.(`HAPPY BIRTHDAY ${B.m[0].L.name}`.toUpperCase());
+        B.m.forEach((p, i) => SAY.count.forEach((c, k) => setTimeoutLine(this, p, c, 9 + k * 1.1, i === 0)));
+      }
+    }
+  }
+  _apart() {
+    const ppl = this.C.people;
+    for (const p of ppl) {
+      if (!p.on || !p.L?.pn) continue;
+      for (const q of ppl) {
+        if (q === p || !q.on) continue; const dx = p.x - q.x, dz = p.z - q.z, d2 = dx * dx + dz * dz; if (d2 > 0.2 || d2 < 1e-6) continue;
+        const d = Math.sqrt(d2), k = (0.45 - d) * 0.5, nx = p.x + (dx / d) * k, nz = p.z + (dz / d) * k;
+        if (this.nav.ok(this.nav.cell(nx, nz), this.nav.typeAt(p.x, p.z) >= 2)) { p.x = nx; p.z = nz; p.hx = nx; p.hz = nz; }
+      }
+    }
+  }
+
+  // ---- for the others --------------------------------------------------------------------------------------------------
+  bump(x, z, r) {
+    const R = this.R; if ((this.bumpT || 0) > this.t) return;
+    for (const p of this.C.people) {
+      if (!p.on || !p.L || !p._pushed) continue; if ((p.x - x) ** 2 + (p.z - z) ** 2 > (r + 0.3) ** 2) continue;   // (the push has just moved them out to r: whoever it moved)
+      this.bumpT = this.t + 2.5 + R() * 2; const w = this.nav.typeAt(p.x, p.z) >= 2;
+      this.say(p, w ? SAY.bumpW : SAY.bump, 1.8); p.L.tyaw = Math.atan2(-(z - p.z), x - p.x); return;
+    }
+  }
+  /** you joining a group: standing close by its middle, they open up and face you */
+  join(x, z) {
+    for (const G of this.groups) {
+      if (!G.spot || G.m.length < 2) continue; const d = Math.hypot(G.spot.x - x, G.spot.z - z); if (d > 1.5) continue;
+      for (const p of G.m) if (p.on && p.L.act === 'chat' && !p.L.pn) { const a = Math.atan2(-(z - p.z), x - p.x), b = Math.atan2(-(G.spot.z - p.z), G.spot.x - p.x); p.L.tyaw = Math.atan2(Math.sin(a) + Math.sin(b), Math.cos(a) + Math.cos(b)); }
+      if (!G.you) { G.you = true; const s = G.m.find((p) => p.on && p.L.act === 'chat'); if (s) this.say(s, ['Oh hey! Join us.', 'Pull up!', 'Hi! We were just talking about you. Kidding.', 'Squeeze in!'], 2.6); }
+      return G;
+    }
+    return null;
+  }
+  chat(p, cam) {
+    const L = p.L; if (!L) return null; const ex = MEET[(L.you++ + L.i) % MEET.length];
+    L.tyaw = Math.atan2(-(cam.z - p.z), cam.x - p.x); L.dwell = Math.max(L.dwell, L.at + 8); if (!L.pn) this.pose(p, 'gesture');
+    return ex.map((s) => fill(s, { name: L.name, drink: L.drink, friend: L.friend || 'my friends', mood: L.mood }));
+  }
+  lines(cam, r, out) {
+    out.length = 0; for (const p of this.C.people) { const L = p.L; if (!p.on || !L || L.sayT <= 0) continue; if ((p.x - cam.x) ** 2 + (p.z - cam.z) ** 2 < r * r) out.push(p); }
+    return out;
+  }
+  counts() { const c = {}; for (const a of ACTS) c[a] = 0; for (const p of this.C.people) if (p.on && p.L) { const a = p.L.pn ? (p.L.then?.walk === 'swim' ? 'swim' : 'walk') : p.L.anchor ? (p.role === 'performer' ? 'perform' : p.L.pose?.startsWith('dance') ? 'dance' : 'idle') : p.L.act; c[a] = (c[a] || 0) + 1; if (this.nav.typeAt(p.x, p.z) >= 2) c.inWater = (c.inWater || 0) + 1; } return c; }
+  info(p) {
+    const L = p.L; if (!L) return null;
+    return { name: L.name, role: p.role, kit: p.wk || '', act: L.pn ? `walking (${L.then?.act || '?'})` : L.act, goal: L.then?.act || L.act, mood: L.mood, drink: L.drink, group: L.grp ? `${L.grp.m.length} (${L.grp.m.map((q) => q.L.name).join(', ')})` : '-', thirst: L.thirst, social: L.social, dance: L.dance, heat: L.heat, stamina: L.stam, wet: L.wet };
+  }
+}
+// (a pose a kit lacks: the nearest it has)
+const FALL = { gesture: 'talk', cheer: 'dance2', toast: 'drink', hug: 'talk', brohug: 'talk', sitBooth: 'talk', walk3: 'walk1', walk2: 'walk1', walk1: 'talk', dance2: 'dance1', dance1: 'talk', photo: 'talk', cross: 'talk', talk: 'drink' };
+/** a person's matrix written again (their place, their turn, their roll) */
+function C_write(C, p) { if (p.mesh) C._write(p); }
+/** a line said a moment later (the answer in an exchange): on the brain's own clock, no timer object kept */
+function setTimeoutLine(B, p, text, delay, loud = true) {
+  const L = p.L; if (!L) return; (L.later || (L.later = [])).push({ at: B.t + delay, text, loud });
+  if (!B._lt) { B._lt = true; const pre = B.pre; B.pre = function (dt) { pre.call(this, dt); for (const q of this.C.people) { const Q = q.L; if (!Q?.later?.length) continue; for (let i = Q.later.length - 1; i >= 0; i--) if (Q.later[i].at <= this.t) { const l = Q.later.splice(i, 1)[0]; if (l.loud) this.say(q, l.text, 2.2); } } }; }
+}
+
+return { PoolBrain };
+})();
+
+// ---- src/ui/PoolPlay.js
+__m['src/ui/PoolPlay.js'] = (() => {
+
+// You at the pool club (ui/PartyPool.js's V.life, called by ui/Hangout.js's pool hooks): into the water off the shelf's
+// steps - wading, then swimming once it is deep, the eye at the surface and bobbing - under for a moment (Space, the sound
+// muffled, the light turned green-blue), off the edge with a jump (Space at the edge, facing the water) and out again over
+// the coping (Space at the wall); a splash where anyone goes in, the ring of ripples round you. Only what is swum in goes
+// in: an open shirt is left with the towels, clothes you can't swim in keep you on the shelf until you change at the towel
+// stand. The guests: what they say over their heads when they are within ~4 m (the rest a murmur), E to talk to one of
+// them, a word when you shove past. ?crowd=debug: the guest you look at - who, doing what, wanting what - and how many
+// are doing each thing.
+//
+// Nothing allocated per frame: the splash is one Points of 160 drops, the bubbles six reused <div>s, the overlay one more.
+//
+// ==== THE CONTRACT ======================================================================================================
+// poolPlay(K, E, o) -> life     o: { pool { x0, z0, x1, z1, shelf, wl, ledge, deep }, heightAt(x, z), night, towel { x, z },
+//                                    swimKit(kit) -> 'swim' | 'shirt' | 'cover' | null (how a kit of yours goes in the water) }
+// life.frame(dt)          Hangout, every frame after your step (not in a game, a talk or a moment): the water, the eye
+// life.speed              your walking speed's factor now (wading, swimming)
+// life.key(code) -> bool  a key of yours (Space): taken?
+// life.target(x, z, fx, fz) -> { n: guest } | null   the guest you face within reach (E)
+// life.prompt(t) -> html  their line in the prompt;   life.use(t) -> bool  E on them (or on the towels)
+// life.splash(x, z, k)    a splash of size k at (x, z) (the crowd's cannonballs too)
+// life.dispose()
+// ======================================================================================================================
+
+const NDROP = 160, NBUB = 6;
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const debugWanted = () => { try { return /(?:[?&#])crowd=debug\b/.test(location.search + location.hash) || !!globalThis.__crowdDebug; } catch (_) { return false; } };
+
+function poolPlay(K, E, o) {
+  const P = o.pool, me = E.pool = { inWater: false, swim: false, under: false, x: 0, z: 0, wade: false };
+  const life = { speed: 1 };
+  let st = 'deck', jump = null, underT = 0, eyeV = 0, lastX = NaN, lastZ = NaN, warned = 0, changed = false, t = 0, bubT = 0, murT = 0, dbgT = 0, chatQ = [];
+  const inRect = (x, z, m = 0) => x > P.x0 + m && x < P.x1 - m && z > P.z0 + m && z < P.z1 - m;
+
+  // ---- the splash: drops thrown up where someone goes in, falling back -----------------------------------------------
+  const pos = new Float32Array(NDROP * 3).fill(-100), vel = new Float32Array(NDROP * 3); let dropI = 0, live = 0;
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3).setUsage(THREE.DynamicDrawUsage));
+  const drops = K.obj(new THREE.Points(g, new THREE.PointsMaterial({ color: o.night ? '#b8f4ff' : '#ffffff', size: 0.09, sizeAttenuation: true, transparent: true, opacity: 0.85, depthWrite: false, toneMapped: false, fog: false })));
+  drops.frustumCulled = false; drops.renderOrder = 4; drops.visible = false;
+  life.splash = (x, z, k = 1) => {
+    const n = Math.min(NDROP / 2, Math.round(16 + 26 * k));
+    for (let i = 0; i < n; i++) {
+      const j = (dropI = (dropI + 1) % NDROP) * 3, a = Math.random() * Math.PI * 2, r = (0.4 + Math.random()) * 0.9 * k;
+      pos[j] = x + Math.cos(a) * 0.15; pos[j + 1] = P.wl + 0.02; pos[j + 2] = z + Math.sin(a) * 0.15;
+      vel[j] = Math.cos(a) * r; vel[j + 1] = (1.6 + Math.random() * 2.2) * Math.sqrt(k); vel[j + 2] = Math.sin(a) * r;
+    }
+    live = 1.6; drops.visible = true;
+  };
+  K.anim((_, dt) => {
+    if (live <= 0) return; live -= dt; const d = Math.min(0.05, dt || 0);
+    for (let j = 0; j < NDROP * 3; j += 3) { if (pos[j + 1] < -50) continue; vel[j + 1] -= 9.8 * d; pos[j] += vel[j] * d; pos[j + 1] += vel[j + 1] * d; pos[j + 2] += vel[j + 2] * d; if (pos[j + 1] < P.wl) pos[j + 1] = -100; }
+    g.attributes.position.needsUpdate = true; if (live <= 0) drops.visible = false;
+  });
+
+  // ---- the overlays: under the water, the guests' lines, the debug panel ---------------------------------------------
+  const host = E.canvas?.parentElement || null, mk = (css) => { if (!host) return null; const d = document.createElement('div'); d.style.cssText = 'position:absolute;pointer-events:none;' + css; host.appendChild(d); return d; };
+  const uw = mk('inset:0;opacity:0;transition:opacity .25s;background:radial-gradient(ellipse at 50% 30%,rgba(40,190,200,.38),rgba(4,60,80,.78));backdrop-filter:blur(2px);z-index:2');
+  const bub = []; for (let i = 0; i < NBUB; i++) { const d = mk('left:0;top:0;transform:translate(-50%,-100%);max-width:220px;padding:5px 9px;border-radius:12px;background:rgba(255,255,255,.92);color:#15161a;font:600 12px/1.25 system-ui,sans-serif;text-align:center;display:none;z-index:3;white-space:normal'); if (d) bub.push({ d, txt: '' }); }
+  const dbg = debugWanted() ? mk('left:10px;top:10px;padding:8px 10px;border-radius:8px;background:rgba(0,0,0,.72);color:#dff;font:11px/1.35 ui-monospace,monospace;z-index:4;white-space:pre;max-width:46vw') : null;
+  const near = []; const _v = new THREE.Vector3();
+  const crowd = () => E.crowd || null, brain = () => crowd()?.life || null;
+
+  // ---- what you may wear in: your kit (ui/Hangout.js's meOpts) -------------------------------------------------------
+  const dress = () => { if (changed) return 'swim'; try { return o.swimKit?.(E.meOpts?.kit) || null; } catch (_) { return null; } };
+
+  // ---- every frame ---------------------------------------------------------------------------------------------------
+  life.frame = (dt) => {
+    t += dt; const p = E.pos; if (!p) return;
+    const busy = !!(E.seat || E.moment || E.talk || E.game);
+    // (no way out of the deep end but over the coping: a step that would take you from deep water onto the deck is undone)
+    if (Number.isFinite(lastX) && !jump && !busy) {
+      const was = inRect(lastX, lastZ) && lastZ < P.shelf, now = inRect(p.x, p.z);
+      if (was && !now) { p.x = Math.min(P.x1 - 0.3, Math.max(P.x0 + 0.3, p.x)); p.z = Math.min(P.z1 - 0.3, Math.max(P.z0 + 0.3, p.z)); if (t > warned) { warned = t + 6; E._toast?.('Space to climb out over the edge.', ''); } }
+      // (into the water in clothes you can't swim in: as far as the shelf, then no further)
+      const D = dress();
+      if (!was && now && D !== 'swim' && D !== 'shirt' && p.z < P.shelf + 0.4) { p.x = lastX; p.z = Math.max(lastZ, P.shelf + 0.4); if (t > warned) { warned = t + 6; E._toast?.('Not in those clothes. There are swim shorts at the towel stand by the doors.', ''); } }
+      if (!inRect(lastX, lastZ) && now && D === 'shirt' && !me.shirt) { me.shirt = true; E._toast?.('You leave your shirt with your towel on a lounger.', ''); }
+    }
+    const x = p.x, z = p.z, water = inRect(x, z), deep = water && z < P.shelf;
+    // (off the deck into the deep end, walking: in with a splash)
+    if (deep && st === 'deck' && !jump) { life.splash(x, z, 0.9); underT = 0.5; }
+    st = jump ? 'jump' : deep ? 'swim' : water ? 'wade' : 'deck';
+    me.inWater = water; me.swim = st === 'swim'; me.wade = st === 'wade'; me.x = x; me.z = z;
+    // (the jump: an arc 1.8 m out, the splash, a moment under)
+    if (jump) {
+      jump.t = Math.min(1, jump.t + dt / 0.75); const u = jump.t;
+      p.x = jump.x0 + (jump.x1 - jump.x0) * u; p.z = jump.z0 + (jump.z1 - jump.z0) * u; p.y = jump.y0 + 0.7 * Math.sin(Math.PI * u) + (P.wl - 0.2 - jump.y0) * u * u;
+      if (u >= 1) { jump = null; life.splash(p.x, p.z, 1.4); underT = 0.9; }
+    } else if (!busy) {
+      const h = +o.heightAt(x, z) || 0, bob = Math.sin(t * 2.2) * 0.025;
+      let want = 1.66 + h;
+      if (st === 'swim') want = underT > 0 ? P.wl - 0.45 : P.wl + 0.14 + bob;
+      else if (st === 'wade') want = 1.62 + h;
+      eyeV = want; p.y += (want - p.y) * Math.min(1, dt * (st === 'swim' ? 5 : 10));
+    }
+    if (underT > 0) underT -= dt;
+    me.under = !!(st === 'swim' && underT > 0 && p.y < P.wl);
+    life.speed = st === 'swim' ? 0.62 : st === 'wade' ? 0.72 : 1;
+    if (uw) uw.style.opacity = me.under ? '1' : '0';
+    muffle(me.under);
+    lastX = p.x; lastZ = p.z;
+    // (the lines over the guests' heads, ten times a second; the murmur by how many are near)
+    if ((bubT -= dt) <= 0) { bubT = 0.1; bubbles(); }
+    if ((murT -= dt) <= 0) { murT = 0.5; const C = crowd(); if (C?.near && E.crowdBed?.to && !E.party) { try { E.crowdBed.to(0.12 + 0.2 * Math.min(1, C.near(x, z, 7) / 22) * (me.under ? 0.4 : 1), 0.8); } catch (_) { /* */ } } }
+    if (dbg && (dbgT -= dt) <= 0) { dbgT = 0.25; debug(); }
+    if (chatQ.length && chatQ[0].at <= t) { const c = chatQ.shift(); if (c.me) E._toast?.(`You: ${c.text}`, ''); else E._bark?.({ first: c.name }, c.text, 3.2); }
+  };
+  life.key = (code) => {
+    if (code !== 'Space') return false;
+    const p = E.pos; if (!p || jump || E.seat) return false;
+    const fx = Math.cos(E.yaw || 0), fz = Math.sin(E.yaw || 0);
+    if (st === 'deck') {   // (at the edge, facing the water: in)
+      const ax = p.x + fx * 1.8, az = p.z + fz * 1.8, D = dress();
+      if (!inRect(p.x + fx * 0.9, p.z + fz * 0.9) || !inRect(ax, az, 0.4) || az > P.shelf) return false;
+      if (D !== 'swim' && D !== 'shirt') { E._toast?.('Not in those clothes. There are swim shorts at the towel stand by the doors.', ''); return true; }
+      if (D === 'shirt' && !me.shirt) { me.shirt = true; E._toast?.('Shirt off, onto a lounger.', ''); }
+      jump = { t: 0, x0: p.x, z0: p.z, y0: p.y, x1: ax, z1: az }; return true;
+    }
+    if (st === 'swim') {
+      // (at the wall: out over the coping; else a moment under)
+      const ox = p.x + fx * 0.9, oz = p.z + fz * 0.9;
+      if (!inRect(ox, oz)) { const nx = p.x + fx * 1.1, nz = p.z + fz * 1.1; if (E._free?.(nx, nz)) { p.x = nx; p.z = nz; p.y = 1.66; lastX = nx; lastZ = nz; st = 'deck'; E._toast?.(['Out, dripping.', 'You haul yourself out onto the warm deck.'][Math.floor(t) % 2], ''); return true; } }
+      underT = 1.6; return true;
+    }
+    return false;
+  };
+  // ---- the guests: who you face, and talking to them -----------------------------------------------------------------
+  life.target = (x, z, fx, fz) => {
+    const C = crowd(), B = brain(); if (!C?.ready || !B) return null;
+    let best = null, bs = -9;
+    for (const q of C.people) {
+      if (!q.on || !q.L || q.staff && q.role === 'performer') continue; const dx = q.x - x, dz = q.z - z, d = Math.hypot(dx, dz); if (d > 2.2 || d < 0.05) continue;
+      const dot = (dx * fx + dz * fz) / d; if (dot < 0.8) continue; const s = dot - d * 0.1; if (s > bs) { bs = s; best = q; }
+    }
+    return best ? { n: best, d: bs } : null;
+  };
+  life.prompt = (tg) => { const L = tg?.n?.L; return L ? `<span><kbd>E</kbd>Chat with ${esc(L.name)}</span><small>${esc(L.mood)}${L.drink && !tg.n.staff ? ' · ' + esc(L.drink) : ''}</small>` : ''; };
+  life.use = (tg) => {
+    if (tg?.h?.id === 'towels') {
+      if (dress() === 'swim') { E._toast?.('A fresh towel, rolled under your arm.', ''); return true; }
+      changed = true; E._toast?.('You change into swim shorts from the towel stand. The water is yours.', ''); return true;
+    }
+    const q = tg?.n, B = brain(); if (!q || !B) return false;
+    const lines = B.chat(q, E.pos); if (!lines) return false;
+    chatQ.length = 0; chatQ.push({ at: t, name: q.L.name, text: lines[0] }, { at: t + 2.6, me: true, text: lines[1] }, { at: t + 4.6, name: q.L.name, text: lines[2] });
+    return true;
+  };
+  // ---- the overlays' frames ------------------------------------------------------------------------------------------
+  function bubbles() {
+    const B = brain(), cam = E.cam; if (!B || !cam || !bub.length) return;
+    B.lines(E.pos, 4.2, near); near.sort((a, b) => ((a.x - E.pos.x) ** 2 + (a.z - E.pos.z) ** 2) - ((b.x - E.pos.x) ** 2 + (b.z - E.pos.z) ** 2));
+    const W = host.clientWidth, H = host.clientHeight; let k = 0;
+    for (let i = 0; i < near.length && k < bub.length; i++) {
+      const q = near[i]; _v.set(q.x, q.y + (q.L.roll ? 0.45 : 1.95) * q.scale, q.z); E.scene?.localToWorld?.(_v); _v.project(cam);
+      if (_v.z > 1 || Math.abs(_v.x) > 1.05 || Math.abs(_v.y) > 1.05) continue;
+      const b = bub[k++]; if (b.txt !== q.L.say) { b.txt = q.L.say; b.d.textContent = q.L.say; } b.d.style.left = `${((_v.x + 1) / 2) * W}px`; b.d.style.top = `${((1 - _v.y) / 2) * H}px`; b.d.style.display = 'block';
+    }
+    for (; k < bub.length; k++) if (bub[k].d.style.display !== 'none') bub[k].d.style.display = 'none';
+  }
+  function debug() {
+    const C = crowd(), B = brain(); if (!C || !B) { dbg.textContent = 'crowd: none'; return; }
+    const s = C.stats(), c = B.counts(), tg = life.target(E.pos.x, E.pos.z, Math.cos(E.yaw || 0), Math.sin(E.yaw || 0)) || nearestAim(C);
+    let txt = `guests ${s.active}/${s.people} · calls ${s.calls} · tris ${(s.tris / 1000).toFixed(0)}k · life ${(B.ms || 0).toFixed(2)} ms\n`;
+    txt += Object.entries(c).filter(([, n]) => n).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ${n}`).join(' · ') + '\n';
+    txt += `you: ${st}${me.under ? ' (under)' : ''} · speed x${life.speed}\n`;
+    const I = tg?.n ? B.info(tg.n) : null;
+    if (I) txt += `\n${I.name} · ${I.role} · ${I.kit}\n${I.act} -> ${I.goal}\nmood ${I.mood} · ${I.drink}\ngroup ${I.group}\nthirst ${I.thirst.toFixed(2)} social ${I.social.toFixed(2)} dance ${I.dance.toFixed(2)} heat ${I.heat.toFixed(2)} stamina ${I.stamina.toFixed(2)} wet ${I.wet.toFixed(2)}`;
+    dbg.textContent = txt;
+  }
+  // (the debug panel's aim reaches further than E: the guest nearest the middle of the view within 12 m)
+  function nearestAim(C) {
+    const x = E.pos.x, z = E.pos.z, fx = Math.cos(E.yaw || 0), fz = Math.sin(E.yaw || 0); let best = null, bs = 0.97;
+    for (const q of C.people) { if (!q.on || !q.L) continue; const dx = q.x - x, dz = q.z - z, d = Math.hypot(dx, dz); if (d > 12 || d < 0.3) continue; const s = (dx * fx + dz * fz) / d; if (s > bs) { bs = s; best = q; } }
+    return best ? { n: best } : null;
+  }
+  // ---- under the water: the music and the room through a low-pass, eased (the game's own audio, its sfx bus) ----------
+  let lp = null, lpOn = false;
+  function muffle(on) {
+    if (on === lpOn) return; lpOn = on;
+    const A = E.audio; if (!A?.ctx || !A.sfx) return;
+    try {
+      if (!lp) { lp = A._poolLP; if (!lp) { lp = A._poolLP = A.ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 22000; A.sfx.disconnect(); A.sfx.connect(lp); lp.connect(A.ctx.destination); } }
+      lp.frequency.setTargetAtTime(on ? 420 : 22000, A.ctx.currentTime, 0.08);
+    } catch (_) { /* no audio graph */ }
+  }
+  life.dispose = () => {
+    muffle(false); E.pool = null;
+    for (const d of [uw, dbg, ...bub.map((b) => b.d)]) d?.remove();
+    g.dispose(); drops.material.dispose();
+  };
+  return life;
+}
+
+return { poolPlay };
+})();
+
 // ---- src/ui/PartyPool.js
 __m['src/ui/PartyPool.js'] = (() => {
 const People = __m['src/world/People.js'];
 const Celebs = __m['src/career/Celebs.js'];
 const { SKINS } = __m['src/world/Crowd.js'];
 const { PartyCrowd } = __m['src/world/PartyCrowd.js'];
+const { PoolBrain } = __m['src/world/PoolLife.js'];
+const { poolPlay } = __m['src/ui/PoolPlay.js'];
 // The pool club: Tidewater Beach Club at the Meridian Grand, Las Vegas - the Strip's own kind of dayclub and night swim,
 // for the race weekend's after-parties and the days out (ui/PartyVenues.js's party engine runs it; ui/Hangout.js builds
 // it in its Kit, as every venue). Made after the real ones - Encore Beach Club, Marquee, Drai's, Wet Republic: one big
@@ -113237,6 +114012,8 @@ const { PartyCrowd } = __m['src/world/PartyCrowd.js'];
 //   scene, queue, pos, yaw, cam, clock, t, lib. A party (E.isParty): Hangout and PartyPlay run the crowd; an ordinary
 //   evening: this builds and runs its own (the same PoolCrowd, the same spots).
 // ======================================================================================================================
+
+
 
 
 
@@ -113624,36 +114401,115 @@ function beams(K, heads, tex) {
   return mesh;
 }
 /**
- * The water: one mesh over every basin, a MeshBasicMaterial (no light of the world's or the room's: it is the same
- * hosted and not) with a few travelling waves summed into its slope, the sky by the Fresnel term and the sun's glint -
- * more see-through looking down, a mirror at a low angle, as water is. The legs of anyone standing in it go on beneath
- * the surface, tinted and dimmed, the cut clean where they meet it.
+ * The water: one mesh over every basin. Two looks, both a MeshBasicMaterial (no light of the world's or the room's: the
+ * same hosted and not): the flat one - a translucent turquoise, nothing but its colour - and the full one (WATER_FX), a few
+ * travelling waves summed into its slope, the swimmers' own rings in it, the sky by the Fresnel term, the sun's glint, the
+ * shelf lighter than the deep end - more see-through looking down, a mirror at a low angle, as water is. The legs of anyone
+ * standing in it go on beneath the surface, tinted and dimmed, the cut clean where they meet it.
+ * (2026-10-15: the full look came out solid black on the user's Intel UHD laptop. It does not on software GL (bisected: the
+ * water alone, the multiply layer alone, the caustics alone, the rings - each fine there), so the driver's own maths is the
+ * suspect: an unguarded pow() of 0 to the 420th, a normalize() of a zero vector, an unbounded glint - any NaN in it is black.
+ * Now every pow is of max(x, 1e-4), every normalize guarded, every term clamped, a floor under its brightness and a NaN
+ * check at the end; and which look draws is decided where it runs: the first frame renders the full look by itself over a
+ * grey card and reads the pixels back (waterProbe) - black or NaN, and the flat water takes its place for the night.
+ * ?waterfx=1 / ?waterfx=0 (or #waterfx=, or localStorage 'f1sim-waterfx') forces either.)
+ * (Later the same day, raycast from the deck's edge looking down: the black was not the water at all - the world's own
+ * ground plane, 5 cm under a deck anchored at street level, drawn over the sunken basin; its polygon offset hid it at a
+ * grazing angle and lost to it looking down - how far is up to the driver. The pool club now stands on its podium, 7 m
+ * up (main.js hangoutAnchor), as this file always meant it to.)
  */
-const WATER_FX = false;
-function waterMat(night, sunW) {
-  const U = { uT: { value: 0 }, uSun: { value: sunW.clone().normalize() }, uSky: { value: new THREE.Color(night ? '#121733' : '#4f8ed8') }, uHor: { value: new THREE.Color(night ? '#3a2a44' : '#d2e3ec') }, uGl: { value: night ? 0.18 : 1 } };
-  const m = new THREE.MeshBasicMaterial({ color: night ? '#1fb4d4' : '#27b2c6', transparent: true, opacity: night ? 0.72 : 0.5, depthWrite: false });
-  // (the waves/Fresnel/glint shader below came out solid black on the user's Intel UHD laptop - off until it is made
-  //  safe there: the plain translucent water always draws; WATER_FX true brings the shader back)
-  if (WATER_FX) m.onBeforeCompile = (sh) => {
+const WATER_FX = 'auto';
+/** what the page asks for: 1 the full look, 0 the flat water, null decide by the probe */
+function waterFxWanted() {
+  if (globalThis.__waterFx != null) return globalThis.__waterFx ? 1 : 0;
+  try {
+    const q = String(location.search) + '&' + String(location.hash).replace(/^#/, ''), m = /[?&]waterfx=(\w+)/.exec(q);
+    const v = m ? m[1] : localStorage.getItem('f1sim-waterfx');
+    if (v != null && v !== '') return /^(1|on|true|yes|fx)$/i.test(v) ? 1 : 0;
+  } catch (_) { /* (no location or storage: a test page) */ }
+  return WATER_FX === 'auto' ? null : WATER_FX ? 1 : 0;
+}
+const RIPN = 8;   // (the swimmers whose rings are in the full look's slope: the nearest to the camera)
+function waterMat(night, sunW, shelfZ) {
+  const U = {
+    uT: { value: 0 }, uSun: { value: sunW.clone().normalize() }, uSky: { value: new THREE.Color(night ? '#1a2350' : '#4f8ed8') }, uHor: { value: new THREE.Color(night ? '#5c3c5c' : '#d2e3ec') },
+    uGl: { value: night ? 0.16 : 1 }, uFrMax: { value: night ? 0.42 : 0.8 }, uFloor: { value: night ? 0.1 : 0.2 }, uShelf: { value: shelfZ },
+    uShallow: { value: new THREE.Color(night ? '#46e6f2' : '#8fe8ea') }, uDeep: { value: new THREE.Color(night ? '#0aa6cc' : '#1aa9c6') },
+    uA: { value: new THREE.Vector2(night ? 0.4 : 0.3, night ? 0.64 : 0.56) }, uRip: { value: Array.from({ length: RIPN }, () => new THREE.Vector4(0, 0, 0, 0)) }, uBreak: { value: 0 },
+  };
+  const flat = new THREE.MeshBasicMaterial({ color: night ? '#1fb4d4' : '#27b2c6', transparent: true, opacity: night ? 0.72 : 0.5, depthWrite: false });
+  flat.customProgramCacheKey = () => 'pool-water-flat';
+  const fx = new THREE.MeshBasicMaterial({ color: night ? '#1fb4d4' : '#27b2c6', transparent: true, opacity: 1, depthWrite: false });
+  fx.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, U);
-    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vWP;').replace('#include <project_vertex>', '#include <project_vertex>\nvWP = ( modelMatrix * vec4( transformed, 1.0 ) ).xyz;');
-    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform float uT, uGl; uniform vec3 uSun, uSky, uHor; varying vec3 vWP;').replace('#include <opaque_fragment>', `{
-      vec2 wp = vWP.xz;
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vWP; varying vec3 vLP;').replace('#include <project_vertex>', '#include <project_vertex>\nvWP = ( modelMatrix * vec4( transformed, 1.0 ) ).xyz; vLP = transformed;');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
+uniform float uT, uGl, uFrMax, uFloor, uShelf, uBreak; uniform vec3 uSun, uSky, uHor, uShallow, uDeep; uniform vec2 uA; uniform vec4 uRip[ ${RIPN} ]; varying vec3 vWP; varying vec3 vLP;`).replace('#include <opaque_fragment>', `{
+      vec2 wp = vLP.xz;
       vec2 sl = vec2( 0.8, 0.6 ) * cos( dot( wp, vec2( 0.8, 0.6 ) ) * 2.1 + uT * 1.6 ) * 0.05 + vec2( -0.5, 0.866 ) * cos( dot( wp, vec2( -0.5, 0.866 ) ) * 3.4 + uT * 2.2 ) * 0.034
         + vec2( 0.96, -0.28 ) * cos( dot( wp, vec2( 0.96, -0.28 ) ) * 5.9 + uT * 3.0 ) * 0.02 + vec2( -0.2, -0.98 ) * cos( dot( wp, vec2( -0.2, -0.98 ) ) * 9.3 + uT * 3.9 ) * 0.012;
-      vec3 wn = normalize( vec3( -sl.x, 1.0, -sl.y ) ), wv = normalize( cameraPosition - vWP );
-      float fr = 0.02 + 0.98 * pow( 1.0 - clamp( dot( wn, wv ), 0.0, 1.0 ), 5.0 );
-      vec3 rf = reflect( -wv, wn ); float sd = max( dot( rf, uSun ), 0.0 );
+      // (the rings round the swimmers: each a travelling ring out to 3 m, fading with distance)
+      for ( int i = 0; i < ${RIPN}; i ++ ) {
+        vec4 r = uRip[ i ]; vec2 d = wp - r.xy; float dd = max( length( d ), 0.05 );
+        sl += ( d / dd ) * ( r.z * exp( -dd * 1.7 ) * step( dd, 3.0 ) * sin( dd * 15.0 - uT * 7.0 + r.w ) );
+      }
+      sl = clamp( sl, vec2( -0.4 ), vec2( 0.4 ) );
+      vec3 wn = vec3( -sl.x, 1.0, -sl.y ); wn *= inversesqrt( max( dot( wn, wn ), 1e-4 ) );
+      vec3 dv = cameraPosition - vWP; vec3 wv = dv * inversesqrt( max( dot( dv, dv ), 1e-6 ) );
+      float nv = clamp( dot( wn, wv ), 0.0, 1.0 );
+      float fr = clamp( 0.02 + 0.98 * pow( max( 1.0 - nv, 1e-4 ), 5.0 ), 0.0, uFrMax );
+      vec3 rf = reflect( -wv, wn );
+      float sd = clamp( dot( rf, uSun ), 0.0, 1.0 );
       vec3 sky = mix( uHor, uSky, clamp( rf.y * 1.8, 0.0, 1.0 ) );
-      float gl = ( pow( sd, 420.0 ) * 5.0 + pow( sd, 48.0 ) * 0.14 ) * uGl;
-      outgoingLight = mix( outgoingLight, sky, fr ) + vec3( gl );
-      diffuseColor.a = clamp( mix( diffuseColor.a, 1.0, fr ) + gl, 0.0, 1.0 );
+      float gl = min( pow( max( sd, 1e-4 ), 260.0 ) * 2.4 + pow( max( sd, 1e-4 ), 36.0 ) * 0.12, 2.0 ) * clamp( uGl, 0.0, 1.0 );
+      // (the shelf lighter, the deep end deeper; the plunge pools - up on their decks - between)
+      float deep = vLP.y > 0.0 ? 0.55 : 1.0 - smoothstep( uShelf - 0.35, uShelf + 0.35, vLP.z );
+      vec3 body = mix( uShallow, uDeep, deep );
+      vec3 col = mix( body, sky, fr ) + vec3( gl );
+      // (never darker than its own glow: a floor under the brightness, in the water's own hue)
+      float lum = dot( col, vec3( 0.2126, 0.7152, 0.0722 ) );
+      col += body * max( 0.0, uFloor - lum ) * 2.0;
+      col = clamp( col, 0.0, 3.0 );
+      float a = clamp( mix( mix( uA.x, uA.y, deep ), 0.9, fr ) + gl * 0.4, 0.2, 0.95 );
+      // (a NaN anywhere above fails every comparison: then the plain body colour)
+      if ( !( col.r >= 0.0 && col.g >= 0.0 && col.b >= 0.0 && a >= 0.0 && lum < 1e4 ) ) { col = body; a = uA.y; }
+      if ( uBreak > 0.5 ) { col = vec3( 0.0 ); a = 1.0; }
+      outgoingLight = col; diffuseColor.a = a;
     }
     #include <opaque_fragment>`);
   };
-  m.customProgramCacheKey = () => 'pool-water-v1';
-  m.userData.u = U; return m;
+  fx.customProgramCacheKey = () => 'pool-water-fx-v2';
+  fx.userData.u = U; flat.userData.u = U;
+  return { flat, fx, U };
+}
+/**
+ * Does the full look draw here? It alone on a 24-pixel square in the corner of the canvas (scissored: nothing else of the
+ * frame touched, and the frame drawn over it straight after), over a grey card, from three places - low over the water,
+ * straight down, and in the sun's glint - and the pixels read back: black (a NaN draws black) or near it, and it fails.
+ * Runs once, the frame the room is first shown; everything it makes is freed again. -> { ok, lum, black } | null (no renderer)
+ */
+function waterProbe(R, mat, sunW) {
+  if (!R?.getContext) return null;
+  const gl = R.getContext(), n = 24, buf = new Uint8Array(n * n * 4), out = { ok: true, lum: 1, black: 0 };
+  const sc = new THREE.Scene(); sc.background = new THREE.Color(0.42, 0.42, 0.42);
+  const g = new THREE.PlaneGeometry(60, 60, 1, 1); g.rotateX(-Math.PI / 2); g.translate(0, -0.12, -4);
+  const m = new THREE.Mesh(g, mat); m.frustumCulled = false; sc.add(m);
+  const cam = new THREE.PerspectiveCamera(60, 1, 0.05, 400), s = sunW.clone().normalize();
+  const rt0 = R.getRenderTarget(), vp = R.getViewport(new THREE.Vector4()), sci = R.getScissor(new THREE.Vector4()), st = R.getScissorTest(), ac = R.autoClear;
+  try {
+    R.setRenderTarget(null); R.autoClear = true;
+    const pr = R.getPixelRatio() || 1, css = Math.ceil(n / pr) + 1;
+    R.setViewport(0, 0, css, css); R.setScissor(0, 0, css, css); R.setScissorTest(true);
+    let sum = 0, blk = 0, k = 0;
+    for (const [p, l] of [[[0, 1.66, 8], [0, -0.12, -8]], [[0, 9, -4], [0, -0.12, -4.01]], [[-s.x * 9, s.y * 9, -4 - s.z * 9], [0, -0.12, -4]]]) {
+      cam.position.set(p[0], p[1], p[2]); cam.lookAt(l[0], l[1], l[2]); cam.updateMatrixWorld();
+      R.render(sc, cam); gl.readPixels(0, 0, n, n, gl.RGBA, gl.UNSIGNED_BYTE, buf);
+      for (let i = 0; i < buf.length; i += 4) { const L = (0.2126 * buf[i] + 0.7152 * buf[i + 1] + 0.0722 * buf[i + 2]) / 255; sum += L; if (L < 0.035) blk++; k++; }
+    }
+    out.lum = +(sum / k).toFixed(3); out.black = +(blk / k).toFixed(3); out.ok = out.lum > 0.12 && out.black < 0.15;
+  } catch (e) { console.warn('PartyPool: the water probe failed', e); out.ok = false; }
+  finally { R.setScissorTest(st); R.setScissor(sci); R.setViewport(vp); R.autoClear = ac; R.setRenderTarget(rt0); g.dispose(); }
+  return out;
 }
 /**
  * What the water takes out of the light through it - the reds first, as real water does: a multiply layer drawn just
@@ -113918,7 +114774,7 @@ function poolclub(K, E) {
 
   // ---- the water: one mesh over the main pool and both plunge pools; the light netted on their floors by day ----------
   const sunW = sunL.clone().normalize(); if (hosted && E.scene?.quaternion) sunW.applyQuaternion(E.scene.quaternion);
-  const wm = waterMat(night, sunW), rects = [[x0, z0, x1, z1, POOL.wl], ...plunges.map(([a, b, cc, d]) => [a, b, cc, d, BUNG.h - 0.1])];
+  const WM = waterMat(night, sunW, POOL.shelf), want = waterFxWanted(), wm = want === 0 ? WM.flat : WM.fx, rects = [[x0, z0, x1, z1, POOL.wl], ...plunges.map(([a, b, cc, d]) => [a, b, cc, d, BUNG.h - 0.1])];
   const wg = mergeGeometries(rects.map(([a, b, cc, d, y]) => { const g = new THREE.PlaneGeometry(cc - a, d - b); g.rotateX(-Math.PI / 2); g.translate((a + cc) / 2, y, (b + d) / 2); return norm(g); }));
   const water = K.obj(new THREE.Mesh(wg, wm)); water.renderOrder = 2; water.matrixAutoUpdate = false; water.updateMatrix(); water.userData.water = true;
   const absorb = K.obj(new THREE.Mesh(wg, absorbMat(night))); absorb.renderOrder = 1.5; absorb.matrixAutoUpdate = false; absorb.updateMatrix();
@@ -113937,8 +114793,22 @@ function poolclub(K, E) {
   cm.customProgramCacheKey = () => 'pool-caustic-v1';
   const cg = mergeGeometries([[x0, z0, x1, sz, D], [x0, sz, x1, z1, Lg], ...plunges.map(([a2, b, cc, d]) => [a2, b, cc, d, BUNG.h - 0.9])].map(([a2, b, cc, d, y]) => { const q = new THREE.PlaneGeometry(cc - a2, d - b); q.rotateX(-Math.PI / 2); q.translate((a2 + cc) / 2, y + 0.012, (b + d) / 2); const p = q.attributes.position, uv = q.attributes.uv; for (let i = 0; i < p.count; i++) uv.setXY(i, p.getX(i) / 1.9, -p.getZ(i) / 1.9); return norm(q); }));
   const cau = K.obj(new THREE.Mesh(cg, cm)); cau.renderOrder = 1; cau.matrixAutoUpdate = false; cau.updateMatrix();
-  const U = wm.userData.u;
+  const U = WM.U;
   K.anim((t) => { U.uT.value = t; CU.uT.value = t; });
+  // (which look draws: the one asked for, else the full look if it passes the probe the first frame the room is shown)
+  const wstate = { fx: want !== 0, probe: null, forced: want };
+  if (globalThis.__waterBreak) U.uBreak.value = 1;   // (a test switch: the full look drawn black, as the laptop drew it - the probe must catch it)
+  const useFlat = (why) => { if (water.material === WM.flat) return; water.material = WM.flat; wstate.fx = false; wstate.why = why; WM.fx.dispose(); };
+  if (want === 0) WM.fx.dispose(); else if (want === 1) WM.flat.dispose();
+  if (want == null) {
+    let probed = false;
+    K.anim(() => {
+      if (probed || !E.renderer) return; probed = true;
+      const r = wstate.probe = waterProbe(E.renderer, WM.fx, sunW);
+      if (r && !r.ok) { console.warn(`PartyPool: the full water look draws black here (mean ${r.lum}, ${Math.round(r.black * 100)}% black) - the flat water instead`); useFlat('probe'); }
+      else if (r) WM.flat.dispose();
+    });
+  }
   // (where someone stands in the water, the ring of ripples round them at the surface: one instanced mesh, its places
   // refreshed four times a second from the crowd and the guests - nothing allocated after the build)
   const ringT = K.t(ctex(64, 64, (x, w) => { x.clearRect(0, 0, w, w); const g = x.createRadialGradient(w / 2, w / 2, w * 0.16, w / 2, w / 2, w / 2); for (const [p, a] of [[0, 0], [0.3, 0.95], [0.5, 0.25], [0.7, 0.45], [0.85, 0.12], [1, 0]]) g.addColorStop(p, `rgba(255,255,255,${a})`); x.fillStyle = g; x.fillRect(0, 0, w, w); }));
@@ -113946,11 +114816,22 @@ function poolclub(K, E) {
   const rings = K.obj(new THREE.InstancedMesh(ringG, new THREE.MeshBasicMaterial({ map: ringT, color: night ? '#9fefff' : '#ffffff', transparent: true, opacity: night ? 0.3 : 0.5, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, fog: false }), RMAX));
   rings.count = 0; rings.renderOrder = 3; rings.frustumCulled = false; rings.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   const _rm = new THREE.Matrix4(); let ringAcc = 1;
+  // (the full look's own rings, in its slope: the RIPN swimmers nearest the camera - kept sorted in place, nothing allocated)
+  const rip = U.uRip.value, ripD = new Float32Array(RIPN), _rc = V3(0, 0, 0);
   K.anim((t, dt) => {
     if ((ringAcc += dt) < 0.25) return; ringAcc = 0;
-    let n = 0; const C = E.crowd, put = (x, z, s) => { if (n >= RMAX) return; _rm.makeScale(s, 1, s).setPosition(x, POOL.wl + 0.004, z); rings.setMatrixAt(n++, _rm); };
-    if (C?.ready && C.people) for (const p of C.people) if (p.on && p.y < -0.3) put(p.x, p.z, 0.8 * (p.scale || 1));
+    if (E.cam) { _rc.copy(E.cam.position); if (hosted && E._toL) E._toL(_rc); }
+    let n = 0, nr = 0; ripD.fill(1e9); for (let i = 0; i < RIPN; i++) rip[i].z = 0;
+    const C = E.crowd, put = (x, z, s, k = 0.035, ph = 0) => {
+      if (n < RMAX) { _rm.makeScale(s, 1, s).setPosition(x, POOL.wl + 0.004, z); rings.setMatrixAt(n++, _rm); }
+      const d = (x - _rc.x) ** 2 + (z - _rc.z) ** 2; if (d >= ripD[RIPN - 1]) return;
+      let i = RIPN - 1; while (i > 0 && ripD[i - 1] > d) { ripD[i] = ripD[i - 1]; rip[i].copy(rip[i - 1]); i--; }
+      ripD[i] = d; rip[i].set(x, z, k, ph); nr++;
+    };
+    if (C?.ready && C.people) for (const p of C.people) if (p.on && p.y < -0.3) put(p.x, p.z, (p.swimR || 0.8) * (p.scale || 1), p.swimK || 0.035, p.misc?.[0] || 0);
     for (const g of E.gs || []) if (g.person && !g.gone && (g.spot?.y || 0) < -0.3) put(g.person.group.position.x, g.person.group.position.z, 0.84);
+    const me = E.pool;   // (you, in the water: ui/PoolLife.js's swim state)
+    if (me?.inWater) put(me.x, me.z, me.swim ? 1.15 : 0.9, me.swim ? 0.07 : 0.04, 0);
     if (n || rings.count) { rings.count = n; rings.instanceMatrix.needsUpdate = true; }
   });
 
@@ -113979,6 +114860,7 @@ function poolclub(K, E) {
   K.hot({ id: 'photo', kind: 'photo', x: 4.4, y: 1.3, z: 2.0, reach: 2.4, label: 'Take a photo by the pool' });
   K.hot({ id: 'feet', kind: 'flavour', x: x1 + 0.5, y: 0.3, z: -6.0, reach: 2.0, label: 'Sit on the edge, feet in the water', text: night ? 'The water is warm, lit blue from below. The bass comes up through it.' : 'Warm as a bath by now. The light nets on the floor of the pool.' });
   K.area(DECK.x0 + 0.1, DECK.z0 + 0.2, DECK.x1 - 0.1, DECK.z1 - 0.1);
+  K.hot({ id: 'towels', kind: 'flavour', x: 6.7, y: 1.0, z: 14.55, reach: 1.9, label: 'The towel stand', sub: 'Towels, and swim shorts to change into', text: 'Stacks of white towels, rolled.' });
 
   // ---- the zones (each an array of rects - ui/PartyVenues.js's ZL - the bounding rect on it as well) ---------------
   const zones = {
@@ -114076,8 +114958,64 @@ function poolclub(K, E) {
   const crowdSpots = CS.filter((s) => !heroes.some((h) => (h.x - s.x) ** 2 + (h.z - s.z) ** 2 < 0.5625));
   // (an ordinary evening has no DJ of the party's cast: the resident one at the decks, first in - so always there)
   if (!E.isParty) crowdSpots.unshift({ x: 0, z: -15.75, y: STAGE.h, yaw: +facing(0, 1).toFixed(3), zone: 'dj', role: 'dancer', pose: 'dance', from: t0 - 1 });
+  // ---- the crowd's lives (world/PoolLife.js): where the bars are served, the queues, the floors, the seats, the water -
+  // and the guests who fill the deck to ~170 at the peak, walking in at the door as the night fills
+  const n0 = CS.length;
+  {
+    const more = (x, z, o) => { if (CS.length < n0 + 84) cs(x, z, o); };
+    for (let k = 0; k < 22 && swim; k++) { const x = -9.6 + RN() * 19.2, z = -1.6 - RN() * 9.6; if (!nearPod(x, z)) more(x, z, { y: F, zone: 'floor', role: 'bar', pose: 'talk', yaw: RN() * TAU, from: t0 + 0.8 + RN() * 1.2 }); }
+    for (let k = 0; k < 10 && swim; k++) more(-9.4 + RN() * 18.8, -0.7 + RN() * 1.4, { y: Lg, zone: 'floor', role: 'bar', pose: 'drink', yaw: RN() * TAU, from: t0 + 0.9 + RN() * 1.2 });
+    for (let k = 0; k < 16; k++) { const s = RN() < 0.5 ? -1 : 1; more(s * (11.9 + RN() * 1.4), -10.5 + RN() * 11, { zone: 'floor', role: 'bar', pose: 'drink', yaw: facing(-s, 0), from: t0 + 0.7 + RN() * 1.3 }); }
+    for (let k = 0; k < 18; k++) more(-10 + RN() * 20, 3.2 + RN() * 7.6, { zone: 'tables', role: 'bar', pose: RN() < 0.5 ? 'drink' : 'talk', yaw: RN() * TAU, from: t0 + 0.6 + RN() * 1.4 });
+    for (let k = 0; k < 6; k++) more(-22.6 + RN() * 3.4, 6 + RN() * 2.2, { zone: 'quiet', role: 'bar', pose: 'talk', yaw: RN() * TAU, from: t0 + 1.0 + RN() });
+    for (let k = 0; k < 8; k++) more(-6 + RN() * 12, 2.0 + RN() * 0.8, { zone: 'floor', role: 'dancer', pose: 'dance', look: toDJ, from: t0 + 0.9 + RN() });
+  }
+  crowdSpots.push(...CS.slice(n0).filter((s) => !heroes.some((h) => (h.x - s.x) ** 2 + (h.z - s.z) ** 2 < 0.5625)));
+  const lifeVoid = (x, z, r = 0.9) => heroes.some((h) => (h.x - x) ** 2 + (h.z - z) ** 2 < r * r);
+  const lifePlan = (() => {
+    const fz = facing(0, 1), bz = facing(0, -1), L = [];
+    // (the long bar: places at the counter either side of yours (where the bartender serves you), three deep behind)
+    const longSlots = [], longQ = []; for (let x = BAR.x0 + 0.7; x < BAR.x1 - 0.4; x += 0.8) if (Math.abs(x + 12.9) > 0.7) longSlots.push({ x, z: 11.92, yaw: fz });   // (a place every 0.8 m: at a party the principals' own spots take some)
+    for (let i = 0; i < 12; i++) longQ.push({ x: -13.1 + ((i % 4) - 1.5) * 1.15 + (i >> 2) * 0.3, z: 10.95 - (i >> 2) * 0.7, yaw: fz });
+    const isl = ISLAND, islSlots = [], islQ = [];
+    for (let x = isl.x - 2.7; x <= isl.x + 2.75; x += 1.05) { if (Math.abs(x - isl.x) > 0.7) islSlots.push({ x, z: isl.z - 2.65, yaw: fz }); islSlots.push({ x, z: isl.z + 2.65, yaw: bz }); }
+    for (let z = isl.z - 1.5; z <= isl.z + 1.55; z += 1.0) { islSlots.push({ x: isl.x - 3.65, z, yaw: 0 }); islSlots.push({ x: isl.x + 3.65, z, yaw: Math.PI }); }
+    for (let i = 0; i < 10; i++) islQ.push({ x: isl.x - 1.6 + (i % 4) * 1.1 + (i >> 2) * 0.3, z: isl.z - 3.7 - (i >> 2) * 0.7, yaw: fz });
+    const bars = [{ id: 'long', slots: longSlots.filter((s) => !lifeVoid(s.x, s.z, 0.62)), queue: longQ }, { id: 'island', slots: islSlots.filter((s) => !lifeVoid(s.x, s.z, 0.62)), queue: islQ }];
+    // (the floors: in the water before the DJ (swum in), along the shallow end, the decks beside the stage)
+    const dance = [];
+    for (let iz = 0; iz < 4; iz++) for (let ix = 0; ix < 9; ix++) { const x = -8.8 + ix * 2.2 + (iz % 2) * 0.6, z = -10.7 + iz * 1.25; if (!nearPod(x, z)) dance.push({ x, z, y: F, yaw: facing(-x * 0.6, toDJ.z - z), water: true }); }
+    for (let k = 0; k < 16; k++) { const x = -9.6 + k * 1.28, z = 1.85 + (k % 2) * 0.7; dance.push({ x, z, y: 0, yaw: facing(-x * 0.5, toDJ.z - z) }); }
+    for (const s of [-1, 1]) for (let k = 0; k < 6; k++) dance.push({ x: s * (8.9 + (k % 3) * 0.9), z: -11.9 + Math.floor(k / 3) * 0.9, y: 0, yaw: facing(-s * 0.4, 1) + Math.PI });
+    // (where people stand and talk: the south deck, the pool's sides, the garden, the shelf and the deep end's back half)
+    const chat = [];
+    for (const [x, z] of [[-3.2, 6.1], [3.2, 6.1], [0, 7.6], [-6.6, 8.8], [6.6, 8.4], [-8.8, 4.6], [9.6, 4.6], [-1.6, 9.6], [2.4, 10.6], [-4.4, 11.2], [5.2, 12.0], [-10.4, 8.2], [10.6, 11.6], [-16.0, 6.8], [-15.4, 3.6], [16.2, 2.6], [-12.4, -2.0], [12.4, -4.6], [-12.4, -8.6], [12.4, -9.8], [-20.6, 7.2], [-21.8, 13.6], [19.0, 12.6], [18.6, 4.8], [-18.4, -12.8], [17.0, -12.4]]) if (!lifeVoid(x, z)) chat.push({ x, z });
+    for (const [x, z] of [[-6.2, 0.0], [-2.0, -0.2], [2.6, 0.1], [6.0, -0.1], [-7.4, -3.2], [-3.0, -2.6], [1.6, -3.4], [7.8, -2.8], [-4.4, -5.0], [3.6, -4.4]]) chat.push({ x, z, water: true });
+    // (seats: the daybeds, the cabanas (not yours), the loungers, the garden's sofas round the fire)
+    const seats = [], fire = [], DB = DAYBED_X - 0.42;
+    for (const s of [-1, 1]) DAYBED_Z.forEach((z) => { for (const dz of [-0.5, 0.5]) seats.push({ x: s * DB, z: z + dz, y: 0, yaw: facing(-s, 0), kind: 'daybed' }); });
+    for (const s of [-1, 1]) CABANA_Z.forEach((z, i) => { if (s < 0 && i === 2) return; for (const dz of [-0.7, 0.7]) seats.push({ x: s * (CABANA_X + 0.97), z: z + dz, y: 0.12, yaw: facing(-s, 0), kind: 'cabana' }); });
+    for (const s of [-1, 1]) for (const ax of [6.2, 7.6, 9.0]) seats.push({ x: s * ax + 0.15, z: 3.55, y: -0.05, yaw: bz, kind: 'lounger' });
+    const qs = [[-22.85, 9.1, 0], [-22.85, 10.0, 0], [-22.85, 10.9, 0], [-21.8, 12.62, Math.PI / 2], [-20.6, 12.62, Math.PI / 2]];
+    for (const [x, z, yaw] of qs) (night ? fire : seats).push({ x, z, y: 0, yaw, kind: 'sofa' });
+    const S2 = seats.filter((q) => !lifeVoid(q.x, q.z));
+    // (the deep water to swim and float in, the edges to jump from - each with the far wall to race to)
+    const swimP = []; for (let k = 0; k < 24; k++) { const x = -9.4 + (k % 6) * 3.76, z = -10.6 + Math.floor(k / 6) * 2.6; if (!nearPod(x, z)) swimP.push({ x, z }); }
+    const edge = [];
+    for (const z of [-9.4, -6.0, -2.8]) { edge.push({ x: x1 + 0.75, z, ix: x1 - 1.2, iz: z, far: { x: x0 + 1.0, z } }); edge.push({ x: x0 - 0.75, z, ix: x0 + 1.2, iz: z, far: { x: x1 - 1.0, z } }); }
+    const patrol = [[0, 13.0], [-10.6, 9.6], [-12.4, -4], [-10.5, -12.6], [10.5, -12.6], [12.4, -4], [11.6, 5.2], [18.2, 10.6], [3.2, 9.0], [-17.0, 12.6]].map(([x, z]) => ({ x, z }));
+    const sun = [[-3.6, 3.4], [3.8, 3.2], [-9.6, 3.0], [9.8, 3.4], [-12.2, -6.4], [12.2, -7.4], [-12.3, 1.8], [12.4, 0.9]].map(([x, z]) => ({ x, z }));
+    void L;
+    return {
+      K, deck: DECK, pool: POOL, night, wet, heightAt: (x, z) => V.heightAt(x, z), door: { x: 0, z: 15.1 }, host: { x: 1.9, z: 13.3 }, bars, service: { x: -7.9, z: 11.6 },
+      towel: { x: 6.7, z: 14.05, yaw: fz }, dance, chat, seats: S2, fire, swim: swimP, edge, patrol, sun, birthday: { x: CABANA_X - 2.0, z: CABANA_Z[1] },
+      blockW: [[6.0, -6.2, 1.05], [-6.0, -6.2, 1.05], [-3.4, -9.4, 0.65], [4.6, -10.2, 0.65], [-9.2, 0, 0.8], [-7.4, 0, 0.8], [7.4, 0, 0.8], [9.2, 0, 0.8]],
+      djName: 'DJ Tavi', say: (t) => ledWall.say(t, 7), splash: (x, z, k) => life.splash(x, z, k),
+      phase: () => (E.moodI >= 0 ? V.moods[E.moodI]?.name : null) || 'Peak time',
+    };
+  })();
   const crowdPools = { kind: 'club', pool: true, women: 0.58, seed: 'tidewater:' + (night ? 'night' : 'day'), occ: 0.6, cam: { x: 0, z: 12 }, ...(brand ? { brand: { name: brand.name, color: brand.color, accent: '#ffffff' } } : {}) };
-  const crowdMake = (o = {}) => new PoolCrowd({ ...o, night, swim: true });
+  const crowdMake = (o = {}) => new PoolCrowd({ ...o, night, swim: true, life: globalThis.__poolStill ? null : lifePlan });
 
   // ---- the LED wall's message line (PartyPlay puts a name or a table number up): a band of its own over the wall -----
   const msgCv = document.createElement('canvas'); msgCv.width = 1024; msgCv.height = 128;
@@ -114126,8 +115064,11 @@ function poolclub(K, E) {
       dj: { name: 'DJ Tavi', look: { kit: 'casual', color: '#f2f0ea', accent: '#111114', legs: '#1b2440', shoe: 'trainer', shoes: '#ecebe6', pose: 'talk', seed: 'tidewater-resident-dj', acc: ['watch'] } },
       security: { name: 'Security', look: { kit: 'polo', color: '#0c0c0e', accent: '#0c0c0e', legs: '#0c0c0e', pose: 'cross', seed: 'tidewater-security', jitter: 0.02 } },
     },
-    water: { mesh: water, level: POOL.wl, rects: rects.map((r) => r.slice()), caustics: cau, wet }, screens: [ledWall],
+    water: { mesh: water, level: POOL.wl, rects: rects.map((r) => r.slice()), caustics: cau, wet, fx: wstate }, screens: [ledWall],
   };
+
+  // ---- you in the water, the guests' lines over their heads, E to talk to one (ui/PoolPlay.js; Hangout's pool hooks)
+  const life = V.life = poolPlay(K, E, { pool: POOL, night, heightAt: V.heightAt, swimKit: (k) => { if (!k || ![...swimKits('f'), ...swimKits('m')].includes(k)) return null; const I = swimInfo(k); return I.shirt || I.cover ? 'shirt' : 'swim'; } });
 
   // ---- an ordinary evening (no party engine to run a crowd): the crowd built and run here, as Hangout does a party's -
   if (!E.isParty && Array.isArray(E.queue)) {
@@ -114135,12 +115076,21 @@ function poolclub(K, E) {
       const C = crowdMake({ bpm, patch: hosted ? E.lib?.roomPatch || null : null, keepKey: 'hgKeep', lift: night ? 0.1 : 0.05 }); K.obj(C.group);
       for (const st of C.build(crowdSpots, crowdPools)) E.queue.push(st);
       const cp = V3(0, 1.6, 0), fwd = { x: 0, z: -1 };
-      let beat = 0;
+      let beat = 0; const MA = { i: -1, req: -9, ix: null };
+      { const ix = (n) => V.moods.findIndex((m) => m.name === n); MA.ix = { warm: ix('Warm-up'), peak: ix('Peak time'), last: ix('Last hour') }; if (MA.ix.peak < 0) MA.ix = null; }
       K.anim((t, dt) => {
         if (!C.ready || !E.cam) return;
         cp.copy(E.cam.position); if (hosted && E._toL) E._toL(cp);
         fwd.x = Math.cos(E.yaw || 0); fwd.z = Math.sin(E.yaw || 0);
-        const M = E.moodI >= 0 ? V.moods[E.moodI] : null, h = +E.clock || t0, occ = clamp(0.45 + (0.55 * (h - t0)) / 1.5, 0.3, 1) * (M?.music === null ? 0.5 : 1);
+        // (an ordinary evening - no party's DJ to move the night on - the clock does, as PartyPlay's _autoMood: the warm-up
+        // for the first 35 minutes, then the peak, the last hour once it is late; a set you picked holds 20 minutes)
+        if (!E.party && !E.quiet && MA.ix && typeof E._moodSet === 'function' && E.moodI >= 0) {
+          const hh = +E.clock || t0, ai = E.x?.late ? MA.ix.last : hh < t0 + 0.6 ? MA.ix.warm : MA.ix.peak;
+          if (MA.i >= 0 && E.moodI !== MA.i) { MA.req = hh; MA.i = E.moodI; } else if (MA.i < 0) MA.i = E.moodI;
+          if (ai >= 0 && hh - MA.req > 0.35 && E.moodI !== ai) { try { E._moodSet(ai); } catch (_) { /* */ } MA.i = E.moodI; }
+        }
+        const M = E.moodI >= 0 ? V.moods[E.moodI] : null, h = +E.clock || t0, occ = clamp(0.45 + (0.55 * (h - t0)) / 1.5, 0.3, 1) * (M?.music === null ? 0.5 : 1)
+          * (!E.party && M && Number.isFinite(M.occ) ? 0.4 + 0.6 * M.occ : 1);   // (an ordinary evening: the set's own fill too - the peak full, the last hour thinning)
         // (as at the clubs' parties: the music's tempo and how hard the deck dances by the set playing - a warm-up's sway,
         // the peak's full swing, the quiet hour's stillness - eased, never snapped)
         const d = Math.min(0.1, Math.max(0, dt || 0)), en = M ? (Number.isFinite(M.energy) ? M.energy : 1) : 1;
@@ -114249,12 +115199,20 @@ function swimInfo(k) {
   if (/shirt/.test(s)) return { shirt: 1 };
   return { mid: 'skin' };
 }
-/** the pool's crowd: PartyCrowd's, its templates in swimwear when People has it (else the club's, unchanged) */
+/** the pool's crowd: PartyCrowd's, its templates in swimwear when People has it (else the club's, unchanged). Given
+ * o.life (ui/PartyPool.js's plan for world/PoolLife.js), every guest has a life: a wardrobe of their own kit in every pose
+ * they need (walking, a drink, talking, dancing, sitting back), walked in at the door, up to 168 of them */
+const LIFE_MAX = 168;
 class PoolCrowd extends PartyCrowd {
-  constructor(o = {}) { super(o); this.swim = o.swim !== false; this.dayOut = o.night === false; }
+  constructor(o = {}) {
+    super(o); this.swim = o.swim !== false; this.dayOut = o.night === false;
+    this.lifePlan = o.life || null; this.life = null; if (this.lifePlan) { this.maxP = LIFE_MAX; this.walkIn = true; }
+    this._Q2 = new THREE.Quaternion(); this._Z = new THREE.Vector3(0, 0, 1);
+  }
   _plan(pools, R) {
     const SF = this.swim ? swimKits('f') : [], SM = this.swim ? swimKits('m') : [];
     if (!SF.length) return super._plan(pools, R);
+    if (this.lifePlan) return this._planLife(pools, R, SF, SM);
     const T = [], day = this.dayOut, CK = People.CLUB_KITS || [], CM = People.CLUB_KITS_M || [];
     // (in the water - and dancing on the decks and the podiums - only what is swum in: the cover-ups, the open shirts and
     // the kaftans at the bars, on the daybeds and in the cabanas)
@@ -114294,6 +115252,86 @@ class PoolCrowd extends PartyCrowd {
     for (const t of T) if (t.alt) Object.assign(t.alt.spec, { seed: t.spec.seed, build: t.spec.build, jewel: t.spec.jewel, acc: t.spec.acc, fh: t.spec.fh, hold: t.spec.hold });
     return T;
   }
+  /** the living crowd's templates: wardrobes - one kit (and hair, and build) in every pose its wearer needs; the
+   * house's staff a few poses each. Each wardrobe { id, fig, water (may go in the water), w (its share), role, map (pose ->
+   * template index), idx } on this.W */
+  _planLife(pools, R, SF, SM) {
+    const T = [], W = this.W = [], day = this.dayOut, CK = People.CLUB_KITS || [], CM = People.CLUB_KITS_M || [];
+    const inW = (k) => { const I = swimInfo(k); return !I.cover && !I.shirt; };
+    const WF = SF.filter(inW), CF = SF.filter((k) => swimInfo(k).cover), WM = SM.filter(inW), SHM = SM.filter((k) => swimInfo(k).shirt);
+    const ONE = WF.filter((k) => !swimInfo(k).mid), TWO = WF.filter((k) => swimInfo(k).mid);
+    const pk = (L, alt) => (L.length ? pickR(R, L) : pickR(R, alt.length ? alt : SF));
+    const held = (pose, glass) => (pose === 'drink' || pose === 'toast' || pose === 'sitBooth' || pose === 'lean' ? glass : null);
+    // (a wardrobe: one kit, one hair, one build in each pose - the dancing pair's two poses swapped on the beat)
+    const wd = (id, fig, kit, poses, o = {}) => {
+      const fem = fig === 'f', hs = o.hs || (fem ? pickR(R, HS_F) : pickR(R, HS_M)), fh = fem ? null : o.fh !== undefined ? o.fh : pickR(R, FH_M), glass = o.glass || (fem ? pickR(R, ['glass', 'flute', 'coupe']) : 'glass');
+      const seed = Math.floor(R() * 1e9), build = fem ? (R() < 0.6 ? 'slim' : 'average') : R() < 0.5 ? 'average' : 'athletic', jewel = fem ? { earrings: pickR(R, ['hoop', 'stud', 'drop']), chain: R() < 0.35 } : undefined;
+      const map = {}, idx = [];
+      for (const pose of poses) {
+        const role = o.role || (pose === 'dance1' ? 'dancer' : pose === 'drink' ? 'bar' : pose === 'sitBooth' ? 'booth' : 'x');
+        const hold = o.hold || held(pose, glass), t = { role, fig, kit, pose, hs, alt: null, w: o.role ? (pose === poses[0] ? 1 : 0) : role === 'x' ? 0 : o.w ?? 1, spec: null, swim: SF.includes(kit) || SM.includes(kit), seat: pose === 'sitBooth', lean: pose === 'lean', rare: true, wd: id, staff: o.role ? 1 : 0 };
+        t.spec = { club: true, figure: fem ? 'f' : undefined, build, kit, pose, hs, fh, cap: false, hold: hold || undefined, prop: o.prop || undefined, acc: fem ? ['earrings'] : undefined, jewel, seed, q: 0.32, detail: 0.2, shoe: o.water ? 'bare' : undefined };   // (what goes in the water goes barefoot: no slides or heels on a swimmer)
+        map[pose] = T.length; idx.push(T.length); T.push(t);
+      }
+      if (map.dance1 != null && map.dance2 != null) { T[map.dance1].alt = T[map.dance2]; T[map.dance2].pair = true; }
+      W.push({ id, fig, kit, water: !!o.water, w: o.share ?? 1, role: o.role || null, map, idx });
+    };
+    const P7 = ['walk1', 'walk3', 'drink', 'talk', 'dance1', 'dance2', 'sitBooth'], P6 = ['walk1', 'walk3', 'drink', 'talk', 'dance1', 'sitBooth'], P5 = ['walk1', 'walk3', 'drink', 'dance1', 'sitBooth'];
+    // (hers: a bikini and a one-piece that go in the water, a third by day; a cover-up - or, after dark, her clubwear - that stays on the deck)
+    wd('bikini', 'f', pk(TWO, WF), P7, { water: true, share: 1.3, hs: pickR(R, ['long', 'waves', 'curlyLong']) });
+    wd('onepiece', 'f', pk(ONE, WF), P7, { water: true, share: 1.1, hs: pickR(R, ['highpony', 'ponytail', 'messybun']) });
+    if (day) wd('swim3', 'f', pk(WF, SF), P6, { water: true, hs: pickR(R, ['topknot', 'bun', 'bob', 'blowout']) });
+    else wd('club', 'f', pk(CK, SF), P6, { water: false, share: 0.8, hs: pickR(R, ['blowout', 'long', 'waves']) });
+    wd('cover', 'f', pk(CF, SF), P6, { water: false, share: day ? 0.7 : 0.6, hs: pickR(R, ['long', 'bun', 'waves']) });
+    // (his: swim shorts that go in, a second pair; an open shirt - or his clubwear after dark - that stays dry)
+    wd('trunks', 'm', pk(WM, SM), P7, { water: true, share: 1.3 });
+    if (day) wd('shorts2', 'm', pk(WM.length > 1 ? WM : SM, SM), P5, { water: true });
+    else wd('clubm', 'm', CM.length ? pickR(R, CM) : pk(SHM, SM), P5, { water: false, share: 0.8 });
+    wd('shirt', 'm', pk(SHM, SM), ['walk1', 'walk3', 'drink', 'talk', 'sitBooth'], { water: false, share: 0.8 });
+    // (the house: a server in the club's black one-piece with a bottle, a podium dancer, security and the photographer in black polos)
+    wd('server', 'f', pk(ONE, WF), ['drink', 'walk1', 'walk3'], { role: 'server', hold: 'bottle', hs: pickR(R, ['highpony', 'ponytail']) });
+    wd('performer', 'f', pk(WF, SF), ['dance1', 'dance2'], { role: 'performer', hs: pickR(R, ['long', 'waves', 'highpony']) });
+    wd('security', 'm', 'polo', ['cross', 'walk1', 'walk3'], { role: 'security', hs: pickR(R, ['buzz', 'short']), fh: pickR(R, [null, 'beard', 'stubble']) });
+    wd('photographer', 'm', 'polo', ['photo', 'walk1', 'walk3'], { role: 'photographer', prop: 'photo' });
+    return T;
+  }
+  /** a guest's own wardrobe (PartyCrowd.build's hook): which of this.W they wear - only one that is swum in for a spot in
+   * the water - their pose in it, their colours for it; p.W (pose -> template), p.can (every template they may wear) */
+  _wardrobe(p, t, s, R) {
+    const WS = this.W; if (!WS) return;
+    let w = null;
+    if (p.staff) w = WS.find((x) => x.role === p.role) || null;
+    else {
+      const wet = (+s.y || 0) < -0.05, c = WS.filter((x) => !x.role && x.fig === p.fig && (!wet || x.water));
+      let tot = 0; for (const x of c) tot += x.w; let u = R() * tot; for (const x of c) { u -= x.w; if (u <= 0) { w = x; break; } } w = w || c[0] || null;
+    }
+    if (!w) return;
+    const M = w.map, pose = s.seat ? 'sitBooth' : t.pose, at = M[pose] ?? M[pose === 'lean' || pose === 'toast' ? 'drink' : pose === 'dance3' ? 'dance1' : 'drink'] ?? w.idx[0];
+    p.W = M; p.wk = w.id; p.can = w.idx; p.water = w.water; p.t = at; p.alt = at === M.dance1 && M.dance2 != null ? M.dance2 : -1; p.swap = p.alt >= 0 && R() < 0.55;
+    this._colours(p, this.tpl[at], this.pools || {}, R);
+  }
+  /** the meshes made: every one drawn whatever its bounds (people walk between re-packs), then the lives begun */
+  _make() {
+    super._make(); if (this.gone) return;
+    for (const r of this.recs) r.mesh.frustumCulled = false;
+    if (this.lifePlan && this.W && !this.life) { try { this.life = new PoolBrain(this, this.lifePlan); this.life.init(); } catch (e) { console.warn('PoolCrowd: no life for the crowd', e); this.life = null; } }
+  }
+  update(dt, cam, beat, occupancy = 1, fwd = null) {
+    const L = this.life;
+    if (L && this.ready && !this.gone) { try { L.energy = this.energy; L.pre(Math.min(0.1, Math.max(0, dt || 0))); } catch (e) { if (!this._lifeErr) console.warn('PoolCrowd: a life frame failed', e); this._lifeErr = (this._lifeErr || 0) + 1; } }
+    super.update(dt, cam, beat, occupancy, fwd);
+  }
+  /** a swimmer laid flat at the surface (L.roll -pi/2, face down) or floating (+pi/2, face up): turned about their middle */
+  _write(p, all = false) {
+    const ro = p.L?.roll || 0; if (!ro || !p.mesh) return super._write(p, all);
+    if (all) super._write(p, true);
+    const { _M: M, _Q: Q, _P: P, _S: S, _Y: Y, _Q2: Q2, _Z: Z } = this, c = Math.cos(p.yaw), sn = Math.sin(p.yaw), k = ro < 0 ? -0.85 : 0.85;
+    Q.setFromAxisAngle(Y, p.yaw).multiply(Q2.setFromAxisAngle(Z, ro));
+    M.compose(P.set(p.x + c * k * p.scale, p.y, p.z - sn * k * p.scale), Q, S.setScalar(p.scale)); p.mesh.mesh.setMatrixAt(p.slot, M); p.mesh.moved = true;
+  }
+  push(x, z, r = 0.45) { const h = super.push(x, z, r); if (h > 0 && this.life) { try { this.life.bump(x, z, r); } catch (_) { /* */ } } return h; }
+  stats() { const s = super.stats(); if (this.life) { s.acts = this.life.counts(); s.lifeMs = this.life.ms; } return s; }
+  dispose() { this.life = null; super.dispose(); }
   _colours(p, t, pools, R) {
     if (!t.swim) return super._colours(p, t, pools, R);
     const c = new THREE.Color(), set = (k, v) => { c.set(v); p.cols[k * 3] = c.r; p.cols[k * 3 + 1] = c.g; p.cols[k * 3 + 2] = c.b; };
@@ -119393,7 +120431,7 @@ class Evening {
   _partyUpdate(dt) {
     this._partyZone(dt);
     // (a raised deck, the steps up to it: the eye stays 1.66 m over whatever is underfoot)
-    if (this.V?.heightAt && !this.seat && !this.moment) { const want = 1.66 + (this.V.heightAt(this.pos.x, this.pos.z) || 0); this.pos.y += (want - this.pos.y) * Math.min(1, dt * 12); }
+    if (this.V?.heightAt && !this.V.life && !this.seat && !this.moment) { const want = 1.66 + (this.V.heightAt(this.pos.x, this.pos.z) || 0); this.pos.y += (want - this.pos.y) * Math.min(1, dt * 12); }
     if (this.party) { try { this.party.update?.(dt); } catch (e) { if (!this.partyErr) console.warn('Hangout: the party frame failed', e); this.partyErr = (this.partyErr || 0) + 1; } }
     // (the crowd, driven here (PartyPlay sets its energy and calls arrive / near / flashes): its detail about the camera
     // - wherever a moment has put it - on the music's beat, as full as the clock and the mood make the room; and the
@@ -119655,6 +120693,7 @@ class Evening {
     else if (this.moment) this._momentUpdate(dt);
     else if (this.talk) this._talkUpdate(dt);
     else if (!this.menu && !this.ask && !this.sty) this._walk(dt);
+    if (this.V?.life && !this.game) { try { this.V.life.frame(dt); } catch (e) { if (!this.lifeErr) console.warn('Hangout: the pool frame failed', e); this.lifeErr = true; } }   // pool hook (ui/PoolPlay.js): the water, your eye in it
     if (!this.game && !this.moment && !this.talk) this._camera(dt);
     this._tags(); this._hud(dt);
   }
@@ -119709,7 +120748,7 @@ class Evening {
     const mf = (k.has('KeyW') || k.has('ArrowUp') ? 1 : 0) - (k.has('KeyS') || k.has('ArrowDown') ? 1 : 0), ms = (k.has('KeyD') ? 1 : 0) - (k.has('KeyA') ? 1 : 0);
     if (this.seat) { if (mf || ms) this._stand(); this._prompt(); return; }
     if (mf || ms) {
-      const fx = Math.cos(this.yaw), fz = Math.sin(this.yaw), sp = (k.has('ShiftLeft') || k.has('ShiftRight') ? 2.6 : 1.45) * dt * (this.crowdSlow ? 1 - 0.45 * this.crowdSlow : 1) * (this.pressSlow ? 1 - 0.35 * this.pressSlow : 1), len = Math.hypot(mf, ms);   // (party hook: a packed floor slows you; so does easing past a guest)
+      const fx = Math.cos(this.yaw), fz = Math.sin(this.yaw), sp = (k.has('ShiftLeft') || k.has('ShiftRight') ? 2.6 : 1.45) * dt * (this.V?.life?.speed ?? 1) * (this.crowdSlow ? 1 - 0.45 * this.crowdSlow : 1) * (this.pressSlow ? 1 - 0.35 * this.pressSlow : 1), len = Math.hypot(mf, ms);   // (party hook: a packed floor slows you; so does easing past a guest)
       const vx = ((fx * mf - fz * ms) / len) * sp, vz = ((fz * mf + fx * ms) / len) * sp;
       if (this._free(this.pos.x + vx, this.pos.z, 0.24, null, true)) this.pos.x += vx; if (this._free(this.pos.x, this.pos.z + vz, 0.24, null, true)) this.pos.z += vz;   // (people are soft: _pressPeople)
       this.pressSlow = this._pressPeople(dt, true);
@@ -119731,6 +120770,7 @@ class Evening {
     for (const g of this.gs) if (g.person && !g.gone) consider({ g }, g.person.group.position.x, g.person.group.position.z, this.seat ? 2.9 : 2.5, this.isParty && g.talks >= 3 ? -0.3 : 0);
     for (const h of this.hots) { if ((h.kind === 'seat' && this.seat) || (this.quiet && (h.kind === 'game' || h.kind === 'photo'))) continue; consider({ h }, h.p.x, h.p.z, h.reach, this.isParty && h.kind === 'bar' ? 0.12 : 0); }
     if (this.staff?.person && !this.staff.hot) consider({ s: this.staff }, this.staff.x, this.staff.z, 2.4);
+    try { const n = !best || best.h ? this.V?.life?.target?.(p.x, p.z, fx, fz) : null; if (n && (!best || n.d + (best.h?.kind === 'bar' || best.h?.kind === 'door' ? 0 : 0.15) > bs)) best = { n: n.n }; } catch (_) { /* */ }   // pool hook: a guest of the crowd
     return best;
   }
   _prompt() {
@@ -119739,6 +120779,7 @@ class Evening {
     if (t?.g) { const g = t.g, look = this._styleOk(g) ? '<span><kbd>L</kbd>Her look</span>' : ''; html = g.offended || g.shaken > 0 ? `${esc(g.first)}<small>Needs a minute</small>` : g.talks >= 3 ? `${look ? `${look} ` : ''}${esc(g.first)}<small>Happy just being here</small>` : `<span><kbd>E</kbd>Talk to ${esc(g.first)}</span>${this._canCheers(g) ? '<span><kbd>F</kbd>Cheers</span>' : ''}${look}<small>${esc(this._sub(g))}</small>`; }
     else if (t?.h) html = `<span><kbd>E</kbd>${O(t.h.label)}</span>${t.h.sub ? `<small>${O(t.h.sub)}</small>` : ''}`;
     else if (t?.s) html = `<span><kbd>E</kbd>Say hello to ${esc(t.s.name)}</span><small>${esc(t.s.role)}</small>`;
+    else if (t?.n) html = this.V?.life?.prompt?.(t) || '';
     if (this.seat) html = `<span><kbd>W</kbd>Stand up</span>${html ? ' ' + html : ''}`;
     try { if (this.aff) html = this.aff.prompt(t, html); } catch (e) { console.warn('Hangout: the affection prompt', e); }   // affection hook: G, and who you are with
     try { html = papsPrompt(this, html); } catch (_) { /* */ }   // paps hook (ui/PapsConfront.js): P, the photographers
@@ -119758,6 +120799,7 @@ class Evening {
   _styleClose(relock = true) { const S = this.sty; if (!S) return; this.sty = null; try { const r = S.close(); this.R.style = r || null; } catch (e) { console.warn('Hangout: her look', e); } if (relock) this._lock(); }
   _interact() {
     const t = this._target(); if (!t) return; this.helpT = Math.min(this.helpT, 3);
+    try { if ((t.n || t.h?.id === 'towels') && this.V?.life?.use?.(t)) return; } catch (e) { console.warn('Hangout: the pool chat', e); }   // pool hook
     if (t.g) this._open(t.g); else if (t.h) this._use(t.h);
     else if (t.s) this._bark({ first: t.s.name }, pick(['Evening. Enjoy yourselves.', 'Shout if you need anything.', "Track's yours whenever you're ready.", 'Good to see you.']));
   }
@@ -120372,6 +121414,7 @@ class Evening {
       if (this.buzzE?.open && /^(Digit|Numpad)[1-3]$/.test(c)) { e.preventDefault(); this._buzzPick(+c.slice(-1) - 1); return; }
       if (MOVE.includes(c)) { e.preventDefault(); this.keys.add(c); }
       if (e.repeat) return;
+      try { if (this.V?.life?.key?.(c)) { e.preventDefault(); return; } } catch (err) { console.warn('Hangout: the pool key', err); }   // pool hook: Space - in, under, out
       if (c === 'KeyE') { e.preventDefault(); this._interact(); } else if (c === 'KeyF') { e.preventDefault(); this._cheers(); } else if (c === 'KeyL') { e.preventDefault(); this._styleOpen(); } else if (c === 'KeyQ' || c === 'Escape') { e.preventDefault(); this._askLeave(); } else if (c === 'Space') e.preventDefault();
     };
     this._ku = (e) => { this.keys.delete(e.code); if (this.game && !this.closing) this.game.key(e.code, false); };
@@ -120400,6 +121443,7 @@ class Evening {
     // material are the session's: they must not be freed with the room's own)
     try { this.party?.dispose?.(); } catch (e) { console.warn('Hangout: the party did not tidy up', e); } this.party = null;
     try { this.crowd?.dispose?.(); } catch (e) { console.warn('Hangout: the crowd did not tidy up', e); } this.crowd = null;
+    try { this.V?.life?.dispose?.(); } catch (e) { console.warn('Hangout: the pool did not tidy up', e); }   // pool hook
     for (const g of Object.values(this.cast || {})) { if (!g?.person || this.gs.includes(g) || g === this.staff) continue; this.scene?.remove(g.person.group); try { g.person.dispose(); } catch (_) { /* */ } g.person = null; }
     window.removeEventListener('keydown', this._kd, true); window.removeEventListener('keyup', this._ku, true); window.removeEventListener('mouseup', this._mu); window.removeEventListener('mousemove', this._mm); window.removeEventListener('blur', this._bl);
     this.canvas?.removeEventListener('mousedown', this._md); this._unlock();
@@ -131006,7 +132050,7 @@ async function careerHangout(launch, done, c0 = null) {
   if (c?.drivers) syncLooks(c);   // (you at the evening as your save has you: face, hair, skin)
   const next = c?.calendar?.[(c.round || 1) - 1];
   const id = (party ? [L0.track, W.track ? W.def?.id : null, 'lasvegas'] : [V?.where, W.track ? W.def?.id : null, next, 'lasvegas']).find((t) => t && TRACKS[t]);
-  const fc = c?.forecastAt?.() || null, mode = party ? (L0.night === false ? 'day' : 'night') : vid === 'rooftop' || vid === 'pub' || vid === 'poolclub' ? 'night' : (id === next && fc?.time) || TRACKS[id]?.defaultTime || 'night';
+  const fc = c?.forecastAt?.() || null, mode = party ? (L0.night === false || vid === 'dayclub' ? 'day' : 'night') : vid === 'dayclub' ? 'day' : vid === 'rooftop' || vid === 'pub' || vid === 'poolclub' ? 'night' : (id === next && fc?.time) || TRACKS[id]?.defaultTime || 'night';
   let sent = false;
   const back = (r) => { if (sent) return; sent = true; HANG.busy = false; try { done?.(r); } catch (e) { console.error('[hangout] hub', e); } };
   // (no world to stage it in: the venue in its own little scene, over the hub)
@@ -131201,7 +132245,8 @@ function hangoutAnchor(venueId, o = {}) {
   let a = null;
   if (W.sphereInfo && (venueId === 'rooftop' || venueId === 'apartment' || venueId === 'vegasclub')) { try { a = skyAnchor(venueId); } catch (e) { console.warn('[hangout] sky anchor', e); } }
   if (!a && venueId === 'teamparty') { try { a = paddockAnchor(venueId, o.team); } catch (e) { console.warn('[hangout] paddock anchor', e); } }
-  if (!a) { try { a = groundAnchor(venueId, venueId === 'rooftop' ? 70 : venueId === 'apartment' ? 9 : venueId === 'vegasclub' ? 60 : 0); } catch (e) { console.warn('[hangout] anchor', e); } }
+  // (the pool club: the roof of the resort's podium, 7 m up - at street level the world's ground covered its sunken basin)
+  if (!a) { try { a = groundAnchor(venueId, venueId === 'rooftop' ? 70 : venueId === 'apartment' ? 9 : venueId === 'vegasclub' ? 60 : venueId === 'poolclub' || venueId === 'dayclub' ? 7 : 0); } catch (e) { console.warn('[hangout] anchor', e); } }
   if (!a) { const f = tr.sample(0, tr.wallAt(0, 1) + 40); a = anchorAt(f.x, 0, f.z, tr.px[0], 0, tr.pz[0]); }
   a.trackId = W.def.id; a.venue = venueId; ANCHORS.set(key, a);
   return { ...a, look: { ...a.look } };
