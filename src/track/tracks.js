@@ -198,13 +198,25 @@ export const TRACKS = {
     // A park circuit: grass verges and kerbs like a permanent circuit, but concrete walls all the way round a few
     // metres back (verge 'park'). Escape areas are short: asphalt at the Senna S, T8-T9, the hairpin and the last
     // chicane (its straight-on escape road), gravel at T3-T4 and T6-T7, grass at the T5 kink
-    verge: 'park', vergeWidth: 3.5,
-    runoffCaps: [42, 20, 8],
+    verge: 'park', vergeWidth: 4.5,
+    runoffCaps: [55, 30, 12],
+    // the corners that are open, not lined with concrete: the Senna S (paved escape outside T1, the big lawn inside
+    // it), T3-T4, T6-T7, T8-T9, the hairpin (the paved escape beyond it, the painted infield), the last chicane's
+    // straight-on escape road - metres from the centreline to the barrier on each side (left / right of the racing direction)
+    openCorners: [
+      { turn: 1, left: 34, right: 38, before: 90, after: 40 }, { turn: 2, left: 30, right: 22, before: 20, after: 70 },
+      { turn: 3, left: 22, right: 14, before: 60, after: 20 }, { turn: 4, left: 14, right: 18, before: 10, after: 50 },
+      { turn: 6, left: 14, right: 22, before: 60, after: 20 }, { turn: 7, left: 20, right: 14, before: 10, after: 50 },
+      { turn: 8, left: 24, right: 16, before: 70, after: 20 }, { turn: 9, left: 14, right: 20, before: 10, after: 50 },
+      { turn: 10, left: 36, right: 24, before: 90, after: 60 }, { turn: 13, left: 28, right: 13, before: 60, after: 10 },
+    ],
     runoff: { asphalt: [1, 2, 8, 9, 10, 13, 14], grass: [5] },
     // the Wall of Champions: the outside of the T14 exit, 1.7 m of green paint behind the kerb and then the yellow wall
     wallOfChampions: { turn: 14, side: -1, from: -6, len: 78 },
     fillet: false, smoothSigma: 8,
-    line: 'optimal', lineMargin: 1.6,
+    // the chicanes are taken over the kerbs (the telemetry: T3-T4 and the last chicane 20-40 km/h quicker on them):
+    // the racing line runs to 0.6 m inside the white line, so the outside wheels ride the kerb, and the planner may too
+    line: 'optimal', lineMargin: 0.6, aiEdgeMargin: -0.5,
     // ---- venue dressing
     defaultTime: 'day',
     ground: 'park',
@@ -216,8 +228,9 @@ export const TRACKS = {
     defaultBuildingHeight: 8,
     buildingStyle: { base: 0x8a8d90, litProb: 0.1 },
     zoneSeq: [12, 13, 1, 14, 12, 17, 5, 15, 12, 19, 1, 18, 13, 12, 0, 15],
-    sponsorZones: [{ panel: 14, fromTurn: 10, toTurn: 10, before: 160, after: 140 }, { panel: 12, fromTurn: 1, toTurn: 2, before: 120, after: 40 }],
-    runoffPaint: [{ turns: [10], color: [0.14, 0.18, 0.28] }, { turns: [13, 14], color: [0.62, 0.14, 0.14] }, { turns: [1, 2], color: [0.12, 0.42, 0.24] }],
+    // the hairpin's boards: Pirelli yellow round the outside, crypto.com along the straight in; Rolex at the Senna S
+    sponsorZones: [{ panel: 1, fromTurn: 10, toTurn: 10, side: 1, before: 140, after: 90 }, { panel: 19, fromTurn: 10, toTurn: 10, side: -1, before: 170, after: 150 }, { panel: 12, fromTurn: 1, toTurn: 2, before: 120, after: 40 }, { panel: 14, fromTurn: 8, toTurn: 9, before: 80, after: 60 }],
+    runoffPaint: [],   // (bare asphalt escapes)
     runoffDecalTurns: [1, 10, 13],
     shots: [
       { scene: 'biosphere', label: 'BIOSPHÈRE', rMul: 1.2, az: 0.5 }, { s: -150, label: 'PIT STRAIGHT', side: -1 },

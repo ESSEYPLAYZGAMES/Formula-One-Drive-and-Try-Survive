@@ -164,6 +164,7 @@ async function loadWorld(def) {
   const samples = rotateSamples(sampleCurve(curve, true, 2), 0, 0);   // s = 0 at the start/finish line (projection origin)
   const track = new Track(samples, def);
   labelCorners(track, def, geo);
+  track.openCorners();   // (corners left open: Montreal's Senna S and hairpin - before the barriers are capped against everything else)
   // permanent circuits: the escape aprons stop short of the venue's real grandstands
   if (def.osmStands || def.standNames) {
     const stands = standFootprints(geo, def).map((b) => b.rings[0]);
@@ -187,12 +188,7 @@ async function loadWorld(def) {
   const pitWay = geo.roadById(def.pitLaneWayId);
   const pit = pitWay ? buildPitLane(track, pitLaneLeads(track, pitWay.pts, def.pitLeads)) : null;
   await set('Computing the racing line…', 26);
-  const line = new RacingLine(track, { optimal: def.line === 'optimal', ...(def.lineMargin ? { maxOffset: track.halfWidth - def.lineMargin } : {}) });
-  // the car's cornering limit (fitted to the four-wheel model's steady state: Chassis.fitGrip), with a margin that
-  // grows with speed (8 % in a hairpin, ~13 % in Copse: a fast corner is entered on the limit of the tyres and the
-  // aero at once, and a car that runs a metre wide there has no road left to tighten its line)
-  const profile = line.speedProfile({ mu: CAR.muBase * 0.92, mass: CAR.mass, dfCoef: CAR.dfm * CAR.mass * 0.9, dragCoef: 0.5 * CAR.rho * CAR.cdA,
-    axle: { rearStatic: CAR.lf / CAR.wheelbase, transfer: CAR.cgH / CAR.wheelbase, rearBrake: 1 - CAR.brakeBias, dfRear: 0.5 * CAR.rho * CAR.clA * (1 - CAR.aeroFrontShare) }, vMax: 96, brakeG: CAR.brakeMax / CAR.mass / 9.81, accel: (v) => Math.min(CAR.powerKW * 1000 / (CAR.mass * Math.max(8, v)), 14) });
+  const { line, profile } = makeRacingLine(track, def);
   await set('Laying the track, kerbs and barriers…', 40);
   const trackMesh = buildTrackMeshes(track, pit, gridLayout(track, 23, 1));
   scene.add(trackMesh);
@@ -276,6 +272,21 @@ function pitLaneLeads(track, pts, L) {
   const sA = track.nearest(pts[a][0], pts[a][1], -1, q).s, sB = track.nearest(pts[b][0], pts[b][1], -1, q).s;
   const edge = (s0, s1) => { const o = []; for (let s = s0; s <= s1; s += 6) { const f = track.sample(s, L.side * L.d); o.push([f.x, f.z]); } return o; };
   return [...edge(sA - (L.in || 100), sA - 12), ...pts.slice(a, b + 1), ...edge(sB + 12, sB + (L.out || 100))];
+}
+
+/**
+ * The racing line and the speed profile on it: a driver's own line when the circuit's AI calibration carries one
+ * (ai/Calibration.js `line`: from telemetry, tools/ai_fit.mjs), else the minimum-curvature line (def.line 'optimal')
+ * or the out-in-out one. The profile is the car's cornering limit (fitted to the four-wheel model's steady state:
+ * Chassis.fitGrip) with a margin that grows with speed (8 % in a hairpin, ~13 % in Copse: a fast corner is entered on
+ * the limit of the tyres and the aero at once, and a car that runs a metre wide there has no road left to tighten its line).
+ */
+function makeRacingLine(track, def) {
+  const fixed = track.aiCal?.line || null;
+  const line = new RacingLine(track, { optimal: def.line === 'optimal', ...(def.lineMargin ? { maxOffset: track.halfWidth - def.lineMargin } : {}), fixed });
+  const profile = line.speedProfile({mu: CAR.muBase * 0.92, mass: CAR.mass, dfCoef: CAR.dfm * CAR.mass * 0.9, dragCoef: 0.5 * CAR.rho * CAR.cdA,
+    axle: { rearStatic: CAR.lf / CAR.wheelbase, transfer: CAR.cgH / CAR.wheelbase, rearBrake: 1 - CAR.brakeBias, dfRear: 0.5 * CAR.rho * CAR.clA * (1 - CAR.aeroFrontShare) }, vMax: 96, brakeG: CAR.brakeMax / CAR.mass / 9.81, accel: (v) => Math.min(CAR.powerKW * 1000 / (CAR.mass * Math.max(8, v)), 14) });
+  return { line, profile };
 }
 
 /** Remove everything loadWorld built (switching circuits): scene objects, lights, the racing line, the title shots. */
@@ -1463,6 +1474,13 @@ function estimatePace() { let t = 0; for (let i = 0; i < W.track.n; i++) t += W.
 
 function makeDirector(mode, cars, player, extra = {}) {
   const wk = S.weekend;
+  // (the title screen's ambient cars: any frame between two sessions with no director - the results, the build-up, a
+  //  career's next session - made them again, and a session started any way but the menu's START left them standing
+  //  frozen where they had been placed: the "ghost cars" at the same spots every race. Never two fields at once)
+  // (and the last session's car models, if it was not ended first: one model per car of THIS session)
+  clearAmbient();
+  for (const m of S.meshes.values()) { scene.remove(m.group); m.dispose(); } S.meshes.clear();
+  for (const o of [...scene.children]) if (o.userData?.isCar) scene.remove(o);
   // (stood down: no player - the camera and the dash follow your team's stand-in, and the race can be fast-forwarded)
   S.cars = cars; S.player = player || extra.spectate || null; S.spectating = !player && !!extra.spectate; S.ff = false; S.contacts = new Map(); spawnMeshes(cars);
   endCrash(); if (player) player.crashLog = [];   // (the crash director listens to the player's car)
@@ -3100,8 +3118,10 @@ function frame(now) {
   } else if (d && hud.pit.open && p) {
     hud.update(p, { mode: d.mode, lapsTotal: d.lapsTotal, positions: d.positions, time: d.time, qualiStarted: d.qualiStarted, sectors: d.sectors, delta: (c) => d.telemetry?.liveDelta(c, d.time), sc: d.sc?.hudState(), gap: (a, b) => d.radio?.gap(a, b), drs: (c) => d.drs?.state(c) }, dt);
   } else if (!d && !W.home) {
-    simTime += dt; ensureAmbient(); stepAmbient(dt); cinematic(dt);
+    // (the ambient field only behind the menus themselves: not between a weekend's sessions, not under the results)
+    simTime += dt; if (!S.weekend && !PRE.show && !PRE.walk) { ensureAmbient(); stepAmbient(dt); } else clearAmbient(); cinematic(dt);
   }
+  if (d && S.ambient) clearAmbient();
   standsHD(FINALE.on || (!d && !W.home), dt, simTime);   // (the finale's shots, the title shots behind the menus: the stands full of people)
   if (W.home || !W.track) { input.endFrame(); return; }   // home screen / building: no 3D scene to draw
   rain.update(camera, halted ? 0 : dt);
@@ -3124,7 +3144,9 @@ function frame(now) {
 // ---------------------------------------------------------------------------
 {
   document.body.classList.add('home');   // (also in index.html; an Artifact host supplies its own <body>)
-  window.__F1 = { PRE, W, S, settings, scene, camera, renderer, input, hud, AIDriver, AI_TUNE, AI_CAL, applyCalibration, camCtl, setTimeOfDay, corridorSigned, CINE, cinematic, get feed() { return feed; }, get show() { return show; }, frame, ensureAmbient, PHOTO, TRACKS, switchTrack, NEWS, playNews, nextAfterResults, crashNews, helmetURL, openCareerHub, simToEnd, strings, get audio() { return audio; },
+  window.__F1 = { PRE, W, S, settings, scene, camera, renderer, input, hud, AIDriver, AI_TUNE, AI_CAL, applyCalibration,
+    /** (tools: a calibration applied, the racing line and the speed profile rebuilt from it - the next session's AI drives them) */
+    rebuildLine(cal) { applyCalibration(W.track, cal === undefined ? AI_CAL[W.def.id] : cal); const r = makeRacingLine(W.track, W.def); W.line = r.line; W.profile = r.profile; if (RL.group) { scene.remove(RL.group); RL.group = null; } return { fixed: !!r.line.fixed }; }, camCtl, setTimeOfDay, corridorSigned, CINE, cinematic, get feed() { return feed; }, get show() { return show; }, frame, ensureAmbient, PHOTO, TRACKS, switchTrack, NEWS, playNews, nextAfterResults, crashNews, helmetURL, openCareerHub, simToEnd, strings, get audio() { return audio; },
     restart() { if (settings.driver == null) settings.driver = 0; /* test hook: the field needs a player */ S.noStrategy = !window.__keepStrategy; endSession(); $('results').classList.add('hidden'); $('quali-panel').classList.add('hidden'); $('pause').classList.add('hidden'); S.paused = false; startWeekend(); if (PRE.show && !window.__keepPre) PRE.show.finish(); },   // (tests: no pre-race show unless asked for)
     // the driver's life (tests): the engines as modules, the career class, the scuffle module, the walk, the evening out.
     // Test switches read where they matter: window.__forceStars (ui/PreRace.js), window.__forceJab, window.__qteAuto,

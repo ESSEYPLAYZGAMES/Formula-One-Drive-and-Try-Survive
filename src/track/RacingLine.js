@@ -93,10 +93,21 @@ export function rearBrakeLimit(mu, fzRear, aLat, margin, ax) {
 }
 
 export class RacingLine {
-  /** @param optimal true: minimum-curvature line over the usable width (permanent circuits with fast corners) */
-  constructor(track, { optimal = false, maxOffset = track.halfWidth - (optimal ? 1.5 : 3.4) } = {}) {
+  /**
+   * @param optimal true: minimum-curvature line over the usable width (permanent circuits with fast corners)
+   * @param fixed { every (m), d: [lateral offset every `every` metres from the line] }: a line given, not computed - a
+   *   driver's own, taken from telemetry (ai/Calibration.js `line`, tools/ai_fit.mjs); kept within `fixedMax` of the centreline
+   */
+  constructor(track, { optimal = false, maxOffset = track.halfWidth - (optimal ? 1.5 : 3.4), fixed = null, fixedMax = track.halfWidth + 0.6 } = {}) {
     this.track = track;
     const n = track.n, ds = track.ds;
+    if (fixed && fixed.d?.length > 8) {
+      const m = fixed.d.length, raw = new Float32Array(n);
+      for (let i = 0; i < n; i++) { const u = (i * ds) / fixed.every, j = Math.floor(u) % m, f = u - Math.floor(u); raw[i] = Math.max(-fixedMax, Math.min(fixedMax, fixed.d[j] + (fixed.d[(j + 1) % m] - fixed.d[j]) * f)); }
+      this.offset = smoothArr(raw, n, Math.round(4 / ds)); this.fixed = true;
+      this.lineCurv = smoothArr(pathCurvature(track, this.offset, Math.round(10 / ds)), n, 3);
+      return;
+    }
     if (optimal) {
       this.offset = smoothArr(minCurvatureOffsets(track, maxOffset), n, Math.round(6 / ds));
       this.lineCurv = smoothArr(pathCurvature(track, this.offset, Math.round(10 / ds)), n, 3);

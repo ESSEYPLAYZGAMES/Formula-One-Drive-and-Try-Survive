@@ -139,7 +139,7 @@ export class AIDriver {
     const va = wx * tr.tx[i] + wz * tr.tz[i], vd = wx * tr.nx[i] + wz * tr.nz[i];
     const lineSlope = (line.offsetAt(c.s + 5) - line.offsetAt(c.s - 5)) / 10;
     ctx.e1 = Math.max(-0.5, Math.min(0.5, vd / Math.max(5, va) - lineSlope));
-    ctx.m = tr.halfWidth - T.edgeMargin;
+    ctx.m = tr.halfWidth - (tr.def.aiEdgeMargin ?? T.edgeMargin);   // (a circuit where the kerbs are part of the lap lets the car's centre wider: Montreal)
     ctx.grip = this.g;
     const sEnd = c.s + (ctx.n - 1) * DS;
     ctx.vEnd = Math.min(ctx.vCap ?? 99, this.profile[tr.idxAtS(sEnd)] * this.gripFactor() * this.g.scale);
@@ -438,8 +438,10 @@ export class AIDriver {
     if (stopping && c.pitLaneState === 'in') vT = Math.min(vT, Math.sqrt(Math.max(0, 2 * 5 * (box.u - u - 0.5))));
     // a car ahead in the lane (stopped in its box, or slower): braking in time for it from the entry road's speeds, a
     // car length and a half behind it (one stopped in its own box beside the fast lane is passed)
+    // (and a car still on the lane's run-in, driven by its own pitDrive, not yet counted as in the lane: under a safety
+    //  car half the field dives in at once, and the queue forms before the speed line - Montreal's lane leaves 110 m early)
     for (const o of world.cars) {
-      if (o === c || !o.pitLane || o.cleared) continue;
+      if (o === c || o.cleared || !(o.pitLane || o.ai?.inPitMode)) continue;
       const qo = P.nearest(o.x, o.z, this._po || (this._po = {})), gap = qo.u - u;
       if (gap <= 0 || gap > 150 || (o.held && Math.abs(qo.lat - latT) > 2.6) || (gap < 30 && Math.abs(qo.lat - q.lat) > 2.6)) continue;
       vT = Math.min(vT, Math.sqrt(Math.max(0, o.speed * o.speed + 2 * 12 * (gap - 9))));

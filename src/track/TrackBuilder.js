@@ -2,7 +2,7 @@
 // spatial hash for nearest-point queries, and the road/kerb/run-off/barrier meshes.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { kerbTexture, barrierAtlas, atlasU, runoffTextTexture, RUNOFF_DECAL_LEN, ZONE_SEQ, ZONE_LEN, PANEL_LEN } from './Branding.js';
+import { kerbTexture, barrierAtlas, atlasU, runoffTextTexture, RUNOFF_DECAL_LEN, ZONE_SEQ, ZONE_LEN, PANEL_LEN, TECPRO_PANEL } from './Branding.js';
 
 const DS = 2.0;              // sample spacing (m)
 const CELL = 24;             // spatial hash cell (m)
@@ -444,6 +444,28 @@ export class Track {
     }
     (this.pins || (this.pins = [])).push({ a: this.wrapS(s0), b: this.wrapS(s1), side, d, panel, name });
   }
+  /**
+   * Corners left open (def.openCorners: [{ turn, left, right, before, after }]): around the corner's apex, from `before`
+   * metres ahead of it to `after` past it, the barrier stands at least `left` / `right` metres from the centreline -
+   * Montreal's Senna S and hairpin, wide paved escapes and grass where a street circuit would have concrete. The
+   * ends ease back over 40 m; capSelf / capRunoff (run after) still stop it short of other parts of the lap and of
+   * buildings. Call once the corners have their arc lengths.
+   */
+  openCorners(list = this.def.openCorners) {
+    if (!list) return;
+    const n = this.n, ease = Math.round(40 / this.ds);
+    for (const o of list) {
+      const c = (this.def.corners || []).find((k) => k.n === o.turn); if (!c || c.s == null) continue;
+      const i0 = this.idxAtS(c.s - (o.before ?? 60)), m = Math.round(((o.before ?? 60) + (o.after ?? 60)) / this.ds);
+      for (const [arr, d] of [[this.wallL, o.left], [this.wallR, o.right]]) {
+        if (!d) continue;
+        for (let k = -ease; k <= m + ease; k++) {
+          const i = (i0 + k + n) % n, t = k < 0 ? 1 + k / ease : k > m ? 1 - (k - m) / ease : 1, w = t * t * (3 - 2 * t);
+          arr[i] = Math.max(arr[i], arr[i] + (d - arr[i]) * w);
+        }
+      }
+    }
+  }
   /** the pinned wall (pinWall) that a point at arc length s, lateral d is up against, or null */
   pinAt(s, d) {
     for (const p of this.pins || []) if (Math.sign(d) === p.side && (p.a <= p.b ? s >= p.a && s <= p.b : s >= p.a || s <= p.b)) return p;
@@ -824,11 +846,16 @@ export function buildTrackMeshes(track, pit, gridSlots) {
   for (const side of [1, -1]) {
     for (let z = 0; z < nZones; z++) {
       const p = inTMobile(z) ? sz.panel : seq[(z + (side < 0 ? 5 : 0)) % seq.length];
-      const keep = seg(side, (st) => st >= BAR.TYRES);
+      const keep = seg(side, (st) => (tr.walled ? st === BAR.WALL : st >= BAR.TYRES));   // (a walled park circuit's TecPro runs: below)
       const g = ribbon(tr, (i) => side * wallAt(i, side), (i) => side * wallAt(i, side), 0, { yB: 1.2, mask: (i) => zoneOf(i) === z && keep(i) && !overAt(i, side), uvFn: (i) => -side * tr.s[i] / PANEL_LEN });
       if (!g.index.count) continue;
       const uv = g.attributes.uv; for (let k = 0; k < uv.count; k++) uv.setX(k, atlasU(p, uv.getX(k)));   // this zone's tile of the atlas
       panelGeos.push(g);
+    }
+    // the red and white TecPro blocks across the back of a park circuit's escape areas (Montreal)
+    if (tr.walled) {
+      const tp = ribbon(tr, (i) => side * wallAt(i, side), (i) => side * wallAt(i, side), 0, { yB: 1.2, mask: seg(side, (st) => st === BAR.TYRES), uvFn: (i) => -side * tr.s[i] / PANEL_LEN });
+      if (tp.index.count) { const uv = tp.attributes.uv; for (let k = 0; k < uv.count; k++) uv.setX(k, atlasU(TECPRO_PANEL, uv.getX(k))); panelGeos.push(tp); }
     }
     for (const o of over) {
       if (o.side !== side) continue;

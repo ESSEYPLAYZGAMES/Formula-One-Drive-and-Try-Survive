@@ -52,8 +52,8 @@ const PADDOCK = [[bankW(-170) - 33, -170], [bankW(-170) - 3, -170], [bankW(-560)
 const STANDS = [
   { name: 'Grandstand 1 (Gold)', s: 30, side: -1, len: 190, tiers: 16 },          // the pit straight, facing the garages
   { name: 'Platinum', turn: 14, along: 55, side: -1, len: 90, tiers: 14 },          // behind the Wall of Champions
-  { name: 'Grandstand 11', turn: 1, along: -75, side: -1, len: 80, tiers: 16 },     // the Senna S
-  { name: 'Grandstand 12', turn: 1, along: 0, side: -1, len: 60, tiers: 16 },
+  { name: 'Grandstand 11', turn: 1, along: -150, side: -1, len: 80, tiers: 16 },    // the Senna S: down the approach ...
+  { name: 'Grandstand 12', turn: 2, along: 150, side: 1, len: 70, tiers: 14 },       // ... and round the outside of the exit
   { name: 'Grandstand 15', turn: 2, along: 70, side: 1, len: 90, tiers: 14 },
   { name: 'Grandstand 21', turn: 3, along: -50, side: 1, len: 70, tiers: 12 },
   { name: 'Grandstand 24', turn: 6, along: -45, side: -1, len: 64, tiers: 12 },
@@ -69,15 +69,17 @@ const STANDS = [
 // ---- paint on the grass and the run-offs (TV logos): at a corner (along = metres from its apex, side, lateral = metres
 //      beyond the kerb to the near edge), w across x l along the track
 const ADS = [
+  { logo: 'dhl', turn: 1, along: -55, side: 1, lateral: 5, w: 13, l: 38 },       // the lawn inside the Senna S
+  { logo: 'dhl', turn: 2, along: 30, side: -1, lateral: 5, w: 10, l: 28 },
+  { logo: 'aws', turn: 1, along: -20, side: -1, lateral: 6, w: 16, l: 30 },      // the T1 escape area
   { logo: 'rolex', turn: 8, along: -18, side: -1, lateral: 3, w: 16, l: 30 },     // inside T8, the Biosphère behind it
-  { logo: 'rolex', turn: 1, along: -40, side: 1, lateral: 3, w: 12, l: 24 },
-  { logo: 'aws', turn: 10, along: -55, side: -1, lateral: 2.5, w: 14, l: 30 },    // the hairpin, inside the approach
-  { logo: 'aws', turn: 10, along: 20, side: 1, lateral: 6, w: 18, l: 34 },        // ... and its escape area
+  { logo: 'pzero', turn: 10, along: 5, side: -1, lateral: 2.5, w: 11, l: 34 },    // the hairpin's black-painted infield
+  { logo: 'aws', turn: 10, along: 25, side: 1, lateral: 8, w: 18, l: 34 },        // ... and its escape area
   { logo: 'shell', turn: 13, along: 8, side: 1, lateral: 4, w: 16, l: 18 },       // the last chicane's escape road
   { logo: 'shell', turn: 13, along: -55, side: -1, lateral: 2.5, w: 12, l: 13 },  // ... and the grass before it
-  { logo: 'maple', turn: 2, along: -10, side: -1, lateral: 6, w: 20, l: 22 },     // inside the Senna S
   { logo: 'canada', turn: 5, along: 0, side: 1, lateral: 3, w: 9, l: 34 },
   { logo: 'rolex', turn: 6, along: 10, side: 1, lateral: 3, w: 11, l: 22 },
+  { logo: 'maple', turn: 3, along: 10, side: -1, lateral: 4, w: 14, l: 16 },
 ];
 
 // ---- trees: species (unit-height model built once) and where they grow
@@ -201,6 +203,14 @@ function adTexture(logo) {
   } else if (logo === 'maple') {
     const P = [[0, -1], [0.14, -0.72], [0.3, -0.8], [0.25, -0.38], [0.52, -0.62], [0.58, -0.48], [0.86, -0.54], [0.76, -0.24], [0.9, -0.16], [0.46, 0.2], [0.52, 0.36], [0.06, 0.3], [0.08, 0.78], [-0.08, 0.78], [-0.06, 0.3], [-0.52, 0.36], [-0.46, 0.2], [-0.9, -0.16], [-0.76, -0.24], [-0.86, -0.54], [-0.58, -0.48], [-0.52, -0.62], [-0.25, -0.38], [-0.3, -0.8], [-0.14, -0.72]];
     x.fillStyle = '#d52b1e'; x.beginPath(); P.forEach(([px, py], k) => (k ? x.lineTo : x.moveTo).call(x, LW / 2 + px * LH * 0.48, LH * 0.5 + py * LH * 0.48)); x.closePath(); x.fill();
+  } else if (logo === 'dhl') {   // the yellow block, the red italic letters with their speed lines
+    x.fillStyle = '#ffcc00'; x.fillRect(10, LH * 0.12, LW - 20, LH * 0.76);
+    x.fillStyle = '#d40511'; x.save(); x.transform(1, 0, -0.22, 1, LH * 0.1, 0); x.font = `900 italic ${LH * 0.56}px Arial, sans-serif`; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('DHL', LW * 0.5, LH * 0.52);
+    for (let k = 0; k < 3; k++) { x.fillRect(LW * 0.06, LH * (0.36 + k * 0.12), LW * 0.18, LH * 0.05); x.fillRect(LW * 0.76, LH * (0.36 + k * 0.12), LW * 0.18, LH * 0.05); }
+    x.restore();
+  } else if (logo === 'pzero') {   // black paint, the yellow P ZERO
+    x.fillStyle = '#111214'; x.beginPath(); x.ellipse(LW / 2, LH / 2, LW * 0.49, LH * 0.47, 0, 0, 7); x.fill();
+    x.fillStyle = '#ffd500'; x.font = `900 ${LH * 0.38}px Arial, sans-serif`; x.textAlign = 'center'; x.textBaseline = 'middle'; try { x.letterSpacing = '24px'; } catch (e) { /* */ } x.fillText('P ZERO', LW * 0.5, LH * 0.52);
   } else if (logo === 'canada') {
     x.fillStyle = '#ffffff'; x.font = `900 ${LH * 0.42}px Arial, sans-serif`; x.textAlign = 'center'; x.textBaseline = 'middle'; try { x.letterSpacing = '22px'; } catch (e) { /* */ } x.fillText('CANADA', LW * 0.5, LH * 0.52);
   }

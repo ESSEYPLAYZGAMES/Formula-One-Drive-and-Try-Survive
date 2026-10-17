@@ -51,10 +51,14 @@ function readTelemetry(file) {
     return fromRows(lines.slice(1).map((l) => { const c = l.split(sep); const o = {}; head.forEach((h, i) => { o[h] = c[i]?.replace(/^"|"$/g, ''); }); return o; }), label);
   }
   const J = JSON.parse(text);
-  if (J.format && String(J.format).startsWith('f1sim-telemetry')) {   // the game's own export: the fastest valid lap
-    const laps = (J.laps || []).filter((l) => l.valid && l.time).sort((a, b) => a.time - b.time); const L = laps[0] || (J.laps || [])[0];
-    if (!L) throw new Error(`${label}: no laps in it`);
-    return { label: `${label} (lap ${L.n}, ${L.time}s)`, d: L.samples.d, v: L.samples.v, b: L.samples.brk, hasBrake: true, track: J.track?.id };
+  if (J.format && String(J.format).startsWith('f1sim-telemetry')) {
+    // the game's own export: every complete lap that stayed on the track (a flashback used elsewhere in it is fine: its
+    // samples are the lap as driven after it), else the fastest lap there is
+    const all = (J.laps || []).filter((l) => l.time && l.samples?.d?.length > 50 && l.samples.d[0] < 30);
+    let use = all.filter((l) => (l.offTrack || 0) < 0.3);
+    if (!use.length) use = [...all].sort((a, b) => a.time - b.time).slice(0, 1);
+    if (!use.length) throw new Error(`${label}: no laps in it`);
+    return use.map((L) => ({ label: `${label} (lap ${L.n}, ${L.time}s)`, d: L.samples.d, v: L.samples.v, b: L.samples.brk, x: L.samples.x, z: L.samples.z, hasBrake: true, track: J.track?.id, own: true }));
   }
   if (Array.isArray(J)) return fromRows(J, label);
   const keys = Object.keys(J); const n = Math.max(...keys.map((k) => (Array.isArray(J[k]) ? J[k].length : 0)));
@@ -89,17 +93,39 @@ function measure(T, al, corners, len) {
   const mean = T.v.reduce((a, b) => a + b, 0) / T.v.length;
   return corners.map((c) => {
     let vmin = Infinity, brake = null;
-    for (let u = -220; u <= 120; u += 2) { const x = at(c.apex + u), v = sample(x, 'v'); vmin = Math.min(vmin, v); if (brake == null && u < 0 && T.hasBrake && sample(x, 'b') > 0.3) brake = -u; }
+    for (let u = -220; u <= 120; u += 2) { const x = at(c.apex + u), v = sample(x, 'v'); if (u >= -70 && u <= 50) vmin = Math.min(vmin, v); if (brake == null && u < 0 && T.hasBrake && sample(x, 'b') > 0.3) brake = -u; }
     return { n: c.n, vmin, brake, relV: vmin / mean };
   });
 }
 
 // ---- the fit -------------------------------------------------------------------------------------------------------
-const T = files.map(readTelemetry);
+const T = files.flatMap(readTelemetry);
+// the game's own car on this circuit (its export): the same car as the AI's, so the fit is absolute - the speeds and
+// the braking points themselves, not only the lap's shape (--shape keeps it relative)
+const ABS = !args.includes('--shape') && T.every((t) => t.own && t.track === track);
+const PASSES = opt('passes', ABS ? 2 : 1), LIMV = ABS ? [0.9, 1.25] : [0.9, 1.1], LIMB = ABS ? [0.85, 1.15] : [0.85, 1.15];   // (braking: later than 1.15 x the physics' point holds solo, but in a field - dirty air, mistakes on - the hairpin became a pile-up)
+if (ABS) console.log(`[fit] ${T.length} lap(s) of the game's own car on ${track}: fitting the speeds and braking points themselves, ${PASSES} passes`);
 const { page, close } = await openGame(track);
 const cal = await readCal(page, track); cal.corners = cal.corners || {};
 const groups = await groupsOf(page);
 for (const g of groups) for (const n of g) cal.corners[n] = { v: 1, b: 1, ...cal.corners[n] };
+// the driver's own line (the game's car, with positions): where on the road each lap was, every 5 m, averaged over the
+// laps; it becomes the AI's racing line (ai/Calibration.js `line`, RacingLine `fixed`) - the kerbs the driver rides, the
+// chicanes straightened - and the speeds and brakes are fitted on it. --noline keeps the AI's own line
+if (ABS && !args.includes('--noline') && T.every((t) => t.x?.length)) {
+  const L = await page.evaluate((laps) => {
+    const tr = window.__F1.W.track, n = Math.ceil(tr.length / 5), sum = new Float64Array(n), cnt = new Float64Array(n), q = {};
+    for (const lap of laps) { let hint = -1; for (let i = 0; i < lap.x.length; i++) { tr.nearest(lap.x[i], lap.z[i], hint, q); hint = q.i; const k = Math.floor(q.s / 5) % n; sum[k] += q.d; cnt[k]++; } }
+    const d = []; for (let k = 0; k < n; k++) d.push(cnt[k] ? sum[k] / cnt[k] : null);
+    for (let k = 0; k < n; k++) if (d[k] == null) { let a = 1; while (d[(k - a + n) % n] == null && a < n) a++; d[k] = d[(k - a + n) % n] ?? 0; }
+    return { d, hw: tr.halfWidth, max: Math.max(...d.map(Math.abs)) };
+  }, T.map((t) => ({ x: t.x, z: t.z })));
+  cal.line = { every: 5, d: L.d.map((x) => +x.toFixed(2)) };
+  console.log(`[fit] the driver's line: ${L.d.length} points, widest ${L.max.toFixed(1)} m off the centreline (the road's edge at ${L.hw} m)`);
+  console.log(`[fit] the AI on it: ${JSON.stringify(await page.evaluate((c) => window.__F1.rebuildLine(c), cal))}`);
+}
+for (let pass = 0; pass < PASSES; pass++) {
+if (PASSES > 1) console.log(`[fit] pass ${pass + 1}`);
 const ai = await calRun(page, 2, cal, { trace: true });
 const apexes = await page.evaluate(() => window.__F1.W.def.corners.filter((c) => c.s != null).map((c) => ({ n: c.n, apex: c.s })));
 const aiMean = ai.trace.reduce((a, b) => a + b, 0) / ai.trace.length;
@@ -108,7 +134,7 @@ const avgOf = (xs) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : n
 const aiC = Object.fromEntries(ai.corners.map((c) => { const vm = avgOf(c.runs.map((r) => r.vmin)) ?? c.vmin, br = avgOf(c.runs.map((r) => r.brake).filter((x) => x != null)); return [c.n, { vmin: vm, brake: br, relV: vm / aiMean }]; }));
 const per = {};
 for (const t of T) {
-  const al = align(t, ai.trace, ai.length);
+  const al = t.own && t.track === track ? { off: 0, scale: 1, r: null } : align(t, ai.trace, ai.length);
   console.log(`[fit] ${t.label}: ${t.d.length} samples over ${Math.round(t.d[t.d.length - 1] - t.d[0])} m, lined up at ${al.off} m${al.r != null ? ` (shape match ${al.r.toFixed(2)})` : ''}`);
   if (al.r != null && al.r < 0.6) console.warn(`[fit] ${t.label}: the trace does not look like this circuit (match ${al.r.toFixed(2)} < 0.6) - check the track, or give --offset`);
   for (const m of measure(t, al, apexes, ai.length)) (per[m.n] = per[m.n] || []).push(m);
@@ -116,15 +142,16 @@ for (const t of T) {
 const avgBrake = (src) => { const xs = Object.values(src).map((c) => c.brake).filter((x) => x != null); return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null; };
 const telC = Object.fromEntries(Object.entries(per).map(([n, ms]) => [n, { relV: ms.reduce((a, m) => a + m.relV, 0) / ms.length, brake: ms.some((m) => m.brake != null) ? ms.filter((m) => m.brake != null).reduce((a, m) => a + m.brake, 0) / ms.filter((m) => m.brake != null).length : null, vmin: ms.reduce((a, m) => a + m.vmin, 0) / ms.length }]));
 const bT = avgBrake(telC), bA = avgBrake(aiC);
-const prev = JSON.parse(JSON.stringify(cal)), clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+const prev = JSON.parse(JSON.stringify(cal)); const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 console.log('[fit] corner   telemetry vmin / rel   AI vmin / rel    brake tel / AI (m)   v      b');
 for (const g of groups) {
   // a group moves together: the mean of its corners' ratios
-  const rv = g.map((n) => (telC[n] && aiC[n] ? telC[n].relV / aiC[n].relV : 1)), rb = g.map((n) => (telC[n]?.brake && aiC[n]?.brake && bT && bA ? (aiC[n].brake / bA) / (telC[n].brake / bT) : 1));
+  const rv = g.map((n) => (telC[n] && aiC[n] ? (ABS ? telC[n].vmin / aiC[n].vmin : telC[n].relV / aiC[n].relV) : 1));
+  const rb = g.map((n) => (telC[n]?.brake && aiC[n]?.brake && bT && bA ? (ABS ? aiC[n].brake / telC[n].brake : (aiC[n].brake / bA) / (telC[n].brake / bT)) : 1));
   const fv = rv.reduce((a, b) => a + b, 0) / rv.length, fb = rb.reduce((a, b) => a + b, 0) / rb.length;
   for (const n of g) {
     const k = cal.corners[n];
-    k.v = +clamp(k.v * (1 + (fv - 1) * BLEND), 0.9, 1.1).toFixed(3); k.b = +clamp(k.b * (1 + (fb - 1) * BLEND), 0.85, 1.15).toFixed(3);
+    k.v = +clamp(k.v * (1 + (fv - 1) * BLEND), LIMV[0], LIMV[1]).toFixed(3); k.b = +clamp(k.b * (1 + (fb - 1) * BLEND), LIMB[0], LIMB[1]).toFixed(3);
     const t = telC[n], a = aiC[n];
     console.log(`[fit] T${String(n).padEnd(3)}   ${t ? `${t.vmin.toFixed(0).padStart(4)} / ${t.relV.toFixed(3)}` : '   -        '}       ${a ? `${a.vmin?.toFixed(0).padStart(4)} / ${a.relV.toFixed(3)}` : '   -'}     ${t?.brake != null ? t.brake.toFixed(0).padStart(4) : '   -'} / ${a?.brake != null ? a.brake.toFixed(0) : '-'}          ${k.v}  ${k.b}`);
   }
@@ -139,6 +166,7 @@ for (let tries = 0; tries < 3; tries++) {
     for (const g of groups) if (bad.includes(g.join('/'))) for (const n of g) cal.corners[n] = { ...prev.corners[n] };
     console.log(`[fit] ${bad.join(', ')}: kept as before the fit`);
   }
+}
 }
 cal.fitted = `${T.map((t) => t.label).join(', ')} (${new Date().toISOString().slice(0, 10)}, blend ${BLEND})`;
 cal.source = `${(cal.source || '').replace(/; fitted to telemetry:.*$/, '')}; fitted to telemetry: ${cal.fitted}`;

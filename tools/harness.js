@@ -252,7 +252,8 @@ window.__calRun = function (laps = 3, cal = undefined, opts = {}) {
       const [t, lp, s, v, br] = trace[i], sp = trace[i - 1][2], tp = trace[i - 1][0];
       const now = inWin(s, c.a, c.b), was = inWin(sp, c.a, c.b);
       if (now && !was) cur = fwd(c.a, s) < 25 ? { t0: t, lap: lp, vmin: Infinity, brake: null } : null;
-      if (cur && now) { cur.vmin = Math.min(cur.vmin, v); const toApex = fwd(s, c.apex); if (cur.brake == null && br > 0.3 && toApex > 0 && toApex <= 220) cur.brake = Math.round(toApex); }
+      // (the minimum speed of the corner itself: within 70 m before its apex and 50 m after - a chicane's other half is not this one)
+      if (cur && now) { const toApex = fwd(s, c.apex), past = fwd(c.apex, s); if (toApex <= 70 || past <= 50) cur.vmin = Math.min(cur.vmin, v); if (cur.brake == null && br > 0.3 && toApex > 0 && toApex <= 220) cur.brake = Math.round(toApex); }
       if (cur && !now && was) { if (fwd(c.b, s) < 25 && cur.lap >= 1) runs.push({ t: +(tp - cur.t0).toFixed(3), vmin: +cur.vmin.toFixed(1), brake: cur.brake }); cur = null; }
     }
     void flying;

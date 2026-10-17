@@ -207,6 +207,15 @@ PANELS.push((x) => {   // 19 Crypto.com
   text(x, 'crypto.com', PW * 0.5, PH * 0.52, PH * 0.54, '#ffffff', { weight: 700, align: 'center', spacing: 2 });
 });
 export const WOC_PANEL = 16;
+PANELS.push((x) => {   // 20 TecPro: red and white blocks, a seam between each, the logo plate on the white ones
+  const n = 6, w = PW / n;
+  for (let k = 0; k < n; k++) {
+    x.fillStyle = k % 2 ? '#f2f2f0' : '#d61f26'; x.fillRect(k * w, 0, w, PH);
+    x.fillStyle = 'rgba(0,0,0,0.25)'; x.fillRect(k * w, 0, 4, PH); x.fillStyle = 'rgba(255,255,255,0.18)'; x.fillRect(k * w + 4, 0, w - 8, PH * 0.12);
+    if (k % 2) text(x, 'TECPRO', k * w + w / 2, PH * 0.55, PH * 0.22, '#9a9a9a', { weight: 800, align: 'center' });
+  }
+});
+export const TECPRO_PANEL = 20;
 /** sponsor per 180 m wall zone (both sides use the same sequence, offset on the right so they don't mirror) */
 export const ZONE_SEQ = [0, 3, 1, 2, 0, 4, 5, 7, 1, 6, 0, 2, 3, 0, 1, 5];
 export const ZONE_LEN = 180;
