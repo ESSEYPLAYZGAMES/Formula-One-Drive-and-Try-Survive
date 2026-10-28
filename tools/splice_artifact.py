@@ -95,15 +95,23 @@ def main():
             last = list(geo_re.finditer(ah))[-1]
             ah = ah[:last.end()] + '\n' + block + ah[last.end():]; report.append(f'+ geojson-{name}')
     strip = lambda h: geo_re.sub('', h)
-    if strip(oh) != strip(nh):
+    if strip(oh) != strip(nh) and not os.environ.get('SPLICE_SKIP_MARKUP'):   # (SPLICE_SKIP_MARKUP=1: the markup was patched by hand)
         geos = {m.group(1): m.group(0) for m in geo_re.finditer(ah)}
         body = patch_text(strip(oh), strip(nh), strip(ah), 'the page markup')
         # (put the data back where the stripped copy had nothing: right before the module script)
         first = '<script type="module">'
         ah = body.replace(first, '\n'.join(geos.values()) + '\n' + first, 1) if first in body else body
         report.append('~ page markup')
-    # the module script's tail (after the last module) comes from the Artifact
-    out = ah + ''.join(am[k] for k in aorder)
+    # the order: the new build's (its dependency order - a module may import one it did not before), with the
+    # Artifact's own modules (not in src/) each kept just before the module that followed it there
+    order = list(norder)
+    for i, k in enumerate(aorder):
+        if k in nm:
+            continue
+        nxt = next((x for x in aorder[i + 1:] if x in nm), None)
+        order.insert(order.index(nxt) if nxt else len(order), k)
+    order = [k for k in order if k in am]
+    out = ah + ''.join(am[k] for k in order)
     open(ART, 'w', encoding='utf-8').write(out)
     shutil.rmtree(tmp, ignore_errors=True)
     print('\n'.join(report) or 'nothing changed')
