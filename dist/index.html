@@ -88746,13 +88746,14 @@ function trackHeights(track, pts, sigma = 20) {
 
 /**
  * The height field over the venue: the road and HOLD m either side at the circuit's height (the nearest part of the lap
- * where two parts come close), harmonic everywhere else with the field's border at the circuit's mean height. Solved on
+ * where two parts come close), harmonic everywhere else with the field's border just below the lap's lowest point. Solved on
  * a 32 m grid, then 16 m, then 8 m (each level started from the one before), Gauss-Seidel with over-relaxation.
  */
 function buildHeightField(track, h) {
   let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity, mean = 0;
   for (let i = 0; i < track.n; i++) { x0 = Math.min(x0, track.px[i]); x1 = Math.max(x1, track.px[i]); z0 = Math.min(z0, track.pz[i]); z1 = Math.max(z1, track.pz[i]); mean += h[i]; }
-  mean /= track.n; x0 -= MARGIN; z0 -= MARGIN; x1 += MARGIN; z1 += MARGIN;
+  mean /= track.n; let lo = Infinity; for (let i = 0; i < track.n; i++) lo = Math.min(lo, h[i]); const edge = lo - 1.5;   // (the far edge: below the lowest point of the lap - the flat plane beyond it must never stand over the road)
+  x0 -= MARGIN; z0 -= MARGIN; x1 += MARGIN; z1 += MARGIN;
   const hold = track.halfWidth + HOLD;
   const level = (cell, prev) => {
     const nx = Math.ceil((x1 - x0) / cell) + 1, nz = Math.ceil((z1 - z0) / cell) + 1, H = new Float32Array(nx * nz), fixed = new Uint8Array(nx * nz);
@@ -88768,8 +88769,8 @@ function buildHeightField(track, h) {
         if (d2 <= hold * hold && d2 < best[k]) { best[k] = d2; H[k] = h[s]; fixed[k] = 1; }
       }
     }
-    for (let i = 0; i < nx; i++) { fixed[i] = fixed[(nz - 1) * nx + i] = 2; H[i] = H[(nz - 1) * nx + i] = mean; }
-    for (let j = 0; j < nz; j++) { fixed[j * nx] = fixed[j * nx + nx - 1] = 2; H[j * nx] = H[j * nx + nx - 1] = mean; }
+    for (let i = 0; i < nx; i++) { fixed[i] = fixed[(nz - 1) * nx + i] = 2; H[i] = H[(nz - 1) * nx + i] = edge; }
+    for (let j = 0; j < nz; j++) { fixed[j * nx] = fixed[j * nx + nx - 1] = 2; H[j * nx] = H[j * nx + nx - 1] = edge; }
     const iters = prev ? 160 : 700, w = 1.85;
     for (let it = 0; it < iters; it++) {
       for (let j = 1; j < nz - 1; j++) for (let i = 1; i < nx - 1; i++) {
@@ -88777,7 +88778,7 @@ function buildHeightField(track, h) {
         H[k] += w * ((H[k - 1] + H[k + 1] + H[k - nx] + H[k + nx]) * 0.25 - H[k]);
       }
     }
-    return field(H, nx, nz, cell);
+    const F = field(H, nx, nz, cell); F.fixed = fixed; return F;
   };
   const field = (H, nx, nz, cell) => ({
     H, nx, nz, cell, x0, z0,
@@ -88788,16 +88789,29 @@ function buildHeightField(track, h) {
     },
   });
   let F = null; for (const cell of [CELL * 4, CELL * 2, CELL]) F = level(cell, F);
-  F.edge = mean;
+  F.edge = edge;
   return F;
 }
 
 /** switch the venue's ground on (a height field) or off (null) */
-function setTerrain(F) {
-  if (!F) { TERRAIN.on = false; TERRAIN.edge = 0; TERRAIN.at = () => 0; TERRAIN.grad = (x, z, out = [0, 0]) => { out[0] = out[1] = 0; return out; }; TERRAIN.field = null; return; }
+function setTerrain(F, track = null) {
+  if (!F) { TERRAIN.on = false; TERRAIN.edge = 0; TERRAIN.at = () => 0; TERRAIN.grad = (x, z, out = [0, 0]) => { out[0] = out[1] = 0; return out; }; TERRAIN.field = null; TERRAIN.road = null; return; }
   const e = 1.5;
   TERRAIN.on = true; TERRAIN.edge = F.edge; TERRAIN.field = F;
-  TERRAIN.at = (x, z) => F.at(x, z);
+  // near the circuit, its own height exactly (the grid's 8 m cells would let the ground cut corners off the road over a
+  // crest or into a dip): by the nearest point of the lap, out to the edge of the strip held at its height, then
+  // blended into the field over the last 6 m of it
+  const h = track?.h, q = {}, hold = (track?.halfWidth || 0) + HOLD; let hint = -1;
+  const nearStrip = (x, z) => { const i = Math.floor((x - F.x0) / F.cell), j = Math.floor((z - F.z0) / F.cell); if (i < 0 || j < 0 || i >= F.nx - 1 || j >= F.nz - 1) return false; const k = j * F.nx + i; return F.fixed[k] === 1 || F.fixed[k + 1] === 1 || F.fixed[k + F.nx] === 1 || F.fixed[k + F.nx + 1] === 1; };
+  TERRAIN.road = h ? (x, z, out = q) => {   // -> { h (the circuit's height there), d (offset from the centreline), s } | null
+    if (!nearStrip(x, z)) return null;
+    track.nearest(x, z, hint, out); hint = out.i; if (!(Math.abs(out.d) <= hold)) return null;
+    const u = track.wrapS(out.s) / track.ds, i0 = Math.floor(u) % track.n, f = u - Math.floor(u); out.h = h[i0] + (h[(i0 + 1) % track.n] - h[i0]) * f; return out;
+  } : null;
+  TERRAIN.at = (x, z) => {
+    const fv = F.at(x, z), r = TERRAIN.road?.(x, z); if (!r) return fv;
+    const w = Math.max(0, Math.min(1, (Math.abs(r.d) - (hold - 6)) / 6)); return r.h + (fv - r.h) * w * w * (3 - 2 * w);
+  };
   TERRAIN.grad = (x, z, out = [0, 0]) => { out[0] = (F.at(x + e, z) - F.at(x - e, z)) / (2 * e); out[1] = (F.at(x, z + e) - F.at(x, z - e)) / (2 * e); return out; };
 }
 
@@ -88899,6 +88913,7 @@ function elevateWorld(roots) {
 /** the ground near the circuit as a mesh on the height field (the flat plane beyond it is lowered to the field's edge):
  *  the same material and the same texture coordinates as the plane (12 km across, centred on the origin), in tiles of
  *  64 x 64 cells so the off-screen ones cull */
+const _rq = {};
 function terrainGround(F, material, planeSize = 12000) {
   const group = new THREE.Group(); group.name = 'terrain'; group.userData.onTerrain = true;
   const T = 64;
@@ -88906,7 +88921,9 @@ function terrainGround(F, material, planeSize = 12000) {
     const ni = Math.min(T, F.nx - 1 - ti), nj = Math.min(T, F.nz - 1 - tj), pos = [], uv = [], idx = [];
     for (let j = 0; j <= nj; j++) for (let i = 0; i <= ni; i++) {
       const x = F.x0 + (ti + i) * F.cell, z = F.z0 + (tj + j) * F.cell;
-      pos.push(x, F.H[(tj + j) * F.nx + ti + i] - 0.05, z); uv.push(x / planeSize + 0.5, -z / planeSize + 0.5);
+      // (under the road and its kerbs the grass is kept 15 cm down: no cell of it can show through the asphalt)
+      const r = TERRAIN.road?.(x, z, _rq), under = r && Math.abs(r.d) < (TERRAIN.halfRoad || 9);
+      pos.push(x, (r ? TERRAIN.at(x, z) : F.H[(tj + j) * F.nx + ti + i]) - (under ? 0.15 : 0.05), z); uv.push(x / planeSize + 0.5, -z / planeSize + 0.5);
     }
     for (let j = 0; j < nj; j++) for (let i = 0; i < ni; i++) { const a = j * (ni + 1) + i, b = a + 1, c = a + ni + 1, d = c + 1; idx.push(a, c, b, b, c, d); }
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals();
@@ -89764,6 +89781,8 @@ return { buildMontreal };
 __m['src/world/Austin.js'] = (() => {
 const { corridorSigned } = __m['src/track/TrackBuilder.js'];
 const { footprintInfo } = __m['src/core/GeoLoader.js'];
+const { makeWindowMaterial } = __m['src/world/Buildings.js'];
+const { TERRAIN } = __m['src/world/Terrain.js'];
 // Austin: around the Circuit of the Americas, what the survey does not carry. The circuit sits in rolling ranch land
 // south-east of the city: the hill up to Turn 1 (the line is 27 m below its top), the Esses running down from it, the
 // long back straight out to the Turn 11 hairpin, the "stadium" section of Turns 12-15 round the Grand Plaza, and the
@@ -89773,6 +89792,8 @@ const { footprintInfo } = __m['src/core/GeoLoader.js'];
 // parks in the fields; the live oaks, cedar elms and mesquite of the Texas prairie; and the stars on the blue of the
 // Turn 1 run-off (its red and white stripes: tracks.js runoffPaint). Built flat like the rest of the world and raised
 // onto the ground's height with it (world/Terrain.js elevateWorld).
+
+
 
 
 
@@ -89808,16 +89829,23 @@ function buildAustin(geo, track, def, pit) {
   const steel = new THREE.MeshStandardMaterial({ color: 0xdfe3e8, roughness: 0.3, metalness: 0.75, emissive: 0x15171a });
   const glass = new THREE.MeshStandardMaterial({ color: 0x24384a, roughness: 0.08, metalness: 0.8, envMapIntensity: 1.5, emissive: 0x2a3644, emissiveIntensity: 0.6 });
 
-  // ---- the Observation Tower over the amphitheatre's stage (the survey's outline: 'Germania Insurance Amphiteater')
-  const amph = byName(/amphi/i);
+  // ---- the Observation Tower over the amphitheatre (the survey's outline: 'Germania Insurance Amphiteater', the stage),
+  //      inside the loop of Turns 16-18: 76.5 m to the top of its veil, the deck at 70 m. The stage at its foot under the
+  //      veil's run, the lawn bowl rising away from it, and beyond, the Grand Plaza toward the Turn 15 stands and its
+  //      reflecting pool at the far end
+  const amph = byName(/amphi/i), t15 = byName(/turn 15 grand/i);
   let towerAt = null;
   if (amph) {
     claimed.add(amph.id);
     const info = footprintInfo(amph.rings[0]);
-    // (the tower stands at the back of the stage, the veil falls toward the plaza: away from the circuit's nearest part)
-    const q = tr.nearest(info.c[0], info.c[1]), f = tr.sample(q.s, 0); let ax = info.c[0] - f.x, az = info.c[1] - f.z; const al = Math.hypot(ax, az) || 1; ax /= al; az /= al;
-    const tx = info.c[0] + ax * 30, tz = info.c[1] + az * 30; towerAt = [tx, tz];
-    const T = new THREE.Group(); T.name = 'scene:tower'; T.position.set(tx, 0, tz); T.rotation.y = Math.atan2(-az, ax) + Math.PI;   // (local +x: toward the stage and the circuit)
+    // (the plaza's way: from the stage toward the Turn 15 stands; the tower stands behind the stage, the other way)
+    let ax = 1, az = 0;
+    if (t15) { const i2 = footprintInfo(t15.rings[0]); ax = i2.c[0] - info.c[0]; az = i2.c[1] - info.c[1]; } else { const q = tr.nearest(info.c[0], info.c[1]), f = tr.sample(q.s, 0); ax = info.c[0] - f.x; az = info.c[1] - f.z; }
+    const al = Math.hypot(ax, az) || 1; ax /= al; az /= al;
+    const tx = info.c[0] - ax * 26, tz = info.c[1] - az * 26; towerAt = [tx, tz];
+    const yaw = Math.atan2(-az, ax);   // (local +x: from the tower over the stage to the plaza)
+    // the tower itself: one rigid piece on the ground under its foot (not bent over the slope like the stands)
+    const T = new THREE.Group(); T.name = 'scene:tower'; T.position.set(tx, TERRAIN.at(tx, tz), tz); T.rotation.y = yaw; T.userData.onTerrain = true;
     // the shaft: a white steel frame 9 m square - four corner columns, a landing every 3.5 m and the stairs zigzagging
     // up inside it - round the lift's glass core (by day pale glass, by night lit floor by floor in the rainbow)
     const bands = document.createElement('canvas'); bands.width = 64; bands.height = 512; const bx = bands.getContext('2d');
@@ -89825,42 +89853,66 @@ function buildAustin(geo, track, def, pit) {
     const bandTex = new THREE.CanvasTexture(bands); bandTex.colorSpace = THREE.SRGBColorSpace;
     const shaftMat = new THREE.MeshStandardMaterial({ color: 0xc9d6e0, roughness: 0.12, metalness: 0.55, emissive: 0xffffff, emissiveMap: bandTex, emissiveIntensity: 0, envMapIntensity: 1.3 });
     shaftMat.userData.towerGlow = true;
-    const core = new THREE.Mesh(new THREE.BoxGeometry(4.2, 66, 4.2), shaftMat); core.position.y = 33; T.add(core);
-    const frame = [], box = (w, h, d, x, y, z, rx = 0, rz = 0) => { const g = new THREE.BoxGeometry(w, h, d); if (rx) g.rotateX(rx); if (rz) g.rotateZ(rz); g.translate(x, y, z); frame.push(g); };
-    for (const [x, z] of [[-4.5, -4.5], [4.5, -4.5], [-4.5, 4.5], [4.5, 4.5]]) box(0.8, 68, 0.8, x, 34, z);
+    const core = new THREE.Mesh(new THREE.BoxGeometry(4.2, 70, 4.2), shaftMat); core.position.y = 33; T.add(core);   // (down 2 m into the ground: no gap on a slope)
+    const frame = [], box = (w, h, d, x, y, z, rz = 0) => { const g = new THREE.BoxGeometry(w, h, d); if (rz) g.rotateZ(rz); g.translate(x, y, z); frame.push(g); };
+    for (const [x, z] of [[-4.5, -4.5], [4.5, -4.5], [-4.5, 4.5], [4.5, 4.5]]) box(0.8, 70, 0.8, x, 33, z);
     for (let y = 3.5, k = 0; y < 66; y += 3.5, k++) {
-      box(9.8, 0.3, 9.8, 0, y, 0);   // (a landing: a white slab round the core)
-      box(9.8, 1.1, 0.12, 0, y + 0.6, -4.9); box(9.8, 1.1, 0.12, 0, y + 0.6, 4.9); box(0.12, 1.1, 9.8, -4.9, y + 0.6, 0); box(0.12, 1.1, 9.8, 4.9, y + 0.6, 0);   // (its rails)
-      box(7.6, 0.25, 1.4, 0, y + 1.75, k % 2 ? 3.6 : -3.6, 0, k % 2 ? 0.43 : -0.43);   // (the flight up to the next one)
+      box(9.8, 0.3, 9.8, 0, y, 0);
+      box(9.8, 1.1, 0.12, 0, y + 0.6, -4.9); box(9.8, 1.1, 0.12, 0, y + 0.6, 4.9); box(0.12, 1.1, 9.8, -4.9, y + 0.6, 0); box(0.12, 1.1, 9.8, 4.9, y + 0.6, 0);
+      box(7.6, 0.25, 1.4, 0, y + 1.75, k % 2 ? 3.6 : -3.6, k % 2 ? 0.43 : -0.43);
     }
     T.add(new THREE.Mesh(mergeGeometries(frame.map((g) => keepPN(g))), white));
-    // the observation deck at the top: a white oval with its glass band and the glass floor
-    const deck = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 3.6, 32), glass); deck.scale.set(7.5, 1, 6.5); deck.position.set(0, 69.6, 0); T.add(deck);
-    const lid = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1.0, 32), white); lid.scale.set(8, 1, 7); lid.position.set(0, 72, 0); T.add(lid);
-    const floor = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 0.8, 32), white); floor.scale.set(8, 1, 7); floor.position.set(0, 67.4, 0); T.add(floor);
-    // the veil: a band of red steel 7 m wide - over the top in a hook, straight down the tower's side, then out across
-    // the plaza at 12 m on white posts to the stage's canopy
+    // the observation deck at 70 m: a white oval with its glass band and the glass floor
+    const deck = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 3.4, 32), glass); deck.scale.set(7.5, 1, 6.5); deck.position.set(0, 71.4, 0); T.add(deck);
+    const lid = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1.0, 32), white); lid.scale.set(8, 1, 7); lid.position.set(0, 73.6, 0); T.add(lid);
+    const floor = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 0.8, 32), white); floor.scale.set(8, 1, 7); floor.position.set(0, 69.6, 0); T.add(floor);
+    // the veil: a band of red steel 7 m wide - over the top in a hook (76.5 m), down the tower's side, then out across the
+    // stage at 12 m on white posts
     const red = new THREE.MeshStandardMaterial({ color: 0xd3202b, roughness: 0.45, metalness: 0.35, emissive: 0x3a080b, side: THREE.DoubleSide });
-    const path = new THREE.CatmullRomCurve3([[-7, 74], [-5, 77.5], [0, 79], [6, 77.5], [8.5, 72], [9, 60], [9, 40], [9.2, 24], [10.5, 16], [15, 12.6], [24, 12], [45, 12], [70, 12], [84, 12]].map(([x, y]) => new THREE.Vector3(x, y, 0)), false, 'centripetal');
+    const path = new THREE.CatmullRomCurve3([[-7, 72.5], [-5, 75.4], [0, 76.5], [6, 75.4], [8.5, 70.5], [9, 60], [9, 40], [9.2, 24], [10.5, 16], [15, 12.6], [24, 12], [40, 12], [58, 12], [70, 12]].map(([x, y]) => new THREE.Vector3(x, y, 0)), false, 'centripetal');
     const NS = 160, W = 7, P = [], I = [];
     for (let k = 0; k <= NS; k++) { const q = path.getPoint(k / NS); P.push(q.x, q.y, -W / 2, q.x, q.y, W / 2); if (k < NS) { const a = k * 2; I.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); } }
     const veil = new THREE.BufferGeometry(); veil.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); veil.setIndex(I); veil.computeVertexNormals();
     T.add(new THREE.Mesh(veil, red));
-    // (its edges: a thin white trim; and the posts under the run across the plaza)
-    const posts = []; for (let x = 22; x <= 84; x += 12) for (const z of [-3.2, 3.2]) { const g = new THREE.BoxGeometry(0.5, 12, 0.5); g.translate(x, 6, z); posts.push(keepPN(g)); }
+    const posts = []; for (let x = 22; x <= 70; x += 12) for (const z of [-3.2, 3.2]) { const g = new THREE.BoxGeometry(0.5, 14, 0.5); g.translate(x, 5, z); posts.push(keepPN(g)); }
     T.add(new THREE.Mesh(mergeGeometries(posts), white));
-    // the stage under the veil's end: its white canopy, the stage itself, and the lawn bowl rising away from it
-    const canopy = new THREE.Mesh(new THREE.CylinderGeometry(22, 22, 0.6, 24, 1, false, 0, Math.PI), white); canopy.rotation.y = Math.PI / 2; canopy.position.set(52, 13, 0); T.add(canopy);
-    const stage = new THREE.Mesh(new THREE.BoxGeometry(18, 1.6, 30), new THREE.MeshStandardMaterial({ color: 0x2b2d33, roughness: 0.8 })); stage.position.set(54, 0.8, 0); T.add(stage);
-    for (const [x, z] of [[40, -18], [40, 18], [66, -18], [66, 18]]) { const m = new THREE.Mesh(new THREE.BoxGeometry(0.8, 13, 0.8), steel); m.position.set(x, 6.5, z); T.add(m); }
-    const lawn = new THREE.Mesh(new THREE.CylinderGeometry(70, 70, 1, 32, 1, false, -Math.PI / 2.6, Math.PI / 1.3), new THREE.MeshStandardMaterial({ color: 0x5e7a36, roughness: 1 }));
-    lawn.position.set(60, -0.45, 0); lawn.rotation.y = -Math.PI / 2; lawn.scale.set(1, 1, 1); T.add(lawn);
     group.add(T);
-    solid.push([tx, tz, 22], [tx + Math.cos(T.rotation.y) * 55, tz - Math.sin(T.rotation.y) * 55, 50]);
+    // the stage, its canopy under the veil's run, the lawn bowl and the plaza: on the ground (raised with the world)
+    const Pz = new THREE.Group(); Pz.name = 'scene:plaza'; Pz.position.set(tx, 0, tz); Pz.rotation.y = yaw;
+    const canopy = new THREE.Mesh(new THREE.CylinderGeometry(18, 18, 0.6, 24, 1, false, 0, Math.PI), white); canopy.rotation.y = Math.PI / 2; canopy.position.set(34, 10.5, 0); Pz.add(canopy);
+    const stage = new THREE.Mesh(new THREE.BoxGeometry(16, 1.6, 26), new THREE.MeshStandardMaterial({ color: 0x2b2d33, roughness: 0.8 })); stage.position.set(30, 0.8, 0); Pz.add(stage);
+    const lawn = new THREE.Mesh(new THREE.CylinderGeometry(75, 75, 0.3, 40, 1, false, -Math.PI / 2.5, Math.PI / 1.25), new THREE.MeshStandardMaterial({ color: 0x5e7a36, roughness: 1 }));
+    lawn.position.set(38, 0.05, 0); lawn.rotation.y = -Math.PI / 2; Pz.add(lawn);
+    // the Grand Plaza: pale concrete beyond the lawn, and the long reflecting pool at its far end
+    const plaza = new THREE.Mesh(new THREE.BoxGeometry(150, 0.2, 60), new THREE.MeshStandardMaterial({ color: 0xc9c4b8, roughness: 0.85 })); plaza.position.set(190, 0.08, 0); Pz.add(plaza);
+    const pool = new THREE.Mesh(new THREE.BoxGeometry(80, 0.25, 14), new THREE.MeshStandardMaterial({ color: 0x3f6f8e, roughness: 0.08, metalness: 0.5, envMapIntensity: 1.6 })); pool.position.set(225, 0.12, 0); Pz.add(pool);
+    // (the plaza and the pool only where there is room inside the loop)
+    for (const m of [plaza, pool]) { const c = new THREE.Vector3(m.position.x, 0, 0).applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw); if (corridorSigned(tr, pit, tx + c.x, tz + c.z, 40) < 0) m.visible = false; }
+    group.add(Pz);
+    solid.push([tx, tz, 16]);
+    const at = (u) => [tx + Math.cos(yaw) * u, tz - Math.sin(yaw) * u]; solid.push([...at(35), 45], [...at(190), 70]);
+  }
+
+  // ---- the pedestrian bridges over the track: at Turn 3 (across the whole circuit) and at Turn 16 (into the infield) -
+  //      a white steel truss 6 m over the road, a stair tower at each end beyond the barriers
+  {
+    const parts = [];
+    for (const [turn, along] of [[3, -60], [16, 70]]) {
+      const s0 = cornerS(turn); if (s0 == null) continue;
+      const s = s0 + along, i = tr.idxAtS(s), f = tr.sample(s, 0), wl = tr.wallAt(i, 1) + 4, wr = tr.wallAt(i, -1) + 4, span = wl + wr;
+      const B = new THREE.Group(); B.name = `scene:bridge${turn}`; const y0 = TERRAIN.at(f.x, f.z);
+      B.position.set(f.x + f.nx * (wl - wr) / 2, y0, f.z + f.nz * (wl - wr) / 2); B.rotation.y = Math.atan2(-f.nz, f.nx); B.userData.onTerrain = true;   // (local +x across the track)
+      const g = [], b = (w, h, d, x, y, z, rz = 0) => { const q = new THREE.BoxGeometry(w, h, d); if (rz) q.rotateZ(rz); q.translate(x, y, z); g.push(keepPN(q)); };
+      b(span, 0.5, 4.2, 0, 6.2, 0);                                     // (the deck)
+      for (const z of [-2.1, 2.1]) { b(span, 0.25, 0.25, 0, 8.6, z); b(span, 0.25, 0.25, 0, 6.5, z); for (let x = -span / 2; x <= span / 2; x += 3) b(0.18, 2.2, 0.18, x, 7.5, z, ((x / 3) | 0) % 2 ? 0.6 : -0.6); }
+      for (const side of [-1, 1]) {   // (the stair towers: down past the ground's dip, so they stand on it wherever it is)
+        const x = side * (span / 2 + 3); b(6, 14, 6, x, -0.5, 0); for (let k = 0; k < 4; k++) b(5.6, 0.25, 1.4, x, 1.4 + k * 1.6, k % 2 ? 2.2 : -2.2, k % 2 ? 0.5 : -0.5);
+      }
+      B.add(new THREE.Mesh(mergeGeometries(g), white)); group.add(B);
+    }
   }
 
   // ---- the Texas flag on its pole by the Turn 15 stands: 18 x 12 m, waving
-  const t15 = byName(/turn 15 grand/i);
   let flagMat = null;
   {
     let fx, fz;
@@ -89985,6 +90037,40 @@ function buildAustin(geo, track, def, pit) {
       M.forEach((m, i) => { im.setMatrixAt(i, m); im.setColorAt(i, C[i]); });
       im.instanceMatrix.needsUpdate = true; im.computeBoundingSphere(); im.name = 'austin:cars'; group.add(im);
     }
+  }
+
+  // ---- downtown Austin on the horizon: 18 km to the north-north-west, brought in to 4.5 km along its true bearing and
+  //      scaled up (bolder than true: it stands out over the trees, a skyline you can read from the track) - the
+  //      Sixth and Guadalupe tower, the Independent's stacked blocks, the Austonian, the Frost Bank Tower's crown, 360,
+  //      the Google tower's sail, the Capitol's dome, the UT Tower, and the rest of downtown round them
+  {
+    let cx = 0, cz = 0; for (let i = 0; i < tr.n; i++) { cx += tr.px[i]; cz += tr.pz[i]; } cx /= tr.n; cz /= tr.n;
+    const DT = geo.proj.toXZ(-97.7430, 30.2672), dd = Math.hypot(DT[0] - cx, DT[1] - cz), K = 4500 / dd, HK = K * 2.4;
+    const sky = [], at = (lon, lat) => { const [x, z] = geo.proj.toXZ(lon, lat); return [cx + (x - cx) * K, cz + (z - cz) * K]; };
+    const blk = (lon, lat, w, d, h, rot = 0.1, tint = 1, y0 = 0) => { const [x, z] = at(lon, lat), g = new THREE.BoxGeometry(w * HK, h * HK, d * HK); g.translate(0, (y0 + h / 2) * HK, 0); g.rotateY(rot); g.translate(x, 0, z); vcolor(g, new THREE.Color(tint, tint, tint * 1.05)); sky.push(keepPN(nonIdx(g))); return [x, z]; };
+    blk(-97.7457, 30.2689, 34, 34, 270, 0.1, 0.8);                      // Sixth and Guadalupe
+    for (let k = 0; k < 6; k++) blk(-97.7491 + (k % 2 ? 0.00006 : -0.00006), 30.2669, 30, 26, 35, 0.1 + (k % 2) * 0.2, 1.05, k * 35);   // the Independent ("the Jenga tower")
+    blk(-97.7449, 30.2648, 30, 30, 208, 0.12, 0.7);                     // the Austonian
+    const frost = blk(-97.7414, 30.2665, 34, 34, 140, 0.785, 0.9);    // the Frost Bank Tower (its crown below)
+    blk(-97.7489, 30.2675, 32, 28, 171, 0.3, 1.0);                      // 360
+    blk(-97.7466, 30.2665, 40, 30, 179, 0.1, 0.65);                     // the Google tower
+    blk(-97.7385, 30.2593, 30, 30, 160, 0.4, 1.1);                      // 70 Rainey
+    for (let k = 0; k < 46; k++) {   // the rest of downtown: lower toward its edges
+      const lon = -97.752 + rnd() * 0.017, lat = 30.258 + rnd() * 0.015, core = 1 - Math.min(1, Math.hypot((lon + 97.744) / 0.009, (lat - 30.266) / 0.008));
+      blk(lon, lat, 18 + rnd() * 24, 18 + rnd() * 24, 30 + core * (60 + rnd() * 90) + rnd() * 20, rnd() * 0.6, 0.7 + rnd() * 0.45);
+    }
+    blk(-97.7394, 30.2861, 26, 26, 94, 0.1, 1.15);                      // the UT Tower
+    const city = new THREE.Mesh(mergeGeometries(sky), makeWindowMaterial({ base: 0x6a7480, litProb: 0.25, cellW: 3.2, cellH: 3.6, useVertexColor: true }));
+    city.name = 'scene:skyline';
+    const crown = new THREE.Mesh(new THREE.ConeGeometry(18 * HK, 34 * HK, 4), new THREE.MeshStandardMaterial({ color: 0xbfc6cc, roughness: 0.4, metalness: 0.5 })); crown.rotation.y = Math.PI / 4; crown.position.set(frost[0], 157 * HK, frost[1]);
+    // the Capitol (a pink granite dome, 92 m) and the UT Tower, north of downtown
+    const [kx, kz] = at(-97.7404, 30.2747), cap = new THREE.Group();
+    const granite = new THREE.MeshStandardMaterial({ color: 0xd8b9a8, roughness: 0.7 });
+    const body = new THREE.Mesh(new THREE.BoxGeometry(170 * HK, 30 * HK, 90 * HK), granite); body.position.y = 15 * HK; cap.add(body);
+    const drum = new THREE.Mesh(new THREE.CylinderGeometry(20 * HK, 22 * HK, 30 * HK, 20), granite); drum.position.y = 45 * HK; cap.add(drum);
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(20 * HK, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2), granite); dome.position.y = 60 * HK; cap.add(dome);
+    cap.position.set(kx, 0, kz);
+    const sk = new THREE.Group(); sk.name = 'scene:city'; sk.add(city, crown, cap); sk.position.y = TERRAIN.on ? TERRAIN.edge - 0.5 : 0; sk.userData.onTerrain = true; group.add(sk);
   }
 
   // ---- trees: live oaks (wide, low, dark crowns), cedar elms, Ashe junipers (the "cedars": dense dark cones) and
@@ -137804,7 +137890,7 @@ async function loadWorld(def) {
   setTerrain(null);
   if (def.elevation) {
     const w = geo.roadById(def.ways[0]), pts = w ? w.pts.map((p, k) => [p[0], p[1], w.lonlat[k]?.[2]]) : null, h = trackHeights(track, pts);
-    if (h) { track.h = h; setTerrain(buildHeightField(track, h)); }
+    if (h) { track.h = h; setTerrain(buildHeightField(track, h), track); TERRAIN.halfRoad = track.halfWidth + track.kerbWidth + 1; }
   }
   labelCorners(track, def, geo);
   track.openCorners();   // (corners left open: Montreal's Senna S and hairpin - before the barriers are capped against everything else)
@@ -140418,7 +140504,7 @@ function dashLine(pts, width = 1.2, dash = 2.8, period = 7) {
   const pos = [], idx = [], dashes = [], q = {};
   for (let d0 = 0; d0 + dash <= cum[n - 1]; d0 += period) {
     const v0 = pos.length / 3;
-    for (const d of [d0, d0 + dash / 2, d0 + dash]) { at(d, q); pos.push(q.x + q.nx * width / 2, 0.04, q.z + q.nz * width / 2, q.x - q.nx * width / 2, 0.04, q.z - q.nz * width / 2); }
+    for (const d of [d0, d0 + dash / 2, d0 + dash]) { at(d, q); const y = 0.04 + TERRAIN.at(q.x, q.z); pos.push(q.x + q.nx * width / 2, y, q.z + q.nz * width / 2, q.x - q.nx * width / 2, y, q.z - q.nz * width / 2); }   // (on the road's own height: world/Terrain.js)
     // wound to face UP (counter-clockwise seen from above: the old ribbon faced down and was back-face culled, which
     // is why the racing line never showed)
     idx.push(v0, v0 + 1, v0 + 2, v0 + 1, v0 + 3, v0 + 2, v0 + 2, v0 + 3, v0 + 4, v0 + 3, v0 + 5, v0 + 4);
@@ -140782,7 +140868,7 @@ function frame(now) {
           S.pullMark = g; scene.add(g);
         }
         const ps = P.samples, i = Math.max(0, Math.min(ps.n - 1, Math.round(pl.at / ps.ds))), m = S.pullMark;
-        m.visible = true; m.position.set(ps.px[i], 0.03, ps.pz[i]); m.rotation.set(0, Math.atan2(-ps.nz[i], ps.nx[i]), 0); m.userData.band.scale.set(P.halfWidth * 2, 1, 1);
+        m.visible = true; m.position.set(ps.px[i], 0.03 + TERRAIN.at(ps.px[i], ps.pz[i]), ps.pz[i]); m.rotation.set(0, Math.atan2(-ps.nz[i], ps.nx[i]), 0); m.userData.band.scale.set(P.halfWidth * 2, 1, 1);
         for (const [post, s] of m.userData.posts) post.position.x = s * (P.halfWidth + 0.2);
         m.userData.mat.opacity = 0.55 + 0.4 * Math.abs(Math.sin(d.time * 6));
       } else if (S.pullMark) S.pullMark.visible = false;

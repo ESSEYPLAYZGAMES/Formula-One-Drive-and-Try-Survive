@@ -170,7 +170,7 @@ async function loadWorld(def) {
   setTerrain(null);
   if (def.elevation) {
     const w = geo.roadById(def.ways[0]), pts = w ? w.pts.map((p, k) => [p[0], p[1], w.lonlat[k]?.[2]]) : null, h = trackHeights(track, pts);
-    if (h) { track.h = h; setTerrain(buildHeightField(track, h)); }
+    if (h) { track.h = h; setTerrain(buildHeightField(track, h), track); TERRAIN.halfRoad = track.halfWidth + track.kerbWidth + 1; }
   }
   labelCorners(track, def, geo);
   track.openCorners();   // (corners left open: Montreal's Senna S and hairpin - before the barriers are capped against everything else)
@@ -2784,7 +2784,7 @@ function dashLine(pts, width = 1.2, dash = 2.8, period = 7) {
   const pos = [], idx = [], dashes = [], q = {};
   for (let d0 = 0; d0 + dash <= cum[n - 1]; d0 += period) {
     const v0 = pos.length / 3;
-    for (const d of [d0, d0 + dash / 2, d0 + dash]) { at(d, q); pos.push(q.x + q.nx * width / 2, 0.04, q.z + q.nz * width / 2, q.x - q.nx * width / 2, 0.04, q.z - q.nz * width / 2); }
+    for (const d of [d0, d0 + dash / 2, d0 + dash]) { at(d, q); const y = 0.04 + TERRAIN.at(q.x, q.z); pos.push(q.x + q.nx * width / 2, y, q.z + q.nz * width / 2, q.x - q.nx * width / 2, y, q.z - q.nz * width / 2); }   // (on the road's own height: world/Terrain.js)
     // wound to face UP (counter-clockwise seen from above: the old ribbon faced down and was back-face culled, which
     // is why the racing line never showed)
     idx.push(v0, v0 + 1, v0 + 2, v0 + 1, v0 + 3, v0 + 2, v0 + 2, v0 + 3, v0 + 4, v0 + 3, v0 + 5, v0 + 4);
@@ -3148,7 +3148,7 @@ function frame(now) {
           S.pullMark = g; scene.add(g);
         }
         const ps = P.samples, i = Math.max(0, Math.min(ps.n - 1, Math.round(pl.at / ps.ds))), m = S.pullMark;
-        m.visible = true; m.position.set(ps.px[i], 0.03, ps.pz[i]); m.rotation.set(0, Math.atan2(-ps.nz[i], ps.nx[i]), 0); m.userData.band.scale.set(P.halfWidth * 2, 1, 1);
+        m.visible = true; m.position.set(ps.px[i], 0.03 + TERRAIN.at(ps.px[i], ps.pz[i]), ps.pz[i]); m.rotation.set(0, Math.atan2(-ps.nz[i], ps.nx[i]), 0); m.userData.band.scale.set(P.halfWidth * 2, 1, 1);
         for (const [post, s] of m.userData.posts) post.position.x = s * (P.halfWidth + 0.2);
         m.userData.mat.opacity = 0.55 + 0.4 * Math.abs(Math.sin(d.time * 6));
       } else if (S.pullMark) S.pullMark.visible = false;
