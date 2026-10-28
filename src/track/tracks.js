@@ -305,15 +305,15 @@ export const TRACKS = {
     // the boards: Archer round the stadium section (Turns 12-15), Rolex along the Esses, the stripes at Turn 1
     sponsorZones: [{ panel: 21, fromTurn: 12, toTurn: 15, before: 60, after: 40 }, { panel: 12, fromTurn: 3, toTurn: 6, before: 40, after: 40 }, { panel: 25, fromTurn: 1, toTurn: 1, before: 140, after: 60 }],
     // the run-offs: the flag's stripes at Turn 1 (the stars on the blue: world/Austin.js), the Esses, Turn 9, the hairpin,
-    // Turn 12, the stadium and the last two corners; the rest bare
+    // Turn 12, the stadium and the last two corners - seven bands along the kerb, the tan of the paved apron beyond
     runoffPaint: [
-      { turns: [1, 2], stripes: [[0.06, 0.2, 0.5], [0.06, 0.2, 0.5], [0.06, 0.2, 0.5], [0.06, 0.2, 0.5], [0.9, 0.9, 0.92], [0.72, 0.09, 0.16], [0.9, 0.9, 0.92], [0.72, 0.09, 0.16]], w: 2.4, bands: 24 },
-      { turns: [3, 4, 5, 6], stripes: [[0.72, 0.09, 0.16], [0.9, 0.9, 0.92], [0.06, 0.2, 0.5], [0.9, 0.9, 0.92]], w: 2.2, bands: 18 },
-      { turns: [9, 10], stripes: [[0.06, 0.2, 0.5], [0.9, 0.9, 0.92], [0.72, 0.09, 0.16], [0.9, 0.9, 0.92]], w: 2.6, bands: 16 },
-      { turns: [11], stripes: [[0.72, 0.09, 0.16], [0.9, 0.9, 0.92], [0.06, 0.2, 0.5], [0.9, 0.9, 0.92]], w: 3, bands: 20 },
-      { turns: [12], stripes: [[0.06, 0.2, 0.5], [0.9, 0.9, 0.92], [0.72, 0.09, 0.16], [0.9, 0.9, 0.92]], w: 2.6, bands: 18 },
-      { turns: [15, 16, 17, 18], stripes: [[0.72, 0.09, 0.16], [0.9, 0.9, 0.92], [0.06, 0.2, 0.5], [0.9, 0.9, 0.92]], w: 2.4, bands: 16 },
-      { turns: [19, 20], stripes: [[0.06, 0.2, 0.5], [0.9, 0.9, 0.92], [0.72, 0.09, 0.16], [0.9, 0.9, 0.92]], w: 2.4, bands: 16 },
+      { turns: [1, 2], stripes: [[0.06, 0.2, 0.5], [0.06, 0.2, 0.5], [0.06, 0.2, 0.5], [0.06, 0.2, 0.5], [0.9, 0.9, 0.92], [0.72, 0.09, 0.16], [0.9, 0.9, 0.92], [0.72, 0.09, 0.16]], w: 2.4, bands: 24, base: [0.74, 0.66, 0.52] },
+      { turns: [3, 4, 5, 6], stripes: [[0.72, 0.09, 0.16], [0.9, 0.9, 0.92], [0.06, 0.2, 0.5], [0.9, 0.9, 0.92]], w: 2.2, bands: 7, base: [0.74, 0.66, 0.52] },
+      { turns: [9, 10], stripes: [[0.06, 0.2, 0.5], [0.9, 0.9, 0.92], [0.72, 0.09, 0.16], [0.9, 0.9, 0.92]], w: 2.6, bands: 7, base: [0.74, 0.66, 0.52] },
+      { turns: [11], stripes: [[0.72, 0.09, 0.16], [0.9, 0.9, 0.92], [0.06, 0.2, 0.5], [0.9, 0.9, 0.92]], w: 3, bands: 7, base: [0.74, 0.66, 0.52] },
+      { turns: [12], stripes: [[0.06, 0.2, 0.5], [0.9, 0.9, 0.92], [0.72, 0.09, 0.16], [0.9, 0.9, 0.92]], w: 2.6, bands: 7, base: [0.74, 0.66, 0.52] },
+      { turns: [15, 16, 17, 18], stripes: [[0.72, 0.09, 0.16], [0.9, 0.9, 0.92], [0.06, 0.2, 0.5], [0.9, 0.9, 0.92]], w: 2.4, bands: 7, base: [0.74, 0.66, 0.52] },
+      { turns: [19, 20], stripes: [[0.06, 0.2, 0.5], [0.9, 0.9, 0.92], [0.72, 0.09, 0.16], [0.9, 0.9, 0.92]], w: 2.4, bands: 7, base: [0.74, 0.66, 0.52] },
     ],
     runoffDecalTurns: [11, 12, 20],
     shots: [

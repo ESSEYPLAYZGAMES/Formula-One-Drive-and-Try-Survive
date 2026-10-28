@@ -3035,6 +3035,8 @@ const BUILDING_CUTOFF = 1800;
 function cullBuildings() {
   const b = W.buildings; if (!b) return;
   for (const m of b.children) { const s = m.geometry.boundingSphere; m.visible = s.center.distanceTo(camera.position) - s.radius < BUILDING_CUTOFF; }
+  // (a circuit's own scenery cells - car parks, cars, scrub - each with its own cut-off)
+  const sg = W.scenery?.group; if (sg) for (const m of sg.children) { const cut = m.userData.cut; if (!cut) continue; const s = m.boundingSphere || m.geometry.boundingSphere; if (s) m.visible = s.center.distanceTo(camera.position) - s.radius < cut; }
   cullDetail();
 }
 /** thin track details (lines, kerbs, banners, pit paint) are not drawn beyond their cut-off (TrackBuilder DETAIL_CUT) */

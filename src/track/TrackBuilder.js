@@ -826,7 +826,10 @@ export function buildTrackMeshes(track, pit, gridSlots) {
           if (g.index.count) geos.push(worldUV(g, 7));
         }
       }
-      if (geos.length) group.add(spatialChunks(geos, runMat, 'runStripes'));
+      // (drawn over the apron with a depth bias of their own: 4 mm above it is below the depth buffer's precision once
+      //  the ground lifts it all onto the hills, and the two would fight - the stripes breaking up into the grey)
+      const stripeMat = runMat.clone(); stripeMat.polygonOffset = true; stripeMat.polygonOffsetFactor = -1.5; stripeMat.polygonOffsetUnits = -3;
+      if (geos.length) group.add(spatialChunks(geos, stripeMat, 'runStripes'));
     }
     gravelMat = new THREE.MeshStandardMaterial({ map: gravelTexture(), roughness: 1, metalness: 0 });
     group.add(spatialChunks(apron(2, {}), gravelMat, 'runGravel'));

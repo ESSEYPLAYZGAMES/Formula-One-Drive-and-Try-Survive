@@ -93,6 +93,7 @@ export function buildHeightField(track, h) {
 
 /** switch the venue's ground on (a height field) or off (null) */
 export function setTerrain(F, track = null) {
+  TERRAIN.tint = null;   // (a venue's ground colouring, (x, z) -> [r, g, b]: set by its scenery after this)
   if (!F) { TERRAIN.on = false; TERRAIN.edge = 0; TERRAIN.at = () => 0; TERRAIN.grad = (x, z, out = [0, 0]) => { out[0] = out[1] = 0; return out; }; TERRAIN.field = null; TERRAIN.road = null; return; }
   const e = 1.5;
   TERRAIN.on = true; TERRAIN.edge = F.edge; TERRAIN.field = F;
@@ -214,6 +215,10 @@ export function elevateWorld(roots) {
 const _rq = {};
 export function terrainGround(F, material, planeSize = 12000) {
   const group = new THREE.Group(); group.name = 'terrain'; group.userData.onTerrain = true;
+  // (a venue's own colouring of its ground - dry patches, scrub, mown verges - in the vertex colours of a copy of the
+  //  ground's material, which keeps following the original's day / night texture)
+  const tinted = TERRAIN.tint ? material.clone() : null;
+  if (tinted) { tinted.vertexColors = true; group.userData.sync = () => { if (tinted.map !== material.map) { tinted.map = material.map; tinted.color.copy(material.color); tinted.needsUpdate = true; } }; }
   const T = 64;
   for (let tj = 0; tj < F.nz - 1; tj += T) for (let ti = 0; ti < F.nx - 1; ti += T) {
     const ni = Math.min(T, F.nx - 1 - ti), nj = Math.min(T, F.nz - 1 - tj), pos = [], uv = [], idx = [];
@@ -225,7 +230,8 @@ export function terrainGround(F, material, planeSize = 12000) {
     }
     for (let j = 0; j < nj; j++) for (let i = 0; i < ni; i++) { const a = j * (ni + 1) + i, b = a + 1, c = a + ni + 1, d = c + 1; idx.push(a, c, b, b, c, d); }
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals();
-    const m = new THREE.Mesh(g, material); m.receiveShadow = true; m.renderOrder = 1; m.userData.onTerrain = true; group.add(m);
+    if (tinted) { const col = new Float32Array(pos.length); for (let k = 0; k < pos.length; k += 3) col.set(TERRAIN.tint(pos[k], pos[k + 2]), k); g.setAttribute('color', new THREE.BufferAttribute(col, 3)); }
+    const m = new THREE.Mesh(g, tinted || material); if (tinted) m.onBeforeRender = group.userData.sync; m.receiveShadow = true; m.renderOrder = 1; m.userData.onTerrain = true; group.add(m);
   }
   return group;
 }
