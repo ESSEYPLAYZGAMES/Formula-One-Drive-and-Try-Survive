@@ -788,7 +788,7 @@ export function buildTrackMeshes(track, pit, gridSlots) {
     if (wallAt(i, d > 0 ? 1 : -1) < bo + 1.5) return [0.6, 0.62, 0.65];   // only the escape apron is painted, the normal verge stays concrete
     const z = tr.inCornerZone(i) || tr.inCornerZone(tr.idxAtS(tr.s[i] + 60)) || tr.inCornerZone(tr.idxAtS(tr.s[i] + 30));
     const turns = z ? (z.turns || [z.turn]) : [];
-    for (const p of paint) if (turns.some((t) => p.turns.includes(t))) return p.color;   // per-track apron colours (tracks.js)
+    for (const p of paint) if (turns.some((t) => p.turns.includes(t))) return p.color || p.base || [0.85, 0.86, 0.88];   // per-track apron colours (tracks.js)
     return [0.6, 0.62, 0.65];
   };
   const circuit = tr.circuit;
@@ -811,6 +811,23 @@ export function buildTrackMeshes(track, pit, gridSlots) {
       : ribbon(tr, (i) => -outer(i, -1, t), (i) => -inner(i, t), 0.004, { mask: apronMask(-1, t), ...opts }), t === 2 ? 5 : 7));
     const asph = apron(1, { colorFn: runTint }).filter((g) => g.index.count);
     group.add(spatialChunks(asph, runMat, 'runAsphalt'));
+    // painted in stripes (def.runoffPaint { turns, stripes: [colours], w (each band's width), bands }): bands following
+    // the kerb out across the asphalt apron, a colour each in turn - Austin's red, white and blue
+    const striped = paint.filter((p) => p.stripes);
+    if (striped.length) {
+      const stripeOf = (i) => { const z = tr.inCornerZone(i) || tr.inCornerZone(tr.idxAtS(tr.s[i] + 60)) || tr.inCornerZone(tr.idxAtS(tr.s[i] + 30)), ts = z ? (z.turns || [z.turn]) : []; return striped.find((p) => ts.some((x) => p.turns.includes(x))) || null; };
+      const geos = [];
+      for (const side of [1, -1]) for (const P of striped) {
+        const w = P.w || 2.6, nB = P.bands || 16;
+        for (let k = 0; k < nB; k++) {
+          const col = P.stripes[k % P.stripes.length], a = (i) => Math.min(inner(i, 1) + k * w, outer(i, side, 1)), b = (i) => Math.min(inner(i, 1) + (k + 1) * w, outer(i, side, 1));
+          const mask = (i) => apronMask(side, 1)(i) && stripeOf(i) === P && b(i) - a(i) > 0.05;
+          const g = side > 0 ? ribbon(tr, a, b, 0.008, { mask, colorFn: () => col }) : ribbon(tr, (i) => -b(i), (i) => -a(i), 0.008, { mask, colorFn: () => col });
+          if (g.index.count) geos.push(worldUV(g, 7));
+        }
+      }
+      if (geos.length) group.add(spatialChunks(geos, runMat, 'runStripes'));
+    }
     gravelMat = new THREE.MeshStandardMaterial({ map: gravelTexture(), roughness: 1, metalness: 0 });
     group.add(spatialChunks(apron(2, {}), gravelMat, 'runGravel'));
   }

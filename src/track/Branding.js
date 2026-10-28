@@ -216,6 +216,31 @@ PANELS.push((x) => {   // 20 TecPro: red and white blocks, a seam between each, 
   }
 });
 export const TECPRO_PANEL = 20;
+// ---- Austin (the Circuit of the Americas)
+PANELS.push((x) => {   // 21 Archer: black board, the white wordmark and the aircraft's silhouette
+  x.fillStyle = '#0a0a0b'; x.fillRect(0, 0, PW, PH);
+  for (const cx of [PW * 0.27, PW * 0.77]) {
+    text(x, 'ARCHER', cx, PH * 0.53, PH * 0.5, '#ffffff', { weight: 800, align: 'center', spacing: 10 });
+    x.fillStyle = '#ffffff'; x.beginPath(); x.moveTo(cx - PH * 1.25, PH * 0.5); x.lineTo(cx - PH * 0.95, PH * 0.38); x.lineTo(cx - PH * 0.9, PH * 0.5); x.lineTo(cx - PH * 0.95, PH * 0.62); x.closePath(); x.fill();
+  }
+});
+PANELS.push((x) => {   // 22 United States Grand Prix: white, the red and blue bands and the star
+  x.fillStyle = '#ffffff'; x.fillRect(0, 0, PW, PH); x.fillStyle = '#0a3161'; x.fillRect(0, 0, PW * 0.14, PH); x.fillStyle = '#b31942'; x.fillRect(PW * 0.86, 0, PW * 0.14, PH);
+  star(x, PW * 0.07, PH * 0.5, PH * 0.3, '#ffffff'); star(x, PW * 0.93, PH * 0.5, PH * 0.3, '#ffffff');
+  text(x, 'UNITED STATES GRAND PRIX', PW * 0.5, PH * 0.53, PH * 0.38, '#0a3161', { weight: 900, align: 'center', spacing: 3 });
+});
+PANELS.push((x) => {   // 23 AUSTIN · TEXAS
+  x.fillStyle = '#0a3161'; x.fillRect(0, 0, PW, PH); x.fillStyle = '#b31942'; x.fillRect(0, PH * 0.84, PW, PH * 0.16);
+  text(x, 'AUSTIN · TEXAS', PW * 0.5, PH * 0.45, PH * 0.52, '#ffffff', { weight: 900, align: 'center', spacing: 12 });
+});
+PANELS.push((x) => {   // 24 MSC: navy, gold letters
+  x.fillStyle = '#04174a'; x.fillRect(0, 0, PW, PH);
+  for (const cx of [PW * 0.25, PW * 0.75]) text(x, 'MSC', cx, PH * 0.53, PH * 0.62, '#d6b46a', { weight: 900, align: 'center', spacing: 8 });
+});
+PANELS.push((x) => {   // 25 the red, white and blue stripes (the run-offs' colours on the tyre walls)
+  const n = 9, w = PW / n; for (let k = 0; k < n; k++) { x.fillStyle = ['#b31942', '#ffffff', '#0a3161'][k % 3]; x.fillRect(k * w, 0, w + 1, PH); }
+  star(x, PW * 0.5, PH * 0.5, PH * 0.32, '#ffffff');
+});
 /** sponsor per 180 m wall zone (both sides use the same sequence, offset on the right so they don't mirror) */
 export const ZONE_SEQ = [0, 3, 1, 2, 0, 4, 5, 7, 1, 6, 0, 2, 3, 0, 1, 5];
 export const ZONE_LEN = 180;

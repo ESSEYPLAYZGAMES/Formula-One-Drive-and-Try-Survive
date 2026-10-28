@@ -43,6 +43,17 @@ function fromRows(rows, label) {
   if (cD.toLowerCase() === 'relativedistance') { const L = Math.max(...d) > 1.5 ? 1 : 4361; for (let i = 0; i < d.length; i++) d[i] *= L; }
   return { label, d, v, b, hasBrake: !!cB };
 }
+/** a lap as it stands after its flashbacks: where the distance jumps back (a rewind), the attempt it rewound is dropped -
+ *  the samples from that distance on, before the jump - so the lap is the one driven (`cut`: how many rewinds) */
+function unrewind(S) {
+  const keep = [], d = S.d, joins = []; let cut = 0;
+  for (let i = 0; i < d.length; i++) {
+    if (keep.length && d[i] < d[keep[keep.length - 1]] - 3) { cut++; joins.push(d[i]); while (keep.length && d[keep[keep.length - 1]] >= d[i] - 0.5) keep.pop(); }
+    keep.push(i);
+  }
+  const col = (a) => (a ? keep.map((i) => a[i]) : a);
+  return { d: col(S.d), v: col(S.v), brk: col(S.brk), x: col(S.x), z: col(S.z), cut, joins };
+}
 function readTelemetry(file) {
   const text = fs.readFileSync(file, 'utf8'), label = path.basename(file);
   if (/\.csv$/i.test(file) || /^[^{[]/.test(text.trim())) {
@@ -58,7 +69,7 @@ function readTelemetry(file) {
     let use = all.filter((l) => (l.offTrack || 0) < 0.3);
     if (!use.length) use = [...all].sort((a, b) => a.time - b.time).slice(0, 1);
     if (!use.length) throw new Error(`${label}: no laps in it`);
-    return use.map((L) => ({ label: `${label} (lap ${L.n}, ${L.time}s)`, d: L.samples.d, v: L.samples.v, b: L.samples.brk, x: L.samples.x, z: L.samples.z, hasBrake: true, track: J.track?.id, own: true }));
+    return use.map((L) => { const s = unrewind(L.samples); return { label: `${label} (lap ${L.n}, ${L.time}s${s.cut ? `, ${s.cut} flashback${s.cut > 1 ? 's' : ''}` : ''})`, d: s.d, v: s.v, b: s.brk, x: s.x, z: s.z, joins: s.joins, hasBrake: true, track: J.track?.id, own: true }; });
   }
   if (Array.isArray(J)) return fromRows(J, label);
   const keys = Object.keys(J); const n = Math.max(...keys.map((k) => (Array.isArray(J[k]) ? J[k].length : 0)));
@@ -103,26 +114,61 @@ const T = files.flatMap(readTelemetry);
 // the game's own car on this circuit (its export): the same car as the AI's, so the fit is absolute - the speeds and
 // the braking points themselves, not only the lap's shape (--shape keeps it relative)
 const ABS = !args.includes('--shape') && T.every((t) => t.own && t.track === track);
-const PASSES = opt('passes', ABS ? 2 : 1), LIMV = ABS ? [0.9, 1.25] : [0.9, 1.1], LIMB = ABS ? [0.85, 1.15] : [0.85, 1.15];   // (braking: later than 1.15 x the physics' point holds solo, but in a field - dirty air, mistakes on - the hairpin became a pile-up)
+const PASSES = opt('passes', ABS ? 2 : 1), LIMV = ABS ? [0.9, 1.45] : [0.9, 1.1], LIMB = ABS ? [0.85, 1.15] : [0.85, 1.15];   // (braking: later than 1.15 x the physics' point holds solo, but in a field - dirty air, mistakes on - the hairpin became a pile-up)
 if (ABS) console.log(`[fit] ${T.length} lap(s) of the game's own car on ${track}: fitting the speeds and braking points themselves, ${PASSES} passes`);
 const { page, close } = await openGame(track);
 const cal = await readCal(page, track); cal.corners = cal.corners || {};
 const groups = await groupsOf(page);
 for (const g of groups) for (const n of g) cal.corners[n] = { v: 1, b: 1, ...cal.corners[n] };
-// the driver's own line (the game's car, with positions): where on the road each lap was, every 5 m, averaged over the
+// the driver's own line (the game's car, with positions): where on the road each lap was, every 2 m, averaged over the
 // laps; it becomes the AI's racing line (ai/Calibration.js `line`, RacingLine `fixed`) - the kerbs the driver rides, the
 // chicanes straightened - and the speeds and brakes are fitted on it. --noline keeps the AI's own line
 if (ABS && !args.includes('--noline') && T.every((t) => t.x?.length)) {
-  const L = await page.evaluate((laps) => {
-    const tr = window.__F1.W.track, n = Math.ceil(tr.length / 5), sum = new Float64Array(n), cnt = new Float64Array(n), q = {};
-    for (const lap of laps) { let hint = -1; for (let i = 0; i < lap.x.length; i++) { tr.nearest(lap.x[i], lap.z[i], hint, q); hint = q.i; const k = Math.floor(q.s / 5) % n; sum[k] += q.d; cnt[k]++; } }
-    const d = []; for (let k = 0; k < n; k++) d.push(cnt[k] ? sum[k] / cnt[k] : null);
-    for (let k = 0; k < n; k++) if (d[k] == null) { let a = 1; while (d[(k - a + n) % n] == null && a < n) a++; d[k] = d[(k - a + n) % n] ?? 0; }
-    return { d, hw: tr.halfWidth, max: Math.max(...d.map(Math.abs)) };
-  }, T.map((t) => ({ x: t.x, z: t.z })));
-  cal.line = { every: 5, d: L.d.map((x) => +x.toFixed(2)) };
+  const EVERY = 2;
+  const L = await page.evaluate(([laps, EVERY]) => {
+    const tr = window.__F1.W.track, n = Math.ceil(tr.length / EVERY), sum = new Float64Array(n), cnt = new Float64Array(n), q = {};
+    // the path itself first: each lap's positions in pieces (a flashback's join - the lap rewound and driven again from
+    // there - is a jump in the trace: the pieces stop 20 m either side of one), resampled every metre along the path and
+    // smoothed there (sigma 3 m: GPS-like noise in a few samples is not curvature); then each point onto the track: its
+    // distance along it and its offset, binned every EVERY m (bin k is the line at k * EVERY m, as RacingLine reads it)
+    for (const lap of laps) {
+      const pieces = []; let cur = [];
+      for (let i = 0; i < lap.x.length; i++) {
+        if (lap.joins.some((j) => Math.abs(lap.d[i] - j) < 20)) { if (cur.length) pieces.push(cur); cur = []; continue; }
+        if (cur.length && Math.hypot(lap.x[i] - cur[cur.length - 1][0], lap.z[i] - cur[cur.length - 1][1]) > 25) { pieces.push(cur); cur = []; }
+        cur.push([lap.x[i], lap.z[i]]);
+      }
+      if (cur.length) pieces.push(cur);
+      for (const pc of pieces) {
+        if (pc.length < 4) continue;
+        const R = [pc[0]]; let acc = 0;   // (every metre along it)
+        for (let i = 1; i < pc.length; i++) { const [ax, az] = pc[i - 1], [bx, bz] = pc[i], l = Math.hypot(bx - ax, bz - az); if (!l) continue; let u = 1 - acc; while (u <= l) { R.push([ax + (bx - ax) * (u / l), az + (bz - az) * (u / l)]); u += 1; } acc = (acc + l) % 1; }
+        let hint = -1;
+        for (let i = 0; i < R.length; i++) {
+          let sx = 0, sz = 0, w = 0; for (let j = -9; j <= 9; j++) { const r = R[i + j]; if (!r) continue; const g = Math.exp(-(j * j) / 18); sx += r[0] * g; sz += r[1] * g; w += g; }
+          tr.nearest(sx / w, sz / w, hint, q); hint = q.i; const k = Math.round(q.s / EVERY) % n; sum[k] += q.d; cnt[k]++;
+        }
+      }
+    }
+    const raw = []; for (let k = 0; k < n; k++) raw.push(cnt[k] ? sum[k] / cnt[k] : null);
+    // the gaps bridged in the world, not in the offsets: a straight run between the two ends, as a car would take it (an
+    // offset carried straight across a chicane would follow the centreline's own jink) - kept on the road
+    const filled = raw.slice(), P = (k, d) => tr.sample(k * EVERY, d), lim = tr.halfWidth + 0.6;
+    for (let k = 0; k < n; k++) if (raw[k] == null) {
+      let a = 1, b = 1; while (raw[(k - a + n) % n] == null && a < n) a++; while (raw[(k + b) % n] == null && b < n) b++;
+      const ka = (k - a + n) % n, kb = (k + b) % n, A = P(ka, raw[ka] ?? 0), B = P(kb, raw[kb] ?? raw[ka] ?? 0), f = a / (a + b);
+      const x = A.x + (B.x - A.x) * f, z = A.z + (B.z - A.z) * f, c = P(k, 0);
+      filled[k] = Math.max(-lim, Math.min(lim, (x - c.x) * c.nx + (z - c.z) * c.nz));
+    }
+    return { d: filled, hw: tr.halfWidth, max: Math.max(...filled.map(Math.abs)) };
+  }, [T.map((t) => ({ x: t.x, z: t.z, d: t.d, joins: t.joins || [] })), EVERY]);
+  cal.line = { every: EVERY, d: L.d.map((x) => +x.toFixed(2)) };
   console.log(`[fit] the driver's line: ${L.d.length} points, widest ${L.max.toFixed(1)} m off the centreline (the road's edge at ${L.hw} m)`);
   console.log(`[fit] the AI on it: ${JSON.stringify(await page.evaluate((c) => window.__F1.rebuildLine(c), cal))}`);
+  if (args.includes('--lineonly')) {   // (the line's corners as the speed profile sees them, and stop)
+    console.log('[fit] ' + await page.evaluate(() => { const F = window.__F1, tr = F.W.track, L = F.W.line, P = F.W.profile; return F.W.def.corners.filter((c) => c.s != null).map((c) => { let m = 1e9, at = 0; for (let s = c.s - 70; s <= c.s + 50; s += tr.ds) { const i = tr.idxAtS(s); if (P[i] < m) { m = P[i]; at = i; } } return `T${c.n} ${Math.round(m * 3.6)} km/h (R ${Math.round(1 / Math.max(1e-5, Math.abs(L.lineCurv[at])))} m)`; }).join(', '); }));
+    await close(); process.exit(0);
+  }
 }
 for (let pass = 0; pass < PASSES; pass++) {
 if (PASSES > 1) console.log(`[fit] pass ${pass + 1}`);
@@ -159,7 +205,8 @@ for (const g of groups) {
 // the AI drives it: a group that is no longer clean goes halfway back (three tries)
 for (let tries = 0; tries < 3; tries++) {
   const R = await calRun(page, 3, cal); let bad = [];
-  for (const g of groups) { const cs = R.corners.filter((c) => g.includes(c.n)); if (cs.some((c) => c.incidents.length)) { bad.push(g.join('/')); for (const n of g) for (const key of ['v', 'b']) cal.corners[n][key] = +((cal.corners[n][key] + prev.corners[n][key]) / 2).toFixed(3); } }
+  for (const g of groups) { const cs = R.corners.filter((c) => g.includes(c.n)); if (cs.some((c) => c.incidents.some((x) => !String(x).startsWith('off')))) {   // (a spin or a hit: a moment over the kerb's edge on the driver's own line is not)
+      bad.push(g.join('/')); for (const n of g) for (const key of ['v', 'b']) cal.corners[n][key] = +((cal.corners[n][key] + prev.corners[n][key]) / 2).toFixed(3); } }
   console.log(`[fit] check ${tries + 1}: ${R.laps.slice(1).join(' ')} ${bad.length ? `- not clean at ${bad.join(', ')}, eased back` : '- clean'}`);
   if (!bad.length) break;
   if (tries === 2) {   // (still not clean after three: those groups keep what they had)

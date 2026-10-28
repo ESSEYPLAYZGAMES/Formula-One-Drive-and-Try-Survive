@@ -256,4 +256,92 @@ export const TRACKS = {
     ],
     landmarkAnchors: {},
   },
+  austin: {
+    id: 'austin',
+    name: 'Circuit of the Americas',
+    title: ['AUSTIN', 'CIRCUIT OF THE AMERICAS'],
+    outline: '',
+    geojson: 'data/austin.geojson',
+    // Start/finish line: on the main straight, 230 m on from Turn 20, opposite the main grandstand (the grid runs back
+    // toward Turn 20; the straight climbs from here to the top of the hill at Turn 1)
+    origin: [-97.6413604, 30.132933],
+    // The lap from a GPS survey (tools: scratchpad build.py): the export's ways, Turn 1 to Turn 18, chained into one
+    // closed way; Turns 19 and 20 are not in it and are drawn between the end of Turn 18 and the main straight. Every
+    // point carries its height: 155 m on the line, 182 m on top of the hill at Turn 1 - and the ground around the
+    // circuit follows it (world/Terrain.js)
+    ways: ['way/cota-circuit'],
+    elevation: true,
+    pitLaneWayId: 'way/cota-pit',   // in on the inside of Turn 20, out on the inside of Turn 1's exit
+    pitLimit: { before: 150, after: 140 },
+    // DRS: the back straight (detection before Turn 11, the hairpin, open out of it to Turn 12) and the main straight
+    // (detection at Turn 19, open out of Turn 20 to Turn 1)
+    drs: [
+      { detect: { turn: 10, at: 'end', off: 60 }, open: { turn: 11, at: 'end', off: 80 }, close: { turn: 12, at: 'start', off: -100 } },
+      { detect: { turn: 19, at: 'start', off: -40 }, open: { turn: 20, at: 'end', off: 60 }, close: { turn: 1, at: 'start', off: -90 } },
+    ],
+    direction: 1,
+    width: 15,
+    laps100: 56,
+    cornerCurv: 1 / 240,
+    // A permanent circuit: wide grass verges and, outside the corners, big asphalt run-offs painted red, white and
+    // blue (gravel only at the Esses' exits)
+    verge: 'circuit', vergeWidth: 12,
+    runoffCaps: [80, 70, 55],
+    runoff: { asphalt: [1, 2, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20], grass: [] },
+    fillet: false, smoothSigma: 10,
+    line: 'optimal',
+    // ---- venue dressing
+    defaultTime: 'day',
+    ground: 'texas',
+    kerb: 'redwhite',
+    runoffText: 'AUSTIN',
+    landmarkSet: null,
+    autoStands: false,
+    scenery: 'austin',              // world/Austin.js: the tower and its red veil, the amphitheatre, the Texas flag, the stands, the oaks
+    defaultBuildingHeight: 6,
+    buildingStyle: { base: 0x9a948a, litProb: 0.08 },
+    zoneSeq: [21, 22, 12, 5, 21, 23, 1, 24, 22, 19, 12, 21, 25, 14],
+    // the boards: Archer round the stadium section (Turns 12-15), Rolex along the Esses, the stripes at Turn 1
+    sponsorZones: [{ panel: 21, fromTurn: 12, toTurn: 15, before: 60, after: 40 }, { panel: 12, fromTurn: 3, toTurn: 6, before: 40, after: 40 }, { panel: 25, fromTurn: 1, toTurn: 1, before: 140, after: 60 }],
+    // the run-offs: the flag's stripes at Turn 1 (the stars on the blue: world/Austin.js), the Esses, Turn 9, the hairpin,
+    // Turn 12, the stadium and the last two corners; the rest bare
+    runoffPaint: [
+      { turns: [1, 2], stripes: [[0.06, 0.2, 0.5], [0.06, 0.2, 0.5], [0.06, 0.2, 0.5], [0.06, 0.2, 0.5], [0.9, 0.9, 0.92], [0.72, 0.09, 0.16], [0.9, 0.9, 0.92], [0.72, 0.09, 0.16]], w: 2.4, bands: 24 },
+      { turns: [3, 4, 5, 6], stripes: [[0.72, 0.09, 0.16], [0.9, 0.9, 0.92], [0.06, 0.2, 0.5], [0.9, 0.9, 0.92]], w: 2.2, bands: 18 },
+      { turns: [9, 10], stripes: [[0.06, 0.2, 0.5], [0.9, 0.9, 0.92], [0.72, 0.09, 0.16], [0.9, 0.9, 0.92]], w: 2.6, bands: 16 },
+      { turns: [11], stripes: [[0.72, 0.09, 0.16], [0.9, 0.9, 0.92], [0.06, 0.2, 0.5], [0.9, 0.9, 0.92]], w: 3, bands: 20 },
+      { turns: [12], stripes: [[0.06, 0.2, 0.5], [0.9, 0.9, 0.92], [0.72, 0.09, 0.16], [0.9, 0.9, 0.92]], w: 2.6, bands: 18 },
+      { turns: [15, 16, 17], stripes: [[0.72, 0.09, 0.16], [0.9, 0.9, 0.92], [0.06, 0.2, 0.5], [0.9, 0.9, 0.92]], w: 2.4, bands: 16 },
+      { turns: [19, 20], stripes: [[0.06, 0.2, 0.5], [0.9, 0.9, 0.92], [0.72, 0.09, 0.16], [0.9, 0.9, 0.92]], w: 2.4, bands: 16 },
+    ],
+    runoffDecalTurns: [11, 12, 20],
+    shots: [
+      { scene: 'tower', label: 'COTA OBSERVATION TOWER', rMul: 1.3, az: 0.6 }, { s: -150, label: 'MAIN STRAIGHT', side: 1 },
+      { turn: 1, label: 'TURN 1', side: 1 }, { turn: 4, label: 'THE ESSES', side: -1 }, { turn: 11, label: 'TURN 11', side: 1 },
+      { turn: 12, label: 'TURN 12', side: -1 }, { turn: 15, label: 'THE STADIUM', side: 1 }, { turn: 19, label: 'TURN 19', side: -1 },
+    ],
+    corners: [
+      { n: 1, name: 'Turn 1', ll: [-97.6369831, 30.1300583] },
+      { n: 2, name: 'Turn 2', ll: [-97.6372212, 30.1322687] },
+      { n: 3, name: 'The Esses', ll: [-97.6355682, 30.1333355] },
+      { n: 4, name: 'The Esses', ll: [-97.6346749, 30.1343720] },
+      { n: 5, name: 'The Esses', ll: [-97.6338390, 30.1348066] },
+      { n: 6, name: 'The Esses', ll: [-97.6329206, 30.1361214] },
+      { n: 7, name: 'Turn 7', ll: [-97.6309674, 30.1358041] },
+      { n: 8, name: 'Turn 8', ll: [-97.6298481, 30.1366290] },
+      { n: 9, name: 'Turn 9', ll: [-97.6289986, 30.1361786] },
+      { n: 10, name: 'Turn 10', ll: [-97.6270359, 30.1365355] },
+      { n: 11, name: 'Turn 11', ll: [-97.6245049, 30.1391661] },
+      { n: 12, name: 'Turn 12', ll: [-97.6363097, 30.1374056] },
+      { n: 13, name: 'Turn 13', ll: [-97.6354873, 30.1355676] },
+      { n: 14, name: 'Turn 14', ll: [-97.6363314, 30.1355675] },
+      { n: 15, name: 'Turn 15', ll: [-97.6368978, 30.1363276] },
+      { n: 16, name: 'Turn 16', ll: [-97.6377833, 30.1364851] },
+      { n: 17, name: 'Turn 17', ll: [-97.6368894, 30.1343766] },
+      { n: 18, name: 'Turn 18', ll: [-97.6385592, 30.1336905] },
+      { n: 19, name: 'Turn 19', ll: [-97.6413077, 30.1354950] },
+      { n: 20, name: 'Turn 20', ll: [-97.6433643, 30.1348981] },
+    ],
+    landmarkAnchors: {},
+  },
 };

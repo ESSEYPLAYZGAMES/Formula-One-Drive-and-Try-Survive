@@ -65,6 +65,10 @@ export class AIDriver {
   constructor(car, line, profile, track, opts = {}) {
     this.car = car; this.line = line; this.profile = profile; this.track = track;
     car.ai = this;
+    // (the circuit's AI grip: what lets the field match a quick human there - a driver on the edges of the road and over
+    //  every kerb - with the same margin to the limit the AI keeps everywhere, tracks.js def.aiGrip; the car's physics
+    //  has it too, so it is a better-gripping car, not a braver driver)
+    car.aiGrip = car.isPlayer ? 1 : (track?.def?.aiGrip ?? 1);
     this.aggression = opts.aggression ?? 1.0;
     this.skill = opts.skill ?? 1.0;              // difficulty: scales cornering commitment (menu slider), 0.94 .. 1.02
     this.reaction = 0;                           // seconds until the AI reacts at the start (race director sets Infinity on the grid)
@@ -81,7 +85,7 @@ export class AIDriver {
     this.gripState();
   }
   /** commitment: by driver rating and difficulty (and a hair of confidence, FORM.pace); a car with a broken rear wing is nursed back to the pits */
-  get vScale() { return (AI_TUNE.vScaleBase + AI_TUNE.vScaleK * this.car.rating) * this.skill * (1 - 0.25 * Math.min(1, this.car.dmg.rw / 0.6)) * (this.car.form || NF).pace; }
+  get vScale() { return (AI_TUNE.vScaleBase + AI_TUNE.vScaleK * this.car.rating) * this.skill * (1 - 0.25 * Math.min(1, this.car.dmg.rw / 0.6)) * (this.car.form || NF).pace * (1 + 0.012 * (this.car.band || 0)); }
   get state() { return this.defend ? 'defend' : this.planner.best.follow ? 'follow' : this.planner.best.spec && this.planner.best.spec.k ? 'lane' : 'race'; }
 
   // ---- what this car can do now ----------------------------------------------------------------------------------
@@ -92,7 +96,7 @@ export class AIDriver {
    */
   gripState() {
     const c = this.car, P = this.line.grip, T = AI_TUNE;
-    const muR = (c.tyres.grip(c.wetness) / COMPOUNDS.SOFT.grip) * (1 - 0.12 * c.tyres.instability()) * (c.offTrack ? c.surfGrip : 1) * (1 - 0.1 * c.wetness) * (1 - 0.22 * c.dmg.susp) * (1 - 0.06 * (c.dmg.fwL + c.dmg.fwR));
+    const muR = (c.tyres.grip(c.wetness) / COMPOUNDS.SOFT.grip) * (1 - 0.12 * c.tyres.instability()) * (c.offTrack ? c.surfGrip : 1) * (1 - 0.1 * c.wetness) * (1 - 0.22 * c.dmg.susp) * (1 - 0.06 * (c.dmg.fwL + c.dmg.fwR)) * (c.aiGrip || 1);
     const rearLtd = c.aeroRear() < c.aeroFront() - 0.05;   // a damaged rear wing makes the car rear-limited: drive it well inside
     const dfR = c.perf * (1 - 0.22 * c.slipstream) * Math.min(c.aeroFront(), c.aeroRear()) * (rearLtd ? 0.65 : 1);
     const g = this.g;

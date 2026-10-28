@@ -195,7 +195,7 @@ const luma = (hex) => {
   const n = parseInt(h, 16); if (h.length !== 6 || Number.isNaN(n)) return 0.4;
   return (0.2126 * ((n >> 16) & 255) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255)) / 255;
 };
-const TRACK = { lasvegas: 'Las Vegas', silverstone: 'Silverstone', montreal: 'Montreal' };
+const TRACK = { lasvegas: 'Las Vegas', silverstone: 'Silverstone', montreal: 'Montreal', austin: 'Austin' };
 const trackName = (id) => TRACK[id] || String(id || '').replace(/^\w/, (x) => x.toUpperCase());
 const svg = (d, w = 24) => `<svg viewBox="0 0 24 24" width="${w}" height="${w}" aria-hidden="true">${d}</svg>`;
 // (line icons, drawn in currentColor)

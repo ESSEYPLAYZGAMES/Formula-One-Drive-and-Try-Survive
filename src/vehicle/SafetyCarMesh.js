@@ -2,6 +2,7 @@
 // a roof light bar flashing amber (and green when the field is released) and its own blob shadow. One group, ~10
 // draw calls; it only exists while the safety car is out.
 import * as THREE from 'three';
+import { TERRAIN } from '../world/Terrain.js';
 
 const box = (w, h, d, x, y, z) => { const g = new THREE.BoxGeometry(w, h, d); g.translate(x, y, z); return g; };
 
@@ -46,7 +47,9 @@ export class SafetyCarMesh {
   /** follow the car; lights: 'amber' (out on track), 'green' (releasing the field), 'off' */
   update(car, dt, lights = 'amber') {
     this.t += dt;
-    this.group.position.set(car.x, 0, car.z); this.group.rotation.set(0, -car.th, 0);
+    let gy = 0, gp = 0;   // (on a circuit that is not flat: world/Terrain.js)
+    if (TERRAIN.on) { const g = TERRAIN.grad(car.x, car.z); gy = TERRAIN.at(car.x, car.z); gp = Math.atan(g[0] * Math.cos(car.th) + g[1] * Math.sin(car.th)); }
+    this.group.position.set(car.x, gy, car.z); this.group.rotation.set(0, -car.th, gp, 'YZX');
     this.spin += car.vLong / 0.34 * dt; for (const w of this.wheels) w.rotation.z = -this.spin;
     const on = lights === 'amber', flash = Math.floor(this.t * 4) % 2;
     this.amber.emissiveIntensity = on ? (flash ? 3 : 0.2) : 0;

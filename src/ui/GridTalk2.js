@@ -193,6 +193,7 @@ export const TOPICS2 = {
 
 /** the venue's lines (the tokens {venueOpen}, {venueLove}, {venueJoke}) */
 export function venueLines(id) {
+  if (id === 'austin') return { venueOpen: ["Austin. Up the hill to Turn 1 - you can't see the apex until you're on it.", "Texas does everything big. The flag, the tower, the run-offs."], venueLove: ["The Esses, flat-ish, left right left right. Gets your heart going every lap.", "The crowd here's half cowboy hats, half team shirts. Love it."], venueJoke: ["Had brisket for breakfast. The nutritionist's not speaking to me.", "That tower's taller than my whole career plan."] };
   if (id === 'montreal') return { venueOpen: ["Montreal. The crowd here is something else.", "The island, the walls, the hairpin. Proper old-school."], venueLove: ["The fans here are mad for it. Every grandstand's full on Friday.", "Getting the last chicane right, inches off the wall. Best feeling there is."], venueJoke: ["Had poutine three nights running. The engineers are worried about the weight.", "Somebody's always going to kiss the Wall of Champions. Just not me, please."] };
   return id === 'silverstone'
     ? { venueOpen: ["Silverstone. Doesn't matter how many times, it gets you.", "The old airfield. Still the fastest corners we do all year."], venueLove: ["Maggotts and Becketts. Nothing like it anywhere.", "The crowd here knows racing. You feel it."], venueJoke: ["I've seen a field. And another field. Lovely fields.", "Took two hours to get out of the car park last night."] }

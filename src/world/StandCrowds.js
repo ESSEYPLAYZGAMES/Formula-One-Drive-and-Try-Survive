@@ -7,6 +7,7 @@
 // sheets (out of a cutscene, or in a scene that wants the stands empty).
 import * as THREE from 'three';
 import { Crowd, crowdMaterial } from './Crowd.js';
+import { TERRAIN } from './Terrain.js';
 
 const ON = 150, OFF = 175, NEAR = 30;   // m: a stand comes alive within ON of the camera, goes back to sheets beyond OFF; stretches in full detail within NEAR
 const CASUAL = ['#f2f2ef', '#1b1d22', '#2d4a6b', '#9fb6c9', '#d9c7a3', '#b04a4a', '#6d7f5a', '#e9e3d6', '#3a3f48', '#f0c9c9', '#ffd400', '#ff8000'];
@@ -41,7 +42,8 @@ export class StandCrowds {
         const front = f.tier < 3, spec = near.spec(front ? 'fanF' : 'fanB', front ? 16 : 12), team = Math.random() < 0.55, c = team ? pick(this.teams) : pick(CASUAL);
         const col = { top: c, team: team ? c : pick(this.teams), acc: team ? '#ffffff' : pick(CASUAL), legs: pick(LEGS) };
         const x = f.x + (Math.random() - 0.5) * 0.08, z = f.z + (Math.random() - 0.5) * 0.08, rot = f.ang - Math.PI / 2 + (Math.random() - 0.5) * 0.45, sc = 0.93 + Math.random() * 0.1, jump = spec.pose === 'cheer' && Math.random() < 0.75 ? 0.6 + Math.random() * 0.6 : 0;
-        near.add(spec, x, z, rot, col, sc, f.y, jump); far.add(this._farSpec(spec), x, z, rot, col, sc, f.y, jump);
+        const fy = f.y + TERRAIN.at(x, z);   // (on a circuit that is not flat: the stand stands on its ground - world/Terrain.js)
+        near.add(spec, x, z, rot, col, sc, fy, jump); far.add(this._farSpec(spec), x, z, rot, col, sc, fy, jump);
         cx += f.x; cz += f.z;
       }
       const gN = new THREE.Group(); near.build(gN); gN.visible = false; g.add(gN);

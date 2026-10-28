@@ -7,6 +7,8 @@
 import { TyreSet } from './Tyres.js';
 import { CH, tyreCap, fitGrip, roadHeight } from './Chassis.js';
 import { neutralForm } from '../career/Morale.js';
+import { PERF_GAIN } from '../race/Roster.js';
+import { TERRAIN } from '../world/Terrain.js';
 
 // Figures of a current (2022-25 regulations) F1 car: 798 kg minimum mass, 3.6 m wheelbase, 2.0 m wide, 5.66 m long,
 // 45.5 % of the mass on the front axle (the rules ask for at least 44.5 %), 44 % of the downforce: the aero balance
@@ -87,7 +89,7 @@ export class Car {
     this.team = opts.team || 'Team';
     this.color = opts.color || '#ffffff';
     this.isPlayer = !!opts.isPlayer;
-    this.perf = opts.perf ?? 1.0;            // car performance index (power/aero scale, ~0.985..1.0)
+    this.perf = 1 + ((opts.perf ?? 1.0) - 1) * PERF_GAIN;   // car performance index (power/aero scale, ~0.98..1.0): the team's, amplified (Roster PERF_GAIN)
     this.rating = opts.rating ?? 0.85;       // driver rating 0..1 (AI)
     this.number = opts.number || 0;
 
@@ -164,7 +166,7 @@ export class Car {
   // damage-derived multipliers
   aeroFront() { return Math.max(0.1, 1 - 0.45 * this.dmg.fwL - 0.45 * this.dmg.fwR); }
   aeroRear() { return Math.max(0.0, 1 - this.dmg.rw); }
-  enginePower() { return this.perf * (this.puLoss ? 0.93 : 1) * (1 - 0.35 * this.dmg.eng) * (1 - 0.3 * Math.max(0, this.engTemp - 0.8)) * (1 + 0.08 * (this.band || 0)); }
+  enginePower() { return this.perf * (this.puLoss ? 0.93 : 1) * (1 - 0.35 * this.dmg.eng) * (1 - 0.3 * Math.max(0, this.engTemp - 0.8)) * (1 + 0.12 * (this.band || 0)); }
   damageTotal() { const d = this.dmg; return Math.min(1, (d.fwL + d.fwR) * 0.25 + d.rw * 0.3 + d.susp * 0.4 + d.eng * 0.3); }
 
   /**
@@ -515,7 +517,7 @@ export class Car {
     const dfF = df * T.aeroFrontShare * this.aeroFront();
     const dfR = df * (1 - T.aeroFrontShare) * this.aeroRear() * (this.drs ? 0.8 : 1);   // (DRS open: the flap stalls the rear wing)
     const sy = Math.sin(Math.min(Math.PI / 2, yawA));
-    const dragCoef = T.cdA * (1 + 0.15 * (this.dmg.fwL + this.dmg.fwR) + 0.1 * this.dmg.rw) * (1 - 0.38 * ss) * (1 + 1.2 * sy * sy) * (this.drs ? 0.82 - (this.drsGain || 0) : 1) * (1 - 0.05 * (this.band || 0));   // (drsGain: a developed DRS, career tech tree)
+    const dragCoef = T.cdA * (1 + 0.15 * (this.dmg.fwL + this.dmg.fwR) + 0.1 * this.dmg.rw) * (1 - 0.38 * ss) * (1 + 1.2 * sy * sy) * (this.drs ? 0.82 - (this.drsGain || 0) : 1) * (1 - 0.07 * (this.band || 0));   // (drsGain: a developed DRS, career tech tree)
     const L = T.wheelbase, W = this.wh, Fz = W.fz, fx = W.fx, fy = W.fy, sat = W.sat;
 
     // ---- the road under each wheel (from last step's track position): what it is and how high it is. A wheel
@@ -561,6 +563,8 @@ export class Car {
     const wetSurface = 1 - 0.1 * wet;
     let grip = tyre.grip(wet) * wetSurface * (1 - 0.22 * this.dmg.susp);
     if (this.perf) grip *= 0.985 + 0.015 * this.perf;
+    if (this.band) grip *= 1 + 0.012 * this.band;   // (speed banding: RaceDirector.speedBands)
+    if (this.aiGrip) grip *= this.aiGrip;   // (an AI car at a circuit that gives it more: AIDriver)
     grip *= F.grip;   // (confidence: the last fraction of the tyre a driver dares to use)
     const gripFW = 1 - 0.06 * (this.dmg.fwL + this.dmg.fwR);
 
@@ -654,6 +658,9 @@ export class Car {
     this.ax = Fx / m; this.ay = Fy / m;
     let dvLong = this.ax + this.r * this.vLat;
     let dvLat = this.ay - this.r * this.vLong;
+    // (on a circuit that is not flat, gravity along the slope: slower up the hill to Turn 1, quicker down it - the body
+    //  feels none of it, ax / ay stay the tyres' and the air's - world/Terrain.js)
+    if (TERRAIN.on) { const g = TERRAIN.grad(this.x, this.z, this._grad || (this._grad = [0, 0])), c = Math.cos(this.th), s = Math.sin(this.th); dvLong -= G * (g[0] * c + g[1] * s); dvLat -= G * (g[0] * s - g[1] * c); }
     // (a little yaw damping from the air and the floor; next to none in a spin, which winds down through the tyres)
     let dr = Mz / T.Izz - this.r * (this.spinning ? 0.06 : 0.35);
 

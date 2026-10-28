@@ -103,7 +103,10 @@ export class RacingLine {
     const n = track.n, ds = track.ds;
     if (fixed && fixed.d?.length > 8) {
       const m = fixed.d.length, raw = new Float32Array(n);
-      for (let i = 0; i < n; i++) { const u = (i * ds) / fixed.every, j = Math.floor(u) % m, f = u - Math.floor(u); raw[i] = Math.max(-fixedMax, Math.min(fixedMax, fixed.d[j] + (fixed.d[(j + 1) % m] - fixed.d[j]) * f)); }
+      // (kept on the road: up onto the kerb in a corner, to the white line elsewhere - the car's centre over the edge
+      //  where there is no kerb is off the track, a driver's two wheels over it are not)
+      const kw = track.kerbWidth || 1, lim = (i) => (track.inCorner?.[i] ? Math.min(fixedMax, track.halfWidth + 0.6 * kw) : Math.min(fixedMax, track.halfWidth - 0.2));
+      for (let i = 0; i < n; i++) { const u = (i * ds) / fixed.every, j = Math.floor(u) % m, f = u - Math.floor(u), L = lim(i); raw[i] = Math.max(-L, Math.min(L, fixed.d[j] + (fixed.d[(j + 1) % m] - fixed.d[j]) * f)); }
       this.offset = smoothArr(raw, n, Math.round(4 / ds)); this.fixed = true;
       this.lineCurv = smoothArr(pathCurvature(track, this.offset, Math.round(10 / ds)), n, 3);
       return;

@@ -256,8 +256,8 @@ export function partyEvening(c, launch = null, x = {}) {
   const idOf = (v) => (v && typeof v === 'object' ? v.id || v.did || null : v || null);
   const track = idOf(L.track) || S.track || null;
   // (the city where you are: the club's, else the circuit's - the team party at Silverstone is at Silverstone, not London)
-  const city = venue === 'londonclub' ? 'London' : venue === 'vegasclub' ? 'Las Vegas' : track === 'silverstone' ? 'Silverstone' : track === 'lasvegas' ? 'Las Vegas' : track === 'montreal' ? 'Montreal' : (S.city || x.track || null);
-  const gp = L.gp || S.gp || { lasvegas: 'Las Vegas Grand Prix', silverstone: 'British Grand Prix', montreal: 'Canadian Grand Prix' }[track] || null;
+  const city = venue === 'londonclub' ? 'London' : venue === 'vegasclub' ? 'Las Vegas' : track === 'silverstone' ? 'Silverstone' : track === 'lasvegas' ? 'Las Vegas' : track === 'montreal' ? 'Montreal' : track === 'austin' ? 'Austin' : (S.city || x.track || null);
+  const gp = L.gp || S.gp || { lasvegas: 'Las Vegas Grand Prix', silverstone: 'British Grand Prix', montreal: 'Canadian Grand Prix', austin: 'United States Grand Prix' }[track] || null;
   const offer = Array.isArray(c?.party?.offers) ? c.party.offers.find((o) => o && (o.id === L.partyId)) : null;
   const brand = L.brand || offer?.brand || null, B = brand ? BRAND_BY_ID[brand] : null;
   // (under age here - you: the launch says, else the career's birthday on the race's date; a driver guest: his soft drinks)

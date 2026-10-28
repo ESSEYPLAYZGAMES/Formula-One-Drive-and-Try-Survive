@@ -183,7 +183,7 @@ const flag = (k) => { try { return window[k] ?? null; } catch (_) { return null;
 const hhmm = (h) => { const m = Math.floor(((h % 24) + 24) % 24 * 60); return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`; };
 /** seconds as a lap time ('1:31.482' / '31.482') */
 const lapTxt = (s) => { if (!(s > 0) || !isFinite(s)) return '-'; const m = Math.floor(s / 60), r = s - m * 60; return m ? `${m}:${r.toFixed(3).padStart(6, '0')}` : r.toFixed(3); };
-const TRACK = { lasvegas: 'Las Vegas', silverstone: 'Silverstone', montreal: 'Montreal' };
+const TRACK = { lasvegas: 'Las Vegas', silverstone: 'Silverstone', montreal: 'Montreal', austin: 'Austin' };
 
 // ---- the places ------------------------------------------------------------------------------------------------------
 // (the venues of career/Social.js: name, what it is, how private (0..1: how likely a long lens is), the bug's colour, the
@@ -1822,7 +1822,7 @@ class SimRig extends Game {
   constructor(ev, opp) {
     super(ev, opp, 'sim', 'SIM RACE'); const V = ev.V; this.rig = V.rigs[0]; this.scr = this.rig.scr; this.orig = V.rigs.find((r) => r.i === (opp.spot?.rig ?? 1)) || V.rigs[1];
     this.phase = 'intro'; this.pt = 0; this.lit = 0; this.hold = 0.6 + Math.random() * 2.0; this.outAt = 0; this.react = 0; this.jump = false; this.p = 0; this.pv = 0; this.off = 0; this.s = 0; this.acc = 0; this.idle = 0;
-    this.base = { silverstone: 87.9, lasvegas: 94.2, montreal: 74.6 }[ev.trackId] ?? 90.6; this.trk = String(TRACK[ev.trackId] || 'Silverstone').toUpperCase();
+    this.base = { silverstone: 87.9, lasvegas: 94.2, montreal: 74.6, austin: 100.8 }[ev.trackId] ?? 90.6; this.trk = String(TRACK[ev.trackId] || 'Silverstone').toUpperCase();
     this.oppT = this.base + (1 - skillOf(opp, 'sim')) * 2.4 + 0.14 + Math.random() * 0.42; this.myT = 0; this.oppCol = '#' + new THREE.Color(opp.color || '#3a4150').getHexString();
     this.back = { x: this.rig.x, z: -0.9, yaw: -Math.PI / 2 };
     ev._mgHelp('Space when the lights go out · A / D to keep the car on the green line · Q to stop'); this._hud();
@@ -2090,7 +2090,7 @@ class Arcade extends Game {
 /** a track id from an id, a name or a track (its def); else the career's next race */
 const trackIdOf = (t, c) => {
   const v = t && typeof t === 'object' ? t.def?.id || t.id : t;
-  if (v && TRACK[v]) return v; if (typeof v === 'string' && /vegas/i.test(v)) return 'lasvegas'; if (typeof v === 'string' && /silver/i.test(v)) return 'silverstone'; if (typeof v === 'string' && /montr|canad/i.test(v)) return 'montreal';
+  if (v && TRACK[v]) return v; if (typeof v === 'string' && /vegas/i.test(v)) return 'lasvegas'; if (typeof v === 'string' && /silver/i.test(v)) return 'silverstone'; if (typeof v === 'string' && /montr|canad/i.test(v)) return 'montreal'; if (typeof v === 'string' && /austin|texas|americas/i.test(v)) return 'austin';
   return c?.calendar?.length ? c.calendar[(c.round - 1) % c.calendar.length] : v || null;
 };
 // (a driver's friendship stage as the tag shows it; how a taste reads when it is noticed - lightly, and only ever the game's)
@@ -2952,7 +2952,7 @@ class Evening {
   /** the sim lounge's lap board: the regulars (made up), and whatever was set tonight */
   _lapBoard(add) {
     const V = this.V; if (!V.board) return;
-    if (!this.lap) { const R = rng(hash(this.trackId || 'board')), base = { silverstone: 87.9, lasvegas: 94.2, montreal: 74.6 }[this.trackId] ?? 90.6; this.lap = ['turbo_gav', 'K. Mensah', 'apexhunter', 'L. Hart', 'R. Okafor', 'sideways_sal'].map((n) => [n, base + 0.3 + R() * 2.6]); }
+    if (!this.lap) { const R = rng(hash(this.trackId || 'board')), base = { silverstone: 87.9, lasvegas: 94.2, montreal: 74.6, austin: 100.8 }[this.trackId] ?? 90.6; this.lap = ['turbo_gav', 'K. Mensah', 'apexhunter', 'L. Hart', 'R. Okafor', 'sideways_sal'].map((n) => [n, base + 0.3 + R() * 2.6]); }
     for (const [n, t] of add) { const r = this.lap.find((q) => q[0] === n); if (r) r[1] = Math.min(r[1], t); else this.lap.push([n, t]); }
     this.lap.sort((a, b) => a[1] - b[1]);
     V.board.draw((x, w, h) => {

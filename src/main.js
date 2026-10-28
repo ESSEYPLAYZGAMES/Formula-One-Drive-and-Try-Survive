@@ -16,6 +16,8 @@ import { StandCrowds } from './world/StandCrowds.js';
 import { crowdTime } from './world/Crowd.js';
 import { buildVenue, standFootprints } from './world/Venue.js';
 import { buildMontreal } from './world/Montreal.js';
+import { buildAustin } from './world/Austin.js';
+import { TERRAIN, setTerrain, trackHeights, buildHeightField, elevateWorld, terrainGround } from './world/Terrain.js';
 import { WOC_PANEL } from './track/Branding.js';
 import { TrackLights, floodlitAll } from './world/Lighting.js';
 import { PitCrews } from './world/PitCrew.js';
@@ -44,7 +46,7 @@ import { Debris } from './world/Debris.js';
 import { Input } from './input/Input.js';
 import { CockpitCamera } from './camera/CockpitCamera.js';
 import { AudioEngine } from './audio/Audio.js';
-import { ROSTER, customDriver, POINTS, standIn } from './race/Roster.js';
+import { ROSTER, customDriver, POINTS, standIn, dayPerf } from './race/Roster.js';
 import { showMemorial } from './ui/Memorial.js';
 import { NewsBroadcast } from './ui/NewsBroadcast.js';
 import { openCareer, closeCareer, showMourning, syncLooks } from './ui/CareerHub.js';
@@ -158,11 +160,18 @@ async function loadWorld(def) {
   await set('Loading the map data…', 4);
   const json = await loadGeoJSON(def.geojson);
   const geo = new GeoWorld(json, def);
+  const before = new Set(scene.children);   // (what this circuit adds to the scene: raised onto its ground at the end, world/Terrain.js)
   await set('Routing the circuit through the road graph…', 12);
   const circuit = geo.buildCircuit();
   const curve = buildSpline(circuit.pts, { closed: true, filletSigma: def.smoothSigma || 6, step: 4, tension: 0.5, fillet: def.fillet !== false });
   const samples = rotateSamples(sampleCurve(curve, true, 2), 0, 0);   // s = 0 at the start/finish line (projection origin)
   const track = new Track(samples, def);
+  // the ground's height (a circuit that is not flat: its way's third coordinates - world/Terrain.js), else flat
+  setTerrain(null);
+  if (def.elevation) {
+    const w = geo.roadById(def.ways[0]), pts = w ? w.pts.map((p, k) => [p[0], p[1], w.lonlat[k]?.[2]]) : null, h = trackHeights(track, pts);
+    if (h) { track.h = h; setTerrain(buildHeightField(track, h)); }
+  }
   labelCorners(track, def, geo);
   track.openCorners();   // (corners left open: Montreal's Senna S and hairpin - before the barriers are capped against everything else)
   // permanent circuits: the escape aprons stop short of the venue's real grandstands
@@ -210,7 +219,7 @@ async function loadWorld(def) {
   const venue = (def.osmStands || def.pitBuilding) ? buildVenue(geo, track, def, pit) : null;
   if (venue) scene.add(venue.group);
   // a circuit's own scenery (Montreal: the islands' water and trees, the Biosphere, the casino, the stands, the paint on the grass)
-  const scenery = def.scenery === 'montreal' ? buildMontreal(geo, track, def, pit) : null;
+  const scenery = def.scenery === 'montreal' ? buildMontreal(geo, track, def, pit) : def.scenery === 'austin' ? buildAustin(geo, track, def, pit) : null;
   if (scenery) scene.add(scenery.group);
   await set('Raising the city…', 68);
   const buildings = buildGenericBuildings(geo, track, new Set([...lm.claimed, ...(venue ? venue.claimed : []), ...(scenery ? scenery.claimed : [])]), pit);
@@ -240,6 +249,13 @@ async function loadWorld(def) {
   const sphereObj = lm.group.children.find((o) => o.name === 'lm:sphere');
   const sphereInfo = sphereObj ? (() => { const b = new THREE.Box3().setFromObject(sphereObj); const c = new THREE.Vector3(); b.getCenter(c); return { center: c, radius: (b.max.y - b.min.y) / 2 }; })() : null;
   const lights = new TrackLights(scene, trackMesh.userData.masts, sphereInfo, 8);
+  // onto the ground: everything this circuit added (world/Terrain.js), the flat plane lowered to the edge of the field
+  // and a ground mesh of its own near the circuit
+  if (TERRAIN.on) {
+    const n = elevateWorld(scene.children.filter((o) => !before.has(o) && !o.isDirectionalLight && !o.isHemisphereLight && !o.isAmbientLight));
+    W.terrainMesh = terrainGround(TERRAIN.field, env.ground.material); scene.add(W.terrainMesh); env.ground.position.y = TERRAIN.edge - 0.08;
+    console.info(`[world] terrain: ${n} objects raised, ${TERRAIN.field.nx} x ${TERRAIN.field.nz} cells, heights ${Math.min(...track.h).toFixed(1)} .. ${Math.max(...track.h).toFixed(1)} m`);
+  }
   floodlitAll(scene);   // (the still world: lit by the baked light field, not the scene's spot lights)
   Object.assign(W, { geo, track, pit, line, profile, trackMesh, landmarks: lm, buildings, circuit, pitBoxes, stands, lights, sphereInfo, venue, obstacles, fences, scenery });
   chunks.track = track; chunks.obstacles = obstacles;
@@ -292,6 +308,8 @@ function makeRacingLine(track, def) {
 /** Remove everything loadWorld built (switching circuits): scene objects, lights, the racing line, the title shots. */
 function unloadWorld() {
   clearAmbient(); CINE.shots = null; CINE.i = -1; CINE.look = null; debris.clear(); ANCHORS.clear();
+  if (W.terrainMesh) { scene.remove(W.terrainMesh); W.terrainMesh.traverse((x) => x.geometry?.dispose?.()); W.terrainMesh = null; }
+  setTerrain(null); env.ground.position.y = -0.05;
   // every texture a material holds (maps, emissive maps, shader uniforms), every geometry, every material
   const freeMat = (m) => {
     for (const k in m) { const v = m[k]; if (v && v.isTexture) v.dispose(); }
@@ -1077,8 +1095,28 @@ function ensureCrashComposer() {
   const sz = renderer.getSize(new THREE.Vector2()); crashComposer.setPixelRatio(renderer.getPixelRatio()); crashComposer.setSize(sz.x, sz.y);
   return crashComposer;
 }
+/**
+ * On a circuit that is not flat (world/Terrain.js) the camera is worked out on the flat plan like everything else and
+ * lifted for the frame only: by the ground under the car it is with (a chase or an onboard shot: the car's own height,
+ * so it stays in frame and the cockpit stays round the driver), by the ground under itself the further it is from it;
+ * onboard it also pitches with the slope, as the car does. -> undo
+ */
+const _camQ = new THREE.Quaternion(), _camG = [0, 0];
+function terrainLift() {
+  if (!TERRAIN.on) return null;
+  const c = camera.position, y0 = c.y, p = S.player; let dy = TERRAIN.at(c.x, c.z), dist = Infinity;
+  if (p && !PRE.walk) { dist = Math.hypot(c.x - p.x, c.z - p.z); const w = Math.min(1, Math.max(0, (dist - 12) / 30)); dy = TERRAIN.at(p.x, p.z) * (1 - w) + dy * w; }
+  c.y += dy; _camQ.copy(camera.quaternion);
+  if (p && dist < 4 && !crashCam.on) { const g = TERRAIN.grad(p.x, p.z, _camG); camera.rotateX(Math.atan(g[0] * Math.cos(p.th) + g[1] * Math.sin(p.th))); }
+  camera.updateMatrixWorld();
+  return () => { c.y = y0; camera.quaternion.copy(_camQ); camera.updateMatrixWorld(); };
+}
 /** the frame: through the depth-of-field chain while a photo is being framed with it on, else straight */
 function renderView() {
+  const undo = terrainLift();
+  try { renderFrame(); } finally { undo?.(); }
+}
+function renderFrame() {
   if (!PHOTO.on && crashCam.on && (crashCam.blur > 0.01 || crashCam.sat > 1.01)) {
     ensureCrashComposer(); crashPass.uniforms.uBlur.value = crashCam.blur; crashPass.uniforms.uSat.value = crashCam.sat;
     crashComposer.render(); return;
@@ -1195,6 +1233,15 @@ function applyWeather(wet) {
   const rm = W.trackMesh.userData.roadMat; rm.roughness = 0.62 - 0.4 * wet; rm.metalness = 0.06 + wet * 0.25; rm.envMapIntensity = 0.55 + wet * 1.4;
 }
 
+/** a team's car on the day (Roster dayPerf: the circuit's fit and the weekend's form) - drawn once a weekend and kept
+ *  for every session of it (qualifying and the race the same car) */
+function onTheDay(team) {
+  const wk = S.weekend, key = `${W.def?.id}|${wk?.round ?? ''}`;
+  if (!wk) return dayPerf(team, W.def?.id || '');
+  const M = wk.dayP?.key === key ? wk.dayP : (wk.dayP = { key, m: new Map() });
+  let v = M.m.get(team); if (v == null) M.m.set(team, (v = dayPerf(team, W.def?.id || '')));
+  return v;
+}
 /** an AI car's starting tyre: wet weather, or by the race length and the car's pace */
 function aiCompound(e, lapsTotal) {
   const wet = weatherWetness(settings.weather);
@@ -1210,7 +1257,7 @@ function careerField(C, lapsTotal, assists) {
   const room = new Map();
   if (!standing) try { for (const f of friendFavours(C)) if (f.kind === 'room' && f.mul) room.set(f.did, f.mul); } catch (e) { console.warn('[career] favours', e); }
   for (const e of E) {
-    const car = new Car(W.track, { name: e.name, short: e.short, team: e.team, color: e.color, isPlayer: e.isPlayer, perf: e.perf, rating: e.rating, number: e.number, compound: e.isPlayer ? settings.tyre : aiCompound(e, lapsTotal), raceLaps: lapsTotal, assists });
+    const car = new Car(W.track, { name: e.name, short: e.short, team: e.team, color: e.color, isPlayer: e.isPlayer, perf: e.perf + onTheDay(e.team), rating: e.rating, number: e.number, compound: e.isPlayer ? settings.tyre : aiCompound(e, lapsTotal), raceLaps: lapsTotal, assists });
     car.tier = e.tier; car.color2 = e.color2; car.helmet = e.helmet; car.boxIdx = e.garage === 'own' ? TEAMS.length : e.garage;
     car.careerId = e.careerId; car.standInFor = e.standInFor || null; car.outWhy = e.outWhy || (e.standInFor ? outWhyOf(C, e.standInFor) : null);
     // (the driver's head this weekend - career/Morale.js FORM, read live by the race code - and the licence they carry)
@@ -1279,7 +1326,7 @@ function buildField(lapsTotal) {
     const wet = weatherWetness(settings.weather);
     let compound = settings.tyre;
     if (!isPlayer) compound = wet > 0.5 ? 'WET' : wet > 0.2 ? 'INTER' : lapsTotal >= 13 ? (e.tier <= 1 ? (Math.random() < 0.5 ? 'MEDIUM' : 'SOFT') : (Math.random() < 0.6 ? 'SOFT' : 'MEDIUM')) : (Math.random() < 0.85 ? 'SOFT' : 'MEDIUM');
-    const car = new Car(W.track, { name: e.name, short: e.short, team: e.team, color: e.color, isPlayer, perf: e.perf, rating: e.rating, number: e.number, compound, raceLaps: lapsTotal, assists });
+    const car = new Car(W.track, { name: e.name, short: e.short, team: e.team, color: e.color, isPlayer, perf: e.perf + onTheDay(e.team), rating: e.rating, number: e.number, compound, raceLaps: lapsTotal, assists });
     car.tier = e.tier; car.color2 = e.color2; car.helmet = e.helmet; car.boxIdx = e.custom ? TEAMS.length : teamIndexOf(e.team); cars.push(car);   // one pit garage per team
     if (e.standInFor) { car.standInFor = e.standInFor; car.outWhy = e.outWhy || 'injury'; }
     // (form: yours neutral - nothing carried between quick races but the licence; the stand-in's licence is his own)
@@ -2828,7 +2875,7 @@ function buildShots() {
   // (by arc length, negative = before the line, or by turn number: the tripod stands 90 m before the corner)
   for (const sh of (W.def.shots || [])) {
     if (sh.lm) objShot(W.landmarks?.group.children.find((c) => c.name === `lm:${sh.lm}`), sh.label, sh.rMul, sh.az);
-    else if (sh.scene) objShot(W.scenery?.group.children.find((c) => c.name === `mtl:${sh.scene}`), sh.label, sh.rMul, sh.az);
+    else if (sh.scene) objShot(W.scenery?.group.children.find((c) => c.name === `mtl:${sh.scene}` || c.name === `scene:${sh.scene}`), sh.label, sh.rMul, sh.az);
     else if (sh.building) objShot(W.venue?.group.children.find((c) => c.name === 'venue:wing'), sh.label, sh.rMul, sh.az);
     else {
       let s = sh.s ?? 0;

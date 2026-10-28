@@ -550,10 +550,11 @@ export class RaceDirector {
   }
 
   /**
-   * Speed banding: the further a car is behind the leader, the more power (up to +8 %) and the less drag (up to
-   * -5 %) it has. The curve rises steeply over the first seconds and is full from ~7.5 s back, so the leader never
-   * gets to cruise on a 10 s cushion - but it fades out again as a car closes in (nothing inside 0.6 s), so second
-   * place is pushed up to the leader's gearbox, not towed past it.
+   * Speed banding: the further a car is behind the leader, the more power (up to +12 %), the less drag (up to -7 %)
+   * and the more grip (up to +1.2 %) it has. The curve rises steeply over the first seconds and is full from ~5 s back,
+   * so the leader never gets to cruise on a cushion and the field stays within about half a minute - but it fades out
+   * again as a car closes in (nothing inside 0.4 s), so second place is pushed up to the leader's gearbox, not towed
+   * past it: the quicker cars still come to the front, the leading pack fights for it.
    */
   speedBands(dt) {
     this._bandT = (this._bandT || 0) - dt; if (this._bandT > 0) return; this._bandT = 0.5;
@@ -561,7 +562,7 @@ export class RaceDirector {
     for (const c of this.cars) {
       if (!on || !lead || c === lead || c.retired) { c.band = 0; continue; }
       let g = this.radio.gap(c, lead); if (g == null) g = (this.progress(lead) - this.progress(c)) / Math.max(30, lead.speed);
-      c.band = g <= 0.6 ? 0 : Math.min(1, Math.pow((g - 0.6) / 7, 0.55));
+      c.band = g <= 0.4 ? 0 : Math.min(1, Math.pow((g - 0.4) / 4.6, 0.6));
     }
   }
   /**

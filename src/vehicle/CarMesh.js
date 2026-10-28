@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { COMPOUNDS } from './Tyres.js';
 import { helmetTexture } from '../world/HelmetDesigns.js';
+import { TERRAIN } from '../world/Terrain.js';
 
 const carbon = new THREE.MeshStandardMaterial({ color: 0x17181c, roughness: 0.42, metalness: 0.35 });
 const carbonMatte = new THREE.MeshStandardMaterial({ color: 0x0f1013, roughness: 0.85, metalness: 0.1 });
@@ -49,7 +50,7 @@ function cutGeometry(geo, X) {
   };
   return [F.length ? build(F) : null, B.length ? build(B) : null];
 }
-const _wp = new THREE.Vector3();
+const _wp = new THREE.Vector3(), _gr = [0, 0];
 
 // Real dimensions (2022-25 regulations): 720 mm tyres on 18 inch rims, 305 mm wide at the front and 405 mm at the
 // rear, 2.0 m over the tyres, 3.6 m wheelbase, 5.66 m long, 0.97 m tall, rear wing top at 0.9 m.
@@ -486,12 +487,16 @@ export class CarMesh {
     if ((car.air || car.wreck) && car.q) {
       const q = car.q; this.group.quaternion.set(q[0], q[1], q[2], q[3]);
       _wp.set(0, 0.48, 0).applyQuaternion(this.group.quaternion);   // the body turns about its centre, 0.48 m above the mesh origin
-      this.group.position.set(car.p[0] - _wp.x, car.p[1] - _wp.y, car.p[2] - _wp.z);
+      this.group.position.set(car.p[0] - _wp.x, car.p[1] - _wp.y + TERRAIN.at(car.p[0], car.p[2]), car.p[2] - _wp.z);
       this.shadow.visible = this.shadowFar.visible = false;   // the blob shadow is a ground decal: not on a tumbling body
     } else {
       // the sprung body: heave, pitch (nose up = +z rotation in the mesh frame) and roll (left side up = +x)
-      this.group.rotation.set(car.rl, -car.th, car.pt, 'YZX');
-      this.group.position.set(car.x, car.hv, car.z);
+      // (on a circuit that is not flat: on the ground under it, nose up the slope it is climbing and leaning with the
+      //  camber across it - world/Terrain.js)
+      let gy = 0, gp = 0, gr = 0;
+      if (TERRAIN.on) { const g = TERRAIN.grad(car.x, car.z, _gr), c = Math.cos(car.th), s = Math.sin(car.th); gy = TERRAIN.at(car.x, car.z); gp = Math.atan(g[0] * c + g[1] * s); gr = Math.atan(g[0] * s - g[1] * c); }
+      this.group.rotation.set(car.rl + gr, -car.th, car.pt + gp, 'YZX');
+      this.group.position.set(car.x, car.hv + gy, car.z);
     }
     const dMax = Math.max(0.055, 0.38 * (1 - car.speed / 118));
     this.spin += car.vLong / 0.36 * dt;

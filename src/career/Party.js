@@ -180,10 +180,10 @@ const involved = (b) => !!b && !b.grieving && (TOGETHER.includes(b.stage) || (!!
 export function hhmm(h) { const m = Math.floor(((num(h, 0) % 24) + 24) % 24 * 60 + 1e-6); return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`; }
 
 // ---- the places and the calendar ----------------------------------------------------------------------------------------
-const TRACK = { lasvegas: 'Las Vegas', silverstone: 'Silverstone', montreal: 'Montreal' };
-const CITY = { lasvegas: 'Las Vegas', silverstone: 'London', montreal: 'Montreal' };
-const GP = { lasvegas: 'Las Vegas Grand Prix', silverstone: 'British Grand Prix', montreal: 'Canadian Grand Prix' };
-const GPS = { lasvegas: 'Las Vegas GP', silverstone: 'British GP', montreal: 'Canadian GP' };
+const TRACK = { lasvegas: 'Las Vegas', silverstone: 'Silverstone', montreal: 'Montreal', austin: 'Austin' };
+const CITY = { lasvegas: 'Las Vegas', silverstone: 'London', montreal: 'Montreal', austin: 'Austin' };
+const GP = { lasvegas: 'Las Vegas Grand Prix', silverstone: 'British Grand Prix', montreal: 'Canadian Grand Prix', austin: 'United States Grand Prix' };
+const GPS = { lasvegas: 'Las Vegas GP', silverstone: 'British GP', montreal: 'Canadian GP', austin: 'United States GP' };
 /** the club after each race: keyed by the race's track (only the circuits that exist; no data waits for others) */
 export const VENUE_OF = { lasvegas: 'vegasclub', silverstone: 'londonclub' };
 /** the club offered tonight: in Las Vegas the Tidewater Beach Club's night swim (ui/PartyPool.js 'poolclub') and the
@@ -191,16 +191,16 @@ export const VENUE_OF = { lasvegas: 'vegasclub', silverstone: 'londonclub' };
  *  team's party and one club) */
 const clubOf = (track, season, round) => (track === 'lasvegas' && (num(season, 0) + Math.floor(num(round, 1) / 2)) % 2 === 0 ? 'poolclub' : VENUE_OF[track] || null);
 /** race day (month-day) for the age gate: Las Vegas is a Saturday night race (20:00 local), Silverstone a Sunday (15:00) */
-export const RACE_DATE = { lasvegas: '11-21', silverstone: '07-05', montreal: '06-14' };
+export const RACE_DATE = { lasvegas: '11-21', silverstone: '07-05', montreal: '06-14', austin: '10-19' };
 /** the legal age to go in and drink: Nevada 21, the UK 18 */
-const LEGAL = { lasvegas: 21, silverstone: 18, montreal: 18 };
+const LEGAL = { lasvegas: 21, silverstone: 18, montreal: 18, austin: 21 };
 /**
  * Each night's clock (CLOCK hours): the team party after the debrief (Las Vegas 23:30-01:15; Silverstone 19:30-22:00);
  * the Strip's club from 00:45, the lights up at 05:00 - Nevada has no legal last call; the Mayfair club 23:00-03:00,
  * last orders 02:45. late: when it starts to feel late. (ui/PartyVenues.js PARTY_PLACES carries the same for the scene.)
  */
 export const PARTY_TIMES = {
-  teamparty: { lasvegas: { start: 23.5, late: 24.9, close: 25.25, lastCall: null }, silverstone: { start: 19.5, late: 21.5, close: 22, lastCall: null }, montreal: { start: 21, late: 23.5, close: 24, lastCall: null } },
+  teamparty: { lasvegas: { start: 23.5, late: 24.9, close: 25.25, lastCall: null }, silverstone: { start: 19.5, late: 21.5, close: 22, lastCall: null }, montreal: { start: 21, late: 23.5, close: 24, lastCall: null }, austin: { start: 20.5, late: 23.5, close: 24, lastCall: null } },
   vegasclub: { start: 24.75, late: 28, close: 29, lastCall: null },
   londonclub: { start: 23, late: 26.25, close: 27, lastCall: 26.75 },
   poolclub: { start: 23.75, late: 27.5, close: 28.5, lastCall: null },
@@ -617,7 +617,7 @@ export function partyLaunch(c, offerId, act = 1, carry = null, o = {}) {
 // ---- 5. what the night came to ------------------------------------------------------------------------------------------------
 const EXIT_TXT = {
   hotel: 'Back at the hotel by {t}.', teamcar: 'The team car back to the hotel at {t}.', side: 'Out of the side door at {t}, past the photographers.', front: 'Out of the front door at {t}, into the flashes.',
-  breakfast: { lasvegas: 'Breakfast at four with friends, then the hotel.', silverstone: 'A chicken shop at three with friends, then a taxi.', montreal: 'Poutine at three on Saint-Laurent with friends, then a taxi.' }, carried: 'Put in a car at {t} by {who}.',
+  breakfast: { lasvegas: 'Breakfast at four with friends, then the hotel.', silverstone: 'A chicken shop at three with friends, then a taxi.', montreal: 'Poutine at three on Saint-Laurent with friends, then a taxi.', austin: 'Tacos at three on Sixth Street with friends, then a car.' }, carried: 'Put in a car at {t} by {who}.',
   ejected: 'Shown the door by security at {t}.', together: 'Shared a car with {her} to her hotel. A goodnight at the door.',
 };
 /** the stories of the night, in the press desk's order of what sells (two at most) */

@@ -378,7 +378,7 @@ const lum = (hex) => { if (!HEX.test(String(hex || ''))) return 0.5; const n = p
 const ink0 = (hex) => (!HEX.test(String(hex || '')) || lum(hex) > 0.62 ? '#8a93a0' : hex);
 const rapI = (v) => `<i style="left:${v < 0 ? 50 + v / 2 : 50}%;width:${Math.abs(v) / 2}%;background:${v < 0 ? '#e5484d' : '#1fae64'}"></i>`;
 const dTxt0 = (v) => (!v ? '' : `<span class="${v > 0 ? 'hs-u' : 'hs-d'}">${v > 0 ? '▲' : '▼'}${Math.abs(v * 100).toFixed(1)}</span>`);
-const TRACK = { lasvegas: 'Las Vegas', silverstone: 'Silverstone', montreal: 'Montreal' };
+const TRACK = { lasvegas: 'Las Vegas', silverstone: 'Silverstone', montreal: 'Montreal', austin: 'Austin' };
 const trackName = (id) => TRACK[id] || cap(id || '');
 const meOf = (c) => c?.drivers?.[c?.playerId] || null;
 const alive = (d) => !!d && d.alive !== false;

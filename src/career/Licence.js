@@ -20,7 +20,7 @@ export const OFFENCE_POINTS = { 'causing a collision': 2, 'leaving the track and
   'a scuffle on the grid': 3 };
 const OFFENCE = Object.fromEntries(Object.entries(OFFENCE_POINTS).map(([k, v]) => [k.toLowerCase(), v]));
 const CONDUCT = 'unsportsmanlike conduct';
-const TRACK_NAME = { silverstone: 'Silverstone', lasvegas: 'Las Vegas', montreal: 'Montreal' };
+const TRACK_NAME = { silverstone: 'Silverstone', lasvegas: 'Las Vegas', montreal: 'Montreal', austin: 'Austin' };
 const num = (v, f) => (typeof v === 'number' && isFinite(v) ? v : f);
 const place = (w) => TRACK_NAME[w] || w || '';
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;

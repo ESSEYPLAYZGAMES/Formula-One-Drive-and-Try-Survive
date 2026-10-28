@@ -8,7 +8,7 @@
 // them as plain JSON and turns the round over in the right order, and the engines do the rest. You choose your driver
 // once: you race as them until they die - a death is final. An AI driver hurt in an accident misses the next round or
 // two, and a driver who reaches twelve penalty points misses the next one: a stand-in in their seat either way.
-import { ROSTER, RESERVES, F2 } from '../race/Roster.js';
+import { ROSTER, RESERVES, F2, PERF_GAIN, dayPerf } from '../race/Roster.js';
 import { BRANCHES, UP, startLevels, techEffects, upgradeState, develop, devTick, aiDevelop, migrateTeam, upgradeName, branchMaxed } from './TechTree.js';
 import { moraleInit, moodOf, shiftMorale, moraleFromRace, moraleFromQuali, moraleRoundTick, moraleNewSeason, formOf, moraleSimBonus } from './Morale.js';
 import { LICENCE_MAX, pointsFor, licenceInit, activePoints, isBanned, banText, addPoints, licenceRoundTick } from './Licence.js';
@@ -65,8 +65,11 @@ export const TROPHIES = [
   ['mogul', 'Brand ambassador', 'Hold three endorsement deals at once', (x) => (x.c?.pr?.deals?.length || 0) >= 3],
 ].map(([id, name, desc, check]) => ({ id, name, desc, check }));
 // (a simulated weekend's pole lap, s: the real ones - Las Vegas 2024 1:32.3, Silverstone 2024 1:25.8, Montreal 2025 1:10.9)
-const SIM_LAP = { lasvegas: 92.3, silverstone: 85.8, montreal: 70.9 };
+const SIM_LAP = { lasvegas: 92.3, silverstone: 85.8, montreal: 70.9, austin: 92.5 };
 const gauss = () => { let u = 0, v = 0; while (!u) u = Math.random(); while (!v) v = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+/** a car's pace in a simulated session: its development as the physics sees it (Roster PERF_GAIN) on this circuit (how
+ *  it suits the car: Roster dayPerf, without the weekend's form - the luck below is that) */
+const carPace = (e, tid) => 1 + (e.perf + dayPerf(e.team, tid, () => 0.5) - 1) * PERF_GAIN;
 const pick = (a) => a[(Math.random() * a.length) | 0];
 const r1 = (v) => Math.round(v * 10) / 10;
 const r2 = (v) => Math.round(v * 100) / 100;
@@ -281,7 +284,7 @@ export class Career {
    */
   simQuali() {
     const tid = this.calendar[this.round - 1], wet = this.forecastAt().weather, base = SIM_LAP[tid] || 90, es = this.entries();
-    const sc = (e) => e.perf + (e.rating + moraleSimBonus(e.morale)) * 0.02, best = Math.max(...es.map(sc)), luck = wet === 'wet' ? 0.004 : wet === 'damp' ? 0.0028 : 0.0015;
+    const sc = (e) => carPace(e, tid) + (e.rating + moraleSimBonus(e.morale)) * 0.02, best = Math.max(...es.map(sc)), luck = wet === 'wet' ? 0.004 : wet === 'damp' ? 0.0028 : 0.0015;
     const laps = es.map((e) => ({ e, t: base * (wet === 'wet' ? 1.12 : wet === 'damp' ? 1.05 : 1) * (1 + (best - sc(e)) * 1.4 + gauss() * luck + (Math.random() < 0.03 ? 0.01 + Math.random() * 0.02 : 0)) }));   // (now and then a lap spoiled: traffic, a mistake, a red flag)
     laps.sort((a, b) => a.t - b.t);
     const ids = laps.map((x) => x.e.careerId);
@@ -305,7 +308,7 @@ export class Career {
     const tid = this.calendar[this.round - 1], wet = this.forecastAt().weather, base = SIM_LAP[tid] || 90, laps = this.laps || 10;
     const es = this.entries(), by = Object.fromEntries(es.map((e) => [e.careerId, e])), grid = this.savedGrid.ids.filter((id) => by[id]);
     for (const e of es) if (!grid.includes(e.careerId)) grid.push(e.careerId);
-    const sc = (e) => e.perf + (e.rating + moraleSimBonus(e.morale)) * 0.02, best = Math.max(...es.map(sc)), rain = wet === 'wet' ? 2.2 : wet === 'damp' ? 1.5 : 1;
+    const sc = (e) => carPace(e, tid) + (e.rating + moraleSimBonus(e.morale)) * 0.02, best = Math.max(...es.map(sc)), rain = wet === 'wet' ? 2.2 : wet === 'damp' ? 1.5 : 1;
     const rows = grid.map((id, gi) => {
       const e = by[id], lap = base * 1.035 * (wet === 'wet' ? 1.12 : wet === 'damp' ? 1.05 : 1) * (1 + (best - sc(e)) * 1.4);
       // (the start and the traffic: a place on the grid is worth a little over the distance; the pace varies lap to lap)

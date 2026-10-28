@@ -474,7 +474,7 @@ html.k-glass #career .ch-top { background: rgba(250,251,253,.8); backdrop-filter
 const cssText = () => CSS + TECH_CSS + (typeof HS.SOCIAL_CSS === 'string' ? HS.SOCIAL_CSS : '') + LOOK_CSS;
 const injectCSS = () => { if (document.getElementById('career-css')) return; const st = document.createElement('style'); st.id = 'career-css'; st.textContent = cssText(); document.head.appendChild(st); };
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const TRACK_NAME = { silverstone: 'Silverstone', lasvegas: 'Las Vegas', montreal: 'Montreal' };
+const TRACK_NAME = { silverstone: 'Silverstone', lasvegas: 'Las Vegas', montreal: 'Montreal', austin: 'Austin' };
 const TN = (id) => TRACK_NAME[id] || id || '';
 const money = (m) => `$${(Math.round(m * 10) / 10).toFixed(1)}M`;
 const diffName = (d) => (d < 20 ? 'Rookie' : d < 40 ? 'Amateur' : d < 60 ? 'Semi-pro' : d < 80 ? 'Pro' : d < 95 ? 'Elite' : 'Legend');

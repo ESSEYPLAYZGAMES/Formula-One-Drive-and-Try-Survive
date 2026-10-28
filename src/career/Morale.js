@@ -17,7 +17,7 @@ export const MOOD_NAMES = { focus: 'Focus', racecraft: 'Racecraft', confidence: 
 const START = 60, PLAYER_START = 65;   // morale a new record starts with (yours a little higher: it's your team)
 const OFF_MAX = 40, WHY_CAP = 14;      // a trait's offset either way; the reasons kept (newest first)
 const STD_POINTS = [25, 18, 15, 12, 10, 8, 6, 4, 2, 1];
-const TRACK_NAME = { silverstone: 'Silverstone', lasvegas: 'Las Vegas', montreal: 'Montreal' };
+const TRACK_NAME = { silverstone: 'Silverstone', lasvegas: 'Las Vegas', montreal: 'Montreal', austin: 'Austin' };
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const num = (v, f) => (typeof v === 'number' && isFinite(v) ? v : f);
 const last = (name) => String(name || '').split(' ').pop();

@@ -128,7 +128,7 @@ const money = (m) => m >= 0.001 ? `$${+(m * 1000).toFixed(m >= 0.0095 ? 0 : 1)}k
 /** a point in a rect, or in any of a list of rects ({ x0, z0, x1, z1 }) */
 const inR = (r, x, z) => !!r && (Array.isArray(r) ? r.some((q) => inR(q, x, z)) : x >= Math.min(r.x0, r.x1) && x <= Math.max(r.x0, r.x1) && z >= Math.min(r.z0, r.z1) && z <= Math.max(r.z0, r.z1));
 const mid = (r) => { const a = Array.isArray(r) ? r[0] : r; return a ? { x: (a.x0 + a.x1) / 2, z: (a.z0 + a.z1) / 2 } : null; };
-const GP = { lasvegas: 'Las Vegas Grand Prix', silverstone: 'British Grand Prix', montreal: 'Canadian Grand Prix' };
+const GP = { lasvegas: 'Las Vegas Grand Prix', silverstone: 'British Grand Prix', montreal: 'Canadian Grand Prix', austin: 'United States Grand Prix' };
 const STAGE_I = { stranger: 0, met: 1, friendly: 2, flirting: 3, dating: 4, partner: 5, ex: -1 };
 
 // ---- the drinks: real pours (UK units: 10 ml of alcohol) --------------------------------------------------------------
@@ -1365,7 +1365,7 @@ export class PartyPlay {
       carried: `${helper ? helper + ' gets' : 'Security gets'} an arm round you. ${M('carried', 'A car door held open, and a long night ending.')}`,
       ejected: M('ejected', 'Security walks you out. The night is over.'),
       teamcar: 'The team car takes you back to the hotel. Somebody in the back is still singing.',
-      moveon: this.track === 'silverstone' ? (Rp.heli ? 'Up from the circuit\'s helipad and south over the Chilterns: Battersea in twenty-five minutes, then a car to Mayfair.' : 'On to London, and the club: an hour and three quarters down the M40.') : this.track === 'montreal' ? 'On to the club: over the Concorde bridge and into the city, fifteen minutes.' : 'On to the club: ten minutes up the Strip.',
+      moveon: this.track === 'silverstone' ? (Rp.heli ? 'Up from the circuit\'s helipad and south over the Chilterns: Battersea in twenty-five minutes, then a car to Mayfair.' : 'On to London, and the club: an hour and three quarters down the M40.') : this.track === 'montreal' ? 'On to the club: over the Concorde bridge and into the city, fifteen minutes.' : this.track === 'austin' ? 'On to the club: up the 130 and into downtown, half an hour - Sixth Street at the end of it.' : 'On to the club: ten minutes up the Strip.',
     }[kind] + (kind === 'front' || kind === 'together' || kind === 'breakfast' ? fans : '');
     const E = V.exits || {}, at = { front: E.street || E.front, side: E.side, ejected: E.side, carried: E.side || E.front, together: E.street || E.front, breakfast: E.street || E.front, hotel: E.street || E.front, teamcar: E.front }[kind] || null;
     const left = kind === 'moveon' ? 'moveon' : Rp.early ? 'early' : 'normal';

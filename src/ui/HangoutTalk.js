@@ -1625,7 +1625,7 @@ export function hangoutBye(x = {}, n = {}, dm = 0) {
 // =====================================================================================================================
 // the evening and the guests, read from the career (plain JSON reads only - nothing here changes the career)
 // =====================================================================================================================
-const TRACK = { lasvegas: 'Las Vegas', silverstone: 'Silverstone', montreal: 'Montreal' };
+const TRACK = { lasvegas: 'Las Vegas', silverstone: 'Silverstone', montreal: 'Montreal', austin: 'Austin' };
 // (each venue's privacy as career/Social.js's VENUES has it - for a caller that does not pass the venue's own)
 const PRIVACY = { rooftop: 0.2, pub: 0.5, simlounge: 0.6, apartment: 0.95, restaurant: 0.8, karting: 0.4, poolclub: 0.3, dayclub: 0.25, ...PARTY_PRIVACY };
 /** rounds since a { season, round } stamp (99: never) */

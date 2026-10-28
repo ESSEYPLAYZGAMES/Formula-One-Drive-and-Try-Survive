@@ -16,6 +16,20 @@ function groundTexture(day, style = 'city') {
     const t = new THREE.CanvasTexture(gc); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(300, 300); t.colorSpace = THREE.SRGBColorSpace;
     return t;
   }
+  if (style === 'texas') {
+    // Central Texas in the autumn: mown grass, green near the water lines, gone tan and straw-coloured in the dry
+    // patches - and the pale limestone soil showing through
+    ctx.fillStyle = day ? '#7d8a4c' : '#141a0f'; ctx.fillRect(0, 0, 512, 512);
+    for (let i = 0; i < 60; i++) { ctx.fillStyle = day ? `rgba(${150 + Math.random() * 40},${140 + Math.random() * 30},${80 + Math.random() * 30},0.22)` : 'rgba(40,38,26,0.2)'; ctx.beginPath(); ctx.arc(Math.random() * 512, Math.random() * 512, 12 + Math.random() * 40, 0, Math.PI * 2); ctx.fill(); }
+    for (let i = 0; i < 10000; i++) {
+      const g = Math.random(), dry = Math.random() < 0.4;
+      ctx.fillStyle = day ? (dry ? `rgba(${150 + g * 50},${138 + g * 40},${78 + g * 30},0.45)` : `rgba(${80 + g * 40},${110 + g * 40},${48 + g * 22},0.5)`) : `rgba(${18 + g * 14},${24 + g * 18},${14 + g * 10},0.5)`;
+      ctx.fillRect(Math.random() * 512, Math.random() * 512, 1.5 + Math.random() * 3, 2 + Math.random() * 4);
+    }
+    for (let i = 0; i < 512; i += 32) { ctx.fillStyle = day ? 'rgba(255,255,240,0.03)' : 'rgba(255,255,255,0.01)'; if ((i / 32) % 2) ctx.fillRect(0, i, 512, 32); }
+    const t = new THREE.CanvasTexture(gc); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(240, 240); t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  }
   if (style === 'grass') {
     // countryside circuit: mown grass with darker / lighter tufts (no street grid)
     ctx.fillStyle = day ? '#4c7a34' : '#0d1a0e'; ctx.fillRect(0, 0, 512, 512);
