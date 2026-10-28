@@ -35,6 +35,16 @@ const nonIdx = (g) => (g.index ? g.toNonIndexed() : g);
 const vcolor = (g, hex) => { const c = new THREE.Color(hex), n = g.attributes.position.count, a = new Float32Array(n * 3); for (let k = 0; k < n; k++) { a[k * 3] = c.r; a[k * 3 + 1] = c.g; a[k * 3 + 2] = c.b; } g.setAttribute('color', new THREE.BufferAttribute(a, 3)); return g; };
 const keepPN = (g) => { for (const k of Object.keys(g.attributes)) if (!['position', 'normal', 'color'].includes(k)) g.deleteAttribute(k); return g; };
 
+/** the dry Texas grass of the banks and the lawn: a speckled canvas, tiled in world space (one, shared) */
+let GRASS = null;
+function grassTex() {
+  if (GRASS) return GRASS;
+  const c = document.createElement('canvas'); c.width = c.height = 128; const g2 = c.getContext('2d'), r2 = rng(77);
+  g2.fillStyle = '#8c9450'; g2.fillRect(0, 0, 128, 128);
+  for (let k = 0; k < 2600; k++) { const t2 = r2(); g2.fillStyle = t2 < 0.45 ? '#7a8a40' : t2 < 0.8 ? '#a19a5c' : '#6b7a3a'; g2.fillRect(r2() * 128, r2() * 128, 1 + r2() * 2, 1 + r2() * 2); }
+  GRASS = new THREE.CanvasTexture(c); GRASS.wrapS = GRASS.wrapT = THREE.RepeatWrapping; GRASS.colorSpace = THREE.SRGBColorSpace; return GRASS;
+}
+
 /** the picnic blankets: red gingham, a blue tartan, a green check, a striped towel (four 128 px tiles) */
 function mattAtlas() {
   const S = 128, c = document.createElement('canvas'); c.width = S * 4; c.height = S; const x = c.getContext('2d');
@@ -57,11 +67,13 @@ export function buildAustin(geo, track, def, pit) {
   const glass = new THREE.MeshStandardMaterial({ color: 0x24384a, roughness: 0.08, metalness: 0.8, envMapIntensity: 1.5, emissive: 0x2a3644, emissiveIntensity: 0.6 });
 
   // ---- the Observation Tower over the amphitheatre (the survey's outline: 'Germania Insurance Amphiteater', the stage),
-  //      inside the loop of Turns 16-18: 76.5 m to the top of its veil, the deck at 70 m. The stage at its foot under the
-  //      veil's run, the lawn bowl rising away from it, and beyond, the Grand Plaza toward the Turn 15 stands and its
-  //      reflecting pool at the far end
+  //      inside the loop of Turns 16-18: twenty storeys of cream-white steel round the stairs (419 steps), the deck at
+  //      69 m cantilevered out over one side, and the veil - red steel pipes arching over the deck's roof, falling down
+  //      the tower's other face and sweeping out over the amphitheatre's stage as its canopy. The amphitheatre: its
+  //      bowl of red seats fanning out from the stage, the lawn above them, and beyond, the Grand Plaza toward the
+  //      Turn 15 stands and its reflecting pool at the far end
   const amph = byName(/amphi/i), t15 = byName(/turn 15 grand/i);
-  let towerAt = null;
+  let towerAt = null; const amphi = { C: 36, seats: [], lawn: [] };   // (seat and lawn spots in the tower's frame: [u, v, y])
   if (amph) {
     claimed.add(amph.id);
     const info = footprintInfo(amph.rings[0]);
@@ -73,48 +85,119 @@ export function buildAustin(geo, track, def, pit) {
     const yaw = Math.atan2(-az, ax);   // (local +x: from the tower over the stage to the plaza)
     // the tower itself: one rigid piece on the ground under its foot (not bent over the slope like the stands)
     const T = new THREE.Group(); T.name = 'scene:tower'; T.position.set(tx, TERRAIN.at(tx, tz), tz); T.rotation.y = yaw; T.userData.onTerrain = true;
-    // the shaft: a white steel frame 9 m square - four corner columns, a landing every 3.5 m and the stairs zigzagging
-    // up inside it - round the lift's glass core (by day pale glass, by night lit floor by floor in the rainbow)
-    const bands = document.createElement('canvas'); bands.width = 64; bands.height = 512; const bx = bands.getContext('2d');
-    for (let k = 0; k < 32; k++) { bx.fillStyle = `hsl(${(k * 360 / 11) % 360}, 90%, 58%)`; bx.fillRect(0, k * 16, 64, 13); bx.fillStyle = '#e8ecf0'; bx.fillRect(0, k * 16 + 13, 64, 3); }
+    const FH = 3.45, NF = 20, SW = 9, SD = 11, TOP = NF * FH;   // (the deck's floor at 69 m)
+    // the shaft's faces: per storey a stair flight climbing across the left half (the next one back the other way), the
+    // landing's two dark openings on the right, the floor plate's bright edge and its shadow line under it
+    const fc = document.createElement('canvas'); fc.width = 128; fc.height = 256; const fx = fc.getContext('2d');
+    for (let k = 0; k < 2; k++) {
+      const y0 = k * 128;
+      fx.fillStyle = '#e9e2d2'; fx.fillRect(0, y0, 128, 128);
+      fx.fillStyle = '#d9d1c0'; fx.fillRect(66, y0, 2, 128);
+      fx.fillStyle = '#30353c'; fx.fillRect(72, y0 + 30, 20, 66); fx.fillRect(98, y0 + 30, 20, 66);
+      fx.fillStyle = '#f8f6f1'; fx.fillRect(70, y0 + 26, 50, 4); fx.fillRect(82, y0 + 30, 2, 66); fx.fillRect(108, y0 + 30, 2, 66);
+      fx.fillStyle = '#cfc6b3'; fx.beginPath(); const X = (x) => (k ? 64 - x : x);
+      fx.moveTo(X(4), y0 + 106); fx.lineTo(X(16), y0 + 106); fx.lineTo(X(62), y0 + 22); fx.lineTo(X(50), y0 + 22); fx.closePath(); fx.fill();
+      fx.fillStyle = '#b8b09f'; fx.fillRect(0, y0 + 104, 128, 4); fx.fillStyle = '#fbfaf6'; fx.fillRect(0, y0 + 108, 128, 20);
+    }
+    const faceTex = new THREE.CanvasTexture(fc); faceTex.colorSpace = THREE.SRGBColorSpace; faceTex.wrapS = faceTex.wrapT = THREE.RepeatWrapping; faceTex.repeat.set(1, NF / 2); faceTex.anisotropy = 4;
+    // (by night lit floor by floor in the rainbow)
+    const bands = document.createElement('canvas'); bands.width = 16; bands.height = 512; const bx = bands.getContext('2d');
+    for (let k = 0; k < NF; k++) { bx.fillStyle = `hsl(${(k * 360 / 11) % 360}, 90%, 58%)`; bx.fillRect(0, 512 - (k + 1) * 512 / NF, 16, 512 / NF - 4); }
     const bandTex = new THREE.CanvasTexture(bands); bandTex.colorSpace = THREE.SRGBColorSpace;
-    const shaftMat = new THREE.MeshStandardMaterial({ color: 0xe6ebef, roughness: 0.12, metalness: 0.55, emissive: 0xffffff, emissiveMap: bandTex, emissiveIntensity: 0, envMapIntensity: 1.3 });
+    const shaftMat = new THREE.MeshStandardMaterial({ map: faceTex, roughness: 0.55, metalness: 0.1, emissive: 0xffffff, emissiveMap: bandTex, emissiveIntensity: 0 });
     shaftMat.userData.towerGlow = true;
-    const core = new THREE.Mesh(new THREE.BoxGeometry(4.2, 70, 4.2), shaftMat); core.position.y = 33; T.add(core);   // (down 2 m into the ground: no gap on a slope)
-    const frame = [], box = (w, h, d, x, y, z, rz = 0) => { const g = new THREE.BoxGeometry(w, h, d); if (rz) g.rotateZ(rz); g.translate(x, y, z); frame.push(g); };
-    for (const [x, z] of [[-4.5, -4.5], [4.5, -4.5], [-4.5, 4.5], [4.5, 4.5]]) box(0.8, 70, 0.8, x, 33, z);
-    for (let y = 3.5, k = 0; y < 66; y += 3.5, k++) {
-      box(9.8, 0.3, 9.8, 0, y, 0);
-      box(9.8, 1.1, 0.12, 0, y + 0.6, -4.9); box(9.8, 1.1, 0.12, 0, y + 0.6, 4.9); box(0.12, 1.1, 9.8, -4.9, y + 0.6, 0); box(0.12, 1.1, 9.8, 4.9, y + 0.6, 0);
-      box(7.6, 0.25, 1.4, 0, y + 1.75, k % 2 ? 3.6 : -3.6, k % 2 ? 0.43 : -0.43);
-    }
-    T.add(new THREE.Mesh(mergeGeometries(frame.map((g) => keepPN(g))), white));
-    // the observation deck at 70 m: a white oval with its glass band and the glass floor
-    const deck = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 3.4, 32), glass); deck.scale.set(7.5, 1, 6.5); deck.position.set(0, 71.4, 0); T.add(deck);
-    const lid = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1.0, 32), white); lid.scale.set(8, 1, 7); lid.position.set(0, 73.6, 0); T.add(lid);
-    const floor = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 0.8, 32), white); floor.scale.set(8, 1, 7); floor.position.set(0, 69.6, 0); T.add(floor);
-    // the veil: eighteen red steel pipes (20 cm) side by side - over the top in a hook (76.5 m), cascading down the tower's
-    // side, then fanning out over the stage to form its canopy, on slim white columns
+    const shaft = new THREE.Mesh(new THREE.BoxGeometry(SW, TOP, SD), shaftMat); shaft.position.y = TOP / 2; T.add(shaft);
+    const frame = [], box = (w, h, d, x, y, z) => { const g = new THREE.BoxGeometry(w, h, d); g.translate(x, y, z); frame.push(keepPN(g)); };
+    box(SW + 0.6, 3, SD + 0.6, 0, -1, 0);                                                   // (the foot: into the ground on a slope)
+    for (let k = 1; k < NF; k++) box(SW + 0.5, 0.3, SD + 0.5, 0, k * FH, 0);                 // the floor plates' edges
+    for (const [x, z] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) box(0.75, TOP, 0.75, x * SW / 2, TOP / 2, z * SD / 2);
+    // the deck: a rounded slab cantilevered out past the shaft (away from the veil's fall), a band of glass behind white
+    // mullions, the roof over it
+    const rr = (w, d, r) => { const s = new THREE.Shape(), x0 = -w / 2, z0 = -d / 2; s.moveTo(x0 + r, z0); s.lineTo(x0 + w - r, z0); s.quadraticCurveTo(x0 + w, z0, x0 + w, z0 + r); s.lineTo(x0 + w, z0 + d - r); s.quadraticCurveTo(x0 + w, z0 + d, x0 + w - r, z0 + d); s.lineTo(x0 + r, z0 + d); s.quadraticCurveTo(x0, z0 + d, x0, z0 + d - r); s.lineTo(x0, z0 + r); s.quadraticCurveTo(x0, z0, x0 + r, z0); return s; };
+    const slab = (shape, y, h, dx) => { const g = new THREE.ExtrudeGeometry(shape, { depth: h, bevelEnabled: false, curveSegments: 6 }); g.rotateX(-Math.PI / 2); g.translate(dx, y, 0); return keepPN(g); };
+    const DX = -2.5, deckS = rr(18, 15, 3.5);
+    frame.push(slab(deckS, TOP, 0.9, DX), slab(deckS, TOP + 4.3, 0.7, DX), slab(rr(19, 16, 4), TOP + 5.0, 0.25, DX));
+    for (const p of rr(17.6, 14.6, 3.3).getSpacedPoints(44)) box(0.16, 3.4, 0.16, p.x + DX, TOP + 2.6, -p.y);
+    T.add(new THREE.Mesh(mergeGeometries(frame.map(nonIdx)), white));
+    T.add(new THREE.Mesh(slab(rr(17.2, 14.2, 3.1), TOP + 0.9, 3.4, DX), glass));
+    // the veil: twenty-two red steel pipes side by side (the outer two heavier) - from a tip past the deck's far edge,
+    // arching over its roof (77 m), down the tower's face a few metres off it on white struts, and out over the stage
     const red = new THREE.MeshStandardMaterial({ color: 0xd3202b, roughness: 0.4, metalness: 0.4, emissive: 0x3a080b });
-    const path = new THREE.CatmullRomCurve3([[-7, 72.5], [-5, 75.4], [0, 76.5], [6, 75.4], [8.5, 70.5], [9, 60], [9, 40], [9.2, 24], [10.5, 16], [15, 12.8], [24, 12.2], [40, 12], [56, 11.6], [64, 10.8]].map(([x, y]) => new THREE.Vector3(x, y, 0)), false, 'centripetal');
-    const pipes = [], NP = 18;
+    const VX = SW / 2 + 6;
+    const path = new THREE.CatmullRomCurve3([[-13, TOP + 5.6], [-10.5, TOP + 6.8], [-4, TOP + 8], [3, TOP + 8], [VX - 2.4, TOP + 7], [VX - 0.3, TOP + 4], [VX, TOP - 2], [VX, 45], [VX, 28], [VX + 0.4, 20], [VX + 2.2, 15.2], [VX + 7, 12.8], [VX + 15, 12.1], [VX + 25, 11.8], [VX + 33, 11.2]].map(([x, y]) => new THREE.Vector3(x, y, 0)), false, 'centripetal');
+    const wAt = (q) => (q.x > VX + 0.5 && q.y < 30 ? 8 + Math.min(1, (q.x - VX - 0.5) / 26) * 18 : 8 + Math.min(1, Math.max(0, (q.y - TOP) / 4)) * 5);
+    const lift = (q, u) => (q.x > VX + 3 ? Math.cos(u * Math.PI) * 1.2 * Math.min(1, (q.x - VX - 3) / 20) : q.y > TOP + 3 ? Math.cos(u * Math.PI) * 0.5 : 0);
+    const pipes = [], NP = 22, PS = [];
+    for (let k = 0; k <= 120; k++) PS.push(path.getPoint(k / 120));
     for (let j = 0; j < NP; j++) {
-      const u = j / (NP - 1) - 0.5, pts = [];
-      for (let k = 0; k <= 90; k++) {
-        const q = path.getPoint(k / 90), w = q.x < 12 ? 6.4 : 6.4 + Math.min(1, (q.x - 12) / 30) * 22;   // (6.4 m wide on the tower, 28 m over the stage)
-        pts.push(new THREE.Vector3(q.x, q.y + (q.x > 14 ? Math.cos(u * Math.PI) * 1.2 * Math.min(1, (q.x - 14) / 20) : 0), u * w));   // (the canopy arches a little across)
-      }
-      pipes.push(keepPN(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 110, 0.1, 6, false)));
+      const u = j / (NP - 1) - 0.5, pts = PS.map((q) => new THREE.Vector3(q.x, q.y + lift(q, u), u * wAt(q)));
+      pipes.push(keepPN(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 150, j === 0 || j === NP - 1 ? 0.24 : 0.11, 6, false)));
     }
-    T.add(new THREE.Mesh(mergeGeometries(pipes), red));
-    const posts = []; for (const x of [26, 42, 58]) for (const z of [-1, 1]) { const w = 6.4 + Math.min(1, (x - 12) / 30) * 22, g = new THREE.CylinderGeometry(0.22, 0.28, 13, 8); g.translate(x, 5.5, z * w * 0.42); posts.push(keepPN(g)); }
-    T.add(new THREE.Mesh(mergeGeometries(posts), white));
+    const ties = [], struts = [], tb = (arr, w, h, d, x, y, z) => { const g = new THREE.BoxGeometry(w, h, d); g.translate(x, y, z); arr.push(keepPN(g)); };
+    for (let k = 6; k < NF; k++) { tb(ties, 0.16, 0.16, 8, VX, k * FH, 0); if (k % 2 === 0) for (const z of [-3.4, 3.4]) tb(struts, VX - SW / 2, 0.2, 0.2, (VX + SW / 2) / 2, k * FH, z); }
+    T.add(new THREE.Mesh(mergeGeometries([...pipes, ...ties]), red));
+    // under the veil's sweep, the stage's white fabric roof, on slim white columns
+    const memb = [], MP = [], MI = []; let rows = 0;
+    for (const q of PS) { if (q.x < VX + 2.5) continue; for (let c = 0; c <= 12; c++) { const u = c / 12 - 0.5; MP.push(q.x, q.y + lift(q, u) - 0.5, u * wAt(q) * 0.98); } rows++; }
+    for (let r = 0; r < rows - 1; r++) for (let c = 0; c < 12; c++) { const a = r * 13 + c; MI.push(a, a + 13, a + 1, a + 1, a + 13, a + 14); }
+    const mg = new THREE.BufferGeometry(); mg.setAttribute('position', new THREE.Float32BufferAttribute(MP, 3)); mg.setIndex(MI); mg.computeVertexNormals(); memb.push(mg);
+    T.add(new THREE.Mesh(mg, new THREE.MeshStandardMaterial({ color: 0xf4f4f2, roughness: 0.75, side: THREE.DoubleSide, emissive: 0x1a1a1a })));
+    for (const x of [VX + 12, VX + 26]) for (const z of [-1, 1]) { const w = 8 + Math.min(1, (x - VX - 0.5) / 26) * 18, g = new THREE.CylinderGeometry(0.22, 0.28, 14, 8); g.translate(x, 4.5, z * w * 0.44); struts.push(keepPN(g)); }
+    T.add(new THREE.Mesh(mergeGeometries(struts), white));
     group.add(T);
-    // the stage, its canopy under the veil's run, the lawn bowl and the plaza: on the ground (raised with the world)
+    // the stage, the bowl, the lawn and the plaza: on the ground (raised with the world)
     const Pz = new THREE.Group(); Pz.name = 'scene:plaza'; Pz.position.set(tx, 0, tz); Pz.rotation.y = yaw;
-    const stage = new THREE.Mesh(new THREE.BoxGeometry(16, 1.6, 26), new THREE.MeshStandardMaterial({ color: 0x2b2d33, roughness: 0.8 })); stage.position.set(30, 0.8, 0); Pz.add(stage);
-    const lawn = new THREE.Mesh(new THREE.CylinderGeometry(75, 75, 0.3, 40, 1, false, -Math.PI / 2.5, Math.PI / 1.25), new THREE.MeshStandardMaterial({ color: 0x8aa24e, roughness: 1 }));
-    lawn.position.set(38, 0.05, 0); lawn.rotation.y = -Math.PI / 2; Pz.add(lawn);
+    const dark = new THREE.MeshStandardMaterial({ color: 0x24262b, roughness: 0.8 });
+    const stage = new THREE.Mesh(new THREE.BoxGeometry(16, 1.6, 26), dark); stage.position.set(26, 0.8, 0); Pz.add(stage);
+    const back = new THREE.Mesh(new THREE.BoxGeometry(1, 11, 28), dark); back.position.set(18, 5, 0); Pz.add(back);
+    for (const z of [-1, 1]) { const st = new THREE.Mesh(new THREE.BoxGeometry(3, 9, 3), dark); st.position.set(31, 4.5, z * 15); Pz.add(st); }
+    // the bowl: forty rows of red seats round the stage (a cross aisle half way up, six wedges between the stairs), on
+    // stepped concrete; the lawn rising behind the top row, and the concrete walls closing its sides
+    const C = amphi.C, A = (78 * Math.PI) / 180, R0 = 8, RD = 0.9, NR = 40, rise = 0.22, yR = (k) => 0.25 + k * rise, RT = R0 + NR * RD, YT = yR(NR - 1);
+    const conc = { P: [] }, seat = { P: [], C: [] }, lawn = { P: [], U: [] };
+    const quad = (o, a, b, c, d) => o.P.push(...a, ...b, ...c, ...a, ...c, ...d);
+    const pt = (r, th, y) => [C + r * Math.cos(th), y, r * Math.sin(th)];
+    const SEG = 48;
+    for (let k = 0; k < NR; k++) {
+      const r = R0 + k * RD, y = yR(k), yp = k ? yR(k - 1) : 0;
+      for (let j = 0; j < SEG; j++) {
+        const a0 = -A + (2 * A * j) / SEG, a1 = -A + (2 * A * (j + 1)) / SEG;
+        quad(conc, pt(r, a0, y), pt(r, a1, y), pt(r + RD, a1, y), pt(r + RD, a0, y));       // the tread
+        quad(conc, pt(r, a0, yp), pt(r, a1, yp), pt(r, a1, y), pt(r, a0, y));               // the riser
+      }
+      if (k === 18) continue;   // (the cross aisle)
+      for (let w = 0; w < 6; w++) {
+        const h = 0.75 / r, b0 = -A + (2 * A * w) / 6 + (w ? h : 0.02), b1 = -A + (2 * A * (w + 1)) / 6 - (w < 5 ? h : 0.02), n = Math.max(2, Math.round(((b1 - b0) * r) / 2));
+        const tint = 0.85 + ((k * 7 + w * 3) % 5) * 0.04;
+        for (let j = 0; j < n; j++) {
+          const a0 = b0 + ((b1 - b0) * j) / n, a1 = b0 + ((b1 - b0) * (j + 1)) / n;
+          quad(seat, pt(r + 0.12, a0, y + 0.42), pt(r + 0.12, a1, y + 0.42), pt(r + 0.52, a1, y + 0.42), pt(r + 0.52, a0, y + 0.42));
+          quad(seat, pt(r + 0.12, a0, y), pt(r + 0.12, a1, y), pt(r + 0.12, a1, y + 0.42), pt(r + 0.12, a0, y + 0.42));
+          quad(seat, pt(r + 0.52, a0, y + 0.42), pt(r + 0.52, a1, y + 0.42), pt(r + 0.62, a1, y + 0.9), pt(r + 0.62, a0, y + 0.9));   // (the backs)
+          for (let q = 0; q < 18; q++) seat.C.push(0.62 * tint, 0.08 * tint, 0.12 * tint);
+        }
+        for (let a = b0 + 0.3 / r; a < b1; a += 0.56 / r) amphi.seats.push([C + (r + 0.35) * Math.cos(a), (r + 0.35) * Math.sin(a), y, a]);
+      }
+    }
+    // the lawn: from the top row up a gentle slope, then down the bank behind to the ground
+    const lawnY = (r) => (r < 66 ? YT + (r - RT) * 0.07 : Math.max(0, (YT + (66 - RT) * 0.07) * (1 - (r - 66) / 9)));
+    const LR = []; for (let r = RT; r <= 75.01; r += 1.5) LR.push(r);
+    for (let i = 0; i < LR.length - 1; i++) for (let j = 0; j < SEG; j++) {
+      const a0 = -A + (2 * A * j) / SEG, a1 = -A + (2 * A * (j + 1)) / SEG, p = [pt(LR[i], a0, lawnY(LR[i])), pt(LR[i], a1, lawnY(LR[i])), pt(LR[i + 1], a1, lawnY(LR[i + 1])), pt(LR[i + 1], a0, lawnY(LR[i + 1]))];
+      quad(lawn, ...p); for (const v of [p[0], p[1], p[2], p[0], p[2], p[3]]) lawn.U.push(v[0] / 9, v[2] / 9);
+    }
+    for (let r = RT + 1; r < 70; r += 1.1) for (let a = -A + 0.02; a < A; a += 1.0 / r) amphi.lawn.push([C + r * Math.cos(a), r * Math.sin(a), lawnY(r), a]);
+    for (const s of [-1, 1]) {   // (its flanks: grass banks from the bowl's edge down to the ground, as steep as a lawn mows)
+      const prof = []; for (let k = 0; k < NR; k++) prof.push([R0 + k * RD + RD / 2, yR(k)]); for (const r of LR) prof.push([r, lawnY(r)]);
+      for (let i = 0; i < prof.length - 1; i++) {
+        const [ra, ha] = prof[i], [rb, hb] = prof[i + 1], p = [pt(ra, s * A, ha), pt(rb, s * A, hb), pt(rb, s * (A + (hb * 2.6) / rb), -0.05), pt(ra, s * (A + (ha * 2.6) / ra), -0.05)];
+        quad(lawn, ...p); for (const v of [p[0], p[1], p[2], p[0], p[2], p[3]]) lawn.U.push(v[0] / 9, v[2] / 9);
+      }
+    }
+    const geoOf = (o, extra) => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(o.P, 3)); if (extra) extra(g); g.computeVertexNormals(); return g; };
+    Pz.add(new THREE.Mesh(geoOf(conc), new THREE.MeshStandardMaterial({ color: 0xc9c3b6, roughness: 0.9, side: THREE.DoubleSide })));
+    Pz.add(new THREE.Mesh(geoOf(seat, (g) => g.setAttribute('color', new THREE.Float32BufferAttribute(seat.C, 3))), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, side: THREE.DoubleSide })));
+    Pz.add(new THREE.Mesh(geoOf(lawn, (g) => g.setAttribute('uv', new THREE.Float32BufferAttribute(lawn.U, 2))), new THREE.MeshStandardMaterial({ map: grassTex(), color: 0xb8d090, roughness: 1, side: THREE.DoubleSide })));
     // the Grand Plaza: pale concrete beyond the lawn, and the long reflecting pool at its far end
     const plaza = new THREE.Mesh(new THREE.BoxGeometry(150, 0.2, 60), new THREE.MeshStandardMaterial({ color: 0xc9c4b8, roughness: 0.85 })); plaza.position.set(190, 0.08, 0); Pz.add(plaza);
     const pool = new THREE.Mesh(new THREE.BoxGeometry(80, 0.25, 14), new THREE.MeshStandardMaterial({ color: 0x3f6f8e, roughness: 0.08, metalness: 0.5, envMapIntensity: 1.6 })); pool.position.set(225, 0.12, 0); Pz.add(pool);
@@ -122,21 +205,154 @@ export function buildAustin(geo, track, def, pit) {
     for (const m of [plaza, pool]) { const c = new THREE.Vector3(m.position.x, 0, 0).applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw); if (corridorSigned(tr, pit, tx + c.x, tz + c.z, 40) < 0) m.visible = false; }
     group.add(Pz);
     solid.push([tx, tz, 16]);
-    const at = (u) => [tx + Math.cos(yaw) * u, tz - Math.sin(yaw) * u]; solid.push([...at(35), 45], [...at(190), 70]);
+    const at = (u) => [tx + Math.cos(yaw) * u, tz - Math.sin(yaw) * u]; solid.push([...at(30), 22], [...at(C + 30), 50], [...at(190), 70]);
   }
 
-  // ---- the Paddock Club: two storeys of glass on top of the pit building, white floor slabs and roof, the red tube along
-  //      its front edge (as the red steel frames the main grandstand across the track)
+  // ---- the pit building: the garages below (world/PitLane.js), and over them the Paddock Club - three open terraces
+  //      stacked up the front, people along every rail, glass behind them, the yellow banner along the first floor's
+  //      edge, and over it all the white roof's deep overhang, the plant on top. Along the straight part of the lane
+  //      (the lane's curve in from Turn 20 keeps just its garages); the red block at its Turn 20 end
+  const paddockFans = [];
   if (pit) {
-    const ps = pit.samples, gs = -pit.trackSide, hw = pit.halfWidth, inB = (i) => i >= pit.wallStartI + 3 && i <= pit.wallEndI - 3;
+    const ps = pit.samples, gs = -pit.trackSide, hw = pit.halfWidth;
+    const mid = pit.boxes[Math.floor(pit.boxes.length / 2)].i, h0 = Math.atan2(ps.tz[mid], ps.tx[mid]);
+    const straight = (i) => { let d = Math.atan2(ps.tz[i], ps.tx[i]) - h0; d = Math.atan2(Math.sin(d), Math.cos(d)); return Math.abs(d) < 0.035; };
+    let i0 = mid, i1 = mid; while (i0 > pit.wallStartI + 3 && straight(i0 - 1)) i0--; while (i1 < pit.wallEndI - 3 && straight(i1 + 1)) i1++;
+    const inB = (i) => i >= i0 && i <= i1;
     const R = (a, b, y, o = {}) => ribbon(ps, () => gs * a, () => gs * b, y, { closed: false, mask: inB, uvV: 4, ...o });
-    const glassG = [R(hw + 1.6, hw + 1.6, 5.6, { yB: 13.0 })].filter((g) => g.index?.count);
-    const slabG = [R(hw + 0.8, hw + 20, 9.25), R(hw + 0.2, hw + 21, 13.25), R(hw + 1.2, hw + 20, 5.5), R(hw + 20, hw + 20, 0, { yB: 13.25 })].filter((g) => g.index?.count);
-    const redG = [R(hw + 0.2, hw + 0.2, 12.95, { yB: 13.6 }), R(hw + 0.8, hw + 0.8, 9.0, { yB: 9.5 })].filter((g) => g.index?.count);
-    const clean = (gs2) => gs2.map((g) => { for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal') g.deleteAttribute(k); if (!g.attributes.normal) g.computeVertexNormals(); return g; });
-    if (glassG.length) group.add(new THREE.Mesh(mergeGeometries(clean(glassG)), new THREE.MeshStandardMaterial({ color: 0x2b3d4e, roughness: 0.08, metalness: 0.8, emissive: 0x22303c, side: THREE.DoubleSide })));
-    if (slabG.length) group.add(new THREE.Mesh(mergeGeometries(clean(slabG)), new THREE.MeshStandardMaterial({ color: 0xeef0f2, roughness: 0.6, side: THREE.DoubleSide, emissive: 0x16171a })));
-    if (redG.length) group.add(new THREE.Mesh(mergeGeometries(clean(redG)), new THREE.MeshStandardMaterial({ color: 0xc8202b, roughness: 0.45, metalness: 0.35, side: THREE.DoubleSide })));
+    const D = hw + 1.2, BK = D + 23;   // (the garages' front; the building's back)
+    const LV = [[5.4, 6.0, D - 1.1, D + 3.2], [9.6, 10.2, D - 1.3, D + 3.8], [13.8, 14.4, D - 1.5, D + 4.4]];   // [slab bottom, top, front edge, glass line]
+    const slabs = [], fasc = [], glassW = [], rails = [], roof = [], yellow = [];
+    LV.forEach(([y0, y1, f, g], k) => {
+      slabs.push(R(f, BK, y1), R(f, BK, y0));                          // (the floor, its soffit)
+      (k ? fasc : yellow).push(R(f, f, y0, { yB: y1 + (k ? 0 : 0.25), uvFn: k ? null : (i) => -ps.s[i] / 18 }));
+      glassW.push(R(g, g, y1, { yB: k < 2 ? LV[k + 1][0] : 18.2 }));
+      rails.push(R(f + 0.12, f + 0.12, y1, { yB: y1 + 1.05 }));
+      for (let i = i0 + 2; i <= i1 - 2; i++) for (let r = 0; r < 3; r++) {
+        if (((i * 7 + r * 13 + k * 5) % 10) > 6) continue;
+        const d = f + 0.7 + r * 0.8 + ((i * 31 + r) % 7) * 0.05; if (d > g - 0.4) continue;
+        paddockFans.push([ps.px[i] + ps.nx[i] * gs * d, y1, ps.pz[i] + ps.nz[i] * gs * d, Math.atan2(-gs * ps.nx[i], -gs * ps.nz[i]) + (((i * 17 + r) % 9) - 4) * 0.05]);
+      }
+    });
+    roof.push(R(D - 4.2, BK + 0.6, 19.6), R(D - 4.2, BK + 0.6, 18.2), R(D - 4.2, D - 4.2, 18.2, { yB: 19.6 }), R(BK, BK, 0, { yB: 19.6 }));
+    const clean = (gs2) => mergeGeometries(gs2.filter((g) => g.index?.count).map((g) => { for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal' && k !== 'uv') g.deleteAttribute(k); if (!g.attributes.normal) g.computeVertexNormals(); return g; }));
+    const wmat = new THREE.MeshStandardMaterial({ color: 0xf2f2ef, roughness: 0.6, side: THREE.DoubleSide, emissive: 0x18181a });
+    group.add(new THREE.Mesh(clean([...slabs, ...fasc, ...roof]), wmat));
+    group.add(new THREE.Mesh(clean(glassW), new THREE.MeshStandardMaterial({ color: 0x25333f, roughness: 0.1, metalness: 0.8, emissive: 0x1d2a35, side: THREE.DoubleSide })));
+    group.add(new THREE.Mesh(clean(rails), new THREE.MeshStandardMaterial({ color: 0x9fb8c8, roughness: 0.05, metalness: 0.3, transparent: true, opacity: 0.35, side: THREE.DoubleSide, depthWrite: false })));
+    {   // the yellow banner along the first floor's edge
+      const c = document.createElement('canvas'); c.width = 64; c.height = 512; const x = c.getContext('2d');
+      x.fillStyle = '#f5c400'; x.fillRect(0, 0, 64, 512); x.fillStyle = '#111'; x.fillRect(0, 0, 6, 512); x.fillRect(58, 0, 6, 512);
+      x.save(); x.translate(32, 256); x.rotate(Math.PI / 2); x.font = '900 38px Arial'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('PIRELLI  ·  P ZERO', 0, 2); x.restore();
+      const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4;
+      group.add(new THREE.Mesh(clean(yellow), new THREE.MeshStandardMaterial({ map: t, roughness: 0.6, side: THREE.DoubleSide, emissive: 0x111111 })));
+    }
+    // the columns (every 16 m, at the terraces' front) and the plant on the roof
+    const cols = [], plant = [], put = (arr, w, h, d, i, off, y, rot = 0) => { const g = new THREE.BoxGeometry(w, h, d); g.rotateY(Math.atan2(ps.tx[i], ps.tz[i]) + rot); g.translate(ps.px[i] + ps.nx[i] * gs * off, y, ps.pz[i] + ps.nz[i] * gs * off); arr.push(keepPN(g)); };
+    const step = Math.max(1, Math.round(16 / ps.ds));
+    for (let i = i0 + 1; i <= i1; i += step) put(cols, 0.45, 13.2, 0.45, i, D - 0.6, 12.0);
+    for (let i = i0 + 4; i <= i1 - 4; i += Math.max(1, Math.round(9 / ps.ds))) { const k = (i * 13) % 7; put(plant, 4 + k * 0.5, 2.2 + (k % 3) * 0.6, 3 + (k % 2) * 2, i, D + 9 + (k % 4) * 2.5, 19.6 + 1.1 + (k % 3) * 0.3); }
+    group.add(new THREE.Mesh(mergeGeometries(cols), white));
+    group.add(new THREE.Mesh(mergeGeometries(plant), new THREE.MeshStandardMaterial({ color: 0xc9cdd1, roughness: 0.6, metalness: 0.3 })));
+    // the red block at the Turn 20 end, behind the garages: its name across the front
+    {
+      const e = Math.max(0, i0 - Math.round(30 / ps.ds)), i = e, ang = Math.atan2(ps.tx[i], ps.tz[i]), off = D + 6 + 9, len = 28;
+      const B = new THREE.Group(); B.position.set(ps.px[i] + ps.nx[i] * gs * off, 0, ps.pz[i] + ps.nz[i] * gs * off); B.rotation.y = ang;
+      const body = new THREE.Mesh(new THREE.BoxGeometry(18, 15, len), new THREE.MeshStandardMaterial({ color: 0xd2232e, roughness: 0.5 })); body.position.y = 6.5; B.add(body);
+      const c = document.createElement('canvas'); c.width = 512; c.height = 128; const x = c.getContext('2d'); x.fillStyle = '#d2232e'; x.fillRect(0, 0, 512, 128); x.fillStyle = '#fff'; x.font = '900 78px Arial'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('Lenovo', 256, 68);
+      const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+      const front = new THREE.Mesh(new THREE.PlaneGeometry(len * 0.8, len * 0.2), new THREE.MeshBasicMaterial({ map: t })); front.position.set(-gs * 9.05, 10.5, 0); front.rotation.y = -gs * Math.PI / 2; B.add(front);
+      group.add(B); solid.push([B.position.x, B.position.z, 18]);
+    }
+  }
+
+  // ---- the start gantry over the line: the MSC banner across the track on its black frame, the five lights over it
+  {
+    const s = 3, i = tr.idxAtS(s), f = tr.sample(s, 0), wl = tr.wallAt(i, 1) + 0.6, wr = tr.wallAt(i, -1) + 0.6, span = wl + wr;
+    const G = new THREE.Group(); G.name = 'scene:gantry'; G.position.set(f.x + f.nx * (wl - wr) / 2, TERRAIN.at(f.x, f.z), f.z + f.nz * (wl - wr) / 2); G.rotation.y = Math.atan2(-f.nz, f.nx); G.userData.onTerrain = true;
+    const blk = new THREE.MeshStandardMaterial({ color: 0x15171b, roughness: 0.6, metalness: 0.4 }), g = [], b = (w, h, d, x, y, z) => { const q = new THREE.BoxGeometry(w, h, d); q.translate(x, y, z); g.push(keepPN(q)); };
+    for (const x of [-span / 2, span / 2]) b(0.9, 9.5, 0.9, x, 4.75, 0);
+    b(span + 0.9, 2.4, 0.8, 0, 7.9, 0); b(3.6, 1.5, 0.7, 0, 9.85, 0);
+    G.add(new THREE.Mesh(mergeGeometries(g), blk));
+    const c = document.createElement('canvas'); c.width = 1024; c.height = 128; const x = c.getContext('2d');
+    x.fillStyle = '#0b1830'; x.fillRect(0, 0, 1024, 128);
+    for (let k = 0; k < 4; k++) { const cx = 128 + k * 256; x.strokeStyle = '#d9dde4'; x.lineWidth = 5; x.beginPath(); x.arc(cx - 66, 64, 26, 0, Math.PI * 2); x.stroke(); x.fillStyle = '#ffffff'; x.font = '900 54px Arial'; x.textAlign = 'left'; x.textBaseline = 'middle'; x.fillText('MSC', cx - 30, 58); x.font = '700 15px Arial'; x.fillText('CRUISES', cx - 26, 96); }
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+    for (const z of [-0.42, 0.42]) { const p = new THREE.Mesh(new THREE.PlaneGeometry(span, 2.2), new THREE.MeshStandardMaterial({ map: t, emissive: 0xffffff, emissiveMap: t, emissiveIntensity: 0.25, roughness: 0.5 })); p.position.set(0, 7.9, z); if (z < 0) p.rotation.y = Math.PI; G.add(p); }
+    const lamp = new THREE.MeshStandardMaterial({ color: 0x3a0a0a, emissive: 0x2a0000, roughness: 0.3 });
+    for (let k = 0; k < 5; k++) for (const z of [-0.36, 0.36]) { const l = new THREE.Mesh(new THREE.CircleGeometry(0.22, 12), lamp); l.position.set(-1.4 + k * 0.7, 9.85, z); if (z < 0) l.rotation.y = Math.PI; G.add(l); }
+    group.add(G);
+  }
+
+  // ---- the paint on the run-offs: the Texas flag, the size of a football pitch, straight on past Turn 12 where the back
+  //      straight's braking ends; red stars down the outside of the stadium's long right (Turns 16-18) and Turn 19
+  {
+    const hw = tr.halfWidth, kw = tr.kerbWidth, q0 = {};
+    const onRunoff = (x, z, pad = 0.8) => { const q = tr.nearest(x, z, -1, q0), side = q.d > 0 ? 1 : -1, a = Math.abs(q.d); return a > hw + kw + pad && a < tr.wallAt(q.i, side) - pad && (side > 0 ? tr.surfL[q.i] : tr.surfR[q.i]) === 1; };
+    const paintMat = (opts) => new THREE.MeshStandardMaterial({ roughness: 0.85, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4, ...opts });
+    const s12 = cornerS(12);
+    if (s12 != null) {
+      // (laid where the run-off is widest round the corner's outside: the spot, along the kerb, that holds most of it)
+      const W = 40, H = 24, CELL = 1.6, nu = Math.round(W / CELL), nv = Math.round(H / CELL), i12 = tr.idxAtS(s12), side = tr.wallAt(i12, 1) > tr.wallAt(i12, -1) ? 1 : -1;
+      let fa = null, cx = 0, cz = 0, best = -1;
+      const wpOf = (f, x0, z0) => (u, v) => [x0 + f.tx * (u - 0.5) * W + f.nx * (v - 0.5) * H, z0 + f.tz * (u - 0.5) * W + f.nz * (v - 0.5) * H];
+      for (let ds = -70; ds <= 70; ds += 10) for (let dd = 0; dd <= 24; dd += 4) {
+        const f = tr.sample(s12 + ds, side * (hw + kw + 2 + H / 2 + dd)), wp = wpOf(f, f.x, f.z); let n = 0;
+        for (let a2 = 0; a2 < nu; a2 += 2) for (let b2 = 0; b2 < nv; b2 += 2) { const m = wp((a2 + 0.5) / nu, (b2 + 0.5) / nv); if (onRunoff(m[0], m[1], 1.2)) n++; }
+        if (n > best) { best = n; fa = f; cx = f.x; cz = f.z; }
+      }
+      const c = document.createElement('canvas'); c.width = 768; c.height = 480; const x = c.getContext('2d');
+      x.fillStyle = '#eceae4'; x.fillRect(256, 0, 512, 240); x.fillStyle = '#b3242f'; x.fillRect(256, 240, 512, 240); x.fillStyle = '#163a78'; x.fillRect(0, 0, 256, 480);
+      x.fillStyle = '#eceae4'; x.beginPath(); for (let k = 0; k < 10; k++) { const a = -Math.PI / 2 + k * Math.PI / 5, r = k % 2 ? 34 : 86; (k ? x.lineTo : x.moveTo).call(x, 128 + Math.cos(a) * r, 240 + Math.sin(a) * r); } x.closePath(); x.fill();
+      const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8;
+      const P = [], U = [], wp = wpOf(fa, cx, cz);
+      for (let a = 0; a < nu; a++) for (let b2 = 0; b2 < nv; b2++) {
+        const u0 = a / nu, u1 = (a + 1) / nu, v0 = b2 / nv, v1 = (b2 + 1) / nv, m = wp((u0 + u1) / 2, (v0 + v1) / 2);
+        if (!onRunoff(m[0], m[1], 1.2)) continue;
+        const C4 = [[u0, v0], [u1, v0], [u1, v1], [u0, v1]];
+        for (const k of [0, 2, 1, 0, 3, 2]) { const [u, v] = C4[k], p = wp(u, v); P.push(p[0], 0.03, p[1]); U.push(1 - u, v); }
+      }
+      if (P.length) { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(U, 2)); g.computeVertexNormals(); group.add(new THREE.Mesh(g, paintMat({ map: tex, side: THREE.DoubleSide }))); }
+      console.info(`[austin] the Turn 12 flag: ${P.length / 18} of ${nu * nv} cells on the run-off`);
+    }
+    const shape = new THREE.Shape(); for (let k = 0; k < 10; k++) { const a = Math.PI / 2 + k * Math.PI / 5, r = k % 2 ? 0.4 : 1; (k ? shape.lineTo : shape.moveTo).call(shape, Math.cos(a) * r, Math.sin(a) * r); }
+    const base = new THREE.ShapeGeometry(shape); base.rotateX(-Math.PI / 2);
+    const stars = [];
+    for (const [t0, a0, t1, a1, side, size, gap] of [[16, -20, 18, 40, 1, 2.6, 13], [19, -60, 19, 50, -1, 2.4, 12], [20, -30, 20, 30, -1, 2.2, 11]]) {
+      const sA = cornerS(t0), sB = cornerS(t1); if (sA == null || sB == null) continue;
+      for (let s = sA + a0; s <= sB + a1; s += gap) {
+        const i = tr.idxAtS(s), wall = tr.wallAt(i, side); if (wall < hw + kw + size * 2 + 3) continue;
+        const d = Math.min(wall - size - 1.5, hw + kw + 2 + size + 3.4), f = tr.sample(s, side * d);
+        if (!onRunoff(f.x, f.z, size)) continue;
+        const g = base.clone(); g.scale(size, 1, size); g.rotateY(Math.atan2(f.tx, f.tz)); g.translate(f.x, 0.035, f.z); stars.push(keepPN(g));
+      }
+    }
+    if (stars.length) group.add(new THREE.Mesh(mergeGeometries(stars), paintMat({ color: 0xc0202e })));
+  }
+
+  // ---- the Tecovas hat: the giant cowboy hat on the plaza (crown 5 m, brim 18 m across on four black posts, the
+  //      boot-maker's name on its front) where the fans shelter out of the sun
+  if (towerAt) {
+    const Pz = group.getObjectByName('scene:plaza'), yaw = Pz.rotation.y, cy = Math.cos(yaw), sy = Math.sin(yaw);
+    const L = (u, v) => [towerAt[0] + cy * u + sy * v, towerAt[1] - sy * u + cy * v];
+    const spot = [[112, -58], [112, 58], [-34, 44], [-34, -44], [130, -48]].map(([u, v]) => L(u, v)).find(([x, z]) => corridorSigned(tr, pit, x, z, 14) > 0 && free(x, z, 10));
+    if (spot) {
+      const [hx, hz] = spot, q = tr.nearest(hx, hz), f = tr.sample(q.s, 0);
+      const H = new THREE.Group(); H.name = 'scene:hat'; H.position.set(hx, TERRAIN.at(hx, hz), hz); H.rotation.y = Math.atan2(f.x - hx, f.z - hz); H.userData.onTerrain = true;
+      const felt = new THREE.MeshStandardMaterial({ color: 0xe3d2aa, roughness: 0.85, side: THREE.DoubleSide });
+      const BY = 4.4, OZ = 0.84;
+      const crown = new THREE.LatheGeometry([[0.01, BY + 4.6], [1.6, BY + 5.0], [3.0, BY + 5.15], [3.75, BY + 4.7], [4.0, BY + 3.6], [4.12, BY + 1.8], [4.22, BY + 0.05]].map(([r, y]) => new THREE.Vector2(r, y)), 32); crown.scale(1, 1, OZ);
+      const brimP = [[4.15, BY + 0.02], [5.5, BY - 0.08], [7.2, BY - 0.02], [8.6, BY + 0.2], [9.2, BY + 0.45]].map(([r, y]) => new THREE.Vector2(r, y)), brim = new THREE.LatheGeometry(brimP, 48);
+      const bp = brim.attributes.position; for (let k = 0; k < bp.count; k++) { const X = bp.getX(k), Z = bp.getZ(k), r = Math.hypot(X, Z), e = Math.max(0, (r - 4.2) / 5); bp.setY(k, bp.getY(k) + 2.2 * (X / r) ** 2 * e * e); bp.setZ(k, Z * 0.9); } brim.computeVertexNormals();
+      H.add(new THREE.Mesh(crown, felt), new THREE.Mesh(brim, felt));
+      const band = new THREE.Mesh(new THREE.CylinderGeometry(4.24, 4.26, 0.7, 32, 1, true), new THREE.MeshStandardMaterial({ color: 0x6b4a2e, roughness: 0.7 })); band.scale.z = OZ; band.position.y = BY + 0.4; H.add(band);
+      const c = document.createElement('canvas'); c.width = 512; c.height = 96; const x = c.getContext('2d'); x.fillStyle = '#4a2f1c'; x.font = '700 76px Georgia, serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('TECOVAS', 256, 52);
+      const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+      const word = new THREE.Mesh(new THREE.CylinderGeometry(4.2, 4.2, 1.1, 24, 1, true, -0.75, 1.5), new THREE.MeshStandardMaterial({ map: t, transparent: true, roughness: 0.8, polygonOffset: true, polygonOffsetFactor: -2 })); word.scale.z = OZ * 1.004; word.scale.x = 1.004; word.position.y = BY + 2.3; H.add(word);
+      const posts = []; for (const [px, pz] of [[-5.6, -4.2], [5.6, -4.2], [-5.6, 4.2], [5.6, 4.2]]) { const g = new THREE.CylinderGeometry(0.18, 0.2, BY + 0.6, 8); g.translate(px, (BY + 0.6) / 2 - 0.5, pz); posts.push(keepPN(g)); }
+      H.add(new THREE.Mesh(mergeGeometries(posts), new THREE.MeshStandardMaterial({ color: 0x1c1c1e, roughness: 0.5, metalness: 0.5 })));
+      group.add(H); solid.push([hx, hz, 11]);
+    }
   }
 
   // ---- the pedestrian bridges over the track: at Turn 3 (across the whole circuit) and at Turn 16 (into the infield) -
@@ -287,11 +503,13 @@ export function buildAustin(geo, track, def, pit) {
       // (a real hill, not a wedge: up from the grass to a crest 3/4 of the way back, down again behind it, and eased
       //  into the ground over its last 30 m at either end - no cliffs or edges to see from the track)
       const sm = (v) => { v = Math.min(1, Math.max(0, v)); return v * v * (3 - 2 * v); };
-      const hAt = (s, u) => rise * (u < 0.75 ? sm(u / 0.75) : sm((1 - u) / 0.25)) * sm(Math.min(s - s0, s1 - s) / 30);
+      const qq = {}, hAt0 = (s, u) => rise * (u < 0.75 ? sm(u / 0.75) : sm((1 - u) / 0.25)) * sm(Math.min(s - s0, s1 - s) / 30);
+      // (and flat wherever it comes back near the track - inside a tight corner its offsets cross over the road's)
+      const hAt = (s, u, x, z) => { const q = tr.nearest(x, z, -1, qq), gap = Math.abs(q.d) - tr.wallAt(q.i, Math.sign(q.d) || 1); return hAt0(s, u) * sm((gap - 2) / 6); };
       const P = [], UV = [], I = [], rows = Math.ceil((d1 - d0) / 3) + 1; let cols = 0;
       for (let s = s0; s <= s1 + 0.1; s += 4) {
         const i = tr.idxAtS(s), w = tr.wallAt(i, side), f = tr.sample(s, 0);
-        for (let r = 0; r < rows; r++) { const u = r / (rows - 1), d = w + d0 + (d1 - d0) * u, x = f.x + f.nx * side * d, z = f.z + f.nz * side * d; P.push(x, hAt(s, u) - 0.05, z); UV.push(x / 9, z / 9); }
+        for (let r = 0; r < rows; r++) { const u = r / (rows - 1), d = w + d0 + (d1 - d0) * u, x = f.x + f.nx * side * d, z = f.z + f.nz * side * d; P.push(x, hAt(s, u, x, z) - 0.05, z); UV.push(x / 9, z / 9); }
         cols++;
       }
       for (let c = 0; c < cols - 1; c++) for (let r = 0; r < rows - 1; r++) { const a = c * rows + r, b = a + 1, cc = a + rows, d = cc + 1; if (side > 0) I.push(a, cc, b, b, cc, d); else I.push(a, b, cc, b, d, cc); }
@@ -302,7 +520,7 @@ export function buildAustin(geo, track, def, pit) {
           if (rnd() > fill) continue;
           const dd = w + d + (rnd() - 0.5) * 0.5, x = f.x + f.nx * side * dd + (rnd() - 0.5) * 0.4, z = f.z + f.nz * side * dd + (rnd() - 0.5) * 0.4;
           if (!free(x, z, 0.5)) continue;
-          const u = (d - d0) / (d1 - d0), y = hAt(s, u);
+          const u = (d - d0) / (d1 - d0), y = hAt(s, u, x, z);
           if (rnd() < 0.07) { picnic(x, y, z, ang); d += 1.2; continue; }
           sheets.push([x, y, z, ang + (rnd() - 0.5) * 0.5, stander()]);
         }
@@ -323,11 +541,12 @@ export function buildAustin(geo, track, def, pit) {
     if (towerAt) {
       const Pz = group.getObjectByName('scene:plaza'), yaw = Pz ? Pz.rotation.y : 0, cy = Math.cos(yaw), sy = Math.sin(yaw);
       const L = (u, v) => [towerAt[0] + cy * u + sy * v, towerAt[1] - sy * u + cy * v];
-      for (let k = 0; k < 2600; k++) {   // (the lawn: a fan of people facing back to the stage)
-        const a = (rnd() - 0.5) * Math.PI * 0.75, r = 18 + Math.sqrt(rnd()) * 52, u = 38 + Math.cos(a) * r, v = Math.sin(a) * r, [x, z] = L(u, v);
-        if (corridorSigned(tr, pit, x, z, 4) <= 0) continue;
-        const face = yaw + Math.PI / 2 + a + Math.PI + (rnd() - 0.5) * 0.3;
-        if (rnd() < 0.12) picnic(x, 0, z, face); else sheets.push([x, 0, z, face, stander()]);
+      // (in the bowl's seats, sitting, and on the lawn above: all facing the stage)
+      const face = (a) => { const dx = -Math.cos(a), dz = -Math.sin(a); return Math.atan2(cy * dx + sy * dz, -sy * dx + cy * dz); };
+      for (const [u, v, y, a] of amphi.seats) { if (rnd() > 0.55) continue; const [x, z] = L(u, v); sheets.push([x, y + 0.05, z, face(a) + (rnd() - 0.5) * 0.2, 8 + ((rnd() * 2) | 0)]); }
+      for (const [u, v, y, a] of amphi.lawn) {
+        if (rnd() > 0.6) continue; const [x, z] = L(u + (rnd() - 0.5) * 0.6, v + (rnd() - 0.5) * 0.6);
+        if (rnd() < 0.1) picnic(x, y, z, face(a)); else sheets.push([x, y, z, face(a) + (rnd() - 0.5) * 0.3, stander()]);
       }
       for (let k = 0; k < 1800; k++) { const [x, z] = L(110 + rnd() * 160, (rnd() - 0.5) * 70); if (corridorSigned(tr, pit, x, z, 4) > 0) sheets.push([x, 0, z, rnd() * Math.PI * 2, stander()]); }
       // food trucks and merchandise tents along the plaza's edges
@@ -357,6 +576,7 @@ export function buildAustin(geo, track, def, pit) {
     // the fans: one instanced quad each (one mesh per 400 m cell: whole cells cull), cut out of fanAtlas - ten people,
     // standing, cheering, filming, in a cap or a Stetson, sitting - each with their own shirt, trousers, skin and hair or
     // hat, from everyday colours (team shirts among them, not every one); the cheering ones bounce
+    for (const [x, y, z, a] of paddockFans) sheets.push([x, y, z, a, stander()]);
     fest.sheetMat = fanMaterial();
     const cells = new Map(); for (const sh of sheets) { const k = Math.floor(sh[0] / 400) * 1000 + Math.floor(sh[2] / 400); let a = cells.get(k); if (!a) cells.set(k, (a = [])); a.push(sh); }
     for (const list of cells.values()) { const im = fanMesh(list, fest.sheetMat, rnd); im.name = 'austin:fans'; group.add(im); }
@@ -391,12 +611,7 @@ export function buildAustin(geo, track, def, pit) {
       im.instanceMatrix.needsUpdate = true; im.computeBoundingSphere(); group.add(im);
     }
     if (berms.length) {
-      // (the same dry Texas grass as the field around it: a speckled canvas, tiled in world space)
-      const c = document.createElement('canvas'); c.width = c.height = 128; const g2 = c.getContext('2d'), r2 = rng(77);
-      g2.fillStyle = '#8c9450'; g2.fillRect(0, 0, 128, 128);
-      for (let k = 0; k < 2600; k++) { const t2 = r2(); g2.fillStyle = t2 < 0.45 ? '#7a8a40' : t2 < 0.8 ? '#a19a5c' : '#6b7a3a'; g2.fillRect(r2() * 128, r2() * 128, 1 + r2() * 2, 1 + r2() * 2); }
-      const tex = new THREE.CanvasTexture(c); tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.colorSpace = THREE.SRGBColorSpace;
-      group.add(new THREE.Mesh(mergeGeometries(berms), new THREE.MeshStandardMaterial({ map: tex, roughness: 1, side: THREE.DoubleSide })));
+      group.add(new THREE.Mesh(mergeGeometries(berms), new THREE.MeshStandardMaterial({ map: grassTex(), roughness: 1, side: THREE.DoubleSide })));
     }
     // flags in the crowd: team colours, the Stars and Stripes, the Lone Star - on poles above the banks, waving
     {

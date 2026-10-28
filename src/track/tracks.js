@@ -266,7 +266,8 @@ export const TRACKS = {
     // toward Turn 20; the straight climbs from here to the top of the hill at Turn 1)
     origin: [-97.6413604, 30.132933],
     // The lap from a GPS survey (tools: scratchpad build.py): the export's ways, Turn 1 to Turn 18, chained into one
-    // closed way; Turns 19 and 20 are not in it and are drawn between the end of Turn 18 and the main straight. Every
+    // closed way; Turns 19 and 20 (not in it) from the circuit's OpenStreetMap outline - the left kink, the straight
+    // run down to the Turn 20 left and onto the main straight - their height eased between the two ends. Every
     // point carries its height: 155 m on the line, 182 m on top of the hill at Turn 1 - and the ground around the
     // circuit follows it (world/Terrain.js)
     ways: ['way/cota-circuit'],
@@ -311,7 +312,7 @@ export const TRACKS = {
       { turns: [9, 10], stripes: [[0.06, 0.2, 0.5], [0.9, 0.9, 0.92], [0.72, 0.09, 0.16], [0.9, 0.9, 0.92]], w: 2.6, bands: 16 },
       { turns: [11], stripes: [[0.72, 0.09, 0.16], [0.9, 0.9, 0.92], [0.06, 0.2, 0.5], [0.9, 0.9, 0.92]], w: 3, bands: 20 },
       { turns: [12], stripes: [[0.06, 0.2, 0.5], [0.9, 0.9, 0.92], [0.72, 0.09, 0.16], [0.9, 0.9, 0.92]], w: 2.6, bands: 18 },
-      { turns: [15, 16, 17], stripes: [[0.72, 0.09, 0.16], [0.9, 0.9, 0.92], [0.06, 0.2, 0.5], [0.9, 0.9, 0.92]], w: 2.4, bands: 16 },
+      { turns: [15, 16, 17, 18], stripes: [[0.72, 0.09, 0.16], [0.9, 0.9, 0.92], [0.06, 0.2, 0.5], [0.9, 0.9, 0.92]], w: 2.4, bands: 16 },
       { turns: [19, 20], stripes: [[0.06, 0.2, 0.5], [0.9, 0.9, 0.92], [0.72, 0.09, 0.16], [0.9, 0.9, 0.92]], w: 2.4, bands: 16 },
     ],
     runoffDecalTurns: [11, 12, 20],
@@ -339,8 +340,8 @@ export const TRACKS = {
       { n: 16, name: 'Turn 16', ll: [-97.6377833, 30.1364851] },
       { n: 17, name: 'Turn 17', ll: [-97.6368894, 30.1343766] },
       { n: 18, name: 'Turn 18', ll: [-97.6385592, 30.1336905] },
-      { n: 19, name: 'Turn 19', ll: [-97.6413077, 30.1354950] },
-      { n: 20, name: 'Turn 20', ll: [-97.6433643, 30.1348981] },
+      { n: 19, name: 'Turn 19', ll: [-97.6408000, 30.1355270] },
+      { n: 20, name: 'Turn 20', ll: [-97.6434630, 30.1344190] },
     ],
     landmarkAnchors: {},
   },

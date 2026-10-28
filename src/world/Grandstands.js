@@ -141,7 +141,7 @@ export function buildGrandstands(track, pit, obstacles, opts = {}) {
   if (structure.length) {
     group.add(new THREE.Mesh(merge(structure), new THREE.MeshStandardMaterial({ color: 0x8a8f99, roughness: 0.85, emissive: 0x0d0f14, emissiveIntensity: 1 })));
     if (canopies.length) group.add(new THREE.Mesh(merge(canopies), new THREE.MeshStandardMaterial({ color: 0xe8ecf2, roughness: 0.6, side: THREE.DoubleSide, emissive: 0x1a1c22, emissiveIntensity: 1 })));
-    if (membranes.length) group.add(new THREE.Mesh(merge(membranes), new THREE.MeshStandardMaterial({ color: 0xf6f6f2, roughness: 0.5, side: THREE.DoubleSide, transparent: true, opacity: 0.78, emissive: 0x2a2a28, depthWrite: false })));
+    if (membranes.length) group.add(new THREE.Mesh(merge(membranes), new THREE.MeshStandardMaterial({ color: 0xf6f6f2, roughness: 0.5, side: THREE.DoubleSide, transparent: true, opacity: 0.85, emissive: 0x7a7a76, depthWrite: false })));
     if (reds.length) group.add(new THREE.Mesh(merge(reds), new THREE.MeshStandardMaterial({ color: 0xc8202b, roughness: 0.45, metalness: 0.35, emissive: 0x2a0608 })));
     if (glass.length) group.add(new THREE.Mesh(merge(glass), new THREE.MeshStandardMaterial({ color: 0x2b3d4e, roughness: 0.1, metalness: 0.7, emissive: 0x1d2a36 })));
     if (plinths.length) group.add(new THREE.Mesh(merge(plinths), new THREE.MeshStandardMaterial({ color: 0x2a3a5c, roughness: 0.9 })));
