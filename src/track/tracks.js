@@ -299,7 +299,7 @@ export const TRACKS = {
     autoStands: false,
     scenery: 'austin',              // world/Austin.js: the tower and its red veil, the amphitheatre, the Texas flag, the stands, the oaks
     defaultBuildingHeight: 6,
-    buildingStyle: { base: 0x9a948a, litProb: 0.08 },
+    buildingStyle: { base: 0xb4b0a8, litProb: 0.08, cellW: 9, cellH: 6 },   // (the circuit's low white support buildings: few, wide windows)
     zoneSeq: [21, 22, 12, 5, 21, 23, 1, 24, 22, 19, 12, 21, 25, 14],
     // the boards: Archer round the stadium section (Turns 12-15), Rolex along the Esses, the stripes at Turn 1
     sponsorZones: [{ panel: 21, fromTurn: 12, toTurn: 15, before: 60, after: 40 }, { panel: 12, fromTurn: 3, toTurn: 6, before: 40, after: 40 }, { panel: 25, fromTurn: 1, toTurn: 1, before: 140, after: 60 }],

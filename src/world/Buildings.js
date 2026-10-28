@@ -135,7 +135,7 @@ export function buildGenericBuildings(geo, track, skipIds, pit = null) {
     geos.push(g); count++;
   }
   const style = geo.def.buildingStyle || {};
-  const mat = makeWindowMaterial({ base: style.base ?? 0x2b303b, litProb: style.litProb ?? 0.38, useVertexColor: true });
+  const mat = makeWindowMaterial({ base: style.base ?? 0x2b303b, litProb: style.litProb ?? 0.38, cellW: style.cellW ?? 4.0, cellH: style.cellH ?? 3.5, useVertexColor: true });
   const group = new THREE.Group(); group.name = 'buildings'; group.material = mat;   // shared material (uTime is driven from main)
   const cells = new Map(); for (const g of geos) { const k = g.userData.cell; if (!cells.has(k)) cells.set(k, []); cells.get(k).push(g); }
   for (const gs of cells.values()) { const mesh = new THREE.Mesh(mergeGeometries(gs, false), mat); mesh.geometry.computeBoundingSphere(); group.add(mesh); }

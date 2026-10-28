@@ -77129,7 +77129,7 @@ const TRACKS = {
     autoStands: false,
     scenery: 'austin',              // world/Austin.js: the tower and its red veil, the amphitheatre, the Texas flag, the stands, the oaks
     defaultBuildingHeight: 6,
-    buildingStyle: { base: 0x9a948a, litProb: 0.08 },
+    buildingStyle: { base: 0xb4b0a8, litProb: 0.08, cellW: 9, cellH: 6 },   // (the circuit's low white support buildings: few, wide windows)
     zoneSeq: [21, 22, 12, 5, 21, 23, 1, 24, 22, 19, 12, 21, 25, 14],
     // the boards: Archer round the stadium section (Turns 12-15), Rolex along the Esses, the stripes at Turn 1
     sponsorZones: [{ panel: 21, fromTurn: 12, toTurn: 15, before: 60, after: 40 }, { panel: 12, fromTurn: 3, toTurn: 6, before: 40, after: 40 }, { panel: 25, fromTurn: 1, toTurn: 1, before: 140, after: 60 }],
@@ -79912,7 +79912,7 @@ function buildGenericBuildings(geo, track, skipIds, pit = null) {
     geos.push(g); count++;
   }
   const style = geo.def.buildingStyle || {};
-  const mat = makeWindowMaterial({ base: style.base ?? 0x2b303b, litProb: style.litProb ?? 0.38, useVertexColor: true });
+  const mat = makeWindowMaterial({ base: style.base ?? 0x2b303b, litProb: style.litProb ?? 0.38, cellW: style.cellW ?? 4.0, cellH: style.cellH ?? 3.5, useVertexColor: true });
   const group = new THREE.Group(); group.name = 'buildings'; group.material = mat;   // shared material (uTime is driven from main)
   const cells = new Map(); for (const g of geos) { const k = g.userData.cell; if (!cells.has(k)) cells.set(k, []); cells.get(k).push(g); }
   for (const gs of cells.values()) { const mesh = new THREE.Mesh(mergeGeometries(gs, false), mat); mesh.geometry.computeBoundingSphere(); group.add(mesh); }
@@ -80841,17 +80841,380 @@ function buildPitBoxes(pit, teams) {
 return { buildPitBoxes };
 })();
 
+// ---- src/world/Terrain.js
+__m['src/world/Terrain.js'] = (() => {
+
+// The ground's height, for a circuit that is not flat (tracks.js def.elevation: the circuit way in its GeoJSON carries
+// each point's height as a third coordinate - Austin's hill up to Turn 1). Everything else in the game is laid out flat,
+// on (x, z): the physics, the AI, the barriers, the stands. The heights are added on top of that, in one place:
+//   * the circuit's own heights, along the lap (smoothed, relative to the start/finish line);
+//   * a height field over the whole venue: the road and a strip either side of it held at the circuit's height, and the
+//     ground between the parts of the lap and out to the horizon a harmonic surface through them (each point the mean of
+//     its neighbours: no bumps, no steps - the slopes run smoothly from one part of the circuit to the next and level out
+//     towards the edge), solved coarse-to-fine on a grid;
+//   * the static world raised onto it once it is built (elevateWorld: every vertex of the road, the kerbs, the barriers,
+//     the stands and the buildings by the ground under it; every instance - a tree, a fan - by the ground under its foot);
+//     a ground mesh of its own (terrainGround) replaces the flat plane near the circuit;
+//   * what moves reads it every frame: the car models (height, pitch and roll from the slope: CarMesh), the camera (main.js
+//     renderView: lifted with what it looks at), the physics (gravity along the slope: Car).
+// With no elevation TERRAIN.on is false and at() is 0: nothing changes anywhere.
+
+const CELL = 8;          // the height field's grid (m)
+const HOLD = 9;          // metres of ground either side of the road held at the circuit's height (the verge, the kerbs)
+const MARGIN = 1400;     // how far the field reaches beyond the circuit (then the flat plane, at the field's edge height)
+
+/** the venue's ground: on, at(x, z) (bilinear), grad(x, z) -> [dh/dx, dh/dz], edge (the height the field levels out to) */
+const TERRAIN = { on: false, edge: 0, at: () => 0, grad: (x, z, out = [0, 0]) => { out[0] = out[1] = 0; return out; } };
+
+/** the circuit's heights along the lap: per track sample, from the circuit way's third coordinates, smoothed (sigma
+ *  20 m) and relative to the start/finish line -> Float32Array | null */
+function trackHeights(track, pts, sigma = 20) {
+  if (!pts || pts.length < 4 || pts.every((p) => p[2] == null)) return null;
+  const n = track.n, raw = new Float32Array(n);
+  // (each sample: the height of the nearest point of the way, interpolated along the segment it is nearest)
+  for (let i = 0; i < n; i++) {
+    const x = track.px[i], z = track.pz[i]; let best = Infinity, h = 0;
+    for (let k = 0; k < pts.length - 1; k++) {
+      const a = pts[k], b = pts[k + 1], dx = b[0] - a[0], dz = b[1] - a[1], L2 = dx * dx + dz * dz || 1;
+      const t = Math.max(0, Math.min(1, ((x - a[0]) * dx + (z - a[1]) * dz) / L2)), qx = a[0] + dx * t - x, qz = a[1] + dz * t - z, d2 = qx * qx + qz * qz;
+      if (d2 < best) { best = d2; h = (a[2] ?? 0) + ((b[2] ?? a[2] ?? 0) - (a[2] ?? 0)) * t; }
+    }
+    raw[i] = h;
+  }
+  const r = Math.ceil((3 * sigma) / track.ds), out = new Float32Array(n);
+  for (let i = 0; i < n; i++) { let s = 0, w = 0; for (let k = -r; k <= r; k++) { const g = Math.exp(-((k * track.ds) ** 2) / (2 * sigma * sigma)); s += raw[(i + k + n) % n] * g; w += g; } out[i] = s / w; }
+  const h0 = out[0]; for (let i = 0; i < n; i++) out[i] -= h0;
+  return out;
+}
+
+/**
+ * The height field over the venue: the road and HOLD m either side at the circuit's height (the nearest part of the lap
+ * where two parts come close), harmonic everywhere else with the field's border just below the lap's lowest point. Solved on
+ * a 32 m grid, then 16 m, then 8 m (each level started from the one before), Gauss-Seidel with over-relaxation.
+ */
+function buildHeightField(track, h) {
+  let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity, mean = 0;
+  for (let i = 0; i < track.n; i++) { x0 = Math.min(x0, track.px[i]); x1 = Math.max(x1, track.px[i]); z0 = Math.min(z0, track.pz[i]); z1 = Math.max(z1, track.pz[i]); mean += h[i]; }
+  mean /= track.n; let lo = Infinity; for (let i = 0; i < track.n; i++) lo = Math.min(lo, h[i]); const edge = lo - 1.5;   // (the far edge: below the lowest point of the lap - the flat plane beyond it must never stand over the road)
+  x0 -= MARGIN; z0 -= MARGIN; x1 += MARGIN; z1 += MARGIN;
+  const hold = track.halfWidth + HOLD;
+  const level = (cell, prev) => {
+    const nx = Math.ceil((x1 - x0) / cell) + 1, nz = Math.ceil((z1 - z0) / cell) + 1, H = new Float32Array(nx * nz), fixed = new Uint8Array(nx * nz);
+    // (the start: the coarser level's solution, or the mean)
+    for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) H[j * nx + i] = prev ? prev.at(x0 + i * cell, z0 + j * cell) : mean;
+    // (the circuit's strip: every cell within `hold` of a sample takes the nearest sample's height)
+    const best = new Float32Array(nx * nz).fill(Infinity), r = Math.ceil(hold / cell) + 1;
+    for (let s = 0; s < track.n; s++) {
+      const ci = Math.round((track.px[s] - x0) / cell), cj = Math.round((track.pz[s] - z0) / cell);
+      for (let dj = -r; dj <= r; dj++) for (let di = -r; di <= r; di++) {
+        const i = ci + di, j = cj + dj; if (i < 0 || j < 0 || i >= nx || j >= nz) continue;
+        const d2 = (x0 + i * cell - track.px[s]) ** 2 + (z0 + j * cell - track.pz[s]) ** 2, k = j * nx + i;
+        if (d2 <= hold * hold && d2 < best[k]) { best[k] = d2; H[k] = h[s]; fixed[k] = 1; }
+      }
+    }
+    for (let i = 0; i < nx; i++) { fixed[i] = fixed[(nz - 1) * nx + i] = 2; H[i] = H[(nz - 1) * nx + i] = edge; }
+    for (let j = 0; j < nz; j++) { fixed[j * nx] = fixed[j * nx + nx - 1] = 2; H[j * nx] = H[j * nx + nx - 1] = edge; }
+    const iters = prev ? 160 : 700, w = 1.85;
+    for (let it = 0; it < iters; it++) {
+      for (let j = 1; j < nz - 1; j++) for (let i = 1; i < nx - 1; i++) {
+        const k = j * nx + i; if (fixed[k]) continue;
+        H[k] += w * ((H[k - 1] + H[k + 1] + H[k - nx] + H[k + nx]) * 0.25 - H[k]);
+      }
+    }
+    const F = field(H, nx, nz, cell); F.fixed = fixed; return F;
+  };
+  const field = (H, nx, nz, cell) => ({
+    H, nx, nz, cell, x0, z0,
+    at(x, z) {
+      const u = Math.max(0, Math.min(nx - 1.001, (x - x0) / cell)), v = Math.max(0, Math.min(nz - 1.001, (z - z0) / cell));
+      const i = Math.floor(u), j = Math.floor(v), fu = u - i, fv = v - j, k = j * nx + i;
+      return (H[k] * (1 - fu) + H[k + 1] * fu) * (1 - fv) + (H[k + nx] * (1 - fu) + H[k + nx + 1] * fu) * fv;
+    },
+  });
+  let F = null; for (const cell of [CELL * 4, CELL * 2, CELL]) F = level(cell, F);
+  F.edge = edge;
+  return F;
+}
+
+/** switch the venue's ground on (a height field) or off (null) */
+function setTerrain(F, track = null) {
+  if (!F) { TERRAIN.on = false; TERRAIN.edge = 0; TERRAIN.at = () => 0; TERRAIN.grad = (x, z, out = [0, 0]) => { out[0] = out[1] = 0; return out; }; TERRAIN.field = null; TERRAIN.road = null; return; }
+  const e = 1.5;
+  TERRAIN.on = true; TERRAIN.edge = F.edge; TERRAIN.field = F;
+  // near the circuit, its own height exactly (the grid's 8 m cells would let the ground cut corners off the road over a
+  // crest or into a dip): by the nearest point of the lap, out to the edge of the strip held at its height, then
+  // blended into the field over the last 6 m of it
+  const h = track?.h, q = {}, hold = (track?.halfWidth || 0) + HOLD; let hint = -1;
+  const nearStrip = (x, z) => { const i = Math.floor((x - F.x0) / F.cell), j = Math.floor((z - F.z0) / F.cell); if (i < 0 || j < 0 || i >= F.nx - 1 || j >= F.nz - 1) return false; const k = j * F.nx + i; return F.fixed[k] === 1 || F.fixed[k + 1] === 1 || F.fixed[k + F.nx] === 1 || F.fixed[k + F.nx + 1] === 1; };
+  TERRAIN.road = h ? (x, z, out = q) => {   // -> { h (the circuit's height there), d (offset from the centreline), s } | null
+    if (!nearStrip(x, z)) return null;
+    track.nearest(x, z, hint, out); hint = out.i; if (!(Math.abs(out.d) <= hold)) return null;
+    const u = track.wrapS(out.s) / track.ds, i0 = Math.floor(u) % track.n, f = u - Math.floor(u); out.h = h[i0] + (h[(i0 + 1) % track.n] - h[i0]) * f; return out;
+  } : null;
+  TERRAIN.at = (x, z) => {
+    const fv = F.at(x, z), r = TERRAIN.road?.(x, z); if (!r) return fv;
+    const w = Math.max(0, Math.min(1, (Math.abs(r.d) - (hold - 6)) / 6)); return r.h + (fv - r.h) * w * w * (3 - 2 * w);
+  };
+  TERRAIN.grad = (x, z, out = [0, 0]) => { out[0] = (F.at(x + e, z) - F.at(x - e, z)) / (2 * e); out[1] = (F.at(x, z + e) - F.at(x, z - e)) / (2 * e); return out; };
+}
+
+// ---- the static world onto the ground ---------------------------------------------------------------------------------
+const _v = new THREE.Vector3(), _w = new THREE.Vector3(), _m = new THREE.Matrix4(), _mi = new THREE.Matrix4(), _p = new THREE.Vector3(), _q = new THREE.Quaternion(), _s = new THREE.Vector3();
+
+/** a flat, large mesh (a car park, an apron drawn as a few big triangles) is cut up first, so it can follow the ground:
+ *  every edge longer than `max` metres split in two, as often as it takes (an indexed geometry: position, normal, uv) */
+function tessellate(g, max, mw) {
+  if (!g.index || g.morphAttributes?.position) return g;
+  const attrs = Object.keys(g.attributes), P = g.attributes.position;
+  const data = Object.fromEntries(attrs.map((a) => [a, Array.from(g.attributes[a].array)])), size = Object.fromEntries(attrs.map((a) => [a, g.attributes[a].itemSize]));
+  let tris = Array.from(g.index.array), changed = false;
+  const wp = (k) => _w.set(data.position[k * 3], data.position[k * 3 + 1], data.position[k * 3 + 2]).applyMatrix4(mw).clone();
+  const mid = new Map(), split = (a, b) => {
+    const key = a < b ? `${a}_${b}` : `${b}_${a}`; let m = mid.get(key); if (m != null) return m;
+    m = data.position.length / 3; for (const at of attrs) { const s = size[at]; for (let c = 0; c < s; c++) data[at].push((data[at][a * s + c] + data[at][b * s + c]) / 2); }
+    mid.set(key, m); return m;
+  };
+  for (let pass = 0; pass < 6; pass++) {
+    const out = []; let any = false;
+    for (let t = 0; t < tris.length; t += 3) {
+      const a = tris[t], b = tris[t + 1], c = tris[t + 2], A = wp(a), B = wp(b), C = wp(c);
+      const ab = Math.hypot(A.x - B.x, A.z - B.z), bc = Math.hypot(B.x - C.x, B.z - C.z), ca = Math.hypot(C.x - A.x, C.z - A.z), L = Math.max(ab, bc, ca);
+      if (L <= max || data.position.length > 3 * 400000) { out.push(a, b, c); continue; }
+      any = true;
+      if (L === ab) { const m = split(a, b); out.push(a, m, c, m, b, c); } else if (L === bc) { const m = split(b, c); out.push(a, b, m, a, m, c); } else { const m = split(c, a); out.push(a, b, m, m, b, c); }
+    }
+    tris = out; if (!any) break; changed = true;
+  }
+  if (!changed) return g;
+  const ng = new THREE.BufferGeometry();
+  for (const at of attrs) ng.setAttribute(at, new THREE.Float32BufferAttribute(data[at], size[at]));
+  ng.setIndex(tris); for (const gr of g.groups) ng.addGroup(gr.start, gr.count, gr.materialIndex);
+  return ng;
+}
+
+/**
+ * Raise the static world onto the ground: every object under `roots` that is not already on it (userData.onTerrain) or
+ * kept off it (userData.noTerrain). A mesh by its own vertices (each by the ground under it, in world space - so a long
+ * grandstand follows the slope it stands on; a shared geometry by the ground under the mesh's origin instead); an
+ * instanced mesh by each instance's origin; a light, a sprite or a point by where it is. Groups are never moved (only the
+ * leaves): each thing exactly once.
+ */
+function elevateWorld(roots) {
+  if (!TERRAIN.on) return 0;
+  const users = new Map(), done = new Set(); let n = 0;   // (done: vertex buffers already raised - spatialChunks' tiles share one)
+  for (const r of roots) r.traverse((o) => { if (o.isMesh && o.geometry && !o.isInstancedMesh) users.set(o.geometry, (users.get(o.geometry) || 0) + 1); });
+  const lift = (o) => {   // (an object's own position: by the ground under its world position)
+    o.getWorldPosition(_p); const dy = TERRAIN.at(_p.x, _p.z);
+    _v.copy(_p); _v.y += dy; if (o.parent) o.parent.worldToLocal(_v); o.position.copy(_v); o.updateMatrixWorld(true);
+  };
+  for (const r of roots) {
+    r.updateMatrixWorld(true);
+    const stack = [r];
+    while (stack.length) {
+      const o = stack.pop();
+      if (o.userData?.noTerrain || o.userData?.onTerrain) continue;
+      if (o.isInstancedMesh) {
+        const N = o.count, M = o.instanceMatrix;
+        for (let k = 0; k < N; k++) {
+          o.getMatrixAt(k, _m); _m.decompose(_p, _q, _s);
+          _v.copy(_p).applyMatrix4(o.matrixWorld); const dy = TERRAIN.at(_v.x, _v.z);
+          _w.copy(_v); _w.y += dy; _mi.copy(o.matrixWorld).invert(); _w.applyMatrix4(_mi);
+          _m.compose(_w, _q, _s); o.setMatrixAt(k, _m);
+        }
+        M.needsUpdate = true; o.computeBoundingSphere?.(); o.computeBoundingBox?.(); n++;
+      } else if (o.isMesh && o.geometry?.attributes?.position && !o.isSkinnedMesh) {
+        if ((users.get(o.geometry) || 0) > 1) { lift(o); n++; }
+        else {
+          o.updateMatrixWorld(true);
+          // (a flat mesh with long edges is cut up first: a big triangle cannot bend over the ground)
+          const g0 = o.geometry, ranged = isFinite(g0.drawRange.count) || done.has(g0.attributes.position.array);
+          let g = g0;
+          if (!ranged) { g0.computeBoundingBox?.(); const bb = g0.boundingBox; if (bb && (bb.max.y - bb.min.y) < 2.5) { g = tessellate(g0, 10, o.matrixWorld); if (g !== g0) { o.geometry = g; g0.dispose(); } } }
+          const P = g.attributes.position;
+          if (!done.has(P.array)) {
+            done.add(P.array); _mi.copy(o.matrixWorld).invert();
+            for (let k = 0; k < P.count; k++) { _v.fromBufferAttribute(P, k).applyMatrix4(o.matrixWorld); _v.y += TERRAIN.at(_v.x, _v.z); _v.applyMatrix4(_mi); P.setXYZ(k, _v.x, _v.y, _v.z); }
+            P.needsUpdate = true;
+          }
+          if (isFinite(g.drawRange.count) && g.index) {   // (a tile: its own bounds, over its own triangles)
+            const I = g.index.array, bb = new THREE.Box3();
+            for (let i = g.drawRange.start; i < g.drawRange.start + g.drawRange.count; i++) bb.expandByPoint(_v.fromBufferAttribute(P, I[i]));
+            g.boundingBox = bb; g.boundingSphere = bb.getBoundingSphere(new THREE.Sphere()); g.boundingSphere.radius += 1;
+          } else { g.computeBoundingBox(); g.computeBoundingSphere(); }
+          n++;
+        }
+        o.userData.onTerrain = true;
+      } else if (o.isLight || o.isSprite || o.isPoints) {
+        if (!(o.isDirectionalLight || o.isHemisphereLight || o.isAmbientLight)) { lift(o); if (o.target && o.target.parent == null) { o.target.position.y += TERRAIN.at(o.target.position.x, o.target.position.z); o.target.updateMatrixWorld(); } n++; }
+      }
+      if (!o.isInstancedMesh) for (const c of o.children) stack.push(c);
+    }
+  }
+  return n;
+}
+
+/** the ground near the circuit as a mesh on the height field (the flat plane beyond it is lowered to the field's edge):
+ *  the same material and the same texture coordinates as the plane (12 km across, centred on the origin), in tiles of
+ *  64 x 64 cells so the off-screen ones cull */
+const _rq = {};
+function terrainGround(F, material, planeSize = 12000) {
+  const group = new THREE.Group(); group.name = 'terrain'; group.userData.onTerrain = true;
+  const T = 64;
+  for (let tj = 0; tj < F.nz - 1; tj += T) for (let ti = 0; ti < F.nx - 1; ti += T) {
+    const ni = Math.min(T, F.nx - 1 - ti), nj = Math.min(T, F.nz - 1 - tj), pos = [], uv = [], idx = [];
+    for (let j = 0; j <= nj; j++) for (let i = 0; i <= ni; i++) {
+      const x = F.x0 + (ti + i) * F.cell, z = F.z0 + (tj + j) * F.cell;
+      // (under the road and its kerbs the grass is kept 15 cm down: no cell of it can show through the asphalt)
+      const r = TERRAIN.road?.(x, z, _rq), under = r && Math.abs(r.d) < (TERRAIN.halfRoad || 9);
+      pos.push(x, (r ? TERRAIN.at(x, z) : F.H[(tj + j) * F.nx + ti + i]) - (under ? 0.15 : 0.05), z); uv.push(x / planeSize + 0.5, -z / planeSize + 0.5);
+    }
+    for (let j = 0; j < nj; j++) for (let i = 0; i < ni; i++) { const a = j * (ni + 1) + i, b = a + 1, c = a + ni + 1, d = c + 1; idx.push(a, c, b, b, c, d); }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals();
+    const m = new THREE.Mesh(g, material); m.receiveShadow = true; m.renderOrder = 1; m.userData.onTerrain = true; group.add(m);
+  }
+  return group;
+}
+
+return { TERRAIN, trackHeights, buildHeightField, setTerrain, elevateWorld, terrainGround };
+})();
+
+// ---- src/world/FanCutouts.js
+__m['src/world/FanCutouts.js'] = (() => {
+
+// The crowd's people as cut-outs: one instanced quad each, cut out of an atlas of ten drawn figures (fanAtlas), each
+// person coloured in the shader - their own shirt, trousers, skin and hair or hat, from everyday colours (team shirts
+// among them, not every one). Thousands of them for the cost of two triangles each: the grandstands' crowds on every
+// circuit (world/Grandstands.js) and Austin's banks and plaza (world/Austin.js). The cheering ones bounce (uTime).
+
+/**
+ * The fans' atlas: ten people side by side (48 x 144 px each, the figure's 1.7 m from 16 px down to the bottom), drawn
+ * as masks the shader colours per person: red = the shading, green = skin (face, neck, forearms, hands), blue = the top
+ * of the head (hair, or a hat); everything else is clothes, coloured by height (the shirt above the waist, the trousers
+ * below, the shoes at the bottom). 0 arms down, 1 hands on hips, 2 a fist in the air, 3 both arms up, 4 filming on a
+ * phone, 5 long hair, 6 a cap, 7 a Stetson, 8 sitting cross-legged, 9 sitting with the knees up.
+ */
+function fanAtlas() {
+  const W = 48, H = 144, c = document.createElement('canvas'); c.width = W * 10; c.height = H; const x = c.getContext('2d');
+  const body = (s) => `rgb(${s},0,0)`, skin = (s) => `rgb(${s},255,0)`, head = (s) => `rgb(${s},0,255)`;
+  const R = (f, a, b, w, h) => { x.fillStyle = f; x.fillRect(a, b, w, h); };
+  const limb = (f, x0, y0, x1, y1, w) => { x.strokeStyle = f; x.lineWidth = w; x.lineCap = 'round'; x.beginPath(); x.moveTo(x0, y0); x.lineTo(x1, y1); x.stroke(); };
+  const disc = (f, cx, cy, r, a0 = 0, a1 = Math.PI * 2) => { x.fillStyle = f; x.beginPath(); x.arc(cx, cy, r, a0, a1); x.fill(); };
+  for (let v = 0; v < 10; v++) {
+    x.save(); x.translate(v * W, 0);
+    const sit = v >= 8, dy = sit ? 46 : 0, cx = 24;
+    // legs and shoes (standing), or folded in front (sitting)
+    if (!sit) { R(body(205), 15, 80, 8, 58); R(body(185), 25, 80, 8, 58); R(body(60), 13, 137, 10, 7); R(body(60), 25, 137, 10, 7); }
+    else if (v === 8) { R(body(200), 6, 124, 36, 12); R(body(170), 6, 132, 36, 6); }
+    else { limb(body(200), 16, 128, 22, 112, 9); limb(body(185), 32, 128, 26, 112, 9); R(body(60), 12, 134, 10, 6); R(body(60), 27, 134, 10, 6); }
+    // torso (a little lighter down its middle)
+    x.fillStyle = body(190); x.beginPath(); x.moveTo(14, 36 + dy); x.lineTo(34, 36 + dy); x.lineTo(33, 81 + dy); x.lineTo(15, 81 + dy); x.closePath(); x.fill();
+    R(body(225), 19, 38 + dy, 10, 42);
+    // arms: a sleeve to the elbow, then the forearm and the hand
+    const arm = (sx, ex, ey, hx, hy) => { limb(body(175), sx, 39 + dy, ex, ey, 6); limb(skin(200), ex, ey, hx, hy, 5); disc(skin(210), hx, hy, 3); };
+    if (v === 1) { arm(13, 7, 56 + dy, 14, 74 + dy); arm(35, 41, 56 + dy, 34, 74 + dy); }
+    else if (v === 2) { arm(13, 10, 58 + dy, 11, 77 + dy); arm(35, 40, 22, 40, 5); }
+    else if (v === 3) { arm(13, 7, 22, 10, 4); arm(35, 41, 22, 38, 4); }
+    else if (v === 4) { arm(13, 10, 58 + dy, 11, 77 + dy); arm(35, 39, 30, 33, 16); R(body(25), 30, 9, 7, 11); }
+    else if (sit) { arm(13, 10, 62 + dy, 16, 76 + dy); arm(35, 38, 62 + dy, 32, 76 + dy); }
+    else { arm(13, 10, 58 + dy, 11, 78 + dy); arm(35, 38, 58 + dy, 37, 78 + dy); }
+    // neck and head: the face skin, the top of the head the hair or the hat
+    R(skin(200), 21, 31 + dy, 6, 6);
+    disc(skin(215), cx, 24 + dy, 8);
+    if (v === 5) { R(head(200), 15, 20 + dy, 4, 26); R(head(200), 29, 20 + dy, 4, 26); disc(head(210), cx, 22 + dy, 8.6, Math.PI, Math.PI * 2); }
+    else if (v === 6) { disc(head(215), cx, 22 + dy, 8.8, Math.PI, Math.PI * 2); R(head(190), 24, 20 + dy, 12, 3); }
+    else if (v === 7) { x.fillStyle = head(205); x.beginPath(); x.ellipse(cx, 19 + dy, 15, 3, 0, 0, Math.PI * 2); x.fill(); R(head(220), 17, 9 + dy, 14, 10); }
+    else disc(head(205), cx, 21 + dy, 8.4, Math.PI * 1.05, Math.PI * 1.95);
+    x.restore();
+  }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.NoColorSpace; t.anisotropy = 4; return t;
+}
+
+const FAN_COLOURS = {
+  SHIRT: [0xe9e9e6, 0xe9e9e6, 0xe9e9e6, 0x1c1c1e, 0x1c1c1e, 0x1c1c1e, 0x23304a, 0x23304a, 0x8d9096, 0x8d9096, 0x3b3d42, 0x8fb0cf, 0xb8a888, 0x5c6246, 0x6e2a33,
+    0xd0702c, 0xd0702c, 0xd0702c, 0xa82a32, 0xa82a32, 0x1f2c5a, 0x3fa596, 0x1f5a4c, 0x2b4f9e, 0xb5551a, 0xb5551a, 0xc98aa2, 0xcdb75a, 0xf2e6d0],
+  PANTS: [0x3b4d6b, 0x3b4d6b, 0x2f3c55, 0x52688a, 0x52688a, 0xa89a7a, 0xa89a7a, 0x1f1f22, 0x1f1f22, 0x5a5d63, 0x6b6b4e, 0xcfc7b5],
+  SKIN: [0xf0cfb4, 0xe7c0a0, 0xdcae8a, 0xc99572, 0xb07b55, 0x8f5d3e, 0x6b432b, 0x523221],
+  HAIR: [0x231811, 0x2e2018, 0x4a3221, 0x6b4a2e, 0x9c7b52, 0xc4a473, 0x141414, 0x7d7a76],
+  HAT: [0xd0702c, 0x1c1c1e, 0xe9e9e6, 0xa82a32, 0x23304a, 0x8d9096],
+  STETSON: [0xc9a97a, 0xe2d6bc, 0x6e5238, 0x2a2a2a],
+};
+/** the standing figures, weighted (0-7: 8 and 9 are sitting) */
+const STANDING = [0, 0, 0, 1, 1, 2, 2, 3, 4, 4, 5, 5, 6, 6, 6, 7, 7];
+
+let ATLAS = null;
+/** the cut-outs' material (one per caller: its uTime is its own - userData.shader once compiled) */
+function fanMaterial() {
+  const mat = new THREE.MeshLambertMaterial({ color: 0xffffff, map: ATLAS || (ATLAS = fanAtlas()), side: THREE.DoubleSide, alphaTest: 0.45 });
+  mat.onBeforeCompile = (sh) => {
+    sh.uniforms.uTime = { value: 0 }; mat.userData.shader = sh;
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aPhase; attribute float aVar; attribute vec3 aPants; attribute vec3 aSkin; attribute vec3 aHead; uniform float uTime; varying float vYr; varying float vWaist; varying vec3 vPants; varying vec3 vSkin; varying vec3 vHead;')
+      .replace('#include <uv_vertex>', '#include <uv_vertex>\n vYr = uv.y; vMapUv = vec2((uv.x + aVar) / 10.0, uv.y); vWaist = aVar > 7.5 ? 0.19 : 0.444; vPants = aPants; vSkin = aSkin; vHead = aHead;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\n float cheer = (abs(aVar - 2.5) < 1.0 ? 1.0 : 0.0) * step(0.4, fract(aPhase * 7.13)); transformed.y += 0.16 * cheer * max(0.0, sin(uTime * 5.5 + aPhase));');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vYr; varying float vWaist; varying vec3 vPants; varying vec3 vSkin; varying vec3 vHead;')
+      .replace('#include <map_fragment>', `vec4 T = texture2D( map, vMapUv );
+        vec3 body = mix( vec3( 0.06 ), vPants, smoothstep( 0.03, 0.05, vYr ) );
+        body = mix( body, vColor, smoothstep( vWaist - 0.012, vWaist + 0.012, vYr ) );
+        vec3 c = mix( body, vSkin, T.g );
+        c = mix( c, vHead, T.b );
+        diffuseColor.rgb = c * ( 0.5 + 0.5 * T.r ); diffuseColor.a = T.a;`)
+      .replace('#include <color_fragment>', '');
+  };
+  mat.customProgramCacheKey = () => 'fan-cutouts';
+  return mat;
+}
+
+const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _up = new THREE.Vector3(0, 1, 0), _s = new THREE.Vector3(), _p = new THREE.Vector3(), _c = new THREE.Color();
+/**
+ * One instanced mesh of cut-outs: list [[x, y, z, angle, variant], ...] (the quad faces +z turned by angle), rnd the
+ * caller's random (seeded: the same crowd every time); o.shirts: a shirt palette of its own (a grandstand's: more team
+ * shirts)
+ */
+function fanMesh(list, mat, rnd = Math.random, o = {}) {
+  const C = FAN_COLOURS, shirts = o.shirts || C.SHIRT, n = list.length;
+  const g = new THREE.PlaneGeometry(0.64, 1.91); g.translate(0, 0.955, 0);
+  const im = new THREE.InstancedMesh(g, mat, n), ph = new Float32Array(n), vr = new Float32Array(n), pa = new Float32Array(n * 3), sk = new Float32Array(n * 3), hd = new Float32Array(n * 3);
+  const pick = (a) => _c.setHex(a[(rnd() * a.length) | 0]).offsetHSL(0, (rnd() - 0.5) * 0.06, (rnd() - 0.5) * 0.06);
+  list.forEach(([x, y, z, a, v], i) => {
+    const s = 0.9 + rnd() * 0.18; _m.compose(_p.set(x, y, z), _q.setFromAxisAngle(_up, a), _s.set(s, s, 1)); im.setMatrixAt(i, _m);
+    im.setColorAt(i, pick(shirts)); pick(C.PANTS).toArray(pa, i * 3); pick(C.SKIN).toArray(sk, i * 3);
+    (v === 6 ? pick(C.HAT) : v === 7 ? pick(C.STETSON) : pick(C.HAIR)).toArray(hd, i * 3);
+    ph[i] = rnd() * 6.283; vr[i] = v;
+  });
+  g.setAttribute('aPhase', new THREE.InstancedBufferAttribute(ph, 1)); g.setAttribute('aVar', new THREE.InstancedBufferAttribute(vr, 1));
+  g.setAttribute('aPants', new THREE.InstancedBufferAttribute(pa, 3)); g.setAttribute('aSkin', new THREE.InstancedBufferAttribute(sk, 3)); g.setAttribute('aHead', new THREE.InstancedBufferAttribute(hd, 3));
+  im.instanceMatrix.needsUpdate = true; im.computeBoundingSphere(); im.frustumCulled = true;
+  return im;
+}
+
+return { fanAtlas, FAN_COLOURS, STANDING, fanMaterial, fanMesh };
+})();
+
 // ---- src/world/Grandstands.js
 __m['src/world/Grandstands.js'] = (() => {
 const { corridorSigned } = __m['src/track/TrackBuilder.js'];
+const { TERRAIN } = __m['src/world/Terrain.js'];
+const { fanMaterial, fanMesh, FAN_COLOURS, STANDING } = __m['src/world/FanCutouts.js'];
 // Temporary grandstands in the empty lots along the circuit: tiered seating with a canopy, packed with cheering
 // fans (one InstancedMesh, bobbing in the vertex shader). Every candidate is rejected if any part of it would touch
 // the racing corridor (track + pit lane + margin), a floodlight mast, a landmark or a generic building.
 
 
-const STAND = { len: 64, depth: 17, tiers: 11, tierD: 1.35, tierH: 0.48, base: 1.2, gap: 5.5 };   // gap = metres from the barrier to the first tier
-const PALETTE = [0xff8000, 0xe8002d, 0x1e3a8a, 0x27f4d2, 0x00665e, 0x0a2aa8, 0xffffff, 0x111111, 0xff5fb0, 0xc9a86a, 0xffd400, 0x8899aa, 0xeeeeee, 0x222222, 0x33d17a];
 
+
+const STAND = { len: 64, depth: 17, tiers: 11, tierD: 1.35, tierH: 0.48, base: 1.2, gap: 5.5 };   // gap = metres from the barrier to the first tier
+// (a grandstand's shirts: the everyday ones and more of the teams' than out on the grass)
+const STAND_SHIRTS = [...FAN_COLOURS.SHIRT, 0xd0702c, 0xd0702c, 0xa82a32, 0xa82a32, 0x1f2c5a, 0x3fa596, 0x1c1c1e, 0x1f5a4c, 0x2b4f9e, 0xd8c04a];
+
+/** the Stars and Stripes, for a stand's end (art 'stars') */
+let STARS = null;
+function starsTexture() {
+  if (STARS) return STARS;
+  const c = document.createElement('canvas'); c.width = 512; c.height = 320; const x = c.getContext('2d');
+  for (let k = 0; k < 7; k++) { x.fillStyle = k % 2 ? '#ffffff' : '#b31942'; x.fillRect(0, k * 320 / 7, 512, 320 / 7 + 1); }
+  x.fillStyle = '#0a3161'; x.beginPath(); x.moveTo(0, 0); x.lineTo(300, 0); x.lineTo(200, 320); x.lineTo(0, 320); x.closePath(); x.fill();
+  x.fillStyle = '#ffffff'; x.beginPath(); for (let j = 0; j < 10; j++) { const a = -Math.PI / 2 + j * Math.PI / 5, r = j % 2 ? 26 : 64; (j ? x.lineTo : x.moveTo).call(x, 120 + Math.cos(a) * r, 150 + Math.sin(a) * r); } x.fill();
+  STARS = new THREE.CanvasTexture(c); STARS.colorSpace = THREE.SRGBColorSpace; return STARS;
+}
 function pointInRing(x, z, ring) {
   let inside = false;
   for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
@@ -80902,16 +81265,33 @@ function buildGrandstands(track, pit, obstacles, opts = {}) {
   // real stands (OSM footprints): placed exactly where they are, each with its own length and number of tiers
   for (const f of fixed) {
     const ox = f.x, oz = f.z, ex = f.ex, ez = f.ez;
-    placed.push({ s: null, side: 0, x: ox, z: oz, ang: Math.atan2(ex[0], ex[1]), ex, ez, len: f.len, tiers: f.tiers, name: f.name, world: (lx, lz) => [ox + ex[0] * lx + ez[0] * lz, oz + ex[1] * lx + ez[1] * lz] });
+    placed.push({ s: null, side: 0, x: ox, z: oz, ang: Math.atan2(ex[0], ex[1]), ex, ez, len: f.len, tiers: f.tiers, name: f.name, style: f.style || null, world: (lx, lz) => [ox + ex[0] * lx + ez[0] * lz, oz + ex[1] * lx + ez[1] * lz] });
   }
 
   // --- geometry: tiers, back wall, canopy, pillars
-  const structure = [], canopies = [];
+  // (a stand's style - p.style, a real stand's own: roof 'canopy' (the default) | 'membrane' (translucent fabric) |
+  //  'none'; frame 'red' (the red steel tubes outlining it); levels (decks, a glass band of suites between them);
+  //  art 'stars' (the Stars and Stripes across its top end); color (the structure's))
+  const structure = [], canopies = [], membranes = [], reds = [], glass = [], plinths = [], arts = [];
   const fanPos = [];   // [x, y, z, ang]
   for (const p of placed) {
-    const LEN = p.len; const TIERS = p.tiers || STAND.tiers;
+    const LEN = p.len; const TIERS = p.tiers || STAND.tiers, ST = p.style || {};
     const faceAng = Math.atan2(-p.ez[0], -p.ez[1]);   // a sheet's normal points at the track
-    const place = (g, lx, ly, lz) => { g.rotateY(p.ang); const [x, z] = p.world(lx, lz); g.translate(x, ly, z); return g; };
+    // (on a circuit that is not flat, level on its own ground: the front edge's highest point, a concrete plinth down
+    //  into the slope under the rest - world/Terrain.js)
+    p.y0 = 0;
+    if (TERRAIN.on) { let y = -Infinity; for (let lx = -LEN / 2; lx <= LEN / 2; lx += 6) { const [x, z] = p.world(lx, 0); y = Math.max(y, TERRAIN.at(x, z)); } p.y0 = y; }
+    const place = (g, lx, ly, lz) => { g.rotateY(p.ang); const [x, z] = p.world(lx, lz); g.translate(x, ly + p.y0, z); return g; };
+    // (in the stand's own frame - lx along it, y up, lz back from its front edge - straight to the world: a tube from one
+    //  point to another, a surface over a grid)
+    const W = (lx, y, lz) => { const [x, z] = p.world(lx, lz); return new THREE.Vector3(x, y + p.y0, z); };
+    const tube = (a, b, r) => { const A = W(...a), B = W(...b), d = new THREE.Vector3().subVectors(B, A), g = new THREE.CylinderGeometry(r, r, d.length(), 8); g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize())); g.translate((A.x + B.x) / 2, (A.y + B.y) / 2, (A.z + B.z) / 2); return g; };
+    const surface = (lx0, lx1, lz0, lz1, yFn, nu = 12, nv = 10) => {
+      const P = [], I = [];
+      for (let i = 0; i <= nu; i++) for (let j = 0; j <= nv; j++) { const lx = lx0 + (lx1 - lx0) * i / nu, lz = lz0 + (lz1 - lz0) * j / nv, v = W(lx, yFn(lx, lz), lz); P.push(v.x, v.y, v.z); }
+      for (let i = 0; i < nu; i++) for (let j = 0; j < nv; j++) { const a = i * (nv + 1) + j, b = a + 1, c = a + nv + 1, d = c + 1; I.push(a, b, c, b, d, c); }
+      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array((P.length / 3) * 2), 2)); g.setIndex(I); g.computeVertexNormals(); return g;
+    };
     // BoxGeometry local x = along the track (after rotateY(ang) the box's +z is the track tangent, so build with z = along)
     const box = (w, h, d) => new THREE.BoxGeometry(d, h, w);   // w along the track -> local z; d across -> local x
     structure.push(place(box(LEN, STAND.base, 0.8), 0, STAND.base / 2, 0.4));                 // front parapet
@@ -80922,55 +81302,59 @@ function buildGrandstands(track, pit, obstacles, opts = {}) {
       for (let lx = -LEN / 2 + 0.6; lx < LEN / 2 - 0.6; lx += 0.62 + Math.random() * 0.15) {
         if (Math.random() < 0.08) continue;   // empty seats
         const [x, z] = p.world(lx + (Math.random() - 0.5) * 0.2, z0 + 0.55 + Math.random() * 0.3);
-        fanPos.push([x, y, z, faceAng + (Math.random() - 0.5) * 0.5, p, lx, t]);   // facing the track (sheet across the line of sight)
+        fanPos.push([x, y + p.y0, z, faceAng + (Math.random() - 0.5) * 0.5, p, lx, t]);   // facing the track (sheet across the line of sight)
       }
     }
     const top = STAND.base + TIERS * STAND.tierH; const back = 0.8 + TIERS * STAND.tierD;
     p.depth = back + 0.6; p.height = top + 6;   // (its footprint, for the obstacles the cars can hit: world/Obstacles.js)
+    if (TERRAIN.on) plinths.push(place(box(LEN + 0.6, 9, back + 1.2), 0, -4.5, back / 2));
     structure.push(place(box(LEN, top + 1.2, 0.6), 0, (top + 1.2) / 2, back + 0.3));          // back wall
-    structure.push(place(box(LEN, 3.0, 0.6), 0, top + 2.5, back + 0.3));                       // rear billboard band
-    for (const lx of [-LEN / 2 + 2, -LEN / 6, LEN / 6, LEN / 2 - 2]) structure.push(place(new THREE.BoxGeometry(0.5, top + 5.5, 0.5), lx, (top + 5.5) / 2, back - 0.5));
-    canopies.push(place(box(LEN + 1, 0.35, back * 0.75), 0, top + 5.5, back - back * 0.75 / 2 + 0.8));
+    const roof = ST.roof || 'canopy';
+    if (roof !== 'none') structure.push(place(box(LEN, 3.0, 0.6), 0, top + 2.5, back + 0.3));   // rear billboard band
+    if (roof === 'canopy') {
+      for (const lx of [-LEN / 2 + 2, -LEN / 6, LEN / 6, LEN / 2 - 2]) structure.push(place(new THREE.BoxGeometry(0.5, top + 5.5, 0.5), lx, (top + 5.5) / 2, back - 0.5));
+      canopies.push(place(box(LEN + 1, 0.35, back * 0.75), 0, top + 5.5, back - back * 0.75 / 2 + 0.8));
+    } else if (roof === 'membrane') {
+      // (a translucent fabric roof over the whole depth on masts behind, a little rise to its front edge)
+      const n = Math.max(3, Math.round(LEN / 24));
+      for (let k = 0; k <= n; k++) { const lx = -LEN / 2 + 1 + k * (LEN - 2) / n; (ST.frame === 'red' ? reds : structure).push(place(new THREE.BoxGeometry(0.7, top + 9, 0.7), lx, (top + 9) / 2, back + 0.6)); }
+      // (one sail between each pair of masts: high at the back, dipping in the middle, lifting to the front edge)
+      for (let k = 0; k < n; k++) { const a = -LEN / 2 + 1 + k * (LEN - 2) / n, b = a + (LEN - 2) / n; membranes.push(surface(a, b, -1.5, back + 0.6, (lx, lz) => { const u = (lx - a) / (b - a), v = lz / (back + 0.6); return top + 6.4 + 2.2 * v - 1.6 * Math.sin(Math.PI * u) * (0.4 + 0.6 * v); })); }
+    }
+    if (ST.frame === 'red') {
+      // the red steel tubes: along the front at the top tier's height, along the roof's edge, down the ends
+      reds.push(tube([-LEN / 2 - 0.4, top + 1.4, 0.3], [LEN / 2 + 0.4, top + 1.4, 0.3], 0.28), tube([-LEN / 2 - 0.4, top + 8.6, back + 0.6], [LEN / 2 + 0.4, top + 8.6, back + 0.6], 0.28));
+      for (const lx of [-LEN / 2 - 0.4, LEN / 2 + 0.4]) reds.push(tube([lx, 0, 0.3], [lx, top + 1.4, 0.3], 0.28), tube([lx, top + 1.4, 0.3], [lx, top + 8.6, back + 0.6], 0.28), tube([lx, 0, back + 0.6], [lx, top + 8.6, back + 0.6], 0.28));
+    }
+    if (ST.levels > 1) for (let k = 1; k < ST.levels; k++) {   // (the suites: a glass band across the stand between its decks)
+      const t = Math.round((TIERS * k) / ST.levels), y = STAND.base + t * STAND.tierH, z0 = 0.8 + t * STAND.tierD;
+      glass.push(place(box(LEN, 2.4, 0.4), 0, y + 1.2, z0 + 0.2)); structure.push(place(box(LEN, 0.45, 2.2), 0, y + 2.6, z0 + 1.0));
+    }
+    if (ST.art === 'stars') { const g = new THREE.PlaneGeometry(back * 0.95, top * 0.75); arts.push(place(g, LEN / 2 + 0.45, top * 0.62, back * 0.52)); }
   }
   const merge = (gs) => { const out = new THREE.BufferGeometry(); let pos = [], nrm = [], uv = []; for (const g of gs) { const a = g.toNonIndexed(); pos.push(...a.attributes.position.array); nrm.push(...a.attributes.normal.array); uv.push(...a.attributes.uv.array); } out.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); out.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3)); out.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); return out; };
   if (structure.length) {
     group.add(new THREE.Mesh(merge(structure), new THREE.MeshStandardMaterial({ color: 0x8a8f99, roughness: 0.85, emissive: 0x0d0f14, emissiveIntensity: 1 })));
-    group.add(new THREE.Mesh(merge(canopies), new THREE.MeshStandardMaterial({ color: 0xe8ecf2, roughness: 0.6, side: THREE.DoubleSide, emissive: 0x1a1c22, emissiveIntensity: 1 })));
+    if (canopies.length) group.add(new THREE.Mesh(merge(canopies), new THREE.MeshStandardMaterial({ color: 0xe8ecf2, roughness: 0.6, side: THREE.DoubleSide, emissive: 0x1a1c22, emissiveIntensity: 1 })));
+    if (membranes.length) group.add(new THREE.Mesh(merge(membranes), new THREE.MeshStandardMaterial({ color: 0xf6f6f2, roughness: 0.5, side: THREE.DoubleSide, transparent: true, opacity: 0.78, emissive: 0x2a2a28, depthWrite: false })));
+    if (reds.length) group.add(new THREE.Mesh(merge(reds), new THREE.MeshStandardMaterial({ color: 0xc8202b, roughness: 0.45, metalness: 0.35, emissive: 0x2a0608 })));
+    if (glass.length) group.add(new THREE.Mesh(merge(glass), new THREE.MeshStandardMaterial({ color: 0x2b3d4e, roughness: 0.1, metalness: 0.7, emissive: 0x1d2a36 })));
+    if (plinths.length) group.add(new THREE.Mesh(merge(plinths), new THREE.MeshStandardMaterial({ color: 0x2a3a5c, roughness: 0.9 })));
+    if (arts.length) group.add(new THREE.Mesh(merge(arts), new THREE.MeshStandardMaterial({ map: starsTexture(), side: THREE.DoubleSide, roughness: 0.7 })));
   }
 
-  // --- fans: flat coloured sheets (one quad each, 2 triangles) as one InstancedMesh PER STAND so a stand that is
-  //     off camera is culled as a whole; per-instance colour + wave phase, bobbing in the vertex shader
-  let fansMat = null;
-  const fanQuad = new THREE.PlaneGeometry(0.46, 1.5); fanQuad.translate(0, 0.75, 0);
-  fansMat = new THREE.MeshLambertMaterial({ color: 0xffffff, side: THREE.DoubleSide });
-  fansMat.onBeforeCompile = (shader) => {
-    shader.uniforms.uTime = { value: 0 }; fansMat.userData.shader = shader;
-    shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nattribute float aPhase; attribute float aWave; uniform float uTime;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\n float bob = aWave * max(0.0, sin(uTime * 6.5 + aPhase)); transformed.y += bob * 0.28;');
-  };
-  fansMat.customProgramCacheKey = () => 'fans';
-  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), pos = new THREE.Vector3(); const col = new THREE.Color(); const up = new THREE.Vector3(0, 1, 0);
-  // stands are grouped by 400 m map cell: neighbouring stands (Club A / Club B, the Village stands) share one mesh
+  // --- fans: the cut-out people (world/FanCutouts.js), one InstancedMesh per 400 m map cell (a stand off camera culls
+  //     as a whole), standing in their rows; the cheering ones bounce
+  const fansMat = fanMaterial();
   const cells = new Map(), meshes = [];
   for (const f of fanPos) { const p = f[4], key = Math.floor(p.x / 400) * 1000 + Math.floor(p.z / 400); let arr = cells.get(key); if (!arr) cells.set(key, (arr = [])); arr.push(f); }
   for (const mine of cells.values()) {
-    const N = mine.length; if (!N) continue;
-    const geo = fanQuad.clone();
-    const fans = new THREE.InstancedMesh(geo, fansMat, N);
-    const phase = new Float32Array(N), wave = new Float32Array(N);
-    for (let i = 0; i < N; i++) {
-      const [x, y, z, a] = mine[i];
-      q.setFromAxisAngle(up, a); const s = 0.9 + Math.random() * 0.25; sc.set(s, s, 1); pos.set(x, y, z);
-      m.compose(pos, q, sc); fans.setMatrixAt(i, m);
-      col.setHex(PALETTE[(Math.random() * PALETTE.length) | 0]); if (Math.random() < 0.3) col.multiplyScalar(0.6); fans.setColorAt(i, col);
-      phase[i] = Math.random() * 6.283; wave[i] = Math.random() < 0.7 ? 1 : 0;
-    }
-    geo.setAttribute('aPhase', new THREE.InstancedBufferAttribute(phase, 1));
-    geo.setAttribute('aWave', new THREE.InstancedBufferAttribute(wave, 1));
-    fans.instanceMatrix.needsUpdate = true; fans.computeBoundingSphere(); fans.frustumCulled = true; group.add(fans);
-    meshes.push({ fans, mine, orig: fans.instanceMatrix.array.slice(), hid: new Uint16Array(N) });   // (orig, hid: for hide - counted, so overlapping hides undo cleanly)
+    if (!mine.length) continue;
+    const fans = fanMesh(mine.map(([x, y, z, a]) => [x, y, z, a, STANDING[(Math.random() * STANDING.length) | 0]]), fansMat, Math.random, { shirts: STAND_SHIRTS });
+    group.add(fans);
+    meshes.push({ fans, mine, orig: fans.instanceMatrix.array.slice(), hid: new Uint16Array(mine.length) });   // (orig, hid: for hide - counted, so overlapping hides undo cleanly)
   }
+  group.userData.onTerrain = true;   // (built on its ground already: world/Terrain.js leaves it be)
 
   return {
     group, count: placed.length, stands: placed, fans: fanPos.length,
@@ -88698,247 +89082,9 @@ class Crowd {
 return { SKINS, HAIRS, bakeFarTemplate, bakeTemplate, crowdMaterial, crowdTime, templateOf, hasTemplate, Crowd };
 })();
 
-// ---- src/world/Terrain.js
-__m['src/world/Terrain.js'] = (() => {
-
-// The ground's height, for a circuit that is not flat (tracks.js def.elevation: the circuit way in its GeoJSON carries
-// each point's height as a third coordinate - Austin's hill up to Turn 1). Everything else in the game is laid out flat,
-// on (x, z): the physics, the AI, the barriers, the stands. The heights are added on top of that, in one place:
-//   * the circuit's own heights, along the lap (smoothed, relative to the start/finish line);
-//   * a height field over the whole venue: the road and a strip either side of it held at the circuit's height, and the
-//     ground between the parts of the lap and out to the horizon a harmonic surface through them (each point the mean of
-//     its neighbours: no bumps, no steps - the slopes run smoothly from one part of the circuit to the next and level out
-//     towards the edge), solved coarse-to-fine on a grid;
-//   * the static world raised onto it once it is built (elevateWorld: every vertex of the road, the kerbs, the barriers,
-//     the stands and the buildings by the ground under it; every instance - a tree, a fan - by the ground under its foot);
-//     a ground mesh of its own (terrainGround) replaces the flat plane near the circuit;
-//   * what moves reads it every frame: the car models (height, pitch and roll from the slope: CarMesh), the camera (main.js
-//     renderView: lifted with what it looks at), the physics (gravity along the slope: Car).
-// With no elevation TERRAIN.on is false and at() is 0: nothing changes anywhere.
-
-const CELL = 8;          // the height field's grid (m)
-const HOLD = 9;          // metres of ground either side of the road held at the circuit's height (the verge, the kerbs)
-const MARGIN = 1400;     // how far the field reaches beyond the circuit (then the flat plane, at the field's edge height)
-
-/** the venue's ground: on, at(x, z) (bilinear), grad(x, z) -> [dh/dx, dh/dz], edge (the height the field levels out to) */
-const TERRAIN = { on: false, edge: 0, at: () => 0, grad: (x, z, out = [0, 0]) => { out[0] = out[1] = 0; return out; } };
-
-/** the circuit's heights along the lap: per track sample, from the circuit way's third coordinates, smoothed (sigma
- *  20 m) and relative to the start/finish line -> Float32Array | null */
-function trackHeights(track, pts, sigma = 20) {
-  if (!pts || pts.length < 4 || pts.every((p) => p[2] == null)) return null;
-  const n = track.n, raw = new Float32Array(n);
-  // (each sample: the height of the nearest point of the way, interpolated along the segment it is nearest)
-  for (let i = 0; i < n; i++) {
-    const x = track.px[i], z = track.pz[i]; let best = Infinity, h = 0;
-    for (let k = 0; k < pts.length - 1; k++) {
-      const a = pts[k], b = pts[k + 1], dx = b[0] - a[0], dz = b[1] - a[1], L2 = dx * dx + dz * dz || 1;
-      const t = Math.max(0, Math.min(1, ((x - a[0]) * dx + (z - a[1]) * dz) / L2)), qx = a[0] + dx * t - x, qz = a[1] + dz * t - z, d2 = qx * qx + qz * qz;
-      if (d2 < best) { best = d2; h = (a[2] ?? 0) + ((b[2] ?? a[2] ?? 0) - (a[2] ?? 0)) * t; }
-    }
-    raw[i] = h;
-  }
-  const r = Math.ceil((3 * sigma) / track.ds), out = new Float32Array(n);
-  for (let i = 0; i < n; i++) { let s = 0, w = 0; for (let k = -r; k <= r; k++) { const g = Math.exp(-((k * track.ds) ** 2) / (2 * sigma * sigma)); s += raw[(i + k + n) % n] * g; w += g; } out[i] = s / w; }
-  const h0 = out[0]; for (let i = 0; i < n; i++) out[i] -= h0;
-  return out;
-}
-
-/**
- * The height field over the venue: the road and HOLD m either side at the circuit's height (the nearest part of the lap
- * where two parts come close), harmonic everywhere else with the field's border just below the lap's lowest point. Solved on
- * a 32 m grid, then 16 m, then 8 m (each level started from the one before), Gauss-Seidel with over-relaxation.
- */
-function buildHeightField(track, h) {
-  let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity, mean = 0;
-  for (let i = 0; i < track.n; i++) { x0 = Math.min(x0, track.px[i]); x1 = Math.max(x1, track.px[i]); z0 = Math.min(z0, track.pz[i]); z1 = Math.max(z1, track.pz[i]); mean += h[i]; }
-  mean /= track.n; let lo = Infinity; for (let i = 0; i < track.n; i++) lo = Math.min(lo, h[i]); const edge = lo - 1.5;   // (the far edge: below the lowest point of the lap - the flat plane beyond it must never stand over the road)
-  x0 -= MARGIN; z0 -= MARGIN; x1 += MARGIN; z1 += MARGIN;
-  const hold = track.halfWidth + HOLD;
-  const level = (cell, prev) => {
-    const nx = Math.ceil((x1 - x0) / cell) + 1, nz = Math.ceil((z1 - z0) / cell) + 1, H = new Float32Array(nx * nz), fixed = new Uint8Array(nx * nz);
-    // (the start: the coarser level's solution, or the mean)
-    for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) H[j * nx + i] = prev ? prev.at(x0 + i * cell, z0 + j * cell) : mean;
-    // (the circuit's strip: every cell within `hold` of a sample takes the nearest sample's height)
-    const best = new Float32Array(nx * nz).fill(Infinity), r = Math.ceil(hold / cell) + 1;
-    for (let s = 0; s < track.n; s++) {
-      const ci = Math.round((track.px[s] - x0) / cell), cj = Math.round((track.pz[s] - z0) / cell);
-      for (let dj = -r; dj <= r; dj++) for (let di = -r; di <= r; di++) {
-        const i = ci + di, j = cj + dj; if (i < 0 || j < 0 || i >= nx || j >= nz) continue;
-        const d2 = (x0 + i * cell - track.px[s]) ** 2 + (z0 + j * cell - track.pz[s]) ** 2, k = j * nx + i;
-        if (d2 <= hold * hold && d2 < best[k]) { best[k] = d2; H[k] = h[s]; fixed[k] = 1; }
-      }
-    }
-    for (let i = 0; i < nx; i++) { fixed[i] = fixed[(nz - 1) * nx + i] = 2; H[i] = H[(nz - 1) * nx + i] = edge; }
-    for (let j = 0; j < nz; j++) { fixed[j * nx] = fixed[j * nx + nx - 1] = 2; H[j * nx] = H[j * nx + nx - 1] = edge; }
-    const iters = prev ? 160 : 700, w = 1.85;
-    for (let it = 0; it < iters; it++) {
-      for (let j = 1; j < nz - 1; j++) for (let i = 1; i < nx - 1; i++) {
-        const k = j * nx + i; if (fixed[k]) continue;
-        H[k] += w * ((H[k - 1] + H[k + 1] + H[k - nx] + H[k + nx]) * 0.25 - H[k]);
-      }
-    }
-    const F = field(H, nx, nz, cell); F.fixed = fixed; return F;
-  };
-  const field = (H, nx, nz, cell) => ({
-    H, nx, nz, cell, x0, z0,
-    at(x, z) {
-      const u = Math.max(0, Math.min(nx - 1.001, (x - x0) / cell)), v = Math.max(0, Math.min(nz - 1.001, (z - z0) / cell));
-      const i = Math.floor(u), j = Math.floor(v), fu = u - i, fv = v - j, k = j * nx + i;
-      return (H[k] * (1 - fu) + H[k + 1] * fu) * (1 - fv) + (H[k + nx] * (1 - fu) + H[k + nx + 1] * fu) * fv;
-    },
-  });
-  let F = null; for (const cell of [CELL * 4, CELL * 2, CELL]) F = level(cell, F);
-  F.edge = edge;
-  return F;
-}
-
-/** switch the venue's ground on (a height field) or off (null) */
-function setTerrain(F, track = null) {
-  if (!F) { TERRAIN.on = false; TERRAIN.edge = 0; TERRAIN.at = () => 0; TERRAIN.grad = (x, z, out = [0, 0]) => { out[0] = out[1] = 0; return out; }; TERRAIN.field = null; TERRAIN.road = null; return; }
-  const e = 1.5;
-  TERRAIN.on = true; TERRAIN.edge = F.edge; TERRAIN.field = F;
-  // near the circuit, its own height exactly (the grid's 8 m cells would let the ground cut corners off the road over a
-  // crest or into a dip): by the nearest point of the lap, out to the edge of the strip held at its height, then
-  // blended into the field over the last 6 m of it
-  const h = track?.h, q = {}, hold = (track?.halfWidth || 0) + HOLD; let hint = -1;
-  const nearStrip = (x, z) => { const i = Math.floor((x - F.x0) / F.cell), j = Math.floor((z - F.z0) / F.cell); if (i < 0 || j < 0 || i >= F.nx - 1 || j >= F.nz - 1) return false; const k = j * F.nx + i; return F.fixed[k] === 1 || F.fixed[k + 1] === 1 || F.fixed[k + F.nx] === 1 || F.fixed[k + F.nx + 1] === 1; };
-  TERRAIN.road = h ? (x, z, out = q) => {   // -> { h (the circuit's height there), d (offset from the centreline), s } | null
-    if (!nearStrip(x, z)) return null;
-    track.nearest(x, z, hint, out); hint = out.i; if (!(Math.abs(out.d) <= hold)) return null;
-    const u = track.wrapS(out.s) / track.ds, i0 = Math.floor(u) % track.n, f = u - Math.floor(u); out.h = h[i0] + (h[(i0 + 1) % track.n] - h[i0]) * f; return out;
-  } : null;
-  TERRAIN.at = (x, z) => {
-    const fv = F.at(x, z), r = TERRAIN.road?.(x, z); if (!r) return fv;
-    const w = Math.max(0, Math.min(1, (Math.abs(r.d) - (hold - 6)) / 6)); return r.h + (fv - r.h) * w * w * (3 - 2 * w);
-  };
-  TERRAIN.grad = (x, z, out = [0, 0]) => { out[0] = (F.at(x + e, z) - F.at(x - e, z)) / (2 * e); out[1] = (F.at(x, z + e) - F.at(x, z - e)) / (2 * e); return out; };
-}
-
-// ---- the static world onto the ground ---------------------------------------------------------------------------------
-const _v = new THREE.Vector3(), _w = new THREE.Vector3(), _m = new THREE.Matrix4(), _mi = new THREE.Matrix4(), _p = new THREE.Vector3(), _q = new THREE.Quaternion(), _s = new THREE.Vector3();
-
-/** a flat, large mesh (a car park, an apron drawn as a few big triangles) is cut up first, so it can follow the ground:
- *  every edge longer than `max` metres split in two, as often as it takes (an indexed geometry: position, normal, uv) */
-function tessellate(g, max, mw) {
-  if (!g.index || g.morphAttributes?.position) return g;
-  const attrs = Object.keys(g.attributes), P = g.attributes.position;
-  const data = Object.fromEntries(attrs.map((a) => [a, Array.from(g.attributes[a].array)])), size = Object.fromEntries(attrs.map((a) => [a, g.attributes[a].itemSize]));
-  let tris = Array.from(g.index.array), changed = false;
-  const wp = (k) => _w.set(data.position[k * 3], data.position[k * 3 + 1], data.position[k * 3 + 2]).applyMatrix4(mw).clone();
-  const mid = new Map(), split = (a, b) => {
-    const key = a < b ? `${a}_${b}` : `${b}_${a}`; let m = mid.get(key); if (m != null) return m;
-    m = data.position.length / 3; for (const at of attrs) { const s = size[at]; for (let c = 0; c < s; c++) data[at].push((data[at][a * s + c] + data[at][b * s + c]) / 2); }
-    mid.set(key, m); return m;
-  };
-  for (let pass = 0; pass < 6; pass++) {
-    const out = []; let any = false;
-    for (let t = 0; t < tris.length; t += 3) {
-      const a = tris[t], b = tris[t + 1], c = tris[t + 2], A = wp(a), B = wp(b), C = wp(c);
-      const ab = Math.hypot(A.x - B.x, A.z - B.z), bc = Math.hypot(B.x - C.x, B.z - C.z), ca = Math.hypot(C.x - A.x, C.z - A.z), L = Math.max(ab, bc, ca);
-      if (L <= max || data.position.length > 3 * 400000) { out.push(a, b, c); continue; }
-      any = true;
-      if (L === ab) { const m = split(a, b); out.push(a, m, c, m, b, c); } else if (L === bc) { const m = split(b, c); out.push(a, b, m, a, m, c); } else { const m = split(c, a); out.push(a, b, m, m, b, c); }
-    }
-    tris = out; if (!any) break; changed = true;
-  }
-  if (!changed) return g;
-  const ng = new THREE.BufferGeometry();
-  for (const at of attrs) ng.setAttribute(at, new THREE.Float32BufferAttribute(data[at], size[at]));
-  ng.setIndex(tris); for (const gr of g.groups) ng.addGroup(gr.start, gr.count, gr.materialIndex);
-  return ng;
-}
-
-/**
- * Raise the static world onto the ground: every object under `roots` that is not already on it (userData.onTerrain) or
- * kept off it (userData.noTerrain). A mesh by its own vertices (each by the ground under it, in world space - so a long
- * grandstand follows the slope it stands on; a shared geometry by the ground under the mesh's origin instead); an
- * instanced mesh by each instance's origin; a light, a sprite or a point by where it is. Groups are never moved (only the
- * leaves): each thing exactly once.
- */
-function elevateWorld(roots) {
-  if (!TERRAIN.on) return 0;
-  const users = new Map(), done = new Set(); let n = 0;   // (done: vertex buffers already raised - spatialChunks' tiles share one)
-  for (const r of roots) r.traverse((o) => { if (o.isMesh && o.geometry && !o.isInstancedMesh) users.set(o.geometry, (users.get(o.geometry) || 0) + 1); });
-  const lift = (o) => {   // (an object's own position: by the ground under its world position)
-    o.getWorldPosition(_p); const dy = TERRAIN.at(_p.x, _p.z);
-    _v.copy(_p); _v.y += dy; if (o.parent) o.parent.worldToLocal(_v); o.position.copy(_v); o.updateMatrixWorld(true);
-  };
-  for (const r of roots) {
-    r.updateMatrixWorld(true);
-    const stack = [r];
-    while (stack.length) {
-      const o = stack.pop();
-      if (o.userData?.noTerrain || o.userData?.onTerrain) continue;
-      if (o.isInstancedMesh) {
-        const N = o.count, M = o.instanceMatrix;
-        for (let k = 0; k < N; k++) {
-          o.getMatrixAt(k, _m); _m.decompose(_p, _q, _s);
-          _v.copy(_p).applyMatrix4(o.matrixWorld); const dy = TERRAIN.at(_v.x, _v.z);
-          _w.copy(_v); _w.y += dy; _mi.copy(o.matrixWorld).invert(); _w.applyMatrix4(_mi);
-          _m.compose(_w, _q, _s); o.setMatrixAt(k, _m);
-        }
-        M.needsUpdate = true; o.computeBoundingSphere?.(); o.computeBoundingBox?.(); n++;
-      } else if (o.isMesh && o.geometry?.attributes?.position && !o.isSkinnedMesh) {
-        if ((users.get(o.geometry) || 0) > 1) { lift(o); n++; }
-        else {
-          o.updateMatrixWorld(true);
-          // (a flat mesh with long edges is cut up first: a big triangle cannot bend over the ground)
-          const g0 = o.geometry, ranged = isFinite(g0.drawRange.count) || done.has(g0.attributes.position.array);
-          let g = g0;
-          if (!ranged) { g0.computeBoundingBox?.(); const bb = g0.boundingBox; if (bb && (bb.max.y - bb.min.y) < 2.5) { g = tessellate(g0, 10, o.matrixWorld); if (g !== g0) { o.geometry = g; g0.dispose(); } } }
-          const P = g.attributes.position;
-          if (!done.has(P.array)) {
-            done.add(P.array); _mi.copy(o.matrixWorld).invert();
-            for (let k = 0; k < P.count; k++) { _v.fromBufferAttribute(P, k).applyMatrix4(o.matrixWorld); _v.y += TERRAIN.at(_v.x, _v.z); _v.applyMatrix4(_mi); P.setXYZ(k, _v.x, _v.y, _v.z); }
-            P.needsUpdate = true;
-          }
-          if (isFinite(g.drawRange.count) && g.index) {   // (a tile: its own bounds, over its own triangles)
-            const I = g.index.array, bb = new THREE.Box3();
-            for (let i = g.drawRange.start; i < g.drawRange.start + g.drawRange.count; i++) bb.expandByPoint(_v.fromBufferAttribute(P, I[i]));
-            g.boundingBox = bb; g.boundingSphere = bb.getBoundingSphere(new THREE.Sphere()); g.boundingSphere.radius += 1;
-          } else { g.computeBoundingBox(); g.computeBoundingSphere(); }
-          n++;
-        }
-        o.userData.onTerrain = true;
-      } else if (o.isLight || o.isSprite || o.isPoints) {
-        if (!(o.isDirectionalLight || o.isHemisphereLight || o.isAmbientLight)) { lift(o); if (o.target && o.target.parent == null) { o.target.position.y += TERRAIN.at(o.target.position.x, o.target.position.z); o.target.updateMatrixWorld(); } n++; }
-      }
-      if (!o.isInstancedMesh) for (const c of o.children) stack.push(c);
-    }
-  }
-  return n;
-}
-
-/** the ground near the circuit as a mesh on the height field (the flat plane beyond it is lowered to the field's edge):
- *  the same material and the same texture coordinates as the plane (12 km across, centred on the origin), in tiles of
- *  64 x 64 cells so the off-screen ones cull */
-const _rq = {};
-function terrainGround(F, material, planeSize = 12000) {
-  const group = new THREE.Group(); group.name = 'terrain'; group.userData.onTerrain = true;
-  const T = 64;
-  for (let tj = 0; tj < F.nz - 1; tj += T) for (let ti = 0; ti < F.nx - 1; ti += T) {
-    const ni = Math.min(T, F.nx - 1 - ti), nj = Math.min(T, F.nz - 1 - tj), pos = [], uv = [], idx = [];
-    for (let j = 0; j <= nj; j++) for (let i = 0; i <= ni; i++) {
-      const x = F.x0 + (ti + i) * F.cell, z = F.z0 + (tj + j) * F.cell;
-      // (under the road and its kerbs the grass is kept 15 cm down: no cell of it can show through the asphalt)
-      const r = TERRAIN.road?.(x, z, _rq), under = r && Math.abs(r.d) < (TERRAIN.halfRoad || 9);
-      pos.push(x, (r ? TERRAIN.at(x, z) : F.H[(tj + j) * F.nx + ti + i]) - (under ? 0.15 : 0.05), z); uv.push(x / planeSize + 0.5, -z / planeSize + 0.5);
-    }
-    for (let j = 0; j < nj; j++) for (let i = 0; i < ni; i++) { const a = j * (ni + 1) + i, b = a + 1, c = a + ni + 1, d = c + 1; idx.push(a, c, b, b, c, d); }
-    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals();
-    const m = new THREE.Mesh(g, material); m.receiveShadow = true; m.renderOrder = 1; m.userData.onTerrain = true; group.add(m);
-  }
-  return group;
-}
-
-return { TERRAIN, trackHeights, buildHeightField, setTerrain, elevateWorld, terrainGround };
-})();
-
 // ---- src/world/StandCrowds.js
 __m['src/world/StandCrowds.js'] = (() => {
 const { Crowd, crowdMaterial } = __m['src/world/Crowd.js'];
-const { TERRAIN } = __m['src/world/Terrain.js'];
 // Every grandstand in shot, in full 3D, for the cutscenes (the build-up, the news, the finales): the stands near the
 // camera have every place filled with a person (world/Crowd.js's instanced templates - team shirts and caps, flags,
 // phones, arms up and jumping) and their flat sheet fans hidden; the stands further off keep the sheets until the camera
@@ -88948,6 +89094,9 @@ const { TERRAIN } = __m['src/world/Terrain.js'];
 // sheets (out of a cutscene, or in a scene that wants the stands empty).
 
 
+/** about half the seats get a full-detail person in a cutscene; the rest keep their cut-out (world/FanCutouts.js) - a
+ *  crowd of both, the detail where it shows and a fraction of the cost (a fixed hash of the seat: the same ones every time) */
+const hdSeat = (lx, tier) => { const h = Math.sin(lx * 12.9898 + tier * 78.233) * 43758.5453; return h - Math.floor(h) < 0.5; };
 
 const ON = 150, OFF = 175, NEAR = 30;   // m: a stand comes alive within ON of the camera, goes back to sheets beyond OFF; stretches in full detail within NEAR
 const CASUAL = ['#f2f2ef', '#1b1d22', '#2d4a6b', '#9fb6c9', '#d9c7a3', '#b04a4a', '#6d7f5a', '#e9e3d6', '#3a3f48', '#f0c9c9', '#ffd400', '#ff8000'];
@@ -88974,7 +89123,7 @@ class StandCrowds {
   /** one stand's people: the whole stand in distant bodies, each stretch of it in full detail */
   _build(p) {
     const g = new THREE.Group(), chunks = [], byChunk = new Map(), far = new Crowd({ night: this.night });
-    for (const f of this.stands.seats(p)) { const k = Math.floor((f.lx + p.len / 2) / 16); if (!byChunk.has(k)) byChunk.set(k, []); byChunk.get(k).push(f); }
+    for (const f of this.stands.seats(p)) { if (!hdSeat(f.lx, f.tier)) continue; const k = Math.floor((f.lx + p.len / 2) / 16); if (!byChunk.has(k)) byChunk.set(k, []); byChunk.get(k).push(f); }
     for (const seats of byChunk.values()) {
       const near = new Crowd({ night: this.night }), n0 = far.list.length;
       let cx = 0, cz = 0;
@@ -88982,7 +89131,7 @@ class StandCrowds {
         const front = f.tier < 3, spec = near.spec(front ? 'fanF' : 'fanB', front ? 16 : 12), team = Math.random() < 0.55, c = team ? pick(this.teams) : pick(CASUAL);
         const col = { top: c, team: team ? c : pick(this.teams), acc: team ? '#ffffff' : pick(CASUAL), legs: pick(LEGS) };
         const x = f.x + (Math.random() - 0.5) * 0.08, z = f.z + (Math.random() - 0.5) * 0.08, rot = f.ang - Math.PI / 2 + (Math.random() - 0.5) * 0.45, sc = 0.93 + Math.random() * 0.1, jump = spec.pose === 'cheer' && Math.random() < 0.75 ? 0.6 + Math.random() * 0.6 : 0;
-        const fy = f.y + TERRAIN.at(x, z);   // (on a circuit that is not flat: the stand stands on its ground - world/Terrain.js)
+        const fy = f.y;   // (the seat's height: on a circuit that is not flat the stand is built on its ground already)
         near.add(spec, x, z, rot, col, sc, fy, jump); far.add(this._farSpec(spec), x, z, rot, col, sc, fy, jump);
         cx += f.x; cz += f.z;
       }
@@ -89002,7 +89151,7 @@ class StandCrowds {
     if (v) crowdMaterial().userData.lift.value = this.night ? 0.2 : 0;   // (the night lift is the shared material's)
     else for (const S of this.built.values()) this._off(S);
   }
-  _on(S) { if (S.on) return; S.on = true; S.g.visible = true; S.undo = this.stands.hide((q) => q === S.p); }
+  _on(S) { if (S.on) return; S.on = true; S.g.visible = true; S.undo = this.stands.hide((q, lx, tier) => q === S.p && hdSeat(lx, tier)); }
   _off(S) { if (!S.on) return; S.on = false; S.g.visible = false; S.undo?.(); S.undo = null; }
   _near(C, n) { if (n === C.n) return; C.n = n; C.gN.visible = n; for (const e of C.far) (n ? hideP : showP)(e); }
   /** every frame of a cutscene, with where the camera is */
@@ -89783,6 +89932,7 @@ const { corridorSigned, ribbon } = __m['src/track/TrackBuilder.js'];
 const { footprintInfo } = __m['src/core/GeoLoader.js'];
 const { makeWindowMaterial } = __m['src/world/Buildings.js'];
 const { TERRAIN } = __m['src/world/Terrain.js'];
+const { fanMaterial, fanMesh } = __m['src/world/FanCutouts.js'];
 // Austin: around the Circuit of the Americas, what the survey does not carry. The circuit sits in rolling ranch land
 // south-east of the city: the hill up to Turn 1 (the line is 27 m below its top), the Esses running down from it, the
 // long back straight out to the Turn 11 hairpin, the "stadium" section of Turns 12-15 round the Grand Plaza, and the
@@ -89798,19 +89948,20 @@ const { TERRAIN } = __m['src/world/Terrain.js'];
 
 
 
+
 // ---- grandstands, by their real places: on a side of the track at a corner (side +1 left / -1 right of the racing
 //      direction), or from the survey (named outlines)
 const STANDS = [
-  { name: 'Main Grandstand', s: -40, side: -1, len: 300, tiers: 24 },              // the main straight, facing the pits
-  { name: 'Turn 1 Grandstand', turn: 1, along: -70, side: -1, len: 170, tiers: 22 }, // up the hill, on the outside
-  { name: 'Turn 1 Hill', turn: 2, along: -40, side: -1, len: 90, tiers: 12 },
-  { name: 'Esses Bleachers', turn: 4, along: 0, side: -1, len: 110, tiers: 12 },
-  { name: 'Turn 6 Bleachers', turn: 6, along: -30, side: 1, len: 80, tiers: 10 },
+  { name: 'Main Grandstand', s: -40, side: -1, len: 300, tiers: 27, style: { roof: 'membrane', frame: 'red', levels: 3 } },              // the main straight, facing the pits
+  { name: 'Turn 1 Grandstand', turn: 1, along: -70, side: -1, len: 170, tiers: 22, style: { roof: 'none', art: 'stars' } }, // up the hill, on the outside
+  { name: 'Turn 1 Hill', turn: 2, along: -40, side: -1, len: 90, tiers: 12, style: { roof: 'none' } },
+  { name: 'Esses Bleachers', turn: 4, along: 0, side: -1, len: 110, tiers: 12, style: { roof: 'none' } },
+  { name: 'Turn 6 Bleachers', turn: 6, along: -30, side: 1, len: 80, tiers: 10, style: { roof: 'none' } },
   { name: 'Turn 9 Grandstand', turn: 9, along: -20, side: -1, len: 90, tiers: 12 },
-  { name: 'Turn 11 Bleachers', turn: 11, along: -90, side: -1, len: 80, tiers: 10 },
-  { name: 'Turn 12 Grandstand', turn: 12, along: -110, side: -1, len: 150, tiers: 18 },
-  { name: 'Turn 15 Grandstands', outline: 'Turn 15 Grandstands', len: 120, tiers: 18 },
-  { name: 'Turn 19 Grandstand', turn: 19, along: 0, side: -1, len: 100, tiers: 14 },
+  { name: 'Turn 11 Bleachers', turn: 11, along: -90, side: -1, len: 80, tiers: 10, style: { roof: 'none' } },
+  { name: 'Turn 12 Grandstand', turn: 12, along: -110, side: -1, len: 150, tiers: 18, style: { roof: 'none', art: 'stars' } },
+  { name: 'Turn 15 Grandstands', outline: 'Turn 15 Grandstands', len: 120, tiers: 18, style: { roof: 'none' } },
+  { name: 'Turn 19 Grandstand', turn: 19, along: 0, side: -1, len: 100, tiers: 14, style: { roof: 'canopy' } },
 ];
 
 const rng = (seed) => () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
@@ -89818,48 +89969,6 @@ const nonIdx = (g) => (g.index ? g.toNonIndexed() : g);
 const vcolor = (g, hex) => { const c = new THREE.Color(hex), n = g.attributes.position.count, a = new Float32Array(n * 3); for (let k = 0; k < n; k++) { a[k * 3] = c.r; a[k * 3 + 1] = c.g; a[k * 3 + 2] = c.b; } g.setAttribute('color', new THREE.BufferAttribute(a, 3)); return g; };
 const keepPN = (g) => { for (const k of Object.keys(g.attributes)) if (!['position', 'normal', 'color'].includes(k)) g.deleteAttribute(k); return g; };
 
-/**
- * The fans' atlas: ten people side by side (48 x 144 px each, the figure's 1.7 m from 16 px down to the bottom), drawn
- * as masks the shader colours per person: red = the shading, green = skin (face, neck, forearms, hands), blue = the top
- * of the head (hair, or a hat); everything else is clothes, coloured by height (the shirt above the waist, the trousers
- * below, the shoes at the bottom). 0 arms down, 1 hands on hips, 2 a fist in the air, 3 both arms up, 4 filming on a
- * phone, 5 long hair, 6 a cap, 7 a Stetson, 8 sitting cross-legged, 9 sitting with the knees up.
- */
-function fanAtlas() {
-  const W = 48, H = 144, c = document.createElement('canvas'); c.width = W * 10; c.height = H; const x = c.getContext('2d');
-  const body = (s) => `rgb(${s},0,0)`, skin = (s) => `rgb(${s},255,0)`, head = (s) => `rgb(${s},0,255)`;
-  const R = (f, a, b, w, h) => { x.fillStyle = f; x.fillRect(a, b, w, h); };
-  const limb = (f, x0, y0, x1, y1, w) => { x.strokeStyle = f; x.lineWidth = w; x.lineCap = 'round'; x.beginPath(); x.moveTo(x0, y0); x.lineTo(x1, y1); x.stroke(); };
-  const disc = (f, cx, cy, r, a0 = 0, a1 = Math.PI * 2) => { x.fillStyle = f; x.beginPath(); x.arc(cx, cy, r, a0, a1); x.fill(); };
-  for (let v = 0; v < 10; v++) {
-    x.save(); x.translate(v * W, 0);
-    const sit = v >= 8, dy = sit ? 46 : 0, cx = 24;
-    // legs and shoes (standing), or folded in front (sitting)
-    if (!sit) { R(body(205), 15, 80, 8, 58); R(body(185), 25, 80, 8, 58); R(body(60), 13, 137, 10, 7); R(body(60), 25, 137, 10, 7); }
-    else if (v === 8) { R(body(200), 6, 124, 36, 12); R(body(170), 6, 132, 36, 6); }
-    else { limb(body(200), 16, 128, 22, 112, 9); limb(body(185), 32, 128, 26, 112, 9); R(body(60), 12, 134, 10, 6); R(body(60), 27, 134, 10, 6); }
-    // torso (a little lighter down its middle)
-    x.fillStyle = body(190); x.beginPath(); x.moveTo(14, 36 + dy); x.lineTo(34, 36 + dy); x.lineTo(33, 81 + dy); x.lineTo(15, 81 + dy); x.closePath(); x.fill();
-    R(body(225), 19, 38 + dy, 10, 42);
-    // arms: a sleeve to the elbow, then the forearm and the hand
-    const arm = (sx, ex, ey, hx, hy) => { limb(body(175), sx, 39 + dy, ex, ey, 6); limb(skin(200), ex, ey, hx, hy, 5); disc(skin(210), hx, hy, 3); };
-    if (v === 1) { arm(13, 7, 56 + dy, 14, 74 + dy); arm(35, 41, 56 + dy, 34, 74 + dy); }
-    else if (v === 2) { arm(13, 10, 58 + dy, 11, 77 + dy); arm(35, 40, 22, 40, 5); }
-    else if (v === 3) { arm(13, 7, 22, 10, 4); arm(35, 41, 22, 38, 4); }
-    else if (v === 4) { arm(13, 10, 58 + dy, 11, 77 + dy); arm(35, 39, 30, 33, 16); R(body(25), 30, 9, 7, 11); }
-    else if (sit) { arm(13, 10, 62 + dy, 16, 76 + dy); arm(35, 38, 62 + dy, 32, 76 + dy); }
-    else { arm(13, 10, 58 + dy, 11, 78 + dy); arm(35, 38, 58 + dy, 37, 78 + dy); }
-    // neck and head: the face skin, the top of the head the hair or the hat
-    R(skin(200), 21, 31 + dy, 6, 6);
-    disc(skin(215), cx, 24 + dy, 8);
-    if (v === 5) { R(head(200), 15, 20 + dy, 4, 26); R(head(200), 29, 20 + dy, 4, 26); disc(head(210), cx, 22 + dy, 8.6, Math.PI, Math.PI * 2); }
-    else if (v === 6) { disc(head(215), cx, 22 + dy, 8.8, Math.PI, Math.PI * 2); R(head(190), 24, 20 + dy, 12, 3); }
-    else if (v === 7) { x.fillStyle = head(205); x.beginPath(); x.ellipse(cx, 19 + dy, 15, 3, 0, 0, Math.PI * 2); x.fill(); R(head(220), 17, 9 + dy, 14, 10); }
-    else disc(head(205), cx, 21 + dy, 8.4, Math.PI * 1.05, Math.PI * 1.95);
-    x.restore();
-  }
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.NoColorSpace; t.anisotropy = 4; return t;
-}
 /** the picnic blankets: red gingham, a blue tartan, a green check, a striped towel (four 128 px tiles) */
 function mattAtlas() {
   const S = 128, c = document.createElement('canvas'); c.width = S * 4; c.height = S; const x = c.getContext('2d');
@@ -89903,7 +90012,7 @@ function buildAustin(geo, track, def, pit) {
     const bands = document.createElement('canvas'); bands.width = 64; bands.height = 512; const bx = bands.getContext('2d');
     for (let k = 0; k < 32; k++) { bx.fillStyle = `hsl(${(k * 360 / 11) % 360}, 90%, 58%)`; bx.fillRect(0, k * 16, 64, 13); bx.fillStyle = '#e8ecf0'; bx.fillRect(0, k * 16 + 13, 64, 3); }
     const bandTex = new THREE.CanvasTexture(bands); bandTex.colorSpace = THREE.SRGBColorSpace;
-    const shaftMat = new THREE.MeshStandardMaterial({ color: 0xc9d6e0, roughness: 0.12, metalness: 0.55, emissive: 0xffffff, emissiveMap: bandTex, emissiveIntensity: 0, envMapIntensity: 1.3 });
+    const shaftMat = new THREE.MeshStandardMaterial({ color: 0xe6ebef, roughness: 0.12, metalness: 0.55, emissive: 0xffffff, emissiveMap: bandTex, emissiveIntensity: 0, envMapIntensity: 1.3 });
     shaftMat.userData.towerGlow = true;
     const core = new THREE.Mesh(new THREE.BoxGeometry(4.2, 70, 4.2), shaftMat); core.position.y = 33; T.add(core);   // (down 2 m into the ground: no gap on a slope)
     const frame = [], box = (w, h, d, x, y, z, rz = 0) => { const g = new THREE.BoxGeometry(w, h, d); if (rz) g.rotateZ(rz); g.translate(x, y, z); frame.push(g); };
@@ -89918,22 +90027,27 @@ function buildAustin(geo, track, def, pit) {
     const deck = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 3.4, 32), glass); deck.scale.set(7.5, 1, 6.5); deck.position.set(0, 71.4, 0); T.add(deck);
     const lid = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1.0, 32), white); lid.scale.set(8, 1, 7); lid.position.set(0, 73.6, 0); T.add(lid);
     const floor = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 0.8, 32), white); floor.scale.set(8, 1, 7); floor.position.set(0, 69.6, 0); T.add(floor);
-    // the veil: a band of red steel 7 m wide - over the top in a hook (76.5 m), down the tower's side, then out across the
-    // stage at 12 m on white posts
-    const red = new THREE.MeshStandardMaterial({ color: 0xd3202b, roughness: 0.45, metalness: 0.35, emissive: 0x3a080b, side: THREE.DoubleSide });
-    const path = new THREE.CatmullRomCurve3([[-7, 72.5], [-5, 75.4], [0, 76.5], [6, 75.4], [8.5, 70.5], [9, 60], [9, 40], [9.2, 24], [10.5, 16], [15, 12.6], [24, 12], [40, 12], [58, 12], [70, 12]].map(([x, y]) => new THREE.Vector3(x, y, 0)), false, 'centripetal');
-    const NS = 160, W = 7, P = [], I = [];
-    for (let k = 0; k <= NS; k++) { const q = path.getPoint(k / NS); P.push(q.x, q.y, -W / 2, q.x, q.y, W / 2); if (k < NS) { const a = k * 2; I.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); } }
-    const veil = new THREE.BufferGeometry(); veil.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); veil.setIndex(I); veil.computeVertexNormals();
-    T.add(new THREE.Mesh(veil, red));
-    const posts = []; for (let x = 22; x <= 70; x += 12) for (const z of [-3.2, 3.2]) { const g = new THREE.BoxGeometry(0.5, 14, 0.5); g.translate(x, 5, z); posts.push(keepPN(g)); }
+    // the veil: eighteen red steel pipes (20 cm) side by side - over the top in a hook (76.5 m), cascading down the tower's
+    // side, then fanning out over the stage to form its canopy, on slim white columns
+    const red = new THREE.MeshStandardMaterial({ color: 0xd3202b, roughness: 0.4, metalness: 0.4, emissive: 0x3a080b });
+    const path = new THREE.CatmullRomCurve3([[-7, 72.5], [-5, 75.4], [0, 76.5], [6, 75.4], [8.5, 70.5], [9, 60], [9, 40], [9.2, 24], [10.5, 16], [15, 12.8], [24, 12.2], [40, 12], [56, 11.6], [64, 10.8]].map(([x, y]) => new THREE.Vector3(x, y, 0)), false, 'centripetal');
+    const pipes = [], NP = 18;
+    for (let j = 0; j < NP; j++) {
+      const u = j / (NP - 1) - 0.5, pts = [];
+      for (let k = 0; k <= 90; k++) {
+        const q = path.getPoint(k / 90), w = q.x < 12 ? 6.4 : 6.4 + Math.min(1, (q.x - 12) / 30) * 22;   // (6.4 m wide on the tower, 28 m over the stage)
+        pts.push(new THREE.Vector3(q.x, q.y + (q.x > 14 ? Math.cos(u * Math.PI) * 1.2 * Math.min(1, (q.x - 14) / 20) : 0), u * w));   // (the canopy arches a little across)
+      }
+      pipes.push(keepPN(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 110, 0.1, 6, false)));
+    }
+    T.add(new THREE.Mesh(mergeGeometries(pipes), red));
+    const posts = []; for (const x of [26, 42, 58]) for (const z of [-1, 1]) { const w = 6.4 + Math.min(1, (x - 12) / 30) * 22, g = new THREE.CylinderGeometry(0.22, 0.28, 13, 8); g.translate(x, 5.5, z * w * 0.42); posts.push(keepPN(g)); }
     T.add(new THREE.Mesh(mergeGeometries(posts), white));
     group.add(T);
     // the stage, its canopy under the veil's run, the lawn bowl and the plaza: on the ground (raised with the world)
     const Pz = new THREE.Group(); Pz.name = 'scene:plaza'; Pz.position.set(tx, 0, tz); Pz.rotation.y = yaw;
-    const canopy = new THREE.Mesh(new THREE.CylinderGeometry(18, 18, 0.6, 24, 1, false, 0, Math.PI), white); canopy.rotation.y = Math.PI / 2; canopy.position.set(34, 10.5, 0); Pz.add(canopy);
     const stage = new THREE.Mesh(new THREE.BoxGeometry(16, 1.6, 26), new THREE.MeshStandardMaterial({ color: 0x2b2d33, roughness: 0.8 })); stage.position.set(30, 0.8, 0); Pz.add(stage);
-    const lawn = new THREE.Mesh(new THREE.CylinderGeometry(75, 75, 0.3, 40, 1, false, -Math.PI / 2.5, Math.PI / 1.25), new THREE.MeshStandardMaterial({ color: 0x5e7a36, roughness: 1 }));
+    const lawn = new THREE.Mesh(new THREE.CylinderGeometry(75, 75, 0.3, 40, 1, false, -Math.PI / 2.5, Math.PI / 1.25), new THREE.MeshStandardMaterial({ color: 0x8aa24e, roughness: 1 }));
     lawn.position.set(38, 0.05, 0); lawn.rotation.y = -Math.PI / 2; Pz.add(lawn);
     // the Grand Plaza: pale concrete beyond the lawn, and the long reflecting pool at its far end
     const plaza = new THREE.Mesh(new THREE.BoxGeometry(150, 0.2, 60), new THREE.MeshStandardMaterial({ color: 0xc9c4b8, roughness: 0.85 })); plaza.position.set(190, 0.08, 0); Pz.add(plaza);
@@ -89943,6 +90057,20 @@ function buildAustin(geo, track, def, pit) {
     group.add(Pz);
     solid.push([tx, tz, 16]);
     const at = (u) => [tx + Math.cos(yaw) * u, tz - Math.sin(yaw) * u]; solid.push([...at(35), 45], [...at(190), 70]);
+  }
+
+  // ---- the Paddock Club: two storeys of glass on top of the pit building, white floor slabs and roof, the red tube along
+  //      its front edge (as the red steel frames the main grandstand across the track)
+  if (pit) {
+    const ps = pit.samples, gs = -pit.trackSide, hw = pit.halfWidth, inB = (i) => i >= pit.wallStartI + 3 && i <= pit.wallEndI - 3;
+    const R = (a, b, y, o = {}) => ribbon(ps, () => gs * a, () => gs * b, y, { closed: false, mask: inB, uvV: 4, ...o });
+    const glassG = [R(hw + 1.6, hw + 1.6, 5.6, { yB: 13.0 })].filter((g) => g.index?.count);
+    const slabG = [R(hw + 0.8, hw + 20, 9.25), R(hw + 0.2, hw + 21, 13.25), R(hw + 1.2, hw + 20, 5.5), R(hw + 20, hw + 20, 0, { yB: 13.25 })].filter((g) => g.index?.count);
+    const redG = [R(hw + 0.2, hw + 0.2, 12.95, { yB: 13.6 }), R(hw + 0.8, hw + 0.8, 9.0, { yB: 9.5 })].filter((g) => g.index?.count);
+    const clean = (gs2) => gs2.map((g) => { for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal') g.deleteAttribute(k); if (!g.attributes.normal) g.computeVertexNormals(); return g; });
+    if (glassG.length) group.add(new THREE.Mesh(mergeGeometries(clean(glassG)), new THREE.MeshStandardMaterial({ color: 0x2b3d4e, roughness: 0.08, metalness: 0.8, emissive: 0x22303c, side: THREE.DoubleSide })));
+    if (slabG.length) group.add(new THREE.Mesh(mergeGeometries(clean(slabG)), new THREE.MeshStandardMaterial({ color: 0xeef0f2, roughness: 0.6, side: THREE.DoubleSide, emissive: 0x16171a })));
+    if (redG.length) group.add(new THREE.Mesh(mergeGeometries(clean(redG)), new THREE.MeshStandardMaterial({ color: 0xc8202b, roughness: 0.45, metalness: 0.35, side: THREE.DoubleSide })));
   }
 
   // ---- the pedestrian bridges over the track: at Turn 3 (across the whole circuit) and at Turn 16 (into the infield) -
@@ -90008,7 +90136,7 @@ function buildAustin(geo, track, def, pit) {
     const clear = () => { for (let u = -S.len / 2; u <= S.len / 2; u += 5) for (let v = 0; v <= DEPTH; v += 6) { const x = ox + ex[0] * u + ez[0] * v, z = oz + ex[1] * u + ez[1] * v; if (corridorSigned(tr, pit, x, z, 3) < 0) return false; } return true; };
     let k = 0; while (k < 24 && !clear()) { ox += ez[0] * 2; oz += ez[1] * 2; k++; }
     if (k >= 24) { console.info(`[austin] no room for ${S.name}`); continue; }
-    stands.push({ x: ox, z: oz, ex, ez, len: S.len, tiers: S.tiers, name: S.name });
+    stands.push({ x: ox, z: oz, ex, ez, len: S.len, tiers: S.tiers, name: S.name, style: S.style || null });
     const cx = ox + ez[0] * DEPTH / 2, cz = oz + ez[1] * DEPTH / 2; standBoxes.push([cx, cz, S.len / 2 + 8]); solid.push([cx, cz, S.len / 2 + 6]);
   }
 
@@ -90090,21 +90218,25 @@ function buildAustin(geo, track, def, pit) {
     // (a bank: from `d0` m past the barrier to `d1`, along s0..s1 on a side, rising `rise` m away from the track; the
     //  grass under it and the people on it - every place clear of the stands, the tents and the track's corridor)
     const bank = (s0, s1, side, d0, d1, rise, fill = 0.72) => {
-      const P = [], I = [], rows = Math.ceil((d1 - d0) / 3) + 1; let cols = 0;
+      // (a real hill, not a wedge: up from the grass to a crest 3/4 of the way back, down again behind it, and eased
+      //  into the ground over its last 30 m at either end - no cliffs or edges to see from the track)
+      const sm = (v) => { v = Math.min(1, Math.max(0, v)); return v * v * (3 - 2 * v); };
+      const hAt = (s, u) => rise * (u < 0.75 ? sm(u / 0.75) : sm((1 - u) / 0.25)) * sm(Math.min(s - s0, s1 - s) / 30);
+      const P = [], UV = [], I = [], rows = Math.ceil((d1 - d0) / 3) + 1; let cols = 0;
       for (let s = s0; s <= s1 + 0.1; s += 4) {
         const i = tr.idxAtS(s), w = tr.wallAt(i, side), f = tr.sample(s, 0);
-        for (let r = 0; r < rows; r++) { const u = r / (rows - 1), d = w + d0 + (d1 - d0) * u, x = f.x + f.nx * side * d, z = f.z + f.nz * side * d; P.push(x, rise * u * u * (3 - 2 * u), z); }
+        for (let r = 0; r < rows; r++) { const u = r / (rows - 1), d = w + d0 + (d1 - d0) * u, x = f.x + f.nx * side * d, z = f.z + f.nz * side * d; P.push(x, hAt(s, u) - 0.05, z); UV.push(x / 9, z / 9); }
         cols++;
       }
       for (let c = 0; c < cols - 1; c++) for (let r = 0; r < rows - 1; r++) { const a = c * rows + r, b = a + 1, cc = a + rows, d = cc + 1; if (side > 0) I.push(a, cc, b, b, cc, d); else I.push(a, b, cc, b, d, cc); }
-      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setIndex(I); g.computeVertexNormals(); berms.push(g);
+      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(UV, 2)); g.setIndex(I); g.computeVertexNormals(); berms.push(g);
       for (let s = s0; s <= s1; s += 0.75) {
         const i = tr.idxAtS(s), w = tr.wallAt(i, side), f = tr.sample(s, 0), ang = Math.atan2(-f.nx * side, -f.nz * side);
         for (let d = d0 + 1.2; d <= d1 - 0.5; d += 1.15) {
           if (rnd() > fill) continue;
           const dd = w + d + (rnd() - 0.5) * 0.5, x = f.x + f.nx * side * dd + (rnd() - 0.5) * 0.4, z = f.z + f.nz * side * dd + (rnd() - 0.5) * 0.4;
           if (!free(x, z, 0.5)) continue;
-          const u = (d - d0) / (d1 - d0), y = rise * u * u * (3 - 2 * u);
+          const u = (d - d0) / (d1 - d0), y = hAt(s, u);
           if (rnd() < 0.07) { picnic(x, y, z, ang); d += 1.2; continue; }
           sheets.push([x, y, z, ang + (rnd() - 0.5) * 0.5, stander()]);
         }
@@ -90119,7 +90251,7 @@ function buildAustin(geo, track, def, pit) {
     bank(S(9, -80), S(10, 40), 1, 6, 28, 3, 0.6);    // Turns 9 and 10
     bank(S(11, -160), S(11, 50), -1, 6, 34, 4);      // the hairpin
     bank(S(12, -90), S(12, 60), 1, 6, 30, 4);        // Turn 12's inside
-    bank(S(15, -40), S(16, 30), 1, 6, 26, 3, 0.65);  // the stadium
+    bank(S(15, -40), S(16, 30), 1, 6, 15, 2, 0.65);  // the stadium (shallow: inside a hairpin a deep bank folds over itself)
     bank(S(19, -120), S(20, 20), -1, 6, 32, 4);      // Turns 19 and 20
     // the Grand Plaza and the amphitheatre's lawn: milling, every which way (and facing the stage on the lawn)
     if (towerAt) {
@@ -90152,51 +90284,17 @@ function buildAustin(geo, track, def, pit) {
       const [sx, sz] = L(30, 0);
       for (let k = 0; k < 6; k++) {
         const m = new THREE.MeshBasicMaterial({ color: [0xff2266, 0x22ccff, 0xffcc22, 0x9944ff, 0x22ff88, 0xff6622][k], transparent: true, opacity: 0.18, depthWrite: false, side: THREE.DoubleSide });
-        const cone = new THREE.Mesh(new THREE.ConeGeometry(4, 22, 12, 1, true), m); cone.geometry.translate(0, -11, 0);
-        const piv = new THREE.Group(); const lx = sx + sy * (k - 2.5) * 4, lz = sz + cy * (k - 2.5) * 4; piv.position.set(lx, 10 + TERRAIN.at(lx, lz), lz); piv.userData.onTerrain = true; piv.add(cone); piv.rotation.z = Math.PI * 0.75; group.add(piv);   // (swept every frame: placed on the ground here, not raised with the world) fest.stageLights.push(piv);
+        const cone = new THREE.Mesh(new THREE.ConeGeometry(2.2, 9.5, 12, 1, true), m); cone.geometry.translate(0, -4.75, 0);
+        const piv = new THREE.Group(); const lx = sx + sy * (k - 2.5) * 4, lz = sz + cy * (k - 2.5) * 4; piv.position.set(lx, 9.5 + TERRAIN.at(lx, lz), lz); piv.userData.onTerrain = true; piv.add(cone); piv.visible = false; group.add(piv); fest.stageLights.push(piv);   // (swept every frame: placed on the ground here, not raised with the world; lit after dark)
       }
     }
     // the fans: one instanced quad each (one mesh per 400 m cell: whole cells cull), cut out of fanAtlas - ten people,
     // standing, cheering, filming, in a cap or a Stetson, sitting - each with their own shirt, trousers, skin and hair or
     // hat, from everyday colours (team shirts among them, not every one); the cheering ones bounce
-    const SHIRT = [0xe9e9e6, 0xe9e9e6, 0xe9e9e6, 0x1c1c1e, 0x1c1c1e, 0x1c1c1e, 0x23304a, 0x23304a, 0x8d9096, 0x8d9096, 0x3b3d42, 0x8fb0cf, 0xb8a888, 0x5c6246, 0x6e2a33,
-      0xd0702c, 0xd0702c, 0xd0702c, 0xa82a32, 0xa82a32, 0x1f2c5a, 0x3fa596, 0x1f5a4c, 0x2b4f9e, 0xb5551a, 0xb5551a, 0xc98aa2, 0xcdb75a, 0xf2e6d0];
-    const PANTS = [0x3b4d6b, 0x3b4d6b, 0x2f3c55, 0x52688a, 0x52688a, 0xa89a7a, 0xa89a7a, 0x1f1f22, 0x1f1f22, 0x5a5d63, 0x6b6b4e, 0xcfc7b5];
-    const SKIN = [0xf0cfb4, 0xe7c0a0, 0xdcae8a, 0xc99572, 0xb07b55, 0x8f5d3e, 0x6b432b, 0x523221];
-    const HAIR = [0x231811, 0x2e2018, 0x4a3221, 0x6b4a2e, 0x9c7b52, 0xc4a473, 0x141414, 0x7d7a76];
-    const HAT = [0xd0702c, 0x1c1c1e, 0xe9e9e6, 0xa82a32, 0x23304a, 0x8d9096], STETSON = [0xc9a97a, 0xe2d6bc, 0x6e5238, 0x2a2a2a];
-    fest.sheetMat = new THREE.MeshLambertMaterial({ color: 0xffffff, map: fanAtlas(), side: THREE.DoubleSide, alphaTest: 0.45 });
-    fest.sheetMat.onBeforeCompile = (sh) => {
-      sh.uniforms.uTime = { value: 0 }; fest.sheetMat.userData.shader = sh;
-      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aPhase; attribute float aVar; attribute vec3 aPants; attribute vec3 aSkin; attribute vec3 aHead; uniform float uTime; varying float vYr; varying float vWaist; varying vec3 vPants; varying vec3 vSkin; varying vec3 vHead;')
-        .replace('#include <uv_vertex>', '#include <uv_vertex>\n vYr = uv.y; vMapUv = vec2((uv.x + aVar) / 10.0, uv.y); vWaist = aVar > 7.5 ? 0.19 : 0.444; vPants = aPants; vSkin = aSkin; vHead = aHead;')
-        .replace('#include <begin_vertex>', '#include <begin_vertex>\n float cheer = (abs(aVar - 2.5) < 1.0 ? 1.0 : 0.0) * step(0.4, fract(aPhase * 7.13)); transformed.y += 0.16 * cheer * max(0.0, sin(uTime * 5.5 + aPhase));');
-      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vYr; varying float vWaist; varying vec3 vPants; varying vec3 vSkin; varying vec3 vHead;')
-        .replace('#include <map_fragment>', `vec4 T = texture2D( map, vMapUv );
-          vec3 body = mix( vec3( 0.06 ), vPants, smoothstep( 0.03, 0.05, vYr ) );
-          body = mix( body, vColor, smoothstep( vWaist - 0.012, vWaist + 0.012, vYr ) );
-          vec3 c = mix( body, vSkin, T.g );
-          c = mix( c, vHead, T.b );
-          diffuseColor.rgb = c * ( 0.5 + 0.5 * T.r ); diffuseColor.a = T.a;`)
-        .replace('#include <color_fragment>', '');
-    };
-    fest.sheetMat.customProgramCacheKey = () => 'austin-fans-2';
-    const quad = new THREE.PlaneGeometry(0.64, 1.91); quad.translate(0, 0.955, 0);
+    fest.sheetMat = fanMaterial();
     const cells = new Map(); for (const sh of sheets) { const k = Math.floor(sh[0] / 400) * 1000 + Math.floor(sh[2] / 400); let a = cells.get(k); if (!a) cells.set(k, (a = [])); a.push(sh); }
+    for (const list of cells.values()) { const im = fanMesh(list, fest.sheetMat, rnd); im.name = 'austin:fans'; group.add(im); }
     const m4 = new THREE.Matrix4(), q4 = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), sc = new THREE.Vector3(), p3 = new THREE.Vector3(), col = new THREE.Color();
-    const pickC = (a) => col.setHex(a[(rnd() * a.length) | 0]).offsetHSL(0, (rnd() - 0.5) * 0.06, (rnd() - 0.5) * 0.06);
-    for (const list of cells.values()) {
-      const n = list.length, g = quad.clone(), im = new THREE.InstancedMesh(g, fest.sheetMat, n), ph = new Float32Array(n), vr = new Float32Array(n), pa = new Float32Array(n * 3), sk = new Float32Array(n * 3), hd = new Float32Array(n * 3);
-      list.forEach(([x, y, z, a, v], i) => {
-        const s = 0.9 + rnd() * 0.18; m4.compose(p3.set(x, y, z), q4.setFromAxisAngle(up, a), sc.set(s, s, 1)); im.setMatrixAt(i, m4);
-        im.setColorAt(i, pickC(SHIRT)); pickC(PANTS).toArray(pa, i * 3); pickC(SKIN).toArray(sk, i * 3);
-        (v === 6 ? pickC(HAT) : v === 7 ? pickC(STETSON) : pickC(HAIR)).toArray(hd, i * 3);
-        ph[i] = rnd() * 6.283; vr[i] = v;
-      });
-      g.setAttribute('aPhase', new THREE.InstancedBufferAttribute(ph, 1)); g.setAttribute('aVar', new THREE.InstancedBufferAttribute(vr, 1));
-      g.setAttribute('aPants', new THREE.InstancedBufferAttribute(pa, 3)); g.setAttribute('aSkin', new THREE.InstancedBufferAttribute(sk, 3)); g.setAttribute('aHead', new THREE.InstancedBufferAttribute(hd, 3));
-      im.instanceMatrix.needsUpdate = true; im.computeBoundingSphere(); im.name = 'austin:fans'; group.add(im);
-    }
     // the picnic blankets (four patterns: red gingham, a blue plaid, a green check, a striped beach towel), the sun
     // umbrellas, the coolers
     if (mats.length) {
@@ -90226,7 +90324,14 @@ function buildAustin(geo, track, def, pit) {
       coolers.forEach(([x, y, z, a], i) => { m4.compose(p3.set(x, y, z), q4.setFromAxisAngle(up, a), sc.set(1, 1, 1)); im.setMatrixAt(i, m4); im.setColorAt(i, col.setHex(CO[(rnd() * CO.length) | 0])); });
       im.instanceMatrix.needsUpdate = true; im.computeBoundingSphere(); group.add(im);
     }
-    if (berms.length) group.add(new THREE.Mesh(mergeGeometries(berms), new THREE.MeshStandardMaterial({ color: 0x6f8240, roughness: 1, side: THREE.DoubleSide })));
+    if (berms.length) {
+      // (the same dry Texas grass as the field around it: a speckled canvas, tiled in world space)
+      const c = document.createElement('canvas'); c.width = c.height = 128; const g2 = c.getContext('2d'), r2 = rng(77);
+      g2.fillStyle = '#8c9450'; g2.fillRect(0, 0, 128, 128);
+      for (let k = 0; k < 2600; k++) { const t2 = r2(); g2.fillStyle = t2 < 0.45 ? '#7a8a40' : t2 < 0.8 ? '#a19a5c' : '#6b7a3a'; g2.fillRect(r2() * 128, r2() * 128, 1 + r2() * 2, 1 + r2() * 2); }
+      const tex = new THREE.CanvasTexture(c); tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.colorSpace = THREE.SRGBColorSpace;
+      group.add(new THREE.Mesh(mergeGeometries(berms), new THREE.MeshStandardMaterial({ map: tex, roughness: 1, side: THREE.DoubleSide })));
+    }
     // flags in the crowd: team colours, the Stars and Stripes, the Lone Star - on poles above the banks, waving
     {
       const spots = []; for (let k = 0; k < sheets.length; k += 90) spots.push(sheets[(k + ((rnd() * 60) | 0)) % sheets.length]);
@@ -90404,9 +90509,9 @@ function buildAustin(geo, track, def, pit) {
     blocked: (x, z) => standBoxes.some(([sx, sz, r]) => (sx - x) ** 2 + (sz - z) ** 2 < r * r) || solid.some(([sx, sz, r]) => (sx - x) ** 2 + (sz - z) ** 2 < r * r),
     update(t) {
       for (const m of [flagMat, fest.sheetMat, fest.flagMat, fest.usFlag]) { const sh = m?.userData.shader; if (sh) sh.uniforms.uTime.value = t; }
-      fest.stageLights.forEach((p, k) => { p.rotation.z = Math.PI * 0.78 + 0.3 * Math.sin(t * 0.9 + k * 1.3); p.rotation.x = 0.35 * Math.sin(t * 0.7 + k * 2.1); });
+      fest.stageLights.forEach((p, k) => { p.rotation.z = 0.35 * Math.sin(t * 0.9 + k * 1.3); p.rotation.x = 0.3 * Math.sin(t * 0.7 + k * 2.1); });
     },
-    setTime(mode) { for (const m of glow) m.emissiveIntensity = mode === 'day' ? 0 : 1.6; },
+    setTime(mode) { for (const m of glow) m.emissiveIntensity = mode === 'day' ? 0 : 1.6; fest.stageLights.forEach((p) => { p.visible = mode !== 'day'; }); },
   };
 }
 

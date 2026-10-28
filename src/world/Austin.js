@@ -13,20 +13,21 @@ import { corridorSigned, ribbon } from '../track/TrackBuilder.js';
 import { footprintInfo } from '../core/GeoLoader.js';
 import { makeWindowMaterial } from './Buildings.js';
 import { TERRAIN } from './Terrain.js';
+import { fanMaterial, fanMesh } from './FanCutouts.js';
 
 // ---- grandstands, by their real places: on a side of the track at a corner (side +1 left / -1 right of the racing
 //      direction), or from the survey (named outlines)
 const STANDS = [
-  { name: 'Main Grandstand', s: -40, side: -1, len: 300, tiers: 24 },              // the main straight, facing the pits
-  { name: 'Turn 1 Grandstand', turn: 1, along: -70, side: -1, len: 170, tiers: 22 }, // up the hill, on the outside
-  { name: 'Turn 1 Hill', turn: 2, along: -40, side: -1, len: 90, tiers: 12 },
-  { name: 'Esses Bleachers', turn: 4, along: 0, side: -1, len: 110, tiers: 12 },
-  { name: 'Turn 6 Bleachers', turn: 6, along: -30, side: 1, len: 80, tiers: 10 },
+  { name: 'Main Grandstand', s: -40, side: -1, len: 300, tiers: 27, style: { roof: 'membrane', frame: 'red', levels: 3 } },              // the main straight, facing the pits
+  { name: 'Turn 1 Grandstand', turn: 1, along: -70, side: -1, len: 170, tiers: 22, style: { roof: 'none', art: 'stars' } }, // up the hill, on the outside
+  { name: 'Turn 1 Hill', turn: 2, along: -40, side: -1, len: 90, tiers: 12, style: { roof: 'none' } },
+  { name: 'Esses Bleachers', turn: 4, along: 0, side: -1, len: 110, tiers: 12, style: { roof: 'none' } },
+  { name: 'Turn 6 Bleachers', turn: 6, along: -30, side: 1, len: 80, tiers: 10, style: { roof: 'none' } },
   { name: 'Turn 9 Grandstand', turn: 9, along: -20, side: -1, len: 90, tiers: 12 },
-  { name: 'Turn 11 Bleachers', turn: 11, along: -90, side: -1, len: 80, tiers: 10 },
-  { name: 'Turn 12 Grandstand', turn: 12, along: -110, side: -1, len: 150, tiers: 18 },
-  { name: 'Turn 15 Grandstands', outline: 'Turn 15 Grandstands', len: 120, tiers: 18 },
-  { name: 'Turn 19 Grandstand', turn: 19, along: 0, side: -1, len: 100, tiers: 14 },
+  { name: 'Turn 11 Bleachers', turn: 11, along: -90, side: -1, len: 80, tiers: 10, style: { roof: 'none' } },
+  { name: 'Turn 12 Grandstand', turn: 12, along: -110, side: -1, len: 150, tiers: 18, style: { roof: 'none', art: 'stars' } },
+  { name: 'Turn 15 Grandstands', outline: 'Turn 15 Grandstands', len: 120, tiers: 18, style: { roof: 'none' } },
+  { name: 'Turn 19 Grandstand', turn: 19, along: 0, side: -1, len: 100, tiers: 14, style: { roof: 'canopy' } },
 ];
 
 const rng = (seed) => () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
@@ -34,48 +35,6 @@ const nonIdx = (g) => (g.index ? g.toNonIndexed() : g);
 const vcolor = (g, hex) => { const c = new THREE.Color(hex), n = g.attributes.position.count, a = new Float32Array(n * 3); for (let k = 0; k < n; k++) { a[k * 3] = c.r; a[k * 3 + 1] = c.g; a[k * 3 + 2] = c.b; } g.setAttribute('color', new THREE.BufferAttribute(a, 3)); return g; };
 const keepPN = (g) => { for (const k of Object.keys(g.attributes)) if (!['position', 'normal', 'color'].includes(k)) g.deleteAttribute(k); return g; };
 
-/**
- * The fans' atlas: ten people side by side (48 x 144 px each, the figure's 1.7 m from 16 px down to the bottom), drawn
- * as masks the shader colours per person: red = the shading, green = skin (face, neck, forearms, hands), blue = the top
- * of the head (hair, or a hat); everything else is clothes, coloured by height (the shirt above the waist, the trousers
- * below, the shoes at the bottom). 0 arms down, 1 hands on hips, 2 a fist in the air, 3 both arms up, 4 filming on a
- * phone, 5 long hair, 6 a cap, 7 a Stetson, 8 sitting cross-legged, 9 sitting with the knees up.
- */
-function fanAtlas() {
-  const W = 48, H = 144, c = document.createElement('canvas'); c.width = W * 10; c.height = H; const x = c.getContext('2d');
-  const body = (s) => `rgb(${s},0,0)`, skin = (s) => `rgb(${s},255,0)`, head = (s) => `rgb(${s},0,255)`;
-  const R = (f, a, b, w, h) => { x.fillStyle = f; x.fillRect(a, b, w, h); };
-  const limb = (f, x0, y0, x1, y1, w) => { x.strokeStyle = f; x.lineWidth = w; x.lineCap = 'round'; x.beginPath(); x.moveTo(x0, y0); x.lineTo(x1, y1); x.stroke(); };
-  const disc = (f, cx, cy, r, a0 = 0, a1 = Math.PI * 2) => { x.fillStyle = f; x.beginPath(); x.arc(cx, cy, r, a0, a1); x.fill(); };
-  for (let v = 0; v < 10; v++) {
-    x.save(); x.translate(v * W, 0);
-    const sit = v >= 8, dy = sit ? 46 : 0, cx = 24;
-    // legs and shoes (standing), or folded in front (sitting)
-    if (!sit) { R(body(205), 15, 80, 8, 58); R(body(185), 25, 80, 8, 58); R(body(60), 13, 137, 10, 7); R(body(60), 25, 137, 10, 7); }
-    else if (v === 8) { R(body(200), 6, 124, 36, 12); R(body(170), 6, 132, 36, 6); }
-    else { limb(body(200), 16, 128, 22, 112, 9); limb(body(185), 32, 128, 26, 112, 9); R(body(60), 12, 134, 10, 6); R(body(60), 27, 134, 10, 6); }
-    // torso (a little lighter down its middle)
-    x.fillStyle = body(190); x.beginPath(); x.moveTo(14, 36 + dy); x.lineTo(34, 36 + dy); x.lineTo(33, 81 + dy); x.lineTo(15, 81 + dy); x.closePath(); x.fill();
-    R(body(225), 19, 38 + dy, 10, 42);
-    // arms: a sleeve to the elbow, then the forearm and the hand
-    const arm = (sx, ex, ey, hx, hy) => { limb(body(175), sx, 39 + dy, ex, ey, 6); limb(skin(200), ex, ey, hx, hy, 5); disc(skin(210), hx, hy, 3); };
-    if (v === 1) { arm(13, 7, 56 + dy, 14, 74 + dy); arm(35, 41, 56 + dy, 34, 74 + dy); }
-    else if (v === 2) { arm(13, 10, 58 + dy, 11, 77 + dy); arm(35, 40, 22, 40, 5); }
-    else if (v === 3) { arm(13, 7, 22, 10, 4); arm(35, 41, 22, 38, 4); }
-    else if (v === 4) { arm(13, 10, 58 + dy, 11, 77 + dy); arm(35, 39, 30, 33, 16); R(body(25), 30, 9, 7, 11); }
-    else if (sit) { arm(13, 10, 62 + dy, 16, 76 + dy); arm(35, 38, 62 + dy, 32, 76 + dy); }
-    else { arm(13, 10, 58 + dy, 11, 78 + dy); arm(35, 38, 58 + dy, 37, 78 + dy); }
-    // neck and head: the face skin, the top of the head the hair or the hat
-    R(skin(200), 21, 31 + dy, 6, 6);
-    disc(skin(215), cx, 24 + dy, 8);
-    if (v === 5) { R(head(200), 15, 20 + dy, 4, 26); R(head(200), 29, 20 + dy, 4, 26); disc(head(210), cx, 22 + dy, 8.6, Math.PI, Math.PI * 2); }
-    else if (v === 6) { disc(head(215), cx, 22 + dy, 8.8, Math.PI, Math.PI * 2); R(head(190), 24, 20 + dy, 12, 3); }
-    else if (v === 7) { x.fillStyle = head(205); x.beginPath(); x.ellipse(cx, 19 + dy, 15, 3, 0, 0, Math.PI * 2); x.fill(); R(head(220), 17, 9 + dy, 14, 10); }
-    else disc(head(205), cx, 21 + dy, 8.4, Math.PI * 1.05, Math.PI * 1.95);
-    x.restore();
-  }
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.NoColorSpace; t.anisotropy = 4; return t;
-}
 /** the picnic blankets: red gingham, a blue tartan, a green check, a striped towel (four 128 px tiles) */
 function mattAtlas() {
   const S = 128, c = document.createElement('canvas'); c.width = S * 4; c.height = S; const x = c.getContext('2d');
@@ -119,7 +78,7 @@ export function buildAustin(geo, track, def, pit) {
     const bands = document.createElement('canvas'); bands.width = 64; bands.height = 512; const bx = bands.getContext('2d');
     for (let k = 0; k < 32; k++) { bx.fillStyle = `hsl(${(k * 360 / 11) % 360}, 90%, 58%)`; bx.fillRect(0, k * 16, 64, 13); bx.fillStyle = '#e8ecf0'; bx.fillRect(0, k * 16 + 13, 64, 3); }
     const bandTex = new THREE.CanvasTexture(bands); bandTex.colorSpace = THREE.SRGBColorSpace;
-    const shaftMat = new THREE.MeshStandardMaterial({ color: 0xc9d6e0, roughness: 0.12, metalness: 0.55, emissive: 0xffffff, emissiveMap: bandTex, emissiveIntensity: 0, envMapIntensity: 1.3 });
+    const shaftMat = new THREE.MeshStandardMaterial({ color: 0xe6ebef, roughness: 0.12, metalness: 0.55, emissive: 0xffffff, emissiveMap: bandTex, emissiveIntensity: 0, envMapIntensity: 1.3 });
     shaftMat.userData.towerGlow = true;
     const core = new THREE.Mesh(new THREE.BoxGeometry(4.2, 70, 4.2), shaftMat); core.position.y = 33; T.add(core);   // (down 2 m into the ground: no gap on a slope)
     const frame = [], box = (w, h, d, x, y, z, rz = 0) => { const g = new THREE.BoxGeometry(w, h, d); if (rz) g.rotateZ(rz); g.translate(x, y, z); frame.push(g); };
@@ -134,22 +93,27 @@ export function buildAustin(geo, track, def, pit) {
     const deck = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 3.4, 32), glass); deck.scale.set(7.5, 1, 6.5); deck.position.set(0, 71.4, 0); T.add(deck);
     const lid = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1.0, 32), white); lid.scale.set(8, 1, 7); lid.position.set(0, 73.6, 0); T.add(lid);
     const floor = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 0.8, 32), white); floor.scale.set(8, 1, 7); floor.position.set(0, 69.6, 0); T.add(floor);
-    // the veil: a band of red steel 7 m wide - over the top in a hook (76.5 m), down the tower's side, then out across the
-    // stage at 12 m on white posts
-    const red = new THREE.MeshStandardMaterial({ color: 0xd3202b, roughness: 0.45, metalness: 0.35, emissive: 0x3a080b, side: THREE.DoubleSide });
-    const path = new THREE.CatmullRomCurve3([[-7, 72.5], [-5, 75.4], [0, 76.5], [6, 75.4], [8.5, 70.5], [9, 60], [9, 40], [9.2, 24], [10.5, 16], [15, 12.6], [24, 12], [40, 12], [58, 12], [70, 12]].map(([x, y]) => new THREE.Vector3(x, y, 0)), false, 'centripetal');
-    const NS = 160, W = 7, P = [], I = [];
-    for (let k = 0; k <= NS; k++) { const q = path.getPoint(k / NS); P.push(q.x, q.y, -W / 2, q.x, q.y, W / 2); if (k < NS) { const a = k * 2; I.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); } }
-    const veil = new THREE.BufferGeometry(); veil.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); veil.setIndex(I); veil.computeVertexNormals();
-    T.add(new THREE.Mesh(veil, red));
-    const posts = []; for (let x = 22; x <= 70; x += 12) for (const z of [-3.2, 3.2]) { const g = new THREE.BoxGeometry(0.5, 14, 0.5); g.translate(x, 5, z); posts.push(keepPN(g)); }
+    // the veil: eighteen red steel pipes (20 cm) side by side - over the top in a hook (76.5 m), cascading down the tower's
+    // side, then fanning out over the stage to form its canopy, on slim white columns
+    const red = new THREE.MeshStandardMaterial({ color: 0xd3202b, roughness: 0.4, metalness: 0.4, emissive: 0x3a080b });
+    const path = new THREE.CatmullRomCurve3([[-7, 72.5], [-5, 75.4], [0, 76.5], [6, 75.4], [8.5, 70.5], [9, 60], [9, 40], [9.2, 24], [10.5, 16], [15, 12.8], [24, 12.2], [40, 12], [56, 11.6], [64, 10.8]].map(([x, y]) => new THREE.Vector3(x, y, 0)), false, 'centripetal');
+    const pipes = [], NP = 18;
+    for (let j = 0; j < NP; j++) {
+      const u = j / (NP - 1) - 0.5, pts = [];
+      for (let k = 0; k <= 90; k++) {
+        const q = path.getPoint(k / 90), w = q.x < 12 ? 6.4 : 6.4 + Math.min(1, (q.x - 12) / 30) * 22;   // (6.4 m wide on the tower, 28 m over the stage)
+        pts.push(new THREE.Vector3(q.x, q.y + (q.x > 14 ? Math.cos(u * Math.PI) * 1.2 * Math.min(1, (q.x - 14) / 20) : 0), u * w));   // (the canopy arches a little across)
+      }
+      pipes.push(keepPN(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 110, 0.1, 6, false)));
+    }
+    T.add(new THREE.Mesh(mergeGeometries(pipes), red));
+    const posts = []; for (const x of [26, 42, 58]) for (const z of [-1, 1]) { const w = 6.4 + Math.min(1, (x - 12) / 30) * 22, g = new THREE.CylinderGeometry(0.22, 0.28, 13, 8); g.translate(x, 5.5, z * w * 0.42); posts.push(keepPN(g)); }
     T.add(new THREE.Mesh(mergeGeometries(posts), white));
     group.add(T);
     // the stage, its canopy under the veil's run, the lawn bowl and the plaza: on the ground (raised with the world)
     const Pz = new THREE.Group(); Pz.name = 'scene:plaza'; Pz.position.set(tx, 0, tz); Pz.rotation.y = yaw;
-    const canopy = new THREE.Mesh(new THREE.CylinderGeometry(18, 18, 0.6, 24, 1, false, 0, Math.PI), white); canopy.rotation.y = Math.PI / 2; canopy.position.set(34, 10.5, 0); Pz.add(canopy);
     const stage = new THREE.Mesh(new THREE.BoxGeometry(16, 1.6, 26), new THREE.MeshStandardMaterial({ color: 0x2b2d33, roughness: 0.8 })); stage.position.set(30, 0.8, 0); Pz.add(stage);
-    const lawn = new THREE.Mesh(new THREE.CylinderGeometry(75, 75, 0.3, 40, 1, false, -Math.PI / 2.5, Math.PI / 1.25), new THREE.MeshStandardMaterial({ color: 0x5e7a36, roughness: 1 }));
+    const lawn = new THREE.Mesh(new THREE.CylinderGeometry(75, 75, 0.3, 40, 1, false, -Math.PI / 2.5, Math.PI / 1.25), new THREE.MeshStandardMaterial({ color: 0x8aa24e, roughness: 1 }));
     lawn.position.set(38, 0.05, 0); lawn.rotation.y = -Math.PI / 2; Pz.add(lawn);
     // the Grand Plaza: pale concrete beyond the lawn, and the long reflecting pool at its far end
     const plaza = new THREE.Mesh(new THREE.BoxGeometry(150, 0.2, 60), new THREE.MeshStandardMaterial({ color: 0xc9c4b8, roughness: 0.85 })); plaza.position.set(190, 0.08, 0); Pz.add(plaza);
@@ -159,6 +123,20 @@ export function buildAustin(geo, track, def, pit) {
     group.add(Pz);
     solid.push([tx, tz, 16]);
     const at = (u) => [tx + Math.cos(yaw) * u, tz - Math.sin(yaw) * u]; solid.push([...at(35), 45], [...at(190), 70]);
+  }
+
+  // ---- the Paddock Club: two storeys of glass on top of the pit building, white floor slabs and roof, the red tube along
+  //      its front edge (as the red steel frames the main grandstand across the track)
+  if (pit) {
+    const ps = pit.samples, gs = -pit.trackSide, hw = pit.halfWidth, inB = (i) => i >= pit.wallStartI + 3 && i <= pit.wallEndI - 3;
+    const R = (a, b, y, o = {}) => ribbon(ps, () => gs * a, () => gs * b, y, { closed: false, mask: inB, uvV: 4, ...o });
+    const glassG = [R(hw + 1.6, hw + 1.6, 5.6, { yB: 13.0 })].filter((g) => g.index?.count);
+    const slabG = [R(hw + 0.8, hw + 20, 9.25), R(hw + 0.2, hw + 21, 13.25), R(hw + 1.2, hw + 20, 5.5), R(hw + 20, hw + 20, 0, { yB: 13.25 })].filter((g) => g.index?.count);
+    const redG = [R(hw + 0.2, hw + 0.2, 12.95, { yB: 13.6 }), R(hw + 0.8, hw + 0.8, 9.0, { yB: 9.5 })].filter((g) => g.index?.count);
+    const clean = (gs2) => gs2.map((g) => { for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal') g.deleteAttribute(k); if (!g.attributes.normal) g.computeVertexNormals(); return g; });
+    if (glassG.length) group.add(new THREE.Mesh(mergeGeometries(clean(glassG)), new THREE.MeshStandardMaterial({ color: 0x2b3d4e, roughness: 0.08, metalness: 0.8, emissive: 0x22303c, side: THREE.DoubleSide })));
+    if (slabG.length) group.add(new THREE.Mesh(mergeGeometries(clean(slabG)), new THREE.MeshStandardMaterial({ color: 0xeef0f2, roughness: 0.6, side: THREE.DoubleSide, emissive: 0x16171a })));
+    if (redG.length) group.add(new THREE.Mesh(mergeGeometries(clean(redG)), new THREE.MeshStandardMaterial({ color: 0xc8202b, roughness: 0.45, metalness: 0.35, side: THREE.DoubleSide })));
   }
 
   // ---- the pedestrian bridges over the track: at Turn 3 (across the whole circuit) and at Turn 16 (into the infield) -
@@ -224,7 +202,7 @@ export function buildAustin(geo, track, def, pit) {
     const clear = () => { for (let u = -S.len / 2; u <= S.len / 2; u += 5) for (let v = 0; v <= DEPTH; v += 6) { const x = ox + ex[0] * u + ez[0] * v, z = oz + ex[1] * u + ez[1] * v; if (corridorSigned(tr, pit, x, z, 3) < 0) return false; } return true; };
     let k = 0; while (k < 24 && !clear()) { ox += ez[0] * 2; oz += ez[1] * 2; k++; }
     if (k >= 24) { console.info(`[austin] no room for ${S.name}`); continue; }
-    stands.push({ x: ox, z: oz, ex, ez, len: S.len, tiers: S.tiers, name: S.name });
+    stands.push({ x: ox, z: oz, ex, ez, len: S.len, tiers: S.tiers, name: S.name, style: S.style || null });
     const cx = ox + ez[0] * DEPTH / 2, cz = oz + ez[1] * DEPTH / 2; standBoxes.push([cx, cz, S.len / 2 + 8]); solid.push([cx, cz, S.len / 2 + 6]);
   }
 
@@ -306,21 +284,25 @@ export function buildAustin(geo, track, def, pit) {
     // (a bank: from `d0` m past the barrier to `d1`, along s0..s1 on a side, rising `rise` m away from the track; the
     //  grass under it and the people on it - every place clear of the stands, the tents and the track's corridor)
     const bank = (s0, s1, side, d0, d1, rise, fill = 0.72) => {
-      const P = [], I = [], rows = Math.ceil((d1 - d0) / 3) + 1; let cols = 0;
+      // (a real hill, not a wedge: up from the grass to a crest 3/4 of the way back, down again behind it, and eased
+      //  into the ground over its last 30 m at either end - no cliffs or edges to see from the track)
+      const sm = (v) => { v = Math.min(1, Math.max(0, v)); return v * v * (3 - 2 * v); };
+      const hAt = (s, u) => rise * (u < 0.75 ? sm(u / 0.75) : sm((1 - u) / 0.25)) * sm(Math.min(s - s0, s1 - s) / 30);
+      const P = [], UV = [], I = [], rows = Math.ceil((d1 - d0) / 3) + 1; let cols = 0;
       for (let s = s0; s <= s1 + 0.1; s += 4) {
         const i = tr.idxAtS(s), w = tr.wallAt(i, side), f = tr.sample(s, 0);
-        for (let r = 0; r < rows; r++) { const u = r / (rows - 1), d = w + d0 + (d1 - d0) * u, x = f.x + f.nx * side * d, z = f.z + f.nz * side * d; P.push(x, rise * u * u * (3 - 2 * u), z); }
+        for (let r = 0; r < rows; r++) { const u = r / (rows - 1), d = w + d0 + (d1 - d0) * u, x = f.x + f.nx * side * d, z = f.z + f.nz * side * d; P.push(x, hAt(s, u) - 0.05, z); UV.push(x / 9, z / 9); }
         cols++;
       }
       for (let c = 0; c < cols - 1; c++) for (let r = 0; r < rows - 1; r++) { const a = c * rows + r, b = a + 1, cc = a + rows, d = cc + 1; if (side > 0) I.push(a, cc, b, b, cc, d); else I.push(a, b, cc, b, d, cc); }
-      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setIndex(I); g.computeVertexNormals(); berms.push(g);
+      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(UV, 2)); g.setIndex(I); g.computeVertexNormals(); berms.push(g);
       for (let s = s0; s <= s1; s += 0.75) {
         const i = tr.idxAtS(s), w = tr.wallAt(i, side), f = tr.sample(s, 0), ang = Math.atan2(-f.nx * side, -f.nz * side);
         for (let d = d0 + 1.2; d <= d1 - 0.5; d += 1.15) {
           if (rnd() > fill) continue;
           const dd = w + d + (rnd() - 0.5) * 0.5, x = f.x + f.nx * side * dd + (rnd() - 0.5) * 0.4, z = f.z + f.nz * side * dd + (rnd() - 0.5) * 0.4;
           if (!free(x, z, 0.5)) continue;
-          const u = (d - d0) / (d1 - d0), y = rise * u * u * (3 - 2 * u);
+          const u = (d - d0) / (d1 - d0), y = hAt(s, u);
           if (rnd() < 0.07) { picnic(x, y, z, ang); d += 1.2; continue; }
           sheets.push([x, y, z, ang + (rnd() - 0.5) * 0.5, stander()]);
         }
@@ -335,7 +317,7 @@ export function buildAustin(geo, track, def, pit) {
     bank(S(9, -80), S(10, 40), 1, 6, 28, 3, 0.6);    // Turns 9 and 10
     bank(S(11, -160), S(11, 50), -1, 6, 34, 4);      // the hairpin
     bank(S(12, -90), S(12, 60), 1, 6, 30, 4);        // Turn 12's inside
-    bank(S(15, -40), S(16, 30), 1, 6, 26, 3, 0.65);  // the stadium
+    bank(S(15, -40), S(16, 30), 1, 6, 15, 2, 0.65);  // the stadium (shallow: inside a hairpin a deep bank folds over itself)
     bank(S(19, -120), S(20, 20), -1, 6, 32, 4);      // Turns 19 and 20
     // the Grand Plaza and the amphitheatre's lawn: milling, every which way (and facing the stage on the lawn)
     if (towerAt) {
@@ -368,51 +350,17 @@ export function buildAustin(geo, track, def, pit) {
       const [sx, sz] = L(30, 0);
       for (let k = 0; k < 6; k++) {
         const m = new THREE.MeshBasicMaterial({ color: [0xff2266, 0x22ccff, 0xffcc22, 0x9944ff, 0x22ff88, 0xff6622][k], transparent: true, opacity: 0.18, depthWrite: false, side: THREE.DoubleSide });
-        const cone = new THREE.Mesh(new THREE.ConeGeometry(4, 22, 12, 1, true), m); cone.geometry.translate(0, -11, 0);
-        const piv = new THREE.Group(); const lx = sx + sy * (k - 2.5) * 4, lz = sz + cy * (k - 2.5) * 4; piv.position.set(lx, 10 + TERRAIN.at(lx, lz), lz); piv.userData.onTerrain = true; piv.add(cone); piv.rotation.z = Math.PI * 0.75; group.add(piv);   // (swept every frame: placed on the ground here, not raised with the world) fest.stageLights.push(piv);
+        const cone = new THREE.Mesh(new THREE.ConeGeometry(2.2, 9.5, 12, 1, true), m); cone.geometry.translate(0, -4.75, 0);
+        const piv = new THREE.Group(); const lx = sx + sy * (k - 2.5) * 4, lz = sz + cy * (k - 2.5) * 4; piv.position.set(lx, 9.5 + TERRAIN.at(lx, lz), lz); piv.userData.onTerrain = true; piv.add(cone); piv.visible = false; group.add(piv); fest.stageLights.push(piv);   // (swept every frame: placed on the ground here, not raised with the world; lit after dark)
       }
     }
     // the fans: one instanced quad each (one mesh per 400 m cell: whole cells cull), cut out of fanAtlas - ten people,
     // standing, cheering, filming, in a cap or a Stetson, sitting - each with their own shirt, trousers, skin and hair or
     // hat, from everyday colours (team shirts among them, not every one); the cheering ones bounce
-    const SHIRT = [0xe9e9e6, 0xe9e9e6, 0xe9e9e6, 0x1c1c1e, 0x1c1c1e, 0x1c1c1e, 0x23304a, 0x23304a, 0x8d9096, 0x8d9096, 0x3b3d42, 0x8fb0cf, 0xb8a888, 0x5c6246, 0x6e2a33,
-      0xd0702c, 0xd0702c, 0xd0702c, 0xa82a32, 0xa82a32, 0x1f2c5a, 0x3fa596, 0x1f5a4c, 0x2b4f9e, 0xb5551a, 0xb5551a, 0xc98aa2, 0xcdb75a, 0xf2e6d0];
-    const PANTS = [0x3b4d6b, 0x3b4d6b, 0x2f3c55, 0x52688a, 0x52688a, 0xa89a7a, 0xa89a7a, 0x1f1f22, 0x1f1f22, 0x5a5d63, 0x6b6b4e, 0xcfc7b5];
-    const SKIN = [0xf0cfb4, 0xe7c0a0, 0xdcae8a, 0xc99572, 0xb07b55, 0x8f5d3e, 0x6b432b, 0x523221];
-    const HAIR = [0x231811, 0x2e2018, 0x4a3221, 0x6b4a2e, 0x9c7b52, 0xc4a473, 0x141414, 0x7d7a76];
-    const HAT = [0xd0702c, 0x1c1c1e, 0xe9e9e6, 0xa82a32, 0x23304a, 0x8d9096], STETSON = [0xc9a97a, 0xe2d6bc, 0x6e5238, 0x2a2a2a];
-    fest.sheetMat = new THREE.MeshLambertMaterial({ color: 0xffffff, map: fanAtlas(), side: THREE.DoubleSide, alphaTest: 0.45 });
-    fest.sheetMat.onBeforeCompile = (sh) => {
-      sh.uniforms.uTime = { value: 0 }; fest.sheetMat.userData.shader = sh;
-      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aPhase; attribute float aVar; attribute vec3 aPants; attribute vec3 aSkin; attribute vec3 aHead; uniform float uTime; varying float vYr; varying float vWaist; varying vec3 vPants; varying vec3 vSkin; varying vec3 vHead;')
-        .replace('#include <uv_vertex>', '#include <uv_vertex>\n vYr = uv.y; vMapUv = vec2((uv.x + aVar) / 10.0, uv.y); vWaist = aVar > 7.5 ? 0.19 : 0.444; vPants = aPants; vSkin = aSkin; vHead = aHead;')
-        .replace('#include <begin_vertex>', '#include <begin_vertex>\n float cheer = (abs(aVar - 2.5) < 1.0 ? 1.0 : 0.0) * step(0.4, fract(aPhase * 7.13)); transformed.y += 0.16 * cheer * max(0.0, sin(uTime * 5.5 + aPhase));');
-      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vYr; varying float vWaist; varying vec3 vPants; varying vec3 vSkin; varying vec3 vHead;')
-        .replace('#include <map_fragment>', `vec4 T = texture2D( map, vMapUv );
-          vec3 body = mix( vec3( 0.06 ), vPants, smoothstep( 0.03, 0.05, vYr ) );
-          body = mix( body, vColor, smoothstep( vWaist - 0.012, vWaist + 0.012, vYr ) );
-          vec3 c = mix( body, vSkin, T.g );
-          c = mix( c, vHead, T.b );
-          diffuseColor.rgb = c * ( 0.5 + 0.5 * T.r ); diffuseColor.a = T.a;`)
-        .replace('#include <color_fragment>', '');
-    };
-    fest.sheetMat.customProgramCacheKey = () => 'austin-fans-2';
-    const quad = new THREE.PlaneGeometry(0.64, 1.91); quad.translate(0, 0.955, 0);
+    fest.sheetMat = fanMaterial();
     const cells = new Map(); for (const sh of sheets) { const k = Math.floor(sh[0] / 400) * 1000 + Math.floor(sh[2] / 400); let a = cells.get(k); if (!a) cells.set(k, (a = [])); a.push(sh); }
+    for (const list of cells.values()) { const im = fanMesh(list, fest.sheetMat, rnd); im.name = 'austin:fans'; group.add(im); }
     const m4 = new THREE.Matrix4(), q4 = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), sc = new THREE.Vector3(), p3 = new THREE.Vector3(), col = new THREE.Color();
-    const pickC = (a) => col.setHex(a[(rnd() * a.length) | 0]).offsetHSL(0, (rnd() - 0.5) * 0.06, (rnd() - 0.5) * 0.06);
-    for (const list of cells.values()) {
-      const n = list.length, g = quad.clone(), im = new THREE.InstancedMesh(g, fest.sheetMat, n), ph = new Float32Array(n), vr = new Float32Array(n), pa = new Float32Array(n * 3), sk = new Float32Array(n * 3), hd = new Float32Array(n * 3);
-      list.forEach(([x, y, z, a, v], i) => {
-        const s = 0.9 + rnd() * 0.18; m4.compose(p3.set(x, y, z), q4.setFromAxisAngle(up, a), sc.set(s, s, 1)); im.setMatrixAt(i, m4);
-        im.setColorAt(i, pickC(SHIRT)); pickC(PANTS).toArray(pa, i * 3); pickC(SKIN).toArray(sk, i * 3);
-        (v === 6 ? pickC(HAT) : v === 7 ? pickC(STETSON) : pickC(HAIR)).toArray(hd, i * 3);
-        ph[i] = rnd() * 6.283; vr[i] = v;
-      });
-      g.setAttribute('aPhase', new THREE.InstancedBufferAttribute(ph, 1)); g.setAttribute('aVar', new THREE.InstancedBufferAttribute(vr, 1));
-      g.setAttribute('aPants', new THREE.InstancedBufferAttribute(pa, 3)); g.setAttribute('aSkin', new THREE.InstancedBufferAttribute(sk, 3)); g.setAttribute('aHead', new THREE.InstancedBufferAttribute(hd, 3));
-      im.instanceMatrix.needsUpdate = true; im.computeBoundingSphere(); im.name = 'austin:fans'; group.add(im);
-    }
     // the picnic blankets (four patterns: red gingham, a blue plaid, a green check, a striped beach towel), the sun
     // umbrellas, the coolers
     if (mats.length) {
@@ -442,7 +390,14 @@ export function buildAustin(geo, track, def, pit) {
       coolers.forEach(([x, y, z, a], i) => { m4.compose(p3.set(x, y, z), q4.setFromAxisAngle(up, a), sc.set(1, 1, 1)); im.setMatrixAt(i, m4); im.setColorAt(i, col.setHex(CO[(rnd() * CO.length) | 0])); });
       im.instanceMatrix.needsUpdate = true; im.computeBoundingSphere(); group.add(im);
     }
-    if (berms.length) group.add(new THREE.Mesh(mergeGeometries(berms), new THREE.MeshStandardMaterial({ color: 0x6f8240, roughness: 1, side: THREE.DoubleSide })));
+    if (berms.length) {
+      // (the same dry Texas grass as the field around it: a speckled canvas, tiled in world space)
+      const c = document.createElement('canvas'); c.width = c.height = 128; const g2 = c.getContext('2d'), r2 = rng(77);
+      g2.fillStyle = '#8c9450'; g2.fillRect(0, 0, 128, 128);
+      for (let k = 0; k < 2600; k++) { const t2 = r2(); g2.fillStyle = t2 < 0.45 ? '#7a8a40' : t2 < 0.8 ? '#a19a5c' : '#6b7a3a'; g2.fillRect(r2() * 128, r2() * 128, 1 + r2() * 2, 1 + r2() * 2); }
+      const tex = new THREE.CanvasTexture(c); tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.colorSpace = THREE.SRGBColorSpace;
+      group.add(new THREE.Mesh(mergeGeometries(berms), new THREE.MeshStandardMaterial({ map: tex, roughness: 1, side: THREE.DoubleSide })));
+    }
     // flags in the crowd: team colours, the Stars and Stripes, the Lone Star - on poles above the banks, waving
     {
       const spots = []; for (let k = 0; k < sheets.length; k += 90) spots.push(sheets[(k + ((rnd() * 60) | 0)) % sheets.length]);
@@ -620,8 +575,8 @@ export function buildAustin(geo, track, def, pit) {
     blocked: (x, z) => standBoxes.some(([sx, sz, r]) => (sx - x) ** 2 + (sz - z) ** 2 < r * r) || solid.some(([sx, sz, r]) => (sx - x) ** 2 + (sz - z) ** 2 < r * r),
     update(t) {
       for (const m of [flagMat, fest.sheetMat, fest.flagMat, fest.usFlag]) { const sh = m?.userData.shader; if (sh) sh.uniforms.uTime.value = t; }
-      fest.stageLights.forEach((p, k) => { p.rotation.z = Math.PI * 0.78 + 0.3 * Math.sin(t * 0.9 + k * 1.3); p.rotation.x = 0.35 * Math.sin(t * 0.7 + k * 2.1); });
+      fest.stageLights.forEach((p, k) => { p.rotation.z = 0.35 * Math.sin(t * 0.9 + k * 1.3); p.rotation.x = 0.3 * Math.sin(t * 0.7 + k * 2.1); });
     },
-    setTime(mode) { for (const m of glow) m.emissiveIntensity = mode === 'day' ? 0 : 1.6; },
+    setTime(mode) { for (const m of glow) m.emissiveIntensity = mode === 'day' ? 0 : 1.6; fest.stageLights.forEach((p) => { p.visible = mode !== 'day'; }); },
   };
 }
