@@ -34,6 +34,58 @@ const nonIdx = (g) => (g.index ? g.toNonIndexed() : g);
 const vcolor = (g, hex) => { const c = new THREE.Color(hex), n = g.attributes.position.count, a = new Float32Array(n * 3); for (let k = 0; k < n; k++) { a[k * 3] = c.r; a[k * 3 + 1] = c.g; a[k * 3 + 2] = c.b; } g.setAttribute('color', new THREE.BufferAttribute(a, 3)); return g; };
 const keepPN = (g) => { for (const k of Object.keys(g.attributes)) if (!['position', 'normal', 'color'].includes(k)) g.deleteAttribute(k); return g; };
 
+/**
+ * The fans' atlas: ten people side by side (48 x 144 px each, the figure's 1.7 m from 16 px down to the bottom), drawn
+ * as masks the shader colours per person: red = the shading, green = skin (face, neck, forearms, hands), blue = the top
+ * of the head (hair, or a hat); everything else is clothes, coloured by height (the shirt above the waist, the trousers
+ * below, the shoes at the bottom). 0 arms down, 1 hands on hips, 2 a fist in the air, 3 both arms up, 4 filming on a
+ * phone, 5 long hair, 6 a cap, 7 a Stetson, 8 sitting cross-legged, 9 sitting with the knees up.
+ */
+function fanAtlas() {
+  const W = 48, H = 144, c = document.createElement('canvas'); c.width = W * 10; c.height = H; const x = c.getContext('2d');
+  const body = (s) => `rgb(${s},0,0)`, skin = (s) => `rgb(${s},255,0)`, head = (s) => `rgb(${s},0,255)`;
+  const R = (f, a, b, w, h) => { x.fillStyle = f; x.fillRect(a, b, w, h); };
+  const limb = (f, x0, y0, x1, y1, w) => { x.strokeStyle = f; x.lineWidth = w; x.lineCap = 'round'; x.beginPath(); x.moveTo(x0, y0); x.lineTo(x1, y1); x.stroke(); };
+  const disc = (f, cx, cy, r, a0 = 0, a1 = Math.PI * 2) => { x.fillStyle = f; x.beginPath(); x.arc(cx, cy, r, a0, a1); x.fill(); };
+  for (let v = 0; v < 10; v++) {
+    x.save(); x.translate(v * W, 0);
+    const sit = v >= 8, dy = sit ? 46 : 0, cx = 24;
+    // legs and shoes (standing), or folded in front (sitting)
+    if (!sit) { R(body(205), 15, 80, 8, 58); R(body(185), 25, 80, 8, 58); R(body(60), 13, 137, 10, 7); R(body(60), 25, 137, 10, 7); }
+    else if (v === 8) { R(body(200), 6, 124, 36, 12); R(body(170), 6, 132, 36, 6); }
+    else { limb(body(200), 16, 128, 22, 112, 9); limb(body(185), 32, 128, 26, 112, 9); R(body(60), 12, 134, 10, 6); R(body(60), 27, 134, 10, 6); }
+    // torso (a little lighter down its middle)
+    x.fillStyle = body(190); x.beginPath(); x.moveTo(14, 36 + dy); x.lineTo(34, 36 + dy); x.lineTo(33, 81 + dy); x.lineTo(15, 81 + dy); x.closePath(); x.fill();
+    R(body(225), 19, 38 + dy, 10, 42);
+    // arms: a sleeve to the elbow, then the forearm and the hand
+    const arm = (sx, ex, ey, hx, hy) => { limb(body(175), sx, 39 + dy, ex, ey, 6); limb(skin(200), ex, ey, hx, hy, 5); disc(skin(210), hx, hy, 3); };
+    if (v === 1) { arm(13, 7, 56 + dy, 14, 74 + dy); arm(35, 41, 56 + dy, 34, 74 + dy); }
+    else if (v === 2) { arm(13, 10, 58 + dy, 11, 77 + dy); arm(35, 40, 22, 40, 5); }
+    else if (v === 3) { arm(13, 7, 22, 10, 4); arm(35, 41, 22, 38, 4); }
+    else if (v === 4) { arm(13, 10, 58 + dy, 11, 77 + dy); arm(35, 39, 30, 33, 16); R(body(25), 30, 9, 7, 11); }
+    else if (sit) { arm(13, 10, 62 + dy, 16, 76 + dy); arm(35, 38, 62 + dy, 32, 76 + dy); }
+    else { arm(13, 10, 58 + dy, 11, 78 + dy); arm(35, 38, 58 + dy, 37, 78 + dy); }
+    // neck and head: the face skin, the top of the head the hair or the hat
+    R(skin(200), 21, 31 + dy, 6, 6);
+    disc(skin(215), cx, 24 + dy, 8);
+    if (v === 5) { R(head(200), 15, 20 + dy, 4, 26); R(head(200), 29, 20 + dy, 4, 26); disc(head(210), cx, 22 + dy, 8.6, Math.PI, Math.PI * 2); }
+    else if (v === 6) { disc(head(215), cx, 22 + dy, 8.8, Math.PI, Math.PI * 2); R(head(190), 24, 20 + dy, 12, 3); }
+    else if (v === 7) { x.fillStyle = head(205); x.beginPath(); x.ellipse(cx, 19 + dy, 15, 3, 0, 0, Math.PI * 2); x.fill(); R(head(220), 17, 9 + dy, 14, 10); }
+    else disc(head(205), cx, 21 + dy, 8.4, Math.PI * 1.05, Math.PI * 1.95);
+    x.restore();
+  }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.NoColorSpace; t.anisotropy = 4; return t;
+}
+/** the picnic blankets: red gingham, a blue tartan, a green check, a striped towel (four 128 px tiles) */
+function mattAtlas() {
+  const S = 128, c = document.createElement('canvas'); c.width = S * 4; c.height = S; const x = c.getContext('2d');
+  const check = (o, a, b, n) => { x.fillStyle = a; x.fillRect(o, 0, S, S); x.fillStyle = b; for (let i = 0; i < n; i++) { x.globalAlpha = 0.55; x.fillRect(o + i * S / n, 0, S / n / 2, S); x.fillRect(o, i * S / n, S, S / n / 2); } x.globalAlpha = 1; };
+  check(0, '#f2efe8', '#b3262f', 8); check(S, '#1d3557', '#3d6fa8', 6); x.fillStyle = 'rgba(240,210,90,0.5)'; for (let i = 0; i < 6; i++) { x.fillRect(S + i * S / 6 + 9, 0, 2, S); x.fillRect(S, i * S / 6 + 9, S, 2); }
+  check(S * 2, '#e9eadf', '#4d7a3e', 7);
+  ['#e94e3c', '#f4f1ea', '#2f7fb8', '#f2c14e', '#f4f1ea'].forEach((col, i) => { x.fillStyle = col; x.fillRect(S * 3, i * S / 5, S, S / 5 + 1); });
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
+}
+
 export function buildAustin(geo, track, def, pit) {
   const tr = track, group = new THREE.Group(); group.name = 'austin';
   const claimed = new Set(), rnd = rng(20261019);
@@ -239,8 +291,17 @@ export function buildAustin(geo, track, def, pit) {
   //      paint along that run, the braking boards, the TV cranes
   const fest = { sheetMat: null, flagMat: null, stageLights: [] };
   {
-    const FAN = [0xff8000, 0xff8000, 0xe8002d, 0xe8002d, 0x1e3a8a, 0x27f4d2, 0x00665e, 0x0a2aa8, 0xffffff, 0xffffff, 0x111111, 0xff5fb0, 0xc9a86a, 0xffd400, 0x8899aa, 0xeeeeee, 0x222222, 0x33d17a, 0x0a3161, 0xb31942, 0xd8c8a8];
-    const sheets = [];   // [x, y, z, ang]
+    const sheets = [], mats = [], brollies = [], coolers = [];   // sheets: [x, y, z, ang, variant] (fanAtlas: 0-7 standing, 8-9 sitting)
+    const STAND = [0, 0, 0, 1, 1, 2, 2, 3, 4, 4, 5, 5, 6, 6, 6, 7, 7];
+    const stander = () => STAND[(rnd() * STAND.length) | 0];
+    // (a group on a picnic blanket: two to four sitting on it, now and then a sun umbrella and a cooler beside it)
+    const picnic = (x, y, z, ang) => {
+      mats.push([x, y, z, ang + (rnd() - 0.5) * 0.4, (rnd() * 4) | 0]);
+      const n = 2 + ((rnd() * 3) | 0), ca = Math.cos(ang), sa = Math.sin(ang);
+      for (let k = 0; k < n; k++) { const u = (k - (n - 1) / 2) * 0.62 + (rnd() - 0.5) * 0.15, v = (rnd() - 0.5) * 0.7; sheets.push([x + ca * u + sa * v, y + 0.02, z - sa * u + ca * v, ang + (rnd() - 0.5) * 0.6, 8 + ((rnd() * 2) | 0)]); }
+      if (rnd() < 0.3) brollies.push([x + sa * 1.3, y, z + ca * 1.3, rnd() * 6.3]);
+      if (rnd() < 0.5) coolers.push([x - ca * 1.3, y, z + sa * 1.3, ang]);
+    };
     const berms = [];
     // (a bank: from `d0` m past the barrier to `d1`, along s0..s1 on a side, rising `rise` m away from the track; the
     //  grass under it and the people on it - every place clear of the stands, the tents and the track's corridor)
@@ -259,7 +320,9 @@ export function buildAustin(geo, track, def, pit) {
           if (rnd() > fill) continue;
           const dd = w + d + (rnd() - 0.5) * 0.5, x = f.x + f.nx * side * dd + (rnd() - 0.5) * 0.4, z = f.z + f.nz * side * dd + (rnd() - 0.5) * 0.4;
           if (!free(x, z, 0.5)) continue;
-          const u = (d - d0) / (d1 - d0); sheets.push([x, rise * u * u * (3 - 2 * u), z, ang + (rnd() - 0.5) * 0.5]);
+          const u = (d - d0) / (d1 - d0), y = rise * u * u * (3 - 2 * u);
+          if (rnd() < 0.07) { picnic(x, y, z, ang); d += 1.2; continue; }
+          sheets.push([x, y, z, ang + (rnd() - 0.5) * 0.5, stander()]);
         }
       }
     };
@@ -280,9 +343,11 @@ export function buildAustin(geo, track, def, pit) {
       const L = (u, v) => [towerAt[0] + cy * u + sy * v, towerAt[1] - sy * u + cy * v];
       for (let k = 0; k < 2600; k++) {   // (the lawn: a fan of people facing back to the stage)
         const a = (rnd() - 0.5) * Math.PI * 0.75, r = 18 + Math.sqrt(rnd()) * 52, u = 38 + Math.cos(a) * r, v = Math.sin(a) * r, [x, z] = L(u, v);
-        if (corridorSigned(tr, pit, x, z, 4) > 0) sheets.push([x, 0, z, yaw + Math.PI / 2 + a + Math.PI + (rnd() - 0.5) * 0.3]);
+        if (corridorSigned(tr, pit, x, z, 4) <= 0) continue;
+        const face = yaw + Math.PI / 2 + a + Math.PI + (rnd() - 0.5) * 0.3;
+        if (rnd() < 0.12) picnic(x, 0, z, face); else sheets.push([x, 0, z, face, stander()]);
       }
-      for (let k = 0; k < 1800; k++) { const [x, z] = L(110 + rnd() * 160, (rnd() - 0.5) * 70); if (corridorSigned(tr, pit, x, z, 4) > 0) sheets.push([x, 0, z, rnd() * Math.PI * 2]); }
+      for (let k = 0; k < 1800; k++) { const [x, z] = L(110 + rnd() * 160, (rnd() - 0.5) * 70); if (corridorSigned(tr, pit, x, z, 4) > 0) sheets.push([x, 0, z, rnd() * Math.PI * 2, stander()]); }
       // food trucks and merchandise tents along the plaza's edges
       const trucks = [], tents = [], awnings = [];
       for (let k = 0; k < 18; k++) {
@@ -307,21 +372,75 @@ export function buildAustin(geo, track, def, pit) {
         const piv = new THREE.Group(); const lx = sx + sy * (k - 2.5) * 4, lz = sz + cy * (k - 2.5) * 4; piv.position.set(lx, 10 + TERRAIN.at(lx, lz), lz); piv.userData.onTerrain = true; piv.add(cone); piv.rotation.z = Math.PI * 0.75; group.add(piv);   // (swept every frame: placed on the ground here, not raised with the world) fest.stageLights.push(piv);
       }
     }
-    // the sheets: one instanced mesh per 400 m cell (whole cells cull), coloured, a cheer bobbing through them
-    fest.sheetMat = new THREE.MeshLambertMaterial({ color: 0xffffff, side: THREE.DoubleSide });
+    // the fans: one instanced quad each (one mesh per 400 m cell: whole cells cull), cut out of fanAtlas - ten people,
+    // standing, cheering, filming, in a cap or a Stetson, sitting - each with their own shirt, trousers, skin and hair or
+    // hat, from everyday colours (team shirts among them, not every one); the cheering ones bounce
+    const SHIRT = [0xe9e9e6, 0xe9e9e6, 0xe9e9e6, 0x1c1c1e, 0x1c1c1e, 0x1c1c1e, 0x23304a, 0x23304a, 0x8d9096, 0x8d9096, 0x3b3d42, 0x8fb0cf, 0xb8a888, 0x5c6246, 0x6e2a33,
+      0xd0702c, 0xd0702c, 0xd0702c, 0xa82a32, 0xa82a32, 0x1f2c5a, 0x3fa596, 0x1f5a4c, 0x2b4f9e, 0xb5551a, 0xb5551a, 0xc98aa2, 0xcdb75a, 0xf2e6d0];
+    const PANTS = [0x3b4d6b, 0x3b4d6b, 0x2f3c55, 0x52688a, 0x52688a, 0xa89a7a, 0xa89a7a, 0x1f1f22, 0x1f1f22, 0x5a5d63, 0x6b6b4e, 0xcfc7b5];
+    const SKIN = [0xf0cfb4, 0xe7c0a0, 0xdcae8a, 0xc99572, 0xb07b55, 0x8f5d3e, 0x6b432b, 0x523221];
+    const HAIR = [0x231811, 0x2e2018, 0x4a3221, 0x6b4a2e, 0x9c7b52, 0xc4a473, 0x141414, 0x7d7a76];
+    const HAT = [0xd0702c, 0x1c1c1e, 0xe9e9e6, 0xa82a32, 0x23304a, 0x8d9096], STETSON = [0xc9a97a, 0xe2d6bc, 0x6e5238, 0x2a2a2a];
+    fest.sheetMat = new THREE.MeshLambertMaterial({ color: 0xffffff, map: fanAtlas(), side: THREE.DoubleSide, alphaTest: 0.45 });
     fest.sheetMat.onBeforeCompile = (sh) => {
       sh.uniforms.uTime = { value: 0 }; fest.sheetMat.userData.shader = sh;
-      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aPhase; uniform float uTime;')
-        .replace('#include <begin_vertex>', '#include <begin_vertex>\n transformed.y += 0.22 * max(0.0, sin(uTime * 5.5 + aPhase)) * step(0.55, fract(aPhase * 7.13));');
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aPhase; attribute float aVar; attribute vec3 aPants; attribute vec3 aSkin; attribute vec3 aHead; uniform float uTime; varying float vYr; varying float vWaist; varying vec3 vPants; varying vec3 vSkin; varying vec3 vHead;')
+        .replace('#include <uv_vertex>', '#include <uv_vertex>\n vYr = uv.y; vMapUv = vec2((uv.x + aVar) / 10.0, uv.y); vWaist = aVar > 7.5 ? 0.19 : 0.444; vPants = aPants; vSkin = aSkin; vHead = aHead;')
+        .replace('#include <begin_vertex>', '#include <begin_vertex>\n float cheer = (abs(aVar - 2.5) < 1.0 ? 1.0 : 0.0) * step(0.4, fract(aPhase * 7.13)); transformed.y += 0.16 * cheer * max(0.0, sin(uTime * 5.5 + aPhase));');
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vYr; varying float vWaist; varying vec3 vPants; varying vec3 vSkin; varying vec3 vHead;')
+        .replace('#include <map_fragment>', `vec4 T = texture2D( map, vMapUv );
+          vec3 body = mix( vec3( 0.06 ), vPants, smoothstep( 0.03, 0.05, vYr ) );
+          body = mix( body, vColor, smoothstep( vWaist - 0.012, vWaist + 0.012, vYr ) );
+          vec3 c = mix( body, vSkin, T.g );
+          c = mix( c, vHead, T.b );
+          diffuseColor.rgb = c * ( 0.5 + 0.5 * T.r ); diffuseColor.a = T.a;`)
+        .replace('#include <color_fragment>', '');
     };
-    fest.sheetMat.customProgramCacheKey = () => 'austin-fans';
-    const quad = new THREE.PlaneGeometry(0.48, 1.62); quad.translate(0, 0.81, 0);
+    fest.sheetMat.customProgramCacheKey = () => 'austin-fans-2';
+    const quad = new THREE.PlaneGeometry(0.64, 1.91); quad.translate(0, 0.955, 0);
     const cells = new Map(); for (const sh of sheets) { const k = Math.floor(sh[0] / 400) * 1000 + Math.floor(sh[2] / 400); let a = cells.get(k); if (!a) cells.set(k, (a = [])); a.push(sh); }
     const m4 = new THREE.Matrix4(), q4 = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), sc = new THREE.Vector3(), p3 = new THREE.Vector3(), col = new THREE.Color();
+    const pickC = (a) => col.setHex(a[(rnd() * a.length) | 0]).offsetHSL(0, (rnd() - 0.5) * 0.06, (rnd() - 0.5) * 0.06);
     for (const list of cells.values()) {
-      const g = quad.clone(), im = new THREE.InstancedMesh(g, fest.sheetMat, list.length), ph = new Float32Array(list.length);
-      list.forEach(([x, y, z, a], i) => { const s = 0.88 + rnd() * 0.25; m4.compose(p3.set(x, y, z), q4.setFromAxisAngle(up, a), sc.set(s, s, 1)); im.setMatrixAt(i, m4); col.setHex(FAN[(rnd() * FAN.length) | 0]); if (rnd() < 0.3) col.multiplyScalar(0.65); im.setColorAt(i, col); ph[i] = rnd() * 6.283; });
-      g.setAttribute('aPhase', new THREE.InstancedBufferAttribute(ph, 1)); im.instanceMatrix.needsUpdate = true; im.computeBoundingSphere(); im.name = 'austin:fans'; group.add(im);
+      const n = list.length, g = quad.clone(), im = new THREE.InstancedMesh(g, fest.sheetMat, n), ph = new Float32Array(n), vr = new Float32Array(n), pa = new Float32Array(n * 3), sk = new Float32Array(n * 3), hd = new Float32Array(n * 3);
+      list.forEach(([x, y, z, a, v], i) => {
+        const s = 0.9 + rnd() * 0.18; m4.compose(p3.set(x, y, z), q4.setFromAxisAngle(up, a), sc.set(s, s, 1)); im.setMatrixAt(i, m4);
+        im.setColorAt(i, pickC(SHIRT)); pickC(PANTS).toArray(pa, i * 3); pickC(SKIN).toArray(sk, i * 3);
+        (v === 6 ? pickC(HAT) : v === 7 ? pickC(STETSON) : pickC(HAIR)).toArray(hd, i * 3);
+        ph[i] = rnd() * 6.283; vr[i] = v;
+      });
+      g.setAttribute('aPhase', new THREE.InstancedBufferAttribute(ph, 1)); g.setAttribute('aVar', new THREE.InstancedBufferAttribute(vr, 1));
+      g.setAttribute('aPants', new THREE.InstancedBufferAttribute(pa, 3)); g.setAttribute('aSkin', new THREE.InstancedBufferAttribute(sk, 3)); g.setAttribute('aHead', new THREE.InstancedBufferAttribute(hd, 3));
+      im.instanceMatrix.needsUpdate = true; im.computeBoundingSphere(); im.name = 'austin:fans'; group.add(im);
+    }
+    // the picnic blankets (four patterns: red gingham, a blue plaid, a green check, a striped beach towel), the sun
+    // umbrellas, the coolers
+    if (mats.length) {
+      const mt = mattAtlas();
+      const g = new THREE.PlaneGeometry(2.2, 1.7); g.rotateX(-Math.PI / 2); g.translate(0, 0.03, 0);
+      const mm = new THREE.MeshLambertMaterial({ map: mt, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+      mm.onBeforeCompile = (sh) => { sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aVar;').replace('#include <uv_vertex>', '#include <uv_vertex>\n vMapUv = vec2((uv.x + aVar) / 4.0, uv.y);'); };
+      mm.customProgramCacheKey = () => 'austin-mats';
+      const im = new THREE.InstancedMesh(g, mm, mats.length), vr = new Float32Array(mats.length);
+      mats.forEach(([x, y, z, a, v], i) => { m4.compose(p3.set(x, y, z), q4.setFromAxisAngle(up, a), sc.set(1, 1, 1)); im.setMatrixAt(i, m4); vr[i] = v; });
+      g.setAttribute('aVar', new THREE.InstancedBufferAttribute(vr, 1)); im.instanceMatrix.needsUpdate = true; im.computeBoundingSphere(); group.add(im);
+    }
+    if (brollies.length) {
+      const top = new THREE.ConeGeometry(1.15, 0.45, 8, 1, true); top.translate(0, 2.05, 0);
+      const pole = new THREE.CylinderGeometry(0.02, 0.02, 2.1, 4); pole.translate(0, 1.05, 0);
+      const BR = [0x23304a, 0xe9e9e6, 0xa82a32, 0x2f6b4a, 0xd8c8a0, 0xd0702c];
+      for (const [geo, color] of [[top, null], [pole, 0xdddddd]]) {
+        const im = new THREE.InstancedMesh(geo, new THREE.MeshLambertMaterial({ color: 0xffffff, side: THREE.DoubleSide }), brollies.length);
+        brollies.forEach(([x, y, z, a], i) => { m4.compose(p3.set(x, y, z), q4.setFromAxisAngle(up, a), sc.set(1, 1, 1)); im.setMatrixAt(i, m4); im.setColorAt(i, col.setHex(color ?? BR[(rnd() * BR.length) | 0])); });
+        im.instanceMatrix.needsUpdate = true; im.computeBoundingSphere(); group.add(im);
+      }
+    }
+    if (coolers.length) {
+      const box = new THREE.BoxGeometry(0.62, 0.4, 0.4); box.translate(0, 0.2, 0);
+      const CO = [0xb8232d, 0x2b4f9e, 0xe9e9e6, 0xd0702c, 0x3a6b46];
+      const im = new THREE.InstancedMesh(box, new THREE.MeshLambertMaterial({ color: 0xffffff }), coolers.length);
+      coolers.forEach(([x, y, z, a], i) => { m4.compose(p3.set(x, y, z), q4.setFromAxisAngle(up, a), sc.set(1, 1, 1)); im.setMatrixAt(i, m4); im.setColorAt(i, col.setHex(CO[(rnd() * CO.length) | 0])); });
+      im.instanceMatrix.needsUpdate = true; im.computeBoundingSphere(); group.add(im);
     }
     if (berms.length) group.add(new THREE.Mesh(mergeGeometries(berms), new THREE.MeshStandardMaterial({ color: 0x6f8240, roughness: 1, side: THREE.DoubleSide })));
     // flags in the crowd: team colours, the Stars and Stripes, the Lone Star - on poles above the banks, waving
@@ -341,7 +460,7 @@ export function buildAustin(geo, track, def, pit) {
       spots.forEach(([x, y, z, a], i) => { m4.compose(p3.set(x, y, z), q4.setFromAxisAngle(up, a + rnd() * 0.8), sc.set(1, 1, 1)); fl.setMatrixAt(i, m4); po.setMatrixAt(i, m4); fl.setColorAt(i, col.setHex(FLAG[(rnd() * FLAG.length) | 0])); });
       for (const im of [fl, po]) { im.instanceMatrix.needsUpdate = true; im.computeBoundingSphere(); group.add(im); }
     }
-    console.info(`[austin] the festival: ${sheets.length} fans on the banks and in the plaza`);
+    console.info(`[austin] the festival: ${sheets.length} fans on the banks and in the plaza, ${mats.length} picnic blankets, ${brollies.length} umbrellas`);
   }
   // the Stars and Stripes over the run to Turn 1 (left of the track, by the hill): 40 m up, 20 x 11 m
   {
