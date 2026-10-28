@@ -9,7 +9,7 @@
 // onto the ground's height with it (world/Terrain.js elevateWorld).
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { corridorSigned } from '../track/TrackBuilder.js';
+import { corridorSigned, ribbon } from '../track/TrackBuilder.js';
 import { footprintInfo } from '../core/GeoLoader.js';
 import { makeWindowMaterial } from './Buildings.js';
 import { TERRAIN } from './Terrain.js';
@@ -233,6 +233,170 @@ export function buildAustin(geo, track, def, pit) {
     }
   }
 
+  // ---- the festival: a race weekend here is a hundred thousand people a day. General admission on the grass banks
+  //      (raked up away from the fence, packed), the Grand Plaza and the lawn full, flags in the crowd, food trucks and
+  //      merchandise tents, a concert on the amphitheatre's stage, the Stars and Stripes over the run to Turn 1, the red
+  //      paint along that run, the braking boards, the TV cranes
+  const fest = { sheetMat: null, flagMat: null, stageLights: [] };
+  {
+    const FAN = [0xff8000, 0xff8000, 0xe8002d, 0xe8002d, 0x1e3a8a, 0x27f4d2, 0x00665e, 0x0a2aa8, 0xffffff, 0xffffff, 0x111111, 0xff5fb0, 0xc9a86a, 0xffd400, 0x8899aa, 0xeeeeee, 0x222222, 0x33d17a, 0x0a3161, 0xb31942, 0xd8c8a8];
+    const sheets = [];   // [x, y, z, ang]
+    const berms = [];
+    // (a bank: from `d0` m past the barrier to `d1`, along s0..s1 on a side, rising `rise` m away from the track; the
+    //  grass under it and the people on it - every place clear of the stands, the tents and the track's corridor)
+    const bank = (s0, s1, side, d0, d1, rise, fill = 0.72) => {
+      const P = [], I = [], rows = Math.ceil((d1 - d0) / 3) + 1; let cols = 0;
+      for (let s = s0; s <= s1 + 0.1; s += 4) {
+        const i = tr.idxAtS(s), w = tr.wallAt(i, side), f = tr.sample(s, 0);
+        for (let r = 0; r < rows; r++) { const u = r / (rows - 1), d = w + d0 + (d1 - d0) * u, x = f.x + f.nx * side * d, z = f.z + f.nz * side * d; P.push(x, rise * u * u * (3 - 2 * u), z); }
+        cols++;
+      }
+      for (let c = 0; c < cols - 1; c++) for (let r = 0; r < rows - 1; r++) { const a = c * rows + r, b = a + 1, cc = a + rows, d = cc + 1; if (side > 0) I.push(a, cc, b, b, cc, d); else I.push(a, b, cc, b, d, cc); }
+      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setIndex(I); g.computeVertexNormals(); berms.push(g);
+      for (let s = s0; s <= s1; s += 0.75) {
+        const i = tr.idxAtS(s), w = tr.wallAt(i, side), f = tr.sample(s, 0), ang = Math.atan2(-f.nx * side, -f.nz * side);
+        for (let d = d0 + 1.2; d <= d1 - 0.5; d += 1.15) {
+          if (rnd() > fill) continue;
+          const dd = w + d + (rnd() - 0.5) * 0.5, x = f.x + f.nx * side * dd + (rnd() - 0.5) * 0.4, z = f.z + f.nz * side * dd + (rnd() - 0.5) * 0.4;
+          if (!free(x, z, 0.5)) continue;
+          const u = (d - d0) / (d1 - d0); sheets.push([x, rise * u * u * (3 - 2 * u), z, ang + (rnd() - 0.5) * 0.5]);
+        }
+      }
+    };
+    const S = (n, a = 0) => (cornerS(n) ?? 0) + a;
+    bank(S(1, -420), S(1, -170), -1, 6, 44, 7);      // the run up to Turn 1, the big hill on the right
+    bank(S(1, 25), S(1, 130), -1, 6, 40, 6);         // round the outside of Turn 1
+    bank(S(1, -260), S(1, -60), 1, 8, 30, 3, 0.5);   // and the left of the run, under the flag
+    bank(S(2, -30), S(2, 140), 1, 6, 36, 4);         // the hill down to Turn 2
+    bank(S(3, -20), S(6, 40), -1, 6, 34, 5);          // the Esses
+    bank(S(9, -80), S(10, 40), 1, 6, 28, 3, 0.6);    // Turns 9 and 10
+    bank(S(11, -160), S(11, 50), -1, 6, 34, 4);      // the hairpin
+    bank(S(12, -90), S(12, 60), 1, 6, 30, 4);        // Turn 12's inside
+    bank(S(15, -40), S(16, 30), 1, 6, 26, 3, 0.65);  // the stadium
+    bank(S(19, -120), S(20, 20), -1, 6, 32, 4);      // Turns 19 and 20
+    // the Grand Plaza and the amphitheatre's lawn: milling, every which way (and facing the stage on the lawn)
+    if (towerAt) {
+      const Pz = group.getObjectByName('scene:plaza'), yaw = Pz ? Pz.rotation.y : 0, cy = Math.cos(yaw), sy = Math.sin(yaw);
+      const L = (u, v) => [towerAt[0] + cy * u + sy * v, towerAt[1] - sy * u + cy * v];
+      for (let k = 0; k < 2600; k++) {   // (the lawn: a fan of people facing back to the stage)
+        const a = (rnd() - 0.5) * Math.PI * 0.75, r = 18 + Math.sqrt(rnd()) * 52, u = 38 + Math.cos(a) * r, v = Math.sin(a) * r, [x, z] = L(u, v);
+        if (corridorSigned(tr, pit, x, z, 4) > 0) sheets.push([x, 0, z, yaw + Math.PI / 2 + a + Math.PI + (rnd() - 0.5) * 0.3]);
+      }
+      for (let k = 0; k < 1800; k++) { const [x, z] = L(110 + rnd() * 160, (rnd() - 0.5) * 70); if (corridorSigned(tr, pit, x, z, 4) > 0) sheets.push([x, 0, z, rnd() * Math.PI * 2]); }
+      // food trucks and merchandise tents along the plaza's edges
+      const trucks = [], tents = [], awnings = [];
+      for (let k = 0; k < 18; k++) {
+        const u = 115 + k * 9, v = (k % 2 ? 1 : -1) * 33, [x, z] = L(u, v); if (corridorSigned(tr, pit, x, z, 6) < 0) continue;
+        const g = new THREE.BoxGeometry(6.5, 3, 2.6); g.translate(0, 1.6, 0); g.rotateY(yaw); g.translate(x, 0, z); trucks.push(keepPN(vcolor(nonIdx(g), [0xf2f2f2, 0xd8263c, 0x2a5aa8, 0xffc21a, 0x2a2a2a, 0x2fa36b][k % 6])));
+        const aw = new THREE.BoxGeometry(6.5, 0.12, 1.6); aw.translate(0, 2.9, (k % 2 ? -1 : 1) * 2.0); aw.rotateY(yaw); aw.translate(x, 0, z); awnings.push(vcolor(keepPN(nonIdx(aw)), [0xb31942, 0xffffff, 0x0a3161][k % 3]));
+      }
+      for (let k = 0; k < 10; k++) {
+        const [x, z] = L(300 + (k % 5) * 12, (k < 5 ? -1 : 1) * 22); if (corridorSigned(tr, pit, x, z, 8) < 0) continue;
+        const r = new THREE.ConeGeometry(6, 3.5, 4); r.rotateY(Math.PI / 4); r.translate(0, 4.6, 0); r.translate(x, 0, z); tents.push(vcolor(keepPN(nonIdx(r)), [0xe8002d, 0xff8000, 0x1e3a8a, 0x27f4d2, 0xffffff][k % 5]));
+        const b = new THREE.BoxGeometry(8.4, 2.9, 8.4); b.translate(x, 1.45, z); tents.push(vcolor(keepPN(nonIdx(b)), 0xf4f4f4));
+      }
+      const vmat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6 });
+      if (trucks.length) group.add(new THREE.Mesh(mergeGeometries(trucks), vmat));
+      if (awnings.length) group.add(new THREE.Mesh(mergeGeometries(awnings), vmat));
+      if (tents.length) group.add(new THREE.Mesh(mergeGeometries(tents), vmat));
+      // the concert on the stage: the light rig's beams (cones of coloured light, swept in time) and a band's backdrop
+      const [sx, sz] = L(30, 0);
+      for (let k = 0; k < 6; k++) {
+        const m = new THREE.MeshBasicMaterial({ color: [0xff2266, 0x22ccff, 0xffcc22, 0x9944ff, 0x22ff88, 0xff6622][k], transparent: true, opacity: 0.18, depthWrite: false, side: THREE.DoubleSide });
+        const cone = new THREE.Mesh(new THREE.ConeGeometry(4, 22, 12, 1, true), m); cone.geometry.translate(0, -11, 0);
+        const piv = new THREE.Group(); const lx = sx + sy * (k - 2.5) * 4, lz = sz + cy * (k - 2.5) * 4; piv.position.set(lx, 10 + TERRAIN.at(lx, lz), lz); piv.userData.onTerrain = true; piv.add(cone); piv.rotation.z = Math.PI * 0.75; group.add(piv);   // (swept every frame: placed on the ground here, not raised with the world) fest.stageLights.push(piv);
+      }
+    }
+    // the sheets: one instanced mesh per 400 m cell (whole cells cull), coloured, a cheer bobbing through them
+    fest.sheetMat = new THREE.MeshLambertMaterial({ color: 0xffffff, side: THREE.DoubleSide });
+    fest.sheetMat.onBeforeCompile = (sh) => {
+      sh.uniforms.uTime = { value: 0 }; fest.sheetMat.userData.shader = sh;
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aPhase; uniform float uTime;')
+        .replace('#include <begin_vertex>', '#include <begin_vertex>\n transformed.y += 0.22 * max(0.0, sin(uTime * 5.5 + aPhase)) * step(0.55, fract(aPhase * 7.13));');
+    };
+    fest.sheetMat.customProgramCacheKey = () => 'austin-fans';
+    const quad = new THREE.PlaneGeometry(0.48, 1.62); quad.translate(0, 0.81, 0);
+    const cells = new Map(); for (const sh of sheets) { const k = Math.floor(sh[0] / 400) * 1000 + Math.floor(sh[2] / 400); let a = cells.get(k); if (!a) cells.set(k, (a = [])); a.push(sh); }
+    const m4 = new THREE.Matrix4(), q4 = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), sc = new THREE.Vector3(), p3 = new THREE.Vector3(), col = new THREE.Color();
+    for (const list of cells.values()) {
+      const g = quad.clone(), im = new THREE.InstancedMesh(g, fest.sheetMat, list.length), ph = new Float32Array(list.length);
+      list.forEach(([x, y, z, a], i) => { const s = 0.88 + rnd() * 0.25; m4.compose(p3.set(x, y, z), q4.setFromAxisAngle(up, a), sc.set(s, s, 1)); im.setMatrixAt(i, m4); col.setHex(FAN[(rnd() * FAN.length) | 0]); if (rnd() < 0.3) col.multiplyScalar(0.65); im.setColorAt(i, col); ph[i] = rnd() * 6.283; });
+      g.setAttribute('aPhase', new THREE.InstancedBufferAttribute(ph, 1)); im.instanceMatrix.needsUpdate = true; im.computeBoundingSphere(); im.name = 'austin:fans'; group.add(im);
+    }
+    if (berms.length) group.add(new THREE.Mesh(mergeGeometries(berms), new THREE.MeshStandardMaterial({ color: 0x6f8240, roughness: 1, side: THREE.DoubleSide })));
+    // flags in the crowd: team colours, the Stars and Stripes, the Lone Star - on poles above the banks, waving
+    {
+      const spots = []; for (let k = 0; k < sheets.length; k += 90) spots.push(sheets[(k + ((rnd() * 60) | 0)) % sheets.length]);
+      const flagG = new THREE.PlaneGeometry(1.4, 0.9, 6, 1); flagG.translate(0.7, 3.2, 0);
+      const poleG = new THREE.CylinderGeometry(0.02, 0.02, 3.7, 4); poleG.translate(0, 1.85, 0);
+      fest.flagMat = new THREE.MeshLambertMaterial({ color: 0xffffff, side: THREE.DoubleSide });
+      fest.flagMat.onBeforeCompile = (sh) => {
+        sh.uniforms.uTime = { value: 0 }; fest.flagMat.userData.shader = sh;
+        sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nuniform float uTime;')
+          .replace('#include <begin_vertex>', '#include <begin_vertex>\n float fx = max(0.0, position.x) / 1.4; transformed.z += fx * 0.22 * sin(uTime * 6.0 - position.x * 4.0 + instanceMatrix[3][0]);');
+      };
+      fest.flagMat.customProgramCacheKey = () => 'austin-crowdflags';
+      const fl = new THREE.InstancedMesh(flagG, fest.flagMat, spots.length), po = new THREE.InstancedMesh(poleG, new THREE.MeshLambertMaterial({ color: 0x222222 }), spots.length);
+      const FLAG = [0xff8000, 0xe8002d, 0x1e3a8a, 0x0a3161, 0xb31942, 0xffffff, 0x27f4d2, 0x00665e, 0xffd400];
+      spots.forEach(([x, y, z, a], i) => { m4.compose(p3.set(x, y, z), q4.setFromAxisAngle(up, a + rnd() * 0.8), sc.set(1, 1, 1)); fl.setMatrixAt(i, m4); po.setMatrixAt(i, m4); fl.setColorAt(i, col.setHex(FLAG[(rnd() * FLAG.length) | 0])); });
+      for (const im of [fl, po]) { im.instanceMatrix.needsUpdate = true; im.computeBoundingSphere(); group.add(im); }
+    }
+    console.info(`[austin] the festival: ${sheets.length} fans on the banks and in the plaza`);
+  }
+  // the Stars and Stripes over the run to Turn 1 (left of the track, by the hill): 40 m up, 20 x 11 m
+  {
+    const s = (cornerS(1) ?? 0) - 230, i = tr.idxAtS(s), f = tr.sample(s, 0), d = tr.wallAt(i, 1) + 14, x = f.x + f.nx * d, z = f.z + f.nz * d;
+    const c = document.createElement('canvas'); c.width = 760; c.height = 400; const g = c.getContext('2d');
+    for (let k = 0; k < 13; k++) { g.fillStyle = k % 2 ? '#ffffff' : '#b31942'; g.fillRect(0, k * 400 / 13, 760, 400 / 13 + 1); }
+    g.fillStyle = '#0a3161'; g.fillRect(0, 0, 304, 215); g.fillStyle = '#ffffff';
+    for (let r = 0; r < 9; r++) for (let k = 0; k < (r % 2 ? 5 : 6); k++) { const cx = 25 + k * 50 + (r % 2 ? 25 : 0), cy = 13 + r * 23; g.beginPath(); for (let j = 0; j < 10; j++) { const a = -Math.PI / 2 + j * Math.PI / 5, rr = j % 2 ? 3.6 : 9; (j ? g.lineTo : g.moveTo).call(g, cx + Math.cos(a) * rr, cy + Math.sin(a) * rr); } g.fill(); }
+    const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+    const mat = new THREE.MeshStandardMaterial({ map: tex, side: THREE.DoubleSide, roughness: 0.8 });
+    mat.onBeforeCompile = (sh) => { sh.uniforms.uTime = { value: 0 }; mat.userData.shader = sh; sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nuniform float uTime;').replace('#include <begin_vertex>', '#include <begin_vertex>\nfloat fk = uv.x; transformed.z += fk * (1.0 * sin(uTime * 2.4 - uv.x * 7.0) + 0.4 * sin(uTime * 3.9 - uv.x * 12.0 + uv.y * 3.0)); transformed.y -= fk * fk * 0.9;'); };
+    mat.customProgramCacheKey = () => 'usflag';
+    const F = new THREE.Group(); F.name = 'scene:usflag'; F.position.set(x, 0, z);
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.55, 48, 10), steel); pole.position.y = 24; F.add(pole);
+    const flag = new THREE.Mesh(new THREE.PlaneGeometry(20, 10.5, 40, 12), mat); flag.geometry.translate(10, 0, 0); flag.position.set(0.4, 42, 0); F.add(flag);
+    group.add(F); fest.usFlag = mat; solid.push([x, z, 10]);
+  }
+  // the red paint along the run to Turn 1, both sides, the white braking boards (150, 100, 50) there and before the
+  // hairpin, Turn 12 and Turn 20, and the TV cranes
+  {
+    const s1 = cornerS(1);
+    if (s1 != null) {
+      const hw = tr.halfWidth, red = [0.5, 0.06, 0.1];
+      const strip = (side) => ribbon(tr, (i) => (side > 0 ? hw + 0.05 : -(hw + 6.5)), (i) => (side > 0 ? hw + 6.5 : -(hw + 0.05)), 0.012, { mask: (i) => { const s = tr.s[i], d = tr.wrapS(s - (s1 - 520)); return d < 470; }, colorFn: () => red });
+      const g = mergeGeometries([strip(1), strip(-1)].filter((x) => x.index?.count));
+      if (g) group.add(new THREE.Mesh(g, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 })));
+    }
+    const boards = [], c = document.createElement('canvas'); c.width = 384; c.height = 128; const x2 = c.getContext('2d');
+    ['150', '100', '50'].forEach((t, k) => { x2.fillStyle = '#ffffff'; x2.fillRect(k * 128 + 6, 6, 116, 116); x2.fillStyle = '#111'; x2.font = '900 54px Arial'; x2.textAlign = 'center'; x2.textBaseline = 'middle'; x2.fillText(t, k * 128 + 64, 66); });
+    const btex = new THREE.CanvasTexture(c); btex.colorSpace = THREE.SRGBColorSpace;
+    for (const n of [1, 11, 12, 20]) {
+      const sA = cornerS(n); if (sA == null) continue;
+      // (the brake point of a corner is where the speed profile starts to fall: the boards count down to it)
+      [150, 100, 50].forEach((m, k) => {
+        const s = sA - 90 - m, i = tr.idxAtS(s), f = tr.sample(s, 0), d = -(tr.halfWidth + 3.2), x = f.x + f.nx * d, z = f.z + f.nz * d;
+        const p = new THREE.PlaneGeometry(1.0, 1.0); const uv = p.attributes.uv; for (let j = 0; j < uv.count; j++) uv.setX(j, (k + uv.getX(j)) / 3);
+        p.translate(0, 1.2, 0); p.rotateY(Math.atan2(-f.tx, -f.tz)); p.translate(x, 0, z); boards.push(p);
+      });
+    }
+    if (boards.length) group.add(new THREE.Mesh(mergeGeometries(boards), new THREE.MeshBasicMaterial({ map: btex, side: THREE.DoubleSide })));
+    // the cranes: a yellow boom over the fence with the camera on its end (Turn 1, the Esses, the stadium)
+    const yel = new THREE.MeshStandardMaterial({ color: 0xf2b417, roughness: 0.5, metalness: 0.4 }), crane = [];
+    for (const [n, a, side] of [[1, -120, 1], [4, 0, -1], [15, 0, 1]]) {
+      const sA = cornerS(n); if (sA == null) continue; const s = sA + a, i = tr.idxAtS(s), f = tr.sample(s, 0), d = tr.wallAt(i, side) + 7, x = f.x + f.nx * side * d, z = f.z + f.nz * side * d;
+      if (!free(x, z, 1)) continue;
+      const mast = new THREE.BoxGeometry(0.8, 14, 0.8); mast.translate(0, 7, 0);
+      const boom = new THREE.BoxGeometry(0.5, 0.5, 16); boom.rotateX(-0.5); boom.translate(0, 17.5, -6.5);
+      const cam = new THREE.BoxGeometry(1, 0.8, 1.3); cam.translate(0, 21, -13.6);
+      const yaw = Math.atan2(f.nx * side, f.nz * side);
+      for (const g of [mast, boom, cam]) { g.rotateY(yaw); g.translate(x, 0, z); crane.push(keepPN(nonIdx(g))); }
+      solid.push([x, z, 4]);
+    }
+    if (crane.length) group.add(new THREE.Mesh(mergeGeometries(crane), yel));
+  }
+
   // ---- the car parks in the fields: rows of cars, every colour, on the far side of the stands and round the outside
   {
     const lots = [[20, 260, -1, 5, 34], [1, -380, -1, 6, 40], [11, 0, 1, 5, 30], [11, -400, -1, 6, 30], [7, 0, -1, 4, 28], [17, 0, 1, 4, 26]];
@@ -335,7 +499,10 @@ export function buildAustin(geo, track, def, pit) {
     group, claimed, stands,
     /** something of the scenery standing at (x, z) (where an evening's venue cannot go: main.js footClear) */
     blocked: (x, z) => standBoxes.some(([sx, sz, r]) => (sx - x) ** 2 + (sz - z) ** 2 < r * r) || solid.some(([sx, sz, r]) => (sx - x) ** 2 + (sz - z) ** 2 < r * r),
-    update(t) { const sh = flagMat?.userData.shader; if (sh) sh.uniforms.uTime.value = t; },
+    update(t) {
+      for (const m of [flagMat, fest.sheetMat, fest.flagMat, fest.usFlag]) { const sh = m?.userData.shader; if (sh) sh.uniforms.uTime.value = t; }
+      fest.stageLights.forEach((p, k) => { p.rotation.z = Math.PI * 0.78 + 0.3 * Math.sin(t * 0.9 + k * 1.3); p.rotation.x = 0.35 * Math.sin(t * 0.7 + k * 2.1); });
+    },
     setTime(mode) { for (const m of glow) m.emissiveIntensity = mode === 'day' ? 0 : 1.6; },
   };
 }
