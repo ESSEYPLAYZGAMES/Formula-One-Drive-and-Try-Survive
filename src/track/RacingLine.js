@@ -150,7 +150,9 @@ export class RacingLine {
   /**
    * Speed profile for a car: v(s) limited by lateral grip (with downforce), braking and traction.
    * @param {object} p { mu, mass, dfCoef (N/(m/s)^2 usable downforce), dragCoef (N/(m/s)^2), vMax, brakeG, accel(v) -> m/s^2,
-   *                     axle: { rearStatic, transfer, rearBrake, dfRear (N/(m/s)^2) } for the trail-braking limit }
+   *                     axle: { rearStatic, transfer, rearBrake, dfRear (N/(m/s)^2) } for the trail-braking limit,
+   *                     vMul, bMul: per-sample multipliers on the corner speed and the braking (a circuit's calibration:
+   *                     track.aiV / track.aiB, what the AI commits to there) }
    */
   speedProfile(p) {
     const t = this.track, n = t.n, ds = t.ds, g = 9.81;
@@ -160,7 +162,7 @@ export class RacingLine {
       const k = Math.abs(this.lineCurv[i]) + 1e-5;
       // v^2 k = mu (g + (D/m) v^2)  ->  v^2 (k - mu D/m) = mu g
       const a = k - p.mu * p.dfCoef / p.mass;
-      v[i] = a > 1e-6 ? Math.min(p.vMax, Math.sqrt(p.mu * g / a)) : p.vMax;
+      v[i] = a > 1e-6 ? Math.min(p.vMax, Math.sqrt(p.mu * g / a) * (p.vMul ? p.vMul[i] : 1)) : p.vMax;
     }
     // friction circle: the longitudinal grip left over once the lateral load at a sample is being used
     const longAvail = (i, vi) => {
@@ -186,7 +188,7 @@ export class RacingLine {
       for (let c = 2 * n; c >= 0; c--) {
         const i = c % n, j = (i + 1) % n;
         const vj = v[j];
-        const aB = brakeAvail(j, vj);
+        const aB = brakeAvail(j, vj) * (p.bMul ? p.bMul[j] : 1);
         v[i] = Math.min(v[i], Math.sqrt(vj * vj + 2 * aB * ds));
       }
       // forward pass: traction (rear axle share of the remaining grip) / power limit

@@ -131,7 +131,9 @@ src/audio/Audio.js         synthesised engine/wind/impact audio
 * Dynamic racing line (on by default; L or the setup option toggles it): 1.2 m dashes painted along the racing
   line for the next ~280 m, as in the F1 games. Green, and red wherever the circuit's speed profile (corner speeds
   and the braking curves into them, scaled for your tyres' grip) is below the speed you are doing now: the braking
-  zone and the corner ahead show red until you have slowed enough. With a stop called it becomes a guide into the
+  zone and the corner ahead show red until you have slowed enough. Where the circuit has a driver's own lap
+  (`show` in ai/Calibration.js, from tools/ai_fit.mjs on laps driven there - Austin) the dashes follow that lap's line
+  and go red wherever you are quicker than it was there. With a stop called it becomes a guide into the
   pit entry and up to your box (red in the lane when over the limiter). (The old ribbon was wound facing down and
   back-face culled: it never showed.)
 * Engineer radio (`Engineer.js`): only real events (position changes held for 2 s, retirements and pit stops of
@@ -246,7 +248,8 @@ the fans were 86 % of all triangles, and the 23 cars were 1 562 of the meshes (d
 * the broadcast atlas only refreshes while the F1 stream is on the Sphere (or fading in), one 256 px tile per frame;
 * fans are flat coloured sheets (2 triangles) in one InstancedMesh per stand with a bounding sphere, so a stand
   off camera costs nothing;
-* every static car part is merged per material (~38 meshes instead of ~68) and beyond 110 m a car is a 4-mesh LOD;
+* every static car part is merged per material, and a car has five states by distance (see "Car: real dimensions"):
+  beyond 95 m it is one baked mesh and its shadow;
 * lap-long track ribbons (road, lines, kerbs, run-off, sponsor walls, caps, fence, rail, masts) are split into
   chunk meshes that share their vertex buffers with a bounding sphere each, and the generic buildings are merged
   per 400 m cell, so only what the camera sees is drawn ("don't draw what isn't on camera");
@@ -396,6 +399,19 @@ sample (`track.aiV`, `track.aiB`).
   average, move the AI's numbers toward it (the sim car is not the real car: the shape of the lap is fitted, its
   overall pace is left alone); the AI then drives the result and any corner that is no longer clean goes back.
 
+* The lap mode (`node tools/ai_fit.mjs austin telemetry.json`, the game's own export on the same circuit): one lap is
+  made out of all of them - the circuit in sections between the corners, each from the fastest lap through it that
+  stayed on the road and was not rewound there (a flashback: the attempt it abandoned and what came after it), blended at
+  the joins, its line smoothed of steering corrections. That lap is the racing line drawn on the track (`show`: where it
+  was on the road and its speed every 2 m; red wherever you are quicker than it was there). The AI keeps its own line -
+  driven by the AI, a human's line was no quicker through any section: its controller cannot scrub speed at full lock
+  as a driver does - and its corners are fitted to the lap's minimum speeds and braking points, at the difficulty
+  slider's top (`--diff`, what holds there holds below) on new tyres at every line, then driven: a corner group that is
+  no longer clean goes back, and a pass that is still not clean is undone. Austin's racing line is the composite of
+  three laps of Leclerc's at Legend (95.5 / 96.9 / 104.5 s, flashbacks in each; the composite 96.7 s). Its corner fit
+  took the AI's solo flying lap at Legend from 102.4-103 s to 99.7-100.3 s, but in a full race (mistakes, traffic, dirty
+  air) it spun the field three to seven times as often, so it is not applied yet.
+
 Both need Playwright and a Chromium (the scripts find `/opt/pw-browsers`, or set `CHROME`). After a fit, rebuild the
 game (`tools/bundle.py`, or `tools/splice_artifact.py <commit>` for the published Artifact, which carries changes of
 its own that a rebuild from src/ would lose).
@@ -448,9 +464,28 @@ laps before it - so nobody stops in a sprint.
 ### Car: real dimensions, four wheels, suspension
 
 `CAR` in `src/vehicle/Car.js` carries the figures of a 2022-25 F1 car: 798 kg, 3.6 m wheelbase, 2.0 m wide, 5.66 m
-long, 45.5 % of the mass on the front axle, 44 % of the downforce. `CarMesh.js` remaps its hand-laid parts onto that
-envelope (0.97 m tall at the roll hoop, rear wing top at 0.9 m, 720 mm tyres 305 / 405 mm wide) and the onboard
-cameras sit at the matching heights (driver's eye 0.77 m).
+long, 45.5 % of the mass on the front axle, 44 % of the downforce. `CarMesh.js` builds the car on that envelope (0.97 m
+tall at the roll hoop, rear wing top at 0.95 m, 720 mm tyres 305 / 405 mm wide) and the onboard cameras sit at the
+matching heights (driver's eye 0.77 m).
+
+The model follows the 2026 cars (an Audi R26 blueprint): a slim wedge nose sitting on the front wing's mainplane, three
+flaps a side curving up to the endplates, the halo, letterbox sidepod inlets over a deep undercut, the sidepods' flat
+tops ramping down into a coke-bottle tail, a narrow shrink-wrapped engine cover with a blade airbox and shark fin, the
+two-element rear wing with its DRS flap, pylons, beam wing and rain lights, the diffuser and its strakes, double
+wishbones with push and pull rods, brake ducts, and tyres turned from a real profile with PIRELLI / P ZERO on the
+sidewall and the compound's band. The surfaces are lofted through superellipse cross-sections (crisp shoulders, a
+narrowing top, an undercut drawn in at the bottom) and the wing elements swept from aerofoil sections. Every part's
+geometry is built once and shared by the whole field (a car has only its own paint, decals, number and helmet), so a
+car costs ~8 ms to make. Its states by distance from the camera (scaled by the lens: photo mode's long lens brings the
+detail in with the car):
+
+| state | distance | what is drawn | triangles | draw calls |
+| --- | --- | --- | --- | --- |
+| ultra | < 14 m | everything, and the cockpit's own (steering wheel, display, gloves) | ~47 k | ~48 |
+| high | < 38 m | fine tessellation and the fine work: suspension rods, drive shafts, ducts and winglets, floor fences and edge wing, diffuser strakes, louvres, flap brackets, tyre lettering | ~46 k | ~46 |
+| medium | < 95 m | the same parts coarsely tessellated, no fine work | ~7.8 k | ~34 |
+| far | < 260 m | one baked vertex-coloured mesh and its shadow, baked again when the car loses a wing or a wheel, is crumpled or changes tyres | ~3.5 k | 2 |
+| minimum | beyond | a silhouette | ~240 | 2 |
 
 `src/vehicle/Chassis.js` is the four-wheel model. The body is sprung: heave, pitch and roll on corner springs
 (~4 Hz), dampers and anti-roll bars (58 % of the roll stiffness at the front), so weight transfer takes the time the
@@ -1304,7 +1339,10 @@ exposure (the tone mapping's), contrast, saturation and a vignette. SAVE PHOTO w
 racing line, speed, throttle, brake, steering, gear, rpm, longitudinal / lateral g, surface, ERS, slip angles, tyre
 temperature and wear, wheels on a kerb, body pitch / roll / heave, the four wheel loads) and every AI car at 10 Hz
 (speed, pedals, line). Laps are cut at the timing line; a lap with a
-reset or a pit visit is marked not clean. The reference is the fastest clean AI lap of the session (a standing-start
+reset or a pit visit is marked not clean. A flashback takes the recording back with the clock: what was recorded after
+the moment it rewound to is dropped (a lap begun after it is not begun yet, a lap finished after it is open again), so
+a lap is the one driven - not the abandoned attempt up to the rewind followed by the retry from where the clock caught
+up again (older exports have both, and tools/ai_fit.mjs leaves those stretches out). The reference is the fastest clean AI lap of the session (a standing-start
 lap never counts), else the ideal lap of the speed profile (Time Trial).
 
 `ui/TelemetryView.js` (T in a session, TELEMETRY in the pause menu and on the results screen): lap picker, lap and

@@ -382,8 +382,9 @@ export function buildCotaLife(C) {
     for (let k = 0; k < 2; k++) { const m = new THREE.Mesh(tramGeo, VMAT()); m.userData.onTerrain = true; m.name = 'cota:tram'; group.add(m); trams.push({ m, s0: k * route.total / 2 }); }
   }
 
-  // ---- the TV helicopters: one keeps station over the action (circling near the camera, 110 m up, the camera ball on
-  //      it), one wide and high over the circuit
+  // ---- the TV helicopters: one keeps station over the action (circling the car the camera follows, 110 m up, the
+  //      camera ball on it), one wide and high over the circuit. Each flies nose first along its path: never turned to
+  //      whoever is looking at it (a free camera in photo mode included), and still while the clock is stopped
   const heliGeo = (() => {
     const g = [];
     const body = new THREE.SphereGeometry(1, 16, 10); body.scale(1.15, 1.05, 2.5); g.push(vc(body.translate(0, 1.6, 0), 0xf2f2f0));
@@ -401,7 +402,7 @@ export function buildCotaLife(C) {
     const G = new THREE.Group(); G.name = 'cota:heli'; G.userData.onTerrain = true;
     const b = new THREE.Mesh(heliGeo, heliMat), r = new THREE.Mesh(rotorGeo, heliMat), t = new THREE.Mesh(tailGeo, heliMat);
     r.position.y = 3.35; t.position.set(0.25, 2.6, -7.6); G.add(b, r, t); G.scale.setScalar(1.1); group.add(G);
-    return { G, r, t, k, pos: new THREE.Vector3(), vel: new THREE.Vector3(), init: false };
+    return { G, r, t, k, pos: new THREE.Vector3(), vel: new THREE.Vector3(), yaw: 0, init: false };
   });
   let cx0 = 0, cz0 = 0; for (let i = 0; i < tr.n; i++) { cx0 += tr.px[i]; cz0 += tr.pz[i]; } cx0 /= tr.n; cz0 /= tr.n;
 
@@ -410,7 +411,8 @@ export function buildCotaLife(C) {
   let tPrev = null; const tgt = new THREE.Vector3();
   return {
     nearPath, bigFlags: backs.bigFlags,
-    update(t, cam) {
+    /** focus: what the TV is covering (the car the camera follows: anything with x, z), else the camera's ground */
+    update(t, cam, focus) {
       const dt = tPrev == null ? 0 : Math.max(0, Math.min(0.2, t - tPrev)); tPrev = t;
       const sh = wMat.userData.shader; if (sh) sh.uniforms.uTime.value = t;
       // the trams, there and back along their route at a walking-and-a-half pace
@@ -422,15 +424,18 @@ export function buildCotaLife(C) {
       }
       // the helicopters
       for (const h of helis) {
-        if (h.k === 0 && cam) { const a = t * 0.045, R = 150; tgt.set(cam.position.x + Math.cos(a) * R, 0, cam.position.z + Math.sin(a) * R); tgt.y = H(tgt.x, tgt.z) + 105; }
-        else { const a = t * 0.026 + 2, R = 620; tgt.set(cx0 + Math.cos(a) * R, 0, cz0 + Math.sin(a) * R * 0.8); tgt.y = H(tgt.x, tgt.z) + 210; }
-        if (!h.init) { h.pos.copy(tgt); h.init = true; }
-        const k = 1 - Math.exp(-dt * (h.k === 0 ? 0.35 : 1)); const px = h.pos.x, pz = h.pos.z; h.pos.lerp(tgt, k);
-        const vx = dt > 0 ? (h.pos.x - px) / dt : 0, vz = dt > 0 ? (h.pos.z - pz) / dt : 0; h.vel.set(vx, 0, vz);
+        const c = focus || cam?.position, a = h.k === 0 ? t * 0.045 : t * 0.026 + 2;
+        if (h.k === 0 && c) { const R = 150; tgt.set(c.x + Math.cos(a) * R, 0, c.z + Math.sin(a) * R); tgt.y = H(tgt.x, tgt.z) + 105; }
+        else { const R = 620; tgt.set(cx0 + Math.cos(a) * R, 0, cz0 + Math.sin(a) * R * 0.8); tgt.y = H(tgt.x, tgt.z) + 210; }
+        if (!h.init) { h.pos.copy(tgt); h.yaw = Math.atan2(-Math.sin(a), Math.cos(a)); h.init = true; }   // (nose along its orbit to start)
+        // (the clock stopped - paused, photo mode: it stays exactly as it was, its last motion included)
+        if (dt > 0) { const k = 1 - Math.exp(-dt * (h.k === 0 ? 0.35 : 1)), px = h.pos.x, pz = h.pos.z; h.pos.lerp(tgt, k); h.vel.set((h.pos.x - px) / dt, 0, (h.pos.z - pz) / dt); }
         h.G.position.copy(h.pos);
-        const look = h.k === 0 && cam ? Math.atan2(cam.position.x - h.pos.x, cam.position.z - h.pos.z) : Math.atan2(vx, vz);
-        h.G.rotation.set(0, 0, 0); h.G.rotation.y = look;
-        const sp = Math.hypot(vx, vz); h.G.rotateX(Math.min(0.18, sp * 0.004)); h.G.rotateZ(Math.sin(t * 0.3 + h.k) * 0.03);
+        // (heading: turned toward where it is flying at a helicopter's rate; held while it hovers)
+        const vx = h.vel.x, vz = h.vel.z, sp = Math.hypot(vx, vz);
+        if (dt > 0 && sp > 0.5) { const dy = Math.atan2(vx, vz) - h.yaw; h.yaw += Math.atan2(Math.sin(dy), Math.cos(dy)) * (1 - Math.exp(-dt * 1.2)); }
+        h.G.rotation.set(0, 0, 0); h.G.rotation.y = h.yaw;
+        h.G.rotateX(Math.min(0.18, sp * 0.004)); h.G.rotateZ(Math.sin(t * 0.3 + h.k) * 0.03);
         h.r.rotation.y = t * 38; h.t.rotation.x = t * 60;
       }
     },

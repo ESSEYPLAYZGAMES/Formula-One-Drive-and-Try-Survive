@@ -63,8 +63,10 @@ export function writeCal(track, cal) {
   let src = fs.readFileSync(CAL_FILE, 'utf8');
   const fmt = (o) => '{ ' + Object.entries(o).map(([k, v]) => `${k}: ${typeof v === 'number' ? +v.toFixed(3) : JSON.stringify(v)}`).join(', ') + ' }';
   const corners = Object.keys(cal.corners).sort((a, b) => a - b).map((n) => `      ${n}: ${fmt(cal.corners[n])},`).join('\n');
-  // (a driver's line, from telemetry: offsets every `every` metres, 16 to a source line)
-  const lineTxt = cal.line ? `    line: { every: ${cal.line.every}, d: [\n${Array.from({ length: Math.ceil(cal.line.d.length / 16) }, (_, k) => '      ' + cal.line.d.slice(k * 16, k * 16 + 16).map((x) => +x.toFixed(2)).join(', ') + ',').join('\n')}\n    ] },\n` : '';
+  // (a driver's line, from telemetry: offsets every `every` metres; the lap shown on the track: offsets and speeds; 16 to a source line)
+  const rows = (a, dp) => Array.from({ length: Math.ceil(a.length / 16) }, (_, k) => '      ' + a.slice(k * 16, k * 16 + 16).map((x) => +x.toFixed(dp)).join(', ') + ',').join('\n');
+  const lineTxt = (cal.line ? `    line: { every: ${cal.line.every}, d: [\n${rows(cal.line.d, 2)}\n    ] },\n` : '') +
+    (cal.show ? `    show: { every: ${cal.show.every}, d: [\n${rows(cal.show.d, 2)}\n    ], kmh: [\n${rows(cal.show.kmh, 1)}\n    ] },\n` : '');
   const block = `  // <cal:${track}>\n  ${track}: {\n    source: ${JSON.stringify(cal.source || '')},\n${cal.fitted ? `    fitted: ${JSON.stringify(cal.fitted)},\n` : ''}${lineTxt}    corners: {\n${corners}\n    },\n  },\n  // </cal:${track}>`;
   const re = new RegExp(`  // <cal:${track}>[\\s\\S]*?// </cal:${track}>`);
   if (re.test(src)) src = src.replace(re, block);

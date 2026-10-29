@@ -95,6 +95,8 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
 renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(74, 16 / 9, 0.3, 6000);   // tighter depth range: less z-fighting on painted surfaces
+/** how much the lens magnifies against the default 74 degrees (the cars' detail by distance scales with it: CarMesh.detail) */
+const carZoom = () => Math.tan(37 * Math.PI / 180) / Math.tan(camera.fov * Math.PI / 360);
 // The canvas is sized by CSS (fixed, 100% x 100%); the drawing buffer follows its CSS size. three.js must never
 // write inline width/height on the canvas (updateStyle = false everywhere), otherwise a frame that lays out after
 // load (an embedded artifact) keeps the initial size and stretches the picture.
@@ -204,7 +206,7 @@ async function loadWorld(def) {
   }
   track.fairWalls();   // (every circuit's barrier lines in long runs and gentle bends: no wedge of barrier jutting into a run-off)
   await set('Computing the racing line…', 26);
-  const { line, profile } = makeRacingLine(track, def);
+  const { line, profile, shown, showLine } = makeRacingLine(track, def);
   await set('Laying the track, kerbs and barriers…', 40);
   const trackMesh = buildTrackMeshes(track, pit, gridLayout(track, 23, 1));
   scene.add(trackMesh);
@@ -264,7 +266,7 @@ async function loadWorld(def) {
     console.info(`[world] terrain: ${n} objects raised, ${TERRAIN.field.nx} x ${TERRAIN.field.nz} cells, heights ${Math.min(...track.h).toFixed(1)} .. ${Math.max(...track.h).toFixed(1)} m`);
   }
   floodlitAll(scene);   // (the still world: lit by the baked light field, not the scene's spot lights)
-  Object.assign(W, { geo, track, pit, line, profile, trackMesh, landmarks: lm, buildings, circuit, pitBoxes, stands, lights, sphereInfo, venue, obstacles, fences, scenery });
+  Object.assign(W, { geo, track, pit, line, profile, lineSpeed: shown, showLine, trackMesh, landmarks: lm, buildings, circuit, pitBoxes, stands, lights, sphereInfo, venue, obstacles, fences, scenery });
   chunks.track = track; chunks.obstacles = obstacles;
   // big debris lying on the racing surface is dragged off by the marshals: to the verge (inside the barrier)
   debris.sweep = (x, z) => {
@@ -307,9 +309,23 @@ function pitLaneLeads(track, pts, L) {
 function makeRacingLine(track, def) {
   const fixed = track.aiCal?.line || null;
   const line = new RacingLine(track, { optimal: def.line === 'optimal', ...(def.lineMargin ? { maxOffset: track.halfWidth - def.lineMargin } : {}), fixed });
-  const profile = line.speedProfile({mu: CAR.muBase * 0.92, mass: CAR.mass, dfCoef: CAR.dfm * CAR.mass * 0.9, dragCoef: 0.5 * CAR.rho * CAR.cdA,
-    axle: { rearStatic: CAR.lf / CAR.wheelbase, transfer: CAR.cgH / CAR.wheelbase, rearBrake: 1 - CAR.brakeBias, dfRear: 0.5 * CAR.rho * CAR.clA * (1 - CAR.aeroFrontShare) }, vMax: 96, brakeG: CAR.brakeMax / CAR.mass / 9.81, accel: (v) => Math.min(CAR.powerKW * 1000 / (CAR.mass * Math.max(8, v)), 14) });
-  return { line, profile };
+  const P = {mu: CAR.muBase * 0.92, mass: CAR.mass, dfCoef: CAR.dfm * CAR.mass * 0.9, dragCoef: 0.5 * CAR.rho * CAR.cdA,
+    axle: { rearStatic: CAR.lf / CAR.wheelbase, transfer: CAR.cgH / CAR.wheelbase, rearBrake: 1 - CAR.brakeBias, dfRear: 0.5 * CAR.rho * CAR.clA * (1 - CAR.aeroFrontShare) }, vMax: 96, brakeG: CAR.brakeMax / CAR.mass / 9.81, accel: (v) => Math.min(CAR.powerKW * 1000 / (CAR.mass * Math.max(8, v)), 14) };
+  const profile = line.speedProfile(P);
+  // the racing line on screen: a driver's own lap where the circuit has one (ai/Calibration.js `show`, tools/ai_fit.mjs
+  // from laps driven here) - where they were on the road, and red wherever you carry more speed into a braking zone or
+  // a corner than they did: their speed holds wherever they were slowing or turning, braking curves (4 g) lead back
+  // up from it, and nothing caps you where they were gaining speed (a better exit, a tow); else the AI's line, coloured
+  // by the corner speeds and braking it is calibrated to (or the physics' profile)
+  const sh = track.aiCal?.show;
+  if (sh?.d?.length && sh.kmh?.length) {
+    const n = track.n, ds = track.ds, showLine = new RacingLine(track, { fixed: sh }), m = sh.kmh.length, vd = new Float32Array(n), shown = new Float32Array(n).fill(96);
+    for (let i = 0; i < n; i++) { const u = (i * ds) / sh.every, j = Math.floor(u) % m, f = u - Math.floor(u); vd[i] = (sh.kmh[j] + (sh.kmh[(j + 1) % m] - sh.kmh[j]) * f) / 3.6; }
+    for (let c = 2 * n - 1; c >= 0; c--) { const i = c % n, j = (i + 1) % n, cap = vd[j] <= vd[i] + 0.05 ? vd[i] : 96; shown[i] = Math.min(cap, Math.sqrt(shown[j] * shown[j] + 2 * 40 * ds)); }
+    return { line, profile, shown, showLine };
+  }
+  const shown = track.aiCal?.corners ? line.speedProfile({ ...P, vMul: track.aiV, bMul: track.aiB }) : profile;
+  return { line, profile, shown, showLine: line };
 }
 
 /** Remove everything loadWorld built (switching circuits): scene objects, lights, the racing line, the title shots. */
@@ -330,7 +346,7 @@ function unloadWorld() {
   W.lights?.dispose(scene); W.standHD?.dispose(); W.standHD = null;
   feed?.dispose(); show?.texture.dispose(); feed = null; show = null;
   RL.group = null; RL.main = null; RL.pitGuide = null;
-  for (const k of ['geo', 'track', 'pit', 'line', 'profile', 'trackMesh', 'landmarks', 'buildings', 'circuit', 'pitBoxes', 'stands', 'lights', 'sphereInfo', 'venue', 'scenery', 'faceAngle0']) W[k] = null;
+  for (const k of ['geo', 'track', 'pit', 'line', 'profile', 'lineSpeed', 'showLine', 'trackMesh', 'landmarks', 'buildings', 'circuit', 'pitBoxes', 'stands', 'lights', 'sphereInfo', 'venue', 'scenery', 'faceAngle0']) W[k] = null;
 }
 /** brand header + track chips follow the selected circuit */
 function applyTrackUI() {
@@ -2316,9 +2332,9 @@ function preFrame(dt) {
   { const s = PRE.show, g = s?.seg; if (s && !PRE.walk && g && s.t - g.t0 > 2.6 && (s._shots = s._shots || {})[g.k] == null) { s._shots[g.k] = Math.random() < 0.6; const tag = { aerial: 'aerial', fans: 'crowd', stands: 'crowd', grid: 'grid' }[g.k]; if (tag && s._shots[g.k]) Gallery.want(tag, W.def.id); } }   // (some of the build-up kept for the loading screen)
   simTime += dt;
   if (W.lights) W.lights.update(camera.position, simTime);
-  for (const m of S.meshes.values()) m.detail(camera.position);
+  for (const m of S.meshes.values()) m.detail(camera.position, carZoom());
   if (W.stands) W.stands.update(simTime);
-  W.scenery?.update?.(simTime, camera);
+  W.scenery?.update?.(simTime, camera, S.player);
   if (W.landmarks) for (const fn of W.landmarks.anims) fn(simTime, dt);
   if (W.buildings) W.buildings.material.uniforms.uTime.value = simTime;
   cullBuildings(); env.sky.position.copy(camera.position);
@@ -2332,7 +2348,7 @@ function newsFrame(dt) {
   fire.update(dt, camera, renderer.domElement.height); debris.update(dt);
   rain.update(camera, dt);
   if (W.lights) W.lights.update(camera.position, simTime);
-  for (const m of S.meshes.values()) m.detail(camera.position);
+  for (const m of S.meshes.values()) m.detail(camera.position, carZoom());
   if (W.stands) W.stands.update(simTime);
   W.scenery?.update?.(simTime, camera);
   if (W.landmarks) for (const fn of W.landmarks.anims) fn(simTime, dt);
@@ -2815,13 +2831,14 @@ function ensureRacingLine() {
   if (RL.group || !W.track) return;
   const tr = W.track;
   RL.group = new THREE.Group(); RL.group.name = 'racingline';
-  const pts = []; for (let i = 0; i < tr.n; i++) { const f = tr.sample(tr.s[i], W.line.offset[i]); pts.push({ x: f.x, z: f.z, s: tr.s[i] }); }
+  const RLn = W.showLine || W.line;   // (a driver's own line where the circuit has one: makeRacingLine)
+  const pts = []; for (let i = 0; i < tr.n; i++) { const f = tr.sample(tr.s[i], RLn.offset[i]); pts.push({ x: f.x, z: f.z, s: tr.s[i] }); }
   pts.push({ ...pts[0], s: tr.length });   // close the lap
   RL.main = dashLine(pts); RL.group.add(RL.main);
   if (W.pit) {
     // guide: racing line from 250 m before the pit entry, blending onto the pit-lane centre, ending at the player's box
     const P = W.pit, gp = []; const s0 = tr.wrapS(P.entryS - 250);
-    for (let d = 0; d < 250; d += 2) { const s = tr.wrapS(s0 + d); const f = tr.sample(s, W.line.offsetAt(s) * (1 - d / 250) + (P.sideSign * (tr.halfWidth - 2)) * (d / 250)); gp.push({ x: f.x, z: f.z, s }); }
+    for (let d = 0; d < 250; d += 2) { const s = tr.wrapS(s0 + d); const f = tr.sample(s, RLn.offsetAt(s) * (1 - d / 250) + (P.sideSign * (tr.halfWidth - 2)) * (d / 250)); gp.push({ x: f.x, z: f.z, s }); }
     const ps = P.samples; for (let i = 0; i < ps.n; i++) gp.push({ x: ps.px[i], z: ps.pz[i], pitU: ps.s[i] });
     RL.pitGuide = dashLine(gp); RL.pitGuide.visible = false; RL.group.add(RL.pitGuide);
   }
@@ -2840,7 +2857,7 @@ function colourLine(mesh, sFn, car, gripF, forceRed = null) {
     const ds = sFn(dsh.p); let a = 0, red = false;
     if (ds > -2 && ds < RL_RANGE) {
       if (forceRed != null) red = forceRed;
-      else red = v > W.profile[W.track.idxAtS(dsh.p.s ?? car.s)] * gripF * 1.03;
+      else red = v > (W.lineSpeed || W.profile)[W.track.idxAtS(dsh.p.s ?? car.s)] * gripF * 1.03;
       a = 0.88 * Math.min(1, (RL_RANGE - ds) / 40);                              // fade over the last 40 m
     }
     const c = red ? RL_RED : RL_GREEN;
@@ -2948,7 +2965,7 @@ function stepAmbient(dt) {
     if (A.sub % 2 === 0) for (const ai of A.ais) ai.update(1 / 60, A.world);
     for (const c of A.cars) { c.step(1 / 120, A.world); c.tyres.wear = Math.min(c.tyres.wear, 0.3); }
   }
-  A.cars.forEach((c, i) => A.meshes[i].update(c, dt));
+  A.cars.forEach((c, i) => { A.meshes[i].update(c, dt); A.meshes[i].detail(camera.position, carZoom()); });
 }
 function clearAmbient() {
   const A = S.ambient; if (!A) return;
@@ -3189,9 +3206,9 @@ function frame(now) {
   if (W.home || !W.track) { input.endFrame(); return; }   // home screen / building: no 3D scene to draw
   rain.update(camera, halted ? 0 : dt);
   if (W.lights) W.lights.update(camera.position, simTime);
-  for (const m of S.meshes.values()) m.detail(camera.position);
+  for (const m of S.meshes.values()) m.detail(camera.position, carZoom());
   if (W.stands) W.stands.update(simTime);
-  W.scenery?.update?.(simTime, camera);
+  W.scenery?.update?.(simTime, camera, S.player);   // (the TV helicopter covers the car you follow, whatever the camera does)
   if (W.landmarks) for (const fn of W.landmarks.anims) fn(simTime, halted ? 0 : dt);
   if (W.buildings) W.buildings.material.uniforms.uTime.value = simTime;
   const sphereSeen = sphereShow();
@@ -3209,7 +3226,7 @@ function frame(now) {
   document.body.classList.add('home');   // (also in index.html; an Artifact host supplies its own <body>)
   window.__F1 = { PRE, W, S, settings, scene, camera, renderer, input, hud, AIDriver, AI_TUNE, AI_CAL, applyCalibration,
     /** (tools: a calibration applied, the racing line and the speed profile rebuilt from it - the next session's AI drives them) */
-    rebuildLine(cal) { applyCalibration(W.track, cal === undefined ? AI_CAL[W.def.id] : cal); const r = makeRacingLine(W.track, W.def); W.line = r.line; W.profile = r.profile; if (RL.group) { scene.remove(RL.group); RL.group = null; } return { fixed: !!r.line.fixed }; }, camCtl, setTimeOfDay, corridorSigned, CINE, cinematic, get feed() { return feed; }, get show() { return show; }, frame, ensureAmbient, PHOTO, TRACKS, switchTrack, NEWS, playNews, nextAfterResults, crashNews, helmetURL, openCareerHub, simToEnd, strings, get audio() { return audio; },
+    rebuildLine(cal) { applyCalibration(W.track, cal === undefined ? AI_CAL[W.def.id] : cal); const r = makeRacingLine(W.track, W.def); W.line = r.line; W.profile = r.profile; W.lineSpeed = r.shown; W.showLine = r.showLine; if (RL.group) { scene.remove(RL.group); RL.group = null; } return { fixed: !!r.line.fixed }; }, camCtl, setTimeOfDay, corridorSigned, CINE, cinematic, get feed() { return feed; }, get show() { return show; }, frame, ensureAmbient, PHOTO, TRACKS, switchTrack, NEWS, playNews, nextAfterResults, crashNews, helmetURL, openCareerHub, simToEnd, strings, get audio() { return audio; },
     restart() { if (settings.driver == null) settings.driver = 0; /* test hook: the field needs a player */ S.noStrategy = !window.__keepStrategy; endSession(); $('results').classList.add('hidden'); $('quali-panel').classList.add('hidden'); $('pause').classList.add('hidden'); S.paused = false; startWeekend(); if (PRE.show && !window.__keepPre) PRE.show.finish(); },   // (tests: no pre-race show unless asked for)
     // the driver's life (tests): the engines as modules, the career class, the scuffle module, the walk, the evening out.
     // Test switches read where they matter: window.__forceStars (ui/PreRace.js), window.__forceJab, window.__qteAuto,

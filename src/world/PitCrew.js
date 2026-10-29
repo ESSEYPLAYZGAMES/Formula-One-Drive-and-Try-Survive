@@ -192,7 +192,11 @@ export class PitCrews {
     if (old) { old.parent?.remove(old); }
     const H = new THREE.Group(); if (!mesh) return H;
     const w = mesh.frontWing.clone(true); w.position.set(-2.66, -0.22, 0); w.rotation.set(0, 0, 0); w.visible = true;
-    if (fresh) w.traverse((o) => { o.visible = true; if (o !== w) o.rotation.x = 0; });
+    // (the car's detail states - CarMesh: the spare is only ever seen close by, its detailed parts shown, its coarse
+    //  ones and the far bake's not)
+    const near = (o) => o.userData.lod !== 'lo' && o.userData.lod !== 'far';
+    w.traverse((o) => { if (o.userData.lod) o.visible = near(o); });
+    if (fresh) w.traverse((o) => { if (near(o)) o.visible = true; if (o !== w) o.rotation.x = 0; });
     H.add(w); return H;
   }
   /** car meshes back as they were */

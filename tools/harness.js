@@ -216,10 +216,13 @@ window.__race = {
  */
 window.__calRun = function (laps = 3, cal = undefined, opts = {}) {
   const tr = F.W.track, own = F.AI_CAL[tr.def.id];
-  F.applyCalibration(tr, cal === undefined ? own : cal);
+  // (a calibration with a driver's line or lap rebuilds the racing line and the AI's speeds on it: main.js rebuildLine)
+  const use = cal === undefined ? own : cal, lapCal = (c) => !!(c && (c.line || c.speed));
+  if (lapCal(use) || lapCal(own)) F.rebuildLine(use); else F.applyCalibration(tr, use);
   const errBase = F.AI_TUNE.errBase; if (!opts.mistakes) F.AI_TUNE.errBase = 0;
   // (seeded: the same calibration gives the same laps to the millisecond, so two runs differ only by what was changed)
   const rand = Math.random; let seed = opts.seed ?? 20260615; Math.random = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const diff0 = F.settings.diff; if (opts.diff != null) F.settings.diff = opts.diff;   // (the difficulty slider: 100 is the AI at its quickest)
   F.settings.grid = 'pick'; F.settings.slot = 22; F.settings.len = laps + 3; F.settings.weather = opts.weather || 'dry'; F.settings.tyre = 'SOFT'; F.settings.sc = 'off'; F.settings.fail = 'off'; F.settings.time = 'day'; F.restart();
   const d = F.S.director, solo = d.cars.filter((c) => !c.isPlayer)[opts.car || 0];
   for (const c of d.cars) if (c !== solo) { if (c.isPlayer) { c.ghost = 1e9; c.placeOnTrack(c.s, 40, 0); } else { c.retired = true; c.placeOnTrack(c.s, 30, 0); } }
@@ -233,14 +236,20 @@ window.__calRun = function (laps = 3, cal = undefined, opts = {}) {
   const oi = d.world.onImpact; d.world.onImpact = (car, sev, kind) => { if (car === solo) ev.push({ k: 'impact', s: car.s, lap: car.lap, sev, d: +car.d.toFixed(1) }); if (oi) oi(car, sev, kind); };
   let spinning = false, wasOff = false;
   const step = 0.05;
+  let lapSeen = solo.lap;
   for (let k = 0; k < (laps + 1.6) * 200 / step && !d.done && solo.lap < laps + 2; k++) {
     F.stepSim(step);
+    // (opts.fresh: the tyres as new at every line - laps that compare, not a stint wearing them out)
+    if (opts.fresh && solo.lap !== lapSeen) { lapSeen = solo.lap; solo.tyres.wear = 0; }
     const sp = Math.abs(solo.r) > 1.4 && solo.speed > 6; if (sp && !spinning) ev.push({ k: 'spin', s: solo.s, lap: solo.lap }); spinning = sp;
-    const off = !!solo.offTrack; if (off && !wasOff) ev.push({ k: 'off', s: solo.s, lap: solo.lap }); wasOff = off;
+    // (an off: where it left the road, and how far past the white line the car's centre went - over the kerb's edge on a
+    //  line that rides the kerbs is not a car lost)
+    const off = !!solo.offTrack; if (off && !wasOff) ev.push({ k: 'off', s: solo.s, lap: solo.lap, over: 0 }); wasOff = off;
+    if (off) { const e = ev[ev.length - 1], over = Math.abs(solo.d) - tr.edgeAt(solo.trackIdx, Math.sign(solo.d) || 1); if (e?.k === 'off') e.over = Math.max(e.over, +over.toFixed(1)); }
     trace.push([d.time, solo.lap, solo.s, solo.speed * 3.6, solo.brake, solo.throttle]);
     if (opts.probe && solo.lap === opts.probe[2] && solo.s > opts.probe[0] && solo.s < opts.probe[1]) (window.__probe = window.__probe || []).push([Math.round(solo.s), Math.round(solo.speedKmh), +solo.d.toFixed(2), +solo.brake.toFixed(2), +solo.throttle.toFixed(2), +solo.steer.toFixed(3), +solo.r.toFixed(2), +F.W.line.offsetAt(solo.s).toFixed(2), solo.surf, (solo.wh?.surf || []).join('')]);
   }
-  d.world.onImpact = oi; F.AI_TUNE.errBase = errBase; Math.random = rand;
+  d.world.onImpact = oi; F.AI_TUNE.errBase = errBase; Math.random = rand; F.settings.diff = diff0;
   const inWin = (s, a, b) => (a <= b ? s >= a && s <= b : s >= a || s <= b);
   const fwd = (a, b) => { const L = tr.length; let x = (b - a) % L; if (x < 0) x += L; return x; };
   const flying = (lap) => lap >= 1 && lap <= laps;   // (lap counter: 0 on the standing start lap)
@@ -261,7 +270,7 @@ window.__calRun = function (laps = 3, cal = undefined, opts = {}) {
     return { n: c.n, runs, t: runs.length ? +(runs.reduce((a, r) => a + r.t, 0) / runs.length).toFixed(3) : null, vmin: runs.length ? Math.min(...runs.map((r) => r.vmin)) : null,
       brake: runs.find((r) => r.brake != null)?.brake ?? null, incidents: here.map((e) => `${e.k}@${Math.round(e.s)}`) };
   });
-  F.applyCalibration(tr, own);
+  if (lapCal(use) || lapCal(own)) F.rebuildLine(own); else F.applyCalibration(tr, own);
   // (opts.trace: the last flying lap's speed every 5 m of the lap, km/h - for lining telemetry up against it)
   let prof = null;
   if (opts.trace) {
@@ -270,5 +279,5 @@ window.__calRun = function (laps = 3, cal = undefined, opts = {}) {
     for (let k = 0; k < n; k++) if (v[k] == null) v[k] = v[(k - 1 + n) % n] ?? 0;
     prof = v.map((x) => +x.toFixed(1));
   }
-  return { track: tr.def.id, length: +tr.length.toFixed(1), drv: `${solo.short} r${solo.rating}`, laps: solo.lapTimes.map((x) => +x.toFixed(3)), corners: out, events: ev.map((e) => `${e.k}@${Math.round(e.s)}${e.d != null ? `(d${e.d})` : ''} L${e.lap}`), trace: prof };
+  return { track: tr.def.id, length: +tr.length.toFixed(1), drv: `${solo.short} r${solo.rating}`, laps: solo.lapTimes.map((x) => +x.toFixed(3)), corners: out, events: ev.map((e) => `${e.k}@${Math.round(e.s)}${e.d != null ? `(d${e.d})` : ''}${e.over != null ? `(+${e.over}m)` : ''} L${e.lap}`), ev, trace: prof };
 };

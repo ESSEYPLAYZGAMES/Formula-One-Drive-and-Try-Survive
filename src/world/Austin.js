@@ -1087,8 +1087,8 @@ export function buildAustin(geo, track, def, pit) {
     group, claimed, stands,
     /** something of the scenery standing at (x, z) (where an evening's venue cannot go: main.js footClear) */
     blocked: (x, z) => standBoxes.some(([sx, sz, r]) => (sx - x) ** 2 + (sz - z) ** 2 < r * r) || solid.some(([sx, sz, r]) => (sx - x) ** 2 + (sz - z) ** 2 < r * r),
-    update(t, cam) {
-      life.update(t, cam);
+    update(t, cam, focus) {
+      life.update(t, cam, focus);
       for (const m of [flagMat, fest.sheetMat, fest.flagMat, fest.usFlag]) { const sh = m?.userData.shader; if (sh) sh.uniforms.uTime.value = t; }
       fest.stageLights.forEach((p, k) => { p.rotation.z = 0.35 * Math.sin(t * 0.9 + k * 1.3); p.rotation.x = 0.3 * Math.sin(t * 0.7 + k * 2.1); });
     },

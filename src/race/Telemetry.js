@@ -26,8 +26,31 @@ export class Telemetry {
   /** call once per frame with the session time */
   update(time) {
     const p = this.player;
+    if (time < Math.max(this.lastT, this.lastAiT) - 1e-6) this._rewind(time);
     if (p && time - this.lastT >= 1 / 30) { this.lastT = time; this._player(p, time); }
     if (time - this.lastAiT >= 0.1) { this.lastAiT = time; for (const c of this.cars) if (c !== p) this._ai(c, time); }
+  }
+
+  /**
+   * A flashback: the clock went back to `time`, and what was recorded after it never happened. The samples past it are
+   * dropped (a lap begun after it is not begun yet; a lap finished after it is open again), so a lap is the one driven -
+   * not the abandoned attempt up to the rewind followed by the retry from where the clock caught up again.
+   */
+  _rewind(time) {
+    const cut = (L) => { const s = L.samples, t0 = time - L.start; let k = s.t.length; while (k > 0 && s.t[k - 1] > t0) k--; for (const ch in s) s[ch].length = k; };
+    while (this.laps.length) {
+      const L = this.laps[this.laps.length - 1];
+      if (L.start > time) { this.laps.pop(); continue; }
+      cut(L); if (L.time != null && L.start + L.time > time) L.time = null;
+      break;
+    }
+    const last = this.laps[this.laps.length - 1];
+    this.cur = last && last.time == null ? last : null; this.curStart = this.cur ? this.cur.start : this.curStart;
+    for (const rec of this.ai.values()) {
+      if (rec.cur && rec.cur.start > time) { rec.cur = null; rec.start = null; } else if (rec.cur) cut(rec.cur);
+      if (rec.best && rec.best.start + rec.best.time > time) rec.best = rec.prevBest && rec.prevBest.start + rec.prevBest.time <= time ? rec.prevBest : null;
+    }
+    this.lastT = this.lastAiT = time - 1;
   }
 
   _player(c, time) {
@@ -83,7 +106,7 @@ export class Telemetry {
     let rec = this.ai.get(c); if (!rec) { rec = { cur: null, start: null, best: null, nTimes: 0 }; this.ai.set(c, rec); }
     if (rec.cur && c.lapTimes.length > rec.nTimes) {
       rec.cur.time = c.lapTimes[c.lapTimes.length - 1];
-      if (rec.cur.valid && rec.cur.samples.d[0] < 50 && (!rec.best || rec.cur.time < rec.best.time)) rec.best = rec.cur;   // (a standing-start lap is no reference)
+      if (rec.cur.valid && rec.cur.samples.d[0] < 50 && (!rec.best || rec.cur.time < rec.best.time)) { rec.prevBest = rec.best; rec.best = rec.cur; }   // (a standing-start lap is no reference)
       rec.cur = null;
     }
     rec.nTimes = c.lapTimes.length;

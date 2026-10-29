@@ -4,17 +4,17 @@
 //
 //   node tools/ai_fit.mjs <track> <telemetry file> [more files...] [--offset m] [--blend 0.7] [--dry]
 //
-// Telemetry it reads:
-//   * the game's own export (f1sim-telemetry/2, the T screen's Export button): the fastest valid lap
-//   * CSV with a header (FastF1's car_data / get_telemetry() saved with to_csv, a logger, a spreadsheet): columns found
-//     by name - Distance (m from the line), Speed (km/h), Brake (0/1, 0-1 or 0-100), Throttle (optional), Lap
-//     (optional: the fastest lap is taken, by its own time column if there is one, else the first)
-//   * JSON: an array of samples ({ Distance, Speed, Brake } or { d, v, brk }) or an object of channel arrays
-// The trace is lined up against the AI's own lap by shape (speed against distance, shifted and stretched to fit the
-// sim circuit's length) unless --offset gives the shift. Each corner's speed factor moves by the ratio of the
-// telemetry's relative minimum speed to the AI's, its braking factor by the ratio of the braking distances (each
-// against the lap's own average), --blend of the way (0.7). Then the AI drives the result: any corner group that
-// is no longer clean goes halfway back, up to three times. Written into src/ai/Calibration.js with what it was fitted to.
+// Laps of the game's own car on the same circuit (its telemetry export) are the same car as the AI's: the lap mode
+// (--corners: the older fit, the corners and the driver's line from the fastest lap; --shape: the relative fit above):
+//   * one lap out of all of them: the circuit in sections (between the corners, cut where the speed profile peaks),
+//     each from the fastest lap through it that stayed on the road (its centre within 1.5 m of the kerb) and was not
+//     rewound there (a flashback: the attempt it abandoned, 100 m before the rewind, and what came after it), blended
+//     over 60 m at the joins; its line smoothed (wiggles shorter than ~23 m - steering corrections - go);
+//   * that lap is the racing line drawn on the track (ai/Calibration.js `show`: where it was on the road and its speed
+//     every 2 m - red on screen wherever you are quicker than it was there);
+//   * the AI keeps its own line (driven by the AI, a human's line was no quicker in any section: its controller cannot
+//     scrub speed at full lock as a driver does), and its corners are fitted to the lap's minimum speeds and braking
+//     points (the absolute fit below), then driven: a corner that is no longer clean goes back.
 import fs from 'fs';
 import path from 'path';
 import { openGame, calRun, readCal, writeCal, groupsOf } from './ai_lib.mjs';
@@ -109,21 +109,106 @@ function measure(T, al, corners, len) {
   });
 }
 
+// ---- the lap mode: the game's own laps, taken whole ---------------------------------------------------------------
+function ownLaps(file) {
+  let J; try { J = JSON.parse(fs.readFileSync(file, 'utf8')); } catch (e) { return null; }
+  if (!J.format || !String(J.format).startsWith('f1sim-telemetry') || J.track?.id !== track) return null;
+  return (J.laps || []).filter((l) => l.time && l.samples?.d?.length > 50 && l.samples.x).map((l) => ({ label: `${path.basename(file)} lap ${l.n} (${l.time}s${l.flags?.length ? `, ${l.flags.join(', ')}` : ''})`,
+    S: Object.fromEntries(['t', 'd', 'x', 'z', 'v', 'thr', 'brk'].map((k) => [k, l.samples[k]])) }));
+}
+/** (in the game) the one lap out of all of them, its line and its speeds every `every` m - see the head of this file */
+function composite({ laps, every, lam }) {
+  const F = window.__F1, tr = F.W.track, L = tr.length, n = Math.round(L / every), q = {}, prof = F.W.profile;
+  const wrap = (s) => ((s % L) + L) % L;
+  const interp = (D, V, x) => { let lo = 0, hi = D.length - 1; if (x <= D[0]) return V[0]; if (x >= D[hi]) return V[hi]; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (D[m] <= x) lo = m; else hi = m; } const f = (x - D[lo]) / ((D[hi] - D[lo]) || 1); return V[lo] + (V[hi] - V[lo]) * f; };
+  const per = laps.map((lap) => {
+    const S = lap.S, keep = [], bad = [];
+    for (let i = 0; i < S.d.length; i++) {
+      if (keep.length && S.d[i] < S.d[keep[keep.length - 1]] - 3) { bad.push([S.d[i] - 100, S.d[keep[keep.length - 1]] + 10]); while (keep.length && S.d[keep[keep.length - 1]] >= S.d[i] - 0.5) keep.pop(); }
+      keep.push(i);
+    }
+    const c = {}; for (const k of Object.keys(S)) c[k] = keep.map((i) => S[k][i]);
+    c.off = []; let hint = -1;
+    for (let i = 0; i < c.d.length; i++) {
+      tr.nearest(c.x[i], c.z[i], hint, q); hint = q.i; c.off.push(q.d);
+      if (Math.abs(q.d) - tr.edgeAt(q.i, Math.sign(q.d) || 1) - tr.kerbWidth > 1.5) bad.push([c.d[i] - 60, c.d[i] + 30]);
+    }
+    return { label: lap.label, c, bad };
+  });
+  // the sections: cut where the speed profile peaks between two corners
+  const cs = tr.def.corners.filter((k) => k.s != null).map((k) => k.s).sort((a, b) => a - b), B = [];
+  for (let j = 0; j < cs.length; j++) {
+    const a = cs[j], b = j + 1 < cs.length ? cs[j + 1] : cs[0] + L; let best = -1, at = (a + b) / 2;
+    for (let x = a + 30; x < b - 30; x += 2) { const v = prof[tr.idxAtS(x)]; if (v > best) { best = v; at = x; } }
+    B.push(wrap(at));
+  }
+  B.sort((a, b) => a - b);
+  const secs = B.map((a, j) => [a, j + 1 < B.length ? B[j + 1] : B[0] + L]);
+  const tAt = (c, x) => interp(c.d, c.t, x);
+  const secT = (c, a, b) => (b <= L ? tAt(c, b) - tAt(c, a) : (tAt(c, L) - tAt(c, a)) + (tAt(c, b - L) - tAt(c, 0)));
+  const overlaps = (bad, a, b) => bad.some(([x0, x1]) => (x0 < b && x1 > a) || (b > L && x0 < b - L));
+  const pick = secs.map(([a, b]) => {
+    const opts = per.map((p, k) => ({ k, t: secT(p.c, a, b), ok: !overlaps(p.bad, a, b) && p.c.d[0] <= Math.max(0, a) + 15 && p.c.d[p.c.d.length - 1] >= Math.min(L, b) - 15 }));
+    const ok = opts.filter((o) => o.ok), o = (ok.length ? ok : opts).reduce((x, y) => (y.t < x.t ? y : x));
+    return { k: o.k, t: o.t, clean: !!ok.length };
+  });
+  // every bin from its section's lap, blended over 30 m either side of a join
+  const BL = 30, line = new Float64Array(n), kmh = new Float64Array(n), thr = new Float64Array(n), brk = new Float64Array(n);
+  const secOf = (x) => { for (let j = 0; j < secs.length; j++) { const [a, b] = secs[j]; if ((x >= a && x < b) || (b > L && x < b - L)) return j; } return 0; };
+  for (let k = 0; k < n; k++) {
+    const x = k * every, j = secOf(x), [a, b] = secs[j], w = new Map([[pick[j].k, 1]]), da = wrap(x - a), db = wrap(b - x);
+    if (da < BL) { const f = 0.5 + 0.5 * da / BL; w.set(pick[j].k, f); const o = pick[(j - 1 + secs.length) % secs.length].k; w.set(o, (o === pick[j].k ? f : w.get(o) || 0) + 1 - f); }
+    else if (db < BL) { const f = 0.5 + 0.5 * db / BL; w.set(pick[j].k, f); const o = pick[(j + 1) % secs.length].k; w.set(o, (o === pick[j].k ? f : w.get(o) || 0) + 1 - f); }
+    for (const [m, wt] of w) { const c = per[m].c; line[k] += wt * interp(c.d, c.off, x); kmh[k] += wt * interp(c.d, c.v, x); thr[k] += wt * interp(c.d, c.thr, x); brk[k] += wt * interp(c.d, c.brk, x); }
+  }
+  // the line smoothed: a Whittaker smoother (second differences, periodic), solved by conjugate gradients
+  const A = (x, out) => { for (let i = 0; i < n; i++) out[i] = x[i] + lam * (x[(i - 2 + n) % n] - 4 * x[(i - 1 + n) % n] + 6 * x[i] - 4 * x[(i + 1) % n] + x[(i + 2) % n]); };
+  const X = Float64Array.from(line), r = new Float64Array(n), p = new Float64Array(n), Ap = new Float64Array(n);
+  A(X, Ap); for (let i = 0; i < n; i++) { r[i] = line[i] - Ap[i]; p[i] = r[i]; }
+  let rr = r.reduce((s2, x) => s2 + x * x, 0);
+  for (let it = 0; it < 2000 && rr > 1e-10; it++) {
+    A(p, Ap); const al = rr / p.reduce((s2, x, i) => s2 + x * Ap[i], 0);
+    for (let i = 0; i < n; i++) { X[i] += al * p[i]; r[i] -= al * Ap[i]; }
+    const r2 = r.reduce((s2, x) => s2 + x * x, 0); for (let i = 0; i < n; i++) p[i] = r[i] + (r2 / rr) * p[i]; rr = r2;
+  }
+  let t = 0; for (let k = 0; k < n; k++) t += every / Math.max(1, (kmh[k] + kmh[(k + 1) % n]) / 7.2);
+  return { line: Array.from(X, (x) => +x.toFixed(2)), kmh: Array.from(kmh, (x) => +x.toFixed(1)), thr: Array.from(thr, (x) => +x.toFixed(2)), brk: Array.from(brk, (x) => +x.toFixed(2)), time: t,
+    secs: secs.map(([a, b], j) => ({ a: Math.round(a), b: Math.round(wrap(b)), lap: per[pick[j].k].label, t: +pick[j].t.toFixed(2), clean: pick[j].clean })) };
+}
+const own = !args.includes('--shape') && !args.includes('--corners') ? files.map(ownLaps) : [];
+let LAP = null;   // (the lap mode: the composite lap, and the game it was built in - the corner fit below goes on in it)
+if (own.length && own.every(Boolean)) {
+  const laps = own.flat(), EVERY = 2;
+  console.log(`[fit] ${laps.length} lap(s) of the game's own car on ${track}: the lap mode`);
+  const G = await openGame(track);
+  const R = await G.page.evaluate(composite, { laps, every: EVERY, lam: opt('lambda', 12) });
+  for (const sc of R.secs) console.log(`[fit]   ${String(sc.a).padStart(5)}-${String(sc.b).padEnd(5)} ${sc.t.toFixed(2).padStart(6)} s  ${sc.lap}${sc.clean ? '' : '  (no clean pass: the fastest)'}`);
+  console.log(`[fit] the lap: ${R.time.toFixed(2)} s from its speeds; the line ${Math.max(...R.line.map(Math.abs)).toFixed(1)} m off the centreline at the widest`);
+  const bins = R.kmh.map((_, k) => k * EVERY);
+  LAP = { G, show: { every: EVERY, d: R.line, kmh: R.kmh }, T: [{ label: `the composite of ${laps.length} laps (${R.time.toFixed(2)} s)`, d: bins, v: R.kmh, b: R.brk, hasBrake: true, own: true, track }] };
+}
+
 // ---- the fit -------------------------------------------------------------------------------------------------------
-const T = files.flatMap(readTelemetry);
+const T = LAP ? LAP.T : files.flatMap(readTelemetry);
 // the game's own car on this circuit (its export): the same car as the AI's, so the fit is absolute - the speeds and
 // the braking points themselves, not only the lap's shape (--shape keeps it relative)
 const ABS = !args.includes('--shape') && T.every((t) => t.own && t.track === track);
 const PASSES = opt('passes', ABS ? 2 : 1), LIMV = ABS ? [0.9, 1.45] : [0.9, 1.1], LIMB = ABS ? [0.85, 1.15] : [0.85, 1.15];   // (braking: later than 1.15 x the physics' point holds solo, but in a field - dirty air, mistakes on - the hairpin became a pile-up)
 if (ABS) console.log(`[fit] ${T.length} lap(s) of the game's own car on ${track}: fitting the speeds and braking points themselves, ${PASSES} passes`);
-const { page, close } = await openGame(track);
+const { page, close } = LAP ? LAP.G : await openGame(track);
+// (the lap mode: driven at the difficulty slider's top, --diff - what holds there holds below, and the driver's laps were
+//  run against it - on new tyres at every line)
+const RUN = LAP ? { diff: opt('diff', 100), fresh: true } : {};
 const cal = await readCal(page, track); cal.corners = cal.corners || {};
+// (the lap mode: the AI keeps its own line - it is the quicker one for it - and the driver's lap is the racing line shown
+//  on the track: cal.show; the corners are fitted to its speeds and braking points)
+if (LAP) { cal.show = LAP.show; delete cal.line; await page.evaluate((c) => window.__F1.rebuildLine(c), cal); }
 const groups = await groupsOf(page);
 for (const g of groups) for (const n of g) cal.corners[n] = { v: 1, b: 1, ...cal.corners[n] };
 // the driver's own line (the game's car, with positions): where on the road each lap was, every 2 m, averaged over the
 // laps; it becomes the AI's racing line (ai/Calibration.js `line`, RacingLine `fixed`) - the kerbs the driver rides, the
 // chicanes straightened - and the speeds and brakes are fitted on it. --noline keeps the AI's own line
-if (ABS && !args.includes('--noline') && T.every((t) => t.x?.length)) {
+if (ABS && !LAP && !args.includes('--noline') && T.every((t) => t.x?.length)) {
   const EVERY = 2;
   const L = await page.evaluate(([laps, EVERY]) => {
     const tr = window.__F1.W.track, n = Math.ceil(tr.length / EVERY), sum = new Float64Array(n), cnt = new Float64Array(n), q = {};
@@ -172,7 +257,7 @@ if (ABS && !args.includes('--noline') && T.every((t) => t.x?.length)) {
 }
 for (let pass = 0; pass < PASSES; pass++) {
 if (PASSES > 1) console.log(`[fit] pass ${pass + 1}`);
-const ai = await calRun(page, 2, cal, { trace: true });
+const ai = await calRun(page, 2, cal, { trace: true, ...RUN });
 const apexes = await page.evaluate(() => window.__F1.W.def.corners.filter((c) => c.s != null).map((c) => ({ n: c.n, apex: c.s })));
 const aiMean = ai.trace.reduce((a, b) => a + b, 0) / ai.trace.length;
 // (the AI's corner as one lap of it, like the telemetry: its laps' minimum speeds and braking points averaged)
@@ -204,7 +289,7 @@ for (const g of groups) {
 }
 // the AI drives it: a group that is no longer clean goes halfway back (three tries)
 for (let tries = 0; tries < 3; tries++) {
-  const R = await calRun(page, 3, cal); let bad = [];
+  const R = await calRun(page, 3, cal, RUN); let bad = [];
   for (const g of groups) { const cs = R.corners.filter((c) => g.includes(c.n)); if (cs.some((c) => c.incidents.some((x) => !String(x).startsWith('off')))) {   // (a spin or a hit: a moment over the kerb's edge on the driver's own line is not)
       bad.push(g.join('/')); for (const n of g) for (const key of ['v', 'b']) cal.corners[n][key] = +((cal.corners[n][key] + prev.corners[n][key]) / 2).toFixed(3); } }
   console.log(`[fit] check ${tries + 1}: ${R.laps.slice(1).join(' ')} ${bad.length ? `- not clean at ${bad.join(', ')}, eased back` : '- clean'}`);
@@ -212,11 +297,16 @@ for (let tries = 0; tries < 3; tries++) {
   if (tries === 2) {   // (still not clean after three: those groups keep what they had)
     for (const g of groups) if (bad.includes(g.join('/'))) for (const n of g) cal.corners[n] = { ...prev.corners[n] };
     console.log(`[fit] ${bad.join(', ')}: kept as before the fit`);
+    // (and the whole is driven once more: not clean even so, the pass is undone)
+    const V = await calRun(page, 3, cal, RUN), still = groups.filter((g) => V.corners.filter((c) => g.includes(c.n)).some((c) => c.incidents.some((x) => !String(x).startsWith('off'))));
+    if (still.length) { Object.assign(cal.corners, JSON.parse(JSON.stringify(prev.corners))); console.log(`[fit] still not clean at ${still.map((g) => g.join('/')).join(', ')}: this pass undone`); }
+    else console.log(`[fit] check: ${V.laps.slice(1).join(' ')} - clean`);
   }
 }
 }
 cal.fitted = `${T.map((t) => t.label).join(', ')} (${new Date().toISOString().slice(0, 10)}, blend ${BLEND})`;
-cal.source = `${(cal.source || '').replace(/; fitted to telemetry:.*$/, '')}; fitted to telemetry: ${cal.fitted}`;
+cal.source = LAP ? `the driver's own laps (tools/ai_fit.mjs, lap mode): the racing line shown is ${T[0].label}; the AI on its own line, its corners fitted to that lap's speeds and braking points at difficulty ${RUN.diff} (${cal.fitted.replace(/^.*\((\d{4}-\d\d-\d\d), /, '$1, ').replace(/\)$/, '')})`
+  : `${(cal.source || '').replace(/; fitted to telemetry:.*$/, '')}; fitted to telemetry: ${cal.fitted}`;
 if (!DRY) { writeCal(track, cal); console.log('[fit] written to src/ai/Calibration.js - rebuild the game (tools/bundle.py) to ship it'); }
 else console.log(JSON.stringify(cal.corners));
 await close();
