@@ -1441,10 +1441,10 @@ export function buildPitLane(track, rawPts, boxCount = 12) {
   // per pit sample: distance of the road centre, whether the sample still lies on the road (entry/exit blend),
   // how far the lane's own asphalt may reach toward the road (clipped at the kerb) and whether the pit wall exists yet
   const n = samples.n;
-  const overlapsTrack = new Uint8Array(n), trackD = new Float32Array(n), laneEdge = new Float32Array(n), wallIn = new Float32Array(n), trackI = new Int32Array(n), wallPos = new Float32Array(n);
+  const overlapsTrack = new Uint8Array(n), trackD = new Float32Array(n), laneEdge = new Float32Array(n), wallIn = new Float32Array(n), trackI = new Int32Array(n), wallPos = new Float32Array(n), laneSide = new Int8Array(n);
   for (let i = 0; i < n; i++) {
     const q = track.nearest(samples.px[i], samples.pz[i]); const D = Math.abs(q.d), hwT = track.edgeAt(q.i, q.d > 0 ? 1 : -1);
-    trackD[i] = D; trackI[i] = q.i;
+    trackD[i] = D; trackI[i] = q.i; laneSide[i] = q.d > 0 ? 1 : -1;
     overlapsTrack[i] = D < hwT + 0.5 ? 1 : 0;
     // the pit wall stands wallOff from the lane centre, but never closer to the road than 0.6 m off its edge
     // (or 0.4 m past the kerb in a corner zone): where the OSM lane hugs the circuit the wall simply sits at the road edge
@@ -1458,12 +1458,21 @@ export function buildPitLane(track, rawPts, boxCount = 12) {
   let mergeI = n - 1; while (mergeI > 0 && overlapsTrack[mergeI]) mergeI--;
   let wallStartI = -1, wallEndI = -1;
   for (let i = 0; i < n; i++) if (isFinite(wallIn[i])) { if (wallStartI < 0) wallStartI = i; wallEndI = i; }
+  // (and its nose no sooner than where the lane has opened out to its full width beside it - up to 5 m between the lane's
+  //  centre and the wall: a car still cutting across into the lane, or back out of it, has the room. Started the moment
+  //  there were 3 m, it stood in the path of every car entering Austin's lane on the inside of Turn 20, whose road is
+  //  widened on the other side only)
+  if (wallStartI >= 0) {
+    const run = Array.from(wallPos.subarray(wallStartI, wallEndI + 1)).sort((a, b) => a - b), full = Math.min(5, 0.9 * run[run.length >> 1]);   // (its usual width along the garages)
+    while (wallStartI < wallEndI && wallPos[wallStartI] < full) wallStartI++;
+    while (wallEndI > wallStartI && wallPos[wallEndI] < full) wallEndI--;
+  }
   for (let i = 0; i < n; i++) wallIn[i] = i >= wallStartI && i <= wallEndI && wallStartI >= 0 ? Math.max(0.6, wallPos[i]) : Infinity;   // one continuous wall, no islands
   // how far the lane's own asphalt reaches toward the road: to the wall base where the wall exists, else exactly to the
   // road's kerb / edge line (negative = that line lies on the garage side of the lane centre: the lane is merging and its
   // asphalt tapers to a point against the road edge - no overlap, no z-fighting)
   for (let i = 0; i < n; i++) {
-    const edgeIn = track.hw[trackI[i]] + (track.inCornerZone(trackI[i]) ? kwT : 0);
+    const edgeIn = track.edgeAt(trackI[i], laneSide[i]) + (track.inCornerZone(trackI[i]) ? kwT : 0);
     laneEdge[i] = isFinite(wallIn[i]) ? Math.min(halfWidth + 0.7, wallIn[i] - 0.3) : Math.min(halfWidth + 0.7, trackD[i] - edgeIn);
   }
   // track samples covered by the lane's asphalt (the run-off strip is not drawn there)
