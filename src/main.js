@@ -16,7 +16,7 @@ import { StandCrowds } from './world/StandCrowds.js';
 import { crowdTime } from './world/Crowd.js';
 import { buildVenue, standFootprints } from './world/Venue.js';
 import { buildMontreal } from './world/Montreal.js';
-import { buildAustin } from './world/Austin.js';
+import { buildAustin, austinCrowdZones } from './world/Austin.js';
 import { TERRAIN, setTerrain, trackHeights, buildHeightField, elevateWorld, terrainGround } from './world/Terrain.js';
 import { WOC_PANEL } from './track/Branding.js';
 import { TrackLights, floodlitAll } from './world/Lighting.js';
@@ -166,13 +166,14 @@ async function loadWorld(def) {
   const curve = buildSpline(circuit.pts, { closed: true, filletSigma: def.smoothSigma || 6, step: 4, tension: 0.5, fillet: def.fillet !== false });
   const samples = rotateSamples(sampleCurve(curve, true, 2), 0, 0);   // s = 0 at the start/finish line (projection origin)
   const track = new Track(samples, def);
+  labelCorners(track, def, geo);
+  track.widen();   // (a road wider in places: def.widths - before anything is laid along its edges, the ground included)
   // the ground's height (a circuit that is not flat: its way's third coordinates - world/Terrain.js), else flat
   setTerrain(null);
   if (def.elevation) {
     const w = geo.roadById(def.ways[0]), pts = w ? w.pts.map((p, k) => [p[0], p[1], w.lonlat[k]?.[2]]) : null, h = trackHeights(track, pts);
-    if (h) { track.h = h; setTerrain(buildHeightField(track, h), track); TERRAIN.halfRoad = track.halfWidth + track.kerbWidth + 1; }
+    if (h) { track.h = h; setTerrain(buildHeightField(track, h), track); TERRAIN.halfRoad = track.maxHalfWidth + track.kerbWidth + 1; TERRAIN.halfRoadAt = (i) => track.hw[i] + track.kerbWidth + 1; }
   }
-  labelCorners(track, def, geo);
   track.openCorners();   // (corners left open: Montreal's Senna S and hairpin - before the barriers are capped against everything else)
   // permanent circuits: the escape aprons stop short of the venue's real grandstands
   if (def.osmStands || def.standNames) {
@@ -196,6 +197,8 @@ async function loadWorld(def) {
   env.setGround(def.ground || 'city');
   const pitWay = geo.roadById(def.pitLaneWayId);
   const pit = pitWay ? buildPitLane(track, pitLaneLeads(track, pitWay.pts, def.pitLeads)) : null;
+  // a circuit's spectator areas round the lap (Austin's general admission): a barrier and a catch fence in front of each
+  if (def.scenery === 'austin') track.guardZones(austinCrowdZones(track, def, pit));
   await set('Computing the racing line…', 26);
   const { line, profile } = makeRacingLine(track, def);
   await set('Laying the track, kerbs and barriers…', 40);
@@ -235,7 +238,7 @@ async function loadWorld(def) {
   // the solid things beside the circuit (buildings, landmarks, grandstands: nothing drives or flies through them), and
   // catch fences on the barriers in front of the grandstands
   const obstacles = new Obstacles(), standRings = [];
-  const clearOfTrack = (ring) => ring.every(([x, z]) => Math.abs(track.nearest(x, z).d) > track.halfWidth + 3);
+  const clearOfTrack = (ring) => ring.every(([x, z]) => { const q = track.nearest(x, z); return Math.abs(q.d) > track.hw[q.i] + 3; });
   for (const r of buildings.userData.rings || []) if (r && r.length >= 3 && clearOfTrack(r)) obstacles.add(r, 12);
   for (const b of lmBoxes) { const r = [[b.min.x, b.min.z], [b.max.x, b.min.z], [b.max.x, b.max.z], [b.min.x, b.max.z]]; if (b.max.y > 2 && clearOfTrack(r)) obstacles.add(r, b.max.y); }
   for (const p of stands.stands) {
@@ -261,9 +264,9 @@ async function loadWorld(def) {
   chunks.track = track; chunks.obstacles = obstacles;
   // big debris lying on the racing surface is dragged off by the marshals: to the verge (inside the barrier)
   debris.sweep = (x, z) => {
-    const q = track.nearest(x, z); if (!(Math.abs(q.d) < track.halfWidth + 1)) return null;
+    const q = track.nearest(x, z); if (!(Math.abs(q.d) < track.hw[q.i] + 1)) return null;
     const side = Math.sign(q.d) || 1, wall = track.wallAt(q.i, side);
-    const f = track.sample(q.s, side * Math.min(wall - 1.2, track.halfWidth + track.kerbWidth + 2 + Math.random() * 2));
+    const f = track.sample(q.s, side * Math.min(wall - 1.2, track.hw[q.i] + track.kerbWidth + 2 + Math.random() * 2));
     return [f.x, f.z];
   };
   console.info(`[world] grandstands: ${stands.count} (${stands.fans} fans), floodlight masts: ${trackMesh.userData.masts.length}`);

@@ -40,6 +40,26 @@ const hash2 = (i, j, s) => { const h = Math.sin(i * 127.1 + j * 311.7 + s * 74.7
 const vnoise = (x, z, s = 0) => { const i = Math.floor(x), j = Math.floor(z), fx = x - i, fz = z - j, u = fx * fx * (3 - 2 * fx), v = fz * fz * (3 - 2 * fz), a = hash2(i, j, s), b = hash2(i + 1, j, s), c = hash2(i, j + 1, s), d = hash2(i + 1, j + 1, s); return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v; };
 const fbm = (x, z, s = 0) => 0.5 * vnoise(x, z, s) + 0.3 * vnoise(x * 2.07, z * 2.07, s + 1) + 0.2 * vnoise(x * 4.3, z * 4.3, s + 2);
 
+/**
+ * The general-admission areas all round the lap: both sides of the road everywhere but along the pit lane, in pieces of
+ * 120-200 m, each its own depth (8-24 m of crowd behind the fence), its low viewing mound and how packed it is. main.js
+ * hands them to the track (TrackBuilder guardZones: a barrier and a catch fence in front of every one) before the
+ * barriers are drawn; buildAustin lays the crowd on them.
+ */
+export function austinCrowdZones(tr, def, pit) {
+  const zones = [], L = tr.length, inR = (s, a, b) => (a <= b ? s >= a && s <= b : s >= a || s <= b);
+  const pr = pit ? [tr.wrapS(pit.entryS - 80), tr.wrapS(pit.exitS + 60)] : null;
+  for (const side of [1, -1]) {
+    for (let s = 0; s < L - 40;) {
+      const len = 120 + vnoise(s / 97, side, 5) * 80, s1 = Math.min(L, s + len), mid = (s + s1) / 2;
+      const blocked = pr && side === pit.sideSign && (inR(s, ...pr) || inR(s1, ...pr) || inR(mid, ...pr));
+      if (!blocked && vnoise(s / 140, side * 3, 7) > 0.1) zones.push({ s0: s, s1: s1 - 6, side, depth: 8 + vnoise(s / 210, side, 9) * 16, rise: 0.5 + vnoise(s / 180, side, 11) * 1.1, fill: 0.55 + vnoise(s / 160, side, 13) * 0.25 });
+      s = s1;
+    }
+  }
+  return zones;
+}
+
 /** the dry Texas grass of the banks and the lawn: a speckled canvas, tiled in world space (one, shared) */
 let GRASS = null;
 function grassTex() {
@@ -203,14 +223,9 @@ export function buildAustin(geo, track, def, pit) {
     Pz.add(new THREE.Mesh(geoOf(conc), new THREE.MeshStandardMaterial({ color: 0xc9c3b6, roughness: 0.9, side: THREE.DoubleSide })));
     Pz.add(new THREE.Mesh(geoOf(seat, (g) => g.setAttribute('color', new THREE.Float32BufferAttribute(seat.C, 3))), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, side: THREE.DoubleSide })));
     Pz.add(new THREE.Mesh(geoOf(lawn, (g) => g.setAttribute('uv', new THREE.Float32BufferAttribute(lawn.U, 2))), new THREE.MeshStandardMaterial({ map: grassTex(), color: 0xb8d090, roughness: 1, side: THREE.DoubleSide })));
-    // the Grand Plaza: pale concrete beyond the lawn, and the long reflecting pool at its far end
-    const plaza = new THREE.Mesh(new THREE.BoxGeometry(150, 0.2, 60), new THREE.MeshStandardMaterial({ color: 0xc9c4b8, roughness: 0.85 })); plaza.position.set(190, 0.08, 0); Pz.add(plaza);
-    const pool = new THREE.Mesh(new THREE.BoxGeometry(80, 0.25, 14), new THREE.MeshStandardMaterial({ color: 0x3f6f8e, roughness: 0.08, metalness: 0.5, envMapIntensity: 1.6 })); pool.position.set(225, 0.12, 0); Pz.add(pool);
-    // (the plaza and the pool only where there is room inside the loop)
-    for (const m of [plaza, pool]) { const c = new THREE.Vector3(m.position.x, 0, 0).applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw); if (corridorSigned(tr, pit, tx + c.x, tz + c.z, 40) < 0) m.visible = false; }
     group.add(Pz);
     solid.push([tx, tz, 16]);
-    const at = (u) => [tx + Math.cos(yaw) * u, tz - Math.sin(yaw) * u]; solid.push([...at(30), 22], [...at(C + 30), 50], [...at(190), 70]);
+    const at = (u) => [tx + Math.cos(yaw) * u, tz - Math.sin(yaw) * u]; solid.push([...at(30), 22], [...at(C + 30), 50]);
   }
 
   // ---- the pit building: the garages below (world/PitLane.js), and over them the Paddock Club - three open terraces
@@ -316,7 +331,7 @@ export function buildAustin(geo, track, def, pit) {
   //      straight's braking ends; red stars down the outside of the stadium's long right (Turns 16-18) and Turn 19
   {
     const hw = tr.halfWidth, kw = tr.kerbWidth, q0 = {};
-    const onRunoff = (x, z, pad = 0.8) => { const q = tr.nearest(x, z, -1, q0), side = q.d > 0 ? 1 : -1, a = Math.abs(q.d); return a > hw + kw + pad && a < tr.wallAt(q.i, side) - pad && (side > 0 ? tr.surfL[q.i] : tr.surfR[q.i]) === 1; };
+    const onRunoff = (x, z, pad = 0.8) => { const q = tr.nearest(x, z, -1, q0), side = q.d > 0 ? 1 : -1, a = Math.abs(q.d); return a > tr.hw[q.i] + kw + pad && a < tr.wallAt(q.i, side) - pad && (side > 0 ? tr.surfL[q.i] : tr.surfR[q.i]) === 1; };
     const paintMat = (opts) => new THREE.MeshStandardMaterial({ roughness: 0.85, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4, ...opts });
     const s12 = cornerS(12);
     if (s12 != null) {
@@ -325,7 +340,7 @@ export function buildAustin(geo, track, def, pit) {
       let fa = null, cx = 0, cz = 0, best = -1;
       const wpOf = (f, x0, z0) => (u, v) => [x0 + f.tx * (u - 0.5) * W + f.nx * (v - 0.5) * H, z0 + f.tz * (u - 0.5) * W + f.nz * (v - 0.5) * H];
       for (let ds = -70; ds <= 70; ds += 10) for (let dd = 0; dd <= 24; dd += 4) {
-        const f = tr.sample(s12 + ds, side * (hw + kw + 2 + H / 2 + dd)), wp = wpOf(f, f.x, f.z); let n = 0;
+        const f = tr.sample(s12 + ds, side * (tr.hw[tr.idxAtS(s12 + ds)] + kw + 2 + H / 2 + dd)), wp = wpOf(f, f.x, f.z); let n = 0;
         for (let a2 = 0; a2 < nu; a2 += 2) for (let b2 = 0; b2 < nv; b2 += 2) { const m = wp((a2 + 0.5) / nu, (b2 + 0.5) / nv); if (onRunoff(m[0], m[1], 1.2)) n++; }
         if (n > best) { best = n; fa = f; cx = f.x; cz = f.z; }
       }
@@ -349,7 +364,7 @@ export function buildAustin(geo, track, def, pit) {
     for (const [t0, a0, t1, a1, side, size, gap] of [[16, -20, 18, 40, 1, 2.6, 13], [19, -60, 19, 50, -1, 2.4, 12], [20, -30, 20, 30, -1, 2.2, 11]]) {
       const sA = cornerS(t0), sB = cornerS(t1); if (sA == null || sB == null) continue;
       for (let s = sA + a0; s <= sB + a1; s += gap) {
-        const i = tr.idxAtS(s), wall = tr.wallAt(i, side); if (wall < hw + kw + size * 2 + 3) continue;
+        const i = tr.idxAtS(s), wall = tr.wallAt(i, side), hw = tr.hw[i]; if (wall < hw + kw + size * 2 + 3) continue;
         const d = Math.min(wall - size - 1.5, hw + kw + 2 + size + 3.4), f = tr.sample(s, side * d);
         if (!onRunoff(f.x, f.z, size)) continue;
         const g = base.clone(); g.scale(size, 1, size); g.rotateY(Math.atan2(f.tx, f.tz)); g.translate(f.x, 0.035, f.z); stars.push(keepPN(g));
@@ -446,8 +461,36 @@ export function buildAustin(geo, track, def, pit) {
     const clear = () => { for (let u = -S.len / 2; u <= S.len / 2; u += 5) for (let v = 0; v <= DEPTH; v += 6) { const x = ox + ex[0] * u + ez[0] * v, z = oz + ex[1] * u + ez[1] * v; if (corridorSigned(tr, pit, x, z, 3) < 0) return false; } return true; };
     let k = 0; while (k < 24 && !clear()) { ox += ez[0] * 2; oz += ez[1] * 2; k++; }
     if (k >= 24) { console.info(`[austin] no room for ${S.name}`); continue; }
-    stands.push({ x: ox, z: oz, ex, ez, len: S.len, tiers: S.tiers, name: S.name, style: S.style || null });
+    // (on a slope a long stand steps down the hill in sections, each level on its own short plinth - Turn 1's climbs
+    //  with the road - instead of one deck held up at its highest point over a wall at its lowest)
+    let hLo = Infinity, hHi = -Infinity; if (TERRAIN.on) for (let u = -S.len / 2; u <= S.len / 2; u += 5) { const h = TERRAIN.at(ox + ex[0] * u, oz + ex[1] * u); hLo = Math.min(hLo, h); hHi = Math.max(hHi, h); }
+    const K = TERRAIN.on ? Math.max(1, Math.min(8, Math.ceil((hHi - hLo) / 1.8))) : 1, segL = S.len / K;
+    for (let j = 0; j < K; j++) { const u = -S.len / 2 + segL * (j + 0.5), st = S.style ? { ...S.style, art: j === K - 1 ? S.style.art : undefined } : null; stands.push({ x: ox + ex[0] * u, z: oz + ex[1] * u, ex, ez, len: K > 1 ? segL - 1.2 : S.len, tiers: S.tiers, name: S.name, style: st }); }
     const cx = ox + ez[0] * DEPTH / 2, cz = oz + ez[1] * DEPTH / 2; standBoxes.push([cx, cz, S.len / 2 + 8]); solid.push([cx, cz, S.len / 2 + 6]);
+  }
+
+  // ---- the Grand Plaza: the round lawn at the heart of the fan zone (a grey oval of a stage in the middle) in a wide ring
+  //      of pale paving, near the amphitheatre - wherever round it there is room for all 160 m of it - and the red
+  //      peaked marquees at its edge
+  let plazaAt = null;
+  if (towerAt) {
+    const blds = geo.buildings.filter((b) => b.rings[0] && !claimed.has(b.id)).map((b) => { const f = footprintInfo(b.rings[0]); let r = 0; for (const [x, z] of b.rings[0]) r = Math.max(r, Math.hypot(x - f.c[0], z - f.c[1])); return [f.c[0], f.c[1], r, b.id]; });
+    const fits = (x, z) => corridorSigned(tr, pit, x, z, 86) > 0 && !solid.some(([sx, sz, r]) => (sx - x) ** 2 + (sz - z) ** 2 < (r + 80) ** 2 && r < 60) && !standBoxes.some(([sx, sz, r]) => (sx - x) ** 2 + (sz - z) ** 2 < (r + 82) ** 2);
+    for (const r of [150, 180, 210, 250, 290, 340]) { for (let k = 0; k < 24 && !plazaAt; k++) { const a = (k * Math.PI) / 12, x = towerAt[0] + Math.cos(a) * r, z = towerAt[1] + Math.sin(a) * r; if (fits(x, z)) plazaAt = [x, z]; } if (plazaAt) break; }
+    if (plazaAt) {
+      const G = new THREE.Group(); G.name = 'scene:grandplaza'; G.position.set(plazaAt[0], 0, plazaAt[1]);
+      const flat = (g, y) => { g.rotateX(-Math.PI / 2); g.translate(0, y, 0); return g; };
+      G.add(new THREE.Mesh(flat(new THREE.CircleGeometry(80, 64), 0.06), new THREE.MeshStandardMaterial({ color: 0xd2cdc2, roughness: 0.85, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 })));
+      G.add(new THREE.Mesh(flat(new THREE.CircleGeometry(54, 64), 0.1), new THREE.MeshStandardMaterial({ map: grassTex(), color: 0x9cc070, roughness: 1, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 })));
+      const ov = flat(new THREE.CircleGeometry(20, 40), 0.14); ov.scale(1.55, 1, 1);
+      G.add(new THREE.Mesh(ov, new THREE.MeshStandardMaterial({ color: 0x8e9196, roughness: 0.7, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 })));
+      // (the walks out across the paving, and the red marquees on its edge toward the amphitheatre)
+      const toT = Math.atan2(towerAt[1] - plazaAt[1], towerAt[0] - plazaAt[0]), T = [];
+      for (let k = 0; k < 5; k++) { const a = toT + 0.75 + (k - 2) * 0.16, x = Math.cos(a) * 92, z = Math.sin(a) * 92; T.push(vcolor(keepPN(nonIdx(new THREE.BoxGeometry(12.5, 3, 12).rotateY(-a).translate(x, 1.5, z))), 0xf2f2f0), vcolor(keepPN(nonIdx(new THREE.ConeGeometry(8.6, 5.5, 4).rotateY(Math.PI / 4 - a).translate(x, 5.75, z))), 0xd21f2f)); }
+      G.add(new THREE.Mesh(mergeGeometries(T), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6 })));
+      group.add(G); solid.push([plazaAt[0], plazaAt[1], 84]);
+      for (const [bx, bz, r, id] of blds) if ((bx - plazaAt[0]) ** 2 + (bz - plazaAt[1]) ** 2 < (r + 84) ** 2) claimed.add(id);   // (the sheds standing where it goes give way to it)
+    }
   }
 
   // ---- the stars on the blue of the Turn 1 run-off (its stripes: tracks.js runoffPaint): white five-pointed stars,
@@ -457,11 +500,11 @@ export function buildAustin(geo, track, def, pit) {
     if (s1 != null) {
       const shape = new THREE.Shape(); for (let k = 0; k < 10; k++) { const a = Math.PI / 2 + k * Math.PI / 5, r = k % 2 ? 0.62 : 1.5; (k ? shape.lineTo : shape.moveTo).call(shape, Math.cos(a) * r, Math.sin(a) * r); }
       const base = new THREE.ShapeGeometry(shape); base.rotateX(-Math.PI / 2);
-      const hw = tr.halfWidth, kw = tr.kerbWidth;
+      const kw = tr.kerbWidth;
       for (let s = s1 - 110; s <= s1 + 70; s += 6.5) {
         const i = tr.idxAtS(s);
         for (const side of [1, -1]) {
-          const wall = tr.wallAt(i, side); if (wall < hw + kw + 10 || (side > 0 ? tr.surfL[i] : tr.surfR[i]) !== 1) continue;
+          const wall = tr.wallAt(i, side), hw = tr.hw[i]; if (wall < hw + kw + 10 || (side > 0 ? tr.surfL[i] : tr.surfR[i]) !== 1) continue;
           for (let r = 0; r < 3; r++) {
             const d = hw + kw + 1.6 + r * 3.1 + ((Math.round(s / 6.5) % 2) ? 1.5 : 0); if (d > Math.min(wall - 3, hw + kw + 9.2)) continue;
             const f = tr.sample(s, side * d), g = base.clone(); g.rotateY(Math.atan2(f.tx, f.tz)); g.translate(f.x, 0.014, f.z); stars.push(keepPN(g));
@@ -527,7 +570,7 @@ export function buildAustin(geo, track, def, pit) {
     const berms = [];
     // (a bank: from `d0` m past the barrier to `d1`, along s0..s1 on a side, rising `rise` m away from the track; the
     //  grass under it and the people on it - every place clear of the stands, the tents and the track's corridor)
-    const bank = (s0, s1, side, d0, d1, rise, fill = 0.72) => {
+    const bank = (s0, s1, side, d0, d1, rise, fill = 0.72, clear = 8) => {
       // (a real hill, not a wedge: up from the grass to a crest 3/4 of the way back, down again behind it, and eased
       //  into the ground over its last 30 m at either end - no cliffs or edges to see from the track)
       const sm = (v) => { v = Math.min(1, Math.max(0, v)); return v * v * (3 - 2 * v); };
@@ -547,24 +590,16 @@ export function buildAustin(geo, track, def, pit) {
         for (let d = d0 + 1.2; d <= d1 - 0.5; d += 1.15) {
           if (rnd() > fill) continue;
           const dd = w + d + (rnd() - 0.5) * 0.5, x = f.x + f.nx * side * dd + (rnd() - 0.5) * 0.4, z = f.z + f.nz * side * dd + (rnd() - 0.5) * 0.4;
-          if (!free(x, z, 0.5)) continue;
+          if (!(corridorSigned(tr, pit, x, z, clear) > 0 && !solid.some(([sx, sz, r]) => (sx - x) ** 2 + (sz - z) ** 2 < r * r))) continue;
           const u = (d - d0) / (d1 - d0), y = hAt(s, u, x, z);
           if (rnd() < 0.07) { picnic(x, y, z, ang); d += 1.2; continue; }
           sheets.push([x, y, z, ang + (rnd() - 0.5) * 0.5, stander()]);
         }
       }
     };
-    const S = (n, a = 0) => (cornerS(n) ?? 0) + a;
-    bank(S(1, -420), S(1, -170), -1, 6, 44, 7);      // the run up to Turn 1, the big hill on the right
-    bank(S(1, 25), S(1, 130), -1, 6, 40, 6);         // round the outside of Turn 1
-    bank(S(1, -260), S(1, -60), 1, 8, 30, 3, 0.5);   // and the left of the run, under the flag
-    bank(S(2, -30), S(2, 140), 1, 6, 36, 4);         // the hill down to Turn 2
-    bank(S(3, -20), S(6, 40), -1, 6, 34, 5);          // the Esses
-    bank(S(9, -80), S(10, 40), 1, 6, 28, 3, 0.6);    // Turns 9 and 10
-    bank(S(11, -160), S(11, 50), -1, 6, 34, 4);      // the hairpin
-    bank(S(12, -90), S(12, 60), 1, 6, 30, 4);        // Turn 12's inside
-    bank(S(15, -40), S(16, 30), 1, 6, 15, 2, 0.65);  // the stadium (shallow: inside a hairpin a deep bank folds over itself)
-    bank(S(19, -120), S(20, 20), -1, 6, 32, 4);      // Turns 19 and 20
+    // every general-admission area round the lap (austinCrowdZones): behind its fence (2.5 m back from the barrier line), on
+    // its low mound - no hills thrown up round the corners, the ground is the hill country's own
+    for (const z of tr.crowdZones || []) bank(z.s0, z.s1, z.side, 3, 3 + z.depth, z.rise, z.fill, 2.5);
     // the Grand Plaza and the amphitheatre's lawn: milling, every which way (and facing the stage on the lawn)
     if (towerAt) {
       const Pz = group.getObjectByName('scene:plaza'), yaw = Pz ? Pz.rotation.y : 0, cy = Math.cos(yaw), sy = Math.sin(yaw);
@@ -576,7 +611,7 @@ export function buildAustin(geo, track, def, pit) {
         if (rnd() > 0.6) continue; const [x, z] = L(u + (rnd() - 0.5) * 0.6, v + (rnd() - 0.5) * 0.6);
         if (rnd() < 0.1) picnic(x, y, z, face(a)); else sheets.push([x, y, z, face(a) + (rnd() - 0.5) * 0.3, stander()]);
       }
-      for (let k = 0; k < 1800; k++) { const [x, z] = L(110 + rnd() * 160, (rnd() - 0.5) * 70); if (corridorSigned(tr, pit, x, z, 4) > 0) sheets.push([x, 0, z, rnd() * Math.PI * 2, stander()]); }
+      if (plazaAt) for (let k = 0; k < 5600; k++) { const a = rnd() * Math.PI * 2, r = rnd() < 0.7 ? 55 + rnd() * 24 : 24 + rnd() * 29, x = plazaAt[0] + Math.cos(a) * r, z = plazaAt[1] + Math.sin(a) * r; if (corridorSigned(tr, pit, x, z, 4) > 0) sheets.push([x, 0, z, rnd() * Math.PI * 2, stander()]); }
       // food trucks and merchandise tents along the plaza's edges
       const trucks = [], tents = [], awnings = [];
       for (let k = 0; k < 18; k++) {
@@ -681,8 +716,8 @@ export function buildAustin(geo, track, def, pit) {
   {
     const s1 = cornerS(1);
     if (s1 != null) {
-      const hw = tr.halfWidth, red = [0.5, 0.06, 0.1];
-      const strip = (side) => ribbon(tr, (i) => (side > 0 ? hw + 0.05 : -(hw + 6.5)), (i) => (side > 0 ? hw + 6.5 : -(hw + 0.05)), 0.012, { mask: (i) => { const s = tr.s[i], d = tr.wrapS(s - (s1 - 520)); return d < 470; }, colorFn: () => red });
+      const HW = tr.hw, red = [0.5, 0.06, 0.1];
+      const strip = (side) => ribbon(tr, (i) => (side > 0 ? HW[i] + 0.05 : -(HW[i] + 6.5)), (i) => (side > 0 ? HW[i] + 6.5 : -(HW[i] + 0.05)), 0.012, { mask: (i) => { const s = tr.s[i], d = tr.wrapS(s - (s1 - 520)); return d < 470; }, colorFn: () => red });
       const g = mergeGeometries([strip(1), strip(-1)].filter((x) => x.index?.count));
       if (g) group.add(new THREE.Mesh(g, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 })));
     }
@@ -693,7 +728,7 @@ export function buildAustin(geo, track, def, pit) {
       const sA = cornerS(n); if (sA == null) continue;
       // (the brake point of a corner is where the speed profile starts to fall: the boards count down to it)
       [150, 100, 50].forEach((m, k) => {
-        const s = sA - 90 - m, i = tr.idxAtS(s), f = tr.sample(s, 0), d = -(tr.halfWidth + 3.2), x = f.x + f.nx * d, z = f.z + f.nz * d;
+        const s = sA - 90 - m, i = tr.idxAtS(s), f = tr.sample(s, 0), d = -(tr.hw[i] + 3.2), x = f.x + f.nx * d, z = f.z + f.nz * d;
         const p = new THREE.PlaneGeometry(1.0, 1.0); const uv = p.attributes.uv; for (let j = 0; j < uv.count; j++) uv.setX(j, (k + uv.getX(j)) / 3);
         p.translate(0, 1.2, 0); p.rotateY(Math.atan2(-f.tx, -f.tz)); p.translate(x, 0, z); boards.push(p);
       });
@@ -814,7 +849,7 @@ export function buildAustin(geo, track, def, pit) {
     let bx0 = Infinity, bx1 = -Infinity, bz0 = Infinity, bz1 = -Infinity; for (let i = 0; i < tr.n; i += 5) { bx0 = Math.min(bx0, tr.px[i]); bx1 = Math.max(bx1, tr.px[i]); bz0 = Math.min(bz0, tr.pz[i]); bz1 = Math.max(bz1, tr.pz[i]); }
     const CS = 24, GX0 = bx0 - 1500, GZ0 = bz0 - 1500, NX = Math.ceil((bx1 - bx0 + 3000) / CS), NZ = Math.ceil((bz1 - bz0 + 3000) / CS);
     const kind = new Uint8Array(NX * NZ), gapA = new Float32Array(NX * NZ), qq = {};
-    const chunks = new Map(), chunk = (x, z) => { const k = `${Math.floor(x / 400)},${Math.floor(z / 400)}`; let c = chunks.get(k); if (!c) chunks.set(k, (c = { lot: [], lotU: [], field: [], fieldU: [], cars: [], poles: [], bld: [], trees: { oak: [], elm: [], juniper: [], mesquite: [], far: [] } })); return c; };
+    const chunks = new Map(), chunk = (x, z) => { const k = `${Math.floor(x / 400)},${Math.floor(z / 400)}`; let c = chunks.get(k); if (!c) chunks.set(k, (c = { lot: [], lotU: [], field: [], fieldU: [], cars: [], poles: [], bld: [], fans: [], kit: [], trees: { oak: [], elm: [], juniper: [], mesquite: [], far: [] } })); return c; };
     const tile = (P, U, x0, z0, s, y, uw, vh) => { const n = 3, d = s / n; for (let a = 0; a < n; a++) for (let b = 0; b < n; b++) { const xa = x0 + a * d, za = z0 + b * d, Q = [[xa, za], [xa, za + d], [xa + d, za + d], [xa, za], [xa + d, za + d], [xa + d, za]]; for (const [x, z] of Q) { P.push(x, y, z); U.push(x / uw, z / vh); } } };
     const PAINT = [0xf2f2f2, 0xf2f2f2, 0x111111, 0x111111, 0x8a9096, 0xc7cbd0, 0xc7cbd0, 0x1f3f7a, 0x8a1c1c, 0x2d4a2a, 0xb0a48a, 0x4b4f55, 0xd8d2c4, 0x6b2020, 0x274a6e];
     const KW = { oak: 0.4, elm: 0.12, juniper: 0.33, mesquite: 0.15 }, pickKind = () => { const r = rnd(); return r < KW.oak ? 'oak' : r < KW.oak + KW.elm ? 'elm' : r < KW.oak + KW.elm + KW.juniper ? 'juniper' : 'mesquite'; };
@@ -829,7 +864,7 @@ export function buildAustin(geo, track, def, pit) {
       if (corridorSigned(tr, pit, cx, cz, 22) < 0 || solid.some(([sx, sz, r]) => (sx - cx) ** 2 + (sz - cz) ** 2 < (r + 16) ** 2) || standBoxes.some(([sx, sz, r]) => (sx - cx) ** 2 + (sz - cz) ** 2 < (r + 14) ** 2)) continue;
       const inside = inPoly(ring, cx, cz), nl = fbm(cx / 230, cz / 230, 11), nw = fbm(cx / 300, cz / 300, 23), nf = fbm(cx / 380, cz / 380, 37);
       const c = chunk(cx, cz);
-      if (inside && gap > 50 && nl > 0.53) {
+      if (inside && gap > 50 && nl > 0.5) {
         kind[id] = 1; nLot++;
         tile(c.lot, c.lotU, x0, z0, CS, 0.05, 21.6, 18);
         if (rnd() < 0.035) { const w = 16 + rnd() * 12, d = 10 + rnd() * 6, h = 5 + rnd() * 3; c.bld.push([cx, cz, w, d, h]); continue; }
@@ -843,7 +878,18 @@ export function buildAustin(geo, track, def, pit) {
         kind[id] = 3; nWood++;
         const far = gap > 320, n = far ? 2 + ((rnd() * 3) | 0) : 3 + ((rnd() * 3) | 0);
         for (let k = 0; k < n; k++) plantTree(c, x0 + rnd() * CS, z0 + rnd() * CS, far);
-      } else if (gap > 50 && rnd() < (inside ? 0.06 : 0.16)) plantTree(c, x0 + rnd() * CS, z0 + rnd() * CS, gap > 320);
+      } else {
+        // open ground near the circuit: the fan village spills out over it - people about, marquees, food trucks, the
+        // rows of portable toilets - and the odd tree
+        if (gap < 150) {
+          const r = rnd(), px = x0 + 4 + rnd() * (CS - 8), pz = z0 + 4 + rnd() * (CS - 8), a = rnd() * Math.PI;
+          if (r < 0.1) c.kit.push(['tent', px, pz, a, [0xf4f4f2, 0xf4f4f2, 0xd21f2f, 0x1e3a8a, 0xff8000][(rnd() * 5) | 0]]);
+          else if (r < 0.16) c.kit.push(['truck', px, pz, a, PAINT[(rnd() * PAINT.length) | 0]]);
+          else if (r < 0.2) c.kit.push(['loos', px, pz, a, 0x2a62b8]);
+          if (rnd() < 0.7) { const n = 4 + ((rnd() * (gap < 80 ? 22 : 10)) | 0); for (let k = 0; k < n; k++) c.fans.push([x0 + rnd() * CS, 0, z0 + rnd() * CS, rnd() * 6.28, (rnd() * 8) | 0]); }
+        }
+        if (gap > 50 && rnd() < (inside ? 0.06 : 0.16)) plantTree(c, x0 + rnd() * CS, z0 + rnd() * CS, gap > 320);
+      }
     }
     // the ground's own colour, cell by cell (blended between cells) with the dry patches and a little mottling over it
     const CC = new Float32Array(NX * NZ * 3);
@@ -901,6 +947,17 @@ export function buildAustin(geo, track, def, pit) {
       inst(carG, carMat, c.cars, (im, [x, z, a, hex, s, h], k) => { m4.compose(p3.set(x, 0, z), qt.setFromAxisAngle(up, a), sc.set(1, h, s)); im.setMatrixAt(k, m4); im.setColorAt(k, col.setHex(hex)); }, 'austin:cars', 2200);
       inst(poleG, poleMat, c.poles, (im, [x, z], k) => { m4.compose(p3.set(x, 0, z), qt.identity(), sc.set(1, 1, 1)); im.setMatrixAt(k, m4); }, 'austin:poles', 2200);
       for (const [K, list] of Object.entries(c.trees)) { nTrees += list.length; inst(TREE[K], treeMat, list, (im, [x, z, h, r, hex, wf], k) => { const w = h * (0.9 + rnd() * 0.25) * wf; m4.compose(p3.set(x, 0, z), qt.setFromAxisAngle(up, r), sc.set(w, h, w)); im.setMatrixAt(k, m4); im.setColorAt(k, col.setHex(hex).multiplyScalar(0.88 + rnd() * 0.24)); }, `austin:${K}`, 3200); }
+      if (c.fans.length) { const im = fanMesh(c.fans, fest.sheetMat, rnd); im.name = 'austin:fans'; im.userData.cut = 1600; group.add(im); }
+      if (c.kit.length) {
+        const gk = [];
+        for (const [kind2, x, z, a, hex] of c.kit) {
+          const put = (g, h2) => gk.push(vcolor(keepPN(nonIdx(g.rotateY(a).translate(x, 0, z))), h2));
+          if (kind2 === 'tent') { put(new THREE.BoxGeometry(6, 2.6, 6).translate(0, 1.3, 0), 0xf2f2f0); put(new THREE.ConeGeometry(4.3, 2.2, 4).rotateY(Math.PI / 4).translate(0, 3.7, 0), hex); }
+          else if (kind2 === 'truck') { put(new THREE.BoxGeometry(2.5, 3, 6.5).translate(0, 1.6, 0), hex); put(new THREE.BoxGeometry(1.8, 0.12, 6.5).translate(1.9, 2.8, 0), 0xb31942); }
+          else for (let k = 0; k < 6; k++) put(new THREE.BoxGeometry(1.2, 2.3, 1.2).translate((k - 2.5) * 1.35, 1.15, 0), hex);
+        }
+        const m = new THREE.Mesh(mergeGeometries(gk), bldMat); m.name = 'austin:village'; m.userData.cut = 2000; group.add(m);
+      }
       if (c.bld.length) {
         const gs2 = [];
         for (const [x, z, w, d, h] of c.bld) { gs2.push(vcolor(keepPN(nonIdx(new THREE.BoxGeometry(w, h, d).translate(x, h / 2 - 0.5, z))), 0xe9e8e3), vcolor(keepPN(nonIdx(new THREE.BoxGeometry(w + 0.6, 0.5, d + 0.6).translate(x, h - 0.25, z))), 0x9aa1a8)); solid.push([x, z, Math.hypot(w, d) / 2 + 2]); }

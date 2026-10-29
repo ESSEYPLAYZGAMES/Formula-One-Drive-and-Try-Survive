@@ -22,7 +22,7 @@ export class Obstacles {
    */
   clearTrack(track, margin = 4) {
     const bad = new Set(), h = {};
-    for (let i = 0; i < track.n; i++) for (const d of [-track.halfWidth - margin, -track.halfWidth / 2, 0, track.halfWidth / 2, track.halfWidth + margin]) {
+    for (let i = 0; i < track.n; i++) for (const d of [-track.hw[i] - margin, -track.hw[i] / 2, 0, track.hw[i] / 2, track.hw[i] + margin]) {
       const x = track.px[i] + track.nx[i] * d, z = track.pz[i] + track.nz[i] * d;
       if (this.hit(x, z, 0, h)) bad.add(h.poly);
     }

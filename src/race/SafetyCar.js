@@ -154,8 +154,8 @@ export class SafetyCar {
 
   // ---- incidents --------------------------------------------------------------------------------------------------
   /** a stopped, retired car on or near the racing surface (not yet recovered) */
-  blocking(c) { return c.retired && !c.cleared && !c.air && c.speed < 3 && Math.abs(c.d) < this.d.track.halfWidth + 14 && !c.inPit && !c.pitLane; }
-  onRoad(c) { return Math.abs(c.d) < this.d.track.halfWidth + 2.5; }
+  blocking(c) { return c.retired && !c.cleared && !c.air && c.speed < 3 && Math.abs(c.d) < this.d.track.hw[c.trackIdx] + 14 && !c.inPit && !c.pitLane; }
+  onRoad(c) { return Math.abs(c.d) < this.d.track.hw[c.trackIdx] + 2.5; }
   incidentLive() { return this.incident && [...this.incident.cars].some((c) => this.blocking(c)); }
   /** the incident has stayed clear for CLEAR_T seconds */
   clear() { return !this.incidentLive() && (this.clearT || 0) > CLEAR_T; }

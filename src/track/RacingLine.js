@@ -22,16 +22,17 @@ function smoothArr(a, n, r, closed = true) {
  */
 function minCurvatureOffsets(track, maxOffset, p = 6) {
   const n = track.n; let off = new Float32Array(n);
+  const lim = (i) => maxOffset + (track.hw ? track.hw[i] - track.halfWidth : 0);   // (wider where the road is)
   for (const spacing of [40, 20, 10]) {
     const m = Math.round(n * track.ds / spacing);
     // grid points at exact fractional sample positions: uneven spacing would read as curvature
     const CX = new Float64Array(m), CZ = new Float64Array(m), NX = new Float64Array(m), NZ = new Float64Array(m);
-    const d = new Float64Array(m), X = new Float64Array(m), Z = new Float64Array(m);
+    const d = new Float64Array(m), X = new Float64Array(m), Z = new Float64Array(m), M = new Float64Array(m);
     for (let j = 0; j < m; j++) {
       const u = j * n / m, i0 = Math.floor(u) % n, i1 = (i0 + 1) % n, f = u - Math.floor(u);
       CX[j] = track.px[i0] + (track.px[i1] - track.px[i0]) * f; CZ[j] = track.pz[i0] + (track.pz[i1] - track.pz[i0]) * f;
       const ax = track.nx[i0] + (track.nx[i1] - track.nx[i0]) * f, az = track.nz[i0] + (track.nz[i1] - track.nz[i0]) * f, l = Math.hypot(ax, az) || 1;
-      NX[j] = ax / l; NZ[j] = az / l;
+      NX[j] = ax / l; NZ[j] = az / l; M[j] = lim(f < 0.5 ? i0 : i1);
       d[j] = off[i0] + (off[i1] - off[i0]) * f; X[j] = CX[j] + d[j] * NX[j]; Z[j] = CZ[j] + d[j] * NZ[j];
     }
     const e2 = (0.002 * spacing * spacing) ** 2, ex = (p - 2) / 2;   // weight floor at R = 500 m keeps the straights well conditioned
@@ -45,7 +46,7 @@ function minCurvatureOffsets(track, maxOffset, p = 6) {
         const qx = (wa * (2 * X[a] - X[a2]) + 2 * wj * (X[a] + X[b]) + wb * (2 * X[b] - X[b2])) / den;
         const qz = (wa * (2 * Z[a] - Z[a2]) + 2 * wj * (Z[a] + Z[b]) + wb * (2 * Z[b] - Z[b2])) / den;
         const best = (qx - CX[j]) * NX[j] + (qz - CZ[j]) * NZ[j];
-        const dj = Math.max(-maxOffset, Math.min(maxOffset, d[j] + om * (best - d[j])));
+        const dj = Math.max(-M[j], Math.min(M[j], d[j] + om * (best - d[j])));
         d[j] = dj; X[j] = CX[j] + dj * NX[j]; Z[j] = CZ[j] + dj * NZ[j];
       }
     }
@@ -54,7 +55,7 @@ function minCurvatureOffsets(track, maxOffset, p = 6) {
       const u = i * m / n, j = Math.floor(u), f = u - j;
       const p0 = d[(j - 1 + m) % m], p1 = d[j % m], p2 = d[(j + 1) % m], p3 = d[(j + 2) % m];
       const v = 0.5 * (2 * p1 + (p2 - p0) * f + (2 * p0 - 5 * p1 + 4 * p2 - p3) * f * f + (3 * p1 - p0 - 3 * p2 + p3) * f * f * f);
-      off[i] = Math.max(-maxOffset, Math.min(maxOffset, v));
+      off[i] = Math.max(-lim(i), Math.min(lim(i), v));
     }
   }
   return off;
@@ -105,7 +106,7 @@ export class RacingLine {
       const m = fixed.d.length, raw = new Float32Array(n);
       // (kept on the road: up onto the kerb in a corner, to the white line elsewhere - the car's centre over the edge
       //  where there is no kerb is off the track, a driver's two wheels over it are not)
-      const kw = track.kerbWidth || 1, lim = (i) => (track.inCorner?.[i] ? Math.min(fixedMax, track.halfWidth + 0.6 * kw) : Math.min(fixedMax, track.halfWidth - 0.2));
+      const kw = track.kerbWidth || 1, wd = (i) => (track.hw ? track.hw[i] - track.halfWidth : 0), lim = (i) => (track.inCorner?.[i] ? Math.min(fixedMax, track.halfWidth + 0.6 * kw) : Math.min(fixedMax, track.halfWidth - 0.2)) + wd(i);
       for (let i = 0; i < n; i++) { const u = (i * ds) / fixed.every, j = Math.floor(u) % m, f = u - Math.floor(u), L = lim(i); raw[i] = Math.max(-L, Math.min(L, fixed.d[j] + (fixed.d[(j + 1) % m] - fixed.d[j]) * f)); }
       this.offset = smoothArr(raw, n, Math.round(4 / ds)); this.fixed = true;
       this.lineCurv = smoothArr(pathCurvature(track, this.offset, Math.round(10 / ds)), n, 3);
@@ -129,7 +130,7 @@ export class RacingLine {
     }
     const sm = smoothArr(raw, n, Math.round(30 / ds));
     this.offset = new Float32Array(n);
-    for (let i = 0; i < n; i++) this.offset[i] = Math.max(-maxOffset, Math.min(maxOffset, sm[i]));
+    for (let i = 0; i < n; i++) { const M = maxOffset + (track.hw ? track.hw[i] - track.halfWidth : 0); this.offset[i] = Math.max(-M, Math.min(M, sm[i])); }
     // curvature of the actual line (offset path): kappa_line ~ kappa / (1 - kappa*d) with a numeric derivative correction
     this.lineCurv = new Float32Array(n);
     for (let i = 0; i < n; i++) {

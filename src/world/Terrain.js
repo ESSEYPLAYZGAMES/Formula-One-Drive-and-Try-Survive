@@ -52,7 +52,7 @@ export function buildHeightField(track, h) {
   for (let i = 0; i < track.n; i++) { x0 = Math.min(x0, track.px[i]); x1 = Math.max(x1, track.px[i]); z0 = Math.min(z0, track.pz[i]); z1 = Math.max(z1, track.pz[i]); mean += h[i]; }
   mean /= track.n; let lo = Infinity; for (let i = 0; i < track.n; i++) lo = Math.min(lo, h[i]); const edge = lo - 1.5;   // (the far edge: below the lowest point of the lap - the flat plane beyond it must never stand over the road)
   x0 -= MARGIN; z0 -= MARGIN; x1 += MARGIN; z1 += MARGIN;
-  const hold = track.halfWidth + HOLD;
+  const hold = (track.maxHalfWidth || track.halfWidth) + HOLD;
   const level = (cell, prev) => {
     const nx = Math.ceil((x1 - x0) / cell) + 1, nz = Math.ceil((z1 - z0) / cell) + 1, H = new Float32Array(nx * nz), fixed = new Uint8Array(nx * nz);
     // (the start: the coarser level's solution, or the mean)
@@ -93,14 +93,14 @@ export function buildHeightField(track, h) {
 
 /** switch the venue's ground on (a height field) or off (null) */
 export function setTerrain(F, track = null) {
-  TERRAIN.tint = null;   // (a venue's ground colouring, (x, z) -> [r, g, b]: set by its scenery after this)
+  TERRAIN.tint = null; TERRAIN.halfRoadAt = null;   // (a venue's ground colouring, (x, z) -> [r, g, b]: set by its scenery after this)
   if (!F) { TERRAIN.on = false; TERRAIN.edge = 0; TERRAIN.at = () => 0; TERRAIN.grad = (x, z, out = [0, 0]) => { out[0] = out[1] = 0; return out; }; TERRAIN.field = null; TERRAIN.road = null; return; }
   const e = 1.5;
   TERRAIN.on = true; TERRAIN.edge = F.edge; TERRAIN.field = F;
   // near the circuit, its own height exactly (the grid's 8 m cells would let the ground cut corners off the road over a
   // crest or into a dip): by the nearest point of the lap, out to the edge of the strip held at its height, then
   // blended into the field over the last 6 m of it
-  const h = track?.h, q = {}, hold = (track?.halfWidth || 0) + HOLD; let hint = -1;
+  const h = track?.h, q = {}, hold = (track?.maxHalfWidth || track?.halfWidth || 0) + HOLD; let hint = -1;
   const nearStrip = (x, z) => { const i = Math.floor((x - F.x0) / F.cell), j = Math.floor((z - F.z0) / F.cell); if (i < 0 || j < 0 || i >= F.nx - 1 || j >= F.nz - 1) return false; const k = j * F.nx + i; return F.fixed[k] === 1 || F.fixed[k + 1] === 1 || F.fixed[k + F.nx] === 1 || F.fixed[k + F.nx + 1] === 1; };
   TERRAIN.road = h ? (x, z, out = q) => {   // -> { h (the circuit's height there), d (offset from the centreline), s } | null
     if (!nearStrip(x, z)) return null;
@@ -109,7 +109,7 @@ export function setTerrain(F, track = null) {
   } : null;
   TERRAIN.at = (x, z) => {
     const fv = F.at(x, z), r = TERRAIN.road?.(x, z); if (!r) return fv;
-    const w = Math.max(0, Math.min(1, (Math.abs(r.d) - (hold - 6)) / 6)); return r.h + (fv - r.h) * w * w * (3 - 2 * w);
+    const hl = (track.hw ? track.hw[r.i] : track.halfWidth) + HOLD, w = Math.max(0, Math.min(1, (Math.abs(r.d) - (hl - 6)) / 6)); return r.h + (fv - r.h) * w * w * (3 - 2 * w);
   };
   TERRAIN.grad = (x, z, out = [0, 0]) => { out[0] = (F.at(x + e, z) - F.at(x - e, z)) / (2 * e); out[1] = (F.at(x, z + e) - F.at(x, z - e)) / (2 * e); return out; };
 }
@@ -225,7 +225,7 @@ export function terrainGround(F, material, planeSize = 12000) {
     for (let j = 0; j <= nj; j++) for (let i = 0; i <= ni; i++) {
       const x = F.x0 + (ti + i) * F.cell, z = F.z0 + (tj + j) * F.cell;
       // (under the road and its kerbs the grass is kept 15 cm down: no cell of it can show through the asphalt)
-      const r = TERRAIN.road?.(x, z, _rq), under = r && Math.abs(r.d) < (TERRAIN.halfRoad || 9);
+      const r = TERRAIN.road?.(x, z, _rq), under = r && Math.abs(r.d) < (TERRAIN.halfRoadAt ? TERRAIN.halfRoadAt(r.i) : TERRAIN.halfRoad || 9);
       pos.push(x, (r ? TERRAIN.at(x, z) : F.H[(tj + j) * F.nx + ti + i]) - (under ? 0.15 : 0.05), z); uv.push(x / planeSize + 0.5, -z / planeSize + 0.5);
     }
     for (let j = 0; j < nj; j++) for (let i = 0; i < ni; i++) { const a = j * (ni + 1) + i, b = a + 1, c = a + ni + 1, d = c + 1; idx.push(a, c, b, b, c, d); }

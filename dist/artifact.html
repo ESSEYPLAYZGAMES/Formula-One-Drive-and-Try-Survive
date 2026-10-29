@@ -77104,7 +77104,16 @@ const TRACKS = {
       { detect: { turn: 19, at: 'start', off: -40 }, open: { turn: 20, at: 'end', off: 60 }, close: { turn: 1, at: 'start', off: -90 } },
     ],
     direction: 1,
-    width: 15,
+    // COTA is wide everywhere (a choice of lines through every corner), widest of all up the hill into Turn 1 - forty
+    // metres across at the top - and through the hairpin, Turn 12 and the last corner (TrackBuilder widen)
+    width: 17,
+    widths: [
+      { turn: 1, before: 110, after: 40, width: 38, ease: 130 }, { turn: 2, before: 20, after: 40, width: 22, ease: 50 },
+      { turn: 11, before: 60, after: 50, width: 26, ease: 80 }, { turn: 12, before: 70, after: 40, width: 26, ease: 80 },
+      { turn: 15, before: 30, after: 30, width: 21, ease: 50 }, { turn: 19, before: 30, after: 30, width: 21, ease: 50 },
+      { turn: 20, before: 50, after: 40, width: 24, ease: 70 },
+    ],
+    runoffBase: [0.74, 0.66, 0.52],   // (every paved apron the tan of the real ones, painted or not)
     laps100: 56,
     cornerCurv: 1 / 240,
     // A permanent circuit: wide grass verges and, outside the corners, big asphalt run-offs painted red, white and
@@ -77958,6 +77967,8 @@ class Track {
     this.def = def;
     this.halfWidth = def.width / 2;
     this.kerbWidth = 1.2;
+    // the road's half width per sample: halfWidth everywhere, wider where def.widths opens it out (widen())
+    this.hw = new Float32Array(this.n).fill(this.halfWidth); this.maxHalfWidth = this.halfWidth;
     // A street circuit (def.verge unset) is walled in: 3 m of paved verge, then concrete. A permanent circuit
     // (def.verge = 'circuit') has grass verges, gravel or asphalt run-offs and its barriers far back.
     // def.verge = 'park' (Montreal): a permanent circuit's grass verges, kerbs, gravel and asphalt run-offs, but walled
@@ -78027,7 +78038,7 @@ class Track {
    * run-off starts at the kerb, and everything else is grass.
    */
   surface(i, d) {
-    const ad = Math.abs(d), hw = this.halfWidth;
+    const ad = Math.abs(d), hw = this.hw[i];
     if (ad <= hw) return 0;
     if (!this.circuit) return ad <= hw + this.kerbWidth ? 1 : 2;
     if (this.pitCovers && this.pitCovers[i] && d * this.pitSide > 0) return 2;
@@ -78050,8 +78061,8 @@ class Track {
     // in front of a grandstand (extendToStands): gravel right up to its barrier, unless that corner's run-off is asphalt
     const front = (ap, st, i) => (ap[i] >= 0 && kind[ap[i]] === 1 ? 1 : 2);
     for (let i = 0; i < this.n; i++) {
-      this.surfL[i] = this.standL?.[i] && this.wallL[i] > this.minWall + 3 ? front(this.apronL, this.standL, i) : this.apronL[i] >= 0 && this.wallL[i] > this.minWall + 6 ? kind[this.apronL[i]] : 0;
-      this.surfR[i] = this.standR?.[i] && this.wallR[i] > this.minWall + 3 ? front(this.apronR, this.standR, i) : this.apronR[i] >= 0 && this.wallR[i] > this.minWall + 6 ? kind[this.apronR[i]] : 0;
+      this.surfL[i] = this.standL?.[i] && this.wallL[i] > this.minWallAt(i) + 3 ? front(this.apronL, this.standL, i) : this.apronL[i] >= 0 && this.wallL[i] > this.minWallAt(i) + 6 ? kind[this.apronL[i]] : 0;
+      this.surfR[i] = this.standR?.[i] && this.wallR[i] > this.minWallAt(i) + 3 ? front(this.apronR, this.standR, i) : this.apronR[i] >= 0 && this.wallR[i] > this.minWallAt(i) + 6 ? kind[this.apronR[i]] : 0;
     }
   }
   _cellKey(x, z) { return `${Math.floor(x / CELL)},${Math.floor(z / CELL)}`; }
@@ -78124,14 +78135,14 @@ class Track {
   capRunoff(rings, margin = 4) {
     if (!rings.length) return;
     const inside = insideRings(rings);
-    const lo = this.minWall;
     for (const [arr, side, cap] of [[this.wallL, 1, this.capL], [this.wallR, -1, this.capR]]) {
       const before = Float32Array.from(arr);
       for (let i = 0; i < this.n; i++) {
+        const lo = this.minWallAt(i);
         if (arr[i] <= lo + 0.5) continue;
         for (let d = lo; d <= arr[i] + margin; d += 1.5) { if (inside(this.px[i] + this.nx[i] * side * d, this.pz[i] + this.nz[i] * side * d)) { arr[i] = Math.max(lo, d - margin); break; } }
       }
-      this._easeWall(arr);
+      this._easeWall(arr); this._clampWall(arr);
       for (let i = 0; i < this.n; i++) if (arr[i] < before[i] - 0.5 && !cap[i]) cap[i] = 1;
     }
   }
@@ -78143,18 +78154,19 @@ class Track {
    */
   extendToStands(rings, reach = 90, margin = 4) {
     if (!rings.length || !this.circuit) return;
-    const inside = insideRings(rings), lo = this.minWall, n = this.n;
+    const inside = insideRings(rings), n = this.n;
     this.standL = this.standL || new Uint8Array(n); this.standR = this.standR || new Uint8Array(n);
     for (const [arr, side, cap, flag] of [[this.wallL, 1, this.capL, this.standL], [this.wallR, -1, this.capR, this.standR]]) {
       const ext = new Float32Array(n);
       for (let i = 0; i < n; i++) {
+        const lo = this.minWallAt(i);
         for (let d = lo; d <= reach; d += 1.5) if (inside(this.px[i] + this.nx[i] * side * d, this.pz[i] + this.nz[i] * side * d)) { ext[i] = d - margin; break; }
       }
       // taper the ends (a max-filter with a slope) so the barrier angles back to the verge instead of stepping
       const r = Math.round(140 / this.ds), slope = 0.6 * this.ds;
       for (let i = 0; i < n; i++) {
         let m = 0; for (let k = -r; k <= r; k++) m = Math.max(m, ext[(i + k + n) % n] - Math.abs(k) * slope);
-        if (m > arr[i] + 1 && m > lo) { arr[i] = m; cap[i] = 1; flag[i] = 1; }
+        if (m > arr[i] + 1 && m > this.minWallAt(i)) { arr[i] = m; cap[i] = 1; flag[i] = 1; }
       }
     }
   }
@@ -78165,7 +78177,7 @@ class Track {
    */
   markFences(rings, reach = 30) {
     const n = this.n; this.fenceL = new Uint8Array(n); this.fenceR = new Uint8Array(n);
-    if (!rings.length) return;
+    if (!rings.length && !this.guardL) return;
     const inside = insideRings(rings), ext = Math.round(25 / this.ds);
     for (const [bar, wall, fence, side] of [[this.barL, this.wallL, this.fenceL, 1], [this.barR, this.wallR, this.fenceR, -1]]) {
       const raw = new Uint8Array(n);
@@ -78174,6 +78186,21 @@ class Track {
         for (let d = wall[i]; d <= wall[i] + reach; d += 2) if (inside(this.px[i] + this.nx[i] * side * d, this.pz[i] + this.nz[i] * side * d)) { raw[i] = 1; break; }
       }
       for (let i = 0; i < n; i++) { if (!bar[i] || bar[i] === BAR.WALL) continue; for (let k = -ext; k <= ext && !fence[i]; k++) if (raw[(i + k + n) % n]) fence[i] = 1; }
+    }
+    // (and every spectator area's fence: guardZones)
+    for (const [fence, g, bar] of [[this.fenceL, this.guardL, this.barL], [this.fenceR, this.guardR, this.barR]]) if (g) for (let i = 0; i < n; i++) if (g[i] && bar[i] && bar[i] !== BAR.WALL) fence[i] = 1;
+  }
+  /**
+   * A circuit's spectator areas all round the lap (zones: [{ s0, s1, side }]): wherever one lies behind the verge and
+   * nothing stands at the barrier line yet, a banner-covered barrier, and over it a catch fence, along its whole length
+   * (and 15 m past either end) - the crowd is behind the fence, never in reach of a car. Kept in track.crowdZones.
+   */
+  guardZones(zones) {
+    const n = this.n, ext = Math.round(15 / this.ds);
+    this.crowdZones = zones; this.guardL = new Uint8Array(n); this.guardR = new Uint8Array(n);
+    for (const z of zones) {
+      const bar = z.side > 0 ? this.barL : this.barR, g = z.side > 0 ? this.guardL : this.guardR, i0 = this.idxAtS(z.s0), m = Math.round(this.wrapS(z.s1 - z.s0) / this.ds);
+      for (let k = -ext; k <= m + ext; k++) { const i = (i0 + k + n) % n; if (!bar[i]) bar[i] = BAR.TYRES; if (bar[i] !== BAR.WALL) g[i] = 1; }
     }
   }
   /** how tall the barrier on a side (+1 left / -1 right) stands at sample i (m; 0: none) */
@@ -78223,6 +78250,29 @@ class Track {
     for (const p of this.pins || []) if (Math.sign(d) === p.side && (p.a <= p.b ? s >= p.a && s <= p.b : s >= p.a || s <= p.b)) return p;
     return null;
   }
+  /** the nearest a barrier may stand at sample i (the road's edge, the kerb and 3 m) */
+  minWallAt(i) { return this.hw[i] + this.kerbWidth + 3.0; }
+  /** no barrier closer to the road's edge than the kerb and `gap` m, wherever the road is widened */
+  _clampWall(arr, gap = 3.0) { for (let i = 0; i < this.n; i++) arr[i] = Math.max(arr[i], this.hw[i] + this.kerbWidth + gap); }
+  /**
+   * A road wider in places than its base width (def.widths: [{ turn, before, after, width, ease }]): around a corner, from
+   * `before` m ahead of its apex to `after` past it, the road is `width` m across (the ends eased over `ease` m), and
+   * def.width elsewhere - Austin's Turn 1, forty metres across at the top of the hill. The barriers move out with the
+   * road's edge. Call once the corners have their arc lengths, before anything is laid along the edges.
+   */
+  widen(list = this.def.widths) {
+    if (!list) return;
+    const n = this.n, base = this.halfWidth;
+    for (const o of list) {
+      const c = (this.def.corners || []).find((k) => k.n === o.turn); if (!c || c.s == null) continue;
+      const ease = Math.max(1, Math.round((o.ease ?? 70) / this.ds)), i0 = this.idxAtS(c.s - (o.before ?? 60)), m = Math.round(((o.before ?? 60) + (o.after ?? 60)) / this.ds);
+      for (let k = -ease; k <= m + ease; k++) {
+        const i = (i0 + k + n) % n, t = k < 0 ? 1 + k / ease : k > m ? 1 - (k - m) / ease : 1, w = t * t * (3 - 2 * t);
+        this.hw[i] = Math.max(this.hw[i], base + (o.width / 2 - base) * w);
+      }
+    }
+    for (let i = 0; i < n; i++) { const dl = this.hw[i] - base; this.wallL[i] += dl; this.wallR[i] += dl; this.maxHalfWidth = Math.max(this.maxHalfWidth, this.hw[i]); }
+  }
   /** min-filter a wall line so a capped sample pulls its neighbours in gradually (no steps in the barrier) */
   _easeWall(arr, slope = 1.2, r = 50) {
     const tmp = Float32Array.from(arr);
@@ -78234,17 +78284,18 @@ class Track {
    * the road is nearer to another part of the lap, the barrier stands on the line halfway between the two.
    */
   capSelf(margin = 1.5) {
-    const lo = this.halfWidth + this.kerbWidth + 1.5, q = {};
+    const q = {};
     for (const [arr, side, cap] of [[this.wallL, 1, this.capL], [this.wallR, -1, this.capR]]) {
       const before = Float32Array.from(arr);
       for (let i = 0; i < this.n; i++) {
+        const lo = this.hw[i] + this.kerbWidth + 1.5;
         for (let d = lo; d <= arr[i] + margin; d += 1.5) {
           this.nearest(this.px[i] + this.nx[i] * side * d, this.pz[i] + this.nz[i] * side * d, -1, q);
           const sep = Math.min(Math.abs(q.i - i), this.n - Math.abs(q.i - i)) * this.ds;
           if (sep > Math.max(80, 4 * d)) { arr[i] = Math.max(lo, d - margin); break; }
         }
       }
-      this._easeWall(arr);
+      this._easeWall(arr); this._clampWall(arr, 1.5);
       for (let i = 0; i < this.n; i++) if (arr[i] < before[i] - 0.5) cap[i] = 2;
     }
   }
@@ -78510,19 +78561,20 @@ function buildTrackMeshes(track, pit, gridSlots) {
   // --- road surface: asphalt with vertex-colour rubbering toward the centre
   const asphalt = asphaltTexture(); asphalt.repeat.set(2, 1);
   const roadMat = new THREE.MeshStandardMaterial({ map: asphalt, roughness: 0.62, metalness: 0.06, envMapIntensity: 0.55, vertexColors: true, emissive: 0x0c0d12, emissiveIntensity: 0.6 });   // slick: floodlights / Sphere glow smear across it
-  const roadGeo = ribbon(tr, () => -hw, () => hw, 0, { colorFn: (i, d) => { const r = 1 - 0.28 * Math.exp(-(d * d) / 18); return [r, r, r]; }, uvV: 10 });
+  const HW = tr.hw;
+  const roadGeo = ribbon(tr, (i) => -HW[i], (i) => HW[i], 0, { colorFn: (i, d) => { const r = 1 - 0.28 * Math.exp(-(d * d) / 18); return [r, r, r]; }, uvV: 10 });
   group.add(spatialChunks([roadGeo], roadMat, 'road')); group.userData.roadMat = roadMat;   // lap-long ribbons are cut into map cells so off-camera parts cull
 
   // --- white edge lines (polygon offset: painted overlays never z-fight with the road at distance)
   const lineMat = new THREE.MeshBasicMaterial({ color: 0xe8e8e8, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
-  const l1 = ribbon(tr, () => hw - 0.25, () => hw, 0.012), l2 = ribbon(tr, () => -hw, () => -hw + 0.25, 0.012);
+  const l1 = ribbon(tr, (i) => HW[i] - 0.25, (i) => HW[i], 0.012), l2 = ribbon(tr, (i) => -HW[i], (i) => -HW[i] + 0.25, 0.012);
   group.add(spatialChunks([l1, l2], lineMat, 'lines'));
 
   // --- kerbs: the Las Vegas card-suit kerbs (red / white blocks with spades, hearts, clubs, diamonds), corner zones only
   const kerbMask = (i) => tr.inCorner[i] === 1;
   const kerbTex = kerbTexture(tr.def.kerb || 'cards');
-  const kL = ribbon(tr, () => hw, () => hw + kw, 0.02, { mask: kerbMask, yB: 0.06, uvV: 10 });
-  const kR = ribbon(tr, () => -hw - kw, () => -hw, 0.06, { mask: kerbMask, yB: 0.02, uvV: 10 });
+  const kL = ribbon(tr, (i) => HW[i], (i) => HW[i] + kw, 0.02, { mask: kerbMask, yB: 0.06, uvV: 10 });
+  const kR = ribbon(tr, (i) => -HW[i] - kw, (i) => -HW[i], 0.06, { mask: kerbMask, yB: 0.02, uvV: 10 });
   const kerbMat = new THREE.MeshStandardMaterial({ map: kerbTex, roughness: 0.62, emissive: 0xffffff, emissiveMap: kerbTex, emissiveIntensity: 0.18, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
   group.add(spatialChunks([kL, kR], kerbMat, 'kerbs'));
 
@@ -78534,28 +78586,28 @@ function buildTrackMeshes(track, pit, gridSlots) {
   // painted per corner like the real event: red at T1, T-Mobile magenta around the Sphere loop, teal at T12 / T14.
   const runMat = new THREE.MeshStandardMaterial({ map: concrete, color: 0xffffff, vertexColors: true, roughness: 0.9, emissive: 0x0a0a0c });
   const runEdge = (i, side) => wallAt(i, side);
-  const runMask = (side) => (i) => open(i, side) && runEdge(i, side) > hw + kw + 0.25 && !(pit && side === pitSide && pit.laneCovers[i]);
+  const runMask = (side) => (i) => open(i, side) && runEdge(i, side) > HW[i] + kw + 0.25 && !(pit && side === pitSide && pit.laneCovers[i]);
   const paint = tr.def.runoffPaint || [];
   const runTint = (i, d) => {
-    if (wallAt(i, d > 0 ? 1 : -1) < bo + 1.5) return [0.6, 0.62, 0.65];   // only the escape apron is painted, the normal verge stays concrete
+    if (wallAt(i, d > 0 ? 1 : -1) < bo + (HW[i] - hw) + 1.5) return tr.def.runoffBase || [0.6, 0.62, 0.65];   // only the escape apron is painted, the normal verge stays concrete
     const z = tr.inCornerZone(i) || tr.inCornerZone(tr.idxAtS(tr.s[i] + 60)) || tr.inCornerZone(tr.idxAtS(tr.s[i] + 30));
     const turns = z ? (z.turns || [z.turn]) : [];
     for (const p of paint) if (turns.some((t) => p.turns.includes(t))) return p.color || p.base || [0.85, 0.86, 0.88];   // per-track apron colours (tracks.js)
-    return [0.6, 0.62, 0.65];
+    return tr.def.runoffBase || [0.6, 0.62, 0.65];
   };
   const circuit = tr.circuit;
   const surfAt = (i, side) => (side > 0 ? tr.surfL[i] : tr.surfR[i]);
   let gravelMat = null;
   if (!circuit) {
-    const runL = ribbon(tr, (i) => hw + (kerbMask(i) ? kw : 0), (i) => runEdge(i, 1), 0, { uvV: 6, mask: runMask(1), colorFn: runTint });
-    const runR = ribbon(tr, (i) => -runEdge(i, -1), (i) => -hw - (kerbMask(i) ? kw : 0), 0, { uvV: 6, mask: runMask(-1), colorFn: runTint });
+    const runL = ribbon(tr, (i) => HW[i] + (kerbMask(i) ? kw : 0), (i) => runEdge(i, 1), 0, { uvV: 6, mask: runMask(1), colorFn: runTint });
+    const runR = ribbon(tr, (i) => -runEdge(i, -1), (i) => -HW[i] - (kerbMask(i) ? kw : 0), 0, { uvV: 6, mask: runMask(-1), colorFn: runTint });
     group.add(spatialChunks([runL, runR], runMat, 'runoff'));
   } else {
     // A permanent circuit: the verge is grass (the ground itself). Escape areas on the outside of the corners are
     // gravel traps (2 m of grass beyond the kerb, then gravel to just short of the barrier) or painted asphalt
     // from the kerb out; textures are mapped in world space so a 50 m deep trap is not one stretched tile.
     const worldUV = (g, scale) => { const p = g.attributes.position, uv = g.attributes.uv; for (let k = 0; k < p.count; k++) uv.setXY(k, p.getX(k) / scale, p.getZ(k) / scale); return g; };
-    const inner = (i, t) => hw + kw + (t === 2 ? GRAVEL_IN : 0) - (t === 1 && !kerbMask(i) ? kw : 0);
+    const inner = (i, t) => HW[i] + kw + (t === 2 ? GRAVEL_IN : 0) - (t === 1 && !kerbMask(i) ? kw : 0);
     const outer = (i, side, t) => Math.max(inner(i, t), runEdge(i, side) - APRON_EDGE);
     const apronMask = (side, t) => (i) => { const j = (i + 1) % tr.n; return open(i, side) && surfAt(i, side) === t && surfAt(j, side) === t && !(pit && side === pitSide && pit.laneCovers[i]); };
     const apron = (t, opts) => [1, -1].map((side) => worldUV(side > 0
@@ -78570,10 +78622,17 @@ function buildTrackMeshes(track, pit, gridSlots) {
       const stripeOf = (i) => { const z = tr.inCornerZone(i) || tr.inCornerZone(tr.idxAtS(tr.s[i] + 60)) || tr.inCornerZone(tr.idxAtS(tr.s[i] + 30)), ts = z ? (z.turns || [z.turn]) : []; return striped.find((p) => ts.some((x) => p.turns.includes(x))) || null; };
       const geos = [];
       for (const side of [1, -1]) for (const P of striped) {
-        const w = P.w || 2.6, nB = P.bands || 16;
+        const w = P.w || 2.6, nB = P.bands || 16, n = tr.n, on = new Uint8Array(n);
+        for (let i = 0; i < n; i++) on[i] = apronMask(side, 1)(i) && stripeOf(i) === P ? 1 : 0;
+        // (the paint fans in and out: over its first and last 60 m the bands narrow down to the kerb, so a corner's
+        //  stripes grow out of it and die away into it instead of starting square across the apron)
+        const fw = new Float32Array(n), bw = new Float32Array(n), T = new Float32Array(n), R = Math.round(60 / tr.ds);
+        for (let pass = 0; pass < 2; pass++) for (let k = 0; k < n; k++) { const i = k % n, p = (i - 1 + n) % n; fw[i] = on[i] ? (on[p] ? fw[p] + 1 : 1) : 0; }
+        for (let pass = 0; pass < 2; pass++) for (let k = n - 1; k >= 0; k--) { const i = k, q = (i + 1) % n; bw[i] = on[i] ? (on[q] ? bw[q] + 1 : 1) : 0; }
+        for (let i = 0; i < n; i++) { const u = Math.min(1, Math.min(fw[i], bw[i]) / R); T[i] = u * u * (3 - 2 * u); }
         for (let k = 0; k < nB; k++) {
-          const col = P.stripes[k % P.stripes.length], a = (i) => Math.min(inner(i, 1) + k * w, outer(i, side, 1)), b = (i) => Math.min(inner(i, 1) + (k + 1) * w, outer(i, side, 1));
-          const mask = (i) => apronMask(side, 1)(i) && stripeOf(i) === P && b(i) - a(i) > 0.05;
+          const col = P.stripes[k % P.stripes.length], a = (i) => Math.min(inner(i, 1) + k * w * T[i], outer(i, side, 1)), b = (i) => Math.min(inner(i, 1) + (k + 1) * w * T[i], outer(i, side, 1));
+          const mask = (i) => on[i] && on[(i + 1) % n] && T[i] > 0.01 && b(i) - a(i) > 0.02;
           const g = side > 0 ? ribbon(tr, a, b, 0.008, { mask, colorFn: () => col }) : ribbon(tr, (i) => -b(i), (i) => -a(i), 0.008, { mask, colorFn: () => col });
           if (g.index.count) geos.push(worldUV(g, 7));
         }
@@ -78662,7 +78721,7 @@ function buildTrackMeshes(track, pit, gridSlots) {
     // painted green strip behind the kerbs (as at the real circuit: the "astroturf" paint on corner exits)
     const greenMat = new THREE.MeshStandardMaterial({ color: 0x2f8f3a, roughness: 0.75, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
     const gm = (side) => (i) => kerbMask(i) && kerbMask((i + 1) % tr.n) && surfAt(i, side) !== 1 && !(pit && side === pitSide && pit.laneCovers[i]);
-    const green = [ribbon(tr, () => hw + kw, () => hw + kw + GREEN_W, 0.006, { mask: gm(1) }), ribbon(tr, () => -hw - kw - GREEN_W, () => -hw - kw, 0.006, { mask: gm(-1) })].filter((g) => g.index.count);
+    const green = [ribbon(tr, (i) => HW[i] + kw, (i) => HW[i] + kw + GREEN_W, 0.006, { mask: gm(1) }), ribbon(tr, (i) => -HW[i] - kw - GREEN_W, (i) => -HW[i] - kw, 0.006, { mask: gm(-1) })].filter((g) => g.index.count);
     group.add(spatialChunks(green, greenMat, 'green'));
   }
 
@@ -78690,9 +78749,9 @@ function buildTrackMeshes(track, pit, gridSlots) {
     const len = RUNOFF_DECAL_LEN;
     for (let r = 0; r < repeats; r++) {
       const a = tr.wrapS(s0 + r * (len + 6)), b = tr.wrapS(a + len);
-      const inner = hw + kw + 0.15, outer = hw + kw + 3.0 - 0.15;
-      const ok = (i) => inRangeS(tr.s[i], a, b) && runEdge(i, side) >= outer + (circuit ? APRON_EDGE : 0) && (circuit ? open(i, side) && surfAt(i, side) === 1 : runMask(side)(i));
-      const g = ribbon(tr, () => side * inner, () => side * outer, 0.012, { mask: (i) => ok(i) && ok((i + 1) % tr.n), uvFn: (i) => tr.wrapS(tr.s[i] - a) / len });
+      const inner = (i) => HW[i] + kw + 0.15, outer = (i) => HW[i] + kw + 3.0 - 0.15;
+      const ok = (i) => inRangeS(tr.s[i], a, b) && runEdge(i, side) >= outer(i) + (circuit ? APRON_EDGE : 0) && (circuit ? open(i, side) && surfAt(i, side) === 1 : runMask(side)(i));
+      const g = ribbon(tr, (i) => side * inner(i), (i) => side * outer(i), 0.012, { mask: (i) => ok(i) && ok((i + 1) % tr.n), uvFn: (i) => tr.wrapS(tr.s[i] - a) / len });
       if (g.index.count) decals[side].push(g);
     }
   };
@@ -78848,13 +78907,13 @@ function buildPitLane(track, rawPts, boxCount = 12) {
   const tc = track.sample(tm.s);
   const trackSide = Math.sign((tc.x - samples.px[mid]) * samples.nx[mid] + (tc.z - samples.pz[mid]) * samples.nz[mid]) || 1;
   const halfWidth = 5.5, wallOff = halfWidth + 1.0;
-  const hwT = track.halfWidth, kwT = track.kerbWidth;
+  const kwT = track.kerbWidth;
   // per pit sample: distance of the road centre, whether the sample still lies on the road (entry/exit blend),
   // how far the lane's own asphalt may reach toward the road (clipped at the kerb) and whether the pit wall exists yet
   const n = samples.n;
   const overlapsTrack = new Uint8Array(n), trackD = new Float32Array(n), laneEdge = new Float32Array(n), wallIn = new Float32Array(n), trackI = new Int32Array(n), wallPos = new Float32Array(n);
   for (let i = 0; i < n; i++) {
-    const q = track.nearest(samples.px[i], samples.pz[i]); const D = Math.abs(q.d);
+    const q = track.nearest(samples.px[i], samples.pz[i]); const D = Math.abs(q.d), hwT = track.hw[q.i];
     trackD[i] = D; trackI[i] = q.i;
     overlapsTrack[i] = D < hwT + 0.5 ? 1 : 0;
     // the pit wall stands wallOff from the lane centre, but never closer to the road than 0.6 m off its edge
@@ -78874,7 +78933,7 @@ function buildPitLane(track, rawPts, boxCount = 12) {
   // road's kerb / edge line (negative = that line lies on the garage side of the lane centre: the lane is merging and its
   // asphalt tapers to a point against the road edge - no overlap, no z-fighting)
   for (let i = 0; i < n; i++) {
-    const edgeIn = hwT + (track.inCornerZone(trackI[i]) ? kwT : 0);
+    const edgeIn = track.hw[trackI[i]] + (track.inCornerZone(trackI[i]) ? kwT : 0);
     laneEdge[i] = isFinite(wallIn[i]) ? Math.min(halfWidth + 0.7, wallIn[i] - 0.3) : Math.min(halfWidth + 0.7, trackD[i] - edgeIn);
   }
   // track samples covered by the lane's asphalt (the run-off strip is not drawn there)
@@ -78887,7 +78946,7 @@ function buildPitLane(track, rawPts, boxCount = 12) {
   const entryI = track.idxAtS(first.s - 6), exitI = track.idxAtS(last.s + 6);
   const sideArr = sideSign > 0 ? track.wallL : track.wallR;
   const sideBar = sideSign > 0 ? track.barL : track.barR;
-  for (let k = track.idxAtS(first.s - 120); ; k = (k + 1) % track.n) { sideArr[k] = Math.min(sideArr[k], track.minWall); sideBar[k] = BAR.WALL; if (k === track.idxAtS(last.s + 120)) break; }   // the pit wall
+  for (let k = track.idxAtS(first.s - 120); ; k = (k + 1) % track.n) { sideArr[k] = Math.min(sideArr[k], track.minWallAt(k)); sideBar[k] = BAR.WALL; if (k === track.idxAtS(last.s + 120)) break; }   // the pit wall
   track.pitCovers = laneCovers; track.pitSide = sideSign;   // the lane's asphalt beside the road is not grass (Track.surface)
   const wallD = new Float32Array(track.n); for (let i = 0; i < track.n; i++) wallD[i] = sideArr[i];
   const set = new Uint8Array(track.n);
@@ -78896,7 +78955,7 @@ function buildPitLane(track, rawPts, boxCount = 12) {
     if (overlapsTrack[i]) continue;
     // (with def.pitWallClear, never on the road or its kerb: where the circuit bends away from a straight lane -
     //  Montreal's last chicane - a lane sample's nearest point of the circuit can be one the wall is not beside)
-    const ti = trackI[i]; const v = isFinite(wallIn[i]) ? Math.max(track.def.pitWallClear ? hwT + kwT + 0.5 : 0, Math.min(track.minWall, trackD[i] - wallIn[i])) : NaN;
+    const ti = trackI[i]; const v = isFinite(wallIn[i]) ? Math.max(track.def.pitWallClear ? track.hw[ti] + kwT + 0.5 : 0, Math.min(track.minWallAt(ti), trackD[i] - wallIn[i])) : NaN;
     wallD[ti] = v; set[ti] = 1;
   }
   let prev = NaN;
@@ -78963,16 +79022,17 @@ function smoothArr(a, n, r, closed = true) {
  */
 function minCurvatureOffsets(track, maxOffset, p = 6) {
   const n = track.n; let off = new Float32Array(n);
+  const lim = (i) => maxOffset + (track.hw ? track.hw[i] - track.halfWidth : 0);   // (wider where the road is)
   for (const spacing of [40, 20, 10]) {
     const m = Math.round(n * track.ds / spacing);
     // grid points at exact fractional sample positions: uneven spacing would read as curvature
     const CX = new Float64Array(m), CZ = new Float64Array(m), NX = new Float64Array(m), NZ = new Float64Array(m);
-    const d = new Float64Array(m), X = new Float64Array(m), Z = new Float64Array(m);
+    const d = new Float64Array(m), X = new Float64Array(m), Z = new Float64Array(m), M = new Float64Array(m);
     for (let j = 0; j < m; j++) {
       const u = j * n / m, i0 = Math.floor(u) % n, i1 = (i0 + 1) % n, f = u - Math.floor(u);
       CX[j] = track.px[i0] + (track.px[i1] - track.px[i0]) * f; CZ[j] = track.pz[i0] + (track.pz[i1] - track.pz[i0]) * f;
       const ax = track.nx[i0] + (track.nx[i1] - track.nx[i0]) * f, az = track.nz[i0] + (track.nz[i1] - track.nz[i0]) * f, l = Math.hypot(ax, az) || 1;
-      NX[j] = ax / l; NZ[j] = az / l;
+      NX[j] = ax / l; NZ[j] = az / l; M[j] = lim(f < 0.5 ? i0 : i1);
       d[j] = off[i0] + (off[i1] - off[i0]) * f; X[j] = CX[j] + d[j] * NX[j]; Z[j] = CZ[j] + d[j] * NZ[j];
     }
     const e2 = (0.002 * spacing * spacing) ** 2, ex = (p - 2) / 2;   // weight floor at R = 500 m keeps the straights well conditioned
@@ -78986,7 +79046,7 @@ function minCurvatureOffsets(track, maxOffset, p = 6) {
         const qx = (wa * (2 * X[a] - X[a2]) + 2 * wj * (X[a] + X[b]) + wb * (2 * X[b] - X[b2])) / den;
         const qz = (wa * (2 * Z[a] - Z[a2]) + 2 * wj * (Z[a] + Z[b]) + wb * (2 * Z[b] - Z[b2])) / den;
         const best = (qx - CX[j]) * NX[j] + (qz - CZ[j]) * NZ[j];
-        const dj = Math.max(-maxOffset, Math.min(maxOffset, d[j] + om * (best - d[j])));
+        const dj = Math.max(-M[j], Math.min(M[j], d[j] + om * (best - d[j])));
         d[j] = dj; X[j] = CX[j] + dj * NX[j]; Z[j] = CZ[j] + dj * NZ[j];
       }
     }
@@ -78995,7 +79055,7 @@ function minCurvatureOffsets(track, maxOffset, p = 6) {
       const u = i * m / n, j = Math.floor(u), f = u - j;
       const p0 = d[(j - 1 + m) % m], p1 = d[j % m], p2 = d[(j + 1) % m], p3 = d[(j + 2) % m];
       const v = 0.5 * (2 * p1 + (p2 - p0) * f + (2 * p0 - 5 * p1 + 4 * p2 - p3) * f * f + (3 * p1 - p0 - 3 * p2 + p3) * f * f * f);
-      off[i] = Math.max(-maxOffset, Math.min(maxOffset, v));
+      off[i] = Math.max(-lim(i), Math.min(lim(i), v));
     }
   }
   return off;
@@ -79046,7 +79106,7 @@ class RacingLine {
       const m = fixed.d.length, raw = new Float32Array(n);
       // (kept on the road: up onto the kerb in a corner, to the white line elsewhere - the car's centre over the edge
       //  where there is no kerb is off the track, a driver's two wheels over it are not)
-      const kw = track.kerbWidth || 1, lim = (i) => (track.inCorner?.[i] ? Math.min(fixedMax, track.halfWidth + 0.6 * kw) : Math.min(fixedMax, track.halfWidth - 0.2));
+      const kw = track.kerbWidth || 1, wd = (i) => (track.hw ? track.hw[i] - track.halfWidth : 0), lim = (i) => (track.inCorner?.[i] ? Math.min(fixedMax, track.halfWidth + 0.6 * kw) : Math.min(fixedMax, track.halfWidth - 0.2)) + wd(i);
       for (let i = 0; i < n; i++) { const u = (i * ds) / fixed.every, j = Math.floor(u) % m, f = u - Math.floor(u), L = lim(i); raw[i] = Math.max(-L, Math.min(L, fixed.d[j] + (fixed.d[(j + 1) % m] - fixed.d[j]) * f)); }
       this.offset = smoothArr(raw, n, Math.round(4 / ds)); this.fixed = true;
       this.lineCurv = smoothArr(pathCurvature(track, this.offset, Math.round(10 / ds)), n, 3);
@@ -79070,7 +79130,7 @@ class RacingLine {
     }
     const sm = smoothArr(raw, n, Math.round(30 / ds));
     this.offset = new Float32Array(n);
-    for (let i = 0; i < n; i++) this.offset[i] = Math.max(-maxOffset, Math.min(maxOffset, sm[i]));
+    for (let i = 0; i < n; i++) { const M = maxOffset + (track.hw ? track.hw[i] - track.halfWidth : 0); this.offset[i] = Math.max(-M, Math.min(M, sm[i])); }
     // curvature of the actual line (offset path): kappa_line ~ kappa / (1 - kappa*d) with a numeric derivative correction
     this.lineCurv = new Float32Array(n);
     for (let i = 0; i < n; i++) {
@@ -80894,7 +80954,7 @@ function buildHeightField(track, h) {
   for (let i = 0; i < track.n; i++) { x0 = Math.min(x0, track.px[i]); x1 = Math.max(x1, track.px[i]); z0 = Math.min(z0, track.pz[i]); z1 = Math.max(z1, track.pz[i]); mean += h[i]; }
   mean /= track.n; let lo = Infinity; for (let i = 0; i < track.n; i++) lo = Math.min(lo, h[i]); const edge = lo - 1.5;   // (the far edge: below the lowest point of the lap - the flat plane beyond it must never stand over the road)
   x0 -= MARGIN; z0 -= MARGIN; x1 += MARGIN; z1 += MARGIN;
-  const hold = track.halfWidth + HOLD;
+  const hold = (track.maxHalfWidth || track.halfWidth) + HOLD;
   const level = (cell, prev) => {
     const nx = Math.ceil((x1 - x0) / cell) + 1, nz = Math.ceil((z1 - z0) / cell) + 1, H = new Float32Array(nx * nz), fixed = new Uint8Array(nx * nz);
     // (the start: the coarser level's solution, or the mean)
@@ -80935,14 +80995,14 @@ function buildHeightField(track, h) {
 
 /** switch the venue's ground on (a height field) or off (null) */
 function setTerrain(F, track = null) {
-  TERRAIN.tint = null;   // (a venue's ground colouring, (x, z) -> [r, g, b]: set by its scenery after this)
+  TERRAIN.tint = null; TERRAIN.halfRoadAt = null;   // (a venue's ground colouring, (x, z) -> [r, g, b]: set by its scenery after this)
   if (!F) { TERRAIN.on = false; TERRAIN.edge = 0; TERRAIN.at = () => 0; TERRAIN.grad = (x, z, out = [0, 0]) => { out[0] = out[1] = 0; return out; }; TERRAIN.field = null; TERRAIN.road = null; return; }
   const e = 1.5;
   TERRAIN.on = true; TERRAIN.edge = F.edge; TERRAIN.field = F;
   // near the circuit, its own height exactly (the grid's 8 m cells would let the ground cut corners off the road over a
   // crest or into a dip): by the nearest point of the lap, out to the edge of the strip held at its height, then
   // blended into the field over the last 6 m of it
-  const h = track?.h, q = {}, hold = (track?.halfWidth || 0) + HOLD; let hint = -1;
+  const h = track?.h, q = {}, hold = (track?.maxHalfWidth || track?.halfWidth || 0) + HOLD; let hint = -1;
   const nearStrip = (x, z) => { const i = Math.floor((x - F.x0) / F.cell), j = Math.floor((z - F.z0) / F.cell); if (i < 0 || j < 0 || i >= F.nx - 1 || j >= F.nz - 1) return false; const k = j * F.nx + i; return F.fixed[k] === 1 || F.fixed[k + 1] === 1 || F.fixed[k + F.nx] === 1 || F.fixed[k + F.nx + 1] === 1; };
   TERRAIN.road = h ? (x, z, out = q) => {   // -> { h (the circuit's height there), d (offset from the centreline), s } | null
     if (!nearStrip(x, z)) return null;
@@ -80951,7 +81011,7 @@ function setTerrain(F, track = null) {
   } : null;
   TERRAIN.at = (x, z) => {
     const fv = F.at(x, z), r = TERRAIN.road?.(x, z); if (!r) return fv;
-    const w = Math.max(0, Math.min(1, (Math.abs(r.d) - (hold - 6)) / 6)); return r.h + (fv - r.h) * w * w * (3 - 2 * w);
+    const hl = (track.hw ? track.hw[r.i] : track.halfWidth) + HOLD, w = Math.max(0, Math.min(1, (Math.abs(r.d) - (hl - 6)) / 6)); return r.h + (fv - r.h) * w * w * (3 - 2 * w);
   };
   TERRAIN.grad = (x, z, out = [0, 0]) => { out[0] = (F.at(x + e, z) - F.at(x - e, z)) / (2 * e); out[1] = (F.at(x, z + e) - F.at(x, z - e)) / (2 * e); return out; };
 }
@@ -81067,7 +81127,7 @@ function terrainGround(F, material, planeSize = 12000) {
     for (let j = 0; j <= nj; j++) for (let i = 0; i <= ni; i++) {
       const x = F.x0 + (ti + i) * F.cell, z = F.z0 + (tj + j) * F.cell;
       // (under the road and its kerbs the grass is kept 15 cm down: no cell of it can show through the asphalt)
-      const r = TERRAIN.road?.(x, z, _rq), under = r && Math.abs(r.d) < (TERRAIN.halfRoad || 9);
+      const r = TERRAIN.road?.(x, z, _rq), under = r && Math.abs(r.d) < (TERRAIN.halfRoadAt ? TERRAIN.halfRoadAt(r.i) : TERRAIN.halfRoad || 9);
       pos.push(x, (r ? TERRAIN.at(x, z) : F.H[(tj + j) * F.nx + ti + i]) - (under ? 0.15 : 0.05), z); uv.push(x / planeSize + 0.5, -z / planeSize + 0.5);
     }
     for (let j = 0; j < nj; j++) for (let i = 0; i < ni; i++) { const a = j * (ni + 1) + i, b = a + 1, c = a + ni + 1, d = c + 1; idx.push(a, c, b, b, c, d); }
@@ -89977,6 +90037,26 @@ const hash2 = (i, j, s) => { const h = Math.sin(i * 127.1 + j * 311.7 + s * 74.7
 const vnoise = (x, z, s = 0) => { const i = Math.floor(x), j = Math.floor(z), fx = x - i, fz = z - j, u = fx * fx * (3 - 2 * fx), v = fz * fz * (3 - 2 * fz), a = hash2(i, j, s), b = hash2(i + 1, j, s), c = hash2(i, j + 1, s), d = hash2(i + 1, j + 1, s); return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v; };
 const fbm = (x, z, s = 0) => 0.5 * vnoise(x, z, s) + 0.3 * vnoise(x * 2.07, z * 2.07, s + 1) + 0.2 * vnoise(x * 4.3, z * 4.3, s + 2);
 
+/**
+ * The general-admission areas all round the lap: both sides of the road everywhere but along the pit lane, in pieces of
+ * 120-200 m, each its own depth (8-24 m of crowd behind the fence), its low viewing mound and how packed it is. main.js
+ * hands them to the track (TrackBuilder guardZones: a barrier and a catch fence in front of every one) before the
+ * barriers are drawn; buildAustin lays the crowd on them.
+ */
+function austinCrowdZones(tr, def, pit) {
+  const zones = [], L = tr.length, inR = (s, a, b) => (a <= b ? s >= a && s <= b : s >= a || s <= b);
+  const pr = pit ? [tr.wrapS(pit.entryS - 80), tr.wrapS(pit.exitS + 60)] : null;
+  for (const side of [1, -1]) {
+    for (let s = 0; s < L - 40;) {
+      const len = 120 + vnoise(s / 97, side, 5) * 80, s1 = Math.min(L, s + len), mid = (s + s1) / 2;
+      const blocked = pr && side === pit.sideSign && (inR(s, ...pr) || inR(s1, ...pr) || inR(mid, ...pr));
+      if (!blocked && vnoise(s / 140, side * 3, 7) > 0.1) zones.push({ s0: s, s1: s1 - 6, side, depth: 8 + vnoise(s / 210, side, 9) * 16, rise: 0.5 + vnoise(s / 180, side, 11) * 1.1, fill: 0.55 + vnoise(s / 160, side, 13) * 0.25 });
+      s = s1;
+    }
+  }
+  return zones;
+}
+
 /** the dry Texas grass of the banks and the lawn: a speckled canvas, tiled in world space (one, shared) */
 let GRASS = null;
 function grassTex() {
@@ -90140,14 +90220,9 @@ function buildAustin(geo, track, def, pit) {
     Pz.add(new THREE.Mesh(geoOf(conc), new THREE.MeshStandardMaterial({ color: 0xc9c3b6, roughness: 0.9, side: THREE.DoubleSide })));
     Pz.add(new THREE.Mesh(geoOf(seat, (g) => g.setAttribute('color', new THREE.Float32BufferAttribute(seat.C, 3))), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, side: THREE.DoubleSide })));
     Pz.add(new THREE.Mesh(geoOf(lawn, (g) => g.setAttribute('uv', new THREE.Float32BufferAttribute(lawn.U, 2))), new THREE.MeshStandardMaterial({ map: grassTex(), color: 0xb8d090, roughness: 1, side: THREE.DoubleSide })));
-    // the Grand Plaza: pale concrete beyond the lawn, and the long reflecting pool at its far end
-    const plaza = new THREE.Mesh(new THREE.BoxGeometry(150, 0.2, 60), new THREE.MeshStandardMaterial({ color: 0xc9c4b8, roughness: 0.85 })); plaza.position.set(190, 0.08, 0); Pz.add(plaza);
-    const pool = new THREE.Mesh(new THREE.BoxGeometry(80, 0.25, 14), new THREE.MeshStandardMaterial({ color: 0x3f6f8e, roughness: 0.08, metalness: 0.5, envMapIntensity: 1.6 })); pool.position.set(225, 0.12, 0); Pz.add(pool);
-    // (the plaza and the pool only where there is room inside the loop)
-    for (const m of [plaza, pool]) { const c = new THREE.Vector3(m.position.x, 0, 0).applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw); if (corridorSigned(tr, pit, tx + c.x, tz + c.z, 40) < 0) m.visible = false; }
     group.add(Pz);
     solid.push([tx, tz, 16]);
-    const at = (u) => [tx + Math.cos(yaw) * u, tz - Math.sin(yaw) * u]; solid.push([...at(30), 22], [...at(C + 30), 50], [...at(190), 70]);
+    const at = (u) => [tx + Math.cos(yaw) * u, tz - Math.sin(yaw) * u]; solid.push([...at(30), 22], [...at(C + 30), 50]);
   }
 
   // ---- the pit building: the garages below (world/PitLane.js), and over them the Paddock Club - three open terraces
@@ -90253,7 +90328,7 @@ function buildAustin(geo, track, def, pit) {
   //      straight's braking ends; red stars down the outside of the stadium's long right (Turns 16-18) and Turn 19
   {
     const hw = tr.halfWidth, kw = tr.kerbWidth, q0 = {};
-    const onRunoff = (x, z, pad = 0.8) => { const q = tr.nearest(x, z, -1, q0), side = q.d > 0 ? 1 : -1, a = Math.abs(q.d); return a > hw + kw + pad && a < tr.wallAt(q.i, side) - pad && (side > 0 ? tr.surfL[q.i] : tr.surfR[q.i]) === 1; };
+    const onRunoff = (x, z, pad = 0.8) => { const q = tr.nearest(x, z, -1, q0), side = q.d > 0 ? 1 : -1, a = Math.abs(q.d); return a > tr.hw[q.i] + kw + pad && a < tr.wallAt(q.i, side) - pad && (side > 0 ? tr.surfL[q.i] : tr.surfR[q.i]) === 1; };
     const paintMat = (opts) => new THREE.MeshStandardMaterial({ roughness: 0.85, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4, ...opts });
     const s12 = cornerS(12);
     if (s12 != null) {
@@ -90262,7 +90337,7 @@ function buildAustin(geo, track, def, pit) {
       let fa = null, cx = 0, cz = 0, best = -1;
       const wpOf = (f, x0, z0) => (u, v) => [x0 + f.tx * (u - 0.5) * W + f.nx * (v - 0.5) * H, z0 + f.tz * (u - 0.5) * W + f.nz * (v - 0.5) * H];
       for (let ds = -70; ds <= 70; ds += 10) for (let dd = 0; dd <= 24; dd += 4) {
-        const f = tr.sample(s12 + ds, side * (hw + kw + 2 + H / 2 + dd)), wp = wpOf(f, f.x, f.z); let n = 0;
+        const f = tr.sample(s12 + ds, side * (tr.hw[tr.idxAtS(s12 + ds)] + kw + 2 + H / 2 + dd)), wp = wpOf(f, f.x, f.z); let n = 0;
         for (let a2 = 0; a2 < nu; a2 += 2) for (let b2 = 0; b2 < nv; b2 += 2) { const m = wp((a2 + 0.5) / nu, (b2 + 0.5) / nv); if (onRunoff(m[0], m[1], 1.2)) n++; }
         if (n > best) { best = n; fa = f; cx = f.x; cz = f.z; }
       }
@@ -90286,7 +90361,7 @@ function buildAustin(geo, track, def, pit) {
     for (const [t0, a0, t1, a1, side, size, gap] of [[16, -20, 18, 40, 1, 2.6, 13], [19, -60, 19, 50, -1, 2.4, 12], [20, -30, 20, 30, -1, 2.2, 11]]) {
       const sA = cornerS(t0), sB = cornerS(t1); if (sA == null || sB == null) continue;
       for (let s = sA + a0; s <= sB + a1; s += gap) {
-        const i = tr.idxAtS(s), wall = tr.wallAt(i, side); if (wall < hw + kw + size * 2 + 3) continue;
+        const i = tr.idxAtS(s), wall = tr.wallAt(i, side), hw = tr.hw[i]; if (wall < hw + kw + size * 2 + 3) continue;
         const d = Math.min(wall - size - 1.5, hw + kw + 2 + size + 3.4), f = tr.sample(s, side * d);
         if (!onRunoff(f.x, f.z, size)) continue;
         const g = base.clone(); g.scale(size, 1, size); g.rotateY(Math.atan2(f.tx, f.tz)); g.translate(f.x, 0.035, f.z); stars.push(keepPN(g));
@@ -90383,8 +90458,36 @@ function buildAustin(geo, track, def, pit) {
     const clear = () => { for (let u = -S.len / 2; u <= S.len / 2; u += 5) for (let v = 0; v <= DEPTH; v += 6) { const x = ox + ex[0] * u + ez[0] * v, z = oz + ex[1] * u + ez[1] * v; if (corridorSigned(tr, pit, x, z, 3) < 0) return false; } return true; };
     let k = 0; while (k < 24 && !clear()) { ox += ez[0] * 2; oz += ez[1] * 2; k++; }
     if (k >= 24) { console.info(`[austin] no room for ${S.name}`); continue; }
-    stands.push({ x: ox, z: oz, ex, ez, len: S.len, tiers: S.tiers, name: S.name, style: S.style || null });
+    // (on a slope a long stand steps down the hill in sections, each level on its own short plinth - Turn 1's climbs
+    //  with the road - instead of one deck held up at its highest point over a wall at its lowest)
+    let hLo = Infinity, hHi = -Infinity; if (TERRAIN.on) for (let u = -S.len / 2; u <= S.len / 2; u += 5) { const h = TERRAIN.at(ox + ex[0] * u, oz + ex[1] * u); hLo = Math.min(hLo, h); hHi = Math.max(hHi, h); }
+    const K = TERRAIN.on ? Math.max(1, Math.min(8, Math.ceil((hHi - hLo) / 1.8))) : 1, segL = S.len / K;
+    for (let j = 0; j < K; j++) { const u = -S.len / 2 + segL * (j + 0.5), st = S.style ? { ...S.style, art: j === K - 1 ? S.style.art : undefined } : null; stands.push({ x: ox + ex[0] * u, z: oz + ex[1] * u, ex, ez, len: K > 1 ? segL - 1.2 : S.len, tiers: S.tiers, name: S.name, style: st }); }
     const cx = ox + ez[0] * DEPTH / 2, cz = oz + ez[1] * DEPTH / 2; standBoxes.push([cx, cz, S.len / 2 + 8]); solid.push([cx, cz, S.len / 2 + 6]);
+  }
+
+  // ---- the Grand Plaza: the round lawn at the heart of the fan zone (a grey oval of a stage in the middle) in a wide ring
+  //      of pale paving, near the amphitheatre - wherever round it there is room for all 160 m of it - and the red
+  //      peaked marquees at its edge
+  let plazaAt = null;
+  if (towerAt) {
+    const blds = geo.buildings.filter((b) => b.rings[0] && !claimed.has(b.id)).map((b) => { const f = footprintInfo(b.rings[0]); let r = 0; for (const [x, z] of b.rings[0]) r = Math.max(r, Math.hypot(x - f.c[0], z - f.c[1])); return [f.c[0], f.c[1], r, b.id]; });
+    const fits = (x, z) => corridorSigned(tr, pit, x, z, 86) > 0 && !solid.some(([sx, sz, r]) => (sx - x) ** 2 + (sz - z) ** 2 < (r + 80) ** 2 && r < 60) && !standBoxes.some(([sx, sz, r]) => (sx - x) ** 2 + (sz - z) ** 2 < (r + 82) ** 2);
+    for (const r of [150, 180, 210, 250, 290, 340]) { for (let k = 0; k < 24 && !plazaAt; k++) { const a = (k * Math.PI) / 12, x = towerAt[0] + Math.cos(a) * r, z = towerAt[1] + Math.sin(a) * r; if (fits(x, z)) plazaAt = [x, z]; } if (plazaAt) break; }
+    if (plazaAt) {
+      const G = new THREE.Group(); G.name = 'scene:grandplaza'; G.position.set(plazaAt[0], 0, plazaAt[1]);
+      const flat = (g, y) => { g.rotateX(-Math.PI / 2); g.translate(0, y, 0); return g; };
+      G.add(new THREE.Mesh(flat(new THREE.CircleGeometry(80, 64), 0.06), new THREE.MeshStandardMaterial({ color: 0xd2cdc2, roughness: 0.85, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 })));
+      G.add(new THREE.Mesh(flat(new THREE.CircleGeometry(54, 64), 0.1), new THREE.MeshStandardMaterial({ map: grassTex(), color: 0x9cc070, roughness: 1, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 })));
+      const ov = flat(new THREE.CircleGeometry(20, 40), 0.14); ov.scale(1.55, 1, 1);
+      G.add(new THREE.Mesh(ov, new THREE.MeshStandardMaterial({ color: 0x8e9196, roughness: 0.7, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 })));
+      // (the walks out across the paving, and the red marquees on its edge toward the amphitheatre)
+      const toT = Math.atan2(towerAt[1] - plazaAt[1], towerAt[0] - plazaAt[0]), T = [];
+      for (let k = 0; k < 5; k++) { const a = toT + 0.75 + (k - 2) * 0.16, x = Math.cos(a) * 92, z = Math.sin(a) * 92; T.push(vcolor(keepPN(nonIdx(new THREE.BoxGeometry(12.5, 3, 12).rotateY(-a).translate(x, 1.5, z))), 0xf2f2f0), vcolor(keepPN(nonIdx(new THREE.ConeGeometry(8.6, 5.5, 4).rotateY(Math.PI / 4 - a).translate(x, 5.75, z))), 0xd21f2f)); }
+      G.add(new THREE.Mesh(mergeGeometries(T), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6 })));
+      group.add(G); solid.push([plazaAt[0], plazaAt[1], 84]);
+      for (const [bx, bz, r, id] of blds) if ((bx - plazaAt[0]) ** 2 + (bz - plazaAt[1]) ** 2 < (r + 84) ** 2) claimed.add(id);   // (the sheds standing where it goes give way to it)
+    }
   }
 
   // ---- the stars on the blue of the Turn 1 run-off (its stripes: tracks.js runoffPaint): white five-pointed stars,
@@ -90394,11 +90497,11 @@ function buildAustin(geo, track, def, pit) {
     if (s1 != null) {
       const shape = new THREE.Shape(); for (let k = 0; k < 10; k++) { const a = Math.PI / 2 + k * Math.PI / 5, r = k % 2 ? 0.62 : 1.5; (k ? shape.lineTo : shape.moveTo).call(shape, Math.cos(a) * r, Math.sin(a) * r); }
       const base = new THREE.ShapeGeometry(shape); base.rotateX(-Math.PI / 2);
-      const hw = tr.halfWidth, kw = tr.kerbWidth;
+      const kw = tr.kerbWidth;
       for (let s = s1 - 110; s <= s1 + 70; s += 6.5) {
         const i = tr.idxAtS(s);
         for (const side of [1, -1]) {
-          const wall = tr.wallAt(i, side); if (wall < hw + kw + 10 || (side > 0 ? tr.surfL[i] : tr.surfR[i]) !== 1) continue;
+          const wall = tr.wallAt(i, side), hw = tr.hw[i]; if (wall < hw + kw + 10 || (side > 0 ? tr.surfL[i] : tr.surfR[i]) !== 1) continue;
           for (let r = 0; r < 3; r++) {
             const d = hw + kw + 1.6 + r * 3.1 + ((Math.round(s / 6.5) % 2) ? 1.5 : 0); if (d > Math.min(wall - 3, hw + kw + 9.2)) continue;
             const f = tr.sample(s, side * d), g = base.clone(); g.rotateY(Math.atan2(f.tx, f.tz)); g.translate(f.x, 0.014, f.z); stars.push(keepPN(g));
@@ -90464,7 +90567,7 @@ function buildAustin(geo, track, def, pit) {
     const berms = [];
     // (a bank: from `d0` m past the barrier to `d1`, along s0..s1 on a side, rising `rise` m away from the track; the
     //  grass under it and the people on it - every place clear of the stands, the tents and the track's corridor)
-    const bank = (s0, s1, side, d0, d1, rise, fill = 0.72) => {
+    const bank = (s0, s1, side, d0, d1, rise, fill = 0.72, clear = 8) => {
       // (a real hill, not a wedge: up from the grass to a crest 3/4 of the way back, down again behind it, and eased
       //  into the ground over its last 30 m at either end - no cliffs or edges to see from the track)
       const sm = (v) => { v = Math.min(1, Math.max(0, v)); return v * v * (3 - 2 * v); };
@@ -90484,24 +90587,16 @@ function buildAustin(geo, track, def, pit) {
         for (let d = d0 + 1.2; d <= d1 - 0.5; d += 1.15) {
           if (rnd() > fill) continue;
           const dd = w + d + (rnd() - 0.5) * 0.5, x = f.x + f.nx * side * dd + (rnd() - 0.5) * 0.4, z = f.z + f.nz * side * dd + (rnd() - 0.5) * 0.4;
-          if (!free(x, z, 0.5)) continue;
+          if (!(corridorSigned(tr, pit, x, z, clear) > 0 && !solid.some(([sx, sz, r]) => (sx - x) ** 2 + (sz - z) ** 2 < r * r))) continue;
           const u = (d - d0) / (d1 - d0), y = hAt(s, u, x, z);
           if (rnd() < 0.07) { picnic(x, y, z, ang); d += 1.2; continue; }
           sheets.push([x, y, z, ang + (rnd() - 0.5) * 0.5, stander()]);
         }
       }
     };
-    const S = (n, a = 0) => (cornerS(n) ?? 0) + a;
-    bank(S(1, -420), S(1, -170), -1, 6, 44, 7);      // the run up to Turn 1, the big hill on the right
-    bank(S(1, 25), S(1, 130), -1, 6, 40, 6);         // round the outside of Turn 1
-    bank(S(1, -260), S(1, -60), 1, 8, 30, 3, 0.5);   // and the left of the run, under the flag
-    bank(S(2, -30), S(2, 140), 1, 6, 36, 4);         // the hill down to Turn 2
-    bank(S(3, -20), S(6, 40), -1, 6, 34, 5);          // the Esses
-    bank(S(9, -80), S(10, 40), 1, 6, 28, 3, 0.6);    // Turns 9 and 10
-    bank(S(11, -160), S(11, 50), -1, 6, 34, 4);      // the hairpin
-    bank(S(12, -90), S(12, 60), 1, 6, 30, 4);        // Turn 12's inside
-    bank(S(15, -40), S(16, 30), 1, 6, 15, 2, 0.65);  // the stadium (shallow: inside a hairpin a deep bank folds over itself)
-    bank(S(19, -120), S(20, 20), -1, 6, 32, 4);      // Turns 19 and 20
+    // every general-admission area round the lap (austinCrowdZones): behind its fence (2.5 m back from the barrier line), on
+    // its low mound - no hills thrown up round the corners, the ground is the hill country's own
+    for (const z of tr.crowdZones || []) bank(z.s0, z.s1, z.side, 3, 3 + z.depth, z.rise, z.fill, 2.5);
     // the Grand Plaza and the amphitheatre's lawn: milling, every which way (and facing the stage on the lawn)
     if (towerAt) {
       const Pz = group.getObjectByName('scene:plaza'), yaw = Pz ? Pz.rotation.y : 0, cy = Math.cos(yaw), sy = Math.sin(yaw);
@@ -90513,7 +90608,7 @@ function buildAustin(geo, track, def, pit) {
         if (rnd() > 0.6) continue; const [x, z] = L(u + (rnd() - 0.5) * 0.6, v + (rnd() - 0.5) * 0.6);
         if (rnd() < 0.1) picnic(x, y, z, face(a)); else sheets.push([x, y, z, face(a) + (rnd() - 0.5) * 0.3, stander()]);
       }
-      for (let k = 0; k < 1800; k++) { const [x, z] = L(110 + rnd() * 160, (rnd() - 0.5) * 70); if (corridorSigned(tr, pit, x, z, 4) > 0) sheets.push([x, 0, z, rnd() * Math.PI * 2, stander()]); }
+      if (plazaAt) for (let k = 0; k < 5600; k++) { const a = rnd() * Math.PI * 2, r = rnd() < 0.7 ? 55 + rnd() * 24 : 24 + rnd() * 29, x = plazaAt[0] + Math.cos(a) * r, z = plazaAt[1] + Math.sin(a) * r; if (corridorSigned(tr, pit, x, z, 4) > 0) sheets.push([x, 0, z, rnd() * Math.PI * 2, stander()]); }
       // food trucks and merchandise tents along the plaza's edges
       const trucks = [], tents = [], awnings = [];
       for (let k = 0; k < 18; k++) {
@@ -90618,8 +90713,8 @@ function buildAustin(geo, track, def, pit) {
   {
     const s1 = cornerS(1);
     if (s1 != null) {
-      const hw = tr.halfWidth, red = [0.5, 0.06, 0.1];
-      const strip = (side) => ribbon(tr, (i) => (side > 0 ? hw + 0.05 : -(hw + 6.5)), (i) => (side > 0 ? hw + 6.5 : -(hw + 0.05)), 0.012, { mask: (i) => { const s = tr.s[i], d = tr.wrapS(s - (s1 - 520)); return d < 470; }, colorFn: () => red });
+      const HW = tr.hw, red = [0.5, 0.06, 0.1];
+      const strip = (side) => ribbon(tr, (i) => (side > 0 ? HW[i] + 0.05 : -(HW[i] + 6.5)), (i) => (side > 0 ? HW[i] + 6.5 : -(HW[i] + 0.05)), 0.012, { mask: (i) => { const s = tr.s[i], d = tr.wrapS(s - (s1 - 520)); return d < 470; }, colorFn: () => red });
       const g = mergeGeometries([strip(1), strip(-1)].filter((x) => x.index?.count));
       if (g) group.add(new THREE.Mesh(g, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 })));
     }
@@ -90630,7 +90725,7 @@ function buildAustin(geo, track, def, pit) {
       const sA = cornerS(n); if (sA == null) continue;
       // (the brake point of a corner is where the speed profile starts to fall: the boards count down to it)
       [150, 100, 50].forEach((m, k) => {
-        const s = sA - 90 - m, i = tr.idxAtS(s), f = tr.sample(s, 0), d = -(tr.halfWidth + 3.2), x = f.x + f.nx * d, z = f.z + f.nz * d;
+        const s = sA - 90 - m, i = tr.idxAtS(s), f = tr.sample(s, 0), d = -(tr.hw[i] + 3.2), x = f.x + f.nx * d, z = f.z + f.nz * d;
         const p = new THREE.PlaneGeometry(1.0, 1.0); const uv = p.attributes.uv; for (let j = 0; j < uv.count; j++) uv.setX(j, (k + uv.getX(j)) / 3);
         p.translate(0, 1.2, 0); p.rotateY(Math.atan2(-f.tx, -f.tz)); p.translate(x, 0, z); boards.push(p);
       });
@@ -90751,7 +90846,7 @@ function buildAustin(geo, track, def, pit) {
     let bx0 = Infinity, bx1 = -Infinity, bz0 = Infinity, bz1 = -Infinity; for (let i = 0; i < tr.n; i += 5) { bx0 = Math.min(bx0, tr.px[i]); bx1 = Math.max(bx1, tr.px[i]); bz0 = Math.min(bz0, tr.pz[i]); bz1 = Math.max(bz1, tr.pz[i]); }
     const CS = 24, GX0 = bx0 - 1500, GZ0 = bz0 - 1500, NX = Math.ceil((bx1 - bx0 + 3000) / CS), NZ = Math.ceil((bz1 - bz0 + 3000) / CS);
     const kind = new Uint8Array(NX * NZ), gapA = new Float32Array(NX * NZ), qq = {};
-    const chunks = new Map(), chunk = (x, z) => { const k = `${Math.floor(x / 400)},${Math.floor(z / 400)}`; let c = chunks.get(k); if (!c) chunks.set(k, (c = { lot: [], lotU: [], field: [], fieldU: [], cars: [], poles: [], bld: [], trees: { oak: [], elm: [], juniper: [], mesquite: [], far: [] } })); return c; };
+    const chunks = new Map(), chunk = (x, z) => { const k = `${Math.floor(x / 400)},${Math.floor(z / 400)}`; let c = chunks.get(k); if (!c) chunks.set(k, (c = { lot: [], lotU: [], field: [], fieldU: [], cars: [], poles: [], bld: [], fans: [], kit: [], trees: { oak: [], elm: [], juniper: [], mesquite: [], far: [] } })); return c; };
     const tile = (P, U, x0, z0, s, y, uw, vh) => { const n = 3, d = s / n; for (let a = 0; a < n; a++) for (let b = 0; b < n; b++) { const xa = x0 + a * d, za = z0 + b * d, Q = [[xa, za], [xa, za + d], [xa + d, za + d], [xa, za], [xa + d, za + d], [xa + d, za]]; for (const [x, z] of Q) { P.push(x, y, z); U.push(x / uw, z / vh); } } };
     const PAINT = [0xf2f2f2, 0xf2f2f2, 0x111111, 0x111111, 0x8a9096, 0xc7cbd0, 0xc7cbd0, 0x1f3f7a, 0x8a1c1c, 0x2d4a2a, 0xb0a48a, 0x4b4f55, 0xd8d2c4, 0x6b2020, 0x274a6e];
     const KW = { oak: 0.4, elm: 0.12, juniper: 0.33, mesquite: 0.15 }, pickKind = () => { const r = rnd(); return r < KW.oak ? 'oak' : r < KW.oak + KW.elm ? 'elm' : r < KW.oak + KW.elm + KW.juniper ? 'juniper' : 'mesquite'; };
@@ -90766,7 +90861,7 @@ function buildAustin(geo, track, def, pit) {
       if (corridorSigned(tr, pit, cx, cz, 22) < 0 || solid.some(([sx, sz, r]) => (sx - cx) ** 2 + (sz - cz) ** 2 < (r + 16) ** 2) || standBoxes.some(([sx, sz, r]) => (sx - cx) ** 2 + (sz - cz) ** 2 < (r + 14) ** 2)) continue;
       const inside = inPoly(ring, cx, cz), nl = fbm(cx / 230, cz / 230, 11), nw = fbm(cx / 300, cz / 300, 23), nf = fbm(cx / 380, cz / 380, 37);
       const c = chunk(cx, cz);
-      if (inside && gap > 50 && nl > 0.53) {
+      if (inside && gap > 50 && nl > 0.5) {
         kind[id] = 1; nLot++;
         tile(c.lot, c.lotU, x0, z0, CS, 0.05, 21.6, 18);
         if (rnd() < 0.035) { const w = 16 + rnd() * 12, d = 10 + rnd() * 6, h = 5 + rnd() * 3; c.bld.push([cx, cz, w, d, h]); continue; }
@@ -90780,7 +90875,18 @@ function buildAustin(geo, track, def, pit) {
         kind[id] = 3; nWood++;
         const far = gap > 320, n = far ? 2 + ((rnd() * 3) | 0) : 3 + ((rnd() * 3) | 0);
         for (let k = 0; k < n; k++) plantTree(c, x0 + rnd() * CS, z0 + rnd() * CS, far);
-      } else if (gap > 50 && rnd() < (inside ? 0.06 : 0.16)) plantTree(c, x0 + rnd() * CS, z0 + rnd() * CS, gap > 320);
+      } else {
+        // open ground near the circuit: the fan village spills out over it - people about, marquees, food trucks, the
+        // rows of portable toilets - and the odd tree
+        if (gap < 150) {
+          const r = rnd(), px = x0 + 4 + rnd() * (CS - 8), pz = z0 + 4 + rnd() * (CS - 8), a = rnd() * Math.PI;
+          if (r < 0.1) c.kit.push(['tent', px, pz, a, [0xf4f4f2, 0xf4f4f2, 0xd21f2f, 0x1e3a8a, 0xff8000][(rnd() * 5) | 0]]);
+          else if (r < 0.16) c.kit.push(['truck', px, pz, a, PAINT[(rnd() * PAINT.length) | 0]]);
+          else if (r < 0.2) c.kit.push(['loos', px, pz, a, 0x2a62b8]);
+          if (rnd() < 0.7) { const n = 4 + ((rnd() * (gap < 80 ? 22 : 10)) | 0); for (let k = 0; k < n; k++) c.fans.push([x0 + rnd() * CS, 0, z0 + rnd() * CS, rnd() * 6.28, (rnd() * 8) | 0]); }
+        }
+        if (gap > 50 && rnd() < (inside ? 0.06 : 0.16)) plantTree(c, x0 + rnd() * CS, z0 + rnd() * CS, gap > 320);
+      }
     }
     // the ground's own colour, cell by cell (blended between cells) with the dry patches and a little mottling over it
     const CC = new Float32Array(NX * NZ * 3);
@@ -90838,6 +90944,17 @@ function buildAustin(geo, track, def, pit) {
       inst(carG, carMat, c.cars, (im, [x, z, a, hex, s, h], k) => { m4.compose(p3.set(x, 0, z), qt.setFromAxisAngle(up, a), sc.set(1, h, s)); im.setMatrixAt(k, m4); im.setColorAt(k, col.setHex(hex)); }, 'austin:cars', 2200);
       inst(poleG, poleMat, c.poles, (im, [x, z], k) => { m4.compose(p3.set(x, 0, z), qt.identity(), sc.set(1, 1, 1)); im.setMatrixAt(k, m4); }, 'austin:poles', 2200);
       for (const [K, list] of Object.entries(c.trees)) { nTrees += list.length; inst(TREE[K], treeMat, list, (im, [x, z, h, r, hex, wf], k) => { const w = h * (0.9 + rnd() * 0.25) * wf; m4.compose(p3.set(x, 0, z), qt.setFromAxisAngle(up, r), sc.set(w, h, w)); im.setMatrixAt(k, m4); im.setColorAt(k, col.setHex(hex).multiplyScalar(0.88 + rnd() * 0.24)); }, `austin:${K}`, 3200); }
+      if (c.fans.length) { const im = fanMesh(c.fans, fest.sheetMat, rnd); im.name = 'austin:fans'; im.userData.cut = 1600; group.add(im); }
+      if (c.kit.length) {
+        const gk = [];
+        for (const [kind2, x, z, a, hex] of c.kit) {
+          const put = (g, h2) => gk.push(vcolor(keepPN(nonIdx(g.rotateY(a).translate(x, 0, z))), h2));
+          if (kind2 === 'tent') { put(new THREE.BoxGeometry(6, 2.6, 6).translate(0, 1.3, 0), 0xf2f2f0); put(new THREE.ConeGeometry(4.3, 2.2, 4).rotateY(Math.PI / 4).translate(0, 3.7, 0), hex); }
+          else if (kind2 === 'truck') { put(new THREE.BoxGeometry(2.5, 3, 6.5).translate(0, 1.6, 0), hex); put(new THREE.BoxGeometry(1.8, 0.12, 6.5).translate(1.9, 2.8, 0), 0xb31942); }
+          else for (let k = 0; k < 6; k++) put(new THREE.BoxGeometry(1.2, 2.3, 1.2).translate((k - 2.5) * 1.35, 1.15, 0), hex);
+        }
+        const m = new THREE.Mesh(mergeGeometries(gk), bldMat); m.name = 'austin:village'; m.userData.cut = 2000; group.add(m);
+      }
       if (c.bld.length) {
         const gs2 = [];
         for (const [x, z, w, d, h] of c.bld) { gs2.push(vcolor(keepPN(nonIdx(new THREE.BoxGeometry(w, h, d).translate(x, h / 2 - 0.5, z))), 0xe9e8e3), vcolor(keepPN(nonIdx(new THREE.BoxGeometry(w + 0.6, 0.5, d + 0.6).translate(x, h - 0.25, z))), 0x9aa1a8)); solid.push([x, z, Math.hypot(w, d) / 2 + 2]); }
@@ -90861,7 +90978,7 @@ function buildAustin(geo, track, def, pit) {
   };
 }
 
-return { buildAustin };
+return { austinCrowdZones, buildAustin };
 })();
 
 // ---- src/world/Lighting.js
@@ -103460,7 +103577,7 @@ function fitGrip(car) {
 function roadHeight(track, i, d, s, surf) {
   if (surf === 1) {
     if (!track.inCorner[i]) return 0;                        // (a street circuit's painted edge outside the corners)
-    const t = Math.min(1, Math.max(0, (Math.abs(d) - track.halfWidth) / track.kerbWidth));
+    const t = Math.min(1, Math.max(0, (Math.abs(d) - track.hw[i]) / track.kerbWidth));
     return 0.02 + 0.03 * t + 0.005 * Math.sin(s * 7.85);    // ~0.8 m ridges
   }
   if (surf === 3) return 0.012 * (Math.sin(s * 2.1 + d * 1.7) * 0.6 + Math.sin(s * 5.3 - d * 3.1) * 0.4);   // grass: lumpy
@@ -105794,7 +105911,7 @@ class Obstacles {
    */
   clearTrack(track, margin = 4) {
     const bad = new Set(), h = {};
-    for (let i = 0; i < track.n; i++) for (const d of [-track.halfWidth - margin, -track.halfWidth / 2, 0, track.halfWidth / 2, track.halfWidth + margin]) {
+    for (let i = 0; i < track.n; i++) for (const d of [-track.hw[i] - margin, -track.hw[i] / 2, 0, track.hw[i] / 2, track.hw[i] + margin]) {
       const x = track.px[i] + track.nx[i] * d, z = track.pz[i] + track.nz[i] * d;
       if (this.hit(x, z, 0, h)) bad.add(h.poly);
     }
@@ -134044,7 +134161,7 @@ class Planner {
       const x = i * DS, dl = N.dl[i];
       let e = this.laneE(sp, s0 + x, x, dl);
       if (x < Lt) { const u = x / Lt, h00 = (1 - u) * (1 - u) * (1 + 2 * u), h10 = u * (1 - u) * (1 - u); e += E0 * h00 + E1 * Lt * h10; }
-      const d = Math.max(-m, Math.min(m, dl + e));
+      const mi = m + (N.wd ? N.wd[i] : 0), d = Math.max(-mi, Math.min(mi, dl + e));
       P.d[i] = d; P.e[i] = d - dl;
     }
     // curvature of the driven path: the racing line's own (exactly what the speed profile was built on) plus what the
@@ -134072,7 +134189,7 @@ class Planner {
    */
   lineGeometry(ctx) {
     const tr = this.track, line = this.line, n = ctx.n, f = this._f || (this._f = {});
-    const N = this.node || (this.node = { cx: new Float32Array(NMAX), cz: new Float32Array(NMAX), nx: new Float32Array(NMAX), nz: new Float32Array(NMAX), dl: new Float32Array(NMAX), lk: new Float32Array(NMAX) });
+    const N = this.node || (this.node = { cx: new Float32Array(NMAX), cz: new Float32Array(NMAX), nx: new Float32Array(NMAX), nz: new Float32Array(NMAX), dl: new Float32Array(NMAX), lk: new Float32Array(NMAX), wd: new Float32Array(NMAX) });
     const X = this._lx || (this._lx = new Float32Array(NMAX)), Z = this._lz || (this._lz = new Float32Array(NMAX));
     this.lineK = this.lineK || new Float32Array(NMAX);
     // the circuit's calibration under each node (ai/Calibration.js: corner speed and braking commitment, 1 = physics)
@@ -134081,7 +134198,7 @@ class Planner {
       const s = ctx.s0 + i * DS; tr.sample(s, 0, f);
       const ci = tr.idxAtS(s); cV[i] = aV ? aV[ci] : 1; cB[i] = aB ? aB[ci] : 1;
       N.cx[i] = f.x; N.cz[i] = f.z; const idx = tr.idxAtS(s); N.nx[i] = f.nx; N.nz[i] = f.nz;
-      N.dl[i] = line.offsetAt(s); N.lk[i] = line.lineCurv[idx];
+      N.dl[i] = line.offsetAt(s); N.lk[i] = line.lineCurv[idx]; N.wd[i] = tr.hw ? tr.hw[idx] - tr.halfWidth : 0;   // (how much wider the road is there)
       X[i] = f.x + N.nx[i] * N.dl[i]; Z[i] = f.z + N.nz[i] * N.dl[i];
     }
     this.circle(X, Z, n, this.lineK);
@@ -134153,7 +134270,7 @@ class Planner {
       if (o === me || o.cleared || o.inPit || o.pitLane) continue;
       const g0 = this.ds(me.s, o.s);
       if (g0 < -40 || g0 > H + 80) continue;
-      if (Math.abs(o.d) > tr.halfWidth + 25) continue;   // far off the road
+      if (Math.abs(o.d) > tr.hw[o.trackIdx ?? 0] + 25) continue;   // far off the road
       const R = this.others[k++]; if (k >= this.others.length) break;
       R.car = o; R.s0 = g0; R.ahead0 = g0 > 2.5;
       const L = tr.length;
@@ -134178,7 +134295,7 @@ class Planner {
         else { const [wx, wz] = o.worldVel(), i = o.trackIdx; va = wx * tr.tx[i] + wz * tr.tz[i]; vd = wx * tr.nx[i] + wz * tr.nz[i]; }
         const acc = o.rigid || still || o.spinning ? -6 : Math.max(-45, Math.min(12, o.ax || 0));
         // (it keeps its distance from the racing line, but never leaves the road for it: a car on the edge stays there)
-        const e0 = o.d - this.line.offsetAt(o.s), follows = !o.rigid && !still && !o.spinning, edge = tr.halfWidth + 0.3;
+        const e0 = o.d - this.line.offsetAt(o.s), follows = !o.rigid && !still && !o.spinning, edge = tr.hw[o.trackIdx ?? 0] + 0.3;
         let s = g0, v = va;
         for (let q = 0; q < PRED_N; q++) {
           const t = q * PRED_DT;
@@ -134671,7 +134788,7 @@ class AIDriver {
     const va = wx * tr.tx[i] + wz * tr.tz[i], vd = wx * tr.nx[i] + wz * tr.nz[i];
     const lineSlope = (line.offsetAt(c.s + 5) - line.offsetAt(c.s - 5)) / 10;
     ctx.e1 = Math.max(-0.5, Math.min(0.5, vd / Math.max(5, va) - lineSlope));
-    ctx.m = tr.halfWidth - (tr.def.aiEdgeMargin ?? T.edgeMargin);   // (a circuit where the kerbs are part of the lap lets the car's centre wider: Montreal)
+    ctx.m = tr.halfWidth - (tr.def.aiEdgeMargin ?? T.edgeMargin);   // (the base road: the planner adds what the road is wider by under each node)   // (a circuit where the kerbs are part of the lap lets the car's centre wider: Montreal)
     ctx.grip = this.g;
     const sEnd = c.s + (ctx.n - 1) * DS;
     ctx.vEnd = Math.min(ctx.vCap ?? 99, this.profile[tr.idxAtS(sEnd)] * this.gripFactor() * this.g.scale);
@@ -134758,7 +134875,7 @@ class AIDriver {
       for (let i = 0; i < n; i++) { const z = this.track.inCornerZone(this.track.idxAtS(P.s0 + i * DS)); if (z) break; cost += 0.004 * Math.abs(P.d[i] - this._hold); }
     }
     if (this.defend) {
-      const want = this.defend.side * (this.track.halfWidth - 2.7), until = this.planner.ds(P.s0, this.defend.untilS);
+      const want = this.defend.side * (this.track.hw[this.car.trackIdx] - 2.7), until = this.planner.ds(P.s0, this.defend.untilS);
       for (let i = 0; i < n && i * DS < until; i++) cost += 0.012 * Math.max(0, (want - P.d[i]) * this.defend.side);
     }
     // boxing: lined up on the pit side for the last 250 m before the lane's first metre
@@ -134822,10 +134939,10 @@ class AIDriver {
     // (a wall kiss: on the pinned wall's stretch only, the car runs out to a hand's width of it)
     const kiss = this.error?.type === 'scrape' && this.error.wall && tr.pinAt?.(c.s + 8, this.error.side) ? this.error.side : 0;
     if (kiss) dT = kiss * (tr.wallAt(c.trackIdx, kiss) - 0.95);
-    else if (this.error && this.error.type === 'scrape' && !this.error.wall && zone) dT = -zone.dir * (tr.halfWidth + 0.6);
+    else if (this.error && this.error.type === 'scrape' && !this.error.wall && zone) dT = -zone.dir * (tr.hw[c.trackIdx] + 0.6);
     // (a feud, alongside you: it squeezes you - steers onto your line and leans on you; the stewards may have a view)
     if (this._feudD != null && this._me) { const me = this._me, ds = P.ds(c.s, me.s); if (ds > -8 && ds < 8) dT += (me.d - dT) * Math.min(1, 0.95 * (c.feud || 0)); }
-    const lim = kiss ? tr.wallAt(c.trackIdx, kiss) - 0.9 : tr.halfWidth - 0.9 + (this.error?.type === 'scrape' && !this.error.wall ? 2 : 0);
+    const lim = kiss ? tr.wallAt(c.trackIdx, kiss) - 0.9 : tr.hw[c.trackIdx] - 0.9 + (this.error?.type === 'scrape' && !this.error.wall ? 2 : 0);
     dT = Math.max(-lim, Math.min(lim, dT));
     const f = tr.sample(sA, dT, this._f || (this._f = {}));
     const dx = f.x - c.x, dz = f.z - c.z, cth = Math.cos(c.th), sth = Math.sin(c.th);
@@ -134871,7 +134988,7 @@ class AIDriver {
     // (only running wide of the plan near the edge: the plan itself uses the whole road)
     let dPlan = P.at(B.d, c.s); if (dPlan == null) dPlan = this.line.offsetAt(c.s);
     const wide = (c.d - dPlan) * Math.sign(c.d) > 0.8;
-    if (T.edgeGuard && !flat && wide && Math.abs(c.d) > tr.halfWidth - 1.6 && Math.sign(dDot) === Math.sign(c.d) && Math.abs(dDot) > 0.6) { vT = Math.min(vT, v * 0.94 * guardV); lift = true; }
+    if (T.edgeGuard && !flat && wide && Math.abs(c.d) > tr.hw[c.trackIdx] - 1.6 && Math.sign(dDot) === Math.sign(c.d) && Math.abs(dDot) > 0.6) { vT = Math.min(vT, v * 0.94 * guardV); lift = true; }
     if (T.satLift && (c.satF || 0) > 1.04 && v > 15) { vT = Math.min(vT, v * 0.97 * guardV); lift = true; }
     if (c.offTrack) vT = Math.min(vT, 32);
     if (spinning) vT = 0;
@@ -135000,7 +135117,7 @@ class AIDriver {
 
   /** a car that can't go on: to the edge of the road (the run-off beyond it if there is one) and stop there */
   pullOver(dt) {
-    const c = this.car, tr = this.track, hw = tr.halfWidth, side = Math.sign(c.d - this.line.offsetAt(c.s)) || Math.sign(c.d) || 1;
+    const c = this.car, tr = this.track, hw = tr.hw[c.trackIdx], side = Math.sign(c.d - this.line.offsetAt(c.s)) || Math.sign(c.d) || 1;
     const room = tr.wallAt(c.trackIdx, side), dT = side * Math.min(room - 2, hw + 6);
     const f = tr.sample(c.s + Math.max(25, c.speed * 1.6), dT, this._fp || (this._fp = {}));
     const dx = f.x - c.x, dz = f.z - c.z, cth = Math.cos(c.th), sth = Math.sin(c.th);
@@ -135022,7 +135139,7 @@ class AIDriver {
    * road: beached, out of the race.
    */
   rejoin(dt, world) {
-    const c = this.car, tr = this.track, R = this.rj, v = c.speed, hw = tr.halfWidth;
+    const c = this.car, tr = this.track, R = this.rj, v = c.speed, hw = tr.hw[c.trackIdx];
     R.t += dt; R.total += dt;
     const side = Math.sign(c.d) || 1, onRoad = Math.abs(c.d) < hw - 0.5;
     const f = tr.sample(c.s + 35, side * Math.min(Math.abs(c.d), hw - 2.5), this._fr || (this._fr = {}));
@@ -135472,7 +135589,7 @@ class Stewards {
       const ds = c._paceS == null ? 0 : d.planDs(c._paceS, c.s); c._paceS = c.s;
       const W = c.wh, sg = Math.sign(W.dw[0]);
       let allOut = sg !== 0;
-      for (let k = 0; k < 4 && allOut; k++) if (Math.sign(W.dw[k]) !== sg || Math.abs(W.dw[k]) < hw + 0.1) allOut = false;
+      for (let k = 0; k < 4 && allOut; k++) if (Math.sign(W.dw[k]) !== sg || Math.abs(W.dw[k]) < d.track.hw[c.trackIdx] + 0.1) allOut = false;
       if (!c._ex && !c.offTrack && ds > 0 && ds < 60) {
         const kd = Math.exp(-dt / 20); c._refT = (c._refT || 0) * kd + ds / Math.max(8, d.profile[c.trackIdx]); c._actT = (c._actT || 0) * kd + dt;
       }
@@ -135805,8 +135922,8 @@ class SafetyCar {
 
   // ---- incidents --------------------------------------------------------------------------------------------------
   /** a stopped, retired car on or near the racing surface (not yet recovered) */
-  blocking(c) { return c.retired && !c.cleared && !c.air && c.speed < 3 && Math.abs(c.d) < this.d.track.halfWidth + 14 && !c.inPit && !c.pitLane; }
-  onRoad(c) { return Math.abs(c.d) < this.d.track.halfWidth + 2.5; }
+  blocking(c) { return c.retired && !c.cleared && !c.air && c.speed < 3 && Math.abs(c.d) < this.d.track.hw[c.trackIdx] + 14 && !c.inPit && !c.pitLane; }
+  onRoad(c) { return Math.abs(c.d) < this.d.track.hw[c.trackIdx] + 2.5; }
   incidentLive() { return this.incident && [...this.incident.cars].some((c) => this.blocking(c)); }
   /** the incident has stayed clear for CLEAR_T seconds */
   clear() { return !this.incidentLive() && (this.clearT || 0) > CLEAR_T; }
@@ -136769,7 +136886,7 @@ class RaceDirector {
     // reset prompt / retirement / end conditions
     if (p) {
       // no resets: a car beached off the road (stopped 12 s+, trying) can be retired - hold R
-      const beached = p.stoppedTime >= 12 && !p.inPit && !p.pitLane && !p.finished && !p.retired && Math.abs(p.d) > this.track.halfWidth + 1;
+      const beached = p.stoppedTime >= 12 && !p.inPit && !p.pitLane && !p.finished && !p.retired && Math.abs(p.d) > this.track.hw[p.trackIdx] + 1;
       this.hud?.showReset(beached);
       if (beached && !p.autopilot && input.retireHold > 1.2) { p.retired = true; p.retireReason = 'Beached'; }
       if (p.retired && this.endTimer < 0 && !p.autopilot && this.mode !== 'tt') { this.endTimer = p.air || p.wreck ? 7 : 4; this.hud?.msg(`RETIRED · ${p.retireReason}`, 'bad', 4); }
@@ -138397,7 +138514,7 @@ const { StandCrowds } = __m['src/world/StandCrowds.js'];
 const { crowdTime } = __m['src/world/Crowd.js'];
 const { buildVenue, standFootprints } = __m['src/world/Venue.js'];
 const { buildMontreal } = __m['src/world/Montreal.js'];
-const { buildAustin } = __m['src/world/Austin.js'];
+const { buildAustin, austinCrowdZones } = __m['src/world/Austin.js'];
 const { TERRAIN, setTerrain, trackHeights, buildHeightField, elevateWorld, terrainGround } = __m['src/world/Terrain.js'];
 const { WOC_PANEL } = __m['src/track/Branding.js'];
 const { TrackLights, floodlitAll } = __m['src/world/Lighting.js'];
@@ -138623,13 +138740,14 @@ async function loadWorld(def) {
   const curve = buildSpline(circuit.pts, { closed: true, filletSigma: def.smoothSigma || 6, step: 4, tension: 0.5, fillet: def.fillet !== false });
   const samples = rotateSamples(sampleCurve(curve, true, 2), 0, 0);   // s = 0 at the start/finish line (projection origin)
   const track = new Track(samples, def);
+  labelCorners(track, def, geo);
+  track.widen();   // (a road wider in places: def.widths - before anything is laid along its edges, the ground included)
   // the ground's height (a circuit that is not flat: its way's third coordinates - world/Terrain.js), else flat
   setTerrain(null);
   if (def.elevation) {
     const w = geo.roadById(def.ways[0]), pts = w ? w.pts.map((p, k) => [p[0], p[1], w.lonlat[k]?.[2]]) : null, h = trackHeights(track, pts);
-    if (h) { track.h = h; setTerrain(buildHeightField(track, h), track); TERRAIN.halfRoad = track.halfWidth + track.kerbWidth + 1; }
+    if (h) { track.h = h; setTerrain(buildHeightField(track, h), track); TERRAIN.halfRoad = track.maxHalfWidth + track.kerbWidth + 1; TERRAIN.halfRoadAt = (i) => track.hw[i] + track.kerbWidth + 1; }
   }
-  labelCorners(track, def, geo);
   track.openCorners();   // (corners left open: Montreal's Senna S and hairpin - before the barriers are capped against everything else)
   // permanent circuits: the escape aprons stop short of the venue's real grandstands
   if (def.osmStands || def.standNames) {
@@ -138653,6 +138771,8 @@ async function loadWorld(def) {
   env.setGround(def.ground || 'city');
   const pitWay = geo.roadById(def.pitLaneWayId);
   const pit = pitWay ? buildPitLane(track, pitLaneLeads(track, pitWay.pts, def.pitLeads)) : null;
+  // a circuit's spectator areas round the lap (Austin's general admission): a barrier and a catch fence in front of each
+  if (def.scenery === 'austin') track.guardZones(austinCrowdZones(track, def, pit));
   await set('Computing the racing line…', 26);
   const { line, profile } = makeRacingLine(track, def);
   await set('Laying the track, kerbs and barriers…', 40);
@@ -138692,7 +138812,7 @@ async function loadWorld(def) {
   // the solid things beside the circuit (buildings, landmarks, grandstands: nothing drives or flies through them), and
   // catch fences on the barriers in front of the grandstands
   const obstacles = new Obstacles(), standRings = [];
-  const clearOfTrack = (ring) => ring.every(([x, z]) => Math.abs(track.nearest(x, z).d) > track.halfWidth + 3);
+  const clearOfTrack = (ring) => ring.every(([x, z]) => { const q = track.nearest(x, z); return Math.abs(q.d) > track.hw[q.i] + 3; });
   for (const r of buildings.userData.rings || []) if (r && r.length >= 3 && clearOfTrack(r)) obstacles.add(r, 12);
   for (const b of lmBoxes) { const r = [[b.min.x, b.min.z], [b.max.x, b.min.z], [b.max.x, b.max.z], [b.min.x, b.max.z]]; if (b.max.y > 2 && clearOfTrack(r)) obstacles.add(r, b.max.y); }
   for (const p of stands.stands) {
@@ -138718,9 +138838,9 @@ async function loadWorld(def) {
   chunks.track = track; chunks.obstacles = obstacles;
   // big debris lying on the racing surface is dragged off by the marshals: to the verge (inside the barrier)
   debris.sweep = (x, z) => {
-    const q = track.nearest(x, z); if (!(Math.abs(q.d) < track.halfWidth + 1)) return null;
+    const q = track.nearest(x, z); if (!(Math.abs(q.d) < track.hw[q.i] + 1)) return null;
     const side = Math.sign(q.d) || 1, wall = track.wallAt(q.i, side);
-    const f = track.sample(q.s, side * Math.min(wall - 1.2, track.halfWidth + track.kerbWidth + 2 + Math.random() * 2));
+    const f = track.sample(q.s, side * Math.min(wall - 1.2, track.hw[q.i] + track.kerbWidth + 2 + Math.random() * 2));
     return [f.x, f.z];
   };
   console.info(`[world] grandstands: ${stands.count} (${stands.fans} fans), floodlight masts: ${trackMesh.userData.masts.length}`);

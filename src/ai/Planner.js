@@ -81,7 +81,7 @@ export class Planner {
       const x = i * DS, dl = N.dl[i];
       let e = this.laneE(sp, s0 + x, x, dl);
       if (x < Lt) { const u = x / Lt, h00 = (1 - u) * (1 - u) * (1 + 2 * u), h10 = u * (1 - u) * (1 - u); e += E0 * h00 + E1 * Lt * h10; }
-      const d = Math.max(-m, Math.min(m, dl + e));
+      const mi = m + (N.wd ? N.wd[i] : 0), d = Math.max(-mi, Math.min(mi, dl + e));
       P.d[i] = d; P.e[i] = d - dl;
     }
     // curvature of the driven path: the racing line's own (exactly what the speed profile was built on) plus what the
@@ -109,7 +109,7 @@ export class Planner {
    */
   lineGeometry(ctx) {
     const tr = this.track, line = this.line, n = ctx.n, f = this._f || (this._f = {});
-    const N = this.node || (this.node = { cx: new Float32Array(NMAX), cz: new Float32Array(NMAX), nx: new Float32Array(NMAX), nz: new Float32Array(NMAX), dl: new Float32Array(NMAX), lk: new Float32Array(NMAX) });
+    const N = this.node || (this.node = { cx: new Float32Array(NMAX), cz: new Float32Array(NMAX), nx: new Float32Array(NMAX), nz: new Float32Array(NMAX), dl: new Float32Array(NMAX), lk: new Float32Array(NMAX), wd: new Float32Array(NMAX) });
     const X = this._lx || (this._lx = new Float32Array(NMAX)), Z = this._lz || (this._lz = new Float32Array(NMAX));
     this.lineK = this.lineK || new Float32Array(NMAX);
     // the circuit's calibration under each node (ai/Calibration.js: corner speed and braking commitment, 1 = physics)
@@ -118,7 +118,7 @@ export class Planner {
       const s = ctx.s0 + i * DS; tr.sample(s, 0, f);
       const ci = tr.idxAtS(s); cV[i] = aV ? aV[ci] : 1; cB[i] = aB ? aB[ci] : 1;
       N.cx[i] = f.x; N.cz[i] = f.z; const idx = tr.idxAtS(s); N.nx[i] = f.nx; N.nz[i] = f.nz;
-      N.dl[i] = line.offsetAt(s); N.lk[i] = line.lineCurv[idx];
+      N.dl[i] = line.offsetAt(s); N.lk[i] = line.lineCurv[idx]; N.wd[i] = tr.hw ? tr.hw[idx] - tr.halfWidth : 0;   // (how much wider the road is there)
       X[i] = f.x + N.nx[i] * N.dl[i]; Z[i] = f.z + N.nz[i] * N.dl[i];
     }
     this.circle(X, Z, n, this.lineK);
@@ -190,7 +190,7 @@ export class Planner {
       if (o === me || o.cleared || o.inPit || o.pitLane) continue;
       const g0 = this.ds(me.s, o.s);
       if (g0 < -40 || g0 > H + 80) continue;
-      if (Math.abs(o.d) > tr.halfWidth + 25) continue;   // far off the road
+      if (Math.abs(o.d) > tr.hw[o.trackIdx ?? 0] + 25) continue;   // far off the road
       const R = this.others[k++]; if (k >= this.others.length) break;
       R.car = o; R.s0 = g0; R.ahead0 = g0 > 2.5;
       const L = tr.length;
@@ -215,7 +215,7 @@ export class Planner {
         else { const [wx, wz] = o.worldVel(), i = o.trackIdx; va = wx * tr.tx[i] + wz * tr.tz[i]; vd = wx * tr.nx[i] + wz * tr.nz[i]; }
         const acc = o.rigid || still || o.spinning ? -6 : Math.max(-45, Math.min(12, o.ax || 0));
         // (it keeps its distance from the racing line, but never leaves the road for it: a car on the edge stays there)
-        const e0 = o.d - this.line.offsetAt(o.s), follows = !o.rigid && !still && !o.spinning, edge = tr.halfWidth + 0.3;
+        const e0 = o.d - this.line.offsetAt(o.s), follows = !o.rigid && !still && !o.spinning, edge = tr.hw[o.trackIdx ?? 0] + 0.3;
         let s = g0, v = va;
         for (let q = 0; q < PRED_N; q++) {
           const t = q * PRED_DT;

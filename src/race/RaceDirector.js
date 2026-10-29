@@ -260,7 +260,7 @@ export class RaceDirector {
     // reset prompt / retirement / end conditions
     if (p) {
       // no resets: a car beached off the road (stopped 12 s+, trying) can be retired - hold R
-      const beached = p.stoppedTime >= 12 && !p.inPit && !p.pitLane && !p.finished && !p.retired && Math.abs(p.d) > this.track.halfWidth + 1;
+      const beached = p.stoppedTime >= 12 && !p.inPit && !p.pitLane && !p.finished && !p.retired && Math.abs(p.d) > this.track.hw[p.trackIdx] + 1;
       this.hud?.showReset(beached);
       if (beached && !p.autopilot && input.retireHold > 1.2) { p.retired = true; p.retireReason = 'Beached'; }
       if (p.retired && this.endTimer < 0 && !p.autopilot && this.mode !== 'tt') { this.endTimer = p.air || p.wreck ? 7 : 4; this.hud?.msg(`RETIRED · ${p.retireReason}`, 'bad', 4); }

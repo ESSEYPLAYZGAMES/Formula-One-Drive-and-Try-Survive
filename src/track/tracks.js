@@ -281,7 +281,16 @@ export const TRACKS = {
       { detect: { turn: 19, at: 'start', off: -40 }, open: { turn: 20, at: 'end', off: 60 }, close: { turn: 1, at: 'start', off: -90 } },
     ],
     direction: 1,
-    width: 15,
+    // COTA is wide everywhere (a choice of lines through every corner), widest of all up the hill into Turn 1 - forty
+    // metres across at the top - and through the hairpin, Turn 12 and the last corner (TrackBuilder widen)
+    width: 17,
+    widths: [
+      { turn: 1, before: 110, after: 40, width: 38, ease: 130 }, { turn: 2, before: 20, after: 40, width: 22, ease: 50 },
+      { turn: 11, before: 60, after: 50, width: 26, ease: 80 }, { turn: 12, before: 70, after: 40, width: 26, ease: 80 },
+      { turn: 15, before: 30, after: 30, width: 21, ease: 50 }, { turn: 19, before: 30, after: 30, width: 21, ease: 50 },
+      { turn: 20, before: 50, after: 40, width: 24, ease: 70 },
+    ],
+    runoffBase: [0.74, 0.66, 0.52],   // (every paved apron the tan of the real ones, painted or not)
     laps100: 56,
     cornerCurv: 1 / 240,
     // A permanent circuit: wide grass verges and, outside the corners, big asphalt run-offs painted red, white and
