@@ -9,7 +9,7 @@
 // onto the ground's height with it (world/Terrain.js elevateWorld).
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { corridorSigned, ribbon } from '../track/TrackBuilder.js';
+import { corridorSigned, ribbon, paintRGB, paintTexture } from '../track/TrackBuilder.js';
 import { footprintInfo } from '../core/GeoLoader.js';
 import { makeWindowMaterial } from './Buildings.js';
 import { TERRAIN } from './Terrain.js';
@@ -145,6 +145,8 @@ export function buildAustin(geo, track, def, pit) {
   const white = new THREE.MeshStandardMaterial({ color: 0xf2f3f5, roughness: 0.45, metalness: 0.2, emissive: 0x18191c });
   const steel = new THREE.MeshStandardMaterial({ color: 0xdfe3e8, roughness: 0.3, metalness: 0.75, emissive: 0x15171a });
   const glass = new THREE.MeshStandardMaterial({ color: 0x24384a, roughness: 0.08, metalness: 0.8, envMapIntensity: 1.5, emissive: 0x2a3644, emissiveIntensity: 0.6 });
+  // paint laid on the asphalt here as on TrackBuilder's run-offs: their grain, day and night sets (setTime swaps them)
+  const grain = { day: paintTexture(true), night: paintTexture(false), mats: [] };
 
   // ---- the Observation Tower over the amphitheatre (the survey's outline: 'Germania Insurance Amphiteater', the stage),
   //      inside the loop of Turns 16-18: twenty storeys of cream-white steel round the stairs (419 steps), the deck at
@@ -796,10 +798,12 @@ export function buildAustin(geo, track, def, pit) {
   {
     const s1 = cornerS(1);
     if (s1 != null) {
-      const HW = tr.hw, red = [0.5, 0.06, 0.1];
+      // (the run-offs' red, tracks.js runoffPaint, made linear as theirs is: the raw 0.5 / 0.06 / 0.1 was read as
+      //  linear, a salmon pink beside the stripes' red)
+      const HW = tr.hw, red = paintRGB([0.72, 0.09, 0.16]);
       const strip = (side) => ribbon(tr, (i) => (side > 0 ? tr.hwL[i] + 0.05 : -(tr.hwR[i] + 6.5)), (i) => (side > 0 ? tr.hwL[i] + 6.5 : -(tr.hwR[i] + 0.05)), 0.012, { mask: (i) => { const s = tr.s[i], d = tr.wrapS(s - (s1 - 520)); return d < 470; }, colorFn: () => red });
       const g = mergeGeometries([strip(1), strip(-1)].filter((x) => x.index?.count));
-      if (g) group.add(new THREE.Mesh(g, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 })));
+      if (g) { const m = new THREE.MeshStandardMaterial({ map: grain.day, vertexColors: true, roughness: 0.88, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }); grain.mats.push(m); group.add(new THREE.Mesh(g, m)); }
     }
     const boards = [], c = document.createElement('canvas'); c.width = 384; c.height = 128; const x2 = c.getContext('2d');
     ['150', '100', '50'].forEach((t, k) => { x2.fillStyle = '#ffffff'; x2.fillRect(k * 128 + 6, 6, 116, 116); x2.fillStyle = '#111'; x2.font = '900 54px Arial'; x2.textAlign = 'center'; x2.textBaseline = 'middle'; x2.fillText(t, k * 128 + 64, 66); });
@@ -1057,6 +1061,9 @@ export function buildAustin(geo, track, def, pit) {
       for (const m of [flagMat, fest.sheetMat, fest.flagMat, fest.usFlag]) { const sh = m?.userData.shader; if (sh) sh.uniforms.uTime.value = t; }
       fest.stageLights.forEach((p, k) => { p.rotation.z = 0.35 * Math.sin(t * 0.9 + k * 1.3); p.rotation.x = 0.3 * Math.sin(t * 0.7 + k * 2.1); });
     },
-    setTime(mode) { for (const m of glow) m.emissiveIntensity = mode === 'day' ? 0 : 1.6; fest.stageLights.forEach((p) => { p.visible = mode !== 'day'; }); },
+    setTime(mode) {
+      for (const m of glow) m.emissiveIntensity = mode === 'day' ? 0 : 1.6; fest.stageLights.forEach((p) => { p.visible = mode !== 'day'; });
+      for (const m of grain.mats) { m.map = mode === 'day' ? grain.day : grain.night; m.needsUpdate = true; }
+    },
   };
 }

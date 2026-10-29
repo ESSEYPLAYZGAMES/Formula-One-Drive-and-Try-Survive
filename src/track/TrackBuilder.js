@@ -890,6 +890,22 @@ function noiseCanvas(size, base, variance, fn) {
 }
 export function asphaltTexture(day = false) { return noiseCanvas(512, day ? 108 : 62, day ? 44 : 34); }
 export function concreteTexture(day = false) { return noiseCanvas(256, day ? 168 : 120, day ? 36 : 30); }
+/**
+ * The paved run-offs' grain: a coat of paint rolled over asphalt - near white, a fine grain in it and the aggregate
+ * showing through in dark specks - so the vertex tint (tracks.js runoffPaint / runoffBase) comes through at nearly
+ * full strength. (They had the concrete noise, mid grey: as a linear multiplier that is 0.39 by day and 0.19 by
+ * night, and every apron colour came out at a third of itself or less - Austin's red, white and blue a muddy maroon,
+ * a slate navy and a grey.) The night set is darker, as the road's is (half the day's, as the concrete's was): under
+ * the floodlights nothing should glow.
+ */
+export function paintTexture(day = false) {
+  return noiseCanvas(256, day ? 236 : 172, day ? 22 : 18, (ctx, size) => {
+    for (let k = 0; k < 700; k++) { ctx.fillStyle = `rgba(40,40,44,${0.12 + Math.random() * 0.2})`; ctx.fillRect(Math.random() * size, Math.random() * size, 1 + Math.random(), 1 + Math.random()); }
+  });
+}
+/** a paint colour as tracks.js writes it ([r, g, b] 0-1, sRGB like the panels' and kerbs' hex) -> the linear vertex colour */
+const SRGB = (v) => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+export const paintRGB = (c) => [SRGB(c[0]), SRGB(c[1]), SRGB(c[2])];
 /** Armco: two galvanised rails on posts. A wall ribbon maps u bottom-to-top and v along the barrier (one post per repeat). */
 export function armcoTexture() {
   const c = document.createElement('canvas'); c.width = 64; c.height = 128; const ctx = c.getContext('2d');
@@ -1083,21 +1099,29 @@ export function buildTrackMeshes(track, pit, gridSlots) {
   group.add(spatialChunks([kL, kR], kerbMat, 'kerbs'));
 
   // --- run-off (painted concrete/asphalt), full lap; on the pit side it stops at the pit wall and is absent where the pit lane branches off
-  const concrete = concreteTexture(); concrete.repeat.set(1, 1);
+  // (the grain is near white and the colours are the paint's own, made linear: tracks.js writes them as sRGB, like
+  //  every hex on the circuit, and a vertex colour is used as it stands - a red of 0.72 read as linear is a pink, and
+  //  times the old mid-grey concrete map it came out maroon. paintTexture: fresh paint in the sun, grain enough not to
+  //  look like plastic, and a darker night set so nothing glows under the lights)
+  const grain = paintTexture(); grain.repeat.set(1, 1);
   // (no polygon offset and the same y as the road: the surfaces share edges instead of overlapping, and a
   //  positive offset would push them behind the ground plane at grazing angles - the black patches of old)
   // The paved run-off reaches all the way to the barrier (which is pushed back on the outside of corners), and is
   // painted per corner like the real event: red at T1, T-Mobile magenta around the Sphere loop, teal at T12 / T14.
-  const runMat = new THREE.MeshStandardMaterial({ map: concrete, color: 0xffffff, vertexColors: true, roughness: 0.9, emissive: 0x0a0a0c });
+  const runMat = new THREE.MeshStandardMaterial({ map: grain, color: 0xffffff, vertexColors: true, roughness: 0.88, emissive: 0x0a0a0c });
+  const runMats = [runMat];   // every material on the run-off grain (setTime swaps the day / night set on each)
   const runEdge = (i, side) => wallAt(i, side);
   const runMask = (side) => (i) => open(i, side) && runEdge(i, side) > EG(i, side) + kw + 0.25 && !(pit && side === pitSide && pit.laneCovers[i]);
   const paint = tr.def.runoffPaint || [];
+  // (bare concrete: the grey that comes out as bright on the new grain, day and night, as 0.6 / 0.62 / 0.65 did on the old)
+  const CONCRETE = paintRGB([0.57, 0.58, 0.6]), runBase = tr.def.runoffBase ? paintRGB(tr.def.runoffBase) : CONCRETE;
+  const paintCol = paint.map((p) => paintRGB(p.color || p.base || [0.85, 0.86, 0.88]));   // per-track apron colours (tracks.js), linear
   const runTint = (i, d) => {
-    if (wallAt(i, d > 0 ? 1 : -1) < bo + (EG(i, d > 0 ? 1 : -1) - hw) + 1.5) return tr.def.runoffBase || [0.6, 0.62, 0.65];   // only the escape apron is painted, the normal verge stays concrete
+    if (wallAt(i, d > 0 ? 1 : -1) < bo + (EG(i, d > 0 ? 1 : -1) - hw) + 1.5) return runBase;   // only the escape apron is painted, the normal verge stays concrete
     const z = tr.inCornerZone(i) || tr.inCornerZone(tr.idxAtS(tr.s[i] + 60)) || tr.inCornerZone(tr.idxAtS(tr.s[i] + 30));
     const turns = z ? (z.turns || [z.turn]) : [];
-    for (const p of paint) if (turns.some((t) => p.turns.includes(t))) return p.color || p.base || [0.85, 0.86, 0.88];   // per-track apron colours (tracks.js)
-    return tr.def.runoffBase || [0.6, 0.62, 0.65];
+    for (let k = 0; k < paint.length; k++) if (turns.some((t) => paint[k].turns.includes(t))) return paintCol[k];
+    return runBase;
   };
   const circuit = tr.circuit;
   const surfAt = (i, side) => (side > 0 ? tr.surfL[i] : tr.surfR[i]);
@@ -1135,7 +1159,7 @@ export function buildTrackMeshes(track, pit, gridSlots) {
         for (let pass = 0; pass < 2; pass++) for (let k = n - 1; k >= 0; k--) { const i = k, q = (i + 1) % n; bw[i] = on[i] ? (on[q] ? bw[q] + 1 : 1) : 0; }
         for (let i = 0; i < n; i++) { const u = Math.min(1, Math.min(fw[i], bw[i]) / R); T[i] = u * u * (3 - 2 * u); }
         for (let k = 0; k < nB; k++) {
-          const col = P.stripes[k % P.stripes.length], a = (i) => Math.min(inner(i, 1, side) + k * w * T[i], outer(i, side, 1)), b = (i) => Math.min(inner(i, 1, side) + (k + 1) * w * T[i], outer(i, side, 1));
+          const col = paintRGB(P.stripes[k % P.stripes.length]), a = (i) => Math.min(inner(i, 1, side) + k * w * T[i], outer(i, side, 1)), b = (i) => Math.min(inner(i, 1, side) + (k + 1) * w * T[i], outer(i, side, 1));
           const mask = (i) => on[i] && on[(i + 1) % n] && T[i] > 0.01 && b(i) - a(i) > 0.02;
           const g = side > 0 ? ribbon(tr, a, b, 0.008, { mask, colorFn: () => col }) : ribbon(tr, (i) => -b(i), (i) => -a(i), 0.008, { mask, colorFn: () => col });
           if (g.index.count) geos.push(worldUV(g, 7));
@@ -1143,8 +1167,10 @@ export function buildTrackMeshes(track, pit, gridSlots) {
       }
       // (drawn over the apron with a depth bias of their own: 4 mm above it is below the depth buffer's precision once
       //  the ground lifts it all onto the hills, and the two would fight - the stripes breaking up into the grey)
+      // (a clone holds the map it was cloned with: it goes in runMats so the day / night swap reaches it too - it
+      //  kept the dark night grain all day long, the stripes at half the brightness of the apron they sit on)
       const stripeMat = runMat.clone(); stripeMat.polygonOffset = true; stripeMat.polygonOffsetFactor = -1.5; stripeMat.polygonOffsetUnits = -3;
-      if (geos.length) group.add(spatialChunks(geos, stripeMat, 'runStripes'));
+      if (geos.length) { group.add(spatialChunks(geos, stripeMat, 'runStripes')); runMats.push(stripeMat); }
     }
     gravelMat = new THREE.MeshStandardMaterial({ map: gravelTexture(), roughness: 1, metalness: 0 });
     group.add(spatialChunks(apron(2, {}), gravelMat, 'runGravel'));
@@ -1291,7 +1317,7 @@ export function buildTrackMeshes(track, pit, gridSlots) {
     const hasWall = (i) => own(i) && isFinite(pit.wallIn[i]);
     const wIn = (i) => (isFinite(pit.wallIn[i]) ? pit.wallIn[i] : Math.max(0.6, pit.wallPos[i]));   // finite everywhere (vertex at the wall's end sample)
     // (the run-off material is vertex-coloured: the apron gets the plain concrete tint, or it renders black)
-    const apron = ribbon(pl, (i) => Math.min(ws * pit.laneEdge[i], ws * (wIn(i) + 0.6)), (i) => Math.max(ws * pit.laneEdge[i], ws * (wIn(i) + 0.6)), 0, { closed: false, mask: hasWall, uvV: 6, colorFn: () => [0.6, 0.62, 0.65] });
+    const apron = ribbon(pl, (i) => Math.min(ws * pit.laneEdge[i], ws * (wIn(i) + 0.6)), (i) => Math.max(ws * pit.laneEdge[i], ws * (wIn(i) + 0.6)), 0, { closed: false, mask: hasWall, uvV: 6, colorFn: () => CONCRETE });
     group.add(new THREE.Mesh(apron, runMat)).children.at(-1).userData.keep = true;
     // the pit lane's own track-side wall, only where the lane runs too far from the road for the circuit barrier to double as pit wall
     const farWall = (i) => hasWall(i) && pit.trackD[i] - pit.wallIn[i] > tr.minWall + 0.5;
@@ -1357,11 +1383,11 @@ export function buildTrackMeshes(track, pit, gridSlots) {
 
   // day / night surface sets
   const asphaltDay = asphaltTexture(true); asphaltDay.repeat.set(2, 1);
-  const concreteDay = concreteTexture(true);
+  const grainDay = paintTexture(true);
   group.userData.setTime = (mode) => {
     const day = mode === 'day';
     roadMat.map = day ? asphaltDay : asphalt; roadMat.emissiveIntensity = day ? 0 : 0.6; roadMat.needsUpdate = true;
-    runMat.map = day ? concreteDay : concrete; runMat.emissiveIntensity = day ? 0 : 1; runMat.needsUpdate = true;
+    for (const m of runMats) { m.map = day ? grainDay : grain; m.emissiveIntensity = day ? 0 : 1; m.needsUpdate = true; }
     kerbMat.emissiveIntensity = day ? 0 : 0.18;
     panelMat.emissiveIntensity = day ? 0 : 0.55;
     wallMat.emissiveIntensity = day ? 0 : 1;
