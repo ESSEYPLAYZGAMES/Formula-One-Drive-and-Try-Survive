@@ -280,7 +280,7 @@ export class CarMesh {
     this.wheelDisp = new THREE.MeshBasicMaterial({ vertexColors: true }); sw.add(new THREE.Mesh(mergeGeometries(lit), this.wheelDisp));
     swTilt.position.set(helmet.position.x + 0.4, 0.71, 0); swTilt.rotation.z = 0.25; body.add(swTilt); this.wheelSteer = sw;
     // (only ever seen from close by: not drawn beyond a few car lengths - see detail())
-    this.details = [swTilt]; this._near = true;
+    this.details = [swTilt]; this._near = true; this._gy = 0;
     body.position.x = CG_X;
 
     // ---- wheels (hub steers, wheel spins): tyre + rim + compound stripe in one vertex-coloured mesh, and the spoked
@@ -315,9 +315,11 @@ export class CarMesh {
     this.group.addLevel(body, 0); this.group.addLevel(far, LOD_FAR);
   }
 
-  /** the close-up details shown only within 15 m of the camera (cam: world position) */
+  /** the close-up details shown only within 15 m of the camera (cam: world position, on the flat plan - the camera is
+   *  lifted onto the ground only for the frame, main.js terrainLift; the car model already stands on it, so its height
+   *  above the ground is what counts: measured from its own, a car on the hill to Turn 1 lost its steering wheel) */
   detail(cam) {
-    const p = this.group.position, near = (p.x - cam.x) ** 2 + (p.y - cam.y) ** 2 + (p.z - cam.z) ** 2 < 225;
+    const p = this.group.position, near = (p.x - cam.x) ** 2 + (p.y - this._gy - cam.y) ** 2 + (p.z - cam.z) ** 2 < 225;
     if (near !== this._near) { this._near = near; for (const o of this.details) o.visible = near; }
   }
 
@@ -487,7 +489,7 @@ export class CarMesh {
     if ((car.air || car.wreck) && car.q) {
       const q = car.q; this.group.quaternion.set(q[0], q[1], q[2], q[3]);
       _wp.set(0, 0.48, 0).applyQuaternion(this.group.quaternion);   // the body turns about its centre, 0.48 m above the mesh origin
-      this.group.position.set(car.p[0] - _wp.x, car.p[1] - _wp.y + TERRAIN.at(car.p[0], car.p[2]), car.p[2] - _wp.z);
+      this._gy = TERRAIN.at(car.p[0], car.p[2]); this.group.position.set(car.p[0] - _wp.x, car.p[1] - _wp.y + this._gy, car.p[2] - _wp.z);
       this.shadow.visible = this.shadowFar.visible = false;   // the blob shadow is a ground decal: not on a tumbling body
     } else {
       // the sprung body: heave, pitch (nose up = +z rotation in the mesh frame) and roll (left side up = +x)
@@ -496,7 +498,7 @@ export class CarMesh {
       let gy = 0, gp = 0, gr = 0;
       if (TERRAIN.on) { const g = TERRAIN.grad(car.x, car.z, _gr), c = Math.cos(car.th), s = Math.sin(car.th); gy = TERRAIN.at(car.x, car.z); gp = Math.atan(g[0] * c + g[1] * s); gr = Math.atan(g[0] * s - g[1] * c); }
       this.group.rotation.set(car.rl + gr, -car.th, car.pt + gp, 'YZX');
-      this.group.position.set(car.x, car.hv + gy, car.z);
+      this.group.position.set(car.x, car.hv + gy, car.z); this._gy = gy;
     }
     const dMax = Math.max(0.055, 0.38 * (1 - car.speed / 118));
     this.spin += car.vLong / 0.36 * dt;

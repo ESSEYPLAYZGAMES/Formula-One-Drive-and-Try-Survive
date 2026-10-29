@@ -67,7 +67,7 @@ export function austinCrowdZones(tr, def, pit) {
       const blocked = pr && side === pit.sideSign && (inR(s, ...pr) || inR(s1b, ...pr) || inR(mid, ...pr));
       const onStraight = straight && inR(mid, ...straight), atT1 = t1 && inR(mid, ...t1), byStand = standAt.some((q) => (!q.side || q.side === side) && (inR(mid, q.a, q.b) || inR(s, q.a, q.b) || inR(s1b, q.a, q.b)));
       if (!blocked && vnoise(s / 140, side * 3, 7) > 0.08) zones.push({ s0: s, s1: s1b - 6, side, depth: 8 + vnoise(s / 210, side, 9) * 16,
-        back: onStraight || byStand ? 0 : atT1 ? 14 : 22 + vnoise(s / 170, side, 15) * 4,
+        back: onStraight ? 0 : atT1 ? 14 : byStand ? 10 : 22 + vnoise(s / 170, side, 15) * 4,
         rise: atT1 || byStand ? 0.4 : 2.2 + vnoise(s / 180, side, 11) * 3.3, fill: 0.6 + vnoise(s / 160, side, 13) * 0.25 });
       s = s1b;
     }

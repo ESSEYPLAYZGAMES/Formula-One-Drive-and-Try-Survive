@@ -302,7 +302,7 @@ export const TRACKS = {
     apronMax: 24,
     apronWide: { 1: 70, 11: 70, 12: 70, 20: 50 },   // (the big paved run-offs: up the hill at Turn 1, the hairpin, Turn 12's with its flag, the last corner)
     selfArmco: false,   // (no Armco between the legs of a hairpin: open grass inside Turn 1, Turn 11, Turn 12)
-    pitWallRun: 30,     // (the pit wall stops 30 m past the lane's ends)
+    pitWallRun: 0,      // (the pit wall stops where the lane leaves and rejoins: inside Turn 20 and Turn 1, not wrapped round either apex)
     fillet: false, smoothSigma: 10,
     line: 'optimal',
     // ---- venue dressing

@@ -17,6 +17,8 @@ import * as THREE from 'three';
 const CELL = 8;          // the height field's grid (m)
 const HOLD = 9;          // metres of ground either side of the road held at the circuit's height (the verge, the kerbs)
 const PLATEAU = 90;      // ... and at most this far out, where the run-off and the barrier behind it reach
+const FLAT = 260;        // how far out the land is held level with the nearest part of the lap (where nothing else is near)
+const GRADE = 0.07;      // the steepest the land between two parts of the lap at different heights is let slope
 const MARGIN = 1400;     // how far the field reaches beyond the circuit (then the flat plane, at the field's edge height)
 
 /** the venue's ground: on, at(x, z) (bilinear), grad(x, z) -> [dh/dx, dh/dz], edge (the height the field levels out to) */
@@ -44,8 +46,9 @@ export function trackHeights(track, pts, sigma = 20) {
 }
 
 /**
- * The height field over the venue: the road and HOLD m either side at the circuit's height (the nearest part of the lap
- * where two parts come close), harmonic everywhere else with the field's border just below the lap's lowest point. Solved on
+ * The height field over the venue: the road, its run-off and the land round it at the circuit's height (the nearest part
+ * of the lap), harmonic between parts of the lap at different heights and out to the field's border (itself at the height of
+ * the circuit nearest it). Solved on
  * a 32 m grid, then 16 m, then 8 m (each level started from the one before), Gauss-Seidel with over-relaxation.
  */
 export function buildHeightField(track, h) {
@@ -63,19 +66,41 @@ export function buildHeightField(track, h) {
     const nx = Math.ceil((x1 - x0) / cell) + 1, nz = Math.ceil((z1 - z0) / cell) + 1, H = new Float32Array(nx * nz), fixed = new Uint8Array(nx * nz);
     // (the start: the coarser level's solution, or the mean)
     for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) H[j * nx + i] = prev ? prev.at(x0 + i * cell, z0 + j * cell) : mean;
-    // (the circuit's strip: every cell within `hold` of a sample takes the nearest sample's height)
-    const best = new Float32Array(nx * nz).fill(Infinity);
+    // (the circuit's strip: every cell within its nearest sample's hold takes that sample's height exactly - the road, the
+    //  run-off, the barrier. Beyond it the land is held level with the nearest part of the lap too, as far as FLAT m out -
+    //  a venue is graded, nothing falls away behind a run-off - except where two parts of the lap at different heights
+    //  meet (the other leg of a hairpin, the next straight over, the inside of a climbing bend): there the held land would
+    //  step from one height to the other, so it is let go either side of the seam, over a band wide enough that the
+    //  harmonic fill across it never slopes more than GRADE)
+    const best = new Float32Array(nx * nz).fill(Infinity), near = new Int32Array(nx * nz).fill(-1), r = Math.ceil(FLAT / cell) + 1;
     for (let s = 0; s < track.n; s++) {
-      const hs = holdS[s], r = Math.ceil(hs / cell) + 1;
       const ci = Math.round((track.px[s] - x0) / cell), cj = Math.round((track.pz[s] - z0) / cell);
       for (let dj = -r; dj <= r; dj++) for (let di = -r; di <= r; di++) {
         const i = ci + di, j = cj + dj; if (i < 0 || j < 0 || i >= nx || j >= nz) continue;
         const d2 = (x0 + i * cell - track.px[s]) ** 2 + (z0 + j * cell - track.pz[s]) ** 2, k = j * nx + i;
-        if (d2 <= hs * hs && d2 < best[k]) { best[k] = d2; H[k] = h[s]; fixed[k] = 1; }
+        if (d2 <= FLAT * FLAT && d2 < best[k]) { best[k] = d2; near[k] = s; }
       }
     }
-    for (let i = 0; i < nx; i++) { fixed[i] = fixed[(nz - 1) * nx + i] = 2; H[i] = H[(nz - 1) * nx + i] = edge; }
-    for (let j = 0; j < nz; j++) { fixed[j * nx] = fixed[j * nx + nx - 1] = 2; H[j * nx] = H[j * nx + nx - 1] = edge; }
+    for (let k = 0; k < nx * nz; k++) { const s1 = near[k]; if (s1 < 0) continue; H[k] = h[s1]; fixed[k] = Math.sqrt(best[k]) <= holdS[s1] ? 1 : 3; }
+    const seams = [];
+    for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
+      const k = j * nx + i; if (!fixed[k]) continue;
+      for (const q of [i + 1 < nx ? k + 1 : -1, j + 1 < nz ? k + nx : -1]) if (q >= 0 && fixed[q] && Math.abs(H[k] - H[q]) > GRADE * cell * 1.5) seams.push(i, j, Math.abs(H[k] - H[q]));
+    }
+    for (let e = 0; e < seams.length; e += 3) {
+      const R = seams[e + 2] / (2 * GRADE) + cell, rr = Math.ceil(R / cell), ci = seams[e], cj = seams[e + 1];
+      for (let dj = -rr; dj <= rr; dj++) for (let di = -rr; di <= rr; di++) {
+        const i = ci + di, j = cj + dj; if (i < 0 || j < 0 || i >= nx || j >= nz || (di * di + dj * dj) * cell * cell > R * R) continue;
+        if (fixed[j * nx + i] === 3) fixed[j * nx + i] = 0;
+      }
+    }
+    for (let k = 0; k < nx * nz; k++) if (!fixed[k] && prev) H[k] = prev.at(x0 + (k % nx) * cell, z0 + Math.floor(k / nx) * cell);
+    // (the field's border: at the height of the circuit nearest it, weighted by distance - the land runs out level from
+    //  each part of the lap, the way a graded venue does, instead of being pulled down to one far height all round: a
+    //  hilltop corner like Turn 1 stood on a cone with its sides falling away 20 % beyond the run-off)
+    const rim = (x, z) => { let sw = 0, sh = 0; for (let s = 0; s < track.n; s += 4) { const d2 = (x - track.px[s]) ** 2 + (z - track.pz[s]) ** 2 + 1, w = 1 / (d2 * d2); sw += w; sh += w * h[s]; } return sh / sw; };
+    for (let i = 0; i < nx; i++) { fixed[i] = fixed[(nz - 1) * nx + i] = 2; H[i] = rim(x0 + i * cell, z0); H[(nz - 1) * nx + i] = rim(x0 + i * cell, z0 + (nz - 1) * cell); }
+    for (let j = 0; j < nz; j++) { fixed[j * nx] = fixed[j * nx + nx - 1] = 2; H[j * nx] = rim(x0, z0 + j * cell); H[j * nx + nx - 1] = rim(x0 + (nx - 1) * cell, z0 + j * cell); }
     const iters = prev ? 160 : 700, w = 1.85;
     for (let it = 0; it < iters; it++) {
       for (let j = 1; j < nz - 1; j++) for (let i = 1; i < nx - 1; i++) {
@@ -94,6 +119,13 @@ export function buildHeightField(track, h) {
     },
   });
   let F = null; for (const cell of [CELL * 4, CELL * 2, CELL]) F = level(cell, F);
+  // (far out, past the venue, the land comes down gently to the flat plane beyond the field - which lies under the lowest
+  //  point of the lap, so it can never stand over the road)
+  const bx0 = x0 + MARGIN, bx1 = x1 - MARGIN, bz0 = z0 + MARGIN, bz1 = z1 - MARGIN;
+  for (let j = 0; j < F.nz; j++) for (let i = 0; i < F.nx; i++) {
+    const x = x0 + i * F.cell, z = z0 + j * F.cell, out = Math.max(bx0 - x, x - bx1, bz0 - z, z - bz1), t = Math.max(0, Math.min(1, (out - (MARGIN - 700)) / 600)), k = j * F.nx + i;
+    if (t > 0 && F.fixed[k] !== 1) F.H[k] += (edge + 0.3 - F.H[k]) * t * t * (3 - 2 * t);
+  }
   F.edge = edge;
   return F;
 }
@@ -102,7 +134,6 @@ export function buildHeightField(track, h) {
 export function setTerrain(F, track = null) {
   TERRAIN.tint = null; TERRAIN.halfRoadAt = null; TERRAIN.sink = null;   // (a venue's ground colouring, (x, z) -> [r, g, b]: set by its scenery after this)
   if (!F) { TERRAIN.on = false; TERRAIN.edge = 0; TERRAIN.at = () => 0; TERRAIN.grad = (x, z, out = [0, 0]) => { out[0] = out[1] = 0; return out; }; TERRAIN.field = null; TERRAIN.road = null; return; }
-  const e = 1.5;
   TERRAIN.on = true; TERRAIN.edge = F.edge; TERRAIN.field = F;
   // near the circuit, its own height exactly (the grid's 8 m cells would let the ground cut corners off the road over a
   // crest or into a dip): by the nearest point of the lap, out to the edge of the strip held at its height, then
@@ -118,7 +149,20 @@ export function setTerrain(F, track = null) {
     const fv = F.at(x, z), r = TERRAIN.road?.(x, z); if (!r) return fv;
     const hl = HS ? HS[r.i] : (track.hw ? track.hw[r.i] : track.halfWidth) + HOLD, w = Math.max(0, Math.min(1, (Math.abs(r.d) - (hl - 8)) / 8)); return r.h + (fv - r.h) * w * w * (3 - 2 * w);
   };
-  TERRAIN.grad = (x, z, out = [0, 0]) => { out[0] = (F.at(x + e, z) - F.at(x - e, z)) / (2 * e); out[1] = (F.at(x, z + e) - F.at(x, z - e)) / (2 * e); return out; };
+  // the slope (what the cars pitch and roll with, and what gravity pulls along): near the circuit the slope of its own
+  // smoothed height profile along the lap, which changes gently from one metre to the next; the 8 m grid's bilinear cells
+  // have a slope that jumps at every cell line (the onboard cameras shook on the climb to Turn 1). Further out the field's,
+  // differenced over most of a cell so it too runs on without steps
+  const dh = h ? new Float32Array(track.n) : null, qg = {}, ef = 6;
+  if (dh) for (let i = 0; i < track.n; i++) dh[i] = (h[(i + 1) % track.n] - h[(i - 1 + track.n) % track.n]) / (2 * track.ds);
+  TERRAIN.grad = (x, z, out = [0, 0]) => {
+    const fx = (F.at(x + ef, z) - F.at(x - ef, z)) / (2 * ef), fz = (F.at(x, z + ef) - F.at(x, z - ef)) / (2 * ef), r = TERRAIN.road?.(x, z, qg);
+    if (!r) { out[0] = fx; out[1] = fz; return out; }
+    const u = track.wrapS(r.s) / track.ds, i0 = Math.floor(u) % track.n, i1 = (i0 + 1) % track.n, f = u - Math.floor(u);
+    const sl = dh[i0] + (dh[i1] - dh[i0]) * f, tx = track.tx[i0] + (track.tx[i1] - track.tx[i0]) * f, tz = track.tz[i0] + (track.tz[i1] - track.tz[i0]) * f;
+    const hl = HS ? HS[r.i] : (track.hw ? track.hw[r.i] : track.halfWidth) + HOLD, w0 = Math.max(0, Math.min(1, (Math.abs(r.d) - (hl - 8)) / 8)), w = w0 * w0 * (3 - 2 * w0);
+    out[0] = sl * tx + (fx - sl * tx) * w; out[1] = sl * tz + (fz - sl * tz) * w; return out;
+  };
 }
 
 // ---- the static world onto the ground ---------------------------------------------------------------------------------

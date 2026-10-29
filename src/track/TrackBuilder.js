@@ -303,8 +303,8 @@ export class Track {
     // in front of a grandstand (extendToStands): gravel right up to its barrier, unless that corner's run-off is asphalt
     const front = (ap, st, i) => (ap[i] >= 0 && kind[ap[i]] === 1 ? 1 : 2);
     for (let i = 0; i < this.n; i++) {
-      this.surfL[i] = this.standL?.[i] && this.wallL[i] > this.minWallAt(i) + 3 ? front(this.apronL, this.standL, i) : this.apronL[i] >= 0 && this.wallL[i] > this.minWallAt(i) + 6 ? kind[this.apronL[i]] : 0;
-      this.surfR[i] = this.standR?.[i] && this.wallR[i] > this.minWallAt(i) + 3 ? front(this.apronR, this.standR, i) : this.apronR[i] >= 0 && this.wallR[i] > this.minWallAt(i) + 6 ? kind[this.apronR[i]] : 0;
+      this.surfL[i] = this.standL?.[i] && this.wallL[i] > this.minWallAt(i, 1) + 3 ? front(this.apronL, this.standL, i) : this.apronL[i] >= 0 && this.wallL[i] > this.minWallAt(i, 1) + 6 ? kind[this.apronL[i]] : 0;
+      this.surfR[i] = this.standR?.[i] && this.wallR[i] > this.minWallAt(i, -1) + 3 ? front(this.apronR, this.standR, i) : this.apronR[i] >= 0 && this.wallR[i] > this.minWallAt(i, -1) + 6 ? kind[this.apronR[i]] : 0;
     }
   }
   _cellKey(x, z) { return `${Math.floor(x / CELL)},${Math.floor(z / CELL)}`; }
@@ -380,7 +380,7 @@ export class Track {
     for (const [arr, side, cap] of [[this.wallL, 1, this.capL], [this.wallR, -1, this.capR]]) {
       const before = Float32Array.from(arr);
       for (let i = 0; i < this.n; i++) {
-        const lo = this.minWallAt(i);
+        const lo = this.minWallAt(i, side);
         if (arr[i] <= lo + 0.5) continue;
         for (let d = lo; d <= arr[i] + margin; d += 1.5) { if (inside(this.px[i] + this.nx[i] * side * d, this.pz[i] + this.nz[i] * side * d)) { arr[i] = Math.max(lo, d - margin); break; } }
       }
@@ -401,14 +401,14 @@ export class Track {
     for (const [arr, side, cap, flag] of [[this.wallL, 1, this.capL, this.standL], [this.wallR, -1, this.capR, this.standR]]) {
       const ext = new Float32Array(n);
       for (let i = 0; i < n; i++) {
-        const lo = this.minWallAt(i);
+        const lo = this.minWallAt(i, side);
         for (let d = lo; d <= reach; d += 1.5) if (inside(this.px[i] + this.nx[i] * side * d, this.pz[i] + this.nz[i] * side * d)) { ext[i] = d - margin; break; }
       }
       // taper the ends (a max-filter with a slope) so the barrier angles back to the verge instead of stepping
       const r = Math.round(140 / this.ds), slope = 0.6 * this.ds;
       for (let i = 0; i < n; i++) {
         let m = 0; for (let k = -r; k <= r; k++) m = Math.max(m, ext[(i + k + n) % n] - Math.abs(k) * slope);
-        if (m > arr[i] + 1 && m > this.minWallAt(i)) { arr[i] = m; cap[i] = 1; flag[i] = 1; }
+        if (m > arr[i] + 1 && m > this.minWallAt(i, side)) { arr[i] = m; cap[i] = 1; flag[i] = 1; }
       }
     }
   }
@@ -433,36 +433,203 @@ export class Track {
     for (const [fence, g, bar] of [[this.fenceL, this.guardL, this.barL], [this.fenceR, this.guardR, this.barR]]) if (g) for (let i = 0; i < n; i++) if (g[i] && bar[i] && bar[i] !== BAR.WALL) fence[i] = 1;
   }
   /**
-   * A circuit's spectator areas all round the lap (zones: [{ s0, s1, side }]): wherever one lies behind the verge and
-   * nothing stands at the barrier line yet, a banner-covered barrier, and over it a catch fence, along its whole length
-   * (and 15 m past either end) - the crowd is behind the fence, never in reach of a car. Kept in track.crowdZones.
+   * A circuit's spectator areas all round the lap (zones: [{ s0, s1, side, back }]): wherever one lies behind the verge,
+   * a banner-covered barrier and over it a catch fence, along its whole length (and 15 m past either end) - the crowd is
+   * behind the fence, never in reach of a car. Kept in track.crowdZones.
+   * Where the barriers stand is then worked out the way a circuit's are (tautWalls): a zone with z.back keeps its fence
+   * at least CLEAR m past the kerb, a zone without (the main straight's grandstand wall) stays where it is; everything
+   * else - the run-offs, the stands, the pit wall - as laid out before. `rings`: the footprints the barrier must stop short
+   * of (buildings, stands); `pit`: the lane, which it never crosses.
    */
-  guardZones(zones) {
-    const n = this.n, ext = Math.round(15 / this.ds), q = {};
+  guardZones(zones, rings = [], pit = null) {
+    const n = this.n, ext = Math.round(15 / this.ds), q = {}, CLEAR = 9;
     this.crowdZones = zones; this.guardL = new Uint8Array(n); this.guardR = new Uint8Array(n);
-    // (a zone with z.back: its fence stands that far beyond the kerb - the barrier pushed well back across grass and
-    //  apron, the way a permanent circuit keeps its crowds; eased in and out over 40 m, and never into another part of
-    //  the lap)
-    const push = { 1: new Float32Array(n), '-1': new Float32Array(n) }, E = Math.round(40 / this.ds);
+    const want = { 1: new Int8Array(n).fill(-1), '-1': new Int8Array(n).fill(-1) };
     for (const z of zones) {
-      if (!z.back) continue;
-      const P = push[z.side], i0 = this.idxAtS(z.s0), m = Math.round(this.wrapS(z.s1 - z.s0) / this.ds);
-      for (let k = -E; k <= m + E; k++) { const i = (i0 + k + n) % n, t = k < 0 ? 1 + k / E : k > m ? 1 - (k - m) / E : 1, w = t * t * (3 - 2 * t); P[i] = Math.max(P[i], z.back * w); }
+      const W = want[z.side], i0 = this.idxAtS(z.s0), m = Math.round(this.wrapS(z.s1 - z.s0) / this.ds);
+      for (let k = -ext; k <= m + ext; k++) { const i = (i0 + k + n) % n; W[i] = Math.max(W[i], z.back ? 1 : 0); }
     }
+    const inside = insideRings(rings);
+    // (the pit lane: its own samples on a coarse grid, for a quick 'is this point on the lane' test)
+    const lane = new Map(), LC = 20;
+    if (pit) { const P = pit.samples; for (let k = 0; k < P.n; k++) { const key = `${Math.floor(P.px[k] / LC)},${Math.floor(P.pz[k] / LC)}`; (lane.get(key) || lane.set(key, []).get(key)).push(k); } }
+    const onLane = (x, z) => {
+      if (!pit) return false; const P = pit.samples, cx = Math.floor(x / LC), cz = Math.floor(z / LC), r = pit.halfWidth + 6;
+      for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) for (const k of lane.get(`${cx + dx},${cz + dz}`) || []) if ((P.px[k] - x) ** 2 + (P.pz[k] - z) ** 2 < r * r) return true;
+      return false;
+    };
     for (const side of [1, -1]) {
-      const P = push[side], arr = side > 0 ? this.wallL : this.wallR;
+      const arr = side > 0 ? this.wallL : this.wallR, bar = side > 0 ? this.barL : this.barR, stand = side > 0 ? this.standL : this.standR, W = want[side];
+      const lo = Float32Array.from(arr), hi = Float32Array.from(arr);
       for (let i = 0; i < n; i++) {
-        if (!P[i]) continue;
-        let want = this.edgeAt(i, side) + this.kerbWidth + P[i]; if (want <= arr[i]) continue;
-        for (let d = arr[i]; d <= want + 6; d += 2) { this.nearest(this.px[i] + this.nx[i] * side * d, this.pz[i] + this.nz[i] * side * d, -1, q); const sep = Math.min(Math.abs(q.i - i), n - Math.abs(q.i - i)) * this.ds; if (sep > Math.max(80, 4 * d)) { want = Math.min(want, d - 8); break; } }
-        if (want > arr[i]) arr[i] = want;
+        if (bar[i] === BAR.WALL || stand?.[i] || W[i] === 0) continue;   // (the pit wall, the front of a stand, the main straight's wall: where they are)
+        const e = this.edgeAt(i, side) + this.kerbWidth; if (W[i] === 1) lo[i] = Math.max(lo[i], e + CLEAR);
+        // how far out it may go: short of the next part of the lap (past the line halfway to it), of a footprint, of the lane
+        let h = lo[i] + 45;
+        for (let d = Math.max(e + 2, lo[i] - 6); d <= h; d += 2) {
+          const x = this.px[i] + this.nx[i] * side * d, z = this.pz[i] + this.nz[i] * side * d;
+          this.nearest(x, z, -1, q); const sep = Math.min(Math.abs(q.i - i), n - Math.abs(q.i - i)) * this.ds;
+          if (sep > Math.max(80, 4 * d)) { h = d - 8; break; }
+          if (inside(x, z)) { h = d - 5; break; }
+          if (onLane(x, z)) { h = d - 3; break; }
+        }
+        lo[i] = Math.min(lo[i], Math.max(e + 1.5, h)); hi[i] = Math.max(lo[i], h);
       }
+      // (the limit rounded off where it dips - another part of the lap, a building - so the line bends round it in a
+      //  curve, not to a point: brought in, never out)
+      const hs = Float32Array.from(hi), KH = Math.round(60 / this.ds);
+      for (let i = 0; i < n; i++) { let m = hs[i]; for (let k = -KH; k <= KH; k++) { const v = hs[(i + k + n) % n] + (k * this.ds) ** 2 / (2 * 40); if (v < m) m = v; } hi[i] = Math.max(lo[i], m); }
+      arr.set(this.tautWalls(lo, hi, side));
     }
+    this.taut = true;
     this.layoutSurfaces();
     for (const z of zones) {
       const bar = z.side > 0 ? this.barL : this.barR, g = z.side > 0 ? this.guardL : this.guardR, i0 = this.idxAtS(z.s0), m = Math.round(this.wrapS(z.s1 - z.s0) / this.ds);
       for (let k = -ext; k <= m + ext; k++) { const i = (i0 + k + n) % n; if (!bar[i]) bar[i] = BAR.TYRES; if (bar[i] !== BAR.WALL) g[i] = 1; }
     }
+  }
+  /**
+   * A barrier line the way a circuit's is drawn: the shortest line round the lap on one side (+1 left / -1 right) that
+   * keeps every sample's escape ground behind it (at least lo[i] from the centreline: the verge, the run-off a car
+   * going straight on needs) and stops short of whatever it must not reach (at most hi[i]). It holds the run-off's edge
+   * where the road bends away from it, the outside of a corner, and runs straight across where the road bends toward
+   * it, the inside: long straight runs from one escape area to the next, closing in to the apexes - never the road's
+   * wiggles copied out at a fixed distance. (A taut string: each point moved along its normal onto the line between its
+   * neighbours, coarse to fine.) -> the barrier's distance per sample
+   */
+  tautWalls(lo, hi, side) {
+    const n = this.n, d = Float32Array.from(lo), X = new Float32Array(n), Z = new Float32Array(n);
+    const pt = (i) => { X[i] = this.px[i] + this.nx[i] * side * d[i]; Z[i] = this.pz[i] + this.nz[i] * side * d[i]; };
+    for (let i = 0; i < n; i++) pt(i);
+    // (sample i's distance where its normal crosses the line from a to c, held within its bounds)
+    const onto = (i, a, c) => {
+      const ux = this.nx[i] * side, uz = this.nz[i] * side, cx = X[c] - X[a], cz = Z[c] - Z[a], den = cx * uz - cz * ux;
+      if (Math.abs(den) < 1e-6) return d[i];
+      const t = (cx * (Z[a] - this.pz[i]) - cz * (X[a] - this.px[i])) / den;
+      return Math.min(hi[i], Math.max(lo[i], t));
+    };
+    for (const st of [32, 16, 8, 4, 2, 1]) {
+      const idx = []; for (let i = 0; i < n; i += st) idx.push(i); const m = idx.length;
+      for (let sweep = 0; sweep < (st >= 16 ? 400 : 120); sweep++) {
+        let moved = 0;
+        for (let j = 0; j < m; j++) { const i = idx[j], v = onto(i, idx[(j - 1 + m) % m], idx[(j + 1) % m]); moved = Math.max(moved, Math.abs(v - d[i])); d[i] = v; pt(i); }
+        if (moved < 0.01) break;
+      }
+      if (st > 1) for (let j = 0; j < m; j++) { const a = idx[j], c = idx[(j + 1) % m], len = ((c - a + n) % n) || n; for (let k = 1; k < len; k++) { const i = (a + k) % n; d[i] = onto(i, a, c); pt(i); } }
+    }
+    this._cutLoops(d, side, (i) => hi[i]);
+    return d;
+  }
+  /**
+   * Where a barrier line (distances from the centreline, one side) crosses over itself - the inside of a bend tighter than
+   * the line is far out, or the tip of a hairpin's infield where the line from either leg meets - the loop beyond the
+   * crossing is cut off: the line comes to the crossing point and goes on from it (in place). Never where that would
+   * carry any of it further out than max(i) - a crossing with a far part of the same line (an open stretch with no
+   * barrier drawn) is not a fold, and moving a barrier out could put it into what it was kept clear of
+   */
+  _cutLoops(d, side, max = (i) => d[i] + 1) {
+    const n = this.n, X = new Float32Array(n), Z = new Float32Array(n), Wn = Math.round(320 / this.ds);
+    for (let i = 0; i < n; i++) { X[i] = this.px[i] + this.nx[i] * side * d[i]; Z[i] = this.pz[i] + this.nz[i] * side * d[i]; }
+    for (let a = 0; a < n; a++) {
+      const a1 = (a + 1) % n;
+      for (let k = 2; k < Wn; k++) {
+        const b = (a + k) % n, b1 = (b + 1) % n;
+        const rx = X[a1] - X[a], rz = Z[a1] - Z[a], sx = X[b1] - X[b], sz = Z[b1] - Z[b], den = rx * sz - rz * sx; if (Math.abs(den) < 1e-9) continue;
+        const qx = X[b] - X[a], qz = Z[b] - Z[a], t = (qx * sz - qz * sx) / den, u = (qx * rz - qz * rx) / den;
+        if (t < 0 || t > 1 || u < 0 || u > 1) continue;
+        const ix = X[a] + rx * t, iz = Z[a] + rz * t, nd = (i) => Math.max(0.5, (ix - this.px[i]) * this.nx[i] * side + (iz - this.pz[i]) * this.nz[i] * side);
+        let ok = true; for (let j = 1; j <= k && ok; j++) { const i = (a + j) % n, v = nd(i); if (v > max(i) && !(k * this.ds <= 16 && v <= d[i] + 5)) ok = false; }   // (a little knot at a street corner: undone even if a point of it moves out a little)
+        if (!ok) continue;
+        for (let j = 1; j <= k; j++) { const i = (a + j) % n; d[i] = nd(i); X[i] = ix; Z[i] = iz; }
+        a = a + k - 1; break;
+      }
+    }
+  }
+  /**
+   * Every circuit's barriers made fair - the last thing done to them, once everything that moves a wall line (the run-
+   * offs, the stands, buildings, the other parts of the lap, the pit lane, the crowds) has had its say. A barrier is built
+   * in long runs and gentle bends; the steps those leave where a line is pulled in round something (another part of the
+   * lap, a building) would be wedges of tyre wall jutting into a run-off. So each line, as distance from the centreline
+   * along the lap, is only ever brought IN (never out into what it was kept clear of):
+   *   * every dip rounded out to a bend of at least FAIR_R metres (the line pulled in a little either side of it);
+   *   * nowhere closing in or opening out at more than FAIR_DEG against the road;
+   *   * every corner left on the far side (the far end of a run-off) rounded off;
+   * then whatever still turns sharply in the plan - the inside of a hairpin, where the runs from either leg would meet in
+   * a point - has no barrier: the infield's tip is left open, back to where the two runs stand 20 m apart. The pit wall and
+   * a pinned wall stay where they are (but for wrapping round an apex rather than folding over themselves).
+   */
+  fairWalls() {
+    const n = this.n, ds = this.ds, FAIR_R = 45, tanB = Math.tan((28 * Math.PI) / 180), K = Math.round(70 / ds), G = Math.max(1, Math.round(4 / ds));
+    const gw = []; for (let k = -3 * G; k <= 3 * G; k++) gw.push(Math.exp(-(k * k) / (2 * G * G)));
+    const gs = gw.reduce((a, b) => a + b, 0);
+    for (const side of [1, -1]) {
+      const arr = side > 0 ? this.wallL : this.wallR, bar = side > 0 ? this.barL : this.barR;
+      const pinned = (i) => this.pinAt(this.s[i], side);
+      // (a concrete wall - the pit wall included - can have no gap: on the inside of a bend tighter than it stands far out
+      //  it wraps round the apex instead of folding over itself into a point, behind the kerb if it has to be, as a street
+      //  circuit's does)
+      const R = Math.round(10 / ds), floor = new Float32Array(n);
+      for (let i = 0; i < n; i++) {
+        floor[i] = this.edgeAt(i, side) + this.kerbWidth + 1.5; if (bar[i] !== BAR.WALL) continue;
+        let c = 0; for (let k = -R; k <= R; k++) c = Math.max(c, this.curv[(i + k + n) % n] * side);   // (the tightest of the bend near it)
+        const lim = c > 1e-4 ? Math.min(0.75 / c, Math.max(0.5 / c, 1 / c - 6)) : Infinity;   // (its own bend no tighter than 6 m)
+        if (arr[i] > lim) { floor[i] = Math.max(this.edgeAt(i, side) + this.kerbWidth + 0.2, Math.min(floor[i], lim)); arr[i] = floor[i]; }
+      }
+      this._cutLoops(arr, side);
+      // (the line in the plan, and how it turns at each point over 4 m either way: + where it turns away from the road -
+      //  a notch, a corner pointing at the road - and - where it turns toward it - a corner pointing away)
+      const X = new Float32Array(n), Z = new Float32Array(n);
+      const plan = () => { for (let i = 0; i < n; i++) { X[i] = this.px[i] + this.nx[i] * side * arr[i]; Z[i] = this.pz[i] + this.nz[i] * side * arr[i]; } };
+      const reach = (i, dir) => { let L = 0, j = i; for (let c = 0; c < 40 && L < 4; c++) { const q = (j + dir + n) % n; L += Math.hypot(X[q] - X[j], Z[q] - Z[j]); j = q; } return j; };
+      const turn = (i, a = reach(i, -1), c = reach(i, 1)) => { const ux = X[i] - X[a], uz = Z[i] - Z[a], vx = X[c] - X[i], vz = Z[c] - Z[i]; return Math.hypot(ux, uz) < 0.5 || Math.hypot(vx, vz) < 0.5 ? 0 : Math.atan2(-(ux * vz - uz * vx), ux * vx + uz * vz) * side; };
+      // the dips and steps rounded, as distance from the road: all round the lap where the line follows the road (its
+      // steps are where it was pulled in round something), only about each notch where it was drawn taut (a straight run
+      // across the inside of a bend is a hump in that distance, and it must stay straight)
+      const f = Float32Array.from(arr), e = Float32Array.from(arr), mask = new Uint8Array(n);
+      if (!this.taut) mask.fill(1);
+      else { plan(); const W = Math.round(30 / ds); for (let i = 0; i < n; i++) if (turn(i) > (20 * Math.PI) / 180) for (let k = -W; k <= W; k++) mask[(i + k + n) % n] = 1; }
+      for (let i = 0; i < n; i++) { if (!mask[i]) continue; let m = f[i]; for (let k = -K; k <= K; k++) { const v = f[(i + k + n) % n] + (k * ds) ** 2 / (2 * FAIR_R); if (v < m) m = v; } e[i] = m; }
+      for (let pass = 0; pass < 2; pass++) {
+        for (let i = 1; i < n * 2; i++) { const a = i % n, b = (i - 1) % n; if (mask[a]) e[a] = Math.min(e[a], e[b] + ds * tanB); }
+        for (let i = n * 2 - 2; i >= 0; i--) { const a = i % n, b = (i + 1) % n; if (mask[a]) e[a] = Math.min(e[a], e[b] + ds * tanB); }
+      }
+      const g = Float32Array.from(e);
+      for (let i = 0; i < n; i++) { if (!mask[i]) continue; let a = 0; for (let k = -3 * G; k <= 3 * G; k++) a += e[(i + k + n) % n] * gw[k + 3 * G]; g[i] = Math.min(e[i], a / gs); }
+      // (the nearest it may come eased the same way: where a wall wraps an apex closer in than usual, the line round it
+      //  comes in to that gradually, not in a jog)
+      const fl = new Float32Array(n);
+      for (let i = 0; i < n; i++) { let m = floor[i]; for (let k = -K; k <= K; k++) { const v = floor[(i + k + n) % n] + (k * ds) ** 2 / (2 * FAIR_R); if (v < m) m = v; } fl[i] = m; }
+      for (let i = 0; i < n; i++) if (!pinned(i)) arr[i] = Math.max(fl[i], Math.min(f[i], g[i]));
+      // every corner still pointing away from the road taken in, onto the line between the points 4 m either side of it
+      for (let it = 0; it < 30; it++) {
+        plan(); let moved = 0;
+        for (let i = 0; i < n; i++) {
+          if (pinned(i)) continue; const a = reach(i, -1), c = reach(i, 1); if (turn(i, a, c) > -(12 * Math.PI) / 180) continue;
+          const ux = this.nx[i] * side, uz = this.nz[i] * side, cx = X[c] - X[a], cz = Z[c] - Z[a], den = cx * uz - cz * ux; if (Math.abs(den) < 1e-6) continue;
+          const t = (cx * (Z[a] - this.pz[i]) - cz * (X[a] - this.px[i])) / den; if (!(t < arr[i])) continue;
+          const v = Math.max(fl[i], arr[i] + (t - arr[i]) * 0.6); moved = Math.max(moved, arr[i] - v); arr[i] = v;
+        }
+        if (moved < 0.02) break;
+      }
+      this._cutLoops(arr, side);
+      // what still turns sharply in the plan: the barrier there taken away
+      plan(); const sharp = new Uint8Array(n);
+      for (let i = 0; i < n; i++) {
+        if (!bar[i]) continue;
+        const a = reach(i, -1), c = reach(i, 1), ux = X[i] - X[a], uz = Z[i] - Z[a], vx = X[c] - X[i], vz = Z[c] - Z[i], lu = Math.hypot(ux, uz), lv = Math.hypot(vx, vz);
+        if (lu < 1 || lv < 1) continue;
+        if ((ux * vx + uz * vz) / (lu * lv) < Math.cos((35 * Math.PI) / 180)) sharp[i] = 1;
+      }
+      for (let i = 0; i < n; i++) {
+        if (!sharp[i] || sharp[(i - 1 + n) % n]) continue;
+        let i1 = i; while (sharp[(i1 + 1) % n] && i1 - i < n) i1++;
+        let j0 = i - G, j1 = i1 + G;
+        while (Math.hypot(X[(j1 + n) % n] - X[(j0 + n) % n], Z[(j1 + n) % n] - Z[(j0 + n) % n]) < 20 && j1 - j0 < Math.round(160 / ds)) { j0--; j1++; }
+        for (let j = j0; j <= j1; j++) { const q = (j + n) % n; if (bar[q] !== BAR.WALL) bar[q] = 0; }
+        const gd = side > 0 ? this.guardL : this.guardR; if (gd) for (let j = j0; j <= j1; j++) { const q = (j + n) % n; if (!bar[q]) gd[q] = 0; }
+      }
+    }
+    this.layoutSurfaces();
   }
   /** how tall the barrier on a side (+1 left / -1 right) stands at sample i (m; 0: none) */
   barrierHeight(i, side) {
@@ -523,8 +690,9 @@ export class Track {
   }
   /** the road's edge on a side (+1 left / -1 right) at sample i */
   edgeAt(i, side) { return side > 0 ? this.hwL[i] : this.hwR[i]; }
-  /** the nearest a barrier may stand at sample i (the road's edge, the kerb and 3 m) */
-  minWallAt(i) { return this.hw[i] + this.kerbWidth + 3.0; }
+  /** the nearest a barrier may stand at sample i (the road's edge, the kerb and 3 m) - on a side (+1 left / -1 right), from
+   *  that side's own edge: a road widened on the outside of a corner keeps its inside barrier where it was */
+  minWallAt(i, side = 0) { return (side ? this.edgeAt(i, side) : this.hw[i]) + this.kerbWidth + 3.0; }
   /** no barrier closer to the road's edge than the kerb and `gap` m, wherever the road is widened */
   _clampWall(arr, gap = 3.0) { const E = arr === this.wallL ? this.hwL : arr === this.wallR ? this.hwR : this.hw; for (let i = 0; i < this.n; i++) arr[i] = Math.max(arr[i], E[i] + this.kerbWidth + gap); }
   /**
@@ -1224,7 +1392,7 @@ export function buildPitLane(track, rawPts, boxCount = 12) {
   const entryI = track.idxAtS(first.s - 6), exitI = track.idxAtS(last.s + 6);
   const sideArr = sideSign > 0 ? track.wallL : track.wallR;
   const sideBar = sideSign > 0 ? track.barL : track.barR;
-  const run = track.def.pitWallRun ?? 120; for (let k = track.idxAtS(first.s - run); ; k = (k + 1) % track.n) { sideArr[k] = Math.min(sideArr[k], track.minWallAt(k)); sideBar[k] = BAR.WALL; if (k === track.idxAtS(last.s + run)) break; }   // the pit wall
+  const run = track.def.pitWallRun ?? 120; track.pitWall = new Uint8Array(track.n); for (let k = track.idxAtS(first.s - run); ; k = (k + 1) % track.n) { sideArr[k] = Math.min(sideArr[k], track.minWallAt(k, sideSign)); sideBar[k] = BAR.WALL; track.pitWall[k] = 1; if (k === track.idxAtS(last.s + run)) break; }   // the pit wall
   track.pitCovers = laneCovers; track.pitSide = sideSign;   // the lane's asphalt beside the road is not grass (Track.surface)
   const wallD = new Float32Array(track.n); for (let i = 0; i < track.n; i++) wallD[i] = sideArr[i];
   const set = new Uint8Array(track.n);
@@ -1233,7 +1401,7 @@ export function buildPitLane(track, rawPts, boxCount = 12) {
     if (overlapsTrack[i]) continue;
     // (with def.pitWallClear, never on the road or its kerb: where the circuit bends away from a straight lane -
     //  Montreal's last chicane - a lane sample's nearest point of the circuit can be one the wall is not beside)
-    const ti = trackI[i]; const v = isFinite(wallIn[i]) ? Math.max(track.def.pitWallClear ? track.hw[ti] + kwT + 0.5 : 0, Math.min(track.minWallAt(ti), trackD[i] - wallIn[i])) : NaN;
+    const ti = trackI[i]; const v = isFinite(wallIn[i]) ? Math.max(track.def.pitWallClear ? track.edgeAt(ti, sideSign) + kwT + 0.5 : 0, Math.min(track.minWallAt(ti, sideSign), trackD[i] - wallIn[i])) : NaN;
     wallD[ti] = v; set[ti] = 1;
   }
   let prev = NaN;

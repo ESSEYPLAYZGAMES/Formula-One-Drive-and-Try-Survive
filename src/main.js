@@ -198,7 +198,11 @@ async function loadWorld(def) {
   const pitWay = geo.roadById(def.pitLaneWayId);
   const pit = pitWay ? buildPitLane(track, pitLaneLeads(track, pitWay.pts, def.pitLeads)) : null;
   // a circuit's spectator areas round the lap (Austin's general admission): a barrier and a catch fence in front of each
-  if (def.scenery === 'austin') track.guardZones(austinCrowdZones(track, def, pit));
+  if (def.scenery === 'austin') {
+    const rings = [...geo.buildings.filter((b) => b.rings[0] && b.rings[0].length >= 3).map((b) => b.rings[0]), ...((def.osmStands || def.standNames) ? standFootprints(geo, def).map((b) => b.rings[0]) : [])];
+    track.guardZones(austinCrowdZones(track, def, pit), rings, pit);
+  }
+  track.fairWalls();   // (every circuit's barrier lines in long runs and gentle bends: no wedge of barrier jutting into a run-off)
   await set('Computing the racing line…', 26);
   const { line, profile } = makeRacingLine(track, def);
   await set('Laying the track, kerbs and barriers…', 40);
@@ -1104,15 +1108,22 @@ function ensureCrashComposer() {
  * so it stays in frame and the cockpit stays round the driver), by the ground under itself the further it is from it;
  * onboard it also pitches with the slope, as the car does. -> undo
  */
-const _camQ = new THREE.Quaternion(), _camG = [0, 0];
+const _camQ = new THREE.Quaternion(), _camP = new THREE.Vector3(), _camF = new THREE.Quaternion(), _camE = new THREE.Euler(), _camO = new THREE.Vector3();
 function terrainLift() {
   if (!TERRAIN.on) return null;
-  const c = camera.position, y0 = c.y, p = S.player; let dy = TERRAIN.at(c.x, c.z), dist = Infinity;
+  const c = camera.position, p = S.player; _camP.copy(c); _camQ.copy(camera.quaternion);
+  let dy = TERRAIN.at(c.x, c.z), dist = Infinity;
   if (p && !PRE.walk) { dist = Math.hypot(c.x - p.x, c.z - p.z); const w = Math.min(1, Math.max(0, (dist - 12) / 30)); dy = TERRAIN.at(p.x, p.z) * (1 - w) + dy * w; }
-  c.y += dy; _camQ.copy(camera.quaternion);
-  if (p && dist < 4 && !crashCam.on) { const g = TERRAIN.grad(p.x, p.z, _camG); camera.rotateX(Math.atan(g[0] * Math.cos(p.th) + g[1] * Math.sin(p.th))); }
+  // an onboard camera (the cockpit, the T-cam) rides on the body: carried by exactly the lift, pitch and roll the car model
+  // was given (CarMesh: the slope under it), about the car's own origin - the cockpit round it never swims and the climb
+  // is as smooth as the model's
+  const m = p && dist < 4 && !crashCam.on && !p.air && !p.wreck ? S.meshes.get(p) : null, g = m?.group;
+  if (g && Math.abs(g.position.x - p.x) + Math.abs(g.position.z - p.z) < 0.01) {
+    _camF.setFromEuler(_camE.set(p.rl || 0, -p.th, p.pt || 0, 'YZX')).invert().premultiply(g.quaternion);   // (the slope's own turn: model / flat)
+    c.sub(_camO.set(p.x, p.hv || 0, p.z)).applyQuaternion(_camF).add(g.position); camera.quaternion.premultiply(_camF);
+  } else c.y += dy;
   camera.updateMatrixWorld();
-  return () => { c.y = y0; camera.quaternion.copy(_camQ); camera.updateMatrixWorld(); };
+  return () => { c.copy(_camP); camera.quaternion.copy(_camQ); camera.updateMatrixWorld(); };
 }
 /** the frame: through the depth-of-field chain while a photo is being framed with it on, else straight */
 function renderView() {
