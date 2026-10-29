@@ -116,7 +116,8 @@ export class Planner {
     const cV = this.calV || (this.calV = new Float32Array(NMAX)), cB = this.calB || (this.calB = new Float32Array(NMAX)), aV = tr.aiV, aB = tr.aiB;
     for (let i = 0; i < n; i++) {
       const s = ctx.s0 + i * DS; tr.sample(s, 0, f);
-      const ci = tr.idxAtS(s); cV[i] = aV ? aV[ci] : 1; cB[i] = aB ? aB[ci] : 1;
+      const ci = tr.idxAtS(s), w = ctx.calW ?? 1;   // (calW: AIDriver - a calibration fitted solo, eased off in the pack)
+      cV[i] = !aV ? 1 : w === 1 ? aV[ci] : 1 + (aV[ci] - 1) * w; cB[i] = !aB ? 1 : w === 1 ? aB[ci] : 1 + (aB[ci] - 1) * w;
       N.cx[i] = f.x; N.cz[i] = f.z; const idx = tr.idxAtS(s); N.nx[i] = f.nx; N.nz[i] = f.nz;
       N.dl[i] = line.offsetAt(s); N.lk[i] = line.lineCurv[idx]; N.wd[i] = tr.hwL ? tr.hwL[idx] - tr.halfWidth : 0; N.wdR[i] = tr.hwR ? tr.hwR[idx] - tr.halfWidth : 0;   // (how much wider the road is there, left and right)
       X[i] = f.x + N.nx[i] * N.dl[i]; Z[i] = f.z + N.nz[i] * N.dl[i];

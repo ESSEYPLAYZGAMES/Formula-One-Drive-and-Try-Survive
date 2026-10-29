@@ -67,7 +67,7 @@ export function writeCal(track, cal) {
   const rows = (a, dp) => Array.from({ length: Math.ceil(a.length / 16) }, (_, k) => '      ' + a.slice(k * 16, k * 16 + 16).map((x) => +x.toFixed(dp)).join(', ') + ',').join('\n');
   const lineTxt = (cal.line ? `    line: { every: ${cal.line.every}, d: [\n${rows(cal.line.d, 2)}\n    ] },\n` : '') +
     (cal.show ? `    show: { every: ${cal.show.every}, d: [\n${rows(cal.show.d, 2)}\n    ], kmh: [\n${rows(cal.show.kmh, 1)}\n    ] },\n` : '');
-  const block = `  // <cal:${track}>\n  ${track}: {\n    source: ${JSON.stringify(cal.source || '')},\n${cal.fitted ? `    fitted: ${JSON.stringify(cal.fitted)},\n` : ''}${lineTxt}    corners: {\n${corners}\n    },\n  },\n  // </cal:${track}>`;
+  const block = `  // <cal:${track}>\n  ${track}: {\n    source: ${JSON.stringify(cal.source || '')},\n${cal.fitted ? `    fitted: ${JSON.stringify(cal.fitted)},\n` : ''}${cal.pack ? '    pack: true,\n' : ''}${lineTxt}    corners: {\n${corners}\n    },\n  },\n  // </cal:${track}>`;
   const re = new RegExp(`  // <cal:${track}>[\\s\\S]*?// </cal:${track}>`);
   if (re.test(src)) src = src.replace(re, block);
   else src = src.replace('export const AI_CAL = {\n', `export const AI_CAL = {\n${block}\n`);

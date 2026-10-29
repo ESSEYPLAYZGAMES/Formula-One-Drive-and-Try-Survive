@@ -407,10 +407,15 @@ sample (`track.aiV`, `track.aiB`).
   driven by the AI, a human's line was no quicker through any section: its controller cannot scrub speed at full lock
   as a driver does - and its corners are fitted to the lap's minimum speeds and braking points, at the difficulty
   slider's top (`--diff`, what holds there holds below) on new tyres at every line, then driven: a corner group that is
-  no longer clean goes back, and a pass that is still not clean is undone. Austin's racing line is the composite of
-  three laps of Leclerc's at Legend (95.5 / 96.9 / 104.5 s, flashbacks in each; the composite 96.7 s). Its corner fit
-  took the AI's solo flying lap at Legend from 102.4-103 s to 99.7-100.3 s, but in a full race (mistakes, traffic, dirty
-  air) it spun the field three to seven times as often, so it is not applied yet.
+  no longer clean goes back, and a pass that is still not clean is undone. A car on its own is not a race: the whole
+  of such a fit spun a full field three to seven times as often (the pack on the opening lap above all, then traffic and
+  dirty air), so the corners are written at `--race 0.5` of it and marked `pack`: the AI drives them only in clean air
+  after the opening lap (AIDriver: from 25 m to 100 m behind the nearest car ahead they fade back in; with a car
+  alongside, none). Austin's racing line is the composite of three laps of Leclerc's at Legend (95.5 / 96.9 / 104.5 s,
+  flashbacks in each; the composite 96.7 s); its corners took the AI's solo flying lap at Legend from 101.6 s to
+  100.2 s (the full fit, 99.7-100.3 s, gained little more), and in full 5-lap races at Legend (the same 3 seeds) the
+  field's median best lap from 105.3 s to 103.6 s with as few spins (19 against 19.3) and fewer damaging hits (51 against
+  57). Halving every factor did better in races than capping the large ones (1.15 / 1.08: 25 spins).
 
 Both need Playwright and a Chromium (the scripts find `/opt/pw-browsers`, or set `CHROME`). After a fit, rebuild the
 game (`tools/bundle.py`, or `tools/splice_artifact.py <commit>` for the published Artifact, which carries changes of

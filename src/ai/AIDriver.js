@@ -48,6 +48,7 @@ export const AI_TUNE = {
   ffFrom: 35, ffBlend: 25,                               // slip-angle feed-forward fades in between 35 and 60 m/s
   trailK: 0.85, trailMin: 0.18, trailSlip: 3.0,          // trail braking: pressure off with steering lock and rear slip
   edgeGuard: 1, satLift: 1, slipLift: 8, guardBrakeV: 45,
+  packCal: 1,                                            // a calibration marked `pack` (fitted solo) only in clean air after the opening lap (0: everywhere)
   // ---- the driver
   vScaleBase: 0.972, vScaleK: 0.028,                     // cornering commitment by rating
   aBBase: 0.88, aBK: 0.09,                               // braking commitment by rating
@@ -160,6 +161,17 @@ export class AIDriver {
     ctx.gap = (T.gapBase + v * T.gapK * (1 - 0.3 * this.aggression)) * (1 + 0.3 * lap1) * F.gap + 25 * Math.max(0, c.engTemp - 0.75);
     if (rule && rule.gap) ctx.gap = Math.max(ctx.gap, rule.gap + 0.15 * v);
     ctx.lap1 = lap1;
+    // (a circuit's calibration fitted to a car on its own - ai/Calibration.js `pack`, Austin's from a driver's laps - spun
+    //  the field in the pack: the opening lap is driven on the physics, and so is any stretch in traffic - fading back
+    //  in from 25 m to 100 m behind the nearest car ahead, none with a car alongside)
+    const pack = T.packCal && tr.aiCal?.pack;
+    let near = Infinity;
+    if (c.lap >= 1 && pack) for (const o of world.cars) {
+      if (o === c || o.inPit || o.pitLane || o.retired) continue;
+      let ds = o.s - c.s; const L = tr.length; if (ds > L / 2) ds -= L; if (ds < -L / 2) ds += L;
+      if (ds > -8 && ds < 100) near = Math.min(near, ds < 6 ? 0 : ds);
+    }
+    ctx.calW = !pack ? 1 : c.lap >= 1 ? Math.max(0, Math.min(1, (near - 25) / 75)) : 0;
     this._hold = sinceStart < T.laneHoldT && c.gridSlot ? Math.max(-ctx.m, Math.min(ctx.m, c.gridSlot.d)) : null;
     ctx.forceLane = this._hold != null || !!this.defend;
     // boxing this lap: braking for the pit entry like any corner - to the speed the entry road allows at its first

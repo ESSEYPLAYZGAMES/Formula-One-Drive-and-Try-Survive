@@ -304,6 +304,9 @@ for (let tries = 0; tries < 3; tries++) {
   }
 }
 }
+// (the lap mode: the fit is a car on its own; in a full race - the pack, dirty air, mistakes, worn tyres - the whole of
+//  it spun the field three to seven times as often. Written at --race 0.5 of it, what held in full races at Austin)
+if (LAP) { cal.pack = true; const K = opt('race', 0.5); for (const k of Object.values(cal.corners)) { if (k.v != null) k.v = +(1 + (k.v - 1) * K).toFixed(3); if (k.b != null) k.b = +(1 + (k.b - 1) * K).toFixed(3); } console.log(`[fit] written at ${K} of the fit (--race): the corners as they hold in a full race`); }
 cal.fitted = `${T.map((t) => t.label).join(', ')} (${new Date().toISOString().slice(0, 10)}, blend ${BLEND})`;
 cal.source = LAP ? `the driver's own laps (tools/ai_fit.mjs, lap mode): the racing line shown is ${T[0].label}; the AI on its own line, its corners fitted to that lap's speeds and braking points at difficulty ${RUN.diff} (${cal.fitted.replace(/^.*\((\d{4}-\d\d-\d\d), /, '$1, ').replace(/\)$/, '')})`
   : `${(cal.source || '').replace(/; fitted to telemetry:.*$/, '')}; fitted to telemetry: ${cal.fitted}`;
