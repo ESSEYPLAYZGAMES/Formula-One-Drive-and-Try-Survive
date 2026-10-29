@@ -257,8 +257,6 @@ export function buildCotaLife(C) {
   const decks = [];
   for (const b of C.bridges || []) for (let k = 0; k < 40; k++) { const l = (rnd() - 0.5) * 2.6; decks.push([b.a[0] + b.n[0] * l, b.a[1], b.a[2] + b.n[2] * l, b.b[0] + b.n[0] * l, b.b[1], b.b[2] + b.n[2] * l, 0.9 + rnd() * 0.6]); }
 
-  const backs = buildBankBacks({ ...C, open, walkOff, nearPath, hitSolid, zoneAt, standing, walkers });
-
   // ---- the fan villages: in the open ground behind the spectator banks, by the corners where the crowds are (Turn 1, the
   //      Esses, Turns 11-12, Turns 15-20), each laid out on its aisle
   const villages = [];
@@ -325,6 +323,9 @@ export function buildCotaLife(C) {
   // the screens over the villages' stages: one lit material
   const scrGeos = lightTowers.filter((l) => l.screen).map((l) => l.screen);
   if (scrGeos.length) group.add(new THREE.Mesh(mergeGeometries(scrGeos), new THREE.MeshStandardMaterial({ color: 0x0b1a2e, emissive: 0x2f6fd0, emissiveIntensity: 1.0, roughness: 0.3, side: THREE.DoubleSide })));
+
+  // ---- the backs of the banks (once the villages have their ground: the stalls keep clear of them)
+  const backs = buildBankBacks({ ...C, open, walkOff, nearPath, hitSolid, zoneAt, standing, walkers });
 
   // ---- the F1 Fan Zone round the Grand Plaza: the simulators under their canopy, merchandise and food round the edge
   //      of the paving, the walks across it busy
