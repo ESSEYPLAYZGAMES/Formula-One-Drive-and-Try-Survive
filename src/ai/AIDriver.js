@@ -289,16 +289,21 @@ export class AIDriver {
     const spinning = Math.abs(c.r) > 1.4 && v > 6;
     const tight = (zone && zone.maxCurv > 1 / 60) || this.nextCorner(40)?.maxCurv > 1 / 60;
     const look = Math.min(T.lookMax, Math.max(T.lookMin, T.lookK * v + T.lookBase));
-    const sA = c.s + look;
+    // (the road's edges are read at the aim point's own sample, not under the car: on a road that widens ahead - Austin's
+    //  Turn 1 opens out from 17 m to 38 m over 120 m, on its outside - the edge under the car is up to 10 m short of the
+    //  one at the aim point, and an aim point held to it kept the car inside a racing line swinging out to use the width.
+    //  It fell further behind every metre, the planner gave the line up for paths holding the car where it was, and it
+    //  reached the apex 20 m wide of it and ran off - at Turns 1, 11 and 12, every lap)
+    const sA = c.s + look, iA = tr.idxAtS(sA);
     let dT = P.at(B.d, sA); if (dT == null) dT = this.line.offsetAt(sA);
     // (a wall kiss: on the pinned wall's stretch only, the car runs out to a hand's width of it)
     const kiss = this.error?.type === 'scrape' && this.error.wall && tr.pinAt?.(c.s + 8, this.error.side) ? this.error.side : 0;
     if (kiss) dT = kiss * (tr.wallAt(c.trackIdx, kiss) - 0.95);
-    else if (this.error && this.error.type === 'scrape' && !this.error.wall && zone) dT = -zone.dir * (tr.edgeAt(c.trackIdx, -zone.dir) + 0.6);
+    else if (this.error && this.error.type === 'scrape' && !this.error.wall && zone) dT = -zone.dir * (tr.edgeAt(iA, -zone.dir) + 0.6);
     // (a feud, alongside you: it squeezes you - steers onto your line and leans on you; the stewards may have a view)
     if (this._feudD != null && this._me) { const me = this._me, ds = P.ds(c.s, me.s); if (ds > -8 && ds < 8) dT += (me.d - dT) * Math.min(1, 0.95 * (c.feud || 0)); }
     const sc2 = this.error?.type === 'scrape' && !this.error.wall ? 2 : 0;
-    const limL = kiss ? tr.wallAt(c.trackIdx, kiss) - 0.9 : tr.hwL[c.trackIdx] - 0.9 + sc2, limR = kiss ? tr.wallAt(c.trackIdx, kiss) - 0.9 : tr.hwR[c.trackIdx] - 0.9 + sc2;
+    const limL = kiss ? tr.wallAt(c.trackIdx, kiss) - 0.9 : tr.hwL[iA] - 0.9 + sc2, limR = kiss ? tr.wallAt(c.trackIdx, kiss) - 0.9 : tr.hwR[iA] - 0.9 + sc2;
     dT = Math.max(-limR, Math.min(limL, dT));
     const f = tr.sample(sA, dT, this._f || (this._f = {}));
     const dx = f.x - c.x, dz = f.z - c.z, cth = Math.cos(c.th), sth = Math.sin(c.th);

@@ -190,7 +190,8 @@ export class Planner {
       if (o === me || o.cleared || o.inPit || o.pitLane) continue;
       const g0 = this.ds(me.s, o.s);
       if (g0 < -40 || g0 > H + 80) continue;
-      if (Math.abs(o.d) > tr.hw[o.trackIdx ?? 0] + 25) continue;   // far off the road
+      const oi = o.trackIdx ?? 0, eL = tr.edgeAt(oi, 1), eR = tr.edgeAt(oi, -1);   // (the road's edge on each side: a corner widened on its outside only - Austin - is no wider on its inside)
+      if (o.d > eL + 25 || o.d < -eR - 25) continue;   // far off the road
       const R = this.others[k++]; if (k >= this.others.length) break;
       R.car = o; R.s0 = g0; R.ahead0 = g0 > 2.5;
       const L = tr.length;
@@ -215,13 +216,15 @@ export class Planner {
         else { const [wx, wz] = o.worldVel(), i = o.trackIdx; va = wx * tr.tx[i] + wz * tr.tz[i]; vd = wx * tr.nx[i] + wz * tr.nz[i]; }
         const acc = o.rigid || still || o.spinning ? -6 : Math.max(-45, Math.min(12, o.ax || 0));
         // (it keeps its distance from the racing line, but never leaves the road for it: a car on the edge stays there)
-        const e0 = o.d - this.line.offsetAt(o.s), follows = !o.rigid && !still && !o.spinning, edge = tr.hw[o.trackIdx ?? 0] + 0.3;
+        // (... held to the road's edges where it will be, each side's own - not the wider side's, and not where it is now: a car
+        //  following the line out onto a widened corner's outside goes out there)
+        const e0 = o.d - this.line.offsetAt(o.s), follows = !o.rigid && !still && !o.spinning, onRoad = o.d < eL + 0.3 && o.d > -eR - 0.3;
         let s = g0, v = va;
         for (let q = 0; q < PRED_N; q++) {
           const t = q * PRED_DT;
           R.s[q] = s; R.v[q] = v;
           let dq = follows ? this.line.offsetAt(me.s + s) + e0 + vd * Math.min(t, 0.5) : o.d + vd * Math.min(t, 1.0);
-          if (follows && Math.abs(o.d) < edge) dq = Math.max(-edge, Math.min(edge, dq));
+          if (follows && onRoad) { const qi = tr.idxAtS(me.s + s); dq = Math.max(-tr.edgeAt(qi, -1) - 0.3, Math.min(tr.edgeAt(qi, 1) + 0.3, dq)); }
           R.d[q] = dq;
           const a = t < 1.5 ? acc : 0; v = Math.max(0, v + a * PRED_DT); s += v * PRED_DT;
         }
