@@ -56,80 +56,120 @@ function chevrons(x, x0, y0, w, h, n, colors, dir = 1) {
     x.closePath(); x.fill();
   }
 }
-const text = (x, s, px, py, size, color, { weight = 900, italic = false, align = 'left', font = F, spacing = 0 } = {}) => {
-  x.fillStyle = color; x.font = `${italic ? 'italic ' : ''}${weight} ${size}px ${font}`; x.textAlign = align; x.textBaseline = 'middle';
-  if (spacing) { try { x.letterSpacing = `${spacing}px`; } catch (e) { /* older engines */ } }
-  x.fillText(s, px, py); if (spacing) { try { x.letterSpacing = '0px'; } catch (e) { /* noop */ } }
-};
+// Every word on a board is set into the free space it has there - between the star and the band, the chevrons, the
+// end of the board - never at a fixed size alone: a wordmark sized for one face ran under the emblems in another
+// ("UNITED STATES GRAND PRIX" lost its U under the blue band's star, "LAS VEGAS" its L and S under the chevrons, the
+// Golden Knights' motto ran through their name), since "Segoe UI", "Helvetica Neue", Arial and a Linux fallback
+// differ by a fifth in width and more at weight 900. The fit measures the INK (measureText's actual bounding box:
+// the italic overhang and the letter-spacing in it) and shrinks the size, tracking with it, until it clears.
+const M = PW * 0.02;   // the clear margin kept between a word and an emblem, a band or the board's end (24 px = 18 cm)
+/** set s at `size` (o: weight, italic, font, spacing as at the nominal o.size) and measure its ink: reach left / right of the pen, width, height */
+function ink(x, s, size, o) {
+  x.font = `${o.italic ? 'italic ' : ''}${o.weight ?? 900} ${size}px ${o.font || F}`; x.textAlign = 'left'; x.textBaseline = 'middle';
+  try { x.letterSpacing = `${(o.spacing || 0) * size / o.size}px`; } catch (e) { /* older engines: no tracking, and none measured either */ }
+  const m = x.measureText(s);
+  return { L: m.actualBoundingBoxLeft, R: m.actualBoundingBoxRight, A: m.actualBoundingBoxAscent, D: m.actualBoundingBoxDescent, w: m.actualBoundingBoxLeft + m.actualBoundingBoxRight, h: m.actualBoundingBoxAscent + m.actualBoundingBoxDescent };
+}
+/** the largest size, o.size at most, at which s fits `w` px wide (and o.h tall, given) */
+function fitSize(x, s, w, o) {
+  let size = o.size;
+  for (let k = 0; k < 12; k++) { const m = ink(x, s, size, o), f = Math.min(w / m.w, o.h ? o.h / m.h : 1); if (f >= 1) break; size *= Math.max(0.5, f * 0.995); }
+  return size;
+}
+/**
+ * s set in the box x0..x1 (less o.pad at each end) at o.size or smaller, placed by its ink - flush left, flush right
+ * or centred (o.align) - with py the middle of the line. o.fixed sets it at exactly that size (one size shared by
+ * several lines: fitSize). Returns where the ink lies, { l, r, t, b }, and the size used.
+ */
+function fit(x, s, x0, x1, py, color, o) {
+  const pad = o.pad ?? 0, size = o.fixed ?? fitSize(x, s, x1 - x0 - 2 * pad, o), m = ink(x, s, size, o);
+  const px = o.align === 'left' ? x0 + pad + m.L : o.align === 'right' ? x1 - pad - m.R : (x0 + x1) / 2 - (m.R - m.L) / 2;
+  x.fillStyle = color; x.fillText(s, px, py);
+  try { x.letterSpacing = '0px'; } catch (e) { /* noop */ }
+  return { l: px - m.L, r: px + m.R, t: py - m.A, b: py + m.D, size };
+}
+/** words side by side ([{ s, color, size, weight, ... }]) `gap` px apart: the line centred in x0..x1, scaled down together to fit it */
+function row(x, words, x0, x1, py, gap) {
+  let k = 1, ws = [];
+  for (let n = 0; n < 12; n++) {
+    ws = words.map((t) => ink(x, t.s, t.size * k, t).w); const tot = ws.reduce((a, b) => a + b, 0) + gap * k * (words.length - 1);
+    if (tot <= x1 - x0) break; k *= Math.max(0.5, (x1 - x0) / tot * 0.995);
+  }
+  let px = (x0 + x1) / 2 - (ws.reduce((a, b) => a + b, 0) + gap * k * (words.length - 1)) / 2;
+  words.forEach((t, i) => { fit(x, t.s, px, px + ws[i], py, t.color, { ...t, fixed: t.size * k, align: 'left' }); px += ws[i] + gap * k; });
+}
 
 /** The individual panel painters (each draws into a PW x PH region at 0,0). */
 const PANELS = [
   // 0 Heineken 0.0
   (x) => {
     x.fillStyle = '#0c7a3d'; x.fillRect(0, 0, PW * 0.62, PH); x.fillStyle = '#1e5bd6'; x.fillRect(PW * 0.62, 0, PW * 0.38, PH);
-    text(x, 'Heineken', PW * 0.05, PH * 0.5, PH * 0.64, '#ffffff', { weight: 800, italic: true });
-    star(x, PW * 0.545, PH * 0.5, PH * 0.3, '#e8232a');
-    text(x, '0.0', PW * 0.665, PH * 0.42, PH * 0.66, '#ffffff', { weight: 900 }); text(x, '%', PW * 0.84, PH * 0.4, PH * 0.34, '#ffffff', { weight: 700 });
-    text(x, 'ALCOHOL FREE', PW * 0.665, PH * 0.83, PH * 0.17, '#dbe6ff', { weight: 700, spacing: 3 });
+    const sx = PW * 0.545, sr = PH * 0.3; star(x, sx, PH * 0.5, sr, '#e8232a');
+    fit(x, 'Heineken', PW * 0.04, sx - sr - M, PH * 0.5, '#ffffff', { size: PH * 0.64, weight: 800, italic: true, align: 'left' });
+    const z = fit(x, '0.0', PW * 0.62 + M, PW * 0.86, PH * 0.42, '#ffffff', { size: PH * 0.66, align: 'left' });
+    fit(x, '%', z.r + PW * 0.012, PW - M, PH * 0.4, '#ffffff', { size: PH * 0.34, weight: 700, align: 'left' });
+    fit(x, 'ALCOHOL FREE', PW * 0.62 + M, PW - M, PH * 0.83, '#dbe6ff', { size: PH * 0.17, weight: 700, spacing: 3, align: 'left' });
   },
   // 1 Pirelli P ZERO
   (x) => {
     x.fillStyle = '#ffd500'; x.fillRect(0, 0, PW, PH);
-    x.fillStyle = '#111'; x.fillRect(PW * 0.04, PH * 0.18, PW * 0.3, PH * 0.64);
-    text(x, 'P ZERO', PW * 0.19, PH * 0.5, PH * 0.42, '#ffd500', { weight: 900, align: 'center' });
-    text(x, 'PIRELLI', PW * 0.4, PH * 0.5, PH * 0.66, '#111', { weight: 900, spacing: 6 });
-    x.fillStyle = '#111'; x.fillRect(PW * 0.83, PH * 0.3, PW * 0.13, PH * 0.4); text(x, 'F1', PW * 0.895, PH * 0.5, PH * 0.3, '#ffd500', { align: 'center', italic: true });
+    x.fillStyle = '#111'; x.fillRect(PW * 0.04, PH * 0.18, PW * 0.3, PH * 0.64); x.fillRect(PW * 0.83, PH * 0.3, PW * 0.13, PH * 0.4);
+    fit(x, 'P ZERO', PW * 0.04, PW * 0.34, PH * 0.5, '#ffd500', { size: PH * 0.42, pad: M });
+    fit(x, 'PIRELLI', PW * 0.34 + M, PW * 0.83 - M, PH * 0.5, '#111', { size: PH * 0.66, spacing: 6 });
+    fit(x, 'F1', PW * 0.83, PW * 0.96, PH * 0.5, '#ffd500', { size: PH * 0.3, italic: true, pad: M / 2 });
   },
-  // 2 Fabulous Las Vegas
+  // 2 Fabulous Las Vegas (the sparkles in the rows the words leave free above and below them)
   (x) => {
     x.fillStyle = '#4a1d8f'; x.fillRect(0, 0, PW, PH);
-    for (let i = 0; i < 9; i++) sparkle(x, PW * (0.03 + i * 0.118), PH * (i % 2 ? 0.2 : 0.8), PH * 0.09, i % 3 ? '#ff5ec4' : '#ffd23a');
-    text(x, 'FABULOUS LAS VEGAS', PW * 0.5, PH * 0.52, PH * 0.6, '#ffffff', { weight: 900, italic: true, align: 'center' });
+    const t = fit(x, 'FABULOUS LAS VEGAS', M, PW - M, PH * 0.52, '#ffffff', { size: PH * 0.6, italic: true, h: PH * 0.42 });
+    for (let i = 0; i < 9; i++) { const up = i % 2, room = up ? t.t : PH - t.b; sparkle(x, PW * (0.03 + i * 0.118), up ? room / 2 : PH - room / 2, Math.min(PH * 0.07, room / 2 - 10), i % 3 ? '#ff5ec4' : '#ffd23a'); }
   },
   // 3 LAS VEGAS chevrons
   (x) => {
     x.fillStyle = '#12142a'; x.fillRect(0, 0, PW, PH);
-    chevrons(x, PW * 0.02, PH * 0.18, PW * 0.24, PH * 0.64, 4, ['#ff5ec4', '#33e6ff', '#ffffff']);
-    chevrons(x, PW * 0.74, PH * 0.18, PW * 0.24, PH * 0.64, 4, ['#33e6ff', '#ff5ec4', '#ffffff']);
-    const g = x.createLinearGradient(PW * 0.3, 0, PW * 0.7, 0); g.addColorStop(0, '#ff5ec4'); g.addColorStop(1, '#33e6ff');
-    text(x, 'LAS VEGAS', PW * 0.5, PH * 0.52, PH * 0.62, g, { weight: 900, align: 'center', spacing: 8 });
+    chevrons(x, PW * 0.02, PH * 0.18, PW * 0.2, PH * 0.64, 4, ['#ff5ec4', '#33e6ff', '#ffffff']);
+    chevrons(x, PW * 0.78, PH * 0.18, PW * 0.2, PH * 0.64, 4, ['#33e6ff', '#ff5ec4', '#ffffff']);
+    const g = x.createLinearGradient(PW * 0.24, 0, PW * 0.76, 0); g.addColorStop(0, '#ff5ec4'); g.addColorStop(1, '#33e6ff');
+    fit(x, 'LAS VEGAS', PW * 0.22 + M, PW * 0.78 - M, PH * 0.52, g, { size: PH * 0.62, spacing: 8 });
   },
-  // 4 Vegas Golden Knights
+  // 4 Vegas Golden Knights (the motto in two lines at the right end, clear of the name)
   (x) => {
     x.fillStyle = '#111114'; x.fillRect(0, 0, PW, PH); x.fillStyle = '#b4975a'; x.fillRect(0, PH * 0.9, PW, PH * 0.1);
     x.strokeStyle = '#b4975a'; x.lineWidth = 6; x.beginPath(); x.moveTo(PW * 0.08, PH * 0.15); x.lineTo(PW * 0.2, PH * 0.15); x.lineTo(PW * 0.2, PH * 0.55); x.lineTo(PW * 0.14, PH * 0.8); x.lineTo(PW * 0.08, PH * 0.55); x.closePath(); x.stroke();
-    text(x, 'VEGAS', PW * 0.25, PH * 0.32, PH * 0.3, '#b4975a', { weight: 900, spacing: 6 });
-    text(x, 'GOLDEN KNIGHTS', PW * 0.25, PH * 0.66, PH * 0.34, '#ffffff', { weight: 900, spacing: 4 });
-    text(x, 'THE GREATEST SHOW ON EARTH', PW * 0.97, PH * 0.5, PH * 0.16, '#8d8d94', { weight: 700, align: 'right', spacing: 3 });
+    const mx = PW * 0.7, mo = { size: PH * 0.2, weight: 700, spacing: 3 }, ms = Math.min(fitSize(x, 'THE GREATEST', PW - M - mx, mo), fitSize(x, 'SHOW ON EARTH', PW - M - mx, mo));
+    fit(x, 'THE GREATEST', mx, PW - M, PH * 0.34, '#8d8d94', { ...mo, fixed: ms, align: 'right' }); fit(x, 'SHOW ON EARTH', mx, PW - M, PH * 0.62, '#8d8d94', { ...mo, fixed: ms, align: 'right' });
+    fit(x, 'VEGAS', PW * 0.25, mx - 2 * M, PH * 0.32, '#b4975a', { size: PH * 0.3, spacing: 6, align: 'left' });
+    fit(x, 'GOLDEN KNIGHTS', PW * 0.25, mx - 2 * M, PH * 0.66, '#ffffff', { size: PH * 0.34, spacing: 4, align: 'left' });
   },
   // 5 aramco
   (x) => {
     const g = x.createLinearGradient(0, 0, PW, 0); g.addColorStop(0, '#00a19b'); g.addColorStop(1, '#0d5bb5'); x.fillStyle = g; x.fillRect(0, 0, PW, PH);
-    text(x, 'aramco', PW * 0.5, PH * 0.5, PH * 0.66, '#ffffff', { weight: 700, align: 'center', spacing: 2 });
+    fit(x, 'aramco', PW * 0.27 + M, PW * 0.73 - M, PH * 0.5, '#ffffff', { size: PH * 0.66, weight: 700, spacing: 2 });
     x.fillStyle = '#ffffff'; x.fillRect(PW * 0.13, PH * 0.4, PW * 0.14, 4); x.fillRect(PW * 0.73, PH * 0.4, PW * 0.14, 4);
   },
   // 6 Heineken Silver
   (x) => {
     x.fillStyle = '#1d8a8a'; x.fillRect(0, 0, PW, PH);
-    star(x, PW * 0.09, PH * 0.5, PH * 0.32, '#e8232a');
-    text(x, 'Heineken', PW * 0.17, PH * 0.5, PH * 0.62, '#ffffff', { weight: 800, italic: true });
-    text(x, 'SILVER', PW * 0.66, PH * 0.5, PH * 0.44, '#d7f2f0', { weight: 300, spacing: 10 });
+    const sx = PW * 0.09, sr = PH * 0.32; star(x, sx, PH * 0.5, sr, '#e8232a');
+    fit(x, 'Heineken', sx + sr + M, PW * 0.64 - M, PH * 0.5, '#ffffff', { size: PH * 0.62, weight: 800, italic: true, align: 'left' });
+    fit(x, 'SILVER', PW * 0.64, PW - M, PH * 0.5, '#d7f2f0', { size: PH * 0.44, weight: 300, spacing: 10, align: 'left' });
   },
-  // 7 "When you drive never drink"
+  // 7 "When you drive never drink": the line between its two stars
   (x) => {
     x.fillStyle = '#0c7a3d'; x.fillRect(0, 0, PW, PH);
-    star(x, PW * 0.05, PH * 0.5, PH * 0.26, '#e8232a');
-    text(x, 'WHEN YOU DRIVE NEVER DRINK', PW * 0.1, PH * 0.5, PH * 0.42, '#ffffff', { weight: 900, spacing: 2 });
-    star(x, PW * 0.95, PH * 0.5, PH * 0.26, '#e8232a');
+    const sr = PH * 0.26; star(x, PW * 0.05, PH * 0.5, sr, '#e8232a'); star(x, PW * 0.95, PH * 0.5, sr, '#e8232a');
+    fit(x, 'WHEN YOU DRIVE NEVER DRINK', PW * 0.05 + sr + M, PW * 0.95 - sr - M, PH * 0.5, '#ffffff', { size: PH * 0.42, spacing: 2 });
   },
 ];
 /** 8 T-Mobile (the T-Mobile Zone at Sphere: every barrier around the T5-T9 loop) */
 PANELS.push((x) => {
   x.fillStyle = '#e20074'; x.fillRect(0, 0, PW, PH);
-  text(x, 'T', PW * 0.045, PH * 0.5, PH * 0.7, '#ffffff', { weight: 900 });
-  x.fillStyle = '#ffffff'; x.fillRect(PW * 0.115, PH * 0.44, 12, 12); x.fillRect(PW * 0.135, PH * 0.44, 12, 12);
-  text(x, 'Mobile', PW * 0.155, PH * 0.5, PH * 0.6, '#ffffff', { weight: 700 });
-  text(x, 'T-MOBILE ZONE AT SPHERE', PW * 0.62, PH * 0.5, PH * 0.3, '#ffd6ec', { weight: 800, spacing: 4 });
+  const t = fit(x, 'T', PW * 0.035, PW * 0.11, PH * 0.5, '#ffffff', { size: PH * 0.7, align: 'left' });
+  x.fillStyle = '#ffffff'; x.fillRect(t.r + 14, PH * 0.44, 12, 12); x.fillRect(t.r + 38, PH * 0.44, 12, 12);
+  const m = fit(x, 'Mobile', t.r + 64, PW * 0.45, PH * 0.5, '#ffffff', { size: PH * 0.6, weight: 700, align: 'left' });
+  // the zone's name in two lines between the wordmark and the light strip at the board's end
+  const x0 = m.r + 2 * M, x1 = PW * 0.985 - M, zo = { size: PH * 0.27, weight: 800, spacing: 4 }, zs = Math.min(fitSize(x, 'T-MOBILE ZONE', x1 - x0, zo), fitSize(x, 'AT SPHERE', x1 - x0, zo));
+  fit(x, 'T-MOBILE ZONE', x0, x1, PH * 0.33, '#ffd6ec', { ...zo, fixed: zs }); fit(x, 'AT SPHERE', x0, x1, PH * 0.69, '#ffd6ec', { ...zo, fixed: zs });
   x.fillStyle = 'rgba(255,255,255,0.25)'; x.fillRect(PW * 0.985, 0, PW * 0.015, PH);
 });
 export const TMOBILE_PANEL = 8;
@@ -138,17 +178,16 @@ PANELS.push((x) => {
   x.fillStyle = '#0b1f4d'; x.fillRect(0, 0, PW, PH);
   x.fillStyle = '#c8102e'; x.fillRect(0, 0, PW * 0.03, PH); x.fillRect(PW * 0.97, 0, PW * 0.03, PH);
   x.fillStyle = '#ffffff'; x.fillRect(PW * 0.03, 0, PW * 0.012, PH); x.fillRect(PW * 0.958, 0, PW * 0.012, PH);
-  text(x, 'SILVERSTONE', PW * 0.5, PH * 0.52, PH * 0.62, '#ffffff', { weight: 900, align: 'center', spacing: 12 });
+  fit(x, 'SILVERSTONE', PW * 0.042 + M, PW * 0.958 - M, PH * 0.52, '#ffffff', { size: PH * 0.62, spacing: 12 });
 });
 PANELS.push((x) => {
   x.fillStyle = '#f4f5f7'; x.fillRect(0, 0, PW, PH);
   x.fillStyle = '#c8102e'; x.fillRect(0, PH * 0.84, PW, PH * 0.16); x.fillStyle = '#0b1f4d'; x.fillRect(0, 0, PW, PH * 0.16);
-  text(x, 'BRITISH GRAND PRIX', PW * 0.5, PH * 0.5, PH * 0.46, '#0b1f4d', { weight: 900, align: 'center', italic: true, spacing: 4 });
+  fit(x, 'BRITISH GRAND PRIX', M, PW - M, PH * 0.5, '#0b1f4d', { size: PH * 0.46, italic: true, spacing: 4, h: PH * 0.56 });
 });
 PANELS.push((x) => {
   x.fillStyle = '#5c0632'; x.fillRect(0, 0, PW, PH);
-  text(x, 'QATAR', PW * 0.2, PH * 0.5, PH * 0.56, '#ffffff', { weight: 800, spacing: 8 });
-  text(x, 'AIRWAYS', PW * 0.53, PH * 0.5, PH * 0.56, '#d9c9d2', { weight: 300, spacing: 8 });
+  row(x, [{ s: 'QATAR', color: '#ffffff', size: PH * 0.56, weight: 800, spacing: 8 }, { s: 'AIRWAYS', color: '#d9c9d2', size: PH * 0.56, weight: 300, spacing: 8 }], PW * 0.1, PW * 0.9, PH * 0.5, PW * 0.035);
 });
 // 12 Rolex, 13 Grand Prix du Canada, 14 AWS, 15 MONTRÉAL, 16 the Wall of Champions' yellow, 17 Lenovo, 18 Tourisme
 // Québec, 19 Crypto.com: the Montreal set (the walls of Ile Notre-Dame as the TV pictures show them)
@@ -169,42 +208,43 @@ function maple(x, cx, cy, r, color) {
 }
 PANELS.push((x) => {   // 12 Rolex: the green board with the gold crown
   x.fillStyle = '#006039'; x.fillRect(0, 0, PW, PH);
-  crown(x, PW * 0.2, PH * 0.42, PH * 0.5, '#a37e2c'); text(x, 'ROLEX', PW * 0.2, PH * 0.8, PH * 0.22, '#a37e2c', { weight: 700, align: 'center', spacing: 4 });
-  crown(x, PW * 0.7, PH * 0.42, PH * 0.5, '#a37e2c'); text(x, 'ROLEX', PW * 0.7, PH * 0.8, PH * 0.22, '#a37e2c', { weight: 700, align: 'center', spacing: 4 });
+  for (const cx of [PW * 0.2, PW * 0.7]) { crown(x, cx, PH * 0.42, PH * 0.5, '#a37e2c'); fit(x, 'ROLEX', cx - PW * 0.12, cx + PW * 0.12, PH * 0.8, '#a37e2c', { size: PH * 0.22, weight: 700, spacing: 4 }); }
 });
-PANELS.push((x) => {   // 13 Grand Prix du Canada
-  x.fillStyle = '#ffffff'; x.fillRect(0, 0, PW, PH); x.fillStyle = '#d52b1e'; x.fillRect(0, 0, PW * 0.16, PH); x.fillRect(PW * 0.84, 0, PW * 0.16, PH);
-  maple(x, PW * 0.08, PH * 0.48, PH * 0.34, '#ffffff'); maple(x, PW * 0.92, PH * 0.48, PH * 0.34, '#ffffff');
-  text(x, 'GRAND PRIX DU CANADA', PW * 0.5, PH * 0.52, PH * 0.4, '#d52b1e', { weight: 900, align: 'center', spacing: 3 });
+PANELS.push((x) => {   // 13 Grand Prix du Canada: the flag's red bands at the ends, the name between them
+  const bw = PW * 0.13;
+  x.fillStyle = '#ffffff'; x.fillRect(0, 0, PW, PH); x.fillStyle = '#d52b1e'; x.fillRect(0, 0, bw, PH); x.fillRect(PW - bw, 0, bw, PH);
+  maple(x, bw / 2, PH * 0.48, PH * 0.34, '#ffffff'); maple(x, PW - bw / 2, PH * 0.48, PH * 0.34, '#ffffff');
+  fit(x, 'GRAND PRIX DU CANADA', bw + M, PW - bw - M, PH * 0.52, '#d52b1e', { size: PH * 0.4, spacing: 3 });
 });
 PANELS.push((x) => {   // 14 AWS: navy, the white letters and the orange smile
   x.fillStyle = '#232f3e'; x.fillRect(0, 0, PW, PH);
   for (const cx of [PW * 0.25, PW * 0.75]) {
-    text(x, 'aws', cx, PH * 0.42, PH * 0.6, '#ffffff', { weight: 800, align: 'center' });
+    fit(x, 'aws', cx - PW * 0.18, cx + PW * 0.18, PH * 0.42, '#ffffff', { size: PH * 0.6, weight: 800 });
     x.strokeStyle = '#ff9900'; x.lineWidth = PH * 0.07; x.lineCap = 'round'; x.beginPath(); x.moveTo(cx - PH * 0.42, PH * 0.74); x.quadraticCurveTo(cx, PH * 0.94, cx + PH * 0.4, PH * 0.72); x.stroke();
   }
 });
 PANELS.push((x) => {   // 15 MONTRÉAL
   x.fillStyle = '#0b2a6b'; x.fillRect(0, 0, PW, PH); x.fillStyle = '#d52b1e'; x.fillRect(0, PH * 0.86, PW, PH * 0.14);
-  text(x, 'MONTRÉAL', PW * 0.5, PH * 0.46, PH * 0.6, '#ffffff', { weight: 900, align: 'center', spacing: 16 });
+  fit(x, 'MONTRÉAL', M, PW - M, PH * 0.46, '#ffffff', { size: PH * 0.6, spacing: 16, h: PH * 0.66 });
 });
 PANELS.push((x) => {   // 16 the Wall of Champions: the yellow concrete of the last chicane's exit and its welcome
   x.fillStyle = '#f2c230'; x.fillRect(0, 0, PW, PH); x.fillStyle = 'rgba(120,80,0,0.18)'; for (let i = 0; i < 40; i++) x.fillRect(Math.random() * PW, Math.random() * PH, 3 + Math.random() * 30, 2);
   x.fillStyle = 'rgba(30,30,30,0.35)'; for (let i = 0; i < 6; i++) x.fillRect(Math.random() * PW, PH * (0.55 + Math.random() * 0.35), 40 + Math.random() * 160, 3);   // tyre marks: everyone kisses it
-  text(x, 'BIENVENUE AU QUÉBEC', PW * 0.5, PH * 0.5, PH * 0.42, '#1b3f94', { weight: 900, align: 'center', spacing: 6 });
+  fit(x, 'BIENVENUE AU QUÉBEC', M, PW - M, PH * 0.5, '#1b3f94', { size: PH * 0.42, spacing: 6 });
 });
 PANELS.push((x) => {   // 17 Lenovo
   x.fillStyle = '#e2231a'; x.fillRect(0, 0, PW, PH);
-  text(x, 'Lenovo', PW * 0.5, PH * 0.52, PH * 0.6, '#ffffff', { weight: 700, align: 'center', spacing: 2 });
+  fit(x, 'Lenovo', M, PW - M, PH * 0.52, '#ffffff', { size: PH * 0.6, weight: 700, spacing: 2 });
 });
-PANELS.push((x) => {   // 18 Québec
+PANELS.push((x) => {   // 18 Québec: the flag's cross in a square, the greeting beside it
   x.fillStyle = '#095797'; x.fillRect(0, 0, PW, PH);
-  x.strokeStyle = '#ffffff'; x.lineWidth = 6; x.strokeRect(PW * 0.03, PH * 0.2, PH * 0.6, PH * 0.6); x.beginPath(); x.moveTo(PW * 0.03 + PH * 0.3, PH * 0.2); x.lineTo(PW * 0.03 + PH * 0.3, PH * 0.8); x.moveTo(PW * 0.03, PH * 0.5); x.lineTo(PW * 0.03 + PH * 0.6, PH * 0.5); x.stroke();
-  text(x, 'BONJOUR QUÉBEC', PW * 0.55, PH * 0.52, PH * 0.44, '#ffffff', { weight: 800, align: 'center', spacing: 6 });
+  const fx = PW * 0.03, fs = PH * 0.6;
+  x.strokeStyle = '#ffffff'; x.lineWidth = 6; x.strokeRect(fx, PH * 0.2, fs, fs); x.beginPath(); x.moveTo(fx + fs / 2, PH * 0.2); x.lineTo(fx + fs / 2, PH * 0.8); x.moveTo(fx, PH * 0.5); x.lineTo(fx + fs, PH * 0.5); x.stroke();
+  fit(x, 'BONJOUR QUÉBEC', fx + fs + 3 + M, PW - M, PH * 0.52, '#ffffff', { size: PH * 0.44, weight: 800, spacing: 6 });
 });
 PANELS.push((x) => {   // 19 Crypto.com
   x.fillStyle = '#0d1b33'; x.fillRect(0, 0, PW, PH);
-  text(x, 'crypto.com', PW * 0.5, PH * 0.52, PH * 0.54, '#ffffff', { weight: 700, align: 'center', spacing: 2 });
+  fit(x, 'crypto.com', M, PW - M, PH * 0.52, '#ffffff', { size: PH * 0.54, weight: 700, spacing: 2 });
 });
 export const WOC_PANEL = 16;
 PANELS.push((x) => {   // 20 TecPro: red and white blocks, a seam between each, the logo plate on the white ones
@@ -212,30 +252,34 @@ PANELS.push((x) => {   // 20 TecPro: red and white blocks, a seam between each, 
   for (let k = 0; k < n; k++) {
     x.fillStyle = k % 2 ? '#f2f2f0' : '#d61f26'; x.fillRect(k * w, 0, w, PH);
     x.fillStyle = 'rgba(0,0,0,0.25)'; x.fillRect(k * w, 0, 4, PH); x.fillStyle = 'rgba(255,255,255,0.18)'; x.fillRect(k * w + 4, 0, w - 8, PH * 0.12);
-    if (k % 2) text(x, 'TECPRO', k * w + w / 2, PH * 0.55, PH * 0.22, '#9a9a9a', { weight: 800, align: 'center' });
+    if (k % 2) fit(x, 'TECPRO', k * w + 4, (k + 1) * w, PH * 0.55, '#9a9a9a', { size: PH * 0.22, weight: 800, pad: w * 0.1 });
   }
 });
 export const TECPRO_PANEL = 20;
 // ---- Austin (the Circuit of the Americas)
-PANELS.push((x) => {   // 21 Archer: black board, the white wordmark and the aircraft's silhouette
+PANELS.push((x) => {   // 21 Archer: black board, the aircraft's silhouette and the white wordmark beside it, twice
   x.fillStyle = '#0a0a0b'; x.fillRect(0, 0, PW, PH);
-  for (const cx of [PW * 0.27, PW * 0.77]) {
-    text(x, 'ARCHER', cx, PH * 0.53, PH * 0.5, '#ffffff', { weight: 800, align: 'center', spacing: 10 });
-    x.fillStyle = '#ffffff'; x.beginPath(); x.moveTo(cx - PH * 1.25, PH * 0.5); x.lineTo(cx - PH * 0.95, PH * 0.38); x.lineTo(cx - PH * 0.9, PH * 0.5); x.lineTo(cx - PH * 0.95, PH * 0.62); x.closePath(); x.fill();
+  const pw = PH * 0.35, gap = M * 1.2, o = { size: PH * 0.5, weight: 800, spacing: 10 };
+  for (const [h0, h1] of [[0, PW / 2], [PW / 2, PW]]) {
+    // (the aircraft, a gap and the word as one group, centred in its half of the board)
+    const size = fitSize(x, 'ARCHER', h1 - h0 - 2 * M - pw - gap, o), w = ink(x, 'ARCHER', size, o).w, a = (h0 + h1) / 2 - (pw + gap + w) / 2;
+    x.fillStyle = '#ffffff'; x.beginPath(); x.moveTo(a, PH * 0.5); x.lineTo(a + PH * 0.3, PH * 0.38); x.lineTo(a + pw, PH * 0.5); x.lineTo(a + PH * 0.3, PH * 0.62); x.closePath(); x.fill();
+    fit(x, 'ARCHER', a + pw + gap, a + pw + gap + w, PH * 0.53, '#ffffff', { ...o, fixed: size, align: 'left' });
   }
 });
-PANELS.push((x) => {   // 22 United States Grand Prix: white, the red and blue bands and the star
-  x.fillStyle = '#ffffff'; x.fillRect(0, 0, PW, PH); x.fillStyle = '#0a3161'; x.fillRect(0, 0, PW * 0.14, PH); x.fillStyle = '#b31942'; x.fillRect(PW * 0.86, 0, PW * 0.14, PH);
-  star(x, PW * 0.07, PH * 0.5, PH * 0.3, '#ffffff'); star(x, PW * 0.93, PH * 0.5, PH * 0.3, '#ffffff');
-  text(x, 'UNITED STATES GRAND PRIX', PW * 0.5, PH * 0.53, PH * 0.38, '#0a3161', { weight: 900, align: 'center', spacing: 3 });
+PANELS.push((x) => {   // 22 United States Grand Prix: white, the blue and red bands with a star each, the name between them
+  const bw = PW * 0.11;
+  x.fillStyle = '#ffffff'; x.fillRect(0, 0, PW, PH); x.fillStyle = '#0a3161'; x.fillRect(0, 0, bw, PH); x.fillStyle = '#b31942'; x.fillRect(PW - bw, 0, bw, PH);
+  star(x, bw / 2, PH * 0.5, PH * 0.3, '#ffffff'); star(x, PW - bw / 2, PH * 0.5, PH * 0.3, '#ffffff');
+  fit(x, 'UNITED STATES GRAND PRIX', bw + M, PW - bw - M, PH * 0.53, '#0a3161', { size: PH * 0.38, spacing: 3 });
 });
 PANELS.push((x) => {   // 23 AUSTIN · TEXAS
   x.fillStyle = '#0a3161'; x.fillRect(0, 0, PW, PH); x.fillStyle = '#b31942'; x.fillRect(0, PH * 0.84, PW, PH * 0.16);
-  text(x, 'AUSTIN · TEXAS', PW * 0.5, PH * 0.45, PH * 0.52, '#ffffff', { weight: 900, align: 'center', spacing: 12 });
+  fit(x, 'AUSTIN · TEXAS', M, PW - M, PH * 0.45, '#ffffff', { size: PH * 0.52, spacing: 12 });
 });
 PANELS.push((x) => {   // 24 MSC: navy, gold letters
   x.fillStyle = '#04174a'; x.fillRect(0, 0, PW, PH);
-  for (const cx of [PW * 0.25, PW * 0.75]) text(x, 'MSC', cx, PH * 0.53, PH * 0.62, '#d6b46a', { weight: 900, align: 'center', spacing: 8 });
+  for (const cx of [PW * 0.25, PW * 0.75]) fit(x, 'MSC', cx - PW * 0.2, cx + PW * 0.2, PH * 0.53, '#d6b46a', { size: PH * 0.62, spacing: 8 });
 });
 PANELS.push((x) => {   // 25 the red, white and blue stripes (the run-offs' colours on the tyre walls)
   const n = 9, w = PW / n; for (let k = 0; k < n; k++) { x.fillStyle = ['#b31942', '#ffffff', '#0a3161'][k % 3]; x.fillRect(k * w, 0, w + 1, PH); }
