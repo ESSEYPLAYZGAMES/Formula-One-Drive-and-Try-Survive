@@ -1,7 +1,13 @@
 // The Circuit of the Americas on a race weekend, alive: what world/Austin.js lays out (the circuit's buildings, the
 // stands, the crowds on the hillsides, the car parks), set moving and joined up.
 //   * trackside (buildTrackside, before the crowds): the marshal posts behind the barriers every few hundred metres,
-//     their marshals in orange and the light panels on the barrier; the TV camera platforms on the outside of the corners;
+//     their marshals in orange and the light panels on the barrier; the TV camera platforms on the outside of the corners
+//     and the taller towers down the straights;
+//   * the backs of the banks (buildBankBacks): along the top of every general-admission hill, behind its last row, the
+//     concession stands, food trailers, bars, merchandise trucks and toilet blocks with their queues, the light towers,
+//     PA speakers and flagpoles between them, a big screen wherever none is in sight, and here and there a two-storey
+//     hospitality suite across the walkway - the skyline over the crowd, seen from the car;
+//   * nobody anywhere on open ground by the road (unguardedGround: within 45 m of its edge where no barrier stands);
 //   * the walkways (the outer perimeter walkway behind the spectator banks all round the lap, and the links from it to
 //     the gates and the bridges), and people walking along them - thousands, each on its own stretch at its own pace
 //     (FanCutouts walkerMaterial: all of it moving in the vertex shader);
@@ -43,11 +49,32 @@ function strip(poly, w, y, period) {
 }
 
 /**
+ * Where nobody may stand or walk: within `reach` m of the road's edge on a side of it with no barrier in front (track.barL
+ * / barR 0 - the openings the barrier lines leave: a hairpin's infield tip, a narrow infield, the inside of the run to
+ * Turn 1 - and on the pit side where the lane branches off or rejoins, pit.wallD NaN: no wall is drawn there either).
+ * Every sample of the lap marks its own swathe, so a spot near two parts of the lap is judged by both. Read from the
+ * track as it stands when the scenery is built - it follows the barriers wherever they move. One coarse raster (3 m
+ * cells, dilated a cell to close the gaps on the outside of a bend) -> (x, z) => true on open ground
+ */
+export function unguardedGround(tr, pit = null, reach = 45) {
+  const CS = 3, open = new Set(), key = (a, b) => a * 100003 + b;
+  for (let i = 0; i < tr.n; i++) for (const side of [1, -1]) {
+    if ((side > 0 ? tr.barL[i] : tr.barR[i]) && !(pit?.wallD && side === pit.sideSign && isNaN(pit.wallD[i]))) continue;
+    const e = tr.edgeAt(i, side);
+    for (let d = e; d <= e + reach; d += 2) {
+      const a = Math.floor((tr.px[i] + tr.nx[i] * side * d) / CS), b = Math.floor((tr.pz[i] + tr.nz[i] * side * d) / CS);
+      for (let p = -1; p <= 1; p++) for (let q = -1; q <= 1; q++) open.add(key(a + p, b + q));
+    }
+  }
+  return (x, z) => open.has(key(Math.floor(x / CS), Math.floor(z / CS)));
+}
+
+/**
  * Trackside, before the crowds are placed (they keep clear of it: C.solid): the marshal posts, the light panels, the
- * camera platforms. C: { tr, pit, group, solid, rnd, fanMat }
+ * camera platforms. C: { tr, pit, group, solid, rnd, fanMat, open: unguardedGround }
  */
 export function buildTrackside(C) {
-  const { tr, pit, group, solid, rnd } = C, n = tr.n, kw = tr.kerbWidth;
+  const { tr, pit, group, solid, rnd } = C, n = tr.n, kw = tr.kerbWidth, open = C.open || (() => false);
   const inR = (s, a, b) => (a <= b ? s >= a && s <= b : s >= a || s <= b), pr = pit ? [tr.wrapS(pit.entryS - 60), tr.wrapS(pit.exitS + 40)] : null;
   const parts = [], marshals = [], boards = [], panels = [];
   const posts = [];
@@ -74,28 +101,42 @@ export function buildTrackside(C) {
     const [lx, lz] = out(w + 0.5); parts.push(boxAt(0.12, 2.2, 0.12, 0, 1.1, 0, ang, lx, lz, 0x30343a), boxAt(0.18, 0.75, 1.1, 0, 2.45, 0, ang, lx, lz, 0x111214)); panels.push([lx, lz, ang, p.side, f]);
     // the marshals: two or three in orange, behind the barrier, facing the track
     const m = 2 + ((rnd() * 2) | 0);
-    for (let j = 0; j < m; j++) { const [mx, mz] = out(w + 1.4 + rnd() * 1.2); const a = Math.atan2(-f.nx * p.side, -f.nz * p.side); marshals.push([mx + f.tx * (j - 1) * 1.1, 0, mz + f.tz * (j - 1) * 1.1, a + (rnd() - 0.5) * 0.4, [0, 1, 4, 6][(rnd() * 4) | 0]]); }
+    for (let j = 0; j < m; j++) { const [mx, mz] = out(w + 1.4 + rnd() * 1.2), x = mx + f.tx * (j - 1) * 1.1, z = mz + f.tz * (j - 1) * 1.1; if (open(x, z)) continue; const a = Math.atan2(-f.nx * p.side, -f.nz * p.side); marshals.push([x, 0, z, a + (rnd() - 0.5) * 0.4, [0, 1, 4, 6][(rnd() * 4) | 0]]); }
     solid.push([hx, hz, 4]);
   }
   // the TV camera platforms: a scaffold tower on the outside of every corner, the camera on its head and the operator
   // under an umbrella
-  const ops = [];
+  const ops = [], camS = [];
+  // (one: the scaffold's legs and its braces every 1.7 m, the deck at `top`, the rail round it, the camera on its head,
+  //  the umbrella over the operator)
+  const platform = (s, i, side, top) => {
+    const f = tr.sample(s, 0), w = tr.wallAt(i, side), x = f.x + f.nx * side * (w + 7), zz = f.z + f.nz * side * (w + 7);
+    if (!(side > 0 ? tr.barL[i] : tr.barR[i]) || open(x, zz)) return false;   // (its operator behind a barrier, like everyone)
+    if (corridorSigned(tr, pit, x, zz, 2) < 0 || solid.some(([sx, sz, r]) => (sx - x) ** 2 + (sz - zz) ** 2 < r * r)) return false;
+    const ang = Math.atan2(f.tx, f.tz), face = Math.atan2(-f.nx * side, -f.nz * side);
+    for (const [a, b] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) parts.push(boxAt(0.1, top, 0.1, a * 1.1, top / 2, b * 1.1, ang, x, zz, 0x9aa0a6));
+    for (let y = 1.7; y < top - 0.5; y += 1.7) for (const a of [-1, 1]) { parts.push(boxAt(2.3, 0.07, 0.07, 0, y, a * 1.1, ang, x, zz, 0x9aa0a6), boxAt(0.07, 0.07, 2.3, a * 1.1, y, 0, ang, x, zz, 0x9aa0a6)); }
+    parts.push(boxAt(2.6, 0.12, 2.6, 0, top, 0, ang, x, zz, 0x6b6f75));
+    for (const a of [-1, 1]) parts.push(boxAt(2.6, 0.06, 0.06, 0, top + 1, a * 1.3, ang, x, zz, 0xd8d8d0), boxAt(0.06, 0.06, 2.6, a * 1.3, top + 1, 0, ang, x, zz, 0xd8d8d0));
+    const cx = x - f.nx * side * 0.6, cz = zz - f.nz * side * 0.6;
+    parts.push(vc(new THREE.BoxGeometry(0.35, 0.4, 0.6).rotateY(face).translate(cx, top + 0.8, cz), 0x1a1b1e), vc(new THREE.CylinderGeometry(0.11, 0.11, 0.9, 8).rotateX(Math.PI / 2).rotateY(face).translate(cx - f.nx * side * 0.6, top + 0.85, cz - f.nz * side * 0.6), 0xe8e8e2));
+    parts.push(vc(new THREE.CylinderGeometry(0.03, 0.03, 2.3, 4).translate(x, top + 1.1, zz), 0x444444), vc(new THREE.ConeGeometry(1.25, 0.45, 8, 1, true).translate(x, top + 2.25, zz), [0xf2f2f0, 0x1e3a8a, 0xd21f2f][(rnd() * 3) | 0]));
+    ops.push([x + f.nx * side * 0.4, top + 0.06, zz + f.nz * side * 0.4, face, 0]);
+    solid.push([x, zz, 3]); camS.push(s); return true;
+  };
   for (const z of tr.cornerZones) {
     if (!z.dir) continue;
     const side = -z.dir, i = Math.round(z.a + ((z.b - z.a + n) % n) * 0.35) % n, s = tr.s[i];
     if (pr && side === pit.sideSign && inR(s, ...pr)) continue;
-    const f = tr.sample(s, 0), w = tr.wallAt(i, side), x = f.x + f.nx * side * (w + 7), zz = f.z + f.nz * side * (w + 7);
-    if (corridorSigned(tr, pit, x, zz, 2) < 0 || solid.some(([sx, sz, r]) => (sx - x) ** 2 + (sz - zz) ** 2 < r * r)) continue;
-    const ang = Math.atan2(f.tx, f.tz), face = Math.atan2(-f.nx * side, -f.nz * side);
-    for (const [a, b] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) parts.push(boxAt(0.1, 5.2, 0.1, a * 1.1, 2.6, b * 1.1, ang, x, zz, 0x9aa0a6));
-    for (const y of [1.7, 3.4]) for (const a of [-1, 1]) { parts.push(boxAt(2.3, 0.07, 0.07, 0, y, a * 1.1, ang, x, zz, 0x9aa0a6), boxAt(0.07, 0.07, 2.3, a * 1.1, y, 0, ang, x, zz, 0x9aa0a6)); }
-    parts.push(boxAt(2.6, 0.12, 2.6, 0, 5.2, 0, ang, x, zz, 0x6b6f75));
-    for (const a of [-1, 1]) parts.push(boxAt(2.6, 0.06, 0.06, 0, 6.2, a * 1.3, ang, x, zz, 0xd8d8d0), boxAt(0.06, 0.06, 2.6, a * 1.3, 6.2, 0, ang, x, zz, 0xd8d8d0));
-    const cx = x - f.nx * side * 0.6, cz = zz - f.nz * side * 0.6;
-    parts.push(vc(new THREE.BoxGeometry(0.35, 0.4, 0.6).rotateY(face).translate(cx, 6.0, cz), 0x1a1b1e), vc(new THREE.CylinderGeometry(0.11, 0.11, 0.9, 8).rotateX(Math.PI / 2).rotateY(face).translate(cx - f.nx * side * 0.6, 6.05, cz - f.nz * side * 0.6), 0xe8e8e2));
-    parts.push(vc(new THREE.CylinderGeometry(0.03, 0.03, 2.3, 4).translate(x, 6.3, zz), 0x444444), vc(new THREE.ConeGeometry(1.25, 0.45, 8, 1, true).translate(x, 7.45, zz), [0xf2f2f0, 0x1e3a8a, 0xd21f2f][(rnd() * 3) | 0]));
-    ops.push([x + f.nx * side * 0.4, 5.26, zz + f.nz * side * 0.4, face, 0]);
-    solid.push([x, zz, 3]);
+    platform(s, i, side, 5.2);
+  }
+  // ... and the taller towers down the straights (the broadcast follows the cars all the way between the corners: a
+  // camera every 350 m or so of the lap, up over the fence and the crowd on 8.5 m of scaffold)
+  const sGap = (a, b) => { const d = Math.abs(a - b); return Math.min(d, tr.length - d); };
+  for (let s = 0, k = 0; s < tr.length; s += 30) {
+    if (camS.some((c) => sGap(c, s) < 320)) continue;
+    const i = tr.idxAtS(s), side = tr.wallAt(i, 1) > tr.wallAt(i, -1) ? -1 : 1;   // (the side with the barrier nearer the road: the better view)
+    for (const sd of k++ % 2 ? [side, -side] : [-side, side]) { if (pr && sd === pit.sideSign && inR(s, ...pr)) continue; const bar = sd > 0 ? tr.barL[i] : tr.barR[i]; if (bar && bar !== 3 && platform(s, i, sd, 8.5)) break; }
   }
   if (parts.length) { const m = new THREE.Mesh(mergeGeometries(parts), VMAT()); m.name = 'cota:trackside'; group.add(m); }
   if (boards.length) group.add(new THREE.Mesh(mergeGeometries(boards), new THREE.MeshBasicMaterial({ map: btex, side: THREE.DoubleSide })));
@@ -113,7 +154,7 @@ export function buildTrackside(C) {
  * plazaAt, ring, sinkAt, fanMat, bridges: [{ a: [x, y, z], b: [x, y, z] }] } -> { update(t, camera), nearPath(x, z, r) }
  */
 export function buildCotaLife(C) {
-  const { tr, pit, group, solid, standBoxes, rnd, ring, sinkAt } = C, kw = tr.kerbWidth;
+  const { tr, pit, group, solid, standBoxes, rnd, ring, sinkAt } = C, kw = tr.kerbWidth, open = C.open || unguardedGround(tr, pit);   // (open: where nobody may be - unguardedGround)
   const H = (x, z) => TERRAIN.at(x, z);
   const hitSolid = (x, z, pad = 0) => solid.some(([sx, sz, r]) => (sx - x) ** 2 + (sz - z) ** 2 < (r + pad) ** 2) || standBoxes.some(([sx, sz, r]) => (sx - x) ** 2 + (sz - z) ** 2 < (r + pad) ** 2);
   const walkers = [];   // [ax, ay, az, bx, by, bz, speed]
@@ -135,14 +176,16 @@ export function buildCotaLife(C) {
   const nearPath = (x, z, r) => { const i = Math.floor(x / 20), j = Math.floor(z / 20); for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) for (const p of PH.get(`${i + a},${j + b}`) || []) if ((p[0] - x) ** 2 + (p[1] - z) ** 2 < r * r) return true; return false; };
   const paths = [];
   const zoneAt = (s, side) => (tr.crowdZones || []).find((z) => z.side === side && (z.s0 <= z.s1 ? s >= z.s0 && s <= z.s1 : s >= z.s0 || s <= z.s1));
+  const walkOff = {};   // (per side: the walkway's distance from the centreline every 6 m of the lap)
   for (const side of [1, -1]) {
     const N = Math.floor(tr.length / 6), off = new Float32Array(N);
     for (let k = 0; k < N; k++) { const s = k * 6, i = tr.idxAtS(s), z = zoneAt(s, side); off[k] = tr.wallAt(i, side) + 3 + (z ? z.depth + z.rise * 3 : 6) + 4; }
     const sm = new Float32Array(N); for (let k = 0; k < N; k++) { let a = 0, c = 0; for (let j = -7; j <= 7; j++) { a += off[(k + j + N) % N]; c++; } sm[k] = a / c; }
+    walkOff[side] = sm;
     let cur = [];
     const flush = () => { if (cur.length > 10) { for (let it = 0; it < 2; it++) cur = cur.map((p, k) => (k && k < cur.length - 1 ? [(cur[k - 1][0] + 2 * p[0] + cur[k + 1][0]) / 4, (cur[k - 1][1] + 2 * p[1] + cur[k + 1][1]) / 4] : p)); paths.push(cur); } cur = []; };
     for (let k = 0; k < N; k++) {
-      const f = tr.sample(k * 6, side * sm[k]), ok = corridorSigned(tr, pit, f.x, f.z, 3) > 0 && !hitSolid(f.x, f.z, 3);
+      const f = tr.sample(k * 6, side * sm[k]), ok = corridorSigned(tr, pit, f.x, f.z, 3) > 0 && !hitSolid(f.x, f.z, 3) && !open(f.x, f.z);
       if (ok) cur.push([f.x, f.z]); else flush();
     }
     flush();
@@ -200,7 +243,7 @@ export function buildCotaLife(C) {
     let best = null, bd = Infinity; for (const p of paths) for (const q of p) { const d = (q[0] - gx) ** 2 + (q[1] - gz) ** 2; if (d < bd) { bd = d; best = q; } }
     if (best && bd < 600 * 600) {
       const poly = [], L = Math.sqrt(bd); let ok = true;
-      for (let t = 0; t <= L; t += 6) { const x = gx + (best[0] - gx) * t / L, z = gz + (best[1] - gz) * t / L; if (corridorSigned(tr, pit, x, z, 2) < 0) { ok = false; break; } poly.push([x, z]); }
+      for (let t = 0; t <= L; t += 6) { const x = gx + (best[0] - gx) * t / L, z = gz + (best[1] - gz) * t / L; if (corridorSigned(tr, pit, x, z, 2) < 0 || open(x, z)) { ok = false; break; } poly.push([x, z]); }
       if (ok && poly.length > 2) { poly.push(best); addPath(poly); pathGeos.push(strip(poly, 6, 0.07, 10)); walkChords(poly, 0.9, 4.5, 6); }
     }
     // the shuttles at the main entrance: a line of coaches along the boulevard's verge
@@ -209,14 +252,18 @@ export function buildCotaLife(C) {
   });
   if (signs.length) group.add(new THREE.Mesh(mergeGeometries(signs), new THREE.MeshStandardMaterial({ map: signTex, side: THREE.DoubleSide, roughness: 0.5, emissive: 0xffffff, emissiveMap: signTex, emissiveIntensity: 0.25 })));
 
-  // ---- the bridges' decks: people crossing over the track
-  for (const b of C.bridges || []) for (let k = 0; k < 40; k++) { const l = (rnd() - 0.5) * 2.6; walkers.push([b.a[0] + b.n[0] * l, b.a[1], b.a[2] + b.n[2] * l, b.b[0] + b.n[0] * l, b.b[1], b.b[2] + b.n[2] * l, 0.9 + rnd() * 0.6]); }
+  // ---- the bridges' decks: people crossing over the track (up out of reach behind the trusses' sides: kept apart from
+  //      the open-ground test below)
+  const decks = [];
+  for (const b of C.bridges || []) for (let k = 0; k < 40; k++) { const l = (rnd() - 0.5) * 2.6; decks.push([b.a[0] + b.n[0] * l, b.a[1], b.a[2] + b.n[2] * l, b.b[0] + b.n[0] * l, b.b[1], b.b[2] + b.n[2] * l, 0.9 + rnd() * 0.6]); }
+
+  const backs = buildBankBacks({ ...C, open, walkOff, nearPath, hitSolid, zoneAt, standing, walkers });
 
   // ---- the fan villages: in the open ground behind the spectator banks, by the corners where the crowds are (Turn 1, the
   //      Esses, Turns 11-12, Turns 15-20), each laid out on its aisle
   const villages = [];
   const blds = C.buildings || [];   // [x, z, r]: the venue's own buildings (the survey's footprints)
-  const fits = (x, z, W, D, ang) => { const ca = Math.cos(ang), sa = Math.sin(ang); for (let u = -W / 2; u <= W / 2; u += 10) for (let v = -D / 2; v <= D / 2; v += 10) { const px = x + sa * v + ca * u, pz = z + ca * v - sa * u; if (corridorSigned(tr, pit, px, pz, 8) < 0 || hitSolid(px, pz, 2) || blds.some(([bx, bz, r]) => (bx - px) ** 2 + (bz - pz) ** 2 < (r + 4) ** 2)) return false; } return true; };
+  const fits = (x, z, W, D, ang) => { const ca = Math.cos(ang), sa = Math.sin(ang); for (let u = -W / 2; u <= W / 2; u += 10) for (let v = -D / 2; v <= D / 2; v += 10) { const px = x + sa * v + ca * u, pz = z + ca * v - sa * u; if (corridorSigned(tr, pit, px, pz, 8) < 0 || open(px, pz) || hitSolid(px, pz, 2) || blds.some(([bx, bz, r]) => (bx - px) ** 2 + (bz - pz) ** 2 < (r + 4) ** 2)) return false; } return true; };
   const hot = [[1, -200, 260], [2, 0, 200], [3, -40, 260], [6, -60, 220], [9, -80, 220], [11, -150, 200], [12, -60, 200], [15, -40, 220], [17, -60, 200], [19, -80, 220], [20, -40, 160]];
   for (const [turn, a, len] of hot) {
     const s0 = C.cornerS(turn); if (s0 == null) continue;
@@ -301,9 +348,15 @@ export function buildCotaLife(C) {
   if (pathGeos.length) { const m = new THREE.Mesh(mergeGeometries(pathGeos.map((g) => { for (const k of Object.keys(g.attributes)) if (!['position', 'normal', 'uv'].includes(k)) g.deleteAttribute(k); if (g.index) g = g.toNonIndexed(); return g; })), dgMat); m.name = 'cota:paths'; group.add(m); }
   const cellOf = (x, z) => `${Math.floor(x / 400)},${Math.floor(z / 400)}`;
   const byCell = (list, xi, zi) => { const m = new Map(); for (const e of list) { const k = cellOf(e[xi], e[zi]); let a = m.get(k); if (!a) m.set(k, (a = [])); a.push(e); } return m.values(); };
-  for (const list of byCell(standing, 0, 2)) { const im = fanMesh(list, C.fanMat, rnd); im.name = 'cota:people'; im.userData.cut = 1800; group.add(im); }
+  // (and the last word on where people may be: nobody on open ground by the road - whichever pass put them there; a
+  //  walker by both ends of its stretch and its middle)
+  const nS = standing.length, nW = walkers.length;
+  const stood = standing.filter(([x, , z]) => !open(x, z));
+  const walking = walkers.filter(([ax, , az, bx, , bz]) => !open(ax, az) && !open(bx, bz) && !open((ax + bx) / 2, (az + bz) / 2)).concat(decks);
+  for (const list of byCell(stood, 0, 2)) { const im = fanMesh(list, C.fanMat, rnd); im.name = 'cota:people'; im.userData.cut = 1800; group.add(im); }
   const wMat = walkerMaterial();
-  for (const list of byCell(walkers, 0, 2)) { const im = walkerMesh(list, wMat, rnd); im.name = 'cota:walkers'; im.userData.cut = 1500; group.add(im); }
+  for (const list of byCell(walking, 0, 2)) { const im = walkerMesh(list, wMat, rnd); im.name = 'cota:walkers'; im.userData.cut = 1500; group.add(im); }
+  console.info(`[cota] off the open ground by the road: ${nS - stood.length} standing and ${nW + decks.length - walking.length} walking left out`);
 
   // ---- the internal tram: along the outer perimeter between the Grand Plaza, the Main Grandstand and Turn 1 - a tractor
   //      and three open carriages, two of them back and forth all day
@@ -351,11 +404,11 @@ export function buildCotaLife(C) {
   });
   let cx0 = 0, cz0 = 0; for (let i = 0; i < tr.n; i++) { cx0 += tr.px[i]; cz0 += tr.pz[i]; } cx0 /= tr.n; cz0 /= tr.n;
 
-  console.info(`[cota] life: ${paths.length} walkways, ${gates.length} gates (${gates.map((g) => g.name).join(', ')}), ${villages.length} fan villages, ${walkers.length} people walking, ${standing.length} standing about, ${trams.length} trams`);
+  console.info(`[cota] life: ${paths.length} walkways, ${gates.length} gates (${gates.map((g) => g.name).join(', ')}), ${villages.length} fan villages, ${walking.length} people walking, ${stood.length} standing about, ${trams.length} trams`);
 
   let tPrev = null; const tgt = new THREE.Vector3();
   return {
-    nearPath,
+    nearPath, bigFlags: backs.bigFlags,
     update(t, cam) {
       const dt = tPrev == null ? 0 : Math.max(0, Math.min(0.2, t - tPrev)); tPrev = t;
       const sh = wMat.userData.shader; if (sh) sh.uniforms.uTime.value = t;
@@ -381,4 +434,214 @@ export function buildCotaLife(C) {
       }
     },
   };
+}
+
+/**
+ * The backs of the banks: what a race weekend puts up along the top of every general-admission hill, just behind the
+ * last row of the crowd - on the bank's back slope where the walkway behind it leaves room, otherwise across the
+ * walkway on the flat: clusters of concession stands (white marquees, food trailers, bars), the merchandise trucks, the
+ * rows of portable toilets, and people queuing at every one; between the clusters the mobile light towers, the PA
+ * speakers on their poles, the flagpoles; and a big screen wherever the banks have none in sight. All of it turned to the
+ * track - from the car the skyline over the crowd is the festival's, not the sky's. Placed by each zone's barrier line
+ * and depth at build time (track.wallAt, track.crowdZones), never at a fixed distance from the road.
+ * C: buildCotaLife's, and { walkOff, nearPath, hitSolid, zoneAt, standing, walkers, bankY(zone, s, d, x, z), screenSpots }
+ * -> { bigFlags: [[x, y, z, ang, hex, scale], ...] } (Austin.js flies them with the crowd's flags' material)
+ */
+function buildBankBacks(C) {
+  const { tr, pit, group, rnd, walkOff, nearPath, hitSolid, zoneAt, standing, walkers, solid, open } = C;
+  const H = (x, z) => TERRAIN.at(x, z), bankY = C.bankY || (() => 0);
+  const cells = new Map(), signs = [], screens = [], bigFlags = [];
+  const cpush = (x, z, g) => { const k = `${Math.floor(x / 400)},${Math.floor(z / 400)}`; let a = cells.get(k); if (!a) cells.set(k, (a = [])); a.push(g); };
+  // (the signs over the counters: one atlas, a row each)
+  const SIGNS = [['FOOD', '#c8102e', '#ffffff'], ['DRINKS', '#0a3161', '#ffffff'], ['BBQ', '#3a2a1e', '#f2c14e'], ['TACOS', '#f2c14e', '#3a2a1e'], ['COLD BEER', '#1d6fb8', '#ffffff'],
+    ['MERCHANDISE', '#111111', '#ffffff'], ['RESTROOMS', '#2a62b8', '#ffffff'], ['ICE CREAM', '#f4a7c0', '#5a1a33'], ['WATER', '#27a3d8', '#ffffff'], ['PIZZA', '#e8742a', '#ffffff']];
+  const stallTex = canvasTex(512, 64 * SIGNS.length, (x) => SIGNS.forEach(([t, bg, fg], k) => { const oy = k * 64; x.fillStyle = bg; x.fillRect(0, oy, 512, 64); x.fillStyle = fg; x.font = '900 42px Arial'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(t, 256, oy + 35); x.fillStyle = 'rgba(0,0,0,0.25)'; x.fillRect(0, oy + 58, 512, 6); }));
+  const FOODS = [0, 0, 1, 2, 3, 4, 4, 7, 8, 9];
+  const TEAMC = [0xff8000, 0xe8002d, 0x1e41ff, 0x27f4d2, 0x229971, 0x0093cc, 0x64c4ff, 0x52e252, 0x6692ff, 0x0a3161];
+  const VAL = [0xc8102e, 0x0a3161, 0xf4f4f2, 0xff8000, 0x229971, 0xf2c14e, 0x1e41ff];
+  const FLAGS = [0xff8000, 0xe8002d, 0x1e3a8a, 0x0a3161, 0xb31942, 0xffffff, 0x27f4d2, 0x00665e, 0xffd400];
+  const LOO = [0x2a62b8, 0x2f8f4a, 0x8a8f96];
+  const sDist = (a, b) => { const d = Math.abs(tr.wrapS(a) - tr.wrapS(b)); return Math.min(d, tr.length - d); };
+  /**
+   * A frame for one thing on a zone's back at lap distance s: u metres outward (from its footprint's middle), v along
+   * the lap, its footprint D across by Lz along. On the bank's slope behind the crowd if there is room before the
+   * walkway, else over the walkway on the flat -> { B(w, h, d, u, y, v, hex), at(u, v), yAt(u, v), y0, face, sign } or
+   * null (no room there)
+   */
+  const frame = (z, s, D, Lz, opt = {}) => {
+    const side = z.side, i = tr.idxAtS(s), w = tr.wallAt(i, side), f = tr.sample(s, 0), N = walkOff[side].length;
+    const walkD = walkOff[side][Math.round(tr.wrapS(s) / 6) % N] - w, back = 3 + z.depth;   // (past the barrier: the walkway's middle, the crowd's last row)
+    const onSlope = !opt.flat && walkD - back > D + 6.5, u0 = onSlope ? back + 1.6 : walkD + 4.2 + (opt.back || 0), uc = u0 + D / 2;
+    const cx = f.x + f.nx * side * (w + uc), cz = f.z + f.nz * side * (w + uc), ang = Math.atan2(f.tx, f.tz);
+    const at = (u, v) => [cx + f.nx * side * u + f.tx * v, cz + f.nz * side * u + f.tz * v];
+    const yAt = (u, v) => { if (!onSlope) return 0; const [x, zz] = at(u, v); return bankY(z, s + v, uc + u, x, zz); };
+    // room for it: off the road's corridor and the walkway, clear of what stands, and not on another part of the lap's crowd
+    // (its corners and middle; a big one on a grid every 8 m or so)
+    const pts = [[0, 0]], nu = D > 5 ? 2 : 1, nv = Math.max(1, Math.ceil(Lz / 8));
+    for (let a = 0; a <= nu; a++) for (let b = 0; b <= nv; b++) pts.push([-D / 2 + (D * a) / nu, -Lz / 2 + (Lz * b) / nv]);
+    for (const [a, b] of pts) {
+      const [x, zz] = at(a, b);
+      if (corridorSigned(tr, pit, x, zz, 3) < 0 || open(x, zz) || hitSolid(x, zz, opt.pad ?? 0.6) || nearPath(x, zz, 3.4)) return null;
+      const q = tr.nearest(x, zz); if (sDist(q.s, s) > 50) { const sd = Math.sign(q.d) || 1, z2 = zoneAt(q.s, sd); if (z2 && Math.abs(q.d) - tr.wallAt(q.i, sd) < 3 + z2.depth + 3) return null; }
+    }
+    const y0 = yAt(-D / 2 + 0.3, 0), yl = Math.min(yAt(-D / 2, -Lz / 2), yAt(-D / 2, Lz / 2), yAt(D / 2, -Lz / 2), yAt(D / 2, Lz / 2), y0) - 0.15;
+    const B = (bw, bh, bd, u, y, v, hex) => cpush(cx, cz, boxAt(bw, bh, bd, side * u, y, v, ang, cx, cz, hex));
+    const face = Math.atan2(-f.nx * side, -f.nz * side);   // (toward the track)
+    // a sign facing the track: k its row of the atlas, (u, y, v) its middle
+    const sign = (sw, sh, k, u, y, v) => { const g = new THREE.PlaneGeometry(sw, sh), uv = g.attributes.uv; for (let j = 0; j < uv.count; j++) uv.setY(j, 1 - (k + 1 - uv.getY(j)) / SIGNS.length); const [x, zz] = at(u, v); g.rotateY(face).translate(x, y, zz); signs.push(g); };
+    // (on the slope: a timber deck under it, down to the ground behind)
+    if (opt.deck !== false && y0 - yl > 0.2) B(D + 0.4, y0 - yl + 0.3, Lz + 0.4, 0, (y0 + yl - 0.3) / 2, 0, 0x6e6a62);
+    return { z, s, side, f, cx, cz, ang, D, Lz, onSlope, uc, w, y0, B, at, yAt, face, sign };
+  };
+  // the people queuing at a counter: n in a line out from its front, facing it, on the bank's slope where it is
+  const queue = (F, n, v0 = 0, spread = 0.5) => {
+    const away = F.face + Math.PI;
+    for (let j = 0; j < n; j++) { const u = -F.D / 2 - 0.7 - j * 0.78, v = v0 + (rnd() - 0.5) * spread, [x, zz] = F.at(u, v); standing.push([x, F.onSlope ? bankY(F.z, F.s + v, F.uc + u, x, zz) : 0, zz, away + (rnd() - 0.5) * 0.35, STANDING[(rnd() * STANDING.length) | 0]]); }
+  };
+  const STALL = {
+    // a white marquee: the coloured valance round it (its sign on the front), the counter, a back curtain
+    tent: { D: 6, L: 6.4, build(F) { const { B, y0 } = F, hex = VAL[(rnd() * VAL.length) | 0];
+      B(6, 0.5, 6, 0, y0 + 2.6, 0, hex); B(0.06, 2.4, 5.8, 2.9, y0 + 1.2, 0, 0xf2f2ee); B(1.0, 1.0, 4.6, -2.2, y0 + 0.5, 0, 0xdedad0);
+      for (const [a, b] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) B(0.07, 2.4, 0.07, a * 2.9, y0 + 1.2, b * 2.9, 0xbbbbbb);
+      cpush(F.cx, F.cz, vc(new THREE.ConeGeometry(4.3, 1.8, 4).rotateY(Math.PI / 4 + F.ang).translate(F.cx, y0 + 3.75, F.cz), 0xf6f6f4));
+      F.sign(5.4, 0.46, FOODS[(rnd() * FOODS.length) | 0], -3.04, y0 + 2.6, 0); queue(F, 3 + ((rnd() * 6) | 0), 0, 2.4); } },
+    // a food trailer: its serving hatch and awning to the front, the sign board on its roof
+    trailer: { D: 2.6, L: 8, build(F) { const { B, y0 } = F, hex = [0xf2f2f2, 0xd8263c, 0x2a5aa8, 0xffc21a, 0x2a2a2a, 0x2fa36b, 0x8a1c1c, 0xe8742a][(rnd() * 8) | 0];
+      B(2.6, 2.6, 7, 0, y0 + 1.75, 0, hex); B(2.3, 0.5, 6, 0, y0 + 0.25, 0, 0x222222); B(0.05, 1.0, 3.6, -1.32, y0 + 2.0, 0, 0x15171a);
+      B(1.6, 0.08, 4.4, -2.05, y0 + 2.75, 0, [0xb31942, 0xf4f4f2, 0x0a3161, 0xf2c14e][(rnd() * 4) | 0]); B(0.45, 0.06, 3.6, -1.5, y0 + 1.5, 0, 0xcccccc);
+      B(0.16, 0.82, 5.2, -0.95, y0 + 3.48, 0, 0x222222); F.sign(5.0, 0.72, FOODS[(rnd() * FOODS.length) | 0], -1.04, y0 + 3.48, 0); queue(F, 4 + ((rnd() * 7) | 0), 0, 1.6); } },
+    // a bar: the counter under a flat canopy, the fridges behind, its name along the fascia
+    bar: { D: 4.2, L: 9, build(F) { const { B, y0 } = F;
+      B(1.1, 1.1, 8, -1.4, y0 + 0.55, 0, [0x0a3161, 0x1d1d1f, 0xc8102e][(rnd() * 3) | 0]); B(0.9, 2.2, 7.6, 1.5, y0 + 1.1, 0, 0xe4e6e8);
+      B(4.6, 0.22, 8.8, 0, y0 + 3.0, 0, 0xf4f4f2); B(0.1, 0.62, 8.8, -2.3, y0 + 3.3, 0, 0xffffff);
+      for (const [a, b] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) B(0.1, 3.0, 0.1, a * 2.1, y0 + 1.5, b * 4.2, 0x9a9a9a);
+      F.sign(8.4, 0.56, [1, 4, 8][(rnd() * 3) | 0], -2.36, y0 + 3.3, 0); queue(F, 5 + ((rnd() * 8) | 0), -2, 5); } },
+    // an official merchandise truck: in a team's colours, the side let down for its counter, the awning over it
+    merch: { D: 2.6, L: 15, build(F) { const { B, y0 } = F, hex = TEAMC[(rnd() * TEAMC.length) | 0];
+      B(2.6, 3.0, 12.4, 0, y0 + 2.0, -0.7, hex); B(2.3, 0.5, 10, 0, y0 + 0.25, -0.7, 0x222222); B(2.5, 2.8, 2.4, 0, y0 + 1.65, 6.5, 0xf2f2f2);
+      B(0.05, 1.6, 9, -1.32, y0 + 2.0, -0.7, 0x1a1a1a); B(2.0, 0.08, 10, -2.3, y0 + 3.35, -0.7, 0xf4f4f2); B(0.8, 0.9, 8.5, -2.4, y0 + 0.45, -0.7, 0xdddddd);
+      F.sign(8, 0.8, 5, -1.34, y0 + 3.0, -0.7); queue(F, 6 + ((rnd() * 8) | 0), -0.7, 7); } },
+    // portable toilets in a row, their doors to the front, the sign on its post; a queue along them
+    loos: { D: 1.5, L: 0, build(F) { const { B, y0, Lz } = F, n = Math.round(Lz / 1.42), hex = LOO[(rnd() * LOO.length) | 0], dk = new THREE.Color(hex).multiplyScalar(0.7).getHex();
+      for (let k = 0; k < n; k++) { const v = -Lz / 2 + 0.71 + k * 1.42; B(1.3, 2.3, 1.3, 0, y0 + 1.15, v, hex); B(1.34, 0.12, 1.34, 0, y0 + 2.36, v, 0xe8e8e8); B(0.04, 1.9, 0.76, -0.66, y0 + 1.05, v, dk); }
+      B(0.08, 3.6, 0.08, -1.1, y0 + 1.8, Lz / 2 + 0.6, 0x8a9096); F.sign(1.9, 0.5, 6, -1.16, y0 + 3.3, Lz / 2 + 0.6);
+      for (let j = 0; j < Math.round(n * 0.8); j++) { const v = -Lz / 2 + rnd() * Lz, u = -F.D / 2 - 0.9 - rnd() * 1.2, [x, zz] = F.at(u, v); standing.push([x, F.onSlope ? bankY(F.z, F.s + v, F.uc + u, x, zz) : 0, zz, F.face + Math.PI + (rnd() - 0.5) * 0.6, STANDING[(rnd() * STANDING.length) | 0]]); } } },
+  };
+  const PICK = ['tent', 'tent', 'tent', 'trailer', 'trailer', 'trailer', 'bar', 'loos', 'loos', 'merch'];
+  const TALL = {
+    // a mobile light tower: its yellow trailer, the mast, the bar of floodlights turned to the track
+    light(F) { const { B, y0 } = F; B(1.6, 1.1, 3.2, 0, y0 + 0.8, 0, 0xe8c21a); B(0.25, 9.2, 0.25, 0, y0 + 5.9, 0, 0x9aa0a6); B(0.5, 1.0, 2.8, 0, y0 + 10.6, 0, 0x2a2a2a); for (const v of [-0.95, -0.32, 0.32, 0.95]) B(0.06, 0.44, 0.52, -0.28, y0 + 10.6, v, 0xfff4cc); },
+    // the PA: two speaker cabinets on a pole, aimed at the crowd
+    pa(F) { const { B, y0 } = F; B(0.16, 8.2, 0.16, 0, y0 + 4.1, 0, 0x8a9096); for (const v of [-0.38, 0.38]) B(0.62, 0.95, 0.6, -0.25, y0 + 7.4, v, 0x1c1c1e); },
+    // three flagpoles
+    flags(F) { for (const v of [-3.2, 0, 3.2]) { const [x, zz] = F.at(0, v); bigFlags.push([x, F.yAt(0, v), zz, F.ang + (rnd() - 0.5) * 1.0, FLAGS[(rnd() * FLAGS.length) | 0], 1.75 + rnd() * 0.25]); } },
+  };
+  // the hospitality suites: two storeys of glass in a white frame across the walkway from a bank, the guests at the
+  // upper balcony's rail and up on the roof terrace under its white sails, the race's navy and red along the fascia
+  const chalet = (F) => {
+    const { B, y0, Lz, D } = F;
+    B(D, 0.4, Lz, 0, y0 + 0.2, 0, 0x8a8c8e); B(D - 1.6, 3.2, Lz - 0.8, 0.8, y0 + 2.0, 0, 0x2a3a48);   // (the base; the ground floor's glass, set back)
+    B(D, 0.5, Lz, 0, y0 + 3.85, 0, 0xf4f4f2); B(D - 2.6, 3.0, Lz - 0.8, 1.3, y0 + 5.6, 0, 0x2f4252); B(D, 0.5, Lz, 0, y0 + 7.35, 0, 0xf4f4f2);   // (the first floor, its glass behind the balcony, the roof)
+    for (const y of [4.55, 8.05]) B(0.08, 0.95, Lz, -D / 2 + 0.05, y0 + y, 0, 0xb9cbd6);   // (the balcony's and the roof terrace's glass rails)
+    B(0.14, 0.7, Lz + 0.1, -D / 2 - 0.02, y0 + 3.85, 0, 0x0a3161); B(0.15, 0.14, Lz + 0.1, -D / 2 - 0.03, y0 + 3.45, 0, 0xc8102e);
+    for (let v = -Lz / 2 + 0.3; v <= Lz / 2; v += Lz / Math.round(Lz / 6)) B(0.3, 7.2, 0.3, -D / 2 + 0.4, y0 + 3.6, v, 0xf4f4f2);
+    for (let v = -Lz / 2 + 4.5; v < Lz / 2 - 2; v += 9) { const [x, zz] = F.at(0.5, v); cpush(F.cx, F.cz, vc(new THREE.ConeGeometry(4.4, 1.3, 4, 1, true).rotateY(Math.PI / 4 + F.ang).translate(x, y0 + 10.0, zz), 0xf6f6f4)); B(0.12, 2.4, 0.12, 0.5, y0 + 8.8, v, 0xbbbbbb); }
+    const look = F.face;   // (the guests watching the track)
+    for (let v = -Lz / 2 + 0.6; v < Lz / 2 - 0.4; v += 0.7) {
+      if (rnd() < 0.62) { const [x, zz] = F.at(-D / 2 + 0.7 + rnd() * 0.5, v); standing.push([x, y0 + 4.1, zz, look + (rnd() - 0.5) * 0.5, STANDING[(rnd() * STANDING.length) | 0]]); }
+      for (let u = -D / 2 + 0.7; u < D / 2 - 1; u += 1.6) if (rnd() < (u < -D / 2 + 2 ? 0.7 : 0.22)) { const [x, zz] = F.at(u + rnd() * 0.5, v); standing.push([x, y0 + 7.6, zz, look + (rnd() - 0.5) * (u < -D / 2 + 2 ? 0.5 : 3), STANDING[(rnd() * STANDING.length) | 0]]); }
+    }
+  };
+  let nChalets = 0;
+  { const last = { 1: -1e9, '-1': -1e9 };
+    for (const z of [...(tr.crowdZones || [])].sort((a, b) => a.s0 - b.s0)) {
+      if (z.s1 - z.s0 < 70 || z.s0 - last[z.side] < 520 || z.s0 - Math.max(last[1], last[-1]) < 200) continue;
+      for (const ds of [0, -18, 18, -32, 32]) {
+        const Lz = 30 + ((rnd() * 3) | 0) * 6, F = frame(z, (z.s0 + z.s1) / 2 + ds, 12, Lz, { flat: true, back: 1.5, pad: 2 }); if (!F) continue;
+        F.Lz = Lz; chalet(F); solid.push([F.cx, F.cz, Lz / 2 + 3]); last[z.side] = z.s0; nChalets++; break;
+      }
+    }
+  }
+  const scr = [...(C.screenSpots || [])];
+  let nStalls = 0, nTall = 0, nScreens = 0;
+  for (const z of tr.crowdZones || []) {
+    // a big screen at the middle of a bank with none in sight (on legs over the bank's back, turned to the track: it is
+    // the crowd across the road that watches it)
+    const mid = (z.s0 + z.s1) / 2, f0 = tr.sample(mid, z.side * (tr.wallAt(tr.idxAtS(mid), z.side) + 3 + z.depth));
+    if (!scr.some(([x, zz]) => (x - f0.x) ** 2 + (zz - f0.z) ** 2 < 330 * 330)) {
+      for (const ds of [0, -25, 25, -45, 45]) {
+        const F = frame(z, mid + ds, 1.4, 16, { pad: 1.5, deck: false }); if (!F) continue;
+        const { B, y0 } = F;
+        for (const v of [-5, 5]) B(0.5, 10.4, 0.5, 0.3, y0 + 4.0, v, 0x1b1d22);
+        B(0.7, 9, 15.2, 0.35, y0 + 13.2, 0, 0x1b1d22);
+        const g = new THREE.PlaneGeometry(14, 8), [x, zz] = F.at(-0.02, 0); g.rotateY(F.face).translate(x, y0 + 13.2, zz); screens.push(g);
+        scr.push([F.cx, F.cz]); solid.push([F.cx, F.cz, 9]); nScreens++; break;
+      }
+    }
+    // the clusters of stalls along it, and something tall in every gap between them
+    let s = z.s0 + 8 + rnd() * 16;
+    while (s < z.s1 - 10) {
+      const n = 2 + ((rnd() * 4) | 0), s0 = s;
+      for (let k = 0; k < n && s < z.s1 - 10; k++) {
+        const type = PICK[(rnd() * PICK.length) | 0], S = STALL[type], L = type === 'loos' ? 1.42 * (6 + ((rnd() * 7) | 0)) : S.L;
+        if (s + L > z.s1 - 6) break;
+        const F = frame(z, s + L / 2, S.D, L);
+        if (F) { F.Lz = L; S.build(F); solid.push([F.cx, F.cz, Math.max(S.D, L) / 2 + 1]); nStalls++; }
+        s += L + 1.2 + rnd() * 2.4;
+      }
+      // (people about the cluster, wandering along the bank's back past the stalls)
+      { const F = frame(z, (s0 + s) / 2, 1, 2, { pad: 0, deck: false }); if (F) for (let j = 0; j < 10; j++) { const va = (rnd() - 0.5) * (s - s0 + 20), vb = va + (rnd() - 0.5) * 24, u = -1.5 - rnd() * 1.5, [ax, az] = F.at(u, va), [bx, bz] = F.at(u, vb); walkers.push([ax, H(ax, az) + F.yAt(u, va) + 0.02, az, bx, H(bx, bz) + F.yAt(u, vb) + 0.02, bz, 0.6 + rnd() * 0.6]); } }
+      // (the gap: a light tower, the PA or flagpoles in it, often two of them - wherever along it there is room)
+      const gap = 16 + rnd() * 30, r = rnd(), kinds = [r < 0.36 ? 'light' : r < 0.6 ? 'pa' : 'flags'];
+      if (rnd() < 0.6) kinds.push(kinds[0] === 'flags' ? 'light' : 'flags');
+      for (const kind of kinds) for (const t of [0.5, 0.3, 0.7, 0.15, 0.85]) {
+        if (s + gap * t > z.s1 - 6) continue;
+        const F = frame(z, s + gap * t, kind === 'flags' ? 1.5 : 3.4, kind === 'flags' ? 8 : 3.4, { deck: kind === 'light' }); if (!F) continue;
+        TALL[kind](F); solid.push([F.cx, F.cz, 2.5]); nTall++; break;
+      }
+      s += gap;
+    }
+  }
+  // ---- the fans' flags tied to the catch fence in front of them: the Stars and Stripes, the Lone Star, Mexico's (the
+  //      border is a few hours' drive), the Dutch orange, the Union Flag, the rest of the grid's countries and the teams'
+  //      colours - knotted on at the corners every few metres along every bank's fence, on the crowd's side of the mesh
+  const FLAGART = [
+    (x, w, h) => { for (let k = 0; k < 13; k++) { x.fillStyle = k % 2 ? '#ffffff' : '#b31942'; x.fillRect(0, (k * h) / 13, w, h / 13 + 1); } x.fillStyle = '#0a3161'; x.fillRect(0, 0, w * 0.4, h * 0.54); },   // USA
+    (x, w, h) => { x.fillStyle = '#ffffff'; x.fillRect(0, 0, w, h / 2); x.fillStyle = '#bf0a30'; x.fillRect(0, h / 2, w, h / 2); x.fillStyle = '#002868'; x.fillRect(0, 0, w / 3, h); x.fillStyle = '#fff'; x.beginPath(); x.arc(w / 6, h / 2, h * 0.14, 0, 7); x.fill(); },   // Texas
+    (x, w, h) => { ['#006847', '#ffffff', '#ce1126'].forEach((c, k) => { x.fillStyle = c; x.fillRect((k * w) / 3, 0, w / 3 + 1, h); }); x.fillStyle = '#8c6a3c'; x.beginPath(); x.arc(w / 2, h / 2, h * 0.14, 0, 7); x.fill(); },   // Mexico
+    (x, w, h) => { ['#ae1c28', '#ffffff', '#21468b'].forEach((c, k) => { x.fillStyle = c; x.fillRect(0, (k * h) / 3, w, h / 3 + 1); }); },   // the Netherlands
+    (x, w, h) => { x.fillStyle = '#ff6a00'; x.fillRect(0, 0, w, h); x.fillStyle = '#ffffff'; x.fillRect(0, h * 0.42, w, h * 0.16); },   // the Dutch orange
+    (x, w, h) => { x.fillStyle = '#012169'; x.fillRect(0, 0, w, h); x.strokeStyle = '#fff'; x.lineWidth = h * 0.2; x.beginPath(); x.moveTo(0, 0); x.lineTo(w, h); x.moveTo(w, 0); x.lineTo(0, h); x.stroke(); x.strokeStyle = '#c8102e'; x.lineWidth = h * 0.07; x.stroke(); x.fillStyle = '#fff'; x.fillRect(0, h * 0.36, w, h * 0.28); x.fillRect(w * 0.42, 0, w * 0.16, h); x.fillStyle = '#c8102e'; x.fillRect(0, h * 0.42, w, h * 0.16); x.fillRect(w * 0.46, 0, w * 0.08, h); },   // the Union Flag
+    (x, w, h) => { x.fillStyle = '#009b3a'; x.fillRect(0, 0, w, h); x.fillStyle = '#fedf00'; x.beginPath(); x.moveTo(w * 0.08, h / 2); x.lineTo(w / 2, h * 0.1); x.lineTo(w * 0.92, h / 2); x.lineTo(w / 2, h * 0.9); x.fill(); x.fillStyle = '#002776'; x.beginPath(); x.arc(w / 2, h / 2, h * 0.22, 0, 7); x.fill(); },   // Brazil
+    (x, w, h) => { x.fillStyle = '#d52b1e'; x.fillRect(0, 0, w, h); x.fillStyle = '#ffffff'; x.fillRect(w / 4, 0, w / 2, h); x.fillStyle = '#d52b1e'; x.beginPath(); x.moveTo(w / 2, h * 0.2); x.lineTo(w * 0.6, h * 0.55); x.lineTo(w / 2, h * 0.75); x.lineTo(w * 0.4, h * 0.55); x.fill(); },   // Canada
+    (x, w, h) => { ['#000000', '#dd0000', '#ffce00'].forEach((c, k) => { x.fillStyle = c; x.fillRect(0, (k * h) / 3, w, h / 3 + 1); }); },   // Germany
+    (x, w, h) => { ['#009246', '#ffffff', '#ce2b37'].forEach((c, k) => { x.fillStyle = c; x.fillRect((k * w) / 3, 0, w / 3 + 1, h); }); },   // Italy
+    (x, w, h) => { x.fillStyle = '#aa151b'; x.fillRect(0, 0, w, h); x.fillStyle = '#f1bf00'; x.fillRect(0, h / 4, w, h / 2); },   // Spain
+    (x, w, h) => { ['#002395', '#ffffff', '#ed2939'].forEach((c, k) => { x.fillStyle = c; x.fillRect((k * w) / 3, 0, w / 3 + 1, h); }); },   // France
+    (x, w, h) => { x.fillStyle = '#ffffff'; x.fillRect(0, 0, w, h); x.fillStyle = '#bc002d'; x.beginPath(); x.arc(w / 2, h / 2, h * 0.3, 0, 7); x.fill(); },   // Japan
+    (x, w, h) => { x.fillStyle = '#ffffff'; x.fillRect(0, 0, w, h); x.fillStyle = '#002f6c'; x.fillRect(0, h * 0.38, w, h * 0.24); x.fillRect(w * 0.28, 0, h * 0.24, h); },   // Finland
+    (x, w, h) => { x.fillStyle = '#00008b'; x.fillRect(0, 0, w, h); x.fillStyle = '#fff'; for (const [a, b, r] of [[0.75, 0.25, 0.06], [0.68, 0.6, 0.06], [0.85, 0.5, 0.05], [0.75, 0.82, 0.06], [0.25, 0.75, 0.09]]) { x.beginPath(); x.arc(w * a, h * b, h * r, 0, 7); x.fill(); } x.fillStyle = '#c8102e'; x.fillRect(0, h * 0.2, w * 0.5, h * 0.08); x.fillRect(w * 0.21, 0, w * 0.08, h * 0.5); },   // Australia
+    (x, w, h) => { x.fillStyle = '#ff8000'; x.fillRect(0, 0, w, h); x.fillStyle = '#1c1c1e'; x.fillRect(0, h * 0.78, w, h * 0.22); },   // a papaya team banner
+  ];
+  const FW = 128, FH = 80, fenceFlags = [];
+  const flagTex = canvasTex(FW * 4, FH * 4, (x) => FLAGART.forEach((draw, k) => { x.save(); x.translate((k % 4) * FW, Math.floor(k / 4) * FH); x.beginPath(); x.rect(0, 0, FW, FH); x.clip(); draw(x, FW, FH); x.restore(); }));
+  const PICKF = [0, 0, 0, 1, 1, 2, 2, 2, 3, 4, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 15];   // (the home flags and Mexico's most of all)
+  for (const z of tr.crowdZones || []) {
+    const side = z.side, guard = side > 0 ? tr.guardL : tr.guardR, barA = side > 0 ? tr.barL : tr.barR;
+    for (let s = z.s0 + 2 + rnd() * 6; s < z.s1 - 2; s += 3 + rnd() * 9) {
+      const i = tr.idxAtS(s); if (!guard?.[i] || !barA[i] || barA[i] === 3) continue;   // (only on a catch fence: over a tyre wall in front of a crowd)
+      const L = 1.5 + rnd() * 1.5, h = L * (0.55 + rnd() * 0.12), f = tr.sample(s, side * (tr.wallAt(i, side) + 0.34)), k = PICKF[(rnd() * PICKF.length) | 0];
+      if (open(f.x, f.z)) continue;
+      const g = new THREE.PlaneGeometry(L, h), uv = g.attributes.uv;
+      for (let j = 0; j < uv.count; j++) uv.setXY(j, ((k % 4) + uv.getX(j) * 0.98 + 0.01) / 4, 1 - (Math.floor(k / 4) + 1 - (uv.getY(j) * 0.98 + 0.01)) / 4);
+      g.rotateZ((rnd() - 0.5) * 0.08).translate(0, 1.3 + rnd() * 0.9 + h / 2, 0).rotateY(Math.atan2(-f.nx * side, -f.nz * side)).translate(f.x, 0, f.z);
+      fenceFlags.push(g); s += L;
+    }
+  }
+  if (fenceFlags.length) { const m = new THREE.Mesh(mergeGeometries(fenceFlags), new THREE.MeshStandardMaterial({ map: flagTex, roughness: 0.85, side: THREE.DoubleSide, emissive: 0xffffff, emissiveMap: flagTex, emissiveIntensity: 0.12 })); m.name = 'cota:fenceflags'; group.add(m); }
+  for (const list of cells.values()) { const m = new THREE.Mesh(mergeGeometries(list), VMAT()); m.name = 'cota:bankbacks'; m.userData.cut = 2400; group.add(m); }
+  if (signs.length) { const m = new THREE.Mesh(mergeGeometries(signs), new THREE.MeshStandardMaterial({ map: stallTex, roughness: 0.6, side: THREE.DoubleSide, emissive: 0xffffff, emissiveMap: stallTex, emissiveIntensity: 0.18 })); m.name = 'cota:stallsigns'; group.add(m); }
+  if (screens.length) { const m = new THREE.Mesh(mergeGeometries(screens), new THREE.MeshStandardMaterial({ color: 0x0b1a2e, emissive: 0x2a5aa8, emissiveIntensity: 0.9, roughness: 0.3 })); m.name = 'cota:bankscreens'; group.add(m); }
+  console.info(`[cota] the backs of the banks: ${nChalets} hospitality suites, ${nStalls} stalls, ${nTall} light towers / PA poles / flagpoles, ${nScreens} more big screens, ${bigFlags.length} flags on poles, ${fenceFlags.length} on the fences`);
+  return { bigFlags };
 }

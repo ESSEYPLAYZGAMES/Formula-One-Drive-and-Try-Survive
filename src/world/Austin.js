@@ -14,7 +14,7 @@ import { footprintInfo } from '../core/GeoLoader.js';
 import { makeWindowMaterial } from './Buildings.js';
 import { TERRAIN } from './Terrain.js';
 import { fanMaterial, fanMesh, STANDING } from './FanCutouts.js';
-import { buildTrackside, buildCotaLife } from './CotaLife.js';
+import { buildTrackside, buildCotaLife, unguardedGround } from './CotaLife.js';
 
 // ---- grandstands, by their real places: on a side of the track at a corner (side +1 left / -1 right of the racing
 //      direction), or from the survey (named outlines)
@@ -633,10 +633,14 @@ export function buildAustin(geo, track, def, pit) {
   //      (raked up away from the fence, packed), the Grand Plaza and the lawn full, flags in the crowd, food trucks and
   //      merchandise tents, a concert on the amphitheatre's stage, the Stars and Stripes over the run to Turn 1, the red
   //      paint along that run, the braking boards, the TV cranes
-  const fest = { sheetMat: fanMaterial(), flagMat: null, stageLights: [] };
-  buildTrackside({ tr, pit, group, solid, rnd, fanMat: fest.sheetMat });
+  const fest = { sheetMat: fanMaterial(), flagMat: null, stageLights: [], bankY: new Map() };
+  // (nobody on open ground by the road: within 45 m of its edge wherever no barrier stands on that side - CotaLife
+  //  unguardedGround, read off the barriers as they are now; every pass that puts people down asks it)
+  const open = unguardedGround(tr, pit);
+  buildTrackside({ tr, pit, group, solid, rnd, fanMat: fest.sheetMat, open });
   {
     const sheets = [], mats = [], brollies = [], coolers = [];   // sheets: [x, y, z, ang, variant] (fanAtlas: 0-7 standing, 8-9 sitting)
+    const hands = [], fronts = [];   // (the golf umbrellas held up in the crowd against the Texas sun; the front rows, where the flags are)
     const STAND = [0, 0, 0, 1, 1, 2, 2, 3, 4, 4, 5, 5, 6, 6, 6, 7, 7];
     const stander = () => STAND[(rnd() * STAND.length) | 0];
     // (a group on a picnic blanket: two to four sitting on it, now and then a sun umbrella and a cooler beside it)
@@ -670,17 +674,23 @@ export function buildAustin(geo, track, def, pit) {
         for (let d = d0 + 1.2; d <= fanTo - 0.5; d += 1.15) {
           if (rnd() > fill * (1.35 - 0.8 * (d - d0) / (fanTo - d0))) continue;   // (packed at the fence, thinning toward the back)
           const dd = w + d + (rnd() - 0.5) * 0.5, x = f.x + f.nx * side * dd + (rnd() - 0.5) * 0.4, z = f.z + f.nz * side * dd + (rnd() - 0.5) * 0.4;
-          if (!(corridorSigned(tr, pit, x, z, clear) > 0 && !solid.some(([sx, sz, r]) => (sx - x) ** 2 + (sz - z) ** 2 < r * r))) continue;
+          if (open(x, z) || !(corridorSigned(tr, pit, x, z, clear) > 0 && !solid.some(([sx, sz, r]) => (sx - x) ** 2 + (sz - z) ** 2 < r * r))) continue;
           const u = (d - d0) / (d1 - d0), y = hAt(s, u, x, z);
           if (rnd() < 0.07) { picnic(x, y, z, ang); d += 1.2; continue; }
           const sc = screenSpots.find(([qx, qz]) => (qx - x) ** 2 + (qz - z) ** 2 < 60 * 60);
-          sheets.push([x, y, z, sc && rnd() < 0.55 ? Math.atan2(sc[0] - x, sc[1] - z) + (rnd() - 0.5) * 0.3 : ang + (rnd() - 0.5) * 0.5, stander()]);
+          const fa = sc && rnd() < 0.55 ? Math.atan2(sc[0] - x, sc[1] - z) + (rnd() - 0.5) * 0.3 : ang + (rnd() - 0.5) * 0.5;
+          sheets.push([x, y, z, fa, stander()]);
+          if (rnd() < 0.035) hands.push([x, y, z, rnd() * 6.3]);
+          if (d < d0 + 6) fronts.push([x, y, z, fa]);
         }
       }
+      return hAt;
     };
     // every general-admission area round the lap (austinCrowdZones): behind its fence (2.5 m back from the barrier line), on
     // its low mound - no hills thrown up round the corners, the ground is the hill country's own
-    for (const z of tr.crowdZones || []) bank(z.s0, z.s1, z.side, 3, 3 + z.depth + z.rise * 3, z.rise, z.fill, 2.5, 3 + z.depth);   // (the slope rising under the crowd, falling away behind it)
+    // (each bank's height over the ground kept, by metres past the barrier: what stands on its crest behind the crowd
+    //  sits on it - CotaLife's backs of the banks)
+    for (const z of tr.crowdZones || []) { const d1 = 3 + z.depth + z.rise * 3, h = bank(z.s0, z.s1, z.side, 3, d1, z.rise, z.fill, 2.5, 3 + z.depth); fest.bankY.set(z, (s, d, x, zz) => h(s, Math.min(1, Math.max(0, (d - 3) / (d1 - 3))), x, zz)); }   // (the slope rising under the crowd, falling away behind it)
     // the Grand Plaza and the amphitheatre's lawn: milling, every which way (and facing the stage on the lawn)
     if (towerAt) {
       const Pz = group.getObjectByName('scene:plaza'), yaw = Pz ? Pz.rotation.y : 0, cy = Math.cos(yaw), sy = Math.sin(yaw);
@@ -723,6 +733,7 @@ export function buildAustin(geo, track, def, pit) {
     for (const [x, y, z, a] of paddockFans) sheets.push([x, y, z, a, stander()]);
     // (and the tower's deck: seventy-odd people round its glass, 70 m up)
     { const T = group.getObjectByName('scene:tower'); if (T) { const dl = []; for (let k = 0; k < 72; k++) { const a = rnd() * Math.PI * 2, x = -2.5 + Math.cos(a) * (6.6 + rnd() * 1.4), z = Math.sin(a) * (5.4 + rnd() * 1.2); if (Math.abs(x) < 5.2 && Math.abs(z) < 6.2) continue; dl.push([x, 69.9, z, Math.atan2(Math.cos(a), Math.sin(a)) + (rnd() - 0.5), stander()]); } T.add(fanMesh(dl, fest.sheetMat, rnd)); } }
+    { let k = 0; for (const sh of sheets) if (!open(sh[0], sh[2])) sheets[k++] = sh; sheets.length = k; }   // (the plaza's, the lawn's, the terraces': none on open ground by the road)
     const cells = new Map(); for (const sh of sheets) { const k = Math.floor(sh[0] / 400) * 1000 + Math.floor(sh[2] / 400); let a = cells.get(k); if (!a) cells.set(k, (a = [])); a.push(sh); }
     for (const list of cells.values()) { const im = fanMesh(list, fest.sheetMat, rnd); im.name = 'austin:fans'; group.add(im); }
     const m4 = new THREE.Matrix4(), q4 = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), sc = new THREE.Vector3(), p3 = new THREE.Vector3(), col = new THREE.Color();
@@ -748,6 +759,15 @@ export function buildAustin(geo, track, def, pit) {
         im.instanceMatrix.needsUpdate = true; im.computeBoundingSphere(); group.add(im);
       }
     }
+    // (the golf umbrellas held up over the heads: one in thirty on the banks - from the track, dots of colour all over
+    //  the crowd, the hillside's own shade)
+    if (hands.length) {
+      const top = new THREE.ConeGeometry(0.68, 0.3, 8, 1, true); top.translate(0, 2.12, 0);
+      const BR = [0x23304a, 0xe9e9e6, 0xa82a32, 0x2f6b4a, 0xd0702c, 0x1c1c1e, 0xf2c14e, 0x2b4f9e, 0xd8c8a0, 0xc8102e];
+      const im = new THREE.InstancedMesh(top, new THREE.MeshLambertMaterial({ color: 0xffffff, side: THREE.DoubleSide }), hands.length);
+      hands.forEach(([x, y, z, a], i) => { m4.compose(p3.set(x, y, z), q4.setFromAxisAngle(up, a), sc.set(1, 0.95 + rnd() * 0.15, 1)); im.setMatrixAt(i, m4); im.setColorAt(i, col.setHex(BR[(rnd() * BR.length) | 0])); });
+      im.instanceMatrix.needsUpdate = true; im.computeBoundingSphere(); im.name = 'austin:umbrellas'; group.add(im);
+    }
     if (coolers.length) {
       const box = new THREE.BoxGeometry(0.62, 0.4, 0.4); box.translate(0, 0.2, 0);
       const CO = [0xb8232d, 0x2b4f9e, 0xe9e9e6, 0xd0702c, 0x3a6b46];
@@ -761,6 +781,7 @@ export function buildAustin(geo, track, def, pit) {
     // flags in the crowd: team colours, the Stars and Stripes, the Lone Star - on poles above the banks, waving
     {
       const spots = []; for (let k = 0; k < sheets.length; k += 90) spots.push(sheets[(k + ((rnd() * 60) | 0)) % sheets.length]);
+      for (let k = 0; k < fronts.length; k += 40) spots.push(fronts[(k + ((rnd() * 30) | 0)) % fronts.length]);   // (and more along the fence, waved at the cars)
       const flagG = new THREE.PlaneGeometry(1.4, 0.9, 6, 1); flagG.translate(0.7, 3.2, 0);
       const poleG = new THREE.CylinderGeometry(0.02, 0.02, 3.7, 4); poleG.translate(0, 1.85, 0);
       fest.flagMat = new THREE.MeshLambertMaterial({ color: 0xffffff, side: THREE.DoubleSide });
@@ -775,7 +796,7 @@ export function buildAustin(geo, track, def, pit) {
       spots.forEach(([x, y, z, a], i) => { m4.compose(p3.set(x, y, z), q4.setFromAxisAngle(up, a + rnd() * 0.8), sc.set(1, 1, 1)); fl.setMatrixAt(i, m4); po.setMatrixAt(i, m4); fl.setColorAt(i, col.setHex(FLAG[(rnd() * FLAG.length) | 0])); });
       for (const im of [fl, po]) { im.instanceMatrix.needsUpdate = true; im.computeBoundingSphere(); group.add(im); }
     }
-    console.info(`[austin] the festival: ${sheets.length} fans on the banks and in the plaza, ${mats.length} picnic blankets, ${brollies.length} umbrellas`);
+    console.info(`[austin] the festival: ${sheets.length} fans on the banks and in the plaza, ${mats.length} picnic blankets, ${brollies.length + hands.length} umbrellas`);
   }
   // the Stars and Stripes over the run to Turn 1 (left of the track, by the hill): 40 m up, 20 x 11 m
   {
@@ -869,7 +890,17 @@ export function buildAustin(geo, track, def, pit) {
 
   // ---- the weekend itself: walkways and the people on them, the gates, the fan villages, the tram, the helicopters
   const buildings = geo.buildings.filter((b) => b.rings[0] && !claimed.has(b.id)).map((b) => { const f = footprintInfo(b.rings[0]); let r = 0; for (const [x, z] of b.rings[0]) r = Math.max(r, Math.hypot(x - f.c[0], z - f.c[1])); return [f.c[0], f.c[1], r]; });
-  const life = buildCotaLife({ tr, pit, def, group, solid, standBoxes, stands, rnd, cornerS, towerAt, plazaAt, ring: RING.ring, sinkAt, fanMat: fest.sheetMat, bridges, buildings });
+  const life = buildCotaLife({ tr, pit, def, group, solid, standBoxes, stands, rnd, cornerS, towerAt, plazaAt, ring: RING.ring, sinkAt, fanMat: fest.sheetMat, bridges, buildings, screenSpots, open,
+    bankY: (zone, s, d, x, z) => fest.bankY.get(zone)?.(s, d, x, z) ?? 0 });
+  // (the flagpoles along the backs of the banks: the crowd's flags at nearly twice the size, on 6.5 m poles - one material with them)
+  if (life.bigFlags.length && fest.flagMat) {
+    const m4 = new THREE.Matrix4(), q4 = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), sc = new THREE.Vector3(), p3 = new THREE.Vector3(), col = new THREE.Color();
+    const flagG = new THREE.PlaneGeometry(1.4, 0.9, 6, 1); flagG.translate(0.7, 3.2, 0);
+    const poleG = new THREE.CylinderGeometry(0.03, 0.03, 3.7, 5); poleG.translate(0, 1.85, 0);
+    const fl = new THREE.InstancedMesh(flagG, fest.flagMat, life.bigFlags.length), po = new THREE.InstancedMesh(poleG, new THREE.MeshLambertMaterial({ color: 0xc9ccd0 }), life.bigFlags.length);
+    life.bigFlags.forEach(([x, y, z, a, hex, k], i) => { m4.compose(p3.set(x, y, z), q4.setFromAxisAngle(up, a), sc.set(k, k, k)); fl.setMatrixAt(i, m4); po.setMatrixAt(i, m4); fl.setColorAt(i, col.setHex(hex)); });
+    for (const im of [fl, po]) { im.instanceMatrix.needsUpdate = true; im.computeBoundingSphere(); im.name = 'austin:flagpoles'; group.add(im); }
+  }
 
   // ---- the land round the circuit, as dense as it is from the air: the perimeter road (the boulevard and its kin) a
   //      lap round the whole venue and the access roads in from it; inside it the paved car parks, striped and full,
@@ -958,7 +989,7 @@ export function buildAustin(geo, track, def, pit) {
           if (r < 0.1) c.kit.push(['tent', px, pz, a, [0xf4f4f2, 0xf4f4f2, 0xd21f2f, 0x1e3a8a, 0xff8000][(rnd() * 5) | 0]]);
           else if (r < 0.16) c.kit.push(['truck', px, pz, a, PAINT[(rnd() * PAINT.length) | 0]]);
           else if (r < 0.2) c.kit.push(['loos', px, pz, a, 0x2a62b8]);
-          if (rnd() < 0.7) { const n = 4 + ((rnd() * (gap < 80 ? 22 : 10)) | 0); for (let k = 0; k < n; k++) c.fans.push([x0 + rnd() * CS, 0, z0 + rnd() * CS, rnd() * 6.28, (rnd() * 8) | 0]); }
+          if (rnd() < 0.7) { const n = 4 + ((rnd() * (gap < 80 ? 22 : 10)) | 0); for (let k = 0; k < n; k++) { const fx = x0 + rnd() * CS, fz = z0 + rnd() * CS, fa = rnd() * 6.28, fv = (rnd() * 8) | 0; if (!open(fx, fz)) c.fans.push([fx, 0, fz, fa, fv]); } }
         }
         if (gap > 50 && rnd() < (inside ? 0.06 : 0.16)) plantTree(c, x0 + rnd() * CS, z0 + rnd() * CS, gap > 320);
       }
