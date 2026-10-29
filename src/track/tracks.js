@@ -305,6 +305,10 @@ export const TRACKS = {
     pitWallRun: 0,      // (the pit wall stops where the lane leaves and rejoins: inside Turn 20 and Turn 1, not wrapped round either apex)
     fillet: false, smoothSigma: 10,
     line: 'optimal',
+    // the field at a quick human's pace (AIDriver: more grip, the same margin to the limit - not a braver driver): the
+    // uploaded laps at Legend ran 95.5-96.9 s; the AI alone at Legend runs 101.6 s on 1.0, 98.1 on 1.04, 95.9 on 1.08,
+    // 94.2 on 1.12, clean at all of them, and in full races at 1.08 spins and hits no more than at 1.0 (3 seeds)
+    aiGrip: 1.08,
     // ---- venue dressing
     defaultTime: 'day',
     ground: 'texas',

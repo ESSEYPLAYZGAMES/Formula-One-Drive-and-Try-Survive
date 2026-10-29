@@ -415,7 +415,11 @@ sample (`track.aiV`, `track.aiB`).
   flashbacks in each; the composite 96.7 s); its corners took the AI's solo flying lap at Legend from 101.6 s to
   100.2 s (the full fit, 99.7-100.3 s, gained little more), and in full 5-lap races at Legend (the same 3 seeds) the
   field's median best lap from 105.3 s to 103.6 s with as few spins (19 against 19.3) and fewer damaging hits (51 against
-  57). Halving every factor did better in races than capping the large ones (1.15 / 1.08: 25 spins).
+  57). Halving every factor did better in races than capping the large ones (1.15 / 1.08: 25 spins). That still left
+  the AI 3-4 s off the driver (it cannot scrub speed at full lock as they do), so Austin also gives the AI cars 8 % more
+  grip (`aiGrip: 1.08` in tracks.js - the car and its plan both, the same margin to the limit): alone at Legend 95.9 s,
+  the driver's own 95.5-96.9; in full races fastest laps 95.0-96.5 s, the median best 98.5-100.8 s, spins (20 against
+  19.3), solo spins (7 against 7) and damaging hits (57 against 57) as without it.
 
 Both need Playwright and a Chromium (the scripts find `/opt/pw-browsers`, or set `CHROME`). After a fit, rebuild the
 game (`tools/bundle.py`, or `tools/splice_artifact.py <commit>` for the published Artifact, which carries changes of
