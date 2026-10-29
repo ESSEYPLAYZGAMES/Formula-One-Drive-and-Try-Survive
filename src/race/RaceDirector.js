@@ -260,7 +260,7 @@ export class RaceDirector {
     // reset prompt / retirement / end conditions
     if (p) {
       // no resets: a car beached off the road (stopped 12 s+, trying) can be retired - hold R
-      const beached = p.stoppedTime >= 12 && !p.inPit && !p.pitLane && !p.finished && !p.retired && Math.abs(p.d) > this.track.hw[p.trackIdx] + 1;
+      const beached = p.stoppedTime >= 12 && !p.inPit && !p.pitLane && !p.finished && !p.retired && Math.abs(p.d) > this.track.edgeAt(p.trackIdx, Math.sign(p.d) || 1) + 1;   // (past the edge on its own side)
       this.hud?.showReset(beached);
       if (beached && !p.autopilot && input.retireHold > 1.2) { p.retired = true; p.retireReason = 'Beached'; }
       if (p.retired && this.endTimer < 0 && !p.autopilot && this.mode !== 'tt') { this.endTimer = p.air || p.wreck ? 7 : 4; this.hud?.msg(`RETIRED · ${p.retireReason}`, 'bad', 4); }
@@ -474,7 +474,7 @@ export class RaceDirector {
    * of the race, no longer in anyone's way. One far off the road is left where it is.
    */
   marshals(dt) {
-    const tr = this.track, hw = tr.halfWidth;
+    const tr = this.track;
     for (const c of this.cars) {
       if (c.parkMove) { this.parkStep(c, dt); continue; }
       // qualifying: a car that stops - crashed, beached, stalled - is out of the session and gone in moments (back to
@@ -488,13 +488,15 @@ export class RaceDirector {
       if (!c.retired || c.cleared || c.air || c.speed > 0.5 || c.isPlayer) continue;
       c.clearT = (c.clearT || 0) + dt;
       if (c.pitLane && this.pit) { if (c.clearT > 4 && this.pushToGarage(c)) continue; }   // (in the pit lane: the crews)
-      const onRoad = Math.abs(c.d) < hw + 3, near = Math.abs(c.d) < hw + 14;
+      const hw = tr.edgeAt(c.trackIdx, Math.sign(c.d) || 1), onRoad = Math.abs(c.d) < hw + 3, near = Math.abs(c.d) < hw + 14;   // (the edge on its own side: Austin's road is 30 m wide on a corner's outside)
       if (!near) { if (c.clearT > 20) c.cleared = true; continue; }   // (already well out of the way: it stays put)
       if (c.clearT > (onRoad ? 25 : 35)) this.parkWreck(c);   // (recovery takes a while: the yellow flags, the safety car)
     }
   }
   parkWreck(c) {
-    const tr = this.track, hw = tr.halfWidth, side = Math.sign(c.d) || 1, wall = tr.wallAt(c.trackIdx, side);
+    // (the road's edge on that side: a road widened on a corner's outside - Austin's Turn 1, 29.5 m from the centreline -
+    //  would otherwise have its wreck set down on the racing surface, 9-13 m past the base width)
+    const tr = this.track, side = Math.sign(c.d) || 1, hw = tr.edgeAt(c.trackIdx, side), wall = tr.wallAt(c.trackIdx, side);
     const barrier = (side > 0 ? tr.barL : tr.barR)[c.trackIdx];
     // inside the barrier when there is room (a permanent circuit's verge), else craned over it
     const dT = !barrier || wall - hw > 14 ? Math.min(wall - 3, hw + 9 + Math.random() * 4) : wall + 3.5;
@@ -932,7 +934,7 @@ export class RaceDirector {
     // where the car is on the lane now (at the exit line), onto the circuit's edge on that side
     const ps = P.samples, i = st ? Math.min(ps.n - 1, Math.round(st.u / ps.ds)) : ps.n - 1;
     const q = this.track.nearest(ps.px[i], ps.pz[i]);
-    const d = Math.sign(q.d || 1) * Math.min(this.track.halfWidth - 1.6, Math.abs(q.d));
+    const d = Math.sign(q.d || 1) * Math.min(this.track.edgeAt(q.i, Math.sign(q.d || 1)) - 1.6, Math.abs(q.d));
     c.placeOnTrack(q.s + 2, d, v ?? P.limiter); c.ghost = 1.5; c.lapDist = c.s; c.gear = c.gearFor(v ?? P.limiter);
     if (c.isPlayer) this.hud?.msg('REJOIN · LIMITER OFF', 'good', 1.5);
   }
