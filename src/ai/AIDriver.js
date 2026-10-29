@@ -230,7 +230,7 @@ export class AIDriver {
       for (let i = 0; i < n; i++) { const z = this.track.inCornerZone(this.track.idxAtS(P.s0 + i * DS)); if (z) break; cost += 0.004 * Math.abs(P.d[i] - this._hold); }
     }
     if (this.defend) {
-      const want = this.defend.side * (this.track.hw[this.car.trackIdx] - 2.7), until = this.planner.ds(P.s0, this.defend.untilS);
+      const want = this.defend.side * (this.track.edgeAt(this.car.trackIdx, this.defend.side) - 2.7), until = this.planner.ds(P.s0, this.defend.untilS);
       for (let i = 0; i < n && i * DS < until; i++) cost += 0.012 * Math.max(0, (want - P.d[i]) * this.defend.side);
     }
     // boxing: lined up on the pit side for the last 250 m before the lane's first metre
@@ -294,11 +294,12 @@ export class AIDriver {
     // (a wall kiss: on the pinned wall's stretch only, the car runs out to a hand's width of it)
     const kiss = this.error?.type === 'scrape' && this.error.wall && tr.pinAt?.(c.s + 8, this.error.side) ? this.error.side : 0;
     if (kiss) dT = kiss * (tr.wallAt(c.trackIdx, kiss) - 0.95);
-    else if (this.error && this.error.type === 'scrape' && !this.error.wall && zone) dT = -zone.dir * (tr.hw[c.trackIdx] + 0.6);
+    else if (this.error && this.error.type === 'scrape' && !this.error.wall && zone) dT = -zone.dir * (tr.edgeAt(c.trackIdx, -zone.dir) + 0.6);
     // (a feud, alongside you: it squeezes you - steers onto your line and leans on you; the stewards may have a view)
     if (this._feudD != null && this._me) { const me = this._me, ds = P.ds(c.s, me.s); if (ds > -8 && ds < 8) dT += (me.d - dT) * Math.min(1, 0.95 * (c.feud || 0)); }
-    const lim = kiss ? tr.wallAt(c.trackIdx, kiss) - 0.9 : tr.hw[c.trackIdx] - 0.9 + (this.error?.type === 'scrape' && !this.error.wall ? 2 : 0);
-    dT = Math.max(-lim, Math.min(lim, dT));
+    const sc2 = this.error?.type === 'scrape' && !this.error.wall ? 2 : 0;
+    const limL = kiss ? tr.wallAt(c.trackIdx, kiss) - 0.9 : tr.hwL[c.trackIdx] - 0.9 + sc2, limR = kiss ? tr.wallAt(c.trackIdx, kiss) - 0.9 : tr.hwR[c.trackIdx] - 0.9 + sc2;
+    dT = Math.max(-limR, Math.min(limL, dT));
     const f = tr.sample(sA, dT, this._f || (this._f = {}));
     const dx = f.x - c.x, dz = f.z - c.z, cth = Math.cos(c.th), sth = Math.sin(c.th);
     const fwd = dx * cth + dz * sth, lft = dx * sth - dz * cth, Ld = Math.hypot(dx, dz) || 1;
@@ -343,7 +344,7 @@ export class AIDriver {
     // (only running wide of the plan near the edge: the plan itself uses the whole road)
     let dPlan = P.at(B.d, c.s); if (dPlan == null) dPlan = this.line.offsetAt(c.s);
     const wide = (c.d - dPlan) * Math.sign(c.d) > 0.8;
-    if (T.edgeGuard && !flat && wide && Math.abs(c.d) > tr.hw[c.trackIdx] - 1.6 && Math.sign(dDot) === Math.sign(c.d) && Math.abs(dDot) > 0.6) { vT = Math.min(vT, v * 0.94 * guardV); lift = true; }
+    if (T.edgeGuard && !flat && wide && Math.abs(c.d) > tr.edgeAt(c.trackIdx, Math.sign(c.d) || 1) - 1.6 && Math.sign(dDot) === Math.sign(c.d) && Math.abs(dDot) > 0.6) { vT = Math.min(vT, v * 0.94 * guardV); lift = true; }
     if (T.satLift && (c.satF || 0) > 1.04 && v > 15) { vT = Math.min(vT, v * 0.97 * guardV); lift = true; }
     if (c.offTrack) vT = Math.min(vT, 32);
     if (spinning) vT = 0;
@@ -472,7 +473,7 @@ export class AIDriver {
 
   /** a car that can't go on: to the edge of the road (the run-off beyond it if there is one) and stop there */
   pullOver(dt) {
-    const c = this.car, tr = this.track, hw = tr.hw[c.trackIdx], side = Math.sign(c.d - this.line.offsetAt(c.s)) || Math.sign(c.d) || 1;
+    const c = this.car, tr = this.track, hw = tr.edgeAt(c.trackIdx, Math.sign(c.d) || 1), side = Math.sign(c.d - this.line.offsetAt(c.s)) || Math.sign(c.d) || 1;
     const room = tr.wallAt(c.trackIdx, side), dT = side * Math.min(room - 2, hw + 6);
     const f = tr.sample(c.s + Math.max(25, c.speed * 1.6), dT, this._fp || (this._fp = {}));
     const dx = f.x - c.x, dz = f.z - c.z, cth = Math.cos(c.th), sth = Math.sin(c.th);
@@ -494,7 +495,7 @@ export class AIDriver {
    * road: beached, out of the race.
    */
   rejoin(dt, world) {
-    const c = this.car, tr = this.track, R = this.rj, v = c.speed, hw = tr.hw[c.trackIdx];
+    const c = this.car, tr = this.track, R = this.rj, v = c.speed, hw = tr.edgeAt(c.trackIdx, Math.sign(c.d) || 1);
     R.t += dt; R.total += dt;
     const side = Math.sign(c.d) || 1, onRoad = Math.abs(c.d) < hw - 0.5;
     const f = tr.sample(c.s + 35, side * Math.min(Math.abs(c.d), hw - 2.5), this._fr || (this._fr = {}));

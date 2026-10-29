@@ -172,7 +172,7 @@ async function loadWorld(def) {
   setTerrain(null);
   if (def.elevation) {
     const w = geo.roadById(def.ways[0]), pts = w ? w.pts.map((p, k) => [p[0], p[1], w.lonlat[k]?.[2]]) : null, h = trackHeights(track, pts);
-    if (h) { track.h = h; setTerrain(buildHeightField(track, h), track); TERRAIN.halfRoad = track.maxHalfWidth + track.kerbWidth + 1; TERRAIN.halfRoadAt = (i) => track.hw[i] + track.kerbWidth + 1; }
+    if (h) { track.h = h; setTerrain(buildHeightField(track, h), track); TERRAIN.halfRoad = track.maxHalfWidth + track.kerbWidth + 1; TERRAIN.halfRoadAt = (i, side = 1) => track.edgeAt(i, side) + track.kerbWidth + 1; }
   }
   track.openCorners();   // (corners left open: Montreal's Senna S and hairpin - before the barriers are capped against everything else)
   // permanent circuits: the escape aprons stop short of the venue's real grandstands

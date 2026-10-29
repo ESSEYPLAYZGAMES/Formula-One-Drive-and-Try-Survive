@@ -82,7 +82,7 @@ export class Stewards {
       const ds = c._paceS == null ? 0 : d.planDs(c._paceS, c.s); c._paceS = c.s;
       const W = c.wh, sg = Math.sign(W.dw[0]);
       let allOut = sg !== 0;
-      for (let k = 0; k < 4 && allOut; k++) if (Math.sign(W.dw[k]) !== sg || Math.abs(W.dw[k]) < d.track.hw[c.trackIdx] + 0.1) allOut = false;
+      for (let k = 0; k < 4 && allOut; k++) if (Math.sign(W.dw[k]) !== sg || Math.abs(W.dw[k]) < d.track.edgeAt(c.trackIdx, sg) + 0.1) allOut = false;
       if (!c._ex && !c.offTrack && ds > 0 && ds < 60) {
         const kd = Math.exp(-dt / 20); c._refT = (c._refT || 0) * kd + ds / Math.max(8, d.profile[c.trackIdx]); c._actT = (c._actT || 0) * kd + dt;
       }

@@ -84,12 +84,19 @@ export function buildGrandstands(track, pit, obstacles, opts = {}) {
     const faceAng = Math.atan2(-p.ez[0], -p.ez[1]);   // a sheet's normal points at the track
     // (on a circuit that is not flat, level on its own ground: the front edge's highest point, a concrete plinth down
     //  into the slope under the rest - world/Terrain.js)
-    p.y0 = 0;
-    if (TERRAIN.on) { let y = -Infinity; for (let lx = -LEN / 2; lx <= LEN / 2; lx += 6) { const [x, z] = p.world(lx, 0); y = Math.max(y, TERRAIN.at(x, z)); } p.y0 = y; }
-    const place = (g, lx, ly, lz) => { g.rotateY(p.ang); const [x, z] = p.world(lx, lz); g.translate(x, ly + p.y0, z); return g; };
+    // (a long stand on a slope leans with it: the whole stand sheared along its length to the ground's trend under its
+    //  front edge - one stand climbing the hill, Turn 1's, not a deck held level at its top end)
+    p.y0 = 0; p.k = 0;
+    if (TERRAIN.on) {
+      const [ax, az] = p.world(-LEN / 2, 0), [bx, bz] = p.world(LEN / 2, 0); p.k = (TERRAIN.at(bx, bz) - TERRAIN.at(ax, az)) / LEN;
+      let y = -Infinity; for (let lx = -LEN / 2; lx <= LEN / 2; lx += 6) { const [x, z] = p.world(lx, 0); y = Math.max(y, TERRAIN.at(x, z) - p.k * lx); } p.y0 = y;
+    }
+    const lxOf = (x, z) => (x - p.x) * p.ex[0] + (z - p.z) * p.ex[1];
+    const shear = (g) => { if (!p.k) return g; const P = g.attributes.position; for (let j = 0; j < P.count; j++) P.setY(j, P.getY(j) + p.k * lxOf(P.getX(j), P.getZ(j))); return g; };
+    const place = (g, lx, ly, lz) => { g.rotateY(p.ang); const [x, z] = p.world(lx, lz); g.translate(x, ly + p.y0, z); return shear(g); };
     // (in the stand's own frame - lx along it, y up, lz back from its front edge - straight to the world: a tube from one
     //  point to another, a surface over a grid)
-    const W = (lx, y, lz) => { const [x, z] = p.world(lx, lz); return new THREE.Vector3(x, y + p.y0, z); };
+    const W = (lx, y, lz) => { const [x, z] = p.world(lx, lz); return new THREE.Vector3(x, y + p.y0 + p.k * lx, z); };
     const tube = (a, b, r) => { const A = W(...a), B = W(...b), d = new THREE.Vector3().subVectors(B, A), g = new THREE.CylinderGeometry(r, r, d.length(), 8); g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize())); g.translate((A.x + B.x) / 2, (A.y + B.y) / 2, (A.z + B.z) / 2); return g; };
     const surface = (lx0, lx1, lz0, lz1, yFn, nu = 12, nv = 10) => {
       const P = [], I = [];
@@ -107,12 +114,19 @@ export function buildGrandstands(track, pit, obstacles, opts = {}) {
       for (let lx = -LEN / 2 + 0.6; lx < LEN / 2 - 0.6; lx += 0.62 + Math.random() * 0.15) {
         if (Math.random() < 0.08) continue;   // empty seats
         const [x, z] = p.world(lx + (Math.random() - 0.5) * 0.2, z0 + 0.55 + Math.random() * 0.3);
-        fanPos.push([x, y + p.y0, z, faceAng + (Math.random() - 0.5) * 0.5, p, lx, t]);   // facing the track (sheet across the line of sight)
+        fanPos.push([x, y + p.y0 + p.k * lx, z, faceAng + (Math.random() - 0.5) * 0.5, p, lx, t]);   // facing the track (sheet across the line of sight)
       }
     }
     const top = STAND.base + TIERS * STAND.tierH; const back = 0.8 + TIERS * STAND.tierD;
     p.depth = back + 0.6; p.height = top + 6;   // (its footprint, for the obstacles the cars can hit: world/Obstacles.js)
-    if (TERRAIN.on) plinths.push(place(box(LEN + 0.6, 9, back + 1.2), 0, -4.5, back / 2));
+    if (TERRAIN.on) {
+      // (under a stand on a slope, its steel frame down to the ground wherever that falls away behind the front edge:
+      //  columns and cross-bracing, seen through - not a wall)
+      let lo = p.y0; for (let lx = -LEN / 2; lx <= LEN / 2; lx += 6) for (let lz = 0; lz <= back; lz += 6) { const [x, z] = p.world(lx, lz); lo = Math.min(lo, TERRAIN.at(x, z) - p.k * lx); }
+      const drop = Math.max(1.5, p.y0 - lo + 1.5), g = box(LEN + 0.6, drop, back + 1.2), uv = g.attributes.uv, dims = [[back + 1.2, drop], [back + 1.2, drop], [LEN + 0.6, back + 1.2], [LEN + 0.6, back + 1.2], [LEN + 0.6, drop], [LEN + 0.6, drop]];
+      for (let f = 0; f < 6; f++) for (let k = 0; k < 4; k++) { const j = f * 4 + k; uv.setXY(j, uv.getX(j) * dims[f][0] / 5, uv.getY(j) * dims[f][1] / 5); }
+      plinths.push(place(g, 0, -drop / 2, back / 2));
+    }
     structure.push(place(box(LEN, top + 1.2, 0.6), 0, (top + 1.2) / 2, back + 0.3));          // back wall
     const roof = ST.roof || 'canopy';
     if (roof !== 'none') structure.push(place(box(LEN, 3.0, 0.6), 0, top + 2.5, back + 0.3));   // rear billboard band
@@ -144,7 +158,12 @@ export function buildGrandstands(track, pit, obstacles, opts = {}) {
     if (membranes.length) group.add(new THREE.Mesh(merge(membranes), new THREE.MeshStandardMaterial({ color: 0xf6f6f2, roughness: 0.5, side: THREE.DoubleSide, transparent: true, opacity: 0.85, emissive: 0x7a7a76, depthWrite: false })));
     if (reds.length) group.add(new THREE.Mesh(merge(reds), new THREE.MeshStandardMaterial({ color: 0xc8202b, roughness: 0.45, metalness: 0.35, emissive: 0x2a0608 })));
     if (glass.length) group.add(new THREE.Mesh(merge(glass), new THREE.MeshStandardMaterial({ color: 0x2b3d4e, roughness: 0.1, metalness: 0.7, emissive: 0x1d2a36 })));
-    if (plinths.length) group.add(new THREE.Mesh(merge(plinths), new THREE.MeshStandardMaterial({ color: 0x2a3a5c, roughness: 0.9 })));
+    if (plinths.length) {
+      const c = document.createElement('canvas'); c.width = c.height = 128; const x = c.getContext('2d');
+      x.strokeStyle = '#8f969e'; x.lineWidth = 9; x.strokeRect(0, 0, 128, 128); x.lineWidth = 4; x.beginPath(); x.moveTo(0, 0); x.lineTo(128, 128); x.moveTo(128, 0); x.lineTo(0, 128); x.stroke();
+      const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+      group.add(new THREE.Mesh(merge(plinths), new THREE.MeshStandardMaterial({ map: t, alphaTest: 0.5, transparent: false, side: THREE.DoubleSide, roughness: 0.6, metalness: 0.4 })));
+    }
     if (arts.length) group.add(new THREE.Mesh(merge(arts), new THREE.MeshStandardMaterial({ map: starsTexture(), side: THREE.DoubleSide, roughness: 0.7 })));
   }
 

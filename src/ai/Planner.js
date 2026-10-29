@@ -81,7 +81,7 @@ export class Planner {
       const x = i * DS, dl = N.dl[i];
       let e = this.laneE(sp, s0 + x, x, dl);
       if (x < Lt) { const u = x / Lt, h00 = (1 - u) * (1 - u) * (1 + 2 * u), h10 = u * (1 - u) * (1 - u); e += E0 * h00 + E1 * Lt * h10; }
-      const mi = m + (N.wd ? N.wd[i] : 0), d = Math.max(-mi, Math.min(mi, dl + e));
+      const d = Math.max(-m - N.wdR[i], Math.min(m + N.wd[i], dl + e));
       P.d[i] = d; P.e[i] = d - dl;
     }
     // curvature of the driven path: the racing line's own (exactly what the speed profile was built on) plus what the
@@ -109,7 +109,7 @@ export class Planner {
    */
   lineGeometry(ctx) {
     const tr = this.track, line = this.line, n = ctx.n, f = this._f || (this._f = {});
-    const N = this.node || (this.node = { cx: new Float32Array(NMAX), cz: new Float32Array(NMAX), nx: new Float32Array(NMAX), nz: new Float32Array(NMAX), dl: new Float32Array(NMAX), lk: new Float32Array(NMAX), wd: new Float32Array(NMAX) });
+    const N = this.node || (this.node = { cx: new Float32Array(NMAX), cz: new Float32Array(NMAX), nx: new Float32Array(NMAX), nz: new Float32Array(NMAX), dl: new Float32Array(NMAX), lk: new Float32Array(NMAX), wd: new Float32Array(NMAX), wdR: new Float32Array(NMAX) });
     const X = this._lx || (this._lx = new Float32Array(NMAX)), Z = this._lz || (this._lz = new Float32Array(NMAX));
     this.lineK = this.lineK || new Float32Array(NMAX);
     // the circuit's calibration under each node (ai/Calibration.js: corner speed and braking commitment, 1 = physics)
@@ -118,7 +118,7 @@ export class Planner {
       const s = ctx.s0 + i * DS; tr.sample(s, 0, f);
       const ci = tr.idxAtS(s); cV[i] = aV ? aV[ci] : 1; cB[i] = aB ? aB[ci] : 1;
       N.cx[i] = f.x; N.cz[i] = f.z; const idx = tr.idxAtS(s); N.nx[i] = f.nx; N.nz[i] = f.nz;
-      N.dl[i] = line.offsetAt(s); N.lk[i] = line.lineCurv[idx]; N.wd[i] = tr.hw ? tr.hw[idx] - tr.halfWidth : 0;   // (how much wider the road is there)
+      N.dl[i] = line.offsetAt(s); N.lk[i] = line.lineCurv[idx]; N.wd[i] = tr.hwL ? tr.hwL[idx] - tr.halfWidth : 0; N.wdR[i] = tr.hwR ? tr.hwR[idx] - tr.halfWidth : 0;   // (how much wider the road is there, left and right)
       X[i] = f.x + N.nx[i] * N.dl[i]; Z[i] = f.z + N.nz[i] * N.dl[i];
     }
     this.circle(X, Z, n, this.lineK);

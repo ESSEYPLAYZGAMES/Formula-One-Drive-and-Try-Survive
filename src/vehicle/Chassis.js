@@ -83,7 +83,7 @@ export function fitGrip(car) {
 export function roadHeight(track, i, d, s, surf) {
   if (surf === 1) {
     if (!track.inCorner[i]) return 0;                        // (a street circuit's painted edge outside the corners)
-    const t = Math.min(1, Math.max(0, (Math.abs(d) - track.hw[i]) / track.kerbWidth));
+    const t = Math.min(1, Math.max(0, (Math.abs(d) - track.edgeAt(i, d > 0 ? 1 : -1)) / track.kerbWidth));
     return 0.02 + 0.03 * t + 0.005 * Math.sin(s * 7.85);    // ~0.8 m ridges
   }
   if (surf === 3) return 0.012 * (Math.sin(s * 2.1 + d * 1.7) * 0.6 + Math.sin(s * 5.3 - d * 3.1) * 0.4);   // grass: lumpy

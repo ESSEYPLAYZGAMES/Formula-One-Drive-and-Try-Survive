@@ -285,7 +285,7 @@ export const TRACKS = {
     // metres across at the top - and through the hairpin, Turn 12 and the last corner (TrackBuilder widen)
     width: 17,
     widths: [
-      { turn: 1, before: 110, after: 40, width: 38, ease: 130 }, { turn: 2, before: 20, after: 40, width: 22, ease: 50 },
+      { turn: 1, before: 110, after: 30, width: 38, ease: 120 }, { turn: 2, before: 20, after: 40, width: 22, ease: 50 },
       { turn: 11, before: 60, after: 50, width: 26, ease: 80 }, { turn: 12, before: 70, after: 40, width: 26, ease: 80 },
       { turn: 15, before: 30, after: 30, width: 21, ease: 50 }, { turn: 19, before: 30, after: 30, width: 21, ease: 50 },
       { turn: 20, before: 50, after: 40, width: 24, ease: 70 },
@@ -293,11 +293,16 @@ export const TRACKS = {
     runoffBase: [0.74, 0.66, 0.52],   // (every paved apron the tan of the real ones, painted or not)
     laps100: 56,
     cornerCurv: 1 / 240,
-    // A permanent circuit: wide grass verges and, outside the corners, big asphalt run-offs painted red, white and
-    // blue (gravel only at the Esses' exits)
+    // A permanent circuit: wide grass verges and, round every corner - the Esses' too - big paved run-offs painted red,
+    // white and blue, then grass out to the barriers, which stand far back (apronMax: the paving at most 24 m past the
+    // kerb; austinCrowdZones: the spectator fences 22-26 m back)
     verge: 'circuit', vergeWidth: 12,
     runoffCaps: [80, 70, 55],
-    runoff: { asphalt: [1, 2, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20], grass: [] },
+    runoff: { asphalt: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20], grass: [] },
+    apronMax: 24,
+    apronWide: { 1: 70, 11: 70, 12: 70, 20: 50 },   // (the big paved run-offs: up the hill at Turn 1, the hairpin, Turn 12's with its flag, the last corner)
+    selfArmco: false,   // (no Armco between the legs of a hairpin: open grass inside Turn 1, Turn 11, Turn 12)
+    pitWallRun: 30,     // (the pit wall stops 30 m past the lane's ends)
     fillet: false, smoothSigma: 10,
     line: 'optimal',
     // ---- venue dressing

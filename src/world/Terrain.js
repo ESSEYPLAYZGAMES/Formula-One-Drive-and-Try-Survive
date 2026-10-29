@@ -16,6 +16,7 @@ import * as THREE from 'three';
 
 const CELL = 8;          // the height field's grid (m)
 const HOLD = 9;          // metres of ground either side of the road held at the circuit's height (the verge, the kerbs)
+const PLATEAU = 90;      // ... and at most this far out, where the run-off and the barrier behind it reach
 const MARGIN = 1400;     // how far the field reaches beyond the circuit (then the flat plane, at the field's edge height)
 
 /** the venue's ground: on, at(x, z) (bilinear), grad(x, z) -> [dh/dx, dh/dz], edge (the height the field levels out to) */
@@ -52,19 +53,25 @@ export function buildHeightField(track, h) {
   for (let i = 0; i < track.n; i++) { x0 = Math.min(x0, track.px[i]); x1 = Math.max(x1, track.px[i]); z0 = Math.min(z0, track.pz[i]); z1 = Math.max(z1, track.pz[i]); mean += h[i]; }
   mean /= track.n; let lo = Infinity; for (let i = 0; i < track.n; i++) lo = Math.min(lo, h[i]); const edge = lo - 1.5;   // (the far edge: below the lowest point of the lap - the flat plane beyond it must never stand over the road)
   x0 -= MARGIN; z0 -= MARGIN; x1 += MARGIN; z1 += MARGIN;
-  const hold = (track.maxHalfWidth || track.halfWidth) + HOLD;
+  // (how far out from each sample the ground is held at its height: the verge, and the whole of the run-off out to its
+  //  barrier and a little past it - flat, the way a paved apron is; then the slopes start. Held too narrowly, a hilltop
+  //  corner's aprons fell away off the hill behind it)
+  const holdS = new Float32Array(track.n); let hold = 0;
+  for (let i = 0; i < track.n; i++) { const e = track.hw ? track.hw[i] : track.halfWidth, w = Math.max(track.wallL?.[i] ?? 0, track.wallR?.[i] ?? 0); holdS[i] = Math.min(PLATEAU, Math.max(e + HOLD, e + 30, w + 8)); hold = Math.max(hold, holdS[i]); }
+  track.holdS = holdS;
   const level = (cell, prev) => {
     const nx = Math.ceil((x1 - x0) / cell) + 1, nz = Math.ceil((z1 - z0) / cell) + 1, H = new Float32Array(nx * nz), fixed = new Uint8Array(nx * nz);
     // (the start: the coarser level's solution, or the mean)
     for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) H[j * nx + i] = prev ? prev.at(x0 + i * cell, z0 + j * cell) : mean;
     // (the circuit's strip: every cell within `hold` of a sample takes the nearest sample's height)
-    const best = new Float32Array(nx * nz).fill(Infinity), r = Math.ceil(hold / cell) + 1;
+    const best = new Float32Array(nx * nz).fill(Infinity);
     for (let s = 0; s < track.n; s++) {
+      const hs = holdS[s], r = Math.ceil(hs / cell) + 1;
       const ci = Math.round((track.px[s] - x0) / cell), cj = Math.round((track.pz[s] - z0) / cell);
       for (let dj = -r; dj <= r; dj++) for (let di = -r; di <= r; di++) {
         const i = ci + di, j = cj + dj; if (i < 0 || j < 0 || i >= nx || j >= nz) continue;
         const d2 = (x0 + i * cell - track.px[s]) ** 2 + (z0 + j * cell - track.pz[s]) ** 2, k = j * nx + i;
-        if (d2 <= hold * hold && d2 < best[k]) { best[k] = d2; H[k] = h[s]; fixed[k] = 1; }
+        if (d2 <= hs * hs && d2 < best[k]) { best[k] = d2; H[k] = h[s]; fixed[k] = 1; }
       }
     }
     for (let i = 0; i < nx; i++) { fixed[i] = fixed[(nz - 1) * nx + i] = 2; H[i] = H[(nz - 1) * nx + i] = edge; }
@@ -93,14 +100,14 @@ export function buildHeightField(track, h) {
 
 /** switch the venue's ground on (a height field) or off (null) */
 export function setTerrain(F, track = null) {
-  TERRAIN.tint = null; TERRAIN.halfRoadAt = null;   // (a venue's ground colouring, (x, z) -> [r, g, b]: set by its scenery after this)
+  TERRAIN.tint = null; TERRAIN.halfRoadAt = null; TERRAIN.sink = null;   // (a venue's ground colouring, (x, z) -> [r, g, b]: set by its scenery after this)
   if (!F) { TERRAIN.on = false; TERRAIN.edge = 0; TERRAIN.at = () => 0; TERRAIN.grad = (x, z, out = [0, 0]) => { out[0] = out[1] = 0; return out; }; TERRAIN.field = null; TERRAIN.road = null; return; }
   const e = 1.5;
   TERRAIN.on = true; TERRAIN.edge = F.edge; TERRAIN.field = F;
   // near the circuit, its own height exactly (the grid's 8 m cells would let the ground cut corners off the road over a
   // crest or into a dip): by the nearest point of the lap, out to the edge of the strip held at its height, then
   // blended into the field over the last 6 m of it
-  const h = track?.h, q = {}, hold = (track?.maxHalfWidth || track?.halfWidth || 0) + HOLD; let hint = -1;
+  const h = track?.h, q = {}, HS = track?.holdS, hold = HS ? HS.reduce((a, b) => Math.max(a, b), 0) : (track?.maxHalfWidth || track?.halfWidth || 0) + HOLD; let hint = -1;
   const nearStrip = (x, z) => { const i = Math.floor((x - F.x0) / F.cell), j = Math.floor((z - F.z0) / F.cell); if (i < 0 || j < 0 || i >= F.nx - 1 || j >= F.nz - 1) return false; const k = j * F.nx + i; return F.fixed[k] === 1 || F.fixed[k + 1] === 1 || F.fixed[k + F.nx] === 1 || F.fixed[k + F.nx + 1] === 1; };
   TERRAIN.road = h ? (x, z, out = q) => {   // -> { h (the circuit's height there), d (offset from the centreline), s } | null
     if (!nearStrip(x, z)) return null;
@@ -109,7 +116,7 @@ export function setTerrain(F, track = null) {
   } : null;
   TERRAIN.at = (x, z) => {
     const fv = F.at(x, z), r = TERRAIN.road?.(x, z); if (!r) return fv;
-    const hl = (track.hw ? track.hw[r.i] : track.halfWidth) + HOLD, w = Math.max(0, Math.min(1, (Math.abs(r.d) - (hl - 6)) / 6)); return r.h + (fv - r.h) * w * w * (3 - 2 * w);
+    const hl = HS ? HS[r.i] : (track.hw ? track.hw[r.i] : track.halfWidth) + HOLD, w = Math.max(0, Math.min(1, (Math.abs(r.d) - (hl - 8)) / 8)); return r.h + (fv - r.h) * w * w * (3 - 2 * w);
   };
   TERRAIN.grad = (x, z, out = [0, 0]) => { out[0] = (F.at(x + e, z) - F.at(x - e, z)) / (2 * e); out[1] = (F.at(x, z + e) - F.at(x, z - e)) / (2 * e); return out; };
 }
@@ -225,8 +232,8 @@ export function terrainGround(F, material, planeSize = 12000) {
     for (let j = 0; j <= nj; j++) for (let i = 0; i <= ni; i++) {
       const x = F.x0 + (ti + i) * F.cell, z = F.z0 + (tj + j) * F.cell;
       // (under the road and its kerbs the grass is kept 15 cm down: no cell of it can show through the asphalt)
-      const r = TERRAIN.road?.(x, z, _rq), under = r && Math.abs(r.d) < (TERRAIN.halfRoadAt ? TERRAIN.halfRoadAt(r.i) : TERRAIN.halfRoad || 9);
-      pos.push(x, (r ? TERRAIN.at(x, z) : F.H[(tj + j) * F.nx + ti + i]) - (under ? 0.15 : 0.05), z); uv.push(x / planeSize + 0.5, -z / planeSize + 0.5);
+      const r = TERRAIN.road?.(x, z, _rq), under = r && Math.abs(r.d) < (TERRAIN.halfRoadAt ? TERRAIN.halfRoadAt(r.i, r.d > 0 ? 1 : -1) : TERRAIN.halfRoad || 9);
+      pos.push(x, (r ? TERRAIN.at(x, z) : F.H[(tj + j) * F.nx + ti + i]) - (under ? 0.15 : 0.05) - (TERRAIN.sink ? TERRAIN.sink(x, z, r) : 0), z); uv.push(x / planeSize + 0.5, -z / planeSize + 0.5);
     }
     for (let j = 0; j < nj; j++) for (let i = 0; i < ni; i++) { const a = j * (ni + 1) + i, b = a + 1, c = a + ni + 1, d = c + 1; idx.push(a, c, b, b, c, d); }
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals();
