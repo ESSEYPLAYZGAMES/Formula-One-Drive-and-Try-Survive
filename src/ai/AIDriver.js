@@ -473,7 +473,7 @@ export class AIDriver {
       const mine = Math.abs(c.boxIdx ?? c.number + c.id) % P.boxes.length, now = world.time ?? 0;
       for (const o of world.cars) if (o !== c && Math.abs(o.boxIdx ?? o.number + o.id) % P.boxes.length === mine && (o.pitLaneState === 'stop' || (o.pitLaneState === 'out' && now - (o._pitDoneT ?? -99) < 4))) { vT = Math.min(vT, Math.sqrt(Math.max(0, 2 * 5 * (box.u - 9.5 - u)))); break; }
     }
-    if (c.pitLaneState === 'out' && u < box.u + 18 && u > box.u - 6) vT = Math.min(vT, 7 + Math.max(0, u - box.u) * 0.3);   // (and out of it)
+    if (c.pitLaneState === 'out' && u < box.u + 18 && u > box.u - 6) vT = Math.min(vT, 6 + Math.max(0, u - box.u) * 0.25);   // (and out of it)
     // a car ahead in the lane (stopped in its box, or slower): braking in time for it from the entry road's speeds, a
     // car length and a half behind it (one stopped in its own box beside the fast lane is passed)
     // (and a car still on the lane's run-in, driven by its own pitDrive, not yet counted as in the lane: under a safety
@@ -495,8 +495,8 @@ export class AIDriver {
   /**
    * The lane's lateral target along it (u -> lat, the pit lane's own offset): the fast lane 1.2 m toward the pit wall
    * by the garages (from 40 m before the first box to 40 m past the last), into the box by a cosine S from 18 m before
-   * it to 3.5 m before it (in: stopping), out of it straight for 4.5 m - past its own crew on the lane side, the car's
-   * back half going by them as it turns, swinging away from them - then the same S over 13 m (out: just released)
+   * it to 3.5 m before it (in: stopping), out of it straight for 3 m - its front clear of its own crew on the lane
+   * side, the back half going by them as it turns, swinging away from them - then the same S over 12 m (out)
    */
   _laneLat(P, box, inn, out) {
     if (!P._boxSpan) { let a = Infinity, b = -Infinity; for (const x of P.boxes) { const uu = P.samples.s[x.i]; a = Math.min(a, uu); b = Math.max(b, uu); } P._boxSpan = [a, b]; }
@@ -504,7 +504,7 @@ export class AIDriver {
     const fast = (uu) => side * 1.2 * sm((uu - (b0 - 40)) / 30) * sm(((b1 + 40) - uu) / 30);
     const S = (t) => (1 - Math.cos(Math.PI * Math.max(0, Math.min(1, t)))) / 2;
     if (inn) return (uu) => { if (uu > box.u + 4) return fast(uu); const f = fast(uu), e = S((uu - (box.u - 18)) / 14.5); return f + (box.lat - f) * e; };
-    if (out) return (uu) => { const f = fast(uu), e = S((uu - (box.u + 4.5)) / 13); return box.lat + (f - box.lat) * e; };
+    if (out) return (uu) => { const f = fast(uu), e = S((uu - (box.u + 3)) / 12); return box.lat + (f - box.lat) * e; };
     return fast;
   }
 
