@@ -458,15 +458,20 @@ read as a move (the raw sideways speed extrapolated), braking read as stopping d
 corner, extra room that grew the faster the AI was closing, and a direct check that stood on the brakes when a car a
 car's width beside it moved 20 cm. Now: the player's sideways motion is read through 0.4 s with a dead band for
 corrections; braking predicted down to the corner, not to a standstill; a meeting with the player more than 2 s off is
-a guess (gone for, at a cost) rather than a wall; once side by side - its front wheels up to the player's rear ones, a
-car's width between them - the AI expects the room the rules give it and squeezes rather than lifts; the direct check
-only fires on a real overlap. And it races for the place: a path that gets past (or alongside) counts for more than
-the time (only a path that is beside the car where it draws level, not one through it), it sticks to a move it is
-making, and it has two more moves - the lunge (the attacking lanes braked 4 % later) and the switchback (wide into the
-corner, across behind the car at the apex, up the inside out of it). In a test at Austin against a scripted car the AI
-could not read, about 5 s a lap slower and weaving +-0.4 m round its line, the AI behind got by in 7 runs of 8 (the
-old AI 8) in a median 31 s instead of 50 s - half of its passes through the esses (the old AI's: one in ten, the rest
-at the hairpins and the end of the back straight) - with no contact in either, nor against one that gave no room.
+a guess (gone for, at a cost) rather than a wall; a player clearly ahead turns in - in a corner its distance from the
+racing line closes over 1.2 s; side by side on a straight - its front wheels up to the player's rear ones, a car's width
+between them - the AI expects the player to keep to its side and squeezes rather than lifts, and in a corner it expects
+the room only when it has the corner (on the inside, level with the player where they meet: as between two AI cars,
+below) - anywhere else in a corner it is the player's; the direct check only fires on a real overlap. And it races for
+the place: a path that gets past (or alongside) counts for more than the time (only a path that is beside the car where
+it draws level, not one through it), it sticks to a move it is making, and it has two more moves - the lunge (the
+attacking lanes braked 4 % later) and the switchback (wide into the corner, across behind the car at the apex, up the
+inside out of it). The move is made before the braking point: while racing a car, a change of line in a braking zone
+costs by how far across and how hard the stop (swerving under braking loads the rear, and the pedal logic - rightly -
+takes the brakes away: the car reached Turn 1 70 km/h too fast). In a test at Austin against a scripted car the AI
+could not read, about 5 s a lap slower and weaving +-0.4 m round its line, the AI behind got by in 5 runs of 5 in a
+median 39 s (the old AI 52 s) with no contact; against one that gave no room at all (it drove as if alone), 4 of 5
+with 2 contacts, 1 of them hard (the old AI: 5 of 5, 4 contacts, 1 hard).
 
 The same moves against another AI car (`AI_TUNE.boldAI`, by aggression; none on the opening lap or under race
 control), read by its plan - the fixes for an unread car do not apply - plus corner ownership: where an AI car's path
