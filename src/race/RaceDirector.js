@@ -22,19 +22,21 @@ const Q_LAPS = 2;
 /** closing speed (m/s, ~72 km/h) above which a car running into the back of another may climb its rear wheel and take off */
 const LAUNCH_CAR = 26;
 // ---- car-to-car contact ------------------------------------------------------------------------------------------
-const HL = 2.83, HW = 1.0;   // the car's outline: half length, half width (m)
-/** points of a car's outline that can touch another car, body frame [forward, left] */
+const HLF = 3.0, HLR = 2.3, HW = 0.95;   // the car's outline about its centre of mass: to the nose, to the rear wing, half its width (m) - the 2026 car model's
+/** how high above the road each zone of a car is touched (m): where its dent goes (Car.crushFlat) */
+const ZONE_H = { wing: 0.15, nose: 0.3, side: 0.42, rear: 0.5 };
+/** points of a car's outline that can touch another car, body frame [forward, left] (from the centre of mass) */
 const PROBES = [
-  [1.8, 0.98], [1.8, -0.98], [-1.8, 0.98], [-1.8, -0.98],            // the four wheels (outer tyre walls)
-  [2.83, 0], [2.75, 0.95], [2.75, -0.95],                             // nose, front wing corners (endplates)
-  [-2.83, 0], [-2.6, 0.6], [-2.6, -0.6],                              // gearbox / rear crash structure, rear wing corners
-  [0.6, 0.95], [0.6, -0.95], [-0.6, 0.92], [-0.6, -0.92],             // sidepods
+  [1.85, 0.95], [1.85, -0.95], [-1.55, 0.94], [-1.55, -0.94],        // the four wheels (outer tyre walls)
+  [3.05, 0], [2.95, 0.88], [2.95, -0.88],                             // nose, front wing corners (endplates)
+  [-2.3, 0], [-2.25, 0.55], [-2.25, -0.55],                           // gearbox / rear crash structure, rear wing corners
+  [0.5, 0.72], [0.5, -0.72], [-0.6, 0.68], [-0.6, -0.68],             // sidepods
 ];
 /** what part of a car is at body point (x forward, y left) */
 function zoneAt(x, y) {
-  if (Math.abs(x) > 1.45 && Math.abs(x) < 2.2 && Math.abs(y) > 0.7) return 'wheel';
-  if (x >= 2.2) return Math.abs(y) > 0.55 ? 'wing' : 'nose';
-  if (x <= -2.2) return 'rear';
+  if (((x > 1.45 && x < 2.25) || (x > -1.95 && x < -1.15)) && Math.abs(y) > 0.66) return 'wheel';
+  if (x >= 2.25) return Math.abs(y) > 0.5 ? 'wing' : 'nose';
+  if (x <= -1.95) return 'rear';
   return 'side';
 }
 /**
@@ -46,8 +48,8 @@ function contact(p, cp, sp, q, cq, sq, best, sg) {
   for (const [bx, by] of PROBES) {
     const wx = q.x + bx * cq + by * sq, wz = q.z + bx * sq - by * cq;
     const dx = wx - p.x, dz = wz - p.z, lx = dx * cp + dz * sp, ly = dx * sp - dz * cp;
-    if (Math.abs(lx) >= HL || Math.abs(ly) >= HW) continue;
-    const penX = HL - Math.abs(lx), penY = HW - Math.abs(ly);
+    if (lx >= HLF || lx <= -HLR || Math.abs(ly) >= HW) continue;
+    const penX = lx > 0 ? HLF - lx : HLR + lx, penY = HW - Math.abs(ly);
     let fx, fy, pen;
     if (penY < penX) { fx = 0; fy = Math.sign(ly) || 1; pen = penY; } else { fx = Math.sign(lx) || 1; fy = 0; pen = penX; }
     if (pen <= best.pen) continue;
@@ -376,6 +378,9 @@ export class RaceDirector {
         a.impulseAt(cpx, cpz, -jx, -jz, K); b.impulseAt(cpx, cpz, jx, jz, K);
         const gA = a.pulse(Math.hypot(jn, jt) / CAR.mass, PULSE.car, 'car'), gB = b.pulse(Math.hypot(jn, jt) / CAR.mass, PULSE.car, 'car');
         const sA = a.applyImpact(la[0], la[1], -rvn * hit.dmgA, zA), sB = b.applyImpact(lb[0], lb[1], -rvn * hit.dmgB, zB);
+        // (the bodywork that touched is crushed - pushed in along the contact, a against n, b with it; a tyre is not)
+        if (zA !== 'wheel' && sA > 0) a.crushFlat(la[0], la[1], ZONE_H[zA] ?? 0.35, -nx, -nz, -rvn * hit.dmgA);
+        if (zB !== 'wheel' && sB > 0) b.crushFlat(lb[0], lb[1], ZONE_H[zB] ?? 0.35, nx, nz, -rvn * hit.dmgB);
         if (a.isPlayer || b.isPlayer) this.onContact?.(a, b, -rvn);
         // a T-bone at speed: the nose rides up the other car's sidepod and the hitter takes off
         if (hit.kind === 'tbone' && -rvn > 22 && Math.random() < Math.min(0.5, (-rvn - 22) / 14)) {
@@ -451,9 +456,11 @@ export class RaceDirector {
         // damage: a car on its wheels takes it like any hit; a tumbling one loses whatever is near the contact
         const into = -rvn;
         for (const [c, o] of [[a, b], [b, a]]) {
-          if (c.rigid) { if (into > 4) c._breakNear(cx, cy, cz, into); continue; }
+          const sg = c === a ? -1 : 1;
+          if (c.rigid) { c.crushWorld(cx, cy, cz, sg * nx, sg * ny, sg * nz, into); if (into > 4) c._breakNear(cx, cy, cz, into); continue; }
           const ca = Math.cos(c.th), sa = Math.sin(c.th), lx = (cx - c.x) * ca + (cz - c.z) * sa, ly = (cx - c.x) * sa - (cz - c.z) * ca;
           this._other = `${o.short}:wreck`; const sev = c.applyImpact(lx, ly, into * 0.6);
+          if (sev > 0) c.crushWorld(cx, cy, cz, sg * nx, sg * ny, sg * nz, into * 0.6);
           if (sev > 0) { this.onImpact(c, sev, 'car'); c.emit('hit', cx, cz, sev); }
           this._other = null;
           // collected by a flying chassis: torn up and thrown too

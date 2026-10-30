@@ -13,7 +13,7 @@ import * as THREE from 'three';
 import { makeCrewRig, POSE, gait, blendPose, applyPose } from './CrewRig.js';
 import { COMPOUNDS } from '../vehicle/Tyres.js';
 
-const NOSE_X = 3.21, REAR_X = -2.28, AXLE = { F: 1.96, R: -1.64 }, HUBW = { F: 0.848, R: 0.797 }, TYRE_W = { F: 0.305, R: 0.405 };
+const NOSE_X = 3.09, REAR_X = -2.31, AXLE = { F: 1.855, R: -1.548 }, HUBW = { F: 0.775, R: 0.736 }, TYRE_W = { F: 0.332, R: 0.414 };   // (the 2026 car model's, about the centre of mass)
 const LIFT_F = 0.085, LIFT_R = 0.08, NEAR = 150, RUN = 3.8, WALK = 1.5;
 const WHEELS = [['F', 1], ['F', -1], ['R', 1], ['R', -1]];   // (w side: +1 the garage side)
 const smooth = (a, b, t) => { const u = Math.max(0, Math.min(1, (t - a) / Math.max(1e-6, b - a))); return u * u * (3 - 2 * u); };
@@ -195,7 +195,7 @@ export class PitCrews {
     // (the car's detail states - CarMesh: the spare is only ever seen close by, its finest meshes shown, the others not)
     const near = (o) => o.userData.lod === 0;
     w.traverse((o) => { if (o.userData.lod != null) o.visible = near(o); });
-    if (fresh) w.traverse((o) => { if (near(o)) o.visible = true; if (o !== w) o.rotation.x = 0; });
+    if (fresh) w.traverse((o) => { if (near(o)) o.visible = true; if (o !== w) o.rotation.x = 0; if (o.isMesh && mesh.undented) o.material = mesh.undented(o); });   // (a new wing: none of the car's dents)
     H.add(w); return H;
   }
   /** car meshes back as they were */
@@ -250,10 +250,10 @@ export class PitCrews {
     }
     k.fl = fl; k.rl = rl;
     if (mesh && (k.phase === 'stop')) {
-      mesh.group.position.y += rl + 1.64 * (fl - rl) / 3.6; mesh.group.rotation.z += Math.atan((fl - rl) / 3.6);
+      mesh.group.position.y += rl + -AXLE.R * (fl - rl) / (AXLE.F - AXLE.R); mesh.group.rotation.z += Math.atan((fl - rl) / (AXLE.F - AXLE.R));
       mesh.group.updateMatrixWorld(true);
     }
-    const yAt = (u) => rl + (u + 1.64) * (fl - rl) / 3.6;
+    const yAt = (u) => rl + (u - AXLE.R) * (fl - rl) / (AXLE.F - AXLE.R);
     // per wheel: off at, on at, tight until
     const tl = WHEELS.map((wh, j) => {
       const extra = j === 3 ? slow : 0;

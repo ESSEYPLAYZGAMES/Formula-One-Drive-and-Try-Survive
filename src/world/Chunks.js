@@ -1,6 +1,7 @@
-// The other half of a car torn in two: a free rigid body (box contact points, gravity, drag, friction against the
-// ground, barriers where they stand) carrying that half's meshes. It tumbles, bounces and slides to rest, and stays
-// there. Rendered by the meshes CarMesh.split moved into it.
+// The other half of a car torn in two, and every piece that breaks off a car (a wing, a wheel, the nose, a sidepod's
+// panel - vehicle/CarMesh.js): a free rigid body (box contact points, gravity, drag, friction against the ground,
+// barriers where they stand) carrying its meshes. It tumbles, bounces and slides to rest, and stays there. (The car
+// records each one's flight: a flashback or a replay puts it back where it was - CarMesh._record, _resume.)
 import * as THREE from 'three';
 
 const G = 9.81;
@@ -10,8 +11,9 @@ const BAR_H = [0, 0.85, 1.3, 4.2];
 export class Chunks {
   constructor(scene) { this.scene = scene; this.list = []; this.track = null; }
   /**
-   * @param root THREE.Object3D placed at the half's centre (world), holding its meshes
+   * @param root THREE.Object3D placed at the body's centre (world), holding its meshes
    * @param v world velocity (m/s), w angular velocity (rad/s, world), half extents [hx, hy, hz] (m), mass (kg)
+   * @returns the body (v, w: THREE.Vector3s; done: at rest)
    */
   add(root, v, w, half, mass = 260) {
     this.scene.add(root);
@@ -19,8 +21,11 @@ export class Chunks {
     const pts = []; for (const x of [-hx, hx]) for (const y of [-hy, hy]) for (const z of [-hz, hz]) pts.push(new THREE.Vector3(x, y, z));
     // (a box's inertia, as one scalar: good enough for a tumbling half-car)
     const I = mass * (hx * hx + hy * hy + hz * hz) / 3;
-    this.list.push({ root, v: new THREE.Vector3(...v), w: new THREE.Vector3(...w), pts, mass, I, rest: 0, done: false, hy });
+    const c = { root, v: new THREE.Vector3(...v), w: new THREE.Vector3(...w), pts, mass, I, rest: 0, done: false, hy };
+    this.list.push(c); return c;
   }
+  /** take one body out (a flashback: it has not broken off yet) */
+  remove(c) { const i = this.list.indexOf(c); if (i >= 0) this.list.splice(i, 1); this.scene.remove(c.root); }
   update(dt) {
     if (dt <= 0) return;
     const tr = this.track, n = Math.max(1, Math.ceil(dt / (1 / 120))), h = dt / n;

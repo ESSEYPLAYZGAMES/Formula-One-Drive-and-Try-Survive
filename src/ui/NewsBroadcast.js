@@ -627,23 +627,18 @@ export class NewsBroadcast {
       return;
     }
     const C = this.clip, inClip = new Set(C ? C.cars : [this.car]);
-    for (const [c, m] of this.meshes) m.group.visible = show && inClip.has(c);
-    for (const R of this.replicas?.values() || []) R.group.visible = false;
+    for (const [c, m] of this.meshes) { m.group.visible = show && inClip.has(c); m.showPieces?.(!inClip.has(c)); }
+    for (const R of this.replicas?.values() || []) { R.group.visible = false; R.showPieces?.(false); }
     if (!show || !C) return;
     C.cars.forEach((c, j) => {
       const m = this.meshes.get(c); if (!m) return;
       const { p, q } = this._pose(tau, j); let target = m;
-      // (torn in two later on: the whole car until then - a fresh one - and only then the front half and the rear
-      //  half flying where it flew)
-      // (-1 but torn in two now: it split after the replay ends - whole all through it)
-      const sk0 = C.splitK?.[j] ?? -1, sk = sk0 < 0 && c.split ? C.frames.length + 1 : sk0;
-      if (sk >= 0) {
-        const whole = tau * C.hz < sk, R = whole ? this._replica(c) : null;
-        if (R) { R.group.visible = true; m.group.visible = false; target = R; }
-        if (m.half) { m.half.visible = !whole; if (!whole) this._poseHalf(c, m.half, C.t0 + tau); }
-      } else if (this._isWreck(c)) {
-        // (damaged in it: not the wreck as it is now - a whole car, breaking up as the replay goes: _replayFx)
-        const R = this._replica(c); if (R) { R.group.visible = true; m.group.visible = false; target = R; }
+      // (damaged in it: not the wreck as it is now - a replica, its damage as it was at that moment of the replay:
+      //  whole, then the dents, the parts breaking off and flying where they flew, torn in two when it was -
+      //  CarMesh.replay, from the car's own record)
+      if (this._isWreck(c)) {
+        const t = C.t0 + tau, R = this._replica(c, t);
+        if (R) { R.group.visible = true; R.showPieces(true); m.group.visible = false; target = R; R.group.position.copy(p); R.group.quaternion.copy(q); R.replay(c, t); }
       }
       target.group.position.copy(p); target.group.quaternion.copy(q);
     });
@@ -653,14 +648,14 @@ export class NewsBroadcast {
   _isWreck(c) { const d = c.dmg || {}; return !!(c.retired || c.wreck || c.split || this.hurt.includes(c) || (d.fwL || 0) + (d.fwR || 0) + (d.rw || 0) + (d.susp || 0) > 0.8); }
   /** a replay starting again: the cars whole, the scene clear (the wreck's debris and fire as they are now gone) */
   _replayReset() {
-    const F = this.fx; if (F) { F.fire?.clear(); F.debris?.clear(); F.chunks?.clear(); }
-    for (const S of this.rstate?.values() || []) { const R = S.R; R.frontWing.visible = true; R.rearWing.visible = true; for (const w of R.wheels) w.hub.visible = true; S.broken = {}; if (S.fireE) S.fireE.dead = true; S.fireE = null; S.lastK = -1; }
+    const F = this.fx; if (F) { F.fire?.clear(); F.debris?.clear(); }   // (the pieces are the replicas' own: CarMesh.replay)
+    for (const S of this.rstate?.values() || []) { if (S.fireE) S.fireE.dead = true; S.fireE = null; S.lastK = -1; }
     this._rTau = null;
   }
   /**
    * The accident as it happened, on the replica: at every recorded hit (the replay's crash pulses) debris and sparks
-   * fly from where the car was; at its biggest hits it loses what the real car lost - the front wing, the rear wing, a
-   * wheel - and if the car burned, the fire takes hold from the engine and grows.
+   * fly from where the car was (what it lost, and when, is the replica's own: CarMesh.replay), and if the car burned,
+   * the fire takes hold from the engine and grows.
    */
   _replayFx(tau) {
     const C = this.clip, F = this.fx; if (!C || !F || !C.pulses) return;
@@ -671,18 +666,14 @@ export class NewsBroadcast {
     C.cars.forEach((c, j) => {
       if (!this._isWreck(c)) return;
       const R = this._replica(c); if (!R) return;
-      let S = M.get(c); if (!S) { S = { R, lastK: -1, broken: {}, fireE: null, peak: Math.max(1, ...C.pulses.map((pp) => pp[j] || 0)) }; M.set(c, S); }
-      const real = this.meshes.get(c), col = R.livery.color.getHex(), o = j * 7;
+      let S = M.get(c); if (!S || S.R !== R) { S = { R, lastK: -1, fireE: null, peak: Math.max(1, ...C.pulses.map((pp) => pp[j] || 0)) }; M.set(c, S); }
+      const col = R.livery.color.getHex(), o = j * 7;
       for (let f = Math.max(0, S.lastK + 1); f <= k; f++) {
         const g = C.pulses[f]?.[j] || 0; if (g < 6) continue;
         const quiet = f < k - 2;   // (catching up: a replay starting part-way through - the damage done, no shower of old debris)
         const A = C.frames[f], B = C.frames[Math.max(0, f - 1)], x = A[o], y = A[o + 1], z = A[o + 2], vx = (A[o] - B[o]) * C.hz, vz = (A[o + 2] - B[o + 2]) * C.hz;
         if (!quiet) { F.debris?.burst(x, z, vx, vz, Math.min(18, 2 + Math.round(g / 3)), col); F.fire?.sparks(x, y + 0.3, z, Math.min(70, Math.round(g * 1.6)), vx, vz); }
         if (g >= Math.min(20, S.peak * 0.6)) {
-          const d = c.dmg || {}, BR = S.broken;
-          if (!BR.fw && ((d.fwL || 0) > 0.95 || (d.fwR || 0) > 0.95 || real?.lost?.fw)) { BR.fw = true; R.frontWing.visible = false; if (!quiet) F.debris?.part('plate', x, 0.3, z, vx, vz, col, 6); }
-          if (!BR.rw && ((d.rw || 0) >= 0.85 || real?.lost?.rw)) { BR.rw = true; R.rearWing.visible = false; if (!quiet) F.debris?.part('rearwing', x, 0.8, z, vx, vz, col, 6); }
-          (real?.wheels || []).forEach((w, i) => { if (w.gone && !BR['w' + i] && R.wheels[i]) { BR['w' + i] = true; R.wheels[i].hub.visible = false; if (!quiet) F.debris?.part('tyre', x, 0.4, z, vx, vz, 0x141414, 9); } });
           if (!S.fireE && (c._burned || g >= 45) && F.fire) {
             const e = F.fire.add((out) => { if (!R.group.visible) return false; R.body.localToWorld(out.set(-1.3, 0.55, 0)); return true; }, 'fire', 0.4, () => false);
             e.replay = true; e.born = tau; S.fireE = e;
@@ -693,26 +684,22 @@ export class NewsBroadcast {
       S.lastK = k;
     });
   }
-  /** a whole car to stand in for one that was later torn in two */
-  _replica(c) {
+  /**
+   * A car standing in for a damaged one in the replays (CarMesh.replay shows its damage as it was at race time t). A
+   * replica torn in two cannot be whole again: replayed from before the tear, it is made anew.
+   */
+  _replica(c, t = Infinity) {
     if (!this.makeCarMesh) return null;
     const M = this.replicas || (this.replicas = new Map());
-    let R = M.get(c); if (!R) { R = this.makeCarMesh(c); this.scene.add(R.group); M.set(c, R); }
+    let R = M.get(c);
+    if (R && R.splitDone && t < (c.splitT ?? -Infinity)) { this.scene.remove(R.group); R.dispose(); M.delete(c); R = null; }
+    if (!R) { R = this.makeCarMesh(c); this.scene.add(R.group); M.set(c, R); }
     return R;
   }
-  /** the rear half of a car torn in two, where it was at race time t (main.js keeps its flight) */
-  _poseHalf(c, half, t) {
-    const T = c._halfTrack; if (!T || !T.length) return;
-    if (!half.userData.final) half.userData.final = { p: half.position.clone(), q: half.quaternion.clone() };
-    let k = 0; while (k < T.length - 2 && T[k + 1][0] < t) k++;
-    const A = T[k], B = T[Math.min(T.length - 1, k + 1)], a = B[0] > A[0] ? Math.max(0, Math.min(1, (t - A[0]) / (B[0] - A[0]))) : 0;
-    half.position.set(A[1] + (B[1] - A[1]) * a, A[2] + (B[2] - A[2]) * a, A[3] + (B[3] - A[3]) * a);
-    half.quaternion.set(A[4], A[5], A[6], A[7]).slerp(new this.T3.Quaternion(B[4], B[5], B[6], B[7]), a);
-  }
-  /** the halves back where they came to rest (live shots, the end) */
+  /** the real cars as they are now (live shots, the end): their halves and pieces where they came to rest */
   _restHalves() {
-    for (const m of this.meshes.values()) { const F = m.half?.userData.final; if (F) { m.half.position.copy(F.p); m.half.quaternion.copy(F.q); } if (m.half) m.half.visible = true; }
-    for (const R of this.replicas?.values() || []) R.group.visible = false;
+    for (const m of this.meshes.values()) { if (m.half) m.half.visible = true; m.showPieces?.(true); }
+    for (const R of this.replicas?.values() || []) { R.group.visible = false; R.showPieces?.(false); }
   }
 
   // ---- sound: a news sting, a low pad under it all; the phone's own sound (wind, the crowd, the impact); silence

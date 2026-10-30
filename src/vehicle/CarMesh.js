@@ -1,7 +1,11 @@
 // The F1 car: the 2026 model (vehicle/CarModel.js - its parts and their levels of detail, shared by the whole field) in
-// a team's livery (vehicle/Livery.js), its wheels turning and steering, the DRS flap working, losing its wings, its
-// wheels and its shape in a crash, coming apart. Forward = +x, y up, z to the right; the ground is y = 0, the body
+// a team's livery (vehicle/Livery.js), its wheels turning and steering, the DRS flap working, and its damage
+// (vehicle/Damage.js): the bodywork crumpled where it was hit, the parts that broke off flying and lying where they
+// fell, the car torn in two along a ragged line. Forward = +x, y up, z to the right; the ground is y = 0, the body
 // frame's origin sits CG_X ahead of the group's (the physics' centre of gravity).
+//
+// The damage is the car's own record (Car.dents, .lost, .pieces - with the race time of each), so this mesh can be
+// rebuilt or rewound at any moment and show it exactly as it was: a flashback, a replay (replay(car, t)).
 //
 // Detail by distance, the car's states (detail(cam, zoom): the distances scale with the lens, so a long lens brings
 // the detail in with the car):
@@ -18,8 +22,10 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { COMPOUNDS } from './Tyres.js';
 import { helmetTexture } from '../world/HelmetDesigns.js';
 import { TERRAIN } from '../world/Terrain.js';
+import { floodlit } from '../world/Lighting.js';
 import { carModel } from './CarModel.js';
 import { liveryFor, liveryUniforms, paintWith } from './Livery.js';
+import { REGIONS, REGION_BIT, partGeo, hasRegions, regionGeo, fragGeo, centreOf, dentWith, dentUniforms, NO_DENTS, ownCopy, uploadDents, prepareDamage } from './Damage.js';
 
 /** the car's states by distance from the camera (m, at the default lens) */
 const D_ULTRA = 9, D_HIGH = 38, LOD_FAR = 95, LOD_MIN = 260;
@@ -30,34 +36,31 @@ let FIRE = null, CHUNKS = null;
 /** the fire / smoke particles (world/Fire.js) and the free halves of split cars (world/Chunks.js) */
 export function setFire(f) { FIRE = f; }
 export function setChunks(c) { CHUNKS = c; }
-const SPLIT_X = -0.62;   // body frame: where a car tears in two - behind the survival cell, ahead of the engine
-const CG_X = 0.16, R_TYRE = 0.354;
+const SPLIT_X = -0.62;   // body frame: where a car tears in two - behind the survival cell, ahead of the engine (Damage.js TEAR_X: the ragged line)
+const CG_X = 0.151, R_TYRE = 0.354;   // (CG_X: the centre of mass is this far behind the axles' midpoint - Car.js CAR.lf / lr)
 const _sv = new THREE.Vector3(), _m4 = new THREE.Matrix4(), _m4b = new THREE.Matrix4(), _wp = new THREE.Vector3(), _gr = [0, 0], _up = new THREE.Vector3(0, 1, 0);
-
+const EMPTY = new THREE.BufferGeometry();   // (a part with every triangle gone)
+/** the box round a geometry's own triangles (a piece shares its whole part's vertex buffer) */
+function triBox(g) {
+  if (g.userData.triBox) return g.userData.triBox;
+  const P = g.attributes.position.array, I = g.index?.array, b = new THREE.Box3();
+  if (I) for (let k = 0; k < I.length; k++) { const a = I[k] * 3; b.expandByPoint(_sv.set(P[a], P[a + 1], P[a + 2])); } else b.setFromBufferAttribute(g.attributes.position);
+  return (g.userData.triBox = b);
+}
 /**
- * Cut a geometry by the plane x = X (its own frame): [front (x >= X), back] as two new non-indexed geometries, every
- * triangle that crosses the plane clipped along it (all attributes interpolated), so the tear is a clean edge.
+ * A piece where its record has it at race time t: rec.tr [t, x, y, z, qx, qy, qz, qw] at 20 Hz while it flies; then,
+ * if it came to rest on the racing surface, rec.sweep [t, x0, z0, x1, z1]: the marshals dragging it off to the verge.
  */
-function cutGeometry(geo, X) {
-  const g = geo.index ? geo.toNonIndexed() : geo, names = Object.keys(g.attributes), atts = names.map((n) => g.attributes[n]);
-  const sizes = atts.map((a) => a.itemSize), stride = sizes.reduce((a, b) => a + b, 0), posOff = sizes.slice(0, names.indexOf('position')).reduce((a, b) => a + b, 0);
-  const vert = (i) => { const v = new Float32Array(stride); let o = 0; atts.forEach((a, k) => { for (let j = 0; j < sizes[k]; j++) v[o + j] = a.getComponent ? a.getComponent(i, j) : a.array[i * sizes[k] + j]; o += sizes[k]; }); return v; };
-  const lerp = (a, b, t) => a.map((x, i) => x + (b[i] - x) * t);
-  const F = [], B = [], n = g.attributes.position.count / 3;
-  for (let t = 0; t < n; t++) {
-    const V = [vert(t * 3), vert(t * 3 + 1), vert(t * 3 + 2)], d = V.map((v) => v[posOff] - X), inF = d.map((x) => x >= 0), nF = inF.filter(Boolean).length;
-    if (nF === 3) { F.push(...V); continue; } if (nF === 0) { B.push(...V); continue; }
-    const lone = inF.findIndex((f) => f === (nF === 1)), i1 = (lone + 1) % 3, i2 = (lone + 2) % 3;
-    const Q1 = lerp(V[lone], V[i1], d[lone] / (d[lone] - d[i1])), Q2 = lerp(V[lone], V[i2], d[lone] / (d[lone] - d[i2]));
-    const L = nF === 1 ? F : B, O = nF === 1 ? B : F;
-    L.push(V[lone], Q1, Q2); O.push(Q1, V[i1], V[i2], Q1, V[i2], Q2);
-  }
-  const build = (list) => {
-    const ng = new THREE.BufferGeometry(); let o = 0;
-    atts.forEach((a, k) => { const sz = sizes[k], arr = new Float32Array(list.length * sz); list.forEach((v, j) => { for (let q = 0; q < sz; q++) arr[j * sz + q] = v[o + q]; }); ng.setAttribute(names[k], new THREE.BufferAttribute(arr, sz, a.normalized && !(a.array instanceof Float32Array) ? false : a.normalized)); o += sz; });
-    ng.computeBoundingSphere(); return ng;
-  };
-  return [F.length ? build(F) : null, B.length ? build(B) : null];
+const _pq0 = new THREE.Quaternion(), _pq1 = new THREE.Quaternion();
+const SWEEP_AFTER = 14, SWEEP_T = 2.5;   // (as world/Debris.js: on the road this long, then dragged off over this long)
+function posePiece(o, rec, t) {
+  const tr = rec.tr, n = tr.length / 8; if (!n) return;
+  let k = 0; while (k < n - 1 && tr[(k + 1) * 8] <= t) k++;
+  const a = k * 8, b = Math.min(n - 1, k + 1) * 8, u = tr[b] > tr[a] ? Math.max(0, Math.min(1, (t - tr[a]) / (tr[b] - tr[a]))) : 0;
+  o.position.set(tr[a + 1] + (tr[b + 1] - tr[a + 1]) * u, tr[a + 2] + (tr[b + 2] - tr[a + 2]) * u, tr[a + 3] + (tr[b + 3] - tr[a + 3]) * u);
+  o.quaternion.copy(_pq0.set(tr[a + 4], tr[a + 5], tr[a + 6], tr[a + 7])).slerp(_pq1.set(tr[b + 4], tr[b + 5], tr[b + 6], tr[b + 7]), u);
+  const S = rec.sweep;
+  if (S && S.length > 1 && t > S[0]) { const v = Math.min(1, (t - S[0]) / SWEEP_T), e = v * v * (3 - 2 * v); o.position.x = S[1] + (S[3] - S[1]) * e; o.position.z = S[2] + (S[4] - S[2]) * e; }
 }
 
 // ---- shared parts: the punctured tyre's (the wrecked tyre and the bare rim), the helmet, the blob shadow
@@ -97,8 +100,9 @@ function materials() {
     if (m.nrm) { o.normalMap = M.tex[m.nrm]; o.normalScale = new THREE.Vector2(0.6, 0.6); }
     if (m.alpha) { o.transparent = true; o.alphaTest = 0.25; o.depthWrite = false; }
     if (k === 'mirror') o.envMapIntensity = 1.6;
-    MAT[k] = new THREE.MeshStandardMaterial(o); SHARED_MAT.add(MAT[k]);
+    MAT[k] = dentWith(new THREE.MeshStandardMaterial(o), NO_DENTS); MAT[k].name = 'car-' + k; SHARED_MAT.add(MAT[k]);   // (no dents: a car that is hit gets its own copies, the same program)
   }
+  prepareDamage();
   return MAT;
 }
 const TYRE = {};
@@ -188,20 +192,24 @@ export class CarMesh {
     this.livery = { color: new THREE.Color(spec.base) }; this.accent = { color: new THREE.Color(opts.color2 || spec.layers[0]?.c || spec.base) };   // (what debris and the replays take the car's colour from)
     this.compound = compound;
     const own = this._own = new Set();   // (this car's own materials: freed with it)
+    const DU = this.DU = dentUniforms();   // (its dents: every one of its materials bends by them - Damage.js)
     const paint = new Map(), far = new Map();
     // (one per part with a pivot of its own, and the wing it is on: the wing layers paint the wings by their flag)
-    const paintMat = (pv, part = 0) => { const k = pv.join(',') + '|' + part; if (!paint.has(k)) { const m = paintWith(new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: spec.finish?.rough ?? 0.3, metalness: spec.finish?.metal ?? 0.15, envMapIntensity: 0.9 }), U, pv, 'paint', part); own.add(m); paint.set(k, m); } return paint.get(k); };
-    const farMat = (pv, part = -1) => { const k = pv.join(',') + '|' + part; if (!far.has(k)) { const m = paintWith(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.4, metalness: 0.2 }), U, pv, 'far', part); own.add(m); far.set(k, m); } return far.get(k); };
+    const paintMat = (pv, part = 0) => { const k = pv.join(',') + '|' + part; if (!paint.has(k)) { const m = dentWith(paintWith(new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: spec.finish?.rough ?? 0.3, metalness: spec.finish?.metal ?? 0.15, envMapIntensity: 0.9 }), U, pv, 'paint', part), DU, pv); own.add(m); paint.set(k, m); } return paint.get(k); };
+    const farMat = (pv, part = -1) => { const k = pv.join(',') + '|' + part; if (!far.has(k)) { const m = dentWith(paintWith(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.4, metalness: 0.2 }), U, pv, 'far', part), DU, pv); own.add(m); far.set(k, m); } return far.get(k); };
     const wingOf = (name) => (name === 'fw' || name === 'fwL' || name === 'fwR' ? 1 : name === 'rw' || name === 'drs' ? 2 : 0);
+    // (the paint without this car's dents: a new part on it - the pit crew's spare wing: undented)
+    const clean = new Map();
+    this._paintClean = (name) => { const pv = M.pivots[name] || [0, 0, 0], k = pv.join(',') + '|' + wingOf(name); if (!clean.has(k)) { const m = dentWith(paintWith(new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: spec.finish?.rough ?? 0.3, metalness: spec.finish?.metal ?? 0.15, envMapIntensity: 0.9 }), U, pv, 'paint', wingOf(name)), NO_DENTS, pv); floodlit(m, true); own.add(m); clean.set(k, m); } return clean.get(k); };
     this._farMat = farMat;
-    this.tcamMat = new THREE.MeshStandardMaterial({ color: opts.tcamColor ?? 0xffd400, roughness: 0.45, metalness: 0.1 }); own.add(this.tcamMat);
-    const lightMat = new THREE.MeshStandardMaterial({ map: M.tex.light, color: 0x501010, emissive: 0xff1010, emissiveMap: M.tex.light, emissiveIntensity: 0.8 }); own.add(lightMat);
+    this.tcamMat = dentWith(new THREE.MeshStandardMaterial({ color: opts.tcamColor ?? 0xffd400, roughness: 0.45, metalness: 0.1 }), DU); own.add(this.tcamMat);
+    const lightMat = dentWith(new THREE.MeshStandardMaterial({ map: M.tex.light, color: 0x501010, emissive: 0xff1010, emissiveMap: M.tex.light, emissiveIntensity: 0.8 }), DU); own.add(lightMat);
     this.rearLight = { material: lightMat };
     this.wheelDisp = new THREE.MeshStandardMaterial({ color: 0x0b1016, emissive: 0x1d8fd0, emissiveIntensity: 0.55, roughness: 0.25, metalness: 0.2 }); own.add(this.wheelDisp);   // (the steering wheel's display, lit)
     let numMat = null;
     if (opts.number != null) {
       const N = spec.num || { c: '#ffffff', edge: '#000000' };
-      numMat = new THREE.MeshStandardMaterial({ map: numberTexture(opts.number, opts.driver, opts.driver ? opts.driver.split(' ').pop().slice(0, 3).toUpperCase() : '', N.c, N.edge), transparent: true, alphaTest: 0.3, roughness: 0.35, metalness: 0.1, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+      numMat = dentWith(new THREE.MeshStandardMaterial({ map: numberTexture(opts.number, opts.driver, opts.driver ? opts.driver.split(' ').pop().slice(0, 3).toUpperCase() : '', N.c, N.edge), transparent: true, alphaTest: 0.3, roughness: 0.35, metalness: 0.1, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }), DU);
       own.add(numMat);
     }
     this._compoundMats = [];
@@ -217,6 +225,7 @@ export class CarMesh {
       if (k === 'swlcd') return this.wheelDisp;
       return shared[k] || shared.black;
     };
+    this._matFor = matFor;
     this.lv = [[], [], []];
     /** a part's meshes, levels 0-2 (those it has), into parent (its pivot's frame) */
     const put = (parent, name, levels = [0, 1, 2]) => {
@@ -225,7 +234,7 @@ export class CarMesh {
         const L = P[lv]; if (!L) continue;
         for (const [k, g] of Object.entries(L)) {
           const mat = matFor(name, k, lv); if (!mat) continue;
-          const m = new THREE.Mesh(g, mat); m.userData.lod = lv; m.userData.part = name; if (k === 'tyre' && lv < 2) m.userData.tyre = true;
+          const m = new THREE.Mesh(g, mat); m.userData.lod = lv; m.userData.part = name; m.userData.mk = k; if (k === 'tyre' && lv < 2) m.userData.tyre = true;
           parent.add(m); this.lv[lv].push(m);
         }
       }
@@ -233,7 +242,9 @@ export class CarMesh {
     const at = (name) => { const g = new THREE.Group(); g.position.set(...(M.pivots[name] || [0, 0, 0])); return g; };
 
     // ---- the static body (the tub, nose, sidepods, engine cover, floor, suspension), its T-cam, number and rain lights
-    put(body, 'body'); put(body, 'tcam'); put(body, 'light'); if (numMat) put(body, 'number', [0, 1]);
+    put(body, 'body'); if (numMat) put(body, 'number', [0, 1]);
+    this.tcamG = new THREE.Group(); put(this.tcamG, 'tcam'); body.add(this.tcamG);
+    this.lightG = new THREE.Group(); put(this.lightG, 'light'); body.add(this.lightG);
     // the halo (toggled with H)
     this.halo = at('halo'); put(this.halo, 'halo'); body.add(this.halo);
 
@@ -296,7 +307,7 @@ export class CarMesh {
       for (const [part, into] of [[name, null], [name + 's', camber]]) {
         const P = M.geo[part]; if (!P) continue;
         for (const lv of [0, 1, 2]) for (const [k, g] of Object.entries(P[lv] || {})) {
-          const m = new THREE.Mesh(g, matFor(part, k, lv)); m.userData.lod = lv; if (k === 'tyre' && lv < 2) m.userData.tyre = true;
+          const m = new THREE.Mesh(g, matFor(part, k, lv)); m.userData.lod = lv; m.userData.wheel = true; if (k === 'tyre' && lv < 2) m.userData.tyre = true;
           (into || (k === 'tyre' || lv >= 2 ? tyre : face)).add(m); this.lv[lv].push(m);
         }
       }
@@ -307,13 +318,18 @@ export class CarMesh {
     }
     for (let l = 1; l < 3; l++) for (const o of this.lv[l]) o.visible = false;
     this.shadow = new THREE.Mesh(shadowGeo, shadowMat); body.add(this.shadow);   // blob shadow
-    this.spin = 0; this.lost = {}; this.mangled = false;
+    this.spin = 0; this.mangled = false;
+    // (the damage as drawn: the parts gone, the regions' mask, the half of a torn car, the dents uploaded, the pieces)
+    this._gone = {}; this._mask = 0; this._half = 0; this._dentRef = null; this._dentVer = -1; this._pieces = new Map(); this._piecesRef = null;
 
     // ---- the far states: one mesh each (shared geometry), their own blob shadows
     this.far = new THREE.Group(); this.farMesh = new THREE.Mesh(farGeometry(3, () => true), farMat([0, 0, 0])); this.farMesh.position.x = CG_X; this.shadowFar = new THREE.Mesh(shadowGeo, shadowMat); this.shadowFar.position.x = CG_X; this.far.add(this.farMesh, this.shadowFar);
     this.min = new THREE.Group(); this.minMesh = new THREE.Mesh(farGeometry(4, () => true), farMat([0, 0, 0])); this.minMesh.position.x = CG_X; this.shadowMin = new THREE.Mesh(shadowGeo, shadowMat); this.shadowMin.position.x = CG_X; this.min.add(this.minMesh, this.shadowMin);
     this.group.addLevel(body, 0); this.group.addLevel(this.far, LOD_FAR); this.group.addLevel(this.min, LOD_MIN);
     this._sig = this._signature();
+    // (lit as a car is in a session - the floodlights, the Sphere's glow: world/Lighting.js - from the start, so a car
+    //  made mid-session, a flashback's or a replay's, draws with the programs compiled at its start)
+    this.group.traverse((o) => { if (o.material) floodlit(o.material, true); });
   }
 
   /**
@@ -357,6 +373,7 @@ export class CarMesh {
 
   /** free this car's own materials and textures (the model's geometry and shared materials stay) */
   dispose() {
+    for (const P of this._pieces.values()) this._dropPiece(P); this._pieces.clear();
     for (const m of this._own) { if (!m.userData.sharedMap) m.map?.dispose?.(); m.dispose(); }
     this.U.uTxtMap.value?.dispose?.();
     this.group.traverse((o) => { if (o.isMesh && o.userData.ownGeo) o.geometry.dispose(); });
@@ -373,10 +390,6 @@ export class CarMesh {
 
   /** world position of one of this car's parts (last frame's transforms: one frame late is invisible) */
   _wpos(o) { return o.getWorldPosition(_wp); }
-  _drop(kind, o, car, color, kick) {
-    if (!DEBRIS) return; const p = this._wpos(o); const [vx, vz] = car.air ? [car.wvx, car.wvz] : car.worldVel();
-    DEBRIS.part(kind, p.x, Math.max(0.2, p.y), p.z, vx, vz, color, kick);
-  }
   /** the big one: the bodywork crumples and is scorched (which parts come off is the physics' call: wheelK events, wing damage) */
   _mangle(car) {
     if (this.mangled) return; this.mangled = true;
@@ -386,14 +399,15 @@ export class CarMesh {
     if (DEBRIS) { const [vx, vz] = car.worldVel(); DEBRIS.burst(car.x, car.z, vx, vz, 24, this.livery.color.getHex()); }
   }
   /**
-   * The car torn in two (Car.splitApart): everything aft of SPLIT_X - the rear wing, the rear wheels, the back of the
-   * tub and engine cover (its meshes cut triangle by triangle: the HIGH state's, which this car now keeps) - moves into a
-   * group of its own that world/Chunks.js flies as a rigid body; this mesh keeps the front half. The far states go.
+   * The car torn in two (Car.splitApart): everything behind the tear - the rear wing, the rear wheels, the rain light
+   * and the bodywork behind the ragged line (Damage.js sorted every triangle at start-up: nothing is cut now, the HIGH
+   * state's triangles behind it are simply drawn by meshes of their own) - goes into a body of its own that
+   * world/Chunks.js flies; this mesh keeps the front, at every level. The far states go. The half is one of the car's
+   * pieces, its flight recorded (rec: its record - the car rebuilt by a flashback or a replay - instead of a new tear).
    */
-  split(car) {
-    if (this.splitDone || !CHUNKS) return; this.splitDone = true;
-    // (from now on the HIGH state: cutting the finest one, a hundred thousand triangles, held the frame up)
-    this._lockLv = 1; this._lvNow = -1; this.detail(this.group.position, this._zoom);
+  split(car, rec = null, replay = false) {
+    if (this.splitDone) return; this.splitDone = true; this._half = 1;
+    this._ownMats();
     const body = this.body; this.group.updateMatrixWorld(true);
     // the half's centre (body frame) and the group that carries it
     const C = new THREE.Vector3((SPLIT_X - 2.6) / 2, 0.45, 0), root = new THREE.Group(); root.name = 'car-half';
@@ -402,27 +416,211 @@ export class CarMesh {
     const adopt = (o) => { o.updateMatrixWorld(true); _m4.multiplyMatrices(inv, o.matrixWorld); o.parent?.remove(o); _m4.decompose(o.position, o.quaternion, o.scale); root.add(o); };
     // whole parts
     adopt(this.rearWing);
-    for (const w of this.wheels) if (!w.front) { adopt(w.hub); w.gone = true; }
-    // the body's meshes (its own frame: the body's), cut in two
-    const cut = [];
-    for (const o of body.children) if (o.isMesh && o.userData.part && o.userData.part !== 'number' && o.userData.lod === 1) cut.push(o);
-    for (const o of body.children) if (o.isMesh && o.userData.part && o.userData.lod !== 1) o.visible = false;
-    for (const o of cut) {
-      const [front, rear] = cutGeometry(o.geometry, SPLIT_X);
-      if (!rear) continue;
-      const back = new THREE.Mesh(rear, o.material); back.userData.ownGeo = true; body.add(back); adopt(back);
-      if (front) { o.geometry = front; o.userData.ownGeo = true; } else o.visible = false;
-    }
+    for (const w of this.wheels) if (!w.front) { adopt(w.hub); w.gone = true; w.half = true; w.hub.visible = !this._gone['w' + (w.side < 0 ? 2 : 3)]; }
+    // the bodywork behind the tear (and the rain light): the HIGH state's
+    const back = new THREE.Group(); body.add(back);
+    for (const o of this.lv[1]) if (o.userData.part === 'body') { const g = partGeo('body', 1, o.userData.mk, this._mask, 2); if (g) back.add(new THREE.Mesh(g, o.material)); }
+    for (const o of this.lightG.children) if (o.userData.lod === 1) back.add(new THREE.Mesh(o.geometry, o.material));
+    for (let l = 0; l < 3; l++) this.lv[l] = this.lv[l].filter((o) => o.userData.part !== 'light');
+    body.remove(this.lightG);
+    adopt(back);
+    this._regions();   // (the front: in front of the tear, at every level)
     // (no whole-car far states any more)
     for (const k of ['far', 'min']) { const o = this[k]; if (!o) continue; const L = this.group.levels, i = L.findIndex((l) => l.object === o); if (i >= 0) L.splice(i, 1); this.group.remove(o); this[k] = null; }
     this.body.visible = true;
+    this.half = root;
+    if (replay) { root.userData.replay = true; (this.group.parent)?.add(root); const P = { rec, obj: root, ch: null, n: 0 }; this._pieces.set(rec.id, P); return; }
+    if (rec) {   // (rebuilt: where its record has it, flying on from there if it still was)
+      const P = { rec, obj: root, ch: CHUNKS ? CHUNKS.add(root, [0, 0, 0], [0, 0, 0], [1.0, 0.45, 0.85], 260) : null, n: 0 };
+      this._pieces.set(rec.id, P); this._resume(P); return;
+    }
     // its motion: the car's, plus the tear (backwards and up) and a tumble
     const v = car.v ? car.v : [...car.worldVel().slice(0, 1), 0, car.worldVel()[1]], c = Math.cos(car.th), s = Math.sin(car.th), r = () => Math.random() - 0.5;
-    this.half = root;   // (the rear half: its flight is remembered for the news replay, main.js)
-    CHUNKS.add(root, [v[0] - c * 4, (v[1] || 0) + 2 + Math.random() * 3, v[2] - s * 4], [r() * 6, r() * 8, r() * 6], [1.0, 0.45, 0.85], 260);
-    if (FIRE) FIRE.add((out) => { out.set(0.7, 0.2, 0).applyMatrix4(root.matrixWorld); return true; }, 'smoke', 0.9);
+    const R = { id: 'half@' + (car.splitT ?? car._now ?? 0), key: 'half@' + (car.splitT ?? 0), part: 'half', f: 0, n: 1, t0: car.splitT ?? car._now ?? 0, tr: [], done: false };
+    (car.pieces || (car.pieces = [])).push(R); this._piecesRef = car.pieces;
+    const ch = CHUNKS ? CHUNKS.add(root, [v[0] - c * 4, (v[1] || 0) + 2 + Math.random() * 3, v[2] - s * 4], [r() * 6, r() * 8, r() * 6], [1.0, 0.45, 0.85], 260) : null;
+    this._pieces.set(R.id, { rec: R, obj: root, ch, n: 0 });
+    if (FIRE) FIRE.add((out) => { if (!root.parent) return false; out.set(0.7, 0.2, 0).applyMatrix4(root.matrixWorld); return true; }, 'smoke', 0.9);
     if (DEBRIS) { const [vx, vz] = car.air ? [car.wvx, car.wvz] : car.worldVel(); DEBRIS.burst(car.x, car.z, vx, vz, 30, this.livery.color.getHex()); }
   }
+
+  // ---- the damage, drawn from the car's record ----------------------------------------------------------------------
+  /** this car's own copies of the shared materials (once it is dented: they bend by its dents - the same programs) */
+  _ownMats() {
+    if (this._owned) return;
+    const M = carModel(), own = this._owned = new Map();
+    this._ownOf = (mat, pv) => { const k = mat.uuid + '|' + pv.join(','); let m = own.get(k); if (!m) { m = ownCopy(mat, this.DU, pv); floodlit(m, true); this._own.add(m); own.set(k, m); } return m; };
+    for (let l = 0; l < 3; l++) for (const o of this.lv[l]) {
+      if (o.userData.wheel || o.userData.part === 'sw' || !SHARED_MAT.has(o.material)) continue;
+      o.material = this._ownOf(o.material, M.pivots[o.userData.part] || [0, 0, 0]);
+    }
+  }
+  /** a material for a piece of part `part` (its level-1 one: the paint, or this car's own copy of a shared one) */
+  _pieceMat(part, mk) {
+    const m = this._matFor(part, mk, 1);
+    if (!SHARED_MAT.has(m) || part[0] === 'w') return m;   // (a wheel: never dented)
+    this._ownMats(); return this._ownOf(m, carModel().pivots[part] || [0, 0, 0]);
+  }
+  /** every body and rear-wing mesh without the regions that have come off (and in front of the tear, once torn) */
+  _regions() {
+    for (let l = 0; l < 3; l++) for (const o of this.lv[l]) {
+      const part = o.userData.part; if (!hasRegions(part) || !o.parent) continue;
+      o.geometry = partGeo(part, l, o.userData.mk, this._mask, part === 'body' ? this._half : 0) || EMPTY;
+    }
+  }
+  /** wheel k of the physics (FL FR RL RR) */
+  _wheel(k) { const [f, sd] = [[true, -1], [true, 1], [false, -1], [false, 1]][k]; return this.wheels.find((w) => w.front === f && w.side === sd); }
+  /**
+   * The damage as the car's record has it at race time t (live: all of it) - the dents, what has come off, the car
+   * torn in two, the pieces (replay: posed from their records, nothing thrown or flown). Cheap when nothing changed.
+   */
+  _sync(car, t = Infinity, replay = false) {
+    // ---- the dents (the car's own materials from the first one)
+    const D = car.dents;
+    if (D && (D !== this._dentRef || car.dentVer !== this._dentVer || replay)) {
+      this._dentRef = D; this._dentVer = car.dentVer;
+      if (uploadDents(this.DU, D, t)) this._ownMats();
+    }
+    // ---- what has come off by then
+    const L = car.lost || {}, gone = (k) => !!L[k] && L[k].t <= t + 1e-6, G = this._gone;
+    let mask = 0; for (const R of REGIONS) if (gone(R[0])) mask |= REGION_BIT[R[0]];
+    if (mask !== this._mask) { this._mask = mask; this._regions(); }
+    for (const k of ['fw', 'fwL', 'fwR', 'rw', 'tcam', 'w0', 'w1', 'w2', 'w3']) G[k] = gone(k);
+    this.fwL.visible = !G.fwL; this.fwR.visible = !G.fwR; this.frontWing.visible = !G.fw; this.rearWing.visible = !G.rw; this.tcamG.visible = !G.tcam;
+    for (let k = 0; k < 4; k++) { const w = this._wheel(k); if (!w || w.half) continue; w.gone = G['w' + k]; w.hub.visible = !w.gone; }
+    // ---- torn in two
+    const halfRec = (car.pieces || []).find((r) => r.part === 'half');
+    if (car.split && (car.splitT ?? 0) <= t + 1e-6 && !this.splitDone) this.split(car, halfRec || (replay ? { id: 'half', part: 'half', t0: car.splitT ?? 0, tr: [] } : null), replay);
+    // ---- the pieces
+    this._syncPieces(car, t, replay);
+  }
+  /** the pieces: new losses thrown, a rewound record (a flashback) taking its piece back to where it was then */
+  _syncPieces(car, t, replay) {
+    const recs = car.pieces || (car.pieces = []);
+    if (replay) {
+      for (const rec of recs) {
+        let P = this._pieces.get(rec.id);
+        if (rec.part === 'half') { P = this._pieces.get(rec.id) || this._pieces.get('half'); if (P && P.obj) posePiece(P.obj, rec, t); continue; }
+        if (rec.t0 > t + 1e-6) { if (P) P.obj.visible = false; continue; }
+        if (!P) { P = this._makePiece(rec, car); if (!P) continue; this._pieces.set(rec.id, P); P.obj.userData.replay = true; this.group.parent?.add(P.obj); }
+        P.obj.visible = this._showPieces !== false && rec.tr.length > 0; posePiece(P.obj, rec, t);
+      }
+      return;
+    }
+    if (recs !== this._piecesRef) {   // (a snapshot restored, or this mesh new for a car that has lost things before)
+      this._piecesRef = recs; const ids = new Set(recs.map((r) => r.id));
+      for (const [id, P] of this._pieces) if (!ids.has(id)) { this._dropPiece(P); this._pieces.delete(id); }
+      for (const rec of recs) {
+        if (rec.part === 'half') { const P = this._pieces.get(rec.id); if (P) { P.rec = rec; this._resume(P); } continue; }
+        let P = this._pieces.get(rec.id);
+        if (!P) { P = this._makePiece(rec, car); if (!P) continue; this._pieces.set(rec.id, P); P.ch = CHUNKS ? CHUNKS.add(P.obj, [0, 0, 0], [0, 0, 0], P.half, P.mass) : null; }
+        P.rec = rec; this._resume(P);
+      }
+    }
+    // the parts that have come off since: thrown, in pieces (the harder the hit, the more)
+    const L = car.lost || {};
+    for (const [part, e] of Object.entries(L)) {
+      if (part === 'half') continue;
+      const key = part + '@' + e.t; if (recs.some((r) => r.key === key)) continue;
+      const small = part === 'tcam' || part.startsWith('mir') || part === 'crash' || part[0] === 'w' && part.length === 2 || part === 'fwL' || part === 'fwR';
+      const n = small ? 1 : e.v > 24 ? 3 : e.v > 13 ? 2 : 1;
+      for (let f = 0; f < n; f++) {
+        const rec = { id: key + '#' + f, key, part, f, n, t0: e.t, tr: [], done: false };
+        const P = this._makePiece(rec, car); if (!P) { if (f === n - 1 && !recs.some((r) => r.key === key)) recs.push({ ...rec, done: true }); continue; }   // (a cell with no triangles: no piece; the loss is still marked as thrown)
+        recs.push(rec); this._pieces.set(rec.id, P); this._throw(P, car, e.v);
+      }
+    }
+    this._piecesRef = recs;
+  }
+  /** a piece's object (shared geometry, this car's materials), placed where that part is on the car now */
+  _makePiece(rec, car) {
+    const M = carModel(), part = rec.part, obj = new THREE.Group(); obj.name = 'car-piece';
+    const meshes = [];   // [geometry, material, offset (model frame), quaternion]
+    let C = null;
+    if (part[0] === 'w' && part.length === 2) {
+      const name = ['wFL', 'wFR', 'wRL', 'wRR'][+part[1]], H = M.hubs[name];
+      for (const pn of [name, name + 's']) for (const [mk, g] of Object.entries(M.geo[pn]?.[1] || {})) meshes.push([g, this._pieceMat(pn, mk), [0, 0, 0], H.q]);
+      C = H.c;
+    } else {
+      const ri = REGIONS.findIndex((R) => R[0] === part), list = [];
+      if (ri >= 0) { const pn = REGIONS[ri][1]; for (const mk of Object.keys(M.geo[pn][1])) { const g = regionGeo(ri, 1, mk, rec.n > 1 ? rec.f : -1, rec.n); if (g) list.push([g, this._pieceMat(pn, mk), M.pivots[pn] || [0, 0, 0]]); } }
+      else for (const pn of part === 'rw' ? ['rw', 'drs'] : [part]) for (const mk of Object.keys(M.geo[pn]?.[1] || {})) { const g = fragGeo(pn, 1, mk, rec.n > 1 ? rec.f : 0, rec.n); if (g) list.push([g, this._pieceMat(pn, mk), M.pivots[pn] || [0, 0, 0]]); }
+      if (!list.length) return null;
+      C = centreOf(list.map((x) => x[0]), list[0][2]);
+      for (const [g, m, pv] of list) meshes.push([g, m, [pv[0] - C[0], pv[1] - C[1], pv[2] - C[2]], null]);
+    }
+    if (!meshes.length) return null;
+    const box = new THREE.Box3();
+    for (const [g, m, off, q] of meshes) {
+      const o = new THREE.Mesh(g, m); o.position.set(...off); if (q) o.quaternion.set(...q); obj.add(o);
+      box.union(triBox(g).clone().applyMatrix4(o.matrix.compose(o.position, o.quaternion, o.scale)));
+    }
+    // (where it is on the car now: the body's frame, at the piece's centre)
+    this.group.updateMatrixWorld(true);
+    obj.position.set(C[0], C[1], C[2]).applyMatrix4(this.body.matrixWorld); this.body.getWorldQuaternion(obj.quaternion);
+    const sz = box.getSize(_sv), half = [Math.max(0.03, sz.x / 2), Math.max(0.03, sz.y / 2), Math.max(0.03, sz.z / 2)];
+    return { rec, obj, ch: null, n: 0, half, mass: Math.max(0.6, Math.min(30, sz.x * sz.y * sz.z * 90)), C };
+  }
+  /** a new piece thrown off the car: its velocity there, flung outward and up (harder the harder the hit), tumbling */
+  _throw(P, car, v) {
+    if (!CHUNKS) return;
+    const o = P.obj, r = () => Math.random() - 0.5;
+    let vx, vy, vz, cx, cy, cz;
+    if (car.p && (car.air || car.wreck) && car.v) { [vx, vy, vz] = car.v; [cx, cy, cz] = car.p; const w = car.w || [0, 0, 0], rx = o.position.x - cx, ry = o.position.y - cy, rz = o.position.z - cz; vx += w[1] * rz - w[2] * ry; vy += w[2] * rx - w[0] * rz; vz += w[0] * ry - w[1] * rx; }
+    else { [vx, vz] = car.worldVel(); vy = 0; cx = car.x; cy = 0.4; cz = car.z; }
+    const ox = o.position.x - cx, oz = o.position.z - cz, ol = Math.hypot(ox, oz) || 1, k = 1.5 + Math.min(8, (v || 0) * 0.18) * (0.6 + 0.8 * Math.random());
+    P.ch = CHUNKS.add(o, [vx + ox / ol * k + r() * 2, vy + 1.2 + Math.random() * (1 + (v || 0) * 0.08), vz + oz / ol * k + r() * 2], [r() * 14, r() * 14, r() * 14], P.half, P.mass);
+  }
+  /** a piece rewound (a flashback) or rebuilt: back where its record last had it, flying on from there if it was still */
+  _resume(P) {
+    const rec = P.rec, tr = rec.tr, n = tr.length / 8;
+    if (n) posePiece(P.obj, rec, Infinity);
+    P.n = n;
+    if (!P.ch) return;
+    P.ch.done = !!rec.done; P.ch.rest = 0;
+    if (n >= 2) { const a = (n - 2) * 8, b = (n - 1) * 8, dt = Math.max(1e-3, tr[b] - tr[a]); P.ch.v.set((tr[b + 1] - tr[a + 1]) / dt, (tr[b + 2] - tr[a + 2]) / dt, (tr[b + 3] - tr[a + 3]) / dt); }
+    else P.ch.v.set(0, 0, 0);
+    P.ch.w.set(0, 0, 0);
+  }
+  _dropPiece(P) { if (P.ch && CHUNKS) CHUNKS.remove(P.ch); P.obj.parent?.remove(P.obj); if (P.obj === this.half) this.half = null; }
+  /** (live) the pieces' flight into their records, 20 times a second, until they lie still; one left on the racing
+   *  surface is dragged off to the verge a while later (world/Debris.js sweep: where to) */
+  _record(car) {
+    const now = car._now || 0;
+    for (const P of this._pieces.values()) {
+      const rec = P.rec; if (!rec) continue;
+      if (rec.done) {
+        if (!rec.sweep && P.obj !== this.half && DEBRIS?.sweep && rec.tr.length && now - rec.tr[rec.tr.length - 8] > SWEEP_AFTER) {
+          const o = P.obj.position, to = DEBRIS.sweep(o.x, o.z);
+          rec.sweep = to ? [+now.toFixed(3), +o.x.toFixed(3), +o.z.toFixed(3), +to[0].toFixed(3), +to[1].toFixed(3)] : [now];   // ([now]: off the road already)
+        }
+        if (rec.sweep?.length > 1 && now - rec.sweep[0] < SWEEP_T + 0.2) posePiece(P.obj, rec, now);
+        continue;
+      }
+      if (!P.ch) continue;
+      const tr = rec.tr, last = tr.length ? tr[tr.length - 8] : -1;
+      if (now - last < 0.05 && !P.ch.done) continue;
+      const o = P.obj, p = o.position, q = o.quaternion;
+      tr.push(+now.toFixed(3), +p.x.toFixed(3), +p.y.toFixed(3), +p.z.toFixed(3), +q.x.toFixed(4), +q.y.toFixed(4), +q.z.toFixed(4), +q.w.toFixed(4)); P.n++;
+      if (P.ch.done || now - rec.t0 > 8) { rec.done = true; P.ch.done = true; }
+    }
+  }
+  /** mesh o's material without this car's dents (a new part on it: the pit crew's spare wing) */
+  undented(o) {
+    const m = o.material; if (!m?.userData?.dents || m.userData.dents === NO_DENTS) return m;
+    if (m.userData.src) return m.userData.src;                        // (a car's own copy of a shared material)
+    if (m.userData.livery && !m.vertexColors) return this._paintClean(o.userData.part || 'body');
+    return m;
+  }
+  /** show or hide this car's pieces (a replay draws its own) */
+  showPieces(v) { this._showPieces = v; for (const P of this._pieces.values()) P.obj.visible = v; }
+  /**
+   * A replica in a replay (ui/NewsBroadcast.js, main.js' POV): car's damage as it was at race time t - dents, parts
+   * gone, torn in two, the pieces where their records had them. (A replica torn in two cannot be made whole again:
+   * the replay makes a new one when it runs again from before the tear - splitDone.)
+   */
+  replay(car, t) { this._sync(car, t, true); }
+
   /** a fire / smoke source on this car (body frame point), alive while the car's mesh is */
   _source(kind, bx, by, k, car) {
     if (!FIRE) return; if (kind === 'fire') car._burned = true;   // (the news replays it: ui/NewsBroadcast.js)
@@ -494,35 +692,20 @@ export class CarMesh {
       A.m.position.copy(A.sh).add(g).multiplyScalar(0.5); A.m.quaternion.setFromUnitVectors(_up, d.divideScalar(len)); A.m.scale.set(1, len, 1);
     }
   }
-  /** wheel k (FL FR RL RR) torn off: it flies on as debris */
-  _loseWheel(k, car) {
-    const order = [[true, -1], [true, 1], [false, -1], [false, 1]][k];
-    const w = this.wheels.find((x) => x.front === order[0] && x.side === order[1]) || this.wheels[k];
-    if (!w || w.gone) return; this._drop('tyre', w.hub, car, 0x141414, 9); w.hub.visible = false; w.gone = true;
-  }
-
   update(car, dt) {
     if (this.wheelSteer) { const a = -(car.steer || 0) * 1.5; this.wheelSteer.rotation.x = a; if (this._lvNow === 0) this._arms(a); this.wheelDisp.emissiveIntensity = car.retired || car.wreck ? 0 : 0.55; }   // (the steering wheel, turned by the driver - arms and all; its display dead with the car)
     // ---- debris from this car's impacts, and the parts it has lost
     if (car.events.length) {
       for (const e of car.events) {
         if (e.kind === 'mangle') this._mangle(car);
-        else if (e.kind === 'split') this._splitNow = true;   // (done after this frame's pose is set: below)
         else if (e.kind === 'fire') this._source('fire', car.split ? SPLIT_X + 0.3 : -1.3, 0.55, e.sev, car);
         else if (e.kind === 'smoke') this._source('smoke', -2.0, 0.7, e.sev, car);
         else if (e.kind.startsWith('puncture')) { if (DEBRIS) for (let k = 0; k < 3; k++) DEBRIS.part('strip', e.x, 0.25, e.z, e.vx, e.vz, 0x0c0c0c, 2.5); if (FIRE) this._source('puff', 0, 0.2, 1, car); }
-        else if (e.kind.startsWith('wheel')) this._loseWheel(+e.kind[5], car);
+        else if (e.kind.startsWith('wheel') || e.kind === 'split') { /* (the car's record: _sync) */ }
         else if (DEBRIS) DEBRIS.burst(e.x, e.z, e.vx, e.vz, Math.min(16, 2 + Math.round(e.sev * 16)), this.livery.color.getHex());
       }
       car.events.length = 0;
     }
-    const L = this.lost, dm = car.dmg;
-    if (dm.fwL >= 0.6 && !L.fwL) { L.fwL = true; this._drop('endplate', this.fwL, car, 0x16171b, 5); } else if (dm.fwL < 0.6) L.fwL = false;
-    if (dm.fwR >= 0.6 && !L.fwR) { L.fwR = true; this._drop('endplate', this.fwR, car, 0x16171b, 5); } else if (dm.fwR < 0.6) L.fwR = false;
-    const fwGone = dm.fwL > 0.95 && dm.fwR > 0.95;
-    if (fwGone && !L.fw && this.frontWing.visible) { L.fw = true; this._drop('plate', this.frontWing, car, this.livery.color.getHex(), 5); } else if (!fwGone) L.fw = false;
-    if (dm.rw >= 0.85 && !L.rw && this.rearWing.visible) { L.rw = true; this._drop('rearwing', this.rearWing, car, this.livery.color.getHex(), 5); } else if (dm.rw < 0.85) L.rw = false;
-
     // ---- pose: on the ground a yaw; airborne / wrecked the full attitude, turned about the body's centre
     if ((car.air || car.wreck) && car.q) {
       const q = car.q; this.group.quaternion.set(q[0], q[1], q[2], q[3]);
@@ -571,18 +754,15 @@ export class CarMesh {
     // the DRS flap: open (its trailing edge lifted, the slot wide) when the car's DRS is (RaceDirector / DRS.js), shut else
     const drsOpen = !!car.drs;
     this.drs.rotation.z += ((drsOpen ? -0.42 : 0) - this.drs.rotation.z) * Math.min(1, dt * 8);
-    // damage visuals
+    // damage: what has come off, the dents, the pieces (the car's record: _sync); a bent wing droops
     const d = car.dmg;
-    this.fwL.visible = d.fwL < 0.6; this.fwR.visible = d.fwR < 0.6;
-    this.fwL.rotation.x = d.fwL * 0.6; this.fwR.rotation.x = -d.fwR * 0.6;
-    this.frontWing.visible = !(d.fwL > 0.95 && d.fwR > 0.95);
-    this.rearWing.visible = d.rw < 0.85; this.rearWing.rotation.x = d.rw * 0.5;
+    this._sync(car); if (dt > 0) this._record(car);
+    this.fwL.rotation.x = d.fwL * 0.6; this.fwR.rotation.x = -d.fwR * 0.6; this.rearWing.rotation.x = d.rw * 0.5;
     // a bent front wing droops on its damaged side, a broken wishbone leans its wheel
     this.frontWing.rotation.x = (d.fwR - d.fwL) * 0.12; this.frontWing.rotation.z = -Math.max(d.fwL, d.fwR) * 0.08;
     if (d.susp > 0.3) { const w = this.wheels[car.suspSide > 0 ? 0 : 1]; w.hub.rotation.z = d.susp * 0.35; }
     this.rearLight.material.emissiveIntensity = car.brake > 0.3 || car.wetness > 0.3 ? 3 : 0.8;
     // (a recovered wreck stays where the marshals set it down, for the rest of the race)
-    if (this._splitNow) { this._splitNow = false; this.split(car); }
     this.group.visible = !(car.ghost > 0 && Math.floor(car.ghost * 8) % 2 === 0);
     // (the far states: the geometry of what it still has, once that has changed - a lost wing or wheel, a crumpled car)
     const sig = this._signature(); if (sig !== this._sig) { this._sig = sig; this._bake(); }

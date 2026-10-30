@@ -511,9 +511,10 @@ laps before it - so nobody stops in a sprint.
 
 ### Car: real dimensions, four wheels, suspension
 
-`CAR` in `src/vehicle/Car.js` carries the figures of a 2022-25 F1 car: 798 kg, 3.6 m wheelbase, 2.0 m wide, 5.66 m
-long, 45.5 % of the mass on the front axle, 44 % of the downforce. The onboard cameras sit at the car model's heights
-(driver's eye 0.77 m, the T-cam just over its pod on the airbox).
+`CAR` in `src/vehicle/Car.js` carries the figures of a 2026 F1 car, the car model's: 768 kg, 3.4 m wheelbase, 1.9 m
+wide, 5.4 m long, 45.5 % of the mass on the front axle, 44.5 % of the downforce (the yaw, roll and pitch inertias, the
+track widths at the model's hubs, the crash body's contact points and the collision outline follow it). The onboard
+cameras sit at the car model's heights (driver's eye 0.77 m, the T-cam just over its pod on the airbox).
 
 The car is a 2026 model: "2026 Redbull RB22" by Dave Love (sketchfab.com/Tyler_Dave, CC BY 4.0 - the credit is in
 `assets/car/CREDIT.txt`), with its livery, sponsors' decals, numbers and team logos taken off. `tools/car_model.mjs`
@@ -522,7 +523,7 @@ endplates come off on their own), the rear wing and its flap (DRS, about its lea
 wheel about its column - each piece whole (an endplate never leaves half of itself behind; a wing element that spans
 the cut is clipped clean along it), and simplifies it to five levels (meshoptimizer), quantized and gzipped (2.5 MB);
 `tools/car_textures.py` shrinks its textures to WebP (0.3 MB) and makes the tyres' red lettering a mask, tinted in the
-compound's colour. It is 5.4 m long on a 3.4 m wheelbase, the real 2026 figures; the physics keep their envelope. The
+compound's colour. It is 5.4 m long on a 3.4 m wheelbase, the real 2026 figures, and the physics use the same. The
 geometry is decoded once and shared by the field: a car has only its own paint, number, T-cam colour and lights.
 
 | state | distance | what is drawn | triangles | draw calls |
@@ -550,7 +551,7 @@ split by a red line, Cadillac white over a black sweep. A new team (the career's
 arrow, fade, split, stripes, blade), four colours, a finish (gloss, matte, metallic) and a sponsor's wordmark.
 
 `src/vehicle/Chassis.js` is the four-wheel model. The body is sprung: heave, pitch and roll on corner springs
-(~4 Hz), dampers and anti-roll bars (58 % of the roll stiffness at the front), so weight transfer takes the time the
+(~4 Hz), dampers and anti-roll bars (57 % of the roll stiffness at the front), so weight transfer takes the time the
 body takes to move and every wheel has its own load. Each tyre's grip comes from its own load with load sensitivity
 (grip ~ load^-0.09), and the rears are a third wider (higher nominal load). Drive goes to the rear wheels through a
 limited-slip diff; brakes, ABS, traction control and the friction circle work per wheel, and the yaw moment includes
@@ -558,8 +559,10 @@ the left / right force difference. The road under each wheel is sampled: kerbs r
 with ridges along them (a wheel on a kerb is loaded and unloaded several kN, the car rolls, the far wheel can go
 light), grass and gravel are lumpy, and a wheel follows a step over the tyre's envelopment time. Elevation from survey
 data plugs into `roadHeight`. Grip is set from what the real cars do, not from lap times: about 2.35 g at 100 km/h
-and 5.45 g at 290 km/h, with the rear axle 4 % (slow corners) to 7 % (fast) in hand, so at the limit the front lets
-go first and a lift at 280 km/h does not spin the car. `fitGrip` turns that into the effective friction and downforce
+and 5.45 g at 290 km/h, with the rear axle 4.3 % (slow corners) to 5.9 % (fast) in hand, so at the limit the front
+lets go first and a lift at 280 km/h does not spin the car. (The 2022-25 car had 4.6-7.3 %: it pushed through every
+fast corner. Nearer neutral than the 2026 set-up and a car lifting at 4 g in a fast direction change snaps - the
+drag's half a g off the rear tyres: with 2.5 % the AI spun in Montreal's fast chicanes and at Silverstone.) `fitGrip` turns that into the effective friction and downforce
 the speed profile and the AI plan with. `brakeMax` is a 5.2 g stop on the tyres plus about 1 g of drag from top
 speed. Power and drag are unchanged (about 350 km/h with ERS). The car body pitches, rolls and squats (about 35 mm at
 speed under downforce) on screen, each wheel stays on the road under it, and the cockpit and T-cam ride the body.
@@ -590,7 +593,7 @@ Coulomb friction along the barrier): a glancing hit slides the car along the wal
 the rear corner spins it. Damage follows the impact speed at the contact point; the rear wing only takes damage from
 a solid rear hit (losing it should take a real accident).
 
-Car-to-car contact knows what touched what (`RaceDirector.js`: each car is a 5.66 x 2.0 m outline with probe points
+Car-to-car contact knows what touched what (`RaceDirector.js`: each car is a 5.3 x 1.9 m outline with probe points
 at the four wheels, the wing corners, the nose, the sidepods and the rear; `touch()` sets the consequences):
 
 * wheel against wheel: the tyres interlock and kick each other (more restitution and friction, the impulse turns the
@@ -614,18 +617,50 @@ harder) or a rear-ender with more than 26 m/s closing speed (20-80 % of the time
 Damage starts at about 7 km/h of impact speed into the bodywork, so taps leave no mark and it takes a big hit to
 wreck a car outright. A launch is a 5-14 m/s kick at the wheel that climbed: up to about 2 m in the air, mostly a
 roll or a flip, as real airborne accidents are; a car coming down on another one does not bounce off it. Nothing about the crash is scripted: the car becomes a 3D rigid body (centre, velocity,
-quaternion, angular velocity, roll / yaw / pitch inertia 450 / 1150 / 1100 kg m²) carrying its own motion, plus
+quaternion, angular velocity, roll / yaw / pitch inertia 400 / 990 / 950 kg m²) carrying its own motion, plus
 one impulse at the wheel that hit (it climbs the barrier or the other car's tyre). From then on gravity, drag and
 contact impulses with friction at 17 body points (the four wheels, tub corners, sidepods, roll hoop, nose, engine
 cover, rear wing) against the ground and the barriers decide the flight, the rolls, the bounces and where it stops:
 on its wheels, its side or its roof. Concrete walls carry a 4.2 m debris fence, so a wreck never clears one.
-Wheels and wings come off where the hits land (and stop being contact points); the bodywork crumples and darkens.
+Wheels and wings come off where the hits land (and stop being contact points); the bodywork crumples (Damage, below).
 A stopped retired car stays where it is until the marshals recover it (25 s on the racing surface, 35 s beside it)
 and the AI steers around it. Recovery does not delete it: the chassis is craned up and set down off the road (inside
 the barrier on a permanent circuit's verge, over the wall on a street circuit) and stays there for the rest of the
-race (`RaceDirector.marshals / parkWreck`); one already far off the road is left where it stopped. Every impact throws carbon shards and lost parts into
-`world/Debris.js`: five pooled instanced meshes (shards, wing planes, endplates, rear wings, tyres), oldest piece
-recycled, resting pieces no longer updated. The player's camera cuts to a chase shot of the wreck.
+race (`RaceDirector.marshals / parkWreck`); one already far off the road is left where it stopped. Every impact throws carbon shards into
+`world/Debris.js` (pooled instanced meshes, oldest piece recycled, resting pieces no longer updated); the parts that
+come off are the car's own (Damage). The player's camera cuts to a chase shot of the wreck.
+
+### Damage
+
+`src/vehicle/Damage.js`, drawn by `CarMesh`, recorded by `Car`:
+
+* **Dents.** Every hit that pushes into the bodywork - a wall, another car, the ground in a roll, a barrier on the
+  way over - is a dent where it touched (`Car.crush`): its depth from the speed square on into the car (deeper where
+  a car is built to crumple: the nose and the crash structures most, the sidepods, hardly at all the survival cell),
+  its radius from the same, its direction the push. The vertex shader of every car material bends the bodywork by
+  them: the middle of the hit crushed flat by the whole depth, sharp creases a few centimetres deep folded across it
+  (the normals bent with them, so the light finds every fold), the paint scraped to the dark carbon underneath where
+  it is crushed and cracked along the folds. Twelve dents at a time per car (its deepest). The code is in every car
+  material from the start, and a car's own copies of the shared materials (made at its first dent) use the same
+  programs: the first hit compiles nothing.
+* **Parts coming off.** The bodywork has regions that break: the nose, the four corners' suspension, the sidepods'
+  panels, the engine cover, the floor's edges, the mirrors, the rear crash structure, the rear wing's endplates (and
+  the T-cam, knocked off in a roll), on top of the wings and the wheels as before. A hit breaks what is within its
+  reach outright if it is hard enough (a mirror at ~30 km/h, the nose at ~55, a sidepod panel at ~60), or a region
+  falls off once enough crushing has gone into it. The regions are index lists over the model's own geometry, sorted
+  at start-up (a car without its nose draws the same meshes with fewer triangles); what comes off breaks along the
+  triangles' edges into one to three pieces - the harder the hit, the more - and flies (`world/Chunks.js`) as rigid
+  bodies of the model's own geometry in the car's livery and dents: tumbling, bouncing, sliding to rest, dragged off
+  the racing surface by the marshals 14 s later. A wheel takes its suspension with it.
+* **Torn in two**, along a ragged line behind the survival cell: every body triangle was put in front of or behind it
+  at start-up, so the tear is a frayed edge, not a cut, at every level of detail; both edges are crushed and the
+  panels round it break off and fly.
+* **On record.** The dents, the parts lost and when, and every piece's flight (20 times a second until it lies
+  still, then its drag off the road) are the car's own state (`Car.dents / lost / pieces`): a flashback shows the car
+  exactly as it was at any moment while scrubbing (the pieces back where they were, the dents not yet made gone) and
+  resumes with the pieces flying on from there; the news and the driver's-eye replays show each car as it was at
+  each moment of the accident (`CarMesh.replay`). Lost bodywork costs a little: the nose 12 % of the front
+  downforce, each floor edge 5 %, each rear endplate 15 % of the rear wing, the panels some drag.
 
 Spins are physical all the way round: every tyre works in its own frame against the contact patch's velocity in any
 direction (forwards, sideways, backwards), and once a car has gone (more than ~35 degrees off its path) a driver on
@@ -1102,10 +1137,10 @@ little, slowly (a click locks it if the browser wants one). Otherwise you drive 
 the one in the car, after a while at the scene) the screen fades and the news begins. The results read RACE
 CANCELLED. A race stopped by an accident and not resumed - cancelled or abandoned - pays points the way F1 does for a shortened race: none if fewer than two laps were run, 6-4-3-2-1 up to a quarter of the distance, 13-10-8-6-5-4-3-2-1 up to half, 19-14-12-9-8-6-5-3-2-1 up to three-quarters, full points beyond; the results say which.
 
-In the news replays too the damaged cars are shown as they were, not as they ended up (`_replayFx`): a whole car
-going into the accident, and at every recorded hit debris and sparks from where it was, the parts the real car lost
-torn away at its biggest hits, the fire taking hold if it burned; the wreck's own fire and debris as they are now are
-held back until the live pictures. The broadcast camera for the replay is never inside a building or a stand, and
+In the news replays too the damaged cars are shown as they were, not as they ended up: a whole car going into the
+accident, crumpling, losing its parts and tearing in two exactly when it did, the pieces flying where they flew (from
+the car's damage record: `CarMesh.replay`), at every recorded hit debris and sparks from where it was, the fire taking
+hold if it burned; the wreck's own pieces, fire and debris as they are now are held back until the live pictures. The broadcast camera for the replay is never inside a building or a stand, and
 when nothing along the circuit has a clear view it goes up high over the track.
 
 Helmets: every F1 driver wears their own design (`src/world/HelmetDesigns.js`, the 2026 helmets reduced to their
@@ -1388,7 +1423,9 @@ valid (fields gained since are removed); static data, the HUD, audio, telemetry 
 of it (the plans are made again). Recording costs ~1 ms per snapshot, a restore ~7 ms, and a restore is exact. While
 rewinding the race freezes and the picture fades; A / D or the arrows scrub (the cars eased between snapshots), Enter
 resumes from there - the car models are rebuilt (a split car, lost wings), the smoke and debris of what no longer
-happened cleared, the later recording dropped - and Esc goes back to now. A lap with a flashback is not a clean one.
+happened cleared, the later recording dropped - and Esc goes back to now. The damage is part of the snapshot (Damage):
+scrubbing shows each car's dents and lost parts as they were then and every piece where it was, and resuming lets the
+pieces still in the air fly on. A lap with a flashback is not a clean one.
 
 Photo mode (pause menu): the simulation is frozen (or plays on with your car handed to an AI), the free camera can't
 go into the ground, a building or a grandstand, and a panel sets the lens and the grade - field of view (15-110),
@@ -1438,8 +1475,8 @@ after WALK THE GRID, `__F1.PRE.walk` the grid walk (`_open(npc)`, `_choose(i)`, 
   elevation yet and no ride-height-sensitive aero.
 * Which Silverstone corners get gravel or asphalt is a per-turn list, not surveyed geometry; trap depth is whatever
   fits before the nearest OSM building or grandstand. Barrier placement is inferred from OSM buildings, not surveyed.
-* Crash bodies are boxes for ground contact; mangling is a fixed set of effects (parts off, crumple, scorch), not
-  mesh deformation. Debris does not interact with cars.
+* Crash bodies and the pieces that come off are boxes for ground contact; dents bend the surface in the shader (the
+  structure underneath is not simulated). Debris and pieces do not interact with cars.
 * Silverstone's AI has only been tuned over a few headless runs; the pit lane, night mode and wet running there
   are untested.
 * No shadow maps or post-processing bloom (emissive materials approximate the neon look).

@@ -1375,6 +1375,11 @@ function spawnMeshes(cars) {
   // (the cars first among the solid things: they hide the road under and beyond them, which is then not shaded)
   for (const m of S.meshes.values()) m.group.traverse((o) => { if (o.isMesh) o.renderOrder = -1; });
 }
+/** one car's model made again (a flashback back to before it was torn in two: a torn mesh cannot be made whole) */
+function respawnMesh(c) {
+  const old = S.meshes.get(c); if (old) { scene.remove(old.group); old.dispose(); S.meshes.delete(c); }
+  spawnMeshes([c]);
+}
 // ---------------------------------------------------------------------------
 // flashback: Backspace opens it (the race freezes, the picture fades), A / D or the arrows scrub back and forth through
 // the last 15 s, Enter resumes from there, Esc / Backspace goes back to where you were. Race/Flashback.js holds the
@@ -1409,7 +1414,10 @@ function updateFlashback(dt) {
   // the snapshot at or before the playhead, and the cars eased toward the next one (smooth at 60 fps from 4 a second)
   const i = Math.max(0, fb.buf.findIndex((s) => s.t > F.pos) - 1), s0 = F.pos >= F.max - 1e-3 ? F.now : fb.buf[i >= 0 ? i : fb.buf.length - 1];
   const s1 = s0 === F.now ? null : fb.buf[i + 1] || F.now;
-  if (F.shown !== s0) { fb.restore(s0); F.shown = s0; F.base.clear(); for (const c of S.cars) F.base.set(c, [c.x, c.z, c.th]); }
+  if (F.shown !== s0) {
+    fb.restore(s0); F.shown = s0; F.base.clear(); for (const c of S.cars) F.base.set(c, [c.x, c.z, c.th]);
+    for (const c of S.cars) if (S.meshes.get(c)?.splitDone && !c.split) respawnMesh(c);   // (the damage as it was then: CarMesh._sync)
+  }
   if (s1) {
     const f = Math.max(0, Math.min(1, (F.pos - s0.t) / Math.max(1e-3, s1.t - s0.t)));
     for (const [a, st] of s1.state) {
@@ -2079,14 +2087,14 @@ function povStart(p) {
   const C = p.injuryClip, j = C ? C.cars.indexOf(p) : -1;
   if (C && j >= 0 && C.frames.length > 8 && C.pulses) {
     const imp = (C.impact?.k ?? 0) / C.hz;
-    const Rp = POV.rep = { C, j, imp, tau: Math.max(0, imp - 3.2), t1: (C.frames.length - 1) / C.hz, reps: new Map(), lastK: -1, shake: 0, flash: 0, broken: new Map(), fires: new Map() };
+    const Rp = POV.rep = { C, j, imp, tau: Math.max(0, imp - 3.2), t1: (C.frames.length - 1) / C.hz, reps: new Map(), lastK: -1, shake: 0, flash: 0, fires: new Map() };
     Rp.lastK = Math.floor(Rp.tau * C.hz);
     for (const c of C.cars) {
       const R = new CarMesh(c.color, c.tyres.compound, { color2: c.color2, team: c.team, livery: c.livery, helmet: c.helmet, driver: c.name, number: c.number, glove: People.lookOf(c.name).suit?.secondary, tcamColor: c.number % 2 ? 0xffd400 : 0x111111 });
-      scene.add(R.group); Rp.reps.set(c, R); c._povHide = true;
-      Rp.broken.set(c, {}); Rp.peak = Math.max(1, ...C.pulses.map((pp) => pp[j] || 0));
+      scene.add(R.group); Rp.reps.set(c, R); c._povHide = true; S.meshes.get(c)?.showPieces(false);
+      Rp.peak = Math.max(1, ...C.pulses.map((pp) => pp[j] || 0));
     }
-    fire.clear(); debris.clear(); chunks.clear(); fire.paused = true;
+    fire.clear(); debris.clear(); fire.paused = true;   // (the real cars' pieces and halves out of sight meanwhile: showPieces)
     POV.m = Rp.reps.get(p); POV.m.helmet.visible = false; POV.m.halo.visible = false;
   }
   return true;
@@ -2101,20 +2109,16 @@ function povReplay(dt) {
     const R = Rp.reps.get(c), o = jj * 7;
     R.group.position.set(A[o] + (B[o] - A[o]) * a, A[o + 1] + (B[o + 1] - A[o + 1]) * a, A[o + 2] + (B[o + 2] - A[o + 2]) * a);
     R.group.quaternion.set(A[o + 3], A[o + 4], A[o + 5], A[o + 6]).slerp(POVQ2.set(B[o + 3], B[o + 4], B[o + 5], B[o + 6]), a);
+    R.replay(c, C.t0 + Rp.tau);   // (its dents, the parts it had lost, its pieces in the air: as they were then)
   });
   // the hits as they came: debris and sparks, the parts torn off as the real cars lost them, the fire if one burned;
   // your own: the head thrown, the picture gone for an instant, the crunch
   for (let f = Rp.lastK + 1; f <= k; f++) C.cars.forEach((c, jj) => {
     const g = C.pulses[f]?.[jj] || 0; if (g < 6) return;
     const F0 = C.frames[f], F1 = C.frames[Math.max(0, f - 1)], o = jj * 7, x = F0[o], y = F0[o + 1], z = F0[o + 2], vx = (F0[o] - F1[o]) * C.hz, vz = (F0[o + 2] - F1[o + 2]) * C.hz;
-    const R = Rp.reps.get(c), real = S.meshes.get(c), col = R.livery.color.getHex(), BR = Rp.broken.get(c), d = c.dmg || {};
+    const R = Rp.reps.get(c), col = R.livery.color.getHex();
     debris.burst(x, z, vx, vz, Math.min(18, 2 + Math.round(g / 3)), col); fire.sparks(x, y + 0.3, z, Math.min(70, Math.round(g * 1.6)), vx, vz);
-    if (g >= 18) {
-      if (!BR.fw && ((d.fwL || 0) > 0.95 || (d.fwR || 0) > 0.95 || real?.lost?.fw)) { BR.fw = true; R.frontWing.visible = false; debris.part('plate', x, 0.3, z, vx, vz, col, 6); }
-      if (!BR.rw && ((d.rw || 0) >= 0.85 || real?.lost?.rw)) { BR.rw = true; R.rearWing.visible = false; debris.part('rearwing', x, 0.8, z, vx, vz, col, 6); }
-      (real?.wheels || []).forEach((w, i) => { if (w.gone && !BR['w' + i] && R.wheels[i]) { BR['w' + i] = true; R.wheels[i].hub.visible = false; debris.part('tyre', x, 0.4, z, vx, vz, 0x141414, 9); } });
-      if (!Rp.fires.has(c) && (c._burned || g >= 45)) { const e = fire.add((out) => { if (!R.group.parent) return false; R.body.localToWorld(out.set(-1.3, 0.55, 0)); return true; }, 'fire', 0.5, () => false); e.replay = true; Rp.fires.set(c, e); }
-    }
+    if (g >= 18 && !Rp.fires.has(c) && (c._burned || g >= 45)) { const e = fire.add((out) => { if (!R.group.parent) return false; R.body.localToWorld(out.set(-1.3, 0.55, 0)); return true; }, 'fire', 0.5, () => false); e.replay = true; Rp.fires.set(c, e); }
     if (jj === Rp.j) { Rp.shake = Math.max(Rp.shake, Math.min(1, g / 35)); if (g >= 22) Rp.flash = Math.max(Rp.flash, Math.min(0.95, g / 50)); audio.crunch?.(Math.min(1, g / 30)); }
   });
   Rp.lastK = k;
@@ -2135,7 +2139,7 @@ function povReplay(dt) {
 function povReplayEnd() {
   const P = POV, Rp = P.rep; P.rep = null;
   for (const e of Rp.fires.values()) e.dead = true;
-  for (const [c, R] of Rp.reps) { scene.remove(R.group); R.dispose(); c._povHide = false; }
+  for (const [c, R] of Rp.reps) { scene.remove(R.group); R.dispose(); c._povHide = false; S.meshes.get(c)?.showPieces(true); }
   fire.paused = false;
   P.m = S.meshes.get(P.car); P.m.helmet.visible = false; P.m.halo.visible = false; P.t = 0;
   P.els.black.style.opacity = '1';   // (an instant of black as it comes to rest)
@@ -3177,12 +3181,6 @@ function frame(now) {
       S.fireworks.update(sdt, camera);
     }
     debris.update(sdt); fire.update(sdt, camera, renderer.domElement.height); chunks.update(sdt);
-    // a car torn in two: where its rear half flies, by race time (the news replays it: ui/NewsBroadcast.js)
-    for (const c of S.cars) {
-      const m = S.meshes.get(c); if (!c.split || !m?.half?.parent) continue;
-      const T = c._halfTrack || (c._halfTrack = []);
-      if (T.length < 900 && (!T.length || d.time - T[T.length - 1][0] > 0.04)) T.push([d.time, ...m.half.position.toArray(), ...m.half.quaternion.toArray()]);
-    }
     if (p) updateRacingLine(p);
     pitTiming.update(p, d.time, sdt, camCtl.mode === 'cockpit'); if (p && !S.spectating) strategyCalls(d, p);
     // (the turn-in point for your pull-in, painted across the lane: you can time it by eye from the cockpit)
@@ -3240,7 +3238,7 @@ function frame(now) {
 // ---------------------------------------------------------------------------
 {
   document.body.classList.add('home');   // (also in index.html; an Artifact host supplies its own <body>)
-  window.__F1 = { PRE, W, S, settings, scene, camera, renderer, input, hud, AIDriver, AI_TUNE, AI_CAL, applyCalibration,
+  window.__F1 = { PRE, W, S, settings, scene, camera, renderer, input, hud, AIDriver, AI_TUNE, AI_CAL, applyCalibration, chunks, debris, respawnMesh,
     /** (tests: one frame drawn as the crash camera draws it - through its composer - and the programs that compiled) */
     crashFrame() { const n0 = renderer.info.programs.length; ensureCrashComposer(); crashPass.uniforms.uBlur.value = 0.6; crashPass.uniforms.uSat.value = 1.5; crashComposer.render(); return renderer.info.programs.length - n0; },
     /** (tools: a calibration applied, the racing line and the speed profile rebuilt from it - the next session's AI drives them) */

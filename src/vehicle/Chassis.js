@@ -6,19 +6,22 @@
 // Body frame: x forward, y LEFT, z up. Wheels FL, FR, RL, RR. Pitch pt > 0 nose up, roll rl > 0 left side up.
 
 /**
- * A current F1 car (2022-25 rules): 305 mm front / 405 mm rear tyres on 18" rims, ~1.7 / 1.6 m track, very stiff in
- * roll with the front axle carrying most of the roll stiffness (the classic stable set-up: at the limit the front
- * lets go first). Wheel rates are spring and tyre in series (~4 Hz heave). Ride height ~30 mm under aero load.
+ * A 2026 F1 car: narrower tyres on 18" rims (the car model's: ~330 mm front / 415 mm rear across the bulge), 1.55 /
+ * 1.47 m between the hubs, very stiff in roll with the front axle carrying most of the roll stiffness (57 %) - at the
+ * limit the front lets go first: the rear has 4.3 % in hand in a slow corner, 5.2 % at 160 km/h and 5.9 % at 270 (the
+ * 2022-25 car had 4.6, 6.1 and 7.3: it pushed more the faster the corner). Nearer neutral than that and the car snaps
+ * when a driver lifts at 4 g in a fast direction change (Montreal's Turn 3-4: the drag's 0.5 g takes the load off the
+ * rear). Wheel rates are spring and tyre in series (~4 Hz heave). Ride height ~30 mm under aero load.
  */
 export const CH = {
-  tf: 1.695, tr: 1.595,                 // track widths (m): the CarMesh hubs
+  tf: 1.55, tr: 1.472,                  // track widths (m): the car model's hubs
   kF: 110000, kR: 130000,               // corner wheel rates (N/m)
   cF: 4500, cR: 5300,                   // corner dampers (N s/m)
-  arbF: 76000, arbR: 43000,             // anti-roll bars (N/m of left-right deflection difference): 58 % of the roll stiffness at the front
-  Ipitch: 1100, Iroll: 450,             // sprung body inertias (kg m^2)
+  arbF: 76000, arbR: 43000,             // anti-roll bars (N/m of left-right deflection difference): 57 % of the roll stiffness at the front
+  Ipitch: 950, Iroll: 400,              // sprung body inertias (kg m^2)
   lsK: 0.09,                            // tyre load sensitivity: grip ~ Fz^-0.09 (twice the load, 6 % less friction)
   fz0F: 3300, fz0R: 4400,               // nominal tyre loads (N): the rear is a third wider
-  muF: 1.88, muR: 1.88,                 // friction at nominal load: 2.35 g at 100 km/h, 5.45 g at 290 km/h; the rear axle has 4 % (slow) to 7 % (fast) in hand
+  muF: 1.88, muR: 1.88,                 // friction at nominal load: 2.35 g at 100 km/h, 5.45 g at 290 km/h; the rear axle has 4.3 % (slow) to 5.9 % (fast) in hand
   bF: 19, bR: 21,                       // lateral force curve stiffness (peak ~7 deg front, ~6 deg rear)
   envTau: 0.012,                        // tyre envelopment: how fast a wheel follows a step in the road (s)
   lsdLock: 0.6,                         // limited-slip diff: share of the drive the loaded rear wheel takes over

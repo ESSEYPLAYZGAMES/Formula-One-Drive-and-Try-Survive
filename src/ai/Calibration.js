@@ -393,7 +393,7 @@ export const AI_CAL = {
   // </cal:austin>
   // <cal:montreal>
   montreal: {
-    source: "trained: tools/ai_train.mjs (2026-10-15), seeded 3-lap solo runs on softs, mistakes off; flying lap 78.09 s -> 77.28 s (sim/real 1.09 against the 2025 pole, 70.9 s: the ratio Silverstone runs at); fitted to telemetry: tel.json (lap 2, 67.641s, 1 flashback) (2026-10-28, blend 0.7)",
+    source: "trained: tools/ai_train.mjs (2026-10-15), seeded 3-lap solo runs on softs, mistakes off; flying lap 78.09 s -> 77.28 s (sim/real 1.09 against the 2025 pole, 70.9 s: the ratio Silverstone runs at); fitted to telemetry: tel.json (lap 2, 67.641s, 1 flashback) (2026-10-28, blend 0.7); corners scaled toward the physics' own limit for the 2026 car (2026-10-30: 40 % of the fit's factors, Turns 6-7 20 % - with all of them it spun in the fast chicanes; solo 70.4 s, clean)",
     fitted: "tel.json (lap 2, 67.641s, 1 flashback) (2026-10-28, blend 0.7)",
     line: { every: 2, d: [
       1.66, 1.66, 1.67, 1.7, 1.75, 1.79, 1.83, 1.87, 1.91, 1.95, 1.99, 2.03, 2.07, 2.11, 2.15, 2.19,
@@ -535,18 +535,18 @@ export const AI_CAL = {
       1.64, 1.65,
     ] },
     corners: {
-      1: { v: 1.09, b: 1.087 },
-      2: { v: 1.09, b: 1.087 },
-      3: { v: 1.357, b: 1.15 },
-      4: { v: 1.357, b: 1.15 },
-      5: { v: 1.208, b: 0.975 },
-      6: { v: 1.127, b: 1.15 },
-      7: { v: 1.127, b: 1.15 },
-      8: { v: 1.43, b: 1.119 },
-      9: { v: 1.43, b: 1.119 },
-      10: { v: 0.926, b: 1.15 },
-      13: { v: 1.393, b: 1.087 },
-      14: { v: 1.393, b: 1.087, err: 1.3, scrape: 0.35 },
+      1: { v: 1.036, b: 1.035 },
+      2: { v: 1.036, b: 1.035 },
+      3: { v: 1.143, b: 1.06 },
+      4: { v: 1.143, b: 1.06 },
+      5: { v: 1.083, b: 0.99 },
+      6: { v: 1.025, b: 1.03 },
+      7: { v: 1.025, b: 1.03 },
+      8: { v: 1.172, b: 1.048 },
+      9: { v: 1.172, b: 1.048 },
+      10: { v: 0.97, b: 1.06 },
+      13: { v: 1.157, b: 1.035 },
+      14: { v: 1.157, b: 1.035, err: 1.3, scrape: 0.35 },
     },
   },
   // </cal:montreal>
