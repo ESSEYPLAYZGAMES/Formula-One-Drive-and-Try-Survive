@@ -571,7 +571,7 @@ export class Car {
     if (this.lost[name]) return;
     this.lost[name] = { t: this._now || 0, v: +(+v || 0).toFixed(1) };
     if (name === 'nose') { this.dmg.fwL = 1; this.dmg.fwR = 1; }   // (the front wing hangs off the nose: it goes with it)
-    if (name === 'rwL' || name === 'rwR') this.dmg.rw = Math.min(1, this.dmg.rw + 0.35);
+    if (name === 'rwL' || name === 'rwR') this.dmg.rw = Math.min(1, this.dmg.rw + 0.1);
     this._lostCheck(); this._lostAero();
   }
   /** what the physics' own damage (dmg, wheelsOn) has taken off: the wings, the wheels - and their times */
@@ -585,7 +585,7 @@ export class Car {
   /** the aero cost of what has come off: [front downforce, rear downforce, drag] */
   _lostAero() {
     const L = this.lost, h = (k) => (L[k] ? 1 : 0), floor = 1 - 0.05 * (h('floorL') + h('floorR'));
-    this.lostK = Object.keys(L).length ? [(1 - 0.12 * h('nose')) * floor, (1 - 0.15 * (h('rwL') + h('rwR'))) * floor, 1 + 0.04 * h('nose') + 0.03 * (h('podL') + h('podR')) + 0.02 * h('cover')] : null;
+    this.lostK = Object.keys(L).length ? [(1 - 0.12 * h('nose')) * floor, (1 - 0.07 * (h('rwL') + h('rwR'))) * floor, 1 + 0.04 * h('nose') + 0.03 * (h('podL') + h('podR')) + 0.02 * h('cover')] : null;
   }
   fitTyres(compound) { this.tyres = new TyreSet(compound, this.raceLaps, this.track.length); this.tyres.wearMul = this.wearMul || 1; this.tyres.temp = 0.3; this.punct = null; this.punctP = 0; this.punctShred = false; }
 

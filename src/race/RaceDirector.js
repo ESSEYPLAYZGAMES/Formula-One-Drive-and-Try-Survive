@@ -363,8 +363,10 @@ export class RaceDirector {
         // a moment - Copse 2021 from a front wheel against a rear wheel, no pit manoeuvre needed
         if (hit.liftA > 0) a.bounceWheel(la[0], la[1], hit.liftA);
         if (hit.liftB > 0) b.bounceWheel(lb[0], lb[1], hit.liftB);
-        // a struck wheel can puncture (a front wing's endplate, another car's wheel)
-        if (-rvn > 3 && this.mode === 'race') for (const [car, z, l] of [[a, zA, la], [b, zB, lb]]) if (z === 'wheel' && Math.random() < Math.min(0.3, 0.06 + (-rvn - 3) * 0.02)) this.failures.puncture(car, (l[0] > 0 ? 0 : 2) + (l[1] > 0 ? 0 : 1), 'contact');
+        // a struck wheel can puncture (a front wing's endplate, another car's wheel) - 3 % of the touches, more the harder
+        // (with the 6 % the 2022-25 car had, an AI field's opening laps on the 2026 car saw two and a half times the
+        //  punctures they did on the old one)
+        if (-rvn > 3 && this.mode === 'race') for (const [car, z, l] of [[a, zA, la], [b, zB, lb]]) if (z === 'wheel' && Math.random() < Math.min(0.15, 0.03 + (-rvn - 3) * 0.01)) this.failures.puncture(car, (l[0] > 0 ? 0 : 2) + (l[1] > 0 ? 0 : 1), 'contact');
         // wheel over wheel: a car that runs into the back of another at speed climbs its rear tyre and takes off. Judged
         // on the two cars' own speeds (before the contact) along the hitter's heading - a spinning car's corner speed is
         // not a closing speed - and only when both point roughly the same way

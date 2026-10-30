@@ -660,7 +660,7 @@ come off are the car's own (Damage). The player's camera cuts to a chase shot of
   exactly as it was at any moment while scrubbing (the pieces back where they were, the dents not yet made gone) and
   resumes with the pieces flying on from there; the news and the driver's-eye replays show each car as it was at
   each moment of the accident (`CarMesh.replay`). Lost bodywork costs a little: the nose 12 % of the front
-  downforce, each floor edge 5 %, each rear endplate 15 % of the rear wing, the panels some drag.
+  downforce, each floor edge 5 %, each rear endplate 7 % of the rear's, the panels some drag.
 
 Spins are physical all the way round: every tyre works in its own frame against the contact patch's velocity in any
 direction (forwards, sideways, backwards), and once a car has gone (more than ~35 degrees off its path) a driver on
@@ -1240,10 +1240,10 @@ every fire on the circuit; a source follows a point on a car or on half of one. 
 in two usually does; once a burning car has stopped the marshals arrive (8-16 s) and put it out.
 
 The hardest hits tear a car in two behind the survival cell (a barrier at more than ~40 m/s straight on, a T-bone at
-more than ~32 m/s): `CarMesh.split` cuts the car's meshes along that plane (every triangle crossing it clipped, so
-the tear is a clean edge), and the rear half - engine cover, gearbox, rear wheels and wing - becomes a free rigid body
-of its own (`src/world/Chunks.js`: box contacts, friction, barriers) that tumbles and slides to rest; the tub carries
-on as the car's body, with contact points on its torn face.
+more than ~32 m/s): `CarMesh.split` parts the car along a ragged line (Damage: the triangles either side of it, sorted
+at start-up - a frayed, crushed edge, not a cut), and the rear half - engine cover, gearbox, rear wheels and wing -
+becomes a free rigid body of its own (`src/world/Chunks.js`: box contacts, friction, barriers) that tumbles and slides
+to rest; the tub carries on as the car's body, with contact points on its torn face.
 
 ### No ghost cars
 
