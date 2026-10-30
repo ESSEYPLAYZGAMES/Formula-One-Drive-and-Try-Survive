@@ -141,22 +141,6 @@ function tyreMat(compound) {
   SHARED_MAT.add(m); return (TYRE[compound] = m);
 }
 
-// ---- a wheel at speed: its face as a camera sees it, motion-blurred - the rim a smooth dark disc with the spokes' light
-//      smeared round, the sidewall's lettering a ring of the compound's colour (per compound, shared)
-const blurGeo = new THREE.CircleGeometry(0.355, 40);
-const BLUR = {};
-function blurTex(compound) {
-  if (BLUR[compound]) return BLUR[compound];
-  const S = 256, c = document.createElement('canvas'); c.width = c.height = S; const x = c.getContext('2d'), C = S / 2, R = (r) => (r / 0.355) * C;
-  const g = x.createRadialGradient(C, C, 0, C, C, C);
-  g.addColorStop(0, 'rgba(120,124,130,1)'); g.addColorStop(R(0.035) / C, 'rgba(70,73,78,1)'); g.addColorStop(R(0.06) / C, 'rgba(34,36,40,1)'); g.addColorStop(R(0.2) / C, 'rgba(46,48,53,1)');
-  g.addColorStop(R(0.228) / C, 'rgba(86,90,96,1)'); g.addColorStop(R(0.236) / C, 'rgba(22,22,24,1)'); g.addColorStop(R(0.345) / C, 'rgba(20,20,22,1)'); g.addColorStop(1, 'rgba(20,20,22,0)');
-  x.fillStyle = g; x.fillRect(0, 0, S, S);
-  const col = new THREE.Color(COMPOUNDS[compound]?.color || '#ffffff');
-  x.strokeStyle = `rgba(${col.r * 255 | 0},${col.g * 255 | 0},${col.b * 255 | 0},0.55)`; x.lineWidth = R(0.022); x.beginPath(); x.arc(C, C, R(0.3), 0, Math.PI * 2); x.stroke();
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
-  return (BLUR[compound] = t);
-}
 
 // ---- the far states' geometry: the parts' level 3 / 4 meshes merged in the body frame, one per set of parts still on
 //      the car (shared: a whole car's is everyone's)
@@ -322,9 +306,6 @@ export class CarMesh {
     //      wheel turns about) > the hub's static work (the upright, the duct) and `spin` (turning: the tyre in its
     //      compound's colour, the rim and its cover, the brake disc)
     this.wheels = [];
-    // (the blurred face at speed: this car's own - its opacity is by its speed - on the compound's shared texture)
-    this.blurMat = new THREE.MeshStandardMaterial({ map: blurTex(compound), transparent: true, opacity: 0, depthWrite: false, roughness: 0.7, metalness: 0.1, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
-    this.blurMat.userData.sharedMap = true; own.add(this.blurMat);
     for (const [name, front, s] of [['wFR', true, 1], ['wFL', true, -1], ['wRR', false, 1], ['wRL', false, -1]]) {
       const H = M.hubs[name], hub = new THREE.Group(), camber = new THREE.Group(), spin = new THREE.Group(), tyre = new THREE.Group(), face = new THREE.Group();
       hub.position.set(...H.c); camber.quaternion.set(...H.q);
@@ -336,10 +317,8 @@ export class CarMesh {
           (into || (k === 'tyre' || lv >= 2 ? tyre : face)).add(m); this.lv[lv].push(m);
         }
       }
-      // (the motion-blurred face over its outer side, faded in with speed: update)
-      const blur = new THREE.Mesh(blurGeo, this.blurMat); blur.position.z = s * (H.w / 2 + 0.004); if (s < 0) blur.rotation.y = Math.PI; blur.visible = false; blur.renderOrder = 2; camber.add(blur);
       body.add(hub);
-      this.wheels.push({ hub, camber, spin, mesh: tyre, face, blur, decals: [], front, side: s, state: 0, y0: H.c[1], dy: 0 });
+      this.wheels.push({ hub, camber, spin, mesh: tyre, face, decals: [], front, side: s, state: 0, y0: H.c[1], dy: 0 });
     }
     for (let l = 1; l < 3; l++) for (const o of this.lv[l]) o.visible = false;
     this.shadow = new THREE.Mesh(shadowGeo, shadowMat); body.add(this.shadow);   // blob shadow
@@ -409,7 +388,6 @@ export class CarMesh {
     this.U.uLivComp.value.set(COMPOUNDS[c]?.color || '#ffffff');
     const m = tyreMat(c);
     for (const w of this.wheels) w.mesh.traverse((o) => { if (o.userData.tyre) o.material = m; });
-    this.blurMat.map = blurTex(c);
   }
   setHalo(v) { this.halo.visible = v; }   // (the far states keep it: at 95 m+ it is a few pixels)
 
@@ -748,11 +726,8 @@ export class CarMesh {
     }
     const dMax = Math.max(0.055, 0.38 * (1 - car.speed / 118));
     // (the wheels' turn as drawn: never more than half a spoke's spacing a frame - beyond it the ten spokes strobed and
-    //  stood still, or ran backwards; past ~25 km/h a blurred disc fades in over the rim and the lettering, as a camera
-    //  sees a wheel at speed)
+    //  stood still, or ran backwards - no blurred disc over it: frozen in a photo it was a beige film over the wheel)
     { const da = car.vLong / R_TYRE * dt; this.spin += Math.sign(da) * Math.min(Math.abs(da), 0.3); }
-    const blur = this._lvNow < 2 ? Math.max(0, Math.min(0.88, (Math.abs(car.vLong) - 7) / 30)) : 0;
-    this.blurMat.opacity = blur; for (const w of this.wheels) if (w.blur) w.blur.visible = blur > 0.01 && w.mesh.visible;
     const onGround = !car.air && !car.wreck, W = car.wh;
     for (const w of this.wheels) {
       if (w.gone) continue;

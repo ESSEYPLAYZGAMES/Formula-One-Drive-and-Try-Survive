@@ -4658,9 +4658,10 @@ function buildPerson(o) {
       Nm.setXYZ(i, x / l, y / l, z / l);
     }
   };
-  // (detail: a person seen from a few metres or more - a crowd - is built on coarser spheres, far quicker; a crowd's
-  // faces carry no paint, their features made of their own few parts in the crowd's colours)
-  const DQ = Math.max(o.segQ ? 0.2 : 0.35, Math.min(1, o.detail ?? 1)), sg = (k) => Math.max(o.segQ ? 9 : 12, Math.round(k * DQ)), painted = !o.segQ;
+  // (detail: only a crowd's template (segQ - world/Crowd.js) is built coarser; everyone built one at a time - the pit
+  // crew, the grid's mechanics, the people you walk past and talk to - is built in full, whatever detail they ask for. A
+  // crowd's faces carry no paint, their features made of their own few parts in the crowd's colours)
+  const DQ = o.segQ ? Math.max(0.2, Math.min(1, o.detail ?? 1)) : 1, sg = (k) => Math.max(o.segQ ? 9 : 12, Math.round(k * DQ)), painted = !o.segQ;
   /** the head's surface: out (a number, or a function of the direction) grows it outward (hair, a beard); bumps: the face's features on it */
   const skull = (geo, out = 0, bumps = !out) => {
     const p = geo.attributes.position, A = p.array, fn = typeof out === 'function';
@@ -4982,16 +4983,17 @@ function buildPerson(o) {
       };
     }
   } else {
-    // (a crowd's face: eyes, brows and a mouth of their own)
+    // (a crowd's face: eyes, brows and a mouth of their own - the eyes set into the face, an almond of white mostly filled
+    //  by the iris, as eyes are seen from a few metres; not balls on the surface (they read as googly eyes))
     const white = [], iris = [], feat = [], mouth = [], P = (nz, ny, d = 0) => { const nx = Math.sqrt(Math.max(0, 1 - nz * nz - ny * ny)), [x, y, z] = HSf(nx, ny, nz); return V(hc.x + x * R0 + d, hc.y + y * R0, hc.z + z * R0); };
     for (const s of [-1, 1]) {
-      const e = P(s * FACE.eyeZ, FACE.eyeY, -0.004), sc = new THREE.SphereGeometry(0.0125, n(14), n(10, 2)); sc.scale(0.7, 0.8, 1); sc.translate(e.x, e.y, e.z); white.push(sc);
-      const ir = new THREE.SphereGeometry(0.0062, n(12), n(8, 2)); ir.scale(0.5, 1, 1); ir.translate(e.x + 0.0085, e.y, e.z); iris.push(ir);
+      const e = P(s * FACE.eyeZ, FACE.eyeY, -0.001), sc = new THREE.SphereGeometry(0.011, n(14), n(10, 2)); sc.scale(0.3, 0.48, 1); sc.translate(e.x, e.y, e.z); white.push(sc);
+      const ir = new THREE.SphereGeometry(0.0056, n(12), n(8, 2)); ir.scale(0.32, 0.92, 0.92); ir.translate(e.x + 0.0024, e.y, e.z); iris.push(ir);
       feat.push(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([P(s * 0.17, FACE.browY - 0.02, 0.002), P(s * 0.36, FACE.browY + 0.02, 0.002), P(s * 0.56, FACE.browY - 0.03, 0.001)]), n(8, 2), 0.0034, n(5), false));
     }
     mouth.push(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([P(-0.22, FACE.mouthY + 0.01, 0.001), P(0, FACE.mouthY - 0.01, 0.002), P(0.22, FACE.mouthY + 0.01, 0.001)]), n(8, 2), 0.0021, n(5), false));
     mats.feat = new THREE.MeshStandardMaterial({ color: hairC, roughness: 0.85 });
-    mats.white = new THREE.MeshStandardMaterial({ color: '#f2efe9', roughness: 0.35 });
+    mats.white = new THREE.MeshStandardMaterial({ color: '#e4ded4', roughness: 0.5 });
     mats.iris = new THREE.MeshStandardMaterial({ color: ['#3b2a1e', '#4a6b8a', '#2a1c14', '#5a6e4a'][seed % 4], roughness: 0.25 });
     mats.lip = new THREE.MeshStandardMaterial({ color: skinC.clone().multiplyScalar(0.62), roughness: 0.6 });
     head.add(M([face, ...ears], mats.skin), M(feat, mats.feat), M(white, mats.white), M(iris, mats.iris), M(mouth, mats.lip));

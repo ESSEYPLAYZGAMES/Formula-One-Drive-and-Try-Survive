@@ -21,7 +21,7 @@ const TEMPLATES = new Map();
 /** the skinned geometry of one build, in the bind pose, and the bones' places in it (built once, shared) */
 function template(build) {
   if (TEMPLATES.has(build)) return TEMPLATES.get(build);
-  const p = makePerson({ pose: 'rig', kit: 'suit', color: '#ffffff', accent: '#ffffff', crewHelmet: true, jitter: 0, build, segQ: 0.6 });
+  const p = makePerson({ pose: 'rig', kit: 'suit', color: '#ffffff', accent: '#ffffff', crewHelmet: true, jitter: 0, build });   // (in full: the crew are seen close)
   const J = jointsOf('rig');
   // the bones' heads (in the bind pose): the hips at the pelvis, the spine at the waist, the chest below the shoulders,
   // the neck at its base, the head where the person's head turns; the limbs at their joints

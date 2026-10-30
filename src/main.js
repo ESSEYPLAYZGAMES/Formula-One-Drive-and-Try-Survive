@@ -1281,8 +1281,10 @@ function exitPhoto() {
 }
 $('photo-play').addEventListener('click', () => setPhotoLive(!PHOTO.live));
 function updatePhoto(dt) {
-  const k = input.keys; const fast = k.has('ShiftLeft') || k.has('ShiftRight');
-  const speed = (fast ? 90 : 22) * dt, look = 1.6 * dt;
+  // (Shift: fast; Ctrl or Alt: fine - a few centimetres at a time for framing a shot (Alt for W too: most browsers keep
+  //  Ctrl+W to close the tab, the page never sees it))
+  const k = input.keys; const fast = k.has('ShiftLeft') || k.has('ShiftRight'), fine = photoFine();
+  const speed = (fine ? 2 : fast ? 90 : 22) * dt, look = (fine ? 0.3 : 1.6) * dt;
   if (k.has('ArrowLeft')) PHOTO.yaw -= look; if (k.has('ArrowRight')) PHOTO.yaw += look;
   if (k.has('ArrowUp')) PHOTO.pitch += look; if (k.has('ArrowDown')) PHOTO.pitch -= look;
   PHOTO.pitch = Math.max(-1.5, Math.min(1.5, PHOTO.pitch));
@@ -1302,10 +1304,16 @@ function updatePhoto(dt) {
 }
 canvas.addEventListener('mousedown', (e) => { if (!PHOTO.on) return; PHOTO.drag = true; PHOTO.lx = e.clientX; PHOTO.ly = e.clientY; canvas.style.cursor = 'grabbing'; });
 window.addEventListener('mouseup', () => { if (PHOTO.on) { PHOTO.drag = false; canvas.style.cursor = 'grab'; } });
+/** fine moves in photo mode: Ctrl or Alt held */
+const photoFine = () => { const k = input.keys; return k.has('ControlLeft') || k.has('ControlRight') || k.has('AltLeft') || k.has('AltRight'); };
 window.addEventListener('mousemove', (e) => {
   if (!PHOTO.on || !PHOTO.drag) return;
-  PHOTO.yaw += (e.clientX - PHOTO.lx) * 0.0035; PHOTO.pitch -= (e.clientY - PHOTO.ly) * 0.0035; PHOTO.lx = e.clientX; PHOTO.ly = e.clientY;
+  const sens = photoFine() || e.ctrlKey || e.altKey ? 0.0008 : 0.0035;
+  PHOTO.yaw += (e.clientX - PHOTO.lx) * sens; PHOTO.pitch -= (e.clientY - PHOTO.ly) * sens; PHOTO.lx = e.clientX; PHOTO.ly = e.clientY;
 });
+// (in photo mode the fine keys are the camera's, not the browser's: Alt's menu bar, Ctrl+S / D / A / E / Q - all but
+//  Ctrl+W, which the browser keeps)
+window.addEventListener('keydown', (e) => { if (PHOTO.on && (e.altKey || (e.ctrlKey && ['KeyS', 'KeyD', 'KeyA', 'KeyE', 'KeyQ'].includes(e.code)) || e.code === 'AltLeft' || e.code === 'AltRight')) e.preventDefault(); });
 
 // ---------------------------------------------------------------------------
 // finale: at the end of a race / qualifying the camera cuts to a static shot of the Sphere, which shows the
