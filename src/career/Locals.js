@@ -62,7 +62,11 @@ const HOME = ['London', 'Manchester', 'Paris', 'Barcelona', 'Berlin', 'Amsterdam
 const DATES = ['beach', 'concert', 'cooking', 'dinner', 'gala', 'gallery', 'karting', 'rooftop'];
 const LIKES = ['romantic', 'kind', 'funny', 'confident', 'adventurous', 'humble', 'winner'];
 const DISLIKES = ['arrogant', 'neglect', 'cruel', 'showoff', 'scandal'];
-const VIBE = { spark: 'Bubbly, playful and impulsive; a dare in everything, a laugh you hear across the room', ice: 'Cool, sharp and guarded; says less than she thinks and notices everything', sunny: 'Warm, sincere and a little dorky; easy company, blushes easily' };
+// (her personality - career/Persona.js's eight; the ids only, so this stays a pure function with no imports)
+const PERSONA_IDS = ['spark', 'ice', 'sunny', 'flirtatious', 'emotional', 'rude', 'dominant', 'shy'];
+const VIBE = { spark: 'Bubbly, playful and impulsive; a dare in everything, a laugh you hear across the room', ice: 'Cool, sharp and guarded; says less than she thinks and notices everything', sunny: 'Warm, sincere and a little dorky; easy company, blushes easily',
+  flirtatious: 'Seductive, bold and sultry; turns everything into a flirt', emotional: 'Sensitive, romantic and tender; feels everything at full volume', rude: 'Blunt, sarcastic and hard to impress; secretly soft',
+  dominant: 'Commanding, assertive and competitive; takes charge of every room', shy: 'Quiet, gentle and nervous; braver over text than in person' };
 // (looks: skin tones light to deep; hair colours as people have them; the styles World/People builds)
 const SKIN = ['#f6dcc8', '#f2d3bd', '#eac4a8', '#e0b08c', '#d29c74', '#c08660', '#a8704a', '#8d5a3a', '#6e4329', '#57341f', '#45291a'];
 const HAIR_LIGHT = ['#e8d3a6', '#d9b77a', '#c9a066', '#b2824d', '#8a5a33', '#6a4428', '#4a2f1c', '#2b1d14', '#161012', '#8a3b1c', '#a64b24'];
@@ -94,7 +98,7 @@ const seedOf = (id) => parseInt(String(id).slice(2), 36) >>> 0;
 export function makeLocal(idOrSeed) {
   const seed = typeof idOrSeed === 'number' ? idOrSeed >>> 0 : seedOf(idOrSeed), id = localId(seed), R = POOL(seed);
   const name = `${pk(R, FIRST)} ${pk(R, LAST)}`, [job, work] = pk(R, JOBS), from = pk(R, FROM), home = pk(R, HOME), age = 23 + ((R() * 14) | 0), hobby = pk(R, HOBBY);
-  const persona = ['spark', 'ice', 'sunny'][(R() * 3) | 0];
+  const persona = PERSONA_IDS[(R() * PERSONA_IDS.length) | 0];
   const deep = R() < 0.35, skin = deep ? pk(R, SKIN.slice(6)) : pk(R, SKIN.slice(0, 8)), hair = deep ? pk(R, HAIR_DEEP) : pk(R, HAIR_LIGHT), hs = deep && R() < 0.6 ? pk(R, HS_CURLY) : pk(R, HS);
   const [col, acc] = pk(R, PAL), [col2, acc2] = pk(R, PAL), legs = () => pk(R, LEGS);
   const likes = [...new Set([pk(R, LIKES), pk(R, LIKES), pk(R, LIKES)])], dislikes = [...new Set([pk(R, DISLIKES), pk(R, DISLIKES)])].filter((d) => !(d === 'arrogant' && likes.includes('confident') && R() < 0.5));
