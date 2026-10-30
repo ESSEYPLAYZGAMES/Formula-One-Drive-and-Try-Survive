@@ -6,7 +6,8 @@
 // follow it up, and you answer again - or turn the talk to someone behind their back - and they move on. Two
 // back-and-forths each. In a career what you say lasts: rapport with the drivers, the press's quotes in the news, and
 // word getting round. Cruel is allowed and costs; no one on the grid ever wishes harm on anyone.
-// The stars are on the grid too (career/Celebs.js's celebrities, every one made up): a first hello, small talk, a
+// The stars are on the grid too (career/Celebs.js's celebrities, every one made up) and talk as who they are (career/
+// Persona.js: the Spark, the Ice, the Sunshine - opening in the mood you left them in): a first hello, small talk, a
 // little flirting, a word with your partner before you get in (ui/GridTalk4.js). And F at a driver close by gives him
 // a shove - open hands on the chest, nothing more - which he laughs off, answers with a look or a shove of his own, or
 // (pushed far enough) squares up to: handbags, played as quick prompts until people pull you apart (ui/Brawl.js has
@@ -24,6 +25,7 @@ import { TOPICS3 } from './GridTalk3.js';
 import { TOPICS4, FAREWELL4 } from './GridTalk4.js';
 import { Jab, Brawl } from './Brawl.js';
 import * as WalkFx from './WalkFx.js';
+import { personaTalk, TONE_TAG } from '../career/Persona.js';
 
 const CSS = `
 #gridwalk { position: fixed; inset: 0; z-index: 44; pointer-events: none; font-family: 'Segoe UI', Roboto, Arial, sans-serif; color: #fff; }
@@ -56,7 +58,7 @@ const CSS = `
 #gridwalk .talk .opts button b { font: 900 12px/1.6 'Segoe UI', Arial, sans-serif; color: #8c93a0; min-width: 14px; }
 #gridwalk .talk .opts button i { margin-left: auto; font: 700 9.5px/1.9 'Segoe UI', Arial, sans-serif; letter-spacing: .14em; font-style: normal; color: #7d8592; white-space: nowrap; }
 #gridwalk .talk .opts button[data-tone=cruel] i { color: #d9534f; } #gridwalk .talk .opts button[data-tone=kind] i { color: #6cc08b; } #gridwalk .talk .opts button[data-tone=sorry] i { color: #c8b66a; } #gridwalk .talk .opts button[data-tone=gossip] i { color: #c27ad6; }
-#gridwalk .talk .opts button[data-tone=flirt] i { color: #e77fae; } #gridwalk .talk .opts button[data-tone=show] i { color: #e0a33c; }
+#gridwalk .talk .opts button[data-tone=flirt] i { color: #e77fae; } #gridwalk .talk .opts button[data-tone=passive] i { color: #c9ced8; } #gridwalk .talk .opts button[data-tone=flirty] i { color: #e77fae; } #gridwalk .talk .opts button[data-tone=risque] i { color: #ff4f7a; } #gridwalk .talk .opts button[data-tone=show] i { color: #e0a33c; }
 #gridwalk .talk .next { text-align: right; font: 600 11px/1 'Segoe UI', Arial, sans-serif; color: #7d8592; letter-spacing: .1em; min-height: 11px; }
 #gridwalk .toasts { position: absolute; right: 3vw; top: 11vh; display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
 #gridwalk .toast { background: rgba(10,12,18,.85); border-left: 3px solid #8c93a0; padding: 7px 11px; font: 600 13px/1.3 'Segoe UI', Arial, sans-serif; animation: gwt 5.5s forwards; max-width: 340px; }
@@ -74,8 +76,10 @@ const first = (n) => String(n || '').split(' ')[0], last = (n) => String(n || ''
 const hash = (s) => { let h = 2166136261; for (const ch of String(s)) h = Math.imul(h ^ ch.charCodeAt(0), 16777619); return h >>> 0; };
 const facing = (dx, dz) => Math.atan2(-dz, dx);
 // how a tone lands (mood), and its tag on the option (flirt and show are for the stars)
-const TONE = { kind: 2, firm: 1, light: 1, cold: -1, cruel: -5, sorry: 3, gossip: 0, leave: -1, flirt: 1, show: 0 };
-const TAG = { kind: 'KIND', firm: 'FIRM', light: 'LIGHT', cold: 'COLD', cruel: 'CRUEL', sorry: 'APOLOGISE', gossip: 'BEHIND THEIR BACK', leave: '', flirt: 'FLIRT', show: 'SHOW OFF' };
+const TONE = { kind: 2, firm: 1, light: 1, cold: -1, cruel: -5, sorry: 3, gossip: 0, leave: -1, flirt: 1, show: 0, passive: 0, flirty: 1, risque: 2 };
+const TAG = { kind: 'KIND', firm: 'FIRM', light: 'LIGHT', cold: 'COLD', cruel: 'CRUEL', sorry: 'APOLOGISE', gossip: 'BEHIND THEIR BACK', leave: '', flirt: 'FLIRT', show: 'SHOW OFF', ...TONE_TAG };
+// (a personality's tones as the walk's own reckon them - ui/WalkFx: how a star takes a whole conversation)
+const AS_WALK = { cold: 'cold', passive: 'kind', flirty: 'flirt', risque: 'flirt' };
 const OUTLET = 'Paddock Weekly';
 // the action that ends a hostile talk in a shove (never on a memorial weekend, nor once there has been a scuffle, nor
 // at anyone who cannot be shoved: x.jabbable, from ui/WalkFx.js)
@@ -598,6 +602,15 @@ export class GridWalk {
     // with a score to settle, the crew and the press on the week's stories)
     for (const def of TOPICS4) if (def.who.includes(n.kind) && (!def.when || def.when(x, n))) W.push([(xx, nn) => buildTopic(def, xx, nn), def.w, def.id]);
     if (!W.length) W.push([quiet ? T.quiet : T.celeb, 1, quiet ? 'quiet' : null]);
+    // (a star talks as who she is (career/Persona.js): her personality's conversations, opening in the mood you left her
+    //  in - except on a quiet day, as an ex, or now and then when there is something to do: ask her out, your partner's
+    //  good luck before the start)
+    if (star && !quiet && n.stage !== 'ex' && n.celebId) {
+      const does = W.filter((w) => w[2] && TOPICS4.some((d) => d.id === w[2] && JSON.stringify(d.opts || []).match(/askout|partner/)));
+      if (!(does.length && Math.random() < 0.3)) {
+        try { const t = personaTalk(this.career || (this._pc || (this._pc = {})), 'c:' + n.celebId,   /* (a quick race: her moods for this walk only) */ { where: 'grid', T: { name: n.name, job: n.job, venue: 'the grid', track: x.trackName } }); if (t) return t; } catch (e) { console.warn('GridWalk: the personality talk failed', e); }
+      } else W.splice(0, W.length, ...does);
+    }
     let r = Math.random() * W.reduce((s, w) => s + w[1], 0);
     // (each tree knows which topic it is: ui/WalkFx.js reads it - a T.mourn tree is never news)
     const tree = (f, id) => { const t = f(x, n); if (t && id && !t.id) t.id = id; return t; };
@@ -609,7 +622,7 @@ export class GridWalk {
     this.keys.clear();
     const tree = this._topics(n);
     const greet = n.kind === 'driver' && n.mood <= -2 ? pick([`Oh. You.`, `Make it quick.`, `What do you want?`]) : n.kind === 'driver' && n.mood >= 2 ? pick([`Hey!`, `There you are.`, `${first(this.player.name)}!`]) : '';
-    this.talk = { n, step: 0, queue: [], opts: null, typed: 0, line: null, hold: 0, dm: 0, fx: [], topic: tree.id || null, mourn: tree.id === 'mourn' };
+    this.talk = { n, step: 0, queue: [], opts: null, typed: 0, line: null, hold: 0, dm: 0, fx: [], topic: tree.id || null, mourn: tree.id === 'mourn', tree, ptones: [] };
     this._queue([greet ? `${greet} ${tree.say}` : tree.say], tree.opts);
     const P = this.el.querySelector('.talk'); P.querySelector('.who').innerHTML = `${esc(n.name)}<small>${esc(n.role)}</small>`; P.classList.add('in');
     this.el.querySelector('.prompt').classList.remove('in');
@@ -653,7 +666,8 @@ export class GridWalk {
     T0.opts = null; this.el.querySelector('.opts').innerHTML = '';
     const dm = o.m ?? TONE[o.tone] ?? 0; n.mood += dm; T0.dm += dm;
     // (every tone chosen, [actions] too: how a star takes a whole conversation, ui/WalkFx.js)
-    (T0.tones || (T0.tones = [])).push(o.tone);
+    (T0.tones || (T0.tones = [])).push(AS_WALK[o.tone] || o.tone);
+    if (T0.tree?.persona) T0.ptones.push(o.tone);
     if (!o.t.startsWith('[')) (T0.said || (T0.said = [])).push({ t: o.t, tone: o.tone });
     // reactions with a mind of their own: gossip (who they are), the dead (everyone hears of it)
     let r = o.r;
@@ -677,11 +691,12 @@ export class GridWalk {
       T0.step = 1;
       let opts = o.then.opts.slice();
       // and a chance to turn it to someone else, behind their back (not straight after an apology for being cruel)
-      if (x.X && n.kind !== 'press' && o.tone !== 'cruel' && opts.length < 4 && !(n.car && n.car === x.X) && !(n.kind === 'star' && (x.L || n.grieving))) opts.push({ t: x.trash(x.X), tone: 'gossip', fx: { about: x.X } });
+      if (x.X && !T0.tree?.persona && n.kind !== 'press' && o.tone !== 'cruel' && opts.length < 4 && !(n.car && n.car === x.X) && !(n.kind === 'star' && (x.L || n.grieving))) opts.push({ t: x.trash(x.X), tone: 'gossip', fx: { about: x.X } });
       lines.push(o.then.say); this._queue(lines, opts); return;
     }
     T0.step = 2;
-    lines.push(this._farewell(n)); this._queue(lines, null);
+    if (T0.tree?.persona) this._farewell(n); else lines.push(this._farewell(n));   // (a personality talk's last reaction is its goodbye)
+    this._queue(lines, null);
   }
   _farewell(n) {
     if (n.mood - n.mood0 <= -5) n.offended = true;
@@ -698,6 +713,7 @@ export class GridWalk {
   _close() {
     const T0 = this.talk; if (!T0) return; const n = T0.n; this.talk = null; n.talked = true;
     this.el.querySelector('.talk').classList.remove('in');
+    if (T0.tree?.done && T0.ptones?.length) { try { T0.tree.done(T0.ptones); } catch (e) { console.warn('GridWalk: the mood could not be kept', e); } }   // (where you steered it: how she opens next time - here, at a party, on the phone)
     this._consequences(n, T0);
     if (n.offended) n.turn = n.face0 + Math.PI;   // (their back to you)
     const i = this.npcs.indexOf(n); this.tags[i]?.classList.add('done');

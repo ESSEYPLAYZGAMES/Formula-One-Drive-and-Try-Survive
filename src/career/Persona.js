@@ -97,13 +97,14 @@ const byTone = (os) => arr(os).slice().sort((a, b) => (ORDER[a.tone] ?? 9) - (OR
 // ---- in person ---------------------------------------------------------------------------------------------------------
 /**
  * A conversation with them now (they open in the mood you left them in), as ui/HangoutTalk builds a topic -> { id, say,
- * opts: [{ t, tone, r, m, then? }], persona, done(tones) } | null. o: { party (an after-party), T (tokens: track, last,
+ * opts: [{ t, tone, r, m, then? }], persona, done(tones) } | null. o: { party (an after-party), where ('grid': the
+ * grid walk - only the talks for anywhere), T (tokens: track, last,
  * result, venue...) }. done(tones) - the tones you chose, in order - records it: the mood it ended in, what was said.
  */
 export function personaTalk(c, cid, o = {}) {
   const s = psOf(c, cid); if (!s) return null;
   const D = PERSONAS[s.p]?.data, L0 = arr(D?.convos); if (!L0.length) return null;
-  const st = stageOf(c, cid), where = o.party ? 'party' : 'evening';
+  const st = stageOf(c, cid), where = o.where || (o.party ? 'party' : 'evening');   // (o.where 'grid': only the talks for anywhere)
   const ok = (d, stage, mood) => d.stage === stage && d.mood === mood && (!d.where || d.where === where);
   // (the mood you left them in at this stage; else the nearest stage that has it; else any mood)
   let L = L0.filter((d) => ok(d, st, s.mood));
