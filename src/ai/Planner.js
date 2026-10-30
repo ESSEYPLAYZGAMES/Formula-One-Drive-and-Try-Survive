@@ -339,8 +339,9 @@ export class Planner {
     const busy = this.nOthers > 0 && this.anyNear(ctx);
     const specs = this._specs || (this._specs = []); specs.length = 0;
     specs.push(spec('lane', 0, Infinity));
-    // (racecraft, ctx.bold: a car close ahead or alongside to race - the moves a driver makes on it)
-    const rival = busy && ctx.bold > 0 ? this.rivalNear(ctx) : null;
+    // (racecraft: a car close ahead or alongside to race - the moves a driver makes on it; kb how much it means it:
+    //  ctx.bold on the player, ctx.boldAI on another AI car)
+    const rival = busy ? this.rivalNear(ctx) : null, kb = rival ? Math.min(1.2, rival.human ? ctx.bold : ctx.boldAI) : 0;
     if (busy || Math.abs(ctx.e0) > 1.2 || ctx.forceLane) {
       // (a move that rejoins the line after the corner only for the bigger offsets: a small one is the same as holding)
       for (const k of LANES) for (const h of HOLDS) if (h === Infinity ? true : Math.abs(k) >= 3) specs.push(spec('lane', k, h === Infinity ? Infinity : ctx.s0 + h));
@@ -359,7 +360,7 @@ export class Planner {
     let bestCost = Infinity; const P = this.cand, B = this.best, g = ctx.grip, brake0 = g.brake;
     const committed = rival && prevSpec && this.prevPass > 0;   // (it was going for a place: it does not give it up for a hair)
     for (const sp of specs) {
-      if (sp.late) g.brake = brake0 * (1 + 0.04 * Math.min(1.2, ctx.bold));
+      if (sp.late) g.brake = brake0 * (1 + 0.04 * kb);
       this.build(P, sp, ctx);
       this.traffic(P, ctx);
       g.brake = brake0;
@@ -368,7 +369,7 @@ export class Planner {
       // (racecraft: the place is worth more than the time over these 6 s - a path that gets past the car ahead, or
       //  alongside it, is worth having; a late stop carries its risk; leaving a move that is on costs)
       P.pass = rival ? this.passValue(P, ctx) : 0;
-      if (rival) { cost -= 0.35 * Math.min(1.2, ctx.bold) * P.pass; if (sp.late) cost += 0.04; if (committed && sp !== prevSpec) cost += 0.18 * Math.min(1.2, ctx.bold); }
+      if (rival) { cost -= 0.35 * P.pass; if (sp.late) cost += 0.04; if (committed && sp !== prevSpec) cost += 0.18 * kb; }
       let off = 0; for (let i = 0; i < n; i += 2) off += Math.abs(P.e[i]); cost += 0.0015 * off;
       // changing its mind costs: a little for any change, more the further the new lane is from the one it was in
       // (lateral position compared at the first node past the transition: a held position and a lane are comparable)
@@ -381,14 +382,20 @@ export class Planner {
     this.prevPass = B.pass || 0;
     return B;
   }
-  /** a car to race with the moves: one it cannot read (the player - two AI cars read each other's plans, and racing each
-   *  other that way already), ahead within 60 m or alongside, running (not lapping me, not the safety car) */
+  /** a car to race with the moves: the player (ctx.bold) or another AI car read by its plan (ctx.boldAI), ahead within
+   *  60 m or alongside, running (not lapping me, not the safety car) */
   rivalNear(ctx) {
     for (let r = 0; r < this.nOthers; r++) {
       const R = this.others[r], o = R.car;
-      if (R.human && R.s0 > -6 && R.s0 < 60 && !R.lapping && !o.isSC && o.speed > 15) return R;
+      if (this.rivalK(R, ctx) > 0 && R.s0 > -6 && R.s0 < 60) return R;
     }
     return null;
+  }
+  /** how much a car is raced with the moves (rivalNear): 0 for one that is not */
+  rivalK(R, ctx) {
+    const o = R.car;
+    if (R.lapping || o.isSC || o.retired || o.speed <= 15) return 0;
+    return Math.min(1.2, R.human ? ctx.bold || 0 : R.planned ? ctx.boldAI || 0 : 0);
   }
   /** the middle of the next corner 40 m or more ahead, inside the horizon less 60 m (absolute s), or null */
   nextApex(ctx) {
@@ -401,8 +408,9 @@ export class Planner {
     return null;
   }
   /**
-   * How far path P gets on the cars it races with the moves (rivalNear: the player) just ahead, counted in cars: past one by the end of the time it is
-   * predicted for (6 s, or the path's end) - 1; alongside it - a part of one, the more of it the further up. Only beside
+   * How far path P gets on the cars it races with the moves (rivalNear) just ahead, counted in cars (each by how much
+   * it is raced - rivalK): past one by the end of the time it is predicted for (6 s, or the path's end) - 1; alongside
+   * it - a part of one, the more of it the further up. Only beside
    * it: where the path draws level, a car's width off it (a path through it - traffic() lets one run on into a car more
    * than 2 s off - gets nothing, nor a part of it closer than that)
    */
@@ -412,8 +420,8 @@ export class Planner {
     const f = Math.max(0, Math.min(1, (tEnd - P.t[i - 1]) / Math.max(1e-3, P.t[i] - P.t[i - 1]))), xMe = (i - 1 + f) * DS, q = Math.min(PRED_N - 1, Math.round(tEnd / PRED_DT));
     let v = 0;
     for (let r = 0; r < this.nOthers; r++) {
-      const R = this.others[r], o = R.car;
-      if (!R.human || !R.ahead0 || R.s0 > 60 || R.lapping || o.isSC) continue;
+      const R = this.others[r], w = this.rivalK(R, ctx);
+      if (!w || !R.ahead0 || R.s0 > 60) continue;
       const lead = xMe - R.s[q];
       if (lead <= -Lc) continue;
       let dd = Infinity;
@@ -423,7 +431,7 @@ export class Planner {
         if (gs > -Lc && gs < Lc) dd = Math.min(dd, Math.abs(R.d[q0] + (R.d[q0 + 1] - R.d[q0]) * fq - P.d[j]));
       }
       const side = dd === Infinity ? 1 : Math.max(0, Math.min(1, (dd - 0.6 * W) / (0.4 * W)));
-      v += side * (lead > 2 ? 1 : 0.5 * (lead + Lc) / (Lc + 2));
+      v += w * side * (lead > 2 ? 1 : 0.5 * (lead + Lc) / (Lc + 2));
     }
     return v;
   }

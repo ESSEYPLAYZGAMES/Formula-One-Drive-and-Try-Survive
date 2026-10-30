@@ -50,6 +50,7 @@ export const AI_TUNE = {
   edgeGuard: 1, satLift: 1, slipLift: 8, guardBrakeV: 45,
   packCal: 1,                                            // a calibration marked `pack` (fitted solo) only in clean air after the opening lap (0: everywhere)
   bold: 1,                                               // racecraft against the player (Planner, by aggression): commit to a move, lunge, switch back, read him through his corrections (0: as before)
+  boldAI: 0,                                             // ... the moves (commit, lunge, switch back) against another AI car too, none on the opening lap (0: as before)
   // ---- the driver
   vScaleBase: 0.972, vScaleK: 0.028,                     // cornering commitment by rating
   aBBase: 0.88, aBK: 0.09,                               // braking commitment by rating
@@ -165,6 +166,7 @@ export class AIDriver {
     // (racecraft: how much it means a move - by the driver's aggression, half of it on the opening lap, none under race
     //  control: Planner reads it)
     ctx.bold = rule ? 0 : T.bold * Math.min(1.2, this.aggression) * (lap1 ? 0.5 : 1);
+    ctx.boldAI = rule || lap1 ? 0 : T.boldAI * Math.min(1.2, this.aggression);
     // (a circuit's calibration fitted to a car on its own - ai/Calibration.js `pack`, Austin's from a driver's laps - spun
     //  the field in the pack: the opening lap is driven on the physics, and so is any stretch in traffic - fading back
     //  in from 25 m to 100 m behind the nearest car ahead, none with a car alongside)
