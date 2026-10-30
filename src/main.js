@@ -93,7 +93,19 @@ const teamIndexOf = (teamName) => { const k = TEAMS.findIndex((t) => t.name === 
 const canvas = $('gl');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
-renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
+// the look: AgX's film response (highlights roll off to white instead of going neon, as ACES pushed the reds and
+// the grass) wrapped in a grade - real albedos are muted, so a little less chroma, and a gentle S-curve for the
+// contrast a camera sensor gives; exposure matched to the old curve so the presets' numbers keep their meaning.
+// (patched into AgX itself rather than a custom curve: the photo and crash composers' OutputPass knows AgX)
+THREE.ShaderChunk.tonemapping_pars_fragment = THREE.ShaderChunk.tonemapping_pars_fragment.replace('vec3 AgXToneMapping( vec3 color ) {', 'vec3 AgXToneMapping0( vec3 color ) {') + `
+vec3 AgXToneMapping( vec3 color ) {
+	float l = dot( color, vec3( 0.2126, 0.7152, 0.0722 ) );
+	color = max( mix( vec3( l ), color, 0.9 ), 0.0 ) * 1.5;
+	vec3 c = pow( AgXToneMapping0( color ), vec3( 1.0 / 2.2 ) );
+	c = mix( c, c * c * ( 3.0 - 2.0 * c ), 0.45 );
+	return pow( c, vec3( 2.2 ) );
+}`;
+renderer.toneMapping = THREE.AgXToneMapping; renderer.toneMappingExposure = 1.05;
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(74, 16 / 9, 0.3, 6000);   // tighter depth range: less z-fighting on painted surfaces
 /** how much the lens magnifies against the default 74 degrees (the cars' detail by distance scales with it: CarMesh.detail) */
@@ -1022,11 +1034,11 @@ $('btn-resume').addEventListener('click', () => setPaused(false));
 $('btn-quit').addEventListener('click', () => { setPaused(false); quitSession(); });
 $('btn-restart').addEventListener('click', () => { setPaused(false); restartRace(); });
 /**
- * RESTART RACE (pause menu, a race outside a career): the same race again from the same grid - a fresh field (new
+ * RESTART RACE (pause menu, any race - a career's too): the same race again from the same grid - a fresh field (new
  * cars: no damage, laps or tyre wear carried over), no build-up, straight to the five red lights.
  */
 function restartRace() {
-  const wk = S.weekend; if (!wk || S.director?.mode !== 'race' || wk.career) return;
+  const wk = S.weekend; if (!wk || S.director?.mode !== 'race') return;
   const order = (wk.gridOrder || []).map((c) => c.name);
   endSession(); NEWS.cancelled = false;
   wk.cars = buildField(wk.lapsTotal); wk.player = wk.cars.find((c) => c.isPlayer) || null;
@@ -1206,10 +1218,23 @@ function setPhotoLive(live) {
   const d = S.director; if (!d) return;
   PHOTO.live = live; $('photo-play').textContent = live ? '⏸ PAUSE' : '▶ PLAY';
   if (live && S.player && !PHOTO.ai && !S.player.retired) {
-    PHOTO.ai = new AIDriver(S.player, W.line, W.profile, W.track, { aggression: 0.7 }); d.ai.push(PHOTO.ai); d.player = null;
+    PHOTO.ai = new AIDriver(S.player, W.line, W.profile, W.track, { aggression: 0.7 }); PHOTO.ai.photo = true; d.ai.push(PHOTO.ai); d.player = null;
   } else if (!live && PHOTO.ai) {
     d.ai = d.ai.filter((a) => a !== PHOTO.ai); PHOTO.ai = null; d.player = S.player;
   }
+}
+/**
+ * Outside photo mode's play, your car is yours: any AI driver photo mode put in it is taken out and the controls go back
+ * to you. (Every frame: a flashback rewound into a stretch photo mode played - its snapshot had that driver in the
+ * field and no player - and left the AI driving your car for good.)
+ */
+function releasePhotoAI() {
+  const d = S.director; if (!d || PHOTO.live) return;
+  if (d.ai.some((a) => a.photo)) d.ai = d.ai.filter((a) => !a.photo);
+  if (PHOTO.ai && !PHOTO.live) PHOTO.ai = null;
+  const p = S.player;
+  if (p && !d.player && !S.spectating && !p.autopilot && d.cars.includes(p)) d.player = p;
+  if (p?.ai?.photo) p.ai = null;
 }
 function exitPhoto() {
   setPhotoLive(false);
@@ -1514,7 +1539,7 @@ function setPaused(v) {
   S.paused = v; $('pause').classList.toggle('hidden', !v);
   const d = S.director, career = !!S.weekend?.career;
   $('btn-finish').classList.toggle('hidden', !(v && d && d.mode === 'tt'));
-  $('btn-restart').classList.toggle('hidden', !(v && d && d.mode === 'race' && !career && !NEWS.cancel));
+  $('btn-restart').classList.toggle('hidden', !(v && d && d.mode === 'race' && !NEWS.cancel));
   $('btn-end').classList.toggle('hidden', !(v && d && d.mode === 'quali' && !d.done));
   $('btn-end').firstChild.textContent = d?.practice ? 'END PRACTICE' : 'END SESSION · SIMULATE THE REST';
   $('btn-quit').firstChild.textContent = career ? (d?.mode === 'quali' && !d.practice && isFinite(d?.player?.bestLap) ? 'QUIT TO CAREER · KEEP YOUR LAP' : 'QUIT TO CAREER') : 'QUIT TO MENU';
@@ -3148,6 +3173,7 @@ function frame(now) {
       updatePhoto(dt);
     }
   } else {
+    releasePhotoAI();
     if (telView.open) { if (input.pressed('Escape') || input.pressed('KeyT')) telView.close(); }   // the report sits over the game
     else if (input.pressed('KeyT') && d && !hud.pit.open) openTelemetry(!S.paused);
     else if (!S.fb && input.pressed('Escape') && d && !d.done && !hud.pit.open) setPaused(!S.paused);

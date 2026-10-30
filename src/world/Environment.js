@@ -56,7 +56,9 @@ function groundTexture(day, style = 'city') {
 
 const PRESETS = {
   night: { top: 0x03040a, horizon: 0x2a1e3a, glow: 0x6a3a5a, sun: 0, stars: 1, sunColor: 0xbfc8ff, sunI: 0.7, sunPos: [-600, 900, 400], hemiSky: 0x9aa0cc, hemiGround: 0x1a1410, hemiI: 0.75, amb: 0x3a3c46, ambI: 0.75, fog: 0x0a0c18, fogD: 0.00035, bg: 0x070812, exposure: 1.1, envI: 0.6 },   // race-night lift: the real event is floodlit bright
-  day: { top: 0x2f6fd8, horizon: 0xcfe0f2, glow: 0xfff2d0, sun: 1, stars: 0, sunColor: 0xfff1dc, sunI: 2.6, sunPos: [500, 1100, -300], hemiSky: 0xbfd8ff, hemiGround: 0x9a8a6a, hemiI: 0.9, amb: 0x8fa3c0, ambI: 0.35, fog: 0xc9d6e6, fogD: 0.00016, bg: 0x9ec3ee, exposure: 0.95, envI: 1.0 },
+  // (day, photographic: a real sky is pale and hazy towards the horizon, not poster blue; most of the light is the
+  // sun's - a weaker fill keeps the shade side of things in shade - and the air puts a haze on the distance)
+  day: { top: 0x4a7cc2, horizon: 0xdde4ea, glow: 0xfff0d6, sun: 1, stars: 0, sunColor: 0xfff0dc, sunI: 3.3, sunPos: [500, 1100, -300], hemiSky: 0xc4d6ee, hemiGround: 0x8a7c62, hemiI: 0.62, amb: 0x9aa8bc, ambI: 0.16, fog: 0xd2dbe4, fogD: 0.00024, bg: 0xb4c8de, exposure: 0.95, envI: 1.15 },
 };
 
 export function createEnvironment(scene, renderer) {
