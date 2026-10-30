@@ -245,6 +245,8 @@ export class RaceDirector {
     }
     this.replay?.record(dt, this.time);
     if (this.replay) for (const c of this.cars) if (c._clipAt != null && this.time >= c._clipAt) { c._clipAt = null; c.injuryClip = this.replay.clip(c); }
+    // (the run to Turn 1 from a standing start: over once a car is past the first corner's apex, or after 25 s)
+    if (this.world.racing) { const t1 = this._t1 ?? (this._t1 = (this.track.def.corners || []).find((k) => k.s != null)?.s ?? 300); for (const c of this.cars) if (c.startRun && (c.lapDist > t1 || this.time - this.world.raceStart > 25)) c.startRun = false; }
     this.rank();
     this.sectors.update(); this.passes.update(); this.blueFlags(dt);
     this.speedBands(dt);
@@ -291,7 +293,7 @@ export class RaceDirector {
           this.state = 'racing'; this.stateT = 0; this.world.racing = true; this.world.raceStart = this.time; this.hud?.setLights(0); this.lightsHideT = 1.2;
           this.hud?.msg('LIGHTS OUT!', 'good', 1.6); this.audio?.beep(1200, 0.25, 0.3);
           this.engineer?.say('Lights out. Clean first lap, look after the tyres, they are cold.', 2);
-          for (const c of this.cars) c.lapStart = this.time;
+          for (const c of this.cars) { c.lapStart = this.time; c.startRun = true; }   // (to Turn 1 on even terms: Car.step, speedBands)
           // every driver launches with a human reaction time (~0.15-0.3 s); tier/rating does not slow the getaway, focus
           // moves it by a few hundredths either way (FORM.react)
           for (const a of this.ai) if (!a.jumped) a.reaction = Math.max(0.1, 0.14 + Math.random() * 0.12 + (1 - a.car.rating) * 0.04 + (a.car.form || NF).react);
@@ -571,7 +573,7 @@ export class RaceDirector {
     this._bandT = (this._bandT || 0) - dt; if (this._bandT > 0) return; this._bandT = 0.5;
     const lead = this.positions.find((c) => !c.retired), on = this.mode === 'race' && this.world.racing;
     for (const c of this.cars) {
-      if (!on || !lead || c === lead || c.retired) { c.band = 0; continue; }
+      if (!on || !lead || c === lead || c.retired || c.startRun) { c.band = 0; continue; }
       let g = this.radio.gap(c, lead); if (g == null) g = (this.progress(lead) - this.progress(c)) / Math.max(30, lead.speed);
       c.band = g <= 0.4 ? 0 : Math.min(1, Math.pow((g - 0.4) / 4.6, 0.6));
     }

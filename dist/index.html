@@ -591,7 +591,7 @@ table.res tr.me td { color: var(--accent2); font-weight: 700; }
     <div class="brand-line"></div>
     <h1 id="brand-title">FORMULA 1<span id="brand-sub">SIMULATOR</span></h1>
     <!-- the build's version: +0.01 with every build handed out -->
-    <span id="app-ver" title="Version">V1.70</span>
+    <span id="app-ver" title="Version">V1.71</span>
     <div id="menu-sub">Real circuits built from OpenStreetMap</div>
   </div>
   <div id="loading" class="hidden"><div class="ld"><i></i></div><span>Building the circuit from OpenStreetMap…</span></div>
@@ -673,6 +673,7 @@ table.res tr.me td { color: var(--accent2); font-weight: 700; }
               <div class="opt"><div class="lbl">Assists</div><div class="seg k-seg" id="opt-assist"><button data-v="full" class="sel">TC+ABS</button><button data-v="abs">ABS</button><button data-v="none">None</button></div></div>
               <div class="opt"><div class="lbl">Racing line (L)</div><div class="seg k-seg" id="opt-line"><button data-v="on" class="sel">On</button><button data-v="off">Off</button></div></div>
               <div class="opt"><div class="lbl">Flashbacks</div><div class="seg k-seg" id="opt-fb"><button data-v="off">Off</button><button data-v="inf" class="sel">Unlimited</button></div></div>
+              <div class="opt"><div class="lbl">Race start</div><div class="seg k-seg" id="opt-intro"><button data-v="on" class="sel">Build-up</button><button data-v="skip">Straight to lights</button></div></div>
             </div>
             <div class="su-keys"><div class="lbl">Controls · keyboard or gamepad</div><dl>
               <div><dt><kbd>WASD</kbd> <kbd>Arrows</kbd></dt><dd>Drive</dd></div>
@@ -106557,7 +106558,7 @@ class Car {
     let grip = tyre.grip(wet) * wetSurface * (1 - 0.22 * this.dmg.susp);
     if (this.perf) grip *= 0.985 + 0.015 * this.perf;
     if (this.band) grip *= 1 + 0.012 * this.band;   // (speed banding: RaceDirector.speedBands)
-    if (this.aiGrip) grip *= this.aiGrip;   // (an AI car at a circuit that gives it more: AIDriver)
+    if (this.aiGrip && !this.startRun) grip *= this.aiGrip;   // (an AI car at a circuit that gives it more: AIDriver - not off the line to Turn 1, where everyone launches on the same tyres)
     grip *= F.grip;   // (confidence: the last fraction of the tyre a driver dares to use)
     const gripFW = 1 - 0.06 * (this.dmg.fwL + this.dmg.fwR);
 
@@ -139332,6 +139333,8 @@ class RaceDirector {
     }
     this.replay?.record(dt, this.time);
     if (this.replay) for (const c of this.cars) if (c._clipAt != null && this.time >= c._clipAt) { c._clipAt = null; c.injuryClip = this.replay.clip(c); }
+    // (the run to Turn 1 from a standing start: over once a car is past the first corner's apex, or after 25 s)
+    if (this.world.racing) { const t1 = this._t1 ?? (this._t1 = (this.track.def.corners || []).find((k) => k.s != null)?.s ?? 300); for (const c of this.cars) if (c.startRun && (c.lapDist > t1 || this.time - this.world.raceStart > 25)) c.startRun = false; }
     this.rank();
     this.sectors.update(); this.passes.update(); this.blueFlags(dt);
     this.speedBands(dt);
@@ -139378,7 +139381,7 @@ class RaceDirector {
           this.state = 'racing'; this.stateT = 0; this.world.racing = true; this.world.raceStart = this.time; this.hud?.setLights(0); this.lightsHideT = 1.2;
           this.hud?.msg('LIGHTS OUT!', 'good', 1.6); this.audio?.beep(1200, 0.25, 0.3);
           this.engineer?.say('Lights out. Clean first lap, look after the tyres, they are cold.', 2);
-          for (const c of this.cars) c.lapStart = this.time;
+          for (const c of this.cars) { c.lapStart = this.time; c.startRun = true; }   // (to Turn 1 on even terms: Car.step, speedBands)
           // every driver launches with a human reaction time (~0.15-0.3 s); tier/rating does not slow the getaway, focus
           // moves it by a few hundredths either way (FORM.react)
           for (const a of this.ai) if (!a.jumped) a.reaction = Math.max(0.1, 0.14 + Math.random() * 0.12 + (1 - a.car.rating) * 0.04 + (a.car.form || NF).react);
@@ -139658,7 +139661,7 @@ class RaceDirector {
     this._bandT = (this._bandT || 0) - dt; if (this._bandT > 0) return; this._bandT = 0.5;
     const lead = this.positions.find((c) => !c.retired), on = this.mode === 'race' && this.world.racing;
     for (const c of this.cars) {
-      if (!on || !lead || c === lead || c.retired) { c.band = 0; continue; }
+      if (!on || !lead || c === lead || c.retired || c.startRun) { c.band = 0; continue; }
       let g = this.radio.gap(c, lead); if (g == null) g = (this.progress(lead) - this.progress(c)) / Math.max(30, lead.speed);
       c.band = g <= 0.4 ? 0 : Math.min(1, Math.pow((g - 0.4) / 4.6, 0.6));
     }
@@ -141479,7 +141482,7 @@ function setTimeOfDay(mode) {
 // is ui/Motion.js's: only transform and opacity, nothing over 260 ms, none at all with reduced motion.
 // ---------------------------------------------------------------------------
 Kit.ensureMotion();
-const settings = { track: 'lasvegas', mode: 'quick', driver: null, len: 5, grid: 'quali', slot: 1, tyre: 'SOFT', weather: 'dry', time: 'night', assist: 'full', aggr: 1.0, diff: 75, stewards: 50, sc: 'on', fail: 'on', fb: 'inf', rounds: 3, custom: { name: 'E. Esselink', color: '#00d4ff', tier: 1 } };
+const settings = { track: 'lasvegas', mode: 'quick', driver: null, len: 5, grid: 'quali', slot: 1, tyre: 'SOFT', weather: 'dry', time: 'night', assist: 'full', aggr: 1.0, diff: 75, stewards: 50, sc: 'on', fail: 'on', fb: 'inf', intro: 'on', rounds: 3, custom: { name: 'E. Esselink', color: '#00d4ff', tier: 1 } };
 /** AI pace slider (0-100) -> cornering commitment multiplier for every AI driver (0.94 .. 1.02; 75 = the tuned default) */
 const skillOf = (diff) => 0.94 + 0.08 * (diff / 100);
 const diffName = (d) => (d < 20 ? 'Rookie' : d < 40 ? 'Amateur' : d < 60 ? 'Semi-pro' : d < 80 ? 'Pro' : d < 95 ? 'Elite' : 'Legend');
@@ -141542,6 +141545,7 @@ wireSeg('opt-aggr', 'aggr', Number);
 wireSeg('opt-sc', 'sc');
 wireSeg('opt-fail', 'fail');
 wireSeg('opt-fb', 'fb');
+wireSeg('opt-intro', 'intro');   // (Straight to lights: no build-up before a race outside a career - the grid, then the five lights)
 wireSeg('opt-line', 'line', String, (v) => { RL.on = v === 'on'; });
 
 let noteTm = 0;
@@ -142832,7 +142836,10 @@ function beginRace() {
       startFinale(winner.car, 'RACE WINNER', podium);
     },
   });
-  if (S.director && !S.spectating) startPreRace();   // (the build-up first: the race waits on the grid)
+  if (S.director && !S.spectating) {
+    if (settings.intro === 'skip' && !S.weekend?.career) { input.enabled = true; hud.show(); camCtl.mode = 'tcam'; if (S.player) for (let i = 0; i < 30; i++) camCtl.update(S.player, 1 / 30, W.track); }   // (straight to the grid and the lights)
+    else startPreRace();   // (the build-up first: the race waits on the grid)
+  }
 }
 
 /**
@@ -144285,7 +144292,7 @@ function frame(now) {
 // ---------------------------------------------------------------------------
 {
   document.body.classList.add('home');   // (also in index.html; an Artifact host supplies its own <body>)
-  window.__F1 = { PRE, W, S, settings, scene, camera, renderer, input, hud, AIDriver, AI_TUNE, AI_CAL, applyCalibration, chunks, debris, respawnMesh,
+  window.__F1 = { PRE, W, S, settings, scene, camera, renderer, input, hud, AIDriver, AI_TUNE, AI_CAL, applyCalibration, chunks, debris, fire, respawnMesh,
     /** (tests: one frame drawn as the crash camera draws it - through its composer - and the programs that compiled) */
     crashFrame() { const n0 = renderer.info.programs.length; ensureCrashComposer(); crashPass.uniforms.uBlur.value = 0.6; crashPass.uniforms.uSat.value = 1.5; crashComposer.render(); return renderer.info.programs.length - n0; },
     /** (tools: a calibration applied, the racing line and the speed profile rebuilt from it - the next session's AI drives them) */

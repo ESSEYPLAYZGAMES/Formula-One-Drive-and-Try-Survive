@@ -666,7 +666,7 @@ export class Car {
     let grip = tyre.grip(wet) * wetSurface * (1 - 0.22 * this.dmg.susp);
     if (this.perf) grip *= 0.985 + 0.015 * this.perf;
     if (this.band) grip *= 1 + 0.012 * this.band;   // (speed banding: RaceDirector.speedBands)
-    if (this.aiGrip) grip *= this.aiGrip;   // (an AI car at a circuit that gives it more: AIDriver)
+    if (this.aiGrip && !this.startRun) grip *= this.aiGrip;   // (an AI car at a circuit that gives it more: AIDriver - not off the line to Turn 1, where everyone launches on the same tyres)
     grip *= F.grip;   // (confidence: the last fraction of the tyre a driver dares to use)
     const gripFW = 1 - 0.06 * (this.dmg.fwL + this.dmg.fwR);
 

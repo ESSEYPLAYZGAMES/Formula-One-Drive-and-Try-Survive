@@ -432,7 +432,7 @@ function setTimeOfDay(mode) {
 // is ui/Motion.js's: only transform and opacity, nothing over 260 ms, none at all with reduced motion.
 // ---------------------------------------------------------------------------
 Kit.ensureMotion();
-const settings = { track: 'lasvegas', mode: 'quick', driver: null, len: 5, grid: 'quali', slot: 1, tyre: 'SOFT', weather: 'dry', time: 'night', assist: 'full', aggr: 1.0, diff: 75, stewards: 50, sc: 'on', fail: 'on', fb: 'inf', rounds: 3, custom: { name: 'E. Esselink', color: '#00d4ff', tier: 1 } };
+const settings = { track: 'lasvegas', mode: 'quick', driver: null, len: 5, grid: 'quali', slot: 1, tyre: 'SOFT', weather: 'dry', time: 'night', assist: 'full', aggr: 1.0, diff: 75, stewards: 50, sc: 'on', fail: 'on', fb: 'inf', intro: 'on', rounds: 3, custom: { name: 'E. Esselink', color: '#00d4ff', tier: 1 } };
 /** AI pace slider (0-100) -> cornering commitment multiplier for every AI driver (0.94 .. 1.02; 75 = the tuned default) */
 const skillOf = (diff) => 0.94 + 0.08 * (diff / 100);
 const diffName = (d) => (d < 20 ? 'Rookie' : d < 40 ? 'Amateur' : d < 60 ? 'Semi-pro' : d < 80 ? 'Pro' : d < 95 ? 'Elite' : 'Legend');
@@ -495,6 +495,7 @@ wireSeg('opt-aggr', 'aggr', Number);
 wireSeg('opt-sc', 'sc');
 wireSeg('opt-fail', 'fail');
 wireSeg('opt-fb', 'fb');
+wireSeg('opt-intro', 'intro');   // (Straight to lights: no build-up before a race outside a career - the grid, then the five lights)
 wireSeg('opt-line', 'line', String, (v) => { RL.on = v === 'on'; });
 
 let noteTm = 0;
@@ -1785,7 +1786,10 @@ function beginRace() {
       startFinale(winner.car, 'RACE WINNER', podium);
     },
   });
-  if (S.director && !S.spectating) startPreRace();   // (the build-up first: the race waits on the grid)
+  if (S.director && !S.spectating) {
+    if (settings.intro === 'skip' && !S.weekend?.career) { input.enabled = true; hud.show(); camCtl.mode = 'tcam'; if (S.player) for (let i = 0; i < 30; i++) camCtl.update(S.player, 1 / 30, W.track); }   // (straight to the grid and the lights)
+    else startPreRace();   // (the build-up first: the race waits on the grid)
+  }
 }
 
 /**
