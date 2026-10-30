@@ -30,8 +30,8 @@ import { GridWalk } from './ui/GridWalk.js';
 import { PitTiming } from './ui/PitTiming.js';
 import { showStrategy } from './ui/Strategy.js';
 import { Car, CAR } from './vehicle/Car.js';
-import { CarMesh, setDebris, setFire, setChunks } from './vehicle/CarMesh.js';
-import { loadCarModel } from './vehicle/CarModel.js';
+import { CarMesh, setDebris, setFire, setChunks, prewarmParts } from './vehicle/CarMesh.js';
+import { loadCarModel, carModel } from './vehicle/CarModel.js';
 import { Fire } from './world/Fire.js';
 import { Chunks } from './world/Chunks.js';
 import { Obstacles } from './world/Obstacles.js';
@@ -1620,8 +1620,20 @@ function formBriefing() {
  */
 function precompile() {
   const hidden = []; scene.traverse((o) => { if (!o.visible && !o.isLight) { hidden.push(o); o.visible = true; } });
-  try { renderer.compile(scene, camera); } catch (e) { console.warn('precompile', e); }
+  const warm = prewarmParts(); scene.add(warm);   // (the materials a car only shows once it is hurt: a tyre coming apart)
+  try {
+    renderer.compile(scene, camera);
+    // the crash camera's screen (renderFrame: a composer - every material drawn into its own target, untoned and linear,
+    // is a second program): made and compiled at the first crash, it held the game up a second just as the car went
+    // over; compiled now, and its blur and output passes drawn once
+    const C = ensureCrashComposer(), prev = renderer.getRenderTarget();
+    renderer.setRenderTarget(C.readBuffer); renderer.compile(scene, camera); renderer.setRenderTarget(prev);
+    crashPass.uniforms.uBlur.value = 0; crashPass.uniforms.uSat.value = 1; C.render();
+  } catch (e) { console.warn('precompile', e); }
+  scene.remove(warm);
   for (const o of hidden) o.visible = false;
+  // (the car model's textures on the GPU now, not the first time a car comes close)
+  for (const t of Object.values(carModel()?.tex || {})) renderer.initTexture(t);
 }
 
 /**
@@ -3229,6 +3241,8 @@ function frame(now) {
 {
   document.body.classList.add('home');   // (also in index.html; an Artifact host supplies its own <body>)
   window.__F1 = { PRE, W, S, settings, scene, camera, renderer, input, hud, AIDriver, AI_TUNE, AI_CAL, applyCalibration,
+    /** (tests: one frame drawn as the crash camera draws it - through its composer - and the programs that compiled) */
+    crashFrame() { const n0 = renderer.info.programs.length; ensureCrashComposer(); crashPass.uniforms.uBlur.value = 0.6; crashPass.uniforms.uSat.value = 1.5; crashComposer.render(); return renderer.info.programs.length - n0; },
     /** (tools: a calibration applied, the racing line and the speed profile rebuilt from it - the next session's AI drives them) */
     rebuildLine(cal) { applyCalibration(W.track, cal === undefined ? AI_CAL[W.def.id] : cal); const r = makeRacingLine(W.track, W.def); W.line = r.line; W.profile = r.profile; W.lineSpeed = r.shown; W.showLine = r.showLine; if (RL.group) { scene.remove(RL.group); RL.group = null; } return { fixed: !!r.line.fixed }; }, camCtl, setTimeOfDay, corridorSigned, CINE, cinematic, get feed() { return feed; }, get show() { return show; }, frame, ensureAmbient, PHOTO, TRACKS, switchTrack, NEWS, playNews, nextAfterResults, crashNews, helmetURL, openCareerHub, simToEnd, strings, get audio() { return audio; },
     restart() { if (settings.driver == null) settings.driver = 0; /* test hook: the field needs a player */ S.noStrategy = !window.__keepStrategy; endSession(); $('results').classList.add('hidden'); $('quali-panel').classList.add('hidden'); $('pause').classList.add('hidden'); S.paused = false; startWeekend(); if (PRE.show && !window.__keepPre) PRE.show.finish(); },   // (tests: no pre-race show unless asked for)

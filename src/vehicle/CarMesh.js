@@ -32,7 +32,7 @@ export function setFire(f) { FIRE = f; }
 export function setChunks(c) { CHUNKS = c; }
 const SPLIT_X = -0.62;   // body frame: where a car tears in two - behind the survival cell, ahead of the engine
 const CG_X = 0.16, R_TYRE = 0.354;
-const _sv = new THREE.Vector3(), _m4 = new THREE.Matrix4(), _m4b = new THREE.Matrix4(), _wp = new THREE.Vector3(), _gr = [0, 0];
+const _sv = new THREE.Vector3(), _m4 = new THREE.Matrix4(), _m4b = new THREE.Matrix4(), _wp = new THREE.Vector3(), _gr = [0, 0], _up = new THREE.Vector3(0, 1, 0);
 
 /**
  * Cut a geometry by the plane x = X (its own frame): [front (x >= X), back] as two new non-indexed geometries, every
@@ -115,9 +115,27 @@ function tyreMat(compound) {
   SHARED_MAT.add(m); return (TYRE[compound] = m);
 }
 
+// ---- a wheel at speed: its face as a camera sees it, motion-blurred - the rim a smooth dark disc with the spokes' light
+//      smeared round, the sidewall's lettering a ring of the compound's colour (per compound, shared)
+const blurGeo = new THREE.CircleGeometry(0.355, 40);
+const BLUR = {};
+function blurTex(compound) {
+  if (BLUR[compound]) return BLUR[compound];
+  const S = 256, c = document.createElement('canvas'); c.width = c.height = S; const x = c.getContext('2d'), C = S / 2, R = (r) => (r / 0.355) * C;
+  const g = x.createRadialGradient(C, C, 0, C, C, C);
+  g.addColorStop(0, 'rgba(120,124,130,1)'); g.addColorStop(R(0.035) / C, 'rgba(70,73,78,1)'); g.addColorStop(R(0.06) / C, 'rgba(34,36,40,1)'); g.addColorStop(R(0.2) / C, 'rgba(46,48,53,1)');
+  g.addColorStop(R(0.228) / C, 'rgba(86,90,96,1)'); g.addColorStop(R(0.236) / C, 'rgba(22,22,24,1)'); g.addColorStop(R(0.345) / C, 'rgba(20,20,22,1)'); g.addColorStop(1, 'rgba(20,20,22,0)');
+  x.fillStyle = g; x.fillRect(0, 0, S, S);
+  const col = new THREE.Color(COMPOUNDS[compound]?.color || '#ffffff');
+  x.strokeStyle = `rgba(${col.r * 255 | 0},${col.g * 255 | 0},${col.b * 255 | 0},0.55)`; x.lineWidth = R(0.022); x.beginPath(); x.arc(C, C, R(0.3), 0, Math.PI * 2); x.stroke();
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  return (BLUR[compound] = t);
+}
+
 // ---- the far states' geometry: the parts' level 3 / 4 meshes merged in the body frame, one per set of parts still on
 //      the car (shared: a whole car's is everyone's)
-const FAR_PARTS = ['body', 'halo', 'tcam', 'light', 'fw', 'fwL', 'fwR', 'rw', 'drs', 'wFL', 'wFR', 'wRL', 'wRR'];
+const FAR_PARTS = ['body', 'halo', 'tcam', 'light', 'fw', 'fwL', 'fwR', 'rw', 'drs', 'wFL', 'wFR', 'wRL', 'wRR', 'wFLs', 'wFRs', 'wRLs', 'wRRs'];
+const _q = new THREE.Quaternion();
 const FARG = new Map();
 function farGeometry(level, has) {
   const key = level + '|' + FAR_PARTS.filter(has).join(',');
@@ -126,12 +144,21 @@ function farGeometry(level, has) {
   for (const name of FAR_PARTS) {
     if (!has(name)) continue;
     const L = M.geo[name]?.[level]; if (!L) continue;
-    for (const g of Object.values(L)) { const c = g.clone(); const p = M.pivots[name] || [0, 0, 0]; c.translate(p[0], p[1], p[2]); list.push(c); }
+    // (a wheel's parts are in its own frame - about its hub, its axis along z: turned by its camber and put on its hub)
+    const H = name[0] === 'w' ? M.hubs[name.slice(0, 3)] : null, p = H ? H.c : M.pivots[name] || [0, 0, 0];
+    for (const g of Object.values(L)) { const c = g.clone(); if (H) c.applyQuaternion(_q.set(...H.q)); c.translate(p[0], p[1], p[2]); list.push(c); }
   }
   const g = list.length ? mergeGeometries(list) : new THREE.BufferGeometry(); list.forEach((x) => x.dispose());
   g.computeBoundingSphere(); SHARED_GEO.add(g); FARG.set(key, g); return g;
 }
 
+/** a group with one small mesh of each of the materials a car only shows once it is hurt (the bare rim, the carcass,
+ *  the cords): main.js compiles them with everything else at the start of a session, not at the first puncture */
+export function prewarmParts() {
+  const g = new THREE.Group();
+  for (const m of [rubber, bareRimMat, cordMat, visorMat]) { const o = new THREE.Mesh(tatterGeo, m); o.position.set(0, -50, 0); o.scale.setScalar(0.01); g.add(o); }
+  return g;
+}
 /** the number decals' atlas (the model's layout: the driver's name over the number), in the livery's number colours */
 function numberTexture(num, name, short, c, edge) {
   const S = 512, cv = document.createElement('canvas'); cv.width = cv.height = S; const x = cv.getContext('2d');
@@ -170,7 +197,7 @@ export class CarMesh {
     this.tcamMat = new THREE.MeshStandardMaterial({ color: opts.tcamColor ?? 0xffd400, roughness: 0.45, metalness: 0.1 }); own.add(this.tcamMat);
     const lightMat = new THREE.MeshStandardMaterial({ map: M.tex.light, color: 0x501010, emissive: 0xff1010, emissiveMap: M.tex.light, emissiveIntensity: 0.8 }); own.add(lightMat);
     this.rearLight = { material: lightMat };
-    this.wheelDisp = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0x2bb6ff, emissiveIntensity: 0.6, roughness: 0.3 }); own.add(this.wheelDisp);
+    this.wheelDisp = new THREE.MeshStandardMaterial({ color: 0x0b1016, emissive: 0x1d8fd0, emissiveIntensity: 0.55, roughness: 0.25, metalness: 0.2 }); own.add(this.wheelDisp);   // (the steering wheel's display, lit)
     let numMat = null;
     if (opts.number != null) {
       const N = spec.num || { c: '#ffffff', edge: '#000000' };
@@ -225,10 +252,13 @@ export class CarMesh {
     const swP = M.pivots.sw || [0.72, 0.61, 0];
     const driver = new THREE.Group();
     { const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.17, 0.28, 4, 10).rotateZ(Math.PI / 2).scale(1, 0.75, 1.25).translate(HX - 0.02, 0.6, 0), suitMat); driver.add(torso); }
+    // (the arms: from the shoulders to the grips, following them round as the wheel turns - _arms)
+    this.arms = [];
     for (const σ of [-1, 1]) {
-      const sh = new THREE.Vector3(HX + 0.04, 0.66, σ * 0.2), gr = new THREE.Vector3(swP[0] - 0.03, swP[1] + 0.01, σ * 0.12), len = sh.distanceTo(gr);
-      const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.042, len, 8), suitMat); arm.position.copy(sh).add(gr).multiplyScalar(0.5); arm.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), _sv.copy(gr).sub(sh).normalize()); driver.add(arm);
+      const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.034, 0.042, 1, 8), suitMat); driver.add(arm);
+      this.arms.push({ m: arm, sh: new THREE.Vector3(HX + 0.04, 0.64, σ * 0.19), off: new THREE.Vector3(-0.035, -0.005, σ * 0.115) });
     }
+    this._swP = new THREE.Vector3(...swP); this._swAxis = new THREE.Vector3(...(M.pivots.swAxis || [1, 0, 0])).normalize(); this._arms(0);
     body.add(driver);
     this.details = [driver]; this._lvNow = 0; this._gy = 0; this._zoom = 1;
 
@@ -244,24 +274,36 @@ export class CarMesh {
     this.drs = at('drs'); this.drs.position.sub(this.rearWing.position); put(this.drs, 'drs'); this.rearWing.add(this.drs);
     body.add(this.rearWing);
 
-    // ---- the steering wheel (ULTRA only: turned by the driver, about its column)
-    const swTilt = at('sw'), sw = new THREE.Group(); swTilt.rotation.z = (M.pivots.swTilt?.[0] ?? 0); sw.rotation.z = 0; swTilt.add(sw);
-    const swIn = new THREE.Group(); swIn.rotation.z = -(M.pivots.swTilt?.[0] ?? 0); sw.add(swIn); put(swIn, 'sw', [0]);
+    // ---- the steering wheel (ULTRA only: turned by the driver about its column - through the middle of its display,
+    //      along the display's normal)
+    const swTilt = at('sw'), sw = new THREE.Group(), swIn = new THREE.Group();
+    swTilt.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), new THREE.Vector3(...(M.pivots.swAxis || [1, 0, 0])).normalize());
+    swIn.quaternion.copy(swTilt.quaternion).invert(); swTilt.add(sw); sw.add(swIn); put(swIn, 'sw', [0]);
     body.add(swTilt); this.wheelSteer = sw; this.details.push(swTilt);
     body.position.x = CG_X;
 
-    // ---- wheels (the hub steers, `spin` turns): the tyre (its compound's colour), the rim, the brake disc
+    // ---- wheels: the hub (on its hub centre: it steers, rides the springs) > its camber (the model's own: the axis the
+    //      wheel turns about) > the hub's static work (the upright, the duct) and `spin` (turning: the tyre in its
+    //      compound's colour, the rim and its cover, the brake disc)
     this.wheels = [];
+    // (the blurred face at speed: this car's own - its opacity is by its speed - on the compound's shared texture)
+    this.blurMat = new THREE.MeshStandardMaterial({ map: blurTex(compound), transparent: true, opacity: 0, depthWrite: false, roughness: 0.7, metalness: 0.1, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
+    this.blurMat.userData.sharedMap = true; own.add(this.blurMat);
     for (const [name, front, s] of [['wFR', true, 1], ['wFL', true, -1], ['wRR', false, 1], ['wRL', false, -1]]) {
-      const hub = at(name), spin = new THREE.Group(), tyre = new THREE.Group(), face = new THREE.Group();
-      hub.add(spin); spin.add(tyre, face);
-      const P = M.geo[name];
-      for (const lv of [0, 1, 2]) for (const [k, g] of Object.entries(P[lv] || {})) {
-        const m = new THREE.Mesh(g, matFor(name, k, lv)); m.userData.lod = lv; if (k === 'tyre' && lv < 2) m.userData.tyre = true;
-        (k === 'tyre' || lv >= 2 ? tyre : face).add(m); this.lv[lv].push(m);
+      const H = M.hubs[name], hub = new THREE.Group(), camber = new THREE.Group(), spin = new THREE.Group(), tyre = new THREE.Group(), face = new THREE.Group();
+      hub.position.set(...H.c); camber.quaternion.set(...H.q);
+      hub.add(camber); camber.add(spin); spin.add(tyre, face);
+      for (const [part, into] of [[name, null], [name + 's', camber]]) {
+        const P = M.geo[part]; if (!P) continue;
+        for (const lv of [0, 1, 2]) for (const [k, g] of Object.entries(P[lv] || {})) {
+          const m = new THREE.Mesh(g, matFor(part, k, lv)); m.userData.lod = lv; if (k === 'tyre' && lv < 2) m.userData.tyre = true;
+          (into || (k === 'tyre' || lv >= 2 ? tyre : face)).add(m); this.lv[lv].push(m);
+        }
       }
+      // (the motion-blurred face over its outer side, faded in with speed: update)
+      const blur = new THREE.Mesh(blurGeo, this.blurMat); blur.position.z = s * (H.w / 2 + 0.004); if (s < 0) blur.rotation.y = Math.PI; blur.visible = false; blur.renderOrder = 2; camber.add(blur);
       body.add(hub);
-      this.wheels.push({ hub, spin, mesh: tyre, face, decals: [], front, side: s, state: 0, y0: hub.position.y });
+      this.wheels.push({ hub, camber, spin, mesh: tyre, face, blur, decals: [], front, side: s, state: 0, y0: H.c[1], dy: 0 });
     }
     for (let l = 1; l < 3; l++) for (const o of this.lv[l]) o.visible = false;
     this.shadow = new THREE.Mesh(shadowGeo, shadowMat); body.add(this.shadow);   // blob shadow
@@ -306,7 +348,7 @@ export class CarMesh {
       if (n === 'fwL') return this.frontWing.visible && this.fwL.visible;
       if (n === 'fwR') return this.frontWing.visible && this.fwR.visible;
       if (n === 'rw' || n === 'drs') return this.rearWing.visible;
-      const k = { wFR: 0, wFL: 1, wRR: 2, wRL: 3 }[n]; if (k != null) { const w = this.wheels[k]; return !w.gone && w.hub.visible && w.mesh.visible; }
+      const k = { wFR: 0, wFL: 1, wRR: 2, wRL: 3 }[n.slice(0, 3)]; if (k != null) { const w = this.wheels[k]; return !w.gone && w.hub.visible && (n.length > 3 || w.mesh.visible); }
       return true;
     };
     if (this.far) { this.farMesh.geometry = farGeometry(3, has); this.farMesh.scale.copy(this.body.scale); this.farMesh.rotation.copy(this.body.rotation); }
@@ -315,7 +357,7 @@ export class CarMesh {
 
   /** free this car's own materials and textures (the model's geometry and shared materials stay) */
   dispose() {
-    for (const m of this._own) { m.map?.dispose?.(); m.dispose(); }
+    for (const m of this._own) { if (!m.userData.sharedMap) m.map?.dispose?.(); m.dispose(); }
     this.U.uTxtMap.value?.dispose?.();
     this.group.traverse((o) => { if (o.isMesh && o.userData.ownGeo) o.geometry.dispose(); });
   }
@@ -325,6 +367,7 @@ export class CarMesh {
     this.U.uLivComp.value.set(COMPOUNDS[c]?.color || '#ffffff');
     const m = tyreMat(c);
     for (const w of this.wheels) w.mesh.traverse((o) => { if (o.userData.tyre) o.material = m; });
+    this.blurMat.map = blurTex(c);
   }
   setHalo(v) { this.halo.visible = v; }   // (the far states keep it: at 95 m+ it is a few pixels)
 
@@ -401,7 +444,7 @@ export class CarMesh {
     }
     const cords = [0, 1].map((j) => { const m = new THREE.Mesh(cordGeo, cordMat); m.rotation.z = j * 3.4 + rnd(); m.position.z = (rnd() - 0.5) * width * 0.3; m.scale.z = 0.28 * width / 0.02; R.add(m); return m; });
     R.add(rim, carcass); R.visible = false; R.userData = { rim, carcass, tatters, cords };
-    w.hub.add(R); w.ruin = R;
+    w.camber.add(R); w.ruin = R;
   }
   /**
    * A punctured tyre, in stages as it comes apart (P: Failures' punctP, 0 -> 1 with the distance driven on it; -1 a
@@ -443,6 +486,14 @@ export class CarMesh {
     });
   }
 
+  /** the driver's arms out to the grips of a wheel turned by a (rad, about its column) */
+  _arms(a) {
+    const q = _q.setFromAxisAngle(this._swAxis, a);
+    for (const A of this.arms) {
+      const g = _wp.copy(A.off).applyQuaternion(q).add(this._swP), d = _sv.copy(g).sub(A.sh), len = d.length();
+      A.m.position.copy(A.sh).add(g).multiplyScalar(0.5); A.m.quaternion.setFromUnitVectors(_up, d.divideScalar(len)); A.m.scale.set(1, len, 1);
+    }
+  }
   /** wheel k (FL FR RL RR) torn off: it flies on as debris */
   _loseWheel(k, car) {
     const order = [[true, -1], [true, 1], [false, -1], [false, 1]][k];
@@ -451,7 +502,7 @@ export class CarMesh {
   }
 
   update(car, dt) {
-    if (this.wheelSteer) { this.wheelSteer.rotation.x = -(car.steer || 0) * 1.5; this.wheelDisp.emissiveIntensity = car.retired || car.wreck ? 0 : 0.6; }   // (the steering wheel, turned by the driver; its display dead with the car)
+    if (this.wheelSteer) { const a = -(car.steer || 0) * 1.5; this.wheelSteer.rotation.x = a; if (this._lvNow === 0) this._arms(a); this.wheelDisp.emissiveIntensity = car.retired || car.wreck ? 0 : 0.55; }   // (the steering wheel, turned by the driver - arms and all; its display dead with the car)
     // ---- debris from this car's impacts, and the parts it has lost
     if (car.events.length) {
       for (const e of car.events) {
@@ -488,7 +539,12 @@ export class CarMesh {
       this.group.position.set(car.x, car.hv + gy, car.z); this._gy = gy;
     }
     const dMax = Math.max(0.055, 0.38 * (1 - car.speed / 118));
-    this.spin += car.vLong / R_TYRE * dt;
+    // (the wheels' turn as drawn: never more than half a spoke's spacing a frame - beyond it the ten spokes strobed and
+    //  stood still, or ran backwards; past ~25 km/h a blurred disc fades in over the rim and the lettering, as a camera
+    //  sees a wheel at speed)
+    { const da = car.vLong / R_TYRE * dt; this.spin += Math.sign(da) * Math.min(Math.abs(da), 0.3); }
+    const blur = this._lvNow < 2 ? Math.max(0, Math.min(0.88, (Math.abs(car.vLong) - 7) / 30)) : 0;
+    this.blurMat.opacity = blur; for (const w of this.wheels) if (w.blur) w.blur.visible = blur > 0.01 && w.mesh.visible;
     const onGround = !car.air && !car.wreck, W = car.wh;
     for (const w of this.wheels) {
       if (w.gone) continue;
@@ -499,7 +555,9 @@ export class CarMesh {
       // a puncture: the tyre's state as it comes apart (_tyre), the wheel lower and lower on the road
       const P = flat ? (car.punctShred ? 1 : Math.min(0.999, car.punctP || 0)) : -1;
       this._tyre(w, P, car, dt);
-      if (onGround) w.hub.position.y = w.y0 + Math.max(-0.05, Math.min(0.1, W.def[k])) - (P < 0 ? 0 : P < 0.8 ? 0.07 + 0.03 * Math.max(0, (P - 0.35) / 0.45) : 0.115);
+      // (the wheel's travel on its springs against the body: a few centimetres, smoothed - read raw, the physics' step to
+      //  step jitter shook the wheel against its suspension)
+      if (onGround) { w.dy += (Math.max(-0.035, Math.min(0.06, W.def[k])) - w.dy) * Math.min(1, dt * 18); w.hub.position.y = w.y0 + w.dy - (P < 0 ? 0 : P < 0.8 ? 0.07 + 0.03 * Math.max(0, (P - 0.35) / 0.45) : 0.115); }
       // it throws strips of tread as it goes; once metal touches the road, sparks - by speed, and brightest from a
       // bare rim
       if (P >= 0 && car.speed > 6) {

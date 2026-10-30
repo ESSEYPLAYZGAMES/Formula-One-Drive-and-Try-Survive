@@ -122,17 +122,62 @@ for (const node of doc.getRoot().listNodes()) {
   }
 }
 
-// ---- the wheels' hubs (the tyres' boxes per quadrant)
+// ---- the wheels: each one's hub (the tyre's centre), its own axis (the tyre's flattest direction: the fronts have
+// camber), radius and width - fitted from the tyres, Object_13/14
+/** eigenvalues / vectors of a symmetric 3x3 (Jacobi), smallest first */
+function eig3(A) {
+  const a = A.map((r) => r.slice()), V = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
+  for (let it = 0; it < 60; it++) {
+    let p = 0, q = 1; for (const [i, j] of [[0, 1], [0, 2], [1, 2]]) if (Math.abs(a[i][j]) > Math.abs(a[p][q])) { p = i; q = j; }
+    if (Math.abs(a[p][q]) < 1e-14) break;
+    const th = 0.5 * Math.atan2(2 * a[p][q], a[q][q] - a[p][p]), c = Math.cos(th), sn = Math.sin(th);
+    for (let k = 0; k < 3; k++) { const akp = a[k][p], akq = a[k][q]; a[k][p] = c * akp - sn * akq; a[k][q] = sn * akp + c * akq; }
+    for (let k = 0; k < 3; k++) { const apk = a[p][k], aqk = a[q][k]; a[p][k] = c * apk - sn * aqk; a[q][k] = sn * apk + c * aqk; }
+    for (let k = 0; k < 3; k++) { const vkp = V[k][p], vkq = V[k][q]; V[k][p] = c * vkp - sn * vkq; V[k][q] = sn * vkp + c * vkq; }
+  }
+  return [0, 1, 2].map((i) => ({ val: a[i][i], vec: [V[0][i], V[1][i], V[2][i]] })).sort((x, y) => x.val - y.val);
+}
 const HUB = {};
-for (const pr of prims) {
-  if (pr.node !== 'Object_14') continue;
-  for (let i = 0; i < pr.pos.length / 3; i++) {
-    const x = pr.pos[i * 3], y = pr.pos[i * 3 + 1], z = pr.pos[i * 3 + 2], k = 'w' + (x > 0 ? 'F' : 'R') + (z > 0 ? 'R' : 'L');
-    const b = HUB[k] || (HUB[k] = { min: [1e9, 1e9, 1e9], max: [-1e9, -1e9, -1e9] });
-    [x, y, z].forEach((c, j) => { b.min[j] = Math.min(b.min[j], c); b.max[j] = Math.max(b.max[j], c); });
+{
+  const W = {};
+  for (const pr of prims) {
+    if (pr.node !== 'Object_14' && pr.node !== 'Object_13') continue;
+    for (let i = 0; i < pr.pos.length / 3; i++) { const x = pr.pos[i * 3], y = pr.pos[i * 3 + 1], z = pr.pos[i * 3 + 2]; (W['w' + (x > 0 ? 'F' : 'R') + (z > 0 ? 'R' : 'L')] ||= []).push([x, y, z]); }
+  }
+  for (const [k, P] of Object.entries(W)) {
+    const c = [0, 1, 2].map((j) => P.reduce((sum, q) => sum + q[j], 0) / P.length);
+    const C = [[0, 0, 0], [0, 0, 0], [0, 0, 0]]; for (const q of P) for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) C[i][j] += (q[i] - c[i]) * (q[j] - c[j]) / P.length;
+    const ax = eig3(C)[0].vec; if (ax[2] < 0) for (let j = 0; j < 3; j++) ax[j] = -ax[j];
+    let r = 0, a0 = 1e9, a1 = -1e9; for (const q of P) { const d = q.map((x, j) => x - c[j]), t = d[0] * ax[0] + d[1] * ax[1] + d[2] * ax[2]; r = Math.max(r, Math.hypot(d[0] - t * ax[0], d[1] - t * ax[1], d[2] - t * ax[2])); a0 = Math.min(a0, t); a1 = Math.max(a1, t); }
+    // the turn from the wheel's own frame (its axis along z) into the body's: z -> ax
+    const ang = Math.acos(Math.max(-1, Math.min(1, ax[2]))), ra = [-ax[1], ax[0], 0], rl = Math.hypot(ra[0], ra[1]) || 1, sh = Math.sin(ang / 2);
+    const q = rl < 1e-9 ? [0, 0, 0, 1] : [ra[0] / rl * sh, ra[1] / rl * sh, 0, Math.cos(ang / 2)];
+    HUB[k] = { c, ax, r, a0, a1, w: a1 - a0, q };
   }
 }
-for (const b of Object.values(HUB)) { b.c = b.min.map((m, j) => (m + b.max[j]) / 2); b.r = (b.max[1] - b.min[1]) / 2; b.w = b.max[2] - b.min[2]; }
+/** v rotated by the inverse of quaternion q */
+function unrot(q, v) {
+  const x = -q[0], y = -q[1], z = -q[2], w = q[3], tx = 2 * (y * v[2] - z * v[1]), ty = 2 * (z * v[0] - x * v[2]), tz = 2 * (x * v[1] - y * v[0]);
+  return [v[0] + w * tx + (y * tz - z * ty), v[1] + w * ty + (z * tx - x * tz), v[2] + w * tz + (x * ty - y * tx)];
+}
+/** which wheel a piece lies inside (90 % of its points within the tyre's cylinder), and whether it is round about the axle
+ *  (its centre on the axle, all the way round it: a cover, a nut, a disc - it turns with the wheel; else it is the hub's
+ *  static work - the brake drum's duct, the upright - moving with the wheel on its springs) -> 'wFR' / 'wFRs' / null */
+function wheelOf(pos, vset) {
+  const verts = [...vset];
+  for (const [k, H] of Object.entries(HUB)) {
+    let inside = 0, sx = 0, sy = 0; const angs = new Set();
+    for (const i of verts) {
+      const d = unrot(H.q, [pos[i * 3] - H.c[0], pos[i * 3 + 1] - H.c[1], pos[i * 3 + 2] - H.c[2]]), r = Math.hypot(d[0], d[1]);
+      if (r < H.r * 0.98 && d[2] > H.a0 - 0.06 && d[2] < H.a1 + 0.06) inside++;
+      sx += d[0]; sy += d[1]; angs.add(Math.floor((Math.atan2(d[1], d[0]) + Math.PI) / (Math.PI / 18)));
+    }
+    if (inside < 0.9 * verts.length) continue;
+    const off = Math.hypot(sx, sy) / verts.length;
+    return off < 0.02 && angs.size >= 30 ? k : k + 's';
+  }
+  return null;
+}
 
 // ---- every triangle into its part, by material: parts[part][matKey] = { pos[], nrm[], uv[], mat }
 // A piece of the model (a connected set of triangles: an endplate, a wing element, a flap) goes to a part whole: the
@@ -190,7 +235,16 @@ for (const pr of prims) {
     whole.set(id, w);
     if (process.env.DEBUG_PIECES && B[0] > -0.6 && B[3] < 1.1 && B[1] > 0.55 && B[5] - B[2] > 0.3) console.log('piece', pr.node, pr.mat.k, 'tris', tot, 'votes', JSON.stringify(v), 'box', B.map((x) => x.toFixed(2)).join(','), '->', whole.get(id));
   }
-  const add = (part, T) => { const P = parts[part] || (parts[part] = {}), G = P[pr.mat.k] || (P[pr.mat.k] = { mat: pr.mat, pos: [], nrm: [], uv: [] }); G.pos.push(...T.p); G.nrm.push(...T.n); G.uv.push(...T.u); };
+  // (the pieces inside a wheel: whole, to it - wheelOf)
+  if (piece) {
+    const verts = new Map(); for (let t = 0; t < nt; t++) { const V = verts.get(piece[t]) || verts.set(piece[t], new Set()).get(piece[t]); for (let j = 0; j < 3; j++) V.add(idx[t * 3 + j]); }
+    if (pr.mat.k !== 'paint') for (const [id, V] of verts) { const w = wheelOf(pos, V); if (w) whole.set(id, w); }   // (paint stays the body's: it is painted where it is)
+  }
+  // (a wheel's parts in its own frame: about its hub, its axis along z)
+  const add = (part, T) => {
+    if (part[0] === 'w') { const H = HUB[part.slice(0, 3)]; T = { p: [], n: [], u: T.u, s: T }; for (let j = 0; j < 3; j++) { T.p.push(...unrot(H.q, [T.s.p[j * 3] - H.c[0], T.s.p[j * 3 + 1] - H.c[1], T.s.p[j * 3 + 2] - H.c[2]])); T.n.push(...unrot(H.q, T.s.n.slice(j * 3, j * 3 + 3))); } }
+    const P = parts[part] || (parts[part] = {}), G = P[pr.mat.k] || (P[pr.mat.k] = { mat: pr.mat, pos: [], nrm: [], uv: [] }); G.pos.push(...T.p); G.nrm.push(...T.n); G.uv.push(...T.u);
+  };
   for (let t = 0; t < nt; t++) {
     const a = idx[t * 3], b = idx[t * 3 + 1], c = idx[t * 3 + 2], cx = cen[t * 3], cy = cen[t * 3 + 1], cz = cen[t * 3 + 2];
     const T = { p: [], n: [], u: [] }; for (const i of [a, b, c]) { T.p.push(pos[i * 3], pos[i * 3 + 1], pos[i * 3 + 2]); T.n.push(nrm[i * 3], nrm[i * 3 + 1], nrm[i * 3 + 2]); T.u.push(uv[i * 2], uv[i * 2 + 1]); }
@@ -211,19 +265,19 @@ for (const pr of prims) {
   }
 }
 
-// ---- pivots: the wheels' hubs, the flap's leading edge, the steering column
+// ---- pivots: the flap's leading edge, the steering wheel's centre (the wheels are in their own frames already)
 const pivot = {};
-for (const [k, b] of Object.entries(HUB)) pivot[k] = b.c;
 {
-  // the flap: about its leading edge (its front-most points' mean height), the steering wheel: about its middle
+  // the flap: about its leading edge (its front-most points' mean height)
   let fx = -1e9, xs = []; for (const G of Object.values(parts.drs || {})) for (let i = 0; i < G.pos.length; i += 3) { fx = Math.max(fx, G.pos[i]); xs.push([G.pos[i], G.pos[i + 1]]); }
-  const front = xs.filter(([x]) => x > fx - 0.03); pivot.drs = [fx, front.reduce((s, [, y]) => s + y, 0) / Math.max(1, front.length), 0];
-  const mn = [1e9, 1e9, 1e9], mx = [-1e9, -1e9, -1e9]; for (const G of Object.values(parts.sw || {})) for (let i = 0; i < G.pos.length; i += 3) for (let j = 0; j < 3; j++) { mn[j] = Math.min(mn[j], G.pos[i + j]); mx[j] = Math.max(mx[j], G.pos[i + j]); }
-  pivot.sw = mn.map((m, j) => (m + mx[j]) / 2);
-  // the steering wheel's face: the tilt (about z) its points lie flattest across - the column's axis is normal to it
-  const P = []; for (const G of Object.values(parts.sw || {})) for (let i = 0; i < G.pos.length; i += 3) P.push([G.pos[i] - pivot.sw[0], G.pos[i + 1] - pivot.sw[1]]);
-  let best = 0, bv = Infinity; for (let a = -1.2; a <= 1.2; a += 0.005) { const c = Math.cos(a), s = Math.sin(a); let v = 0; for (const [x, y] of P) v += (x * c + y * s) ** 2; if (v < bv) { bv = v; best = a; } }
-  pivot.swTilt = [best, 0, 0];
+  const front = xs.filter(([x]) => x > fx - 0.03); pivot.drs = [fx, front.reduce((sum, [, y]) => sum + y, 0) / Math.max(1, front.length), 0];
+  // the steering wheel: about the middle of its display (Object_26, the LCD), turning about the display's normal - the
+  // column's axis (forward-pointing)
+  const L = prims.find((q) => q.node === 'Object_26'), c = [0, 0, 0]; let nn = [0, 0, 0];
+  for (let i = 0; i < L.pos.length / 3; i++) for (let j = 0; j < 3; j++) c[j] += L.pos[i * 3 + j] / (L.pos.length / 3);
+  for (let t = 0; t < L.idx.length; t += 3) { const P = [0, 1, 2].map((j) => [0, 1, 2].map((k) => L.pos[L.idx[t + j] * 3 + k])), u = P[1].map((x, k) => x - P[0][k]), v = P[2].map((x, k) => x - P[0][k]); const n = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]]; if (n[0] < 0) n.forEach((x, k) => (n[k] = -x)); nn = nn.map((x, k) => x + n[k]); }
+  const nl = Math.hypot(...nn); nn = nn.map((x) => x / nl);
+  pivot.sw = c; pivot.swAxis = nn;
 }
 // the wings' and the halo's: what they turn about when they are damaged (the front wing on the nose; its outer thirds
 // at their cut; the rear wing at its pylon's foot)
@@ -333,7 +387,7 @@ function chunk(M, pv, opts) {
 }
 
 const out = { version: 1, credit: 'This work is based on "2026 Redbull RB22" (https://sketchfab.com/3d-models/2026-redbull-rb22-0a3d24a58e0549d591a5a48c22eec383) by Dave Love SketchFab (https://sketchfab.com/Tyler_Dave) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/). Its livery, decals and numbers are not used.',
-  hubs: Object.fromEntries(Object.entries(HUB).map(([k, b]) => [k, { c: b.c.map((x) => +x.toFixed(4)), r: +b.r.toFixed(4), w: +b.w.toFixed(4) }])),
+  hubs: Object.fromEntries(Object.entries(HUB).map(([k, b]) => [k, { c: b.c.map((x) => +x.toFixed(5)), q: b.q.map((x) => +x.toFixed(6)), r: +b.r.toFixed(4), w: +b.w.toFixed(4) }])),
   pivots: Object.fromEntries(Object.entries(pivot).map(([k, v]) => [k, v.map((x) => +x.toFixed(4))])),
   materials: Object.fromEntries(Object.values(MATS).map((m) => [m.k, { tex: m.tex || null, nrm: m.nrm || null, rough: m.rough ?? 0.5, metal: m.metal ?? 0, color: m.color || null, alpha: !!m.alpha }])),
   parts: {} };
