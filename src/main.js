@@ -1109,7 +1109,7 @@ function crashFlash() {
 /** the car the crash is about, a damaged zone's smoke, sparks and glass where it hit */
 function crashBurst(car, e, k) {
   const [vx, vz] = car.air && car.wvx != null ? [car.wvx, car.wvz] : car.worldVel();
-  fire.sparks(e.x, 0.35, e.z, Math.round(12 + 40 * k), vx, vz);
+  fire.sparks(e.x, 0.35 + TERRAIN.at(e.x, e.z), e.z, Math.round(12 + 40 * k), vx, vz);   // (on the ground there: world/Terrain.js)
   debris.burst(e.x, e.z, vx, vz, Math.round(3 + 10 * k), 0x9fd8ff);   // (glass-bright shards: the visor, the mirrors, the lights)
 }
 function startCrash(car, e) {
@@ -1145,26 +1145,71 @@ function ensureCrashComposer() {
 }
 /**
  * On a circuit that is not flat (world/Terrain.js) the camera is worked out on the flat plan like everything else and
- * lifted for the frame only: by the ground under the car it is with (a chase or an onboard shot: the car's own height,
- * so it stays in frame and the cockpit stays round the driver), by the ground under itself the further it is from it;
- * onboard it also pitches with the slope, as the car does. -> undo
+ * lifted for the frame only, with what the shot is of (camSubject: the car it follows, the wreck, the point the
+ * build-up, a title shot or the news is aimed at). Near it, rigidly by the ground under that - the shot exactly as framed
+ * on the flat; from ~12 m to ~42 m away, more and more by the ground under the camera itself (a tripod on its own part of
+ * the hill). Then never less than 0.4 m over the ground under it (a low shot just up the hill from the car would stand in
+ * the slope), and wherever it was lifted otherwise than its subject, turned so the subject stays where it was in the
+ * frame (no wreck, no leader, no TV long-lens shot lost off the top or the bottom of the picture). An onboard camera
+ * rides on the body instead: carried by the lift, pitch and roll the car model was given. -> undo
  */
 const _camQ = new THREE.Quaternion(), _camP = new THREE.Vector3(), _camF = new THREE.Quaternion(), _camE = new THREE.Euler(), _camO = new THREE.Vector3();
+const _camU = new THREE.Vector3(), _camV = new THREE.Vector3(), _camI = new THREE.Quaternion(), _camG = [0, 0], _camUp = new THREE.Vector3(0, 1, 0);
+const SUBJ = { p: new THREE.Vector3(), car: null, ride: false, own: false, free: false };
+/** what the shot is of, on the flat (p.y: its height over the ground under it) -> SUBJ; null: nothing in particular (the
+ *  camera on its own ground); 'world': a camera placed off the car models themselves, already on the ground */
+function camSubject() {
+  const s = SUBJ; s.car = null; s.ride = s.own = s.free = false;
+  const at = (v) => (v?.isVector3 ? (s.p.copy(v), s) : null);
+  const car = (c) => { if ((c.air || c.wreck) && c.p) s.p.set(c.p[0], c.p[1], c.p[2]); else s.p.set(c.x, 0.55 + (c.hv || 0), c.z); s.car = c; return s; };
+  if (POV.on) return 'world';   // (inside the helmet: placed off the car model, the replay's ones lifted as it is drawn - povReplay)
+  if (NEWS.on) { const n = NEWS.cut, k = n?.seg?.k; if (!at(n?.look)) return null; s.ride = k === 'tcam' || k === 'tcam2'; return s; }   // (ui/NewsBroadcast.js: its shots placed on the flat, aimed at look)
+  if (HANG.on || FINALE.on) return null;
+  // (on foot on the grid the camera is your eyes: on the ground you stand on, turned to keep what you look at in view)
+  if (PRE.walk) { if (!at(PRE.walk.look)) return null; s.own = true; return s; }
+  if (PRE.on && PRE.show) return at(PRE.show.look) || (S.player ? car(S.player) : null);
+  if (crashCam.on && crashCam.car) return car(crashCam.car);
+  if (S.player) { car(S.player); s.free = PHOTO.on; return s; }   // (the race cameras; the photo camera flies free: far from the car it is left as aimed)
+  if (!S.director && CINE.i >= 0 && CINE.aim) return at(CINE.aim);   // (the title screen's tripods)
+  return null;
+}
 function terrainLift() {
   if (!TERRAIN.on) return null;
-  const c = camera.position, p = S.player; _camP.copy(c); _camQ.copy(camera.quaternion);
-  let dy = TERRAIN.at(c.x, c.z), dist = Infinity;
-  if (p && !PRE.walk) { dist = Math.hypot(c.x - p.x, c.z - p.z); const w = Math.min(1, Math.max(0, (dist - 12) / 30)); dy = TERRAIN.at(p.x, p.z) * (1 - w) + dy * w; }
+  const s = camSubject(); if (s === 'world') return null;
+  const c = camera.position; _camP.copy(c); _camQ.copy(camera.quaternion);
+  const gc = TERRAIN.at(c.x, c.z), d = s ? Math.hypot(c.x - s.p.x, c.z - s.p.z) : Infinity, p = s?.car;
   // an onboard camera (the cockpit, the T-cam) rides on the body: carried by exactly the lift, pitch and roll the car model
   // was given (CarMesh: the slope under it), about the car's own origin - the cockpit round it never swims and the climb
   // is as smooth as the model's
-  const m = p && dist < 4 && !crashCam.on && !p.air && !p.wreck ? S.meshes.get(p) : null, g = m?.group;
+  const m = p && d < 4 && !crashCam.on && !p.air && !p.wreck ? S.meshes.get(p) : null, g = m?.group;
   if (g && Math.abs(g.position.x - p.x) + Math.abs(g.position.z - p.z) < 0.01) {
     _camF.setFromEuler(_camE.set(p.rl || 0, -p.th, p.pt || 0, 'YZX')).invert().premultiply(g.quaternion);   // (the slope's own turn: model / flat)
     c.sub(_camO.set(p.x, p.hv || 0, p.z)).applyQuaternion(_camF).add(g.position); camera.quaternion.premultiply(_camF);
-  } else c.y += dy;
+  } else if (s?.ride) {
+    // (an onboard shot of a car drawn by someone else - the news's replay: the mount is right under the lens, so by the
+    //  ground and the slope there, turned about the car's floor)
+    const gr = TERRAIN.grad(c.x, c.z, _camG); _camF.setFromUnitVectors(_camUp, _camU.set(-gr[0], 1, -gr[1]).normalize());
+    c.sub(_camO.set(c.x, 0, c.z)).applyQuaternion(_camF).add(_camO.setY(gc)); camera.quaternion.premultiply(_camF);
+  } else {
+    const gs = s ? TERRAIN.at(s.p.x, s.p.z) : gc, w = !s || s.own ? 1 : Math.min(1, Math.max(0, (d - 12) / 30)), y0 = c.y;
+    c.y = Math.max(y0 + gs * (1 - w) + gc * w, gc + Math.max(0.15, Math.min(0.4, y0)));   // (0.4 m over the ground, or as low as it was put)
+    // turned to keep the subject where it was in the frame: from where it was seen on the flat to where it is now
+    const k = s && Math.abs(c.y - y0 - gs) > 0.005 ? (s.free ? 1 - w : 1) : 0;
+    if (k > 0 && _camU.copy(s.p).sub(_camP).lengthSq() > 0.01) {
+      _camF.setFromUnitVectors(_camU.normalize(), _camV.copy(s.p).setY(s.p.y + gs).sub(c).normalize()); if (k < 1) _camF.slerp(_camI, 1 - k);
+      camera.quaternion.premultiply(_camF);
+    }
+  }
   camera.updateMatrixWorld();
   return () => { c.copy(_camP); camera.quaternion.copy(_camQ); camera.updateMatrixWorld(); };
+}
+/** a pose recorded on the flat (race/Replay.js carPose) put on the ground as CarMesh draws a car: lifted by the ground
+ *  under it and tilted with the slope there */
+const _gndQ = new THREE.Quaternion(), _gndN = new THREE.Vector3(), _gndG = [0, 0];
+function onGround(o) {
+  if (!TERRAIN.on) return;
+  const x = o.position.x, z = o.position.z, gr = TERRAIN.grad(x, z, _gndG);
+  o.position.y += TERRAIN.at(x, z); o.quaternion.premultiply(_gndQ.setFromUnitVectors(_camUp, _gndN.set(-gr[0], 1, -gr[1]).normalize()));
 }
 /** the frame: through the depth-of-field chain while a photo is being framed with it on, else straight */
 function renderView() {
@@ -2147,6 +2192,7 @@ function povReplay(dt) {
     const R = Rp.reps.get(c), o = jj * 7;
     R.group.position.set(A[o] + (B[o] - A[o]) * a, A[o + 1] + (B[o + 1] - A[o + 1]) * a, A[o + 2] + (B[o + 2] - A[o + 2]) * a);
     R.group.quaternion.set(A[o + 3], A[o + 4], A[o + 5], A[o + 6]).slerp(POVQ2.set(B[o + 3], B[o + 4], B[o + 5], B[o + 6]), a);
+    onGround(R.group);   // (recorded on the flat: on a hill, under it - and the eyes in its helmet with it)
     R.replay(c, C.t0 + Rp.tau);   // (its dents, the parts it had lost, its pieces in the air: as they were then)
   });
   // the hits as they came: debris and sparks, the parts torn off as the real cars lost them, the fire if one burned;
@@ -2155,7 +2201,7 @@ function povReplay(dt) {
     const g = C.pulses[f]?.[jj] || 0; if (g < 6) return;
     const F0 = C.frames[f], F1 = C.frames[Math.max(0, f - 1)], o = jj * 7, x = F0[o], y = F0[o + 1], z = F0[o + 2], vx = (F0[o] - F1[o]) * C.hz, vz = (F0[o + 2] - F1[o + 2]) * C.hz;
     const R = Rp.reps.get(c), col = R.livery.color.getHex();
-    debris.burst(x, z, vx, vz, Math.min(18, 2 + Math.round(g / 3)), col); fire.sparks(x, y + 0.3, z, Math.min(70, Math.round(g * 1.6)), vx, vz);
+    debris.burst(x, z, vx, vz, Math.min(18, 2 + Math.round(g / 3)), col); fire.sparks(x, y + 0.3 + TERRAIN.at(x, z), z, Math.min(70, Math.round(g * 1.6)), vx, vz);
     if (g >= 18 && !Rp.fires.has(c) && (c._burned || g >= 45)) { const e = fire.add((out) => { if (!R.group.parent) return false; R.body.localToWorld(out.set(-1.3, 0.55, 0)); return true; }, 'fire', 0.5, () => false); e.replay = true; Rp.fires.set(c, e); }
     if (jj === Rp.j) { Rp.shake = Math.max(Rp.shake, Math.min(1, g / 35)); if (g >= 22) Rp.flash = Math.max(Rp.flash, Math.min(0.95, g / 50)); audio.crunch?.(Math.min(1, g / 30)); }
   });
@@ -2412,7 +2458,8 @@ function newsFrame(dt) {
   if (W.landmarks) for (const fn of W.landmarks.anims) fn(simTime, dt);
   if (W.buildings) W.buildings.material.uniforms.uTime.value = simTime;
   cullBuildings(); env.sky.position.copy(camera.position);
-  NEWS.cut.render(); input.endFrame();
+  { const undo = terrainLift(); try { NEWS.cut.render(); } finally { undo?.(); } }   // (its shots are placed on the flat too: lifted with what they are of)
+  input.endFrame();
 }
 
 // ---------------------------------------------------------------------------
@@ -2950,7 +2997,7 @@ function ds0carS(car, s0) { const L = W.track.length; let d = car.s - s0; if (d 
 // ---------------------------------------------------------------------------
 // Static tripod shots: landmark beauty shots framed with the track in view, and trackside shots where the
 // ambient cars pass through. Each shot holds ~10 s with a very slow push-in, then crossfades.
-const CINE = { shots: null, i: -1, t: 0, dur: 10, box: new THREE.Box3() };
+const CINE = { shots: null, i: -1, t: 0, dur: 10, box: new THREE.Box3(), aim: new THREE.Vector3() };   // (aim: what the shot is of, on the flat - terrainLift)
 function buildShots() {
   const tr = W.track, shots = [];
   const objShot = (o, label, rMul = 1.0, azOff = 0.6) => {
@@ -2989,7 +3036,7 @@ function cinematic(dt) {
   if (sh.type === 'static') {
     const r = sh.r * (1.0 - 0.05 * u), sway = Math.sin(CINE.t * 0.25) * 0.01;   // slow push-in, barely-there sway
     camera.position.set(sh.c.x + Math.cos(sh.az + sway) * r, sh.h + u * 2, sh.c.z + Math.sin(sh.az + sway) * r);
-    camera.up.set(0, 1, 0); camera.lookAt(sh.c.x, sh.lookY, sh.c.z);
+    camera.up.set(0, 1, 0); camera.lookAt(sh.c.x, sh.lookY, sh.c.z); CINE.aim.set(sh.c.x, sh.lookY, sh.c.z);
   } else {
     // tripod at the barrier, looking down the road; a passing car gets a gentle pan
     const f = tr.sample(sh.s, sh.sd * (tr.wallAt(tr.idxAtS(sh.s), sh.sd) + 5)); camera.position.set(f.x, 3.2, f.z); camera.up.set(0, 1, 0);   // just behind the barrier, wherever the run-off puts it
@@ -2997,7 +3044,7 @@ function cinematic(dt) {
     for (const c of cars) { const L = tr.length; let ds = c.s - sh.s; if (ds > L / 2) ds -= L; if (ds < -L / 2) ds += L; if (Math.abs(ds) < bd) { bd = Math.abs(ds); best = c; } }
     const a = tr.sample(sh.s + 140, 0); const tx = best ? best.x * 0.6 + a.x * 0.4 : a.x, tz = best ? best.z * 0.6 + a.z * 0.4 : a.z;
     if (!CINE.look) CINE.look = new THREE.Vector3(tx, 1.2, tz); CINE.look.lerp(new THREE.Vector3(tx, 1.2, tz), Math.min(1, dt * 2));
-    camera.lookAt(CINE.look); fov = 42;
+    camera.lookAt(CINE.look); CINE.aim.copy(CINE.look); fov = 42;
   }
   if (Math.abs(camera.fov - fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }
 }
@@ -3280,6 +3327,8 @@ function frame(now) {
   window.__F1 = { PRE, W, S, settings, scene, camera, renderer, input, hud, AIDriver, AI_TUNE, AI_CAL, applyCalibration, chunks, debris, fire, respawnMesh,
     /** (tests: one frame drawn as the crash camera draws it - through its composer - and the programs that compiled) */
     crashFrame() { const n0 = renderer.info.programs.length; ensureCrashComposer(); crashPass.uniforms.uBlur.value = 0.6; crashPass.uniforms.uSat.value = 1.5; crashComposer.render(); return renderer.info.programs.length - n0; },
+    /** (tests: the crash director, and the camera as drawn - terrainLift() lifts it for the frame and returns the undo; renderView() draws a frame through it) */
+    crashCam, terrainLift, renderView,
     /** (tools: a calibration applied, the racing line and the speed profile rebuilt from it - the next session's AI drives them) */
     rebuildLine(cal) { applyCalibration(W.track, cal === undefined ? AI_CAL[W.def.id] : cal); const r = makeRacingLine(W.track, W.def); W.line = r.line; W.profile = r.profile; W.lineSpeed = r.shown; W.showLine = r.showLine; if (RL.group) { scene.remove(RL.group); RL.group = null; } return { fixed: !!r.line.fixed }; }, camCtl, setTimeOfDay, corridorSigned, CINE, cinematic, get feed() { return feed; }, get show() { return show; }, frame, ensureAmbient, PHOTO, TRACKS, switchTrack, NEWS, playNews, nextAfterResults, crashNews, helmetURL, openCareerHub, simToEnd, strings, get audio() { return audio; },
     restart() { if (settings.driver == null) settings.driver = 0; /* test hook: the field needs a player */ S.noStrategy = !window.__keepStrategy; endSession(); $('results').classList.add('hidden'); $('quali-panel').classList.add('hidden'); $('pause').classList.add('hidden'); S.paused = false; startWeekend(); if (PRE.show && !window.__keepPre) PRE.show.finish(); },   // (tests: no pre-race show unless asked for)
