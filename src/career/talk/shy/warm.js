@@ -183,7 +183,7 @@ export const DATA = [
   { id: 'shy-warm-4-cold', stage: 'warm', slot: 4, mood: 'cold',
     say: "I was cast as a tree. In the school play. No lines. I still froze. ...That's why I'm like this. In case you wondered. After last time.",
     opts: [
-      { tone: 'cold', t: "A tree that froze. Sounds about right.", r: "Yes. It does. I know. ...I'll go back to being a tree. Sorry.", opts: [
+      { tone: 'cold', m: -5, t: "A tree that froze. Sounds about right.", r: "Yes. It does. I know. ...I'll go back to being a tree. Sorry.", opts: [
         { tone: 'cold', t: "Fair enough.", r: "...It is fair. Okay. Bye, then." },
         { tone: 'passive', t: "Sorry. That was cruel. What happened?", r: "The lights came on and I couldn't move. A tree that couldn't move. Should've been fine. Everyone laughed." },
         { tone: 'flirty', t: "You're the loveliest tree I've ever met.", r: "Tree number three accepts. Tree number three is going red. Trees don't go red. I'm doing it anyway." },
@@ -233,7 +233,7 @@ export const DATA = [
       ] },
       { tone: 'flirty', t: "Freeze all you want. I'll wait for you to thaw.", r: "Thaw. You'd wait. People don't— they fill the gap. You don't. You let me thaw.", opts: [
         { tone: 'cold', t: "Don't take too long.", r: "No. I'll try. Sorry. I'll thaw faster." },
-        { tone: 'passive', t: "I'll always wait. You're worth it.", r: "Worth it. I'm going to say that to the tree in me. It'll be very confused." },
+        { tone: 'passive', m: 3, t: "I'll always wait. You're worth it.", r: "Worth it. I'm going to say that to the tree in me. It'll be very confused." },
         { tone: 'flirty', t: "And when you thaw, I'll be right here.", r: "Right here. Okay. I'm thawing. Right now. Look. ...Don't look. I'll freeze again." },
       ] },
     ] },
@@ -486,7 +486,7 @@ export const DATA = [
         { tone: 'passive', t: "I like you too. You can look at me now.", r: "Okay. I'm looking. You like me. I'm going to need to put this paper somewhere safe. Forever." },
         { tone: 'flirty', t: "I'm looking now. Say it again, to my face.", r: "To your face. I like you. ...I didn't need the paper. I didn't need the paper at all." },
       ] },
-      { tone: 'passive', t: "Take your time. I'll look at the floor with you.", r: "We're both looking at the floor. 'I like you. I've liked you since the corner.' ...There.", opts: [
+      { tone: 'passive', m: 3, t: "Take your time. I'll look at the floor with you.", r: "We're both looking at the floor. 'I like you. I've liked you since the corner.' ...There.", opts: [
         { tone: 'cold', t: "That's... a lot to take in.", r: "Yes. I'm sorry. Take it in. Slowly. Or not. That's okay. I'll be quiet." },
         { tone: 'passive', t: "I've liked you since the corner too.", r: "You have? Both of us? In the corner? Liking each other? And neither of us said? ...We're hopeless." },
         { tone: 'flirty', t: "Look up. Watch me say I like you too.", r: "Up. Okay. ...Oh. You do. Your face says it. I can read faces. I'm going to cry a bit. Nicely." },

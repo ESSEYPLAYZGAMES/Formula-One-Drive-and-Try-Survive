@@ -122,7 +122,7 @@ export const DATA = [
   { id: 'shy-new-3-cold', stage: 'new', slot: 3, mood: 'cold',
     say: "I wasn't going to say anything. After last time. But... you tap your visor twice. Before you get in. Sorry. I notice things.",
     opts: [
-      { tone: 'cold', t: "That's a bit creepy, honestly.", r: "Yes. It is. I know. It's just how my head works. I'll stop. I'll look... elsewhere.", opts: [
+      { tone: 'cold', m: -5, t: "That's a bit creepy, honestly.", r: "Yes. It is. I know. It's just how my head works. I'll stop. I'll look... elsewhere.", opts: [
         { tone: 'cold', t: "Please do.", r: "Okay. ...Okay. Sorry." },
         { tone: 'passive', t: "No, sorry, that was harsh. It's a habit of mine.", r: "A habit. Everyone has one. Mine is noticing. And apologising. You've seen both now." },
         { tone: 'flirty', t: "Actually... it's kind of sweet you noticed.", r: "Sweet. Okay. I'll take sweet. I was braced for creepy. I was braced for a lot of things." },
@@ -481,7 +481,7 @@ export const DATA = [
         { tone: 'passive', t: "Okay. Yes. Somewhere quiet sounds nice.", r: "It does? Yes? I'll find somewhere. I'm good at finding quiet. It's my one thing." },
         { tone: 'flirty', t: "Yes. And I'd have said yes slower, too.", r: "Slower— I'd have fainted. You said yes. I'm going to go home and lie on the floor. Happily." },
       ] },
-      { tone: 'passive', t: "Take your time. I'm listening.", r: "Would you like to go somewhere quiet. With me. Sometime. On purpose. ...Twelve words. I counted.", opts: [
+      { tone: 'passive', m: 3, t: "Take your time. I'm listening.", r: "Would you like to go somewhere quiet. With me. Sometime. On purpose. ...Twelve words. I counted.", opts: [
         { tone: 'cold', t: "I'll think about it.", r: "Yes. Think. That's fair. That's very fair. I'll be here. Not asking again." },
         { tone: 'passive', t: "Yes. I'd like that.", r: "You would. I didn't plan for yes. I planned for everything but yes. I'll plan yes now." },
         { tone: 'flirty', t: "Twelve perfect words. Yes.", r: "Perfect. They were very— okay. Yes. You said yes. I need to tell Pickle. Bye. Thank you. Bye." },

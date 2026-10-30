@@ -212,7 +212,7 @@ export const DATA = [
     say: "Can't sleep. Still thinking about last time. I'm not upset. Just quiet. Quieter. I wanted you to know I'm still here.",
     opts: [
       { tone: 'cold', t: "Ok. Goodnight.", r: "Goodnight. ...Sorry. I'll be louder tomorrow. Not much louder." },
-      { tone: 'passive', t: "I'm glad you're still here. Sleep well.", r: "Thank you. That helps. I think I can sleep now. Probably. Pickle permitting." },
+      { tone: 'passive', t: "I'm glad you're still here. Sleep well.", r: "Thank you. That helps. I think I can sleep now. Probably. The cat permitting." },
       { tone: 'flirty', t: "Still here suits you. I like you here.", r: "You like me here. Okay. I'm going to fall asleep smiling, which is very inconvenient for my face." },
     ] },
   { id: 'shy-text-week-warm-1-passive', on: 'week', stage: 'warm', slot: 1, mood: 'passive',
@@ -397,7 +397,7 @@ export const DATA = [
         { tone: 'cold', t: "Your loss.", r: "Yes. My loss. ...I'll survive it. Barely." },
         { tone: 'passive', t: "Then I'll come to you soon.", r: "You'll come to me. I'll tidy. I'll tidy the whole flat. I'll tidy the cat." },
         { tone: 'flirty', t: "Then call me. I want to hear you say it.", r: "Out loud? ...I'll call. I won't say it. I'll breathe at you. You'll know." },
-        { tone: 'risque', t: "Leave the cat. Come over. I'll keep you warm.", r: "I've just dropped the phone on Pickle. Pickle is furious. I'm— not yet. Not tonight. Soon." },
+        { tone: 'risque', t: "Leave the cat. Come over. I'll keep you warm.", r: "I've just dropped the phone on the cat. The cat is furious. I'm— not yet. Not tonight. Soon." },
       ] },
     ] },
   { id: 'shy-text-week-warm-6-flirty', on: 'week', stage: 'warm', slot: 6, mood: 'flirty',
@@ -424,15 +424,15 @@ export const DATA = [
   // ==== CLOSE ============================================================================================================
   // ---- 1: good morning ------------------------------------------------------------------------------------------------------
   { id: 'shy-text-week-close-1-cold', on: 'week', stage: 'close', slot: 1, mood: 'cold',
-    say: "Good morning. I wasn't sure I should, after last time. But it's morning, and I always text you in the morning. So.",
+    say: "Morning. I wasn't sure I should, after last time. But my cat Pickle and I always text you in the morning. So.",
     opts: [
       { tone: 'cold', t: "Morning.", r: "Morning. ...That's all? That's fine. I'll take morning. It's a start." },
       { tone: 'passive', t: "Glad you did. Good morning to you.", r: "You're glad. Then I'll keep doing it. Every morning. Even the strange ones." },
-      { tone: 'flirty', t: "Never stop. Your good mornings make my day.", r: "Make your day? I'll make them better. I'll add a weather report. And a Pickle report." },
+      { tone: 'flirty', t: "Never stop. Your good mornings make my day.", r: "Make your day? I'll make them better. I'll add a weather report. And a cat report." },
       { tone: 'risque', t: "Good morning. I'd rather be saying it next to you.", r: "Next to me. ...Okay. I'm not sore any more. I'm just thinking about that. All day, probably." },
     ] },
   { id: 'shy-text-week-close-1-passive', on: 'week', stage: 'close', slot: 1, mood: 'passive',
-    say: "Good morning. Pickle knocked my tea over, the sky's grey, and I'm thinking about you. Three things. One good.",
+    say: "Good morning. My cat, Pickle, knocked my tea over, the sky's grey, and I'm thinking about you. Three things. One good.",
     opts: [
       { tone: 'cold', t: "Morning. Busy day.", r: "Of course. Go. Be busy. I'll be here, mopping tea. Quietly." },
       { tone: 'passive', t: "Morning. Which one's the good one?", r: "Not the tea. Not the sky. ...You're the good one. You knew that. I just like typing it." },
@@ -440,7 +440,7 @@ export const DATA = [
       { tone: 'risque', t: "Morning. Wish I'd woken up next to you.", r: "So do I. Very much. Pickle would have to sleep elsewhere. Pickle would protest. Let Pickle protest." },
     ] },
   { id: 'shy-text-week-close-1-flirty', on: 'week', stage: 'close', slot: 1, mood: 'flirty',
-    say: "Good morning. I woke up thinking about you, which is becoming a habit. Pickle is jealous. Pickle can deal with it.",
+    say: "Good morning. I woke up thinking about you, which is becoming a habit. Pickle, my cat, is jealous. Pickle can cope.",
     opts: [
       { tone: 'cold', t: "Habits can be broken.", r: "Oh. Yes. They can. ...I'll try. I don't want to. But I'll try." },
       { tone: 'passive', t: "Good morning. I thought about you too.", r: "You did? First thing? Before coffee? That's serious. That's very serious. I'm very pleased." },

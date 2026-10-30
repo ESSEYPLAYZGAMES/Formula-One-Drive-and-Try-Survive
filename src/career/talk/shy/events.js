@@ -21,14 +21,14 @@ export const DATA = [
       ] },
     ] },
   { id: 'shy-text-met-new-1-passive', on: 'met', stage: 'new', slot: 1, mood: 'passive',
-    say: "Hi. It's {first}. The quiet one, from the corner. I've drafted this eleven times. This one has the fewest apologies.",
+    say: "Hi. It's {first}. The quiet one, by the wall. I've drafted this eleven times. This one has the fewest apologies.",
     opts: [
       { tone: 'cold', t: "Hey.", r: "Hey. Okay. Hi. I'll keep it short. Shorter than the drafts. Much shorter.", opts: [
         { tone: 'cold', t: "Short's good.", r: "Short's good. Yes. ...That's the end of the text. Bye." },
-        { tone: 'passive', t: "Hey, quiet one. Glad you texted.", r: "You remember the corner? Good. I was worried I'd become part of the wall." },
+        { tone: 'passive', t: "Hey, quiet one. Glad you texted.", r: "You remember me? Good. I was worried I'd blended into the wall." },
         { tone: 'flirty', t: "Hey, quiet one. Been hoping you'd text.", r: "You were hoping? I need to re-read that in a quieter room. All my rooms are quiet. I'll re-read it." },
       ] },
-      { tone: 'passive', t: "Hi, corner person! Glad you texted.", r: "Corner person. That's me. It's a fair name. I'm glad I texted too. Eventually. After eleven tries.", opts: [
+      { tone: 'passive', t: "Hi, wall person! Glad you texted.", r: "Wall person. That's me. It's a fair name. I'm glad I texted too. Eventually. After eleven tries.", opts: [
         { tone: 'cold', t: "Eleven seems excessive.", r: "It is excessive. I'm an excessive drafter. A minimal sayer. Sorry." },
         { tone: 'passive', t: "What made you hit send on eleven?", r: "My cat stood on the phone. Pickle. Pickle sent it. Technically. I'm taking the credit." },
         { tone: 'flirty', t: "I'll make sure you don't need eleven next time.", r: "How? No. Don't explain. Just keep doing whatever you do. With your face. It helps." },

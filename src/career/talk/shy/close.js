@@ -336,7 +336,7 @@ export const DATA = [
   { id: 'shy-close-6-passive', stage: 'close', slot: 6, mood: 'passive',
     say: "I worry sometimes. Your world's so big. Cameras. Crowds. I'm the person in the corner of the photo. What if you stop seeing me?",
     opts: [
-      { tone: 'cold', t: "If you're that worried, maybe this isn't for you.", r: "...Oh. No. I didn't mean— I just— okay. I'll be quiet. Sorry.", opts: [
+      { tone: 'cold', m: -6, t: "If you're that worried, maybe this isn't for you.", r: "...Oh. No. I didn't mean— I just— okay. I'll be quiet. Sorry.", opts: [
         { tone: 'cold', t: "Think about it.", r: "I will. ...Very quietly." },
         { tone: 'passive', t: "That came out awful. I'm sorry. I'm for you.", r: "You're for me. Okay. I believe you. My heart's going. It's going in the good direction now." },
         { tone: 'flirty', t: "That was cruel. Come here. I'm staying.", r: "You're staying. ...Hold on a bit longer. I'm still scared. Less. Hold on." },
