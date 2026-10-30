@@ -1,16 +1,9 @@
-// THE SPARK - bubbly, playful, impulsive, magnetic. A big laugh, dares and games, everything turned into an adventure
-// ('race you to the bar', 'the karting place shuts in ten minutes...'). Fast-talking, teasing, easily excited, loves an
-// audience and loves being chased, a little chaotic. Flirty is their favourite (they fire straight back and escalate the
-// game); a bold line thrills them once things are warm; passive bores them a little, so they poke for a reaction; cold
-// stings fast - hurt for a moment, then sulky or sassy, and you have to work to get the fun back.
-// Plain dialogue data (see the talk format): in-person convos by stage, and the phone.
+// spark (PLAYFUL) - bubbly, playful, impulsive, teasing, a little chaotic. Dares, bets and schemes; nicknames (you're
+// 'Turbo'), a goose-honk laugh, a notebook of every bet they've made, a yellow scooter called Banana, a best friend
+// Juno to bet against. Story order: each talk is the next slot of its stage, in the opening mood's version.
 import { DATA as NEW } from './spark/new.js';
 import { DATA as WARM } from './spark/warm.js';
 import { DATA as CLOSE } from './spark/close.js';
-import { DATA as TEXTS } from './spark/texts.js';
-
-export const PERSONA = {
-  id: 'spark',
-  convos: [...NEW, ...WARM, ...CLOSE],
-  texts: TEXTS,
-};
+import { DATA as WEEK } from './spark/week.js';
+import { DATA as EVENTS } from './spark/events.js';
+export const PERSONA = { id: 'spark', convos: [...NEW, ...WARM, ...CLOSE], texts: [...WEEK, ...EVENTS] };

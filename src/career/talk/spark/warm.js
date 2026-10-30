@@ -1,144 +1,91 @@
-// The Spark - in person, stage 'warm' (flirting, banter, wanting more, plans and schemes). Plain data, no imports.
+// spark (PLAYFUL) - warm. Plain dialogue data, generated from the arc plan. No imports.
 export const DATA = [
-  // ---- cold: you were cold last time - stung, sulky, sassy; the fun has to be earned back ----------------------------
-  {
-    id: 'spark-warm-cold-1', stage: 'warm', mood: 'cold',
-    say: "Oh, hello. Remember me? I sent you a video of me dancing in a lift. Strangers joined in! And you left it on read.",
+  { id: 'spark-warm-1-cold', stage: 'warm', slot: 1, mood: 'cold',
+    say: "I had a plan for us. Night ferry, disguises, a fake moustache, sunrise. Then you went all frosty, so now I'm not sure you deserve it.",
     opts: [
-      { tone: 'cold', t: "I was busy.", r: "Busy. Everyone's busy! I'm busy, and I still send lift dances. ...It hurt a bit, okay? There. Said it.", opts: [
-        { tone: 'cold', t: "That's not my problem.", r: "Wow. Fine. No more videos for you. Not even the one with the goat. Enjoy the silence." },
-        { tone: 'passive', t: "Sorry. That was rude of me.", r: "It was. And next time you reply with a video of your own. A good one. I'm very picky." },
-        { tone: 'flirty', t: "Send it again. I'll reply with my own lift dance.", r: "Your own lift dance? On camera? You've just signed a contract. I'm holding you to it, Turbo." },
+      { tone: 'cold', t: "I don't need your plan.", r: "Oh. Okay. That was a door slammed on my moustache. It's a really good moustache. Hand-stuck. Ouch.", opts: [
+        { tone: 'cold', t: "Stick it on someone else.", r: "I will. They'll get the ferry and the sunrise, and you'll get an early night. Enjoy your pillow." },
+        { tone: 'passive', t: "Sorry. Go on. What's the plan?", r: "Last ferry out, full disguise, chips on the deck at midnight, sunrise on the far side. Nobody knows us. Genius." },
+        { tone: 'flirty', t: "I'd only come to see you in the moustache.", r: "It's a great look on me, honestly. Fine. You're back in the plan. Trial basis. Very probationary." },
+        { tone: 'risque', t: "Keep the moustache. I'll bring the blanket for the deck.", r: "A blanket? For two? Oh, you're trying to un-sulk me with ideas. ...It's working. Annoyingly well." },
       ] },
-      { tone: 'passive', t: "I was in the simulator all week. I'm sorry.", r: "You ignored me for a video game?! ...Okay, a very fancy work video game. Partly forgiven. Partly.", opts: [
-        { tone: 'cold', t: "It's not a game. It's my job.", r: "I know! I was teasing. You don't have to be so serious about everything. Yikes. Noted." },
-        { tone: 'passive', t: "What do I have to do for full forgiveness?", r: "Full forgiveness costs one evening. You, me, the arcade on the pier. I pick every game. You lose every game." },
-        { tone: 'flirty', t: "I spun twice in it, thinking about you.", r: "Twice? Because of me? That's the most romantic spin I've ever heard of. Fully forgiven. Instantly." },
+      { tone: 'passive', t: "I was a grump. I'm sorry. Tell me the plan.", r: "Night ferry, disguises, sunrise. And chips. Always chips. You'd have to promise not to be a grump on deck.", opts: [
+        { tone: 'cold', t: "No promises.", r: "Then you'd ruin the sunrise, and the sunrise has done nothing to you. I'll go with the moustache alone." },
+        { tone: 'passive', t: "I promise. No grumping.", r: "Grump-free sunrise, signed and sealed. I'm writing it in my notebook. In pen. That makes it law." },
+        { tone: 'flirty', t: "For a sunrise with you, I'll smile the whole way.", r: "The whole way? It's a four-hour crossing, Turbo. That's a lot of smiling. ...I'll hold you to every minute." },
       ] },
-      { tone: 'flirty', t: "I was saving my reply for in person.", r: "Oh, that's a good line. Annoyingly good. I'm still a bit cross, though. Make it worth the wait.", opts: [
-        { tone: 'cold', t: "That was the reply.", r: "That was it? The big in-person reply? I've had better replies from my fridge. And it just hums." },
-        { tone: 'passive', t: "Okay. Hello. I missed this.", r: "You missed this? Me talking at you at a hundred miles an hour? Weirdo. ...I missed it too. A bit." },
-        { tone: 'flirty', t: "Here it is: that lift dance was the best thing on my phone all week.", r: "The best thing! The cross is fading. Rapidly. Damn you. One more nice thing and it's gone completely." },
+      { tone: 'flirty', t: "Deserve it? I'll wear the moustache to earn it.", r: "You'd wear the moustache? In public? Oh. Okay. The frost is cracking. You know my weak spots, don't you?", opts: [
+        { tone: 'cold', t: "Kidding. I'm not wearing that.", r: "You dangled the moustache and snatched it back! That's the cruellest thing you've done all week. And it's Tuesday." },
+        { tone: 'passive', t: "Fine, a small one. Discreet.", r: "Discreet is not a moustache setting. It's big or nothing. But okay. Small one. Baby steps. Baby moustache." },
+        { tone: 'flirty', t: "A big curly one. To make you laugh.", r: "A curly one! You've done it. I'm laughing. The goose laugh. In public. Plan's back on, Turbo." },
       ] },
-    ],
-  },
-  {
-    id: 'spark-warm-cold-2', stage: 'warm', mood: 'cold',
-    say: "Look who's decided I exist again. Last week it was all 'hmm', 'fine', 'whatever'. I've been sulking. Professionally.",
+    ] },
+  { id: 'spark-warm-1-passive', stage: 'warm', slot: 1, mood: 'passive',
+    say: "Okay, I have a plan. It's a bad plan. Night ferry after your race, disguises, a fake moustache, sunrise on the deck. Want in?",
     opts: [
-      { tone: 'cold', t: "Sulk all you like.", r: "Ouch. I was actually about to stop sulking. Now I'll do another week. Out of pure spite.", opts: [
-        { tone: 'cold', t: "Take two weeks.", r: "Maybe I'll take a month! Maybe I'll come to your next race with a sign that just says 'meh'. Bye!" },
-        { tone: 'passive', t: "Alright, I'm sorry. Bad week.", r: "Bad week. Hmm. You're allowed one. One! I'll downgrade the sulk to a pout. Pouts are temporary." },
-        { tone: 'flirty', t: "You look good sulking, I'll admit.", r: "Don't! Don't make me smile mid-sulk, that's cheating. ...Ugh. It's effective. I hate that it's effective." },
+      { tone: 'cold', t: "Not especially.", r: "Not even the moustache bit? That stings. It's a really good moustache, you know. Hand-stuck. One of a kind.", opts: [
+        { tone: 'cold', t: "Ask someone else.", r: "I might! They'll get the moustache and the ferry, and you'll get... a debrief. Thrilling." },
+        { tone: 'passive', t: "Fine. How bad is the plan?", r: "Medium bad. Chips at midnight, sunrise at five, home by lunch. Nobody recognises us. Feels illegal. Isn't." },
+        { tone: 'flirty', t: "I'd only come to see the moustache on you.", r: "The moustache on me! Okay, it suits me. Everything suits me. Fine, you're re-hired. Probation, though." },
       ] },
-      { tone: 'passive', t: "Fair. I was in a mood. I'm sorry.", r: "You were! A little thundercloud in a team cap. Okay, apology accepted. Mostly. Ninety per cent.", opts: [
-        { tone: 'cold', t: "Ninety? Forget it, then.", r: "Oh, now you're cross? You don't get to be cross, I'm the cross one! Fine. Two thunderclouds. Lovely." },
-        { tone: 'passive', t: "What gets me to a hundred?", r: "Easy. One embarrassing story about yourself. A true one. Then we're even and I stop pouting." },
-        { tone: 'flirty', t: "I'll make it up to you. Name your price.", r: "Name my price? Careful. My list is long and very silly. Number one involves a rowing boat and a costume." },
-      ] },
-      { tone: 'flirty', t: "Bad mood, sorry. You're the best cure I know.", r: "You can't sweet-talk me out of it that fast. ...Okay, maybe that fast. Keep going. Slowly.", opts: [
-        { tone: 'cold', t: "Don't push it.", r: "Me? I've barely nudged it! Fine. Sulk mode back on. I'll be grumpy at you from over there." },
-        { tone: 'passive', t: "Truce? I'll get the snacks.", r: "Truce, with snacks. Big snacks, not those sad little crisps. And no stealing any back." },
-        { tone: 'flirty', t: "Honestly. You're the funniest person I know.", r: "Stop it. You're making me un-sulk in public. That's humiliating. ...Fine. Forgiven. Ugh." },
-      ] },
-    ],
-  },
-  {
-    id: 'spark-warm-cold-3', stage: 'warm', mood: 'cold',
-    say: "Hi. I'm still a bit annoyed. You called my karaoke idea 'childish'. It was a genius idea. You're childish.",
-    opts: [
-      { tone: 'cold', t: "It was childish.", r: "Oh, you're doubling down! Fine. I'm doing karaoke anyway, and I'm dedicating a sad song to you.", opts: [
-        { tone: 'cold', t: "Have fun.", r: "I will! Loads! You'll hear me from across town and feel very left out. Goodbye, grump." },
-        { tone: 'passive', t: "Okay. Maybe I was a bit harsh.", r: "A bit? You were frostbite. But okay. The offer stands. One duet. I'll even let you pick the song." },
-        { tone: 'flirty', t: "Which sad song? I want to know what I'm worth.", r: "Something with a huge key change. Honestly, you're lucky I'm still singing about you at all." },
-      ] },
-      { tone: 'passive', t: "Fine. Maybe it was a good idea.", r: "Maybe! Maybe is progress! We'll make a fun person of you yet. Slowly. With huge patience.", opts: [
-        { tone: 'cold', t: "Don't get your hopes up.", r: "Too late, they're up. Stuck to the ceiling. You can't get them down now. ...Grump." },
-        { tone: 'passive', t: "So when is it?", r: "Thursday. Tiny place, terrible microphone, nobody cares how bad you are. It's perfect. You're coming." },
-        { tone: 'flirty', t: "I'll come. But only if we duet.", r: "A duet?! You're full of surprises today. Yes. A thousand times yes. We're doing the cheesiest one there is." },
-      ] },
-      { tone: 'flirty', t: "I'm sorry. Sing me something and I'll make it up to you.", r: "Here? Now? I've got zero shame, so... no. Actually, no. You don't get a free concert after 'childish'.", opts: [
-        { tone: 'cold', t: "Your loss, then.", r: "My loss? I'm the one with the voice! You're the one missing out. Big time. Go on, sulk. I'll be singing." },
-        { tone: 'passive', t: "Fair. I'll earn it.", r: "Good. Earn it on Thursday. Front row, clapping, phone torch in the air. That's the price." },
-        { tone: 'flirty', t: "What if I sing to you instead?", r: "You'd do that? In public? Now I'm completely disarmed. That's evil. And I'm holding you to it." },
-      ] },
-    ],
-  },
-  {
-    id: 'spark-warm-cold-4', stage: 'warm', mood: 'cold', where: 'evening',
-    say: "Oh. You actually came. After last time, I half expected you to send your engineer instead. With a note.",
-    opts: [
-      { tone: 'cold', t: "I nearly did.", r: "Wow. Cold open. Let me just sit with that. On this lovely rooftop. Which I picked. For us. Great.", opts: [
-        { tone: 'cold', t: "Let's just get through dinner.", r: "'Get through it.' Like a dentist. Lovely. I'll order the loudest, messiest thing on the menu." },
-        { tone: 'passive', t: "I'm here, aren't I? Let's start again.", r: "Start again? Fine. Hi, I'm {first}, I'm delightful, and you were mean to me. There. Your go." },
-        { tone: 'flirty', t: "But I wanted to see you more than I wanted to sulk.", r: "Oh. That's annoyingly sweet. I'm still a bit hurt. Ask me to dance up here and I might forget." },
-      ] },
-      { tone: 'passive', t: "I'm sorry about last time. Really.", r: "Really really? Okay. I'm a hopeless grudge-holder. I always drop them. Usually on someone's foot.", opts: [
-        { tone: 'cold', t: "Let's not make a big thing of it.", r: "No big thing. Small thing. Microscopic thing. ...You're impossible tonight, you know that?" },
-        { tone: 'passive', t: "So what are we eating?", r: "Everything. I've already ordered half the menu. When I'm nervous, I order. You make me nervous." },
-        { tone: 'flirty', t: "To say sorry, you pick the rest of tonight.", r: "My pick? You have no idea what you've unleashed. After dinner, we borrow the rooftop telescope." },
-      ] },
-      { tone: 'flirty', t: "Last time was dumb. You look amazing tonight.", r: "I know! I did it on purpose, to make you sorry. Is it working? It's working. Your face says it's working.", opts: [
-        { tone: 'cold', t: "Don't get carried away.", r: "Warm, cold, warm! Make your mind up, racer. I'm not a tap. Fine. Frosty dinner it is." },
-        { tone: 'passive', t: "It's working. Can we eat now?", r: "We can eat. But you're paying for dessert. Two desserts. It's an apology tax. I'm very strict." },
-        { tone: 'flirty', t: "Working so well I can't read the menu.", r: "Ha! Okay, that one's good. I'm melting, and that's rude of you. I had a whole sulk planned for the starters." },
-      ] },
-    ],
-  },
-
-  // ---- passive: friendly baseline - schemes, dares and the odd daring line -----------------------------------------
-  {
-    id: 'spark-warm-passive-1', stage: 'warm', mood: 'passive',
-    say: "Okay, I have a plan. It's a bad plan. Want to hear it? It involves a ferry, a disguise and absolutely no sleep.",
-    opts: [
-      { tone: 'cold', t: "Not especially.", r: "Not even the disguise bit? That stings. It's a really good fake moustache, you know. Hand-stuck.", opts: [
-        { tone: 'cold', t: "Ask someone else.", r: "I might! They'll get the moustache and the ferry, and you'll get... a debrief. Enjoy." },
-        { tone: 'passive', t: "Fine. Tell me the plan.", r: "Saturday, last ferry, full disguise, nobody knows us, chips on the deck at midnight. Genius, right?" },
-        { tone: 'flirty', t: "I'd only come to see the moustache on you.", r: "It's a great look on me, honestly. Okay, you're back in the plan. Trial basis. Very probationary." },
-      ] },
-      { tone: 'passive', t: "Go on. How bad?", r: "Medium bad. Night ferry after your race, nobody recognises us, we watch the sunrise. Feels illegal. Isn't.", opts: [
-        { tone: 'cold', t: "Sounds exhausting.", r: "That's the point, it's an adventure! Fine. Bed at nine for you. I'll send you a photo of the sunrise." },
-        { tone: 'passive', t: "I'd have to check with the team.", r: "Yawn! The team. Fine, but tell them it's vital for your mental health. Doctor's orders. I'm not a doctor." },
-        { tone: 'flirty', t: "Count me in. A sunrise with you sounds perfect.", r: "Yes! I'm already packing. Two disguises and a flask of hot chocolate. This is happening. It's happening!" },
+      { tone: 'passive', t: "Go on. How bad?", r: "So bad. Last ferry, two disguises, a flask of hot chocolate and no sleep at all. We watch the sun come up. Yes?", opts: [
+        { tone: 'cold', t: "Sounds exhausting.", r: "That's the point, it's an adventure! Fine. Bed at nine for you. I'll send you a photo of the sunrise. A smug one." },
+        { tone: 'passive', t: "I'd have to check with the team.", r: "Yawn! The team. Tell them it's vital for your mental health. Doctor's orders. I'm not a doctor." },
+        { tone: 'flirty', t: "Count me in. Sunrise with you sounds perfect.", r: "Yes! I'm already packing. Two moustaches and the hot chocolate. This is happening. It's happening!" },
+        { tone: 'risque', t: "Skip the plan. Just tell me where we're sleeping.", r: "Sleeping? Who said anything about sleeping? ...Ha! Easy, Turbo. You haven't even seen the moustache yet." },
       ] },
       { tone: 'flirty', t: "If you're in it, I'm in.", r: "Right answer. The only answer. I'll send you the plan. Warning: it's a voice note. It's long.", opts: [
-        { tone: 'cold', t: "Text it. No voice notes.", r: "Text only?! Then you miss the sound effects. They're the best part. Your loss, frankly." },
+        { tone: 'cold', t: "Text it. No voice notes.", r: "Text only? Then you miss the sound effects. They're the best part. Your loss, frankly." },
         { tone: 'passive', t: "How long?", r: "Eleven minutes. There's a bit in the middle where I get distracted by a bird. You'll love that bit." },
-        { tone: 'flirty', t: "I'll listen to the whole thing. Twice.", r: "Twice! You're in deep, racer. Careful, I'm very easy to get hooked on. Ask anyone who's tried to quit." },
-        { tone: 'risque', m: 1, t: "Skip the plan. Just tell me where we're sleeping.", r: "Ha! Easy, tiger. You haven't even seen the moustache yet. ...I'll tell you on the ferry. Maybe." },
+        { tone: 'flirty', t: "I'll listen to the whole thing. Twice.", r: "Twice! You're in deep, Turbo. Careful, I'm very easy to get hooked on. Ask anyone who's tried to quit." },
+        { tone: 'risque', t: "Only if we share the moustache. And the blanket.", r: "Share the— okay, you've turned my silly plan into a very romantic plan. I'm going pink. Stop it." },
       ] },
-    ],
-  },
-  {
-    id: 'spark-warm-passive-2', stage: 'warm', mood: 'passive', where: 'evening',
-    say: "Psst. The karting place shuts in ten minutes and the staff are on a break. I'm not saying we should. I'm saying we could.",
+    ] },
+  { id: 'spark-warm-1-flirty', stage: 'warm', slot: 1, mood: 'flirty',
+    say: "Hello, trouble. I've planned our escape. Night ferry, disguises, I've got a fake moustache for each of us, and the sunrise is booked.",
     opts: [
-      { tone: 'cold', t: "I'm not getting banned from a kart track for you.", r: "For me! Ouch. As if I'm not worth one tiny ban. Fine. I'll just stand here being worth it.", opts: [
-        { tone: 'cold', t: "Stand there all you like.", r: "Oh, I'll stand so well. Legendary standing. Enjoy your spotless record, goody-two-shoes." },
-        { tone: 'passive', t: "We could just ask nicely?", r: "Ask nicely? Where's the adventure? ...Fine. Nicely. But I'm asking. I'm extremely persuasive." },
-        { tone: 'flirty', t: "For you, I'd risk a small ban. A tiny one.", r: "A tiny ban! Swoon! Quick, before they're back. Take the blue one, it's the fastest." },
+      { tone: 'cold', t: "Booked? You can't book a sunrise.", r: "You can if you're me. ...That was a cold little poke at my plan, Turbo. I was so excited. Was.", opts: [
+        { tone: 'cold', t: "It's still a silly plan.", r: "Silly is the best kind of plan! But fine. Moustache back in the drawer. Plans cancelled. Fun cancelled." },
+        { tone: 'passive', t: "Sorry. Tell me the rest.", r: "The rest: chips, a deck, a blanket, a game of 'guess what that person does for a living'. You'll lose." },
+        { tone: 'flirty', t: "Okay, it's a brilliant silly plan.", r: "Brilliant silly! That's my favourite kind. You're forgiven. Instantly. I'm far too easy to win back." },
       ] },
-      { tone: 'passive', t: "What happens if we get caught?", r: "We say you're doing research. Nobody tells off a famous racer. Probably. Come on, don't be sensible.", opts: [
-        { tone: 'cold', t: "That's not how it works.", r: "It's exactly how it works, I've seen it! ...Fine. I'll stay law-abiding and bored. With you. Woohoo." },
-        { tone: 'passive', t: "Five laps. Then we go.", r: "Deal! I'll lose all five, you'll be smug, it'll be wonderful. Helmets on!" },
-        { tone: 'flirty', t: "If we're caught, I'll take the blame for you.", r: "You'd take the fall for me? Most romantic thing anyone's ever said to me near a kart. Hurry!" },
+      { tone: 'passive', t: "What do we need the disguises for?", r: "So nobody recognises the famous racer! And so I can be someone mysterious. I'm going to be a retired spy.", opts: [
+        { tone: 'cold', t: "Nobody would recognise me anyway.", r: "Modest and wrong. Everyone does. Fine, no disguise. You'll sign autographs at sunrise while I eat your chips." },
+        { tone: 'passive', t: "A retired spy. Fine. Who am I?", r: "My chauffeur. Very silent. Very loyal. Secretly in love with the spy. It's a whole backstory, Turbo." },
+        { tone: 'flirty', t: "Only if I can be the spy's dangerous date.", r: "Dangerous date? You've upgraded yourself! Fine. Both spies. Both dangerous. Matching moustaches." },
+        { tone: 'risque', t: "Can the spy and the date share a cabin?", r: "A cabin! On a night ferry! You're terrible. ...There's one left, actually. I may have checked." },
       ] },
-      { tone: 'flirty', t: "Only if I get to chase you.", r: "Chase me? I love being chased. I'm very hard to catch, though. Slippery. Like soap on wheels.", opts: [
-        { tone: 'cold', t: "On second thoughts, I'm tired.", r: "Tired?! You can't offer a chase and then yawn! That breaks every rule in one go. Impressive, honestly." },
-        { tone: 'passive', t: "Just a few laps, then.", r: "A few laps, then chips by the river, your treat. Don't argue. Rules of the chase. I just made them." },
-        { tone: 'flirty', t: "I'll catch you. I always do.", r: "Big talk! Catch me, then. If you do, you get a prize. Not telling you what it is. Go!" },
-        { tone: 'risque', t: "And when I catch you, you're mine for the night.", r: "Oh! My heart just did a handbrake turn. Fine. But you have to actually catch me first. Ready, set—" },
+      { tone: 'flirty', t: "A sunrise with you? I'll be there before the ferry is.", r: "Before the ferry? You'd swim? Please don't swim. ...But that's very keen. I like keen. Keep being keen.", opts: [
+        { tone: 'cold', t: "Fine. But I'm sleeping the whole way.", r: "Sleeping through my plan? On my ferry? You've woken up a very grumpy spy. Sulking now." },
+        { tone: 'passive', t: "I'll bring the chips.", r: "Chips! The most important part. Salt and vinegar. Extra salt. You know me so well already." },
+        { tone: 'flirty', t: "Chips are on me. Just bring that smile.", r: "That smile? This one? It's on. It's been on since you walked over. It's very tired. It won't stop." },
+        { tone: 'risque', t: "And when the sun comes up, I'm kissing the spy.", r: "Kissing the spy? In the moustache? Oh, Turbo. That's the best twist the plan's ever had. Deal." },
       ] },
-    ],
-  },
-  {
-    id: 'spark-warm-passive-3', stage: 'warm', mood: 'passive',
-    say: [
-      "Truth or dare. Right now. Don't think, just pick. Thinking is the enemy of fun.",
-      "New game! I say the words, you pick in under two seconds. Hesitating is a forfeit. Truth? Dare? Go!",
-    ],
+    ] },
+  { id: 'spark-warm-2-cold', stage: 'warm', slot: 2, mood: 'cold',
+    say: "I'm still a bit cross from last time. So we're playing truth or dare, and I'm going first, and every dare is going to be mean. Pick.",
     opts: [
-      { tone: 'cold', t: "Neither. I'm not twelve.", r: "Ouch! I'm a grown-up too, I just hide it well. Enjoy being sensible. Sounds awful. Truly awful.", opts: [
+      { tone: 'cold', t: "I'm not playing.", r: "Of course you're not. You never play when I'm cross. That's when I need you to play the most, Turbo.", opts: [
+        { tone: 'cold', t: "That's your problem.", r: "Wow. Okay. My problem. I'll go and have my problem somewhere else. With someone who plays." },
+        { tone: 'passive', t: "Okay. Truth. Go easy on me.", r: "Easy? After last time? Fine. Truth: why were you so frosty? And 'I don't know' isn't an answer." },
+        { tone: 'flirty', t: "Okay. Dare. Do your worst.", r: "My worst! Okay. I dare you to say one genuinely nice thing to me. With eye contact. Hard, isn't it?" },
+      ] },
+      { tone: 'passive', t: "Fine. Truth.", r: "Truth: did you even notice I was upset last time? Be honest. I'll know if you're lying. My nose twitches.", opts: [
+        { tone: 'cold', t: "No. I didn't.", r: "You didn't notice. Great. Brilliant. That's worse than noticing and not caring. I'll go and twitch somewhere else." },
+        { tone: 'passive', t: "I noticed. I just didn't know what to say.", r: "...Okay. That's honest. And it's a bit sweet. Next time, say anything. Even 'sorry, potato'. I'd take potato." },
+        { tone: 'flirty', t: "I noticed. I've been thinking about it all week.", r: "All week? You've been thinking about me? ...Okay. That's a good truth. You're forgiven. Mostly." },
+      ] },
+      { tone: 'flirty', t: "Dare. And I'll do it, whatever it is.", r: "Whatever it is? Big talk from a frosty one. Okay. I dare you to let me draw a moustache on your hand. In pen.", opts: [
+        { tone: 'cold', t: "Never mind. Truth.", r: "You chickened out! Chicken! There's a chicken in a team jacket! ...Okay. Truth, then. You're no fun." },
+        { tone: 'passive', t: "Fine. Hand.", r: "Hand out. ...There. A very dashing moustache. Don't wash it. I'm still cross, but it's a great moustache." },
+        { tone: 'flirty', t: "Draw it. And I'm not washing it off.", r: "Not washing it off? Even on the grid? Okay, the cross is gone. You win. I'm terrible at being cross." },
+        { tone: 'risque', t: "A moustache is easy. Dare me something harder.", r: "Harder? Fine. Kiss my cheek. In front of everyone. ...You did it. Oh no. I'm completely un-cross now." },
+      ] },
+    ] },
+  { id: 'spark-warm-2-passive', stage: 'warm', slot: 2, mood: 'passive',
+    say: ["Truth or dare. Right now. Don't think, just pick. Thinking is the enemy of fun.", "New game! Truth or dare, two seconds to choose. Hesitating is a forfeit and the forfeit is embarrassing. Go!"],
+    opts: [
+      { tone: 'cold', t: "Neither. I'm not twelve.", r: "I'm a grown-up too, I just hide it well. Enjoy being sensible. Sounds awful. Truly, deeply awful.", opts: [
         { tone: 'cold', t: "Sensible suits me fine.", r: "Then you'll love my accountant. I'll give you their number. You can be sensible at each other." },
         { tone: 'passive', t: "Fine. Truth. Ask away.", r: "Okay! What's the most nervous you've ever been? 'Right now' is allowed. 'Right now' is encouraged." },
         { tone: 'flirty', t: "Fine. Dare. Make it a good one.", r: "Look at you! I dare you to hold my hand until somebody notices. Starting now. Don't let go." },
@@ -146,129 +93,470 @@ export const DATA = [
       { tone: 'passive', t: "Truth.", r: "Boring! But fine. Most rebellious thing you've ever done? Speeding doesn't count. That's your job.", opts: [
         { tone: 'cold', t: "That's a private question.", r: "Private! In truth or dare! That's the entire game! You're the worst player I've ever met. Next!" },
         { tone: 'passive', t: "I skipped a team dinner once to watch a film.", r: "That's it? That's your wild side? Oh, I have so much work to do with you. So much work." },
-        { tone: 'flirty', t: "Saying yes to spending time with you.", r: "Ha! Good answer. I'll allow it. I'm a terrible influence, you know. Ask my parents." },
+        { tone: 'flirty', t: "Saying yes to spending time with you.", r: "Good answer. I'll allow it. I'm a terrible influence, you know. Ask anyone who's met me. Twice." },
+        { tone: 'risque', t: "Thinking about you in ways I shouldn't.", r: "In ways you shouldn't? Oh, that's a dare and a truth at the same time. Elaborate. No, don't. Later." },
       ] },
       { tone: 'flirty', t: "Dare. And make it something with you in it.", r: "With me in it? Bold. I dare you to tell me what you really thought when we first met. No lying.", opts: [
-        { tone: 'cold', t: "That you were loud.", r: "Loud? That's it? Everyone knows I'm loud! That's not a secret, that's a weather report. Weak dare." },
+        { tone: 'cold', t: "That you were loud.", r: "Loud? That's it? Everyone knows I'm loud. That's not a secret, that's a weather report. Weak dare." },
         { tone: 'passive', t: "That you'd be trouble.", r: "Correct! Ten points. I am trouble. The fun kind, though. The kind people tell stories about." },
         { tone: 'flirty', t: "That I wanted to know you. Badly.", r: "Oh. I wasn't ready for honesty. That's not fair. Now I'm the one blushing. Don't look. Stop looking." },
         { tone: 'risque', t: "That I wanted to kiss you before you finished your first sentence.", r: "Before I finished? I talk a lot! That's a long wait! ...You're dangerous. Good. I like dangerous." },
       ] },
-    ],
-  },
-  {
-    id: 'spark-warm-passive-4', stage: 'warm', mood: 'passive', where: 'party',
-    say: "Come with me, quick! The DJ booth's empty and I know exactly which song this party needs. Don't ask questions.",
+    ] },
+  { id: 'spark-warm-2-flirty', stage: 'warm', slot: 2, mood: 'flirty',
+    say: "Truth or dare. And since you were very flirty last time, I've upgraded the dares. Proper ones. Grown-up ones. Pick.",
     opts: [
-      { tone: 'cold', t: "I'm not getting thrown out of a party.", r: "Thrown out? Nobody throws me out, they love me here. ...Fine. Solo mission. Be boring by the punch bowl.", opts: [
-        { tone: 'cold', t: "Off you pop, then.", r: "Going! Watch me go. Gone. ...And I'm playing a song about grumpy people. Dedicated to you." },
-        { tone: 'passive', t: "What song?", r: "Something terrible from when we were teenagers. It'll be chaos. Beautiful chaos. Come and see." },
-        { tone: 'flirty', t: "I'll stay here and watch you shine.", r: "Watch me? Okay, that's better. Front row, eyes on me. Cheer when the bass drops. Really loudly." },
+      { tone: 'cold', t: "Downgrade them. I'm not in the mood.", r: "Not in the mood? After last time? That's a bucket of cold water over my head, Turbo. Drip, drip.", opts: [
+        { tone: 'cold', t: "Find someone who is.", r: "Fine. I'll truth-or-dare a pigeon. The pigeon always picks dare. The pigeon's braver than you." },
+        { tone: 'passive', t: "Sorry. Truth, then. A gentle one.", r: "Gentle. Fine. What's your favourite thing about me? You've got three seconds. And 'nothing' loses." },
+        { tone: 'flirty', t: "Okay. One dare. For you.", r: "For me? See, that's better. I dare you to tell me what you'd do if this were a date. Go." },
       ] },
-      { tone: 'passive', t: "Which song?", r: "That's a question! I said no questions! It's the one with the clapping. You know it. Everyone knows it.", opts: [
-        { tone: 'cold', t: "I hate that song.", r: "You hate the clapping song? Who hates the clapping song?! I'm reconsidering everything about you." },
-        { tone: 'passive', t: "Fine. I'll keep lookout.", r: "A lookout! Perfect. If anyone comes, cough twice. If it's security, cough three times and dance." },
-        { tone: 'flirty', t: "Play it, then come back and dance with me.", r: "Deal! I'll play it, sprint back, and we'll be dancing before anyone knows it was me. The perfect crime." },
+      { tone: 'passive', t: "Truth. A grown-up one.", r: "Ooh. Okay. When did you first think about kissing me? And don't say never. I can see your ears going red.", opts: [
+        { tone: 'cold', t: "I haven't.", r: "You haven't? Never? Not once? Wow. Okay. That was a very flat truth. I'll stop asking grown-up ones." },
+        { tone: 'passive', t: "When you laughed at your own joke. Last time.", r: "My own joke? The one about the seagull? That's a terrible moment to fall for someone. I love it." },
+        { tone: 'flirty', t: "The first time I saw you. Honestly.", r: "The first time? Before I'd even said anything? Oh, that's dangerous. You're making me blush. I don't blush." },
+        { tone: 'risque', t: "Right now, actually.", r: "Right now? While I'm asking? ...Okay, the game's over, I've lost track of the rules. Shall we?" },
       ] },
-      { tone: 'flirty', t: "I'd follow you anywhere. Even into a DJ booth.", r: "You keep saying things like that and I keep believing you. Grab my hand. We're going in.", opts: [
-        { tone: 'cold', t: "Actually, let's not. I'll wait here.", r: "You're bailing mid-heist? That's the worst kind of bailing. Fine. I'll be a lone outlaw. A legend." },
-        { tone: 'passive', t: "Okay, okay. After you.", r: "After me! Mind the cables. And the bouncer. And the cake. Why is there a cake? Never mind. Go!" },
-        { tone: 'flirty', t: "Then play something we can dance close to.", r: "Slow-song close? With the whole party watching? You're on. I'm picking the cheesiest one ever written." },
+      { tone: 'flirty', t: "Dare. The most grown-up one you've got.", r: "The most grown-up one? Okay. I dare you to say exactly what you're thinking. Out loud. Right now.", opts: [
+        { tone: 'cold', t: "That this is silly.", r: "Silly? You picked dare! You picked grown-up! And then 'silly'? That's an anticlimax. A massive one." },
+        { tone: 'passive', t: "That I'm having fun.", r: "Fun? That's the safest answer in the world. You cheated. But fine. I'm having fun too." },
+        { tone: 'flirty', t: "That I can't take my eyes off you.", r: "Oh. Oh, that's— okay, that's not a dare, that's a confession. I'm keeping it. In the notebook." },
+        { tone: 'risque', t: "That I want to take you somewhere quieter.", r: "Quieter? For grown-up dares? Oh, Turbo. You've won the game. And possibly the night. Lead on." },
       ] },
-    ],
-  },
-
-  // ---- flirty: you left it flirty - games escalate, and they match a bold line cheekily ----------------------------
-  {
-    id: 'spark-warm-flirty-1', stage: 'warm', mood: 'flirty', where: 'party',
-    say: "You! Race you to the bar. Loser buys the next round and says something nice about the winner. On the mic.",
+    ] },
+  { id: 'spark-warm-3-cold', stage: 'warm', slot: 3, mood: 'cold',
+    say: "Hi. Look, I'm still a bit miffed, but this can't wait. The karting place down the road shuts in ten minutes. The staff are on a break.",
     opts: [
-      { tone: 'cold', t: "I'm not running anywhere tonight.", r: "Not running?! That was ice down my back. What's wrong? Who upset you? Was it me? It was me, wasn't it.", opts: [
-        { tone: 'cold', t: "Just leave it.", r: "Leaving it. Leaving you. Leaving the room, actually. Enjoy standing very, very still." },
-        { tone: 'passive', t: "Long day. Sorry. Let's walk to the bar.", r: "Walk? Fine. A dignified walk. I'll still win. I walk very fast when there's a free drink at the end." },
-        { tone: 'flirty', t: "Fine. But I'll still win.", r: "Oh, the smile's back! Ready? Go! ...I said go. Why are you still standing there looking at me?" },
+      { tone: 'cold', t: "I'm not sneaking into a kart track.", r: "Course you're not. You never do anything fun when I'm cross. That's when I need fun most.", opts: [
+        { tone: 'cold', t: "Then do it alone.", r: "I will. I'll do three laps and wave every time I pass you. Loudly. With both hands." },
+        { tone: 'passive', t: "Okay. What's the plan?", r: "We walk in like we own it, grab two karts, five laps, out before they notice. You can do research. Very official." },
+        { tone: 'flirty', t: "Fine. But only because it's you.", r: "Only because it's me! That's the best reason anyone's ever given. Okay, miffed is fading. Quick. Run!" },
       ] },
-      { tone: 'passive', t: "And if I win?", r: "Then I say nice things about you on the mic. I'll have to make most of them up, but I'm very creative.", opts: [
-        { tone: 'cold', t: "Don't bother.", r: "Fine. I'll save my nice things for someone who wants them. There's a queue, you know. A long one." },
-        { tone: 'passive', t: "You're on. Three, two, one—", r: "Cheat! You went on one! Fine, I'm still faster. ...Wait for me! WAIT UP!" },
-        { tone: 'flirty', t: "Say the nice things now. Practice run.", r: "Here? Now? Okay. You're fast. And annoying. And dangerously good-looking. Oops, that last one fell out." },
-        { tone: 'risque', t: "Skip the bar. Let's find somewhere quieter.", r: "Quieter? Ooh, scandalous. I'm in. Grab my hand before somebody puts a mic in it." },
+      { tone: 'passive', t: "Ten minutes? Is that enough?", r: "Ten minutes is a lifetime! I've done more chaos in less. Come on. Helmets are by the door.", opts: [
+        { tone: 'cold', t: "This is a terrible idea.", r: "Terrible ideas are the best ideas. Ask anyone. Fine. Stay here. Safe and dull. And miffed at." },
+        { tone: 'passive', t: "Three laps. No more.", r: "Three laps, and I'm counting the third one twice. Quick, before the break ends. You're still on thin ice, Turbo." },
+        { tone: 'flirty', t: "If we're caught, I'll say it was my idea.", r: "You'd take the blame? That's the most romantic thing anyone's said to me near a kart. Forgiven. Run." },
       ] },
-      { tone: 'flirty', t: "And the loser has to do what, exactly?", r: "You want to lose? Interesting. Loser does whatever the winner says for one whole song. Anything.", opts: [
+      { tone: 'flirty', t: "Only if I get to chase you round it.", r: "Chase me? Even when I'm cross? ...Okay. You know chasing's my weakness. That's a low blow. Effective, but low.", opts: [
+        { tone: 'cold', t: "Never mind. I'm tired.", r: "Tired? You can't offer a chase and then yawn. That breaks every rule in one go. Impressive, honestly." },
+        { tone: 'passive', t: "A few laps, then.", r: "A few laps, then chips by the river, your treat. Don't argue. That's the price of forgiveness." },
+        { tone: 'flirty', t: "I'll catch you. I always do.", r: "Big talk! Catch me, then. If you do, you get a prize. Not telling you what. Go!" },
+        { tone: 'risque', t: "And when I catch you, you're mine for the night.", r: "Mine for the— oh. My heart just did a handbrake turn. Fine. Catch me first. I'm very slippery." },
+      ] },
+    ] },
+  { id: 'spark-warm-3-passive', stage: 'warm', slot: 3, mood: 'passive',
+    say: "Psst. The karting place shuts in ten minutes and the staff are on a break. I'm not saying we should. I'm saying we could.",
+    opts: [
+      { tone: 'cold', t: "I'm not getting banned from a kart track for you.", r: "For me! As if I'm not worth one tiny ban. Fine. I'll just stand here being worth it.", opts: [
+        { tone: 'cold', t: "Stand there all you like.", r: "Oh, I'll stand so well. Legendary standing. Enjoy your spotless record, goody-two-shoes." },
+        { tone: 'passive', t: "We could just ask nicely?", r: "Ask nicely? Where's the adventure? ...Fine. Nicely. But I'm asking. I'm extremely persuasive." },
+        { tone: 'flirty', t: "For you, I'd risk a small ban. A tiny one.", r: "A tiny ban! Swoon! Quick, before they're back. Take the blue one, it's the fastest." },
+      ] },
+      { tone: 'passive', t: "What happens if we get caught?", r: "We say you're doing research. Nobody tells off a famous racer. Probably. Come on, don't be sensible.", opts: [
+        { tone: 'cold', t: "Nobody'd buy that.", r: "Everybody would buy it, I've seen it happen! ...Fine. I'll stay law-abiding and bored. With you. Woohoo." },
+        { tone: 'passive', t: "Five laps. Then we're gone.", r: "Deal! I'll lose all five, you'll be smug, it'll be glorious. Helmets on, Turbo!" },
+        { tone: 'flirty', t: "If we're caught, I'll tell them you kidnapped me.", r: "Kidnapped! I love it. I'll play the villain. I've always wanted to be the villain. Hurry!" },
+      ] },
+      { tone: 'flirty', t: "Only if I get to chase you.", r: "Chase me? I love being chased. I'm very hard to catch, though. Slippery. Like soap on wheels.", opts: [
+        { tone: 'cold', t: "Actually, I'd rather watch.", r: "Watch? Watching's for people on benches! Fine. Sit there. Hold my bag. Clap when I bounce off the tyres." },
+        { tone: 'passive', t: "Two laps. Then we're out.", r: "Two laps! You drive like a librarian today. A fast librarian. Go, go, go!" },
+        { tone: 'flirty', t: "I'll catch you. You know I will.", r: "The confidence! I'm in the blue one, I'm gone, I'm a rumour. Catch me and find out what you win." },
+        { tone: 'risque', t: "When I catch you, I'm claiming the prize right there.", r: "Right there? On the track? Scandalous. ...Okay. Fine. Go. Catch me. I dare you." },
+      ] },
+    ] },
+  { id: 'spark-warm-3-flirty', stage: 'warm', slot: 3, mood: 'flirty',
+    say: "Turbo. The karting place shuts in ten minutes. Staff on break. Two karts unlocked. I've been waiting all week to beat you at something.",
+    opts: [
+      { tone: 'cold', t: "All week? You need a hobby.", r: "A hobby? I have hundreds! You're one of them! ...Okay, that came out wrong. And you came out very rude.", opts: [
+        { tone: 'cold', t: "Then find another one.", r: "Fine! I'll take up knitting. Very calm. Very quiet. Nothing like you. Ha. Bye." },
+        { tone: 'passive', t: "Sorry. Okay. Five laps.", r: "Five laps! I'll take five. You'll be very sorry by lap three. You'll be begging by four." },
+        { tone: 'flirty', t: "I'm your favourite hobby, then.", r: "Favourite? You're in the top three. Top two. Okay, top one. You win. Again. Ugh." },
+      ] },
+      { tone: 'passive', t: "Unlocked? How do you know?", r: "I checked. Earlier. While you were talking to your engineer. I'm very thorough when I want something.", opts: [
+        { tone: 'cold', t: "That's a bit creepy.", r: "Creepy? It's strategic! ...Okay, a bit creepy. But for a good cause. Fine. Stay here." },
+        { tone: 'passive', t: "Fine. Five laps.", r: "Five laps. Go! I'm already in the blue one. It's the fastest. You'll get the wobbly one. Sorry!" },
+        { tone: 'flirty', t: "You've been thinking about this all week?", r: "All week. In meetings, in the shower, in queues. Mostly the bit where I win. And you look grumpy." },
+        { tone: 'risque', t: "What do I get if I let you win?", r: "Let me— oh. You want a reward. Fine. If I win, you get a kiss. If you win, you get two. Go!" },
+      ] },
+      { tone: 'flirty', t: "You've been waiting all week? I've been waiting longer.", r: "Longer? You've been waiting to lose to me? That's very romantic. And very wrong. You'll lose.", opts: [
+        { tone: 'cold', t: "Okay, maybe not that long.", r: "Maybe not? You've ruined it. You had a lovely moment and you crumpled it like a napkin." },
+        { tone: 'passive', t: "Since we met, actually.", r: "Since we met? Really? ...Okay. I'm going to beat you so lovingly you won't even mind." },
+        { tone: 'flirty', t: "For you to stop running away from me.", r: "Running away? I'm always running! It's how I— oh. You mean that. Okay. I'm stopping. Briefly." },
+        { tone: 'risque', t: "For a reason to get you alone.", r: "Alone? On a kart track? With ten minutes? Turbo, that's barely enough time. ...Let's go anyway." },
+      ] },
+    ] },
+  { id: 'spark-warm-4-cold', stage: 'warm', slot: 4, mood: 'cold',
+    say: "I've been practising my wink, to win you back after last time. Watch. ...Was that a wink, or did I look like I was about to sneeze?",
+    opts: [
+      { tone: 'cold', t: "Sneeze.", r: "Ouch! Honest. Too honest. I'll go and wink at a mirror. Mirrors are nicer to me. Mirrors never go frosty.", opts: [
+        { tone: 'cold', t: "Good idea.", r: "Wow. Mirror it is, then. The mirror's going to love it. You had your chance and you blew it." },
+        { tone: 'passive', t: "Okay, fine. Half a wink.", r: "Fifty per cent! Progress. I'll have the other half by Sunday. Watch out, Turbo." },
+        { tone: 'flirty', t: "A very cute sneeze, though.", r: "A cute sneeze! That's going in my diary. You've saved yourself. Barely. By an eyelash." },
+      ] },
+      { tone: 'passive', t: "Try again. I'll judge.", r: "Okay. Okay. ...Now. Was that better? Don't laugh! You're laughing! That's not judging!", opts: [
+        { tone: 'cold', t: "Still bad. Give up.", r: "Give up? Me? Never. I'll practise all week and wink you into the ground. You'll see. Meanie." },
+        { tone: 'passive', t: "Better. A solid seven.", r: "A seven! Next week, a nine. The week after, you won't stand a chance. I'm a fast learner." },
+        { tone: 'flirty', t: "Perfect. Do it again.", r: "You liked my wink! You did! Okay. ...There. That one's just for you, Turbo. Exclusive." },
+      ] },
+      { tone: 'flirty', t: "Win me back? I was never gone.", r: "Never gone? You were very gone. You were a glacier. ...But that's nice. I'll wink at you anyway.", opts: [
+        { tone: 'cold', t: "I'm a bit gone now.", r: "Oh. Okay. That landed. I'll stop winking. You don't deserve a wink. You deserve a frown." },
+        { tone: 'passive', t: "Fine. Show me the wink.", r: "Here. ...Did that work? Tell me it worked. My eye's getting tired. I've been winking all week." },
+        { tone: 'flirty', t: "Do it again. Slowly.", r: "Slowly? A slow wink? That's very intense. ...There. Did you feel that? I felt that." },
+        { tone: 'risque', t: "Wink at me like that and I'll take you home.", r: "Take me— oh. That's a bigger reaction than I expected. Okay. I'm winking so hard my face hurts." },
+      ] },
+    ] },
+  { id: 'spark-warm-4-passive', stage: 'warm', slot: 4, mood: 'passive',
+    say: "Oh good, it's you. I've been practising my wink. Watch. ...Was that a wink, or did I look like I'd lost a contact lens?",
+    opts: [
+      { tone: 'cold', t: "Contact lens.", r: "Ouch! I'll take my lenses and go. They're perfectly fine, by the way. It's the wink that's broken.", opts: [
+        { tone: 'cold', t: "Maybe it can't be fixed.", r: "It can be fixed! Everything can be fixed! Except your attitude. That might be broken forever." },
+        { tone: 'passive', t: "Okay, it was nearly a wink.", r: "Nearly! Okay. I'll take nearly. Nearly is how all the best things start. Nearly is promising." },
+        { tone: 'flirty', t: "Broken winks are my favourite kind.", r: "Your favourite kind? You've got a type? Broken winks? You're very strange. I love strange." },
+      ] },
+      { tone: 'passive', t: "Try again. Slower.", r: "Slower. Okay. ...How was that? Don't say lens. Don't say sneeze. Say something nice.", opts: [
+        { tone: 'cold', t: "Still a lens.", r: "Fine! I give up. Winking is cancelled. I'll communicate entirely through eyebrows from now on." },
+        { tone: 'passive', t: "Better. Six and a half.", r: "Six and a half? I'll be a ten by the end of the week. I'm going to practise on strangers. They'll be terrified." },
+        { tone: 'flirty', t: "That one worked. My heart did a thing.", r: "Your heart did a thing! What kind of thing? A skip? A jump? A full somersault? Details!" },
+        { tone: 'risque', t: "One more like that and I'm kissing you.", r: "One more? Okay, here. Here's one. ...I'm not saying I did it on purpose. I'm saying I did it." },
+      ] },
+      { tone: 'flirty', t: "That was a wink. And it worked.", r: "It worked? What did it do? Tell me exactly. I need data. For science.", opts: [
+        { tone: 'cold', t: "Forget it.", r: "Forget it? You can't say 'it worked' and walk away! That's the worst thing you've ever done to me." },
+        { tone: 'passive', t: "It made me smile.", r: "A smile! Step one. Step two is a blush. Step three is classified. Very classified." },
+        { tone: 'flirty', t: "It made me want to get closer.", r: "Closer? Like this? ...Okay, I got closer and now I've forgotten every word I know. Help." },
+        { tone: 'risque', t: "It made me want to kiss you. Right here.", r: "Right here? With an audience? You wouldn't dare. ...Would you? Oh, you would. Go on, then." },
+      ] },
+    ] },
+  { id: 'spark-warm-4-flirty', stage: 'warm', slot: 4, mood: 'flirty',
+    say: "Don't look away. I've learnt to wink properly. Juno coached me. It took six hours and a mirror. Ready? Here comes the big one.",
+    opts: [
+      { tone: 'cold', t: "I'll pass.", r: "Six hours of practice and you'll pass? That's a cold splash right in my open eye. My open, practising eye.", opts: [
+        { tone: 'cold', t: "Show Juno, then.", r: "Juno's seen it! Juno's sick of it! I wanted to show you! Fine. I'll keep my wink in a box." },
+        { tone: 'passive', t: "Sorry. Go on. Show me.", r: "There. ...Well? Six hours. That's the best one. I'm exhausted from winking." },
+        { tone: 'flirty', t: "I'll look. I can never look away from you anyway.", r: "Never? You never look away? Okay, that's more powerful than the wink. You win. I'm a mess." },
+      ] },
+      { tone: 'passive', t: "Six hours? That's dedication.", r: "I'm very dedicated to things that matter. Like winking at you. Here goes. ...Well?", opts: [
+        { tone: 'cold', t: "Not worth six hours.", r: "Not worth six hours?! I'll get my six hours back from you somehow. You'll pay in waiting." },
+        { tone: 'passive', t: "Not bad. A nine.", r: "A nine? From you? Juno owes me a pizza. I'm going to tell everyone I'm a nine-wink person now." },
+        { tone: 'flirty', t: "Worth every minute. Do it again.", r: "Again? I've only got a few left. My eye is tired. ...There. That's the last one. For today." },
+        { tone: 'risque', t: "Do that again and I'll forget we're in public.", r: "Forget we're in public? That's a dare. I'm very bad with dares. Here. ...Well?" },
+      ] },
+      { tone: 'flirty', t: "Hit me with it. I'm ready.", r: "Ready? You're not ready. Nobody's ready for this. Here we go. ...Okay, you're blushing. I won.", opts: [
+        { tone: 'cold', t: "That wasn't a wink. That was a twitch.", r: "A twitch? Six hours! Juno said it was perfect! You're a terrible critic. Truly awful." },
+        { tone: 'passive', t: "I felt that one.", r: "Felt it? Where? Actually, keep it to yourself. Your face says it all. Six hours, worth every minute." },
+        { tone: 'flirty', t: "Do it again. I'm not done blushing.", r: "Not done blushing? Okay. Here's another. And another. I'll wink till you're bright red, Turbo." },
+        { tone: 'risque', t: "Keep winking and we're leaving early.", r: "Leaving early? Together? For a wink? ...Okay, I'm winking with both eyes now. That's just blinking. Let's go." },
+      ] },
+    ] },
+  { id: 'spark-warm-5-cold', stage: 'warm', slot: 5, mood: 'cold',
+    say: "I'm still a bit hurt about last time. But I found a staff-only door that goes up to a roof, and the view's too good to sulk through.",
+    opts: [
+      { tone: 'cold', t: "Go on your own.", r: "Of course. Go on my own. That's what you'd like, isn't it? Me, alone, on a roof. Sulking with pigeons.", opts: [
+        { tone: 'cold', t: "That sounds about right.", r: "Wow. Okay. The pigeons are nicer to me than you are. I'm going up. Enjoy the ground." },
+        { tone: 'passive', t: "Sorry. Show me the roof.", r: "Okay. Up the stairs, mind the bucket. ...See? The whole town, lit up. And you nearly missed it being grumpy." },
+        { tone: 'flirty', t: "I'd rather go with you than without you.", r: "Then why were you so frosty? ...Never mind. Come on. I'll forgive you on the roof. It's easier up there." },
+      ] },
+      { tone: 'passive', t: "Is it safe?", r: "Safe-ish. There's a rail. And a very cross-looking cat. I'll hold your hand on the stairs. For safety.", opts: [
+        { tone: 'cold', t: "No thanks. I'll stay down here.", r: "Down here? The ground's so boring. I'll wave from up there. You'll see a tiny me having a better evening." },
+        { tone: 'passive', t: "Okay. Five minutes.", r: "Five minutes is plenty. You can see the whole river. Bring your coat. It's windy and I'm always cold." },
+        { tone: 'flirty', t: "I'll hold your hand. Not just on the stairs.", r: "Not just on the stairs? Okay. The hurt's fading. You're very good at this when you try." },
+        { tone: 'risque', t: "Is it the kind of roof where nobody can see us?", r: "Oh! You've been thinking about this. Maybe it is. Maybe I checked. Come on, before I lose my nerve." },
+      ] },
+      { tone: 'flirty', t: "The best view's standing right here. Hurt and all.", r: "Hurt and all? That's a very cheesy line, Turbo. ...It worked. Damn it. Come on. Roof.", opts: [
+        { tone: 'cold', t: "Actually, I'm comfy here.", r: "You can't flirt like that and stay put! That's waving the flag and not starting the race." },
+        { tone: 'passive', t: "Lead the way, then.", r: "Leading. Mind the step, the bucket and that very cross cat. We're friends now, me and the cat." },
+        { tone: 'flirty', t: "I'll follow you up. I'm not letting you out of my sight.", r: "Good. Keep your eyes on me. I'm the best thing up there. Me and the stars. It's a close tie." },
+        { tone: 'risque', t: "Let's go up and not come down till morning.", r: "Till morning? On a roof? Bold. We'd need blankets. ...I have blankets. Don't ask why. Let's go." },
+      ] },
+    ] },
+  { id: 'spark-warm-5-passive', stage: 'warm', slot: 5, mood: 'passive',
+    say: "Come with me. I've found a door marked 'staff only' that goes up to a roof. I've propped it open with a breadstick. Best view in town.",
+    opts: [
+      { tone: 'cold', t: "I'm not sneaking onto a roof.", r: "Not sneaking? It's not sneaking, it's exploring! There's a difference! A small one. ...Fine. Stay grounded.", opts: [
+        { tone: 'cold', t: "Fine. I'm staying grounded.", r: "Grounded. Like a naughty child. Enjoy it. I'll be on the roof having all the fun." },
+        { tone: 'passive', t: "Go on, then. Five minutes.", r: "Five minutes. Then you'll want ten. Then you'll want the whole night. Watch. The view does that to people." },
+        { tone: 'flirty', t: "For you, I'll sneak anywhere.", r: "Anywhere? That's a dangerous thing to tell me. I'll have you on rooftops every week. Come on." },
+      ] },
+      { tone: 'passive', t: "Will we get in trouble?", r: "Probably! That's half the fun. The other half is the view. Come on. The breadstick won't hold forever.", opts: [
+        { tone: 'cold', t: "Count me out.", r: "Out? Fine. I'll go alone and make a new best friend up there. A pigeon. A nice one." },
+        { tone: 'passive', t: "Okay. Five minutes. Mind the breadstick.", r: "Mind the breadstick! It's very fragile. It's holding up our whole evening. ...Up we go." },
+        { tone: 'flirty', t: "With you, I'll risk it.", r: "That's the spirit! Hold my hand on the stairs, they're dark. Safety reasons. Mostly safety reasons." },
+        { tone: 'risque', t: "Will anyone else be up there?", r: "Nobody. Just us, the stars and possibly a cat. ...Why? What were you thinking? Oh. Oh. Okay. Come on." },
+      ] },
+      { tone: 'flirty', t: "The best view in town is standing right in front of me.", r: "No. You didn't. That's the cheesiest line ever spoken. It worked. Come on, roof.", opts: [
+        { tone: 'cold', t: "Actually, I'm comfy down here.", r: "You can't say that and not come! You've ruined the moment and the breadstick. Hmph." },
+        { tone: 'passive', t: "Okay. Lead the way.", r: "Follow the breadstick trail. Kidding, there's only one breadstick. Up the stairs. Don't wake the cat." },
+        { tone: 'flirty', t: "After you. Always.", r: "Always? That's a big word for a roof. But okay. I'll hold you to always. Up we go." },
+        { tone: 'risque', t: "Is it the kind of roof where we could stay all night?", r: "All night? On a roof? You've got plans, Turbo. Good thing I packed a flask and strong opinions about constellations." },
+      ] },
+    ] },
+  { id: 'spark-warm-5-flirty', stage: 'warm', slot: 5, mood: 'flirty',
+    say: "Hey, you. Want to see something? I found a staff-only door that goes up to a roof. Nobody up there but the stars. And me. Obviously.",
+    opts: [
+      { tone: 'cold', t: "Not tonight.", r: "Not tonight? That was a door shut in my face. Not the roof door. The other door. The one in my chest.", opts: [
+        { tone: 'cold', t: "It's just not happening.", r: "Okay. I'll go up alone and look at the stars, and they'll be much nicer company than you. Bye." },
+        { tone: 'passive', t: "Sorry. Maybe for five minutes.", r: "Five minutes! I'll take it. Five minutes is plenty to fall in love with a view. Come on." },
+        { tone: 'flirty', t: "Sorry. You and the stars? How could I say no?", r: "You couldn't. That's the trick. Come on. Up the stairs. Hold on to my hand. For safety." },
+      ] },
+      { tone: 'passive', t: "What's up there?", r: "The whole town. All the lights. A cat that hates me. And a bench with a view I've been saving for someone.", opts: [
+        { tone: 'cold', t: "I'll skip it.", r: "Skip the bench? I was saving it! For weeks! You're breaking my heart a little. And the cat's." },
+        { tone: 'passive', t: "Okay. Show me the bench.", r: "Here. Sit. Look. ...Told you. Worth every stair. And you nearly said no. Silly." },
+        { tone: 'flirty', t: "You've been saving it for me?", r: "For someone special. Turns out it's you. Don't be weird about it. ...Okay, be a little weird." },
+        { tone: 'risque', t: "Is the bench big enough for two?", r: "Big enough for two, if they sit very close. Very, very close. I've measured. Don't ask." },
+      ] },
+      { tone: 'flirty', t: "Nobody up there but the stars? And you? I'm in.", r: "You're in? Just like that? Okay. You're dangerously easy to convince, Turbo. I love that.", opts: [
+        { tone: 'cold', t: "Kidding. It's late.", r: "Kidding? I was halfway up the stairs! You've left me on a step. Alone. In the dark." },
+        { tone: 'passive', t: "Okay. But I'm holding your hand.", r: "Hand held. Up we go. ...Here. Look at the lights. I love this place. I love— the lights. The lights." },
+        { tone: 'flirty', t: "I'm in. Show me everything.", r: "Everything? Okay. Lights, river, cat, and... me. I'm the main attraction. Obviously." },
+        { tone: 'risque', t: "I'm in. And I'm not coming down till morning.", r: "Till morning? With me? On a roof? ...Then you'd better be good at naming stars. Make them up. I will." },
+      ] },
+    ] },
+  { id: 'spark-warm-6-cold', stage: 'warm', slot: 6, mood: 'cold',
+    say: "Can I tell you something? People say I'm a lot. Usually right before they leave. And last time you looked at me like that. A lot.",
+    opts: [
+      { tone: 'cold', t: "You are a lot.", r: "...Right. Okay. Thanks. I asked for honesty. I just didn't expect it to hurt quite this much.", opts: [
+        { tone: 'cold', t: "That's not my problem.", r: "No. It never is. Okay. I'll be a lot somewhere else. With people who don't mind." },
+        { tone: 'passive', t: "I meant it in a good way. Sorry.", r: "A good way? Okay. Maybe. Some days I'm not sure there is a good way. Thanks for trying." },
+        { tone: 'flirty', t: "You're a lot. And I'm still here.", r: "You're still here. ...Okay. That's actually the nicest thing anyone's said to me in ages. I might cry." },
+      ] },
+      { tone: 'passive', t: "I'm sorry if I made you feel that.", r: "You did, a bit. I know I'm noisy. I just— I like you. And I don't want you to want someone quieter.", opts: [
+        { tone: 'cold', t: "Maybe I do want quieter.", r: "Oh. Okay. Thanks for saying. I'll be quieter. For about a minute. Then I'll be gone." },
+        { tone: 'passive', t: "I don't want quieter. I want you.", r: "...Okay. You can't say things like that when I'm being serious. I'm going to cry. Happy crying." },
+        { tone: 'flirty', t: "Quiet is boring. You're my favourite noise.", r: "Your favourite noise? I'm a noise? ...Okay. That's the nicest way anyone's ever described me. I'm keeping it." },
+      ] },
+      { tone: 'flirty', t: "You're a lot. That's the best thing about you.", r: "Is it? Really? Because I was ready to be told to calm down. Again. You're full of surprises.", opts: [
+        { tone: 'cold', t: "Don't push it.", r: "Push it? I'm barely nudging. ...Okay. I'll go back to being too much, then. On my own." },
+        { tone: 'passive', t: "I mean it. I like you as you are.", r: "As I am. Loud and messy and mad. ...Okay. I like you as you are too. Grumpy and slow to smile." },
+        { tone: 'flirty', t: "I'd take a lot over a little any day.", r: "A lot over a little. Okay, that's going on my wall. In big letters. You're very good at this, Turbo." },
+        { tone: 'risque', t: "You can be as much as you like. Especially with me.", r: "Especially with you? ...Okay. I'll be very much with you. Starting now. Don't run." },
+      ] },
+    ] },
+  { id: 'spark-warm-6-passive', stage: 'warm', slot: 6, mood: 'passive',
+    say: "Can I be serious for a second? It's rare, so enjoy it. People love the fun one. Then they want someone quiet. And I can't do quiet.",
+    opts: [
+      { tone: 'cold', t: "Maybe you should learn.", r: "Learn quiet? Me? ...I've tried. It doesn't stick. Okay. That's that, then. I'll go and be loud elsewhere.", opts: [
+        { tone: 'cold', t: "Try harder.", r: "Harder. Okay. I'll try so hard I'll be a mime. A sad mime. Happy now? ...I'm not." },
+        { tone: 'passive', t: "Sorry. That came out wrong.", r: "It did. But I know what you meant. Probably. ...I'm not going to be quiet, you know. Even for you." },
+        { tone: 'flirty', t: "Don't. Quiet would be a waste of you.", r: "A waste of me? Okay, that's lovely. That's actually lovely. You're good at being serious too." },
+      ] },
+      { tone: 'passive', m: 2, t: "I don't want quiet. I like the noise.", r: "You do? Really? You're not just saying that? Because everyone says that. Then the noise wins.", opts: [
+        { tone: 'cold', t: "Okay, sometimes it's too much.", r: "Sometimes. Okay. I'll take sometimes. It's honest. I'll just have to be quiet sometimes. Ugh." },
+        { tone: 'passive', t: "I'm not everyone.", r: "No. You're not. You're really not, are you? ...Okay. Serious bit over. I need a snack. Come on." },
+        { tone: 'flirty', t: "The noise is my favourite part of you.", r: "My favourite part of me is my laugh. ...But the noise is fine too. You're the first one who's said it." },
+        { tone: 'risque', t: "The noise is why I keep coming back. Every time.", r: "Every time? You come back for the noise? ...Then I'll make so much noise you can never leave. Deal?" },
+      ] },
+      { tone: 'flirty', t: "I like the fun one. And the serious one.", r: "Both? You're greedy. I like greedy. ...But really? You'd still like me on a quiet Tuesday?", opts: [
+        { tone: 'cold', t: "Maybe not every Tuesday.", r: "Maybe not? Okay. That's honest. It still stings a bit. I'll be extra fun on Wednesdays." },
+        { tone: 'passive', t: "Every Tuesday. Every quiet day.", r: "Every quiet day. Okay. I'll try to have a few, then. For you. They'll still be quite loud." },
+        { tone: 'flirty', t: "Every day. Even the loud ones. Especially the loud ones.", r: "Especially the loud ones. You're a strange one, Turbo. You're my kind of strange." },
+        { tone: 'risque', t: "Every day. Every night too.", r: "Every night? You've just turned a serious moment into a very flirty one. I'm not complaining. At all." },
+      ] },
+    ] },
+  { id: 'spark-warm-6-flirty', stage: 'warm', slot: 6, mood: 'flirty',
+    say: "Okay, honest question, and I'm only asking because I like you. Am I too much? People say I'm too much. Then they disappear.",
+    opts: [
+      { tone: 'cold', t: "A bit.", r: "A bit. Okay. Okay, that hurts more than I thought it would. ...I'll turn myself down. Like a radio.", opts: [
+        { tone: 'cold', t: "Turn it down, then.", r: "Turning it down. There. Quiet. Very quiet. ...This is awful. I hate it. You're no fun." },
+        { tone: 'passive', t: "Sorry. I meant a bit, in a good way.", r: "A good way? Is there one? ...Okay. Maybe there is. You're allowed to like me loud." },
+        { tone: 'flirty', t: "A bit too much, and exactly enough.", r: "Exactly enough? Okay. I'll take exactly enough. That's going in my notebook, underlined." },
+      ] },
+      { tone: 'passive', t: "You're not too much. You're just a lot.", r: "A lot. Like a lot of fun? A lot of trouble? A lot of noise? Pick one, Turbo.", opts: [
+        { tone: 'cold', t: "A lot of noise.", r: "Noise. Okay. I'll be quieter. For about ten minutes. Then I'll explode. Fair warning." },
+        { tone: 'passive', t: "A lot of fun.", r: "Fun! Good. I like fun. Fun is my favourite thing. You're my favourite thing that's fun." },
+        { tone: 'flirty', t: "A lot of everything I want.", r: "Everything you want? Oh. That's— okay, I'm not crying. I'm just very emotional about winks." },
+        { tone: 'risque', t: "A lot of trouble. The kind I want to get into.", r: "Get into trouble? With me? You're going to regret saying that. You're not. I'll make sure." },
+      ] },
+      { tone: 'flirty', t: "Too much? I want more.", r: "More? More than this? You'll be exhausted. ...But okay. More. I can do more. I'm very good at more.", opts: [
+        { tone: 'cold', t: "Actually, maybe less.", r: "Less? You've gone from more to less in two seconds. That's a very cold U-turn, Turbo." },
+        { tone: 'passive', t: "I'm serious. You're perfect as you are.", r: "Perfect? Nobody's perfect. But I'm quite close. Thanks for noticing. And for staying." },
+        { tone: 'flirty', t: "More of you is all I want.", r: "More of me. Okay. I'm going to give you so much more you'll beg for less. You won't." },
+        { tone: 'risque', t: "More. All of it. Starting tonight.", r: "Starting tonight? That's a big order. I'm very good at delivering. You've been warned." },
+      ] },
+    ] },
+  { id: 'spark-warm-7-cold', stage: 'warm', slot: 7, mood: 'cold',
+    say: "Someone asked me out today. I said I'd think about it. I'm thinking about it now. Out loud. Near you. Since you've gone a bit cold.",
+    opts: [
+      { tone: 'cold', t: "Go, then.", r: "Go? Just like that? You're not even going to pretend to mind? ...Wow. Okay. That landed in my stomach.", opts: [
+        { tone: 'cold', t: "I don't mind.", r: "You don't mind. Okay. Message received. Very loud and very clear. I'll go and think about someone else." },
+        { tone: 'passive', t: "I mind. I'm just bad at showing it.", r: "You mind? Then show it! Pull a face! Stamp a foot! Anything! I'm not a mind-reader, Turbo." },
+        { tone: 'flirty', t: "I mind. A lot. Don't go.", r: "Don't go? Okay. I wasn't going. I just wanted to hear you say it. ...You said it. I'm staying." },
+      ] },
+      { tone: 'passive', t: "Who was it?", r: "Doesn't matter. What matters is you looked like you swallowed a wasp just then. Interesting. Very interesting.", opts: [
+        { tone: 'cold', t: "I didn't look like anything.", r: "You did! A whole wasp! But fine. You're not bothered. I'll go and find someone who'll swallow a wasp for me." },
+        { tone: 'passive', t: "Okay. Maybe a small wasp.", r: "A small wasp! Okay. That's a start. A small jealous wasp. I'll take it. Thank you." },
+        { tone: 'flirty', t: "A big wasp. Tell them no.", r: "Tell them no? For you? ...Okay. I'm telling them no. You've just won a very important race, Turbo." },
+      ] },
+      { tone: 'flirty', t: "I'm not letting someone else take you out.", r: "Not letting? That's very possessive. And very sudden. Where was that last time? ...I like it.", opts: [
+        { tone: 'cold', t: "Then again, do what you want.", r: "Do what I want? You were nearly romantic, and now you're a weather forecast. Cold, with showers." },
+        { tone: 'passive', t: "I mean, I'd rather take you out myself.", r: "You'd rather take me? Then ask me! Properly! Not in a 'whatever' way. In a big way." },
+        { tone: 'flirty', t: "I'll take you out tonight. Anywhere you want.", r: "Anywhere? Okay, I'm telling them no right now. Text sent. You're on. Let's go." },
+        { tone: 'risque', t: "I'll take you out. And I'll take you home.", r: "Take me home? You've gone from cold to that in thirty seconds? I'm dizzy. ...Okay. Yes." },
+      ] },
+    ] },
+  { id: 'spark-warm-7-passive', stage: 'warm', slot: 7, mood: 'passive',
+    say: "Guess what? I got asked on a date today. Told them maybe. So I'm weighing it up. Right here. Next to you. Thoughts?",
+    opts: [
+      { tone: 'cold', t: "Sounds like fun. Go.", r: "Fun? You're telling me to go? ...Wow. That wasn't the reaction I wanted. That wasn't even close.", opts: [
+        { tone: 'cold', t: "It's your life.", r: "It is my life. And I wanted you in it a bit more. ...Never mind. I'll go and think somewhere else." },
+        { tone: 'passive', t: "I'm only saying go if you want to.", r: "I want to know if you want me to. You're very slow sometimes, Turbo. Very slow." },
+        { tone: 'flirty', t: "Go. But know I'll be jealous the whole time.", r: "Jealous? You'd be jealous? Okay. That's what I wanted to hear. I'm not going. Obviously." },
+      ] },
+      { tone: 'passive', t: "Do you like them?", r: "They're fine. They're... polite. They asked me out on a spreadsheet. Okay, an email. Very organised.", opts: [
+        { tone: 'cold', t: "Sounds perfect for you.", r: "Perfect for me? Organised? Have you met me? ...That was mean. Accurate about them, mean about me." },
+        { tone: 'passive', t: "An email? That's not romantic.", r: "It's not! It's practical. I don't want practical. I want someone to chase me round a kart track." },
+        { tone: 'flirty', t: "I'd never ask you out by email.", r: "How would you ask? Go on. Show me. I'm waiting. I'm very patient. I'm not." },
+        { tone: 'risque', t: "I'd never ask. I'd just kiss you.", r: "Just kiss me? No asking? That's very bold, Turbo. ...Is that a question or a warning?" },
+      ] },
+      { tone: 'flirty', t: "I think you should say no. And let me take you out instead.", r: "Instead? Oh. Okay. I was hoping you'd say that. I was really, really hoping.", opts: [
+        { tone: 'cold', t: "Actually, never mind. Go.", r: "Go? You just said— oh, that's mean. You built me up and dropped me. Splat. Thanks." },
+        { tone: 'passive', t: "Something fun. Something you'd like.", r: "Something I'd like? A boat? A kart? A rooftop? You'll have to think harder than that, Turbo." },
+        { tone: 'flirty', t: "Somewhere with stars. And no spreadsheets.", r: "Stars and no spreadsheets! That's the most romantic thing anyone's said to me. Yes. Yes, yes." },
+        { tone: 'risque', t: "Somewhere private. Where I can do this properly.", r: "Do this properly? Do what properly? ...Oh. Oh. Okay. Yes. Where? When? Now?" },
+      ] },
+    ] },
+  { id: 'spark-warm-7-flirty', stage: 'warm', slot: 7, mood: 'flirty',
+    say: "Turbo, emergency. Someone asked me out. I need you to talk me out of it. Or into it. Mostly out of it. Very much out of it.",
+    opts: [
+      { tone: 'cold', t: "Why would I care?", r: "Why would you— oh. Okay. That was a slap on a sunny day. I thought we were— never mind.", opts: [
+        { tone: 'cold', t: "Because I don't.", r: "Clearly. I'll go out with them. And I'll have a lovely time. And I won't think about you. At all." },
+        { tone: 'passive', t: "Sorry. I care. I'm just surprised.", r: "Surprised? That someone else likes me? I'm very likeable! ...But okay. You care. Good." },
+        { tone: 'flirty', t: "I care. More than I should.", r: "More than you should? Then show it, Turbo. Talk me out of it. Make it good." },
+      ] },
+      { tone: 'passive', t: "Who are they?", r: "Doesn't matter. They're nice. Boring nice. They'd never sneak onto a roof with me. They'd ask permission.", opts: [
+        { tone: 'cold', t: "Nice is good.", r: "Nice is boring! I don't want nice. I want fun! ...You were fun. Where did fun go?" },
+        { tone: 'passive', t: "Asking permission is polite, I suppose.", r: "Polite! Ugh. I don't want polite. I want someone who'll chase me. Hint. Hint. Hint." },
+        { tone: 'flirty', t: "I'll never ask permission. I'll just chase you.", r: "Chase me? Now we're talking. Okay. I'm not going. I'm staying right here. Ready to be chased." },
+        { tone: 'risque', t: "I won't ask permission. I'll just take you.", r: "Take me where? ...Okay, wherever you're thinking, the answer's yes. You've won." },
+      ] },
+      { tone: 'flirty', t: "Don't go. You're mine.", r: "Yours? You've never said that before. ...Say it again. I didn't quite hear. I definitely heard.", opts: [
+        { tone: 'cold', t: "Kidding. Do what you want.", r: "Kidding? You can't kid about that! That's the biggest thing you've ever said and you took it back!" },
+        { tone: 'passive', t: "I mean it. Don't go.", r: "Okay. I won't. I was never going to. I just wanted to see if you'd say it. You said it." },
+        { tone: 'flirty', t: "Mine. And I'm not sharing.", r: "Not sharing? Oh, that's very possessive. I love it. I'm yours. Don't tell anyone. Tell everyone." },
+        { tone: 'risque', t: "Mine. And I'll prove it. Tonight.", r: "Prove it tonight? How? Don't explain. Show me. I'll be waiting. Impatiently." },
+      ] },
+    ] },
+  { id: 'spark-warm-8-cold', stage: 'warm', slot: 8, mood: 'cold',
+    say: "Peace offering, since last time was frosty. Race you to that lamp post. Loser does whatever the winner says for one whole song. Deal?",
+    opts: [
+      { tone: 'cold', t: "I'm not racing to a lamp post.", r: "A lamp post's a perfectly good finish line! Fine. I'll race it alone. And I'll still lose to you somehow.", opts: [
+        { tone: 'cold', t: "Lose alone, then.", r: "I will. Very dramatically. The lamp post will cheer for me. It's on my side now." },
+        { tone: 'passive', t: "Alright. Just the one race.", r: "One race! Three, two— I'm off! Frosty people don't get a fair start. It's in the rulebook." },
+        { tone: 'flirty', t: "Only if I get to pick the song.", r: "The song? Oh, you're thinking about the forfeit. Interesting. Very interesting. Go!" },
+      ] },
+      { tone: 'passive', t: "What does the winner say?", r: "Whatever they like. Within reason. Mostly. You'll see. Three, two— go!", opts: [
+        { tone: 'cold', t: "Not a chance.", r: "Not a chance? You asked a question and then ran away from the answer! Coward. A cute one. But still." },
+        { tone: 'passive', t: "Go on. Go!", r: "Gone! ...You're fast. How are you so fast? I lost again! Fine. What do I have to do? Be gentle." },
+        { tone: 'flirty', t: "If I win, you dance with me. Close.", r: "Close? For a whole song? After last time? ...Okay. That's a forfeit I'll pretend to hate." },
+        { tone: 'risque', t: "If I win, you kiss me before the song ends.", r: "Kiss you? For a lamp post race? You've raised the stakes, Turbo. ...Now I want to lose." },
+      ] },
+      { tone: 'flirty', t: "I'm losing deliberately. I want you to boss me around.", r: "Boss you around? Oh, you've just made a very big mistake. I'm excellent at bossing. And still a bit cross.", opts: [
+        { tone: 'cold', t: "Changed my mind. No bossing.", r: "No bossing? You offered! I had plans! Big ones! ...You're very good at taking things away." },
+        { tone: 'passive', t: "Okay. One song. Boss away.", r: "One song. First order: smile. Properly. ...There. Second order: don't stop. Third: closer." },
+        { tone: 'flirty', t: "One song. Anything you want.", r: "Anything? Careful. I'll make you dance in the street. With me. To no music. Starting now." },
+        { tone: 'risque', t: "One song. And then the next one's mine.", r: "The next one's yours? Ooh. Two songs. Two forfeits. Two very interesting minutes. Deal." },
+      ] },
+    ] },
+  { id: 'spark-warm-8-passive', stage: 'warm', slot: 8, mood: 'passive',
+    say: "Lamp post, over there. First to touch it wins, and the loser does whatever the winner says for a whole song. Feeling lucky? I am.",
+    opts: [
+      { tone: 'cold', t: "No races today.", r: "No races? You're a racer! It's literally your job. ...Fine. I'll be lucky on my own. It's less fun.", opts: [
+        { tone: 'cold', t: "Be lucky on your own, then.", r: "I will. I'll find a four-leaf clover and a lucky coin and I won't share either of them." },
+        { tone: 'passive', t: "One race. Then I'm done.", r: "One race! Three, two— oh, you went on two! Cheat! I love it. ...I lost. Name my punishment." },
+        { tone: 'flirty', t: "I'll race you. But I'm warning you, I'm luckier.", r: "Luckier? Prove it. Three, two, one— ...okay, you're luckier. And faster. And smug. Go on, then." },
+      ] },
+      { tone: 'passive', t: "Fine. Three, two, one—", r: "Go! ...You're a rocket! I didn't stand a chance. Okay. What do I have to do for a whole song? Be nice.", opts: [
+        { tone: 'cold', t: "Stand there and be quiet.", r: "Be quiet? Through an entire song? That's the worst forfeit ever invented! ...Okay. I'll try. It'll be agony." },
+        { tone: 'passive', t: "Tell me a secret. A good one.", r: "A secret? Okay. I've never won a race against you. And I've been trying very hard to." },
+        { tone: 'flirty', t: "Dance with me. The whole song.", r: "The whole song? Close? With people watching? ...Okay. I lost fair and square. Mostly square." },
+        { tone: 'risque', t: "Kiss me before the song ends.", r: "Before the song ends? That's a very short song. ...I'll make it count. Come here." },
+      ] },
+      { tone: 'flirty', t: "And the loser has to do what, exactly?", r: "Whatever the winner says. Any order. Within reason. Ish.", opts: [
         { tone: 'cold', t: "Sounds like a trap.", r: "It's always a trap with me! But fine, run away. I'll find someone braver. There's plenty." },
         { tone: 'passive', t: "Alright. One song.", r: "One song. Go! ...Why are you walking? Racers don't walk! Run, you absolute tortoise!" },
         { tone: 'flirty', t: "Then I'm losing on purpose.", r: "On purpose? Shameless. Fine. I win, and you dance with me. The whole song. Very, very close." },
         { tone: 'risque', t: "And if I win, you're coming home with me.", r: "Big stakes! Right, I'm not running any more. I'm walking. Very slowly. Oh no. Look at that. You win." },
       ] },
-    ],
-  },
-  {
-    id: 'spark-warm-flirty-2', stage: 'warm', mood: 'flirty',
-    say: "There's my favourite distraction. I'm meant to be working on {work} and instead I've been thinking about your face.",
+    ] },
+  { id: 'spark-warm-8-flirty', stage: 'warm', slot: 8, mood: 'flirty',
+    say: "New game. First to that lamp post wins. Loser obeys the winner for one entire song. I've already picked the song. It's long.",
     opts: [
-      { tone: 'cold', t: "Sounds unprofessional.", r: "Unprofessional?! That's a frosty little reply to a compliment. It stung, actually. Just so you know.", opts: [
-        { tone: 'cold', t: "Back to work, then.", r: "Fine! I'll be very professional. I'll think about other faces. Much better ones. Bye." },
-        { tone: 'passive', t: "Sorry. Long morning. How's it going?", r: "Slowly. I'm fast, it's slow, it's a whole thing. But you're here, so the day's already looking up." },
-        { tone: 'flirty', t: "Unprofessional suits you, though.", r: "Does it? You're back in my good books. Just. Do that again and you're at the top of the page." },
+      { tone: 'cold', t: "I'm not playing tonight.", r: "Not playing? Tonight? After everything? ...That came out of nowhere, Turbo. That really stung.", opts: [
+        { tone: 'cold', t: "Just not in the mood.", r: "Okay. I'll take my long song and my lamp post and go. Hope your mood finds you soon." },
+        { tone: 'passive', t: "Sorry. Long day. One race.", r: "One race. Okay. I'll forgive you if you lose. Badly. And dance badly. For six minutes." },
+        { tone: 'flirty', t: "Sorry. Okay. But I pick the forfeit.", r: "You pick? Only if you win. And you won't win. I've been training. Against pigeons." },
       ] },
-      { tone: 'passive', t: "Good thinking or bad thinking?", r: "Both! Mostly good. Partly the kind where I steal your sunglasses and make you chase me for them.", opts: [
-        { tone: 'cold', t: "Don't touch my sunglasses.", r: "Fine! Your precious sunglasses are safe. From me. Today. Grumpy." },
-        { tone: 'passive', t: "Take them, then. I won't stop you.", r: "You're letting me? That ruins it! Stealing's only fun if someone chases you! Try again, with feeling." },
-        { tone: 'flirty', t: "Steal them. I'll chase you down.", r: "You'd chase me? I'm so in. Count of three, then I'm gone. You'll never catch me. I'm a blur." },
-        { tone: 'risque', t: "Keep thinking about it. Then come over and do something about it.", r: "Do something about it? That's a proper invitation. Careful, I accept invitations very, very quickly." },
+      { tone: 'passive', t: "How long is the song?", r: "Six minutes and twelve seconds. It's got a key change. And a saxophone solo. It's perfect.", opts: [
+        { tone: 'cold', t: "Six minutes? No thanks.", r: "No thanks? It's a beautiful song! You've insulted the saxophone. The saxophone will never forgive you." },
+        { tone: 'passive', t: "Fine. Six minutes.", r: "Six minutes. Three, two— go! ...Oh no. You're fast. I've lost. Six minutes of what? Go easy." },
+        { tone: 'flirty', t: "Six minutes of you doing what I say? I'm in.", r: "Six minutes of me doing— wait, you think you'll win? You're very confident. ...Okay. You win." },
+        { tone: 'risque', t: "Six minutes isn't long enough for what I'd ask.", r: "Isn't long enough? What would you ask? ...No. Don't say it. I'll throw the race. Go." },
       ] },
-      { tone: 'flirty', t: "I've been thinking about yours too. A lot.", r: "How much is a lot? On a scale of one to 'nearly missed a braking point'?", opts: [
-        { tone: 'cold', t: "Not that much, honestly.", r: "Ugh, you had me for a second! Mean! Fine. Back to work I go. Sad, unthought-about, alone." },
-        { tone: 'passive', t: "Maybe a six.", r: "A six! That's practically a seven. A seven is practically a crush. I'm doing maths on you now." },
-        { tone: 'flirty', t: "I definitely missed one in practice.", r: "You missed a braking point because of me?! Best thing anyone's ever said to me. I'm a puddle." },
-        { tone: 'risque', t: "Enough that I'd rather show you than tell you.", r: "Show me? Here? You menace. Not here. Later, somewhere with no cameras. I'm holding you to it." },
+      { tone: 'flirty', t: "Let me lose. Then boss me about.", r: "Boss you around? For six minutes? Oh, you have no idea what you've done. I'm very bossy.", opts: [
+        { tone: 'cold', t: "Never mind. Go find someone else.", r: "Someone else? To boss? You offered! That's the cruellest offer ever withdrawn." },
+        { tone: 'passive', t: "Six minutes. Anything. Within reason.", r: "Within reason? I'm not reasonable. But fine. First order: dance. Second: closer. Third: don't stop." },
+        { tone: 'flirty', t: "Six minutes of anything you want.", r: "Anything? Okay. I want you to hold my hand the whole song. And look at me. That's all. That's everything." },
+        { tone: 'risque', t: "Six minutes. And then you're mine for the night.", r: "The night? That's a very long song. ...Okay. Lamp post first. Then the night. Go!" },
       ] },
-    ],
-  },
-  {
-    id: 'spark-warm-flirty-3', stage: 'warm', mood: 'flirty', where: 'evening',
-    say: "You came! I've found a door to the roof that definitely says 'staff only'. Want to see the best view in town?",
+    ] },
+  { id: 'spark-warm-9-cold', stage: 'warm', slot: 9, mood: 'cold',
+    say: "No games tonight. Okay, one game. Guess what I want. I'll give you a hint: it's you. And I'm tired of you going cold on me.",
     opts: [
-      { tone: 'cold', t: "I'd rather stay at the table.", r: "The table? With the bread and the candle? Way to stamp on a nice idea. Stamp, stamp.", opts: [
-        { tone: 'cold', t: "Go up on your own.", r: "Fine, I'm going! I'll wave from up there. You'll see a tiny me having a much better evening than you." },
-        { tone: 'passive', t: "After dessert, maybe.", r: "After dessert. Fine. I'll eat fast. Pit-stop fast. Then we're going up, no excuses." },
-        { tone: 'flirty', t: "Unless you want to keep me company down here.", r: "Down here, with the candle? Hmm. That's a bit romantic, actually. Fine. You win this round." },
+      { tone: 'cold', t: "I don't know what I want.", r: "You don't know? After all this? ...Okay. That's honest. And it really hurts. I'll give you some space.", opts: [
+        { tone: 'cold', t: "Space would be good.", r: "Space it is. All of it. The whole sky. I'll be somewhere else, being fun without you." },
+        { tone: 'passive', t: "I'm sorry. I'm just scared.", r: "Scared? Of me? ...Okay. I'm scared too. That's why I'm asking. I don't do scared well." },
+        { tone: 'flirty', t: "I want you too. I just didn't know how to say it.", r: "You want me too? ...Then say it like that. Every time. Okay? No more going cold. Promise." },
       ] },
-      { tone: 'passive', t: "Will we get in trouble?", r: "Probably! That's half the fun. The other half is the view. Come on, I've propped the door with a breadstick.", opts: [
-        { tone: 'cold', t: "Count me out.", r: "Out?! Fine. I'll go alone and make a new best friend up there. A pigeon. A nice one." },
-        { tone: 'passive', t: "Okay. Five minutes.", r: "Five minutes is plenty. You can see the whole river. Bring your coat, it's windy and I'm always cold." },
-        { tone: 'flirty', t: "With you, I'll risk it.", r: "That's the spirit! Hold my hand on the stairs, they're dark. Safety reasons. Mostly safety reasons." },
-        { tone: 'risque', t: "Is it the kind of roof where nobody can see us?", r: "Oh! You've been thinking about this. Maybe it is. Maybe I checked. Come on, before I lose my nerve." },
+      { tone: 'passive', t: "I'm sorry. I'm bad at saying it.", r: "You are. Hopelessly. So I'll say it for you. I want you. Officially. Not a game. Do you want me?", opts: [
+        { tone: 'cold', t: "I need to think.", r: "Think. Okay. I'll be over here. Not thinking. Trying not to think. Failing completely." },
+        { tone: 'passive', t: "Yes. Officially.", r: "Officially? You said officially. Okay. That's going on the first page. In capitals. Underlined." },
+        { tone: 'flirty', t: "Yes. I've wanted you since the start.", r: "Since the start? Even the frosty bits? ...Okay. I'm crying. Don't look. This is a new chapter, Turbo." },
       ] },
-      { tone: 'flirty', t: "The best view in town is sitting right here.", r: "No. You didn't. That's the cheesiest line I've ever heard. It worked. Damn it. Come on, roof.", opts: [
-        { tone: 'cold', t: "Actually, I'm comfy here.", r: "You can't flirt like that and stay seated! That's waving the flag and not starting the race." },
-        { tone: 'passive', t: "Lead the way, then.", r: "Leading! Mind the step. And the bucket. And that very cross-looking cat. We're friends now, me and the cat." },
-        { tone: 'flirty', t: "I'll follow you up. I'm not letting you out of my sight.", r: "Good. Keep your eyes on me. I'm the best thing up there. Me and the stars. It's a close tie." },
-        { tone: 'risque', t: "Let's go up and not come down till morning.", r: "Till morning? On a roof? Bold. We'd need blankets. ...I have blankets. Don't ask why. Let's go." },
+      { tone: 'flirty', t: "You've got me. You always had me.", r: "Always? Even when you were cold? ...Then stop being cold. I need you warm. I need you here.", opts: [
+        { tone: 'cold', t: "Don't get too attached.", r: "Too late. I'm glued. ...And that hurt. You're very good at hurting me, you know that?" },
+        { tone: 'passive', t: "I'll try to be warmer.", r: "Try hard. I'll be counting. Every warm thing. In the notebook. You'll fill pages." },
+        { tone: 'flirty', t: "I'm yours. No more cold.", r: "No more cold. Yours. Okay. I'm keeping that. Forever. You can't take it back now." },
+        { tone: 'risque', t: "I'm yours. And I'm taking you home to prove it.", r: "Prove it? Tonight? ...Okay, the hurt's gone. Completely. Let's go before I start crying." },
       ] },
-    ],
-  },
-  {
-    id: 'spark-warm-flirty-4', stage: 'warm', mood: 'flirty',
-    say: "Oh good, it's you. I've been practising my wink. Watch. ...Was that a wink, or did I look like I was about to sneeze?",
+    ] },
+  { id: 'spark-warm-9-passive', stage: 'warm', slot: 9, mood: 'passive',
+    say: "Okay, no games. Well, one last game. You get three guesses at what I want most. Get it wrong and I'll tell you anyway.",
     opts: [
-      { tone: 'cold', t: "Sneeze.", r: "Ouch! Honest. Too honest. I'll go and wink at a mirror. Mirrors are nicer to me.", opts: [
-        { tone: 'cold', t: "Good idea.", r: "Wow! Mirror it is. The mirror's going to love it. You had your chance and you blew it." },
-        { tone: 'passive', t: "Okay, fine. Half a wink.", r: "Fifty per cent! Progress. I'll have the other half by Sunday. Watch out." },
-        { tone: 'flirty', t: "A very cute sneeze, though.", r: "A cute sneeze! That's going in my diary. You've saved yourself. Barely. By an eyelash." },
+      { tone: 'cold', t: "A ride in my car.", r: "A ride in your car? That's what you think I want? ...That's a bit sad, actually. It's not the car.", opts: [
+        { tone: 'cold', t: "Then I don't know.", r: "You really don't know? Okay. I'll tell you anyway. I want you. But you don't seem to want the same." },
+        { tone: 'passive', t: "Okay. Second guess. Me?", r: "Second guess, and correct. Took you long enough. So? Do you want me back? Properly?" },
+        { tone: 'flirty', t: "I know what you want. I want it too.", r: "You do? You want me? Properly? Officially? ...Okay. We're doing this. Chapter two. Us." },
       ] },
-      { tone: 'passive', t: "Try again. I'll judge.", r: "Okay. Okay. ...Now. Was that better? Don't laugh! You're laughing! That's not judging!", opts: [
-        { tone: 'cold', t: "Still bad. Give up.", r: "Give up? Me? Never. I'll practise all week and wink you into the ground. You'll see. Meanie." },
-        { tone: 'passive', t: "Better. A solid seven.", r: "A seven! Next week, a nine. The week after, you won't stand a chance." },
-        { tone: 'flirty', t: "Perfect. Do it again.", r: "You liked my wink! You did! Okay. ...There. That one's just for you, hotshot. Exclusive." },
-        { tone: 'risque', t: "One more like that and I'm taking you home.", r: "One more? I'm winking so hard my whole face is involved. ...Any good? Tell me it's doing something." },
+      { tone: 'passive', t: "You want me to ask you out properly.", r: "Close. Very close. I want you to ask me to be yours. Officially. Not a game. Will you?", opts: [
+        { tone: 'cold', t: "That's a lot.", r: "A lot? Okay. That's not a no. But it's not a yes. I'll wait. Not forever, though." },
+        { tone: 'passive', t: "Okay. Will you be mine?", r: "Yes! Yes yes yes! I've been waiting for weeks! Juno owes me a fiver! Sorry. Romantic moment. Yes." },
+        { tone: 'flirty', t: "Be mine. Officially. Forever.", r: "Forever? That's a big word! ...Okay. Forever. Officially. In pen, which is permanent. I checked." },
+        { tone: 'risque', t: "Be mine. And come home with me tonight.", r: "Tonight? You're very efficient. ...Yes to both. Yes, yes. Let's go. Before you change your mind." },
       ] },
-      { tone: 'flirty', t: "It was a wink. And it worked.", r: "It worked? What did it do? Tell me exactly. I need data. For science.", opts: [
-        { tone: 'cold', t: "Forget it.", r: "Forget it?! You can't say 'it worked' and walk away! That's the worst thing you've ever done to me." },
-        { tone: 'passive', t: "It made me smile.", r: "A smile! Step one. Step two is a blush. Step three is classified. Very classified." },
-        { tone: 'flirty', t: "It made me want to get closer.", r: "Closer? Like this? ...Okay, I got closer and now I've forgotten every word I know. Help." },
-        { tone: 'risque', t: "It made me want to kiss you. Right here.", r: "Right here? With an audience? You wouldn't dare. ...Would you? Oh, you would. Go on, then." },
+      { tone: 'flirty', t: "I already know. Me.", r: "Smug! You're so smug. And right. Annoyingly right. So? What's your answer?", opts: [
+        { tone: 'cold', t: "I'm not sure yet.", r: "Not sure? After all this? ...Okay. That stings. I'll stop guessing for you. You guess for me." },
+        { tone: 'passive', t: "Yes. Same answer as yours.", r: "Yes! You said yes! Okay. Okay. I'm calm. I'm very calm. I'm not calm at all. Us. Officially." },
+        { tone: 'flirty', t: "Yes. I've been waiting for you to ask.", r: "You were waiting for me? You could've asked! We're both cowards! Cute cowards. Officially yours." },
+        { tone: 'risque', t: "Yes. And I'm going to kiss you now to prove it.", r: "Prove it, then. Right here. With the whole world watching. ...Okay. That's the best game I've ever won." },
       ] },
-    ],
-  },
+    ] },
+  { id: 'spark-warm-9-flirty', stage: 'warm', slot: 9, mood: 'flirty',
+    say: "I've played every game with you. Races, dares, winks. One game left. The biggest one. You and me. Officially. What do you say?",
+    opts: [
+      { tone: 'cold', t: "I'd rather keep it casual.", r: "Casual. Okay. Casual. ...I'm not good at casual, Turbo. I'm all or nothing. And this feels like nothing.", opts: [
+        { tone: 'cold', t: "Then it's nothing.", r: "Nothing. Okay. That's that, then. I'll go and play my games with someone else." },
+        { tone: 'passive', t: "Sorry. I'm scared of getting it wrong.", r: "Scared? Of me? Of us? ...Okay. Me too. Let's be scared together. That's less scary." },
+        { tone: 'flirty', t: "Casual's a lie. I'm all in.", r: "All in? You were just— oh, you were teasing me. That's my move! You stole my move! Officially yours." },
+      ] },
+      { tone: 'passive', t: "What are the rules?", r: "No rules. Just you and me. Every day. Even the boring ones. Even the ones where you're grumpy.", opts: [
+        { tone: 'cold', t: "Every day's a lot.", r: "A lot? Okay. That's honest. I'll take some days. Not every day. ...It still hurts a bit." },
+        { tone: 'passive', t: "Okay. You and me.", r: "You and me. Officially. New page, first line, biggest letters I've got." },
+        { tone: 'flirty', t: "You and me. Every day. Especially the grumpy ones.", r: "Especially the grumpy ones? You're very strange. I'm very in love. Oops. That slipped out." },
+        { tone: 'risque', t: "You and me. And tonight's the first night.", r: "The first night? Of everything? Okay. Yes. Yes to all of it. Let's go." },
+      ] },
+      { tone: 'flirty', t: "I say yes. I've been waiting to say it.", r: "Waiting? You could've said it ages ago! I've been chasing you for weeks! ...Okay. Yes. Us.", opts: [
+        { tone: 'cold', t: "Actually, let me think.", r: "Think? You just said yes! You can't think after yes! That's the rules! ...Okay. Think fast." },
+        { tone: 'passive', t: "Yes. Officially yours.", r: "Officially mine. I'm going to say that a lot. To everyone. Even strangers. You've been warned." },
+        { tone: 'flirty', t: "Yes. And I'm never letting you go.", r: "Never? That's a long time. ...Good. Never sounds about right. I'll be here. Loud and yours." },
+        { tone: 'risque', t: "Yes. And I'm going to show you how much I mean it.", r: "Show me? Here? Now? ...Okay. Yes. Yes to everything. You win, Turbo. You win me." },
+      ] },
+    ] },
 ];
