@@ -402,10 +402,12 @@ export class Planner {
   }
   /**
    * How far path P gets on the cars it races with the moves (rivalNear: the player) just ahead, counted in cars: past one by the end of the time it is
-   * predicted for (6 s, or the path's end) - 1; alongside it - a part of one, the more of it the further up
+   * predicted for (6 s, or the path's end) - 1; alongside it - a part of one, the more of it the further up. Only beside
+   * it: where the path draws level, a car's width off it (a path through it - traffic() lets one run on into a car more
+   * than 2 s off - gets nothing, nor a part of it closer than that)
    */
   passValue(P, ctx) {
-    const n = P.n, tEnd = Math.min(P.t[n - 1], (PRED_N - 1) * PRED_DT), Lc = 5.9;
+    const n = P.n, tEnd = Math.min(P.t[n - 1], (PRED_N - 1) * PRED_DT), Lc = 5.9, W = ctx.width;
     let i = 1; while (i < n - 1 && P.t[i] < tEnd) i++;
     const f = Math.max(0, Math.min(1, (tEnd - P.t[i - 1]) / Math.max(1e-3, P.t[i] - P.t[i - 1]))), xMe = (i - 1 + f) * DS, q = Math.min(PRED_N - 1, Math.round(tEnd / PRED_DT));
     let v = 0;
@@ -413,7 +415,15 @@ export class Planner {
       const R = this.others[r], o = R.car;
       if (!R.human || !R.ahead0 || R.s0 > 60 || R.lapping || o.isSC) continue;
       const lead = xMe - R.s[q];
-      if (lead > 2) v += 1; else if (lead > -Lc) v += 0.5 * (lead + Lc) / (Lc + 2);
+      if (lead <= -Lc) continue;
+      let dd = Infinity;
+      for (let j = 1; j <= i; j++) {
+        const tq = Math.min(P.t[j], tEnd) / PRED_DT, q0 = Math.min(PRED_N - 2, Math.floor(tq)), fq = tq - q0;
+        const gs = R.s[q0] + (R.s[q0 + 1] - R.s[q0]) * fq - j * DS;
+        if (gs > -Lc && gs < Lc) dd = Math.min(dd, Math.abs(R.d[q0] + (R.d[q0 + 1] - R.d[q0]) * fq - P.d[j]));
+      }
+      const side = dd === Infinity ? 1 : Math.max(0, Math.min(1, (dd - 0.6 * W) / (0.4 * W)));
+      v += side * (lead > 2 ? 1 : 0.5 * (lead + Lc) / (Lc + 2));
     }
     return v;
   }
