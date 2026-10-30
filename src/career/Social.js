@@ -25,6 +25,7 @@
 import { shiftMorale, moodOf } from './Morale.js';
 import { prEvent, fameIndex, fameText, imageLabel, heatLabel, socialPosts, crisisAdvice } from './PR.js';
 import * as Celebs from './Celebs.js';
+import { personaIncoming, personaPending, personaTextOpts, personaTextSend, personaHello, personaHelloSend } from './Persona.js';
 
 // ---- small helpers --------------------------------------------------------------------------------------------------
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -694,7 +695,9 @@ export function textTrail(c, id) { return num(c?.social?.phone?.trail?.[id], 0);
 // ---- what you can say ----------------------------------------------------------------------------------------------------
 // (the last word in a chat, if it is theirs, from this week, and wants an answer)
 const PENDING = new Set(['won', 'podium', 'points', 'low', 'dnf', 'mine', 'banter', 'rival', 'support', 'invite', 'tip', 'finale', 'banOut', 'hurtYou',
-  'tvWin', 'tvPod', 'tvOther', 'tvDnf', 'partnerWin', 'partnerPod', 'partnerOk', 'partnerBad', 'check', 'flirt', 'jealous', 'youHurt']);
+  'tvWin', 'tvPod', 'tvOther', 'tvDnf', 'partnerWin', 'partnerPod', 'partnerOk', 'partnerBad', 'check', 'flirt', 'jealous', 'youHurt', 'persona']);
+/** a star's tokens for her personality's texts (career/Persona.js): the next circuit, the last, your result there, what she is busy with */
+const PT = (C, T) => ({ name: C?.name || '', job: C?.job || '', work: toMe(pick(arr(C?.work).length ? C.work : [''])), track: T?.next || '', last: T?.track || '', result: T?.pos || '', me: T?.me || '' });
 const pendOf = (c, T) => {
   for (let i = T.length - 1; i >= 0; i--) { const m = T[i]; if (m.from === 'sys' || m.kind === 'system') continue; return m.from === 'them' && PENDING.has(m.kind) && ago(c, m) <= 0 ? m.kind : null; }
   return null;
@@ -756,6 +759,18 @@ const celebOpts = (c, X) => {
   if (st === 'ex') { add('exKind', 'kind', MYC.exKind); add('exSorry', 'sorry', MYC.exSorry); return o; }
   if (X.inv) { add('accept', 'kind', MYC.accept); add('decline', 'leave', MYC.decline); }
   if (P === 'jealous' || (rom && X.sus >= 40)) { add('reassure', 'kind', MYC.reassure); if (X.others.length) add('cover', 'cover', MYC.cover); add('sorry', 'sorry', MYC.sorry); }
+  // (who she is decides the rest: a thread of hers waiting for an answer - its cold / passive / flirty (/ risque) answers -
+  //  or a hello in the mood you left her in, which she answers with the week's next thread; plans and apologies stay)
+  else {
+    const pT = PT(X.C, X.T), po = personaPending(c, X.cid) ? personaTextOpts(c, X.cid, pT) : [];
+    if (po.length) { for (const x of po) if (o.length < 4) o.push(x); return o; }
+    // (once the week's talk is done, only what still means something: a plan, an apology - never the old stock lines)
+    const hi = !X.said.includes('pt:hi') && personaHello(c, X.cid);
+    if (hi) o.push(hi);
+    if ((rom || si >= 2) && !X.hurtMe && !X.planned) add('plan', 'light', MYC.plan);
+    if (rom && num(b.upset, 0) >= 1) add('sorry', 'sorry', MYC.sorry);
+    if (hi || personaHello(c, X.cid)) return o;
+  }
   if (['tvWin', 'tvPod', 'tvOther', 'partnerWin', 'partnerPod', 'partnerOk'].includes(P)) add('thanks', 'kind', MYC.thanks);
   else if (P === 'tvDnf' || P === 'partnerBad') add('thanksBad', 'kind', MYC.thanksBad);
   else if (P === 'check' || P === 'banOut') add('checkBack', 'kind', MYC.checkBack);
@@ -833,6 +848,16 @@ const textDriver = (c, X, o) => {
 const WARM = new Set(['hello', 'work', 'race', 'flirt', 'check', 'deep', 'plan', 'reassure', 'sorry', 'thanks', 'thanksBad', 'checkBack', 'flirtBack', 'exKind', 'exSorry', 'quietKind', 'support']);
 const textCeleb = (c, X, o) => {
   const key = o.key, id = X.id, b = X.b, P = ensure(c).phone, rom = ROM.includes(X.stage), n = arr(P.said[X.cid]?.k).length;
+  // (her personality's thread: your answer, hers, and the mood it leaves her in - a flirt is a flirt to the bond too)
+  if (String(key).startsWith('pt:')) {
+    const pT = PT(X.C, X.T), r = key === 'pt:hi' ? personaHelloSend(c, X.cid, pT) : personaTextSend(c, X.cid, key, pT);
+    if (!r.ok) return '';
+    call('message', c, id);
+    if (r.tone === 'flirty' || r.tone === 'risque') call('flirt', c, id);
+    if (r.worth && n <= 3) call('relateCeleb', c, id, Math.round(r.worth * 0.6));
+    if ((b.secret || X.others.length) && ['flirting', 'dating', 'partner'].includes(X.stage)) P.trail[id] = num(P.trail[id], 0) + 1;
+    return r.reply;
+  }
   if (WARM.has(key)) call('message', c, id);
   let pool;
   if (key === 'flirt' || key === 'flirtBack') {
@@ -1139,7 +1164,11 @@ export function inboxTick(c, rows = null) {
     else if (b.stage === 'flirting' && chance(0.45)) kind = p != null && !out && chance(0.5) ? tv : 'flirt';
     else if (!rom && p != null && !out && chance(p === 1 ? 0.3 : p >= 2 && p <= 3 ? 0.18 : 0.06)) kind = tv;
     if (!kind) continue;
-    say(`c:${C.id}`, fresh(CIN[kind], T), kind); nc++;
+    // (in her personality's voice, in the mood you left her in, the next in line for the moment - else the old words)
+    const on = kind === 'partnerWin' || kind === 'tvWin' ? 'win' : kind === 'partnerPod' || kind === 'tvPod' ? 'podium' : kind === 'partnerOk' || kind === 'tvOther' ? (p != null && p <= 10 ? 'points' : 'bad') : kind === 'partnerBad' ? 'bad' : kind === 'tvDnf' ? 'dnf' : kind === 'flirt' || kind === 'check' ? 'week' : null;
+    const pt = on && !arr(S.phone?.threads?.[`c:${C.id}`]).length ? personaIncoming(c, `c:${C.id}`, 'met', PT(C, T0)) : on ? personaIncoming(c, `c:${C.id}`, on === 'bad' && me.dnf ? 'dnf' : on, PT(C, T0)) : null;
+    if (pt) say(`c:${C.id}`, pt, 'persona'); else say(`c:${C.id}`, fresh(CIN[kind], T), kind);
+    nc++;
   }
   // (an invitation, one a round at most - likelier the closer your friends are - or an evening from the one you are seeing)
   const meHurt = out === 'injury' || hurtNow(c, meOf(c)), cand = F.filter(([did, f]) => FS(f.stage) >= 2 && !liveFor(c, `d:${did}`));

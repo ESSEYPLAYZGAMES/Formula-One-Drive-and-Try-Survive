@@ -60,6 +60,7 @@
 // fresh topic; hangoutBye(x, n, dm) is the guest's line as a conversation closes; at a party hangoutDrama(x, n, id)
 // builds a drama's talk and hangoutLoose(x, n) one loose line (an answer PartyPlay can swap in).
 import { CELEB } from '../career/Celebs.js';
+import { personaTalk, TONE_TAG } from '../career/Persona.js';
 import { activePoints } from '../career/Licence.js';
 import { PARTY_TOPICS, PARTY_KEEP, PARTY_VENUE_WORD, PARTY_PRIVACY, isPartyVenue, partyGuest, partyEvening, partyBye, partyLooseFor, realDriver, partyUnder, dramaId } from './PartyTalk.js';
 /** an evening that is a party (x from hangoutEvening): the pool club is an ordinary evening too - a party only with the night's x.party */
@@ -1465,9 +1466,9 @@ export const HANGOUT_TOPICS = [
 // the conversation: picking a topic, building its tree, the guest's goodbye
 // =====================================================================================================================
 /** how a tone lands with the person (the grid walk's TONE, plus flirt and show) */
-export const HANGOUT_TONE = { kind: 2, firm: 1, light: 1, cold: -1, cruel: -5, sorry: 3, gossip: 0, leave: -1, flirt: 1, show: 0 };
+export const HANGOUT_TONE = { kind: 2, firm: 1, light: 1, cold: -1, cruel: -5, sorry: 3, gossip: 0, leave: -1, flirt: 1, show: 0, passive: 0, flirty: 1, risque: 2 };
 /** the option's tag (tone), as on the grid walk */
-export const HANGOUT_TAG = { kind: 'KIND', firm: 'FIRM', light: 'LIGHT', cold: 'COLD', cruel: 'CRUEL', sorry: 'APOLOGISE', gossip: 'BEHIND THEIR BACK', leave: '', flirt: 'FLIRT', show: 'SHOW OFF' };
+export const HANGOUT_TAG = { kind: 'KIND', firm: 'FIRM', light: 'LIGHT', cold: 'COLD', cruel: 'CRUEL', sorry: 'APOLOGISE', gossip: 'BEHIND THEIR BACK', leave: '', flirt: 'FLIRT', show: 'SHOW OFF', ...TONE_TAG };
 /** a second tag for the options that carry weight (fx), so a cover story always reads as one */
 export const HANGOUT_FX_TAG = { cover: 'COVER STORY', confess: 'OWN UP', deep: 'OPEN UP', invite: 'INVITE', flirt: '', charm: '',
   network: 'NETWORK', loose: 'LOOSE', provoke: 'ESCALATE', dance: 'DANCE', together: 'LEAVE TOGETHER', kiss: 'KISS', clear: 'CLEAR THE AIR', selfie: 'PHOTO', shoey: 'SHOEY', calm: '', water: 'WATER' };
@@ -1576,8 +1577,20 @@ export function buildHangout(def, x = {}, n = {}) {
   return tree;
 }
 
+// (the topics that move a romance on - a cover story, owning up, an invitation, leaving together, a kiss: still had with
+//  someone whose talk is their personality's, as the third conversation of an evening)
+const PLOT = new Set(['cover', 'confess', 'invite', 'together', 'kiss']);
+const plotOf = (os) => (os || []).some((o) => [].concat(o.fx || []).some((k) => PLOT.has(k)) || plotOf(o.then?.opts));
+const pickW = (L) => { let r = Math.random() * L.reduce((s, d) => s + (d.w || 1), 0); for (const d of L) if ((r -= d.w || 1) <= 0) return d; return L[L.length - 1]; };
 /** one conversation with a guest: a fresh topic picked by weight and built -> { id, say, opts } | null (nothing fresh left) */
 export function hangoutTalk(x = {}, n = {}, used = []) {
+  // (someone you could date talks as who they are (career/Persona.js), opening in the mood you left them in - except in a
+  //  grave week, in grief, as an ex, in a party's drama, or when the evening's third talk has the romance to move on)
+  if (n.persona && !x.grave && !n.grieving && n.stage !== 'ex' && !(isPartyX(x) && dramaOf(x, n))) {
+    const plot = (n.talks || 0) >= 2 ? hangoutTopics(x, n, used).filter((d) => plotOf(d.opts)) : [];
+    if (plot.length) return buildHangout(pickW(plot), x, n);
+    try { const t = n.persona.talk(x); if (t) return t; } catch (e) { console.warn('HangoutTalk: the personality talk failed', e); }
+  }
   const L = hangoutTopics(x, n, used);
   if (!L.length) return null;
   let r = Math.random() * L.reduce((s, d) => s + (d.w || 1), 0);
@@ -1703,6 +1716,8 @@ export function hangoutGuest(c, g = {}, x = {}) {
       const b = c?.celebs?.bonds?.[id];
       Object.assign(n, { celebId: id, job: C?.job || g.job || null, work: C?.work || g.work || null, free: C?.traits?.free || 0, real: false });
       if (b) Object.assign(n, { stage: b.stage, dates: b.dates || 0, public: !!b.public, secret: !!b.secret, suspicion: b.suspicion || 0, grieving: !!b.grieving });
+      // (who she is: her personality's conversations, the tokens as the evening has them)
+      if (c) n.persona = { talk: (x2) => { const tk = (k) => { const v = fillHangout(`x {${k}}`, x2, n).slice(2); return v.includes('{') ? '' : v; };   /* (mid-sentence: never the capital a line's first word gets) */ return personaTalk(c, n.cid, { party: isPartyX(x2), T: { name: n.name, job: n.job, work: tk('herWork'), track: tk('track'), result: tk('result'), venue: tk('venue') } }); } };
     } else {
       const d = c?.drivers?.[id], f = c?.social?.friends?.[id];
       n.team = g.team || d?.team || null; n.mate = !!(c && d && d.team === c.myTeam && id !== c.playerId);
