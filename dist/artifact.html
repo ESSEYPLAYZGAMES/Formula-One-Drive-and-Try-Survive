@@ -136047,6 +136047,13 @@ class Planner {
               if (R.ahead0 && t > 2) { P.blocked += 0.25 * Math.max(0.3, 1 - (t - 2) / 4); break; }
               if (!R.ahead0 && t > 1.2) { conflict = { R, i, gs, t, vo: R.v[q0], soft: Math.max(0.25, 1 - (t - 1.2) / 3) }; break; }
             }
+            // racecraft (ctx.boldAI) against another AI car, read by its plan: where we meet in a corner, me on the
+            // inside of it and level with it there - my nose at least to its middle - the corner is mine, and it is
+            // expected to leave the room (its own plan reads mine the same way: it is the one outside, and gives way)
+            if (ctx.boldAI && R.planned && !queue && t > 0.3 && t < 3 && gs < 0.5 * Lc) {
+              const z = this.track.inCornerZone(this.track.idxAtS(P.s0 + i * DS));
+              if (z && z.dir && (P.d[i] - (R.d[q0] + (R.d[q0 + 1] - R.d[q0]) * f)) * z.dir > 0.8) { P.blocked += 0.2 * Math.min(1, ctx.boldAI); break; }
+            }
             conflict = { R, i, gs, t, vo: R.v[q0] }; break;
           }
         }
@@ -136087,8 +136094,9 @@ class Planner {
     const busy = this.nOthers > 0 && this.anyNear(ctx);
     const specs = this._specs || (this._specs = []); specs.length = 0;
     specs.push(spec('lane', 0, Infinity));
-    // (racecraft, ctx.bold: a car close ahead or alongside to race - the moves a driver makes on it)
-    const rival = busy && ctx.bold > 0 ? this.rivalNear(ctx) : null;
+    // (racecraft: a car close ahead or alongside to race - the moves a driver makes on it; kb how much it means it:
+    //  ctx.bold on the player, ctx.boldAI on another AI car)
+    const rival = busy ? this.rivalNear(ctx) : null, kb = rival ? Math.min(1.2, rival.human ? ctx.bold : ctx.boldAI) : 0;
     if (busy || Math.abs(ctx.e0) > 1.2 || ctx.forceLane) {
       // (a move that rejoins the line after the corner only for the bigger offsets: a small one is the same as holding)
       for (const k of LANES) for (const h of HOLDS) if (h === Infinity ? true : Math.abs(k) >= 3) specs.push(spec('lane', k, h === Infinity ? Infinity : ctx.s0 + h));
@@ -136107,7 +136115,7 @@ class Planner {
     let bestCost = Infinity; const P = this.cand, B = this.best, g = ctx.grip, brake0 = g.brake;
     const committed = rival && prevSpec && this.prevPass > 0;   // (it was going for a place: it does not give it up for a hair)
     for (const sp of specs) {
-      if (sp.late) g.brake = brake0 * (1 + 0.04 * Math.min(1.2, ctx.bold));
+      if (sp.late) g.brake = brake0 * (1 + 0.04 * kb);
       this.build(P, sp, ctx);
       this.traffic(P, ctx);
       g.brake = brake0;
@@ -136116,7 +136124,7 @@ class Planner {
       // (racecraft: the place is worth more than the time over these 6 s - a path that gets past the car ahead, or
       //  alongside it, is worth having; a late stop carries its risk; leaving a move that is on costs)
       P.pass = rival ? this.passValue(P, ctx) : 0;
-      if (rival) { cost -= 0.35 * Math.min(1.2, ctx.bold) * P.pass; if (sp.late) cost += 0.04; if (committed && sp !== prevSpec) cost += 0.18 * Math.min(1.2, ctx.bold); }
+      if (rival) { cost -= 0.35 * P.pass; if (sp.late) cost += 0.04; if (committed && sp !== prevSpec) cost += 0.18 * kb; }
       let off = 0; for (let i = 0; i < n; i += 2) off += Math.abs(P.e[i]); cost += 0.0015 * off;
       // changing its mind costs: a little for any change, more the further the new lane is from the one it was in
       // (lateral position compared at the first node past the transition: a held position and a lane are comparable)
@@ -136129,14 +136137,20 @@ class Planner {
     this.prevPass = B.pass || 0;
     return B;
   }
-  /** a car to race with the moves: one it cannot read (the player - two AI cars read each other's plans, and racing each
-   *  other that way already), ahead within 60 m or alongside, running (not lapping me, not the safety car) */
+  /** a car to race with the moves: the player (ctx.bold) or another AI car read by its plan (ctx.boldAI), ahead within
+   *  60 m or alongside, running (not lapping me, not the safety car) */
   rivalNear(ctx) {
     for (let r = 0; r < this.nOthers; r++) {
       const R = this.others[r], o = R.car;
-      if (R.human && R.s0 > -6 && R.s0 < 60 && !R.lapping && !o.isSC && o.speed > 15) return R;
+      if (this.rivalK(R, ctx) > 0 && R.s0 > -6 && R.s0 < 60) return R;
     }
     return null;
+  }
+  /** how much a car is raced with the moves (rivalNear): 0 for one that is not */
+  rivalK(R, ctx) {
+    const o = R.car;
+    if (R.lapping || o.isSC || o.retired || o.speed <= 15) return 0;
+    return Math.min(1.2, R.human ? ctx.bold || 0 : R.planned ? ctx.boldAI || 0 : 0);
   }
   /** the middle of the next corner 40 m or more ahead, inside the horizon less 60 m (absolute s), or null */
   nextApex(ctx) {
@@ -136149,8 +136163,9 @@ class Planner {
     return null;
   }
   /**
-   * How far path P gets on the cars it races with the moves (rivalNear: the player) just ahead, counted in cars: past one by the end of the time it is
-   * predicted for (6 s, or the path's end) - 1; alongside it - a part of one, the more of it the further up. Only beside
+   * How far path P gets on the cars it races with the moves (rivalNear) just ahead, counted in cars (each by how much
+   * it is raced - rivalK): past one by the end of the time it is predicted for (6 s, or the path's end) - 1; alongside
+   * it - a part of one, the more of it the further up. Only beside
    * it: where the path draws level, a car's width off it (a path through it - traffic() lets one run on into a car more
    * than 2 s off - gets nothing, nor a part of it closer than that)
    */
@@ -136160,8 +136175,8 @@ class Planner {
     const f = Math.max(0, Math.min(1, (tEnd - P.t[i - 1]) / Math.max(1e-3, P.t[i] - P.t[i - 1]))), xMe = (i - 1 + f) * DS, q = Math.min(PRED_N - 1, Math.round(tEnd / PRED_DT));
     let v = 0;
     for (let r = 0; r < this.nOthers; r++) {
-      const R = this.others[r], o = R.car;
-      if (!R.human || !R.ahead0 || R.s0 > 60 || R.lapping || o.isSC) continue;
+      const R = this.others[r], w = this.rivalK(R, ctx);
+      if (!w || !R.ahead0 || R.s0 > 60) continue;
       const lead = xMe - R.s[q];
       if (lead <= -Lc) continue;
       let dd = Infinity;
@@ -136171,7 +136186,7 @@ class Planner {
         if (gs > -Lc && gs < Lc) dd = Math.min(dd, Math.abs(R.d[q0] + (R.d[q0 + 1] - R.d[q0]) * fq - P.d[j]));
       }
       const side = dd === Infinity ? 1 : Math.max(0, Math.min(1, (dd - 0.6 * W) / (0.4 * W)));
-      v += side * (lead > 2 ? 1 : 0.5 * (lead + Lc) / (Lc + 2));
+      v += w * side * (lead > 2 ? 1 : 0.5 * (lead + Lc) / (Lc + 2));
     }
     return v;
   }
@@ -136845,6 +136860,7 @@ const AI_TUNE = {
   edgeGuard: 1, satLift: 1, slipLift: 8, guardBrakeV: 45,
   packCal: 1,                                            // a calibration marked `pack` (fitted solo) only in clean air after the opening lap (0: everywhere)
   bold: 1,                                               // racecraft against the player (Planner, by aggression): commit to a move, lunge, switch back, read him through his corrections (0: as before)
+  boldAI: 1,                                             // ... the moves (commit, lunge, switch back) against another AI car too, and corner ownership (the inside car level with the other has it), none on the opening lap (0: as before)
   // ---- the driver
   vScaleBase: 0.972, vScaleK: 0.028,                     // cornering commitment by rating
   aBBase: 0.88, aBK: 0.09,                               // braking commitment by rating
@@ -136960,6 +136976,7 @@ class AIDriver {
     // (racecraft: how much it means a move - by the driver's aggression, half of it on the opening lap, none under race
     //  control: Planner reads it)
     ctx.bold = rule ? 0 : T.bold * Math.min(1.2, this.aggression) * (lap1 ? 0.5 : 1);
+    ctx.boldAI = rule || lap1 ? 0 : T.boldAI * Math.min(1.2, this.aggression);
     // (a circuit's calibration fitted to a car on its own - ai/Calibration.js `pack`, Austin's from a driver's laps - spun
     //  the field in the pack: the opening lap is driven on the physics, and so is any stretch in traffic - fading back
     //  in from 25 m to 100 m behind the nearest car ahead, none with a car alongside)

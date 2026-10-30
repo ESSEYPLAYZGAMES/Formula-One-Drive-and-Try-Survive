@@ -463,11 +463,19 @@ car's width between them - the AI expects the room the rules give it and squeeze
 only fires on a real overlap. And it races for the place: a path that gets past (or alongside) counts for more than
 the time (only a path that is beside the car where it draws level, not one through it), it sticks to a move it is
 making, and it has two more moves - the lunge (the attacking lanes braked 4 % later) and the switchback (wide into the
-corner, across behind the car at the apex, up the inside out of it). All of it is for the player only: two AI cars read
-each other's plans, and AI-only races are bit for bit what they were. In a test at Austin against a scripted car the AI
+corner, across behind the car at the apex, up the inside out of it). In a test at Austin against a scripted car the AI
 could not read, about 5 s a lap slower and weaving +-0.4 m round its line, the AI behind got by in 7 runs of 8 (the
 old AI 8) in a median 31 s instead of 50 s - half of its passes through the esses (the old AI's: one in ten, the rest
-at the hairpins and the end of the back straight) - with no contact in either.
+at the hairpins and the end of the back straight) - with no contact in either, nor against one that gave no room.
+
+The same moves against another AI car (`AI_TUNE.boldAI`, by aggression; none on the opening lap or under race
+control), read by its plan - the fixes for an unread car do not apply - plus corner ownership: where an AI car's path
+meets another's in a corner, on the inside of it and level with it there (its nose at least to the other's middle),
+the corner is its own, and the other car is expected to leave the room. Its own plan reads it the same way round - it
+is the one outside - and gives way, so the two agree rather than both lifting. In a duel of two AI cars (the attacker
+about 4 s a lap quicker) the pair ran side by side 45 % more with no more contact; in 5-lap races of the full field
+the overtakes, spins and retirements were what they were, with a little more rubbing (damaging hits 54 a race, 47
+before).
 
 `AIDriver` drives the chosen plan: pure pursuit to a point on the path with a slip-angle feed-forward (above 35 m/s)
 and countersteer; the pedals aim at the most the plan allows a moment ahead (flat out below it, braking onto it),

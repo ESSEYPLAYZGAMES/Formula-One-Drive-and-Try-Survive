@@ -50,7 +50,7 @@ export const AI_TUNE = {
   edgeGuard: 1, satLift: 1, slipLift: 8, guardBrakeV: 45,
   packCal: 1,                                            // a calibration marked `pack` (fitted solo) only in clean air after the opening lap (0: everywhere)
   bold: 1,                                               // racecraft against the player (Planner, by aggression): commit to a move, lunge, switch back, read him through his corrections (0: as before)
-  boldAI: 0,                                             // ... the moves (commit, lunge, switch back) against another AI car too, none on the opening lap (0: as before)
+  boldAI: 1,                                             // ... the moves (commit, lunge, switch back) against another AI car too, and corner ownership (the inside car level with the other has it), none on the opening lap (0: as before)
   // ---- the driver
   vScaleBase: 0.972, vScaleK: 0.028,                     // cornering commitment by rating
   aBBase: 0.88, aBK: 0.09,                               // braking commitment by rating
