@@ -35,6 +35,8 @@ it runs from `file://` because nothing is fetched. Rebuild after editing the sou
 | Shift | ERS deploy |
 | P | Request pit stop (opens the pit menu: 1-5 tyres, 7/8/9 repairs, Enter confirm) |
 | R | Reset to track (offered after 4 s stationary; damage is kept) |
+
+Volume: a slider in the pause menu and on the setup's Driving page (one master volume for everything, remembered).
 | V | Camera: cockpit → T-cam (airbox broadcast view) → chase → TV |
 | C (hold) | Look back, cut in instantly, per camera: cockpit → the driver's view back over the engine cover; T-cam → the rear-facing T-cam; chase → reverse chase from in front of the car; TV → the trackside camera behind |
 | Q / E (hold) | Look left / right: the head turns up to 80° and moves out past the halo (chase cam swings round) |
@@ -751,11 +753,13 @@ keep a car out of the crowd and send it back toward the track. A car that clears
 
 ### Red flags
 
-A car torn in two, or three or more cars stopped on the circuit in one accident, is a red flag (not on the final lap:
-that finishes behind the safety car). The field drives round slowly for 14 s, then the race is suspended: every
-wreck is recovered, the debris and fires are cleared, and the cars line up on the grid in race order with fresh tyres
-and repairs (the player picks tyres in the pit menu) for a standing restart. Laps done so far stand; DRS comes back
-two laps after the restart.
+Red flags are for what a safety car cannot cover: a car torn in two that comes to rest on the road, or four or more
+cars stopped on it in one accident (not on the final lap: that finishes behind the safety car). Everything else is a
+safety car; only a life lost cancels the race. 4 s after the flag the race is suspended and every car, wherever it is
+(on track, in the pit lane, in its box), is on the grid: every wreck is recovered, the debris and fires are cleared,
+and the cars line up in race order with fresh tyres and repairs (the player picks tyres in the pit menu) for a
+standing restart. Laps done so far stand; DRS comes back two laps after the restart. (The field used to drive round
+slowly for 14 s first - some cars stopped behind the incident while others raced on.)
 
 ### Injuries and stand-ins
 

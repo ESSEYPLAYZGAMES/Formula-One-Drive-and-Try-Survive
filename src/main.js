@@ -1012,6 +1012,13 @@ $('btn-quali-done').addEventListener('click', () => { $('quali-panel').classList
 $('btn-next').addEventListener('click', () => { $('results').classList.add('hidden'); nextAfterResults(); });
 $('btn-menu').addEventListener('click', () => { $('results').classList.add('hidden'); toMenu(); });
 $('btn-resume').addEventListener('click', () => setPaused(false));
+// the master volume: a slider in the pause menu and in the setup's Driving page, both the same setting (Audio.setVolume)
+{
+  const sliders = ['vol-menu', 'vol-pause'].map($).filter(Boolean);
+  const show = () => { for (const s of sliders) { s.value = Math.round(audio.volume * 100); const v = s.parentElement.querySelector('.vol-val'); if (v) v.textContent = `${s.value}%`; } };
+  for (const s of sliders) s.addEventListener('input', () => { audio.setVolume(s.value / 100); show(); });
+  show();
+}
 $('btn-quit').addEventListener('click', () => { setPaused(false); quitSession(); });
 $('btn-photo').addEventListener('click', () => enterPhoto());
 $('btn-tel').addEventListener('click', () => openTelemetry(false));       // (already paused)

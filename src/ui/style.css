@@ -495,3 +495,9 @@ table.res tr.me td { color: var(--accent2); font-weight: 700; }
 #results .facts span { display: block; font-size: 10px; letter-spacing: 0.16em; color: rgba(255,255,255,0.55); font-weight: 700; }
 #results .facts b { display: block; font-size: 13px; margin-top: 3px; font-weight: 600; }
 @media (max-width: 640px) { #results .dotd { grid-template-columns: 1fr; } }
+
+/* the master volume slider (pause menu, setup) */
+.vol-row { display: flex; align-items: center; gap: 10px; }
+#pause .vol-row { margin-top: 12px; font: 600 12px/1 inherit; letter-spacing: .15em; color: #c9ced6; }
+.vol-row .vol { width: 180px; accent-color: #e10600; cursor: pointer; }
+.vol-row .vol-val { min-width: 40px; font-variant-numeric: tabular-nums; color: #c9ced6; font-size: 12px; }

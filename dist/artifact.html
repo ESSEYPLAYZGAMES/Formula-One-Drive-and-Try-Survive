@@ -499,6 +499,11 @@ table.res tr.me td { color: var(--accent2); font-weight: 700; }
 #results .facts b { display: block; font-size: 13px; margin-top: 3px; font-weight: 600; }
 @media (max-width: 640px) { #results .dotd { grid-template-columns: 1fr; } }
 
+/* the master volume slider (pause menu, setup) */
+.vol-row { display: flex; align-items: center; gap: 10px; }
+#pause .vol-row { margin-top: 12px; font: 600 12px/1 inherit; letter-spacing: .15em; color: #c9ced6; }
+.vol-row .vol { width: 180px; accent-color: #e10600; cursor: pointer; }
+.vol-row .vol-val { min-width: 40px; font-variant-numeric: tabular-nums; color: #c9ced6; font-size: 12px; }
 </style>
 <script type="importmap">
 {"imports": {"three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}
@@ -585,7 +590,7 @@ table.res tr.me td { color: var(--accent2); font-weight: 700; }
     <div class="brand-line"></div>
     <h1 id="brand-title">FORMULA 1<span id="brand-sub">SIMULATOR</span></h1>
     <!-- the build's version: +0.01 with every build handed out -->
-    <span id="app-ver" title="Version">V1.71</span>
+    <span id="app-ver" title="Version">V1.72</span>
     <div id="menu-sub">Real circuits built from OpenStreetMap</div>
   </div>
   <div id="loading" class="hidden"><div class="ld"><i></i></div><span>Building the circuit from OpenStreetMap…</span></div>
@@ -667,6 +672,7 @@ table.res tr.me td { color: var(--accent2); font-weight: 700; }
               <div class="opt"><div class="lbl">Assists</div><div class="seg k-seg" id="opt-assist"><button data-v="full" class="sel">TC+ABS</button><button data-v="abs">ABS</button><button data-v="none">None</button></div></div>
               <div class="opt"><div class="lbl">Racing line (L)</div><div class="seg k-seg" id="opt-line"><button data-v="on" class="sel">On</button><button data-v="off">Off</button></div></div>
               <div class="opt"><div class="lbl">Flashbacks</div><div class="seg k-seg" id="opt-fb"><button data-v="off">Off</button><button data-v="inf" class="sel">Unlimited</button></div></div>
+              <div class="opt"><div class="lbl">Volume</div><div class="vol-row"><input type="range" id="vol-menu" class="vol" min="0" max="100" step="1"><span class="vol-val"></span></div></div>
               <div class="opt"><div class="lbl">Race start</div><div class="seg k-seg" id="opt-intro"><button data-v="on" class="sel">Build-up</button><button data-v="skip">Straight to lights</button></div></div>
             </div>
             <div class="su-keys"><div class="lbl">Controls · keyboard or gamepad</div><dl>
@@ -720,6 +726,7 @@ table.res tr.me td { color: var(--accent2); font-weight: 700; }
 <div id="pause" class="panel hidden">
   <h2>PAUSED</h2>
   <div class="row center"><button id="btn-resume" class="go">RESUME<span>→</span></button><button id="btn-tel" class="ghost">TELEMETRY</button><button id="btn-photo" class="ghost">PHOTO MODE</button><button id="btn-finish" class="ghost hidden">FINISH SESSION</button><button id="btn-end" class="ghost hidden">END SESSION</button><button id="btn-quit" class="ghost">QUIT TO MENU</button></div>
+  <div class="row center vol-row"><label for="vol-pause">VOLUME</label><input type="range" id="vol-pause" class="vol" min="0" max="100" step="1"><span class="vol-val"></span></div>
   <div class="hint">Photo mode: WASD fly · Q/E down/up · Shift fast · drag or arrow keys to look · H toggle HUD · Esc back</div>
 </div>
 <div id="photo-hint" class="hidden"><span>PHOTO MODE · WASD fly · Q/E · Shift · drag to look · H HUD · P/Space play · Esc back</span><button id="photo-play">▶ PLAY</button></div>
@@ -107202,7 +107209,7 @@ return { MAX_LAYERS, TEAM_LIVERIES, PATTERNS, designLivery, liveryFor, liveryUni
 // ---- src/vehicle/CarMesh.js
 __m['src/vehicle/CarMesh.js'] = (() => {
 const { COMPOUNDS } = __m['src/vehicle/Tyres.js'];
-const { helmetTexture } = __m['src/world/HelmetDesigns.js'];
+const { helmetTexture, helmetDesign } = __m['src/world/HelmetDesigns.js'];
 const { TERRAIN } = __m['src/world/Terrain.js'];
 const { floodlit } = __m['src/world/Lighting.js'];
 const { carModel } = __m['src/vehicle/CarModel.js'];
@@ -107276,7 +107283,22 @@ function posePiece(o, rec, t) {
 const TYRE_WF = 0.346, TYRE_WR = 0.402, R_RIM = 0.2286;
 const rimF = new THREE.CylinderGeometry(R_RIM, R_RIM, TYRE_WF - 0.02, 20); rimF.rotateX(Math.PI / 2);
 const rimR = new THREE.CylinderGeometry(R_RIM, R_RIM, TYRE_WR - 0.02, 20); rimR.rotateX(Math.PI / 2);
-const helmetGeo = new THREE.SphereGeometry(0.145, 28, 20), helmetFar = new THREE.SphereGeometry(0.145, 8, 5), visorBandGeo = new THREE.SphereGeometry(0.13, 16, 8, -0.75, 1.5, 1.15, 0.5);
+// the driver's head and shoulders (shared): a real helmet's shell - a little longer than wide, open at the neck, its lower
+// front swept down into the chin guard (world/People.js makeHelmet, the same shape) - its visor, the spoiler on top at
+// the back; a low one for the medium state; the neck in its balaclava, the shoulders, the HANS collar on them
+const HR = 0.145, HSX = 1.12, HSZ = 0.92;
+const helmetGeo = (() => {
+  const g = new THREE.SphereGeometry(HR, 40, 28, 0, Math.PI * 2, 0, Math.PI * 0.78), p = g.attributes.position;
+  for (let i = 0; i < p.count; i++) { const x = p.getX(i), y = p.getY(i); if (x < -0.04 && y < 0) p.setY(i, y * (1 + Math.min(0.35, (-x - 0.04) * 4))); }   // (the chin guard: the front is -x here, turned below)
+  g.computeVertexNormals(); g.scale(HSX, 1, HSZ); g.rotateY(Math.PI); return g;   // (front to +x; a design's u = 0 faces forward)
+})();
+const helmetFar = new THREE.SphereGeometry(HR, 10, 7); helmetFar.scale(HSX, 1, HSZ);
+const visorBandGeo = new THREE.SphereGeometry(HR * 1.012, 40, 10, Math.PI - 1.1, 2.2, 1.0, 0.5); visorBandGeo.scale(HSX, 1, HSZ);   // (centred on +x: the front)
+const spoilerGeo = new THREE.BoxGeometry(0.06, 0.01, 0.12).rotateZ(-0.25).translate(-0.13, 0.105, 0);
+const neckGeo = new THREE.CylinderGeometry(0.052, 0.06, 0.13, 14).translate(0, -0.15, 0);
+const shouldersGeo = new THREE.CapsuleGeometry(0.075, 0.28, 4, 12).rotateX(Math.PI / 2).scale(0.9, 1, 1).translate(-0.04, -0.235, 0);
+const hansGeo = (() => { const g = new THREE.TorusGeometry(0.105, 0.024, 8, 24, Math.PI * 1.25); g.rotateX(Math.PI / 2); g.rotateY(-Math.PI * 0.375); g.translate(-0.03, -0.2, 0); return g; })();   // (a collar round the back of the neck, open at the front, its arms down onto the shoulders)
+const hansMat = new THREE.MeshStandardMaterial({ color: 0x15161a, roughness: 0.55, metalness: 0.2 });
 const shadowGeo = new THREE.PlaneGeometry(5.5, 2.15); shadowGeo.rotateX(-Math.PI / 2); shadowGeo.translate(0, 0.01, 0);
 const flangeGeo = new THREE.TorusGeometry(0.232, 0.014, 6, 28);
 const carcassGeo = new THREE.TorusGeometry(0.243, 0.028, 6, 24, Math.PI * 1.3);
@@ -107293,8 +107315,8 @@ const visorMat = new THREE.MeshStandardMaterial({ color: 0x0a0a10, roughness: 0.
 // a wheel with its tyre gone: bare machined metal (a touch of its own light so it reads silver at night too)
 const bareRimMat = new THREE.MeshStandardMaterial({ color: 0xe4e7ec, roughness: 0.3, metalness: 0.45, emissive: 0x50545b, emissiveIntensity: 0.55 });
 const cordMat = new THREE.MeshStandardMaterial({ color: 0x8a8074, roughness: 0.95 });
-const SHARED_GEO = new Set([rimF, rimR, helmetGeo, helmetFar, visorBandGeo, shadowGeo, flangeGeo, carcassGeo, tatterGeo, cordGeo]);
-const SHARED_MAT = new Set([rubber, shadowMat, visorMat, bareRimMat, cordMat]);
+const SHARED_GEO = new Set([rimF, rimR, helmetGeo, helmetFar, visorBandGeo, spoilerGeo, neckGeo, shouldersGeo, hansGeo, shadowGeo, flangeGeo, carcassGeo, tatterGeo, cordGeo]);
+const SHARED_MAT = new Set([rubber, shadowMat, visorMat, bareRimMat, cordMat, hansMat]);
 
 // ---- the model's shared materials (built once it is loaded): textured for the near states; the tyres one per compound
 let MAT = null;
@@ -107457,18 +107479,21 @@ class CarMesh {
     // the halo (toggled with H)
     this.halo = at('halo'); put(this.halo, 'halo'); body.add(this.halo);
 
-    // ---- the driver: the helmet (their own design if they have one - world/HelmetDesigns.js - else one colour; u = 0
-    //      turned to face forward), the visor's dark band, the shoulders and arms out to the wheel, the gloves on it
+    // ---- the driver: the helmet (their own design if they have one - world/HelmetDesigns.js - else one colour) with its
+    //      visor (tinted toward the design's iridium) and spoiler; the neck, the shoulders and the HANS collar under it;
+    //      the arms out to the wheel, the gloves on it. (this.helmet: the whole head - hidden for a view from inside it)
     const HX = 0.2, HY = 0.79;
-    const hmap = opts.driver ? helmetTexture(opts.driver, { size: 512 }) : null;
-    const helmet = new THREE.Mesh(helmetGeo, new THREE.MeshStandardMaterial(hmap ? { map: hmap, roughness: 0.22, metalness: 0.12 } : { color: new THREE.Color(opts.helmet || '#ffffff'), roughness: 0.25, metalness: 0.15 }));
-    own.add(helmet.material);
-    if (hmap) helmet.rotation.y = Math.PI;
-    helmet.scale.setScalar(0.9); helmet.position.set(HX, HY, 0); helmet.userData.role = 'helmet';
-    body.add(helmet); this.helmet = helmet;
-    const visor = new THREE.Mesh(visorBandGeo, visorMat); visor.position.copy(helmet.position); body.add(visor); this.visor = visor;   // (ULTRA and HIGH)
+    const hmap = opts.driver ? helmetTexture(opts.driver, { size: 512 }) : null, HD = opts.driver ? helmetDesign(opts.driver) : null;
+    const helmetMat = new THREE.MeshStandardMaterial(hmap ? { map: hmap, roughness: 0.2, metalness: 0.12 } : { color: new THREE.Color(opts.helmet || '#ffffff'), roughness: 0.22, metalness: 0.15 }); own.add(helmetMat);
+    const visorTint = new THREE.MeshStandardMaterial({ color: new THREE.Color('#08090c').lerp(new THREE.Color(HD?.visor || '#1a2a44'), HD ? 0.3 : 0.25), roughness: 0.04, metalness: 0.8 }); own.add(visorTint);
     const suit = new THREE.Color(opts.glove || opts.color2 || spec.base);
     const suitMat = new THREE.MeshStandardMaterial({ color: suit, roughness: 0.8 }); own.add(suitMat);
+    const helmet = new THREE.Group(); helmet.scale.setScalar(0.9); helmet.position.set(HX, HY, 0); helmet.userData.role = 'helmet';
+    const shell = new THREE.Mesh(helmetGeo, helmetMat), shellLo = new THREE.Mesh(helmetFar, helmetMat);
+    const head = new THREE.Group();   // (ULTRA and HIGH: the shell, the visor, the spoiler, the neck, shoulders and HANS)
+    head.add(shell, new THREE.Mesh(visorBandGeo, visorTint), new THREE.Mesh(spoilerGeo, hansMat), new THREE.Mesh(neckGeo, suitMat), new THREE.Mesh(shouldersGeo, suitMat), new THREE.Mesh(hansGeo, hansMat));
+    helmet.add(head, shellLo); shellLo.visible = false;
+    body.add(helmet); this.helmet = helmet; this.visor = head; this._headLo = shellLo;
     const swP = M.pivots.sw || [0.72, 0.61, 0];
     const driver = new THREE.Group();
     { const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.17, 0.28, 4, 10).rotateZ(Math.PI / 2).scale(1, 0.75, 1.25).translate(HX - 0.02, 0.6, 0), suitMat); driver.add(torso); }
@@ -107554,7 +107579,7 @@ class CarMesh {
       this._lvNow = lv;
       for (let l = 0; l < 3; l++) for (const o of this.lv[l]) o.visible = l === lv;
       for (const o of this.details) o.visible = lv === 0;
-      this.visor.visible = lv <= 1;
+      this.visor.visible = lv <= 1; this._headLo.visible = lv > 1;   // (the head up close; a plain shell further off)
     }
     if (zoom !== this._zoom) { this._zoom = zoom; for (const l of this.group.levels) l.distance = l.object === this.far ? LOD_FAR * zoom : l.object === this.min ? LOD_MIN * zoom : 0; }
   }
@@ -108922,17 +108947,29 @@ __m['src/audio/Audio.js'] = (() => {
 const SAMPLES = ['crowd', 'gasp', 'groan', 'horror'];
 
 class AudioEngine {
-  constructor() { this.ctx = null; this.muted = false; this.ready = false; }
+  constructor() {
+    this.ctx = null; this.muted = false; this.ready = false;
+    // the master volume (settings: 0-1, kept in the browser): one gain in front of the speakers, after every bus
+    let v = 0.8; try { const s = localStorage.getItem('f1.volume'); if (s != null && isFinite(+s)) v = Math.max(0, Math.min(1, +s)); } catch (e) { /* storage off */ }
+    this.volume = v;
+  }
+  /** set the master volume (0-1) and remember it */
+  setVolume(v) {
+    this.volume = Math.max(0, Math.min(1, +v || 0));
+    try { localStorage.setItem('f1.volume', String(this.volume)); } catch (e) { /* storage off */ }
+    if (this.out) this.out.gain.setTargetAtTime(this.volume * this.volume, this.ctx.currentTime, 0.03);   // (squared: the slider's middle sounds like half)
+  }
   init() {
     if (this.ready) return;
     const C = window.AudioContext || window.webkitAudioContext; if (!C) return;
     const ctx = this.ctx = new C();
     // the world's mix goes through a low-pass the crash camera closes (everything muffled); the crash's own sounds
     // (the punch, the crunches, the ticks) go round it, through fx, at full range
+    this.out = ctx.createGain(); this.out.gain.value = this.volume * this.volume; this.out.connect(ctx.destination);   // (the master volume)
     this.master = ctx.createGain(); this.master.gain.value = 0.35;
     this.muffle = ctx.createBiquadFilter(); this.muffle.type = 'lowpass'; this.muffle.frequency.value = 20000; this.muffle.Q.value = 0.7;
-    this.master.connect(this.muffle); this.muffle.connect(ctx.destination);
-    this.fx = ctx.createGain(); this.fx.gain.value = 0.45; this.fx.connect(ctx.destination);
+    this.master.connect(this.muffle); this.muffle.connect(this.out);
+    this.fx = ctx.createGain(); this.fx.gain.value = 0.45; this.fx.connect(this.out);
     this.noiseBuf = null;
     // engine: two detuned saws + sub square through a lowpass
     this.osc1 = ctx.createOscillator(); this.osc1.type = 'sawtooth';
@@ -108951,7 +108988,7 @@ class AudioEngine {
     this.noiseGain = ctx.createGain(); this.noiseGain.gain.value = 0;
     this.noise.connect(this.noiseFilter); this.noiseFilter.connect(this.noiseGain); this.noiseGain.connect(this.master); this.noise.start();
     // recorded sounds: their own bus, outside silence() (the mourning screen's strings play in the silence)
-    this.sfx = ctx.createGain(); this.sfx.gain.value = 0.6; this.sfx.connect(ctx.destination);
+    this.sfx = ctx.createGain(); this.sfx.gain.value = 0.6; this.sfx.connect(this.out);
     this.ready = true;
     // (the tab in the background or the window minimised: every sound stops, and carries on when you are back)
     document.addEventListener('visibilitychange', () => { if (document.hidden) ctx.suspend?.(); else ctx.resume?.(); });
@@ -138738,7 +138775,7 @@ const SC_MIN = 50, SC_MAX = 170;  // the safety car stays out at least / at most
 const VSC_MIN = 22, VSC_END = 8;
 const CLEAR_T = 3;                // seconds an incident must stay clear before it counts as clear (a stopped car shunted by the next one moves for a moment)
 const RAMP = 8;                   // seconds over which the delta speed comes in after the call
-const RED_T = 14;                 // seconds the field drives round slowly under the red flag before the race is suspended
+const RED_T = 4;                  // seconds after the red flag (the board, the radio) before the race is suspended and every car is on the grid - no lap round at a crawl in which some cars stopped and others raced on
 const RED = { scale: 0.5, vCap: 38 };
 const SC_PACE = { scale: 0.7, vCap: 52, brake: 0.5 };   // the safety car itself (~185 km/h on the straights, braking gently: no accordion behind it)
 const DELTA = { scale: 0.76, vCap: 62 };       // the field catching up under the safety car
@@ -138890,9 +138927,11 @@ class SafetyCar {
   scan() {
     const d = this.d;
     if (this.phase !== 'red' && !this._redLock) {
-      const split = d.cars.find((c) => c.split && !c._redSeen);
-      if (split) { split._redSeen = true; if (this.redFlag(`${split.short} · MAJOR ACCIDENT`)) return; }
-      if (this.incident && this.incident.onRoad && this.incident.cars.size >= 3 && !this.incident.red) { this.incident.red = true; if (this.redFlag('MULTIPLE CARS STOPPED')) return; }
+      // (red flags only for what the safety car cannot cover: a car torn in two lying on the road, or four or more cars
+      //  stopped on it in one accident - everything else is a safety car; only a life lost cancels the race)
+      const split = d.cars.find((c) => c.split && !c._redSeen && c.speed < 1);
+      if (split) { split._redSeen = true; if (this.onRoad(split) && this.redFlag(`${split.short} · MAJOR ACCIDENT`)) return; }
+      if (this.incident && this.incident.onRoad && this.incident.cars.size >= 4 && !this.incident.red) { this.incident.red = true; if (this.redFlag('MULTIPLE CARS STOPPED')) return; }
     }
     for (const c of d.cars) {
       // (a car already flagged counts again once the flags are green: the incident went clear - shunted, rolling -
@@ -142545,6 +142584,13 @@ $('btn-quali-done').addEventListener('click', () => { $('quali-panel').classList
 $('btn-next').addEventListener('click', () => { $('results').classList.add('hidden'); nextAfterResults(); });
 $('btn-menu').addEventListener('click', () => { $('results').classList.add('hidden'); toMenu(); });
 $('btn-resume').addEventListener('click', () => setPaused(false));
+// the master volume: a slider in the pause menu and in the setup's Driving page, both the same setting (Audio.setVolume)
+{
+  const sliders = ['vol-menu', 'vol-pause'].map($).filter(Boolean);
+  const show = () => { for (const s of sliders) { s.value = Math.round(audio.volume * 100); const v = s.parentElement.querySelector('.vol-val'); if (v) v.textContent = `${s.value}%`; } };
+  for (const s of sliders) s.addEventListener('input', () => { audio.setVolume(s.value / 100); show(); });
+  show();
+}
 $('btn-quit').addEventListener('click', () => { setPaused(false); quitSession(); });
 $('btn-photo').addEventListener('click', () => enterPhoto());
 $('btn-tel').addEventListener('click', () => openTelemetry(false));       // (already paused)

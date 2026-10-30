@@ -26,7 +26,7 @@ const SC_MIN = 50, SC_MAX = 170;  // the safety car stays out at least / at most
 const VSC_MIN = 22, VSC_END = 8;
 const CLEAR_T = 3;                // seconds an incident must stay clear before it counts as clear (a stopped car shunted by the next one moves for a moment)
 const RAMP = 8;                   // seconds over which the delta speed comes in after the call
-const RED_T = 14;                 // seconds the field drives round slowly under the red flag before the race is suspended
+const RED_T = 4;                  // seconds after the red flag (the board, the radio) before the race is suspended and every car is on the grid - no lap round at a crawl in which some cars stopped and others raced on
 const RED = { scale: 0.5, vCap: 38 };
 const SC_PACE = { scale: 0.7, vCap: 52, brake: 0.5 };   // the safety car itself (~185 km/h on the straights, braking gently: no accordion behind it)
 const DELTA = { scale: 0.76, vCap: 62 };       // the field catching up under the safety car
@@ -178,9 +178,11 @@ export class SafetyCar {
   scan() {
     const d = this.d;
     if (this.phase !== 'red' && !this._redLock) {
-      const split = d.cars.find((c) => c.split && !c._redSeen);
-      if (split) { split._redSeen = true; if (this.redFlag(`${split.short} · MAJOR ACCIDENT`)) return; }
-      if (this.incident && this.incident.onRoad && this.incident.cars.size >= 3 && !this.incident.red) { this.incident.red = true; if (this.redFlag('MULTIPLE CARS STOPPED')) return; }
+      // (red flags only for what the safety car cannot cover: a car torn in two lying on the road, or four or more cars
+      //  stopped on it in one accident - everything else is a safety car; only a life lost cancels the race)
+      const split = d.cars.find((c) => c.split && !c._redSeen && c.speed < 1);
+      if (split) { split._redSeen = true; if (this.onRoad(split) && this.redFlag(`${split.short} · MAJOR ACCIDENT`)) return; }
+      if (this.incident && this.incident.onRoad && this.incident.cars.size >= 4 && !this.incident.red) { this.incident.red = true; if (this.redFlag('MULTIPLE CARS STOPPED')) return; }
     }
     for (const c of d.cars) {
       // (a car already flagged counts again once the flags are green: the incident went clear - shunted, rolling -

@@ -20,7 +20,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { COMPOUNDS } from './Tyres.js';
-import { helmetTexture } from '../world/HelmetDesigns.js';
+import { helmetTexture, helmetDesign } from '../world/HelmetDesigns.js';
 import { TERRAIN } from '../world/Terrain.js';
 import { floodlit } from '../world/Lighting.js';
 import { carModel } from './CarModel.js';
@@ -67,7 +67,22 @@ function posePiece(o, rec, t) {
 const TYRE_WF = 0.346, TYRE_WR = 0.402, R_RIM = 0.2286;
 const rimF = new THREE.CylinderGeometry(R_RIM, R_RIM, TYRE_WF - 0.02, 20); rimF.rotateX(Math.PI / 2);
 const rimR = new THREE.CylinderGeometry(R_RIM, R_RIM, TYRE_WR - 0.02, 20); rimR.rotateX(Math.PI / 2);
-const helmetGeo = new THREE.SphereGeometry(0.145, 28, 20), helmetFar = new THREE.SphereGeometry(0.145, 8, 5), visorBandGeo = new THREE.SphereGeometry(0.13, 16, 8, -0.75, 1.5, 1.15, 0.5);
+// the driver's head and shoulders (shared): a real helmet's shell - a little longer than wide, open at the neck, its lower
+// front swept down into the chin guard (world/People.js makeHelmet, the same shape) - its visor, the spoiler on top at
+// the back; a low one for the medium state; the neck in its balaclava, the shoulders, the HANS collar on them
+const HR = 0.145, HSX = 1.12, HSZ = 0.92;
+const helmetGeo = (() => {
+  const g = new THREE.SphereGeometry(HR, 40, 28, 0, Math.PI * 2, 0, Math.PI * 0.78), p = g.attributes.position;
+  for (let i = 0; i < p.count; i++) { const x = p.getX(i), y = p.getY(i); if (x < -0.04 && y < 0) p.setY(i, y * (1 + Math.min(0.35, (-x - 0.04) * 4))); }   // (the chin guard: the front is -x here, turned below)
+  g.computeVertexNormals(); g.scale(HSX, 1, HSZ); g.rotateY(Math.PI); return g;   // (front to +x; a design's u = 0 faces forward)
+})();
+const helmetFar = new THREE.SphereGeometry(HR, 10, 7); helmetFar.scale(HSX, 1, HSZ);
+const visorBandGeo = new THREE.SphereGeometry(HR * 1.012, 40, 10, Math.PI - 1.1, 2.2, 1.0, 0.5); visorBandGeo.scale(HSX, 1, HSZ);   // (centred on +x: the front)
+const spoilerGeo = new THREE.BoxGeometry(0.06, 0.01, 0.12).rotateZ(-0.25).translate(-0.13, 0.105, 0);
+const neckGeo = new THREE.CylinderGeometry(0.052, 0.06, 0.13, 14).translate(0, -0.15, 0);
+const shouldersGeo = new THREE.CapsuleGeometry(0.075, 0.28, 4, 12).rotateX(Math.PI / 2).scale(0.9, 1, 1).translate(-0.04, -0.235, 0);
+const hansGeo = (() => { const g = new THREE.TorusGeometry(0.105, 0.024, 8, 24, Math.PI * 1.25); g.rotateX(Math.PI / 2); g.rotateY(-Math.PI * 0.375); g.translate(-0.03, -0.2, 0); return g; })();   // (a collar round the back of the neck, open at the front, its arms down onto the shoulders)
+const hansMat = new THREE.MeshStandardMaterial({ color: 0x15161a, roughness: 0.55, metalness: 0.2 });
 const shadowGeo = new THREE.PlaneGeometry(5.5, 2.15); shadowGeo.rotateX(-Math.PI / 2); shadowGeo.translate(0, 0.01, 0);
 const flangeGeo = new THREE.TorusGeometry(0.232, 0.014, 6, 28);
 const carcassGeo = new THREE.TorusGeometry(0.243, 0.028, 6, 24, Math.PI * 1.3);
@@ -84,8 +99,8 @@ const visorMat = new THREE.MeshStandardMaterial({ color: 0x0a0a10, roughness: 0.
 // a wheel with its tyre gone: bare machined metal (a touch of its own light so it reads silver at night too)
 const bareRimMat = new THREE.MeshStandardMaterial({ color: 0xe4e7ec, roughness: 0.3, metalness: 0.45, emissive: 0x50545b, emissiveIntensity: 0.55 });
 const cordMat = new THREE.MeshStandardMaterial({ color: 0x8a8074, roughness: 0.95 });
-const SHARED_GEO = new Set([rimF, rimR, helmetGeo, helmetFar, visorBandGeo, shadowGeo, flangeGeo, carcassGeo, tatterGeo, cordGeo]);
-const SHARED_MAT = new Set([rubber, shadowMat, visorMat, bareRimMat, cordMat]);
+const SHARED_GEO = new Set([rimF, rimR, helmetGeo, helmetFar, visorBandGeo, spoilerGeo, neckGeo, shouldersGeo, hansGeo, shadowGeo, flangeGeo, carcassGeo, tatterGeo, cordGeo]);
+const SHARED_MAT = new Set([rubber, shadowMat, visorMat, bareRimMat, cordMat, hansMat]);
 
 // ---- the model's shared materials (built once it is loaded): textured for the near states; the tyres one per compound
 let MAT = null;
@@ -248,18 +263,21 @@ export class CarMesh {
     // the halo (toggled with H)
     this.halo = at('halo'); put(this.halo, 'halo'); body.add(this.halo);
 
-    // ---- the driver: the helmet (their own design if they have one - world/HelmetDesigns.js - else one colour; u = 0
-    //      turned to face forward), the visor's dark band, the shoulders and arms out to the wheel, the gloves on it
+    // ---- the driver: the helmet (their own design if they have one - world/HelmetDesigns.js - else one colour) with its
+    //      visor (tinted toward the design's iridium) and spoiler; the neck, the shoulders and the HANS collar under it;
+    //      the arms out to the wheel, the gloves on it. (this.helmet: the whole head - hidden for a view from inside it)
     const HX = 0.2, HY = 0.79;
-    const hmap = opts.driver ? helmetTexture(opts.driver, { size: 512 }) : null;
-    const helmet = new THREE.Mesh(helmetGeo, new THREE.MeshStandardMaterial(hmap ? { map: hmap, roughness: 0.22, metalness: 0.12 } : { color: new THREE.Color(opts.helmet || '#ffffff'), roughness: 0.25, metalness: 0.15 }));
-    own.add(helmet.material);
-    if (hmap) helmet.rotation.y = Math.PI;
-    helmet.scale.setScalar(0.9); helmet.position.set(HX, HY, 0); helmet.userData.role = 'helmet';
-    body.add(helmet); this.helmet = helmet;
-    const visor = new THREE.Mesh(visorBandGeo, visorMat); visor.position.copy(helmet.position); body.add(visor); this.visor = visor;   // (ULTRA and HIGH)
+    const hmap = opts.driver ? helmetTexture(opts.driver, { size: 512 }) : null, HD = opts.driver ? helmetDesign(opts.driver) : null;
+    const helmetMat = new THREE.MeshStandardMaterial(hmap ? { map: hmap, roughness: 0.2, metalness: 0.12 } : { color: new THREE.Color(opts.helmet || '#ffffff'), roughness: 0.22, metalness: 0.15 }); own.add(helmetMat);
+    const visorTint = new THREE.MeshStandardMaterial({ color: new THREE.Color('#08090c').lerp(new THREE.Color(HD?.visor || '#1a2a44'), HD ? 0.3 : 0.25), roughness: 0.04, metalness: 0.8 }); own.add(visorTint);
     const suit = new THREE.Color(opts.glove || opts.color2 || spec.base);
     const suitMat = new THREE.MeshStandardMaterial({ color: suit, roughness: 0.8 }); own.add(suitMat);
+    const helmet = new THREE.Group(); helmet.scale.setScalar(0.9); helmet.position.set(HX, HY, 0); helmet.userData.role = 'helmet';
+    const shell = new THREE.Mesh(helmetGeo, helmetMat), shellLo = new THREE.Mesh(helmetFar, helmetMat);
+    const head = new THREE.Group();   // (ULTRA and HIGH: the shell, the visor, the spoiler, the neck, shoulders and HANS)
+    head.add(shell, new THREE.Mesh(visorBandGeo, visorTint), new THREE.Mesh(spoilerGeo, hansMat), new THREE.Mesh(neckGeo, suitMat), new THREE.Mesh(shouldersGeo, suitMat), new THREE.Mesh(hansGeo, hansMat));
+    helmet.add(head, shellLo); shellLo.visible = false;
+    body.add(helmet); this.helmet = helmet; this.visor = head; this._headLo = shellLo;
     const swP = M.pivots.sw || [0.72, 0.61, 0];
     const driver = new THREE.Group();
     { const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.17, 0.28, 4, 10).rotateZ(Math.PI / 2).scale(1, 0.75, 1.25).translate(HX - 0.02, 0.6, 0), suitMat); driver.add(torso); }
@@ -345,7 +363,7 @@ export class CarMesh {
       this._lvNow = lv;
       for (let l = 0; l < 3; l++) for (const o of this.lv[l]) o.visible = l === lv;
       for (const o of this.details) o.visible = lv === 0;
-      this.visor.visible = lv <= 1;
+      this.visor.visible = lv <= 1; this._headLo.visible = lv > 1;   // (the head up close; a plain shell further off)
     }
     if (zoom !== this._zoom) { this._zoom = zoom; for (const l of this.group.levels) l.distance = l.object === this.far ? LOD_FAR * zoom : l.object === this.min ? LOD_MIN * zoom : 0; }
   }

@@ -97,7 +97,7 @@
     <div class="brand-line"></div>
     <h1 id="brand-title">FORMULA 1<span id="brand-sub">SIMULATOR</span></h1>
     <!-- the build's version: +0.01 with every build handed out -->
-    <span id="app-ver" title="Version">V1.71</span>
+    <span id="app-ver" title="Version">V1.72</span>
     <div id="menu-sub">Real circuits built from OpenStreetMap</div>
   </div>
   <div id="loading" class="hidden"><div class="ld"><i></i></div><span>Building the circuit from OpenStreetMap…</span></div>
@@ -179,6 +179,7 @@
               <div class="opt"><div class="lbl">Assists</div><div class="seg k-seg" id="opt-assist"><button data-v="full" class="sel">TC+ABS</button><button data-v="abs">ABS</button><button data-v="none">None</button></div></div>
               <div class="opt"><div class="lbl">Racing line (L)</div><div class="seg k-seg" id="opt-line"><button data-v="on" class="sel">On</button><button data-v="off">Off</button></div></div>
               <div class="opt"><div class="lbl">Flashbacks</div><div class="seg k-seg" id="opt-fb"><button data-v="off">Off</button><button data-v="inf" class="sel">Unlimited</button></div></div>
+              <div class="opt"><div class="lbl">Volume</div><div class="vol-row"><input type="range" id="vol-menu" class="vol" min="0" max="100" step="1"><span class="vol-val"></span></div></div>
               <div class="opt"><div class="lbl">Race start</div><div class="seg k-seg" id="opt-intro"><button data-v="on" class="sel">Build-up</button><button data-v="skip">Straight to lights</button></div></div>
             </div>
             <div class="su-keys"><div class="lbl">Controls · keyboard or gamepad</div><dl>
@@ -232,6 +233,7 @@
 <div id="pause" class="panel hidden">
   <h2>PAUSED</h2>
   <div class="row center"><button id="btn-resume" class="go">RESUME<span>→</span></button><button id="btn-tel" class="ghost">TELEMETRY</button><button id="btn-photo" class="ghost">PHOTO MODE</button><button id="btn-finish" class="ghost hidden">FINISH SESSION</button><button id="btn-end" class="ghost hidden">END SESSION</button><button id="btn-quit" class="ghost">QUIT TO MENU</button></div>
+  <div class="row center vol-row"><label for="vol-pause">VOLUME</label><input type="range" id="vol-pause" class="vol" min="0" max="100" step="1"><span class="vol-val"></span></div>
   <div class="hint">Photo mode: WASD fly · Q/E down/up · Shift fast · drag or arrow keys to look · H toggle HUD · Esc back</div>
 </div>
 <div id="photo-hint" class="hidden"><span>PHOTO MODE · WASD fly · Q/E · Shift · drag to look · H HUD · P/Space play · Esc back</span><button id="photo-play">▶ PLAY</button></div>
