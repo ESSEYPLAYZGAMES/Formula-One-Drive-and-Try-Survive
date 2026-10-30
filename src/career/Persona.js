@@ -1,37 +1,53 @@
-// Who they are, and where you left things. Everyone you can date has one of three personalities (to start) - the Spark
-// (bubbly, playful, a dare in everything), the Ice (cool, sharp, makes you earn it) and the Sunshine (warm, sincere, a
-// bit of a dork) - each with its own conversations and texts (career/talk/<persona>.js: written as trees, nothing shared
-// between them). Every answer you give has a tone - cold, passive, flirty and, now and then, risque - and where you
-// steer a conversation is the mood it ends in; the next one, in person or on the phone, opens in that mood: leave it
-// flirty and they come back flirting, leave it cold and you have some ground to make up. Nothing is said twice until
-// everything for that moment has been (then the least recent first), and the texts come in order - a thread at a time,
-// answered or not, about the week, your race, the date you just had - never a shuffled pool. The state is plain JSON on
-// the career (c.persona.npcs['c:<celebId>' | 'n:<localId>']: the personality, the mood, what has been said); the callers
-// save.
+// Who they are, and where you left things. Everyone you can date has one of eight personalities - Playful, Aloof,
+// Sweet, Flirtatious, Emotional, Rude, Dominant, Shy - each with its own conversations and texts (career/talk/<id>.js:
+// written as trees, nothing shared between them). Every answer you give has a tone - cold, passive, flirty and, now and
+// then, risque - and where you steer a conversation is the mood it ends in; the next one, in person or on the phone,
+// opens in that mood: leave it flirty and they come back flirting, leave it cold and you have some ground to make up.
+// It is a story told in order: at each stage of where you are with them (just met, getting closer, together) every
+// conversation is the next one of that stage's nine, and every text the next of its kind - the mood you left them in
+// picks which version of it you get - so nothing is ever said twice and nothing comes before what it builds on (only
+// once a stage's are all told does the least recent come round again). The state is plain JSON on the career
+// (c.persona.npcs['c:<id>'] - a star's id, or a local's 'l-...' (career/Locals.js): the personality, the mood, how far
+// the story has got); the callers save.
 import { CELEB } from './Celebs.js';
 import { PERSONA as spark } from './talk/spark.js';
 import { PERSONA as ice } from './talk/ice.js';
 import { PERSONA as sunny } from './talk/sunny.js';
+import { PERSONA as flirtatious } from './talk/flirtatious.js';
+import { PERSONA as emotional } from './talk/emotional.js';
+import { PERSONA as rude } from './talk/rude.js';
+import { PERSONA as dominant } from './talk/dominant.js';
+import { PERSONA as shy } from './talk/shy.js';
 
 export const PERSONAS = {
-  spark: { id: 'spark', name: 'The Spark', blurb: 'Bubbly, playful, impulsive. Loves a flirt and a dare; coldness stings.', data: spark },
-  ice: { id: 'ice', name: 'The Ice', blurb: 'Cool, sharp, guarded. Respects confidence; eagerness reads as cheap - until it does not.', data: ice },
-  sunny: { id: 'sunny', name: 'The Sunshine', blurb: 'Warm, sincere, a little dorky. Easy company; flirting makes them blush, coldness hurts.', data: sunny },
+  spark: { id: 'spark', name: 'Playful', blurb: 'Bubbly, playful, impulsive, teasing. Loves a flirt and a dare; coldness stings.', data: spark },
+  ice: { id: 'ice', name: 'Aloof', blurb: 'Cool, sharp, guarded, dry. Respects confidence; eagerness reads as cheap - until it does not.', data: ice },
+  sunny: { id: 'sunny', name: 'Sweet', blurb: 'Warm, sincere, kind, a little dorky. Flirting makes them blush; coldness hurts.', data: sunny },
+  flirtatious: { id: 'flirtatious', name: 'Flirtatious', blurb: 'Seductive, bold, sultry, confident. Everything is innuendo - the most risque of them all.', data: flirtatious },
+  emotional: { id: 'emotional', name: 'Emotional', blurb: 'Sensitive, romantic, tender, a little insecure. Flirting melts them; coldness devastates them.', data: emotional },
+  rude: { id: 'rude', name: 'Rude', blurb: 'Blunt, sarcastic, mocking, hard to impress. Give it back and they respect you; secretly soft.', data: rude },
+  dominant: { id: 'dominant', name: 'Dominant', blurb: 'Commanding, assertive, competitive, protective. Takes the lead; respects someone who pushes back.', data: dominant },
+  shy: { id: 'shy', name: 'Shy', blurb: 'Quiet, nervous, awkward, gentle. Flirting overwhelms and delights them; braver over text.', data: shy },
 };
 export const PERSONA_IDS = Object.keys(PERSONAS);
 export const MOODS = ['cold', 'passive', 'flirty'];
 export const TONE_TAG = { cold: 'COLD', passive: 'PASSIVE', flirty: 'FLIRTY', risque: 'RISQUÉ' };
-// (the twelve stars: four of each)
+// (the twelve stars, by who each of them is - career/Celebs.js's vibe)
 const CELEB_PERSONA = {
-  'jade-okafor': 'spark', 'zoe-hartley': 'spark', 'tessa-kealoha': 'spark', 'ava-rennick': 'spark',
-  'noor-haddad': 'ice', 'sasha-ivers': 'ice', 'clara-voss': 'ice', 'priya-raman': 'ice',
-  'mira-vale': 'sunny', 'lena-marsh': 'sunny', 'maya-lindqvist': 'sunny', 'elena-marchetti': 'sunny',
+  'jade-okafor': 'spark', 'ava-rennick': 'spark', 'tessa-kealoha': 'spark', 'sasha-ivers': 'ice', 'noor-haddad': 'ice', 'maya-lindqvist': 'sunny', 'zoe-hartley': 'sunny',
+  'mira-vale': 'emotional', 'lena-marsh': 'rude', 'clara-voss': 'dominant', 'elena-marchetti': 'flirtatious', 'priya-raman': 'shy',
 };
-// how each personality takes a tone, by stage (the affinity an answer is worth when the line itself says nothing else)
+// how each personality takes a tone, by stage [new, warm, close] (the affinity an answer is worth when the line itself
+// says nothing else)
 const TAKE = {
   spark: { cold: [-3, -3, -4], passive: [0, 0, 1], flirty: [3, 3, 3], risque: [1, 4, 4] },
   ice: { cold: [1, 0, -3], passive: [1, 1, 1], flirty: [-1, 2, 3], risque: [-3, 1, 4] },
   sunny: { cold: [-4, -4, -5], passive: [2, 2, 2], flirty: [2, 2, 3], risque: [0, 0, 2] },
+  flirtatious: { cold: [-2, -2, -3], passive: [0, 0, 0], flirty: [3, 3, 3], risque: [2, 4, 4] },
+  emotional: { cold: [-5, -5, -6], passive: [1, 1, 1], flirty: [3, 3, 3], risque: [0, 0, 3] },
+  rude: { cold: [2, 1, 0], passive: [-1, -1, -1], flirty: [-1, 1, 3], risque: [0, 0, 3] },
+  dominant: { cold: [1, 0, -2], passive: [1, 1, 1], flirty: [2, 2, 3], risque: [1, 3, 4] },
+  shy: { cold: [-4, -4, -4], passive: [2, 2, 2], flirty: [1, 2, 3], risque: [-1, -1, 2] },
 };
 const STAGE_I = { new: 0, warm: 1, close: 2 };
 const TONE_V = { cold: -1, passive: 0, flirty: 1, risque: 2 };
@@ -47,7 +63,7 @@ const rk = (c) => `${c?.season ?? 0}:${c?.round ?? 0}`;
 const FALL = { me: 'you', first: 'you', job: 'work', work: 'work', track: 'the next race', last: 'the last race', result: 'that result', venue: 'here' };
 export function fillPersona(s, T = {}) { return String(s ?? '').replace(/\{(\w+)\}/g, (m, k) => (T[k] != null && T[k] !== '' ? T[k] : FALL[k] ?? '')).replace(/ {2,}/g, ' '); }
 
-/** the personality of someone you could date: a star's own, a local's from their seed -> 'spark' | 'ice' | 'sunny' */
+/** the personality of someone you could date: a star's own, a local's from their seed -> one of PERSONA_IDS */
 export function personaOf(cid) {
   const s = String(cid || ''), id = s.replace(/^[cn]:/, '');
   if (CELEB_PERSONA[id]) return CELEB_PERSONA[id];
@@ -60,10 +76,11 @@ export function psOf(c, cid) {
   const P = c.persona && typeof c.persona === 'object' ? c.persona : (c.persona = { v: 1, npcs: {} });
   if (!P.npcs || typeof P.npcs !== 'object') P.npcs = {};
   let s = P.npcs[cid];
-  if (!s || typeof s !== 'object') s = P.npcs[cid] = { p: personaOf(cid), mood: 'passive', heat: 0, seen: [], tseen: [], thread: null, talks: 0, texts: 0 };
+  if (!s || typeof s !== 'object') s = P.npcs[cid] = { p: personaOf(cid), mood: 'passive', heat: 0, seen: [], tseen: [], thread: null, talks: 0, texts: 0, slot: {}, tslot: {} };
   if (!PERSONAS[s.p]) s.p = personaOf(cid);
   if (!MOODS.includes(s.mood)) s.mood = 'passive';
   for (const k of ['seen', 'tseen']) if (!Array.isArray(s[k])) s[k] = [];
+  for (const k of ['slot', 'tslot']) if (!s[k] || typeof s[k] !== 'object') s[k] = {};   // (how far each stage's story has got: in person, and each kind of text)
   return s;
 }
 /** where you are with them: new (just met), warm (friendly, flirting), close (dating, together) */
@@ -86,6 +103,18 @@ export function moodAfter(tones) {
   const s = v.length === 1 ? v[0] : 0.35 * v[0] + 0.65 * v[v.length - 1];
   return s >= 0.5 ? 'flirty' : s <= -0.5 ? 'cold' : 'passive';
 }
+/**
+ * The next of a story's slots: L the trees for this stage (or this kind of text), k the slot the story has got to; the
+ * slot's version for the mood, else any version of it - and once the slots are all told (or for trees with no slot),
+ * the least recently said in this mood -> the tree
+ */
+function nextOf(L, k, mood, seen) {
+  if (L.some((d) => d.slot != null)) {
+    const S = L.filter((d) => d.slot === k);
+    if (S.length) return S.find((d) => d.mood === mood) || S[0];
+  }
+  const M = L.filter((d) => d.mood === mood); return freshest(M.length ? M : L, seen);
+}
 /** the least-recently-said first: the ones never said, else the oldest said (seen: ids in the order said) */
 function freshest(L, seen) {
   const never = L.filter((d) => !seen.includes(d.id)); if (never.length) return never[hash(`${seen.length}|${never.length}`) % never.length];
@@ -105,12 +134,10 @@ export function personaTalk(c, cid, o = {}) {
   const s = psOf(c, cid); if (!s) return null;
   const D = PERSONAS[s.p]?.data, L0 = arr(D?.convos); if (!L0.length) return null;
   const st = stageOf(c, cid), where = o.where || (o.party ? 'party' : 'evening');   // (o.where 'grid': only the talks for anywhere)
-  const ok = (d, stage, mood) => d.stage === stage && d.mood === mood && (!d.where || d.where === where);
-  // (the mood you left them in at this stage; else the nearest stage that has it; else any mood)
-  let L = L0.filter((d) => ok(d, st, s.mood));
-  if (!L.length) for (const st2 of ['warm', 'new', 'close']) { L = L0.filter((d) => ok(d, st2, s.mood)); if (L.length) break; }
-  if (!L.length) L = L0.filter((d) => d.stage === st && (!d.where || d.where === where));
-  const d = freshest(L, s.seen); if (!d) return null;
+  // (this stage's story, at the slot it has got to, in the mood you left them in)
+  let L = L0.filter((d) => d.stage === st && (!d.where || d.where === where));
+  if (!L.length) L = L0.filter((d) => d.stage === st);
+  const k = s.slot[st] || 1, d = nextOf(L, k, s.mood, s.seen); if (!d) return null;
   const T = tokens(c, cid, o.T), seed = `${cid}|${d.id}|${s.talks}`;
   const opt = (x, depth) => {
     const m = toneWorth(s.p, d.stage, x.tone, x.m), more = depth === 0 && arr(x.opts).length;
@@ -121,6 +148,7 @@ export function personaTalk(c, cid, o = {}) {
     done(tones) {
       const mood = moodAfter(tones); if (!mood) return;
       s.mood = mood; s.talks++; s.seen.push(d.id); if (s.seen.length > 400) s.seen.splice(0, s.seen.length - 400);
+      if (d.slot != null && d.slot === k) s.slot[st] = k + 1;   // (on to the next of this stage's conversations)
       if (arr(tones).includes('risque')) s.heat = Math.min(9, (s.heat || 0) + 1);
       s.last = { mood, how: 'talk', at: rk(c) };
     },
@@ -141,10 +169,13 @@ export function personaIncoming(c, cid, on = 'week', T0 = {}) {
   const s = psOf(c, cid); if (!s) return null;
   const D = PERSONAS[s.p]?.data, L0 = arr(D?.texts); if (!L0.length) return null;
   const st = stageOf(c, cid), stOk = (t) => t.stage === 'any' || t.stage === st;
-  let L = L0.filter((t) => t.on === on && t.mood === s.mood && stOk(t));
-  if (!L.length) L = L0.filter((t) => t.on === on && stOk(t));
+  // (this kind of text's story at this stage - after a date: the warm one's, if you are still only just acquainted)
+  let L = L0.filter((t) => t.on === on && stOk(t));
+  if (!L.length && on === 'date') L = L0.filter((t) => t.on === on && t.stage === 'warm');
   if (!L.length) L = L0.filter((t) => t.on === on);
-  const t = freshest(L, s.tseen); if (!t) return null;
+  if (!L.length) return null;
+  const key = `${on}|${L[0].stage === 'any' ? 'any' : L[0].stage}`, k = s.tslot[key] || 1, t = nextOf(L, k, s.mood, s.tseen); if (!t) return null;
+  if (t.slot != null && t.slot === k) s.tslot[key] = k + 1;
   s.thread = { id: t.id, path: [], tones: [], at: rk(c) }; s.tseen.push(t.id); if (s.tseen.length > 400) s.tseen.splice(0, s.tseen.length - 400); s.texts++;
   return fillPersona(pickS(t.say, `${cid}|${t.id}|${s.texts}`), tokens(c, cid, T0));
 }
