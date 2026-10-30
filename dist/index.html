@@ -597,7 +597,7 @@ table.res tr.me td { color: var(--accent2); font-weight: 700; }
     <div class="brand-line"></div>
     <h1 id="brand-title">FORMULA 1<span id="brand-sub">SIMULATOR</span></h1>
     <!-- the build's version: +0.01 with every build handed out -->
-    <span id="app-ver" title="Version">V1.79</span>
+    <span id="app-ver" title="Version">V1.80</span>
     <div id="menu-sub">Real circuits built from OpenStreetMap</div>
   </div>
   <div id="loading" class="hidden"><div class="ld"><i></i></div><span>Building the circuit from OpenStreetMap…</span></div>
@@ -734,7 +734,7 @@ table.res tr.me td { color: var(--accent2); font-weight: 700; }
   <h2>PAUSED</h2>
   <div class="row center"><button id="btn-resume" class="go">RESUME<span>→</span></button><button id="btn-restart" class="ghost hidden">RESTART RACE</button><button id="btn-tel" class="ghost">TELEMETRY</button><button id="btn-photo" class="ghost">PHOTO MODE</button><button id="btn-finish" class="ghost hidden">FINISH SESSION</button><button id="btn-end" class="ghost hidden">END SESSION</button><button id="btn-quit" class="ghost">QUIT TO MENU</button></div>
   <div class="row center vol-row"><label for="vol-pause">VOLUME</label><input type="range" id="vol-pause" class="vol" min="0" max="100" step="1"><span class="vol-val"></span></div>
-  <div class="hint">Photo mode: WASD fly · Q/E down/up · Shift fast · drag or arrow keys to look · H toggle HUD · Esc back</div>
+  <div class="hint">Photo mode: WASD fly · Q/E down/up · Shift fast · Alt (or Ctrl) fine · drag or arrow keys to look · H toggle HUD · Esc back</div>
 </div>
 <div id="photo-hint" class="hidden"><span>PHOTO MODE · WASD fly · Q/E · Shift · drag to look · H HUD · P/Space play · Esc back</span><button id="photo-play">▶ PLAY</button></div>
 
@@ -88757,9 +88757,10 @@ function buildPerson(o) {
       Nm.setXYZ(i, x / l, y / l, z / l);
     }
   };
-  // (detail: a person seen from a few metres or more - a crowd - is built on coarser spheres, far quicker; a crowd's
-  // faces carry no paint, their features made of their own few parts in the crowd's colours)
-  const DQ = Math.max(o.segQ ? 0.2 : 0.35, Math.min(1, o.detail ?? 1)), sg = (k) => Math.max(o.segQ ? 9 : 12, Math.round(k * DQ)), painted = !o.segQ;
+  // (detail: only a crowd's template (segQ - world/Crowd.js) is built coarser; everyone built one at a time - the pit
+  // crew, the grid's mechanics, the people you walk past and talk to - is built in full, whatever detail they ask for. A
+  // crowd's faces carry no paint, their features made of their own few parts in the crowd's colours)
+  const DQ = o.segQ ? Math.max(0.2, Math.min(1, o.detail ?? 1)) : 1, sg = (k) => Math.max(o.segQ ? 9 : 12, Math.round(k * DQ)), painted = !o.segQ;
   /** the head's surface: out (a number, or a function of the direction) grows it outward (hair, a beard); bumps: the face's features on it */
   const skull = (geo, out = 0, bumps = !out) => {
     const p = geo.attributes.position, A = p.array, fn = typeof out === 'function';
@@ -89081,16 +89082,17 @@ function buildPerson(o) {
       };
     }
   } else {
-    // (a crowd's face: eyes, brows and a mouth of their own)
+    // (a crowd's face: eyes, brows and a mouth of their own - the eyes set into the face, an almond of white mostly filled
+    //  by the iris, as eyes are seen from a few metres; not balls on the surface (they read as googly eyes))
     const white = [], iris = [], feat = [], mouth = [], P = (nz, ny, d = 0) => { const nx = Math.sqrt(Math.max(0, 1 - nz * nz - ny * ny)), [x, y, z] = HSf(nx, ny, nz); return V(hc.x + x * R0 + d, hc.y + y * R0, hc.z + z * R0); };
     for (const s of [-1, 1]) {
-      const e = P(s * FACE.eyeZ, FACE.eyeY, -0.004), sc = new THREE.SphereGeometry(0.0125, n(14), n(10, 2)); sc.scale(0.7, 0.8, 1); sc.translate(e.x, e.y, e.z); white.push(sc);
-      const ir = new THREE.SphereGeometry(0.0062, n(12), n(8, 2)); ir.scale(0.5, 1, 1); ir.translate(e.x + 0.0085, e.y, e.z); iris.push(ir);
+      const e = P(s * FACE.eyeZ, FACE.eyeY, -0.001), sc = new THREE.SphereGeometry(0.011, n(14), n(10, 2)); sc.scale(0.3, 0.48, 1); sc.translate(e.x, e.y, e.z); white.push(sc);
+      const ir = new THREE.SphereGeometry(0.0056, n(12), n(8, 2)); ir.scale(0.32, 0.92, 0.92); ir.translate(e.x + 0.0024, e.y, e.z); iris.push(ir);
       feat.push(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([P(s * 0.17, FACE.browY - 0.02, 0.002), P(s * 0.36, FACE.browY + 0.02, 0.002), P(s * 0.56, FACE.browY - 0.03, 0.001)]), n(8, 2), 0.0034, n(5), false));
     }
     mouth.push(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([P(-0.22, FACE.mouthY + 0.01, 0.001), P(0, FACE.mouthY - 0.01, 0.002), P(0.22, FACE.mouthY + 0.01, 0.001)]), n(8, 2), 0.0021, n(5), false));
     mats.feat = new THREE.MeshStandardMaterial({ color: hairC, roughness: 0.85 });
-    mats.white = new THREE.MeshStandardMaterial({ color: '#f2efe9', roughness: 0.35 });
+    mats.white = new THREE.MeshStandardMaterial({ color: '#e4ded4', roughness: 0.5 });
     mats.iris = new THREE.MeshStandardMaterial({ color: ['#3b2a1e', '#4a6b8a', '#2a1c14', '#5a6e4a'][seed % 4], roughness: 0.25 });
     mats.lip = new THREE.MeshStandardMaterial({ color: skinC.clone().multiplyScalar(0.62), roughness: 0.6 });
     head.add(M([face, ...ears], mats.skin), M(feat, mats.feat), M(white, mats.white), M(iris, mats.iris), M(mouth, mats.lip));
@@ -92756,7 +92758,7 @@ const TEMPLATES = new Map();
 /** the skinned geometry of one build, in the bind pose, and the bones' places in it (built once, shared) */
 function template(build) {
   if (TEMPLATES.has(build)) return TEMPLATES.get(build);
-  const p = makePerson({ pose: 'rig', kit: 'suit', color: '#ffffff', accent: '#ffffff', crewHelmet: true, jitter: 0, build, segQ: 0.6 });
+  const p = makePerson({ pose: 'rig', kit: 'suit', color: '#ffffff', accent: '#ffffff', crewHelmet: true, jitter: 0, build });   // (in full: the crew are seen close)
   const J = jointsOf('rig');
   // the bones' heads (in the bind pose): the hips at the pelvis, the spine at the waist, the chest below the shoulders,
   // the neck at its base, the head where the person's head turns; the limbs at their joints
@@ -96643,7 +96645,11 @@ const HOME = ['London', 'Manchester', 'Paris', 'Barcelona', 'Berlin', 'Amsterdam
 const DATES = ['beach', 'concert', 'cooking', 'dinner', 'gala', 'gallery', 'karting', 'rooftop'];
 const LIKES = ['romantic', 'kind', 'funny', 'confident', 'adventurous', 'humble', 'winner'];
 const DISLIKES = ['arrogant', 'neglect', 'cruel', 'showoff', 'scandal'];
-const VIBE = { spark: 'Bubbly, playful and impulsive; a dare in everything, a laugh you hear across the room', ice: 'Cool, sharp and guarded; says less than she thinks and notices everything', sunny: 'Warm, sincere and a little dorky; easy company, blushes easily' };
+// (her personality - career/Persona.js's eight; the ids only, so this stays a pure function with no imports)
+const PERSONA_IDS = ['spark', 'ice', 'sunny', 'flirtatious', 'emotional', 'rude', 'dominant', 'shy'];
+const VIBE = { spark: 'Bubbly, playful and impulsive; a dare in everything, a laugh you hear across the room', ice: 'Cool, sharp and guarded; says less than she thinks and notices everything', sunny: 'Warm, sincere and a little dorky; easy company, blushes easily',
+  flirtatious: 'Seductive, bold and sultry; turns everything into a flirt', emotional: 'Sensitive, romantic and tender; feels everything at full volume', rude: 'Blunt, sarcastic and hard to impress; secretly soft',
+  dominant: 'Commanding, assertive and competitive; takes charge of every room', shy: 'Quiet, gentle and nervous; braver over text than in person' };
 // (looks: skin tones light to deep; hair colours as people have them; the styles World/People builds)
 const SKIN = ['#f6dcc8', '#f2d3bd', '#eac4a8', '#e0b08c', '#d29c74', '#c08660', '#a8704a', '#8d5a3a', '#6e4329', '#57341f', '#45291a'];
 const HAIR_LIGHT = ['#e8d3a6', '#d9b77a', '#c9a066', '#b2824d', '#8a5a33', '#6a4428', '#4a2f1c', '#2b1d14', '#161012', '#8a3b1c', '#a64b24'];
@@ -96675,7 +96681,7 @@ const seedOf = (id) => parseInt(String(id).slice(2), 36) >>> 0;
 function makeLocal(idOrSeed) {
   const seed = typeof idOrSeed === 'number' ? idOrSeed >>> 0 : seedOf(idOrSeed), id = localId(seed), R = POOL(seed);
   const name = `${pk(R, FIRST)} ${pk(R, LAST)}`, [job, work] = pk(R, JOBS), from = pk(R, FROM), home = pk(R, HOME), age = 23 + ((R() * 14) | 0), hobby = pk(R, HOBBY);
-  const persona = ['spark', 'ice', 'sunny'][(R() * 3) | 0];
+  const persona = PERSONA_IDS[(R() * PERSONA_IDS.length) | 0];
   const deep = R() < 0.35, skin = deep ? pk(R, SKIN.slice(6)) : pk(R, SKIN.slice(0, 8)), hair = deep ? pk(R, HAIR_DEEP) : pk(R, HAIR_LIGHT), hs = deep && R() < 0.6 ? pk(R, HS_CURLY) : pk(R, HS);
   const [col, acc] = pk(R, PAL), [col2, acc2] = pk(R, PAL), legs = () => pk(R, LEGS);
   const likes = [...new Set([pk(R, LIKES), pk(R, LIKES), pk(R, LIKES)])], dislikes = [...new Set([pk(R, DISLIKES), pk(R, DISLIKES)])].filter((d) => !(d === 'arrogant' && likes.includes('confident') && R() < 0.5));
@@ -107359,7 +107365,7 @@ __m['src/career/Social.js'] = (() => {
 const { shiftMorale, moodOf } = __m['src/career/Morale.js'];
 const { prEvent, fameIndex, fameText, imageLabel, heatLabel, socialPosts, crisisAdvice } = __m['src/career/PR.js'];
 const Celebs = __m['src/career/Celebs.js'];
-const { personaIncoming, personaPending, personaTextOpts, personaTextSend, personaHello, personaHelloSend } = __m['src/career/Persona.js'];
+const { personaIncoming, personaPending, personaTextOpts, personaTextSend, personaHello, personaHelloSend, psOf } = __m['src/career/Persona.js'];
 // Your life between the races, as your phone keeps it: the people in the paddock you get on with, and the messages that
 // go back and forth between rounds. Every driver you talk to on the grid walk becomes someone you can text (your
 // team-mate always is), and the closer you get the more they text back - congratulations after a podium, a word after a
@@ -108527,7 +108533,10 @@ function inboxTick(c, rows = null) {
     if (!kind) continue;
     // (in her personality's voice, in the mood you left her in, the next in line for the moment - else the old words)
     const on = kind === 'partnerWin' || kind === 'tvWin' ? 'win' : kind === 'partnerPod' || kind === 'tvPod' ? 'podium' : kind === 'partnerOk' || kind === 'tvOther' ? (p != null && p <= 10 ? 'points' : 'bad') : kind === 'partnerBad' ? 'bad' : kind === 'tvDnf' ? 'dnf' : kind === 'flirt' || kind === 'check' ? 'week' : null;
-    const pt = on && !arr(S.phone?.threads?.[`c:${C.id}`]).length ? personaIncoming(c, `c:${C.id}`, 'met', PT(C, T0)) : on ? personaIncoming(c, `c:${C.id}`, on === 'bad' && me.dnf ? 'dnf' : on, PT(C, T0)) : null;
+    // (a date since the last race she has not texted about: the day-after text, before anything about the race)
+    const ps = rom ? psOf(c, `c:${C.id}`) : null, dk = b.lastDate ? `${b.lastDate.season}:${b.lastDate.round}` : null, dated = !!(ps && dk && ago(c, b.lastDate) <= 1 && ps.dateAt !== dk);
+    if (dated) ps.dateAt = dk;
+    const pt = on && !arr(S.phone?.threads?.[`c:${C.id}`]).length ? personaIncoming(c, `c:${C.id}`, 'met', PT(C, T0)) : dated ? personaIncoming(c, `c:${C.id}`, 'date', PT(C, T0)) : on ? personaIncoming(c, `c:${C.id}`, on === 'bad' && me.dnf ? 'dnf' : on, PT(C, T0)) : null;
     if (pt) say(`c:${C.id}`, pt, 'persona'); else say(`c:${C.id}`, fresh(CIN[kind], T), kind);
     nc++;
   }
@@ -113008,22 +113017,6 @@ function tyreMat(compound) {
   SHARED_MAT.add(m); return (TYRE[compound] = m);
 }
 
-// ---- a wheel at speed: its face as a camera sees it, motion-blurred - the rim a smooth dark disc with the spokes' light
-//      smeared round, the sidewall's lettering a ring of the compound's colour (per compound, shared)
-const blurGeo = new THREE.CircleGeometry(0.355, 40);
-const BLUR = {};
-function blurTex(compound) {
-  if (BLUR[compound]) return BLUR[compound];
-  const S = 256, c = document.createElement('canvas'); c.width = c.height = S; const x = c.getContext('2d'), C = S / 2, R = (r) => (r / 0.355) * C;
-  const g = x.createRadialGradient(C, C, 0, C, C, C);
-  g.addColorStop(0, 'rgba(120,124,130,1)'); g.addColorStop(R(0.035) / C, 'rgba(70,73,78,1)'); g.addColorStop(R(0.06) / C, 'rgba(34,36,40,1)'); g.addColorStop(R(0.2) / C, 'rgba(46,48,53,1)');
-  g.addColorStop(R(0.228) / C, 'rgba(86,90,96,1)'); g.addColorStop(R(0.236) / C, 'rgba(22,22,24,1)'); g.addColorStop(R(0.345) / C, 'rgba(20,20,22,1)'); g.addColorStop(1, 'rgba(20,20,22,0)');
-  x.fillStyle = g; x.fillRect(0, 0, S, S);
-  const col = new THREE.Color(COMPOUNDS[compound]?.color || '#ffffff');
-  x.strokeStyle = `rgba(${col.r * 255 | 0},${col.g * 255 | 0},${col.b * 255 | 0},0.55)`; x.lineWidth = R(0.022); x.beginPath(); x.arc(C, C, R(0.3), 0, Math.PI * 2); x.stroke();
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
-  return (BLUR[compound] = t);
-}
 
 // ---- the far states' geometry: the parts' level 3 / 4 meshes merged in the body frame, one per set of parts still on
 //      the car (shared: a whole car's is everyone's)
@@ -113189,9 +113182,6 @@ class CarMesh {
     //      wheel turns about) > the hub's static work (the upright, the duct) and `spin` (turning: the tyre in its
     //      compound's colour, the rim and its cover, the brake disc)
     this.wheels = [];
-    // (the blurred face at speed: this car's own - its opacity is by its speed - on the compound's shared texture)
-    this.blurMat = new THREE.MeshStandardMaterial({ map: blurTex(compound), transparent: true, opacity: 0, depthWrite: false, roughness: 0.7, metalness: 0.1, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
-    this.blurMat.userData.sharedMap = true; own.add(this.blurMat);
     for (const [name, front, s] of [['wFR', true, 1], ['wFL', true, -1], ['wRR', false, 1], ['wRL', false, -1]]) {
       const H = M.hubs[name], hub = new THREE.Group(), camber = new THREE.Group(), spin = new THREE.Group(), tyre = new THREE.Group(), face = new THREE.Group();
       hub.position.set(...H.c); camber.quaternion.set(...H.q);
@@ -113203,10 +113193,8 @@ class CarMesh {
           (into || (k === 'tyre' || lv >= 2 ? tyre : face)).add(m); this.lv[lv].push(m);
         }
       }
-      // (the motion-blurred face over its outer side, faded in with speed: update)
-      const blur = new THREE.Mesh(blurGeo, this.blurMat); blur.position.z = s * (H.w / 2 + 0.004); if (s < 0) blur.rotation.y = Math.PI; blur.visible = false; blur.renderOrder = 2; camber.add(blur);
       body.add(hub);
-      this.wheels.push({ hub, camber, spin, mesh: tyre, face, blur, decals: [], front, side: s, state: 0, y0: H.c[1], dy: 0 });
+      this.wheels.push({ hub, camber, spin, mesh: tyre, face, decals: [], front, side: s, state: 0, y0: H.c[1], dy: 0 });
     }
     for (let l = 1; l < 3; l++) for (const o of this.lv[l]) o.visible = false;
     this.shadow = new THREE.Mesh(shadowGeo, shadowMat); body.add(this.shadow);   // blob shadow
@@ -113276,7 +113264,6 @@ class CarMesh {
     this.U.uLivComp.value.set(COMPOUNDS[c]?.color || '#ffffff');
     const m = tyreMat(c);
     for (const w of this.wheels) w.mesh.traverse((o) => { if (o.userData.tyre) o.material = m; });
-    this.blurMat.map = blurTex(c);
   }
   setHalo(v) { this.halo.visible = v; }   // (the far states keep it: at 95 m+ it is a few pixels)
 
@@ -113615,11 +113602,8 @@ class CarMesh {
     }
     const dMax = Math.max(0.055, 0.38 * (1 - car.speed / 118));
     // (the wheels' turn as drawn: never more than half a spoke's spacing a frame - beyond it the ten spokes strobed and
-    //  stood still, or ran backwards; past ~25 km/h a blurred disc fades in over the rim and the lettering, as a camera
-    //  sees a wheel at speed)
+    //  stood still, or ran backwards - no blurred disc over it: frozen in a photo it was a beige film over the wheel)
     { const da = car.vLong / R_TYRE * dt; this.spin += Math.sign(da) * Math.min(Math.abs(da), 0.3); }
-    const blur = this._lvNow < 2 ? Math.max(0, Math.min(0.88, (Math.abs(car.vLong) - 7) / 30)) : 0;
-    this.blurMat.opacity = blur; for (const w of this.wheels) if (w.blur) w.blur.visible = blur > 0.01 && w.mesh.visible;
     const onGround = !car.air && !car.wreck, W = car.wh;
     for (const w of this.wheels) {
       if (w.gone) continue;
@@ -121928,6 +121912,7 @@ return { SOCIAL_CSS, youHTML, weekHTML, prHTML, lifeHTML, socialHTML, overviewTi
 __m['src/ui/Phone.js'] = (() => {
 const { contactsOf, threadOf, markRead, replyOptions, sendText, deleteThread, inviteOut, respondInvite, unreadCount, VENUES } = __m['src/career/Social.js'];
 const Celebs = __m['src/career/Celebs.js'];
+const { PERSONAS, personaOf } = __m['src/career/Persona.js'];
 // Your phone, in the career hub. It slides in from the right over the studio: a modern handset, the screen in the
 // hub's light glass, your team's colour on everything you send. MESSAGES first - everyone you can text, unread at the
 // top: the drivers you have got to know on the grid walk (your team-mate is always there), the celebrities you have
@@ -121945,6 +121930,10 @@ const Celebs = __m['src/career/Celebs.js'];
 // (Social.js, Celebs.js): the phone draws it, saves after every change and never touches the hub behind it. Esc puts it
 // away, Backspace goes back a screen, Enter confirms.
 
+
+
+// (who she is, in a word: career/Persona.js's personality, on her chat's header)
+const persName = (cid) => { try { return PERSONAS[personaOf(cid)]?.name || ''; } catch (_) { return ''; } };
 
 const CSS = `
 #phone { position: fixed; inset: 0; z-index: 46; pointer-events: none; font-family: 'Segoe UI', Roboto, Arial, sans-serif; color: #151a22; --tc: #e10600; }
@@ -122313,7 +122302,7 @@ function threadView(c, S) {
   const s = stageOf(x), armed = S.armed === 'del:' + cid, b = k === 'celeb' ? bond(c, idOf(cid)) : null;
   const sus = b && (b.stage === 'dating' || b.stage === 'partner') && (b.suspicion || 0) >= 40;
   const opts = (safe(() => replyOptions(c, cid), []) || []).slice(0, 4), dis = typing ? ' disabled' : '';
-  return `<div class="ph-th"><button class="ph-ib" data-pa="back" aria-label="Back">${svg(I.back)}</button>${avatar(c, cid, x.name, 'sm', lock)}<span class="ph-who"><b>${esc(x.name)}</b><small>${s ? `<em style="--sc:${s[1]}">${esc(s[0])}</em>` : ''}${esc(x.sub || '')}${lock ? ' · kept quiet' : ''}</small>${meterOf(c, cid)}</span>${T.length ? `<button class="ph-ib${armed ? ' armed' : ''}" data-pa="del" aria-label="Delete this chat">${armed ? 'DELETE?' : svg(I.bin, 20)}</button>` : ''}</div>
+  return `<div class="ph-th"><button class="ph-ib" data-pa="back" aria-label="Back">${svg(I.back)}</button>${avatar(c, cid, x.name, 'sm', lock)}<span class="ph-who"><b>${esc(x.name)}</b><small>${s ? `<em style="--sc:${s[1]}">${esc(s[0])}</em>` : ''}${esc(x.sub || '')}${k === 'celeb' && persName(cid) ? ` · ${esc(persName(cid))}` : ''}${lock ? ' · kept quiet' : ''}</small>${meterOf(c, cid)}</span>${T.length ? `<button class="ph-ib${armed ? ' armed' : ''}" data-pa="del" aria-label="Delete this chat">${armed ? 'DELETE?' : svg(I.bin, 20)}</button>` : ''}</div>
     ${sus ? `<div class="ph-sus">${svg(I.warn, 14)}<span>${esc(F)} has been asking questions lately.</span></div>` : ''}
     <div class="ph-msgs">${out}</div>
     <div class="ph-dock">${opts.map((o, i) => { const t = TONE[o.tone]; return `<button class="ph-rp" data-pr="${esc(o.key)}" data-kn="${i + 1}"${dis}><kbd>${i + 1}</kbd><span>${esc(o.text)}</span>${t ? `<i style="--tn:${t[1]}">${t[0]}</i>` : ''}</button>`; }).join('') || '<p class="ph-none">Nothing more to say for now.</p>'}${planOk(c, k) ? `<button class="ph-plan" data-pa="plan"${dis}>${svg(I.plans, 16)}<span>${grave(c) ? `A quiet coffee with ${esc(F)}` : `Make plans with ${esc(F)}`}</span>${svg(I.next, 14)}</button>` : ''}</div>`;
@@ -148128,8 +148117,10 @@ function exitPhoto() {
 }
 $('photo-play').addEventListener('click', () => setPhotoLive(!PHOTO.live));
 function updatePhoto(dt) {
-  const k = input.keys; const fast = k.has('ShiftLeft') || k.has('ShiftRight');
-  const speed = (fast ? 90 : 22) * dt, look = 1.6 * dt;
+  // (Shift: fast; Ctrl or Alt: fine - a few centimetres at a time for framing a shot (Alt for W too: most browsers keep
+  //  Ctrl+W to close the tab, the page never sees it))
+  const k = input.keys; const fast = k.has('ShiftLeft') || k.has('ShiftRight'), fine = photoFine();
+  const speed = (fine ? 2 : fast ? 90 : 22) * dt, look = (fine ? 0.3 : 1.6) * dt;
   if (k.has('ArrowLeft')) PHOTO.yaw -= look; if (k.has('ArrowRight')) PHOTO.yaw += look;
   if (k.has('ArrowUp')) PHOTO.pitch += look; if (k.has('ArrowDown')) PHOTO.pitch -= look;
   PHOTO.pitch = Math.max(-1.5, Math.min(1.5, PHOTO.pitch));
@@ -148149,10 +148140,16 @@ function updatePhoto(dt) {
 }
 canvas.addEventListener('mousedown', (e) => { if (!PHOTO.on) return; PHOTO.drag = true; PHOTO.lx = e.clientX; PHOTO.ly = e.clientY; canvas.style.cursor = 'grabbing'; });
 window.addEventListener('mouseup', () => { if (PHOTO.on) { PHOTO.drag = false; canvas.style.cursor = 'grab'; } });
+/** fine moves in photo mode: Ctrl or Alt held */
+const photoFine = () => { const k = input.keys; return k.has('ControlLeft') || k.has('ControlRight') || k.has('AltLeft') || k.has('AltRight'); };
 window.addEventListener('mousemove', (e) => {
   if (!PHOTO.on || !PHOTO.drag) return;
-  PHOTO.yaw += (e.clientX - PHOTO.lx) * 0.0035; PHOTO.pitch -= (e.clientY - PHOTO.ly) * 0.0035; PHOTO.lx = e.clientX; PHOTO.ly = e.clientY;
+  const sens = photoFine() || e.ctrlKey || e.altKey ? 0.0008 : 0.0035;
+  PHOTO.yaw += (e.clientX - PHOTO.lx) * sens; PHOTO.pitch -= (e.clientY - PHOTO.ly) * sens; PHOTO.lx = e.clientX; PHOTO.ly = e.clientY;
 });
+// (in photo mode the fine keys are the camera's, not the browser's: Alt's menu bar, Ctrl+S / D / A / E / Q - all but
+//  Ctrl+W, which the browser keeps)
+window.addEventListener('keydown', (e) => { if (PHOTO.on && (e.altKey || (e.ctrlKey && ['KeyS', 'KeyD', 'KeyA', 'KeyE', 'KeyQ'].includes(e.code)) || e.code === 'AltLeft' || e.code === 'AltRight')) e.preventDefault(); });
 
 // ---------------------------------------------------------------------------
 // finale: at the end of a race / qualifying the camera cuts to a static shot of the Sphere, which shows the
