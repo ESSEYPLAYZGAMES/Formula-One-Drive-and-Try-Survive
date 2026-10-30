@@ -138,11 +138,13 @@ export function setTerrain(F, track = null) {
   // near the circuit, its own height exactly (the grid's 8 m cells would let the ground cut corners off the road over a
   // crest or into a dip): by the nearest point of the lap, out to the edge of the strip held at its height, then
   // blended into the field over the last 6 m of it
-  const h = track?.h, q = {}, HS = track?.holdS, hold = HS ? HS.reduce((a, b) => Math.max(a, b), 0) : (track?.maxHalfWidth || track?.halfWidth || 0) + HOLD; let hint = -1;
+  const h = track?.h, q = {}, HS = track?.holdS, hold = HS ? HS.reduce((a, b) => Math.max(a, b), 0) : (track?.maxHalfWidth || track?.halfWidth || 0) + HOLD;
   const nearStrip = (x, z) => { const i = Math.floor((x - F.x0) / F.cell), j = Math.floor((z - F.z0) / F.cell); if (i < 0 || j < 0 || i >= F.nx - 1 || j >= F.nz - 1) return false; const k = j * F.nx + i; return F.fixed[k] === 1 || F.fixed[k + 1] === 1 || F.fixed[k + F.nx] === 1 || F.fixed[k + F.nx + 1] === 1; };
   TERRAIN.road = h ? (x, z, out = q) => {   // -> { h (the circuit's height there), d (offset from the centreline), s } | null
     if (!nearStrip(x, z)) return null;
-    track.nearest(x, z, hint, out); hint = out.i; if (!(Math.abs(out.d) <= hold)) return null;
+    // (no hint: one shared between every caller - the cars, the cameras, the people - sent a query to whichever part of the
+    //  lap the last one was on, and near where two parts of it come close it took that part's height, up to 3 m off)
+    track.nearest(x, z, -1, out); if (!(Math.abs(out.d) <= hold)) return null;
     const u = track.wrapS(out.s) / track.ds, i0 = Math.floor(u) % track.n, f = u - Math.floor(u); out.h = h[i0] + (h[(i0 + 1) % track.n] - h[i0]) * f; return out;
   } : null;
   TERRAIN.at = (x, z) => {
