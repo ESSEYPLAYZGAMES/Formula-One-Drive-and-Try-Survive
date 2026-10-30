@@ -3238,7 +3238,7 @@ function frame(now) {
 // ---------------------------------------------------------------------------
 {
   document.body.classList.add('home');   // (also in index.html; an Artifact host supplies its own <body>)
-  window.__F1 = { PRE, W, S, settings, scene, camera, renderer, input, hud, AIDriver, AI_TUNE, AI_CAL, applyCalibration, chunks, debris, respawnMesh,
+  window.__F1 = { PRE, W, S, settings, scene, camera, renderer, input, hud, AIDriver, AI_TUNE, AI_CAL, applyCalibration, chunks, debris, fire, respawnMesh,
     /** (tests: one frame drawn as the crash camera draws it - through its composer - and the programs that compiled) */
     crashFrame() { const n0 = renderer.info.programs.length; ensureCrashComposer(); crashPass.uniforms.uBlur.value = 0.6; crashPass.uniforms.uSat.value = 1.5; crashComposer.render(); return renderer.info.programs.length - n0; },
     /** (tools: a calibration applied, the racing line and the speed profile rebuilt from it - the next session's AI drives them) */
