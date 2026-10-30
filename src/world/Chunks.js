@@ -1,8 +1,11 @@
 // The other half of a car torn in two, and every piece that breaks off a car (a wing, a wheel, the nose, a sidepod's
 // panel - vehicle/CarMesh.js): a free rigid body (box contact points, gravity, drag, friction against the ground,
 // barriers where they stand) carrying its meshes. It tumbles, bounces and slides to rest, and stays there. (The car
-// records each one's flight: a flashback or a replay puts it back where it was - CarMesh._record, _resume.)
+// records each one's flight: a flashback or a replay puts it back where it was - CarMesh._record, _resume.) It flies in the
+// world as drawn - on a circuit that is not flat, from the car's own height - and meets the ground where the ground is
+// (world/Terrain.js), the barriers and buildings at their heights over it.
 import * as THREE from 'three';
+import { TERRAIN } from './Terrain.js';
 
 const G = 9.81;
 const _q = new THREE.Quaternion(), _v = new THREE.Vector3(), _w = new THREE.Vector3(), _r = new THREE.Vector3(), _j = new THREE.Vector3(), _ax = new THREE.Vector3();
@@ -50,7 +53,7 @@ export class Chunks {
     let lift = 0;
     for (const lp of c.pts) {
       _r.copy(lp).applyQuaternion(o.quaternion);
-      const wy = o.position.y + _r.y;
+      const gy = TERRAIN.on ? TERRAIN.at(o.position.x + _r.x, o.position.z + _r.z) : 0, wy = o.position.y + _r.y - gy;   // (wy: over the ground there)
       // ---- ground
       if (wy < 0) {
         lift = Math.max(lift, -wy);
