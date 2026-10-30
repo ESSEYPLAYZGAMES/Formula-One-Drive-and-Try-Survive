@@ -461,11 +461,13 @@ corrections; braking predicted down to the corner, not to a standstill; a meetin
 a guess (gone for, at a cost) rather than a wall; once side by side - its front wheels up to the player's rear ones, a
 car's width between them - the AI expects the room the rules give it and squeezes rather than lifts; the direct check
 only fires on a real overlap. And it races for the place: a path that gets past (or alongside) counts for more than
-the time, it sticks to a move it is making, and it has two more moves - the lunge (the attacking lanes braked 4 %
-later) and the switchback (wide into the corner, across behind the car at the apex, up the inside out of it). All of it
-is for the player only: two AI cars read each other's plans, and AI-only races are bit for bit what they were. In a
-test against a scripted, slower car the AI could not read, weaving +-0.4 m round its line, the AI behind gave up 1-21
-attacks per run instead of 11-146 and got by at the first braking zone it reached alongside (5 runs in 6 against 4).
+the time (only a path that is beside the car where it draws level, not one through it), it sticks to a move it is
+making, and it has two more moves - the lunge (the attacking lanes braked 4 % later) and the switchback (wide into the
+corner, across behind the car at the apex, up the inside out of it). All of it is for the player only: two AI cars read
+each other's plans, and AI-only races are bit for bit what they were. In a test at Austin against a scripted car the AI
+could not read, about 5 s a lap slower and weaving +-0.4 m round its line, the AI behind got by in 7 runs of 8 (the
+old AI 8) in a median 31 s instead of 50 s - half of its passes through the esses (the old AI's: one in ten, the rest
+at the hairpins and the end of the back straight) - with no contact in either.
 
 `AIDriver` drives the chosen plan: pure pursuit to a point on the path with a slip-angle feed-forward (above 35 m/s)
 and countersteer; the pedals aim at the most the plan allows a moment ahead (flat out below it, braking onto it),
