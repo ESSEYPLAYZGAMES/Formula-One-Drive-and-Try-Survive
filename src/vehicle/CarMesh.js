@@ -79,9 +79,16 @@ const helmetGeo = (() => {
 const helmetFar = new THREE.SphereGeometry(HR, 10, 7); helmetFar.scale(HSX, 1, HSZ);
 const visorBandGeo = new THREE.SphereGeometry(HR * 1.012, 40, 10, Math.PI - 1.1, 2.2, 1.0, 0.5); visorBandGeo.scale(HSX, 1, HSZ);   // (centred on +x: the front)
 const spoilerGeo = new THREE.BoxGeometry(0.06, 0.01, 0.12).rotateZ(-0.25).translate(-0.13, 0.105, 0);
-const neckGeo = new THREE.CylinderGeometry(0.052, 0.06, 0.13, 14).translate(0, -0.15, 0);
-const shouldersGeo = new THREE.CapsuleGeometry(0.075, 0.28, 4, 12).rotateX(Math.PI / 2).scale(0.9, 1, 1).translate(-0.04, -0.235, 0);
-const hansGeo = (() => { const g = new THREE.TorusGeometry(0.105, 0.024, 8, 24, Math.PI * 1.25); g.rotateX(Math.PI / 2); g.rotateY(-Math.PI * 0.375); g.translate(-0.03, -0.2, 0); return g; })();   // (a collar round the back of the neck, open at the front, its arms down onto the shoulders)
+const neckGeo = new THREE.CylinderGeometry(0.052, 0.06, 0.1, 14).translate(-0.01, -0.1, 0);
+// (the head's frame: the helmet's centre, scaled 0.9. The shoulders just over the cockpit's rim either side of the neck:
+//  two deltoids - flattened, sloping down and out - and the yoke between them, not one round bolster)
+const shouldersGeo = (() => {
+  const parts = [];
+  for (const sd of [-1, 1]) { const d = new THREE.SphereGeometry(1, 32, 20); d.scale(0.075, 0.05, 0.088); d.rotateX(-sd * 0.35); d.translate(-0.06, -0.03, sd * 0.19); parts.push(d); }
+  const yoke = new THREE.CylinderGeometry(0.052, 0.06, 0.3, 24, 1); yoke.rotateX(Math.PI / 2); yoke.scale(1.25, 0.8, 1); yoke.translate(-0.075, -0.05, 0); parts.push(yoke);
+  return mergeGeometries(parts);   // (each piece keeps its own smooth normals)
+})();
+const hansGeo = (() => { const g = new THREE.TorusGeometry(0.1, 0.022, 8, 24, Math.PI * 1.25); g.rotateX(Math.PI / 2); g.rotateY(-Math.PI * 0.375); g.scale(1, 1, 1.15); g.translate(-0.045, -0.012, 0); return g; })();   // (on the shoulders, round the back of the neck)   // (a collar round the back of the neck, open at the front, its arms down onto the shoulders)
 const hansMat = new THREE.MeshStandardMaterial({ color: 0x15161a, roughness: 0.55, metalness: 0.2 });
 const shadowGeo = new THREE.PlaneGeometry(5.5, 2.15); shadowGeo.rotateX(-Math.PI / 2); shadowGeo.translate(0, 0.01, 0);
 const flangeGeo = new THREE.TorusGeometry(0.232, 0.014, 6, 28);
@@ -280,12 +287,12 @@ export class CarMesh {
     body.add(helmet); this.helmet = helmet; this.visor = head; this._headLo = shellLo;
     const swP = M.pivots.sw || [0.72, 0.61, 0];
     const driver = new THREE.Group();
-    { const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.17, 0.28, 4, 10).rotateZ(Math.PI / 2).scale(1, 0.75, 1.25).translate(HX - 0.02, 0.6, 0), suitMat); driver.add(torso); }
+    { const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.12, 0.3, 4, 10).rotateZ(Math.PI / 2 - 0.35).scale(1, 0.7, 1.35).translate(HX + 0.02, 0.5, 0), suitMat); driver.add(torso); }   // (the chest, reclined, down in the tub)
     // (the arms: from the shoulders to the grips, following them round as the wheel turns - _arms)
     this.arms = [];
     for (const σ of [-1, 1]) {
       const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.034, 0.042, 1, 8), suitMat); driver.add(arm);
-      this.arms.push({ m: arm, sh: new THREE.Vector3(HX + 0.04, 0.64, σ * 0.19), off: new THREE.Vector3(-0.035, -0.005, σ * 0.115) });
+      this.arms.push({ m: arm, sh: new THREE.Vector3(HX - 0.03, 0.64, σ * 0.17), off: new THREE.Vector3(-0.035, -0.005, σ * 0.115) });   // (from the shoulders: the deltoids)
     }
     this._swP = new THREE.Vector3(...swP); this._swAxis = new THREE.Vector3(...(M.pivots.swAxis || [1, 0, 0])).normalize(); this._arms(0);
     body.add(driver);
