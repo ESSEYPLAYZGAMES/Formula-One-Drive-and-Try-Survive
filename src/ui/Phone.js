@@ -225,7 +225,8 @@ const VC = { poolclub: '#0fa3b8', rooftop: '#5b3fd0', pub: '#8a5a2b', simlounge:
 const vIcon = (id) => VI[id] || (/coffee|cafe/i.test(id || '') ? VI.coffee : VI.other);
 // (a reply's tone, tagged like the grid walk's options; leave and neutral lines carry no tag)
 const TONE = { kind: ['KIND', '#1f8a52'], firm: ['FIRM', '#3d7bd9'], light: ['LIGHT', '#a87400'], cold: ['COLD', '#6b7480'], cruel: ['CRUEL', '#d6202e'], sorry: ['APOLOGISE', '#7c5cc9'],
-  gossip: ['GOSSIP', '#a849b8'], flirt: ['FLIRT', '#d6336c'], show: ['SHOW OFF', '#d9480f'], cover: ['COVER STORY', '#5d6675'], deep: ['HEART TO HEART', '#3d7bd9'], banter: ['BANTER', '#a87400'], advice: ['ADVICE', '#0f8f84'] };
+  gossip: ['GOSSIP', '#a849b8'], flirt: ['FLIRT', '#d6336c'], show: ['SHOW OFF', '#d9480f'], cover: ['COVER STORY', '#5d6675'], deep: ['HEART TO HEART', '#3d7bd9'], banter: ['BANTER', '#a87400'], advice: ['ADVICE', '#0f8f84'],
+  passive: ['PASSIVE', '#8a93a0'], flirty: ['FLIRTY', '#d6336c'], risque: ['RISQUÉ', '#e0184e'] };   // (a personality's answers: career/Persona.js)
 // (where you stand: a friendship's stage with a driver, a bond's stage with a celebrity)
 const FRIEND = { acquaintance: ['Acquaintance', '#8a93a0'], friendly: ['Friendly', '#3d7bd9'], friend: ['Friend', '#1f9d5a'], mate: ['Mate', '#0f8f84'], best: ['Best mate', '#c08a12'] };
 const HEART = { stranger: ['Not met', '#8a93a0'], met: ['Just met', '#8a93a0'], friendly: ['Friendly', '#3d7bd9'], flirting: ['Flirting', '#d6336c'], dating: ['Dating', '#c2255c'], partner: ['Partner', '#a61e4d'], ex: ['Ex', '#6b7480'] };

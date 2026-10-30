@@ -7,7 +7,11 @@
 // the others by a front-row car and mid-grid) stand about the grid in their own looks, ready for the grid walk to
 // talk to. Everything built for it is taken away after it - or, for WALK THE GRID, handed on to ui/GridWalk.js as it
 // stands (dispose() when that is over). The reporter, the guests and the stars are all made up.
+// Laid out on the flat plan like the race; on a circuit that is not flat everything is stood on the ground under it
+// (world/Terrain.js: TERRAIN.at), and the shots are aimed on the flat - this.look, the point the camera is aimed at (y:
+// its height over the ground there), is what main.js lifts the camera with.
 import * as THREE from 'three';
+import { TERRAIN } from '../world/Terrain.js';
 import { makePerson, makeMic, makeHelmet } from '../world/People.js';
 import { tribute, clothBanner, standBanners, disposeGroup } from '../world/Tribute.js';
 import { Crowd, crowdTime } from '../world/Crowd.js';
@@ -47,33 +51,34 @@ export class PreRace {
    */
   constructor(o) {
     Object.assign(this, o);
-    this.t = 0; this.done = false; this.group = new THREE.Group(); this.people = []; this.anims = []; this.crew = new Map(); this.mourners = [];
+    this.t = 0; this.done = false; this.look = new THREE.Vector3(); this.group = new THREE.Group(); this.people = []; this.anims = []; this.crew = new Map(); this.mourners = [];
     const tr = this.track, cars = [...this.cars].sort((a, b) => (a.gridPos || 99) - (b.gridPos || 99)), hw = tr.halfWidth;
     this.grid = cars; this.pole = cars[0];
     const f0 = tr.sample(this.pole.s, 0); this.fwd = new THREE.Vector3(f0.tx, 0, f0.tz); this.left = new THREE.Vector3(f0.tz, 0, -f0.tx);   // (track-forward, and its left)
     const P = (c) => new THREE.Vector3(c.x, 0, c.z);
-    this.front = P(this.pole);
+    this.front = P(this.pole); this.look.copy(this.front).setY(1);
     const facing = (dx, dz) => Math.atan2(-dz, dx);
     // (by night the TV crews' lamps: a little of each person's own colour as fill, so faces don't go to black - no extra lights)
     const lift = (p) => { if (this.night) for (const k in p.mats) { const m = p.mats[k]; if (m.emissive && m.color) m.emissive.copy(m.color).multiplyScalar(0.2); } };
-    const add = (p, x, z, face, y = 0) => { lift(p); p.group.position.set(x, y, z); p.group.rotation.y = face; this.group.add(p.group); this.people.push(p); return p; };
+    const add = (p, x, z, face, y = 0) => { lift(p); p.group.position.set(x, y + TERRAIN.at(x, z), z); p.group.rotation.y = face; this.group.add(p.group); this.people.push(p); return p; };   // (y: over the ground there)
     const teamsCol = [...new Set(cars.map((c) => c.color))];
 
     // ---- the memorial ahead of pole: a black plinth with the helmet(s), a banner behind, flowers and candles round it
     const M = this.memorial || [];
     this.mem = null;
     if (M.length) {
-      const c0 = this.front.clone().addScaledVector(this.fwd, 30), g = this.group, black = new THREE.MeshStandardMaterial({ color: '#16161a', roughness: 0.3, metalness: 0.2, emissive: '#2a1c0c', emissiveIntensity: 0.35 });
+      const c0 = this.front.clone().addScaledVector(this.fwd, 30), g0 = TERRAIN.at(c0.x, c0.z), g = this.group, black = new THREE.MeshStandardMaterial({ color: '#16161a', roughness: 0.3, metalness: 0.2, emissive: '#2a1c0c', emissiveIntensity: 0.35 });
       const w = Math.max(1.4, M.length * 0.9);
-      const pl = new THREE.Mesh(new THREE.BoxGeometry(0.9, 1.0, w), black); pl.position.copy(c0).setY(0.5); pl.rotation.y = facing(this.fwd.x, this.fwd.z); g.add(pl);
+      // (its top 1 m over the ground at its middle; on a slope 0.4 m more of it under the ground, so no edge stands off it)
+      const sink = TERRAIN.on ? 0.4 : 0, pl = new THREE.Mesh(new THREE.BoxGeometry(0.9, 1.0 + sink, w), black); pl.position.copy(c0).setY(g0 + (1.0 - sink) / 2); pl.rotation.y = facing(this.fwd.x, this.fwd.z); g.add(pl);
       M.forEach((m, i) => {
         const hel = makeHelmet(m.helmet || '#ffffff', m.color || '#888', m.number ?? '', { driver: m.name }); hel.scale.setScalar(2.1);
-        const off = (i - (M.length - 1) / 2) * 0.85; hel.position.copy(c0).addScaledVector(this.left, off).setY(1.0 + 0.3); hel.rotation.y = facing(-this.fwd.x, -this.fwd.z) + 0.4; g.add(hel);
+        const off = (i - (M.length - 1) / 2) * 0.85; hel.position.copy(c0).addScaledVector(this.left, off).setY(g0 + 1.0 + 0.3); hel.rotation.y = facing(-this.fwd.x, -this.fwd.z) + 0.4; g.add(hel);
       });
       const first = (n) => n.split(' ')[0], last = (n) => n.split(' ').pop();
       const ban = clothBanner(M.length > 1 ? ['FOREVER', M.map((m) => last(m.name).toUpperCase()).join(' · ')] : [`FOREVER #${M[0].number ?? ''}`, last(M[0].name).toUpperCase()], M[0].color || '#333', 4.2, 1.15);
-      ban.position.copy(c0).addScaledVector(this.fwd, 1.3).setY(2.0); ban.lookAt(ban.position.clone().addScaledVector(this.fwd, -10)); g.add(ban);
-      const at = (along, lat, y) => c0.clone().addScaledVector(this.left, along).addScaledVector(this.fwd, -0.7 - lat).setY(y);
+      ban.position.copy(c0).addScaledVector(this.fwd, 1.3); ban.position.y = 2.0 + TERRAIN.at(ban.position.x, ban.position.z); ban.lookAt(ban.position.clone().addScaledVector(this.fwd, -10)); g.add(ban);
+      const at = (along, lat, y) => { const v = c0.clone().addScaledVector(this.left, along).addScaledVector(this.fwd, -0.7 - lat); return v.setY(y + TERRAIN.at(v.x, v.z)); };
       this.flames = tribute(g, at, 70, 1.6, 2.6, 22);
       // the grid's drivers and the teams, standing back from it, heads bowed
       for (let n = 0; n < 12; n++) {
@@ -363,13 +368,16 @@ export class PreRace {
     // the tyre blankets: every car's four wheels, a band of the team's colour round each
     const n = cars.length * 4, bl = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.382, 0.382, 1, 22).rotateX(Math.PI / 2), new THREE.MeshStandardMaterial({ color: '#16171a', roughness: 0.9 }), n);
     const band = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.386, 0.386, 0.07, 22, 1, true).rotateX(Math.PI / 2), new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.6 }), n);
-    const M = new THREE.Matrix4(), Qn = new THREE.Quaternion(), S = new THREE.Vector3(), P0 = new THREE.Vector3(), Yax = new THREE.Vector3(0, 1, 0), col = new THREE.Color();
+    const M = new THREE.Matrix4(), Qn = new THREE.Quaternion(), S = new THREE.Vector3(), P0 = new THREE.Vector3(), E = new THREE.Euler(), gr = [0, 0], col = new THREE.Color();
     let k = 0;
     for (const c of cars) for (const [bx, bz, w] of [[1.96, 0.848, 0.345], [1.96, -0.848, 0.345], [-1.64, 0.797, 0.445], [-1.64, -0.797, 0.445]]) {
-      // (the car's body frame: +x forward, +z its left: world (cx + bx cos - bz sin, cz + bx sin + bz cos))
-      const ca = Math.cos(c.th), sa = Math.sin(c.th), x = c.x + bx * ca - bz * sa, z = c.z + bx * sa + bz * ca;
-      Qn.setFromAxisAngle(Yax, -c.th);
-      bl.setMatrixAt(k, M.compose(P0.set(x, 0.365, z), Qn, S.set(1, 1, w))); band.setMatrixAt(k, M.compose(P0, Qn, S.set(1, 1, 1))); band.setColorAt(k, col.set(c.color)); k++;
+      // (the car's body frame: +x forward, +z its left, turned by -th; on a slope lifted and tilted with the car, as
+      //  CarMesh.update stands it: pitch and roll from the ground's slope under it)
+      let gy = 0, gp = 0, gq = 0;
+      if (TERRAIN.on) { TERRAIN.grad(c.x, c.z, gr); const ca = Math.cos(c.th), sa = Math.sin(c.th); gy = TERRAIN.at(c.x, c.z); gp = Math.atan(gr[0] * ca + gr[1] * sa); gq = Math.atan(gr[0] * sa - gr[1] * ca); }
+      Qn.setFromEuler(E.set(gq, -c.th, gp, 'YZX'));
+      P0.set(bx, 0.365, bz).applyQuaternion(Qn).add(S.set(c.x, gy, c.z));
+      bl.setMatrixAt(k, M.compose(P0, Qn, S.set(1, 1, w))); band.setMatrixAt(k, M.compose(P0, Qn, S.set(1, 1, 1))); band.setColorAt(k, col.set(c.color)); k++;
     }
     bl.instanceMatrix.needsUpdate = true; band.instanceMatrix.needsUpdate = true; bl.computeBoundingSphere(); band.computeBoundingSphere();
     this.group.add(bl, band);
@@ -453,15 +461,18 @@ export class PreRace {
       this.el.querySelector('.cc').textContent = Ls[i].slice(0, Math.floor(tt * 30));
     }
     const V = (x, y, z) => new THREE.Vector3(x, y, z), F = this.fwd, Lf = this.left, fr = this.front, S = this.stand;
-    const shot = (from, to, look, fov) => { const p = from.clone().lerp(to, u * u * (3 - 2 * u)); cam.position.copy(p).add(V(Math.sin(t * 0.7) * 0.01, Math.sin(t * 1.1) * 0.008, 0)); cam.up.set(0, 1, 0); cam.lookAt(look); if (Math.abs(cam.fov - fov) > 0.01) { cam.fov = fov; cam.updateProjectionMatrix(); } };
-    const sw = (x, d, y) => { const [a, b] = S.world(x, d); return V(a, y, b); };
+    // (every shot on the flat, its heights over the ground; look: what it is aimed at - main.js lifts the camera with it)
+    const shot = (from, to, look, fov) => { const p = from.clone().lerp(to, u * u * (3 - 2 * u)); cam.position.copy(p).add(V(Math.sin(t * 0.7) * 0.01, Math.sin(t * 1.1) * 0.008, 0)); cam.up.set(0, 1, 0); cam.lookAt(look); this.look.copy(look); if (Math.abs(cam.fov - fov) > 0.01) { cam.fov = fov; cam.updateProjectionMatrix(); } };
+    // (in the stand's frame: x along it, d back from its front edge, y over its own floor - which on a slope is the level
+    //  plinth it stands on, not the ground under each point: world/Grandstands.js y0, k)
+    const sw = (x, d, y) => { const [a, b] = S.world(x, d); return V(a, y + standOff(S, x, a, b), b); };
     switch (seg.k) {
       case 'memorial': { const c0 = this.mem.c0; shot(c0.clone().addScaledVector(F, -12).addScaledVector(Lf, 1.2).setY(0.9), c0.clone().addScaledVector(F, -6.5).addScaledVector(Lf, 0.4).setY(1.05), c0.clone().setY(1.15 + 0.15 * u), 36); break; }
       case 'banners': {
         // along the front of the stand from the track side, past the banners
         const B = this.bannerAt?.[2] || this.bannerAt?.[0];
         if (!B) { shot(this.mem.c0.clone().setY(3), this.mem.c0.clone().setY(4), this.mem.c0.clone().setY(1), 40); break; }
-        const s = B.stand, at = (x, d, y) => { const [a, b] = s.world(x, d); return V(a, y, b); }, x0 = B.f * s.len;
+        const s = B.stand, at = (x, d, y) => { const [a, b] = s.world(x, d); return V(a, y + standOff(s, x, a, b), b); }, x0 = B.f * s.len;
         shot(at(x0 - 9, -13, 2.4), at(x0 + 5, -11, 2.9), B.pos.clone().setY(B.pos.y - 0.4), 34); break;
       }
       case 'return': {
@@ -479,8 +490,8 @@ export class PreRace {
       case 'walk': {
         // the reporter walking back down the grid toward the camera's way; the camera ahead, backing off with them
         const A = V(this.walkA.x, 0, this.walkA.z), B = V(this.walkB.x, 0, this.walkB.z), w = A.clone().lerp(B, u), dir = B.clone().sub(A).normalize();
-        this.walker.group.position.set(w.x, Math.abs(Math.sin(t * 7)) * 0.03, w.z); this.walker.group.rotation.y = Math.atan2(-dir.z, dir.x);
-        const c = w.clone().addScaledVector(dir, 3.1).setY(1.6); cam.position.copy(c); cam.up.set(0, 1, 0); cam.lookAt(w.clone().setY(1.45)); if (cam.fov !== 34) { cam.fov = 34; cam.updateProjectionMatrix(); }
+        this.walker.group.position.set(w.x, Math.abs(Math.sin(t * 7)) * 0.03 + TERRAIN.at(w.x, w.z), w.z); this.walker.group.rotation.y = Math.atan2(-dir.z, dir.x);
+        const c = w.clone().addScaledVector(dir, 3.1).setY(1.6); cam.position.copy(c); cam.up.set(0, 1, 0); this.look.copy(w).setY(1.45); cam.lookAt(this.look); if (cam.fov !== 34) { cam.fov = 34; cam.updateProjectionMatrix(); }
         this.walker.head.rotation.z = this.walker.bow + 0.05 * Math.sin(t * 5.3) * Math.max(0, Math.sin(t * 1.7)) - 0.03;
         break;
       }
@@ -495,6 +506,8 @@ export class PreRace {
     }
     if (this.total - t < 0.9) this.el.querySelector('.black').style.opacity = 1;   // (to black, and into the race)
     function P(c) { return new THREE.Vector3(c.x, 0, c.z); }
+    // (a point in stand s's frame (x along it) at world (a, b): its floor's height over the ground there)
+    function standOff(s, x, a, b) { return TERRAIN.on ? (s.y0 || 0) + (s.k || 0) * x - TERRAIN.at(a, b) : 0; }
   }
   /** over (or skipped): everything built for it gone; walk: the grid as it stands handed to the grid walk instead */
   finish(walk = false) {

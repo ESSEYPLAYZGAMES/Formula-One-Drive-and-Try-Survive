@@ -179,6 +179,8 @@ let REACH = 0;
 const reach = () => REACH || (REACH = (() => { try { const J = jointsOf('shove'); return Math.max(0.45, Math.max(J.wrR?.x || 0, J.wrL?.x || 0) + 0.1); } catch (_) { return 0.6; } })());
 /** inside a car (the walk's own box for people: GridWalk._pushHQ) */
 const inCar = (cars, x, z) => { for (const c of cars || []) { const ex = x - c.x, ez = z - c.z, ca = Math.cos(c.th), sa = Math.sin(c.th); if (Math.abs(ex * ca + ez * sa) < 3.0 && Math.abs(-ex * sa + ez * ca) < 1.2) return true; } return false; };
+/** the ground under p for host W (the grid walk's on a circuit that is not flat: GridWalk.groundAt; elsewhere level, 0) */
+const groundOf = (W, p) => (W?.groundAt ? W.groundAt(p.x, p.z) : 0);
 /** a person (their position, or any {x, z}) moved to (x, z) - or as far along one axis as a car allows -> moved at all */
 const moveTo = (cars, p, x, z) => { if (!inCar(cars, x, z)) { p.x = x; p.z = z; return true; } if (!inCar(cars, x, p.z)) { p.x = x; return true; } if (!inCar(cars, p.x, z)) { p.z = z; return true; } return false; };
 /** the exchanges, in order: n of them, never the same move twice running (nor two sidesteps), at least one shove; the windows from 0.9 s down to 0.55 s (x q) */
@@ -276,7 +278,7 @@ class Kit {
   release(r) {
     this.show(r, null); const P = r.P, h = P.head;
     if (h) { h.rotation.z = P.bow || 0; h.rotation.y = 0; }
-    P.group.rotation.x = 0; P.group.rotation.z = 0; P.group.position.y = 0;
+    P.group.rotation.x = 0; P.group.rotation.z = 0; P.group.position.y = groundOf(this.W, P.group.position);
     for (const k in r.fr) { const F = r.fr[k]; if (!F) continue; P.group.remove(F.group); try { F.dispose(); } catch (_) { /* (already gone with the show) */ } }
     r.fr = {}; this.queue = this.queue.filter((q) => q[0] !== r);
     if (r.claimed) { r.n.brawl = false; P.busy = r.busy0; r.claimed = false; }
@@ -286,6 +288,7 @@ class Kit {
   arms(cam, y, tR, tL, on) {
     const R = this.rig; R.visible = !!on && !!(this.armR || this.armL); if (!R.visible) return;
     R.matrix.multiplyMatrices(cam.matrixWorld, _M.makeTranslation(0, y, 0)); R.matrixWorldNeedsUpdate = true;
+    if (this.W?.groundAt) R.matrix.elements[13] += groundOf(this.W, cam.position);   // (the eye is lifted by the ground under it for the frame - main.js - and the arms with it)
     this.armR?.set?.(tR); this.armL?.set?.(tL);
   }
   /** everyone put back (heads first, so no frame takes one with it), the arms gone */
@@ -373,7 +376,7 @@ class Act {
     const min = (pose === 'shove' ? reach() : 0.36) + 0.38, dx = x - e.x, dz = z - e.z, d = Math.hypot(dx, dz);
     if (d < min) { const ux = d > 1e-3 ? dx / d : ax.x, uz = d > 1e-3 ? dz / d : ax.z; x = e.x + ux * min; z = e.z + uz * min; }
     moveTo(W.cars, g, x, z);
-    g.y = r.goal ? 0.02 * Math.abs(Math.sin(r.walk * Math.PI / 0.7)) : 0;
+    g.y = groundOf(W, g) + (r.goal ? 0.02 * Math.abs(Math.sin(r.walk * Math.PI / 0.7)) : 0);
     // leaning: back when shoved, into it when he lunges (more without a frame for it), shaking with a laugh
     P.group.rotation.z = r.lean + st * (F ? 0.1 : 0.22) - lg * (F ? 0.08 : 0.14) + r.osc * 0.35 * Math.sin(t * 17 + 0.6);
     P.group.rotation.y += wrap(facing(e.x - g.x, e.z - g.z) + (r.away ? Math.PI : 0) - P.group.rotation.y) * Math.min(1, dt * (r.away ? 3 : 8));
@@ -802,10 +805,10 @@ export class Brawl extends Act {
       const P = s.r.P, g = P.group.position, H = s.holds === 'you' ? e : T; this._spot(s, s.to);
       const dx = s.to.x - g.x, dz = s.to.z - g.z, d = Math.hypot(dx, dz);
       if (s.st === 'run') {
-        if (d > 0.07) { const v = Math.min(d, s.sp * dt); moveTo(cars, g, g.x + dx / d * v, g.z + dz / d * v); s.walk += v; g.y = 0.028 * Math.abs(Math.sin(s.walk * Math.PI / 0.8)); P.group.rotation.y += wrap(facing(dx, dz) - P.group.rotation.y) * Math.min(1, dt * 10); P.group.rotation.z = -0.1; }
-        if (d <= 0.07 || s.walk > s.dist + 1.5) { s.st = 'hold'; g.y = 0; P.group.rotation.z = 0; }
+        if (d > 0.07) { const v = Math.min(d, s.sp * dt); moveTo(cars, g, g.x + dx / d * v, g.z + dz / d * v); s.walk += v; g.y = groundOf(this.W, g) + 0.028 * Math.abs(Math.sin(s.walk * Math.PI / 0.8)); P.group.rotation.y += wrap(facing(dx, dz) - P.group.rotation.y) * Math.min(1, dt * 10); P.group.rotation.z = -0.1; }
+        if (d <= 0.07 || s.walk > s.dist + 1.5) { s.st = 'hold'; g.y = groundOf(this.W, g); P.group.rotation.z = 0; }
       } else {
-        if ((s.st === 'hold' || s.st === 'lead') && d > 0.02) { const f = Math.min(1, dt * 7); moveTo(cars, g, g.x + dx * f, g.z + dz * f); }
+        if ((s.st === 'hold' || s.st === 'lead') && d > 0.02) { const f = Math.min(1, dt * 7); moveTo(cars, g, g.x + dx * f, g.z + dz * f); g.y = groundOf(this.W, g); }
         // (holding: turned to whoever they hold; leading him off: turned the way they are going)
         const want = s.st === 'lead' ? facing(this.ax.x, this.ax.z) : facing(H.x - g.x, H.z - g.z);
         P.group.rotation.y += wrap(want - P.group.rotation.y) * Math.min(1, dt * 8);

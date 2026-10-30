@@ -1186,10 +1186,10 @@ function terrainLift() {
     _camF.setFromEuler(_camE.set(p.rl || 0, -p.th, p.pt || 0, 'YZX')).invert().premultiply(g.quaternion);   // (the slope's own turn: model / flat)
     c.sub(_camO.set(p.x, p.hv || 0, p.z)).applyQuaternion(_camF).add(g.position); camera.quaternion.premultiply(_camF);
   } else if (s?.ride) {
-    // (an onboard shot of a car drawn by someone else - the news's replay: the mount is right under the lens, so by the
-    //  ground and the slope there, turned about the car's floor)
-    const gr = TERRAIN.grad(c.x, c.z, _camG); _camF.setFromUnitVectors(_camUp, _camU.set(-gr[0], 1, -gr[1]).normalize());
-    c.sub(_camO.set(c.x, 0, c.z)).applyQuaternion(_camF).add(_camO.setY(gc)); camera.quaternion.premultiply(_camF);
+    // (an onboard shot of a car drawn by someone else - the news's replay, its look the car: carried as that car is
+    //  stood on the ground there, lifted and tilted with the slope about its floor - NewsBroadcast._toGround)
+    const gr = TERRAIN.grad(s.p.x, s.p.z, _camG); _camF.setFromUnitVectors(_camUp, _camU.set(-gr[0], 1, -gr[1]).normalize());
+    c.sub(_camO.set(s.p.x, 0, s.p.z)).applyQuaternion(_camF).add(_camO.setY(TERRAIN.at(s.p.x, s.p.z))); camera.quaternion.premultiply(_camF);
   } else {
     const gs = s ? TERRAIN.at(s.p.x, s.p.z) : gc, w = !s || s.own ? 1 : Math.min(1, Math.max(0, (d - 12) / 30)), y0 = c.y;
     c.y = Math.max(y0 + gs * (1 - w) + gc * w, gc + Math.max(0.15, Math.min(0.4, y0)));   // (0.4 m over the ground, or as low as it was put)

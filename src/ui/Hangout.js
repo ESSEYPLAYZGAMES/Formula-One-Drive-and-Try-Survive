@@ -97,6 +97,7 @@ export const HANGOUT_CSS = `
 #hangout .hg-talk .opts button[data-tone=cruel] i { color: #e5484d; } #hangout .hg-talk .opts button[data-tone=kind] i { color: #6cc08b; } #hangout .hg-talk .opts button[data-tone=sorry] i { color: #c8b66a; }
 #hangout .hg-talk .opts button[data-tone=gossip] i { color: #c27ad6; } #hangout .hg-talk .opts button[data-tone=flirt] i { color: #ef7fb4; } #hangout .hg-talk .opts button[data-tone=show] i { color: #e8a24a; }
 #hangout .hg-talk .opts button[data-tone=firm] i { color: #8fb3e8; } #hangout .hg-talk .opts button[data-tone=light] i { color: #7fd4d8; }
+#hangout .hg-talk .opts button[data-tone=cold] i { color: #8fc3e8; } #hangout .hg-talk .opts button[data-tone=passive] i { color: #c9ced8; } #hangout .hg-talk .opts button[data-tone=flirty] i { color: #ef7fb4; } #hangout .hg-talk .opts button[data-tone=risque] i { color: #ff4f7a; }
 #hangout .hg-talk .next { text-align: right; font: 600 11px/1 'Segoe UI', Arial, sans-serif; color: #7d8592; letter-spacing: .1em; min-height: 11px; }
 #hangout .hg-ask, #hangout .hg-buzz { position: absolute; background: rgba(12,14,20,.95); border: 1px solid rgba(255,255,255,.14); border-radius: 12px; box-shadow: 0 14px 40px rgba(0,0,0,.55); opacity: 0; transition: opacity .2s, transform .2s; pointer-events: none; box-sizing: border-box; }
 #hangout .hg-ask { left: 50%; top: 50%; transform: translate(-50%, -46%); width: min(380px, calc(100vw - 32px)); padding: 20px 22px 16px; text-align: center; }
@@ -251,8 +252,8 @@ export const HANGOUT_FOOTPRINT = {
 };
 
 // ---- how talk lands (the grid walk's tones; ui/HangoutTalk.js keeps the master copies) -------------------------------
-const TONE = HT.HANGOUT_TONE || { kind: 2, firm: 1, light: 1, cold: -1, cruel: -5, sorry: 3, gossip: 0, leave: -1, flirt: 1, show: 0 };
-const TAG = HT.HANGOUT_TAG || { kind: 'KIND', firm: 'FIRM', light: 'LIGHT', cold: 'COLD', cruel: 'CRUEL', sorry: 'APOLOGISE', gossip: 'GOSSIP', leave: '', flirt: 'FLIRT', show: 'SHOW OFF' };
+const TONE = HT.HANGOUT_TONE || { kind: 2, firm: 1, light: 1, cold: -1, cruel: -5, sorry: 3, gossip: 0, leave: -1, flirt: 1, show: 0, passive: 0, flirty: 1, risque: 2 };
+const TAG = HT.HANGOUT_TAG || { kind: 'KIND', firm: 'FIRM', light: 'LIGHT', cold: 'COLD', cruel: 'CRUEL', sorry: 'APOLOGISE', gossip: 'GOSSIP', leave: '', flirt: 'FLIRT', show: 'SHOW OFF', passive: 'PASSIVE', flirty: 'FLIRTY', risque: 'RISQUÉ' };
 // party hook: the after-party's own effects (network, loose, provoke, dance, together, kiss) - tagged unless the talk's own tags say otherwise
 const FX_TAG = { network: 'NETWORK', loose: 'LOOSE', provoke: 'PROVOKE', dance: 'DANCE', together: 'LEAVE TOGETHER', kiss: '', ...(HT.HANGOUT_FX_TAG || { cover: 'COVER STORY', confess: 'OWN UP', deep: 'OPEN UP', invite: 'INVITE', flirt: '', charm: '' }) };
 const FX = ['flirt', 'charm', 'deep', 'cover', 'confess', 'invite', 'network', 'loose', 'provoke', 'dance', 'together', 'kiss'];
@@ -2777,7 +2778,7 @@ class Evening {
     if (!tree) { this._toast(`${g.first} has run out of things to say. For now.`, ''); g.talks = 3; return; }
     this.usedAll.push(tree.id); g.used.push(tree.id); this.lastG = g;
     this._unlock(); this.keys.clear(); if (this.buzzE?.open) this._buzzPick(0); this.$('.hg-sub').classList.remove('in'); this.subT = 0;
-    this.talk = { g, step: 0, queue: [], after: null, opts: null, typed: 0, line: null, hold: 0, dm: 0, closing: false };
+    this.talk = { g, step: 0, queue: [], after: null, opts: null, typed: 0, line: null, hold: 0, dm: 0, closing: false, tree, ptones: [] };   // (ptones: a personality talk's answers, in order - its mood, career/Persona.js)
     const P = this.$('.hg-talk'); P.querySelector('.who').innerHTML = `${esc(g.name)}<small>${esc(this._sub(g))}</small>`; P.classList.add('in');
     this._queue([tree.say], tree.opts);
   }
@@ -2814,6 +2815,7 @@ class Evening {
     T0.opts = null; this.$('.hg-talk .opts').innerHTML = '';
     const dm = typeof HT.hangoutMood === 'function' ? HT.hangoutMood(o) : o.m ?? TONE[o.tone] ?? 0; g.dm += dm; T0.dm += dm;
     if (o.tone) R.tones[o.tone] = (R.tones[o.tone] || 0) + 1;
+    if (T0.tree?.persona && o.tone) T0.ptones.push(o.tone);
     if (o.fx) for (const k of Object.keys(o.fx)) { g.fx[k] = (g.fx[k] || 0) + 1; R.fx[k] = (R.fx[k] || 0) + 1; }
     try { this.party?.chosen?.(o, g); } catch (e) { console.warn('Hangout: the party choice', e); }   // party hook
     if (o.fx?.cover) R.cover++; if (o.fx?.flirt) R.flirt++;
@@ -2823,11 +2825,12 @@ class Evening {
     const lines = o.t.startsWith('[') ? [] : [`› ${o.t}`]; if (o.r) lines.push(o.r);
     if (o.end) { g.offended = true; T0.step = 2; this._queue(lines, null); try { papsNote(this, 'row', g); } catch (_) { /* */ } return; }   // (paps hook: an argument in public)
     if (T0.step === 0 && o.then) { T0.step = 1; lines.push(o.then.say); this._queue(lines, o.then.opts); return; }
-    T0.step = 2; lines.push(this._bye(g, T0.dm)); this._queue(lines, null);
+    T0.step = 2; if (!T0.tree?.persona) lines.push(this._bye(g, T0.dm)); this._queue(lines, null);   // (a personality talk's last reaction is its goodbye)
   }
   _bye(g, dm) { try { if (typeof HT.hangoutBye === 'function') return HT.hangoutBye(this.x, g.n, dm); } catch (_) { /* the local pools */ } return pick(this.x.grave ? BYE.quiet : g.kind === 'celeb' ? (dm < 0 ? BYE.cold : BYE.warm) : dm >= 3 ? BYE.good : dm >= 0 ? BYE.ok : BYE.bad); }
   _closeTalk() {
     const T0 = this.talk; if (!T0) return; const g = T0.g; this.talk = null; g.talks++; if (g.n) g.n.talks = g.talks;
+    if (T0.tree?.done && T0.ptones?.length) { try { T0.tree.done(T0.ptones); } catch (e) { console.warn('Hangout: the mood could not be kept', e); } }   // (where you steered it: how the next one opens)
     this.$('.hg-talk').classList.remove('in'); this.$('.hg-talk .opts').innerHTML = '';
     if (T0.dm >= 3) this._toast(`${g.first} enjoyed that`, 'up'); else if (T0.dm <= -3) this._toast(`${g.first} didn't like that`, 'down');
     // (she has a mind of her own: pushed far enough, she goes home)

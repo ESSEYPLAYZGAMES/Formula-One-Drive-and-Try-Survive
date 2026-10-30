@@ -128,7 +128,8 @@
  * VENUE_OF, PARTY_TIMES, hhmm(clock) -> '00:45'.
  * =========================================================================================================================
  */
-import { CELEB, CELEBS, celebsAtRace, partnerAtRace, bondOf, seeing, meet, flirt, charm, dateResult, relateCeleb, trustCeleb, upsetCeleb, exposure, stageLabel } from './Celebs.js';
+import { localSeed, isLocalId } from './Locals.js';
+import { CELEB, CELEBS, registerLocal, celebsAtRace, partnerAtRace, bondOf, seeing, meet, flirt, charm, dateResult, relateCeleb, trustCeleb, upsetCeleb, exposure, stageLabel } from './Celebs.js';
 import { BRAND_BY_ID, fameIndex, prEvent, crisisFrom, offerFrom } from './PR.js';
 import { pushText, relateFriend, meetDriver, friendOf, stageName } from './Social.js';
 import { weekOf, weekGain, setHangover } from './Agenda.js';
@@ -489,6 +490,11 @@ function guestsFor(c, S, O) {
   if (club) {
     if (O.brand) put(90, repG(c, S, O.brand, true));
     stars.forEach((id, i) => put([85, 72, 55, 40][i] ?? 30, celebG(c, S, id, S.exes.includes(id) ? 'ex' : 'celeb')));
+    // (and people who are not famous at all (career/Locals.js): two out tonight with friends - anyone could be someone -
+    //  and now and then one you have met before, out again)
+    const metL = Object.keys(B).filter((id) => isLocalId(id) && CELEB[id] && !['stranger', 'ex'].includes(B[id].stage) && !B[id].grieving && id !== S.partner).sort(() => R() - 0.5);
+    if (metL[0] && R() < 0.45) put(76, celebG(c, S, metL[0], 'celeb', { why: `${CELEB[metL[0]].job} · out again tonight` }));
+    for (let k = 0; k < 2; k++) { const L = registerLocal(localSeed(S.season, S.round, O.venue, k)); put(77 - k * 4, celebG(c, S, L.id, 'celeb', { why: `${L.job} · out with friends` })); }
     const rv = [S.fought, ...S.contacts].find((did) => did && did !== S.mate && okD(did));
     if (rv) put(80, driverG(c, S, rv, 'rival'));
     put(75, agentG(c, S, R));

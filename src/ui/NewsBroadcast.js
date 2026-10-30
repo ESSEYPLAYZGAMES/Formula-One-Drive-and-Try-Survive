@@ -28,8 +28,13 @@
 // broadcasts read the same.
 // Skippable (SKIP, Enter, Esc). The broadcaster, the pundits and the papers are made up; the drivers and teams are
 // the game's, the team principals are not named.
+// Everything is placed on the flat plan, as the race is run: on a circuit that is not flat (world/Terrain.js) the cars
+// posed from the replay (whose record is flat: race/Replay.js) and every piece of a set are stood on the ground under
+// them, and the shots are framed on the flat - this.look is the point a shot is aimed at (y: its height over the ground
+// there), which main.js lifts the camera with when it renders the broadcast.
 import { makePerson, makeMic, makePhone, makeArm } from '../world/People.js';
 import { tribute } from '../world/Tribute.js';
+import { TERRAIN } from '../world/Terrain.js';
 const CSS = `
 #news { position: fixed; inset: 0; z-index: 55; pointer-events: none; font-family: 'Segoe UI', Roboto, Arial, sans-serif; color: #fff; overflow: hidden; }
 #news .bug { position: absolute; left: 3.2vw; top: 4vh; display: flex; align-items: stretch; height: 34px; box-shadow: 0 2px 10px rgba(0,0,0,.5); transition: opacity .3s; }
@@ -248,6 +253,7 @@ export class NewsBroadcast {
     window.addEventListener('keydown', this._key, true);
     this.aimV = new this.T3.Vector3(); this.fovT = 30; this.fov = 30; this.zoomT = 0;
     this.aim = this.clip ? this._pose(0, this.clip.focus).p.clone() : this.rest.clone();
+    this.look = this.rest.clone();   // (what the shot is aimed at, on the flat: main.js lifts the camera with it)
   }
 
   // ---- the accidents ------------------------------------------------------------------------------------------------
@@ -255,7 +261,7 @@ export class NewsBroadcast {
   _prep(I) {
     const THREE = this.T3, C = I.clip;
     if (C) { const f = C.frames[C.frames.length - 1], o7 = C.focus * 7; I.rest = new THREE.Vector3(f[o7], f[o7 + 1], f[o7 + 2]); I.impact = new THREE.Vector3(C.impact.x, 0, C.impact.z); }
-    else { const m = this.meshes.get(I.car), p = m ? m.group.position : { x: I.car.x, y: 0, z: I.car.z }; I.rest = new THREE.Vector3(p.x, p.y, p.z); I.impact = I.rest.clone(); }
+    else { const m = this.meshes.get(I.car), p = m ? m.group.position : { x: I.car.x, y: 0, z: I.car.z }; I.rest = new THREE.Vector3(p.x, p.y - (m?._gy || 0), p.z); I.impact = I.rest.clone(); }   // (the car as drawn, back on the flat)
     this.clip = C; this.rest = I.rest; this.impact = I.impact;
     I.impactT = C ? C.impact.k / C.hz : 0;
     // the first heavy blow (beyond the 5-6 g of a fast corner, within 2 s before the hardest): where the onboards and the analysis start
@@ -321,7 +327,7 @@ export class NewsBroadcast {
       if ((p.x - ix) ** 2 + (p.z - iz) ** 2 > 650 * 650) continue;
       for (const row of [0, 1]) for (const f of [-0.3, 0, 0.3]) {
         const [x, z] = p.world(f * p.len, 0.8 + (row + 0.5) * ST.tierD);
-        cands.push({ x, y: ST.base + row * ST.tierH + 2.1, z, stand: p, pen: 0.02 * row });   // (standing, the phone held up)
+        cands.push({ x, y: ST.base + row * ST.tierH + 2.1, z, stand: p, lx: f * p.len, pen: 0.02 * row });   // (standing, the phone held up)
       }
     }
     const q = tr.nearest(ix, iz), free = (x, y, z) => !O || [[0, 0], [1.2, 0], [-1.2, 0], [0, 1.2], [0, -1.2]].every(([a, b]) => !O.hit(x + a, z + b, y, oh));
@@ -339,6 +345,8 @@ export class NewsBroadcast {
       c.score = vis / targets.length - dist / targets.length / 1500 - c.pen;
     }
     cands.sort((p, q) => q.score - p.score);
+    // (on a slope a stand stands level on a plinth: a phone in it is that much over the ground under it - world/Grandstands.js y0, k)
+    if (TERRAIN.on) for (const c of cands) if (c.stand) c.y += (c.stand.y0 || 0) + (c.stand.k || 0) * c.lx - TERRAIN.at(c.x, c.z);
     return cands.length ? cands : [{ x: ix + 40, y: 4, z: iz, stand: null, score: 0 }];
   }
   /** a TV camera on the circuit with a clear view of the wreck (a long lens from along the track; from above if none) */
@@ -622,7 +630,7 @@ export class NewsBroadcast {
       for (const I of this.incs) {
         if (!I.clip) { const m = this.meshes.get(I.car); if (m) m.group.visible = true; continue; }
         const C = I.clip, f = C.frames[C.frames.length - 1];
-        C.cars.forEach((c, j) => { const m = this.meshes.get(c); if (!m || !(c.retired || I.hurt.includes(c))) return; m.group.visible = true; m.group.position.set(f[j * 7], f[j * 7 + 1], f[j * 7 + 2]); m.group.quaternion.set(f[j * 7 + 3], f[j * 7 + 4], f[j * 7 + 5], f[j * 7 + 6]); });
+        C.cars.forEach((c, j) => { const m = this.meshes.get(c); if (!m || !(c.retired || I.hurt.includes(c))) return; m.group.visible = true; m.group.position.set(f[j * 7], f[j * 7 + 1], f[j * 7 + 2]); m.group.quaternion.set(f[j * 7 + 3], f[j * 7 + 4], f[j * 7 + 5], f[j * 7 + 6]); this._toGround(m); });
       }
       return;
     }
@@ -640,9 +648,20 @@ export class NewsBroadcast {
         const t = C.t0 + tau, R = this._replica(c, t);
         if (R) { R.group.visible = true; R.showPieces(true); m.group.visible = false; target = R; R.group.position.copy(p); R.group.quaternion.copy(q); R.replay(c, t); }
       }
-      target.group.position.copy(p); target.group.quaternion.copy(q);
+      target.group.position.copy(p); target.group.quaternion.copy(q); this._toGround(target);
     });
     this._replayFx(tau);
+  }
+  /**
+   * A car posed from the replay's record (on the flat: race/Replay.js) stood on the ground as CarMesh.update stands one:
+   * lifted by the ground under it, tilted with the slope there (m: a CarMesh; its _gy, for its detail by distance)
+   */
+  _toGround(m) {
+    m._gy = 0; if (!TERRAIN.on) return;
+    const THREE = this.T3, g = m.group, p = g.position, gr = TERRAIN.grad(p.x, p.z, this._gr || (this._gr = [0, 0]));
+    m._gy = TERRAIN.at(p.x, p.z); p.y += m._gy;
+    const Q = this._tq || (this._tq = { q: new THREE.Quaternion(), up: new THREE.Vector3(0, 1, 0), n: new THREE.Vector3() });
+    g.quaternion.premultiply(Q.q.setFromUnitVectors(Q.up, Q.n.set(-gr[0], 1, -gr[1]).normalize()));
   }
   /** was this car damaged in the accident (it is shown whole at the start of a replay, and breaks up through it)? */
   _isWreck(c) { const d = c.dmg || {}; return !!(c.retired || c.wreck || c.split || this.hurt.includes(c) || (d.fwL || 0) + (d.fwR || 0) + (d.rw || 0) + (d.susp || 0) > 0.8); }
@@ -672,7 +691,7 @@ export class NewsBroadcast {
         const g = C.pulses[f]?.[j] || 0; if (g < 6) continue;
         const quiet = f < k - 2;   // (catching up: a replay starting part-way through - the damage done, no shower of old debris)
         const A = C.frames[f], B = C.frames[Math.max(0, f - 1)], x = A[o], y = A[o + 1], z = A[o + 2], vx = (A[o] - B[o]) * C.hz, vz = (A[o + 2] - B[o + 2]) * C.hz;
-        if (!quiet) { F.debris?.burst(x, z, vx, vz, Math.min(18, 2 + Math.round(g / 3)), col); F.fire?.sparks(x, y + 0.3, z, Math.min(70, Math.round(g * 1.6)), vx, vz); }
+        if (!quiet) { F.debris?.burst(x, z, vx, vz, Math.min(18, 2 + Math.round(g / 3)), col); F.fire?.sparks(x, y + 0.3 + TERRAIN.at(x, z), z, Math.min(70, Math.round(g * 1.6)), vx, vz); }   // (the debris lies on the ground itself: world/Debris.js)
         if (g >= Math.min(20, S.peak * 0.6)) {
           if (!S.fireE && (c._burned || g >= 45) && F.fire) {
             const e = F.fire.add((out) => { if (!R.group.visible) return false; R.body.localToWorld(out.set(-1.3, 0.55, 0)); return true; }, 'fire', 0.4, () => false);
@@ -788,7 +807,7 @@ export class NewsBroadcast {
       const I = this.incs[this.incs.length > 1 && st > seg.dur / 2 ? 1 : 0], rest = I.rest;
       this._poseCars(1e9);
       const a = 0.6 + t * 0.05, r = 95, h = 58 + Math.sin(t * 0.4) * 2;
-      cam.position.set(rest.x + Math.cos(a) * r, h, rest.z + Math.sin(a) * r); cam.up.set(0, 1, 0); cam.lookAt(rest.x + Math.sin(t * 0.7) * 1.2, rest.y, rest.z);
+      cam.position.set(rest.x + Math.cos(a) * r, h, rest.z + Math.sin(a) * r); cam.up.set(0, 1, 0); cam.lookAt(this.look.set(rest.x + Math.sin(t * 0.7) * 1.2, rest.y, rest.z));
       this._fov(24 - st * 0.6);
       this._set({ uPhone: 0, uClip: 0, uOcc: 0, uDefocus: 0, uSat: 0.92, uExpo: 1, uGrain: 0.035, uVig: 0.35 });
       if (this.incs.length > 1 && Math.abs(st - seg.dur / 2) < dt) U.uFade.value = 1;
@@ -814,7 +833,7 @@ export class NewsBroadcast {
       this._poseCars(tau);
       const tgt = this._pose(tau, this.clip.focus).p, bc = this.bc || { x: tgt.x + 40, y: 10, z: tgt.z };
       if (!this.bcAim || st < 0.05) this.bcAim = tgt.clone(); else this.bcAim.lerp(tgt, Math.min(1, dt * 6));
-      cam.position.set(bc.x, bc.y, bc.z); cam.up.set(0, 1, 0); cam.lookAt(this.bcAim);
+      cam.position.set(bc.x, bc.y, bc.z); cam.up.set(0, 1, 0); cam.lookAt(this.look.copy(this.bcAim));
       const dist = cam.position.distanceTo(tgt), hf = 2 * Math.atan(9 / dist), vf = THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(hf / 2) / (cam.aspect || 1.7)));
       this._fov(Math.max(3, Math.min(40, vf)));
       this._set({ uPhone: 0, uClip: 0, uOcc: 0, uDefocus: 0, uSat: 0.95, uExpo: 1, uGrain: 0.02, uVig: 0.3 });
@@ -833,7 +852,7 @@ export class NewsBroadcast {
       const tgt = this._pose(tau, this.clip.focus).p, base = this.heliBase || (this.heliBase = { a: Math.random() * 6.28 });
       if (!this.heliAim || st < 0.05) this.heliAim = tgt.clone(); else this.heliAim.lerp(tgt, Math.min(1, dt * 2.5));
       const a = base.a + st * 0.06, R = 130, h = 85;
-      cam.position.set(this.heliAim.x + Math.cos(a) * R, h + Math.sin(t * 0.5) * 0.8, this.heliAim.z + Math.sin(a) * R); cam.up.set(0, 1, 0); cam.lookAt(this.heliAim);
+      cam.position.set(this.heliAim.x + Math.cos(a) * R, h + Math.sin(t * 0.5) * 0.8, this.heliAim.z + Math.sin(a) * R); cam.up.set(0, 1, 0); cam.lookAt(this.look.copy(this.heliAim));
       cam.rotateX((Math.random() - 0.5) * 0.0012); cam.rotateY((Math.random() - 0.5) * 0.0012);
       const dist = cam.position.distanceTo(this.heliAim); this._fov(THREE.MathUtils.radToDeg(2 * Math.atan(16 / dist)));
       this._set({ uPhone: 0, uClip: 0, uOcc: 0, uDefocus: 0, uSat: 0.9, uExpo: 1, uGrain: 0.03, uVig: 0.3 });
@@ -842,7 +861,7 @@ export class NewsBroadcast {
       this._poseCars(1e9, false);
       const S = this.set3d, P = S?.person;
       if (S) {
-        cam.position.copy(S.cam).add(new THREE.Vector3(Math.sin(t * 0.7) * 0.01, Math.sin(t * 1.3) * 0.008, 0)); cam.up.set(0, 1, 0); cam.lookAt(S.look); cam.rotateZ(0.012 * Math.sin(t * 0.5)); this._fov(27);
+        cam.position.copy(S.cam).add(new THREE.Vector3(Math.sin(t * 0.7) * 0.01, Math.sin(t * 1.3) * 0.008, 0)); cam.up.set(0, 1, 0); cam.lookAt(this.look.copy(S.look)); cam.rotateZ(0.012 * Math.sin(t * 0.5)); this._fov(27);
         for (const m of S.mics || []) m.position.y += Math.sin(t * 3 + m.id) * 0.0004;   // (the hands holding them)
         P.head.rotation.z = P.bow + 0.05 * Math.sin(t * 5.3) * Math.max(0, Math.sin(t * 1.7)) - 0.03; P.head.rotation.y = 0.06 * Math.sin(t * 0.8);
       }
@@ -853,7 +872,7 @@ export class NewsBroadcast {
       // the wreck, live, on a long lens from along the circuit, dimmed behind the papers
       this._poseCars(1e9);
       const tv = this.tv, rest = this.rest;
-      cam.position.set(tv.x, tv.y, tv.z); cam.up.set(0, 1, 0); cam.lookAt(rest.x + Math.sin(st * 0.25) * 3, rest.y + 0.4, rest.z);
+      cam.position.set(tv.x, tv.y, tv.z); cam.up.set(0, 1, 0); cam.lookAt(this.look.set(rest.x + Math.sin(st * 0.25) * 3, rest.y + 0.4, rest.z));
       this._fov(tv.fov * (1 - st * 0.02));
       this._set({ uPhone: 0, uClip: 0, uOcc: 0, uDefocus: 0.004, uSat: 0.8, uExpo: 0.62, uGrain: 0.04, uVig: 0.6 });
       const gap = (seg.dur - 1) / this.papers.length;
@@ -864,13 +883,15 @@ export class NewsBroadcast {
       const S = this.spot.stand, rest = this.rest, T = this.set3d?.tribute;
       if (T) {
         const u = st / seg.dur, a = T.from.clone().lerp(T.to, u);
-        cam.position.set(a.x, 0.9 - 0.15 * u, a.z); cam.up.set(0, 1, 0); cam.lookAt(T.look.x + (T.to.x - T.from.x) * 0.25 * u, 0.6, T.look.z + (T.to.z - T.from.z) * 0.25 * u); this._fov(44);
+        cam.position.set(a.x, 0.9 - 0.15 * u, a.z); cam.up.set(0, 1, 0); cam.lookAt(this.look.set(T.look.x + (T.to.x - T.from.x) * 0.25 * u, 0.6, T.look.z + (T.to.z - T.from.z) * 0.25 * u)); this._fov(44);
         for (const f of T.flames) f.scale.y = 1.6 + 0.4 * Math.sin(t * 9 + f.userData.ph);
         this._set({ uPhone: 0, uClip: 0, uOcc: 0, uDefocus: 0.0015, uSat: 0.75, uExpo: 0.85, uGrain: 0.035, uVig: 0.6 });
       } else if (S) {
         const L = S.len, lx = -L * 0.3 + (L * 0.6) * (st / seg.dur), [x, z] = S.world(lx, -28), [tx, tz] = S.world(lx * 0.8, (S.depth || 12) * 0.5);
-        cam.position.set(x, 3.2, z); cam.up.set(0, 1, 0); cam.lookAt(tx, Math.max(3, ((S.height || 14) - 6) * 0.5), tz); this._fov(42);
-      } else { const a = 2.2 + t * 0.04; cam.position.set(rest.x + Math.cos(a) * 40, 14, rest.z + Math.sin(a) * 40); cam.lookAt(rest); this._fov(35); }
+        // (the crowd up in the stand: over its own floor - on a slope a level plinth, not the ground under it)
+        const fl = TERRAIN.on ? (S.y0 || 0) + (S.k || 0) * lx * 0.8 - TERRAIN.at(tx, tz) : 0;
+        cam.position.set(x, 3.2, z); cam.up.set(0, 1, 0); cam.lookAt(this.look.set(tx, Math.max(3, ((S.height || 14) - 6) * 0.5) + fl, tz)); this._fov(42);
+      } else { const a = 2.2 + t * 0.04; cam.position.set(rest.x + Math.cos(a) * 40, 14, rest.z + Math.sin(a) * 40); cam.lookAt(this.look.copy(rest)); this._fov(35); }
       this._set(seg.k === 'wishes' ? { uPhone: 0, uClip: 0, uOcc: 0, uDefocus: 0.002, uSat: 0.95, uExpo: 1, uGrain: 0.025, uVig: 0.35 } : { uPhone: 0, uClip: 0, uOcc: 0, uDefocus: 0.003, uSat: 0.7, uExpo: 0.7, uGrain: 0.04, uVig: 0.55 });
       const gap = Math.min(1.25, (seg.dur - 1) / Math.max(1, this.posts.length));
       this.posts.forEach((p, i) => p.classList.toggle('in', st > 0.4 + i * gap));
@@ -879,14 +900,14 @@ export class NewsBroadcast {
       this._poseCars(0, false);
       const tr = this.track, hw = tr.halfWidth, u = st / seg.dur, d = (-0.95 + 0.7 * u) * hw;
       const a = tr.sample(tr.wrapS(9.5 - u * 1.5), d), b = tr.sample(tr.wrapS(4), d + hw * 0.55);
-      cam.position.set(a.x, 1.2, a.z); cam.up.set(0, 1, 0); cam.lookAt(b.x, 0.65, b.z); this._fov(40);
+      cam.position.set(a.x, 1.2, a.z); cam.up.set(0, 1, 0); cam.lookAt(this.look.set(b.x, 0.65, b.z)); this._fov(40);
       this._set({ uPhone: 0, uClip: 0, uOcc: 0, uDefocus: 0.0015, uSat: 0.35, uExpo: 0.8, uGrain: 0.04, uVig: 0.65 });
     } else if (seg.k === 'gates' || seg.k === 'coach' || seg.k === 'family' || seg.k === 'confirm') {
       this._poseCars(1e9, false);
       const S = this.set3d, u = st / seg.dur;
       if (S?.shot) {
         const a = S.shot.from.clone().lerp(S.shot.to, u), l = S.shot.look.clone().lerp(S.shot.look2 || S.shot.look, Math.max(0, (u - 0.45) / 0.55) ** 1.5);
-        cam.position.copy(a).add(new THREE.Vector3(Math.sin(t * 0.6) * 0.01, Math.sin(t * 0.9) * 0.008, 0)); cam.up.set(0, 1, 0); cam.lookAt(l); this._fov(S.shot.fov || 40);
+        cam.position.copy(a).add(new THREE.Vector3(Math.sin(t * 0.6) * 0.01, Math.sin(t * 0.9) * 0.008, 0)); cam.up.set(0, 1, 0); cam.lookAt(this.look.copy(l)); this._fov(S.shot.fov || 40);
         for (const f of S.flames || []) f.scale.y = 1.6 + 0.4 * Math.sin(t * 9 + f.userData.ph);
         if (S.person) { const P = S.person; P.head.rotation.z = P.bow + 0.05 * Math.sin(t * 5.1) * Math.max(0, Math.sin(t * 1.6)) - 0.03; }
       }
@@ -929,6 +950,7 @@ export class NewsBroadcast {
     const { p, q } = this._pose(O.tau, j);
     const off = new THREE.Vector3(0.1, 1.12, 0).applyQuaternion(q), fwd = new THREE.Vector3(30, 0.8, 0).applyQuaternion(q), up = new THREE.Vector3(0, 1, 0).applyQuaternion(q);
     cam.position.copy(p).add(off); cam.up.copy(up); cam.lookAt(cam.position.clone().add(fwd));
+    this.look.copy(p).setY(p.y + 0.5);   // (an onboard: the shot is of the car it rides on - main.js carries it with the ground and the slope there)
     cam.rotateX((Math.random() - 0.5) * 0.004); cam.rotateY((Math.random() - 0.5) * 0.003);   // (the mount's vibration)
     this._fov(own ? 68 : 58);
     if (cam.view?.enabled) cam.clearViewOffset();
@@ -1110,6 +1132,25 @@ export class NewsBroadcast {
       });
       this.scene.add(group); this.set3d = { group, people };
     }
+    if (this.set3d) this._onGround(this.set3d.group, this.set3d.people);
+  }
+  /**
+   * A set built on the flat plan stood on the ground (world/Terrain.js), piece by piece: a person by the ground under
+   * their feet, anything else by the ground under its middle, an instanced one (the flowers, the candles) each instance
+   * by the ground under it. Its group at the origin, as _set3d builds it; the shots on it stay on the flat.
+   */
+  _onGround(group, people = []) {
+    if (!TERRAIN.on) return;
+    const THREE = this.T3, feet = new Set(people.map((p) => p.group)), bb = new THREE.Box3(), c = new THREE.Vector3(), M = new THREE.Matrix4(), P = new THREE.Vector3(), Q = new THREE.Quaternion(), S = new THREE.Vector3();
+    group.updateMatrixWorld(true);
+    for (const o of group.children) {
+      if (o.isInstancedMesh) {
+        for (let i = 0; i < o.count; i++) { o.getMatrixAt(i, M); M.decompose(P, Q, S); P.y += TERRAIN.at(P.x, P.z); o.setMatrixAt(i, M.compose(P, Q, S)); }
+        o.instanceMatrix.needsUpdate = true; o.computeBoundingSphere(); o.computeBoundingBox(); continue;
+      }
+      if (feet.has(o)) c.copy(o.position); else bb.setFromObject(o).getCenter(c);
+      o.position.y += TERRAIN.at(c.x, c.z);
+    }
   }
   /** bouquets and candles laid along a line (world/Tribute.js) -> the candle flames */
   _tribute(group, at, n, spanL, spanA, nc) { return tribute(group, at, n, spanL, spanA, nc); }
@@ -1147,7 +1188,7 @@ export class NewsBroadcast {
     const yaw = k * (0.025 * Math.sin(t * 1.1) + 0.014 * Math.sin(t * 2.7 + 1.3) + 0.006 * Math.sin(t * 8.3) * (1 + 3 * shock) + (Math.random() - 0.5) * 0.006 * z);
     const pitch = k * (0.02 * Math.sin(t * 0.9 + 2) + 0.011 * Math.sin(t * 3.4) + 0.006 * Math.sin(t * 9.1 + 0.5) * (1 + 3 * shock) + (Math.random() - 0.5) * 0.006 * z) - 0.09 * shock * k;
     eye.y += ch * (0.25 * Math.abs(Math.sin(t * 7.5)) + 0.1 * Math.sin(t * 2.1));
-    cam.position.copy(eye); cam.up.set(0, 1, 0); cam.lookAt(this.aim);
+    cam.position.copy(eye); cam.up.set(0, 1, 0); cam.lookAt(this.look.copy(this.aim));
     const wild = 1 + 6 * ch;
     cam.rotateY(yaw * z * wild + ch * W.y); cam.rotateX(pitch * z * wild + ch * W.p); cam.rotateZ(0.035 + 0.02 * Math.sin(t * 0.45) + 0.05 * shock * Math.sin(t * 13) + ch * 0.35 * Math.sin(t * 1.9 + W.y));
     if (ch > 0.3 && this.fovT < 30) this.fovT += dt * 25 * ch;

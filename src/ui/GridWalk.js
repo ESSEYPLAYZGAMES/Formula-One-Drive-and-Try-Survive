@@ -12,8 +12,11 @@
 // (pushed far enough) squares up to: handbags, played as quick prompts until people pull you apart (ui/Brawl.js has
 // the camera while it plays). What any of it costs - penalty points, rapport, morale, a star's view of you, the papers
 // - is worked out in ui/WalkFx.js. Never on a memorial weekend.
-// Built on the pre-race show's grid (ui/PreRace.js), which it hands back to be disposed when done.
+// Built on the pre-race show's grid (ui/PreRace.js), which it hands back to be disposed when done. You walk on the flat
+// plan, your eye 1.7 m over the ground (pos); on a circuit that is not flat everyone stands on the ground under them
+// (world/Terrain.js) and main.js lifts the eye by the ground you stand on (this.look: the eye itself, on the flat).
 import * as THREE from 'three';
+import { TERRAIN } from '../world/Terrain.js';
 import { makePerson } from '../world/People.js';
 import { TOPICS, buildTopic, weatherLine } from './GridTalk.js';
 import { TOPICS2, venueLines } from './GridTalk2.js';
@@ -344,7 +347,7 @@ export class GridWalk {
     this.F = pre.fwd.clone(); this.L = pre.left.clone(); this.front = pre.front.clone();
     const cars = pre.grid, P = (c) => new THREE.Vector3(c.x, 0, c.z), fwOf = (c) => new THREE.Vector3(Math.cos(c.th), 0, Math.sin(c.th)), lfOf = (c) => new THREE.Vector3(Math.sin(c.th), 0, -Math.cos(c.th));
     const lift = (p) => { if (this.night) for (const k in p.mats) { const m = p.mats[k]; if (m.emissive && m.color) m.emissive.copy(m.color).multiplyScalar(0.2); } };
-    const add = (person, at, face) => { lift(person); person.group.position.set(at.x, 0, at.z); person.group.rotation.y = face; pre.group.add(person.group); pre.people.push(person); return person; };
+    const add = (person, at, face) => { lift(person); person.group.position.set(at.x, TERRAIN.at(at.x, at.z), at.z); person.group.rotation.y = face; pre.group.add(person.group); pre.people.push(person); return person; };
     const C = this.career;
     // the drivers back at their cars (the suits at the memorial were them), the reporter's walk over
     for (const m of pre.mourners) if (m.driverName) m.group.visible = false;
@@ -393,12 +396,12 @@ export class GridWalk {
     this.x.weatherText = weatherLine(this.x); this.x.venue = venueLines(tr.def?.id);
 
     // ---- where you start: beside your car, looking down the grid
-    this.pos = pm.clone().addScaledVector(lm, 1.9).addScaledVector(fm, -0.5); this.pos.y = 1.7;
+    this.pos = pm.clone().addScaledVector(lm, 1.9).addScaledVector(fm, -0.5); this.pos.y = 1.7; this.look = this.pos.clone();
     this.yaw = Math.atan2(fm.z, fm.x) + 0.35; this.pitch = -0.05;
     const along = cars.map((c) => (c.x - this.front.x) * this.F.x + (c.z - this.front.z) * this.F.z);
     this.bounds = { a0: Math.min(...along) - 14, a1: (pre.mem ? 36 : 14), w: tr.halfWidth + 0.6 };
     // (the people in full detail you can push past, gently; the memorial you can't)
-    this.hq = pre.people.filter((p) => p.group.position.y < 0.5 && p.group.visible && !p.busy).map((p) => p.group.position);
+    this.hq = pre.people.filter((p) => p.group.position.y - TERRAIN.at(p.group.position.x, p.group.position.z) < 0.5 && p.group.visible && !p.busy).map((p) => p.group.position);
     this.solid = []; if (pre.mem) this.solid.push(pre.mem.c0.clone());
     this.life = pre.life || null; this.cars = pre.grid;
     this.cars = cars;
@@ -472,7 +475,7 @@ export class GridWalk {
     for (const p of this.hq) {
       const dx = p.x - x, dz = p.z - z, d = Math.hypot(dx, dz); if (d >= r) continue;
       const k = Math.min(0.05, (r - d) * 0.3), nx = p.x + (d > 1e-3 ? dx / d : 1) * k, nz = p.z + (d > 1e-3 ? dz / d : 0) * k;
-      if (!this.cars.some((c) => { const ex = nx - c.x, ez = nz - c.z, ca = Math.cos(c.th), sa = Math.sin(c.th); return Math.abs(ex * ca + ez * sa) < 3.0 && Math.abs(-ex * sa + ez * ca) < 1.2; })) { p.x = nx; p.z = nz; }
+      if (!this.cars.some((c) => { const ex = nx - c.x, ez = nz - c.z, ca = Math.cos(c.th), sa = Math.sin(c.th); return Math.abs(ex * ca + ez * sa) < 3.0 && Math.abs(-ex * sa + ez * ca) < 1.2; })) { p.y += TERRAIN.at(nx, nz) - TERRAIN.at(p.x, p.z); p.x = nx; p.z = nz; }   // (still on the ground)
       hard = Math.max(hard, (r - d) / r);
     }
     return hard;
@@ -787,11 +790,11 @@ export class GridWalk {
     }
     // a shove or a scuffle playing: it has the eye, the people in it and your arms (and leaves pos, yaw and pitch
     // where it ends, so the walk carries on from there without a jump)
-    if (this.brawl) { this._actUpdate(dt); return; }
+    if (this.brawl) { this._actUpdate(dt); this.look.copy(cam.position); return; }
     if (this.respect) this._respectUpdate(dt);
     else if (this.talk) {
       // the camera turns to them; their line types out
-      const T0 = this.talk, hp = new THREE.Vector3(); (T0.n.person.head || T0.n.person.group).getWorldPosition(hp); hp.y -= 0.32;   // (their face in the upper part of the frame, over the talk)
+      const T0 = this.talk, hp = new THREE.Vector3(); (T0.n.person.head || T0.n.person.group).getWorldPosition(hp); hp.y -= 0.32 + this.groundAt(this.pos.x, this.pos.z);   // (their face in the upper part of the frame, over the talk; on the flat, as the eye sees it from the ground you are on)
       const dx = hp.x - this.pos.x, dz = hp.z - this.pos.z, wy = Math.atan2(dz, dx), wp = Math.atan2(hp.y - this.pos.y, Math.hypot(dx, dz));
       let d = wy - this.yaw; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; this.yaw += d * Math.min(1, dt * 5); this.pitch += (wp - this.pitch) * Math.min(1, dt * 5);
       if (T0.line) {
@@ -830,16 +833,19 @@ export class GridWalk {
     cam.position.set(this.pos.x, this.pos.y + by - (this.respect ? this.respect.dip || 0 : 0), this.pos.z);
     const cp = Math.cos(this.pitch); cam.up.set(0, 1, 0);
     cam.lookAt(cam.position.x + Math.cos(this.yaw) * cp, cam.position.y + Math.sin(this.pitch), cam.position.z + Math.sin(this.yaw) * cp);
-    // the name tags over the people you can talk to
-    const W = innerWidth, H = innerHeight, v = new THREE.Vector3();
+    this.look.copy(cam.position);
+    // the name tags over the people you can talk to (where they are, on the flat the eye is placed on)
+    const W = innerWidth, H = innerHeight, v = new THREE.Vector3(), gy = this.groundAt(cam.position.x, cam.position.z);
     this.npcs.forEach((n, i) => {
-      const tag = this.tags[i]; (n.person.head || n.person.group).getWorldPosition(v); v.y += 0.38;
+      const tag = this.tags[i]; (n.person.head || n.person.group).getWorldPosition(v); v.y += 0.38 - gy;
       const dist = v.distanceTo(cam.position); v.project(cam);
       const show = !this.talk && !this.respect && !this.brawl && v.z < 1 && dist < 14 && Math.abs(v.x) < 1.1 && Math.abs(v.y) < 1.1;
       tag.style.opacity = show ? Math.min(1, (14 - dist) / 5) * (n.talked ? 0.55 : 1) : 0;
       if (show) { tag.style.left = `${(v.x * 0.5 + 0.5) * W}px`; tag.style.top = `${(-v.y * 0.5 + 0.5) * H}px`; }
     });
   }
+  /** the ground at (x, z) - what the people stand on (ui/Brawl.js too: him and the people pulling you apart) */
+  groundAt(x, z) { return TERRAIN.at(x, z); }
   _respectUpdate(dt) {
     const R = this.respect; R.t += dt;
     // to the memorial, head bowed, a long moment, then up again

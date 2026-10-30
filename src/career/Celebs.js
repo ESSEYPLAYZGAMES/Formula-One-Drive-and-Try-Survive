@@ -21,6 +21,7 @@
 import { shiftMorale, moodOf } from './Morale.js';
 import { prEvent, crisisFrom, fameIndex } from './PR.js';
 import { styleEnsure, resolveRec, applyStyle, lookColor } from './Style.js';
+import { makeLocal, isLocalId } from './Locals.js';
 
 const pick = (a) => a[(Math.random() * a.length) | 0];
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -285,6 +286,12 @@ const CROP_WEAR = {
 };
 for (const C of CELEBS) { const X = CROP_WEAR[C.id]; if (!X || !C.wear) continue; for (const [occ, L] of Object.entries(X)) { const w = C.wear[occ]; C.wear[occ] = [...(Array.isArray(w) ? w : w ? [w] : []), ...L]; } }
 export const CELEB =Object.fromEntries(CELEBS.map((x) => [x.id, x]));
+/**
+ * Someone met out on a race night (career/Locals.js: made from a seed, in the stars' shape) taken into the game: from now
+ * on she is in CELEB / CELEBS like the twelve - bonds, the phone, plans and dates - never on a grid of her own (often: []).
+ * -> her def
+ */
+export function registerLocal(idOrSeed) { const L = makeLocal(idOrSeed); if (!CELEB[L.id]) { CELEBS.push(L); CELEB[L.id] = L; } return CELEB[L.id]; }
 export const STAGES = ['stranger', 'met', 'friendly', 'flirting', 'dating', 'partner', 'ex'];
 const STAGE_LABEL = { stranger: 'Not met', met: 'Just met', friendly: 'Friendly', flirting: 'Flirting', dating: 'Dating', partner: 'Partner', ex: 'Ex' };
 const SI = (st) => STAGES.indexOf(st);
@@ -365,7 +372,9 @@ export function celebState() { return { bonds: {}, partner: null, met: [], log: 
 /** an older save's c.celebs, filled in (unknown celebrities dropped; a partner from before secrets expects to be the only one, unless she is a free spirit) -> c.celebs */
 export function celebEnsure(c) {
   const s = c.celebs && typeof c.celebs === 'object' ? c.celebs : (c.celebs = celebState());
-  s.bonds = s.bonds && typeof s.bonds === 'object' ? s.bonds : {}; s.met = Array.isArray(s.met) ? s.met.filter((id) => CELEB[id]) : [];
+  s.bonds = s.bonds && typeof s.bonds === 'object' ? s.bonds : {};
+  for (const id of Object.keys(s.bonds)) if (!CELEB[id] && isLocalId(id)) registerLocal(id);   // (someone met on a race night: rebuilt from her id's seed before anything checks for her)
+  s.met = Array.isArray(s.met) ? s.met.filter((id) => CELEB[id]) : [];
   s.log = Array.isArray(s.log) ? s.log.slice(0, 30) : []; if (s.eyes === undefined) s.eyes = null; if (s.exp === undefined) s.exp = null;
   for (const id of Object.keys(s.bonds)) {
     if (!CELEB[id]) { console.warn('Celebs: dropping an unknown celebrity', id); delete s.bonds[id]; continue; }
