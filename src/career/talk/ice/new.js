@@ -1,260 +1,535 @@
-// The Ice - in person, stage 'new': first impressions. Coldness earns grudging respect here; eagerness reads as cheap.
+// ALOOF (ice) - in person, stage 'new', slots 1-9: first impressions. They size you up and keep a 'file' on you (the
+// review); no weather talk; standards; tea, add nothing; the grandmother; they watched your race 'for research'; you
+// made them laugh; slot 9 closes the review: 'provisionally interesting'. Coldness earns grudging respect here;
+// eagerness reads as cheap (they cut it down elegantly, with a flicker underneath).
 export const DATA = [
-  // ---- new / cold: you were cool last time; they are clipped and make you earn it --------------------------------
-  {
-    id: 'ice-new-cold-1', stage: 'new', mood: 'cold',
-    say: "You again. Last time you barely looked at me. I've decided to find that interesting rather than rude.",
+  // ---- slot 1: the sizing-up. Establishes: they are reviewing you --------------------------------------------------
+  { id: 'ice-new-1-cold', stage: 'new', slot: 1, mood: 'cold',
+    say: ["You have the face of someone who'd rather be elsewhere. So would I. Let's be efficient.", "You look bored. Good. So am I. That saves us the pleasantries."],
     opts: [
-      { tone: 'cold', t: "I looked. I just didn't stare.", r: "A distinction. Good. Everyone stares. It gets tedious by the second minute.", m: 2, opts: [
-        { tone: 'cold', t: "Then I'll keep not staring.", r: "Do. I'll notice regardless. Off you go.", m: 1 },
-        { tone: 'passive', t: "What do people usually stare at?", r: "The cheekbones, then the shoes. Then they mention the weather. Spare me all three, and good evening." },
-        { tone: 'flirty', t: "Maybe I was saving the staring for later.", r: "Presumptuous. There may be no later. ...There may. Don't build anything on it." },
+      { tone: 'cold', t: "Efficient suits me.", r: "Good. Most people pad. You don't. I'm putting that in your file.", m: 2, opts: [
+        { tone: 'cold', t: "I didn't know I had a file.", r: "Everyone has a file. Yours is thin. Keep it that way and we'll get along." },
+        { tone: 'passive', t: "What else is in it?", r: "Your name, a firm handshake and one point in your favour. Review pending. Off you go." },
+        { tone: 'flirty', t: "Leave a page blank for later.", r: "Presumptuous. I'll leave a margin. Margins are where I write the honest notes." },
       ] },
-      { tone: 'passive', t: "Fair. I was distracted. How's your evening going?", r: "Distracted by what? Choose carefully. It's the only answer I'll remember.", opts: [
-        { tone: 'cold', t: "Things that weren't you.", r: "Honest. I can use honest. Go back to your things, then.", m: 1 },
-        { tone: 'passive', t: "The race. My head doesn't switch off straight away.", r: "Obsession. The one excuse I accept. You may try again another night." },
-        { tone: 'flirty', t: "Working out how to talk to you, honestly.", r: "Rehearsed spontaneity. I've seen it done better, by actors. Paid ones.", m: -1 },
+      { tone: 'passive', t: "Fair. Long day. I'm {me}.", r: "I know who you are. Your face is on a banner somewhere behind me. I'm {first}. Use it sparingly.", opts: [
+        { tone: 'cold', t: "Sparingly it is.", r: "Good. Names wear out. Yours is already a little shiny from overuse." },
+        { tone: 'passive', t: "Nice to meet you, {first}.", r: "Is it. We'll see. I'll let you know when I've decided. Don't wait up." },
+        { tone: 'flirty', t: "I'll save it for special occasions.", r: "There won't be many. Plan accordingly. ...That was nearly a smile. Don't mention it." },
       ] },
-      { tone: 'flirty', t: "I was playing it cool. You're hard to look away from.", r: "And there it goes. The cool lasted one whole conversation. Was that a record?", m: -1, opts: [
-        { tone: 'cold', t: "Forget it. Wasn't worth the effort.", r: "There's the voice from last time. Keep that one. Leave now, while it's working.", m: 1 },
-        { tone: 'passive', t: "Fine. Let's just talk like normal people.", r: "Normal suits you. Practise it, and come back when you're fluent." },
-        { tone: 'flirty', t: "Still hard to look away. That isn't changing.", r: "Persistence. A virtue in drivers, a warning in everyone else. I'll decide which you are." },
+      { tone: 'flirty', t: "I'd rather be here, now that you're in it.", r: "Thirty seconds in and already reciting. Did someone write that for you?", opts: [
+        { tone: 'cold', t: "Forget I said it.", r: "Forgotten. You're back to zero. Zero is a respectable place to start." },
+        { tone: 'passive', t: "Okay, that was bad. What keeps you busy?", r: "Better. I'll tell you another time. Asking was the test. You passed it, barely." },
+        { tone: 'flirty', t: "Nobody wrote it. You just bring it out of me.", r: "Then I'm a bad influence on your material. I'll take the compliment. Not the line." },
       ] },
-    ],
-  },
-  {
-    id: 'ice-new-cold-2', stage: 'new', mood: 'cold',
-    say: ["Two minutes. You were curt with me last time, so I'm being efficient.", "Ah. The curt one. I've allotted you two minutes."],
-    opts: [
-      { tone: 'cold', t: "Two minutes is generous. I'll need one.", r: "Confident, or rude. Annoyingly, I can't tell which, and I can always tell.", m: 2, opts: [
-        { tone: 'cold', t: "Then I'll leave you guessing.", r: "Fine. Go. I won't watch you walk away. I'll glance, once.", m: 1 },
-        { tone: 'passive', t: "Rude wasn't the plan. I'm running on empty.", r: "Tired I understand. Sleep. We'll see what's left of you at {track}." },
-        { tone: 'flirty', t: "Use the second minute to look at me, then.", r: "I used the first one for that. The verdict is pending. Stop fidgeting." },
-      ] },
-      { tone: 'passive', t: "Sorry about last time. It was a long day.", r: "Apology received. Not yet accepted. Those are different departments.", opts: [
-        { tone: 'cold', t: "Take it or leave it.", r: "I'll leave it on the desk. Someone might file it eventually.", m: 1 },
-        { tone: 'passive', t: "Then let me start again. Hi. I'm {me}.", r: "I know who you are. But that was correct. Start like that next time, too." },
-        { tone: 'flirty', t: "What would it take to get it accepted?", r: "More than a smile. Less than you'd think. That's the only hint you get." },
-      ] },
-      { tone: 'flirty', t: "Two minutes with you? I'd take two seconds.", r: "So eager it went past sweet and came out the other side as cheap.", m: -1, opts: [
-        { tone: 'cold', t: "Fine. Keep your two minutes.", r: "I will. Ninety seconds left over. I'll spend them on someone who waits.", m: 1 },
-        { tone: 'passive', t: "Alright, too much. How are you, actually?", r: "Well. Observant, mostly. You may go while that's the last thing said." },
-        { tone: 'flirty', t: "I stand by it. Even cheap, it was true.", r: "True and cheap. Like most things worth having, apparently. Time's up." },
-      ] },
-    ],
-  },
-  {
-    id: 'ice-new-cold-3', stage: 'new', mood: 'cold', where: 'party',
-    say: "You left the last party without a word. Exits are where people show their manners. Yours were absent.",
-    opts: [
-      { tone: 'cold', t: "I didn't think you'd notice.", r: "I notice everything. I simply don't comment on most of it. You were the exception.", m: 2, opts: [
-        { tone: 'cold', t: "Then stop commenting.", r: "Gladly. There. Silence. Enjoy your drink, and the view of my back.", m: 1 },
-        { tone: 'passive', t: "Fine. I'll say goodbye properly next time.", r: "You assume there'll be a next time. ...There might. Say it properly." },
-        { tone: 'flirty', t: "So you were watching the door for me.", r: "I was watching the door for the waiter. You were in the way. Very much in the way." },
-      ] },
-      { tone: 'passive', t: "You're right, that was rude. Can I get you a drink?", r: "Something cold, nothing pink. Let's see if you can follow instructions.", opts: [
-        { tone: 'cold', t: "On second thoughts, get it yourself.", r: "I generally do. You've just reminded me why. Excuse me." },
-        { tone: 'passive', t: "Here. Cold, not pink.", r: "Correct on both counts. You listen. That's rarer than talent in this room. Thank you." },
-        { tone: 'flirty', t: "I'd have brought two, but I want you to come back for the second.", r: "A drink with a hook in it. Clumsy. I'll keep the drink and throw back the hook.", m: -1 },
-      ] },
-      { tone: 'flirty', t: "I left early so you'd miss me.", r: "A strategy. A poor one. If I missed anything, it was the canapés.", m: -1, opts: [
-        { tone: 'cold', t: "Clearly it didn't work. Never mind.", r: "Never minded. Go and find someone who needs a strategy.", m: 1 },
-        { tone: 'passive', t: "Honestly? I just get tired after races.", r: "That I believe. The truth always sounds dull. That's how you spot it. Rest." },
-        { tone: 'flirty', t: "But you remembered I left. That's something.", r: "It's a footnote. Footnotes do get read, occasionally. Don't make me regret reading." },
-      ] },
-    ],
-  },
-  {
-    id: 'ice-new-cold-4', stage: 'new', mood: 'cold',
-    say: "You told me last time you weren't here to make friends. Neither am I. So why are you standing here?",
-    opts: [
-      { tone: 'cold', t: "Because this is where I was standing.", r: "Territorial. Simple. I can work with simple, briefly.", m: 2, opts: [
-        { tone: 'cold', t: "Briefly is plenty.", r: "Agreed. I'll take the next spot over. We'll ignore each other expertly.", m: 1 },
-        { tone: 'passive', t: "I can move, if you'd rather.", r: "Stay. Moving would be a concession. I'd think less of you, and I've only just started thinking." },
-        { tone: 'flirty', t: "And now I'm standing near you. Lucky coincidence.", r: "Coincidence is a lazy writer. I don't believe in it, and I don't believe you. Nice try." },
-      ] },
-      { tone: 'passive', t: "Fair point. I was in a mood. I'm {me}, by the way.", r: "I know. Your face is on a banner outside. It's less moody than the original.", opts: [
-        { tone: 'cold', t: "The banner doesn't have to talk to you.", r: "Lucky banner. We're both excused, then.", m: 1 },
-        { tone: 'passive', t: "And you're {first}. I asked around.", r: "You asked others. Not me. Next time ask me. I'm shorter, but far more accurate." },
-        { tone: 'flirty', t: "The original improves up close.", r: "Does it. I'm squinting. The jury is still out, and it has taken all the good chairs.", m: -1 },
-      ] },
-      { tone: 'flirty', t: "Maybe I'm here to make one exception.", r: "Exceptions are earned. You've earned a raised eyebrow. That's the first rung.", m: -1, opts: [
-        { tone: 'cold', t: "Forget it. The rung's not worth the climb.", r: "Then stay on the ground. It's crowded down there. You'll fit right in.", m: 1 },
-        { tone: 'passive', t: "Alright. What's the second rung?", r: "Patience. Which you've just shown by asking instead of assuming. Look at you, climbing." },
-        { tone: 'flirty', t: "I'm a very good climber.", r: "Everyone says that from the bottom. Report back from somewhere higher." },
-      ] },
-    ],
-  },
-
-  // ---- new / passive: a neutral first look; they test, notice, rate ---------------------------------------------------
-  {
-    id: 'ice-new-passive-1', stage: 'new', mood: 'passive',
+    ] },
+  { id: 'ice-new-1-passive', stage: 'new', slot: 1, mood: 'passive',
     say: ["So you're the one who drives in circles for a living.", "You drive in circles, very fast, for money. I'm still deciding if that's impressive."],
     opts: [
-      { tone: 'cold', t: "Better than standing in one spot judging people.", r: "It bites. Good. I was beginning to think you only came in polite.", m: 2, opts: [
-        { tone: 'cold', t: "I'll skip your review, then.", r: "Wise. It wasn't finished anyway. These things take a few more encounters. Or none.", m: 1 },
-        { tone: 'passive', t: "Alright. What's the verdict so far?", r: "Promising. Underdressed for it. I'll revise after the next race, or the next conversation." },
-        { tone: 'flirty', t: "I'd rather be judged up close.", r: "Everyone would. Distance is where I'm kindest. Remember that.", m: -1 },
+      { tone: 'cold', t: "Better than talking in circles.", r: "Ah. Teeth. I was told you were pleasant. I'm glad they were wrong.", m: 2, opts: [
+        { tone: 'cold', t: "Pleasant is overrated.", r: "Agreed. We'll be unpleasant together, at a polite distance. Enjoy {venue}." },
+        { tone: 'passive', t: "Who told you I was pleasant?", r: "Everyone. That's the trouble with pleasant: it's unanimous. Consider yourself under review." },
+        { tone: 'flirty', t: "I can be pleasant for the right person.", r: "Everyone says that. Very few mean it. You'll have to show me. Slowly." },
       ] },
-      { tone: 'passive', t: "It's more corners than circles, but yes.", r: "A pedant. I like precision. It's the only thing that never looks desperate.", opts: [
-        { tone: 'cold', t: "Glad I passed the test.", r: "Passed is a strong word. You've been noted. Go and be noted somewhere else.", m: 1 },
-        { tone: 'passive', t: "And what does a {job} do on a race weekend?", r: "Watches. Takes notes. Leaves before the speeches. You'll see me leave." },
-        { tone: 'flirty', t: "I notice details too. Like your smile, just then.", r: "That wasn't a smile. That was my face resisting one. Learn the difference." },
+      { tone: 'passive', t: "It's more complicated than it looks.", r: "Most things are. So explain it. Briefly. I'll know if you're showing off.", opts: [
+        { tone: 'cold', t: "You wouldn't follow it.", r: "Wouldn't I. You've made yourself more interesting and much less likeable. Well done." },
+        { tone: 'passive', t: "Brake late, turn early, don't think too hard.", r: "So it's a philosophy. Concise. I approve of concise. Provisionally." },
+        { tone: 'flirty', t: "I'd rather show you than explain.", r: "A demonstration. Cheap, but effective. I'll keep my eyes open and my opinion closed." },
       ] },
-      { tone: 'flirty', t: "Come to a race and decide in person.", r: "An invitation in the first minute. Bold, or rehearsed. I suspect both.", m: -1, opts: [
-        { tone: 'cold', t: "Or don't. Up to you.", r: "Better. Indifference suits you. I may come. I may not tell you.", m: 2 },
-        { tone: 'passive', t: "No pressure. It's loud. You might hate it.", r: "Honest marketing. Refreshing. Send the details. I'll ignore them thoughtfully." },
-        { tone: 'flirty', t: "I'd drive faster knowing you were watching.", r: "You'd drive exactly the same. Every driver says that to everyone. I've asked." },
+      { tone: 'flirty', t: "Decide slowly. I don't mind you looking.", r: "I wasn't looking. I was assessing. There's a difference, and you're on the wrong side of it.", opts: [
+        { tone: 'cold', t: "Assess away. I'm not bothered.", r: "Unbothered. Good. It's the first interesting thing about you. Don't ruin it." },
+        { tone: 'passive', t: "And what's the assessment?", r: "Pending. That's not a no. It isn't anything. It's paperwork." },
+        { tone: 'flirty', t: "Then let me get on the right side of it.", r: "Earn it. Charm is a deposit, not a payment. ...Your deposit has been received." },
       ] },
-    ],
-  },
-  {
-    id: 'ice-new-passive-2', stage: 'new', mood: 'passive',
+    ] },
+  { id: 'ice-new-1-flirty', stage: 'new', slot: 1, mood: 'flirty',
+    say: "Someone said you were charming. I've come to see if they exaggerate. They usually do.",
+    opts: [
+      { tone: 'cold', t: "They do. I'm not charming.", r: "Refreshing. The charming ones never say that. Stay unimpressed, please. It suits you.", m: 2, opts: [
+        { tone: 'cold', t: "I'll stay unimpressed with you too.", r: "Do. It's very restful. I'll be over there, unimpressed in return." },
+        { tone: 'passive', t: "Who said it?", r: "A reliable source with unreliable taste. Leave it there. I've started a file on you." },
+        { tone: 'flirty', t: "Not charming. Wait till you see persistent.", r: "Persistent I can live with. Charming I'd have to fight. Proceed, carefully." },
+      ] },
+      { tone: 'passive', t: "You can judge for yourself. Hi. I'm {me}.", r: "Hello, {me}. Ordinary opening. No tricks. A point for that. Continue.", opts: [
+        { tone: 'cold', t: "That's it. No tricks.", r: "Then you're either honest or very clever. I'll find out which. I always do." },
+        { tone: 'passive', t: "So, what's the verdict so far?", r: "Undecided. I've opened a file. Don't look so pleased; everyone gets a file." },
+        { tone: 'flirty', t: "I'm saving the tricks for later.", r: "Cheaper to have none. But I'll admit I'm curious what later looks like." },
+      ] },
+      { tone: 'flirty', t: "And? Do they exaggerate?", r: "Slightly. Asking was a mistake. You were doing well just standing still.", opts: [
+        { tone: 'cold', t: "Then I'll stand still.", r: "There. Better. Very still. Almost statuesque. You may go." },
+        { tone: 'passive', t: "Fair. What would you rather talk about?", r: "Anything but you, for a minute. Then you again. I'm thorough. Your review is pending." },
+        { tone: 'flirty', t: "You came to see me, though. I'll take that.", r: "I came to check a claim. The claim is under review. You may hope. Quietly." },
+      ] },
+    ] },
+
+  // ---- slot 2: they notice everything (collar, cuff, how you stand); they hate being stared at -----------------------
+  { id: 'ice-new-2-cold', stage: 'new', slot: 2, mood: 'cold',
+    say: "You were short with me before. I noticed. I notice most things. Your collar, for example. It's folded under.",
+    opts: [
+      { tone: 'cold', t: "Leave the collar alone.", r: "I haven't touched it. I wouldn't. It's very loyal to its mistake.", opts: [
+        { tone: 'cold', t: "It's fine as it is.", r: "It isn't. But your stubbornness is consistent, and I respect consistency. Barely." },
+        { tone: 'passive', t: "Alright. Fix it, then.", r: "There. Was that so hard? Don't thank me. Nobody thanks the inspector." },
+        { tone: 'flirty', t: "You can touch it. I won't complain.", r: "I'll pass. If I touch your collar, people talk, and I prefer to start the talk myself." },
+      ] },
+      { tone: 'passive', t: "You notice a lot.", r: "Everything. It's exhausting. Most people are a crowd of small mistakes. You're a slightly smaller crowd.", opts: [
+        { tone: 'cold', t: "Must be tiring, being you.", r: "Very. That's why I'm selective about company. You're dismissed. Kindly." },
+        { tone: 'passive', t: "What else have you noticed?", r: "Your weight's on your left foot. You touch your ear when you lie. You haven't yet. Keep it up." },
+        { tone: 'flirty', t: "Notice anything you like?", r: "The ear thing. It's honest. Everything else is still on probation.", m: 0 },
+      ] },
+      { tone: 'flirty', t: "Do you always look at people this closely?", r: "I'm looked at. It's tedious. I observe. Learn the difference before you try either.", opts: [
+        { tone: 'cold', t: "Observe someone else, then.", r: "I might. You've made it easy. Off you go, collar and all." },
+        { tone: 'passive', t: "Sorry. I didn't mean to make you uncomfortable.", r: "You didn't. Very little does. But thank you for checking. That gets written down." },
+        { tone: 'flirty', t: "Then I'll do the staring for both of us.", r: "Please don't. ...Fine. Once. Quickly. Then look at something else, like a civilised person." },
+      ] },
+    ] },
+  { id: 'ice-new-2-passive', stage: 'new', slot: 2, mood: 'passive',
     say: "Your cuff is folded under. Someone dressed you in a hurry, or you did it yourself in the dark.",
     opts: [
-      { tone: 'cold', t: "Does it matter?", r: "Everything matters. Most people simply aren't looking. I always am.", m: 2, opts: [
-        { tone: 'cold', t: "Then look somewhere else.", r: "Done. You'll find it's colder over here. That was your choice." },
-        { tone: 'passive', t: "Fair. Fixed. Anything else?", r: "Collar fine. Posture good. Timing poor. Two out of three. Come back with three." },
-        { tone: 'flirty', t: "Keep looking. I don't mind.", r: "You'd mind if you could read what I'm writing in my head. Go fix the cuff." },
+      { tone: 'cold', t: "Is that what you do? Inspect people?", r: "Constantly. You'd be surprised how few pass. You're mid-inspection. Do stand still.", m: 2, opts: [
+        { tone: 'cold', t: "Inspect someone else.", r: "Plenty of candidates. None of them bit back, though. Enjoy your crooked cuff." },
+        { tone: 'passive', t: "How am I doing?", r: "Cuff, a fail. Posture, adequate. Eye contact, steady. A borderline case. My favourite kind." },
+        { tone: 'flirty', t: "Take your time. Be thorough.", r: "I'm always thorough. That's the problem. The good news ran to a second page." },
       ] },
-      { tone: 'passive', t: "Fixed. Thanks. You don't miss much, do you?", r: "Nothing. It's exhausting. Imagine reading every room like a menu.", opts: [
-        { tone: 'cold', t: "Sounds like your problem.", r: "It is. And you were just a line item on it. Enjoy your evening.", m: 1 },
-        { tone: 'passive', t: "What did you read when I walked in?", r: "Nerves, well hidden. Ambition, badly hidden. You'll do for a conversation." },
-        { tone: 'flirty', t: "Then read me. I'm an easy menu.", r: "Easy menus are the dangerous ones. Too many sauces, nothing fresh.", m: -1 },
+      { tone: 'passive', t: "The dark. I was late. Thanks for telling me.", r: "Most people get defensive. You said thank you. Disarming. Don't do it too often.", opts: [
+        { tone: 'cold', t: "Don't get used to it.", r: "I never get used to anything. It's my best quality, and my most expensive." },
+        { tone: 'passive', t: "Anything else out of place?", r: "Nothing I'll mention. I ration critiques. You've had your one for the day." },
+        { tone: 'flirty', t: "Maybe you can dress me next time.", r: "Maybe you can learn to use a light switch. Start there. Then we'll talk." },
       ] },
-      { tone: 'flirty', t: "Maybe I wanted you to fix it for me.", r: "A cuff ploy. Novel, at least. Still a ploy. Do it yourself.", m: -1, opts: [
-        { tone: 'cold', t: "Fine. Done it myself.", r: "Self-sufficient. That's more attractive than anything you've said so far.", m: 2 },
-        { tone: 'passive', t: "Kidding. Mostly.", r: "Mostly is where the truth hides. I'll leave it there. Neatly folded." },
-        { tone: 'flirty', t: "Next time I'll leave both undone.", r: "Then next time I'll stand further away. Ambition is admirable. Strategy isn't your gift." },
+      { tone: 'flirty', t: "So you were looking at my wrists.", r: "At the cuff. The wrist was incidental. Don't turn my thoroughness into a compliment.", opts: [
+        { tone: 'cold', t: "It's not a compliment. Just an observation.", r: "Two observers. How dreary for everyone else. Fine. We'll watch the room." },
+        { tone: 'passive', t: "Fair enough. Thanks for the tip.", r: "You're welcome. I'm rarely useful to people. It felt odd. Not unpleasant." },
+        { tone: 'flirty', t: "Too late. I'm taking it as one.", r: "Then you've taken something I didn't give. A thief. An attentive one, at least." },
       ] },
-    ],
-  },
-  {
-    id: 'ice-new-passive-3', stage: 'new', mood: 'passive',
-    say: "Everyone here wants a photo with you. I'm trying to work out why.",
+    ] },
+  { id: 'ice-new-2-flirty', stage: 'new', slot: 2, mood: 'flirty',
+    say: "You stood a little closer than necessary last time. I noticed. I notice everything. Do it again and I'll mention it.",
     opts: [
-      { tone: 'cold', t: "Let me know if you figure it out.", r: "I will. Slowly. With footnotes. Don't hold your breath.", m: 2, opts: [
-        { tone: 'cold', t: "I won't.", r: "Good. Breathing is underrated. So is leaving on a short line. Well done.", m: 1 },
-        { tone: 'passive', t: "Honestly, I don't get it either.", r: "Modesty. Either real or well trained. Both are rare here. I'll keep watching." },
-        { tone: 'flirty', t: "Take one with me. Then you'll know.", r: "A photo is a commitment. I don't commit in the first week. Ask me in a month." },
+      { tone: 'cold', t: "I won't, then.", r: "Ah. Retreat. Sensible, and slightly disappointing. I'll recover.", opts: [
+        { tone: 'cold', t: "Space suits us both.", r: "It does. I'll keep mine. You keep yours. Very civilised. Very dull." },
+        { tone: 'passive', t: "I didn't realise I did.", r: "Most people don't. That's why I watch for it. It tells me more than anything they say." },
+        { tone: 'flirty', t: "Unless you want me to.", r: "I said I'd mention it. I didn't say I'd object. Those are separate clauses." },
       ] },
-      { tone: 'passive', t: "They want the car, really. I just come with it.", r: "Self-aware. That's unusual in someone with a fan club.", opts: [
-        { tone: 'cold', t: "It's not a fan club. It's a queue.", r: "A queue you're ignoring to talk to me. I won't make the same mistake. Go on.", m: 1 },
-        { tone: 'passive', t: "What about you? No photo?", r: "I don't do photos. I do memories, selectively. You might qualify." },
-        { tone: 'flirty', t: "You're not in the queue, I notice.", r: "I don't queue. People come to me. You did. Note the direction of travel." },
+      { tone: 'passive', t: "What else did you notice?", r: "You looked at the exit twice. Then at me, and stopped looking at the exit. Make of that what you like.", opts: [
+        { tone: 'cold', t: "I always check the exits.", r: "Practical. A racer's habit. I'll file it under 'unromantic' and move on." },
+        { tone: 'passive', t: "You really don't miss anything.", r: "I miss trains, occasionally. People, never. It's a burden I manage." },
+        { tone: 'flirty', t: "I make a lot of it.", r: "Then don't tell me. Some things are better as unsigned notes." },
       ] },
-      { tone: 'flirty', t: "Maybe it's the smile. Want to see it up close?", r: "I've seen it on a billboard. It was larger and said less.", m: -1, opts: [
-        { tone: 'cold', t: "Suit yourself.", r: "I always do. It's the only tailoring that fits.", m: 1 },
-        { tone: 'passive', t: "Fair. The billboard does the talking.", r: "Badly. Find better lines, then come back and try them on me." },
-        { tone: 'flirty', t: "Then let the real one say more.", r: "It's saying a great deal. Nothing I haven't read before. Get a new author." },
+      { tone: 'flirty', t: "Consider this me doing it again.", r: "Mentioned. There. You've been mentioned. It's the first thing I've given you. Look after it.", opts: [
+        { tone: 'cold', t: "Fine. I'll step back.", r: "Thank you. You stepped back so neatly it was almost a compliment. Off you go." },
+        { tone: 'passive', t: "Is that a good thing or a bad thing?", r: "It's a thing. I don't hand them out. Work out the rest yourself." },
+        { tone: 'flirty', t: "I'll treasure it.", r: "Treasure is a strong word. Keep it in a drawer. I may ask for it back. I may not." },
       ] },
-    ],
-  },
-  {
-    id: 'ice-new-passive-4', stage: 'new', mood: 'passive', where: 'evening',
-    say: "You found the only quiet corner of {venue}. That was mine. I'm deciding whether to share it.",
-    opts: [
-      { tone: 'cold', t: "I'm not moving.", r: "Good. People who move for me are tiresome. Sit. Don't talk yet.", m: 2, opts: [
-        { tone: 'cold', t: "Wasn't going to talk.", r: "Then we understand each other. Rare. Enjoy the silence. It's mine, on loan.", m: 1 },
-        { tone: 'passive', t: "Can I talk now?", r: "One sentence. ...No, that was it. That was your sentence. Sleep well." },
-        { tone: 'flirty', t: "Quiet suits you. So does this light.", r: "Light is a tool. You noticed it. Don't think I didn't notice you noticing." },
-      ] },
-      { tone: 'passive', t: "I can go. I just needed a minute away from the noise.", r: "Stay. A minute is exactly what this corner is for. I'll even share the bench.", opts: [
-        { tone: 'cold', t: "I'll take the minute and go.", r: "Efficient. I'll pretend I never offered the bench.", m: 1 },
-        { tone: 'passive', t: "What brought you up here?", r: "Too many people saying too little. Same as you. You've been tolerable company." },
-        { tone: 'flirty', t: "Sharing a bench? That's practically a date.", r: "It's practically a bench. Don't upgrade things without asking.", m: -1 },
-      ] },
-      { tone: 'flirty', t: "Maybe I followed you here.", r: "Then you've been obvious for two flights of stairs. Sit down, detective.", opts: [
-        { tone: 'cold', t: "Kidding. I came for the view.", r: "The view. Of course. It doesn't look back. That must be restful for you.", m: 1 },
-        { tone: 'passive', t: "Kidding. I just needed air.", r: "Air is free up here. The company isn't. Take your fill, then go." },
-        { tone: 'flirty', t: "Not kidding. You looked worth following.", r: "Looked. Past tense. Up close is another matter. Goodnight, detective." },
-      ] },
-    ],
-  },
+    ] },
 
-  // ---- new / flirty: you left it flirty; they're amused, magnetic and one step ahead ----------------------------------
-  {
-    id: 'ice-new-flirty-1', stage: 'new', mood: 'flirty',
-    say: "You were almost charming last time. I've been wondering whether it was an accident.",
+  // ---- slot 3: no small talk. The weather is banned; they want one true thing ---------------------------------------
+  { id: 'ice-new-3-cold', stage: 'new', slot: 3, mood: 'cold',
+    say: "You were cool with me last time. Fine. Don't mention the weather and we'll get along well enough.",
     opts: [
-      { tone: 'cold', t: "Probably. Don't expect a repeat.", r: "Good answer. An accident I can't predict is more interesting than a habit.", m: 2, opts: [
-        { tone: 'cold', t: "Then stay interested from a distance.", r: "Distance is my natural habitat. It's where I'm most dangerous. Enjoy your night.", m: 1 },
-        { tone: 'passive', t: "Alright, maybe not entirely an accident.", r: "Partly deliberate. Like a good haircut. Fine. Keep the parts that work." },
-        { tone: 'flirty', t: "Unless you want one.", r: "Want is a strong word. Let's say I'd watch. Closely. For quite some time." },
+      { tone: 'cold', t: "I wasn't going to.", r: "Nobody believes that, and then they mention the sky. Say something true instead.", m: 2, opts: [
+        { tone: 'cold', t: "I don't do true on request.", r: "Neither do I. Two locked doors, then. I've had worse company." },
+        { tone: 'passive', t: "I hate losing more than I like winning.", r: "Now that's true. And ugly. I like it. You may stay a minute longer." },
+        { tone: 'flirty', t: "True? I came over here on purpose.", r: "Bold, and inelegant. But true, I'll grant you. It counts. Once." },
       ] },
-      { tone: 'passive', t: "Accident or not, it was nice talking to you.", r: "Nice. That's the word you chose. I handed you an entire language.", opts: [
-        { tone: 'cold', t: "Fine. It was adequate.", r: "Adequate. Better. At least it has an opinion. Off you go, adequately.", m: 1 },
-        { tone: 'passive', t: "Alright. It was the best part of my weekend.", r: "Either a compliment or a very sad weekend. I'll take it as both." },
-        { tone: 'flirty', t: "Enjoyable. Distracting. A little dangerous.", r: "Three adjectives, one of them true. Keep going like that and you'll find out which." },
+      { tone: 'passive', t: "Alright. What do you want to talk about?", r: "Something true. One thing nobody asks you about. Go.", opts: [
+        { tone: 'cold', t: "I don't share with strangers.", r: "Correct policy. I'll respect it. Go on being a stranger, then. On schedule." },
+        { tone: 'passive', t: "I can't sleep the night before a race. Never could.", r: "Thank you. That's real. The posters don't mention it. I'll keep it to myself." },
+        { tone: 'flirty', t: "Truth is, I've been wanting to talk to you.", r: "That's a tactic dressed as a truth. ...A decent tailor did the dressing, though." },
       ] },
-      { tone: 'flirty', t: "No accident. I was trying. Still am.", r: "I could tell. You tilt your head when you try. It's very nearly working.", opts: [
-        { tone: 'cold', t: "Then I'll stop trying.", r: "Pity. Trying is half your charm. The other half lives in the car." },
-        { tone: 'passive', t: "Very nearly is a start.", r: "It's a start line. I hear you know about those. Don't stall." },
-        { tone: 'flirty', t: "What happens when it fully works?", r: "You'll know. I won't say a word. That's how you'll know." },
+      { tone: 'flirty', t: "Shame. You'd brighten any forecast.", r: "That's the weather wearing a bow. I asked for neither. Try again.", opts: [
+        { tone: 'cold', t: "Never mind.", r: "Never minded. It's what I'm best at. Off you go." },
+        { tone: 'passive', t: "Okay. Tell me something true, then.", r: "I'd rather be somewhere quiet. I'd rather be here than most quiet places. Make nothing of it." },
+        { tone: 'flirty', t: "Moonlight, then. Cool and hard to reach.", r: "Still weather, technically. But nearly accurate, and that's rare. I'll allow it." },
       ] },
-    ],
-  },
-  {
-    id: 'ice-new-flirty-2', stage: 'new', mood: 'flirty',
-    say: ["You're late. I wasn't waiting. I was standing very still, on purpose.", "Ah. There you are. Not that I was looking."],
+    ] },
+  { id: 'ice-new-3-passive', stage: 'new', slot: 3, mood: 'passive',
+    say: "Rule: no weather, no 'how was your flight'. Ask me something real, or let's admire the silence.",
     opts: [
-      { tone: 'cold', t: "I'm not late. You're early.", r: "A correction, delivered flat. Very good. That one I'll let stand.", m: 2, opts: [
-        { tone: 'cold', t: "You don't have to let anything stand.", r: "I know. That's what made it generous. You've just spent it. Go on, then.", m: 1 },
-        { tone: 'passive', t: "Anyway. How's your weekend been?", r: "Busy, and better for the last minute. Don't quote me. I'll deny it in writing." },
-        { tone: 'flirty', t: "Early for me. I'll take that.", r: "Take it. Don't frame it. A step ahead of you, as usual." },
+      { tone: 'cold', t: "Silence works for me.", r: "Then we'll admire it. ...You're very good at this. Unnervingly. I'm adding it to your file.", m: 2, opts: [
+        { tone: 'cold', t: "I'm not trying to impress you.", r: "Which is why it's working. Don't tell anyone. Least of all yourself." },
+        { tone: 'passive', t: "Fine. What keeps you up at night?", r: "Unfinished things. Usually mine. Sometimes other people's. That'll do for now." },
+        { tone: 'flirty', t: "Silence with you isn't bad at all.", r: "Don't spoil it by narrating it. ...But no. It isn't." },
       ] },
-      { tone: 'passive', t: "Sorry. Got stuck with the team.", r: "Apology and context. Very professional. I'm almost charmed. Almost is my limit, this early.", opts: [
-        { tone: 'cold', t: "Comes with the job.", r: "So does punctuality, in mine. We'll compare notes another time.", m: 1 },
-        { tone: 'passive', t: "I'll be on time next time.", r: "Next time. You keep planning those. I'm noting the habit." },
-        { tone: 'flirty', t: "Almost charmed? I'll take almost.", r: "Almost is the most interesting word I own. Spend it wisely." },
+      { tone: 'passive', t: "What's the thing you'd never tell a stranger?", r: "If I told you, you'd no longer be a stranger. Clever. Try a smaller key.", opts: [
+        { tone: 'cold', t: "Forget it. Keep your secrets.", r: "I will. They're very well kept. Better than most people's houses." },
+        { tone: 'passive', t: "What's the last thing that surprised you?", r: "You, asking that properly. People never do. Second place goes to a very good pear." },
+        { tone: 'flirty', t: "I'll earn the big one, then.", r: "Earn. Good verb. You'll need a long time and very good manners." },
       ] },
-      { tone: 'flirty', t: "Standing still for me? I'm flattered.", r: "You should be. I don't stand still for just anyone. Take the compliment before I take it back.", opts: [
-        { tone: 'cold', t: "Don't flatter yourself either.", r: "Touché. I'll go and stand still somewhere else, then.", m: 1 },
-        { tone: 'passive', t: "Well, I'm here now.", r: "You are. Let's not make a ceremony of it. Next time, be early." },
-        { tone: 'flirty', t: "Then I'll make it worth the wait.", r: "Waiting implies I'd do it again. I would. Tell no one." },
+      { tone: 'flirty', t: "Real? Your eyes do something when you're bored.", r: "Do they. That's an observation, not a compliment. I'll accept the first. Hold onto the second.", opts: [
+        { tone: 'cold', t: "Just saying what I see.", r: "Then you see like me. That's either flattering or worrying. Let's not decide." },
+        { tone: 'passive', t: "Sorry. Was that too much?", r: "It was almost right, which is worse. I'm not offended. I'm thinking." },
+        { tone: 'flirty', t: "They're doing it less now.", r: "Careful. Noticing is my department. ...You may have a desk in it." },
       ] },
-    ],
-  },
-  {
-    id: 'ice-new-flirty-3', stage: 'new', mood: 'flirty', where: 'party',
-    say: "You owe me a dance. I don't dance. Consider it a debt, accruing interest.",
+    ] },
+  { id: 'ice-new-3-flirty', stage: 'new', slot: 3, mood: 'flirty',
+    say: "You flirted last time. Clumsily. I've been considering how to correct your technique. Rule one: never the weather.",
     opts: [
-      { tone: 'cold', t: "I don't dance either. Debt cancelled.", r: "Cancelled. Just like that. I didn't expect the backbone. It's been noted.", m: 2, opts: [
-        { tone: 'cold', t: "Note it and move on.", r: "Moving on is something I'm extremely good at. Watch.", m: 1 },
-        { tone: 'passive', t: "Fine. One song. Badly.", r: "Badly is honest. Honest I can dance to. One song. Then you're back in debt." },
-        { tone: 'flirty', t: "Unless you're the one leading.", r: "I always lead. That's the only rule. You'd resent it. You'd be back next week." },
+      { tone: 'cold', t: "I don't need correcting.", r: "Everyone needs correcting. But you said that without blinking, and I liked it. Annoying.", m: 2, opts: [
+        { tone: 'cold', t: "Your problem, not mine.", r: "Indeed. I'll carry it. Gracefully, from over there." },
+        { tone: 'passive', t: "Fine. What's rule two?", r: "Say less than you mean. Rule three: never explain rule two. Lesson ends." },
+        { tone: 'flirty', t: "Then give me private lessons.", r: "Expensive. Exclusive. Oversubscribed. ...There may be a cancellation." },
       ] },
-      { tone: 'passive', t: "What's the interest rate?", r: "Steep. One conversation a week until repaid. You've already fallen behind.", opts: [
-        { tone: 'cold', t: "I'll default.", r: "Defaulters get blacklisted. You'd be surprised how short my list is. Bye.", m: 1 },
-        { tone: 'passive', t: "Then this is my first payment.", r: "Accepted. Barely. The receipt is that I haven't walked away. Enjoy it." },
-        { tone: 'flirty', t: "I'll pay in instalments. Slowly.", r: "Slow payments. You've grasped how I like things. Begin." },
+      { tone: 'passive', t: "What's wrong with the weather?", r: "It's what people say when they've nothing to say. You always have something. I've watched.", opts: [
+        { tone: 'cold', t: "Maybe I've got nothing to say to you.", r: "Possible. Unlikely. You'll find something. I'll be elsewhere when you do." },
+        { tone: 'passive', t: "Okay. Something real: I hate losing.", r: "Everyone hates losing. You said it like it costs you. That's the real part." },
+        { tone: 'flirty', t: "You've watched me?", r: "Observed. Briefly. Clinically. Fine: three times. That's all you're getting." },
       ] },
-      { tone: 'flirty', t: "I'd pay it off right now if you'd let me.", r: "Eager. That was the first sip of your drink talking. Don't let the second one speak.", m: -1, opts: [
-        { tone: 'cold', t: "Never mind, then.", r: "Good. The debt stands. I'll collect when you're less thirsty.", m: 1 },
-        { tone: 'passive', t: "Fair. Let's just talk for now.", r: "For now. You're learning. Talk is the deposit. Make it a decent one." },
-        { tone: 'flirty', t: "I'm not thirsty. Just interested.", r: "Interested has a better ring. Keep the glass half full and your eyes where they are." },
+      { tone: 'flirty', t: "Teach me, then. Start with your favourite line.", r: "My favourite line is the one nobody's tried yet. You haven't found it. Keep looking.", opts: [
+        { tone: 'cold', t: "Not worth the effort.", r: "Then don't. Clumsy and lazy is a combination I can turn down very easily." },
+        { tone: 'passive', t: "Then I'll just talk to you instead.", r: "Instead of performing. Yes. That's the entire technique. You learn quickly." },
+        { tone: 'flirty', t: "Is it close to 'you're the most interesting person here'?", r: "Close. Too eager. True, though. I'll allow it this once, and never again." },
       ] },
-    ],
-  },
-  {
-    id: 'ice-new-flirty-4', stage: 'new', mood: 'flirty',
-    say: "I told someone about you. Don't preen. It was a very short story.",
+    ] },
+
+  // ---- slot 4: their work and their standards: nothing is finished until they stop hating it -----------------------
+  { id: 'ice-new-4-cold', stage: 'new', slot: 4, mood: 'cold',
+    say: "You were brisk last time. I was buried in {work} anyway. Nothing's finished until I stop hating it. I haven't.",
     opts: [
-      { tone: 'cold', t: "Short is probably accurate.", r: "Concise. Not modest, concise. I like that better than modest.", m: 2, opts: [
-        { tone: 'cold', t: "Then keep it short.", r: "One line, then. 'Drove off without looking back.' Accurate enough?", m: 1 },
-        { tone: 'passive', t: "What did you tell them?", r: "That you're quieter than your posters. That you listen. The rest is classified." },
-        { tone: 'flirty', t: "Give it a sequel.", r: "Sequels are usually worse. Make me the exception. I'll be reading." },
+      { tone: 'cold', t: "Then stop hating it.", r: "If it were that easy, everyone would be good. Most people stop at fine. I don't.", opts: [
+        { tone: 'cold', t: "Fine gets the job done.", r: "Fine is a coat of paint over nothing. We disagree. Lovely talking to you." },
+        { tone: 'passive', t: "How long have you been on it?", r: "Months. The good part took a day. The rest is me arguing with myself, and losing." },
+        { tone: 'flirty', t: "I'd like to see it. Hated or not.", r: "Nobody sees anything until it's right. Not even charming drivers. ...That wasn't a compliment." },
       ] },
-      { tone: 'passive', t: "Was it a good story, at least?", r: "It had a beginning. The middle is pending. Endings, I'm told, are where people fall apart.", opts: [
-        { tone: 'cold', t: "Don't wait up for the middle.", r: "I never wait up. I wake early and find out. Until then.", m: 1 },
-        { tone: 'passive', t: "Let's work on the middle, then.", r: "Practical. Write the next chapter at {track}. I'll be there, critically." },
-        { tone: 'flirty', t: "I'll give you a better middle.", r: "A promise in narrative form. I'm a hard editor. Very well. Draft something." },
+      { tone: 'passive', t: "How's it going?", r: "Badly. Which means properly. If it were easy, I'd suspect it.", opts: [
+        { tone: 'cold', t: "Sounds miserable.", r: "It is. That's how you know it matters. You wouldn't understand. Or you would, and won't admit it." },
+        { tone: 'passive', t: "Same with a lap. The good ones hurt.", r: "Hm. The first sensible thing anyone's said to me this week. Leave before you spoil it." },
+        { tone: 'flirty', t: "You'll get there. You don't seem the type to stop.", r: "I'm not. Neither are you. That's either a common interest or a warning." },
       ] },
-      { tone: 'flirty', t: "A short story? Let's make it a long one.", r: "There it is. The pitch. You've been waiting all night to say that.", opts: [
-        { tone: 'cold', t: "Or not. Your call.", r: "Everything is my call. That's the whole charm of me. Good evening." },
-        { tone: 'passive', t: "Alright, that was a bit much.", r: "A bit. Not fatal. I've edited it in my head. It reads better already." },
-        { tone: 'flirty', t: "I've waited longer for less.", r: "So have I. Tonight wasn't one of those nights. ...Pretend I didn't say that." },
+      { tone: 'flirty', t: "You must be impossible to impress.", r: "Not impossible. Expensive. There's a difference you'll want to learn.", opts: [
+        { tone: 'cold', t: "Impressing you isn't on my list.", r: "Good. Trying shows. You're better off standing there being exactly this." },
+        { tone: 'passive', t: "What does it cost, then?", r: "Honesty, mostly. Time. Never flattery. Flattery gets refunded at the door." },
+        { tone: 'flirty', t: "I can afford it.", r: "People always think so. Then they see the bill. Start saving." },
       ] },
-    ],
-  },
+    ] },
+  { id: 'ice-new-4-passive', stage: 'new', slot: 4, mood: 'passive',
+    say: "I'm meant to be on {work}. I've been staring at it for three days. It's wrong, and I can't see where.",
+    opts: [
+      { tone: 'cold', t: "Walk away from it for a day.", r: "Practical. Unsentimental. Annoyingly correct. Who taught you that?", m: 2, opts: [
+        { tone: 'cold', t: "Nobody. It's common sense.", r: "Common sense is very uncommon, in my experience. Keep yours away from the cameras." },
+        { tone: 'passive', t: "An engineer. Leave the car alone and it tells you.", r: "I'll leave mine alone. If it tells me something, I'll credit your engineer. Grudgingly." },
+        { tone: 'flirty', t: "Come and walk away from it with me.", r: "That's a different proposal. I'll walk away alone. With your idea, though." },
+      ] },
+      { tone: 'passive', t: "What do you think is wrong?", r: "Something small. It's always something small. Small things ruin everything if you let them.", opts: [
+        { tone: 'cold', t: "Sounds exhausting.", r: "It is. Tell me what doesn't exhaust you and I'll tell you what you've stopped caring about." },
+        { tone: 'passive', t: "Like a tyre pressure half a pound off.", r: "Exactly like that. You understand. Irritating. I'd planned to find you shallow." },
+        { tone: 'flirty', t: "You notice small things. You'll find it.", r: "I will. I always do. Flattering, that you noticed I notice. Don't overdo it." },
+      ] },
+      { tone: 'flirty', t: "Some things are perfect the first time.", r: "Some things. Very few. Was that about the work? I'll assume so, for your sake.", opts: [
+        { tone: 'cold', t: "It was about the work.", r: "Then thank you for your professional opinion. Invoice me." },
+        { tone: 'passive', t: "Mostly about the work.", r: "Mostly. I'll accept mostly. It's honest, and honest is the house style." },
+        { tone: 'flirty', t: "It wasn't about the work.", r: "I gathered. Bold. Still too early to say it out loud. Keep it in your pocket." },
+      ] },
+    ] },
+  { id: 'ice-new-4-flirty', stage: 'new', slot: 4, mood: 'flirty',
+    say: "You were in a good mood last time. Contagious. I went home and worked on {work} for six hours. I'm told that's unusual.",
+    opts: [
+      { tone: 'cold', t: "Coincidence.", r: "Probably. I don't believe in coincidence, but I'll pretend, since you're being stern.", opts: [
+        { tone: 'cold', t: "I'm not taking credit.", r: "Good. I wasn't giving any. We're equally ungenerous. A promising start." },
+        { tone: 'passive', t: "What did you get done?", r: "The ending. Finally. It's still wrong, but it's wrong in a better direction." },
+        { tone: 'flirty', t: "Then I'll keep the good mood coming.", r: "Do. Moderately. Too much and I'll get suspicious, and then nothing gets done." },
+      ] },
+      { tone: 'passive', t: "Six hours? Is it going well?", r: "Well is too strong. It's going. With me, that's practically a celebration.", opts: [
+        { tone: 'cold', t: "Don't let me distract you.", r: "You won't. I have a gift for not being distracted. ...I'm told it's not a gift." },
+        { tone: 'passive', t: "When will it be finished?", r: "When I stop hating it. Could be next week. Could be never. Never is very common." },
+        { tone: 'flirty', t: "So I'm good for you.", r: "Too soon to tell. You're good for my output. The rest is under review." },
+      ] },
+      { tone: 'flirty', t: "Who told you it was unusual?", r: "Someone who knows me. You don't, yet. That 'yet' slipped out. Don't pick it up.", opts: [
+        { tone: 'cold', t: "I'll leave it there.", r: "Wise. Leave it, and leave. I'll be busy being productive, apparently." },
+        { tone: 'passive', t: "I'd like to, though. Know you.", r: "Most people say that and mean 'be liked by you'. I'll find out which you mean." },
+        { tone: 'flirty', t: "Too late. Picked it up. Keeping it.", r: "Thief. ...Keep it somewhere safe, then. It doesn't come in pairs." },
+      ] },
+    ] },
+
+  // ---- slot 5: the tea test - there is a wrong answer. Establishes: black tea, add nothing ---------------------------
+  { id: 'ice-new-5-cold', stage: 'new', slot: 5, mood: 'cold',
+    say: "You were distant last time. So, a test, to see if there's any point. Tea or coffee. One of them is wrong.",
+    opts: [
+      { tone: 'cold', t: "I don't take tests.", r: "Everyone takes tests. Some just don't know they're failing. Interesting gambit, though.", opts: [
+        { tone: 'cold', t: "Then call it a fail.", r: "No. I'll call it a refusal. Rarer. I'll think about it in my own time." },
+        { tone: 'passive', t: "Tea. If I have to choose.", r: "Correct, reluctantly. Black, I hope. Things are better with nothing added." },
+        { tone: 'flirty', t: "Whatever you're having.", r: "Spineless. Flattering. ...I'm having tea. You'd have been right. Irritating." },
+      ] },
+      { tone: 'passive', t: "Tea.", r: "Correct. How?", opts: [
+        { tone: 'cold', t: "It's a drink. Don't overthink it.", r: "I overthink everything. It's how I'm right about tea. Off you go." },
+        { tone: 'passive', t: "Black. Nothing in it.", r: "Nothing in it. Good. Add nothing to anything good. That's the whole of my philosophy." },
+        { tone: 'flirty', t: "However you make it.", r: "I make it properly. You'd know, if you'd ever been invited. You haven't. Yet." },
+      ] },
+      { tone: 'flirty', t: "Whichever gets me a second cup with you.", r: "Neither. That was the wrong answer. There were two wrong answers, it turns out.", opts: [
+        { tone: 'cold', t: "Coffee, then. To spite you.", r: "Coffee. Of course. I'll remember this. I remember everything." },
+        { tone: 'passive', t: "Alright. Tea. Black.", r: "...Correct. You've recovered. I'll strike the first answer from the record." },
+        { tone: 'flirty', t: "Then I'll make the tea myself. For you.", r: "You'd ruin it. I'd drink it anyway, out of curiosity. That's all that would be." },
+      ] },
+    ] },
+  { id: 'ice-new-5-passive', stage: 'new', slot: 5, mood: 'passive',
+    say: "Tea or coffee. Don't look at me like that. There is a wrong answer, and I want to know which kind you are.",
+    opts: [
+      { tone: 'cold', t: "Coffee. Strong.", r: "Wrong. Confidently wrong. There's something to be said for that. Not much.", opts: [
+        { tone: 'cold', t: "Then I'm wrong.", r: "Unapologetically. I'll grant you that. It's the only thing I'll grant you today." },
+        { tone: 'passive', t: "What's wrong with coffee?", r: "It shouts. Tea waits. I prefer things that wait. Draw your own conclusions." },
+        { tone: 'flirty', t: "Convert me, then.", r: "Missionary work. Not my area. ...I'll make you a cup sometime. Purely for the science." },
+      ] },
+      { tone: 'passive', t: "Tea, I think.", r: "You think. Commit, or don't answer. ...But yes. Correct.", opts: [
+        { tone: 'cold', t: "Tea. Committed.", r: "Better. Now stand by it when someone offers you something frothy. Few do." },
+        { tone: 'passive', t: "How do you take yours?", r: "Black. Nothing added. People ruin good things by adding to them." },
+        { tone: 'flirty', t: "I'd commit to most things with you.", r: "Most. A hedge. You hedge like a professional. I'll allow it for now." },
+      ] },
+      { tone: 'flirty', t: "Depends who's making it.", r: "Evasive and suggestive. Two qualities I didn't ask for. I'm making it, hypothetically.", opts: [
+        { tone: 'cold', t: "Then coffee.", r: "Then nothing, apparently. That's fine. I drink tea alone very successfully." },
+        { tone: 'passive', t: "Then tea. Black, no sugar.", r: "Correct. You hid it under a flirt, but you got there. Messy. Effective." },
+        { tone: 'flirty', t: "In that case, whatever you pour.", r: "Dangerous answer. I pour very strong. Most people don't finish. We'll see about you." },
+      ] },
+    ] },
+  { id: 'ice-new-5-flirty', stage: 'new', slot: 5, mood: 'flirty',
+    say: "You were almost charming last time. Let's see if it holds. Tea or coffee? Think carefully. I'm keeping score.",
+    opts: [
+      { tone: 'cold', t: "I don't care either way.", r: "Indifference. Rarely the right answer. Always the most restful. You're forgiven, mostly.", opts: [
+        { tone: 'cold', t: "Keep score if you like.", r: "I always do. Your column is short and oddly tidy." },
+        { tone: 'passive', t: "Tea, if pushed.", r: "Pushed is fine. Correct is correct. A point to you, then. Black, nothing added." },
+        { tone: 'flirty', t: "Who's winning?", r: "Me, naturally. But you're closer than you were. Don't sprint." },
+      ] },
+      { tone: 'passive', t: "Tea. Obviously.", r: "Correct. Though I dislike 'obviously'. Rare, in your line of work. The rest drink sugar from cans.", opts: [
+        { tone: 'cold', t: "I'm not like them.", r: "So far. I've known you a very short time. Don't make speeches." },
+        { tone: 'passive', t: "Black, no milk, nothing.", r: "Good. Nothing added. Everything good gets spoiled by additions." },
+        { tone: 'flirty', t: "Do I win a cup with you?", r: "You win the right to ask again some other day. That's a better prize than it sounds." },
+      ] },
+      { tone: 'flirty', t: "Whichever one keeps you talking to me.", r: "Tea, then. It takes longer to drink. ...I've just told you how to keep me. Forget that.", opts: [
+        { tone: 'cold', t: "Forgotten.", r: "Suspiciously quick, but good. I'll go and drink it alone." },
+        { tone: 'passive', t: "Tea it is. How do you take it?", r: "Black. Nothing in it. The less you add, the more you taste. Most people can't stand that." },
+        { tone: 'flirty', t: "Not a chance. I'm keeping that one.", r: "Then it's a secret we share. I don't usually share. Look after it." },
+      ] },
+    ] },
+  // ---- slot 6: the grandmother - ninety-one, by the sea, approves of nobody; never explain, never apologise ----------
+  { id: 'ice-new-6-cold', stage: 'new', slot: 6, mood: 'cold',
+    say: "You were brusque last time. My grandmother would like you. She likes nobody, which is roughly the same thing.",
+    opts: [
+      { tone: 'cold', t: "Sounds like a sensible person.", r: "She is. Ninety-one, terrifying, never wrong. She'd look at you once and file you.", opts: [
+        { tone: 'cold', t: "Suits me.", r: "It would. You two would sit in silence for an hour and call it a lovely afternoon." },
+        { tone: 'passive', t: "Where would she file me?", r: "Under 'acceptable posture, poor timekeeping'. She'd be right about both." },
+        { tone: 'flirty', t: "And you? Where have you filed me?", r: "Under review. Still. Ask again and I'll move you to 'pushy'. ...I won't." },
+      ] },
+      { tone: 'passive', t: "Tell me about her.", r: "She taught me chess. And three rules: never explain, never apologise, always bring a coat.", opts: [
+        { tone: 'cold', t: "Explains a lot.", r: "It explains nothing. That's the first rule. Do keep up." },
+        { tone: 'passive', t: "Do you follow all three?", r: "I always bring a coat. The other two I break about once a year, and regret it." },
+        { tone: 'flirty', t: "Will you explain yourself to me, eventually?", r: "Eventually is a long word. Perhaps. Bring a coat, in case." },
+      ] },
+      { tone: 'flirty', t: "And would you? Like me?", r: "I'm her grandchild. I don't 'like'. I review. You're still being reviewed.", opts: [
+        { tone: 'cold', t: "Take your time.", r: "I will. I always do. Most people can't stand it. You seem fine with it. Hm." },
+        { tone: 'passive', t: "What would she make of you liking me?", r: "She'd say nothing. Then she'd ask about you every Sunday until I gave in." },
+        { tone: 'flirty', t: "I'll wait. I'm worth the review.", r: "Everyone says that. You said it like you believed it, which is new." },
+      ] },
+    ] },
+  { id: 'ice-new-6-passive', stage: 'new', slot: 6, mood: 'passive',
+    say: "You remind me of my grandmother. That's a compliment. She doesn't fill silences either.",
+    opts: [
+      { tone: 'cold', t: "Silence is underrated.", r: "She'd agree. Then she'd beat you at chess without a word. She's ninety-one. She'd still win.", opts: [
+        { tone: 'cold', t: "I don't play chess.", r: "Then you'd lose quickly. She'd respect that more than losing slowly." },
+        { tone: 'passive', t: "Is she where you get it from?", r: "The eyebrow, the standards, the coat. 'Never explain, never apologise.' I mostly don't." },
+        { tone: 'flirty', t: "Introduce us. I'll lose gracefully.", r: "Nobody meets her. ...I'll hold that thought somewhere very high up." },
+      ] },
+      { tone: 'passive', t: "Are you close?", r: "I call her every Sunday. She lives by the sea. We talk for four minutes. It's the best part of my week.", opts: [
+        { tone: 'cold', t: "Four minutes isn't much.", r: "It's perfect. Everything after four minutes is padding. Remember that." },
+        { tone: 'passive', t: "What do you talk about?", r: "Her neighbours, who disappoint her. My work, which disappoints me. Then she hangs up first." },
+        { tone: 'flirty', t: "Will you mention me on Sunday?", r: "If I do, it'll be one sentence, and you'll never know what it was." },
+      ] },
+      { tone: 'flirty', t: "So I remind you of someone you love.", r: "That's a leap. Cleanly made, I'll grant you. I'll neither confirm nor deny.", opts: [
+        { tone: 'cold', t: "Forget it. Just a thought.", r: "Already forgotten. I'm very good at forgetting things I'll remember later." },
+        { tone: 'passive', t: "Tell me about her, then.", r: "Ninety-one. By the sea. Her rules: don't explain yourself, don't apologise, and carry a coat." },
+        { tone: 'flirty', t: "I'll take that as a yes.", r: "Take it however you like. I'm not handing out receipts." },
+      ] },
+    ] },
+  { id: 'ice-new-6-flirty', stage: 'new', slot: 6, mood: 'flirty',
+    say: "I mentioned you to my grandmother on Sunday. One sentence. She asked three questions. She's never asked three.",
+    opts: [
+      { tone: 'cold', t: "I'm not sure I like being discussed.", r: "You weren't discussed. You were mentioned. Discussion takes four minutes. You got forty seconds.", opts: [
+        { tone: 'cold', t: "Forty seconds is plenty.", r: "It is. She thought so too. She hung up on me. That's high praise." },
+        { tone: 'passive', t: "What did she ask?", r: "Your name. Whether you stand up straight. Whether you made me laugh. I answered two." },
+        { tone: 'flirty', t: "Next time, give me the four minutes.", r: "Greedy. ...She'd like that, actually. Never ask me to repeat that." },
+      ] },
+      { tone: 'passive', t: "What were the questions?", r: "Do they stand up straight. Do they talk too much. Do they make you laugh.", opts: [
+        { tone: 'cold', t: "I don't need her approval.", r: "No. But she'll give it or withhold it regardless. She's generous that way." },
+        { tone: 'passive', t: "What did you answer?", r: "Yes. No. And I changed the subject. She noticed. She notices everything. You see where I get it." },
+        { tone: 'flirty', t: "Tell her yes to all three.", r: "I don't lie to her. ...I'll consider whether it's a lie. Give me time." },
+      ] },
+      { tone: 'flirty', t: "So I'm worth three questions.", r: "To her. To me, you're worth about one and a half. That's not nothing. Ask anyone.", opts: [
+        { tone: 'cold', t: "Half a question. Generous.", r: "It is. Most people are a footnote. Off you go, half-question." },
+        { tone: 'passive', t: "What's she like?", r: "Ninety-one. Lives by the sea. Taught me chess, and never to explain myself. I'm explaining. See what you do." },
+        { tone: 'flirty', t: "I'll work on the other half.", r: "Do. Slowly. She'd tell you rushing is vulgar, and she'd be right." },
+      ] },
+    ] },
+
+  // ---- slot 7: they watched your race - 'for research' --------------------------------------------------------------
+  { id: 'ice-new-7-cold', stage: 'new', slot: 7, mood: 'cold',
+    say: "I watched {last}. For research. You were curt with me, and I wanted to see if you drive that way.",
+    opts: [
+      { tone: 'cold', t: "Research. Sure.", r: "Sarcasm. Noted. You drive more politely than you speak. One lap was almost graceful.", opts: [
+        { tone: 'cold', t: "Almost.", r: "Almost. I don't round up. You'll have to do it properly next time." },
+        { tone: 'passive', t: "You watched the whole thing?", r: "Every lap. With the sound off. I'm not an animal." },
+        { tone: 'flirty', t: "Watch the next one with me there.", r: "In person? Crowds. Noise. Ear defenders. ...I'll consider it, which is more than most get." },
+      ] },
+      { tone: 'passive', t: "What did your research find?", r: "You brake later than the others. You're patient in traffic. You talk to yourself, I'd bet.", opts: [
+        { tone: 'cold', t: "That's private.", r: "It is now. I won't ask. I'll simply wonder. Very scientific." },
+        { tone: 'passive', t: "I do talk to myself. Constantly.", r: "I knew it. You have the face of someone who narrates. Kindly, I hope." },
+        { tone: 'flirty', t: "Mostly about you, lately.", r: "Lately. We've known each other five minutes. ...I'll pretend I didn't enjoy that." },
+      ] },
+      { tone: 'flirty', t: "You watched me. I'm flattered.", r: "I watched a race. You happened to be in it. Flatter yourself in your own time.", opts: [
+        { tone: 'cold', t: "I will.", r: "Do. Quietly, somewhere I'm not. Enjoy yourself." },
+        { tone: 'passive', t: "Okay, okay. What did you think?", r: "Competent. Occasionally more than that. I'm not elaborating." },
+        { tone: 'flirty', t: "But you chose a race I was in.", r: "They're all races you're in. ...Fine. I chose it. Don't make that face." },
+      ] },
+    ] },
+  { id: 'ice-new-7-passive', stage: 'new', slot: 7, mood: 'passive',
+    say: "I watched {last}. Don't look like that. I watch all sorts of things. Documentaries. Paint drying, once.",
+    opts: [
+      { tone: 'cold', t: "You don't have to explain.", r: "I never explain. ...I was explaining a little. Stop noticing things.", m: 2, opts: [
+        { tone: 'cold', t: "I notice what I like.", r: "So do I. I'm noticing you're very calm about this. It's unsettling. Enjoy {venue}." },
+        { tone: 'passive', t: "So what did you think?", r: "The second stint was good. Clean. The first was nerves. Tell me I'm wrong." },
+        { tone: 'flirty', t: "You can explain yourself to me any time.", r: "I could. I won't. But you've reached the top of a very short list." },
+      ] },
+      { tone: 'passive', t: "What did you make of it?", r: "You're better behind someone. Something about a target. I found it instructive.", opts: [
+        { tone: 'cold', t: "I'm better in front.", r: "Everyone is better in front. The interesting ones are better hunting. Never mind." },
+        { tone: 'passive', t: "That's actually spot on.", r: "I know. I watched it twice. Only to check my notes. Don't read anything into it." },
+        { tone: 'flirty', t: "Maybe I like a chase.", r: "Maybe. So do I. Don't make a theme of it." },
+      ] },
+      { tone: 'flirty', t: "Did you watch me or the race?", r: "The race. Mostly. There's a camera in the car. It's not my fault where they point it.", opts: [
+        { tone: 'cold', t: "Fine. The race.", r: "The race. Agreed. We'll keep that version for public consumption." },
+        { tone: 'passive', t: "What did you think of the race, then?", r: "Long. Loud. Better at the end. Rather like some people I could name." },
+        { tone: 'flirty', t: "Mostly isn't entirely.", r: "Mostly is a very careful word. I chose it. Read it as you like." },
+      ] },
+    ] },
+  { id: 'ice-new-7-flirty', stage: 'new', slot: 7, mood: 'flirty',
+    say: "I watched {last}. Twice. The second time for the parts you were in. Say nothing. I mean it.",
+    opts: [
+      { tone: 'cold', t: "Nothing to say.", r: "Good. You'd have ruined it. Your silence was perfectly judged. Infuriatingly so.", opts: [
+        { tone: 'cold', t: "Silence is easy.", r: "For you. Some of us have to work at it. Go on, then. Be easy somewhere else." },
+        { tone: 'passive', t: "Which part did you like?", r: "One pass, late on. Patient, then ruthless. I respect that, in drivers and in people." },
+        { tone: 'flirty', t: "I'll say nothing. I'll just smile.", r: "Unbearable. Stop. ...Not entirely. A little less." },
+      ] },
+      { tone: 'passive', t: "And the verdict on my driving?", r: "Good. Not perfect. You lost two tenths in the middle being polite to someone.", opts: [
+        { tone: 'cold', t: "I'll stop being polite.", r: "On track, please. Off it, you're borderline as it is." },
+        { tone: 'passive', t: "You noticed that?", r: "I notice everything. It's not a talent, it's a condition. You're the current symptom." },
+        { tone: 'flirty', t: "You watched me closely.", r: "I watched closely. You happened to be in frame. Constantly. I'm not apologising." },
+      ] },
+      { tone: 'flirty', t: "Twice. I'll be thinking about that.", r: "Don't. It was a slow evening. ...It wasn't. Leave it there.", opts: [
+        { tone: 'cold', t: "It's left.", r: "Thank you. You're better at leaving things than most. I'll admire that elsewhere." },
+        { tone: 'passive', t: "Was it worth the second time?", r: "It was worth a second time. I'll see whether you're worth a third." },
+        { tone: 'flirty', t: "Next time watch it with me.", r: "Next to you, while you watch yourself? Unbearable. ...Possibly. Ask nearer the time." },
+      ] },
+    ] },
+
+  // ---- slot 8: you made them laugh. They want it noted that they resisted ------------------------------------------
+  { id: 'ice-new-8-cold', stage: 'new', slot: 8, mood: 'cold',
+    say: "You were cold last time and it made me laugh. On the way home. Alone. I want it noted that I resisted.",
+    opts: [
+      { tone: 'cold', t: "It's noted.", r: "Dry. Very dry. You're doing it again, and I'm resisting again.", opts: [
+        { tone: 'cold', t: "Don't let me keep you.", r: "You won't. You can't. ...You're doing quite well at it, though." },
+        { tone: 'passive', t: "What was funny?", r: "The way you said 'right' when you meant 'go away'. I've started using it. At work." },
+        { tone: 'flirty', t: "One day you'll laugh in front of me.", r: "One day. Not today. Today I'm made of granite. Mostly." },
+      ] },
+      { tone: 'passive', t: "What made you laugh?", r: "Something you said. I won't repeat it; you'd only try it again. It works by accident.", opts: [
+        { tone: 'cold', t: "Then I won't try.", r: "Wise. Effort kills it. Go and be accidental somewhere else." },
+        { tone: 'passive', t: "I'll take an accidental laugh.", r: "You'll have to. I don't do the other kind. ...I didn't, until recently." },
+        { tone: 'flirty', t: "I like that I can do that.", r: "Don't get attached. It was one laugh. I'm counting them. There've been two." },
+      ] },
+      { tone: 'flirty', t: "Next time I'll make you laugh in public.", r: "Ambitious. I've laughed in public twice in my life. Once was at an opera. It was meant to be a tragedy.", opts: [
+        { tone: 'cold', t: "Never mind, then.", r: "Minded. No. Unminded. ...You've unsettled my vocabulary. Go." },
+        { tone: 'passive', t: "What was the other time?", r: "A child explained a sunset to me, very seriously. It was correct. I laughed. Its parent was furious." },
+        { tone: 'flirty', t: "I'll be the third.", r: "Accident doesn't count. Do it on purpose, in daylight, and we'll talk." },
+      ] },
+    ] },
+  { id: 'ice-new-8-passive', stage: 'new', slot: 8, mood: 'passive',
+    say: "You made me laugh last time. Out loud. I've had to reconsider several things about you.",
+    opts: [
+      { tone: 'cold', t: "Don't reconsider too much.", r: "Too late. You've moved from 'unremarkable' to 'mildly hazardous'. It's a promotion.", opts: [
+        { tone: 'cold', t: "I'll try not to be hazardous.", r: "Don't try. Trying never works with me. Just carry on being an accident." },
+        { tone: 'passive', t: "What else have you reconsidered?", r: "Whether you're as simple as you look. You aren't. Irritating. I like simple." },
+        { tone: 'flirty', t: "Hazardous sounds fun.", r: "It's meant to be a warning sign. ...You read it like an invitation." },
+      ] },
+      { tone: 'passive', t: "I didn't know you could laugh.", r: "Neither do most people. It's not in the brochure. Keep it to yourself.", opts: [
+        { tone: 'cold', t: "Your secret's safe. Not that I care.", r: "Exactly the right amount of not caring. You're dangerous like this." },
+        { tone: 'passive', t: "It suits you.", r: "Things suit me. I'm very careful about which things. This one's on trial." },
+        { tone: 'flirty', t: "I want to hear it again.", r: "Then earn it again. Same terms. No rehearsing; I'll know." },
+      ] },
+      { tone: 'flirty', t: "Good. I've been trying.", r: "Ah. Don't tell me that. It works because I think you're not trying.", opts: [
+        { tone: 'cold', t: "Then I'm not.", r: "Better. Lie to me like that more often. It's nearly charming." },
+        { tone: 'passive', t: "Fair. I'll stop trying.", r: "Thank you. Effort ruins comedy. And most dinners." },
+        { tone: 'flirty', t: "I'll try harder, then.", r: "Insufferable. ...You made me smile. That's a different column. I keep separate books." },
+      ] },
+    ] },
+  { id: 'ice-new-8-flirty', stage: 'new', slot: 8, mood: 'flirty',
+    say: "Something you said last time keeps coming back to me, and I keep smiling at walls. Explain yourself.",
+    opts: [
+      { tone: 'cold', t: "I don't remember what I said.", r: "Of course you don't. You were funny by accident. The best kind. The worst, for me.", opts: [
+        { tone: 'cold', t: "Then it doesn't matter.", r: "It doesn't. It's just a wall. It's just a smile. Goodbye." },
+        { tone: 'passive', t: "Tell me what it was, then.", r: "No. It would wear out. Some things are better kept in a drawer." },
+        { tone: 'flirty', t: "I'll keep talking until I hit it again.", r: "That's a strategy, not an accident. I'll know the difference. Good luck." },
+      ] },
+      { tone: 'passive', t: "Which bit?", r: "I won't say. If you knew, you'd do it on purpose, and it would stop working.", opts: [
+        { tone: 'cold', t: "Fine. Keep it.", r: "I will. I keep most things. That's not a confession." },
+        { tone: 'passive', t: "Fair. What kind of walls?", r: "Plain. White. Formerly peaceful. Now they have this look, as if they know something." },
+        { tone: 'flirty', t: "I'll do it on purpose anyway.", r: "You'll fail. Charmingly. Possibly. I'll judge it when it happens." },
+      ] },
+      { tone: 'flirty', t: "No. I like you smiling at walls.", r: "Then I'll smile at that wall right now. Look at it. Not me. ...You looked at me.", opts: [
+        { tone: 'cold', t: "I looked at the wall.", r: "Liar. Fine. Look at the wall. Some of us were having a moment." },
+        { tone: 'passive', t: "Sorry. Habit.", r: "A new habit. I'll allow it, briefly. Don't let it become a routine." },
+        { tone: 'flirty', t: "You're better than the wall.", r: "Higher praise than you know. I like that wall. ...Go, before I smile again." },
+      ] },
+    ] },
+
+  // ---- slot 9: chapter end. The review is complete: 'provisionally interesting'. A number, a proper evening --------
+  { id: 'ice-new-9-cold', stage: 'new', slot: 9, mood: 'cold',
+    say: "You've been cool. I've been cooler. Still, the review's finished. Do you want the verdict, or shall we keep pretending?",
+    opts: [
+      { tone: 'cold', t: "Keep pretending.", r: "Very well. I'll leave the verdict on the table. Face down. It isn't bad news.", opts: [
+        { tone: 'cold', t: "I won't turn it over.", r: "Good. Then nothing changes. You're less trouble that way. Slightly less." },
+        { tone: 'passive', t: "Fine. Turn it over.", r: "Provisionally interesting. The highest grade I give a stranger. You're not one now." },
+        { tone: 'flirty', t: "Not bad news? Tell me more.", r: "No. You'll have to see me again. There. That's the whole verdict, really." },
+      ] },
+      { tone: 'passive', t: "Go on. What's the verdict?", r: "Provisionally interesting. Don't celebrate. 'Provisionally' does a great deal of work.", opts: [
+        { tone: 'cold', t: "I'll live with it.", r: "You will. You're good at that. It's one of the reasons. Go on, then." },
+        { tone: 'passive', t: "What happens now?", r: "Now you have my number. My private one. Very few people do. Use it like a grown-up." },
+        { tone: 'flirty', t: "I'll work on the 'provisionally'.", r: "I know. That's why I gave you the grade. ...Dinner. Next week. Don't make it a thing." },
+      ] },
+      { tone: 'flirty', t: "I already know it. You like me.", r: "Arrogant. Also, irritatingly, not incorrect. Don't repeat it.", opts: [
+        { tone: 'cold', t: "I won't.", r: "Good. One of us has to keep this dignified. Apparently it's you. Off you go." },
+        { tone: 'passive', t: "So what now?", r: "Now I give you my number. Don't waste it on 'hey'. I ignore 'hey'." },
+        { tone: 'flirty', t: "Say it once. I'll keep it secret.", r: "I like you. Provisionally. That's all. Never repeat it to anyone, especially me." },
+      ] },
+    ] },
+  { id: 'ice-new-9-passive', stage: 'new', slot: 9, mood: 'passive',
+    say: "I've finished my review of you. It took longer than usual. That alone is informative. Would you like the result?",
+    opts: [
+      { tone: 'cold', t: "Not especially.", r: "Only you would say that. It's become your best feature. You passed. More than passed.", m: 2, opts: [
+        { tone: 'cold', t: "Good to know.", r: "Your enthusiasm is overwhelming. Keep it. It's half of why you passed." },
+        { tone: 'passive', t: "What does 'more than passed' mean?", r: "It means you have my number. My real one. I don't hand it out. I've handed it out." },
+        { tone: 'flirty', t: "More than passed. I'll take that.", r: "Take it carefully. It's fragile. It's taken me weeks to say." },
+      ] },
+      { tone: 'passive', t: "Yes. Tell me.", r: "Provisionally interesting. The best grade I give. I've given it twice. You, and a cellist, years ago.", opts: [
+        { tone: 'cold', t: "Provisionally. Right.", r: "Yes. Right. Your sarcasm's improving. I'd miss it, if you vanished. Don't." },
+        { tone: 'passive', t: "So what happens next?", r: "Next, you take me to dinner. Somewhere quiet. Nobody takes a photograph. Then we see." },
+        { tone: 'flirty', t: "Which grade comes after that?", r: "There isn't a name for it. I've never had to give it. ...Stop looking at me like that." },
+      ] },
+      { tone: 'flirty', t: "Let me guess. You like me.", r: "Guessing is vulgar. Being right is worse. ...Yes. Provisionally. Don't ruin it.", opts: [
+        { tone: 'cold', t: "I won't ruin it. Or chase it.", r: "Perfect. Don't chase. I'll walk slowly, and you'll walk slowly, and we'll see." },
+        { tone: 'passive', t: "Okay. Where do we go from here?", r: "Somewhere quiet. Dinner. You'll choose. I'll judge. That's the arrangement." },
+        { tone: 'flirty', t: "Provisionally is enough for now.", r: "For now. Those two words are going to cause us both trouble. I'm looking forward to it." },
+      ] },
+    ] },
+  { id: 'ice-new-9-flirty', stage: 'new', slot: 9, mood: 'flirty',
+    say: "I've decided something about you. I don't usually say these out loud. Brace yourself, and don't smile until I've finished.",
+    opts: [
+      { tone: 'cold', t: "I'll manage.", r: "You're provisionally interesting. Top grade. It's rarely given. Your face is doing the thing.", opts: [
+        { tone: 'cold', t: "My face is doing nothing.", r: "It's doing nothing very loudly. Fine. Keep the grade. Keep the face." },
+        { tone: 'passive', t: "What does provisionally mean?", r: "It means I'd like to see you somewhere without twenty people watching. That's all it means." },
+        { tone: 'flirty', t: "Is this where you ask me out?", r: "This is where I let you ask. I'm being generous. Get on with it." },
+      ] },
+      { tone: 'passive', t: "Go on. I'm braced.", r: "I'd like to see you. Properly. Not between other things. ...You're smiling. I said don't.", opts: [
+        { tone: 'cold', t: "I'm not smiling.", r: "You're terrible at it. Never mind. Thursday. I'll send an address. Don't be late." },
+        { tone: 'passive', t: "I'd like that.", r: "Good. Three words, no decoration. That's how it's done. You've been paying attention." },
+        { tone: 'flirty', t: "Too late. I've been smiling the whole time.", r: "I saw. I let it go. That's the clearest thing I'll ever say to you. Thursday." },
+      ] },
+      { tone: 'flirty', t: "You like me. It's alright, you can say it.", r: "I can. I won't. I'll show you, in my own time. My own time starts about now.", opts: [
+        { tone: 'cold', t: "Show me, then.", r: "With that tone? Next week. Earn the thaw. You have my number." },
+        { tone: 'passive', t: "Okay. In your own time.", r: "Thank you. You respect a pace. Nobody does that. You do it." },
+        { tone: 'flirty', t: "I'll be waiting. Patiently.", r: "Not too patiently. I'd hate to be waited for forever. Thursday will do." },
+      ] },
+    ] },
 ];
