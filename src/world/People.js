@@ -231,6 +231,15 @@ const POSES = {
     shL: V(0.02, 1.38, 0.19), elL: V(0.1, 1.13, 0.22), wrL: V(0.21, 0.93, 0.19),
     shR: V(0.02, 1.38, -0.19), elR: V(-0.07, 1.13, -0.22), wrR: V(-0.13, 0.92, -0.19),
   }),
+  // the bind pose of a skinned figure (world/PersonRig.js - a pit crew that moves): standing straight, the arms held
+  // out and down at 40 degrees, clear of the body, so that every part of it can be told whose bone it moves with
+  rig: () => ({
+    pelvis: V(0, 0.96, 0), torsoA: V(0, 1.04, 0), torsoB: V(0, 1.34, 0), neck: V(0, 1.48, 0), head: V(0, 1.61, 0), bow: 0,
+    hipR: V(0, 0.93, -0.1), kneeR: V(0, 0.5, -0.105), ankleR: V(0, 0.09, -0.11), footR: 'flat',
+    hipL: V(0, 0.93, 0.1), kneeL: V(0, 0.5, 0.105), ankleL: V(0, 0.09, 0.11), footL: 'flat',
+    shR: V(0, 1.4, -0.19), elR: V(0, 1.19, -0.366), wrR: V(0, 1.011, -0.516),
+    shL: V(0, 1.4, 0.19), elL: V(0, 1.19, 0.366), wrL: V(0, 1.011, 0.516),
+  }),
   // standing, talking to a reporter: arms at the sides
   talk: () => ({
     pelvis: V(0, 0.96, 0), torsoA: V(0, 1.04, 0), torsoB: V(0.01, 1.34, 0), neck: V(0.02, 1.48, 0), head: V(0.03, 1.61, 0), bow: 0.02,
@@ -4607,9 +4616,12 @@ function buildPerson(o) {
     // a pit-crew member: an open-face helmet in the team's colour and a dark visor, no face to build (quick: a crew is
     // a dozen people)
     const shellG = new THREE.SphereGeometry(0.135, 20, 14); shellG.scale(1.02, 1.05, 0.95); shellG.translate(hc.x - 0.01, hc.y + 0.01, hc.z);
-    const visorG = new THREE.SphereGeometry(0.137, 20, 8, -0.85, 1.7, Math.PI * 0.36, Math.PI * 0.2); visorG.scale(1.02, 1.05, 0.95); visorG.translate(hc.x - 0.008, hc.y + 0.01, hc.z);
+    // (the visor across the front - a sphere's angle 0 is its -x, the back of the head: centred on pi, the face's +x - and
+    // a chin guard under it in the shell's colour, so it reads as a helmet with someone in it, not a ball)
+    const visorG = new THREE.SphereGeometry(0.139, 24, 10, Math.PI - 1.05, 2.1, Math.PI * 0.34, Math.PI * 0.24); visorG.scale(1.02, 1.05, 0.95); visorG.translate(hc.x - 0.008, hc.y + 0.01, hc.z);
+    const chinG = new THREE.SphereGeometry(0.137, 20, 6, Math.PI - 0.95, 1.9, Math.PI * 0.58, Math.PI * 0.16); chinG.scale(1.04, 1.05, 0.95); chinG.translate(hc.x - 0.006, hc.y + 0.01, hc.z);
     mats.visor = new THREE.MeshStandardMaterial({ color: '#0d0f14', roughness: 0.15, metalness: 0.6 });
-    head.add(M([shellG], mats.team), M([visorG], mats.visor));
+    head.add(M([shellG, chinG], mats.team), M([visorG], mats.visor));
   } else {
   const seed = seedOf();
   const vary = (k) => (((seed >>> k) % 100) / 100 - 0.5);   // (a face of its own: small differences, the same for the same name)

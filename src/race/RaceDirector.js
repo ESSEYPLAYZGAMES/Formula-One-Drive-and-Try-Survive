@@ -898,7 +898,7 @@ export class RaceDirector {
     const plan = c.pitPlan || ai?.pitPlan || { compound: c.tyres.compound, repair: (c.dmg.fwL > 0.3 || c.dmg.fwR > 0.3) ? 'wing' : 'none' };
     const P = this.pit; const boxIdx = Math.abs(c.boxIdx ?? c.number + c.id) % P.boxes.length; const box = P.boxes[boxIdx];
     c.inPit = true; c.pitRequested = false; c.held = false;
-    this.pitStates.set(c, { u: 0, v: c.speed, phase: 'in', boxU: P.samples.s[box.i], stopT: 0, plan, ex: c.x - P.samples.px[0], ez: c.z - P.samples.pz[0], lane: 0, sfDone: false });
+    this.pitStates.set(c, { u: 0, v: c.speed, phase: 'in', box: boxIdx, boxU: P.samples.s[box.i], stopT: 0, plan, ex: c.x - P.samples.px[0], ez: c.z - P.samples.pz[0], lane: 0, sfDone: false });
     if (c.isPlayer) this.hud?.msg('PIT LANE · LIMITER ON', 'warn', 2);
     else if (this.engineer && this.player) { const ci = this.positions.indexOf(c), mi = this.positions.indexOf(this.player); if (Math.abs(ci - mi) <= 3) this.engineer.say(`${c.name.split(' ').pop()} is boxing from P${ci + 1}${plan.compound ? ' for ' + plan.compound.toLowerCase() + 's' : ''}.`, 2); }
   }
@@ -911,9 +911,12 @@ export class RaceDirector {
     if (st.phase === 'in') {
       st.v = approach(st.v, lim, 6, 25);
       st.v = Math.min(st.v, Math.sqrt(lim * lim + 2 * 25 * Math.max(0, zoneIn - st.u)));
-      const rem = st.boxU - st.u; const vAllow = Math.sqrt(Math.max(0, 2 * 6.5 * rem));
+      // a double stack: the team-mate still in the box (or on the way to it, ahead) - wait behind it, a car's length
+      // and a bit short of the box, and move up when it has gone (one crew, one car at a time)
+      const queued = this.boxBusy(c, st), rem = st.boxU - st.u - (queued ? 7.5 : 0); const vAllow = Math.sqrt(Math.max(0, 2 * 6.5 * rem));
       st.v = Math.min(st.v, vAllow);
-      if (rem < 0.4 || (rem < 3 && st.v < 0.3)) {
+      if (queued) { if (rem < 0.4) st.v = 0; }
+      else if (rem < 0.4 || (rem < 3 && st.v < 0.3)) {
         st.phase = 'stop'; st.v = 0;
         st.stopT = this.stopTime(c, st.plan) + c.penalties; st.serve = c.penalties; st.at = this.time; c.penaltyServed += c.penalties; c.penalties = 0;
         c._stopAt = this.time; c._stopDur = st.stopT; c._stopPlan = st.plan; c._stopServe = st.serve;
@@ -939,6 +942,17 @@ export class RaceDirector {
     const q = this.track.nearest(c.x, c.z, c.trackIdx, c._q || (c._q = {})); c.trackIdx = q.i; c.s = q.s; c.d = q.d; c.totalDist = c.lap * this.track.length + c.s;
     if (!st.sfDone && st.u >= P.sfU) { st.sfDone = true; c.inPit = false; this.onLine(c, true); c.inPit = true; }
     c.tyres.temp = Math.max(c.tyres.temp - dt * 0.02, 0.25);
+  }
+  /** another car at this one's box (a team-mate stopped there, still pulling away from it, or ahead on the way in to it) */
+  boxBusy(c, st) {
+    const P = this.pit, mine = st.box ?? Math.abs(c.boxIdx ?? c.number + c.id) % P.boxes.length;
+    for (const [o, s2] of this.pitStates) {
+      if (o === c || (s2.box ?? Math.abs(o.boxIdx ?? o.number + o.id) % P.boxes.length) !== mine) continue;
+      if (s2.phase === 'stop' || (s2.phase === 'out' && s2.u < st.boxU + 6) || (s2.phase === 'in' && s2.u > st.u)) return true;
+    }
+    // (the player, driving into the box by hand)
+    for (const o of this.cars) if (o !== c && o.manualPit && o.pitLane && o.pitLaneState === 'stop' && Math.abs(o.boxIdx ?? o.number + o.id) % P.boxes.length === mine) return true;
+    return false;
   }
   exitPit(c, v = null) {
     const P = this.pit, st = this.pitStates.get(c); this.pitStates.delete(c); c.inPit = false;

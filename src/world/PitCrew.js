@@ -1,6 +1,8 @@
-// Pit crews: a real stop, choreographed. A pool of crews (21 people each, world/CrewRig.js: skinned, so every limb
-// moves) is sent to the stops that can be seen. When a car is coming in, its crew runs out of the garage with the new
-// tyres and takes up its places: the gunners kneeling at the wheels, a tyre-off and a tyre-on at each, the front
+// Pit crews: a real stop, choreographed. A pool of crews (21 people each - people, world/PersonRig.js: the person model
+// in the team's suit and a crew helmet, skinned to CrewRig's bones so every limb moves) is sent to the stops that can be
+// seen, one crew to a box: a double stack (the team-mate queued behind, RaceDirector.boxBusy) is the same crew again -
+// the old tyres to the stack at the garage front, a fresh set from it, back to their places. When a car is coming in,
+// its crew always runs out of the garage with the new tyres (never put at its places) and takes them up: the gunners kneeling at the wheels, a tyre-off and a tyre-on at each, the front
 // jack in the car's path - the car drives into its cradle - and the rear jack waiting at the side, the two holding
 // the car steady at the sidepods, the two at the front wing, the chief who releases it. The stop itself is timed to
 // the stationary time the race gives it (RaceDirector.stopTime: ~2.0-2.6 s, a slow wheel, a wing change, a penalty
@@ -10,11 +12,12 @@
 // take the old wing off and away and fit the spare from its stand beside the box. Then the crew carries the old tyres
 // back into the garage. All in the car's own frame where it actually stopped.
 import * as THREE from 'three';
-import { makeCrewRig, POSE, gait, blendPose, applyPose } from './CrewRig.js';
+import { POSE, gait, blendPose } from './CrewRig.js';
+import { makePersonRig, warmPersonRigs } from './PersonRig.js';
 import { COMPOUNDS } from '../vehicle/Tyres.js';
 
 const NOSE_X = 3.09, REAR_X = -2.31, AXLE = { F: 1.855, R: -1.548 }, HUBW = { F: 0.775, R: 0.736 }, TYRE_W = { F: 0.332, R: 0.414 };   // (the 2026 car model's, about the centre of mass)
-const LIFT_F = 0.085, LIFT_R = 0.08, NEAR = 150, RUN = 3.8, WALK = 1.5;
+const LIFT_F = 0.085, LIFT_R = 0.08, NEAR = 220, RUN = 3.8, WALK = 1.5, STACK_W = 3.5;   // (STACK_W: the tyres stacked at the garage front)
 const WHEELS = [['F', 1], ['F', -1], ['R', 1], ['R', -1]];   // (w side: +1 the garage side)
 const smooth = (a, b, t) => { const u = Math.max(0, Math.min(1, (t - a) / Math.max(1e-6, b - a))); return u * u * (3 - 2 * u); };
 const lerp = (a, b, f) => a + (b - a) * f;
@@ -56,7 +59,7 @@ function makeTyre(front) {
     const rim = new THREE.Mesh(g.rim, m.rim); rim.position.z = s * (w / 2 + 0.003); if (s < 0) rim.rotation.y = Math.PI; T.add(rim);
     const ring = new THREE.Mesh(g.ring, m.cSOFT); ring.position.z = s * (w / 2 + 0.005); if (s < 0) ring.rotation.y = Math.PI; T.add(ring); rings.push(ring);
   }
-  T.userData.setCompound = (c) => { const mm = m['c' + c] || m.cSOFT; for (const r of rings) r.material = mm; };
+  T.userData.setCompound = (c) => { const mm = m['c' + c] || m.cSOFT; for (const r of rings) r.material = mm; T.userData.compound = c; };
   T.visible = false; return T;
 }
 function makeGun(team) {
@@ -84,11 +87,13 @@ ROLES.push({ r: 'fj' }, { r: 'rj' }, { r: 'stab', s: 1 }, { r: 'stab', s: -1 }, 
 class Crew {
   constructor(scene, night) {
     this.group = new THREE.Group(); this.group.name = 'pit-crew'; this.group.visible = false; scene.add(this.group);
-    this.men = ROLES.map((ro) => { const rig = makeCrewRig({ team: '#555b66', night }); this.group.add(rig.mesh); return { ...ro, rig, cur: {}, x: 0, z: 0, yaw: 0, ph: Math.random() * 6 }; });
+    const builds = ['broad', 'athletic', 'average'];
+    this.men = ROLES.map((ro, n) => { const rig = makePersonRig({ team: '#555b66', build: builds[(n * 7) % 3] }); void night; this.group.add(rig.mesh); return { ...ro, rig, cur: {}, x: 0, z: 0, yaw: 0, ph: Math.random() * 6, ox: 0, oz: 0 }; });
     this.guns = WHEELS.map(() => { const g = makeGun('#333'); this.group.add(g); return g; });
     this.hoses = WHEELS.map(() => { const h = new THREE.Mesh(geos().hose, mats().hose); this.group.add(h); return h; });
     this.oldT = WHEELS.map(([a]) => { const t = makeTyre(a === 'F'); this.group.add(t); return t; });
     this.newT = WHEELS.map(([a]) => { const t = makeTyre(a === 'F'); this.group.add(t); return t; });
+    this.stackT = WHEELS.map(([a]) => { const t = makeTyre(a === 'F'); this.group.add(t); return t; });   // (a double stack's first set of old tyres, put down at the garage front)
     this.fjack = makeJack('#333'); this.rjack = makeJack('#333'); this.group.add(this.fjack, this.rjack);
     this.stand = new THREE.Mesh(geos().stand, mats().black); this.group.add(this.stand);
     // the overhead gantry the guns' air lines hang from: two beams over the wheels, booms back to the garage front
@@ -116,6 +121,7 @@ class Crew {
 export class PitCrews {
   /** meshes: the cars' CarMeshes (main.js S.meshes) - the crew lifts the car, takes its wheels and wing */
   constructor(scene, n = 3, meshes = null, night = false) {
+    warmPersonRigs();
     this.scene = scene; this.meshes = meshes; this.crews = []; for (let k = 0; k < n; k++) this.crews.push(new Crew(scene, night));
     this._v = new THREE.Vector3(); this._v2 = new THREE.Vector3();
   }
@@ -141,6 +147,7 @@ export class PitCrews {
   }
 
   update(d, camera, time, dt) {
+    this.frame = (this.frame || 0) + 1;
     if (!d || !this.crews.length) { for (const k of this.crews) k.group.visible = false; return; }
     const cam = camera.position, stops = PitCrews.stops(d);
     // a crew at a car keeps it until it has gone back into the garage; the free ones go to the stops that can be seen
@@ -149,9 +156,17 @@ export class PitCrews {
       const s = stops.find((q) => q.c === k.car);
       if (s) { k.stop = s; stops.splice(stops.indexOf(s), 1); }
       else { k.stop = null; if (k.phase === 'approach') k.phase = 'abort'; }   // (gone past the box / out of the race: back inside)
+      // (the team-mate queued behind: this crew's next car - never a second crew at the same box)
+      const nx = stops.filter((q) => q.box.i === k.box.i).sort((a, b) => a.ahead - b.ahead)[0];
+      k.next = nx || null; for (const q of stops.filter((q) => q.box.i === k.box.i)) stops.splice(stops.indexOf(q), 1);
     }
-    for (const s of stops.filter((q) => Math.hypot(q.box.x - cam.x, q.box.z - cam.z) < NEAR).sort((a, b) => a.ahead - b.ahead)) {
-      const k = this.crews.find((q) => !q.car); if (!k) break;
+    const mine = (q) => q.c.isPlayer ? -1e3 : q.ahead;
+    for (const s of stops.filter((q) => Math.hypot(q.box.x - cam.x, q.box.z - cam.z) < NEAR).sort((a, b) => mine(a) - mine(b))) {
+      if (this.crews.some((q) => q.car && q.box.i === s.box.i)) continue;
+      let k = this.crews.find((q) => !q.car);
+      // (your own stop always has its crew: one sent to a stop out of sight is called back for it)
+      if (!k && s.c.isPlayer) { k = this.crews.filter((q) => q.car).sort((a, b) => Math.hypot(b.box.x - cam.x, b.box.z - cam.z) - Math.hypot(a.box.x - cam.x, a.box.z - cam.z))[0]; if (k) this._free(k); }
+      if (!k) break;
       this._assign(k, s, d, time);
     }
     for (const k of this.crews) {
@@ -161,8 +176,8 @@ export class PitCrews {
     }
   }
 
-  _assign(k, s, d, time) {
-    const c = s.c; k.car = c; k.stop = s; k.box = s.box; k.at = time; k.wingDone = false; k.fitted = [false, false, false, false];
+  _assign(k, s, d, time, again = false) {
+    const c = s.c, old = again ? k.F : null; k.car = c; k.stop = s; k.box = s.box; k.at = time; k.wingDone = false; k.fitted = [false, false, false, false]; k.next = null; k.D = k.P = k.rep = 0;
     if (k.team !== c.team) { k.team = c.team; k.paint(c.color, c.color2); }
     const P = d.pit, ps = P.samples, i = s.box.i, gx = ps.nx[i] * -P.trackSide, gz = ps.nz[i] * -P.trackSide;
     // the box's frame: along the lane, +w toward the garage
@@ -171,16 +186,16 @@ export class PitCrews {
     k.F = { ox: s.box.x, oz: s.box.z, th, gz: k.gz };
     // (the gantry is the garage's: it stays in the box's frame, wherever the car stops; body z = w * gz)
     k.F0 = { ...k.F }; this._place(k, k.gantry, 0, 0, 0, 0); k.gantry.scale.set(1, 1, k.gz);
-    // late (the car already here, or nearly): everyone at their place; otherwise out of the garage at a run
-    const eta = s.stop ? 0 : s.ahead / 22;
-    k.phase = s.stop ? 'stop' : 'approach'; k.ran = eta < 2.5;
+    // out of the garage at a run, always - however late (never put at their places); a double stack: from where they
+    // are, the old tyres to the stack at the garage front, a fresh set from it
+    k.phase = s.stop ? 'stop' : 'approach'; k.ran = false; k.again = again;
     k.men.forEach((m, n) => {
-      const st = this._station(k, m, -1);
-      if (k.ran) { m.u = st.u; m.w = st.w; } else { m.u = (Math.random() - 0.5) * 8; m.w = 4.4 + Math.random() * 2.2; m.go = 0.15 * (n % 7) + Math.random() * 0.4; }
-      m.cur = {}; m.home = { u: m.u, w: m.w };
+      if (again) { const [x, z] = this._wF(old, m.u, m.w); [m.u, m.w] = this._inv(k, x, z); m.go = 0; m.fetch = m.r === 'on'; m.dump = m.r === 'off' && k.oldT[m.j].visible; return; }
+      m.u = (Math.random() - 0.5) * 8; m.w = 4.4 + Math.random() * 2.2; m.go = 0.15 * (n % 7) + Math.random() * 0.4; m.fetch = m.dump = false; if (n === 0) for (const t of k.stackT) t.visible = false;
+      m.cur = {}; m.home = { u: m.u, w: m.w }; m.ox = m.oz = 0;
     });
     const comp = c.pitPlan?.compound || c.ai?.pitPlan?.compound || c.tyres.compound;
-    k.newT.forEach((t) => t.userData.setCompound(comp)); k.oldT.forEach((t) => t.userData.setCompound(c.tyres.compound));
+    k.newT.forEach((t) => t.userData.setCompound(comp)); if (!again) k.oldT.forEach((t) => t.userData.setCompound(c.tyres.compound));
     k.comp = comp;
     // the spare wing on its stand by the box (a wing change brings it into play)
     const mesh = this.meshes?.get(c);
@@ -202,11 +217,27 @@ export class PitCrews {
   _free(k) {
     const m = k.car && this.meshes?.get(k.car);
     if (m) { for (const w of m.wheels) if (!w.gone) w.hub.visible = true; }
-    k.car = null; k.stop = null; k.phase = null; k.group.visible = false;
+    k.car = null; k.stop = null; k.phase = null; k.next = null; k.group.visible = false;
+    for (const t of k.stackT) t.visible = false;
   }
 
   // the frame: world from (u along the car, w toward the garage)
   _w(k, u, w) { const F = k.F, c = Math.cos(F.th), s = Math.sin(F.th), z = w * F.gz; return [F.ox + u * c - z * s, F.oz + u * s + z * c]; }
+  _wF(F, u, w) { const c = Math.cos(F.th), s = Math.sin(F.th), z = w * F.gz; return [F.ox + u * c - z * s, F.oz + u * s + z * c]; }
+  /** (u, w) in the crew's frame of a world point */
+  _inv(k, x, z) { const F = k.F, c = Math.cos(F.th), s = Math.sin(F.th), dx = x - F.ox, dz = z - F.oz; return [dx * c + dz * s, (-dx * s + dz * c) * F.gz]; }
+  /** the frame changed (the box's to the car's where it really stopped): everyone stays where they stand in the world */
+  _reframe(k, F) { const old = k.F; k.F = F; for (const m of k.men) { const [x, z] = this._wF(old, m.u, m.w); [m.u, m.w] = this._inv(k, x, z); } }
+  /** a carried thing to (x, y, z): eased there (a tyre is never in one place one frame and another the next); snapped
+   *  when it has just been shown */
+  _glide(o, x, y, z, yaw, dt, rate = 16) {
+    const U = o.userData, fresh = U.frame !== this.frame - 1 && U.frame !== this.frame; U.frame = this.frame;
+    if (fresh) { o.position.set(x, y, z); o.rotation.set(0, yaw, 0); return; }
+    const f = 1 - Math.exp(-dt * rate); o.position.x += (x - o.position.x) * f; o.position.y += (y - o.position.y) * f; o.position.z += (z - o.position.z) * f;
+    let dy = yaw - o.rotation.y; while (dy > Math.PI) dy -= 2 * Math.PI; while (dy < -Math.PI) dy += 2 * Math.PI; o.rotation.set(0, o.rotation.y + dy * f, 0);
+  }
+  /** a tyre at (u, w, y) in the frame, eased there */
+  _placeT(k, o, u, w, y, dt, rate) { const [x, z] = this._w(k, u, w); o.visible = true; this._glide(o, x, y, z, -k.F.th, dt, rate); }
   _w0(k, u, w) { const F = k.F0 || k.F, c = Math.cos(F.th), s = Math.sin(F.th), z = w * F.gz; return [F.ox + u * c - z * s, F.oz + u * s + z * c]; }
   _yaw(k, du, dw) { const F = k.F, c = Math.cos(F.th), s = Math.sin(F.th), z = dw * F.gz; return Math.atan2(-(du * s + z * c), du * c - z * s); }
 
@@ -231,7 +262,7 @@ export class PitCrews {
     // ---- where we are in the stop
     let t = -1, D = 2.2, P = 0, rep = 0;
     if (k.stop?.stop) {
-      if (k.phase !== 'stop') { k.phase = 'stop'; k.F = { ox: c.x, oz: c.z, th: c.th, gz: k.gz }; }   // (the car's own frame, where it really stopped)
+      if (k.phase !== 'stop') { k.phase = 'stop'; this._reframe(k, { ox: c.x, oz: c.z, th: c.th, gz: k.gz }); }   // (the car's own frame, where it really stopped)
       D = c._stopDur || 2.2; P = c._stopServe || 0; t = time - (c._stopAt ?? time);
       const plan = c._stopPlan || {}; rep = plan.repair === 'wing' ? 6 : plan.repair === 'full' ? 10 : 0;
       k.D = D; k.P = P; k.rep = rep;
@@ -289,6 +320,7 @@ export class PitCrews {
     // ---- the jacks
     this._jacks(k, t, tw, jackDown, released, yAt);
     // ---- done: everyone back inside
+    if (k.phase === 'after' && k.next && t > D + 0.6) { const s = k.next; this._assign(k, s, d, time, true); return; }   // (the team-mate, queued behind: same crew)
     if (k.phase === 'after' && t > D + 9) this._free(k);
     if (k.phase === 'abort' && time - (k.abortAt || (k.abortAt = time)) > 6) { k.abortAt = 0; this._free(k); }
   }
@@ -324,26 +356,37 @@ export class PitCrews {
       } else if (m.r === 'off') {
         // the old wheel: pulled straight off the hub, out and down beside him; carried into the garage after
         const oT = k.oldT[j];
-        if (after > 2.2 || (k.phase === 'after' && after < 0)) { holds = oT; pose = POSE.carry; oT.visible = true; }
+        if (m.dump) {
+          // (a double stack: the first car's old tyre to the stack at the garage front, put down there, and back)
+          holds = oT; pose = POSE.carry; tu = st.u; tw_ = STACK_W; speed = RUN;
+          if (Math.hypot(m.u - tu, m.w - tw_) < 0.4) { m.dump = false; const sT = k.stackT[j]; sT.userData.setCompound(oT.userData.compound || k.comp); this._placeT(k, sT, st.u, STACK_W + 0.45 * s, 0.36, dt); sT.position.copy(oT.position); oT.visible = false; oT.userData.setCompound(k.car.tyres.compound); holds = null; }
+        } else if (k.stackT[j].visible && k.again) this._placeT(k, k.stackT[j], st.u, STACK_W + 0.45 * s, 0.36, dt, 6);
+        if (m.dump) { /* carrying it */ }
+        else if (after > 2.2 || (k.phase === 'after' && after < 0)) { holds = oT; pose = POSE.carry; oT.visible = true; }
         else if (t >= 0 && tw >= T.off[0]) {
           const pull = smooth(T.off[0], T.off[0] + 0.12 * k.q, tw), away = smooth(T.off[0] + 0.12 * k.q, T.off[1], tw);
           const pu = lerp(u0, lerp(u0, st.u, 0.55), away), pw = lerp(s * (HUBW[a] + 0.42 * pull), s * (hw + 0.28), away), py = lerp(hubY, 0.36, away);
-          oT.visible = true; this._place(k, oT, pu, pw, py, 0);
+          this._placeT(k, oT, pu, pw, py, dt);
           if (away < 1) { holds = oT; holdPos = { u: pu, w: pw, y: py }; pose = POSE.hold; }
           else pose = released ? POSE.stand : POSE.ready;
-        } else {
+        } else if (!m.dump) {
           oT.visible = false;
           if (t >= 0 && tw > T.loose[0] - 0.1) { pose = POSE.hold; hands = { u: u0 + (st.u - u0) * 0.22, w: s * (hw + 0.04), y: hubY }; }
         }
       } else {
         // the new wheel: held ready, pushed onto the hub, let go
         const nT = k.newT[j], fit = t >= 0 ? smooth(T.on[0], T.on[1], tw) : 0, fitted = t >= 0 && tw >= T.on[1];
-        if (!fitted && !(k.phase === 'after')) {
+        if (m.fetch) {
+          // (a double stack: a fresh tyre from the stack at the garage front - it sits there until he has it)
+          tu = st.u; tw_ = STACK_W - 0.15 * s; pose = POSE.ready; speed = RUN;
+          this._placeT(k, nT, st.u, STACK_W + 0.1 * s, 0.36, dt);
+          if (Math.hypot(m.u - tu, m.w - tw_) < 0.4) m.fetch = false;
+        } else if (!fitted && !(k.phase === 'after')) {
           const pu = lerp(st.u - (st.u - u0) * 0.25, u0, fit), pw = lerp(st.w - s * 0.35, s * (hw - TYRE_W[a] / 2), fit), py = lerp(0.42, hubY, fit);
-          nT.visible = true;
-          this._place(k, nT, pu, pw, py, 0); holds = nT; holdPos = { u: pu, w: pw, y: py };
-          pose = POSE.hold; tu = lerp(st.u, u0 + (st.u - u0) * 0.55, fit);
-          if (k.phase === 'approach' && !this._arrived(m)) { pose = POSE.carry; holdPos = null; }
+          holds = nT; pose = POSE.hold; tu = lerp(st.u, u0 + (st.u - u0) * 0.55, fit);
+          // (on the way to his place: carried at the waist; there, held out ready - eased from one to the other)
+          if (k.phase === 'approach' && Math.hypot(m.u - st.u, m.w - st.w) > 0.5) pose = POSE.carry;
+          else { this._placeT(k, nT, pu, pw, py, dt, fit > 0 ? 30 : 10); holdPos = { u: pu, w: pw, y: py }; }
         } else { nT.visible = false; pose = released ? POSE.stand : POSE.ready; }
       }
     }
@@ -376,23 +419,26 @@ export class PitCrews {
     let target = pose;
     if (moving) { const gk = speed === WALK ? 0.5 : 1; const g2 = gait(m.ph, gk, !(holds || pose === POSE.carry)); target = (holds || pose === POSE.carry) ? { ...g2, ...pick(POSE.carry, ['shL', 'shR', 'elL', 'elR', 'spine']) } : g2; }
     blendPose(m.cur, target, Math.min(1, dt * (moving ? 14 : 10)));
-    applyPose(rig, m.cur);
+    rig.apply(m.cur);
     // facing
     const want = this._yaw(k, fu, fw); let dy = want - m.yaw; while (dy > Math.PI) dy -= 2 * Math.PI; while (dy < -Math.PI) dy += 2 * Math.PI; m.yaw += dy * Math.min(1, dt * 9);
     const [x, z] = this._w(k, m.u, m.w); rig.mesh.position.set(x, 0, z); rig.mesh.rotation.set(0, m.yaw, 0);
     // hands where the work is: the whole body shuffled so that the hands' midpoint is over the target (feet slide a little)
-    const tgt = holdPos || hands;
+    // (eased: a body that stepped a metre in one frame to put its hands on a tyre is what this was)
+    const tgt = holdPos || hands; let ex = 0, ez = 0;
     if (tgt && !moving) {
       rig.mesh.updateMatrixWorld(true);
       const a = rig.b.haL.getWorldPosition(this._v), b = rig.b.haR.getWorldPosition(this._v2), mx = (a.x + b.x) / 2, mz = (a.z + b.z) / 2;
-      const [hx, hz] = this._w(k, tgt.u, tgt.w); let ex = hx - mx, ez = hz - mz; const e = Math.hypot(ex, ez); if (e > 1.0) { ex *= 1.0 / e; ez *= 1.0 / e; }
-      rig.mesh.position.x += ex; rig.mesh.position.z += ez;
+      const [hx, hz] = this._w(k, tgt.u, tgt.w); ex = hx - mx; ez = hz - mz; const e = Math.hypot(ex, ez); if (e > 0.6) { ex *= 0.6 / e; ez *= 0.6 / e; }
     }
+    const fo = 1 - Math.exp(-dt * 9); m.ox += (ex - m.ox) * fo; m.oz += (ez - m.oz) * fo;
+    rig.mesh.position.x += m.ox; rig.mesh.position.z += m.oz;
     // something carried while walking or running: at the hands
     if (holds && !holdPos) {
       rig.mesh.updateMatrixWorld(true);
       const a = rig.b.haL.getWorldPosition(this._v), b = rig.b.haR.getWorldPosition(this._v2);
-      holds.position.set((a.x + b.x) / 2, Math.max(0.36, (a.y + b.y) / 2), (a.z + b.z) / 2); holds.rotation.set(0, m.yaw + Math.PI / 2, 0); holds.visible = true;
+      if (holds.isGroup && holds.userData.setCompound) { holds.visible = true; this._glide(holds, (a.x + b.x) / 2, Math.max(0.36, (a.y + b.y) / 2), (a.z + b.z) / 2, m.yaw + Math.PI / 2, dt, 18); }
+      else { holds.position.set((a.x + b.x) / 2, Math.max(0.36, (a.y + b.y) / 2), (a.z + b.z) / 2); holds.rotation.set(0, m.yaw + Math.PI / 2, 0); holds.visible = true; }
     }
   }
   _arrived(m) { return m.w < 4.0; }

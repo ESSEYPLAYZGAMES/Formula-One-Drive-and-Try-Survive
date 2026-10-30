@@ -597,7 +597,7 @@ table.res tr.me td { color: var(--accent2); font-weight: 700; }
     <div class="brand-line"></div>
     <h1 id="brand-title">FORMULA 1<span id="brand-sub">SIMULATOR</span></h1>
     <!-- the build's version: +0.01 with every build handed out -->
-    <span id="app-ver" title="Version">V1.76</span>
+    <span id="app-ver" title="Version">V1.77</span>
     <div id="menu-sub">Real circuits built from OpenStreetMap</div>
   </div>
   <div id="loading" class="hidden"><div class="ld"><i></i></div><span>Building the circuit from OpenStreetMap…</span></div>
@@ -84328,6 +84328,15 @@ const POSES = {
     shL: V(0.02, 1.38, 0.19), elL: V(0.1, 1.13, 0.22), wrL: V(0.21, 0.93, 0.19),
     shR: V(0.02, 1.38, -0.19), elR: V(-0.07, 1.13, -0.22), wrR: V(-0.13, 0.92, -0.19),
   }),
+  // the bind pose of a skinned figure (world/PersonRig.js - a pit crew that moves): standing straight, the arms held
+  // out and down at 40 degrees, clear of the body, so that every part of it can be told whose bone it moves with
+  rig: () => ({
+    pelvis: V(0, 0.96, 0), torsoA: V(0, 1.04, 0), torsoB: V(0, 1.34, 0), neck: V(0, 1.48, 0), head: V(0, 1.61, 0), bow: 0,
+    hipR: V(0, 0.93, -0.1), kneeR: V(0, 0.5, -0.105), ankleR: V(0, 0.09, -0.11), footR: 'flat',
+    hipL: V(0, 0.93, 0.1), kneeL: V(0, 0.5, 0.105), ankleL: V(0, 0.09, 0.11), footL: 'flat',
+    shR: V(0, 1.4, -0.19), elR: V(0, 1.19, -0.366), wrR: V(0, 1.011, -0.516),
+    shL: V(0, 1.4, 0.19), elL: V(0, 1.19, 0.366), wrL: V(0, 1.011, 0.516),
+  }),
   // standing, talking to a reporter: arms at the sides
   talk: () => ({
     pelvis: V(0, 0.96, 0), torsoA: V(0, 1.04, 0), torsoB: V(0.01, 1.34, 0), neck: V(0.02, 1.48, 0), head: V(0.03, 1.61, 0), bow: 0.02,
@@ -88704,9 +88713,12 @@ function buildPerson(o) {
     // a pit-crew member: an open-face helmet in the team's colour and a dark visor, no face to build (quick: a crew is
     // a dozen people)
     const shellG = new THREE.SphereGeometry(0.135, 20, 14); shellG.scale(1.02, 1.05, 0.95); shellG.translate(hc.x - 0.01, hc.y + 0.01, hc.z);
-    const visorG = new THREE.SphereGeometry(0.137, 20, 8, -0.85, 1.7, Math.PI * 0.36, Math.PI * 0.2); visorG.scale(1.02, 1.05, 0.95); visorG.translate(hc.x - 0.008, hc.y + 0.01, hc.z);
+    // (the visor across the front - a sphere's angle 0 is its -x, the back of the head: centred on pi, the face's +x - and
+    // a chin guard under it in the shell's colour, so it reads as a helmet with someone in it, not a ball)
+    const visorG = new THREE.SphereGeometry(0.139, 24, 10, Math.PI - 1.05, 2.1, Math.PI * 0.34, Math.PI * 0.24); visorG.scale(1.02, 1.05, 0.95); visorG.translate(hc.x - 0.008, hc.y + 0.01, hc.z);
+    const chinG = new THREE.SphereGeometry(0.137, 20, 6, Math.PI - 0.95, 1.9, Math.PI * 0.58, Math.PI * 0.16); chinG.scale(1.04, 1.05, 0.95); chinG.translate(hc.x - 0.006, hc.y + 0.01, hc.z);
     mats.visor = new THREE.MeshStandardMaterial({ color: '#0d0f14', roughness: 0.15, metalness: 0.6 });
-    head.add(M([shellG], mats.team), M([visorG], mats.visor));
+    head.add(M([shellG, chinG], mats.team), M([visorG], mats.visor));
   } else {
   const seed = seedOf();
   const vary = (k) => (((seed >>> k) % 100) / 100 - 0.5);   // (a face of its own: small differences, the same for the same name)
@@ -92701,6 +92713,141 @@ function applyPose(rig, p) {
 return { BONES, makeCrewRig, POSE, gait, blendPose, applyPose };
 })();
 
+// ---- src/world/PersonRig.js
+__m['src/world/PersonRig.js'] = (() => {
+const { makePerson, jointsOf } = __m['src/world/People.js'];
+const { BONES } = __m['src/world/CrewRig.js'];
+// A pit-crew member who is a person (world/People.js: the race suit, the build, the hands and boots, an open-face crew
+// helmet) and who moves like the crew rig (world/CrewRig.js): the person built once in its bind pose - standing, the arms
+// out at 40 degrees, clear of the body - and every vertex skinned to the rig's seventeen bones by how near it lies to
+// each bone's segment (a blend between a bone and its neighbour at the joints, so an elbow bends without a crease). One
+// skinned mesh, one draw call, coloured per vertex (recolor: the team's colours, as the rig's). The same API as
+// makeCrewRig - { mesh, b, recolor, dispose }, posed with CrewRig's poses: applyPose takes the bind pose's arms back
+// to hanging (rig.apply).
+
+
+
+
+const V = (x, y, z) => new THREE.Vector3(x, y, z);
+const PARENT = { hips: null, spine: 'hips', chest: 'spine', neck: 'chest', head: 'neck', shL: 'chest', elL: 'shL', haL: 'elL', shR: 'chest', elR: 'shR', haR: 'elR', thL: 'hips', knL: 'thL', anL: 'knL', thR: 'hips', knR: 'thR', anR: 'knR' };
+const BI = Object.fromEntries(BONES.map((b, i) => [b, i]));
+// (colour slots: 0 the suit (the team's colour), 1 the legs (a shade darker), 2 the accent, 3 as built - boots, visor; 4 gloves and balaclava)
+const SLOT = { top: 0, team: 0, band: 0, legs: 1, accent: 2, skin: 4 };
+const GLOVE = new THREE.Color('#17181b');
+
+const TEMPLATES = new Map();
+/** the skinned geometry of one build, in the bind pose, and the bones' places in it (built once, shared) */
+function template(build) {
+  if (TEMPLATES.has(build)) return TEMPLATES.get(build);
+  const p = makePerson({ pose: 'rig', kit: 'suit', color: '#ffffff', accent: '#ffffff', crewHelmet: true, jitter: 0, build, segQ: 0.6 });
+  const J = jointsOf('rig');
+  // the bones' heads (in the bind pose): the hips at the pelvis, the spine at the waist, the chest below the shoulders,
+  // the neck at its base, the head where the person's head turns; the limbs at their joints
+  const W = {
+    hips: J.pelvis, spine: J.torsoA, chest: V(0, 1.22, 0), neck: V(0, 1.43, 0), head: p.neck.clone(),
+    shL: J.shL, elL: J.elL, haL: J.wrL, shR: J.shR, elR: J.elR, haR: J.wrR,
+    thL: J.hipL, knL: J.kneeL, anL: J.ankleL, thR: J.hipR, knR: J.kneeR, anR: J.ankleR,
+  };
+  const along = (a, b, k) => b.clone().sub(a).multiplyScalar(k).add(b);
+  // each bone's segment and how thick the body is about it (distances are measured in its own thickness: a vertex of
+  // the chest's side by the arm is the chest's, though it lies nearer the arm's line)
+  const SEG = {
+    hips: [V(0, 0.84, 0), J.torsoA, 0.15], spine: [J.torsoA, W.chest, 0.15], chest: [W.chest, W.neck, 0.16], neck: [W.neck, W.head, 0.07], head: [W.head, W.head.clone().add(V(0, 0.25, 0)), 0.13],
+    shL: [W.shL, W.elL, 0.06], elL: [W.elL, W.haL, 0.05], haL: [W.haL, along(W.elL, W.haL, 0.8), 0.045],
+    shR: [W.shR, W.elR, 0.06], elR: [W.elR, W.haR, 0.05], haR: [W.haR, along(W.elR, W.haR, 0.8), 0.045],
+    thL: [W.thL, W.knL, 0.085], knL: [W.knL, W.anL, 0.06], anL: [W.anL, W.anL.clone().add(V(0.2, -0.05, 0)), 0.05],
+    thR: [W.thR, W.knR, 0.085], knR: [W.knR, W.anR, 0.06], anR: [W.anR, W.anR.clone().add(V(0.2, -0.05, 0)), 0.05],
+  };
+  const adj = (a, b) => PARENT[a] === b || PARENT[b] === a;
+  const keyOf = new Map(Object.entries(p.mats).map(([k, m]) => [m, k]));
+  const inHead = (o) => { for (let q = o; q; q = q.parent) if (q === p.head) return true; return false; };
+  p.group.updateMatrixWorld(true);
+  const parts = [], ab = V(0, 0, 0), ap = V(0, 0, 0), v = V(0, 0, 0);
+  p.group.traverse((o) => {
+    if (!o.isMesh) return;
+    const g = o.geometry.clone(); g.applyMatrix4(o.matrixWorld);
+    for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal' && k !== 'color') g.deleteAttribute(k);
+    if (!g.index) g.setIndex([...Array(g.attributes.position.count).keys()]);
+    const n = g.attributes.position.count, P = g.attributes.position, C = g.attributes.color;
+    const key = keyOf.get(o.material), slot = SLOT[key] ?? 3, mc = o.material.color;
+    const base = new Float32Array(n * 3), sl = new Float32Array(n), si = new Uint16Array(n * 4), sw = new Float32Array(n * 4);
+    const head = inHead(o);
+    for (let i = 0; i < n; i++) {
+      // (its shade as built - the baked light and dark of it - times the material's colour, for the fixed parts)
+      const r = C ? C.getX(i) : 1, gg = C ? C.getY(i) : 1, bb = C ? C.getZ(i) : 1;
+      if (slot === 3) { base[i * 3] = r * mc.r; base[i * 3 + 1] = gg * mc.g; base[i * 3 + 2] = bb * mc.b; } else { base[i * 3] = r; base[i * 3 + 1] = gg; base[i * 3 + 2] = bb; }
+      sl[i] = slot;
+      if (head) { si[i * 4] = BI.head; sw[i * 4] = 1; continue; }
+      v.fromBufferAttribute(P, i);
+      let b1 = null, d1 = Infinity, b2 = null, d2 = Infinity;
+      for (const k of BONES) {
+        const [a, b, rr] = SEG[k]; ab.subVectors(b, a); ap.subVectors(v, a);
+        const t = Math.max(0, Math.min(1, ap.dot(ab) / Math.max(1e-9, ab.lengthSq()))), d = ap.addScaledVector(ab, -t).length() / rr;
+        if (d < d1) { b2 = b1; d2 = d1; b1 = k; d1 = d; } else if (d < d2) { b2 = k; d2 = d; }
+      }
+      si[i * 4] = BI[b1];
+      if (b2 && adj(b1, b2)) { const w = 1 / (1 + Math.exp(-(d2 - d1) * 9)); sw[i * 4] = w; si[i * 4 + 1] = BI[b2]; sw[i * 4 + 1] = 1 - w; } else sw[i * 4] = 1;
+    }
+    if (g.attributes.color) g.deleteAttribute('color');
+    g.setAttribute('base', new THREE.BufferAttribute(base, 3)); g.setAttribute('slot', new THREE.BufferAttribute(sl, 1));
+    g.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(si, 4)); g.setAttribute('skinWeight', new THREE.Float32BufferAttribute(sw, 4));
+    parts.push(g);
+  });
+  const geo = mergeGeometries(parts); parts.forEach((g) => g.dispose()); p.dispose();
+  geo.computeBoundingSphere();
+  // the arms' angle out from hanging in the bind pose (applyPose turns them back)
+  const out = (s) => Math.atan2(Math.abs(W['el' + s].z - W['sh' + s].z), W['sh' + s].y - W['el' + s].y);
+  const T = { geo, W, aL: out('L'), aR: out('R') };
+  TEMPLATES.set(build, T); return T;
+}
+
+const _q = new THREE.Quaternion(), _e = new THREE.Euler(), _c = new THREE.Quaternion(), _ci = new THREE.Quaternion();
+/** a crew member who is a person: { mesh, b, recolor(team, accent), apply(pose), dispose() } (o.build: 'broad' | 'athletic' | 'average') */
+function makePersonRig(o = {}) {
+  const T = template(o.build || 'broad'), geo = T.geo.clone();
+  const n = geo.attributes.position.count; geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
+  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.58, metalness: 0.04 });
+  const b = {}, bones = BONES.map((k) => { const x = new THREE.Bone(); x.name = k; b[k] = x; return x; });
+  for (const k of BONES) { const p = PARENT[k]; b[k].position.copy(T.W[k]).sub(p ? T.W[p] : V(0, 0, 0)); if (p) b[p].add(b[k]); }
+  const mesh = new THREE.SkinnedMesh(geo, mat); mesh.add(b.hips); mesh.frustumCulled = false; mesh.name = 'crew-person';
+  mesh.updateMatrixWorld(true); mesh.bind(new THREE.Skeleton(bones));
+  const hipsY = T.W.hips.y;
+  // (the arms' correction: the bind pose's arm out at angle a about x; a pose's rotations are for an arm hanging)
+  const CL = new THREE.Quaternion().setFromAxisAngle(V(1, 0, 0), -T.aL), CR = new THREE.Quaternion().setFromAxisAngle(V(1, 0, 0), T.aR);   // (CrewRig: about -x the left arm goes out)
+  const rec = (team, accent) => {
+    const tc = new THREE.Color(team).multiplyScalar(0.92), C = [tc, tc.clone().multiplyScalar(0.82), new THREE.Color(accent || '#ffffff'), null, GLOVE];
+    const sl = geo.attributes.slot.array, bs = geo.attributes.base.array, col = geo.attributes.color.array;
+    for (let i = 0; i < n; i++) { const c = C[sl[i]], k = i * 3; if (c) { col[k] = bs[k] * c.r; col[k + 1] = bs[k + 1] * c.g; col[k + 2] = bs[k + 2] * c.b; } else { col[k] = bs[k]; col[k + 1] = bs[k + 1]; col[k + 2] = bs[k + 2]; } }
+    geo.attributes.color.needsUpdate = true;
+  };
+  rec(o.team || '#555b66', o.accent || '#ffffff');
+  const ZERO = [0, 0, 0];
+  /** a CrewRig pose onto the person: the same joint angles; the arms taken from the bind pose's to hanging first */
+  const apply = (p) => {
+    b.hips.position.y = hipsY - (p.y || 0);
+    for (const k of BONES) {
+      if (k === 'hips') continue;
+      const r = p[k] || ZERO; _e.set(r[0], r[1], r[2]); _q.setFromEuler(_e);
+      const s = k.endsWith('L') && k.length === 3 && (k[0] === 's' || k[0] === 'e' || k[0] === 'h') ? CL : k.endsWith('R') && k.length === 3 && (k[0] === 's' || k[0] === 'e' || k[0] === 'h') ? CR : null;
+      if (!s) { b[k].quaternion.copy(_q); continue; }
+      // shoulder: the pose then the bind pose undone (P C^-1); elbow, hand: the pose in the hanging arm's frame (C P C^-1)
+      _ci.copy(s).invert();
+      if (k[0] === 's') b[k].quaternion.copy(_q).multiply(_ci); else b[k].quaternion.copy(s).multiply(_q).multiply(_ci);
+    }
+    for (const s of ['L', 'R']) {
+      const t = p['th' + s] || ZERO, kk = p['kn' + s] || ZERO, a = p['an' + s];
+      _e.set(0, 0, a && (a[2] || a[0]) ? a[2] : -(t[2] + kk[2])); b['an' + s].quaternion.setFromEuler(_e);
+    }
+  };
+  void _c;
+  return { mesh, b, recolor: rec, apply, dispose() { geo.dispose(); mat.dispose(); } };
+}
+/** the templates built ahead (a session's start, not the first stop) */
+function warmPersonRigs() { for (const k of ['broad', 'athletic', 'average']) template(k); }
+
+return { makePersonRig, warmPersonRigs };
+})();
+
 // ---- src/vehicle/Tyres.js
 __m['src/vehicle/Tyres.js'] = (() => {
 
@@ -92774,11 +92921,14 @@ return { COMPOUNDS, TyreSet };
 
 // ---- src/world/PitCrew.js
 __m['src/world/PitCrew.js'] = (() => {
-const { makeCrewRig, POSE, gait, blendPose, applyPose } = __m['src/world/CrewRig.js'];
+const { POSE, gait, blendPose } = __m['src/world/CrewRig.js'];
+const { makePersonRig, warmPersonRigs } = __m['src/world/PersonRig.js'];
 const { COMPOUNDS } = __m['src/vehicle/Tyres.js'];
-// Pit crews: a real stop, choreographed. A pool of crews (21 people each, world/CrewRig.js: skinned, so every limb
-// moves) is sent to the stops that can be seen. When a car is coming in, its crew runs out of the garage with the new
-// tyres and takes up its places: the gunners kneeling at the wheels, a tyre-off and a tyre-on at each, the front
+// Pit crews: a real stop, choreographed. A pool of crews (21 people each - people, world/PersonRig.js: the person model
+// in the team's suit and a crew helmet, skinned to CrewRig's bones so every limb moves) is sent to the stops that can be
+// seen, one crew to a box: a double stack (the team-mate queued behind, RaceDirector.boxBusy) is the same crew again -
+// the old tyres to the stack at the garage front, a fresh set from it, back to their places. When a car is coming in,
+// its crew always runs out of the garage with the new tyres (never put at its places) and takes them up: the gunners kneeling at the wheels, a tyre-off and a tyre-on at each, the front
 // jack in the car's path - the car drives into its cradle - and the rear jack waiting at the side, the two holding
 // the car steady at the sidepods, the two at the front wing, the chief who releases it. The stop itself is timed to
 // the stationary time the race gives it (RaceDirector.stopTime: ~2.0-2.6 s, a slow wheel, a wing change, a penalty
@@ -92790,8 +92940,9 @@ const { COMPOUNDS } = __m['src/vehicle/Tyres.js'];
 
 
 
+
 const NOSE_X = 3.09, REAR_X = -2.31, AXLE = { F: 1.855, R: -1.548 }, HUBW = { F: 0.775, R: 0.736 }, TYRE_W = { F: 0.332, R: 0.414 };   // (the 2026 car model's, about the centre of mass)
-const LIFT_F = 0.085, LIFT_R = 0.08, NEAR = 150, RUN = 3.8, WALK = 1.5;
+const LIFT_F = 0.085, LIFT_R = 0.08, NEAR = 220, RUN = 3.8, WALK = 1.5, STACK_W = 3.5;   // (STACK_W: the tyres stacked at the garage front)
 const WHEELS = [['F', 1], ['F', -1], ['R', 1], ['R', -1]];   // (w side: +1 the garage side)
 const smooth = (a, b, t) => { const u = Math.max(0, Math.min(1, (t - a) / Math.max(1e-6, b - a))); return u * u * (3 - 2 * u); };
 const lerp = (a, b, f) => a + (b - a) * f;
@@ -92833,7 +92984,7 @@ function makeTyre(front) {
     const rim = new THREE.Mesh(g.rim, m.rim); rim.position.z = s * (w / 2 + 0.003); if (s < 0) rim.rotation.y = Math.PI; T.add(rim);
     const ring = new THREE.Mesh(g.ring, m.cSOFT); ring.position.z = s * (w / 2 + 0.005); if (s < 0) ring.rotation.y = Math.PI; T.add(ring); rings.push(ring);
   }
-  T.userData.setCompound = (c) => { const mm = m['c' + c] || m.cSOFT; for (const r of rings) r.material = mm; };
+  T.userData.setCompound = (c) => { const mm = m['c' + c] || m.cSOFT; for (const r of rings) r.material = mm; T.userData.compound = c; };
   T.visible = false; return T;
 }
 function makeGun(team) {
@@ -92861,11 +93012,13 @@ ROLES.push({ r: 'fj' }, { r: 'rj' }, { r: 'stab', s: 1 }, { r: 'stab', s: -1 }, 
 class Crew {
   constructor(scene, night) {
     this.group = new THREE.Group(); this.group.name = 'pit-crew'; this.group.visible = false; scene.add(this.group);
-    this.men = ROLES.map((ro) => { const rig = makeCrewRig({ team: '#555b66', night }); this.group.add(rig.mesh); return { ...ro, rig, cur: {}, x: 0, z: 0, yaw: 0, ph: Math.random() * 6 }; });
+    const builds = ['broad', 'athletic', 'average'];
+    this.men = ROLES.map((ro, n) => { const rig = makePersonRig({ team: '#555b66', build: builds[(n * 7) % 3] }); void night; this.group.add(rig.mesh); return { ...ro, rig, cur: {}, x: 0, z: 0, yaw: 0, ph: Math.random() * 6, ox: 0, oz: 0 }; });
     this.guns = WHEELS.map(() => { const g = makeGun('#333'); this.group.add(g); return g; });
     this.hoses = WHEELS.map(() => { const h = new THREE.Mesh(geos().hose, mats().hose); this.group.add(h); return h; });
     this.oldT = WHEELS.map(([a]) => { const t = makeTyre(a === 'F'); this.group.add(t); return t; });
     this.newT = WHEELS.map(([a]) => { const t = makeTyre(a === 'F'); this.group.add(t); return t; });
+    this.stackT = WHEELS.map(([a]) => { const t = makeTyre(a === 'F'); this.group.add(t); return t; });   // (a double stack's first set of old tyres, put down at the garage front)
     this.fjack = makeJack('#333'); this.rjack = makeJack('#333'); this.group.add(this.fjack, this.rjack);
     this.stand = new THREE.Mesh(geos().stand, mats().black); this.group.add(this.stand);
     // the overhead gantry the guns' air lines hang from: two beams over the wheels, booms back to the garage front
@@ -92893,6 +93046,7 @@ class Crew {
 class PitCrews {
   /** meshes: the cars' CarMeshes (main.js S.meshes) - the crew lifts the car, takes its wheels and wing */
   constructor(scene, n = 3, meshes = null, night = false) {
+    warmPersonRigs();
     this.scene = scene; this.meshes = meshes; this.crews = []; for (let k = 0; k < n; k++) this.crews.push(new Crew(scene, night));
     this._v = new THREE.Vector3(); this._v2 = new THREE.Vector3();
   }
@@ -92918,6 +93072,7 @@ class PitCrews {
   }
 
   update(d, camera, time, dt) {
+    this.frame = (this.frame || 0) + 1;
     if (!d || !this.crews.length) { for (const k of this.crews) k.group.visible = false; return; }
     const cam = camera.position, stops = PitCrews.stops(d);
     // a crew at a car keeps it until it has gone back into the garage; the free ones go to the stops that can be seen
@@ -92926,9 +93081,17 @@ class PitCrews {
       const s = stops.find((q) => q.c === k.car);
       if (s) { k.stop = s; stops.splice(stops.indexOf(s), 1); }
       else { k.stop = null; if (k.phase === 'approach') k.phase = 'abort'; }   // (gone past the box / out of the race: back inside)
+      // (the team-mate queued behind: this crew's next car - never a second crew at the same box)
+      const nx = stops.filter((q) => q.box.i === k.box.i).sort((a, b) => a.ahead - b.ahead)[0];
+      k.next = nx || null; for (const q of stops.filter((q) => q.box.i === k.box.i)) stops.splice(stops.indexOf(q), 1);
     }
-    for (const s of stops.filter((q) => Math.hypot(q.box.x - cam.x, q.box.z - cam.z) < NEAR).sort((a, b) => a.ahead - b.ahead)) {
-      const k = this.crews.find((q) => !q.car); if (!k) break;
+    const mine = (q) => q.c.isPlayer ? -1e3 : q.ahead;
+    for (const s of stops.filter((q) => Math.hypot(q.box.x - cam.x, q.box.z - cam.z) < NEAR).sort((a, b) => mine(a) - mine(b))) {
+      if (this.crews.some((q) => q.car && q.box.i === s.box.i)) continue;
+      let k = this.crews.find((q) => !q.car);
+      // (your own stop always has its crew: one sent to a stop out of sight is called back for it)
+      if (!k && s.c.isPlayer) { k = this.crews.filter((q) => q.car).sort((a, b) => Math.hypot(b.box.x - cam.x, b.box.z - cam.z) - Math.hypot(a.box.x - cam.x, a.box.z - cam.z))[0]; if (k) this._free(k); }
+      if (!k) break;
       this._assign(k, s, d, time);
     }
     for (const k of this.crews) {
@@ -92938,8 +93101,8 @@ class PitCrews {
     }
   }
 
-  _assign(k, s, d, time) {
-    const c = s.c; k.car = c; k.stop = s; k.box = s.box; k.at = time; k.wingDone = false; k.fitted = [false, false, false, false];
+  _assign(k, s, d, time, again = false) {
+    const c = s.c, old = again ? k.F : null; k.car = c; k.stop = s; k.box = s.box; k.at = time; k.wingDone = false; k.fitted = [false, false, false, false]; k.next = null; k.D = k.P = k.rep = 0;
     if (k.team !== c.team) { k.team = c.team; k.paint(c.color, c.color2); }
     const P = d.pit, ps = P.samples, i = s.box.i, gx = ps.nx[i] * -P.trackSide, gz = ps.nz[i] * -P.trackSide;
     // the box's frame: along the lane, +w toward the garage
@@ -92948,16 +93111,16 @@ class PitCrews {
     k.F = { ox: s.box.x, oz: s.box.z, th, gz: k.gz };
     // (the gantry is the garage's: it stays in the box's frame, wherever the car stops; body z = w * gz)
     k.F0 = { ...k.F }; this._place(k, k.gantry, 0, 0, 0, 0); k.gantry.scale.set(1, 1, k.gz);
-    // late (the car already here, or nearly): everyone at their place; otherwise out of the garage at a run
-    const eta = s.stop ? 0 : s.ahead / 22;
-    k.phase = s.stop ? 'stop' : 'approach'; k.ran = eta < 2.5;
+    // out of the garage at a run, always - however late (never put at their places); a double stack: from where they
+    // are, the old tyres to the stack at the garage front, a fresh set from it
+    k.phase = s.stop ? 'stop' : 'approach'; k.ran = false; k.again = again;
     k.men.forEach((m, n) => {
-      const st = this._station(k, m, -1);
-      if (k.ran) { m.u = st.u; m.w = st.w; } else { m.u = (Math.random() - 0.5) * 8; m.w = 4.4 + Math.random() * 2.2; m.go = 0.15 * (n % 7) + Math.random() * 0.4; }
-      m.cur = {}; m.home = { u: m.u, w: m.w };
+      if (again) { const [x, z] = this._wF(old, m.u, m.w); [m.u, m.w] = this._inv(k, x, z); m.go = 0; m.fetch = m.r === 'on'; m.dump = m.r === 'off' && k.oldT[m.j].visible; return; }
+      m.u = (Math.random() - 0.5) * 8; m.w = 4.4 + Math.random() * 2.2; m.go = 0.15 * (n % 7) + Math.random() * 0.4; m.fetch = m.dump = false; if (n === 0) for (const t of k.stackT) t.visible = false;
+      m.cur = {}; m.home = { u: m.u, w: m.w }; m.ox = m.oz = 0;
     });
     const comp = c.pitPlan?.compound || c.ai?.pitPlan?.compound || c.tyres.compound;
-    k.newT.forEach((t) => t.userData.setCompound(comp)); k.oldT.forEach((t) => t.userData.setCompound(c.tyres.compound));
+    k.newT.forEach((t) => t.userData.setCompound(comp)); if (!again) k.oldT.forEach((t) => t.userData.setCompound(c.tyres.compound));
     k.comp = comp;
     // the spare wing on its stand by the box (a wing change brings it into play)
     const mesh = this.meshes?.get(c);
@@ -92979,11 +93142,27 @@ class PitCrews {
   _free(k) {
     const m = k.car && this.meshes?.get(k.car);
     if (m) { for (const w of m.wheels) if (!w.gone) w.hub.visible = true; }
-    k.car = null; k.stop = null; k.phase = null; k.group.visible = false;
+    k.car = null; k.stop = null; k.phase = null; k.next = null; k.group.visible = false;
+    for (const t of k.stackT) t.visible = false;
   }
 
   // the frame: world from (u along the car, w toward the garage)
   _w(k, u, w) { const F = k.F, c = Math.cos(F.th), s = Math.sin(F.th), z = w * F.gz; return [F.ox + u * c - z * s, F.oz + u * s + z * c]; }
+  _wF(F, u, w) { const c = Math.cos(F.th), s = Math.sin(F.th), z = w * F.gz; return [F.ox + u * c - z * s, F.oz + u * s + z * c]; }
+  /** (u, w) in the crew's frame of a world point */
+  _inv(k, x, z) { const F = k.F, c = Math.cos(F.th), s = Math.sin(F.th), dx = x - F.ox, dz = z - F.oz; return [dx * c + dz * s, (-dx * s + dz * c) * F.gz]; }
+  /** the frame changed (the box's to the car's where it really stopped): everyone stays where they stand in the world */
+  _reframe(k, F) { const old = k.F; k.F = F; for (const m of k.men) { const [x, z] = this._wF(old, m.u, m.w); [m.u, m.w] = this._inv(k, x, z); } }
+  /** a carried thing to (x, y, z): eased there (a tyre is never in one place one frame and another the next); snapped
+   *  when it has just been shown */
+  _glide(o, x, y, z, yaw, dt, rate = 16) {
+    const U = o.userData, fresh = U.frame !== this.frame - 1 && U.frame !== this.frame; U.frame = this.frame;
+    if (fresh) { o.position.set(x, y, z); o.rotation.set(0, yaw, 0); return; }
+    const f = 1 - Math.exp(-dt * rate); o.position.x += (x - o.position.x) * f; o.position.y += (y - o.position.y) * f; o.position.z += (z - o.position.z) * f;
+    let dy = yaw - o.rotation.y; while (dy > Math.PI) dy -= 2 * Math.PI; while (dy < -Math.PI) dy += 2 * Math.PI; o.rotation.set(0, o.rotation.y + dy * f, 0);
+  }
+  /** a tyre at (u, w, y) in the frame, eased there */
+  _placeT(k, o, u, w, y, dt, rate) { const [x, z] = this._w(k, u, w); o.visible = true; this._glide(o, x, y, z, -k.F.th, dt, rate); }
   _w0(k, u, w) { const F = k.F0 || k.F, c = Math.cos(F.th), s = Math.sin(F.th), z = w * F.gz; return [F.ox + u * c - z * s, F.oz + u * s + z * c]; }
   _yaw(k, du, dw) { const F = k.F, c = Math.cos(F.th), s = Math.sin(F.th), z = dw * F.gz; return Math.atan2(-(du * s + z * c), du * c - z * s); }
 
@@ -93008,7 +93187,7 @@ class PitCrews {
     // ---- where we are in the stop
     let t = -1, D = 2.2, P = 0, rep = 0;
     if (k.stop?.stop) {
-      if (k.phase !== 'stop') { k.phase = 'stop'; k.F = { ox: c.x, oz: c.z, th: c.th, gz: k.gz }; }   // (the car's own frame, where it really stopped)
+      if (k.phase !== 'stop') { k.phase = 'stop'; this._reframe(k, { ox: c.x, oz: c.z, th: c.th, gz: k.gz }); }   // (the car's own frame, where it really stopped)
       D = c._stopDur || 2.2; P = c._stopServe || 0; t = time - (c._stopAt ?? time);
       const plan = c._stopPlan || {}; rep = plan.repair === 'wing' ? 6 : plan.repair === 'full' ? 10 : 0;
       k.D = D; k.P = P; k.rep = rep;
@@ -93066,6 +93245,7 @@ class PitCrews {
     // ---- the jacks
     this._jacks(k, t, tw, jackDown, released, yAt);
     // ---- done: everyone back inside
+    if (k.phase === 'after' && k.next && t > D + 0.6) { const s = k.next; this._assign(k, s, d, time, true); return; }   // (the team-mate, queued behind: same crew)
     if (k.phase === 'after' && t > D + 9) this._free(k);
     if (k.phase === 'abort' && time - (k.abortAt || (k.abortAt = time)) > 6) { k.abortAt = 0; this._free(k); }
   }
@@ -93101,26 +93281,37 @@ class PitCrews {
       } else if (m.r === 'off') {
         // the old wheel: pulled straight off the hub, out and down beside him; carried into the garage after
         const oT = k.oldT[j];
-        if (after > 2.2 || (k.phase === 'after' && after < 0)) { holds = oT; pose = POSE.carry; oT.visible = true; }
+        if (m.dump) {
+          // (a double stack: the first car's old tyre to the stack at the garage front, put down there, and back)
+          holds = oT; pose = POSE.carry; tu = st.u; tw_ = STACK_W; speed = RUN;
+          if (Math.hypot(m.u - tu, m.w - tw_) < 0.4) { m.dump = false; const sT = k.stackT[j]; sT.userData.setCompound(oT.userData.compound || k.comp); this._placeT(k, sT, st.u, STACK_W + 0.45 * s, 0.36, dt); sT.position.copy(oT.position); oT.visible = false; oT.userData.setCompound(k.car.tyres.compound); holds = null; }
+        } else if (k.stackT[j].visible && k.again) this._placeT(k, k.stackT[j], st.u, STACK_W + 0.45 * s, 0.36, dt, 6);
+        if (m.dump) { /* carrying it */ }
+        else if (after > 2.2 || (k.phase === 'after' && after < 0)) { holds = oT; pose = POSE.carry; oT.visible = true; }
         else if (t >= 0 && tw >= T.off[0]) {
           const pull = smooth(T.off[0], T.off[0] + 0.12 * k.q, tw), away = smooth(T.off[0] + 0.12 * k.q, T.off[1], tw);
           const pu = lerp(u0, lerp(u0, st.u, 0.55), away), pw = lerp(s * (HUBW[a] + 0.42 * pull), s * (hw + 0.28), away), py = lerp(hubY, 0.36, away);
-          oT.visible = true; this._place(k, oT, pu, pw, py, 0);
+          this._placeT(k, oT, pu, pw, py, dt);
           if (away < 1) { holds = oT; holdPos = { u: pu, w: pw, y: py }; pose = POSE.hold; }
           else pose = released ? POSE.stand : POSE.ready;
-        } else {
+        } else if (!m.dump) {
           oT.visible = false;
           if (t >= 0 && tw > T.loose[0] - 0.1) { pose = POSE.hold; hands = { u: u0 + (st.u - u0) * 0.22, w: s * (hw + 0.04), y: hubY }; }
         }
       } else {
         // the new wheel: held ready, pushed onto the hub, let go
         const nT = k.newT[j], fit = t >= 0 ? smooth(T.on[0], T.on[1], tw) : 0, fitted = t >= 0 && tw >= T.on[1];
-        if (!fitted && !(k.phase === 'after')) {
+        if (m.fetch) {
+          // (a double stack: a fresh tyre from the stack at the garage front - it sits there until he has it)
+          tu = st.u; tw_ = STACK_W - 0.15 * s; pose = POSE.ready; speed = RUN;
+          this._placeT(k, nT, st.u, STACK_W + 0.1 * s, 0.36, dt);
+          if (Math.hypot(m.u - tu, m.w - tw_) < 0.4) m.fetch = false;
+        } else if (!fitted && !(k.phase === 'after')) {
           const pu = lerp(st.u - (st.u - u0) * 0.25, u0, fit), pw = lerp(st.w - s * 0.35, s * (hw - TYRE_W[a] / 2), fit), py = lerp(0.42, hubY, fit);
-          nT.visible = true;
-          this._place(k, nT, pu, pw, py, 0); holds = nT; holdPos = { u: pu, w: pw, y: py };
-          pose = POSE.hold; tu = lerp(st.u, u0 + (st.u - u0) * 0.55, fit);
-          if (k.phase === 'approach' && !this._arrived(m)) { pose = POSE.carry; holdPos = null; }
+          holds = nT; pose = POSE.hold; tu = lerp(st.u, u0 + (st.u - u0) * 0.55, fit);
+          // (on the way to his place: carried at the waist; there, held out ready - eased from one to the other)
+          if (k.phase === 'approach' && Math.hypot(m.u - st.u, m.w - st.w) > 0.5) pose = POSE.carry;
+          else { this._placeT(k, nT, pu, pw, py, dt, fit > 0 ? 30 : 10); holdPos = { u: pu, w: pw, y: py }; }
         } else { nT.visible = false; pose = released ? POSE.stand : POSE.ready; }
       }
     }
@@ -93153,23 +93344,26 @@ class PitCrews {
     let target = pose;
     if (moving) { const gk = speed === WALK ? 0.5 : 1; const g2 = gait(m.ph, gk, !(holds || pose === POSE.carry)); target = (holds || pose === POSE.carry) ? { ...g2, ...pick(POSE.carry, ['shL', 'shR', 'elL', 'elR', 'spine']) } : g2; }
     blendPose(m.cur, target, Math.min(1, dt * (moving ? 14 : 10)));
-    applyPose(rig, m.cur);
+    rig.apply(m.cur);
     // facing
     const want = this._yaw(k, fu, fw); let dy = want - m.yaw; while (dy > Math.PI) dy -= 2 * Math.PI; while (dy < -Math.PI) dy += 2 * Math.PI; m.yaw += dy * Math.min(1, dt * 9);
     const [x, z] = this._w(k, m.u, m.w); rig.mesh.position.set(x, 0, z); rig.mesh.rotation.set(0, m.yaw, 0);
     // hands where the work is: the whole body shuffled so that the hands' midpoint is over the target (feet slide a little)
-    const tgt = holdPos || hands;
+    // (eased: a body that stepped a metre in one frame to put its hands on a tyre is what this was)
+    const tgt = holdPos || hands; let ex = 0, ez = 0;
     if (tgt && !moving) {
       rig.mesh.updateMatrixWorld(true);
       const a = rig.b.haL.getWorldPosition(this._v), b = rig.b.haR.getWorldPosition(this._v2), mx = (a.x + b.x) / 2, mz = (a.z + b.z) / 2;
-      const [hx, hz] = this._w(k, tgt.u, tgt.w); let ex = hx - mx, ez = hz - mz; const e = Math.hypot(ex, ez); if (e > 1.0) { ex *= 1.0 / e; ez *= 1.0 / e; }
-      rig.mesh.position.x += ex; rig.mesh.position.z += ez;
+      const [hx, hz] = this._w(k, tgt.u, tgt.w); ex = hx - mx; ez = hz - mz; const e = Math.hypot(ex, ez); if (e > 0.6) { ex *= 0.6 / e; ez *= 0.6 / e; }
     }
+    const fo = 1 - Math.exp(-dt * 9); m.ox += (ex - m.ox) * fo; m.oz += (ez - m.oz) * fo;
+    rig.mesh.position.x += m.ox; rig.mesh.position.z += m.oz;
     // something carried while walking or running: at the hands
     if (holds && !holdPos) {
       rig.mesh.updateMatrixWorld(true);
       const a = rig.b.haL.getWorldPosition(this._v), b = rig.b.haR.getWorldPosition(this._v2);
-      holds.position.set((a.x + b.x) / 2, Math.max(0.36, (a.y + b.y) / 2), (a.z + b.z) / 2); holds.rotation.set(0, m.yaw + Math.PI / 2, 0); holds.visible = true;
+      if (holds.isGroup && holds.userData.setCompound) { holds.visible = true; this._glide(holds, (a.x + b.x) / 2, Math.max(0.36, (a.y + b.y) / 2), (a.z + b.z) / 2, m.yaw + Math.PI / 2, dt, 18); }
+      else { holds.position.set((a.x + b.x) / 2, Math.max(0.36, (a.y + b.y) / 2), (a.z + b.z) / 2); holds.rotation.set(0, m.yaw + Math.PI / 2, 0); holds.visible = true; }
     }
   }
   _arrived(m) { return m.w < 4.0; }
@@ -140033,7 +140227,7 @@ class RaceDirector {
     const plan = c.pitPlan || ai?.pitPlan || { compound: c.tyres.compound, repair: (c.dmg.fwL > 0.3 || c.dmg.fwR > 0.3) ? 'wing' : 'none' };
     const P = this.pit; const boxIdx = Math.abs(c.boxIdx ?? c.number + c.id) % P.boxes.length; const box = P.boxes[boxIdx];
     c.inPit = true; c.pitRequested = false; c.held = false;
-    this.pitStates.set(c, { u: 0, v: c.speed, phase: 'in', boxU: P.samples.s[box.i], stopT: 0, plan, ex: c.x - P.samples.px[0], ez: c.z - P.samples.pz[0], lane: 0, sfDone: false });
+    this.pitStates.set(c, { u: 0, v: c.speed, phase: 'in', box: boxIdx, boxU: P.samples.s[box.i], stopT: 0, plan, ex: c.x - P.samples.px[0], ez: c.z - P.samples.pz[0], lane: 0, sfDone: false });
     if (c.isPlayer) this.hud?.msg('PIT LANE · LIMITER ON', 'warn', 2);
     else if (this.engineer && this.player) { const ci = this.positions.indexOf(c), mi = this.positions.indexOf(this.player); if (Math.abs(ci - mi) <= 3) this.engineer.say(`${c.name.split(' ').pop()} is boxing from P${ci + 1}${plan.compound ? ' for ' + plan.compound.toLowerCase() + 's' : ''}.`, 2); }
   }
@@ -140046,9 +140240,12 @@ class RaceDirector {
     if (st.phase === 'in') {
       st.v = approach(st.v, lim, 6, 25);
       st.v = Math.min(st.v, Math.sqrt(lim * lim + 2 * 25 * Math.max(0, zoneIn - st.u)));
-      const rem = st.boxU - st.u; const vAllow = Math.sqrt(Math.max(0, 2 * 6.5 * rem));
+      // a double stack: the team-mate still in the box (or on the way to it, ahead) - wait behind it, a car's length
+      // and a bit short of the box, and move up when it has gone (one crew, one car at a time)
+      const queued = this.boxBusy(c, st), rem = st.boxU - st.u - (queued ? 7.5 : 0); const vAllow = Math.sqrt(Math.max(0, 2 * 6.5 * rem));
       st.v = Math.min(st.v, vAllow);
-      if (rem < 0.4 || (rem < 3 && st.v < 0.3)) {
+      if (queued) { if (rem < 0.4) st.v = 0; }
+      else if (rem < 0.4 || (rem < 3 && st.v < 0.3)) {
         st.phase = 'stop'; st.v = 0;
         st.stopT = this.stopTime(c, st.plan) + c.penalties; st.serve = c.penalties; st.at = this.time; c.penaltyServed += c.penalties; c.penalties = 0;
         c._stopAt = this.time; c._stopDur = st.stopT; c._stopPlan = st.plan; c._stopServe = st.serve;
@@ -140074,6 +140271,17 @@ class RaceDirector {
     const q = this.track.nearest(c.x, c.z, c.trackIdx, c._q || (c._q = {})); c.trackIdx = q.i; c.s = q.s; c.d = q.d; c.totalDist = c.lap * this.track.length + c.s;
     if (!st.sfDone && st.u >= P.sfU) { st.sfDone = true; c.inPit = false; this.onLine(c, true); c.inPit = true; }
     c.tyres.temp = Math.max(c.tyres.temp - dt * 0.02, 0.25);
+  }
+  /** another car at this one's box (a team-mate stopped there, still pulling away from it, or ahead on the way in to it) */
+  boxBusy(c, st) {
+    const P = this.pit, mine = st.box ?? Math.abs(c.boxIdx ?? c.number + c.id) % P.boxes.length;
+    for (const [o, s2] of this.pitStates) {
+      if (o === c || (s2.box ?? Math.abs(o.boxIdx ?? o.number + o.id) % P.boxes.length) !== mine) continue;
+      if (s2.phase === 'stop' || (s2.phase === 'out' && s2.u < st.boxU + 6) || (s2.phase === 'in' && s2.u > st.u)) return true;
+    }
+    // (the player, driving into the box by hand)
+    for (const o of this.cars) if (o !== c && o.manualPit && o.pitLane && o.pitLaneState === 'stop' && Math.abs(o.boxIdx ?? o.number + o.id) % P.boxes.length === mine) return true;
+    return false;
   }
   exitPit(c, v = null) {
     const P = this.pit, st = this.pitStates.get(c); this.pitStates.delete(c); c.inPit = false;
