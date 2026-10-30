@@ -180,6 +180,10 @@ body.home #menu .card:active:not(:disabled) { transform: translate3d(0, -2px, 0)
 body.home #race-again { align-self: center; }
 .home-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 24px; margin-top: 8px; font-size: 11px; color: var(--dim); }
 .home-foot .memoriam { flex: 1 1 100%; }
+.home-foot .credit a { color: inherit; }
+#career .wz-liv { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+#career .wz-liv label { display: inline-flex; align-items: center; gap: 8px; font: 700 11px/1 var(--k-font); letter-spacing: .1em; text-transform: uppercase; color: var(--dim); }
+#career .wz-pat { flex-wrap: wrap; }
 .home-foot .keys { display: inline-flex; align-items: center; gap: 4px; }
 .home-foot kbd { color: var(--dim); padding: 2px 5px; font-size: 9.5px; }
 body.home .home-foot .memoriam { flex: 1 1 420px; }

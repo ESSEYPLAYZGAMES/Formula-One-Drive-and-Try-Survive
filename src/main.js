@@ -31,6 +31,7 @@ import { PitTiming } from './ui/PitTiming.js';
 import { showStrategy } from './ui/Strategy.js';
 import { Car, CAR } from './vehicle/Car.js';
 import { CarMesh, setDebris, setFire, setChunks } from './vehicle/CarMesh.js';
+import { loadCarModel } from './vehicle/CarModel.js';
 import { Fire } from './world/Fire.js';
 import { Chunks } from './world/Chunks.js';
 import { Obstacles } from './world/Obstacles.js';
@@ -381,8 +382,11 @@ function applyTrackUI() {
  * Build a circuit (when a weekend on it starts: nothing is built at start-up, and the one built is kept - starting
  * another weekend on it is instant, another circuit replaces it). The menu stays where it is; a loading line shows.
  */
+// the car model (vehicle/CarModel.js): loading from the start; every car is made after a circuit is built, which waits for it
+const CAR_MODEL = loadCarModel().catch((e) => console.error('[car model]', e));
 async function switchTrack(id) {
   if (W.loading || !TRACKS[id] || S.director) return;
+  await CAR_MODEL;
   W.home = false; document.body.classList.remove('home');
   if (W.track && W.def.id === id) { applyTrackUI(); return; }
   W.loading = true; $('loading').classList.remove('hidden'); if (!Loader.on) $('fade').style.opacity = '1';
@@ -1288,7 +1292,7 @@ function careerField(C, lapsTotal, assists) {
   if (!standing) try { for (const f of friendFavours(C)) if (f.kind === 'room' && f.mul) room.set(f.did, f.mul); } catch (e) { console.warn('[career] favours', e); }
   for (const e of E) {
     const car = new Car(W.track, { name: e.name, short: e.short, team: e.team, color: e.color, isPlayer: e.isPlayer, perf: e.perf + onTheDay(e.team), rating: e.rating, number: e.number, compound: e.isPlayer ? settings.tyre : aiCompound(e, lapsTotal), raceLaps: lapsTotal, assists });
-    car.tier = e.tier; car.color2 = e.color2; car.helmet = e.helmet; car.boxIdx = e.garage === 'own' ? TEAMS.length : e.garage;
+    car.tier = e.tier; car.color2 = e.color2; car.helmet = e.helmet; car.livery = e.livery || null; car.boxIdx = e.garage === 'own' ? TEAMS.length : e.garage;
     car.careerId = e.careerId; car.standInFor = e.standInFor || null; car.outWhy = e.outWhy || (e.standInFor ? outWhyOf(C, e.standInFor) : null);
     // (the driver's head this weekend - career/Morale.js FORM, read live by the race code - and the licence they carry)
     const rec = C.drivers[e.careerId];
@@ -1357,7 +1361,7 @@ function buildField(lapsTotal) {
     let compound = settings.tyre;
     if (!isPlayer) compound = wet > 0.5 ? 'WET' : wet > 0.2 ? 'INTER' : lapsTotal >= 13 ? (e.tier <= 1 ? (Math.random() < 0.5 ? 'MEDIUM' : 'SOFT') : (Math.random() < 0.6 ? 'SOFT' : 'MEDIUM')) : (Math.random() < 0.85 ? 'SOFT' : 'MEDIUM');
     const car = new Car(W.track, { name: e.name, short: e.short, team: e.team, color: e.color, isPlayer, perf: e.perf + onTheDay(e.team), rating: e.rating, number: e.number, compound, raceLaps: lapsTotal, assists });
-    car.tier = e.tier; car.color2 = e.color2; car.helmet = e.helmet; car.boxIdx = e.custom ? TEAMS.length : teamIndexOf(e.team); cars.push(car);   // one pit garage per team
+    car.tier = e.tier; car.color2 = e.color2; car.helmet = e.helmet; car.livery = e.livery || null; car.boxIdx = e.custom ? TEAMS.length : teamIndexOf(e.team); cars.push(car);   // one pit garage per team
     if (e.standInFor) { car.standInFor = e.standInFor; car.outWhy = e.outWhy || 'injury'; }
     // (form: yours neutral - nothing carried between quick races but the licence; the stand-in's licence is his own)
     car.form = isPlayer ? neutralForm() : formOf(moodOf({ morale: moodFor(e.name), moodOff: { focus: 0, racecraft: 0, confidence: 0, composure: 0 } }));
@@ -1367,7 +1371,7 @@ function buildField(lapsTotal) {
 }
 
 function spawnMeshes(cars) {
-  for (const c of cars) { const m = new CarMesh(c.color, c.tyres.compound, { color2: c.color2, helmet: c.helmet, driver: c.name, number: c.number, glove: People.lookOf(c.name).suit?.secondary, tcamColor: c.number % 2 ? 0xffd400 : 0x111111 }); m.setHalo(S.halo); scene.add(m.group); S.meshes.set(c, m); }
+  for (const c of cars) { const m = new CarMesh(c.color, c.tyres.compound, { color2: c.color2, team: c.team, livery: c.livery, helmet: c.helmet, driver: c.name, number: c.number, glove: People.lookOf(c.name).suit?.secondary, tcamColor: c.number % 2 ? 0xffd400 : 0x111111 }); m.setHalo(S.halo); scene.add(m.group); S.meshes.set(c, m); }
   // (the cars first among the solid things: they hide the road under and beyond them, which is then not shaded)
   for (const m of S.meshes.values()) m.group.traverse((o) => { if (o.isMesh) o.renderOrder = -1; });
 }
@@ -2066,7 +2070,7 @@ function povStart(p) {
     const Rp = POV.rep = { C, j, imp, tau: Math.max(0, imp - 3.2), t1: (C.frames.length - 1) / C.hz, reps: new Map(), lastK: -1, shake: 0, flash: 0, broken: new Map(), fires: new Map() };
     Rp.lastK = Math.floor(Rp.tau * C.hz);
     for (const c of C.cars) {
-      const R = new CarMesh(c.color, c.tyres.compound, { color2: c.color2, helmet: c.helmet, driver: c.name, number: c.number, glove: People.lookOf(c.name).suit?.secondary, tcamColor: c.number % 2 ? 0xffd400 : 0x111111 });
+      const R = new CarMesh(c.color, c.tyres.compound, { color2: c.color2, team: c.team, livery: c.livery, helmet: c.helmet, driver: c.name, number: c.number, glove: People.lookOf(c.name).suit?.secondary, tcamColor: c.number % 2 ? 0xffd400 : 0x111111 });
       scene.add(R.group); Rp.reps.set(c, R); c._povHide = true;
       Rp.broken.set(c, {}); Rp.peak = Math.max(1, ...C.pulses.map((pp) => pp[j] || 0));
     }
@@ -2254,7 +2258,7 @@ function playNews(hurt, then) {
   const race = { abandoned: NEWS.abandoned, winner: winner && !hurt.includes(winner) ? winner.name : null, retired: d.cars.filter((x) => x.retired && !hurt.includes(x)).map((x) => ({ name: x.name, reason: x.retireReason })), sc: d.sc?.count?.sc || 0, vsc: d.sc?.count?.vsc || 0, red: d.sc?.redCount || 0 };
   NEWS.cut = new NewsBroadcast({ THREE, hurt, cars: S.cars, meshes: S.meshes, fx: { fire, debris, chunks }, track: W.track, stands: W.stands, obstacles: W.obstacles, pit: W.pit, trackName: W.track.def.name, race,
     // (a whole car for the replay of one torn in two, before it was)
-    makeCarMesh: (c) => { const m = new CarMesh(c.color, c.tyres.compound, { color2: c.color2, helmet: c.helmet, driver: c.name, number: c.number, glove: People.lookOf(c.name).suit?.secondary, tcamColor: c.number % 2 ? 0xffd400 : 0x111111 }); m.setHalo(S.halo); return m; },
+    makeCarMesh: (c) => { const m = new CarMesh(c.color, c.tyres.compound, { color2: c.color2, team: c.team, livery: c.livery, helmet: c.helmet, driver: c.name, number: c.number, glove: People.lookOf(c.name).suit?.secondary, tcamColor: c.number % 2 ? 0xffd400 : 0x111111 }); m.setHalo(S.halo); return m; },
     scene, camera, renderer, audio, passes: { EffectComposer, RenderPass, ShaderPass, OutputPass },
     onDone: () => { NEWS.on = false; NEWS.cut = null; input.enabled = true; then(); } });
   NEWS.on = true;
@@ -2952,7 +2956,7 @@ function ensureAmbient() {
   picks.forEach((e, k) => {
     const car = new Car(W.track, { name: e.name, short: e.short, team: e.team, color: e.color, perf: e.perf, rating: e.rating, number: e.number, compound: 'MEDIUM', raceLaps: 50, assists: { tc: true, abs: true } });
     car.wetness = weatherWetness(settings.weather); car.placeOnTrack(k * (W.track.length / picks.length) + 300, W.line.offsetAt(k * (W.track.length / picks.length) + 300), 60);
-    const mesh = new CarMesh(e.color, 'MEDIUM', { color2: e.color2, helmet: e.helmet, driver: e.name, number: e.number }); scene.add(mesh.group);
+    const mesh = new CarMesh(e.color, 'MEDIUM', { color2: e.color2, team: e.team, helmet: e.helmet, driver: e.name, number: e.number }); scene.add(mesh.group);
     cars.push(car); ais.push(new AIDriver(car, W.line, W.profile, W.track, { aggression: 0.5 })); meshes.push(mesh);
   });
   S.ambient = { cars, ais, meshes, world: { cars, time: 0, racing: true, lapsTotal: 999, wetness: 0, raceStart: -100 }, acc: 0, sub: 0 };

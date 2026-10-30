@@ -135,7 +135,7 @@ export class Career {
     let playerId;
     if (o.driver === 'custom') {
       const c = o.custom || {}, tn = (c.teamName || 'Independent').slice(0, 22);
-      teams[tn] = { name: tn, color: c.color || '#00d4ff', color2: c.color2 || '#ffffff', tier: 3, budget: TIER_BUDGET[3], levels: startLevels(3), quality: {}, dev: [], seats: [], points: 0, garage: 'own', own: true };
+      teams[tn] = { name: tn, color: c.color || '#00d4ff', color2: c.color2 || '#ffffff', livery: c.livery || null, tier: 3, budget: TIER_BUDGET[3], levels: startLevels(3), quality: {}, dev: [], seats: [], points: 0, garage: 'own', own: true };
       playerId = 'you-' + id(c.name || 'driver');
       // (your look on your own record - the game's own pick where you chose nothing; the helmet's base colour as the plain one)
       const look = normLook(c.look) || blankLook();
@@ -357,7 +357,7 @@ export class Career {
           taken.add(d.id); standInFor = d0.name;
         }
         const m = moodOf(d);
-        out.push({ careerId: d.id, name: d.name, short: d.short, team: t.name, color: t.color, color2: t.color2, helmet: d.helmet, tier: t.tier, perf: fx.perf, rating: d.rating, number: d.number, fx, garage: t.garage, isPlayer: d.id === this.playerId || (!!standInFor && d0.id === this.playerId), standInFor,
+        out.push({ careerId: d.id, name: d.name, short: d.short, team: t.name, color: t.color, color2: t.color2, livery: t.livery || null, helmet: d.helmet, tier: t.tier, perf: fx.perf, rating: d.rating, number: d.number, fx, garage: t.garage, isPlayer: d.id === this.playerId || (!!standInFor && d0.id === this.playerId), standInFor,
           outWhy, morale: m, form: formOf(m), licence: activePoints(this, d) });
       }
     }

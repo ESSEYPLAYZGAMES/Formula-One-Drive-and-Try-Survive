@@ -5,7 +5,7 @@ import * as THREE from 'three';
  * The T-cam pod on top of the airbox (CarMesh: 0.18 m behind the car's centre, top of the car at 0.97 m). Forward and
  * rear views both come from it. 1.1 m up keeps the helmet ~0.45 m from the lens, clear of the 0.3 m near plane.
  */
-export const TCAM_X = -0.18, TCAM_Y = 1.1;
+export const TCAM_X = -0.13, TCAM_Y = 1.21;   // (just over the camera pod on the airbox: vehicle/CarModel.js)
 
 export class CockpitCamera {
   constructor(camera) {

@@ -1,0 +1,6 @@
+The car model is based on "2026 Redbull RB22" (https://sketchfab.com/3d-models/2026-redbull-rb22-0a3d24a58e0549d591a5a48c22eec383)
+by Dave Love SketchFab (https://sketchfab.com/Tyler_Dave), licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/).
+
+Changes: converted with tools/car_model.mjs and tools/car_textures.py - cut into parts (wheels, wings, DRS flap, halo,
+steering wheel), simplified to five levels of detail, quantized; its livery, sponsor decals, numbers and team logos removed
+(the game paints its own liveries: src/vehicle/Livery.js); the rims' team colour greyed; the tyres' lettering made a mask.

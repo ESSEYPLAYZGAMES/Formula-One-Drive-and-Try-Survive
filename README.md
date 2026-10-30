@@ -68,7 +68,9 @@ src/world/Landmarks.js     Landmark Intercept Engine: 25 name-matched procedural
 src/vehicle/Car.js         car step: four wheels, aero/slipstream, diff, damage, barriers, crash rigid body
 src/vehicle/Chassis.js     sprung body (heave/pitch/roll), load-sensitive tyres, road under each wheel, grip fit
 src/vehicle/Tyres.js       compounds, distance-scaled wear with 70 % cliff, temperature
-src/vehicle/CarMesh.js     procedural F1 car (damage visuals, halo, compound stripes)
+src/vehicle/CarMesh.js     the F1 car: the model's parts per car, wheels, DRS, damage, punctures, split, distance states
+src/vehicle/CarModel.js    the car model (assets/car): its parts at five levels of detail, loaded once and shared
+src/vehicle/Livery.js      team liveries painted from where a point is on the car (layers, wordmarks), designs
 src/ai/Planner.js          candidate paths, speed along each, traffic prediction, costs: the AI's tactical planner
 src/ai/AIDriver.js         drives the plan (steering, pedals, ERS), racecraft costs, mistakes, pit strategy;
                            AI_TUNE constants exposed for live balancing
@@ -510,28 +512,42 @@ laps before it - so nobody stops in a sprint.
 ### Car: real dimensions, four wheels, suspension
 
 `CAR` in `src/vehicle/Car.js` carries the figures of a 2022-25 F1 car: 798 kg, 3.6 m wheelbase, 2.0 m wide, 5.66 m
-long, 45.5 % of the mass on the front axle, 44 % of the downforce. `CarMesh.js` builds the car on that envelope (0.97 m
-tall at the roll hoop, rear wing top at 0.95 m, 720 mm tyres 305 / 405 mm wide) and the onboard cameras sit at the
-matching heights (driver's eye 0.77 m).
+long, 45.5 % of the mass on the front axle, 44 % of the downforce. The onboard cameras sit at the car model's heights
+(driver's eye 0.77 m, the T-cam just over its pod on the airbox).
 
-The model follows the 2026 cars (an Audi R26 blueprint): a slim wedge nose sitting on the front wing's mainplane, three
-flaps a side curving up to the endplates, the halo, letterbox sidepod inlets over a deep undercut, the sidepods' flat
-tops ramping down into a coke-bottle tail, a narrow shrink-wrapped engine cover with a blade airbox and shark fin, the
-two-element rear wing with its DRS flap, pylons, beam wing and rain lights, the diffuser and its strakes, double
-wishbones with push and pull rods, brake ducts, and tyres turned from a real profile with PIRELLI / P ZERO on the
-sidewall and the compound's band. The surfaces are lofted through superellipse cross-sections (crisp shoulders, a
-narrowing top, an undercut drawn in at the bottom) and the wing elements swept from aerofoil sections. Every part's
-geometry is built once and shared by the whole field (a car has only its own paint, decals, number and helmet), so a
-car costs ~8 ms to make. Its states by distance from the camera (scaled by the lens: photo mode's long lens brings the
-detail in with the car):
+The car is a 2026 model: "2026 Redbull RB22" by Dave Love (sketchfab.com/Tyler_Dave, CC BY 4.0 - the credit is in
+`assets/car/CREDIT.txt`), with its livery, sponsors' decals, numbers and team logos taken off. `tools/car_model.mjs`
+cuts it into the parts the game moves - the four wheels about their hubs, the front wing with its outer thirds (the
+endplates come off on their own), the rear wing and its flap (DRS, about its leading edge), the halo, the steering
+wheel about its column - each piece whole (an endplate never leaves half of itself behind; a wing element that spans
+the cut is clipped clean along it), and simplifies it to five levels (meshoptimizer), quantized and gzipped (2.5 MB);
+`tools/car_textures.py` shrinks its textures to WebP (0.3 MB) and makes the tyres' red lettering a mask, tinted in the
+compound's colour. It is 5.4 m long on a 3.4 m wheelbase, the real 2026 figures; the physics keep their envelope. The
+geometry is decoded once and shared by the field: a car has only its own paint, number, T-cam colour and lights.
 
 | state | distance | what is drawn | triangles | draw calls |
 | --- | --- | --- | --- | --- |
-| ultra | < 14 m | everything, and the cockpit's own (steering wheel, display, gloves) | ~47 k | ~48 |
-| high | < 38 m | fine tessellation and the fine work: suspension rods, drive shafts, ducts and winglets, floor fences and edge wing, diffuser strakes, louvres, flap brackets, tyre lettering | ~46 k | ~46 |
-| medium | < 95 m | the same parts coarsely tessellated, no fine work | ~7.8 k | ~34 |
-| far | < 260 m | one baked vertex-coloured mesh and its shadow, baked again when the car loses a wing or a wheel, is crumpled or changes tyres | ~3.5 k | 2 |
-| minimum | beyond | a silhouette | ~240 | 2 |
+| ultra | < 9 m | the model at its finest, textured (carbon weave, bolts, sensors, rims, Pirelli sidewalls), the cockpit's own (steering wheel and its display, the driver's arms) | ~126 k | ~55 |
+| high | < 38 m | the same at ~49 k, the cockpit's insides dropped | ~49 k | ~48 |
+| medium | < 95 m | each part one mesh, its colours in the vertices, the paint still the livery's | ~16 k | ~16 |
+| far | < 260 m | one mesh (shared by every car with the same parts on: a lost wing or wheel picks another) and its shadow | ~7 k | 2 |
+| minimum | beyond | the same, coarser | ~5 k | 2 |
+
+### Liveries
+
+`src/vehicle/Livery.js` paints a livery from where a point is on the car - x along it, y up, z across - so a line runs
+on unbroken over every panel and every level of detail draws the same car. A livery is a base colour and up to twelve
+layers, each over the last: a waterline (the lower body in a second colour), a band between two curves, a pinstripe
+along one, a stripe down the spine, a box, a blend along or up the car, the nose tip, the halo, the front and rear
+wings' paint (each part knows which wing it is), the surfaces facing up; and up to four wordmarks drawn into an atlas
+and projected onto the sides (reading front to back on the left, back to front on the right). The race number and
+the driver's name go on the model's own number plates (the nose, the engine cover, the cockpit's flanks). The eleven
+2026 teams each have their own, four to seven layers and two wordmarks: McLaren papaya over anthracite, Ferrari red
+with a slanting white HP band and a black floor, Red Bull matt navy with a red flank, a yellow nose and ORACLE,
+Mercedes black fading to silver with a teal pinstripe, Aston Martin green with lime, Williams blue with a light blue
+stripe, Racing Bulls white into blue, Haas white over red and black, Alpine blue into pink, Audi titanium and black
+split by a red line, Cadillac white over a black sweep. A new team (the career's own) is designed: a pattern (classic,
+arrow, fade, split, stripes, blade), four colours, a finish (gloss, matte, metallic) and a sponsor's wordmark.
 
 `src/vehicle/Chassis.js` is the four-wheel model. The body is sprung: heave, pitch and roll on corner springs
 (~4 Hz), dampers and anti-roll bars (58 % of the roll stiffness at the front), so weight transfer takes the time the
