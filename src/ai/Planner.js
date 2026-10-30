@@ -233,11 +233,16 @@ export class Planner {
         // (... held to the road's edges where it will be, each side's own - not the wider side's, and not where it is now: a car
         //  following the line out onto a widened corner's outside goes out there)
         const e0 = o.d - this.line.offsetAt(o.s), follows = !o.rigid && !still && !o.spinning, onRoad = o.d < eL + 0.3 && o.d > -eR - 0.3;
-        let s = g0, v = va;
+        // (racecraft, ctx.bold: a player clearly ahead turns in - from the corner on, its distance from the racing line
+        //  closes over 1.2 s: held at it, a car swinging across to the apex was read as staying out of the way)
+        const turnIn = hb && follows && g0 > 3;
+        let s = g0, v = va, tz = -1;
         for (let q = 0; q < PRED_N; q++) {
           const t = q * PRED_DT;
           R.s[q] = s; R.v[q] = v;
-          let dq = follows ? this.line.offsetAt(me.s + s) + e0 + vd * Math.min(t, 0.5) : o.d + vd * Math.min(t, 1.0);
+          let eq = e0;
+          if (turnIn) { if (tz < 0 && tr.inCornerZone(tr.idxAtS(me.s + s))) tz = t; if (tz >= 0) eq = e0 * Math.max(0, 1 - (t - tz) / 1.2); }
+          let dq = follows ? this.line.offsetAt(me.s + s) + eq + vd * Math.min(t, 0.5) : o.d + vd * Math.min(t, 1.0);
           if (follows && onRoad) { const qi = tr.idxAtS(me.s + s); dq = Math.max(-tr.edgeAt(qi, -1) - 0.3, Math.min(tr.edgeAt(qi, 1) + 0.3, dq)); }
           R.d[q] = dq;
           // (braking: down to the corner it is braking for, not on to a standstill - read on for 1.5 s, a car braking for a
@@ -288,14 +293,19 @@ export class Planner {
           // (a feud - you said something on the grid: it leaves you far less room and sits on your gearbox)
           const fk = R.car === ctx.feud ? ctx.feudK : 0, Wr = W * (1 - 0.72 * fk), xr = fk ? 0 : R.extra * (ctx.unreadRoom ?? 1), gp = (ctx.gap + R.braking) * (1 - 0.8 * fk);
           if (gs > -Lc && gs < (R.ahead0 ? gp : Lc) && (queue || dd < Wr + xr)) {
-            // racecraft (ctx.bold) against a car it cannot read (the player): side by side already - my front wheels
-            // up to its rear ones, a car's width between us - it is expected to leave the room (as the rules say): the
-            // line squeezes, it is not given up. A meeting with a car ahead more than 2 s off is a guess (it is read as
-            // tracing the racing line, and in a corner that sweeps across every lane): the gap is gone for, at a cost,
-            // and dealt with if it really closes; one alongside further off than 1.2 s costs less the further
+            // racecraft (ctx.bold) against a car it cannot read (the player). In a corner, as between two AI cars: on
+            // the inside of it where we meet and level with it there (my nose at least to its middle), the corner is
+            // mine and it is expected to leave the room (as the rules say) - anywhere else in a corner it is its
+            // corner. On a straight: side by side already - my front wheels up to its rear ones, a car's width between
+            // us - it is expected to keep to its side: the line squeezes, it is not given up. A meeting with a car ahead
+            // more than 2 s off is a guess (it is read as tracing the racing line, and in a corner that sweeps across
+            // every lane): the gap is gone for, at a cost, and dealt with if it really closes; one alongside further off
+            // than 1.2 s costs less the further
             if (ctx.bold && R.human && !queue) {
-              const overlap = R.s0 > -Lc && R.s0 < 0.85 * Lc && Math.abs(R.side0) > 1.7;
-              if (overlap && t > 0.6) { P.blocked += 0.15 * Math.min(1, ctx.bold); break; }
+              const z = this.track.inCornerZone(this.track.idxAtS(P.s0 + i * DS));
+              if (z && z.dir) {
+                if (t > 0.3 && gs < 0.5 * Lc && (P.d[i] - (R.d[q0] + (R.d[q0 + 1] - R.d[q0]) * f)) * z.dir > 0.8) { P.blocked += 0.15 * Math.min(1, ctx.bold); break; }
+              } else if (t > 0.6 && R.s0 > -Lc && R.s0 < 0.85 * Lc && Math.abs(R.side0) > 1.7) { P.blocked += 0.15 * Math.min(1, ctx.bold); break; }
               if (R.ahead0 && t > 2) { P.blocked += 0.25 * Math.max(0.3, 1 - (t - 2) / 4); break; }
               if (!R.ahead0 && t > 1.2) { conflict = { R, i, gs, t, vo: R.v[q0], soft: Math.max(0.25, 1 - (t - 1.2) / 3) }; break; }
             }
@@ -366,6 +376,10 @@ export class Planner {
     else if (prevSpec && prevSpec.type === 'abs') specs.push(prevSpec);
     let bestCost = Infinity; const P = this.cand, B = this.best, g = ctx.grip, brake0 = g.brake;
     const committed = rival && prevSpec && this.prevPass > 0;   // (it was going for a place: it does not give it up for a hair)
+    // (racing: in a braking zone - the plan shedding speed over the next 50 m - a change of line costs, the more the
+    //  further across and the harder the stop: the move is made before the braking point, as the rules say, and a
+    //  swerve under braking loads the rear, which takes the brakes away - the car went into the corner 70 km/h fast)
+    const brakeZone = rival && B.n > 10 ? Math.min(1, Math.max(0, (B.v[0] - B.v[10]) / 15)) : 0;
     for (const sp of specs) {
       if (sp.late) g.brake = brake0 * (1 + 0.04 * kb);
       this.build(P, sp, ctx);
@@ -380,7 +394,10 @@ export class Planner {
       let off = 0; for (let i = 0; i < n; i += 2) off += Math.abs(P.e[i]); cost += 0.0015 * off;
       // changing its mind costs: a little for any change, more the further the new lane is from the one it was in
       // (lateral position compared at the first node past the transition: a held position and a lane are comparable)
-      if (sp !== prevSpec && prevSpec) cost += (0.03 + 0.02 * Math.abs(P.d[Math.min(n - 1, 8)] - (this.prevD8 ?? P.d[Math.min(n - 1, 8)]))) * (1 + 2 * (ctx.lap1 || 0));
+      if (sp !== prevSpec && prevSpec) {
+        const dd8 = Math.abs(P.d[Math.min(n - 1, 8)] - (this.prevD8 ?? P.d[Math.min(n - 1, 8)]));
+        cost += (0.03 + 0.02 * dd8) * (1 + 2 * (ctx.lap1 || 0)) + 0.15 * dd8 * brakeZone;
+      }
       cost += ctx.racecraft ? ctx.racecraft(P, this) : 0;
       if (cost < bestCost) { bestCost = cost; P.cost = cost; P.time0 = world.time; B.copyFrom(P); }
     }
