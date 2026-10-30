@@ -180,6 +180,7 @@ export class PitCrews {
       if (Math.hypot(vx, vz) < 60) cars.push({ c, x: c.x, z: c.z, px: pv ? pv[0] : c.x, pz: pv ? pv[1] : c.z, th: c.th, vx, vz });
       this._prev.set(c, [c.x, c.z]);
     }
+    this._carsNow = cars;
     for (const k of this.crews) {
       if (!k.car) { k.group.visible = false; continue; }
       k.group.visible = true;
@@ -457,12 +458,24 @@ export class PitCrews {
         pose = wf > 0 && wf < 1 ? POSE.wingCarry : POSE.wing; tu = cu + 0.75; tw_ = cwv + m.s * 0.7; fu = -1; fw = 0; hands = { u: cu + 0.25, w: cwv + m.s * 0.62, y: p.y };
         if (!carryingOld && wg.wingFetch <= 0) { tu = NOSE_X + 1.5; tw_ = 3.0 + m.s * 0.6; pose = POSE.ready; hands = null; }
       } else if (t >= 0 && t < D - 0.5) { pose = POSE.wing; hands = { u: NOSE_X - 0.02, w: m.s * 0.82, y: 0.2 + yAt(NOSE_X) }; }
-      else if (t >= D - 0.5) { pose = POSE.stand; tu = m.s > 0 ? NOSE_X + 1.3 : NOSE_X + 0.3; tw_ = m.s > 0 ? 2.15 : -2.6; }   // (out of the car's way before it goes: each to his own side, never across its nose)
+      else if (t >= D - 0.5) { pose = POSE.stand; tu = m.s > 0 ? NOSE_X + 1.3 : NOSE_X + 0.3; tw_ = m.s > 0 ? 2.15 : -2.1; }   // (out of the car's way before it goes: each to his own side, never across its nose)
     }
     if (m.r === 'chief') { pose = t >= D - 0.3 && after < 1 ? POSE.release : POSE.stand; fu = t >= D - 0.3 ? -0.2 : -1; fw = t >= D - 0.3 ? -1 : -0.4; }
     // (a crew out late, the car nearly in: whoever's place is on the lane side waits on the garage side of its path
     //  until it has stopped - never across the front of a car still rolling in)
     if (k.phase === 'approach' && st.w < 0 && m.w > -0.6 && k.stop && !k.stop.stop && k.stop.ahead / Math.max(1, k.car.speed) < 3) { tw_ = Math.max(tw_, 1.7); tu = Math.min(Math.max(tu, REAR_X), NOSE_X); }
+    // (a car coming at them at a walk or a jog - in or out of a box, a team-mate's, a neighbour's - and they are where
+    //  it is about to be: out of its way, to whichever side of its path they are on; one much faster gives no time to
+    //  move - they are hit. Their own car rolling in is only a danger to whoever is short of where its nose will stop)
+    const [mx, mz] = this._w(k, m.u, m.w);
+    for (const q of this._carsNow || []) {
+      const sp = Math.hypot(q.vx, q.vz); if (sp < 0.8 || sp > 9) continue;
+      if (q.c === k.car && (k.phase === 'stop' || (k.phase === 'approach' && m.u > NOSE_X + 0.3))) continue;
+      const co = Math.cos(q.th), sn = Math.sin(q.th), dx = mx - q.x, dz = mz - q.z, lx = dx * co + dz * sn, lz = -dx * sn + dz * co;
+      if (lx < -2.9 || lx > 3.4 + sp * 0.9 || Math.abs(lz) > 1.3) continue;
+      const side = Math.sign(lz) || 1; [tu, tw_] = this._inv(k, q.x + co * lx - sn * side * 2.2, q.z + sn * lx + co * side * 2.2);
+      speed = RUN; pose = POSE.stand; hands = null; holdPos = null; break;
+    }
     // ---- move toward where they should be (a run or a walk, the legs going with it)
     const du = tu - m.u, dwv = tw_ - m.w, dist = Math.hypot(du, dwv);
     const go = k.phase === 'approach' && !k.ran ? (time - k.at) > (m.go || 0) : true;
