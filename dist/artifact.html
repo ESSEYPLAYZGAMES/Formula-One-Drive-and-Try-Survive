@@ -590,7 +590,7 @@ table.res tr.me td { color: var(--accent2); font-weight: 700; }
     <div class="brand-line"></div>
     <h1 id="brand-title">FORMULA 1<span id="brand-sub">SIMULATOR</span></h1>
     <!-- the build's version: +0.01 with every build handed out -->
-    <span id="app-ver" title="Version">V1.73</span>
+    <span id="app-ver" title="Version">V1.74</span>
     <div id="menu-sub">Real circuits built from OpenStreetMap</div>
   </div>
   <div id="loading" class="hidden"><div class="ld"><i></i></div><span>Building the circuit from OpenStreetMap…</span></div>
@@ -725,7 +725,7 @@ table.res tr.me td { color: var(--accent2); font-weight: 700; }
 
 <div id="pause" class="panel hidden">
   <h2>PAUSED</h2>
-  <div class="row center"><button id="btn-resume" class="go">RESUME<span>→</span></button><button id="btn-tel" class="ghost">TELEMETRY</button><button id="btn-photo" class="ghost">PHOTO MODE</button><button id="btn-finish" class="ghost hidden">FINISH SESSION</button><button id="btn-end" class="ghost hidden">END SESSION</button><button id="btn-quit" class="ghost">QUIT TO MENU</button></div>
+  <div class="row center"><button id="btn-resume" class="go">RESUME<span>→</span></button><button id="btn-restart" class="ghost hidden">RESTART RACE</button><button id="btn-tel" class="ghost">TELEMETRY</button><button id="btn-photo" class="ghost">PHOTO MODE</button><button id="btn-finish" class="ghost hidden">FINISH SESSION</button><button id="btn-end" class="ghost hidden">END SESSION</button><button id="btn-quit" class="ghost">QUIT TO MENU</button></div>
   <div class="row center vol-row"><label for="vol-pause">VOLUME</label><input type="range" id="vol-pause" class="vol" min="0" max="100" step="1"><span class="vol-val"></span></div>
   <div class="hint">Photo mode: WASD fly · Q/E down/up · Shift fast · drag or arrow keys to look · H toggle HUD · Esc back</div>
 </div>
@@ -142599,6 +142599,19 @@ $('btn-resume').addEventListener('click', () => setPaused(false));
   show();
 }
 $('btn-quit').addEventListener('click', () => { setPaused(false); quitSession(); });
+$('btn-restart').addEventListener('click', () => { setPaused(false); restartRace(); });
+/**
+ * RESTART RACE (pause menu, a race outside a career): the same race again from the same grid - a fresh field (new
+ * cars: no damage, laps or tyre wear carried over), no build-up, straight to the five red lights.
+ */
+function restartRace() {
+  const wk = S.weekend; if (!wk || S.director?.mode !== 'race' || wk.career) return;
+  const order = (wk.gridOrder || []).map((c) => c.name);
+  endSession(); NEWS.cancelled = false;
+  wk.cars = buildField(wk.lapsTotal); wk.player = wk.cars.find((c) => c.isPlayer) || null;
+  wk.gridOrder = order.map((n) => wk.cars.find((c) => c.name === n)).filter(Boolean); for (const c of wk.cars) if (!wk.gridOrder.includes(c)) wk.gridOrder.push(c);
+  S.skipIntro = true; beginRace(); S.skipIntro = false;
+}
 $('btn-photo').addEventListener('click', () => enterPhoto());
 $('btn-tel').addEventListener('click', () => openTelemetry(false));       // (already paused)
 $('btn-res-tel').addEventListener('click', () => openTelemetry(false));
@@ -143080,6 +143093,7 @@ function setPaused(v) {
   S.paused = v; $('pause').classList.toggle('hidden', !v);
   const d = S.director, career = !!S.weekend?.career;
   $('btn-finish').classList.toggle('hidden', !(v && d && d.mode === 'tt'));
+  $('btn-restart').classList.toggle('hidden', !(v && d && d.mode === 'race' && !career && !NEWS.cancel));
   $('btn-end').classList.toggle('hidden', !(v && d && d.mode === 'quali' && !d.done));
   $('btn-end').firstChild.textContent = d?.practice ? 'END PRACTICE' : 'END SESSION · SIMULATE THE REST';
   $('btn-quit').firstChild.textContent = career ? (d?.mode === 'quali' && !d.practice && isFinite(d?.player?.bestLap) ? 'QUIT TO CAREER · KEEP YOUR LAP' : 'QUIT TO CAREER') : 'QUIT TO MENU';
@@ -143373,7 +143387,7 @@ function beginRace() {
     },
   });
   if (S.director && !S.spectating) {
-    if (settings.intro === 'skip' && !S.weekend?.career) { input.enabled = true; hud.show(); camCtl.mode = 'tcam'; if (S.player) for (let i = 0; i < 30; i++) camCtl.update(S.player, 1 / 30, W.track); }   // (straight to the grid and the lights)
+    if (S.skipIntro || (settings.intro === 'skip' && !S.weekend?.career)) { input.enabled = true; hud.show(); camCtl.mode = 'tcam'; if (S.player) for (let i = 0; i < 30; i++) camCtl.update(S.player, 1 / 30, W.track); }   // (straight to the grid and the lights)
     else startPreRace();   // (the build-up first: the race waits on the grid)
   }
 }

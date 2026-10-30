@@ -1020,6 +1020,19 @@ $('btn-resume').addEventListener('click', () => setPaused(false));
   show();
 }
 $('btn-quit').addEventListener('click', () => { setPaused(false); quitSession(); });
+$('btn-restart').addEventListener('click', () => { setPaused(false); restartRace(); });
+/**
+ * RESTART RACE (pause menu, a race outside a career): the same race again from the same grid - a fresh field (new
+ * cars: no damage, laps or tyre wear carried over), no build-up, straight to the five red lights.
+ */
+function restartRace() {
+  const wk = S.weekend; if (!wk || S.director?.mode !== 'race' || wk.career) return;
+  const order = (wk.gridOrder || []).map((c) => c.name);
+  endSession(); NEWS.cancelled = false;
+  wk.cars = buildField(wk.lapsTotal); wk.player = wk.cars.find((c) => c.isPlayer) || null;
+  wk.gridOrder = order.map((n) => wk.cars.find((c) => c.name === n)).filter(Boolean); for (const c of wk.cars) if (!wk.gridOrder.includes(c)) wk.gridOrder.push(c);
+  S.skipIntro = true; beginRace(); S.skipIntro = false;
+}
 $('btn-photo').addEventListener('click', () => enterPhoto());
 $('btn-tel').addEventListener('click', () => openTelemetry(false));       // (already paused)
 $('btn-res-tel').addEventListener('click', () => openTelemetry(false));
@@ -1501,6 +1514,7 @@ function setPaused(v) {
   S.paused = v; $('pause').classList.toggle('hidden', !v);
   const d = S.director, career = !!S.weekend?.career;
   $('btn-finish').classList.toggle('hidden', !(v && d && d.mode === 'tt'));
+  $('btn-restart').classList.toggle('hidden', !(v && d && d.mode === 'race' && !career && !NEWS.cancel));
   $('btn-end').classList.toggle('hidden', !(v && d && d.mode === 'quali' && !d.done));
   $('btn-end').firstChild.textContent = d?.practice ? 'END PRACTICE' : 'END SESSION · SIMULATE THE REST';
   $('btn-quit').firstChild.textContent = career ? (d?.mode === 'quali' && !d.practice && isFinite(d?.player?.bestLap) ? 'QUIT TO CAREER · KEEP YOUR LAP' : 'QUIT TO CAREER') : 'QUIT TO MENU';
@@ -1794,7 +1808,7 @@ function beginRace() {
     },
   });
   if (S.director && !S.spectating) {
-    if (settings.intro === 'skip' && !S.weekend?.career) { input.enabled = true; hud.show(); camCtl.mode = 'tcam'; if (S.player) for (let i = 0; i < 30; i++) camCtl.update(S.player, 1 / 30, W.track); }   // (straight to the grid and the lights)
+    if (S.skipIntro || (settings.intro === 'skip' && !S.weekend?.career)) { input.enabled = true; hud.show(); camCtl.mode = 'tcam'; if (S.player) for (let i = 0; i < 30; i++) camCtl.update(S.player, 1 / 30, W.track); }   // (straight to the grid and the lights)
     else startPreRace();   // (the build-up first: the race waits on the grid)
   }
 }
