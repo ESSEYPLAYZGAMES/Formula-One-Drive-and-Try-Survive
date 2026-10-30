@@ -1621,7 +1621,7 @@ function makeDirector(mode, cars, player, extra = {}) {
   if (S.spectating) hud.msg(`STOOD DOWN · WATCHING ${S.player.name.toUpperCase()}\nEnter: fast-forward`, 'warn', 6);
   else if (player?.standInFor) hud.msg(standInBanner(player), 'warn', 6);   // (your driver hurt, or banned: you race their stand-in)
   ensureRacingLine(); RL.group.visible = RL.on;
-  S.crews?.dispose(); S.crews = W.pit ? new PitCrews(scene, 3, S.meshes, W.time === 'night') : null;   // (the crews: a whole stop, choreographed - world/PitCrew.js)
+  S.crews?.dispose(); S.crews = W.pit ? new PitCrews(scene, 5, S.meshes, W.time === 'night') : null;   // (the crews: a whole stop, choreographed - world/PitCrew.js)
   S.fireworks?.dispose(); S.fireworks = W.def.id === 'lasvegas' && mode === 'race' ? new Fireworks(scene) : null;   // (the Strip's fireworks for the winner)
   S.flags?.dispose(); S.flags = new Marshals(scene, W.track, W.pit);       // (the marshal posts' flags: an incident, blue flags, the chequered flag)
   floodlitAll(scene); precompile();

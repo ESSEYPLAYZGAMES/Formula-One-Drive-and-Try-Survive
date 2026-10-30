@@ -10,10 +10,13 @@
 // rear wing, never through it - and up, the guns on the nuts, the old wheels off and away, the new ones on, the guns
 // again, a hand up at each wheel, the jacks down, the front jack swung clear, released. A wing change: the wing men
 // take the old wing off and away and fit the spare from its stand beside the box. Then the crew carries the old tyres
-// back into the garage. All in the car's own frame where it actually stopped.
+// back into the garage. All in the car's own frame where it actually stopped. A car that hits one of them (over 9 km/h)
+// knocks them down - a ragdoll (world/Ragdoll.js): over the nose, across the car, off the back - and what they held falls
+// free; whoever is down stays down until the crew goes back in.
 import * as THREE from 'three';
 import { POSE, gait, blendPose } from './CrewRig.js';
 import { makePersonRig, warmPersonRigs } from './PersonRig.js';
+import { Ragdoll, carTopR } from './Ragdoll.js';
 import { COMPOUNDS } from '../vehicle/Tyres.js';
 
 const NOSE_X = 3.09, REAR_X = -2.31, AXLE = { F: 1.855, R: -1.548 }, HUBW = { F: 0.775, R: 0.736 }, TYRE_W = { F: 0.332, R: 0.414 };   // (the 2026 car model's, about the centre of mass)
@@ -123,7 +126,7 @@ export class PitCrews {
   constructor(scene, n = 3, meshes = null, night = false) {
     warmPersonRigs();
     this.scene = scene; this.meshes = meshes; this.crews = []; for (let k = 0; k < n; k++) this.crews.push(new Crew(scene, night));
-    this._v = new THREE.Vector3(); this._v2 = new THREE.Vector3();
+    this._v = new THREE.Vector3(); this._v2 = new THREE.Vector3(); this.loose = []; this._prev = new Map();
   }
   dispose() { for (const k of this.crews) { this._free(k); k.dispose(this.scene); } this.crews = []; }
 
@@ -169,10 +172,55 @@ export class PitCrews {
       if (!k) break;
       this._assign(k, s, d, time);
     }
+    // the cars as the people meet them: where they are, where they were a frame ago, how fast they go
+    const cars = [];
+    for (const c of d.cars) {
+      if (c.cleared || c.hiddenAway) continue;
+      const pv = this._prev.get(c), vx = pv && dt > 0 ? (c.x - pv[0]) / dt : 0, vz = pv && dt > 0 ? (c.z - pv[1]) / dt : 0;
+      if (Math.hypot(vx, vz) < 60) cars.push({ c, x: c.x, z: c.z, px: pv ? pv[0] : c.x, pz: pv ? pv[1] : c.z, th: c.th, vx, vz });
+      this._prev.set(c, [c.x, c.z]);
+    }
     for (const k of this.crews) {
       if (!k.car) { k.group.visible = false; continue; }
       k.group.visible = true;
       this._tick(k, d, time, dt);
+      if (k.car) this._hits(k, cars, dt);
+    }
+    this._loose(cars, dt);
+  }
+
+  /** a car into one of the crew: knocked down (a ragdoll from the pose they are in), what they held let go; the ones down, moved */
+  _hits(k, cars, dt) {
+    const near = cars.filter((q) => Math.hypot(q.x - k.F0.ox, q.z - k.F0.oz) < 16);
+    for (const m of k.men) {
+      if (m.rd) { m.rd.step(dt, near); m.rd.write(); continue; }
+      if (!near.length) continue;
+      const p = m.rig.mesh.position;
+      for (const q of near) {
+        const co = Math.cos(q.th), sn = Math.sin(q.th), dx = p.x - q.x, dz = p.z - q.z, lx = dx * co + dz * sn, lz = -dx * sn + dz * co;
+        if (Math.abs(lx) > 3.5 || Math.abs(lz) > 1.4 || carTopR(lx, lz, 0.2) <= 0 || Math.hypot(q.vx, q.vz) < 2.5) continue;
+        m.rd = new Ragdoll(m.rig); m.rd.start(); this._letGo(k, m, q);
+        if (q.c.isPlayer) k.hitBy = q.c;
+        break;
+      }
+    }
+  }
+  /** what a knocked-down man had in his hands: falling free (a tyre, a wheel gun) */
+  _letGo(k, m, q) {
+    const add = (o) => { if (!o || !o.visible || this.loose.some((l) => l.o === o)) return; this.loose.push({ k, o, v: new THREE.Vector3(q.vx * 0.6, 1.5, q.vz * 0.6), spin: 6, r: o.userData.setCompound ? 0.36 : 0.08 }); };
+    add(m.held);
+    if (m.r === 'gun') { add(k.guns[m.j]); k.hoses[m.j].visible = false; }
+  }
+  _loose(cars, dt) {
+    if (dt <= 0) return;
+    for (const L of this.loose) {
+      const o = L.o, v = L.v; v.y -= 9.81 * dt; o.position.addScaledVector(v, dt);
+      if (o.position.y < L.r) { o.position.y = L.r; v.y = Math.abs(v.y) > 1 ? -v.y * 0.3 : 0; const f = Math.max(0, 1 - 4 * dt); v.x *= f; v.z *= f; L.spin *= f; }
+      o.rotation.x += L.spin * dt;
+      for (const q of cars) {
+        const co = Math.cos(q.th), sn = Math.sin(q.th), dx = o.position.x - q.x, dz = o.position.z - q.z, lx = dx * co + dz * sn, lz = -dx * sn + dz * co;
+        if (Math.abs(lx) < 3.5 && Math.abs(lz) < 1.4 && o.position.y - L.r < carTopR(lx, lz, L.r) && Math.hypot(q.vx - v.x, q.vz - v.z) > 1) { v.set(q.vx * 1.05, 2 + Math.random(), q.vz * 1.05); L.spin = 10; }
+      }
     }
   }
 
@@ -217,8 +265,11 @@ export class PitCrews {
   _free(k) {
     const m = k.car && this.meshes?.get(k.car);
     if (m) { for (const w of m.wheels) if (!w.gone) w.hub.visible = true; }
-    k.car = null; k.stop = null; k.phase = null; k.next = null; k.group.visible = false;
+    k.car = null; k.stop = null; k.phase = null; k.next = null; k.group.visible = false; k.hitBy = null;
     for (const t of k.stackT) t.visible = false;
+    // (back on their feet for the next stop; what they dropped picked up)
+    for (const m of k.men) if (m.rd) { m.rd = null; m.cur = {}; m.held = null; }
+    this.loose = this.loose.filter((L) => { if (L.k !== k) return true; L.o.rotation.set(0, 0, 0); L.o.visible = false; return false; });
   }
 
   // the frame: world from (u along the car, w toward the garage)
@@ -252,7 +303,7 @@ export class PitCrews {
     }
     if (m.r === 'fj') return { u: NOSE_X + 1.9, w: 0, fu: -1, fw: 0, pose: POSE.jack };
     if (m.r === 'rj') return { u: REAR_X - 0.9, w: 1.55, fu: 0.3, fw: -1, pose: POSE.jack };   // (waiting at the side until the car is in)
-    if (m.r === 'stab') return { u: -0.35, w: m.s * 1.3, fu: 0, fw: -m.s, pose: POSE.ready };
+    if (m.r === 'stab') return { u: -0.35, w: m.s * 1.6, fu: 0, fw: -m.s, pose: POSE.ready };   // (back from the car's line while it swings in; in to it once it is stopped)
     if (m.r === 'wing') return { u: NOSE_X + 0.55, w: m.s * 0.78, fu: -1, fw: 0, pose: POSE.wing };
     return { u: NOSE_X + 1.1, w: 2.4, fu: -1, fw: -0.4, pose: POSE.stand };   // (the chief, by the garage, looking up the lane)
   }
@@ -316,12 +367,13 @@ export class PitCrews {
       if (mesh && released && W) mesh.frontWing.visible = true;
     }
     // ---- the people
-    for (const m of k.men) this._man(k, m, t, tw, D, P, tl, jackDown, released, dt, time, yAt, { wingOff, wingAway, wingFetch, wingFit, W });
+    for (const m of k.men) if (!m.rd) this._man(k, m, t, tw, D, P, tl, jackDown, released, dt, time, yAt, { wingOff, wingAway, wingFetch, wingFit, W });
     // ---- the jacks
     this._jacks(k, t, tw, jackDown, released, yAt);
     // ---- done: everyone back inside
-    if (k.phase === 'after' && k.next && t > D + 0.6) { const s = k.next; this._assign(k, s, d, time, true); return; }   // (the team-mate, queued behind: same crew)
-    if (k.phase === 'after' && t > D + 9) this._free(k);
+    // (the team-mate, queued behind: same crew - once the car before it is well clear of the box, never back into its path)
+    if (k.phase === 'after' && k.next && (Math.hypot(c.x - k.F.ox, c.z - k.F.oz) > 9 || t > D + 6)) { const s = k.next; this._assign(k, s, d, time, true); return; }
+    if (k.phase === 'after' && t > D + (k.men.some((m) => m.rd) ? 30 : 9)) this._free(k);   // (someone down: the others stay out with them a while)
     if (k.phase === 'abort' && time - (k.abortAt || (k.abortAt = time)) > 6) { k.abortAt = 0; this._free(k); }
   }
 
@@ -395,7 +447,8 @@ export class PitCrews {
     if (m.r === 'rj') { const J = k.rjI; if (J) { hands = J.handle; pose = J.up > 0.3 ? POSE.jackUp : POSE.jack; tu = J.man.u; tw_ = J.man.w; fu = J.man.fu; fw = J.man.fw; } }
     // ---- holding the car steady; the wing men
     if (m.r === 'stab' && t >= 0 && !released) { pose = POSE.steady; tu = -0.35; tw_ = m.s * 1.18; hands = { u: -0.35, w: m.s * 0.66, y: 0.62 + yAt(-0.35) }; }
-    if (m.r === 'wing' && !(after > 0.3)) {
+    else if (m.r === 'stab' && released && after < 2.2) { tu = -0.35; tw_ = m.s * 1.95; pose = POSE.stand; }   // (a step back: the car leaves on the lane side)
+    if (m.r === 'wing' && !(after > 2.2)) {
       if (wg.W && t >= 0 && (wg.wingOff > 0 && wg.wingFit < 1)) {
         // carrying a wing between them (the old one away, then the spare in)
         const carryingOld = wg.wingAway < 1, cw = carryingOld ? k.wingOld : k.wingNew;
@@ -403,10 +456,13 @@ export class PitCrews {
         const cu = carryingOld ? lerp(2.66 + 0.55, NOSE_X + 0.3, wg.wingAway) : lerp(NOSE_X + 0.9, 2.66 + 0.4, wg.wingFetch), cwv = carryingOld ? 2.6 * wg.wingAway : lerp(3.0, 0, wg.wingFetch);
         pose = wf > 0 && wf < 1 ? POSE.wingCarry : POSE.wing; tu = cu + 0.75; tw_ = cwv + m.s * 0.7; fu = -1; fw = 0; hands = { u: cu + 0.25, w: cwv + m.s * 0.62, y: p.y };
         if (!carryingOld && wg.wingFetch <= 0) { tu = NOSE_X + 1.5; tw_ = 3.0 + m.s * 0.6; pose = POSE.ready; hands = null; }
-      } else if (t >= 0 && !released) { pose = POSE.wing; hands = { u: NOSE_X - 0.02, w: m.s * 0.82, y: 0.2 + yAt(NOSE_X) }; }
-      else if (released) { pose = POSE.stand; tu = NOSE_X + 1.2; tw_ = 1.6 + m.s * 0.5; }
+      } else if (t >= 0 && t < D - 0.5) { pose = POSE.wing; hands = { u: NOSE_X - 0.02, w: m.s * 0.82, y: 0.2 + yAt(NOSE_X) }; }
+      else if (t >= D - 0.5) { pose = POSE.stand; tu = m.s > 0 ? NOSE_X + 1.3 : NOSE_X + 0.3; tw_ = m.s > 0 ? 2.15 : -2.6; }   // (out of the car's way before it goes: each to his own side, never across its nose)
     }
     if (m.r === 'chief') { pose = t >= D - 0.3 && after < 1 ? POSE.release : POSE.stand; fu = t >= D - 0.3 ? -0.2 : -1; fw = t >= D - 0.3 ? -1 : -0.4; }
+    // (a crew out late, the car nearly in: whoever's place is on the lane side waits on the garage side of its path
+    //  until it has stopped - never across the front of a car still rolling in)
+    if (k.phase === 'approach' && st.w < 0 && m.w > -0.6 && k.stop && !k.stop.stop && k.stop.ahead / Math.max(1, k.car.speed) < 3) { tw_ = Math.max(tw_, 1.7); tu = Math.min(Math.max(tu, REAR_X), NOSE_X); }
     // ---- move toward where they should be (a run or a walk, the legs going with it)
     const du = tu - m.u, dwv = tw_ - m.w, dist = Math.hypot(du, dwv);
     const go = k.phase === 'approach' && !k.ran ? (time - k.at) > (m.go || 0) : true;
@@ -433,6 +489,7 @@ export class PitCrews {
     }
     const fo = 1 - Math.exp(-dt * 9); m.ox += (ex - m.ox) * fo; m.oz += (ez - m.oz) * fo;
     rig.mesh.position.x += m.ox; rig.mesh.position.z += m.oz;
+    m.held = holds;
     // something carried while walking or running: at the hands
     if (holds && !holdPos) {
       rig.mesh.updateMatrixWorld(true);

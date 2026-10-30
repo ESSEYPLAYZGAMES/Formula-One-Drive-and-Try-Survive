@@ -351,9 +351,24 @@ export function buildCotaLife(C) {
   const byCell = (list, xi, zi) => { const m = new Map(); for (const e of list) { const k = cellOf(e[xi], e[zi]); let a = m.get(k); if (!a) m.set(k, (a = [])); a.push(e); } return m.values(); };
   // (and the last word on where people may be: nobody on open ground by the road - whichever pass put them there; a
   //  walker by both ends of its stretch and its middle)
+  // (and nobody inside the barrier: where a corner's wall is set far back behind its run-off, a path round the banks
+  //  could cut inside it - the stretch is moved out behind the wall, 2.5 m clear of it, or left out if it still crosses)
+  const inside = (x, z) => { const q = tr.nearest(x, z), side = q.d > 0 ? 1 : -1; if (!(side > 0 ? tr.barL[q.i] : tr.barR[q.i])) return null; const need = tr.wallAt(q.i, side) + 2.5 - Math.abs(q.d); return need > 0 ? { need, nx: tr.nx[q.i] * side, nz: tr.nz[q.i] * side } : null; };
+  const worst = (ax, az, bx, bz) => { let w = null; for (let t = 0; t <= 1.0001; t += 0.1) { const h = inside(ax + (bx - ax) * t, az + (bz - az) * t); if (h && (!w || h.need > w.need)) w = h; } return w; };
+  let moved = 0, dropped = 0;
+  const outside = walkers.filter((W) => {
+    for (let k = 0; k < 4; k++) {
+      const h = worst(W[0], W[2], W[3], W[5]); if (!h) { if (k) moved++; return true; }
+      W[0] += h.nx * h.need; W[2] += h.nz * h.need; W[3] += h.nx * h.need; W[5] += h.nz * h.need;
+      W[1] = H(W[0], W[2]) + 0.02; W[4] = H(W[3], W[5]) + 0.02;
+    }
+    dropped++; return false;
+  });
+  for (const S of standing) { const h = inside(S[0], S[2]); if (h) { S[0] += h.nx * h.need; S[2] += h.nz * h.need; moved++; } }
+  if (moved || dropped) console.info(`[cota] behind the walls: ${moved} people moved out, ${dropped} left out`);
   const nS = standing.length, nW = walkers.length;
   const stood = standing.filter(([x, , z]) => !open(x, z));
-  const walking = walkers.filter(([ax, , az, bx, , bz]) => !open(ax, az) && !open(bx, bz) && !open((ax + bx) / 2, (az + bz) / 2)).concat(decks);
+  const walking = outside.filter(([ax, , az, bx, , bz]) => !open(ax, az) && !open(bx, bz) && !open((ax + bx) / 2, (az + bz) / 2)).concat(decks);
   for (const list of byCell(stood, 0, 2)) { const im = fanMesh(list, C.fanMat, rnd); im.name = 'cota:people'; im.userData.cut = 1800; group.add(im); }
   const wMat = walkerMaterial();
   for (const list of byCell(walking, 0, 2)) { const im = walkerMesh(list, wMat, rnd); im.name = 'cota:walkers'; im.userData.cut = 1500; group.add(im); }

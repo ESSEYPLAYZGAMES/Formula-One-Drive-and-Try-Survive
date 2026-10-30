@@ -106,7 +106,7 @@ export function makePersonRig(o = {}) {
   const ZERO = [0, 0, 0];
   /** a CrewRig pose onto the person: the same joint angles; the arms taken from the bind pose's to hanging first */
   const apply = (p) => {
-    b.hips.position.y = hipsY - (p.y || 0);
+    b.hips.position.set(T.W.hips.x, hipsY - (p.y || 0), T.W.hips.z); b.hips.quaternion.identity();   // (after a ragdoll: back on its feet)
     for (const k of BONES) {
       if (k === 'hips') continue;
       const r = p[k] || ZERO; _e.set(r[0], r[1], r[2]); _q.setFromEuler(_e);
@@ -122,7 +122,7 @@ export function makePersonRig(o = {}) {
     }
   };
   void _c;
-  return { mesh, b, recolor: rec, apply, dispose() { geo.dispose(); mat.dispose(); } };
+  return { mesh, b, W: T.W, recolor: rec, apply, dispose() { geo.dispose(); mat.dispose(); } };
 }
 /** the templates built ahead (a session's start, not the first stop) */
 export function warmPersonRigs() { for (const k of ['broad', 'athletic', 'average']) template(k); }

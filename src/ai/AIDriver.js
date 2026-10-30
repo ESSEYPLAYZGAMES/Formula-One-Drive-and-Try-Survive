@@ -446,11 +446,14 @@ export class AIDriver {
       if (Math.abs(off) < 0.08) { this.laneTurn = null; c.brake = 0; }
       return true;
     }
-    // where in the lane: the fast lane, easing over to the box's lateral position for the last 35 m before it
-    const nearBox = stopping ? Math.max(0, Math.min(1, 1 - (box.u - u - 8) / 35)) : 0;
-    const look = Math.max(7, Math.min(25, 0.35 * v + 6)), uA = Math.min(ps.length - 1, u + look);
-    const nb = stopping ? Math.max(0, Math.min(1, 1 - (box.u - uA - 8) / 35)) : 0;
-    const latT = box.lat * (u > box.u + 4 ? 0 : nb);
+    // where in the lane: the fast lane - along the garages, on the pit wall's side of the lane, clear of the crews at work
+    // on the lane side of their cars - then a late, steep turn-in, past the box before yours (once it eased over for 35
+    // m and went through the neighbours' car and crew, or queued behind them): a cosine S of 14.5 m, at the steering's
+    // lock for the speed, onto the box's line 3.5 m short of it and straight in; out of the box the same S back out
+    const latAt = this._laneLat(P, box, stopping, c.pitLaneState === 'out' && u < box.u + 19 && !this.missed);
+    const nearMine = (stopping && box.u - u < 26 && u < box.u + 4) || (c.pitLaneState === 'out' && u < box.u + 19 && u > box.u - 6);
+    const look = nearMine ? Math.max(4, Math.min(25, 0.3 * v + 2.5)) : Math.max(7, Math.min(25, 0.35 * v + 6)), uA = Math.min(ps.length - 1, u + look);
+    const latT = latAt(uA);
     const j = Math.min(ps.n - 1, Math.round(uA / ps.ds));
     const tx = ps.px[j] + ps.nx[j] * latT, tz = ps.pz[j] + ps.nz[j] * latT;
     const dx = tx - c.x, dz = tz - c.z, cth = Math.cos(c.th), sth = Math.sin(c.th);
@@ -463,7 +466,14 @@ export class AIDriver {
     // (into the box on a gentle stop), then the exit road at speed again
     const iu = Math.max(0, Math.min(ps.n - 1, Math.round(u / ps.ds))), S = laneSpeeds(P);
     let vT = u < P.limitFrom ? S.vIn[iu] : u <= P.limitTo ? lim : S.vOut[iu];
-    if (stopping && c.pitLaneState === 'in') vT = Math.min(vT, Math.sqrt(Math.max(0, 2 * 5 * (box.u - u - 0.5))));
+    if (stopping && c.pitLaneState === 'in') vT = Math.min(vT, Math.sqrt(Math.max(0, 2 * 5 * (box.u - u - 0.5))), Math.sqrt(81 + 2 * 6 * Math.max(0, box.u - 26 - u)));   // (into the S at 32 km/h at most)
+    // a double stack: the team-mate in the box, or released from it under 4 s ago (its crew still clearing it and
+    // fetching the next set of tyres) - wait 9.5 m short of it, out of everyone's way
+    if (stopping && c.pitLaneState === 'in') {
+      const mine = Math.abs(c.boxIdx ?? c.number + c.id) % P.boxes.length, now = world.time ?? 0;
+      for (const o of world.cars) if (o !== c && Math.abs(o.boxIdx ?? o.number + o.id) % P.boxes.length === mine && (o.pitLaneState === 'stop' || (o.pitLaneState === 'out' && now - (o._pitDoneT ?? -99) < 4))) { vT = Math.min(vT, Math.sqrt(Math.max(0, 2 * 5 * (box.u - 9.5 - u)))); break; }
+    }
+    if (c.pitLaneState === 'out' && u < box.u + 18 && u > box.u - 6) vT = Math.min(vT, 7 + Math.max(0, u - box.u) * 0.3);   // (and out of it)
     // a car ahead in the lane (stopped in its box, or slower): braking in time for it from the entry road's speeds, a
     // car length and a half behind it (one stopped in its own box beside the fast lane is passed)
     // (and a car still on the lane's run-in, driven by its own pitDrive, not yet counted as in the lane: under a safety
@@ -471,7 +481,7 @@ export class AIDriver {
     for (const o of world.cars) {
       if (o === c || o.cleared || !(o.pitLane || o.ai?.inPitMode)) continue;
       const qo = P.nearest(o.x, o.z, this._po || (this._po = {})), gap = qo.u - u;
-      if (gap <= 0 || gap > 150 || (o.held && Math.abs(qo.lat - latT) > 2.6) || (gap < 30 && Math.abs(qo.lat - q.lat) > 2.6)) continue;
+      if (gap <= 0 || gap > 150 || (o.held && Math.abs(qo.lat - latAt(qo.u)) > 2.6) || (gap < 30 && Math.abs(qo.lat - q.lat) > 2.6)) continue;   // (one held in a box the path does not go into is passed)
       vT = Math.min(vT, Math.sqrt(Math.max(0, o.speed * o.speed + 2 * 12 * (gap - 9))));
     }
     const err = vT - v;
@@ -480,6 +490,22 @@ export class AIDriver {
     else { c.throttle = v > 1 ? 0.25 : 0; c.brake = vT < 0.3 ? 1 : 0; }
     c.ers = 0;
     return true;
+  }
+
+  /**
+   * The lane's lateral target along it (u -> lat, the pit lane's own offset): the fast lane 1.2 m toward the pit wall
+   * by the garages (from 40 m before the first box to 40 m past the last), into the box by a cosine S from 18 m before
+   * it to 3.5 m before it (in: stopping), out of it straight for 4.5 m - past its own crew on the lane side, the car's
+   * back half going by them as it turns, swinging away from them - then the same S over 13 m (out: just released)
+   */
+  _laneLat(P, box, inn, out) {
+    if (!P._boxSpan) { let a = Infinity, b = -Infinity; for (const x of P.boxes) { const uu = P.samples.s[x.i]; a = Math.min(a, uu); b = Math.max(b, uu); } P._boxSpan = [a, b]; }
+    const [b0, b1] = P._boxSpan, side = -Math.sign(box.lat) || 1, sm = (t) => { t = Math.max(0, Math.min(1, t)); return t * t * (3 - 2 * t); };
+    const fast = (uu) => side * 1.2 * sm((uu - (b0 - 40)) / 30) * sm(((b1 + 40) - uu) / 30);
+    const S = (t) => (1 - Math.cos(Math.PI * Math.max(0, Math.min(1, t)))) / 2;
+    if (inn) return (uu) => { if (uu > box.u + 4) return fast(uu); const f = fast(uu), e = S((uu - (box.u - 18)) / 14.5); return f + (box.lat - f) * e; };
+    if (out) return (uu) => { const f = fast(uu), e = S((uu - (box.u + 4.5)) / 13); return box.lat + (f - box.lat) * e; };
+    return fast;
   }
 
   /** the nearest car ahead whose body is in my planned path (centre-to-centre gap), within 30 m */

@@ -798,12 +798,12 @@ export class RaceDirector {
   /**
    * Your stop: from the speed-limit line the car is driven to your box by the AI (AIDriver.pitDrive) - you only time
    * the pull-in (pullIn: Space / Enter / pad A), and the car is yours again the moment the pit light goes green.
-   * The turn-in point is 30 m before the box.
+   * The turn-in point is 18 m before the box (a late, steep turn-in, past the neighbours' box).
    */
   pitTakeover(p, box) {
     p.pitAuto = new AIDriver(p, this.line, this.profile, this.track, { aggression: 0.4, skill: 1 });
     p.pitRequested = true; p.steer = 0; p.handbrake = 0; p.ers = 0;
-    p._pull = { at: box.u - 30, done: false, pen: 0, result: null };
+    p._pull = { at: box.u - 18, done: false, pen: 0, result: null };   // (the turn-in: AIDriver._laneLat's S starts 18 m before the box)
     this.hud?.msg('PIT LANE · AI DRIVING\nPRESS SPACE TO PULL IN', 'warn', 2.5);
     this.engineer?.say('Limiter on, we have the car. Call the turn-in for the box.', 2);
   }
