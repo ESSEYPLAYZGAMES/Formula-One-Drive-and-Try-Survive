@@ -93,19 +93,7 @@ const teamIndexOf = (teamName) => { const k = TEAMS.findIndex((t) => t.name === 
 const canvas = $('gl');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
-// the look: AgX's film response (highlights roll off to white instead of going neon, as ACES pushed the reds and
-// the grass) wrapped in a grade - real albedos are muted, so a little less chroma, and a gentle S-curve for the
-// contrast a camera sensor gives; exposure matched to the old curve so the presets' numbers keep their meaning.
-// (patched into AgX itself rather than a custom curve: the photo and crash composers' OutputPass knows AgX)
-THREE.ShaderChunk.tonemapping_pars_fragment = THREE.ShaderChunk.tonemapping_pars_fragment.replace('vec3 AgXToneMapping( vec3 color ) {', 'vec3 AgXToneMapping0( vec3 color ) {') + `
-vec3 AgXToneMapping( vec3 color ) {
-	float l = dot( color, vec3( 0.2126, 0.7152, 0.0722 ) );
-	color = max( mix( vec3( l ), color, 0.9 ), 0.0 ) * 1.5;
-	vec3 c = pow( AgXToneMapping0( color ), vec3( 1.0 / 2.2 ) );
-	c = mix( c, c * c * ( 3.0 - 2.0 * c ), 0.45 );
-	return pow( c, vec3( 2.2 ) );
-}`;
-renderer.toneMapping = THREE.AgXToneMapping; renderer.toneMappingExposure = 1.05;
+renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(74, 16 / 9, 0.3, 6000);   // tighter depth range: less z-fighting on painted surfaces
 /** how much the lens magnifies against the default 74 degrees (the cars' detail by distance scales with it: CarMesh.detail) */

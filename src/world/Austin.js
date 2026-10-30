@@ -102,8 +102,8 @@ let GRASS = null;
 function grassTex() {
   if (GRASS) return GRASS;
   const c = document.createElement('canvas'); c.width = c.height = 128; const g2 = c.getContext('2d'), r2 = rng(77);
-  g2.fillStyle = '#8c9450'; g2.fillRect(0, 0, 128, 128);
-  for (let k = 0; k < 2600; k++) { const t2 = r2(); g2.fillStyle = t2 < 0.45 ? '#7a8a40' : t2 < 0.8 ? '#a19a5c' : '#6b7a3a'; g2.fillRect(r2() * 128, r2() * 128, 1 + r2() * 2, 1 + r2() * 2); }
+  g2.fillStyle = '#4c6e30'; g2.fillRect(0, 0, 128, 128);
+  for (let k = 0; k < 2600; k++) { const t2 = r2(); g2.fillStyle = t2 < 0.45 ? '#557a34' : t2 < 0.8 ? '#6a7a44' : '#3f5f28'; g2.fillRect(r2() * 128, r2() * 128, 1 + r2() * 2, 1 + r2() * 2); }
   GRASS = new THREE.CanvasTexture(c); GRASS.wrapS = GRASS.wrapT = THREE.RepeatWrapping; GRASS.colorSpace = THREE.SRGBColorSpace; return GRASS;
 }
 
@@ -1001,7 +1001,7 @@ export function buildAustin(geo, track, def, pit) {
       const fx = Math.max(0, Math.min(NX - 1.001, (x - GX0) / CS - 0.5)), fz = Math.max(0, Math.min(NZ - 1.001, (z - GZ0) / CS - 0.5)), i = fx | 0, j = fz | 0, u = fx - i, v = fz - j, out = [0, 0, 0];
       for (let k = 0; k < 3; k++) { const a = CC[(j * NX + i) * 3 + k], b = CC[(j * NX + i + 1) * 3 + k], c = CC[((j + 1) * NX + i) * 3 + k], d = CC[((j + 1) * NX + i + 1) * 3 + k]; out[k] = (a * (1 - u) + b * u) * (1 - v) + (c * (1 - u) + d * u) * v; }
       const dry = fbm(x / 130, z / 130, 51), m = 0.9 + 0.2 * fbm(x / 35, z / 35, 61);
-      if (dry > 0.55) { const k = Math.min(1, (dry - 0.55) * 7); out[0] += 0.17 * k; out[1] += 0.06 * k; out[2] -= 0.06 * k; }
+      if (dry > 0.6) { const k = Math.min(1, (dry - 0.6) * 6); out[0] += 0.1 * k; out[1] += 0.02 * k; out[2] -= 0.04 * k; }
       return [out[0] * m, out[1] * m, out[2] * m];
     };
     // the textures: a car park's asphalt and its stall lines (one tile: 21.6 x 18 m, eight stalls each side of an

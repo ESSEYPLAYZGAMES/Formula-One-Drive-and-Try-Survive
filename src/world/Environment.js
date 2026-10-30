@@ -5,10 +5,10 @@ function groundTexture(day, style = 'city') {
   const gc = document.createElement('canvas'); gc.width = gc.height = 512; const ctx = gc.getContext('2d');
   if (style === 'park') {
     // Ile Notre-Dame in June: lush, freshly mown parkland grass, clover and a few worn patches
-    ctx.fillStyle = day ? '#4f8a35' : '#0e1c0f'; ctx.fillRect(0, 0, 512, 512);
+    ctx.fillStyle = day ? '#41712c' : '#0e1c0f'; ctx.fillRect(0, 0, 512, 512);
     for (let i = 0; i < 12000; i++) {
       const g = Math.random();
-      ctx.fillStyle = day ? `rgba(${48 + g * 46},${112 + g * 64},${30 + g * 30},0.5)` : `rgba(${14 + g * 14},${32 + g * 26},${14 + g * 12},0.5)`;
+      ctx.fillStyle = day ? `rgba(${40 + g * 36},${92 + g * 50},${26 + g * 22},0.5)` : `rgba(${14 + g * 14},${32 + g * 26},${14 + g * 12},0.5)`;
       ctx.fillRect(Math.random() * 512, Math.random() * 512, 1.5 + Math.random() * 2.5, 2 + Math.random() * 4);
     }
     for (let i = 0; i < 40; i++) { ctx.fillStyle = day ? 'rgba(120,130,60,0.12)' : 'rgba(30,30,20,0.12)'; ctx.beginPath(); ctx.arc(Math.random() * 512, Math.random() * 512, 6 + Math.random() * 18, 0, 7); ctx.fill(); }
@@ -17,13 +17,13 @@ function groundTexture(day, style = 'city') {
     return t;
   }
   if (style === 'texas') {
-    // Central Texas in the autumn: mown grass, green near the water lines, gone tan and straw-coloured in the dry
-    // patches - and the pale limestone soil showing through
-    ctx.fillStyle = day ? '#7d8a4c' : '#141a0f'; ctx.fillRect(0, 0, 512, 512);
-    for (let i = 0; i < 60; i++) { ctx.fillStyle = day ? `rgba(${150 + Math.random() * 40},${140 + Math.random() * 30},${80 + Math.random() * 30},0.22)` : 'rgba(40,38,26,0.2)'; ctx.beginPath(); ctx.arc(Math.random() * 512, Math.random() * 512, 12 + Math.random() * 40, 0, Math.PI * 2); ctx.fill(); }
+    // Central Texas: a circuit's grass is watered and mown - a deep green, a few tired, tan patches in it (it was
+    // straw-coloured all over once: under the midday sun it read as lime and white)
+    ctx.fillStyle = day ? '#3f6329' : '#141a0f'; ctx.fillRect(0, 0, 512, 512);
+    for (let i = 0; i < 60; i++) { ctx.fillStyle = day ? `rgba(${98 + Math.random() * 30},${104 + Math.random() * 24},${58 + Math.random() * 20},0.16)` : 'rgba(40,38,26,0.2)'; ctx.beginPath(); ctx.arc(Math.random() * 512, Math.random() * 512, 12 + Math.random() * 40, 0, Math.PI * 2); ctx.fill(); }
     for (let i = 0; i < 10000; i++) {
-      const g = Math.random(), dry = Math.random() < 0.4;
-      ctx.fillStyle = day ? (dry ? `rgba(${150 + g * 50},${138 + g * 40},${78 + g * 30},0.45)` : `rgba(${80 + g * 40},${110 + g * 40},${48 + g * 22},0.5)`) : `rgba(${18 + g * 14},${24 + g * 18},${14 + g * 10},0.5)`;
+      const g = Math.random(), dry = Math.random() < 0.12;
+      ctx.fillStyle = day ? (dry ? `rgba(${112 + g * 30},${108 + g * 26},${66 + g * 20},0.4)` : `rgba(${44 + g * 34},${84 + g * 42},${28 + g * 20},0.5)`) : `rgba(${18 + g * 14},${24 + g * 18},${14 + g * 10},0.5)`;
       ctx.fillRect(Math.random() * 512, Math.random() * 512, 1.5 + Math.random() * 3, 2 + Math.random() * 4);
     }
     for (let i = 0; i < 512; i += 32) { ctx.fillStyle = day ? 'rgba(255,255,240,0.03)' : 'rgba(255,255,255,0.01)'; if ((i / 32) % 2) ctx.fillRect(0, i, 512, 32); }
@@ -32,10 +32,10 @@ function groundTexture(day, style = 'city') {
   }
   if (style === 'grass') {
     // countryside circuit: mown grass with darker / lighter tufts (no street grid)
-    ctx.fillStyle = day ? '#4c7a34' : '#0d1a0e'; ctx.fillRect(0, 0, 512, 512);
+    ctx.fillStyle = day ? '#3d6a2b' : '#0d1a0e'; ctx.fillRect(0, 0, 512, 512);
     for (let i = 0; i < 9000; i++) {
       const g = Math.random();
-      ctx.fillStyle = day ? `rgba(${50 + g * 50},${105 + g * 60},${35 + g * 30},0.5)` : `rgba(${14 + g * 16},${30 + g * 26},${14 + g * 14},0.5)`;
+      ctx.fillStyle = day ? `rgba(${40 + g * 38},${86 + g * 46},${28 + g * 22},0.5)` : `rgba(${14 + g * 16},${30 + g * 26},${14 + g * 14},0.5)`;
       ctx.fillRect(Math.random() * 512, Math.random() * 512, 2 + Math.random() * 3, 2 + Math.random() * 5);
     }
     for (let i = 0; i < 512; i += 32) { ctx.fillStyle = day ? 'rgba(255,255,255,0.035)' : 'rgba(255,255,255,0.012)'; if ((i / 32) % 2) ctx.fillRect(0, i, 512, 32); }   // mowing stripes
@@ -56,9 +56,7 @@ function groundTexture(day, style = 'city') {
 
 const PRESETS = {
   night: { top: 0x03040a, horizon: 0x2a1e3a, glow: 0x6a3a5a, sun: 0, stars: 1, sunColor: 0xbfc8ff, sunI: 0.7, sunPos: [-600, 900, 400], hemiSky: 0x9aa0cc, hemiGround: 0x1a1410, hemiI: 0.75, amb: 0x3a3c46, ambI: 0.75, fog: 0x0a0c18, fogD: 0.00035, bg: 0x070812, exposure: 1.1, envI: 0.6 },   // race-night lift: the real event is floodlit bright
-  // (day, photographic: a real sky is pale and hazy towards the horizon, not poster blue; most of the light is the
-  // sun's - a weaker fill keeps the shade side of things in shade - and the air puts a haze on the distance)
-  day: { top: 0x4a7cc2, horizon: 0xdde4ea, glow: 0xfff0d6, sun: 1, stars: 0, sunColor: 0xfff0dc, sunI: 3.3, sunPos: [500, 1100, -300], hemiSky: 0xc4d6ee, hemiGround: 0x8a7c62, hemiI: 0.62, amb: 0x9aa8bc, ambI: 0.16, fog: 0xd2dbe4, fogD: 0.00024, bg: 0xb4c8de, exposure: 0.95, envI: 1.15 },
+  day: { top: 0x2f6fd8, horizon: 0xcfe0f2, glow: 0xfff2d0, sun: 1, stars: 0, sunColor: 0xfff1dc, sunI: 2.6, sunPos: [500, 1100, -300], hemiSky: 0xbfd8ff, hemiGround: 0x9a8a6a, hemiI: 0.9, amb: 0x8fa3c0, ambI: 0.35, fog: 0xc9d6e6, fogD: 0.00016, bg: 0x9ec3ee, exposure: 0.95, envI: 1.0 },
 };
 
 export function createEnvironment(scene, renderer) {
