@@ -478,9 +478,9 @@ control), read by its plan - the fixes for an unread car do not apply - plus cor
 meets another's in a corner, on the inside of it and level with it there (its nose at least to the other's middle),
 the corner is its own, and the other car is expected to leave the room. Its own plan reads it the same way round - it
 is the one outside - and gives way, so the two agree rather than both lifting. In a duel of two AI cars (the attacker
-about 4 s a lap quicker) the pair ran side by side 45 % more with no more contact; in 5-lap races of the full field
-the overtakes, spins and retirements were what they were, with a little more rubbing (damaging hits 54 a race, 47
-before).
+about 4 s a lap quicker) the attacker got by in 8 runs of 8 in a median 55 s (66 s before) with 2 contacts (6 before);
+in 5-lap races of the full field, a race averaged 135 overtakes (122 before), 16 spins (23), 39 damaging hits (47)
+and 1.8 retirements (2.2).
 
 `AIDriver` drives the chosen plan: pure pursuit to a point on the path with a slip-angle feed-forward (above 35 m/s)
 and countersteer; the pedals aim at the most the plan allows a moment ahead (flat out below it, braking onto it),
