@@ -28,7 +28,7 @@ export function tribute(group, at, n, spanL, spanA, nc) {
   for (let i = 0; i < nc; i++) {
     const h = 0.07 + Math.random() * 0.1, p = at((Math.random() - 0.5) * 2 * spanA, -0.25 - Math.random() * 0.4, 0);
     candles.setMatrixAt(i, M4.compose(p, Q.identity(), S3.set(1, h, 1)));
-    const f = new THREE.Mesh(new THREE.SphereGeometry(0.011, 8, 6), flameMat); f.position.set(p.x, p.y + h + 0.02, p.z);   // (on its candle, wherever at() put that) f.scale.y = 1.8; f.userData.ph = i * 1.7; group.add(f); flames.push(f);
+    const f = new THREE.Mesh(new THREE.SphereGeometry(0.011, 8, 6), flameMat); f.position.set(p.x, p.y + h + 0.02, p.z); f.scale.y = 1.8; f.userData.ph = i * 1.7; group.add(f); flames.push(f);   // (on its candle, wherever at() put that)
   }
   group.add(candles);
   return flames;
