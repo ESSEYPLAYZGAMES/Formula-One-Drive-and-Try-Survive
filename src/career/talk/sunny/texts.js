@@ -1,5 +1,5 @@
 // Sunny - phone threads.
-export default [
+export const DATA = [
   // ============================================================ WEEK / NEW
   {
     id: 'sunny-text-week-new-cold-1', on: 'week', stage: 'new', mood: 'cold',

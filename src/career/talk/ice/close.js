@@ -1,7 +1,7 @@
 // The Ice - in person, stage 'close': together. In-jokes (the clauses, the stolen jacket, the notes in the coat, the
 // list), missing you, small jealousies, the future. Coldness now reads as you pulling away and they go glacial;
 // a risque line reveals the heat under the ice.
-export default [
+export const DATA = [
   // ---- close / cold: you were distant last time; they are stung and guarded ----------------------------------------
   {
     id: 'ice-close-cold-1', stage: 'close', mood: 'cold',

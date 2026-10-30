@@ -1,5 +1,5 @@
 // Sunny - in-person conversations, stage 'new' (just met / acquaintances).
-export default [
+export const DATA = [
   // ---------------------------------------------------------------- NEW / COLD
   {
     id: 'sunny-new-cold-1', stage: 'new', mood: 'cold',

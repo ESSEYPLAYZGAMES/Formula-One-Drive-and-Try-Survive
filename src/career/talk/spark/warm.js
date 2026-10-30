@@ -1,5 +1,5 @@
 // The Spark - in person, stage 'warm' (flirting, banter, wanting more, plans and schemes). Plain data, no imports.
-export default [
+export const DATA = [
   // ---- cold: you were cold last time - stung, sulky, sassy; the fun has to be earned back ----------------------------
   {
     id: 'spark-warm-cold-1', stage: 'warm', mood: 'cold',

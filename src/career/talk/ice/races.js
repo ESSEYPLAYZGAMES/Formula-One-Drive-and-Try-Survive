@@ -1,5 +1,5 @@
 // The Ice - the phone after your race (stage 'any'): win, podium, points, bad (outside the points), dnf.
-export default [
+export const DATA = [
   // ---- win ----------------------------------------------------------------------------------------------------------
   {
     id: 'ice-text-win-any-cold-1', on: 'win', stage: 'any', mood: 'cold',

@@ -1,5 +1,5 @@
 // The Ice - in person, stage 'new': first impressions. Coldness earns grudging respect here; eagerness reads as cheap.
-export default [
+export const DATA = [
   // ---- new / cold: you were cool last time; they are clipped and make you earn it --------------------------------
   {
     id: 'ice-new-cold-1', stage: 'new', mood: 'cold',

@@ -1,5 +1,5 @@
 // The Spark - the phone: rapid-fire, lowercase, capitals when excited, the odd emoji. Plain data, no imports.
-export default [
+export const DATA = [
   // ---- week: new ------------------------------------------------------------------------------------------------
   {
     id: 'spark-text-week-new-cold-1', on: 'week', stage: 'new', mood: 'cold',

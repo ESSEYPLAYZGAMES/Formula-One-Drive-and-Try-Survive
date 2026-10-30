@@ -4,12 +4,12 @@
 // game); a bold line thrills them once things are warm; passive bores them a little, so they poke for a reaction; cold
 // stings fast - hurt for a moment, then sulky or sassy, and you have to work to get the fun back.
 // Plain dialogue data (see the talk format): in-person convos by stage, and the phone.
-import NEW from './spark/new.js';
-import WARM from './spark/warm.js';
-import CLOSE from './spark/close.js';
-import TEXTS from './spark/texts.js';
+import { DATA as NEW } from './spark/new.js';
+import { DATA as WARM } from './spark/warm.js';
+import { DATA as CLOSE } from './spark/close.js';
+import { DATA as TEXTS } from './spark/texts.js';
 
-export default {
+export const PERSONA = {
   id: 'spark',
   convos: [...NEW, ...WARM, ...CLOSE],
   texts: TEXTS,

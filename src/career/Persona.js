@@ -9,9 +9,9 @@
 // the career (c.persona.npcs['c:<celebId>' | 'n:<localId>']: the personality, the mood, what has been said); the callers
 // save.
 import { CELEB } from './Celebs.js';
-import spark from './talk/spark.js';
-import ice from './talk/ice.js';
-import sunny from './talk/sunny.js';
+import { PERSONA as spark } from './talk/spark.js';
+import { PERSONA as ice } from './talk/ice.js';
+import { PERSONA as sunny } from './talk/sunny.js';
 
 export const PERSONAS = {
   spark: { id: 'spark', name: 'The Spark', blurb: 'Bubbly, playful, impulsive. Loves a flirt and a dare; coldness stings.', data: spark },

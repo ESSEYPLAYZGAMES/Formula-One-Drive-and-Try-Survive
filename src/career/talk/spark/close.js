@@ -1,5 +1,5 @@
 // The Spark - in person, stage 'close' (dating: in-jokes, missing each other, jealousy, the future, heat). Plain data.
-export default [
+export const DATA = [
   // ---- cold: you were cold last time - hurt first, then sulky; you have to earn the sparkle back ---------------------
   {
     id: 'spark-close-cold-1', stage: 'close', mood: 'cold',

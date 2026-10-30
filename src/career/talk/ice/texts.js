@@ -1,5 +1,5 @@
 // The Ice - the phone: week, first text, the morning after a date. Short, exact, properly punctuated, no emoji.
-export default [
+export const DATA = [
   // ---- week / new ---------------------------------------------------------------------------------------------------
   {
     id: 'ice-text-week-new-cold-1', on: 'week', stage: 'new', mood: 'cold',

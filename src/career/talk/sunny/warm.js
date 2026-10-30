@@ -1,5 +1,5 @@
 // Sunny - in-person conversations, stage 'warm' (friendly, flirting, getting closer).
-export default [
+export const DATA = [
   // --------------------------------------------------------------- WARM / COLD
   {
     id: 'sunny-warm-cold-1', stage: 'warm', mood: 'cold',

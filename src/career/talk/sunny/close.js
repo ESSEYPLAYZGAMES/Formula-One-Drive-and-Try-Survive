@@ -1,5 +1,5 @@
 // Sunny - in-person conversations, stage 'close' (dating / together).
-export default [
+export const DATA = [
   // -------------------------------------------------------------- CLOSE / COLD
   {
     id: 'sunny-close-cold-1', stage: 'close', mood: 'cold',

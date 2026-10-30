@@ -1,6 +1,6 @@
 // The Ice - in person, stage 'warm': banter, slow-burn flirting, plans. Flirting works now; a risque line is a dare
 // they may accept with a look.
-export default [
+export const DATA = [
   // ---- warm / cold: you were cool last time; they can be cooler ------------------------------------------------------
   {
     id: 'ice-warm-cold-1', stage: 'warm', mood: 'cold',
