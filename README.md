@@ -451,6 +451,22 @@ the start, and one defensive move to the inside of a braking zone when a car wit
 in a fast sweeper, not every time, then a cool-down). Overtakes, following, side-by-side racing, giving room and
 avoiding wrecks all come out of that one comparison. The first lap is driven with a little more room.
 
+Racing the player (`AI_TUNE.bold`, by the driver's aggression; half of it on the opening lap, none under race control).
+The player is the one car the AI cannot read by its plan, and it used to give every attack up: a twitch of the wheel
+read as a move (the raw sideways speed extrapolated), braking read as stopping dead (the deceleration carried on for
+1.5 s: every lane behind the car a wall), the racing line it was predicted to trace sweeping across every lane in a
+corner, extra room that grew the faster the AI was closing, and a direct check that stood on the brakes when a car a
+car's width beside it moved 20 cm. Now: the player's sideways motion is read through 0.4 s with a dead band for
+corrections; braking predicted down to the corner, not to a standstill; a meeting with the player more than 2 s off is
+a guess (gone for, at a cost) rather than a wall; once side by side - its front wheels up to the player's rear ones, a
+car's width between them - the AI expects the room the rules give it and squeezes rather than lifts; the direct check
+only fires on a real overlap. And it races for the place: a path that gets past (or alongside) counts for more than
+the time, it sticks to a move it is making, and it has two more moves - the lunge (the attacking lanes braked 4 %
+later) and the switchback (wide into the corner, across behind the car at the apex, up the inside out of it). All of it
+is for the player only: two AI cars read each other's plans, and AI-only races are bit for bit what they were. In a
+test against a scripted, slower car the AI could not read, weaving +-0.4 m round its line, the AI behind gave up 1-21
+attacks per run instead of 11-146 and got by at the first braking zone it reached alongside (5 runs in 6 against 4).
+
 `AIDriver` drives the chosen plan: pure pursuit to a point on the path with a slip-angle feed-forward (above 35 m/s)
 and countersteer; the pedals aim at the most the plan allows a moment ahead (flat out below it, braking onto it),
 limited by what the rear tyres actually have left after the cornering (with the rear at its limit it lifts instead
@@ -465,8 +481,14 @@ covers; *long* (the overcut) starts on mediums or hards, runs to the cliff and i
 back of the grid - starts on hards and stays out as long as it can, waiting for a safety car, and stops under one
 whatever its tyres. A car just ahead or behind (within 2.5 s) turning into the pit lane may be covered at once. Pit
 calls look ahead (boxing at this entry if the tyres would pass the plan's wear before the next one; a front wing that
-has lost real downforce is changed), a stop under the SC / VSC is cheap and taken, and after every stop the plan is
-made again for the next stint. With two laps or less to go a stop for tyres is never made unless they are finished
+has lost real downforce is changed), and after every stop the plan is made again for the next stint. Under the safety
+car a stop costs a fraction of one at racing speed, and it is taken when it is one the car has to make before the flag
+anyway - the mandatory stop not made yet, or tyres that will not last (their wear now and the wear of the last lap
+against the plan's limit) - or when the tyres are past their best with the laps left to use new ones, unless the car
+runs in the top three on tyres that will last (the track position is worth more); under the VSC (it saves less, and
+ends any moment) only for a stop it has to make. A stop called for the safety car's sake is called off if the race is
+green again 250 m or more before the pit entry (a stop the car needs is called again when its tyres say so). With two
+laps or less to go a stop for tyres is never made unless they are finished
 (it cannot pay back), and a short race's tyres last it - a 3-lap race's softs are near the cliff at the flag, not two
 laps before it - so nobody stops in a sprint.
 

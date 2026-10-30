@@ -49,6 +49,7 @@ export const AI_TUNE = {
   trailK: 0.85, trailMin: 0.18, trailSlip: 3.0,          // trail braking: pressure off with steering lock and rear slip
   edgeGuard: 1, satLift: 1, slipLift: 8, guardBrakeV: 45,
   packCal: 1,                                            // a calibration marked `pack` (fitted solo) only in clean air after the opening lap (0: everywhere)
+  bold: 1,                                               // racecraft against the player (Planner, by aggression): commit to a move, lunge, switch back, read him through his corrections (0: as before)
   // ---- the driver
   vScaleBase: 0.972, vScaleK: 0.028,                     // cornering commitment by rating
   aBBase: 0.88, aBK: 0.09,                               // braking commitment by rating
@@ -161,6 +162,9 @@ export class AIDriver {
     ctx.gap = (T.gapBase + v * T.gapK * (1 - 0.3 * this.aggression)) * (1 + 0.3 * lap1) * F.gap + 25 * Math.max(0, c.engTemp - 0.75);
     if (rule && rule.gap) ctx.gap = Math.max(ctx.gap, rule.gap + 0.15 * v);
     ctx.lap1 = lap1;
+    // (racecraft: how much it means a move - by the driver's aggression, half of it on the opening lap, none under race
+    //  control: Planner reads it)
+    ctx.bold = rule ? 0 : T.bold * Math.min(1.2, this.aggression) * (lap1 ? 0.5 : 1);
     // (a circuit's calibration fitted to a car on its own - ai/Calibration.js `pack`, Austin's from a driver's laps - spun
     //  the field in the pack: the opening lap is driven on the physics, and so is any stretch in traffic - fading back
     //  in from 25 m to 100 m behind the nearest car ahead, none with a car alongside)
@@ -483,7 +487,9 @@ export class AIDriver {
       const R = P.others[r], o = R.car, gap = P.ds(c.s, o.s);
       if (gap <= 0 || gap > 30 || (best && gap > best.gap)) continue;
       let dp = P.at(P.best.d, o.s); if (dp == null) dp = c.d;
-      if (Math.abs(o.d - dp) < 2.2) best = { o, gap };
+      // (in its path: within 2.2 m of it - but a car alongside, its tail beside my nose, only if we overlap: two cars a car's
+      //  width apart are racing side by side, and a twitch of its wheel is no reason to stand on the brakes - AI_TUNE.bold)
+      if (Math.abs(o.d - dp) < (AI_TUNE.bold && gap < 6 && R.human ? 1.95 : 2.2)) best = { o, gap };
     }
     return best;
   }
@@ -619,8 +625,36 @@ export class AIDriver {
     return false;
   }
 
+  /**
+   * Is the safety car (or the VSC) the moment to stop? It is for the mandatory stop not made yet, and for a stop that
+   * would be the car's last: its tyres will not last to the flag (their wear now, and the last lap's wear per lap, against
+   * the plan's limit) and a new set will. Under the safety car also when the tyres are well used with the laps left to use
+   * new ones, unless the car runs in the top three (the track position is worth more). Under the VSC (it saves less, and
+   * ends any moment) only once the tyres are a quarter worn. The gamblers were waiting for exactly this. (AI_TUNE.bold
+   * off: the old wear thresholds)
+   */
+  scStop(world, lapsLeft) {
+    const c = this.car, t = c.tyres, S = this.strat;
+    if (!AI_TUNE.bold) return t.wear > (S.type === 'gamble' ? 0.08 : S.type === 'long' ? 0.25 : 0.32) || (world.lapsTotal >= 13 && c.pitStops === 0 && t.wear > 0.2);
+    const vsc = world.sc?.phase === 'vsc';
+    const perLap = this._wPerLap > 0 && this._wTyres === t ? this._wPerLap : 0.75 * this.track.length / Math.max(1, t.lifeMeters);
+    const mustStop = world.lapsTotal >= 8 && c.pitStops === 0, lim = S.wear + 0.08;
+    const last = t.wear + perLap * lapsLeft > lim && perLap * lapsLeft <= lim;   // (the stop it needs, and its last one)
+    if (S.type === 'gamble' || mustStop) return true;
+    if (vsc) return last && t.wear > 0.25;
+    if (last) return true;
+    if (lapsLeft < 3 || t.wear < 0.3) return false;
+    const L = this.track.length, prog = (o) => o.lap * L + o.lapDist, me = prog(c);
+    let ahead = 0; for (const o of world.cars) if (o !== c && !o.retired && !o.isSC && prog(o) > me) ahead++;
+    return ahead >= 3 || t.wear > 0.5;
+  }
   strategy(world) {
     const c = this.car;
+    // a stop called for the safety car's sake, the race green again before the pit entry: called off - at racing speed
+    // it costs the full stop, and one the car needs is called again when its tyres say so (AI_TUNE.bold)
+    if (AI_TUNE.bold && c.pitRequested && this.pitReason === 'cheap' && !world.sc?.cheapStop && !c.pitLane && !c.inPit && world.pit && this.planner.ds(c.s, world.pit.entryS) > 250) {
+      c.pitRequested = false; this.pitPlan = null; this.pitReason = null;
+    }
     if (c.pitRequested || c.inPit || !world.racing || this.isSC) return;
     const lapsLeft = world.lapsTotal - c.lap;
     if (lapsLeft < 1.2) return;
@@ -629,9 +663,8 @@ export class AIDriver {
     // a new stint: a new plan (the gamble and the undercut were for the first stint; now the tyres just have to last)
     if (this._stratStops !== c.pitStops) { this._stratStops = c.pitStops; if (c.pitStops > 0) this.setStrat(rnd() < 0.25 ? 'long' : 'standard'); }
     const S = this.strat;
-    // a cheap stop under the safety car / VSC: the field is slow, a stop costs half as much - any car whose tyres are
-    // past their best (or that has not stopped yet in a long race) takes it; the gamblers were waiting for exactly this
-    const cheap = world.sc?.cheapStop && lapsLeft >= 2 && (t.wear > (S.type === 'gamble' ? 0.08 : S.type === 'long' ? 0.25 : 0.32) || (world.lapsTotal >= 13 && c.pitStops === 0 && t.wear > 0.2));
+    // a cheap stop under the safety car / VSC: the field is slow, a stop costs a fraction of one at racing speed
+    const cheap = world.sc?.cheapStop && lapsLeft >= 2 && this.scStop(world, lapsLeft);
     // a rival's stop (checked twice a second)
     this._rivalT = (this._rivalT || 0) - 1 / 60;
     let cover = false;
