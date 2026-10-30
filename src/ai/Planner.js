@@ -299,6 +299,13 @@ export class Planner {
               if (R.ahead0 && t > 2) { P.blocked += 0.25 * Math.max(0.3, 1 - (t - 2) / 4); break; }
               if (!R.ahead0 && t > 1.2) { conflict = { R, i, gs, t, vo: R.v[q0], soft: Math.max(0.25, 1 - (t - 1.2) / 3) }; break; }
             }
+            // racecraft (ctx.boldAI) against another AI car, read by its plan: where we meet in a corner, me on the
+            // inside of it and level with it there - my nose at least to its middle - the corner is mine, and it is
+            // expected to leave the room (its own plan reads mine the same way: it is the one outside, and gives way)
+            if (ctx.boldAI && R.planned && !queue && t > 0.3 && t < 3 && gs < 0.5 * Lc) {
+              const z = this.track.inCornerZone(this.track.idxAtS(P.s0 + i * DS));
+              if (z && z.dir && (P.d[i] - (R.d[q0] + (R.d[q0 + 1] - R.d[q0]) * f)) * z.dir > 0.8) { P.blocked += 0.2 * Math.min(1, ctx.boldAI); break; }
+            }
             conflict = { R, i, gs, t, vo: R.v[q0] }; break;
           }
         }
