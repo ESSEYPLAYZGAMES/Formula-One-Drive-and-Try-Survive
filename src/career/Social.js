@@ -25,7 +25,7 @@
 import { shiftMorale, moodOf } from './Morale.js';
 import { prEvent, fameIndex, fameText, imageLabel, heatLabel, socialPosts, crisisAdvice } from './PR.js';
 import * as Celebs from './Celebs.js';
-import { personaIncoming, personaPending, personaTextOpts, personaTextSend, personaHello, personaHelloSend } from './Persona.js';
+import { personaIncoming, personaPending, personaTextOpts, personaTextSend, personaHello, personaHelloSend, psOf } from './Persona.js';
 
 // ---- small helpers --------------------------------------------------------------------------------------------------
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -1166,7 +1166,10 @@ export function inboxTick(c, rows = null) {
     if (!kind) continue;
     // (in her personality's voice, in the mood you left her in, the next in line for the moment - else the old words)
     const on = kind === 'partnerWin' || kind === 'tvWin' ? 'win' : kind === 'partnerPod' || kind === 'tvPod' ? 'podium' : kind === 'partnerOk' || kind === 'tvOther' ? (p != null && p <= 10 ? 'points' : 'bad') : kind === 'partnerBad' ? 'bad' : kind === 'tvDnf' ? 'dnf' : kind === 'flirt' || kind === 'check' ? 'week' : null;
-    const pt = on && !arr(S.phone?.threads?.[`c:${C.id}`]).length ? personaIncoming(c, `c:${C.id}`, 'met', PT(C, T0)) : on ? personaIncoming(c, `c:${C.id}`, on === 'bad' && me.dnf ? 'dnf' : on, PT(C, T0)) : null;
+    // (a date since the last race she has not texted about: the day-after text, before anything about the race)
+    const ps = rom ? psOf(c, `c:${C.id}`) : null, dk = b.lastDate ? `${b.lastDate.season}:${b.lastDate.round}` : null, dated = !!(ps && dk && ago(c, b.lastDate) <= 1 && ps.dateAt !== dk);
+    if (dated) ps.dateAt = dk;
+    const pt = on && !arr(S.phone?.threads?.[`c:${C.id}`]).length ? personaIncoming(c, `c:${C.id}`, 'met', PT(C, T0)) : dated ? personaIncoming(c, `c:${C.id}`, 'date', PT(C, T0)) : on ? personaIncoming(c, `c:${C.id}`, on === 'bad' && me.dnf ? 'dnf' : on, PT(C, T0)) : null;
     if (pt) say(`c:${C.id}`, pt, 'persona'); else say(`c:${C.id}`, fresh(CIN[kind], T), kind);
     nc++;
   }

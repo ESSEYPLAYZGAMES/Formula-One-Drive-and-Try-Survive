@@ -16,6 +16,9 @@
 // away, Backspace goes back a screen, Enter confirms.
 import { contactsOf, threadOf, markRead, replyOptions, sendText, deleteThread, inviteOut, respondInvite, unreadCount, VENUES } from '../career/Social.js';
 import * as Celebs from '../career/Celebs.js';
+import { PERSONAS, personaOf } from '../career/Persona.js';
+// (who she is, in a word: career/Persona.js's personality, on her chat's header)
+const persName = (cid) => { try { return PERSONAS[personaOf(cid)]?.name || ''; } catch (_) { return ''; } };
 
 const CSS = `
 #phone { position: fixed; inset: 0; z-index: 46; pointer-events: none; font-family: 'Segoe UI', Roboto, Arial, sans-serif; color: #151a22; --tc: #e10600; }
@@ -384,7 +387,7 @@ function threadView(c, S) {
   const s = stageOf(x), armed = S.armed === 'del:' + cid, b = k === 'celeb' ? bond(c, idOf(cid)) : null;
   const sus = b && (b.stage === 'dating' || b.stage === 'partner') && (b.suspicion || 0) >= 40;
   const opts = (safe(() => replyOptions(c, cid), []) || []).slice(0, 4), dis = typing ? ' disabled' : '';
-  return `<div class="ph-th"><button class="ph-ib" data-pa="back" aria-label="Back">${svg(I.back)}</button>${avatar(c, cid, x.name, 'sm', lock)}<span class="ph-who"><b>${esc(x.name)}</b><small>${s ? `<em style="--sc:${s[1]}">${esc(s[0])}</em>` : ''}${esc(x.sub || '')}${lock ? ' · kept quiet' : ''}</small>${meterOf(c, cid)}</span>${T.length ? `<button class="ph-ib${armed ? ' armed' : ''}" data-pa="del" aria-label="Delete this chat">${armed ? 'DELETE?' : svg(I.bin, 20)}</button>` : ''}</div>
+  return `<div class="ph-th"><button class="ph-ib" data-pa="back" aria-label="Back">${svg(I.back)}</button>${avatar(c, cid, x.name, 'sm', lock)}<span class="ph-who"><b>${esc(x.name)}</b><small>${s ? `<em style="--sc:${s[1]}">${esc(s[0])}</em>` : ''}${esc(x.sub || '')}${k === 'celeb' && persName(cid) ? ` · ${esc(persName(cid))}` : ''}${lock ? ' · kept quiet' : ''}</small>${meterOf(c, cid)}</span>${T.length ? `<button class="ph-ib${armed ? ' armed' : ''}" data-pa="del" aria-label="Delete this chat">${armed ? 'DELETE?' : svg(I.bin, 20)}</button>` : ''}</div>
     ${sus ? `<div class="ph-sus">${svg(I.warn, 14)}<span>${esc(F)} has been asking questions lately.</span></div>` : ''}
     <div class="ph-msgs">${out}</div>
     <div class="ph-dock">${opts.map((o, i) => { const t = TONE[o.tone]; return `<button class="ph-rp" data-pr="${esc(o.key)}" data-kn="${i + 1}"${dis}><kbd>${i + 1}</kbd><span>${esc(o.text)}</span>${t ? `<i style="--tn:${t[1]}">${t[0]}</i>` : ''}</button>`; }).join('') || '<p class="ph-none">Nothing more to say for now.</p>'}${planOk(c, k) ? `<button class="ph-plan" data-pa="plan"${dis}>${svg(I.plans, 16)}<span>${grave(c) ? `A quiet coffee with ${esc(F)}` : `Make plans with ${esc(F)}`}</span>${svg(I.next, 14)}</button>` : ''}</div>`;
