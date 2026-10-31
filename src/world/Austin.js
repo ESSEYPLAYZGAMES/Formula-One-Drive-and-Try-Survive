@@ -40,10 +40,10 @@ const nonIdx = (g) => (g.index ? g.toNonIndexed() : g);
 const vcolor = (g, hex) => { const c = new THREE.Color(hex), n = g.attributes.position.count, a = new Float32Array(n * 3); for (let k = 0; k < n; k++) { a[k * 3] = c.r; a[k * 3 + 1] = c.g; a[k * 3 + 2] = c.b; } g.setAttribute('color', new THREE.BufferAttribute(a, 3)); return g; };
 const keepPN = (g) => { for (const k of Object.keys(g.attributes)) if (!['position', 'normal', 'color'].includes(k)) g.deleteAttribute(k); return g; };
 
-// ---- value noise: the land's patchwork (the scrub, the car parks, the dry ground)
+// ---- value noise: the land's patchwork (the scrub, the car parks, the dry ground) - Silverstone's fields too
 const hash2 = (i, j, s) => { const h = Math.sin(i * 127.1 + j * 311.7 + s * 74.7) * 43758.5453; return h - Math.floor(h); };
-const vnoise = (x, z, s = 0) => { const i = Math.floor(x), j = Math.floor(z), fx = x - i, fz = z - j, u = fx * fx * (3 - 2 * fx), v = fz * fz * (3 - 2 * fz), a = hash2(i, j, s), b = hash2(i + 1, j, s), c = hash2(i, j + 1, s), d = hash2(i + 1, j + 1, s); return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v; };
-const fbm = (x, z, s = 0) => 0.5 * vnoise(x, z, s) + 0.3 * vnoise(x * 2.07, z * 2.07, s + 1) + 0.2 * vnoise(x * 4.3, z * 4.3, s + 2);
+export const vnoise = (x, z, s = 0) => { const i = Math.floor(x), j = Math.floor(z), fx = x - i, fz = z - j, u = fx * fx * (3 - 2 * fx), v = fz * fz * (3 - 2 * fz), a = hash2(i, j, s), b = hash2(i + 1, j, s), c = hash2(i, j + 1, s), d = hash2(i + 1, j + 1, s); return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v; };
+export const fbm = (x, z, s = 0) => 0.5 * vnoise(x, z, s) + 0.3 * vnoise(x * 2.07, z * 2.07, s + 1) + 0.2 * vnoise(x * 4.3, z * 4.3, s + 2);
 
 /**
  * The general-admission areas all round the lap: both sides of the road everywhere but along the pit lane, in pieces of
@@ -75,15 +75,15 @@ export function austinCrowdZones(tr, def, pit) {
   return zones;
 }
 
-/** the perimeter road: the lap's convex hull rounded out 175 m, wandering a little -> { ring (closed, a point every 6 m), hull } */
-function ringRoad(tr) {
-  // the road: the lap's convex hull, rounded out 170 m, wandering a little
+/** the perimeter road: the lap's convex hull rounded out RR m (175: Austin's), wandering a little -> { ring (closed, a point every 6 m), hull } */
+export function ringRoad(tr, RR = 175) {
+  // the road: the lap's convex hull, rounded out, wandering a little
   const pts = []; for (let i = 0; i < tr.n; i += 6) pts.push([tr.px[i], tr.pz[i]]);
   pts.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
   const crs = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
   const lo = [], hi = []; for (const p of pts) { while (lo.length >= 2 && crs(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
   for (let k = pts.length - 1; k >= 0; k--) { const p = pts[k]; while (hi.length >= 2 && crs(hi[hi.length - 2], hi[hi.length - 1], p) <= 0) hi.pop(); hi.push(p); }
-  const hull = lo.slice(0, -1).concat(hi.slice(0, -1)), RR = 175, raw = [];
+  const hull = lo.slice(0, -1).concat(hi.slice(0, -1)), raw = [];
   for (let k = 0; k < hull.length; k++) {
     const p = hull[k], a = hull[(k - 1 + hull.length) % hull.length], b = hull[(k + 1) % hull.length];
     const a0 = Math.atan2(-(p[0] - a[0]), p[1] - a[1]); let a1 = Math.atan2(-(b[0] - p[0]), b[1] - p[1]); while (a1 < a0) a1 += Math.PI * 2;

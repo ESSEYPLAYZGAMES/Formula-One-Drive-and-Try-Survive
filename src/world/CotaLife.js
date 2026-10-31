@@ -397,33 +397,11 @@ export function buildCotaLife(C) {
     for (let k = 0; k < 2; k++) { const m = new THREE.Mesh(tramGeo, VMAT()); m.userData.onTerrain = true; m.name = 'cota:tram'; group.add(m); trams.push({ m, s0: k * route.total / 2 }); }
   }
 
-  // ---- the TV helicopters: one keeps station over the action (circling the car the camera follows, 110 m up, the
-  //      camera ball on it), one wide and high over the circuit. Each flies nose first along its path: never turned to
-  //      whoever is looking at it (a free camera in photo mode included), and still while the clock is stopped
-  const heliGeo = (() => {
-    const g = [];
-    const body = new THREE.SphereGeometry(1, 16, 10); body.scale(1.15, 1.05, 2.5); g.push(vc(body.translate(0, 1.6, 0), 0xf2f2f0));
-    const glass = new THREE.SphereGeometry(1, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2.2); glass.scale(1.0, 0.9, 1.3); glass.rotateX(1.2); g.push(vc(glass.translate(0, 1.8, 1.25), 0x1a2733));
-    g.push(vc(new THREE.CylinderGeometry(0.22, 0.32, 6.2, 8).rotateX(Math.PI / 2).translate(0, 1.95, -4.6), 0xf2f2f0), vc(new THREE.BoxGeometry(0.12, 1.5, 1.0).translate(0, 2.6, -7.5), 0x0a3161), vc(new THREE.BoxGeometry(1.8, 0.1, 0.6).translate(0, 2.0, -7.1), 0x0a3161));
-    g.push(vc(new THREE.BoxGeometry(2.2, 0.3, 4.6).translate(0, 0.95, -0.2), 0x0a3161));
-    for (const a of [-1, 1]) g.push(vc(new THREE.BoxGeometry(0.1, 0.1, 3.4).translate(a * 1.05, 0.1, 0), 0x2a2a2a), vc(new THREE.BoxGeometry(0.08, 0.8, 0.08).translate(a * 0.95, 0.5, 0.9), 0x2a2a2a), vc(new THREE.BoxGeometry(0.08, 0.8, 0.08).translate(a * 0.95, 0.5, -0.9), 0x2a2a2a));
-    g.push(vc(new THREE.SphereGeometry(0.38, 10, 8).translate(0, 0.65, 2.2), 0x222222), vc(new THREE.CylinderGeometry(0.18, 0.25, 0.8, 8).translate(0, 2.9, 0), 0x333333));
-    return mergeGeometries(g);
-  })();
-  const rotorGeo = mergeGeometries([vc(new THREE.BoxGeometry(11, 0.06, 0.35), 0x222222), vc(new THREE.BoxGeometry(0.35, 0.06, 11), 0x222222)]);
-  const tailGeo = mergeGeometries([vc(new THREE.BoxGeometry(0.05, 1.7, 0.18), 0x222222), vc(new THREE.BoxGeometry(0.05, 0.18, 1.7), 0x222222)]);
-  const heliMat = VMAT(); heliMat.roughness = 0.35; heliMat.metalness = 0.3;
-  const helis = [0, 1].map((k) => {
-    const G = new THREE.Group(); G.name = 'cota:heli'; G.userData.onTerrain = true;
-    const b = new THREE.Mesh(heliGeo, heliMat), r = new THREE.Mesh(rotorGeo, heliMat), t = new THREE.Mesh(tailGeo, heliMat);
-    r.position.y = 3.35; t.position.set(0.25, 2.6, -7.6); G.add(b, r, t); G.scale.setScalar(1.1); group.add(G);
-    return { G, r, t, k, pos: new THREE.Vector3(), vel: new THREE.Vector3(), yaw: 0, init: false };
-  });
-  let cx0 = 0, cz0 = 0; for (let i = 0; i < tr.n; i++) { cx0 += tr.px[i]; cz0 += tr.pz[i]; } cx0 /= tr.n; cz0 /= tr.n;
+  const helis = buildHelicopters(group, tr);
 
   console.info(`[cota] life: ${paths.length} walkways, ${gates.length} gates (${gates.map((g) => g.name).join(', ')}), ${villages.length} fan villages, ${walking.length} people walking, ${stood.length} standing about, ${trams.length} trams`);
 
-  let tPrev = null; const tgt = new THREE.Vector3();
+  let tPrev = null;
   return {
     nearPath, bigFlags: backs.bigFlags,
     /** focus: what the TV is covering (the car the camera follows: anything with x, z), else the camera's ground */
@@ -437,25 +415,34 @@ export function buildCotaLife(C) {
         const a = route[k - 1], b = route[k], f = (s - route.len[k - 1]) / Math.max(1e-3, route.len[k] - route.len[k - 1]), x = a[0] + (b[0] - a[0]) * f, z = a[1] + (b[1] - a[1]) * f;
         T.m.position.set(x, H(x, z), z); T.m.rotation.y = Math.atan2((b[0] - a[0]) * dir, (b[1] - a[1]) * dir);
       }
-      // the helicopters
-      for (const h of helis) {
-        const c = focus || cam?.position, a = h.k === 0 ? t * 0.045 : t * 0.026 + 2;
-        if (h.k === 0 && c) { const R = 150; tgt.set(c.x + Math.cos(a) * R, 0, c.z + Math.sin(a) * R); tgt.y = H(tgt.x, tgt.z) + 105; }
-        else { const R = 620; tgt.set(cx0 + Math.cos(a) * R, 0, cz0 + Math.sin(a) * R * 0.8); tgt.y = H(tgt.x, tgt.z) + 210; }
-        if (!h.init) { h.pos.copy(tgt); h.yaw = Math.atan2(-Math.sin(a), Math.cos(a)); h.init = true; }   // (nose along its orbit to start)
-        // (the clock stopped - paused, photo mode: it stays exactly as it was, its last motion included)
-        if (dt > 0) { const k = 1 - Math.exp(-dt * (h.k === 0 ? 0.35 : 1)), px = h.pos.x, pz = h.pos.z; h.pos.lerp(tgt, k); h.vel.set((h.pos.x - px) / dt, 0, (h.pos.z - pz) / dt); }
-        h.G.position.copy(h.pos);
-        // (heading: turned toward where it is flying at a helicopter's rate; held while it hovers)
-        const vx = h.vel.x, vz = h.vel.z, sp = Math.hypot(vx, vz);
-        if (dt > 0 && sp > 0.5) { const dy = Math.atan2(vx, vz) - h.yaw; h.yaw += Math.atan2(Math.sin(dy), Math.cos(dy)) * (1 - Math.exp(-dt * 1.2)); }
-        h.G.rotation.set(0, 0, 0); h.G.rotation.y = h.yaw;
-        h.G.rotateX(Math.min(0.18, sp * 0.004)); h.G.rotateZ(Math.sin(t * 0.3 + h.k) * 0.03);
-        h.r.rotation.y = t * 38; h.t.rotation.x = t * 60;
-      }
+      helis.update(t, dt, cam, focus);
     },
   };
 }
+
+/**
+ * The fans' flags, drawn into a w x h region at 0, 0 of a canvas: the Stars and Stripes, the Lone Star, Mexico's, the
+ * Netherlands', the Dutch orange, the Union Flag, Brazil, Canada, Germany, Italy, Spain, France, Japan, Finland,
+ * Australia and a papaya team banner (the backs of the banks' fence flags here; Silverstone's crowds' flags too)
+ */
+export const FLAGART = [
+  (x, w, h) => { for (let k = 0; k < 13; k++) { x.fillStyle = k % 2 ? '#ffffff' : '#b31942'; x.fillRect(0, (k * h) / 13, w, h / 13 + 1); } x.fillStyle = '#0a3161'; x.fillRect(0, 0, w * 0.4, h * 0.54); },   // USA
+  (x, w, h) => { x.fillStyle = '#ffffff'; x.fillRect(0, 0, w, h / 2); x.fillStyle = '#bf0a30'; x.fillRect(0, h / 2, w, h / 2); x.fillStyle = '#002868'; x.fillRect(0, 0, w / 3, h); x.fillStyle = '#fff'; x.beginPath(); x.arc(w / 6, h / 2, h * 0.14, 0, 7); x.fill(); },   // Texas
+  (x, w, h) => { ['#006847', '#ffffff', '#ce1126'].forEach((c, k) => { x.fillStyle = c; x.fillRect((k * w) / 3, 0, w / 3 + 1, h); }); x.fillStyle = '#8c6a3c'; x.beginPath(); x.arc(w / 2, h / 2, h * 0.14, 0, 7); x.fill(); },   // Mexico
+  (x, w, h) => { ['#ae1c28', '#ffffff', '#21468b'].forEach((c, k) => { x.fillStyle = c; x.fillRect(0, (k * h) / 3, w, h / 3 + 1); }); },   // the Netherlands
+  (x, w, h) => { x.fillStyle = '#ff6a00'; x.fillRect(0, 0, w, h); x.fillStyle = '#ffffff'; x.fillRect(0, h * 0.42, w, h * 0.16); },   // the Dutch orange
+  (x, w, h) => { x.fillStyle = '#012169'; x.fillRect(0, 0, w, h); x.strokeStyle = '#fff'; x.lineWidth = h * 0.2; x.beginPath(); x.moveTo(0, 0); x.lineTo(w, h); x.moveTo(w, 0); x.lineTo(0, h); x.stroke(); x.strokeStyle = '#c8102e'; x.lineWidth = h * 0.07; x.stroke(); x.fillStyle = '#fff'; x.fillRect(0, h * 0.36, w, h * 0.28); x.fillRect(w * 0.42, 0, w * 0.16, h); x.fillStyle = '#c8102e'; x.fillRect(0, h * 0.42, w, h * 0.16); x.fillRect(w * 0.46, 0, w * 0.08, h); },   // the Union Flag
+  (x, w, h) => { x.fillStyle = '#009b3a'; x.fillRect(0, 0, w, h); x.fillStyle = '#fedf00'; x.beginPath(); x.moveTo(w * 0.08, h / 2); x.lineTo(w / 2, h * 0.1); x.lineTo(w * 0.92, h / 2); x.lineTo(w / 2, h * 0.9); x.fill(); x.fillStyle = '#002776'; x.beginPath(); x.arc(w / 2, h / 2, h * 0.22, 0, 7); x.fill(); },   // Brazil
+  (x, w, h) => { x.fillStyle = '#d52b1e'; x.fillRect(0, 0, w, h); x.fillStyle = '#ffffff'; x.fillRect(w / 4, 0, w / 2, h); x.fillStyle = '#d52b1e'; x.beginPath(); x.moveTo(w / 2, h * 0.2); x.lineTo(w * 0.6, h * 0.55); x.lineTo(w / 2, h * 0.75); x.lineTo(w * 0.4, h * 0.55); x.fill(); },   // Canada
+  (x, w, h) => { ['#000000', '#dd0000', '#ffce00'].forEach((c, k) => { x.fillStyle = c; x.fillRect(0, (k * h) / 3, w, h / 3 + 1); }); },   // Germany
+  (x, w, h) => { ['#009246', '#ffffff', '#ce2b37'].forEach((c, k) => { x.fillStyle = c; x.fillRect((k * w) / 3, 0, w / 3 + 1, h); }); },   // Italy
+  (x, w, h) => { x.fillStyle = '#aa151b'; x.fillRect(0, 0, w, h); x.fillStyle = '#f1bf00'; x.fillRect(0, h / 4, w, h / 2); },   // Spain
+  (x, w, h) => { ['#002395', '#ffffff', '#ed2939'].forEach((c, k) => { x.fillStyle = c; x.fillRect((k * w) / 3, 0, w / 3 + 1, h); }); },   // France
+  (x, w, h) => { x.fillStyle = '#ffffff'; x.fillRect(0, 0, w, h); x.fillStyle = '#bc002d'; x.beginPath(); x.arc(w / 2, h / 2, h * 0.3, 0, 7); x.fill(); },   // Japan
+  (x, w, h) => { x.fillStyle = '#ffffff'; x.fillRect(0, 0, w, h); x.fillStyle = '#002f6c'; x.fillRect(0, h * 0.38, w, h * 0.24); x.fillRect(w * 0.28, 0, h * 0.24, h); },   // Finland
+  (x, w, h) => { x.fillStyle = '#00008b'; x.fillRect(0, 0, w, h); x.fillStyle = '#fff'; for (const [a, b, r] of [[0.75, 0.25, 0.06], [0.68, 0.6, 0.06], [0.85, 0.5, 0.05], [0.75, 0.82, 0.06], [0.25, 0.75, 0.09]]) { x.beginPath(); x.arc(w * a, h * b, h * r, 0, 7); x.fill(); } x.fillStyle = '#c8102e'; x.fillRect(0, h * 0.2, w * 0.5, h * 0.08); x.fillRect(w * 0.21, 0, w * 0.08, h * 0.5); },   // Australia
+  (x, w, h) => { x.fillStyle = '#ff8000'; x.fillRect(0, 0, w, h); x.fillStyle = '#1c1c1e'; x.fillRect(0, h * 0.78, w, h * 0.22); },   // a papaya team banner
+];
 
 /**
  * The backs of the banks: what a race weekend puts up along the top of every general-admission hill, just behind the
@@ -626,24 +613,6 @@ function buildBankBacks(C) {
   // ---- the fans' flags tied to the catch fence in front of them: the Stars and Stripes, the Lone Star, Mexico's (the
   //      border is a few hours' drive), the Dutch orange, the Union Flag, the rest of the grid's countries and the teams'
   //      colours - knotted on at the corners every few metres along every bank's fence, on the crowd's side of the mesh
-  const FLAGART = [
-    (x, w, h) => { for (let k = 0; k < 13; k++) { x.fillStyle = k % 2 ? '#ffffff' : '#b31942'; x.fillRect(0, (k * h) / 13, w, h / 13 + 1); } x.fillStyle = '#0a3161'; x.fillRect(0, 0, w * 0.4, h * 0.54); },   // USA
-    (x, w, h) => { x.fillStyle = '#ffffff'; x.fillRect(0, 0, w, h / 2); x.fillStyle = '#bf0a30'; x.fillRect(0, h / 2, w, h / 2); x.fillStyle = '#002868'; x.fillRect(0, 0, w / 3, h); x.fillStyle = '#fff'; x.beginPath(); x.arc(w / 6, h / 2, h * 0.14, 0, 7); x.fill(); },   // Texas
-    (x, w, h) => { ['#006847', '#ffffff', '#ce1126'].forEach((c, k) => { x.fillStyle = c; x.fillRect((k * w) / 3, 0, w / 3 + 1, h); }); x.fillStyle = '#8c6a3c'; x.beginPath(); x.arc(w / 2, h / 2, h * 0.14, 0, 7); x.fill(); },   // Mexico
-    (x, w, h) => { ['#ae1c28', '#ffffff', '#21468b'].forEach((c, k) => { x.fillStyle = c; x.fillRect(0, (k * h) / 3, w, h / 3 + 1); }); },   // the Netherlands
-    (x, w, h) => { x.fillStyle = '#ff6a00'; x.fillRect(0, 0, w, h); x.fillStyle = '#ffffff'; x.fillRect(0, h * 0.42, w, h * 0.16); },   // the Dutch orange
-    (x, w, h) => { x.fillStyle = '#012169'; x.fillRect(0, 0, w, h); x.strokeStyle = '#fff'; x.lineWidth = h * 0.2; x.beginPath(); x.moveTo(0, 0); x.lineTo(w, h); x.moveTo(w, 0); x.lineTo(0, h); x.stroke(); x.strokeStyle = '#c8102e'; x.lineWidth = h * 0.07; x.stroke(); x.fillStyle = '#fff'; x.fillRect(0, h * 0.36, w, h * 0.28); x.fillRect(w * 0.42, 0, w * 0.16, h); x.fillStyle = '#c8102e'; x.fillRect(0, h * 0.42, w, h * 0.16); x.fillRect(w * 0.46, 0, w * 0.08, h); },   // the Union Flag
-    (x, w, h) => { x.fillStyle = '#009b3a'; x.fillRect(0, 0, w, h); x.fillStyle = '#fedf00'; x.beginPath(); x.moveTo(w * 0.08, h / 2); x.lineTo(w / 2, h * 0.1); x.lineTo(w * 0.92, h / 2); x.lineTo(w / 2, h * 0.9); x.fill(); x.fillStyle = '#002776'; x.beginPath(); x.arc(w / 2, h / 2, h * 0.22, 0, 7); x.fill(); },   // Brazil
-    (x, w, h) => { x.fillStyle = '#d52b1e'; x.fillRect(0, 0, w, h); x.fillStyle = '#ffffff'; x.fillRect(w / 4, 0, w / 2, h); x.fillStyle = '#d52b1e'; x.beginPath(); x.moveTo(w / 2, h * 0.2); x.lineTo(w * 0.6, h * 0.55); x.lineTo(w / 2, h * 0.75); x.lineTo(w * 0.4, h * 0.55); x.fill(); },   // Canada
-    (x, w, h) => { ['#000000', '#dd0000', '#ffce00'].forEach((c, k) => { x.fillStyle = c; x.fillRect(0, (k * h) / 3, w, h / 3 + 1); }); },   // Germany
-    (x, w, h) => { ['#009246', '#ffffff', '#ce2b37'].forEach((c, k) => { x.fillStyle = c; x.fillRect((k * w) / 3, 0, w / 3 + 1, h); }); },   // Italy
-    (x, w, h) => { x.fillStyle = '#aa151b'; x.fillRect(0, 0, w, h); x.fillStyle = '#f1bf00'; x.fillRect(0, h / 4, w, h / 2); },   // Spain
-    (x, w, h) => { ['#002395', '#ffffff', '#ed2939'].forEach((c, k) => { x.fillStyle = c; x.fillRect((k * w) / 3, 0, w / 3 + 1, h); }); },   // France
-    (x, w, h) => { x.fillStyle = '#ffffff'; x.fillRect(0, 0, w, h); x.fillStyle = '#bc002d'; x.beginPath(); x.arc(w / 2, h / 2, h * 0.3, 0, 7); x.fill(); },   // Japan
-    (x, w, h) => { x.fillStyle = '#ffffff'; x.fillRect(0, 0, w, h); x.fillStyle = '#002f6c'; x.fillRect(0, h * 0.38, w, h * 0.24); x.fillRect(w * 0.28, 0, h * 0.24, h); },   // Finland
-    (x, w, h) => { x.fillStyle = '#00008b'; x.fillRect(0, 0, w, h); x.fillStyle = '#fff'; for (const [a, b, r] of [[0.75, 0.25, 0.06], [0.68, 0.6, 0.06], [0.85, 0.5, 0.05], [0.75, 0.82, 0.06], [0.25, 0.75, 0.09]]) { x.beginPath(); x.arc(w * a, h * b, h * r, 0, 7); x.fill(); } x.fillStyle = '#c8102e'; x.fillRect(0, h * 0.2, w * 0.5, h * 0.08); x.fillRect(w * 0.21, 0, w * 0.08, h * 0.5); },   // Australia
-    (x, w, h) => { x.fillStyle = '#ff8000'; x.fillRect(0, 0, w, h); x.fillStyle = '#1c1c1e'; x.fillRect(0, h * 0.78, w, h * 0.22); },   // a papaya team banner
-  ];
   const FW = 128, FH = 80, fenceFlags = [];
   const flagTex = canvasTex(FW * 4, FH * 4, (x) => FLAGART.forEach((draw, k) => { x.save(); x.translate((k % 4) * FW, Math.floor(k / 4) * FH); x.beginPath(); x.rect(0, 0, FW, FH); x.clip(); draw(x, FW, FH); x.restore(); }));
   const PICKF = [0, 0, 0, 1, 1, 2, 2, 2, 3, 4, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 15];   // (the home flags and Mexico's most of all)
@@ -665,4 +634,54 @@ function buildBankBacks(C) {
   if (screens.length) { const m = new THREE.Mesh(mergeGeometries(screens), new THREE.MeshStandardMaterial({ color: 0x0b1a2e, emissive: 0x2a5aa8, emissiveIntensity: 0.9, roughness: 0.3 })); m.name = 'cota:bankscreens'; group.add(m); }
   console.info(`[cota] the backs of the banks: ${nChalets} hospitality suites, ${nStalls} stalls, ${nTall} light towers / PA poles / flagpoles, ${nScreens} more big screens, ${bigFlags.length} flags on poles, ${fenceFlags.length} on the fences`);
   return { bigFlags };
+}
+
+/**
+ * The TV helicopters (CotaLife's and any circuit's): one keeps station over the action (circling the car the camera
+ * follows, 110 m up, the camera ball on it), one wide and high over the circuit. Each flies nose first along its path:
+ * never turned to whoever is looking at it (a free camera in photo mode included), and still while the clock is stopped.
+ * -> { update(t, dt, cam, focus) }
+ */
+export function buildHelicopters(group, tr) {
+  const H = (x, z) => TERRAIN.at(x, z);
+  const heliGeo = (() => {
+    const g = [];
+    const body = new THREE.SphereGeometry(1, 16, 10); body.scale(1.15, 1.05, 2.5); g.push(vc(body.translate(0, 1.6, 0), 0xf2f2f0));
+    const glass = new THREE.SphereGeometry(1, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2.2); glass.scale(1.0, 0.9, 1.3); glass.rotateX(1.2); g.push(vc(glass.translate(0, 1.8, 1.25), 0x1a2733));
+    g.push(vc(new THREE.CylinderGeometry(0.22, 0.32, 6.2, 8).rotateX(Math.PI / 2).translate(0, 1.95, -4.6), 0xf2f2f0), vc(new THREE.BoxGeometry(0.12, 1.5, 1.0).translate(0, 2.6, -7.5), 0x0a3161), vc(new THREE.BoxGeometry(1.8, 0.1, 0.6).translate(0, 2.0, -7.1), 0x0a3161));
+    g.push(vc(new THREE.BoxGeometry(2.2, 0.3, 4.6).translate(0, 0.95, -0.2), 0x0a3161));
+    for (const a of [-1, 1]) g.push(vc(new THREE.BoxGeometry(0.1, 0.1, 3.4).translate(a * 1.05, 0.1, 0), 0x2a2a2a), vc(new THREE.BoxGeometry(0.08, 0.8, 0.08).translate(a * 0.95, 0.5, 0.9), 0x2a2a2a), vc(new THREE.BoxGeometry(0.08, 0.8, 0.08).translate(a * 0.95, 0.5, -0.9), 0x2a2a2a));
+    g.push(vc(new THREE.SphereGeometry(0.38, 10, 8).translate(0, 0.65, 2.2), 0x222222), vc(new THREE.CylinderGeometry(0.18, 0.25, 0.8, 8).translate(0, 2.9, 0), 0x333333));
+    return mergeGeometries(g);
+  })();
+  const rotorGeo = mergeGeometries([vc(new THREE.BoxGeometry(11, 0.06, 0.35), 0x222222), vc(new THREE.BoxGeometry(0.35, 0.06, 11), 0x222222)]);
+  const tailGeo = mergeGeometries([vc(new THREE.BoxGeometry(0.05, 1.7, 0.18), 0x222222), vc(new THREE.BoxGeometry(0.05, 0.18, 1.7), 0x222222)]);
+  const heliMat = VMAT(); heliMat.roughness = 0.35; heliMat.metalness = 0.3;
+  const helis = [0, 1].map((k) => {
+    const G = new THREE.Group(); G.name = 'cota:heli'; G.userData.onTerrain = true;
+    const b = new THREE.Mesh(heliGeo, heliMat), r = new THREE.Mesh(rotorGeo, heliMat), t = new THREE.Mesh(tailGeo, heliMat);
+    r.position.y = 3.35; t.position.set(0.25, 2.6, -7.6); G.add(b, r, t); G.scale.setScalar(1.1); group.add(G);
+    return { G, r, t, k, pos: new THREE.Vector3(), vel: new THREE.Vector3(), yaw: 0, init: false };
+  });
+  let cx0 = 0, cz0 = 0; for (let i = 0; i < tr.n; i++) { cx0 += tr.px[i]; cz0 += tr.pz[i]; } cx0 /= tr.n; cz0 /= tr.n;
+  const tgt = new THREE.Vector3();
+  return {
+    update(t, dt, cam, focus) {
+      for (const h of helis) {
+        const c = focus || cam?.position, a = h.k === 0 ? t * 0.045 : t * 0.026 + 2;
+        if (h.k === 0 && c) { const R = 150; tgt.set(c.x + Math.cos(a) * R, 0, c.z + Math.sin(a) * R); tgt.y = H(tgt.x, tgt.z) + 105; }
+        else { const R = 620; tgt.set(cx0 + Math.cos(a) * R, 0, cz0 + Math.sin(a) * R * 0.8); tgt.y = H(tgt.x, tgt.z) + 210; }
+        if (!h.init) { h.pos.copy(tgt); h.yaw = Math.atan2(-Math.sin(a), Math.cos(a)); h.init = true; }   // (nose along its orbit to start)
+        // (the clock stopped - paused, photo mode: it stays exactly as it was, its last motion included)
+        if (dt > 0) { const k = 1 - Math.exp(-dt * (h.k === 0 ? 0.35 : 1)), px = h.pos.x, pz = h.pos.z; h.pos.lerp(tgt, k); h.vel.set((h.pos.x - px) / dt, 0, (h.pos.z - pz) / dt); }
+        h.G.position.copy(h.pos);
+        // (heading: turned toward where it is flying at a helicopter's rate; held while it hovers)
+        const vx = h.vel.x, vz = h.vel.z, sp = Math.hypot(vx, vz);
+        if (dt > 0 && sp > 0.5) { const dy = Math.atan2(vx, vz) - h.yaw; h.yaw += Math.atan2(Math.sin(dy), Math.cos(dy)) * (1 - Math.exp(-dt * 1.2)); }
+        h.G.rotation.set(0, 0, 0); h.G.rotation.y = h.yaw;
+        h.G.rotateX(Math.min(0.18, sp * 0.004)); h.G.rotateZ(Math.sin(t * 0.3 + h.k) * 0.03);
+        h.r.rotation.y = t * 38; h.t.rotation.x = t * 60;
+      }
+    },
+  };
 }

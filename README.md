@@ -353,7 +353,8 @@ instant, and picking the other one replaces it. Going back to the circuit list u
 render targets and show canvas exist only while Las Vegas is loaded. Only one circuit is ever in memory. A definition holds the OSM chain (road-name legs for a
 street circuit, or an ordered list of raceway way ids via `ways`), the pit-lane way, and the venue dressing: ground,
 kerb style, sponsor panels, run-off paint and text, default time of day, cinematic shots, landmark set.
-`src/world/Venue.js` turns OSM grandstand footprints and the named pit building (the Silverstone Wing) into geometry.
+`src/world/Venue.js` turns OSM grandstand footprints and the named pit building into plain geometry for a permanent circuit
+without scenery of its own (a circuit with `scenery` builds its venue itself: Silverstone's in `src/world/Silverstone.js`).
 Every `data/*.geojson` is embedded by the bundler.
 
 Both tracks set `line: 'optimal'`: a minimum-curvature racing line over the usable width (`RacingLine.js`,
@@ -390,6 +391,61 @@ triangles a frame, under Las Vegas). The water and shores are approximations: th
 
 Career: a kiss of the Wall of Champions in a race (`RaceDirector.onImpact`, `car.wocKiss`) is kept with the season it
 came in; win the title that season and the **Wall of Champions** trophy is yours.
+
+### Silverstone: the British Grand Prix weekend
+
+`src/world/Silverstone.js` (`scenery: 'silverstone'`) builds the venue in place of `Venue.js`, on the same contract: the
+footprints it claims (the generic extruder skips them) and the real stands' placements for `Grandstands.js`, which
+builds their tiers and crowds while the roofs and the rest are dressed on in the same frame.
+
+* **The Wing**, on its real footprint fitted clear of the pit lane, in its own frame (along the building toward the Club
+  end, across it from the garages to the paddock). Three floors of glass over the garages, each with a 3 m balcony, a
+  glass rail and its guests. The roof is a row of long blades, each overlapping the next and raked up toward the Club end
+  so their leading edges step up like stacked wings: white on top, dark red under the overhang and on their ends. At the
+  end the cars arrive from, the prow is a dark lofted wedge with grey checks, rising from the ground past the roof to a
+  tip 44 m up that leans out over the pit lane, with a red arris up its leading edge. On its face are the podium balcony
+  (with the three steps of the podium), the red-and-white chequered panel and the F1 screen. Open steps stand beyond it,
+  in the pocket the curving pit entry leaves. The survey's glass footbridge runs from the hotel over the start to the
+  Wing, 14.5-18.5 m up. Also built: a start gantry, DHL and Emirates banners down the pit wall, and the paddock behind
+  the Wing (motorhomes, trucks, the broadcast compound).
+* **28 grandstands by their real names**, each from its footprint's front edge (per 4 m of the lap, the outline's point
+  nearest the road). A stand that curves with its corner, as Club's does, becomes a chain of straight runs with one roof
+  over the whole chain. Each stand has its own build (`DESIGN`):
+  * roof: `arc` (Club's white shell), `cantilever` (grey at Luffield and Hamilton Straight, turquoise at Stowe, blue at
+    Woodcote and Village), `flat` on columns (Abbey, Copse, Chapel), `skillion` (Becketts' white), `membrane` (The View)
+    or none;
+  * rows of 0.66 m by 1.05 m, steeper than the default (`style.tierH` / `tierD`), with blue seats (`style.seat`);
+  * a sponsor's hoarding along the front, its name on the roof's edge or on a board over its back, flags on poles along
+    its top, and a screen at some;
+  * a crowd in papaya, navy, red and team colours (`style.shirts` / `poses`), about one in forty of them waving a flag:
+    Union Flags most, St George, LN4 papaya, the Dutch orange.
+* **Crowds and trackside**:
+  * 30 general-admission banks wherever nothing else stands. Each bank's fence, with its boards, stands 13 m past the
+    run-off's or verge's cap (`track.wallAt`, smoothed, never brought nearer). Behind it the crowd stands on a raked
+    mound, then a walkway with people walking, food trucks, marquees, toilets, flagpoles and light towers, and a screen
+    every third bank.
+  * Each bank's footprint, from the fence back, is a solid (`scenery.solids`, added to the obstacles by main.js), so a car
+    off the road still runs out onto open grass first.
+  * Marshal posts behind the run-offs and TV towers on the outside of the corners.
+* **The site**:
+  * the Stowe circuit, the National pit lane and the Porsche Experience's tracks, from the export's other raceways;
+  * the old National pits restyled (white, a canopy, team-coloured doors) and the BRDC clubhouse;
+  * the Paddock Club (two storeys of glass near the pit exit) and hospitality villages of white marquees;
+  * the infield lake, placed on the most open ground;
+  * the fan zone: the big blue-and-white top, a turning wheel, a stage and screen, stalls and a crowd.
+* **The land** to 2.3 km round the circuit, in ~170 m fields with jittered corners:
+  * campsites to the north and west (about 12,000 tents, caravans, Union Flags on poles);
+  * car parks to the east and south (about 8,500 cars);
+  * Silverstone Park's sheds to the west;
+  * beyond them, farmland: wheat, barley, beans, pasture with sheep and ploughed earth, all in one mesh, each field its
+    crop's colour with its own drill-line direction;
+  * hedgerows with oaks in them, tree-lined roads, woods (about 30,000 trees in three kinds), and a perimeter road with
+    roads in from it;
+  * TV helicopters (CotaLife's `buildHelicopters`).
+
+Everything is merged or instanced, a few draw calls per kind, with the land's kinds in 1.5 km cells that each have their own
+cut-off distance (`userData.cut`, main.js `cullBuildings`). The road, kerbs, run-offs, barriers, surfaces, pit wall and
+racing line are exactly as before; the catch fences on the barriers follow the stands' real outlines (`markFences`).
 
 ### AI calibration: training, and telemetry
 

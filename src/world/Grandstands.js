@@ -6,7 +6,9 @@ import { corridorSigned } from '../track/TrackBuilder.js';
 import { TERRAIN } from './Terrain.js';
 import { fanMaterial, fanMesh, FAN_COLOURS, STANDING } from './FanCutouts.js';
 
-const STAND = { len: 64, depth: 17, tiers: 11, tierD: 1.35, tierH: 0.48, base: 1.2, gap: 5.5 };   // gap = metres from the barrier to the first tier
+// (exported: a circuit's own scenery dresses its real stands - roofs, hoardings, flags - round the tiers built here, in
+//  the same frame: world/Silverstone.js)
+export const STAND = { len: 64, depth: 17, tiers: 11, tierD: 1.35, tierH: 0.48, base: 1.2, gap: 5.5 };   // gap = metres from the barrier to the first tier
 // (a grandstand's shirts: the everyday ones and more of the teams' than out on the grass)
 const STAND_SHIRTS = [...FAN_COLOURS.SHIRT, 0xd0702c, 0xd0702c, 0xa82a32, 0xa82a32, 0x1f2c5a, 0x3fa596, 0x1c1c1e, 0x1f5a4c, 0x2b4f9e, 0xd8c04a];
 
@@ -20,6 +22,8 @@ function starsTexture() {
   x.fillStyle = '#ffffff'; x.beginPath(); for (let j = 0; j < 10; j++) { const a = -Math.PI / 2 + j * Math.PI / 5, r = j % 2 ? 26 : 64; (j ? x.lineTo : x.moveTo).call(x, 120 + Math.cos(a) * r, 150 + Math.sin(a) * r); } x.fill();
   STARS = new THREE.CanvasTexture(c); STARS.colorSpace = THREE.SRGBColorSpace; return STARS;
 }
+/** a geometry tagged with one colour for every vertex it will have once non-indexed (merged by buildGrandstands' merge) */
+function vcol(g, hex) { const c = new THREE.Color(hex), n = (g.index ? g.index.count : g.attributes.position.count), a = new Array(n * 3); for (let k = 0; k < n; k++) { a[k * 3] = c.r; a[k * 3 + 1] = c.g; a[k * 3 + 2] = c.b; } g.userData.rgb = a; return g; }
 function pointInRing(x, z, ring) {
   let inside = false;
   for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
@@ -76,11 +80,14 @@ export function buildGrandstands(track, pit, obstacles, opts = {}) {
   // --- geometry: tiers, back wall, canopy, pillars
   // (a stand's style - p.style, a real stand's own: roof 'canopy' (the default) | 'membrane' (translucent fabric) |
   //  'none'; frame 'red' (the red steel tubes outlining it); levels (decks, a glass band of suites between them);
-  //  art 'stars' (the Stars and Stripes across its top end); color (the structure's))
-  const structure = [], canopies = [], membranes = [], reds = [], glass = [], plinths = [], arts = [];
+  //  art 'stars' (the Stars and Stripes across its top end); color (the structure's); seat (the seats' colour: the treads
+  //  of the steps painted it, showing wherever a place is empty); fill (how full it is, 0.92 by default); shirts (its
+  //  crowd's palette); poses (its people's figures, FanCutouts' variants); tierH / tierD (a row's rise and depth: steeper
+  //  than STAND's))
+  const structure = [], canopies = [], membranes = [], reds = [], glass = [], plinths = [], arts = [], seats = [];
   const fanPos = [];   // [x, y, z, ang]
   for (const p of placed) {
-    const LEN = p.len; const TIERS = p.tiers || STAND.tiers, ST = p.style || {};
+    const LEN = p.len; const TIERS = p.tiers || STAND.tiers, ST = p.style || {}, TH = ST.tierH || STAND.tierH, TD = ST.tierD || STAND.tierD;   // (a steeper stand: its own rise and depth a row)
     const faceAng = Math.atan2(-p.ez[0], -p.ez[1]);   // a sheet's normal points at the track
     // (on a circuit that is not flat, level on its own ground: the front edge's highest point, a concrete plinth down
     //  into the slope under the rest - world/Terrain.js)
@@ -108,16 +115,17 @@ export function buildGrandstands(track, pit, obstacles, opts = {}) {
     const box = (w, h, d) => new THREE.BoxGeometry(d, h, w);   // w along the track -> local z; d across -> local x
     structure.push(place(box(LEN, STAND.base, 0.8), 0, STAND.base / 2, 0.4));                 // front parapet
     for (let t = 0; t < TIERS; t++) {
-      const y = STAND.base + t * STAND.tierH; const z0 = 0.8 + t * STAND.tierD;
-      structure.push(place(box(LEN, STAND.tierH, STAND.tierD), 0, y + STAND.tierH / 2 - STAND.tierH, z0 + STAND.tierD / 2));   // step
+      const y = STAND.base + t * TH; const z0 = 0.8 + t * TD;
+      structure.push(place(box(LEN, TH, TD), 0, y + TH / 2 - TH, z0 + TD / 2));   // step
+      if (ST.seat != null) seats.push(vcol(place(box(LEN - 0.4, 0.42, 0.5), 0, y + 0.21, z0 + 0.62), ST.seat));   // (the row of seats on it)
       // a row of fans standing on this tier
       for (let lx = -LEN / 2 + 0.6; lx < LEN / 2 - 0.6; lx += 0.62 + Math.random() * 0.15) {
-        if (Math.random() < 0.08) continue;   // empty seats
+        if (Math.random() > (ST.fill ?? 0.92)) continue;   // empty seats
         const [x, z] = p.world(lx + (Math.random() - 0.5) * 0.2, z0 + 0.55 + Math.random() * 0.3);
         fanPos.push([x, y + p.y0 + p.k * lx, z, faceAng + (Math.random() - 0.5) * 0.5, p, lx, t]);   // facing the track (sheet across the line of sight)
       }
     }
-    const top = STAND.base + TIERS * STAND.tierH; const back = 0.8 + TIERS * STAND.tierD;
+    const top = STAND.base + TIERS * TH; const back = 0.8 + TIERS * TD;
     p.depth = back + 0.6; p.height = top + 6;   // (its footprint, for the obstacles the cars can hit: world/Obstacles.js)
     if (TERRAIN.on) {
       // (under a stand on a slope, its steel frame down to the ground wherever that falls away behind the front edge:
@@ -146,7 +154,7 @@ export function buildGrandstands(track, pit, obstacles, opts = {}) {
       for (const lx of [-LEN / 2 - 0.4, LEN / 2 + 0.4]) reds.push(tube([lx, 0, 0.3], [lx, top + 1.4, 0.3], 0.28), tube([lx, top + 1.4, 0.3], [lx, top + 8.6, back + 0.6], 0.28), tube([lx, 0, back + 0.6], [lx, top + 8.6, back + 0.6], 0.28));
     }
     if (ST.levels > 1) for (let k = 1; k < ST.levels; k++) {   // (the suites: a glass band across the stand between its decks)
-      const t = Math.round((TIERS * k) / ST.levels), y = STAND.base + t * STAND.tierH, z0 = 0.8 + t * STAND.tierD;
+      const t = Math.round((TIERS * k) / ST.levels), y = STAND.base + t * TH, z0 = 0.8 + t * TD;
       glass.push(place(box(LEN, 2.4, 0.4), 0, y + 1.2, z0 + 0.2)); structure.push(place(box(LEN, 0.45, 2.2), 0, y + 2.6, z0 + 1.0));
     }
     if (ST.art === 'stars') { const g = new THREE.PlaneGeometry(back * 0.95, top * 0.75); arts.push(place(g, LEN / 2 + 0.45, top * 0.62, back * 0.52)); }
@@ -165,16 +173,20 @@ export function buildGrandstands(track, pit, obstacles, opts = {}) {
       group.add(new THREE.Mesh(merge(plinths), new THREE.MeshStandardMaterial({ map: t, alphaTest: 0.5, transparent: false, side: THREE.DoubleSide, roughness: 0.6, metalness: 0.4 })));
     }
     if (arts.length) group.add(new THREE.Mesh(merge(arts), new THREE.MeshStandardMaterial({ map: starsTexture(), side: THREE.DoubleSide, roughness: 0.7 })));
+    if (seats.length) { const g = merge(seats), c = []; for (const s of seats) c.push(...s.userData.rgb); g.setAttribute('color', new THREE.Float32BufferAttribute(c, 3)); group.add(new THREE.Mesh(g, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55 }))); }
   }
 
   // --- fans: the cut-out people (world/FanCutouts.js), one InstancedMesh per 400 m map cell (a stand off camera culls
   //     as a whole), standing in their rows; the cheering ones bounce
   const fansMat = fanMaterial();
   const cells = new Map(), meshes = [];
-  for (const f of fanPos) { const p = f[4], key = Math.floor(p.x / 400) * 1000 + Math.floor(p.z / 400); let arr = cells.get(key); if (!arr) cells.set(key, (arr = [])); arr.push(f); }
+  // (stands with a palette or figures of their own are kept to cells of their own kind: one per pair of lists in use)
+  const kinds = new Map(), kindOf = (st) => { if (!st?.shirts && !st?.poses) return ''; for (const [k, v] of kinds) if (v[0] === st.shirts && v[1] === st.poses) return k; const k = `,k${kinds.size}`; kinds.set(k, [st.shirts, st.poses]); return k; };
+  for (const f of fanPos) { const p = f[4], key = `${Math.floor(p.x / 400)},${Math.floor(p.z / 400)}${kindOf(p.style)}`; let arr = cells.get(key); if (!arr) cells.set(key, (arr = [])); arr.push(f); }
   for (const mine of cells.values()) {
     if (!mine.length) continue;
-    const fans = fanMesh(mine.map(([x, y, z, a]) => [x, y, z, a, STANDING[(Math.random() * STANDING.length) | 0]]), fansMat, Math.random, { shirts: STAND_SHIRTS });
+    const ST = mine[0][4].style || {}, poses = ST.poses || STANDING;
+    const fans = fanMesh(mine.map(([x, y, z, a]) => [x, y, z, a, poses[(Math.random() * poses.length) | 0]]), fansMat, Math.random, { shirts: ST.shirts || STAND_SHIRTS });
     group.add(fans);
     meshes.push({ fans, mine, orig: fans.instanceMatrix.array.slice(), hid: new Uint16Array(mine.length) });   // (orig, hid: for hide - counted, so overlapping hides undo cleanly)
   }

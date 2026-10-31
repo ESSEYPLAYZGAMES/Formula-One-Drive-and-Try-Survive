@@ -17,6 +17,7 @@ import { crowdTime } from './world/Crowd.js';
 import { buildVenue, standFootprints } from './world/Venue.js';
 import { buildMontreal } from './world/Montreal.js';
 import { buildAustin, austinCrowdZones } from './world/Austin.js';
+import { buildSilverstone } from './world/Silverstone.js';
 import { TERRAIN, setTerrain, trackHeights, buildHeightField, elevateWorld, terrainGround } from './world/Terrain.js';
 import { WOC_PANEL } from './track/Branding.js';
 import { TrackLights, floodlitAll } from './world/Lighting.js';
@@ -227,11 +228,12 @@ async function loadWorld(def) {
     u.uFace.value.set(fx / fl, 0, fz / fl); u.uRight.value.set(fz / fl, 0, -fx / fl);   // right = (-face) x up
     W.faceAngle0 = Math.atan2(fz, fx);   // the content then turns slowly (one revolution per 5 min) so it faces every part of the circuit over a race
   }
-  // venue pieces taken from the OSM footprints (a permanent circuit's pit building and real grandstands)
-  const venue = (def.osmStands || def.pitBuilding) ? buildVenue(geo, track, def, pit) : null;
+  // venue pieces taken from the OSM footprints (a permanent circuit's pit building and real grandstands) - unless the
+  // circuit has scenery of its own, which builds them itself (Silverstone's Wing and stands: world/Silverstone.js)
+  const venue = !def.scenery && (def.osmStands || def.pitBuilding) ? buildVenue(geo, track, def, pit) : null;
   if (venue) scene.add(venue.group);
   // a circuit's own scenery (Montreal: the islands' water and trees, the Biosphere, the casino, the stands, the paint on the grass)
-  const scenery = def.scenery === 'montreal' ? buildMontreal(geo, track, def, pit) : def.scenery === 'austin' ? buildAustin(geo, track, def, pit) : null;
+  const scenery = def.scenery === 'montreal' ? buildMontreal(geo, track, def, pit) : def.scenery === 'austin' ? buildAustin(geo, track, def, pit) : def.scenery === 'silverstone' ? buildSilverstone(geo, track, def, pit) : null;
   if (scenery) scene.add(scenery.group);
   await set('Raising the city…', 68);
   const buildings = buildGenericBuildings(geo, track, new Set([...lm.claimed, ...(venue ? venue.claimed : []), ...(scenery ? scenery.claimed : [])]), pit);
@@ -250,6 +252,7 @@ async function loadWorld(def) {
   const clearOfTrack = (ring) => ring.every(([x, z]) => { const q = track.nearest(x, z); return Math.abs(q.d) > track.hw[q.i] + 3; });
   for (const r of buildings.userData.rings || []) if (r && r.length >= 3 && clearOfTrack(r)) obstacles.add(r, 12);
   for (const b of lmBoxes) { const r = [[b.min.x, b.min.z], [b.max.x, b.min.z], [b.max.x, b.max.z], [b.min.x, b.max.z]]; if (b.max.y > 2 && clearOfTrack(r)) obstacles.add(r, b.max.y); }
+  for (const o of scenery?.solids || []) if (clearOfTrack(o.ring)) obstacles.add(o.ring, o.h);   // (a circuit's own scenery: its buildings, the fences of its crowds)
   for (const p of stands.stands) {
     const L = p.len, D = p.depth || 12, r = [p.world(-L / 2, 0), p.world(L / 2, 0), p.world(L / 2, D), p.world(-L / 2, D)];
     standRings.push(r); if (clearOfTrack(r)) obstacles.add(r, p.height || 14);

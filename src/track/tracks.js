@@ -134,13 +134,14 @@ export const TRACKS = {
     osmStands: /^(grandstand)$/,     // building=grandstand footprints become real stands
     standNames: /^(Club [AB]|Stowe [AC]|Village [AB]|Vale|The View)$/,   // stands mapped as building=yes
     pitBuilding: 'Silverstone Wing',
+    scenery: 'silverstone',          // world/Silverstone.js: the Wing, the stands by their names, the crowds, the campsites, the fields
     defaultBuildingHeight: 7,
     buildingStyle: { base: 0x6f757d, litProb: 0.12 },
     zoneSeq: [9, 1, 10, 5, 9, 11, 0, 1, 10, 9, 5, 11],
     runoffPaint: [{ turns: [9, 15, 17, 18], color: [0.13, 0.3, 0.62] }, { turns: [1, 6, 7], color: [0.7, 0.12, 0.14] }, { turns: [3, 4, 16], color: [0.13, 0.3, 0.62] }],
     runoffDecalTurns: [1, 6, 9, 15, 17],
     shots: [
-      { building: 'Silverstone Wing', label: 'THE WING', rMul: 1.0, az: 0.6 }, { s: -150, label: 'HAMILTON STRAIGHT', side: -1 },
+      { scene: 'wing', label: 'THE WING', rMul: 1.0, az: 0.6 }, { s: -150, label: 'HAMILTON STRAIGHT', side: -1 },
       { turn: 1, label: 'ABBEY', side: -1 }, { turn: 4, label: 'THE LOOP', side: 1 }, { turn: 6, label: 'BROOKLANDS', side: 1 },
       { turn: 7, label: 'LUFFIELD', side: 1 }, { turn: 9, label: 'COPSE', side: 1 }, { turn: 12, label: 'MAGGOTTS · BECKETTS', side: -1 },
       { turn: 15, label: 'STOWE', side: 1 }, { turn: 17, label: 'CLUB', side: 1 },
