@@ -1,8 +1,8 @@
 // Tyre compounds, wear/temperature model and grip mapping.
 //
 // Life: a soft reaches its cliff (70 % wear) at half the race distance, a medium at 75 %, a hard at 110 % - so a hard
-// can run a race through, waiting for a safety car (COMPOUNDS.life: the cliff against a soft's). The distances are at
-// the AI's rate of wear; a driver who slides less makes a set last longer.
+// can run a race through, waiting for a safety car (COMPOUNDS.life: the cliff against a soft's). The same for every
+// driver, you and the AI alike (the rate barely depends on style; only real sliding wears a set faster).
 //
 // Degradation is set in lap time: every lap of normal wear costs a soft a second, a medium 0.75 s, a hard 0.5 s
 // (COMPOUNDS.deg) - in a race of up to ten laps. A longer race's tyres last longer, and lose what a ten-lap race's do at
@@ -118,7 +118,9 @@ export class TyreSet {
     //  below 0.6 - on the track it is made for it wears as a slick does in the dry)
     let dryPenalty = 1;
     if (this.spec.dryWear) dryPenalty = 1 + (this.spec.dryWear - 1) * Math.max(0, Math.min(1, (this.spec.wetFrom - wetness) / this.spec.wetFrom));
-    const rate = (0.55 + 2.2 * slip + 0.35 * load) * dryPenalty;
+    // (the rate of wear: nearly the same for every driver - a smooth one and the AI alike come out at ~1.0 a racing lap
+    //  (the AI's slip averages 0.12, a driver's ~0.09, their loads alike); a real slide, a lock-up, a spin still eats it)
+    const rate = (0.9 + 0.5 * Math.min(1.5, slip) + 0.05 * Math.min(3, load)) * dryPenalty;
     this.wear = Math.min(1, this.wear + (dist / this.lifeMeters) * rate * (this.wearMul || 1));   // (wearMul: the team's tyre development)
     this.age += dist;
     // temperature: toward the target its recent work sets (above) - a wet track holds a slick well below its window and

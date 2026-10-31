@@ -853,7 +853,7 @@ export class Car {
     const q = P.nearest(this.x, this.z, this._pq || (this._pq = {}));
     // inside the lane: between the garage wall and the lane's track-side edge (which is clipped to the kerb until the pit wall starts)
     const g = -P.trackSide * q.lat;   // + toward the garages
-    const inLane = g > -P.laneEdge[q.i] && g < P.halfWidth + 1.2 && q.u > P.divergeU - 4 && q.u < P.mergeU + 4 && !P.overlapsTrack[q.i];
+    const inLane = g > -P.laneEdge[q.i] && g < (P.garageW ? P.garageW[q.i] + 0.5 : P.halfWidth + 1.2) && q.u > P.divergeU - 4 && q.u < P.mergeU + 4 && !P.overlapsTrack[q.i];
     if (inLane && !this.pitLane) this.pitEntered = true;          // edge: entered the lane this step
     if (!inLane && this.pitLane) this.pitExited = true;
     this.pitLane = inLane; this.pitU = q.u; this.pitLat = q.lat; this.pitI = q.i;
@@ -867,7 +867,7 @@ export class Car {
     let nx, nz, px, pz, boL, boR;   // wall distance on the left / right of the centreline (Infinity = open)
     if (this.pitLane) {                                             // pit-lane walls: garage wall + the pit wall once it exists
       const P = this.pit, ps = P.samples, i = this.pitI; nx = ps.nx[i]; nz = ps.nz[i]; px = ps.px[i]; pz = ps.pz[i];
-      const garage = P.halfWidth + 0.7, wall = P.wallIn[i];
+      const garage = P.garageW ? P.garageW[i] : P.halfWidth + 0.7, wall = P.wallIn[i];   // (garageW: wide where the lane is an escape road - TrackBuilder buildPitLane)
       boL = P.trackSide > 0 ? wall : garage; boR = P.trackSide > 0 ? garage : wall;
     } else {
       // where a barrier stands (pushed back on the outside of corners; a permanent circuit has none along most of the lap)
@@ -902,7 +902,7 @@ export class Car {
     const tx = -wnz, tz = wnx, vt = v[0] * tx + v[1] * tz;               // Coulomb friction along the barrier
     const jt = Math.max(-0.35 * j, Math.min(0.35 * j, -vt / this.invMassAt(cx, cz, tx, tz)));
     this.impulseAt(cx, cz, j * wnx + jt * tx, j * wnz + jt * tz);
-    const bk = this.pitLane ? 'wall' : BAR_KIND[dc0 > 0 ? tr.barL[this.trackIdx] : tr.barR[this.trackIdx]] || 'wall';
+    const bk = this.pitLane ? (this.pit?.escape?.[this.pitI] ? 'tyres' : 'wall') : BAR_KIND[dc0 > 0 ? tr.barL[this.trackIdx] : tr.barR[this.trackIdx]] || 'wall';
     const gHit = this.pulse(Math.hypot(j, jt) / CAR.mass, PULSE[bk], bk);
     const sev = this.applyImpact(hitBx, hitBy, into);
     if (sev > 0) { world.onImpact?.(this, sev, 'wall'); this.emit('hit', cx, cz, sev); this.crushFlat(hitBx, hitBy, 0.32, wnx, wnz, into); }

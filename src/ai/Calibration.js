@@ -407,7 +407,7 @@ export const AI_CAL = {
       13: { v: 1.07, b: 1.075 },
       14: { v: 1.07, b: 1.075 },
       15: { v: 1.015, b: 1.014 },
-      16: { v: 1.095, b: 1.025 },
+      16: { v: 1.095, b: 1.025, race: { v: 1.04, b: 1.15 } },   // (Vale: the AI braked 20-30 m before the driver did, in traffic too - braked later always)
       17: { v: 1.095, b: 1.025 },
       18: { v: 1.095, b: 1.025 },
     },
@@ -419,7 +419,7 @@ export const AI_CAL = {
     fitted: "the composite of 3 laps (96.71 s) (2026-10-29, blend 0.7)",
     pack: true,
     // (Turn 11 driven on the driver's line - main.js makeRacingLine: the AI's went deep into a V, 13 m across at 56 km/h)
-    lineFrom: [[2242, 2602]],
+    lineFrom: [[2242, 2602], [3448, 3770]],   // (Turns 11 and 12 on the driver's line - main.js makeRacingLine)
     show: { every: 2, d: [
       -2.32, -2.47, -2.6, -2.71, -2.79, -2.85, -2.91, -2.96, -3.01, -3.06, -3.1, -3.14, -3.17, -3.19, -3.19, -3.18,
       -3.16, -3.12, -3.06, -2.99, -2.91, -2.83, -2.74, -2.64, -2.55, -2.45, -2.35, -2.26, -2.16, -2.06, -1.97, -1.87,
@@ -779,7 +779,7 @@ export const AI_CAL = {
       9: { v: 1.139, b: 1.075 },
       10: { v: 1.059, b: 1.075 },
       11: { v: 1, b: 1, race: { v: 0.92, win: [-45, 70] } },   // (on the driver's line now - lineFrom; in a race the field ran wide out of it, 30-70 m past the apex: a little slower through it, always)
-      12: { v: 0.956, b: 1.075 },
+      12: { v: 1, b: 1, race: { v: 0.94, win: [-45, 70] } },   // (on the driver's line - lineFrom; in a race the field ran deep and wide out of it)
       13: { v: 1.083, b: 1.075 },
       14: { v: 1.083, b: 1.075 },
       15: { v: 1.083, b: 1.075 },
@@ -978,7 +978,7 @@ export function applyCalibration(track, cal = AI_CAL[track.def.id]) {
       }
     };
     put(V, V_WIN, k.v); put(B, B_WIN, k.b);
-    if (k.race) { const pr = (arr, win, val) => { if (val == null || val === 1) return; for (let x = win[0] - EASE; x <= win[1] + EASE; x += track.ds) { const i = track.idxAtS(c.s + x), t = x < win[0] ? (x - win[0] + EASE) / EASE : x > win[1] ? (win[1] + EASE - x) / EASE : 1; arr[i] = Math.min(arr[i], 1 + (val - 1) * t * t * (3 - 2 * t)); } }; pr(VR, k.race.win || V_WIN, k.race.v); pr(BR, B_WIN, k.race.b); }
+    if (k.race) { const pr = (arr, win, val) => { if (val == null || val === 1) return; for (let x = win[0] - EASE; x <= win[1] + EASE; x += track.ds) { const i = track.idxAtS(c.s + x), t = x < win[0] ? (x - win[0] + EASE) / EASE : x > win[1] ? (win[1] + EASE - x) / EASE : 1; const fx = 1 + (val - 1) * t * t * (3 - 2 * t); if (Math.abs(fx - 1) > Math.abs(arr[i] - 1)) arr[i] = fx; } };   /* (overlapping windows: the factor that does more) */ pr(VR, k.race.win || V_WIN, k.race.v); pr(BR, B_WIN, k.race.b); }
   }
   return track;
 }

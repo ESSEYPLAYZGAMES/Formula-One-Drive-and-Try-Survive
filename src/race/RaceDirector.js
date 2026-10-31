@@ -14,6 +14,7 @@ import { ReplayBuffer } from './Replay.js';
 import { Sectors, Passes } from './Sectors.js';
 import { neutralForm } from '../career/Morale.js';
 import { setTyreLap, lapLoss, outLapLoss, cliffLaps, RATE_NOM } from '../vehicle/Tyres.js';
+import { StrategyCalls } from './Calls.js';
 
 const SUB = 1 / 120;
 /** a driver's form when the car carries none (career/Morale.js FORM: every multiplier 1, every addition 0) */
@@ -97,6 +98,7 @@ export class RaceDirector {
     //  the AI drives it)
     this.lapT = null;
     if (this.profile && this.track) { let t = 0; const n = this.track.n, ds = this.track.ds; for (let i = 0; i < n; i++) t += ds / Math.max(5, this.profile[i] || 5); this.lapT = t * 1.03; setTyreLap(this.lapT); }
+    this.calls = new StrategyCalls(this);   // (every car's plan, its stops, the calls the pit walls got wrong: race/Calls.js)
     this.sectors = new Sectors(this);   // (live sector times: purple / green / yellow)
     this.passes = new Passes(this);     // (on-track overtakes: c.overtakes)
     this.finishOrder = []; this.leaderFinished = false; this.leaderFinishTime = 0; this.endTimer = -1; this.done = false;
@@ -110,6 +112,7 @@ export class RaceDirector {
       onLine: (c, full) => this.onLine(c, full), onImpact: (c, sev, type) => this.onImpact(c, sev, type),
       onAIError: (c, type, zone) => this.onAIError(c, type, zone),
       pit: this.pit || null,   // (the AI brakes for the pit lane's speed limit line before it gets there)
+      calls: this.calls,
       // (what a stop costs here - the lane at the limiter against the same stretch at racing speed, the stop and the
       //  slowing and the getting going - and the reference lap: the AI's undercut sums, AIDriver)
       lapT: this.lapT, pitLoss: this.pit && this.lapT ? Math.max(12, this.pit.samples.length / this.pit.limiter - this.pit.samples.length / (this.track.length / this.lapT) + 2.4 + 2.2) : 22,
@@ -137,7 +140,7 @@ export class RaceDirector {
     // the last 12 s of every car's pose: a hurt driver's accident is cut from it for the news after the race
     this.replay = this.mode === 'race' ? new ReplayBuffer(this.cars) : null;
     // every AI car's race plan (standard / early / long / gamble), and the starting tyres that go with it
-    if (this.mode === 'race') for (const a of this.ai) if (a.planRace(this.world, a.car.gridPos || 1, this.cars.length)) this.onPitDone?.(a.car);
+    if (this.mode === 'race') for (const a of this.ai) { if (a.planRace(this.world, a.car.gridPos || 1, this.cars.length)) this.onPitDone?.(a.car); this.calls.plan(a.car, a.strat?.type, a.car.tyres.compound); }
     // lap telemetry: the player at 30 Hz, every AI car at 10 Hz (reference laps)
     this.telemetry = new Telemetry({ track: this.track, line: this.line, profile: this.profile, cars: this.cars, player: this.player, mode: this.mode,
       settings: { mode: s.mode, laps: s.lapsTotal, wetness: s.wetness, skill: s.skill, aggression: s.aggression } });
@@ -670,6 +673,7 @@ export class RaceDirector {
     }
     if (!this.world.racing || !full || this.cancelled) return;   // (a cancelled race: nothing counts any more)
     const now = this.crossTime(c), t = now - c.lapStart; c.lapTimes.push(t); if (t < c.bestLap) c.bestLap = t; c.lapStart = now; c.lap++;
+    if (this.mode === 'race') this.calls.lap(c);
     this.sc.onLine(c);
     if (c.isPlayer && !c.finished) this.hud?.msg(`LAP ${fmt(t)}${c.lap + 1 === this.lapsTotal ? '\nFINAL LAP' : ''}`, '', 2.2);
     if (c.isPlayer && !c.finished && this.engineer) {
@@ -795,6 +799,7 @@ export class RaceDirector {
         // (an AI car's repairs are what it needs now it is in the box, not what it needed when the stop was called: a stop
         //  called for tyres under the safety car, the car damaged in the incident, came straight back in for a wing)
         if (!me || !p.pitPlan) { const R = ['none', 'wing', 'full'], need = p.dmg.rw > 0.35 || p.dmg.susp > 0.55 ? 'full' : p.dmg.fwL > 0.3 || p.dmg.fwR > 0.3 ? 'wing' : 'none'; if (R.indexOf(need) > R.indexOf(plan.repair)) plan = { ...plan, repair: need }; }
+        if (this.mode === 'race') this.calls.stop(p, { reason: me ? (p.ai?.pitReason || 'plan') : p.ai?.pitReason, to: plan.compound, rival: p.ai?.pitReason === 'undercut' ? p.ai.lastUndercut?.on : null });
         p.held = true; p.pitLaneState = 'stop'; p.pitStopT = this.stopTime(p, plan) + p.penalties + (me && p._pull ? p._pull.pen : 0); p._stopServe = p.penalties; p.penaltyServed += p.penalties; p.penalties = 0; p.pitPlanActive = plan; p._stopAt = this.time; p._stopDur = p.pitStopT; p._stopPlan = plan;   // (_stop*: the crew's choreography, world/PitCrew.js)
         hud?.msg(`STOP · ${p.pitStopT.toFixed(1)}s${p._slowStop ? '\nSLOW STOP' : ''}`, p._slowStop ? 'bad' : 'warn', p.pitStopT);
         if (p._slowStop) E?.say('Slow stop, sorry, problem on the rear left.', 3);
@@ -937,6 +942,7 @@ export class RaceDirector {
       if (queued) { if (rem < 0.4) st.v = 0; }
       else if (rem < 0.4 || (rem < 3 && st.v < 0.3)) {
         st.phase = 'stop'; st.v = 0;
+        if (this.mode === 'race') this.calls.stop(c, { reason: c.ai?.pitReason, to: st.plan?.compound, rival: c.ai?.pitReason === 'undercut' ? c.ai.lastUndercut?.on : null });
         st.stopT = this.stopTime(c, st.plan) + c.penalties; st.serve = c.penalties; st.at = this.time; c.penaltyServed += c.penalties; c.penalties = 0;
         c._stopAt = this.time; c._stopDur = st.stopT; c._stopPlan = st.plan; c._stopServe = st.serve;
         if (c.isPlayer) this.hud?.msg(`STOP · ${st.stopT.toFixed(1)}s`, 'warn', st.stopT);

@@ -9,6 +9,7 @@
 // field's rating spread is only ~0.5 % of corner speed.
 import { COMPOUNDS, cliffLaps, lapLoss, tyreLap, RATE_NOM } from '../vehicle/Tyres.js';
 import { planRace as planStints } from '../ui/Strategy.js';
+import { FAULT_P } from '../race/Calls.js';
 import { CAR } from '../vehicle/Car.js';
 import { Planner, DS, NMAX } from './Planner.js';
 import { neutralForm } from '../career/Morale.js';
@@ -803,6 +804,11 @@ export class AIDriver {
     //  gambler holds out for a safety car to the last lap, and makes it there)
     const mustStop = world.lapsTotal >= 8 && c.pitStops === 0 && lapsLeft >= 0.6 && (S.type === 'gamble' ? lapsLeft <= 2.05
       : lapsLeft <= Math.ceil(world.lapsTotal * 0.45) && (t.wear > 0.45 || world.lapsTotal < 13 || lapsLeft <= 2.5));
+    // (the pit wall gets it wrong now and then - the more often the smaller the team: race/Calls.js FAULT_P. A stop for
+    //  worn tyres alone left a lap too late, once a stint; it stays out to the next lap's entry, on the cliff's edge)
+    const fp = FAULT_P[c.tier] ?? FAULT_P[2], onlyTyres = wornOut && !damaged && !wetMismatch && !mustStop && !cheap && !cover && !under;
+    if (onlyTyres && this._lateStint !== c.pitStops && lapsLeft >= 3) { this._lateStint = c.pitStops; if (rnd() < fp) { this._lateLap = c.lap; world.calls?.fault(c, 'late'); } }
+    if (onlyTyres && this._lateLap === c.lap) return;
     if (wornOut || damaged || wetMismatch || mustStop || cheap || cover || under) {
       this.pitReason = cheap ? 'cheap' : cover ? 'cover' : under ? 'undercut' : damaged ? 'damage' : wetMismatch ? 'weather' : 'tyres';
       c.pitRequested = true;
@@ -810,6 +816,9 @@ export class AIDriver {
       //  where it can be, as the rules want two in a dry race)
       let comp = this.nextCompound(lapsLeft);
       if (c.pitStops === 0 && comp === t.compound && c.wetness < 0.3) comp = comp === 'HARD' ? 'MEDIUM' : comp === 'MEDIUM' ? 'HARD' : 'MEDIUM';
+      // (... and now and then a set that will not last: one softer than the race wants, it falls away before the flag)
+      const softer = { HARD: 'MEDIUM', MEDIUM: 'SOFT' }[comp];
+      if (softer && c.wetness < 0.3 && lapsLeft > cliffLaps(softer, c.raceLaps) * 1.15 && rnd() < fp * 0.6) { comp = softer; world.calls?.fault(c, 'tyre', { comp }); }
       this.pitPlan = { compound: comp, repair: damaged ? ((c.dmg.rw > 0.35 || c.dmg.susp > 0.55) ? 'full' : 'wing') : 'none' };
     }
   }

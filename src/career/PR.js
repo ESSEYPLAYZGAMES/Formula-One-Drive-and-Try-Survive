@@ -353,6 +353,55 @@ const HL = {
     tab: [`Naughty step for {sur}! {ptsTxt} at {track}`, `Teacher's watching: {sur} in trouble with the stewards`],
     feed: [`Fans debate {sur}'s penalty for {reason}: harsh or fair?`, `"Fair call" - most of Chequered agrees with {sur}'s penalty`],
   },
+  // (a strategy call that made or cost your race - race/Calls.js: most are the pit wall's, so the team is in the line)
+  strategy: {
+    late: {
+      serious: [`{team} admit {sur} was left out a lap too long at {track}`, `A late call from {team} costs {sur} {n} places at {track}`, `Questions for the {team} pit wall after {sur}'s late stop at {track}`],
+      tv: [`Too late! {team} leave {sur} out on worn tyres at {track}`, `Strategy blunder at {track}: {sur} kept out a lap too long`],
+      pod: [`Ep. {ep}: the lap {team} left {sur} out, and what it cost`],
+      tab: [`Asleep on the pit wall? {team} leave {sur} out too long at {track}`, `Box, box - eventually! {team}'s slow call costs {sur}`],
+      feed: [`"Box a lap ago!" - Chequered fumes at {team}'s late call for {sur}`, `Fans want answers from {team} after {sur}'s late stop at {track}`],
+    },
+    tyre: {
+      serious: [`Wrong tyres from {team}: {sur}'s {comp}s fall away at {track}`, `{team}'s tyre choice leaves {sur} struggling at {track}`, `{sur} let down by {team}'s tyre call at {track}`],
+      tv: [`The tyres are gone! {team}'s call backfires on {sur} at {track}`],
+      tab: [`Wheel of misfortune: {team} pick the wrong {comp}s for {sur}`, `Rubber trouble for {sur} at {track}`],
+      feed: [`"Who picked those tyres?" - fans on {team}'s call for {sur} at {track}`],
+    },
+    unlucky: {
+      serious: [`Safety car timing cruel to {sur} at {track}`, `{sur} pits a lap before the safety car and pays for it at {track}`, `Bad luck for {sur}: a stop just before the safety car at {track}`],
+      tv: [`Gutted! {sur} pits just before the safety car at {track}`],
+      tab: [`Typical! {sur} pits - and out comes the safety car`, `Worst timing at {track}? {sur} stops a lap too soon`],
+      feed: [`"Worst timing ever" - fans feel for {sur} after the safety car at {track}`],
+    },
+    undercutWon: {
+      serious: [`{team}'s undercut puts {sur} ahead of {whoSur} at {track}`, `A well-timed stop gets {sur} past {whoSur} at {track}`, `{team} win the strategy battle at {track}`],
+      apex: [`The undercut, done right: how {team} got {sur} ahead at {track}`],
+      tv: [`Undercut! {sur} jumps {whoSur} in the stops at {track}`],
+      pod: [`Ep. {ep}: the {sur} undercut at {track}, lap by lap`],
+      tab: [`Pit-stop pickpocket! {sur} steals a place from {whoSur}`, `In and out: {sur} sneaks ahead at {track}`],
+      feed: [`"Textbook" - fans hail {team}'s undercut for {sur} at {track}`],
+    },
+    undercutFailed: {
+      serious: [`{sur}'s undercut on {whoSur} falls short at {track}`, `An early stop fails to get {sur} ahead at {track}`],
+      tv: [`No dice! {sur}'s undercut doesn't work at {track}`],
+      tab: [`Nice try, {sur}: the undercut flops at {track}`],
+      feed: [`Fans debate {team}'s early stop for {sur} at {track}`],
+    },
+    gamblePaid: {
+      serious: [`{team}'s safety-car gamble pays off for {sur} at {track}`, `{sur} gains {n} places on one well-timed stop at {track}`, `A long first stint and a cheap stop: {sur} up to {pos} at {track}`],
+      apex: [`How {team}'s patient strategy won {sur} {n} places at {track}`],
+      tv: [`The gamble pays off! {sur} up to {pos} at {track}`],
+      tab: [`Jackpot! {sur}'s strategy gamble comes good at {track}`],
+      feed: [`"Big-brain strategy" - fans love {team}'s call for {sur} at {track}`],
+    },
+    gambleFailed: {
+      serious: [`No safety car, no reward: {team}'s gamble fails {sur} at {track}`, `{sur} drops {n} places with a last-lap stop at {track}`, `{team} wait for a safety car that never came at {track}`],
+      tv: [`It never came! {sur}'s safety-car gamble fails at {track}`],
+      tab: [`Waiting for a miracle: {team}'s gamble leaves {sur} short`],
+      feed: [`Fans question {team}'s all-or-nothing strategy for {sur} at {track}`],
+    },
+  },
   ban: {
     serious: [`{sur} to miss {nextgp} after reaching 12 penalty points`, `Twelve points: {sur} handed a one-race ban`, `{sur} suspended for one race under the penalty-points system`],
     apex: [`How {sur} reached twelve points - and what has to change`],
@@ -702,6 +751,7 @@ const tokens = (c, kind, x = {}, anon = PERSONAL.has(kind)) => {
     brand: x.brand ? String(x.brand) : undefined, trophy: kind === 'trophy' && x.name ? x.name : undefined, newTeam: kind === 'signing' && x.team ? x.team : undefined,
     sub: kind === 'standin' && x.name ? x.name : undefined, line: clip(x.line), season: num(x.season, num(c?.season, 2026)), title: titleRace(c), story: x.story || undefined,
     where: WHERE[x.venue], racy: RACY[x.venue], place: typeof x.place === 'string' && x.place ? x.place : undefined,
+    comp: typeof x.comp === 'string' && /^(SOFT|MEDIUM|HARD|INTER|WET)$/i.test(x.comp) ? ({ INTER: 'intermediate', WET: 'wet' }[x.comp.toUpperCase()] || x.comp.toLowerCase()) : undefined,
   };
 };
 /** how an outlet takes a story: its tone, what it is about against the outlet's taste, its opinion of you, your persona -> about -1.5..1.5 */
@@ -848,6 +898,12 @@ const EV = {
     const p = clamp(Math.round(num(x.pts, 0)), 0, 12);
     return { tone: -1, theme: { drama: 0.3, results: -0.3 }, fx: { image: -(0.6 + p * 0.6), heat: 2 + p * 2, appeal: -1 }, cover: p >= 3 ? ['f1news', 'weekly', 'race24', 'gptv', 'post', 'feed'] : ['f1news', 'weekly', 'race24', 'feed'],
       size: p >= 3 ? 2 : 1, persona: p >= 3 ? { controversial: 1 } : null };
+  },
+  // (a strategy story of your race - race/Calls.js: the pit wall's mistakes cost you little image, it is the team's call)
+  strategy: (c, x) => {
+    const k = String(x.kind || ''); if (!HL.strategy[k]) return null;
+    const good = !!x.good, mine = k === 'undercutFailed' || k === 'gambleFailed';
+    return { tone: good ? 1 : -1, theme: { results: good ? 0.3 : -0.2 }, fx: { image: good ? 0.8 : mine ? -0.4 : 0, appeal: good ? 0.5 : 0 }, cover: ['f1news', 'race24', 'gptv', 'apex', 'pitlane', 'post', 'feed'], size: 1, lines: 'strategy', sub: k };
   },
   ban: () => ({ tone: -1, theme: { drama: 0.8, results: -0.4 }, fx: { image: -6, heat: 15, appeal: -6, fame: [0.01, 0.02] }, cover: ['gptv', 'f1news', 'weekly', 'apex', 'pitlane', 'post', 'feed'], size: 3, persona: { controversial: 1 } }),
   banReturn: () => ({ tone: 0, theme: { results: 0.2 }, fx: { image: 1, heat: -5 }, cover: ['f1news', 'weekly', 'gptv', 'feed', 'post'], size: 1 }),

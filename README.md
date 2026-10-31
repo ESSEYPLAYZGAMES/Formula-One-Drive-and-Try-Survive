@@ -365,10 +365,14 @@ spreads the step over 160 m of road instead of letting the spline turn it into t
 closed one-way raceway (4.356 km built, 4.361 km real); the start line sits on the pit straight, the grid backs up to
 the last chicane. It is a park circuit (`verge: 'park'`): grass verges, red and white kerbs and escape areas like a
 permanent circuit, but concrete walls with debris fences all the way round (`Track.walled`), a TecPro run across the
-back of the deep escape areas. The Wall of Champions is `Track.pinWall`: the outside of the T14 exit pulled in to
-1.7 m of green paint behind the kerb, the yellow "BIENVENUE AU QUÉBEC" wall, "WALL OF CHAMPIONS" painted on the strip.
-The pit lane is led in and out along the left edge of the road (`pitLeads`: the export draws it from the racing
-line's own nodes) and its wall starts clear of the T13 kerb (`pitWallClear`).
+back of the deep escape areas. The Wall of Champions is `Track.pinWall`: the outside of the T14 exit pulled in to 1.7
+m of green paint behind the kerb, the yellow "BIENVENUE AU QUÉBEC" wall, "WALL OF CHAMPIONS" painted on the strip. The
+pit lane is led in and out along the left edge of the road (`pitLeads`: the export draws it from the racing line's own
+nodes) and its wall starts clear of the T13 kerb (`pitWallClear`). Past the last chicane the pit-entry road widens
+into the paved escape road the real circuit has (`pitEscape`: 26 m wide from 6 m past the lane's branching to 25 m
+short of the speed line, eased over 50 m; the lane's `garageW` / `escape` arrays in `TrackBuilder.buildPitLane`),
+backed by a red and white tyre wall: a car that misses the chicane runs straight on instead of into the concrete (flat
+out with no braking, about 22 g into the tyres).
 
 `src/world/Montreal.js` is everything the export does not carry, drawn by hand against the buildings it does: the
 Olympic rowing basin parallel to the pit building, the Seaway, the lake and its beach inside the Senna end, the Chenal
@@ -554,6 +558,17 @@ VSC only for a stop it has to make; and once per neutralisation (`SafetyCar.neut
 "won't last, a new one would" and come in two or three times under one). A stop called for the safety car's sake is
 called off if the race is green again 250 m or more before the pit entry. With two laps or less to go a stop for tyres
 is never made unless they are finished.
+
+Strategy calls (`race/Calls.js`): a pit wall gets calls wrong. At a stop the team may leave the car out a lap too long
+on worn tyres, or fit a set softer than the race needs that will not last - by the team's tier (`FAULT_P`: 5 % of the
+front-runners' calls, 9 % in the midfield, 14 % at the back; your own pit wall too, `strategyCalls` in main.js). Every
+plan, stop (lap, reason, tyres, place) and mistake is kept; at the flag `StrategyCalls.stories()` works out what they
+came to: a safety-car gamble that paid (one cheap stop, three places or more) or failed (a last-lap stop that cost
+three or more), a stop less than a minute before a safety car that cost places, an undercut that got ahead of the car
+it went for (or not - your own stop counts as one when you pitted within 2.5 s of the car ahead and it stopped one to
+four laps later), the late call and the wrong tyres and what they cost. The biggest go to the results (STRATEGY, YOUR
+STRATEGY), the paddock news, the press (`HL.strategy` in `career/PR.js`: the team's call, so the team's name is in it)
+and the post-race interview, where your story of the day is likely to be asked about.
 
 ### Car: real dimensions, four wheels, suspension
 

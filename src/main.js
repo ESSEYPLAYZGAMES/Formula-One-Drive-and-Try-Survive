@@ -81,6 +81,7 @@ import { TelemetryView } from './ui/TelemetryView.js';
 import * as Kit from './ui/Motion.js';
 import { TRACK_MAPS } from './ui/TrackMaps.js';
 import { BUILTIN_SHOTS } from './ui/LoadingShots.js';
+import { FAULT_P } from './race/Calls.js';
 
 const $ = (id) => document.getElementById(id);
 /** teams in roster order (pit garage k belongs to TEAMS[k]; the custom 23rd car gets the last garage) */
@@ -1830,6 +1831,9 @@ function strategyCalls(d, p) {
   const k = Math.min(p.pitStops, st.stints.length - 1); if (k >= st.stints.length - 1) return;
   const cur = st.stints[k], next = st.stints[k + 1], lapNow = p.lap + 1, nm = next.compound.toLowerCase();
   if (lapNow === cur.end - 1 && st.warned !== k) { st.warned = k; engineer.say(`Plan ${st.name} is on. Box next lap for ${nm}s.`, 2); }
+  // (your pit wall gets it wrong now and then too - race/Calls.js FAULT_P, by the team's tier: the call a lap late)
+  if (lapNow >= cur.end && st.called !== k && st.rolled !== k) { st.rolled = k; if (d.lapsTotal - p.lap >= 3 && Math.random() < (FAULT_P[p.tier] ?? FAULT_P[2])) { st.late = lapNow; d.calls?.fault(p, 'late'); } }
+  if (st.late === lapNow) return;
   if (lapNow >= cur.end && st.called !== k && !p.pitRequested && !p.pitLane && !p.inPit) {
     st.called = k; p.pitPlan = { compound: next.compound, repair: (p.dmg.fwL > 0.3 || p.dmg.fwR > 0.3) ? 'wing' : 'none' }; d.requestPit(p);
     hud.msg(`BOX THIS LAP · ${next.compound}\nP TO STAY OUT`, 'warn', 4);
@@ -1863,14 +1867,16 @@ function beginRace() {
         const memorial = !!C._lostNow?.(), bw = wk.brawl;
         // (fought: the driver you squared up to on the grid - a real scuffle, not a shove you walked away from - over
         //  anyone you only touched on track; Career keeps it for a live round only)
-        const extra = { dotd: !!facts?.dotd?.[0]?.me, overtakes: pc?.overtakes || 0, grave: !!(NEWS.abandoned || NEWS.cancelled || S.cars.some((c) => c.injured) || memorial), hurtIds: S.cars.filter((c) => c.injured && c.careerId).map((c) => c.careerId),
+        // (the strategy stories - race/Calls.js - for the paddock news, the press and the interview: plain data, no cars)
+        const strategy = (facts?.strat || []).slice(0, 4).map((x) => ({ kind: x.kind, good: x.good, text: x.text, mine: x.mine, team: x.team, did: x.car.careerId || null, pos: x.pos, n: x.n ?? null, rival: x.rival?.careerId || null, comp: x.comp || null }));
+        const extra = { strategy, dotd: !!facts?.dotd?.[0]?.me, overtakes: pc?.overtakes || 0, grave: !!(NEWS.abandoned || NEWS.cancelled || S.cars.some((c) => c.injured) || memorial), hurtIds: S.cars.filter((c) => c.injured && c.careerId).map((c) => c.careerId),
           fought: bw && !bw.aborted && !bw.walkedAway ? bw.did || bw.id || null : null,
           // (your car touched the Wall of Champions today - Montreal's last chicane: the season remembers it)
           woc: !!pc?.wocKiss && !pc.standInFor };
         // (who of yours was here this weekend, as the race leaves it - asked about in the pen; before the round moves on)
         let seen = []; if (!extra.grave) try { seen = Celebs.seeingAtRace(C); } catch (e) { console.warn('[career] celebs', e); }
         C.applyRace(rows, W.def.id, contacts, table, extra);
-        wk.interview = C.me?.alive && pc && !pc.injured && !pc.standInFor ? interviewCtx(C, rows, contacts, upgrade, { grave: extra.grave, seen }) : null;   // (standing in: the stand-in's media pen, not yours)   // (hurt: in the medical centre, not the media pen)
+        wk.interview = C.me?.alive && pc && !pc.injured && !pc.standInFor ? interviewCtx(C, rows, contacts, upgrade, { grave: extra.grave, seen, strat: strategy.find((x) => x.mine) || null }) : null;   // (standing in: the stand-in's media pen, not yours)   // (hurt: in the medical centre, not the media pen)
         wk.incident = S.cars.some((c) => c.injured);   // (the interview after it: under the strings)
       } else {
         rememberResult(rows, me);   // (for the loading screen's news)
@@ -1924,11 +1930,17 @@ function raceFacts(d, rows) {
   // the crew's award: the quickest clean stop (no penalty served, no wing changed), stationary time
   const fs = (d.stops || []).filter((s) => s.clean).sort((a, b) => a.t - b.t)[0];
   if (fs) out.splice(out.length - 1, 0, ['FASTEST PIT STOP', `${fs.c.team} · ${fs.t.toFixed(2)}s (${fs.c.name.split(' ').pop()}, lap ${fs.lap})`, fs.c.color]);
+  // the strategy story of the day (race/Calls.js: a gamble paid or backfired, a stop just before the safety car, an
+  //  undercut, a pit wall's mistake) - and yours, if you have one and it is not the same
+  let strat = []; try { strat = d.calls?.stories() || []; } catch (e) { console.warn('[strategy] stories', e); }
+  const st0 = strat[0], stMe = strat.find((x) => x.mine);
+  if (st0) out.push(['STRATEGY', st0.text, st0.car.color]);
+  if (stMe && stMe !== st0) out.push(['YOUR STRATEGY', stMe.text, stMe.car.color]);
   const n = d.sc?.count || { sc: 0, vsc: 0 }, red = d.sc?.redCount || 0;
   out.push(['NEUTRALISATIONS', [n.sc && `${n.sc} safety car${n.sc > 1 ? 's' : ''}`, n.vsc && `${n.vsc} VSC`, red && `${red} red flag${red > 1 ? 's' : ''}`].filter(Boolean).join(' · ') || 'none']);
   const dnf = rows.filter((r) => r.car.retired);
   out.push(['DID NOT FINISH', dnf.length ? dnf.map((r) => r.name.split(' ').pop()).join(', ') : 'everyone finished']);
-  return { dotd, facts: out };
+  return { dotd, facts: out, strat };
 }
 
 // ---------------------------------------------------------------------------
@@ -1993,6 +2005,7 @@ function interviewCtx(C, rows, contacts, upgrade, o = {}) {
   const pts = activePoints(C, C.playerId), ban = banText(C, C.playerId), nextId = C.round <= C.rounds ? C.calendar?.[C.round - 1] : null;
   const off = {
     grave: !!o.grave,
+    strat: o.grave ? null : o.strat || null,   // (your strategy story today - race/Calls.js: a pit wall's mistake, a stop before the safety car, an undercut)
     brawl: bd ? { d: bd, result: B.result || 'even', started: B.started !== false, escalated: !!B.escalated, walkedAway: !!B.walkedAway } : null,
     partner: pid && pb && !pb.grieving ? { id: pid, name: pn, first: pn.split(' ')[0], public: !!pb.public, secret: !!pb.secret } : null,
     points: ban || pts >= 8 ? { n: pts, ban: !!ban, next: nextId ? TRACKS[nextId]?.name.replace(/ (Strip )?Circuit$/, '') : null, max: LICENCE_MAX } : null,

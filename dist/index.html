@@ -597,7 +597,7 @@ table.res tr.me td { color: var(--accent2); font-weight: 700; }
     <div class="brand-line"></div>
     <h1 id="brand-title">FORMULA 1<span id="brand-sub">SIMULATOR</span></h1>
     <!-- the build's version: +0.01 with every build handed out -->
-    <span id="app-ver" title="Version">V1.83</span>
+    <span id="app-ver" title="Version">V1.84</span>
     <div id="menu-sub">Real circuits built from OpenStreetMap</div>
   </div>
   <div id="loading" class="hidden"><div class="ld"><i></i></div><span>Building the circuit from OpenStreetMap…</span></div>
@@ -77052,6 +77052,9 @@ const TRACKS = {
     pitLaneWayId: 'way/413000959',   // in at the last chicane, out after the Senna S
     // (the export draws the lane from the racing line's own nodes: led in and out along the left edge of the road)
     pitLeads: { side: 1, d: 5.2, in: 110, out: 90 }, pitWallClear: 9.6,
+    // the last chicane's straight-on escape is the pit entry road (missed at 300 km/h, a car went down the lane into its
+    // garage wall): from its branching to short of the speed line it is a wide paved area with a tyre wall at the edge
+    pitEscape: { width: 26, from: 6, before: 25 },
     // the 80 km/h zone brackets the garages; calibrated to the real stop: about 18.5 s lost against staying out
     pitLimit: { before: 85, after: 70 },
     // DRS: three zones (the real ones): T7 -> T8, the Casino straight after the hairpin, the pit straight
@@ -79161,7 +79164,8 @@ function buildTrackMeshes(track, pit, gridSlots) {
     const pitRoadMat = roadMat.clone();
     // (a ribbon is built from its right edge to its left: with the track on the lane's left the two edges swap, or
     //  the strip faces down and is culled - Silverstone's pit lane was grass)
-    const roadA = (i) => Math.min(ws * pit.laneEdge[i], gs * pit.halfWidth), roadB = (i) => Math.max(ws * pit.laneEdge[i], gs * pit.halfWidth);
+    const gEdge = (i) => Math.max(pit.halfWidth, (pit.garageW?.[i] ?? pit.halfWidth + 0.7) - 0.7);   // (the escape's asphalt past the lane edge)
+    const roadA = (i) => Math.min(ws * pit.laneEdge[i], gs * gEdge(i)), roadB = (i) => Math.max(ws * pit.laneEdge[i], gs * gEdge(i));
     const pitRoad = new THREE.Mesh(ribbon(pl, roadA, roadB, 0, { closed: false, colorFn: () => [0.85, 0.85, 0.9], uvV: 10, mask: own }), pitRoadMat);
     group.add(pitRoad); group.userData.pitRoadMat = pitRoadMat; pitRoad.userData.keep = true;
     // yellow edge lines: the track-side one follows the clipped edge (it is the pit entry / exit line where the lane meets the kerb)
@@ -79183,7 +79187,11 @@ function buildTrackMeshes(track, pit, gridSlots) {
     const pw = ribbon(pl, (i) => ws * wIn(i), (i) => ws * wIn(i), 0, { closed: false, yB: 1.1, mask: farWall });
     const pwCap = ribbon(pl, (i) => ws * (wIn(i) - 0.3), (i) => ws * (wIn(i) + 0.3), 1.1, { closed: false, mask: farWall });
     // pit-lane outer wall (garage side)
-    const outer = ribbon(pl, () => gs * (pit.halfWidth + 1.0), () => gs * (pit.halfWidth + 1.0), 0, { closed: false, yB: 1.0, mask: (i) => own(i) && i > 8 && i < pl.n - 10 });
+    const outer = ribbon(pl, (i) => gs * (gEdge(i) + 1.0), (i) => gs * (gEdge(i) + 1.0), 0, { closed: false, yB: 1.0, mask: (i) => own(i) && i > 8 && i < pl.n - 10 && !pit.escape?.[i] });
+    // (the escape's edge: a tyre wall, red and white, in place of the concrete)
+    const esc = ribbon(pl, (i) => gs * (gEdge(i) + 0.4), (i) => gs * (gEdge(i) + 1.6), 0.95, { closed: false, mask: (i) => !!pit.escape?.[i], colorFn: (i) => ((i >> 1) % 2 ? [0.85, 0.1, 0.1] : [0.92, 0.92, 0.92]) });
+    const escF = ribbon(pl, (i) => gs * (gEdge(i) + 0.4), (i) => gs * (gEdge(i) + 0.4), 0, { closed: false, yB: 0.95, mask: (i) => !!pit.escape?.[i], colorFn: (i) => ((i >> 1) % 2 ? [0.85, 0.1, 0.1] : [0.92, 0.92, 0.92]) });
+    if (esc.index.count) group.add(new THREE.Mesh(mergeGeometries([esc, escF]), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8, side: THREE.DoubleSide })));
     const pitWalls = [pw, pwCap, outer].filter((g) => g.index.count);
     if (pitWalls.length) group.add(new THREE.Mesh(mergeGeometries(pitWalls), wallMat));
     // striped "nose" where the pit wall begins / ends: a painted wedge that tapers into the wall base (as at the real pit exit)
@@ -79371,8 +79379,20 @@ function buildPitLane(track, rawPts, boxCount = 12) {
   const lim = track.def.pitLimit, bU0 = samples.s[boxes[0].i], bU1 = samples.s[boxes[boxes.length - 1].i];
   const limitFrom = lim ? Math.max(samples.s[divergeI] - 4, bU0 - lim.before) : samples.s[divergeI] - 4;
   const limitTo = lim ? Math.min(samples.s[mergeI] + 4, bU1 + lim.after) : samples.s[mergeI] + 4;
+  // the garage-side boundary from the lane's centre: 0.7 m past its edge - and, where the circuit's straight-on escape
+  // IS the pit entry road (def.pitEscape: { width, from, before } - Montreal's last chicane, missed at 300 km/h, ran into
+  // the lane and its garage wall), a wide paved area from `from` m past the lane's branching to `before` m short of the
+  // speed line, a tyre wall at its edge (escape: 1 where it is)
+  const garageW = new Float32Array(n).fill(halfWidth + 0.7), escape = new Uint8Array(n), PE = track.def.pitEscape;
+  if (PE) {
+    const u0 = samples.s[divergeI] + (PE.from ?? 6), u1 = limitFrom - (PE.before ?? 25), E = 50;   // (eased over 50 m: the tyre wall closes in at a shallow angle)
+    for (let i = 0; i < n; i++) {
+      const u = samples.s[i], t = u < u0 ? (u - (u0 - E)) / E : u > u1 ? ((u1 + E) - u) / E : 1, w = Math.max(0, Math.min(1, t));
+      if (w > 0) { garageW[i] = halfWidth + 0.7 + (PE.width - halfWidth - 0.7) * w * w * (3 - 2 * w); escape[i] = 1; }
+    }
+  }
   const pit = {
-    limitFrom, limitTo,
+    limitFrom, limitTo, garageW, escape,
     samples, curve, halfWidth, wallOff, entryS: first.s, exitS: last.s, trackSide, sideSign, boxes, boxPitch: pitch * samples.ds, length: samples.length, limiter: 80 / 3.6,
     overlapsTrack, trackD, trackI, laneEdge, laneCovers, wallIn, wallPos, wallStartI, wallEndI, wallD, divergeU: samples.s[divergeI], mergeU: samples.s[mergeI], gapEntry, gapExit, isGapS,
     /** nearest pit-lane sample -> { i, u (distance along), lat (left +), along } */
@@ -93053,8 +93073,8 @@ __m['src/vehicle/Tyres.js'] = (() => {
 // Tyre compounds, wear/temperature model and grip mapping.
 //
 // Life: a soft reaches its cliff (70 % wear) at half the race distance, a medium at 75 %, a hard at 110 % - so a hard
-// can run a race through, waiting for a safety car (COMPOUNDS.life: the cliff against a soft's). The distances are at
-// the AI's rate of wear; a driver who slides less makes a set last longer.
+// can run a race through, waiting for a safety car (COMPOUNDS.life: the cliff against a soft's). The same for every
+// driver, you and the AI alike (the rate barely depends on style; only real sliding wears a set faster).
 //
 // Degradation is set in lap time: every lap of normal wear costs a soft a second, a medium 0.75 s, a hard 0.5 s
 // (COMPOUNDS.deg) - in a race of up to ten laps. A longer race's tyres last longer, and lose what a ten-lap race's do at
@@ -93170,7 +93190,9 @@ class TyreSet {
     //  below 0.6 - on the track it is made for it wears as a slick does in the dry)
     let dryPenalty = 1;
     if (this.spec.dryWear) dryPenalty = 1 + (this.spec.dryWear - 1) * Math.max(0, Math.min(1, (this.spec.wetFrom - wetness) / this.spec.wetFrom));
-    const rate = (0.55 + 2.2 * slip + 0.35 * load) * dryPenalty;
+    // (the rate of wear: nearly the same for every driver - a smooth one and the AI alike come out at ~1.0 a racing lap
+    //  (the AI's slip averages 0.12, a driver's ~0.09, their loads alike); a real slide, a lock-up, a spin still eats it)
+    const rate = (0.9 + 0.5 * Math.min(1.5, slip) + 0.05 * Math.min(3, load)) * dryPenalty;
     this.wear = Math.min(1, this.wear + (dist / this.lifeMeters) * rate * (this.wearMul || 1));   // (wearMul: the team's tyre development)
     this.age += dist;
     // temperature: toward the target its recent work sets (above) - a wet track holds a slick well below its window and
@@ -94947,6 +94969,55 @@ const HL = {
     tab: [`Naughty step for {sur}! {ptsTxt} at {track}`, `Teacher's watching: {sur} in trouble with the stewards`],
     feed: [`Fans debate {sur}'s penalty for {reason}: harsh or fair?`, `"Fair call" - most of Chequered agrees with {sur}'s penalty`],
   },
+  // (a strategy call that made or cost your race - race/Calls.js: most are the pit wall's, so the team is in the line)
+  strategy: {
+    late: {
+      serious: [`{team} admit {sur} was left out a lap too long at {track}`, `A late call from {team} costs {sur} {n} places at {track}`, `Questions for the {team} pit wall after {sur}'s late stop at {track}`],
+      tv: [`Too late! {team} leave {sur} out on worn tyres at {track}`, `Strategy blunder at {track}: {sur} kept out a lap too long`],
+      pod: [`Ep. {ep}: the lap {team} left {sur} out, and what it cost`],
+      tab: [`Asleep on the pit wall? {team} leave {sur} out too long at {track}`, `Box, box - eventually! {team}'s slow call costs {sur}`],
+      feed: [`"Box a lap ago!" - Chequered fumes at {team}'s late call for {sur}`, `Fans want answers from {team} after {sur}'s late stop at {track}`],
+    },
+    tyre: {
+      serious: [`Wrong tyres from {team}: {sur}'s {comp}s fall away at {track}`, `{team}'s tyre choice leaves {sur} struggling at {track}`, `{sur} let down by {team}'s tyre call at {track}`],
+      tv: [`The tyres are gone! {team}'s call backfires on {sur} at {track}`],
+      tab: [`Wheel of misfortune: {team} pick the wrong {comp}s for {sur}`, `Rubber trouble for {sur} at {track}`],
+      feed: [`"Who picked those tyres?" - fans on {team}'s call for {sur} at {track}`],
+    },
+    unlucky: {
+      serious: [`Safety car timing cruel to {sur} at {track}`, `{sur} pits a lap before the safety car and pays for it at {track}`, `Bad luck for {sur}: a stop just before the safety car at {track}`],
+      tv: [`Gutted! {sur} pits just before the safety car at {track}`],
+      tab: [`Typical! {sur} pits - and out comes the safety car`, `Worst timing at {track}? {sur} stops a lap too soon`],
+      feed: [`"Worst timing ever" - fans feel for {sur} after the safety car at {track}`],
+    },
+    undercutWon: {
+      serious: [`{team}'s undercut puts {sur} ahead of {whoSur} at {track}`, `A well-timed stop gets {sur} past {whoSur} at {track}`, `{team} win the strategy battle at {track}`],
+      apex: [`The undercut, done right: how {team} got {sur} ahead at {track}`],
+      tv: [`Undercut! {sur} jumps {whoSur} in the stops at {track}`],
+      pod: [`Ep. {ep}: the {sur} undercut at {track}, lap by lap`],
+      tab: [`Pit-stop pickpocket! {sur} steals a place from {whoSur}`, `In and out: {sur} sneaks ahead at {track}`],
+      feed: [`"Textbook" - fans hail {team}'s undercut for {sur} at {track}`],
+    },
+    undercutFailed: {
+      serious: [`{sur}'s undercut on {whoSur} falls short at {track}`, `An early stop fails to get {sur} ahead at {track}`],
+      tv: [`No dice! {sur}'s undercut doesn't work at {track}`],
+      tab: [`Nice try, {sur}: the undercut flops at {track}`],
+      feed: [`Fans debate {team}'s early stop for {sur} at {track}`],
+    },
+    gamblePaid: {
+      serious: [`{team}'s safety-car gamble pays off for {sur} at {track}`, `{sur} gains {n} places on one well-timed stop at {track}`, `A long first stint and a cheap stop: {sur} up to {pos} at {track}`],
+      apex: [`How {team}'s patient strategy won {sur} {n} places at {track}`],
+      tv: [`The gamble pays off! {sur} up to {pos} at {track}`],
+      tab: [`Jackpot! {sur}'s strategy gamble comes good at {track}`],
+      feed: [`"Big-brain strategy" - fans love {team}'s call for {sur} at {track}`],
+    },
+    gambleFailed: {
+      serious: [`No safety car, no reward: {team}'s gamble fails {sur} at {track}`, `{sur} drops {n} places with a last-lap stop at {track}`, `{team} wait for a safety car that never came at {track}`],
+      tv: [`It never came! {sur}'s safety-car gamble fails at {track}`],
+      tab: [`Waiting for a miracle: {team}'s gamble leaves {sur} short`],
+      feed: [`Fans question {team}'s all-or-nothing strategy for {sur} at {track}`],
+    },
+  },
   ban: {
     serious: [`{sur} to miss {nextgp} after reaching 12 penalty points`, `Twelve points: {sur} handed a one-race ban`, `{sur} suspended for one race under the penalty-points system`],
     apex: [`How {sur} reached twelve points - and what has to change`],
@@ -95296,6 +95367,7 @@ const tokens = (c, kind, x = {}, anon = PERSONAL.has(kind)) => {
     brand: x.brand ? String(x.brand) : undefined, trophy: kind === 'trophy' && x.name ? x.name : undefined, newTeam: kind === 'signing' && x.team ? x.team : undefined,
     sub: kind === 'standin' && x.name ? x.name : undefined, line: clip(x.line), season: num(x.season, num(c?.season, 2026)), title: titleRace(c), story: x.story || undefined,
     where: WHERE[x.venue], racy: RACY[x.venue], place: typeof x.place === 'string' && x.place ? x.place : undefined,
+    comp: typeof x.comp === 'string' && /^(SOFT|MEDIUM|HARD|INTER|WET)$/i.test(x.comp) ? ({ INTER: 'intermediate', WET: 'wet' }[x.comp.toUpperCase()] || x.comp.toLowerCase()) : undefined,
   };
 };
 /** how an outlet takes a story: its tone, what it is about against the outlet's taste, its opinion of you, your persona -> about -1.5..1.5 */
@@ -95442,6 +95514,12 @@ const EV = {
     const p = clamp(Math.round(num(x.pts, 0)), 0, 12);
     return { tone: -1, theme: { drama: 0.3, results: -0.3 }, fx: { image: -(0.6 + p * 0.6), heat: 2 + p * 2, appeal: -1 }, cover: p >= 3 ? ['f1news', 'weekly', 'race24', 'gptv', 'post', 'feed'] : ['f1news', 'weekly', 'race24', 'feed'],
       size: p >= 3 ? 2 : 1, persona: p >= 3 ? { controversial: 1 } : null };
+  },
+  // (a strategy story of your race - race/Calls.js: the pit wall's mistakes cost you little image, it is the team's call)
+  strategy: (c, x) => {
+    const k = String(x.kind || ''); if (!HL.strategy[k]) return null;
+    const good = !!x.good, mine = k === 'undercutFailed' || k === 'gambleFailed';
+    return { tone: good ? 1 : -1, theme: { results: good ? 0.3 : -0.2 }, fx: { image: good ? 0.8 : mine ? -0.4 : 0, appeal: good ? 0.5 : 0 }, cover: ['f1news', 'race24', 'gptv', 'apex', 'pitlane', 'post', 'feed'], size: 1, lines: 'strategy', sub: k };
   },
   ban: () => ({ tone: -1, theme: { drama: 0.8, results: -0.4 }, fx: { image: -6, heat: 15, appeal: -6, fame: [0.01, 0.02] }, cover: ['gptv', 'f1news', 'weekly', 'apex', 'pitlane', 'post', 'feed'], size: 3, persona: { controversial: 1 } }),
   banReturn: () => ({ tone: 0, theme: { results: 0.2 }, fx: { image: 1, heat: -5 }, cover: ['f1news', 'weekly', 'gptv', 'feed', 'post'], size: 1 }),
@@ -133536,7 +133614,7 @@ class Car {
     const q = P.nearest(this.x, this.z, this._pq || (this._pq = {}));
     // inside the lane: between the garage wall and the lane's track-side edge (which is clipped to the kerb until the pit wall starts)
     const g = -P.trackSide * q.lat;   // + toward the garages
-    const inLane = g > -P.laneEdge[q.i] && g < P.halfWidth + 1.2 && q.u > P.divergeU - 4 && q.u < P.mergeU + 4 && !P.overlapsTrack[q.i];
+    const inLane = g > -P.laneEdge[q.i] && g < (P.garageW ? P.garageW[q.i] + 0.5 : P.halfWidth + 1.2) && q.u > P.divergeU - 4 && q.u < P.mergeU + 4 && !P.overlapsTrack[q.i];
     if (inLane && !this.pitLane) this.pitEntered = true;          // edge: entered the lane this step
     if (!inLane && this.pitLane) this.pitExited = true;
     this.pitLane = inLane; this.pitU = q.u; this.pitLat = q.lat; this.pitI = q.i;
@@ -133550,7 +133628,7 @@ class Car {
     let nx, nz, px, pz, boL, boR;   // wall distance on the left / right of the centreline (Infinity = open)
     if (this.pitLane) {                                             // pit-lane walls: garage wall + the pit wall once it exists
       const P = this.pit, ps = P.samples, i = this.pitI; nx = ps.nx[i]; nz = ps.nz[i]; px = ps.px[i]; pz = ps.pz[i];
-      const garage = P.halfWidth + 0.7, wall = P.wallIn[i];
+      const garage = P.garageW ? P.garageW[i] : P.halfWidth + 0.7, wall = P.wallIn[i];   // (garageW: wide where the lane is an escape road - TrackBuilder buildPitLane)
       boL = P.trackSide > 0 ? wall : garage; boR = P.trackSide > 0 ? garage : wall;
     } else {
       // where a barrier stands (pushed back on the outside of corners; a permanent circuit has none along most of the lap)
@@ -133585,7 +133663,7 @@ class Car {
     const tx = -wnz, tz = wnx, vt = v[0] * tx + v[1] * tz;               // Coulomb friction along the barrier
     const jt = Math.max(-0.35 * j, Math.min(0.35 * j, -vt / this.invMassAt(cx, cz, tx, tz)));
     this.impulseAt(cx, cz, j * wnx + jt * tx, j * wnz + jt * tz);
-    const bk = this.pitLane ? 'wall' : BAR_KIND[dc0 > 0 ? tr.barL[this.trackIdx] : tr.barR[this.trackIdx]] || 'wall';
+    const bk = this.pitLane ? (this.pit?.escape?.[this.pitI] ? 'tyres' : 'wall') : BAR_KIND[dc0 > 0 ? tr.barL[this.trackIdx] : tr.barR[this.trackIdx]] || 'wall';
     const gHit = this.pulse(Math.hypot(j, jt) / CAR.mass, PULSE[bk], bk);
     const sev = this.applyImpact(hitBx, hitBy, into);
     if (sev > 0) { world.onImpact?.(this, sev, 'wall'); this.emit('hit', cx, cz, sev); this.crushFlat(hitBx, hitBy, 0.32, wnx, wnz, into); }
@@ -139567,7 +139645,13 @@ class Career {
     } else if (meRow && !mine && !grave && meRow.car.isPlayer) press('standin', { did: meRow.car.careerId, name: this.drivers[meRow.car.careerId]?.name || meRow.car.name });
     const win = rows.find((r) => r.pos === 1);
     this.log.push({ round: this.round, track: trackId, winner: win?.car.name || '', you: meRow?.pos ?? null });
-    if (win) this.addNews(`Round ${this.round} (${trackId === 'lasvegas' ? 'Las Vegas' : 'Silverstone'}): ${win.car.name} wins.`);
+    // the strategy stories (race/Calls.js, main.js raceFacts): the day's biggest in the paddock news - yours to the press
+    // too (a call that made or cost your race) - none in a grave round
+    const strat = !grave && Array.isArray(X.strategy) ? X.strategy.filter((x) => x && typeof x.text === 'string') : [];
+    for (const x of strat.slice(0, 2).reverse()) this.addNews(`Strategy: ${x.text}.`);
+    const ms = live ? strat.find((x) => x.mine) : null;
+    if (ms) press('strategy', { kind: ms.kind, good: !!ms.good, pos: ms.pos, n: ms.n >= 2 ? ms.n : null, rival: ms.rival, comp: ms.comp, track: trackId });
+    if (win) this.addNews(`Round ${this.round} (${{ lasvegas: 'Las Vegas', montreal: 'Montreal', austin: 'Austin' }[trackId] || 'Silverstone'}): ${win.car.name} wins.`);
     // (each team's best race lap this round: the measured race pace, for the charts)
     this._laps = {}; for (const r of rows) { const t = r.car.team, b = r.car.bestLap; if (this.teams[t] && isFinite(b) && b > 20) this._laps[t] = Math.min(this._laps[t] ?? Infinity, +b.toFixed(3)); }
     if (meRow) report.trophies = this.award({ me: this.me, row: meRow, mateRow, rows, report, fastest: flRow === meRow });
@@ -162436,6 +162520,47 @@ function questions(ctx) {
     A('One race at a time for us.', [], null, 'diplomatic'), A('His car is doing the work.', [[ctx.leader.id, -10]], 'He will not like that.', 'cruel')] });
   if (ctx.leading && near.length >= 3) pool.push({ k: 'title', w: 3, q: pick(['You lead the championship. Biggest threat?', 'Top of the table - who can stop you?']), answers: [
     ...near.map((d) => A(`${last(d)}. Fast and relentless.`, [[d.id, 6]], null, 'diplomatic')), A('Nobody can stop us now.', near.map((d) => [d.id, -4]), 'Bold.', 'confident')] });
+  // your strategy story today (race/Calls.js): a call of the pit wall's that went wrong, a stop just before the safety
+  // car, an undercut that worked or did not, a gamble on a safety car
+  const SG = ctx.strat, SR = SG?.rival ? ctx.grid.find((d) => d.id === SG.rival) : null;
+  const SQ = SG && {
+    late: () => ({ q: pick(['The team left you out a lap too long today. Did the strategy let you down?', 'You stayed out on worn tyres while the others pitted. Whose call was that?', 'That stop looked a lap late from here. What happened?']), answers: [
+      A('We win and lose as a team. We will look at it together.', [], 'Loyal to the pit wall.', 'diplomatic'),
+      A('I should have pushed harder for the stop on the radio.', [], 'Taking it on the chin.', 'humble'),
+      A('It cost us places, and we cannot afford that. It has to be better.', [], 'The pit wall will hear that.', 'confident'),
+      A('I think my tyres pitted themselves in the end.', [], 'Laughter, but the point is made.', 'funny')] }),
+    tyre: () => ({ q: pick([`Those ${SG.comp ? String(SG.comp).toLowerCase() + 's' : 'tyres'} fell away early. Was it the wrong call?`, 'You struggled for grip on that last set. Was it the wrong tyre?']), answers: [
+      A('On paper it was the right tyre. The track had other ideas.', [], 'Measured.', 'diplomatic'),
+      A('I could have looked after them better. That is on me too.', [], 'Generous to the team.', 'humble'),
+      A('It was the wrong tyre. We all knew it by the second lap.', [], 'Frank. The engineers will wince.', 'confident'),
+      A('We will go through the data before I say anything.', [], 'Giving nothing away.', 'evasive')] }),
+    unlucky: () => ({ q: pick(['You pitted just before the safety car. How frustrating was that?', 'One lap later and the safety car would have given you a free stop. Painful?']), answers: [
+      A('That is racing. Sometimes the timing goes against you.', [], 'Philosophical.', 'diplomatic'),
+      A('Nobody could have known. The team made the right call with what we had.', [], 'Backing the pit wall.', 'humble'),
+      A('It hurts. We had the pace to finish higher today.', [], 'Frustration showing.', 'confident'),
+      A('I am going to start pitting a lap later for the rest of my life.', [], 'A laugh from the pen.', 'funny')] }),
+    undercutWon: () => ({ q: pick([SR ? `That undercut on ${last(SR)} was perfectly timed. Your call or the team's?` : 'That undercut was perfectly timed. Your call or the team\'s?', 'You jumped a car in the stops today. How did you plan it?']), answers: [
+      A('All the team. The out-lap was the easy part.', [], 'Credit where it is due.', 'humble'),
+      A('I asked for it and the team backed me. It worked.', [], 'A driver who reads a race.', 'confident'),
+      A('Teamwork. Good stop, good out-lap, good timing.', [], null, 'diplomatic'),
+      SR ? A(`${first(SR)} stayed out too long. Their loss.`, [[SR.id, -6]], 'A little dig.', 'cruel') : A('A magician never reveals the trick.', [], 'Smiles all round.', 'funny')] }),
+    undercutFailed: () => ({ q: pick([SR ? `You pitted early to get ahead of ${last(SR)}, but it didn't work. What went wrong?` : 'The undercut didn\'t come off today. What went wrong?', 'The early stop did not get you the place. Wrong call?']), answers: [
+      A('The out-lap was not good enough. That is on me.', [], 'Honest.', 'humble'),
+      A('It was the right idea. It just did not quite work today.', [], null, 'diplomatic'),
+      SR ? A(`${last(SR)} had good pace on old tyres. Fair play.`, [[SR.id, 6]], 'Respect.', 'diplomatic') : A('We tried something. You never know until you try.', [], null, 'diplomatic'),
+      A('We will look at the numbers before I judge it.', [], 'Giving nothing away.', 'evasive')] }),
+    gamblePaid: () => ({ q: pick(['You ran a long first stint waiting for a safety car, and it paid off. Was that the plan from the start?', 'A big strategy gamble, and it worked. How nervous were you?']), answers: [
+      A('The team took a risk and it came good. All credit to them.', [], 'Generous.', 'humble'),
+      A('We planned for it. Sometimes you make your own luck.', [], 'A strategist as well as a driver.', 'confident'),
+      A('It could easily have gone the other way. We will take it.', [], null, 'diplomatic'),
+      A('I was praying for a safety car for twenty minutes.', [], 'Laughter in the pen.', 'funny')] }),
+    gambleFailed: () => ({ q: pick(['You waited for a safety car that never came. Was the gamble worth it?', 'The long stint didn\'t pay off today. Would you do it again?']), answers: [
+      A('Sometimes the dice do not roll your way. No regrets.', [], 'Unbowed.', 'confident'),
+      A('We gambled and lost. I will take my share of that.', [], 'Owning it.', 'humble'),
+      A('It was a calculated risk. It just did not work today.', [], null, 'diplomatic'),
+      A('Let us just say I am not going to a casino tonight.', [], 'A grin from the pen.', 'funny')] }),
+  }[SG.kind];
+  if (SQ) pool.push({ k: 'strategy', w: SG.good ? 5 : 7, ...SQ() });
   // the car, the team
   if (ctx.upgrade) pool.push({ k: 'upgrade', w: 2, q: pick([`The new ${ctx.upgrade} - did it make a difference?`, `How much did the ${ctx.upgrade} bring?`]), answers: [
     A('Massive step. The factory delivered.', [], null, 'humble'), A("Small gain, but we're learning.", [], null, 'diplomatic'), A('Too early to tell, honestly.', [], null, 'evasive'), A('We need more, and faster.', [], null, 'confident')] });
@@ -162829,6 +162954,94 @@ function showPodium(top, o, done) {
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 return { showPodium };
+})();
+
+// ---- src/race/Calls.js
+__m['src/race/Calls.js'] = (() => {
+
+// Strategy calls, the race's and every team's: what each car set out to do (its plan on the grid - the gamble on a
+// safety car above all), every stop (when, why, onto what, from where), and the calls a pit wall got wrong (a car left
+// out a lap too long, a set fitted that would not last - AIDriver.strategy rolls them by the team's tier, main.js
+// strategyCalls for your own pit wall). At the flag the stories are worked out: a gamble that paid or backfired, a stop
+// a lap before the safety car, an undercut that worked or fell short, the late call and the wrong tyres and what they
+// cost. They go to the results (main.js raceFacts), the paddock news and the press (career/Career.js applyRace) and the
+// post-race interview (ui/Interview.js) when the story is yours.
+
+/** how likely a pit wall gets a call wrong at a stop, by the team's tier (1: the front-runners) */
+const FAULT_P = { 1: 0.05, 2: 0.09, 3: 0.14 };
+
+const sur = (c) => String(c?.name || '').split(' ').pop();
+
+class StrategyCalls {
+  constructor(d) { this.d = d; this.plans = []; this.stops = []; this.faults = []; this.pos = new Map(); this.gaps = new Map(); }
+  /** a car's plan on the grid (AIDriver.planRace) */
+  plan(car, type, comp) { this.plans.push({ car, type, comp }); }
+  /** a car's place now and its gap to the car ahead (every lap it completes, RaceDirector.onLine) */
+  lap(car) {
+    let a = this.pos.get(car), g = this.gaps.get(car); if (!a) this.pos.set(car, a = []); if (!g) this.gaps.set(car, g = []);
+    const i = this.d.positions.indexOf(car), ahead = this.d.positions[i - 1]; a[car.lap] = i + 1;
+    g[car.lap] = ahead ? this.d.radio?.gap(car, ahead) ?? null : null;
+  }
+  /** a stop begins: why, onto what, from where */
+  stop(car, o = {}) {
+    this.stops.push({ car, lap: car.lap + 1, at: this.d.time, reason: o.reason || 'tyres', from: car.tyres.compound, to: o.to || car.tyres.compound, wear: car.tyres.wear,
+      before: this.d.positions.indexOf(car) + 1, rival: o.rival || null, neutral: this.d.sc && this.d.sc.phase !== 'green' });
+  }
+  /** a call a pit wall got wrong: 'late' (left out a lap too long), 'tyre' (a set that will not last) */
+  fault(car, what, o = {}) { if (!this.faults.some((f) => f.car === car && f.what === what && f.lap === car.lap + 1)) this.faults.push({ car, what, lap: car.lap + 1, before: this.d.positions.indexOf(car) + 1, ...o }); }
+
+  /** the car you were chasing when you stopped, if it stopped 1-4 laps after you on the same tyres' stint and you were within 2.5 s */
+  ownUndercut(c, s) {
+    const k = s.lap - 1, a = this.pos.get(c), g = this.gaps.get(c), p0 = a?.[k];
+    if (!p0 || p0 < 2 || !(g?.[k] > 0 && g[k] < 2.5)) return null;
+    let r = null; for (const [o, b] of this.pos) if (o !== c && b[k] === p0 - 1) { r = o; break; }
+    if (!r || r.retired) return null;
+    const n = (car, t) => this.stops.filter((x) => x.car === car && x.at < t).length;
+    if (n(r, s.at) !== n(c, s.at)) return null;
+    const rs = this.stops.find((x) => x.car === r && x.at > s.at);
+    return rs && rs.lap - s.lap >= 1 && rs.lap - s.lap <= 4 && !rs.neutral ? r : null;
+  }
+  /** the race's strategy stories, the biggest first: [{ kind, car, good, score, text, mine, team, pos, n?, rival?, comp?, extra? }] */
+  stories() {
+    const d = this.d, out = [], fin = (c) => d.positions.indexOf(c) + 1, L = d.lapsTotal;
+    const scAt = (d.sc?.log || []).filter((e) => /SAFETY CAR DEPLOYED|VIRTUAL SAFETY CAR/.test(e[1])).map((e) => e[0]);
+    const stopsOf = (c) => this.stops.filter((s) => s.car === c);
+    const posAt = (c, lap) => { const a = this.pos.get(c) || []; for (let k = Math.min(lap, a.length - 1); k >= 0; k--) if (a[k]) return a[k]; return c.gridPos || fin(c); };
+    // (o: what the press needs to tell it - n places won or lost, pos at the flag, the rival, the compound)
+    const add = (car, kind, good, score, text, o = {}) => { if (!car || car.isSC) return; out.push({ kind, car, good, score: score + (fin(car) <= 10 ? 2 : 0) + (car.isPlayer ? 6 : 0), text, mine: !!car.isPlayer, team: car.team, pos: fin(car), ...o }); };
+    for (const c of d.cars) {
+      if (c.retired && c.lap < L * 0.6) continue;   // (out early: whatever the plan was, it never played out)
+      const S = stopsOf(c), p = fin(c), grid = c.gridPos || p, plan = this.plans.find((x) => x.car === c);
+      // the gamble on a safety car
+      if (plan?.type === 'gamble') {
+        const cheap = S.find((s) => s.reason === 'cheap' || s.neutral);
+        if (cheap && grid - p >= 3) add(c, 'gamblePaid', true, 4 + (grid - p), `${c.team}'s safety-car gamble pays off: ${sur(c)} from P${grid} to P${p} on one cheap stop`, { n: grid - p });
+        else if (!cheap) { const last = S[S.length - 1]; if (last && last.lap >= L - 2 && p - last.before >= 3) add(c, 'gambleFailed', false, 3 + (p - last.before), `No safety car for ${sur(c)}: ${c.team}'s gamble ends with a last-lap stop, P${last.before} to P${p}`, { n: p - last.before }); }
+      }
+      for (const s of S) {
+        // (your own stops carry no plan: one made from close behind a car that pitted a lap or more later was an undercut)
+        if (c.isPlayer && !s.rival && s.reason !== 'undercut' && !s.neutral) { const r = this.ownUndercut(c, s); if (r) { s.reason = 'undercut'; s.rival = r; } }
+        // a stop a lap before the safety car came out (and no second, cheap one under it)
+        const ts = scAt.find((t) => t > s.at && t - s.at < 60);
+        if (ts != null && !s.neutral && !S.some((o) => o !== s && o.at > ts && o.at - ts < 120) && p - s.before >= 2) add(c, 'unlucky', false, 2 + (p - s.before), `Bad timing for ${sur(c)}: pitted just before the safety car and dropped from P${s.before} to P${p}`, { n: p - s.before });
+        // the undercut: ahead of the car it went for once that car has stopped too?
+        if (s.reason === 'undercut' && s.rival && !s.rival.retired) {
+          const r = s.rival, rs = stopsOf(r).find((o) => o.at > s.at);
+          if (rs) { const ahead = fin(c) < fin(r); add(c, ahead ? 'undercutWon' : 'undercutFailed', ahead, ahead ? 3 : 2, ahead ? `${c.team}'s undercut works: ${sur(c)} jumps ${sur(r)} in the stops` : `${sur(c)}'s undercut on ${sur(r)} falls short`, { rival: r }); }
+        }
+      }
+      // the pit wall's mistakes, and what they cost
+      for (const f of this.faults.filter((x) => x.car === c)) {
+        const s = S.find((o) => o.lap >= f.lap), lost = (s ? posAt(c, s.lap + 2) : p) - f.before;
+        if (f.what === 'late') add(c, 'late', false, 2 + Math.max(0, lost) * 1.5, lost >= 1 ? `${c.team} leave ${sur(c)} out a lap too long - ${lost} place${lost > 1 ? 's' : ''} gone` : `${c.team} keep ${sur(c)} out a lap too long on worn tyres`, lost >= 1 ? { n: lost } : {});
+        else if (f.what === 'tyre') { const extra = S.filter((o) => o.lap > f.lap).length; add(c, 'tyre', false, 2 + extra * 2 + Math.max(0, p - f.before), `Wrong tyres from ${c.team}: ${sur(c)}'s ${String(f.comp || 'new').toLowerCase()}s fall away${extra ? ', an extra stop' : ''} (P${p})`, { comp: f.comp, extra }); }
+      }
+    }
+    return out.sort((a, b) => b.score - a.score);
+  }
+}
+
+return { FAULT_P, StrategyCalls };
 })();
 
 // ---- src/ai/Planner.js
@@ -163725,7 +163938,7 @@ const AI_CAL = {
       13: { v: 1.07, b: 1.075 },
       14: { v: 1.07, b: 1.075 },
       15: { v: 1.015, b: 1.014 },
-      16: { v: 1.095, b: 1.025 },
+      16: { v: 1.095, b: 1.025, race: { v: 1.04, b: 1.15 } },   // (Vale: the AI braked 20-30 m before the driver did, in traffic too - braked later always)
       17: { v: 1.095, b: 1.025 },
       18: { v: 1.095, b: 1.025 },
     },
@@ -163737,7 +163950,7 @@ const AI_CAL = {
     fitted: "the composite of 3 laps (96.71 s) (2026-10-29, blend 0.7)",
     pack: true,
     // (Turn 11 driven on the driver's line - main.js makeRacingLine: the AI's went deep into a V, 13 m across at 56 km/h)
-    lineFrom: [[2242, 2602]],
+    lineFrom: [[2242, 2602], [3448, 3770]],   // (Turns 11 and 12 on the driver's line - main.js makeRacingLine)
     show: { every: 2, d: [
       -2.32, -2.47, -2.6, -2.71, -2.79, -2.85, -2.91, -2.96, -3.01, -3.06, -3.1, -3.14, -3.17, -3.19, -3.19, -3.18,
       -3.16, -3.12, -3.06, -2.99, -2.91, -2.83, -2.74, -2.64, -2.55, -2.45, -2.35, -2.26, -2.16, -2.06, -1.97, -1.87,
@@ -164097,7 +164310,7 @@ const AI_CAL = {
       9: { v: 1.139, b: 1.075 },
       10: { v: 1.059, b: 1.075 },
       11: { v: 1, b: 1, race: { v: 0.92, win: [-45, 70] } },   // (on the driver's line now - lineFrom; in a race the field ran wide out of it, 30-70 m past the apex: a little slower through it, always)
-      12: { v: 0.956, b: 1.075 },
+      12: { v: 1, b: 1, race: { v: 0.94, win: [-45, 70] } },   // (on the driver's line - lineFrom; in a race the field ran deep and wide out of it)
       13: { v: 1.083, b: 1.075 },
       14: { v: 1.083, b: 1.075 },
       15: { v: 1.083, b: 1.075 },
@@ -164296,7 +164509,7 @@ function applyCalibration(track, cal = AI_CAL[track.def.id]) {
       }
     };
     put(V, V_WIN, k.v); put(B, B_WIN, k.b);
-    if (k.race) { const pr = (arr, win, val) => { if (val == null || val === 1) return; for (let x = win[0] - EASE; x <= win[1] + EASE; x += track.ds) { const i = track.idxAtS(c.s + x), t = x < win[0] ? (x - win[0] + EASE) / EASE : x > win[1] ? (win[1] + EASE - x) / EASE : 1; arr[i] = Math.min(arr[i], 1 + (val - 1) * t * t * (3 - 2 * t)); } }; pr(VR, k.race.win || V_WIN, k.race.v); pr(BR, B_WIN, k.race.b); }
+    if (k.race) { const pr = (arr, win, val) => { if (val == null || val === 1) return; for (let x = win[0] - EASE; x <= win[1] + EASE; x += track.ds) { const i = track.idxAtS(c.s + x), t = x < win[0] ? (x - win[0] + EASE) / EASE : x > win[1] ? (win[1] + EASE - x) / EASE : 1; const fx = 1 + (val - 1) * t * t * (3 - 2 * t); if (Math.abs(fx - 1) > Math.abs(arr[i] - 1)) arr[i] = fx; } };   /* (overlapping windows: the factor that does more) */ pr(VR, k.race.win || V_WIN, k.race.v); pr(BR, B_WIN, k.race.b); }
   }
   return track;
 }
@@ -164316,6 +164529,7 @@ return { AI_CAL, applyCalibration, zoneCal };
 __m['src/ai/AIDriver.js'] = (() => {
 const { COMPOUNDS, cliffLaps, lapLoss, tyreLap, RATE_NOM } = __m['src/vehicle/Tyres.js'];
 const { planRace: planStints } = __m['src/ui/Strategy.js'];
+const { FAULT_P } = __m['src/race/Calls.js'];
 const { CAR } = __m['src/vehicle/Car.js'];
 const { Planner, DS, NMAX } = __m['src/ai/Planner.js'];
 const { neutralForm } = __m['src/career/Morale.js'];
@@ -164329,6 +164543,7 @@ const { zoneCal } = __m['src/ai/Calibration.js'];
 // often a mistake comes (focus), the room and the gaps left in a fight and how often a move is defended (racecraft),
 // and how much a car on the gearbox or a feud gets to it (composure). The numbers are tiny on purpose: the whole
 // field's rating spread is only ~0.5 % of corner speed.
+
 
 
 
@@ -165124,6 +165339,11 @@ class AIDriver {
     //  gambler holds out for a safety car to the last lap, and makes it there)
     const mustStop = world.lapsTotal >= 8 && c.pitStops === 0 && lapsLeft >= 0.6 && (S.type === 'gamble' ? lapsLeft <= 2.05
       : lapsLeft <= Math.ceil(world.lapsTotal * 0.45) && (t.wear > 0.45 || world.lapsTotal < 13 || lapsLeft <= 2.5));
+    // (the pit wall gets it wrong now and then - the more often the smaller the team: race/Calls.js FAULT_P. A stop for
+    //  worn tyres alone left a lap too late, once a stint; it stays out to the next lap's entry, on the cliff's edge)
+    const fp = FAULT_P[c.tier] ?? FAULT_P[2], onlyTyres = wornOut && !damaged && !wetMismatch && !mustStop && !cheap && !cover && !under;
+    if (onlyTyres && this._lateStint !== c.pitStops && lapsLeft >= 3) { this._lateStint = c.pitStops; if (rnd() < fp) { this._lateLap = c.lap; world.calls?.fault(c, 'late'); } }
+    if (onlyTyres && this._lateLap === c.lap) return;
     if (wornOut || damaged || wetMismatch || mustStop || cheap || cover || under) {
       this.pitReason = cheap ? 'cheap' : cover ? 'cover' : under ? 'undercut' : damaged ? 'damage' : wetMismatch ? 'weather' : 'tyres';
       c.pitRequested = true;
@@ -165131,6 +165351,9 @@ class AIDriver {
       //  where it can be, as the rules want two in a dry race)
       let comp = this.nextCompound(lapsLeft);
       if (c.pitStops === 0 && comp === t.compound && c.wetness < 0.3) comp = comp === 'HARD' ? 'MEDIUM' : comp === 'MEDIUM' ? 'HARD' : 'MEDIUM';
+      // (... and now and then a set that will not last: one softer than the race wants, it falls away before the flag)
+      const softer = { HARD: 'MEDIUM', MEDIUM: 'SOFT' }[comp];
+      if (softer && c.wetness < 0.3 && lapsLeft > cliffLaps(softer, c.raceLaps) * 1.15 && rnd() < fp * 0.6) { comp = softer; world.calls?.fault(c, 'tyre', { comp }); }
       this.pitPlan = { compound: comp, repair: damaged ? ((c.dmg.rw > 0.35 || c.dmg.susp > 0.55) ? 'full' : 'wing') : 'none' };
     }
   }
@@ -166502,8 +166725,10 @@ const { ReplayBuffer } = __m['src/race/Replay.js'];
 const { Sectors, Passes } = __m['src/race/Sectors.js'];
 const { neutralForm } = __m['src/career/Morale.js'];
 const { setTyreLap, lapLoss, outLapLoss, cliffLaps, RATE_NOM } = __m['src/vehicle/Tyres.js'];
+const { StrategyCalls } = __m['src/race/Calls.js'];
 // Race director: grid/lights/start protocol, fixed-step world simulation, car-car
 // collisions, slipstream, pit lane autopilot + stops, laps/penalties/classification.
+
 
 
 
@@ -166600,6 +166825,7 @@ class RaceDirector {
     //  the AI drives it)
     this.lapT = null;
     if (this.profile && this.track) { let t = 0; const n = this.track.n, ds = this.track.ds; for (let i = 0; i < n; i++) t += ds / Math.max(5, this.profile[i] || 5); this.lapT = t * 1.03; setTyreLap(this.lapT); }
+    this.calls = new StrategyCalls(this);   // (every car's plan, its stops, the calls the pit walls got wrong: race/Calls.js)
     this.sectors = new Sectors(this);   // (live sector times: purple / green / yellow)
     this.passes = new Passes(this);     // (on-track overtakes: c.overtakes)
     this.finishOrder = []; this.leaderFinished = false; this.leaderFinishTime = 0; this.endTimer = -1; this.done = false;
@@ -166613,6 +166839,7 @@ class RaceDirector {
       onLine: (c, full) => this.onLine(c, full), onImpact: (c, sev, type) => this.onImpact(c, sev, type),
       onAIError: (c, type, zone) => this.onAIError(c, type, zone),
       pit: this.pit || null,   // (the AI brakes for the pit lane's speed limit line before it gets there)
+      calls: this.calls,
       // (what a stop costs here - the lane at the limiter against the same stretch at racing speed, the stop and the
       //  slowing and the getting going - and the reference lap: the AI's undercut sums, AIDriver)
       lapT: this.lapT, pitLoss: this.pit && this.lapT ? Math.max(12, this.pit.samples.length / this.pit.limiter - this.pit.samples.length / (this.track.length / this.lapT) + 2.4 + 2.2) : 22,
@@ -166640,7 +166867,7 @@ class RaceDirector {
     // the last 12 s of every car's pose: a hurt driver's accident is cut from it for the news after the race
     this.replay = this.mode === 'race' ? new ReplayBuffer(this.cars) : null;
     // every AI car's race plan (standard / early / long / gamble), and the starting tyres that go with it
-    if (this.mode === 'race') for (const a of this.ai) if (a.planRace(this.world, a.car.gridPos || 1, this.cars.length)) this.onPitDone?.(a.car);
+    if (this.mode === 'race') for (const a of this.ai) { if (a.planRace(this.world, a.car.gridPos || 1, this.cars.length)) this.onPitDone?.(a.car); this.calls.plan(a.car, a.strat?.type, a.car.tyres.compound); }
     // lap telemetry: the player at 30 Hz, every AI car at 10 Hz (reference laps)
     this.telemetry = new Telemetry({ track: this.track, line: this.line, profile: this.profile, cars: this.cars, player: this.player, mode: this.mode,
       settings: { mode: s.mode, laps: s.lapsTotal, wetness: s.wetness, skill: s.skill, aggression: s.aggression } });
@@ -167173,6 +167400,7 @@ class RaceDirector {
     }
     if (!this.world.racing || !full || this.cancelled) return;   // (a cancelled race: nothing counts any more)
     const now = this.crossTime(c), t = now - c.lapStart; c.lapTimes.push(t); if (t < c.bestLap) c.bestLap = t; c.lapStart = now; c.lap++;
+    if (this.mode === 'race') this.calls.lap(c);
     this.sc.onLine(c);
     if (c.isPlayer && !c.finished) this.hud?.msg(`LAP ${fmt(t)}${c.lap + 1 === this.lapsTotal ? '\nFINAL LAP' : ''}`, '', 2.2);
     if (c.isPlayer && !c.finished && this.engineer) {
@@ -167298,6 +167526,7 @@ class RaceDirector {
         // (an AI car's repairs are what it needs now it is in the box, not what it needed when the stop was called: a stop
         //  called for tyres under the safety car, the car damaged in the incident, came straight back in for a wing)
         if (!me || !p.pitPlan) { const R = ['none', 'wing', 'full'], need = p.dmg.rw > 0.35 || p.dmg.susp > 0.55 ? 'full' : p.dmg.fwL > 0.3 || p.dmg.fwR > 0.3 ? 'wing' : 'none'; if (R.indexOf(need) > R.indexOf(plan.repair)) plan = { ...plan, repair: need }; }
+        if (this.mode === 'race') this.calls.stop(p, { reason: me ? (p.ai?.pitReason || 'plan') : p.ai?.pitReason, to: plan.compound, rival: p.ai?.pitReason === 'undercut' ? p.ai.lastUndercut?.on : null });
         p.held = true; p.pitLaneState = 'stop'; p.pitStopT = this.stopTime(p, plan) + p.penalties + (me && p._pull ? p._pull.pen : 0); p._stopServe = p.penalties; p.penaltyServed += p.penalties; p.penalties = 0; p.pitPlanActive = plan; p._stopAt = this.time; p._stopDur = p.pitStopT; p._stopPlan = plan;   // (_stop*: the crew's choreography, world/PitCrew.js)
         hud?.msg(`STOP · ${p.pitStopT.toFixed(1)}s${p._slowStop ? '\nSLOW STOP' : ''}`, p._slowStop ? 'bad' : 'warn', p.pitStopT);
         if (p._slowStop) E?.say('Slow stop, sorry, problem on the rear left.', 3);
@@ -167440,6 +167669,7 @@ class RaceDirector {
       if (queued) { if (rem < 0.4) st.v = 0; }
       else if (rem < 0.4 || (rem < 3 && st.v < 0.3)) {
         st.phase = 'stop'; st.v = 0;
+        if (this.mode === 'race') this.calls.stop(c, { reason: c.ai?.pitReason, to: st.plan?.compound, rival: c.ai?.pitReason === 'undercut' ? c.ai.lastUndercut?.on : null });
         st.stopT = this.stopTime(c, st.plan) + c.penalties; st.serve = c.penalties; st.at = this.time; c.penaltyServed += c.penalties; c.penalties = 0;
         c._stopAt = this.time; c._stopDur = st.stopT; c._stopPlan = st.plan; c._stopServe = st.serve;
         if (c.isPlayer) this.hud?.msg(`STOP · ${st.stopT.toFixed(1)}s`, 'warn', st.stopT);
@@ -168498,7 +168728,9 @@ const { TelemetryView } = __m['src/ui/TelemetryView.js'];
 const Kit = __m['src/ui/Motion.js'];
 const { TRACK_MAPS } = __m['src/ui/TrackMaps.js'];
 const { BUILTIN_SHOTS } = __m['src/ui/LoadingShots.js'];
+const { FAULT_P } = __m['src/race/Calls.js'];
 // Bootstrap: renderer, world construction from GeoJSON, menus, race weekend flow, frame loop.
+
 
 
 
@@ -170329,6 +170561,9 @@ function strategyCalls(d, p) {
   const k = Math.min(p.pitStops, st.stints.length - 1); if (k >= st.stints.length - 1) return;
   const cur = st.stints[k], next = st.stints[k + 1], lapNow = p.lap + 1, nm = next.compound.toLowerCase();
   if (lapNow === cur.end - 1 && st.warned !== k) { st.warned = k; engineer.say(`Plan ${st.name} is on. Box next lap for ${nm}s.`, 2); }
+  // (your pit wall gets it wrong now and then too - race/Calls.js FAULT_P, by the team's tier: the call a lap late)
+  if (lapNow >= cur.end && st.called !== k && st.rolled !== k) { st.rolled = k; if (d.lapsTotal - p.lap >= 3 && Math.random() < (FAULT_P[p.tier] ?? FAULT_P[2])) { st.late = lapNow; d.calls?.fault(p, 'late'); } }
+  if (st.late === lapNow) return;
   if (lapNow >= cur.end && st.called !== k && !p.pitRequested && !p.pitLane && !p.inPit) {
     st.called = k; p.pitPlan = { compound: next.compound, repair: (p.dmg.fwL > 0.3 || p.dmg.fwR > 0.3) ? 'wing' : 'none' }; d.requestPit(p);
     hud.msg(`BOX THIS LAP · ${next.compound}\nP TO STAY OUT`, 'warn', 4);
@@ -170362,14 +170597,16 @@ function beginRace() {
         const memorial = !!C._lostNow?.(), bw = wk.brawl;
         // (fought: the driver you squared up to on the grid - a real scuffle, not a shove you walked away from - over
         //  anyone you only touched on track; Career keeps it for a live round only)
-        const extra = { dotd: !!facts?.dotd?.[0]?.me, overtakes: pc?.overtakes || 0, grave: !!(NEWS.abandoned || NEWS.cancelled || S.cars.some((c) => c.injured) || memorial), hurtIds: S.cars.filter((c) => c.injured && c.careerId).map((c) => c.careerId),
+        // (the strategy stories - race/Calls.js - for the paddock news, the press and the interview: plain data, no cars)
+        const strategy = (facts?.strat || []).slice(0, 4).map((x) => ({ kind: x.kind, good: x.good, text: x.text, mine: x.mine, team: x.team, did: x.car.careerId || null, pos: x.pos, n: x.n ?? null, rival: x.rival?.careerId || null, comp: x.comp || null }));
+        const extra = { strategy, dotd: !!facts?.dotd?.[0]?.me, overtakes: pc?.overtakes || 0, grave: !!(NEWS.abandoned || NEWS.cancelled || S.cars.some((c) => c.injured) || memorial), hurtIds: S.cars.filter((c) => c.injured && c.careerId).map((c) => c.careerId),
           fought: bw && !bw.aborted && !bw.walkedAway ? bw.did || bw.id || null : null,
           // (your car touched the Wall of Champions today - Montreal's last chicane: the season remembers it)
           woc: !!pc?.wocKiss && !pc.standInFor };
         // (who of yours was here this weekend, as the race leaves it - asked about in the pen; before the round moves on)
         let seen = []; if (!extra.grave) try { seen = Celebs.seeingAtRace(C); } catch (e) { console.warn('[career] celebs', e); }
         C.applyRace(rows, W.def.id, contacts, table, extra);
-        wk.interview = C.me?.alive && pc && !pc.injured && !pc.standInFor ? interviewCtx(C, rows, contacts, upgrade, { grave: extra.grave, seen }) : null;   // (standing in: the stand-in's media pen, not yours)   // (hurt: in the medical centre, not the media pen)
+        wk.interview = C.me?.alive && pc && !pc.injured && !pc.standInFor ? interviewCtx(C, rows, contacts, upgrade, { grave: extra.grave, seen, strat: strategy.find((x) => x.mine) || null }) : null;   // (standing in: the stand-in's media pen, not yours)   // (hurt: in the medical centre, not the media pen)
         wk.incident = S.cars.some((c) => c.injured);   // (the interview after it: under the strings)
       } else {
         rememberResult(rows, me);   // (for the loading screen's news)
@@ -170423,11 +170660,17 @@ function raceFacts(d, rows) {
   // the crew's award: the quickest clean stop (no penalty served, no wing changed), stationary time
   const fs = (d.stops || []).filter((s) => s.clean).sort((a, b) => a.t - b.t)[0];
   if (fs) out.splice(out.length - 1, 0, ['FASTEST PIT STOP', `${fs.c.team} · ${fs.t.toFixed(2)}s (${fs.c.name.split(' ').pop()}, lap ${fs.lap})`, fs.c.color]);
+  // the strategy story of the day (race/Calls.js: a gamble paid or backfired, a stop just before the safety car, an
+  //  undercut, a pit wall's mistake) - and yours, if you have one and it is not the same
+  let strat = []; try { strat = d.calls?.stories() || []; } catch (e) { console.warn('[strategy] stories', e); }
+  const st0 = strat[0], stMe = strat.find((x) => x.mine);
+  if (st0) out.push(['STRATEGY', st0.text, st0.car.color]);
+  if (stMe && stMe !== st0) out.push(['YOUR STRATEGY', stMe.text, stMe.car.color]);
   const n = d.sc?.count || { sc: 0, vsc: 0 }, red = d.sc?.redCount || 0;
   out.push(['NEUTRALISATIONS', [n.sc && `${n.sc} safety car${n.sc > 1 ? 's' : ''}`, n.vsc && `${n.vsc} VSC`, red && `${red} red flag${red > 1 ? 's' : ''}`].filter(Boolean).join(' · ') || 'none']);
   const dnf = rows.filter((r) => r.car.retired);
   out.push(['DID NOT FINISH', dnf.length ? dnf.map((r) => r.name.split(' ').pop()).join(', ') : 'everyone finished']);
-  return { dotd, facts: out };
+  return { dotd, facts: out, strat };
 }
 
 // ---------------------------------------------------------------------------
@@ -170492,6 +170735,7 @@ function interviewCtx(C, rows, contacts, upgrade, o = {}) {
   const pts = activePoints(C, C.playerId), ban = banText(C, C.playerId), nextId = C.round <= C.rounds ? C.calendar?.[C.round - 1] : null;
   const off = {
     grave: !!o.grave,
+    strat: o.grave ? null : o.strat || null,   // (your strategy story today - race/Calls.js: a pit wall's mistake, a stop before the safety car, an undercut)
     brawl: bd ? { d: bd, result: B.result || 'even', started: B.started !== false, escalated: !!B.escalated, walkedAway: !!B.walkedAway } : null,
     partner: pid && pb && !pb.grieving ? { id: pid, name: pn, first: pn.split(' ')[0], public: !!pb.public, secret: !!pb.secret } : null,
     points: ban || pts >= 8 ? { n: pts, ban: !!ban, next: nextId ? TRACKS[nextId]?.name.replace(/ (Strip )?Circuit$/, '') : null, max: LICENCE_MAX } : null,

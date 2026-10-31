@@ -1302,7 +1302,8 @@ export function buildTrackMeshes(track, pit, gridSlots) {
     const pitRoadMat = roadMat.clone();
     // (a ribbon is built from its right edge to its left: with the track on the lane's left the two edges swap, or
     //  the strip faces down and is culled - Silverstone's pit lane was grass)
-    const roadA = (i) => Math.min(ws * pit.laneEdge[i], gs * pit.halfWidth), roadB = (i) => Math.max(ws * pit.laneEdge[i], gs * pit.halfWidth);
+    const gEdge = (i) => Math.max(pit.halfWidth, (pit.garageW?.[i] ?? pit.halfWidth + 0.7) - 0.7);   // (the escape's asphalt past the lane edge)
+    const roadA = (i) => Math.min(ws * pit.laneEdge[i], gs * gEdge(i)), roadB = (i) => Math.max(ws * pit.laneEdge[i], gs * gEdge(i));
     const pitRoad = new THREE.Mesh(ribbon(pl, roadA, roadB, 0, { closed: false, colorFn: () => [0.85, 0.85, 0.9], uvV: 10, mask: own }), pitRoadMat);
     group.add(pitRoad); group.userData.pitRoadMat = pitRoadMat; pitRoad.userData.keep = true;
     // yellow edge lines: the track-side one follows the clipped edge (it is the pit entry / exit line where the lane meets the kerb)
@@ -1324,7 +1325,11 @@ export function buildTrackMeshes(track, pit, gridSlots) {
     const pw = ribbon(pl, (i) => ws * wIn(i), (i) => ws * wIn(i), 0, { closed: false, yB: 1.1, mask: farWall });
     const pwCap = ribbon(pl, (i) => ws * (wIn(i) - 0.3), (i) => ws * (wIn(i) + 0.3), 1.1, { closed: false, mask: farWall });
     // pit-lane outer wall (garage side)
-    const outer = ribbon(pl, () => gs * (pit.halfWidth + 1.0), () => gs * (pit.halfWidth + 1.0), 0, { closed: false, yB: 1.0, mask: (i) => own(i) && i > 8 && i < pl.n - 10 });
+    const outer = ribbon(pl, (i) => gs * (gEdge(i) + 1.0), (i) => gs * (gEdge(i) + 1.0), 0, { closed: false, yB: 1.0, mask: (i) => own(i) && i > 8 && i < pl.n - 10 && !pit.escape?.[i] });
+    // (the escape's edge: a tyre wall, red and white, in place of the concrete)
+    const esc = ribbon(pl, (i) => gs * (gEdge(i) + 0.4), (i) => gs * (gEdge(i) + 1.6), 0.95, { closed: false, mask: (i) => !!pit.escape?.[i], colorFn: (i) => ((i >> 1) % 2 ? [0.85, 0.1, 0.1] : [0.92, 0.92, 0.92]) });
+    const escF = ribbon(pl, (i) => gs * (gEdge(i) + 0.4), (i) => gs * (gEdge(i) + 0.4), 0, { closed: false, yB: 0.95, mask: (i) => !!pit.escape?.[i], colorFn: (i) => ((i >> 1) % 2 ? [0.85, 0.1, 0.1] : [0.92, 0.92, 0.92]) });
+    if (esc.index.count) group.add(new THREE.Mesh(mergeGeometries([esc, escF]), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8, side: THREE.DoubleSide })));
     const pitWalls = [pw, pwCap, outer].filter((g) => g.index.count);
     if (pitWalls.length) group.add(new THREE.Mesh(mergeGeometries(pitWalls), wallMat));
     // striped "nose" where the pit wall begins / ends: a painted wedge that tapers into the wall base (as at the real pit exit)
@@ -1512,8 +1517,20 @@ export function buildPitLane(track, rawPts, boxCount = 12) {
   const lim = track.def.pitLimit, bU0 = samples.s[boxes[0].i], bU1 = samples.s[boxes[boxes.length - 1].i];
   const limitFrom = lim ? Math.max(samples.s[divergeI] - 4, bU0 - lim.before) : samples.s[divergeI] - 4;
   const limitTo = lim ? Math.min(samples.s[mergeI] + 4, bU1 + lim.after) : samples.s[mergeI] + 4;
+  // the garage-side boundary from the lane's centre: 0.7 m past its edge - and, where the circuit's straight-on escape
+  // IS the pit entry road (def.pitEscape: { width, from, before } - Montreal's last chicane, missed at 300 km/h, ran into
+  // the lane and its garage wall), a wide paved area from `from` m past the lane's branching to `before` m short of the
+  // speed line, a tyre wall at its edge (escape: 1 where it is)
+  const garageW = new Float32Array(n).fill(halfWidth + 0.7), escape = new Uint8Array(n), PE = track.def.pitEscape;
+  if (PE) {
+    const u0 = samples.s[divergeI] + (PE.from ?? 6), u1 = limitFrom - (PE.before ?? 25), E = 50;   // (eased over 50 m: the tyre wall closes in at a shallow angle)
+    for (let i = 0; i < n; i++) {
+      const u = samples.s[i], t = u < u0 ? (u - (u0 - E)) / E : u > u1 ? ((u1 + E) - u) / E : 1, w = Math.max(0, Math.min(1, t));
+      if (w > 0) { garageW[i] = halfWidth + 0.7 + (PE.width - halfWidth - 0.7) * w * w * (3 - 2 * w); escape[i] = 1; }
+    }
+  }
   const pit = {
-    limitFrom, limitTo,
+    limitFrom, limitTo, garageW, escape,
     samples, curve, halfWidth, wallOff, entryS: first.s, exitS: last.s, trackSide, sideSign, boxes, boxPitch: pitch * samples.ds, length: samples.length, limiter: 80 / 3.6,
     overlapsTrack, trackD, trackI, laneEdge, laneCovers, wallIn, wallPos, wallStartI, wallEndI, wallD, divergeU: samples.s[divergeI], mergeU: samples.s[mergeI], gapEntry, gapExit, isGapS,
     /** nearest pit-lane sample -> { i, u (distance along), lat (left +), along } */

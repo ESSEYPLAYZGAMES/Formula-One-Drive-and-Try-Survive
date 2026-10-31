@@ -184,6 +184,9 @@ export const TRACKS = {
     pitLaneWayId: 'way/413000959',   // in at the last chicane, out after the Senna S
     // (the export draws the lane from the racing line's own nodes: led in and out along the left edge of the road)
     pitLeads: { side: 1, d: 5.2, in: 110, out: 90 }, pitWallClear: 9.6,
+    // the last chicane's straight-on escape is the pit entry road (missed at 300 km/h, a car went down the lane into its
+    // garage wall): from its branching to short of the speed line it is a wide paved area with a tyre wall at the edge
+    pitEscape: { width: 26, from: 6, before: 25 },
     // the 80 km/h zone brackets the garages; calibrated to the real stop: about 18.5 s lost against staying out
     pitLimit: { before: 85, after: 70 },
     // DRS: three zones (the real ones): T7 -> T8, the Casino straight after the hairpin, the pit straight

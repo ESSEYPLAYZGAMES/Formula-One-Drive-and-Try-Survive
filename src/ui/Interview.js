@@ -191,6 +191,47 @@ function questions(ctx) {
     A('One race at a time for us.', [], null, 'diplomatic'), A('His car is doing the work.', [[ctx.leader.id, -10]], 'He will not like that.', 'cruel')] });
   if (ctx.leading && near.length >= 3) pool.push({ k: 'title', w: 3, q: pick(['You lead the championship. Biggest threat?', 'Top of the table - who can stop you?']), answers: [
     ...near.map((d) => A(`${last(d)}. Fast and relentless.`, [[d.id, 6]], null, 'diplomatic')), A('Nobody can stop us now.', near.map((d) => [d.id, -4]), 'Bold.', 'confident')] });
+  // your strategy story today (race/Calls.js): a call of the pit wall's that went wrong, a stop just before the safety
+  // car, an undercut that worked or did not, a gamble on a safety car
+  const SG = ctx.strat, SR = SG?.rival ? ctx.grid.find((d) => d.id === SG.rival) : null;
+  const SQ = SG && {
+    late: () => ({ q: pick(['The team left you out a lap too long today. Did the strategy let you down?', 'You stayed out on worn tyres while the others pitted. Whose call was that?', 'That stop looked a lap late from here. What happened?']), answers: [
+      A('We win and lose as a team. We will look at it together.', [], 'Loyal to the pit wall.', 'diplomatic'),
+      A('I should have pushed harder for the stop on the radio.', [], 'Taking it on the chin.', 'humble'),
+      A('It cost us places, and we cannot afford that. It has to be better.', [], 'The pit wall will hear that.', 'confident'),
+      A('I think my tyres pitted themselves in the end.', [], 'Laughter, but the point is made.', 'funny')] }),
+    tyre: () => ({ q: pick([`Those ${SG.comp ? String(SG.comp).toLowerCase() + 's' : 'tyres'} fell away early. Was it the wrong call?`, 'You struggled for grip on that last set. Was it the wrong tyre?']), answers: [
+      A('On paper it was the right tyre. The track had other ideas.', [], 'Measured.', 'diplomatic'),
+      A('I could have looked after them better. That is on me too.', [], 'Generous to the team.', 'humble'),
+      A('It was the wrong tyre. We all knew it by the second lap.', [], 'Frank. The engineers will wince.', 'confident'),
+      A('We will go through the data before I say anything.', [], 'Giving nothing away.', 'evasive')] }),
+    unlucky: () => ({ q: pick(['You pitted just before the safety car. How frustrating was that?', 'One lap later and the safety car would have given you a free stop. Painful?']), answers: [
+      A('That is racing. Sometimes the timing goes against you.', [], 'Philosophical.', 'diplomatic'),
+      A('Nobody could have known. The team made the right call with what we had.', [], 'Backing the pit wall.', 'humble'),
+      A('It hurts. We had the pace to finish higher today.', [], 'Frustration showing.', 'confident'),
+      A('I am going to start pitting a lap later for the rest of my life.', [], 'A laugh from the pen.', 'funny')] }),
+    undercutWon: () => ({ q: pick([SR ? `That undercut on ${last(SR)} was perfectly timed. Your call or the team's?` : 'That undercut was perfectly timed. Your call or the team\'s?', 'You jumped a car in the stops today. How did you plan it?']), answers: [
+      A('All the team. The out-lap was the easy part.', [], 'Credit where it is due.', 'humble'),
+      A('I asked for it and the team backed me. It worked.', [], 'A driver who reads a race.', 'confident'),
+      A('Teamwork. Good stop, good out-lap, good timing.', [], null, 'diplomatic'),
+      SR ? A(`${first(SR)} stayed out too long. Their loss.`, [[SR.id, -6]], 'A little dig.', 'cruel') : A('A magician never reveals the trick.', [], 'Smiles all round.', 'funny')] }),
+    undercutFailed: () => ({ q: pick([SR ? `You pitted early to get ahead of ${last(SR)}, but it didn't work. What went wrong?` : 'The undercut didn\'t come off today. What went wrong?', 'The early stop did not get you the place. Wrong call?']), answers: [
+      A('The out-lap was not good enough. That is on me.', [], 'Honest.', 'humble'),
+      A('It was the right idea. It just did not quite work today.', [], null, 'diplomatic'),
+      SR ? A(`${last(SR)} had good pace on old tyres. Fair play.`, [[SR.id, 6]], 'Respect.', 'diplomatic') : A('We tried something. You never know until you try.', [], null, 'diplomatic'),
+      A('We will look at the numbers before I judge it.', [], 'Giving nothing away.', 'evasive')] }),
+    gamblePaid: () => ({ q: pick(['You ran a long first stint waiting for a safety car, and it paid off. Was that the plan from the start?', 'A big strategy gamble, and it worked. How nervous were you?']), answers: [
+      A('The team took a risk and it came good. All credit to them.', [], 'Generous.', 'humble'),
+      A('We planned for it. Sometimes you make your own luck.', [], 'A strategist as well as a driver.', 'confident'),
+      A('It could easily have gone the other way. We will take it.', [], null, 'diplomatic'),
+      A('I was praying for a safety car for twenty minutes.', [], 'Laughter in the pen.', 'funny')] }),
+    gambleFailed: () => ({ q: pick(['You waited for a safety car that never came. Was the gamble worth it?', 'The long stint didn\'t pay off today. Would you do it again?']), answers: [
+      A('Sometimes the dice do not roll your way. No regrets.', [], 'Unbowed.', 'confident'),
+      A('We gambled and lost. I will take my share of that.', [], 'Owning it.', 'humble'),
+      A('It was a calculated risk. It just did not work today.', [], null, 'diplomatic'),
+      A('Let us just say I am not going to a casino tonight.', [], 'A grin from the pen.', 'funny')] }),
+  }[SG.kind];
+  if (SQ) pool.push({ k: 'strategy', w: SG.good ? 5 : 7, ...SQ() });
   // the car, the team
   if (ctx.upgrade) pool.push({ k: 'upgrade', w: 2, q: pick([`The new ${ctx.upgrade} - did it make a difference?`, `How much did the ${ctx.upgrade} bring?`]), answers: [
     A('Massive step. The factory delivered.', [], null, 'humble'), A("Small gain, but we're learning.", [], null, 'diplomatic'), A('Too early to tell, honestly.', [], null, 'evasive'), A('We need more, and faster.', [], null, 'confident')] });

@@ -611,7 +611,13 @@ export class Career {
     } else if (meRow && !mine && !grave && meRow.car.isPlayer) press('standin', { did: meRow.car.careerId, name: this.drivers[meRow.car.careerId]?.name || meRow.car.name });
     const win = rows.find((r) => r.pos === 1);
     this.log.push({ round: this.round, track: trackId, winner: win?.car.name || '', you: meRow?.pos ?? null });
-    if (win) this.addNews(`Round ${this.round} (${trackId === 'lasvegas' ? 'Las Vegas' : 'Silverstone'}): ${win.car.name} wins.`);
+    // the strategy stories (race/Calls.js, main.js raceFacts): the day's biggest in the paddock news - yours to the press
+    // too (a call that made or cost your race) - none in a grave round
+    const strat = !grave && Array.isArray(X.strategy) ? X.strategy.filter((x) => x && typeof x.text === 'string') : [];
+    for (const x of strat.slice(0, 2).reverse()) this.addNews(`Strategy: ${x.text}.`);
+    const ms = live ? strat.find((x) => x.mine) : null;
+    if (ms) press('strategy', { kind: ms.kind, good: !!ms.good, pos: ms.pos, n: ms.n >= 2 ? ms.n : null, rival: ms.rival, comp: ms.comp, track: trackId });
+    if (win) this.addNews(`Round ${this.round} (${{ lasvegas: 'Las Vegas', montreal: 'Montreal', austin: 'Austin' }[trackId] || 'Silverstone'}): ${win.car.name} wins.`);
     // (each team's best race lap this round: the measured race pace, for the charts)
     this._laps = {}; for (const r of rows) { const t = r.car.team, b = r.car.bestLap; if (this.teams[t] && isFinite(b) && b > 20) this._laps[t] = Math.min(this._laps[t] ?? Infinity, +b.toFixed(3)); }
     if (meRow) report.trophies = this.award({ me: this.me, row: meRow, mateRow, rows, report, fastest: flRow === meRow });
