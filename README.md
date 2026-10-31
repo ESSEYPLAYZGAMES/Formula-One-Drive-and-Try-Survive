@@ -66,7 +66,7 @@ src/world/PitLane.js       continuous pit building, team garages, banners, paint
 src/world/Grandstands.js   auto-placed grandstands with instanced cheering fans (collision-checked placement)
 src/world/Lighting.js      camera-following floodlight SpotLights + the Sphere's coloured PointLight
 src/world/Environment.js   night sky, lights, ground, fog, PMREM environment for glass/water
-src/world/Buildings.js     footprint extrusion (height → levels×3.5 → 12 m) + lit-window facade shader
+src/world/Buildings.js     the map's buildings in five kinds (brick, modern, stucco, tiered, civic) + their facade shader
 src/world/Landmarks.js     Landmark Intercept Engine: 25 name-matched procedural overrides (+ geo anchors when the
                            footprint is missing from the export)
 src/vehicle/Car.js         car step: four wheels, aero/slipstream, diff, damage, barriers, crash rigid body
@@ -217,6 +217,17 @@ src/audio/Audio.js         synthesised engine/wind/impact audio
   from there; the sign, helmet and stream repeat on the far side (the stream wraps cylindrically), while the
   one-sided emoji keeps a flat gold back. Canvas backgrounds are flat so there are no colour seams.
 * Daytime facades: the window shader switches to sunlit stone/concrete with sky-reflecting glass panes.
+* The map's own buildings (`world/Buildings.js`) come in five kinds, chosen by each footprint's height and a hash of
+  its id, in muted colours: *brick* (terraces and warehouses - white-framed windows with stone sills and lintels, an
+  arched shop floor, a cornice and a parapet, the low ones under a gabled tile roof), *modern* (rendered blocks with a
+  balcony slab and glass railing all round every floor; above 16 storeys a curtain-wall tower), *stucco* (sandstone,
+  cream, sage: shuttered windows, balconies on some bays - the same bays all the way up - and terracotta on the low
+  ones), *tiered* (slate offices stepping back 3 m at 55 % and 80 % of their height, a railed terrace on each step,
+  ribbon windows) and *civic* (limestone: an arcade of columns along the ground floor with the arches cut right
+  through, tall arched windows above, a rusticated base). Big flat roofs carry plant boxes, stair cores and tanks.
+  Every facade holds a whole number of window bays, none cut at a corner; it is still one shader (`makeFacadeMaterial`,
+  from what each vertex carries: kind, part, storey height, its place along the facade) and one mesh per 400 m cell.
+  Las Vegas has little brick (`buildingStyle.brick`). The landmarks' glass reflects the sky the same way by day.
 * Damp/Wet weather adds GPU rain (a camera-following point cloud), heavier greyer fog, dimmed sun and wet,
   reflective asphalt; it previews live in the menu.
 * Driver selection is team-first: a 4×3 grid of team tiles (plus the Independent 23rd car); picking a team reveals

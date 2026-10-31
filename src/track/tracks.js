@@ -4,6 +4,7 @@
 export const TRACKS = {
   lasvegas: {
     id: 'lasvegas',
+    buildingStyle: { brick: 0.2 },   // (world/Buildings.js: a desert city - little brick among its blocks)
     name: 'Las Vegas Strip Circuit',
     title: ['LAS VEGAS', 'STRIP CIRCUIT'],
     // outline for the home-screen card (SVG path in a 100 x 100 box, generated from the built track)
