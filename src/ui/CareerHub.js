@@ -18,6 +18,8 @@ import { isBanned, activePoints } from '../career/Licence.js';
 import { imageLabel, heatLabel, fameText } from '../career/PR.js';
 import { hangoutResult, autoHangout } from '../career/Social.js';
 import { CarMesh } from '../vehicle/CarMesh.js';
+import { carModel, loadCarModel } from '../vehicle/CarModel.js';
+import { PATTERNS } from '../vehicle/Livery.js';
 import { makePerson, makeHelmet, bloodPool } from '../world/People.js';
 import { showNegotiation } from './Negotiation.js';
 import { mourning3D } from './Mourning3D.js';
@@ -474,7 +476,7 @@ html.k-glass #career .ch-top { background: rgba(250,251,253,.8); backdrop-filter
 const cssText = () => CSS + TECH_CSS + (typeof HS.SOCIAL_CSS === 'string' ? HS.SOCIAL_CSS : '') + LOOK_CSS;
 const injectCSS = () => { if (document.getElementById('career-css')) return; const st = document.createElement('style'); st.id = 'career-css'; st.textContent = cssText(); document.head.appendChild(st); };
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const TRACK_NAME = { silverstone: 'Silverstone', lasvegas: 'Las Vegas' };
+const TRACK_NAME = { silverstone: 'Silverstone', lasvegas: 'Las Vegas', montreal: 'Montreal', austin: 'Austin' };
 const TN = (id) => TRACK_NAME[id] || id || '';
 const money = (m) => `$${(Math.round(m * 10) / 10).toFixed(1)}M`;
 const diffName = (d) => (d < 20 ? 'Rookie' : d < 40 ? 'Amateur' : d < 60 ? 'Semi-pro' : d < 80 ? 'Pro' : d < 95 ? 'Elite' : 'Legend');
@@ -580,11 +582,12 @@ class Showroom {
   /** the car on the turntable: a team's livery, the driver's helmet; and the studio in the team's colour */
   setCar(o) {
     // (the same car with only the helmet's design changed - your own look edited: its paint swapped in place)
-    const hk = o.driver ? JSON.stringify(helmetDesign(o.driver)) : '', k = [o.color, o.color2, o.driver, o.number, o.team].join('|');
+    if (!carModel()) { loadCarModel().then(() => this.setCar(o)); return; }   // (the car model still loading: as soon as it is in)
+    const hk = o.driver ? JSON.stringify(helmetDesign(o.driver)) : '', k = [o.color, o.color2, o.driver, o.number, o.team, JSON.stringify(o.livery || null)].join('|');
     if (k === this.key0) { if (hk !== this.helKey) { this.helKey = hk; this._carHelmet(o); } return; }
     this.key0 = k; this.helKey = hk; this.dirty = true;
     if (this.car) { this.turn.remove(this.car.group); this.car.dispose(); }
-    const m = this.car = new CarMesh(o.color, 'SOFT', { color2: o.color2, helmet: o.helmet, number: o.number, driver: o.driver });
+    const m = this.car = new CarMesh(o.color, 'SOFT', { color2: o.color2, team: o.team, livery: o.livery, helmet: o.helmet, number: o.number, driver: o.driver });
     m.group.traverse((x) => { if (x.isMesh) x.castShadow = true; });
     if (m.shadow) m.shadow.visible = false; if (m.shadowFar) m.shadowFar.visible = false;
     m.group.position.y = 0.12; this.turn.add(m.group);
@@ -1036,7 +1039,7 @@ function newCareer(el, o) {
   o.music?.(false);
   HUB?.unkeys?.(); HUB?.unrep?.(); HUB = { el, o, c: null, mode: 'wizard' };
   room?.setMood('normal'); room?.clearAvatar(); syncLooks(null);
-  const st = { at: 'who', driver: null, rounds: 6, laps: 5, diff: 75, custom: { name: 'E. Esselink', teamName: 'Esselink Racing', color: '#00d4ff', color2: '#ffffff' },
+  const st = { at: 'who', driver: null, rounds: 6, laps: 5, diff: 75, custom: { name: 'E. Esselink', teamName: 'Esselink Racing', color: '#00d4ff', color2: '#ffffff', pattern: 'arrow', c3: '#111318', c4: '#ff3b6b', finish: 'gloss', sponsor: '' },
     look: null, lookDirty: false, lookTab: 0, cap: false, cam: null };
   WIZ = { el, st };
   const teams = []; for (const [i, r] of o.roster.entries()) { let t = teams.find((x) => x.name === r.team); if (!t) teams.push((t = { name: r.team, color: r.color, color2: r.color2, d: [] })); t.d.push({ ...r, i }); }
@@ -1050,9 +1053,11 @@ function newCareer(el, o) {
   const draft = () => Avatar.lookFrom(baseLook(nm()), { color: st.custom.color, color2: st.custom.color2, name: nm() });
   const looking = () => HUB?.el === el && HUB.mode === 'wizard' && st.at === 'look' && WIZ?.st === st;
   const reg = () => { syncLooks(null); if (st.driver === 'custom' && st.look) registerLook(nm(), st.look); };
+  // your team's livery: a pattern in four colours (vehicle/Livery.js designLivery), its finish, a wordmark on its flanks
+  const design = () => { const C = st.custom; return { pattern: C.pattern, c1: C.color, c2: C.color2, c3: C.c3, c4: C.c4, finish: C.finish, text: String(C.sponsor || '').trim().slice(0, 14) }; };
   const showCar = () => {
     const r = sel();
-    if (st.driver === 'custom') room?.setCar({ color: st.custom.color, color2: st.custom.color2, helmet: st.look?.helmet?.c?.[0] || st.custom.color2, number: 99, team: st.custom.teamName, driver: st.look ? nm() : undefined });
+    if (st.driver === 'custom') room?.setCar({ color: st.custom.color, color2: st.custom.color2, livery: design(), helmet: st.look?.helmet?.c?.[0] || st.custom.color2, number: 99, team: st.custom.teamName, driver: st.look ? nm() : undefined });
     else if (r) room?.setCar({ color: r.color, color2: r.color2, helmet: r.helmet, number: r.number, driver: r.name, team: r.team });
     else room?.setCar({ color: '#e10600', color2: '#ffffff', number: 1, team: 'Formula 1' });
     el.style.setProperty('--tc', st.driver === 'custom' ? st.custom.color : r ? r.color : '#e10600');
@@ -1088,7 +1093,11 @@ function newCareer(el, o) {
     const step1 = `<h2>Who are you?</h2><p class="lead">You are a driver and the owner of your team. Choose who you are: you race as them for as long as they live. Death is permanent.</p>
       <div class="tl wz1">${teams.map((t) => `<div class="teamrow"><div class="tn"><span class="sw" style="background:${esc(ink(t.color))}"></span>${esc(t.name)}</div>${t.d.map((d) => `<button class="pick${st.driver === d.i ? ' on' : ''}" data-d="${d.i}" style="--c:${esc(t.color)}"><b>${esc(d.name)} <span class="muted">#${d.number}</span></b><small>rating ${Math.round(d.rating * 100)}</small></button>`).join('')}</div>`).join('')}
         <div class="teamrow"><div class="tn"><span class="sw" style="background:${esc(st.custom.color)}"></span>Your own</div><button class="pick${st.driver === 'custom' ? ' on' : ''}" data-d="custom" style="--c:${esc(st.custom.color)};grid-column:span 2"><b>★ A new team on the grid</b><small>your name, your colours, your look · a backmarker's car and budget</small></button></div></div>
-      ${st.driver === 'custom' ? `<div class="detail"><div class="row"><input type="text" data-f="name" value="${esc(st.custom.name)}" maxlength="18" placeholder="Driver"><input type="text" data-f="teamName" value="${esc(st.custom.teamName)}" maxlength="22" placeholder="Team"><input type="color" data-f="color" value="${esc(st.custom.color)}" title="Colour"><input type="color" data-f="color2" value="${esc(st.custom.color2)}" title="Accent"></div></div>` : ''}
+      ${st.driver === 'custom' ? `<div class="detail"><div class="row"><input type="text" data-f="name" value="${esc(st.custom.name)}" maxlength="18" placeholder="Driver"><input type="text" data-f="teamName" value="${esc(st.custom.teamName)}" maxlength="22" placeholder="Team"><input type="color" data-f="color" value="${esc(st.custom.color)}" title="Main colour"><input type="color" data-f="color2" value="${esc(st.custom.color2)}" title="Second colour"></div>
+        <span class="lbl">Livery</span><div class="seg wz-pat">${Object.entries(PATTERNS).map(([k, t]) => `<button data-pat="${k}" class="${st.custom.pattern === k ? 'on' : ''}" title="${esc(t)}">${esc(t.split(':')[0])}</button>`).join('')}</div>
+        <div class="row wz-liv"><label title="The dark third colour: the lower body, the stripe's edge">Third <input type="color" data-f="c3" value="${esc(st.custom.c3)}"></label><label title="The detail colour: pinstripes, the nose tip, the numbers">Detail <input type="color" data-f="c4" value="${esc(st.custom.c4)}"></label>
+          <span class="seg">${[['gloss', 'Gloss'], ['matte', 'Matte'], ['metal', 'Metallic']].map(([k, t]) => `<button data-fin="${k}" class="${st.custom.finish === k ? 'on' : ''}">${t}</button>`).join('')}</span>
+          <input type="text" data-f="sponsor" value="${esc(st.custom.sponsor)}" maxlength="14" placeholder="Sponsor on the sidepods"></div></div>` : ''}
       <div class="row" style="margin-top:16px"><span class="tk" data-tk>${tk ? 'That name is already in the paddock: choose another.' : ''}</span><span class="grow"></span><button class="go" data-a="next" ${st.driver == null || tk ? 'disabled' : ''}>NEXT · ${STEP_NAME[S[1]]} →</button></div>`;
     const stepLook = `<div class="lk-hd"><div><h2>Your look</h2><p class="lead">How the paddock, the podium and the cameras see you.</p></div><button data-lk="random" title="A face at random (your suit and helmet stay)">⟳ RANDOMISE</button></div>
       ${lookEditorHTML(st.look, lookOpts())}
@@ -1133,6 +1142,8 @@ function newCareer(el, o) {
     const d = b.dataset, S = steps(), to = (k) => { const dir = Math.sign(S.indexOf(k) - S.indexOf(st.at)); if (!dir) return; st.at = k; draw(dir); };
     if (d.lk === 'random') { if (!LE) return; const L = Avatar.randomLook(Math.random, st.look); LE.set(L); lookChanged(L, 'random'); return; }
     if (d.d != null) { st.driver = d.d === 'custom' ? 'custom' : +d.d; draw(); }
+    else if (d.pat) { st.custom.pattern = d.pat; draw(); }
+    else if (d.fin) { st.custom.finish = d.fin; draw(); }
     else if (d.step) to(d.step);
     else if (d.a === 'next') { const j = S.indexOf(st.at); if (j < S.length - 1) to(S[j + 1]); }
     else if (d.a === 'back') { const j = S.indexOf(st.at); if (j > 0) to(S[j - 1]); }
@@ -1140,7 +1151,7 @@ function newCareer(el, o) {
     else if (d.l) { st.laps = +d.l; draw(); }
     else if (d.a === 'close') { leave(); closeCareer(); o.onClose?.(); }
     else if (d.a === 'begin' && st.driver != null && !taken()) {
-      const custom = st.driver === 'custom' ? { ...st.custom, name: nm(), look: st.look || draft() } : st.custom;
+      const custom = st.driver === 'custom' ? { ...st.custom, name: nm(), look: st.look || draft(), livery: design() } : st.custom;
       const c = Career.create({ driver: st.driver, custom, rounds: st.rounds, laps: st.laps, diff: st.diff, tracks: o.tracks, firstTrack: o.currentTrack }); c.save();
       leave(); syncLooks(c); hub(el, c, o);
     }
@@ -1150,7 +1161,7 @@ function newCareer(el, o) {
     const f = e.target.dataset.f;
     if (f) {
       st.custom[f] = e.target.value;
-      if (f === 'color' || f === 'color2' || f === 'teamName') showCar();
+      if (f === 'color' || f === 'color2' || f === 'teamName' || f === 'c3' || f === 'c4' || f === 'sponsor') showCar();
       if ((f === 'name' || f === 'color' || f === 'color2') && !st.lookDirty) st.look = null;
       if (f === 'name') {
         const tk = taken(), nx = el.querySelector('[data-a="next"]'), note = el.querySelector('[data-tk]');
@@ -1417,7 +1428,7 @@ function stage(X, tab, S) {
   room?.setMood(tab === 'lost' ? 'dim' : 'normal');
   X.el.style.setProperty('--tc', team.color);
   const shown = me && me.alive && me.team === team.name ? me : c.seatsOf(team.name)[0];
-  room?.setCar({ color: team.color, color2: team.color2, helmet: shown?.helmet, number: shown?.number ?? 1, driver: shown?.name, team: team.name });
+  room?.setCar({ color: team.color, color2: team.color2, livery: team.livery, helmet: shown?.helmet, number: shown?.number ?? 1, driver: shown?.name, team: team.name });
   // (the studio's areas: your drivers in their corner, the championship's top three on the podium, the trophies)
   room?.setCrew(c.seatsOf(team.name).map((d) => ({ name: d.name, color: team.color, color2: team.color2, team: team.name, me: d.id === c.playerId })));
   // (DRIVER › Look: you alone in the corner as you are making yourself - the pair back on any other page)
@@ -1492,7 +1503,7 @@ function hubAvatar(X, kind) {
       X.lkQ = false; if (HUB !== X || !X.lkOn) return;
       const c = X.c, me = c.me, team = c.team; if (!me) return;
       room?.setAvatar({ name: me.name, color: team.color, color2: team.color2, team: team.name, cap: !!X.lkCap, draft: !!X.lkDraft });
-      if (me.alive && me.team === team.name) room?.setCar({ color: team.color, color2: team.color2, helmet: me.helmet, number: me.number ?? 1, driver: me.name, team: team.name });
+      if (me.alive && me.team === team.name) room?.setCar({ color: team.color, color2: team.color2, livery: team.livery, helmet: me.helmet, number: me.number ?? 1, driver: me.name, team: team.name });
       room?.view(CC_VIEW[hubCam(X)]); X.lkAt = performance.now();
     });
   };

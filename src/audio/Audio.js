@@ -4,17 +4,29 @@
 export const SAMPLES = ['crowd', 'gasp', 'groan', 'horror'];
 
 export class AudioEngine {
-  constructor() { this.ctx = null; this.muted = false; this.ready = false; }
+  constructor() {
+    this.ctx = null; this.muted = false; this.ready = false;
+    // the master volume (settings: 0-1, kept in the browser): one gain in front of the speakers, after every bus
+    let v = 0.8; try { const s = localStorage.getItem('f1.volume'); if (s != null && isFinite(+s)) v = Math.max(0, Math.min(1, +s)); } catch (e) { /* storage off */ }
+    this.volume = v;
+  }
+  /** set the master volume (0-1) and remember it */
+  setVolume(v) {
+    this.volume = Math.max(0, Math.min(1, +v || 0));
+    try { localStorage.setItem('f1.volume', String(this.volume)); } catch (e) { /* storage off */ }
+    if (this.out) this.out.gain.setTargetAtTime(this.volume * this.volume, this.ctx.currentTime, 0.03);   // (squared: the slider's middle sounds like half)
+  }
   init() {
     if (this.ready) return;
     const C = window.AudioContext || window.webkitAudioContext; if (!C) return;
     const ctx = this.ctx = new C();
     // the world's mix goes through a low-pass the crash camera closes (everything muffled); the crash's own sounds
     // (the punch, the crunches, the ticks) go round it, through fx, at full range
+    this.out = ctx.createGain(); this.out.gain.value = this.volume * this.volume; this.out.connect(ctx.destination);   // (the master volume)
     this.master = ctx.createGain(); this.master.gain.value = 0.35;
     this.muffle = ctx.createBiquadFilter(); this.muffle.type = 'lowpass'; this.muffle.frequency.value = 20000; this.muffle.Q.value = 0.7;
-    this.master.connect(this.muffle); this.muffle.connect(ctx.destination);
-    this.fx = ctx.createGain(); this.fx.gain.value = 0.45; this.fx.connect(ctx.destination);
+    this.master.connect(this.muffle); this.muffle.connect(this.out);
+    this.fx = ctx.createGain(); this.fx.gain.value = 0.45; this.fx.connect(this.out);
     this.noiseBuf = null;
     // engine: two detuned saws + sub square through a lowpass
     this.osc1 = ctx.createOscillator(); this.osc1.type = 'sawtooth';
@@ -33,7 +45,7 @@ export class AudioEngine {
     this.noiseGain = ctx.createGain(); this.noiseGain.gain.value = 0;
     this.noise.connect(this.noiseFilter); this.noiseFilter.connect(this.noiseGain); this.noiseGain.connect(this.master); this.noise.start();
     // recorded sounds: their own bus, outside silence() (the mourning screen's strings play in the silence)
-    this.sfx = ctx.createGain(); this.sfx.gain.value = 0.6; this.sfx.connect(ctx.destination);
+    this.sfx = ctx.createGain(); this.sfx.gain.value = 0.6; this.sfx.connect(this.out);
     this.ready = true;
     // (the tab in the background or the window minimised: every sound stops, and carries on when you are back)
     document.addEventListener('visibilitychange', () => { if (document.hidden) ctx.suspend?.(); else ctx.resume?.(); });

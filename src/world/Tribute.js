@@ -1,6 +1,7 @@
 // Tributes to drivers lost, in 3D: bouquets and candles laid along a line, cloth banners, and banners held up in the
 // grandstands' front rows (the pre-race show after a death: ui/PreRace.js).
 import * as THREE from 'three';
+import { TERRAIN } from './Terrain.js';
 
 const pick = (a) => a[(Math.random() * a.length) | 0];
 
@@ -27,7 +28,7 @@ export function tribute(group, at, n, spanL, spanA, nc) {
   for (let i = 0; i < nc; i++) {
     const h = 0.07 + Math.random() * 0.1, p = at((Math.random() - 0.5) * 2 * spanA, -0.25 - Math.random() * 0.4, 0);
     candles.setMatrixAt(i, M4.compose(p, Q.identity(), S3.set(1, h, 1)));
-    const f = new THREE.Mesh(new THREE.SphereGeometry(0.011, 8, 6), flameMat); f.position.set(p.x, h + 0.02, p.z); f.scale.y = 1.8; f.userData.ph = i * 1.7; group.add(f); flames.push(f);
+    const f = new THREE.Mesh(new THREE.SphereGeometry(0.011, 8, 6), flameMat); f.position.set(p.x, p.y + h + 0.02, p.z); f.scale.y = 1.8; f.userData.ph = i * 1.7; group.add(f); flames.push(f);   // (on its candle, wherever at() put that)
   }
   group.add(candles);
   return flames;
@@ -47,7 +48,9 @@ export function clothBanner(lines, color, w, h) {
 
 /**
  * Banners held up in the front rows of the grandstands nearest a point, for the drivers lost (Ds: [{ first, last,
- * number, color }]) -> [{ pos, stand, f }] (f: along the stand, -0.5..0.5). stands: world/Grandstands.js's list.
+ * number, color }]) -> [{ pos, stand, f }] (f: along the stand, -0.5..0.5; pos on the flat plan, its y over the ground
+ * there - on a circuit that is not flat the banner itself is up on the stand's own floor: world/Grandstands.js y0, k).
+ * stands: world/Grandstands.js's list.
  */
 export function standBanners(group, stands, near, Ds, per = 4) {
   const list = (stands || []).map((p) => ({ p, d: Math.hypot(p.x - near.x, p.z - near.z) })).sort((a, b) => a.d - b.d).slice(0, 3), out = [];
@@ -56,8 +59,8 @@ export function standBanners(group, stands, near, Ds, per = 4) {
       const D = Ds[(si + j) % Ds.length], f = -0.36 + j * (0.72 / Math.max(1, per - 1)) + (Math.random() - 0.5) * 0.06, row = 1 + (j % 3);
       const F = D.first.toUpperCase(), L = D.last.toUpperCase(), N = `#${D.number ?? ''}`;
       const lines = [[`FOREVER ${N}`, L], [`RIP ${F}`, N], ['NEVER FORGET', L], [F, 'IN OUR HEARTS'], ['RACE IN PEACE', `${F} ${N}`]][(si * 2 + j) % 5];
-      const [x, z] = p.world(f * p.len, 0.8 + (row + 0.5) * 1.35), [tx, tz] = p.world(f * p.len, -40), y = 1.2 + row * 0.48 + 1.7;
-      const b = clothBanner(lines, D.color, 2.6, 0.74); b.position.set(x, y, z); b.lookAt(tx, y, tz); b.rotateZ((Math.random() - 0.5) * 0.1); group.add(b); out.push({ pos: b.position.clone(), stand: p, f });
+      const [x, z] = p.world(f * p.len, 0.8 + (row + 0.5) * 1.35), [tx, tz] = p.world(f * p.len, -40), y = 1.2 + row * 0.48 + 1.7, y0 = (p.y0 || 0) + (p.k || 0) * f * p.len;
+      const b = clothBanner(lines, D.color, 2.6, 0.74); b.position.set(x, y + y0, z); b.lookAt(tx, y + y0, tz); b.rotateZ((Math.random() - 0.5) * 0.1); group.add(b); out.push({ pos: new THREE.Vector3(x, y + y0 - TERRAIN.at(x, z), z), stand: p, f });
     }
   });
   return out;

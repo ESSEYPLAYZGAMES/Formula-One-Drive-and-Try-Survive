@@ -2,7 +2,7 @@
 // spatial hash for nearest-point queries, and the road/kerb/run-off/barrier meshes.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { kerbTexture, barrierAtlas, atlasU, runoffTextTexture, RUNOFF_DECAL_LEN, ZONE_SEQ, ZONE_LEN, PANEL_LEN } from './Branding.js';
+import { kerbTexture, barrierAtlas, atlasU, runoffTextTexture, RUNOFF_DECAL_LEN, ZONE_SEQ, ZONE_LEN, PANEL_LEN, TECPRO_PANEL } from './Branding.js';
 
 const DS = 2.0;              // sample spacing (m)
 const CELL = 24;             // spatial hash cell (m)
@@ -206,9 +206,17 @@ export class Track {
     this.def = def;
     this.halfWidth = def.width / 2;
     this.kerbWidth = 1.2;
+    // the road's half width per sample: halfWidth everywhere, wider where def.widths opens it out (widen())
+    this.hw = new Float32Array(this.n).fill(this.halfWidth); this.maxHalfWidth = this.halfWidth;
+    // ... and per side (the wider of the two is hw): a corner widened on its outside only - the inside keeps clear of a
+    // pit lane or another part of the lap, and an inside edge pushed out past the corner's radius would fold the road
+    this.hwL = new Float32Array(this.n).fill(this.halfWidth); this.hwR = new Float32Array(this.n).fill(this.halfWidth);
     // A street circuit (def.verge unset) is walled in: 3 m of paved verge, then concrete. A permanent circuit
     // (def.verge = 'circuit') has grass verges, gravel or asphalt run-offs and its barriers far back.
-    this.circuit = def.verge === 'circuit';
+    // def.verge = 'park' (Montreal): a permanent circuit's grass verges, kerbs, gravel and asphalt run-offs, but walled
+    // in all the way round like a street circuit (the concrete of Ile Notre-Dame, a few metres off the white line)
+    this.circuit = def.verge === 'circuit' || def.verge === 'park';
+    this.walled = def.verge === 'park';
     this.runoffWidth = def.vergeWidth ?? 3.0;
     this.minWall = this.halfWidth + this.kerbWidth + 3.0;                     // a barrier never stands closer than this (11.7 m)
     this.barrierOffset = this.halfWidth + this.kerbWidth + this.runoffWidth;  // where it stands along a plain straight
@@ -239,11 +247,18 @@ export class Track {
    */
   layoutBarriers(rings) {
     if (!this.circuit) return;
+    if (this.walled) {
+      // a walled park circuit: concrete everywhere, except across the back of a deep escape area, where the wall
+      // gives way to a run of TecPro / tyre barrier under its banners
+      const deep = this.barrierOffset + 9;
+      for (const [bar, wall] of [[this.barL, this.wallL], [this.barR, this.wallR]]) for (let i = 0; i < this.n; i++) bar[i] = wall[i] > deep ? BAR.TYRES : BAR.WALL;
+      return;
+    }
     const inside = insideRings(rings), n = this.n;
     for (const [bar, cap, wall, side] of [[this.barL, this.capL, this.wallL, 1], [this.barR, this.capR, this.wallR, -1]]) {
       const raw = new Uint8Array(n);
       for (let i = 0; i < n; i++) {
-        if (cap[i] === 2) { raw[i] = BAR.ARMCO; continue; }
+        if (cap[i] === 2) { raw[i] = this.def.selfArmco === false ? 0 : BAR.ARMCO; continue; }   // (def.selfArmco false: open grass between the two, Austin's hairpins)
         if (cap[i] === 1) { raw[i] = BAR.TYRES; continue; }
         for (let d = wall[i]; d <= wall[i] + 15; d += 2) if (inside(this.px[i] + this.nx[i] * side * d, this.pz[i] + this.nz[i] * side * d)) { raw[i] = BAR.TYRES; break; }
       }
@@ -265,14 +280,14 @@ export class Track {
    * run-off starts at the kerb, and everything else is grass.
    */
   surface(i, d) {
-    const ad = Math.abs(d), hw = this.halfWidth;
+    const ad = Math.abs(d), hw = d > 0 ? this.hwL[i] : this.hwR[i];
     if (ad <= hw) return 0;
     if (!this.circuit) return ad <= hw + this.kerbWidth ? 1 : 2;
     if (this.pitCovers && this.pitCovers[i] && d * this.pitSide > 0) return 2;
     const t = d > 0 ? this.surfL[i] : this.surfR[i], wall = d > 0 ? this.wallL[i] : this.wallR[i];
     if (ad <= hw + this.kerbWidth) return this.inCorner[i] ? 1 : t === 1 ? 2 : 3;
     if (this.inCorner[i] && ad <= hw + this.kerbWidth + GREEN_W) return 2;   // the painted green strip behind the kerb
-    if (t === 1) return ad < wall - APRON_EDGE ? 2 : 3;
+    if (t === 1) return ad < Math.min(wall - APRON_EDGE, hw + this.kerbWidth + this.apronMaxAt(i)) ? 2 : 3;
     if (t === 2) return ad > hw + this.kerbWidth + GRAVEL_IN && ad < wall - APRON_EDGE ? 4 : 3;
     return 3;
   }
@@ -288,8 +303,8 @@ export class Track {
     // in front of a grandstand (extendToStands): gravel right up to its barrier, unless that corner's run-off is asphalt
     const front = (ap, st, i) => (ap[i] >= 0 && kind[ap[i]] === 1 ? 1 : 2);
     for (let i = 0; i < this.n; i++) {
-      this.surfL[i] = this.standL?.[i] && this.wallL[i] > this.minWall + 3 ? front(this.apronL, this.standL, i) : this.apronL[i] >= 0 && this.wallL[i] > this.minWall + 6 ? kind[this.apronL[i]] : 0;
-      this.surfR[i] = this.standR?.[i] && this.wallR[i] > this.minWall + 3 ? front(this.apronR, this.standR, i) : this.apronR[i] >= 0 && this.wallR[i] > this.minWall + 6 ? kind[this.apronR[i]] : 0;
+      this.surfL[i] = this.standL?.[i] && this.wallL[i] > this.minWallAt(i, 1) + 3 ? front(this.apronL, this.standL, i) : this.apronL[i] >= 0 && this.wallL[i] > this.minWallAt(i, 1) + 6 ? kind[this.apronL[i]] : 0;
+      this.surfR[i] = this.standR?.[i] && this.wallR[i] > this.minWallAt(i, -1) + 3 ? front(this.apronR, this.standR, i) : this.apronR[i] >= 0 && this.wallR[i] > this.minWallAt(i, -1) + 6 ? kind[this.apronR[i]] : 0;
     }
   }
   _cellKey(x, z) { return `${Math.floor(x / CELL)},${Math.floor(z / CELL)}`; }
@@ -362,14 +377,14 @@ export class Track {
   capRunoff(rings, margin = 4) {
     if (!rings.length) return;
     const inside = insideRings(rings);
-    const lo = this.minWall;
     for (const [arr, side, cap] of [[this.wallL, 1, this.capL], [this.wallR, -1, this.capR]]) {
       const before = Float32Array.from(arr);
       for (let i = 0; i < this.n; i++) {
+        const lo = this.minWallAt(i, side);
         if (arr[i] <= lo + 0.5) continue;
         for (let d = lo; d <= arr[i] + margin; d += 1.5) { if (inside(this.px[i] + this.nx[i] * side * d, this.pz[i] + this.nz[i] * side * d)) { arr[i] = Math.max(lo, d - margin); break; } }
       }
-      this._easeWall(arr);
+      this._easeWall(arr); this._clampWall(arr);
       for (let i = 0; i < this.n; i++) if (arr[i] < before[i] - 0.5 && !cap[i]) cap[i] = 1;
     }
   }
@@ -381,18 +396,19 @@ export class Track {
    */
   extendToStands(rings, reach = 90, margin = 4) {
     if (!rings.length || !this.circuit) return;
-    const inside = insideRings(rings), lo = this.minWall, n = this.n;
+    const inside = insideRings(rings), n = this.n;
     this.standL = this.standL || new Uint8Array(n); this.standR = this.standR || new Uint8Array(n);
     for (const [arr, side, cap, flag] of [[this.wallL, 1, this.capL, this.standL], [this.wallR, -1, this.capR, this.standR]]) {
       const ext = new Float32Array(n);
       for (let i = 0; i < n; i++) {
+        const lo = this.minWallAt(i, side);
         for (let d = lo; d <= reach; d += 1.5) if (inside(this.px[i] + this.nx[i] * side * d, this.pz[i] + this.nz[i] * side * d)) { ext[i] = d - margin; break; }
       }
       // taper the ends (a max-filter with a slope) so the barrier angles back to the verge instead of stepping
       const r = Math.round(140 / this.ds), slope = 0.6 * this.ds;
       for (let i = 0; i < n; i++) {
         let m = 0; for (let k = -r; k <= r; k++) m = Math.max(m, ext[(i + k + n) % n] - Math.abs(k) * slope);
-        if (m > arr[i] + 1 && m > lo) { arr[i] = m; cap[i] = 1; flag[i] = 1; }
+        if (m > arr[i] + 1 && m > this.minWallAt(i, side)) { arr[i] = m; cap[i] = 1; flag[i] = 1; }
       }
     }
   }
@@ -403,7 +419,7 @@ export class Track {
    */
   markFences(rings, reach = 30) {
     const n = this.n; this.fenceL = new Uint8Array(n); this.fenceR = new Uint8Array(n);
-    if (!rings.length) return;
+    if (!rings.length && !this.guardL) return;
     const inside = insideRings(rings), ext = Math.round(25 / this.ds);
     for (const [bar, wall, fence, side] of [[this.barL, this.wallL, this.fenceL, 1], [this.barR, this.wallR, this.fenceR, -1]]) {
       const raw = new Uint8Array(n);
@@ -413,12 +429,353 @@ export class Track {
       }
       for (let i = 0; i < n; i++) { if (!bar[i] || bar[i] === BAR.WALL) continue; for (let k = -ext; k <= ext && !fence[i]; k++) if (raw[(i + k + n) % n]) fence[i] = 1; }
     }
+    // (and every spectator area's fence: guardZones)
+    for (const [fence, g, bar] of [[this.fenceL, this.guardL, this.barL], [this.fenceR, this.guardR, this.barR]]) if (g) for (let i = 0; i < n; i++) if (g[i] && bar[i] && bar[i] !== BAR.WALL) fence[i] = 1;
+  }
+  /**
+   * A circuit's spectator areas all round the lap (zones: [{ s0, s1, side, back }]): wherever one lies behind the verge,
+   * a banner-covered barrier and over it a catch fence, along its whole length (and 15 m past either end) - the crowd is
+   * behind the fence, never in reach of a car. Kept in track.crowdZones.
+   * Where the barriers stand is then worked out the way a circuit's are (tautWalls): a zone with z.back keeps its fence
+   * at least CLEAR m past the kerb, a zone without (the main straight's grandstand wall) stays where it is; everything
+   * else - the run-offs, the stands, the pit wall - as laid out before. `rings`: the footprints the barrier must stop short
+   * of (buildings, stands); `pit`: the lane, which it never crosses.
+   */
+  guardZones(zones, rings = [], pit = null) {
+    const n = this.n, ext = Math.round(15 / this.ds), q = {}, CLEAR = 9;
+    this.crowdZones = zones; this.guardL = new Uint8Array(n); this.guardR = new Uint8Array(n);
+    // (want: -1 no crowd, 0 a crowd at the barrier where it is (the main straight's grandstand wall), up to 1 a crowd kept
+    //  CLEAR m back - eased in over the 15 m either end of a zone, so the line opens out to it gradually, never in a step)
+    const want = { 1: new Float32Array(n), '-1': new Float32Array(n) }, close = { 1: new Uint8Array(n), '-1': new Uint8Array(n) };
+    for (const z of zones) {
+      const W = want[z.side], C = close[z.side], i0 = this.idxAtS(z.s0), m = Math.round(this.wrapS(z.s1 - z.s0) / this.ds);
+      for (let k = -ext; k <= m + ext; k++) { const i = (i0 + k + n) % n, t = k < 0 ? 1 + k / ext : k > m ? 1 - (k - m) / ext : 1; if (z.back) W[i] = Math.max(W[i], t * t * (3 - 2 * t)); else C[i] = 1; }
+    }
+    const inside = insideRings(rings);
+    // (the pit lane: its own samples on a coarse grid, for a quick 'is this point on the lane' test)
+    const lane = new Map(), LC = 20;
+    if (pit) { const P = pit.samples; for (let k = 0; k < P.n; k++) { const key = `${Math.floor(P.px[k] / LC)},${Math.floor(P.pz[k] / LC)}`; (lane.get(key) || lane.set(key, []).get(key)).push(k); } }
+    const onLane = (x, z) => {
+      if (!pit) return false; const P = pit.samples, cx = Math.floor(x / LC), cz = Math.floor(z / LC), r = pit.halfWidth + 6;
+      for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) for (const k of lane.get(`${cx + dx},${cz + dz}`) || []) if ((P.px[k] - x) ** 2 + (P.pz[k] - z) ** 2 < r * r) return true;
+      return false;
+    };
+    for (const side of [1, -1]) {
+      const arr = side > 0 ? this.wallL : this.wallR, bar = side > 0 ? this.barL : this.barR, stand = side > 0 ? this.standL : this.standR, W = want[side], fan = (side > 0 ? this.fanL : this.fanR) || arr;
+      const lo = Float32Array.from(arr), hi = Float32Array.from(arr), mid = new Float32Array(n).fill(Infinity);
+      for (let i = 0; i < n; i++) {
+        if (bar[i] === BAR.WALL || close[side][i]) continue;   // (the pit wall, the main straight's wall: where they are)
+        // (what it must keep behind it: the escape area a car going straight on needs - not the line as it was, which
+        //  carries the old pulls round buildings and the other parts of the lap: those are what `hi` is for - and the
+        //  crowd's clearance; in front of a stand no further out than the stand's front)
+        const e = this.edgeAt(i, side) + this.kerbWidth;
+        lo[i] = Math.max(this.minWallAt(i, side), stand?.[i] ? Math.min(fan[i], arr[i]) : fan[i]);
+        if (W[i] > 0) lo[i] = Math.max(lo[i], Math.min(stand?.[i] ? arr[i] : Infinity, e + CLEAR * W[i]));
+        // how far out it may go: short of the next part of the lap (past the line halfway to it), of a footprint, of the lane
+        // (each hit found to a few centimetres - stepping out 2 m at a time left the limit in steps, and the line in scallops)
+        const hit = (d) => {
+          const x = this.px[i] + this.nx[i] * side * d, z = this.pz[i] + this.nz[i] * side * d;
+          this.nearest(x, z, -1, q); const sep = Math.min(Math.abs(q.i - i), n - Math.abs(q.i - i)) * this.ds;
+          return sep > Math.max(80, 4 * d) ? 1 : inside(x, z) ? 2 : onLane(x, z) ? 3 : 0;
+        };
+        let h = lo[i] + 45;
+        for (let d = Math.max(e + 2, lo[i] - 6); d <= h; d += 2) {
+          const k = hit(d); if (!k) continue;
+          let a = d - 2, b = d; for (let it = 0; it < 6; it++) { const m = (a + b) / 2; if (hit(m)) b = m; else a = m; }
+          h = b - (k === 1 ? 8 : k === 2 ? 5 : 3); if (k === 1) mid[i] = b; break;
+        }
+        let c = 0; for (let k = -10; k <= 10; k++) c = Math.max(c, this.curv[(i + k + n) % n] * side);
+        if (c > 1e-4) h = Math.min(h, 1 / c - 12);   // (on the inside of a bend, well short of its centre: see fairWalls)
+        if (stand?.[i]) h = Math.min(h, arr[i]);
+        lo[i] = Math.min(lo[i], Math.max(e + 1.5, h)); hi[i] = Math.max(lo[i], h);
+      }
+      // (what it must keep behind it smoothed over its little steps - where one escape area's line meets the next, where
+      //  a crowd's clearance comes in - so the line does not crinkle along them: only ever more ground kept, never less;
+      //  never past the limit)
+      const KL = Math.round(30 / this.ds), dl = new Float32Array(n), RL = 30;
+      for (let i = 0; i < n; i++) { let m = -Infinity; for (let k = -KL; k <= KL; k++) { const v = lo[(i + k + n) % n] - (k * this.ds) ** 2 / (2 * RL); if (v > m) m = v; } dl[i] = m; }
+      for (let i = 0; i < n; i++) { let m = Infinity; for (let k = -KL; k <= KL; k++) { const v = dl[(i + k + n) % n] + (k * this.ds) ** 2 / (2 * RL); if (v < m) m = v; } if (lo[i] < hi[i]) lo[i] = Math.min(hi[i], Math.max(lo[i], m)); }
+      // (the limit rounded off where it dips - another part of the lap, a building - so the line bends round it in a
+      //  curve, not to a point: brought in, never out)
+      const hs = Float32Array.from(hi), KH = Math.round(60 / this.ds);
+      for (let i = 0; i < n; i++) { let m = hs[i]; for (let k = -KH; k <= KH; k++) { const v = hs[(i + k + n) % n] + (k * this.ds) ** 2 / (2 * 40); if (v < m) m = v; } hi[i] = Math.max(lo[i], m); }
+      arr.set(this.tautWalls(lo, hi, side));
+      // (between the legs of a hairpin, or two parts of the lap as close, the line would only follow the halfway line
+      //  between them: open grass there, as there is at Austin - no barrier and no crowd in a strip that narrow)
+      const open = (side > 0 ? this.openL = new Uint8Array(n) : this.openR = new Uint8Array(n));
+      for (let i = 0; i < n; i++) if (mid[i] < 48 && arr[i] > hi[i] - 1.5) open[i] = 1;
+      const E = Math.round(10 / this.ds); for (let i = 0; i < n; i++) if (open[i] === 1) for (let k = -E; k <= E; k++) { const q = (i + k + n) % n; if (!open[q]) open[q] = 2; }
+    }
+    this.taut = true;
+    this.layoutSurfaces();
+    for (const z of zones) {
+      const bar = z.side > 0 ? this.barL : this.barR, g = z.side > 0 ? this.guardL : this.guardR, open = z.side > 0 ? this.openL : this.openR, i0 = this.idxAtS(z.s0), m = Math.round(this.wrapS(z.s1 - z.s0) / this.ds);
+      for (let k = -ext; k <= m + ext; k++) { const i = (i0 + k + n) % n; if (open[i] && bar[i] !== BAR.WALL) continue; if (!bar[i]) bar[i] = BAR.TYRES; if (bar[i] !== BAR.WALL) g[i] = 1; }
+    }
+  }
+  /**
+   * A barrier line the way a circuit's is drawn: the shortest line round the lap on one side (+1 left / -1 right) that
+   * keeps every sample's escape ground behind it (at least lo[i] from the centreline: the verge, the run-off a car
+   * going straight on needs) and stops short of whatever it must not reach (at most hi[i]). It holds the run-off's edge
+   * where the road bends away from it, the outside of a corner, and runs straight across where the road bends toward
+   * it, the inside: long straight runs from one escape area to the next, closing in to the apexes - never the road's
+   * wiggles copied out at a fixed distance. (A taut string: each point moved along its normal onto the line between its
+   * neighbours, coarse to fine.) -> the barrier's distance per sample
+   */
+  tautWalls(lo, hi, side) {
+    const n = this.n, d = Float32Array.from(lo), X = new Float32Array(n), Z = new Float32Array(n);
+    const pt = (i) => { X[i] = this.px[i] + this.nx[i] * side * d[i]; Z[i] = this.pz[i] + this.nz[i] * side * d[i]; };
+    for (let i = 0; i < n; i++) pt(i);
+    // (sample i's distance where its normal crosses the line from a to c, held within its bounds)
+    const onto = (i, a, c) => {
+      const ux = this.nx[i] * side, uz = this.nz[i] * side, cx = X[c] - X[a], cz = Z[c] - Z[a], den = cx * uz - cz * ux;
+      if (Math.abs(den) < 1e-6) return d[i];
+      const t = (cx * (Z[a] - this.pz[i]) - cz * (X[a] - this.px[i])) / den;
+      return Math.min(hi[i], Math.max(lo[i], t));
+    };
+    for (const st of [32, 16, 8, 4, 2, 1]) {
+      const idx = []; for (let i = 0; i < n; i += st) idx.push(i); const m = idx.length;
+      for (let sweep = 0; sweep < (st >= 16 ? 400 : 120); sweep++) {
+        let moved = 0;
+        for (let j = 0; j < m; j++) { const i = idx[j], v = onto(i, idx[(j - 1 + m) % m], idx[(j + 1) % m]); moved = Math.max(moved, Math.abs(v - d[i])); d[i] = v; pt(i); }
+        if (moved < 0.01) break;
+      }
+      if (st > 1) for (let j = 0; j < m; j++) { const a = idx[j], c = idx[(j + 1) % m], len = ((c - a + n) % n) || n; for (let k = 1; k < len; k++) { const i = (a + k) % n; d[i] = onto(i, a, c); pt(i); } }
+    }
+    this._cutLoops(d, side, (i) => hi[i]);
+    return d;
+  }
+  /**
+   * Where a barrier line (distances from the centreline, one side) crosses over itself - the inside of a bend tighter than
+   * the line is far out, or the tip of a hairpin's infield where the line from either leg meets - the loop beyond the
+   * crossing is cut off: the line comes to the crossing point and goes on from it (in place). Never where that would
+   * carry any of it further out than max(i) - a crossing with a far part of the same line (an open stretch with no
+   * barrier drawn) is not a fold, and moving a barrier out could put it into what it was kept clear of
+   */
+  _cutLoops(d, side, max = (i) => d[i] + 1) {
+    const n = this.n, X = new Float32Array(n), Z = new Float32Array(n), Wn = Math.round(320 / this.ds);
+    for (let i = 0; i < n; i++) { X[i] = this.px[i] + this.nx[i] * side * d[i]; Z[i] = this.pz[i] + this.nz[i] * side * d[i]; }
+    for (let a = 0; a < n; a++) {
+      const a1 = (a + 1) % n;
+      for (let k = 2; k < Wn; k++) {
+        const b = (a + k) % n, b1 = (b + 1) % n;
+        const rx = X[a1] - X[a], rz = Z[a1] - Z[a], sx = X[b1] - X[b], sz = Z[b1] - Z[b], den = rx * sz - rz * sx; if (Math.abs(den) < 1e-9) continue;
+        const qx = X[b] - X[a], qz = Z[b] - Z[a], t = (qx * sz - qz * sx) / den, u = (qx * rz - qz * rx) / den;
+        if (t < 0 || t > 1 || u < 0 || u > 1) continue;
+        const ix = X[a] + rx * t, iz = Z[a] + rz * t, nd = (i) => Math.max(0.5, (ix - this.px[i]) * this.nx[i] * side + (iz - this.pz[i]) * this.nz[i] * side);
+        let ok = true; for (let j = 1; j <= k && ok; j++) { const i = (a + j) % n, v = nd(i); if (v > max(i) && !(k * this.ds <= 16 && v <= d[i] + 5)) ok = false; }   // (a little knot at a street corner: undone even if a point of it moves out a little)
+        if (!ok) continue;
+        for (let j = 1; j <= k; j++) { const i = (a + j) % n; d[i] = nd(i); X[i] = ix; Z[i] = iz; }
+        a = a + k - 1; break;
+      }
+    }
+  }
+  /**
+   * Every circuit's barriers made fair - the last thing done to them, once everything that moves a wall line (the run-
+   * offs, the stands, buildings, the other parts of the lap, the pit lane, the crowds) has had its say. A barrier is built
+   * in long runs and gentle bends; the steps those leave where a line is pulled in round something (another part of the
+   * lap, a building) would be wedges of tyre wall jutting into a run-off. So each line, as distance from the centreline
+   * along the lap, is only ever brought IN (never out into what it was kept clear of):
+   *   * every dip rounded out to a bend of at least FAIR_R metres (the line pulled in a little either side of it);
+   *   * nowhere closing in or opening out at more than FAIR_DEG against the road;
+   *   * every corner left on the far side (the far end of a run-off) rounded off;
+   * then whatever still turns sharply in the plan - the inside of a hairpin, where the runs from either leg would meet in
+   * a point - has no barrier: the infield's tip is left open, back to where the two runs stand 20 m apart. The pit wall and
+   * a pinned wall stay where they are (but for wrapping round an apex rather than folding over themselves).
+   */
+  fairWalls() {
+    const n = this.n, ds = this.ds, FAIR_R = 45, tanB = Math.tan((28 * Math.PI) / 180), K = Math.round(70 / ds), G = Math.max(1, Math.round(4 / ds));
+    const gw = []; for (let k = -3 * G; k <= 3 * G; k++) gw.push(Math.exp(-(k * k) / (2 * G * G)));
+    const gs = gw.reduce((a, b) => a + b, 0);
+    for (const side of [1, -1]) {
+      const arr = side > 0 ? this.wallL : this.wallR, bar = side > 0 ? this.barL : this.barR;
+      const pinned = (i) => this.pinAt(this.s[i], side);
+      // (a concrete wall - the pit wall included - can have no gap: on the inside of a bend tighter than it stands far out
+      //  it wraps round the apex instead of folding over itself into a point, behind the kerb if it has to be, as a street
+      //  circuit's does)
+      // (and any barrier on the inside of a bend stands well short of the bend's centre: every point of a line out there
+      //  is the same point - the line would come to a corner pointing at the road - so it is drawn as a bend of its own,
+      //  10 m round at the least; a wall closer still, round an apex tighter than that)
+      const R = Math.round(10 / ds), floor = new Float32Array(n);
+      for (let i = 0; i < n; i++) {
+        floor[i] = this.edgeAt(i, side) + this.kerbWidth + 1.5;
+        let c = 0; for (let k = -R; k <= R; k++) c = Math.max(c, this.curv[(i + k + n) % n] * side);   // (the tightest of the bend near it)
+        if (c < 1e-4) continue;
+        if (bar[i] !== BAR.WALL) { arr[i] = Math.max(floor[i], Math.min(arr[i], 1 / c - 10)); continue; }
+        const lim = Math.min(0.75 / c, Math.max(0.5 / c, 1 / c - 6));   // (its own bend no tighter than 6 m)
+        if (arr[i] > lim) { floor[i] = Math.max(this.edgeAt(i, side) + this.kerbWidth + 0.2, Math.min(floor[i], lim)); arr[i] = floor[i]; }
+      }
+      this._cutLoops(arr, side);
+      // (the line in the plan, and how it turns at each point over 4 m either way: + where it turns away from the road -
+      //  a notch, a corner pointing at the road - and - where it turns toward it - a corner pointing away)
+      const X = new Float32Array(n), Z = new Float32Array(n);
+      const plan = () => { for (let i = 0; i < n; i++) { X[i] = this.px[i] + this.nx[i] * side * arr[i]; Z[i] = this.pz[i] + this.nz[i] * side * arr[i]; } };
+      const reach = (i, dir, D = 4) => { let L = 0, j = i; for (let c = 0; c < 120 && L < D; c++) { const q = (j + dir + n) % n; L += Math.hypot(X[q] - X[j], Z[q] - Z[j]); j = q; } return j; };
+      const turn = (i, a = reach(i, -1), c = reach(i, 1)) => { const ux = X[i] - X[a], uz = Z[i] - Z[a], vx = X[c] - X[i], vz = Z[c] - Z[i]; return Math.hypot(ux, uz) < 0.5 || Math.hypot(vx, vz) < 0.5 ? 0 : Math.atan2(-(ux * vz - uz * vx), ux * vx + uz * vz) * side; };
+      // the dips and steps rounded, as distance from the road: all round the lap where the line follows the road (its
+      // steps are where it was pulled in round something), only about each notch where it was drawn taut (a straight run
+      // across the inside of a bend is a hump in that distance, and it must stay straight)
+      const f = Float32Array.from(arr), e = Float32Array.from(arr), mask = new Uint8Array(n);
+      if (!this.taut) mask.fill(1);
+      else { plan(); const W = Math.round(30 / ds); for (let i = 0; i < n; i++) if (turn(i) > (20 * Math.PI) / 180) for (let k = -W; k <= W; k++) mask[(i + k + n) % n] = 1; }
+      for (let i = 0; i < n; i++) { if (!mask[i]) continue; let m = f[i]; for (let k = -K; k <= K; k++) { const v = f[(i + k + n) % n] + (k * ds) ** 2 / (2 * FAIR_R); if (v < m) m = v; } e[i] = m; }
+      for (let pass = 0; pass < 2; pass++) {
+        for (let i = 1; i < n * 2; i++) { const a = i % n, b = (i - 1) % n; if (mask[a]) e[a] = Math.min(e[a], e[b] + ds * tanB); }
+        for (let i = n * 2 - 2; i >= 0; i--) { const a = i % n, b = (i + 1) % n; if (mask[a]) e[a] = Math.min(e[a], e[b] + ds * tanB); }
+      }
+      const g = Float32Array.from(e);
+      for (let i = 0; i < n; i++) { if (!mask[i]) continue; let a = 0; for (let k = -3 * G; k <= 3 * G; k++) a += e[(i + k + n) % n] * gw[k + 3 * G]; g[i] = Math.min(e[i], a / gs); }
+      // (the nearest it may come eased the same way: where a wall wraps an apex closer in than usual, the line round it
+      //  comes in to that gradually, not in a jog)
+      const fl = new Float32Array(n);
+      for (let i = 0; i < n; i++) { let m = floor[i]; for (let k = -K; k <= K; k++) { const v = floor[(i + k + n) % n] + (k * ds) ** 2 / (2 * FAIR_R); if (v < m) m = v; } fl[i] = m; }
+      for (let i = 0; i < n; i++) if (!pinned(i)) arr[i] = Math.max(fl[i], Math.min(f[i], g[i]));
+      // every corner still pointing away from the road taken in, onto the line between the points 4 m either side of it
+      for (let it = 0; it < 30; it++) {
+        plan(); let moved = 0;
+        for (let i = 0; i < n; i++) {
+          if (pinned(i)) continue; const a = reach(i, -1), c = reach(i, 1); if (turn(i, a, c) > -(12 * Math.PI) / 180) continue;
+          const ux = this.nx[i] * side, uz = this.nz[i] * side, cx = X[c] - X[a], cz = Z[c] - Z[a], den = cx * uz - cz * ux; if (Math.abs(den) < 1e-6) continue;
+          const t = (cx * (Z[a] - this.pz[i]) - cz * (X[a] - this.px[i])) / den; if (!(t < arr[i])) continue;
+          const v = Math.max(fl[i], arr[i] + (t - arr[i]) * 0.6); moved = Math.max(moved, arr[i] - v); arr[i] = v;
+        }
+        if (moved < 0.02) break;
+      }
+      // (and any saw-tooth that left - neighbouring points taken in by different amounts where the line's points are
+      //  spaced unevenly, along a run-off's fast-widening edge - smoothed away, again only ever inward)
+      for (let pass = 0; pass < 3; pass++) {
+        const t = Float32Array.from(arr);
+        for (let i = 0; i < n; i++) if (!pinned(i)) arr[i] = Math.max(fl[i], Math.min(t[i], (t[(i - 2 + n) % n] + 4 * t[(i - 1 + n) % n] + 6 * t[i] + 4 * t[(i + 1) % n] + t[(i + 2) % n]) / 16));
+      }
+      this._cutLoops(arr, side);
+      // what still turns sharply in the plan: the barrier there taken away
+      plan(); const sharp = new Uint8Array(n);
+      for (let i = 0; i < n; i++) {
+        if (!bar[i]) continue;
+        const a = reach(i, -1), c = reach(i, 1), ux = X[i] - X[a], uz = Z[i] - Z[a], vx = X[c] - X[i], vz = Z[c] - Z[i], lu = Math.hypot(ux, uz), lv = Math.hypot(vx, vz);
+        if (lu < 1 || lv < 1) continue;
+        if ((ux * vx + uz * vz) / (lu * lv) < Math.cos((35 * Math.PI) / 180)) sharp[i] = 1;
+      }
+      for (let i = 0; i < n; i++) {
+        if (!sharp[i] || sharp[(i - 1 + n) % n]) continue;
+        let i1 = i; while (sharp[(i1 + 1) % n] && i1 - i < n) i1++;
+        let j0 = i - G, j1 = i1 + G;
+        while (Math.hypot(X[(j1 + n) % n] - X[(j0 + n) % n], Z[(j1 + n) % n] - Z[(j0 + n) % n]) < 20 && j1 - j0 < Math.round(160 / ds)) { j0--; j1++; }
+        for (let j = j0; j <= j1; j++) { const q = (j + n) % n; if (bar[q] !== BAR.WALL) bar[q] = 0; }
+        const gd = side > 0 ? this.guardL : this.guardR; if (gd) for (let j = j0; j <= j1; j++) { const q = (j + n) % n; if (!bar[q]) gd[q] = 0; }
+      }
+    }
+    // (a scrap of barrier left between two openings - under 20 m - taken away too)
+    for (const [bar, gd] of [[this.barL, this.guardL], [this.barR, this.guardR]]) {
+      for (let i = 0; i < n; i++) {
+        if (!bar[i] || bar[(i - 1 + n) % n]) continue;
+        let k = 0; while (k < n && bar[(i + k) % n]) k++;
+        if (k * this.ds < 20 && k < n) for (let j = 0; j < k; j++) { const q = (i + j) % n; if (bar[q] !== BAR.WALL) { bar[q] = 0; if (gd) gd[q] = 0; } }
+      }
+    }
+    // (and no crowd where its barrier was taken away: a spectator area is cut short either side of an opening, and what is
+    //  left of it under 30 m long dropped)
+    if (this.crowdZones) {
+      const out = [];
+      for (const z of this.crowdZones) {
+        const bar = z.side > 0 ? this.barL : this.barR, len = this.wrapS(z.s1 - z.s0); let a = null;
+        for (let u = 0; u <= len + 0.01; u += this.ds) {
+          const s = this.wrapS(z.s0 + u), ok = !!bar[this.idxAtS(s)] && u < len;
+          if (ok && a == null) a = u; else if (!ok && a != null) { if (u - a >= 30) out.push({ ...z, s0: this.wrapS(z.s0 + a), s1: this.wrapS(z.s0 + u - this.ds) }); a = null; }
+        }
+      }
+      this.crowdZones = out;
+    }
+    this.layoutSurfaces();
   }
   /** how tall the barrier on a side (+1 left / -1 right) stands at sample i (m; 0: none) */
   barrierHeight(i, side) {
     const b = side > 0 ? this.barL[i] : this.barR[i]; if (!b) return 0;
     const f = side > 0 ? this.fenceL?.[i] : this.fenceR?.[i];
     return Math.max(BAR_HEIGHT[b], f ? FENCE_H : 0);
+  }
+  /**
+   * A wall pinned close to the road over [s0, s1] on one side (+1 left / -1 right): Montreal's Wall of Champions, a
+   * kerb and a painted strip off the exit of the last chicane. The wall eases in and out over `ease` metres. Kept in
+   * track.pins ({ a, b, side, d, panel, name }) for the panels, the paint and the race director.
+   */
+  pinWall(s0, s1, side, d, { ease = 25, panel = null, name = null } = {}) {
+    const arr = side > 0 ? this.wallL : this.wallR, bar = side > 0 ? this.barL : this.barR, n = this.n;
+    const len = this.wrapS(s1 - s0), e = Math.max(1, Math.round(ease / this.ds)), k0 = this.idxAtS(s0), m = Math.round(len / this.ds);
+    for (let k = -e; k <= m + e; k++) {
+      const i = (k0 + k + n) % n, t = k < 0 ? 1 + k / e : k > m ? 1 - (k - m) / e : 1, w = t * t * (3 - 2 * t);
+      arr[i] = Math.min(arr[i], d * w + arr[i] * (1 - w)); if (w > 0.5) bar[i] = BAR.WALL;
+    }
+    (this.pins || (this.pins = [])).push({ a: this.wrapS(s0), b: this.wrapS(s1), side, d, panel, name });
+  }
+  /**
+   * Corners left open (def.openCorners: [{ turn, left, right, before, after }]): around the corner's apex, from `before`
+   * metres ahead of it to `after` past it, the barrier stands at least `left` / `right` metres from the centreline -
+   * Montreal's Senna S and hairpin, wide paved escapes and grass where a street circuit would have concrete. The
+   * ends ease back over 40 m; capSelf / capRunoff (run after) still stop it short of other parts of the lap and of
+   * buildings. Call once the corners have their arc lengths.
+   */
+  openCorners(list = this.def.openCorners) {
+    if (!list) return;
+    const n = this.n, ease = Math.round(40 / this.ds);
+    for (const o of list) {
+      const c = (this.def.corners || []).find((k) => k.n === o.turn); if (!c || c.s == null) continue;
+      const i0 = this.idxAtS(c.s - (o.before ?? 60)), m = Math.round(((o.before ?? 60) + (o.after ?? 60)) / this.ds);
+      for (const [arr, d] of [[this.wallL, o.left], [this.wallR, o.right]]) {
+        if (!d) continue;
+        for (let k = -ease; k <= m + ease; k++) {
+          const i = (i0 + k + n) % n, t = k < 0 ? 1 + k / ease : k > m ? 1 - (k - m) / ease : 1, w = t * t * (3 - 2 * t);
+          arr[i] = Math.max(arr[i], arr[i] + (d - arr[i]) * w);
+        }
+      }
+    }
+  }
+  /** the pinned wall (pinWall) that a point at arc length s, lateral d is up against, or null */
+  pinAt(s, d) {
+    for (const p of this.pins || []) if (Math.sign(d) === p.side && (p.a <= p.b ? s >= p.a && s <= p.b : s >= p.a || s <= p.b)) return p;
+    return null;
+  }
+  /** how far past the kerb the paved apron may reach at sample i: def.apronMax, more round the corners of def.apronWide
+   *  ({ turn: metres }: the huge paved run-offs) */
+  apronMaxAt(i) {
+    if (!this._amax) {
+      const A = new Float32Array(this.n).fill(this.def.apronMax ?? 1e9), W = this.def.apronWide;
+      if (W) for (let k = 0; k < this.n; k++) { const z = this.inCornerZone(k) || this.inCornerZone(this.idxAtS(this.s[k] + 60)) || this.inCornerZone(this.idxAtS(this.s[k] + 30)); for (const t of z ? z.turns || [z.turn] : []) if (W[t] != null) A[k] = Math.max(A[k], W[t]); }
+      this._amax = A;
+    }
+    return this._amax[i];
+  }
+  /** the road's edge on a side (+1 left / -1 right) at sample i */
+  edgeAt(i, side) { return side > 0 ? this.hwL[i] : this.hwR[i]; }
+  /** the nearest a barrier may stand at sample i (the road's edge, the kerb and 3 m) - on a side (+1 left / -1 right), from
+   *  that side's own edge: a road widened on the outside of a corner keeps its inside barrier where it was */
+  minWallAt(i, side = 0) { return (side ? this.edgeAt(i, side) : this.hw[i]) + this.kerbWidth + 3.0; }
+  /** no barrier closer to the road's edge than the kerb and `gap` m, wherever the road is widened */
+  _clampWall(arr, gap = 3.0) { const E = arr === this.wallL ? this.hwL : arr === this.wallR ? this.hwR : this.hw; for (let i = 0; i < this.n; i++) arr[i] = Math.max(arr[i], E[i] + this.kerbWidth + gap); }
+  /**
+   * A road wider in places than its base width (def.widths: [{ turn, before, after, width, ease, side }]): around a corner,
+   * from `before` m ahead of its apex to `after` past it, the road is `width` m across (the ends eased over `ease` m), and
+   * def.width elsewhere - Austin's Turn 1, forty metres across at the top of the hill. The extra is on the corner's
+   * outside (side 'out', the default; 'in' / 'both'), the barriers move out with that edge. Call once the corners have their
+   * arc lengths, before anything is laid along the edges.
+   */
+  widen(list = this.def.widths) {
+    if (!list) return;
+    const n = this.n, base = this.halfWidth;
+    for (const o of list) {
+      const c = (this.def.corners || []).find((k) => k.n === o.turn); if (!c || c.s == null) continue;
+      const ease = Math.max(1, Math.round((o.ease ?? 70) / this.ds)), i0 = this.idxAtS(c.s - (o.before ?? 60)), m = Math.round(((o.before ?? 60) + (o.after ?? 60)) / this.ds);
+      const ci = this.idxAtS(c.s), z = this.cornerZones.find((q) => { const a = q.a, b = q.b; return a <= b ? ci >= a - 20 && ci <= b + 20 : ci >= a - 20 || ci <= b + 20; });
+      const out = z && z.dir ? -z.dir : (this.curv[ci] > 0 ? -1 : 1), extra = o.width - 2 * base, mode = o.side || 'out';
+      for (let k = -ease; k <= m + ease; k++) {
+        const i = (i0 + k + n) % n, t = k < 0 ? 1 + k / ease : k > m ? 1 - (k - m) / ease : 1, w = t * t * (3 - 2 * t);
+        const eo = mode === 'both' ? extra / 2 : mode === 'in' ? 0 : extra, ei = mode === 'both' ? extra / 2 : mode === 'in' ? extra : 0;
+        const A = out > 0 ? this.hwL : this.hwR, B = out > 0 ? this.hwR : this.hwL;
+        A[i] = Math.max(A[i], base + eo * w); B[i] = Math.max(B[i], base + ei * w);
+      }
+    }
+    for (let i = 0; i < n; i++) { this.wallL[i] += this.hwL[i] - base; this.wallR[i] += this.hwR[i] - base; this.hw[i] = Math.max(this.hwL[i], this.hwR[i]); this.maxHalfWidth = Math.max(this.maxHalfWidth, this.hw[i]); }
+    this.fanL = Float32Array.from(this.wallL); this.fanR = Float32Array.from(this.wallR);   // (the escape areas alone, before anything pulls a line in: tautWalls)
   }
   /** min-filter a wall line so a capped sample pulls its neighbours in gradually (no steps in the barrier) */
   _easeWall(arr, slope = 1.2, r = 50) {
@@ -431,17 +788,18 @@ export class Track {
    * the road is nearer to another part of the lap, the barrier stands on the line halfway between the two.
    */
   capSelf(margin = 1.5) {
-    const lo = this.halfWidth + this.kerbWidth + 1.5, q = {};
+    const q = {};
     for (const [arr, side, cap] of [[this.wallL, 1, this.capL], [this.wallR, -1, this.capR]]) {
       const before = Float32Array.from(arr);
       for (let i = 0; i < this.n; i++) {
+        const lo = this.hw[i] + this.kerbWidth + 1.5;
         for (let d = lo; d <= arr[i] + margin; d += 1.5) {
           this.nearest(this.px[i] + this.nx[i] * side * d, this.pz[i] + this.nz[i] * side * d, -1, q);
           const sep = Math.min(Math.abs(q.i - i), this.n - Math.abs(q.i - i)) * this.ds;
           if (sep > Math.max(80, 4 * d)) { arr[i] = Math.max(lo, d - margin); break; }
         }
       }
-      this._easeWall(arr);
+      this._easeWall(arr); this._clampWall(arr, 1.5);
       for (let i = 0; i < this.n; i++) if (arr[i] < before[i] - 0.5) cap[i] = 2;
     }
   }
@@ -532,6 +890,22 @@ function noiseCanvas(size, base, variance, fn) {
 }
 export function asphaltTexture(day = false) { return noiseCanvas(512, day ? 108 : 62, day ? 44 : 34); }
 export function concreteTexture(day = false) { return noiseCanvas(256, day ? 168 : 120, day ? 36 : 30); }
+/**
+ * The paved run-offs' grain: a coat of paint rolled over asphalt - near white, a fine grain in it and the aggregate
+ * showing through in dark specks - so the vertex tint (tracks.js runoffPaint / runoffBase) comes through at nearly
+ * full strength. (They had the concrete noise, mid grey: as a linear multiplier that is 0.39 by day and 0.19 by
+ * night, and every apron colour came out at a third of itself or less - Austin's red, white and blue a muddy maroon,
+ * a slate navy and a grey.) The night set is darker, as the road's is (half the day's, as the concrete's was): under
+ * the floodlights nothing should glow.
+ */
+export function paintTexture(day = false) {
+  return noiseCanvas(256, day ? 236 : 172, day ? 22 : 18, (ctx, size) => {
+    for (let k = 0; k < 700; k++) { ctx.fillStyle = `rgba(40,40,44,${0.12 + Math.random() * 0.2})`; ctx.fillRect(Math.random() * size, Math.random() * size, 1 + Math.random(), 1 + Math.random()); }
+  });
+}
+/** a paint colour as tracks.js writes it ([r, g, b] 0-1, sRGB like the panels' and kerbs' hex) -> the linear vertex colour */
+const SRGB = (v) => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+export const paintRGB = (c) => [SRGB(c[0]), SRGB(c[1]), SRGB(c[2])];
 /** Armco: two galvanised rails on posts. A wall ribbon maps u bottom-to-top and v along the barrier (one post per repeat). */
 export function armcoTexture() {
   const c = document.createElement('canvas'); c.width = 64; c.height = 128; const ctx = c.getContext('2d');
@@ -707,59 +1081,97 @@ export function buildTrackMeshes(track, pit, gridSlots) {
   // --- road surface: asphalt with vertex-colour rubbering toward the centre
   const asphalt = asphaltTexture(); asphalt.repeat.set(2, 1);
   const roadMat = new THREE.MeshStandardMaterial({ map: asphalt, roughness: 0.62, metalness: 0.06, envMapIntensity: 0.55, vertexColors: true, emissive: 0x0c0d12, emissiveIntensity: 0.6 });   // slick: floodlights / Sphere glow smear across it
-  const roadGeo = ribbon(tr, () => -hw, () => hw, 0, { colorFn: (i, d) => { const r = 1 - 0.28 * Math.exp(-(d * d) / 18); return [r, r, r]; }, uvV: 10 });
+  const HW = tr.hw, HL = tr.hwL, HR = tr.hwR, EG = (i, side) => (side > 0 ? HL[i] : HR[i]);
+  const roadGeo = ribbon(tr, (i) => -HR[i], (i) => HL[i], 0, { colorFn: (i, d) => { const r = 1 - 0.28 * Math.exp(-(d * d) / 18); return [r, r, r]; }, uvV: 10 });
   group.add(spatialChunks([roadGeo], roadMat, 'road')); group.userData.roadMat = roadMat;   // lap-long ribbons are cut into map cells so off-camera parts cull
 
   // --- white edge lines (polygon offset: painted overlays never z-fight with the road at distance)
   const lineMat = new THREE.MeshBasicMaterial({ color: 0xe8e8e8, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
-  const l1 = ribbon(tr, () => hw - 0.25, () => hw, 0.012), l2 = ribbon(tr, () => -hw, () => -hw + 0.25, 0.012);
+  const l1 = ribbon(tr, (i) => HL[i] - 0.25, (i) => HL[i], 0.012), l2 = ribbon(tr, (i) => -HR[i], (i) => -HR[i] + 0.25, 0.012);
   group.add(spatialChunks([l1, l2], lineMat, 'lines'));
 
   // --- kerbs: the Las Vegas card-suit kerbs (red / white blocks with spades, hearts, clubs, diamonds), corner zones only
   const kerbMask = (i) => tr.inCorner[i] === 1;
   const kerbTex = kerbTexture(tr.def.kerb || 'cards');
-  const kL = ribbon(tr, () => hw, () => hw + kw, 0.02, { mask: kerbMask, yB: 0.06, uvV: 10 });
-  const kR = ribbon(tr, () => -hw - kw, () => -hw, 0.06, { mask: kerbMask, yB: 0.02, uvV: 10 });
+  const kL = ribbon(tr, (i) => HL[i], (i) => HL[i] + kw, 0.02, { mask: kerbMask, yB: 0.06, uvV: 10 });
+  const kR = ribbon(tr, (i) => -HR[i] - kw, (i) => -HR[i], 0.06, { mask: kerbMask, yB: 0.02, uvV: 10 });
   const kerbMat = new THREE.MeshStandardMaterial({ map: kerbTex, roughness: 0.62, emissive: 0xffffff, emissiveMap: kerbTex, emissiveIntensity: 0.18, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
   group.add(spatialChunks([kL, kR], kerbMat, 'kerbs'));
 
   // --- run-off (painted concrete/asphalt), full lap; on the pit side it stops at the pit wall and is absent where the pit lane branches off
-  const concrete = concreteTexture(); concrete.repeat.set(1, 1);
+  // (the grain is near white and the colours are the paint's own, made linear: tracks.js writes them as sRGB, like
+  //  every hex on the circuit, and a vertex colour is used as it stands - a red of 0.72 read as linear is a pink, and
+  //  times the old mid-grey concrete map it came out maroon. paintTexture: fresh paint in the sun, grain enough not to
+  //  look like plastic, and a darker night set so nothing glows under the lights)
+  const grain = paintTexture(); grain.repeat.set(1, 1);
   // (no polygon offset and the same y as the road: the surfaces share edges instead of overlapping, and a
   //  positive offset would push them behind the ground plane at grazing angles - the black patches of old)
   // The paved run-off reaches all the way to the barrier (which is pushed back on the outside of corners), and is
   // painted per corner like the real event: red at T1, T-Mobile magenta around the Sphere loop, teal at T12 / T14.
-  const runMat = new THREE.MeshStandardMaterial({ map: concrete, color: 0xffffff, vertexColors: true, roughness: 0.9, emissive: 0x0a0a0c });
+  const runMat = new THREE.MeshStandardMaterial({ map: grain, color: 0xffffff, vertexColors: true, roughness: 0.88, emissive: 0x0a0a0c });
+  const runMats = [runMat];   // every material on the run-off grain (setTime swaps the day / night set on each)
   const runEdge = (i, side) => wallAt(i, side);
-  const runMask = (side) => (i) => open(i, side) && runEdge(i, side) > hw + kw + 0.25 && !(pit && side === pitSide && pit.laneCovers[i]);
+  const runMask = (side) => (i) => open(i, side) && runEdge(i, side) > EG(i, side) + kw + 0.25 && !(pit && side === pitSide && pit.laneCovers[i]);
   const paint = tr.def.runoffPaint || [];
+  // (bare concrete: the grey that comes out as bright on the new grain, day and night, as 0.6 / 0.62 / 0.65 did on the old)
+  const CONCRETE = paintRGB([0.57, 0.58, 0.6]), runBase = tr.def.runoffBase ? paintRGB(tr.def.runoffBase) : CONCRETE;
+  const paintCol = paint.map((p) => paintRGB(p.color || p.base || [0.85, 0.86, 0.88]));   // per-track apron colours (tracks.js), linear
   const runTint = (i, d) => {
-    if (wallAt(i, d > 0 ? 1 : -1) < bo + 1.5) return [0.6, 0.62, 0.65];   // only the escape apron is painted, the normal verge stays concrete
+    if (wallAt(i, d > 0 ? 1 : -1) < bo + (EG(i, d > 0 ? 1 : -1) - hw) + 1.5) return runBase;   // only the escape apron is painted, the normal verge stays concrete
     const z = tr.inCornerZone(i) || tr.inCornerZone(tr.idxAtS(tr.s[i] + 60)) || tr.inCornerZone(tr.idxAtS(tr.s[i] + 30));
     const turns = z ? (z.turns || [z.turn]) : [];
-    for (const p of paint) if (turns.some((t) => p.turns.includes(t))) return p.color;   // per-track apron colours (tracks.js)
-    return [0.6, 0.62, 0.65];
+    for (let k = 0; k < paint.length; k++) if (turns.some((t) => paint[k].turns.includes(t))) return paintCol[k];
+    return runBase;
   };
   const circuit = tr.circuit;
   const surfAt = (i, side) => (side > 0 ? tr.surfL[i] : tr.surfR[i]);
   let gravelMat = null;
   if (!circuit) {
-    const runL = ribbon(tr, (i) => hw + (kerbMask(i) ? kw : 0), (i) => runEdge(i, 1), 0, { uvV: 6, mask: runMask(1), colorFn: runTint });
-    const runR = ribbon(tr, (i) => -runEdge(i, -1), (i) => -hw - (kerbMask(i) ? kw : 0), 0, { uvV: 6, mask: runMask(-1), colorFn: runTint });
+    const runL = ribbon(tr, (i) => HL[i] + (kerbMask(i) ? kw : 0), (i) => runEdge(i, 1), 0, { uvV: 6, mask: runMask(1), colorFn: runTint });
+    const runR = ribbon(tr, (i) => -runEdge(i, -1), (i) => -HR[i] - (kerbMask(i) ? kw : 0), 0, { uvV: 6, mask: runMask(-1), colorFn: runTint });
     group.add(spatialChunks([runL, runR], runMat, 'runoff'));
   } else {
     // A permanent circuit: the verge is grass (the ground itself). Escape areas on the outside of the corners are
     // gravel traps (2 m of grass beyond the kerb, then gravel to just short of the barrier) or painted asphalt
     // from the kerb out; textures are mapped in world space so a 50 m deep trap is not one stretched tile.
     const worldUV = (g, scale) => { const p = g.attributes.position, uv = g.attributes.uv; for (let k = 0; k < p.count; k++) uv.setXY(k, p.getX(k) / scale, p.getZ(k) / scale); return g; };
-    const inner = (i, t) => hw + kw + (t === 2 ? GRAVEL_IN : 0) - (t === 1 && !kerbMask(i) ? kw : 0);
-    const outer = (i, side, t) => Math.max(inner(i, t), runEdge(i, side) - APRON_EDGE);
+    const inner = (i, t, side = 1) => EG(i, side) + kw + (t === 2 ? GRAVEL_IN : 0) - (t === 1 && !kerbMask(i) ? kw : 0);
+    const outer = (i, side, t) => Math.max(inner(i, t, side), Math.min(runEdge(i, side) - APRON_EDGE, t === 1 ? EG(i, side) + kw + tr.apronMaxAt(i) : Infinity));
     const apronMask = (side, t) => (i) => { const j = (i + 1) % tr.n; return open(i, side) && surfAt(i, side) === t && surfAt(j, side) === t && !(pit && side === pitSide && pit.laneCovers[i]); };
     const apron = (t, opts) => [1, -1].map((side) => worldUV(side > 0
-      ? ribbon(tr, (i) => inner(i, t), (i) => outer(i, 1, t), 0.004, { mask: apronMask(1, t), ...opts })
-      : ribbon(tr, (i) => -outer(i, -1, t), (i) => -inner(i, t), 0.004, { mask: apronMask(-1, t), ...opts }), t === 2 ? 5 : 7));
+      ? ribbon(tr, (i) => inner(i, t, 1), (i) => outer(i, 1, t), 0.004, { mask: apronMask(1, t), ...opts })
+      : ribbon(tr, (i) => -outer(i, -1, t), (i) => -inner(i, t, -1), 0.004, { mask: apronMask(-1, t), ...opts }), t === 2 ? 5 : 7));
     const asph = apron(1, { colorFn: runTint }).filter((g) => g.index.count);
     group.add(spatialChunks(asph, runMat, 'runAsphalt'));
+    // painted in stripes (def.runoffPaint { turns, stripes: [colours], w (each band's width), bands }): bands following
+    // the kerb out across the asphalt apron, a colour each in turn - Austin's red, white and blue
+    const striped = paint.filter((p) => p.stripes);
+    if (striped.length) {
+      const stripeOf = (i) => { const z = tr.inCornerZone(i) || tr.inCornerZone(tr.idxAtS(tr.s[i] + 60)) || tr.inCornerZone(tr.idxAtS(tr.s[i] + 30)), ts = z ? (z.turns || [z.turn]) : []; return striped.find((p) => ts.some((x) => p.turns.includes(x))) || null; };
+      const geos = [];
+      for (const side of [1, -1]) for (const P of striped) {
+        const w = P.w || 2.6, nB = P.bands || 16, n = tr.n, on = new Uint8Array(n);
+        for (let i = 0; i < n; i++) on[i] = apronMask(side, 1)(i) && stripeOf(i) === P ? 1 : 0;
+        // (the paint fans in and out: over its first and last 60 m the bands narrow down to the kerb, so a corner's
+        //  stripes grow out of it and die away into it instead of starting square across the apron)
+        const fw = new Float32Array(n), bw = new Float32Array(n), T = new Float32Array(n), R = Math.round(60 / tr.ds);
+        for (let pass = 0; pass < 2; pass++) for (let k = 0; k < n; k++) { const i = k % n, p = (i - 1 + n) % n; fw[i] = on[i] ? (on[p] ? fw[p] + 1 : 1) : 0; }
+        for (let pass = 0; pass < 2; pass++) for (let k = n - 1; k >= 0; k--) { const i = k, q = (i + 1) % n; bw[i] = on[i] ? (on[q] ? bw[q] + 1 : 1) : 0; }
+        for (let i = 0; i < n; i++) { const u = Math.min(1, Math.min(fw[i], bw[i]) / R); T[i] = u * u * (3 - 2 * u); }
+        for (let k = 0; k < nB; k++) {
+          const col = paintRGB(P.stripes[k % P.stripes.length]), a = (i) => Math.min(inner(i, 1, side) + k * w * T[i], outer(i, side, 1)), b = (i) => Math.min(inner(i, 1, side) + (k + 1) * w * T[i], outer(i, side, 1));
+          const mask = (i) => on[i] && on[(i + 1) % n] && T[i] > 0.01 && b(i) - a(i) > 0.02;
+          const g = side > 0 ? ribbon(tr, a, b, 0.008, { mask, colorFn: () => col }) : ribbon(tr, (i) => -b(i), (i) => -a(i), 0.008, { mask, colorFn: () => col });
+          if (g.index.count) geos.push(worldUV(g, 7));
+        }
+      }
+      // (drawn over the apron with a depth bias of their own: 4 mm above it is below the depth buffer's precision once
+      //  the ground lifts it all onto the hills, and the two would fight - the stripes breaking up into the grey)
+      // (a clone holds the map it was cloned with: it goes in runMats so the day / night swap reaches it too - it
+      //  kept the dark night grain all day long, the stripes at half the brightness of the apron they sit on)
+      const stripeMat = runMat.clone(); stripeMat.polygonOffset = true; stripeMat.polygonOffsetFactor = -1.5; stripeMat.polygonOffsetUnits = -3;
+      if (geos.length) { group.add(spatialChunks(geos, stripeMat, 'runStripes')); runMats.push(stripeMat); }
+    }
     gravelMat = new THREE.MeshStandardMaterial({ map: gravelTexture(), roughness: 1, metalness: 0 });
     group.add(spatialChunks(apron(2, {}), gravelMat, 'runGravel'));
   }
@@ -777,6 +1189,16 @@ export function buildTrackMeshes(track, pit, gridSlots) {
   const cA = sz && cs.find((c) => c.n === sz.fromTurn), cB = sz && cs.find((c) => c.n === sz.toTurn);
   const tmobile = cA && cB && cA.s != null && cB.s != null ? [tr.wrapS(cA.s - (sz.before || 0)), tr.wrapS(cB.s + (sz.after || 0))] : null;
   const inTMobile = (z) => tmobile && inRangeS(tr.wrapS(z * ZONE_LEN + ZONE_LEN / 2), tmobile[0], tmobile[1]);
+  // panels by the metre: a wall pinned with its own panel (Track.pinWall: the Wall of Champions) and the named sponsor
+  // stretches of def.sponsorZones ([{ panel, fromTurn, toTurn, before, after, side? }]) take their stretch of wall
+  // from the 180 m zone sequence
+  const over = [];
+  for (const p of tr.pins || []) if (p.panel != null) over.push({ a: p.a, b: p.b, side: p.side, panel: p.panel });
+  for (const z of tr.def.sponsorZones || []) {
+    const A = cs.find((c) => c.n === z.fromTurn), B = cs.find((c) => c.n === (z.toTurn ?? z.fromTurn)); if (!A || !B || A.s == null || B.s == null) continue;
+    for (const side of z.side ? [z.side] : [1, -1]) over.push({ a: tr.wrapS(A.s - (z.before || 0)), b: tr.wrapS(B.s + (z.after || 0)), side, panel: z.panel });
+  }
+  const overAt = (i, side) => { for (const o of over) if (o.side === side && inRangeS(tr.s[i], o.a, o.b)) return o; return null; };
   // What stands at the barrier line (Track.barL / barR). A street circuit is concrete wall, fence and LED rail all
   // the way round. A permanent circuit has mostly nothing: a banner-covered tyre wall in front of stands and
   // buildings, Armco between close parts of the lap, the concrete pit wall.
@@ -785,10 +1207,23 @@ export function buildTrackMeshes(track, pit, gridSlots) {
   for (const side of [1, -1]) {
     for (let z = 0; z < nZones; z++) {
       const p = inTMobile(z) ? sz.panel : seq[(z + (side < 0 ? 5 : 0)) % seq.length];
-      const keep = seg(side, (st) => st >= BAR.TYRES);
-      const g = ribbon(tr, (i) => side * wallAt(i, side), (i) => side * wallAt(i, side), 0, { yB: 1.2, mask: (i) => zoneOf(i) === z && keep(i), uvFn: (i) => -side * tr.s[i] / PANEL_LEN });
+      const keep = seg(side, (st) => (tr.walled ? st === BAR.WALL : st >= BAR.TYRES));   // (a walled park circuit's TecPro runs: below)
+      const g = ribbon(tr, (i) => side * wallAt(i, side), (i) => side * wallAt(i, side), 0, { yB: 1.2, mask: (i) => zoneOf(i) === z && keep(i) && !overAt(i, side), uvFn: (i) => -side * tr.s[i] / PANEL_LEN });
       if (!g.index.count) continue;
       const uv = g.attributes.uv; for (let k = 0; k < uv.count; k++) uv.setX(k, atlasU(p, uv.getX(k)));   // this zone's tile of the atlas
+      panelGeos.push(g);
+    }
+    // the red and white TecPro blocks across the back of a park circuit's escape areas (Montreal)
+    if (tr.walled) {
+      const tp = ribbon(tr, (i) => side * wallAt(i, side), (i) => side * wallAt(i, side), 0, { yB: 1.2, mask: seg(side, (st) => st === BAR.TYRES), uvFn: (i) => -side * tr.s[i] / PANEL_LEN });
+      if (tp.index.count) { const uv = tp.attributes.uv; for (let k = 0; k < uv.count; k++) uv.setX(k, atlasU(TECPRO_PANEL, uv.getX(k))); panelGeos.push(tp); }
+    }
+    for (const o of over) {
+      if (o.side !== side) continue;
+      const keep = seg(side, (st) => st >= BAR.TYRES);
+      const g = ribbon(tr, (i) => side * wallAt(i, side), (i) => side * wallAt(i, side), 0, { yB: 1.2, mask: (i) => keep(i) && inRangeS(tr.s[i], o.a, o.b), uvFn: (i) => -side * tr.s[i] / PANEL_LEN });
+      if (!g.index.count) continue;
+      const uv = g.attributes.uv; for (let k = 0; k < uv.count; k++) uv.setX(k, atlasU(o.panel, uv.getX(k)));
       panelGeos.push(g);
     }
   }
@@ -816,7 +1251,7 @@ export function buildTrackMeshes(track, pit, gridSlots) {
     // painted green strip behind the kerbs (as at the real circuit: the "astroturf" paint on corner exits)
     const greenMat = new THREE.MeshStandardMaterial({ color: 0x2f8f3a, roughness: 0.75, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
     const gm = (side) => (i) => kerbMask(i) && kerbMask((i + 1) % tr.n) && surfAt(i, side) !== 1 && !(pit && side === pitSide && pit.laneCovers[i]);
-    const green = [ribbon(tr, () => hw + kw, () => hw + kw + GREEN_W, 0.006, { mask: gm(1) }), ribbon(tr, () => -hw - kw - GREEN_W, () => -hw - kw, 0.006, { mask: gm(-1) })].filter((g) => g.index.count);
+    const green = [ribbon(tr, (i) => HL[i] + kw, (i) => HL[i] + kw + GREEN_W, 0.006, { mask: gm(1) }), ribbon(tr, (i) => -HR[i] - kw - GREEN_W, (i) => -HR[i] - kw, 0.006, { mask: gm(-1) })].filter((g) => g.index.count);
     group.add(spatialChunks(green, greenMat, 'green'));
   }
 
@@ -844,9 +1279,9 @@ export function buildTrackMeshes(track, pit, gridSlots) {
     const len = RUNOFF_DECAL_LEN;
     for (let r = 0; r < repeats; r++) {
       const a = tr.wrapS(s0 + r * (len + 6)), b = tr.wrapS(a + len);
-      const inner = hw + kw + 0.15, outer = hw + kw + 3.0 - 0.15;
-      const ok = (i) => inRangeS(tr.s[i], a, b) && runEdge(i, side) >= outer + (circuit ? APRON_EDGE : 0) && (circuit ? open(i, side) && surfAt(i, side) === 1 : runMask(side)(i));
-      const g = ribbon(tr, () => side * inner, () => side * outer, 0.012, { mask: (i) => ok(i) && ok((i + 1) % tr.n), uvFn: (i) => tr.wrapS(tr.s[i] - a) / len });
+      const inner = (i) => EG(i, side) + kw + 0.15, outer = (i) => EG(i, side) + kw + 3.0 - 0.15;
+      const ok = (i) => inRangeS(tr.s[i], a, b) && runEdge(i, side) >= outer(i) + (circuit ? APRON_EDGE : 0) && (circuit ? open(i, side) && surfAt(i, side) === 1 : runMask(side)(i));
+      const g = ribbon(tr, (i) => side * inner(i), (i) => side * outer(i), 0.012, { mask: (i) => ok(i) && ok((i + 1) % tr.n), uvFn: (i) => tr.wrapS(tr.s[i] - a) / len });
       if (g.index.count) decals[side].push(g);
     }
   };
@@ -867,7 +1302,8 @@ export function buildTrackMeshes(track, pit, gridSlots) {
     const pitRoadMat = roadMat.clone();
     // (a ribbon is built from its right edge to its left: with the track on the lane's left the two edges swap, or
     //  the strip faces down and is culled - Silverstone's pit lane was grass)
-    const roadA = (i) => Math.min(ws * pit.laneEdge[i], gs * pit.halfWidth), roadB = (i) => Math.max(ws * pit.laneEdge[i], gs * pit.halfWidth);
+    const gEdge = (i) => Math.max(pit.halfWidth, (pit.garageW?.[i] ?? pit.halfWidth + 0.7) - 0.7);   // (the escape's asphalt past the lane edge)
+    const roadA = (i) => Math.min(ws * pit.laneEdge[i], gs * gEdge(i)), roadB = (i) => Math.max(ws * pit.laneEdge[i], gs * gEdge(i));
     const pitRoad = new THREE.Mesh(ribbon(pl, roadA, roadB, 0, { closed: false, colorFn: () => [0.85, 0.85, 0.9], uvV: 10, mask: own }), pitRoadMat);
     group.add(pitRoad); group.userData.pitRoadMat = pitRoadMat; pitRoad.userData.keep = true;
     // yellow edge lines: the track-side one follows the clipped edge (it is the pit entry / exit line where the lane meets the kerb)
@@ -882,14 +1318,18 @@ export function buildTrackMeshes(track, pit, gridSlots) {
     const hasWall = (i) => own(i) && isFinite(pit.wallIn[i]);
     const wIn = (i) => (isFinite(pit.wallIn[i]) ? pit.wallIn[i] : Math.max(0.6, pit.wallPos[i]));   // finite everywhere (vertex at the wall's end sample)
     // (the run-off material is vertex-coloured: the apron gets the plain concrete tint, or it renders black)
-    const apron = ribbon(pl, (i) => Math.min(ws * pit.laneEdge[i], ws * (wIn(i) + 0.6)), (i) => Math.max(ws * pit.laneEdge[i], ws * (wIn(i) + 0.6)), 0, { closed: false, mask: hasWall, uvV: 6, colorFn: () => [0.6, 0.62, 0.65] });
+    const apron = ribbon(pl, (i) => Math.min(ws * pit.laneEdge[i], ws * (wIn(i) + 0.6)), (i) => Math.max(ws * pit.laneEdge[i], ws * (wIn(i) + 0.6)), 0, { closed: false, mask: hasWall, uvV: 6, colorFn: () => CONCRETE });
     group.add(new THREE.Mesh(apron, runMat)).children.at(-1).userData.keep = true;
     // the pit lane's own track-side wall, only where the lane runs too far from the road for the circuit barrier to double as pit wall
     const farWall = (i) => hasWall(i) && pit.trackD[i] - pit.wallIn[i] > tr.minWall + 0.5;
     const pw = ribbon(pl, (i) => ws * wIn(i), (i) => ws * wIn(i), 0, { closed: false, yB: 1.1, mask: farWall });
     const pwCap = ribbon(pl, (i) => ws * (wIn(i) - 0.3), (i) => ws * (wIn(i) + 0.3), 1.1, { closed: false, mask: farWall });
     // pit-lane outer wall (garage side)
-    const outer = ribbon(pl, () => gs * (pit.halfWidth + 1.0), () => gs * (pit.halfWidth + 1.0), 0, { closed: false, yB: 1.0, mask: (i) => own(i) && i > 8 && i < pl.n - 10 });
+    const outer = ribbon(pl, (i) => gs * (gEdge(i) + 1.0), (i) => gs * (gEdge(i) + 1.0), 0, { closed: false, yB: 1.0, mask: (i) => own(i) && i > 8 && i < pl.n - 10 && !pit.escape?.[i] });
+    // (the escape's edge: a tyre wall, red and white, in place of the concrete)
+    const esc = ribbon(pl, (i) => gs * (gEdge(i) + 0.4), (i) => gs * (gEdge(i) + 1.6), 0.95, { closed: false, mask: (i) => !!pit.escape?.[i], colorFn: (i) => ((i >> 1) % 2 ? [0.85, 0.1, 0.1] : [0.92, 0.92, 0.92]) });
+    const escF = ribbon(pl, (i) => gs * (gEdge(i) + 0.4), (i) => gs * (gEdge(i) + 0.4), 0, { closed: false, yB: 0.95, mask: (i) => !!pit.escape?.[i], colorFn: (i) => ((i >> 1) % 2 ? [0.85, 0.1, 0.1] : [0.92, 0.92, 0.92]) });
+    if (esc.index.count) group.add(new THREE.Mesh(mergeGeometries([esc, escF]), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8, side: THREE.DoubleSide })));
     const pitWalls = [pw, pwCap, outer].filter((g) => g.index.count);
     if (pitWalls.length) group.add(new THREE.Mesh(mergeGeometries(pitWalls), wallMat));
     // striped "nose" where the pit wall begins / ends: a painted wedge that tapers into the wall base (as at the real pit exit)
@@ -948,11 +1388,11 @@ export function buildTrackMeshes(track, pit, gridSlots) {
 
   // day / night surface sets
   const asphaltDay = asphaltTexture(true); asphaltDay.repeat.set(2, 1);
-  const concreteDay = concreteTexture(true);
+  const grainDay = paintTexture(true);
   group.userData.setTime = (mode) => {
     const day = mode === 'day';
     roadMat.map = day ? asphaltDay : asphalt; roadMat.emissiveIntensity = day ? 0 : 0.6; roadMat.needsUpdate = true;
-    runMat.map = day ? concreteDay : concrete; runMat.emissiveIntensity = day ? 0 : 1; runMat.needsUpdate = true;
+    for (const m of runMats) { m.map = day ? grainDay : grain; m.emissiveIntensity = day ? 0 : 1; m.needsUpdate = true; }
     kerbMat.emissiveIntensity = day ? 0 : 0.18;
     panelMat.emissiveIntensity = day ? 0 : 0.55;
     wallMat.emissiveIntensity = day ? 0 : 1;
@@ -1002,31 +1442,42 @@ export function buildPitLane(track, rawPts, boxCount = 12) {
   const tc = track.sample(tm.s);
   const trackSide = Math.sign((tc.x - samples.px[mid]) * samples.nx[mid] + (tc.z - samples.pz[mid]) * samples.nz[mid]) || 1;
   const halfWidth = 5.5, wallOff = halfWidth + 1.0;
-  const hwT = track.halfWidth, kwT = track.kerbWidth;
+  const kwT = track.kerbWidth;
   // per pit sample: distance of the road centre, whether the sample still lies on the road (entry/exit blend),
   // how far the lane's own asphalt may reach toward the road (clipped at the kerb) and whether the pit wall exists yet
   const n = samples.n;
-  const overlapsTrack = new Uint8Array(n), trackD = new Float32Array(n), laneEdge = new Float32Array(n), wallIn = new Float32Array(n), trackI = new Int32Array(n), wallPos = new Float32Array(n);
+  const overlapsTrack = new Uint8Array(n), trackD = new Float32Array(n), laneEdge = new Float32Array(n), wallIn = new Float32Array(n), trackI = new Int32Array(n), wallPos = new Float32Array(n), laneSide = new Int8Array(n);
   for (let i = 0; i < n; i++) {
-    const q = track.nearest(samples.px[i], samples.pz[i]); const D = Math.abs(q.d);
-    trackD[i] = D; trackI[i] = q.i;
+    const q = track.nearest(samples.px[i], samples.pz[i]); const D = Math.abs(q.d), hwT = track.edgeAt(q.i, q.d > 0 ? 1 : -1);
+    trackD[i] = D; trackI[i] = q.i; laneSide[i] = q.d > 0 ? 1 : -1;
     overlapsTrack[i] = D < hwT + 0.5 ? 1 : 0;
     // the pit wall stands wallOff from the lane centre, but never closer to the road than 0.6 m off its edge
     // (or 0.4 m past the kerb in a corner zone): where the OSM lane hugs the circuit the wall simply sits at the road edge
     const edge = hwT + (track.inCornerZone(q.i) ? kwT + 0.4 : 0.6);
     wallPos[i] = Math.min(wallOff, D - edge);
-    wallIn[i] = wallPos[i] >= 3.0 && !overlapsTrack[i] ? wallPos[i] : Infinity;   // a wall only once the lane is at least ~8.5 m wide
+    // a wall only once the lane is at least ~8.5 m wide - and (def.pitWallClear) only where it stands that far from the
+    // centreline: Montreal's pit entry leaves from a corner's turn-in, where the strip beside the kerb is paint and bollards
+    wallIn[i] = wallPos[i] >= 3.0 && !overlapsTrack[i] && D - wallPos[i] >= (track.def.pitWallClear || 0) ? wallPos[i] : Infinity;
   }
   let divergeI = 0; while (divergeI < n - 1 && overlapsTrack[divergeI]) divergeI++;
   let mergeI = n - 1; while (mergeI > 0 && overlapsTrack[mergeI]) mergeI--;
   let wallStartI = -1, wallEndI = -1;
   for (let i = 0; i < n; i++) if (isFinite(wallIn[i])) { if (wallStartI < 0) wallStartI = i; wallEndI = i; }
+  // (and its nose no sooner than where the lane has opened out to its full width beside it - up to 5 m between the lane's
+  //  centre and the wall: a car still cutting across into the lane, or back out of it, has the room. Started the moment
+  //  there were 3 m, it stood in the path of every car entering Austin's lane on the inside of Turn 20, whose road is
+  //  widened on the other side only)
+  if (wallStartI >= 0) {
+    const run = Array.from(wallPos.subarray(wallStartI, wallEndI + 1)).sort((a, b) => a - b), full = Math.min(5, 0.9 * run[run.length >> 1]);   // (its usual width along the garages)
+    while (wallStartI < wallEndI && wallPos[wallStartI] < full) wallStartI++;
+    while (wallEndI > wallStartI && wallPos[wallEndI] < full) wallEndI--;
+  }
   for (let i = 0; i < n; i++) wallIn[i] = i >= wallStartI && i <= wallEndI && wallStartI >= 0 ? Math.max(0.6, wallPos[i]) : Infinity;   // one continuous wall, no islands
   // how far the lane's own asphalt reaches toward the road: to the wall base where the wall exists, else exactly to the
   // road's kerb / edge line (negative = that line lies on the garage side of the lane centre: the lane is merging and its
   // asphalt tapers to a point against the road edge - no overlap, no z-fighting)
   for (let i = 0; i < n; i++) {
-    const edgeIn = hwT + (track.inCornerZone(trackI[i]) ? kwT : 0);
+    const edgeIn = track.edgeAt(trackI[i], laneSide[i]) + (track.inCornerZone(trackI[i]) ? kwT : 0);
     laneEdge[i] = isFinite(wallIn[i]) ? Math.min(halfWidth + 0.7, wallIn[i] - 0.3) : Math.min(halfWidth + 0.7, trackD[i] - edgeIn);
   }
   // track samples covered by the lane's asphalt (the run-off strip is not drawn there)
@@ -1039,14 +1490,16 @@ export function buildPitLane(track, rawPts, boxCount = 12) {
   const entryI = track.idxAtS(first.s - 6), exitI = track.idxAtS(last.s + 6);
   const sideArr = sideSign > 0 ? track.wallL : track.wallR;
   const sideBar = sideSign > 0 ? track.barL : track.barR;
-  for (let k = track.idxAtS(first.s - 120); ; k = (k + 1) % track.n) { sideArr[k] = Math.min(sideArr[k], track.minWall); sideBar[k] = BAR.WALL; if (k === track.idxAtS(last.s + 120)) break; }   // the pit wall
+  const run = track.def.pitWallRun ?? 120; track.pitWall = new Uint8Array(track.n); for (let k = track.idxAtS(first.s - run); ; k = (k + 1) % track.n) { sideArr[k] = Math.min(sideArr[k], track.minWallAt(k, sideSign)); sideBar[k] = BAR.WALL; track.pitWall[k] = 1; if (k === track.idxAtS(last.s + run)) break; }   // the pit wall
   track.pitCovers = laneCovers; track.pitSide = sideSign;   // the lane's asphalt beside the road is not grass (Track.surface)
   const wallD = new Float32Array(track.n); for (let i = 0; i < track.n; i++) wallD[i] = sideArr[i];
   const set = new Uint8Array(track.n);
   for (let k = entryI; ; k = (k + 1) % track.n) { wallD[k] = NaN; if (k === exitI) break; }
   for (let i = 0; i < n; i++) {
     if (overlapsTrack[i]) continue;
-    const ti = trackI[i]; const v = isFinite(wallIn[i]) ? Math.min(track.minWall, trackD[i] - wallIn[i]) : NaN;
+    // (with def.pitWallClear, never on the road or its kerb: where the circuit bends away from a straight lane -
+    //  Montreal's last chicane - a lane sample's nearest point of the circuit can be one the wall is not beside)
+    const ti = trackI[i]; const v = isFinite(wallIn[i]) ? Math.max(track.def.pitWallClear ? track.edgeAt(ti, sideSign) + kwT + 0.5 : 0, Math.min(track.minWallAt(ti, sideSign), trackD[i] - wallIn[i])) : NaN;
     wallD[ti] = v; set[ti] = 1;
   }
   let prev = NaN;
@@ -1064,8 +1517,20 @@ export function buildPitLane(track, rawPts, boxCount = 12) {
   const lim = track.def.pitLimit, bU0 = samples.s[boxes[0].i], bU1 = samples.s[boxes[boxes.length - 1].i];
   const limitFrom = lim ? Math.max(samples.s[divergeI] - 4, bU0 - lim.before) : samples.s[divergeI] - 4;
   const limitTo = lim ? Math.min(samples.s[mergeI] + 4, bU1 + lim.after) : samples.s[mergeI] + 4;
+  // the garage-side boundary from the lane's centre: 0.7 m past its edge - and, where the circuit's straight-on escape
+  // IS the pit entry road (def.pitEscape: { width, from, before } - Montreal's last chicane, missed at 300 km/h, ran into
+  // the lane and its garage wall), a wide paved area from `from` m past the lane's branching to `before` m short of the
+  // speed line, a tyre wall at its edge (escape: 1 where it is)
+  const garageW = new Float32Array(n).fill(halfWidth + 0.7), escape = new Uint8Array(n), PE = track.def.pitEscape;
+  if (PE) {
+    const u0 = samples.s[divergeI] + (PE.from ?? 6), u1 = limitFrom - (PE.before ?? 25), E = 50;   // (eased over 50 m: the tyre wall closes in at a shallow angle)
+    for (let i = 0; i < n; i++) {
+      const u = samples.s[i], t = u < u0 ? (u - (u0 - E)) / E : u > u1 ? ((u1 + E) - u) / E : 1, w = Math.max(0, Math.min(1, t));
+      if (w > 0) { garageW[i] = halfWidth + 0.7 + (PE.width - halfWidth - 0.7) * w * w * (3 - 2 * w); escape[i] = 1; }
+    }
+  }
   const pit = {
-    limitFrom, limitTo,
+    limitFrom, limitTo, garageW, escape,
     samples, curve, halfWidth, wallOff, entryS: first.s, exitS: last.s, trackSide, sideSign, boxes, boxPitch: pitch * samples.ds, length: samples.length, limiter: 80 / 3.6,
     overlapsTrack, trackD, trackI, laneEdge, laneCovers, wallIn, wallPos, wallStartI, wallEndI, wallD, divergeU: samples.s[divergeI], mergeU: samples.s[mergeI], gapEntry, gapExit, isGapS,
     /** nearest pit-lane sample -> { i, u (distance along), lat (left +), along } */

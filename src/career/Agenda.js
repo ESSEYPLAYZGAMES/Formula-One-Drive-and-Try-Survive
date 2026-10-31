@@ -31,7 +31,7 @@ const first = (s) => String(s || '').split(' ')[0];
 const last = (s) => String(s || '').split(' ').pop();
 /** first names in a sentence: 'Lando' / 'Lando and Oscar' / 'Lando, Oscar and Max' */
 const listOf = (names) => { const n = names.map(first).filter(Boolean); return n.length > 1 ? `${n.slice(0, -1).join(', ')} and ${n[n.length - 1]}` : n[0] || 'someone'; };
-const TRACK = { lasvegas: 'Las Vegas', silverstone: 'Silverstone' };
+const TRACK = { lasvegas: 'Las Vegas', silverstone: 'Silverstone', montreal: 'Montreal', austin: 'Austin' };
 const SLOTS = 5, MORALE_CAP = 6, MOOD_CAP = 8;
 // (what the week can still hold while you recover from an injury)
 const HURT_OK = ['rest', 'sim', 'factory', 'date'];
@@ -130,6 +130,8 @@ const hangWhy = (c, V, cids) => {
 
 // ---- what the days are like ------------------------------------------------------------------------------------------
 const CORNERS = { lasvegas: ['the stop for Turn 14 at the end of the Strip', 'the Turn 1 hairpin on cold tyres', 'the Sphere section', 'the Turn 12 left onto the Strip'],
+  austin: ['the climb to Turn 1', 'the Esses', 'the Turn 11 hairpin', 'the braking for Turn 12', 'the stadium section', 'the long left of Turns 16 to 18'],
+  montreal: ['the hairpin', 'the last chicane and the Wall of Champions', 'the Senna S on cold tyres', 'the kerbs at Turns 8 and 9', 'the stop for Turn 10'],
   silverstone: ['Maggotts and Becketts', 'the entry to Copse', 'the stop for Stowe', 'Luffield on cold tyres', 'the Vale and Club complex'], any: ['the slow corners', 'the braking zones'] };
 const fill = (s, c, x = {}) => s.replace(/\{(\w+)\}/g, (m, k) => (k === 'track' ? TRACK[trackOf(c)] || 'the next circuit' : k === 'corner' ? pick(CORNERS[trackOf(c)] || CORNERS.any) : x[k] ?? m));
 const REST = ['A day off: a long sleep, a walk, your phone in a drawer.', 'Nothing on the calendar for once. You sleep for ten hours.', 'A lazy day at home. The engineers\' emails can wait until tomorrow.'];

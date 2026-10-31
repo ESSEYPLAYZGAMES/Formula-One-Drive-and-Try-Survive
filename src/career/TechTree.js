@@ -28,6 +28,10 @@ export const BRANCHES = {
 export const CAR_BRANCHES = Object.keys(BRANCHES).filter((b) => b !== 'facilities');
 /** a tight grid: the slowest car ~0.75 % off the fastest (a few tenths) - points, upgrades and DRS decide races */
 export const TIER_PERF = [1.0, 0.9975, 0.995, 0.9925];
+/** each team's car where it starts inside its tier (the order within it: McLaren's the car to beat, Red Bull's the
+ *  hardest of the top four to drive) - development moves it from there */
+export const TEAM_EDGE = { McLaren: 0, Mercedes: -0.0008, Ferrari: -0.0012, 'Red Bull Racing': -0.0016, Williams: 0.0008, 'Aston Martin': 0,
+  'Racing Bulls': 0.0006, Haas: 0, Alpine: 0.0006, Audi: 0.0003, Cadillac: 0 };
 /** correlation: a level reaches the car at Q_BASE of its promise on average (plus what its facilities add), give or take Q_SD */
 export const Q_BASE = 0.93;
 export const Q_SD = 0.065;
@@ -240,7 +244,7 @@ export function techEffects(team) {
   for (const b of CAR_BRANCHES) { const f = facilityFx(team, b); dc += f.cost; ds += f.speed; dq += f.quality; }
   const n = CAR_BRANCHES.length, tier = tierIx(team?.tier);
   return {
-    perf: TIER_PERF[tier] + s.perf - basePerf(tier) + (+team?.perfAdj || 0), drs: s.drs, ers: 1 + s.ers, erc: 1 + s.erc, wear: 1 + s.wear, brake: 1 + s.brake,
+    perf: TIER_PERF[tier] + (TEAM_EDGE[team?.name] || 0) + s.perf - basePerf(tier) + (+team?.perfAdj || 0), drs: s.drs, ers: 1 + s.ers, erc: 1 + s.erc, wear: 1 + s.wear, brake: 1 + s.brake,
     relMul: Math.max(0.45, 1.35 - s.rel * 1.5), pitMul: Math.max(0.72, 1.1 - s.pit),
     devCost: dc / n, devSpeed: ds / n, quality: dq / n, slots: devSlots(team),
   };

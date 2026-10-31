@@ -206,3 +206,78 @@ window.__race = {
       pits: this.ai.reduce((a, c) => a + c.pitStops, 0), ev: this.ev.slice(0, 30).join(' | '), passes: this.passLog.slice(0, 20).join(' '), hits: this.hitLog.join(' ') };
   },
 };
+
+/**
+ * AI calibration run (tools/ai_train.mjs, tools/ai_fit.mjs): one AI car alone, as __soloRun, for `laps` flying laps
+ * with calibration `cal` (ai/Calibration.js shape; undefined = the circuit's own, null = none), mistakes off unless
+ * opts.mistakes. Per numbered corner with an arc length: its window [apex - 220, apex + 120] on every flying lap - the
+ * time through it, the minimum speed (km/h), where the brake first went past 0.3 before the apex (m before it) - and
+ * every off, impact or spin inside it. Leaves the circuit's own calibration applied afterwards.
+ */
+window.__calRun = function (laps = 3, cal = undefined, opts = {}) {
+  const tr = F.W.track, own = F.AI_CAL[tr.def.id];
+  // (a calibration with a driver's line or lap rebuilds the racing line and the AI's speeds on it: main.js rebuildLine)
+  const use = cal === undefined ? own : cal, lapCal = (c) => !!(c && (c.line || c.speed || c.lineFrom));
+  if (lapCal(use) || lapCal(own)) F.rebuildLine(use); else F.applyCalibration(tr, use);
+  const errBase = F.AI_TUNE.errBase; if (!opts.mistakes) F.AI_TUNE.errBase = 0;
+  // (seeded: the same calibration gives the same laps to the millisecond, so two runs differ only by what was changed)
+  const rand = Math.random; let seed = opts.seed ?? 20260615; Math.random = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const diff0 = F.settings.diff; if (opts.diff != null) F.settings.diff = opts.diff;   // (the difficulty slider: 100 is the AI at its quickest)
+  F.settings.grid = 'pick'; F.settings.slot = 22; F.settings.len = laps + 3; F.settings.weather = opts.weather || 'dry'; F.settings.tyre = 'SOFT'; F.settings.sc = 'off'; F.settings.fail = 'off'; F.settings.time = 'day'; F.restart();
+  const d = F.S.director, solo = d.cars.filter((c) => !c.isPlayer)[opts.car || 0];
+  for (const c of d.cars) if (c !== solo) { if (c.isPlayer) { c.ghost = 1e9; c.placeOnTrack(c.s, 40, 0); } else { c.retired = true; c.placeOnTrack(c.s, 30, 0); } }
+  if (!opts.form) solo.form = null;   // (the driver's form on the day moves between sessions: neutral, so runs compare)
+  // (and its tyres: the race plan picks a compound at random - softs unless asked, the grippiest and the hardest to keep clean)
+  if (solo.tyres.compound !== (opts.tyre || 'SOFT')) solo.fitTyres(opts.tyre || 'SOFT');
+  solo.tyres.temp = 0.35; solo.tyres.wear = 0;
+  solo.ai.strat = { type: 'long', wear: 9, cover: 0 };   // (and never a stop: laps to compare, not a race)
+  const C = (tr.def.corners || []).filter((c) => c.s != null).map((c) => ({ n: c.n, apex: c.s, a: tr.wrapS(c.s - 220), b: tr.wrapS(c.s + 120) }));
+  const trace = [], ev = [];
+  const oi = d.world.onImpact; d.world.onImpact = (car, sev, kind) => { if (car === solo) ev.push({ k: 'impact', s: car.s, lap: car.lap, sev, d: +car.d.toFixed(1) }); if (oi) oi(car, sev, kind); };
+  let spinning = false, wasOff = false;
+  const step = 0.05;
+  let lapSeen = solo.lap;
+  for (let k = 0; k < (laps + 1.6) * 200 / step && !d.done && solo.lap < laps + 2; k++) {
+    F.stepSim(step);
+    // (opts.fresh: the tyres as new at every line - laps that compare, not a stint wearing them out)
+    if (opts.fresh && solo.lap !== lapSeen) { lapSeen = solo.lap; solo.tyres.wear = 0; }
+    const sp = Math.abs(solo.r) > 1.4 && solo.speed > 6; if (sp && !spinning) ev.push({ k: 'spin', s: solo.s, lap: solo.lap }); spinning = sp;
+    // (an off: where it left the road, and how far past the white line the car's centre went - over the kerb's edge on a
+    //  line that rides the kerbs is not a car lost)
+    const off = !!solo.offTrack; if (off && !wasOff) ev.push({ k: 'off', s: solo.s, lap: solo.lap, over: 0 }); wasOff = off;
+    if (off) { const e = ev[ev.length - 1], over = Math.abs(solo.d) - tr.edgeAt(solo.trackIdx, Math.sign(solo.d) || 1); if (e?.k === 'off') e.over = Math.max(e.over, +over.toFixed(1)); }
+    trace.push([d.time, solo.lap, solo.s, solo.speed * 3.6, solo.brake, solo.throttle]);
+    if (opts.probe && solo.lap === opts.probe[2] && solo.s > opts.probe[0] && solo.s < opts.probe[1]) (window.__probe = window.__probe || []).push([Math.round(solo.s), Math.round(solo.speedKmh), +solo.d.toFixed(2), +solo.brake.toFixed(2), +solo.throttle.toFixed(2), +solo.steer.toFixed(3), +solo.r.toFixed(2), +F.W.line.offsetAt(solo.s).toFixed(2), solo.surf, (solo.wh?.surf || []).join('')]);
+  }
+  d.world.onImpact = oi; F.AI_TUNE.errBase = errBase; Math.random = rand; F.settings.diff = diff0;
+  const inWin = (s, a, b) => (a <= b ? s >= a && s <= b : s >= a || s <= b);
+  const fwd = (a, b) => { const L = tr.length; let x = (b - a) % L; if (x < 0) x += L; return x; };
+  const flying = (lap) => lap >= 1 && lap <= laps;   // (lap counter: 0 on the standing start lap)
+  const out = C.map((c) => {
+    // every pass through the window, in order: in within 25 m of its start, out within 25 m past its end; a pass counts
+    // once the standing-start lap is behind the car (its lap counter at 1 or more)
+    const runs = []; let cur = null;
+    for (let i = 1; i < trace.length; i++) {
+      const [t, lp, s, v, br] = trace[i], sp = trace[i - 1][2], tp = trace[i - 1][0];
+      const now = inWin(s, c.a, c.b), was = inWin(sp, c.a, c.b);
+      if (now && !was) cur = fwd(c.a, s) < 25 ? { t0: t, lap: lp, vmin: Infinity, brake: null } : null;
+      // (the minimum speed of the corner itself: within 70 m before its apex and 50 m after - a chicane's other half is not this one)
+      if (cur && now) { const toApex = fwd(s, c.apex), past = fwd(c.apex, s); if (toApex <= 70 || past <= 50) cur.vmin = Math.min(cur.vmin, v); if (cur.brake == null && br > 0.3 && toApex > 0 && toApex <= 220) cur.brake = Math.round(toApex); }
+      if (cur && !now && was) { if (fwd(c.b, s) < 25 && cur.lap >= 1) runs.push({ t: +(tp - cur.t0).toFixed(3), vmin: +cur.vmin.toFixed(1), brake: cur.brake }); cur = null; }
+    }
+    void flying;
+    const here = ev.filter((e) => inWin(e.s, c.a, c.b));
+    return { n: c.n, runs, t: runs.length ? +(runs.reduce((a, r) => a + r.t, 0) / runs.length).toFixed(3) : null, vmin: runs.length ? Math.min(...runs.map((r) => r.vmin)) : null,
+      brake: runs.find((r) => r.brake != null)?.brake ?? null, incidents: here.map((e) => `${e.k}@${Math.round(e.s)}`) };
+  });
+  if (lapCal(use) || lapCal(own)) F.rebuildLine(own); else F.applyCalibration(tr, own);
+  // (opts.trace: the last flying lap's speed every 5 m of the lap, km/h - for lining telemetry up against it)
+  let prof = null;
+  if (opts.trace) {
+    const lapN = Math.max(1, laps), n = Math.ceil(tr.length / 5), v = new Array(n).fill(null);
+    for (const [, lp, s, sp] of trace) if (lp === lapN) { const k = Math.floor(s / 5); if (k < n) v[k] = v[k] == null ? sp : Math.min(v[k], sp); }
+    for (let k = 0; k < n; k++) if (v[k] == null) v[k] = v[(k - 1 + n) % n] ?? 0;
+    prof = v.map((x) => +x.toFixed(1));
+  }
+  return { track: tr.def.id, length: +tr.length.toFixed(1), drv: `${solo.short} r${solo.rating}`, laps: solo.lapTimes.map((x) => +x.toFixed(3)), corners: out, events: ev.map((e) => `${e.k}@${Math.round(e.s)}${e.d != null ? `(d${e.d})` : ''}${e.over != null ? `(+${e.over}m)` : ''} L${e.lap}`), ev, trace: prof };
+};

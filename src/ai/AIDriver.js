@@ -7,10 +7,13 @@
 // often a mistake comes (focus), the room and the gaps left in a fight and how often a move is defended (racecraft),
 // and how much a car on the gearbox or a feud gets to it (composure). The numbers are tiny on purpose: the whole
 // field's rating spread is only ~0.5 % of corner speed.
-import { COMPOUNDS } from '../vehicle/Tyres.js';
+import { COMPOUNDS, cliffLaps, lapLoss, tyreLap, RATE_NOM } from '../vehicle/Tyres.js';
+import { planRace as planStints } from '../ui/Strategy.js';
+import { FAULT_P } from '../race/Calls.js';
 import { CAR } from '../vehicle/Car.js';
 import { Planner, DS, NMAX } from './Planner.js';
 import { neutralForm } from '../career/Morale.js';
+import { zoneCal } from './Calibration.js';
 
 const G = 9.81;
 const BEACHED_T = 30;   // seconds an AI car tries to get itself out (off the road, not getting anywhere) before it retires
@@ -47,6 +50,9 @@ export const AI_TUNE = {
   ffFrom: 35, ffBlend: 25,                               // slip-angle feed-forward fades in between 35 and 60 m/s
   trailK: 0.85, trailMin: 0.18, trailSlip: 3.0,          // trail braking: pressure off with steering lock and rear slip
   edgeGuard: 1, satLift: 1, slipLift: 8, guardBrakeV: 45,
+  packCal: 1,                                            // a calibration marked `pack` (fitted solo) only in clean air after the opening lap (0: everywhere)
+  bold: 1,                                               // racecraft against the player (Planner, by aggression): commit to a move, lunge, switch back, read him through his corrections (0: as before)
+  boldAI: 1,                                             // ... the moves (commit, lunge, switch back) against another AI car too, and corner ownership (the inside car level with the other has it), none on the opening lap (0: as before)
   // ---- the driver
   vScaleBase: 0.972, vScaleK: 0.028,                     // cornering commitment by rating
   aBBase: 0.88, aBK: 0.09,                               // braking commitment by rating
@@ -64,6 +70,10 @@ export class AIDriver {
   constructor(car, line, profile, track, opts = {}) {
     this.car = car; this.line = line; this.profile = profile; this.track = track;
     car.ai = this;
+    // (the circuit's AI grip: what lets the field match a quick human there - a driver on the edges of the road and over
+    //  every kerb - with the same margin to the limit the AI keeps everywhere, tracks.js def.aiGrip; the car's physics
+    //  has it too, so it is a better-gripping car, not a braver driver)
+    car.aiGrip = car.isPlayer ? 1 : (track?.def?.aiGrip ?? 1);
     this.aggression = opts.aggression ?? 1.0;
     this.skill = opts.skill ?? 1.0;              // difficulty: scales cornering commitment (menu slider), 0.94 .. 1.02
     this.reaction = 0;                           // seconds until the AI reacts at the start (race director sets Infinity on the grid)
@@ -80,7 +90,7 @@ export class AIDriver {
     this.gripState();
   }
   /** commitment: by driver rating and difficulty (and a hair of confidence, FORM.pace); a car with a broken rear wing is nursed back to the pits */
-  get vScale() { return (AI_TUNE.vScaleBase + AI_TUNE.vScaleK * this.car.rating) * this.skill * (1 - 0.25 * Math.min(1, this.car.dmg.rw / 0.6)) * (this.car.form || NF).pace; }
+  get vScale() { return (AI_TUNE.vScaleBase + AI_TUNE.vScaleK * this.car.rating) * this.skill * (1 - 0.25 * Math.min(1, this.car.dmg.rw / 0.6)) * (this.car.form || NF).pace * (1 + 0.012 * (this.car.band || 0)); }
   get state() { return this.defend ? 'defend' : this.planner.best.follow ? 'follow' : this.planner.best.spec && this.planner.best.spec.k ? 'lane' : 'race'; }
 
   // ---- what this car can do now ----------------------------------------------------------------------------------
@@ -91,12 +101,16 @@ export class AIDriver {
    */
   gripState() {
     const c = this.car, P = this.line.grip, T = AI_TUNE;
-    const muR = (c.tyres.grip(c.wetness) / COMPOUNDS.SOFT.grip) * (1 - 0.12 * c.tyres.instability()) * (c.offTrack ? c.surfGrip : 1) * (1 - 0.1 * c.wetness) * (1 - 0.22 * c.dmg.susp) * (1 - 0.06 * (c.dmg.fwL + c.dmg.fwR));
+    const muR = (c.tyres.grip(c.wetness) / COMPOUNDS.SOFT.grip) * (1 - 0.25 * c.tyres.instability()) * (c.offTrack ? c.surfGrip : 1) * (1 - 0.1 * c.wetness) * (1 - 0.22 * c.dmg.susp) * (1 - 0.06 * (c.dmg.fwL + c.dmg.fwR)) * (c.aiGrip || 1);
     const rearLtd = c.aeroRear() < c.aeroFront() - 0.05;   // a damaged rear wing makes the car rear-limited: drive it well inside
     const dfR = c.perf * (1 - 0.22 * c.slipstream) * Math.min(c.aeroFront(), c.aeroRear()) * (rearLtd ? 0.65 : 1);
     const g = this.g;
     g.mu = P.mu * muR; g.dfm = P.dfm * dfR; g.scale = this.vScale;
     g.brake = (T.aBBase + T.aBK * c.rating) * (0.6 + 0.4 * this.skill) * (1 - 0.5 * c.dmg.rw) * (c.form || NF).brake;   // (a confident driver brakes a touch later: FORM.brake)
+    // (in the wet, at speed: the stop planned short of the limit and the rear trail-braked well inside its grip - turning
+    //  in on the brakes at 300 km/h is where they spun, Maggotts above all; below ~160 km/h nothing kept back - Planner
+    //  .brakeA ramps it in with the speed)
+    g.wetB = 0.15 * c.wetness; g.wetM = 0.3 * c.wetness;
     g.power = c.enginePower(); g.ers = c.ersEnergy > 0.05;
     this._muPhys = CAR.muBase * muR; this._dfm = P.dfm * dfR;   // the car's real limit (the plan keeps a margin under it)
   }
@@ -108,7 +122,7 @@ export class AIDriver {
   }
   gripFactor() {
     const c = this.car;
-    const g = c.tyres.grip(c.wetness) / COMPOUNDS.SOFT.grip * (1 - 0.12 * c.tyres.instability());
+    const g = c.tyres.grip(c.wetness) / COMPOUNDS.SOFT.grip * (1 - 0.25 * c.tyres.instability());   // (a set past the cliff, or cold and twitchy: well inside it - it slid off at the old margin)
     const dmg = 1 - 0.18 * (c.dmg.fwL + c.dmg.fwR) * 0.5 - 0.3 * c.dmg.rw - 0.15 * c.dmg.susp;
     return Math.sqrt(Math.max(0.2, g * dmg * (c.offTrack ? Math.min(0.75, c.surfGrip) : 1) * (1 - 0.13 * c.slipstream) * (1 - 0.12 * c.wetness)));
   }
@@ -130,6 +144,11 @@ export class AIDriver {
     // a place taken when it was not allowed: lift and let that car back by (it is still close behind)
     const owed = c._owes;
     if (owed && !owed.retired) { const x = this.planner.ds(owed.s, c.s); if (x > -3 && x < 400) ctx.vCap = Math.min(ctx.vCap ?? 99, Math.max(8, x < 80 ? owed.speed * 0.8 - 2 : owed.speed * 0.93)); }
+    // a team order (race/TeamOrders.js): let the team-mate by - lift once it is close behind, on its way past; and stay
+    // behind one it has been told to hold position to (Planner: queued behind it, as under the safety car)
+    const yt = c._yieldTo;
+    if (yt && !yt.retired && world.time < (c._yieldUntil ?? 0) && yt.speed > 25) { const x = this.planner.ds(yt.s, c.s); if (x > -3 && x < 250) ctx.vCap = Math.min(ctx.vCap ?? 99, Math.max(20, x < 60 ? yt.speed * 0.88 - 1 : yt.speed * 0.96)); }
+    const hf = c._holdFor; ctx.holdFor = hf && !hf.retired && !hf.pitLane && !hf.inPit ? hf : null;
     const H = Math.max(120, Math.min(300, 80 + v * 2.6));
     ctx.n = Math.min(NMAX, Math.round(H / DS) + 1);
     ctx.s0 = c.s; ctx.v = v; ctx.e0 = c.d - line.offsetAt(c.s);
@@ -138,7 +157,7 @@ export class AIDriver {
     const va = wx * tr.tx[i] + wz * tr.tz[i], vd = wx * tr.nx[i] + wz * tr.nz[i];
     const lineSlope = (line.offsetAt(c.s + 5) - line.offsetAt(c.s - 5)) / 10;
     ctx.e1 = Math.max(-0.5, Math.min(0.5, vd / Math.max(5, va) - lineSlope));
-    ctx.m = tr.halfWidth - T.edgeMargin;
+    ctx.m = tr.halfWidth - (tr.def.aiEdgeMargin ?? T.edgeMargin);   // (the base road: the planner adds what the road is wider by under each node)   // (a circuit where the kerbs are part of the lap lets the car's centre wider: Montreal)
     ctx.grip = this.g;
     const sEnd = c.s + (ctx.n - 1) * DS;
     ctx.vEnd = Math.min(ctx.vCap ?? 99, this.profile[tr.idxAtS(sEnd)] * this.gripFactor() * this.g.scale);
@@ -155,6 +174,22 @@ export class AIDriver {
     ctx.gap = (T.gapBase + v * T.gapK * (1 - 0.3 * this.aggression)) * (1 + 0.3 * lap1) * F.gap + 25 * Math.max(0, c.engTemp - 0.75);
     if (rule && rule.gap) ctx.gap = Math.max(ctx.gap, rule.gap + 0.15 * v);
     ctx.lap1 = lap1;
+    // (racecraft: how much it means a move - by the driver's aggression, half of it on the opening lap, none under race
+    //  control: Planner reads it)
+    ctx.bold = rule ? 0 : T.bold * Math.min(1.2, this.aggression) * (lap1 ? 0.5 : 1);
+    ctx.boldAI = rule || lap1 ? 0 : T.boldAI * Math.min(1.2, this.aggression);
+    // (a circuit's calibration fitted to a car on its own - ai/Calibration.js `pack`, Austin's from a driver's laps - spun
+    //  the field in the pack: the opening lap is driven on the physics, and so is any stretch in traffic - fading back
+    //  in from 25 m to 100 m behind the nearest car ahead, none with a car alongside)
+    const pack = T.packCal && tr.aiCal?.pack;
+    let near = Infinity;
+    if (c.lap >= 1 && pack) for (const o of world.cars) {
+      if (o === c || o.inPit || o.pitLane || o.retired) continue;
+      let ds = o.s - c.s; const L = tr.length; if (ds > L / 2) ds -= L; if (ds < -L / 2) ds += L;
+      if (ds > -8 && ds < 100) near = Math.min(near, ds < 6 ? 0 : ds);
+    }
+    ctx.calW = !pack ? 1 : c.lap >= 1 ? Math.max(0, Math.min(1, (near - 25) / 75)) : 0;
+    ctx.calW *= Math.max(0, 1 - c.wetness / 0.45);   // (a calibration is from dry laps: on a wet track the physics alone - at Maggotts the fitted pace spun them)
     this._hold = sinceStart < T.laneHoldT && c.gridSlot ? Math.max(-ctx.m, Math.min(ctx.m, c.gridSlot.d)) : null;
     ctx.forceLane = this._hold != null || !!this.defend;
     // boxing this lap: braking for the pit entry like any corner - to the speed the entry road allows at its first
@@ -173,12 +208,16 @@ export class AIDriver {
     // a feud (ui/GridWalk.js: what you said to this driver, or what they heard): this race, you get no room, a car on your
     // gearbox, every door shut - and, now and then when alongside, it leans on you (racecraftCost); a driver short on
     // composure flares up more often (FORM.flare)
-    const fk = c.feud || 0, me = fk > 0 ? (this._me || (this._me = world.cars.find((o) => o.isPlayer))) : null;
-    ctx.feud = me && !me.retired && !me.inPit && !me.pitLane ? me : null; ctx.feudK = fk; this._feudD = null;
-    if (ctx.feud) {
-      const ds = this.planner.ds(c.s, me.s);
+    // (a grudge - race/TeamOrders.js: a team-mate it refused to make way for, one that would not make way for it, one it
+    //  has fallen out with - is raced the same way for a while, whoever it is)
+    const fk0 = c.feud || 0, me = fk0 > 0 ? (this._me || (this._me = world.cars.find((o) => o.isPlayer))) : null, onTrack = (o) => o && !o.retired && !o.inPit && !o.pitLane;
+    let tgt = onTrack(me) ? me : null, fk = tgt ? fk0 : 0;
+    const gr = c._grudge; if (gr && world.time < gr.until && onTrack(gr.car) && gr.k > fk) { tgt = gr.car; fk = gr.k; }
+    ctx.feud = tgt; ctx.feudK = fk; this._feudD = null; this._feudCar = tgt;
+    if (tgt) {
+      const ds = this.planner.ds(c.s, tgt.s);
       if ((this._fT = (this._fT || 0) - 0.1) <= 0) { this._fT = 2 + rnd() * 2.5; this._fOn = rnd() < (0.35 + 0.55 * fk) * F.flare; }
-      if (this._fOn && ds > -9 && ds < 10 && Math.abs(me.d - c.d) < 4) this._feudD = me.d;
+      if (this._fOn && ds > -9 && ds < 10 && Math.abs(tgt.d - c.d) < 4) this._feudD = tgt.d;
     }
     this.decideDefence(world);
     ctx.racecraft = this._racecraft || (this._racecraft = (P) => this.racecraftCost(P));
@@ -202,7 +241,7 @@ export class AIDriver {
     let att = null;
     for (let r = 0; r < P.nOthers; r++) {
       const R = P.others[r], o = R.car;
-      if (R.s0 >= -2 || R.lapping || o.retired || o.spinning || o.rigid || o === c._owes) continue;   // (never against a car it owes a place)
+      if (R.s0 >= -2 || R.lapping || o.retired || o.spinning || o.rigid || o === c._owes || o === c._yieldTo) continue;   // (never against a car it owes a place, or has been told to let by)
       // close enough to try it: within half a second and closing, or right on the gearbox
       const gapT = -R.s0 / Math.max(10, o.speed);
       if ((gapT < T.defendGap && o.speed > c.speed + 1.5) || gapT < 0.25) { att = o; break; }
@@ -210,9 +249,10 @@ export class AIDriver {
     if (!att) return;
     let zone = null, dist = 0;
     for (let d = 40; d < 260; d += 10) { const z = tr.inCornerZone(tr.idxAtS(c.s + d)); if (z) { zone = z; dist = d; break; } }
-    if (!zone || isFast(zone) || dist < (att.isPlayer && c.feud > 0.4 ? 30 : 60)) return;   // (too late to move once in the braking zone - later still against someone it has a feud with)
+    const fe = att === this.ctx.feud ? this.ctx.feudK || 0 : 0;
+    if (!zone || isFast(zone) || dist < (fe > 0.4 ? 30 : 60)) return;   // (too late to move once in the braking zone - later still against someone it has a feud with)
     // (racecraft: a sharp driver covers the inside a little more often, FORM.defend; a feud: it always shuts the door on you)
-    if (rnd() > 0.32 + 0.4 * this.aggression + (c.form || NF).defend + (att.isPlayer ? 0.6 * (c.feud || 0) : 0)) { this.defendCool = 5; return; }
+    if (rnd() > 0.32 + 0.4 * this.aggression + (c.form || NF).defend + 0.6 * fe) { this.defendCool = 5; return; }
     this.defend = { side: zone.dir, untilS: zone.sA + 15, attacker: att };
     this.defences = (this.defences || 0) + 1;
   }
@@ -225,12 +265,12 @@ export class AIDriver {
       for (let i = 0; i < n; i++) { const z = this.track.inCornerZone(this.track.idxAtS(P.s0 + i * DS)); if (z) break; cost += 0.004 * Math.abs(P.d[i] - this._hold); }
     }
     if (this.defend) {
-      const want = this.defend.side * (this.track.halfWidth - 2.7), until = this.planner.ds(P.s0, this.defend.untilS);
+      const want = this.defend.side * (this.track.edgeAt(this.car.trackIdx, this.defend.side) - 2.7), until = this.planner.ds(P.s0, this.defend.untilS);
       for (let i = 0; i < n && i * DS < until; i++) cost += 0.012 * Math.max(0, (want - P.d[i]) * this.defend.side);
     }
     // boxing: lined up on the pit side for the last 250 m before the lane's first metre
     if (this._pitD != null) for (let i = 0; i < n && i * DS < this._pitTo; i++) if (this._pitTo - i * DS < 250) cost += 0.02 * Math.abs(P.d[i] - this._pitD);
-    if (this._feudD != null) for (let i = 0; i < n && i * DS < 30; i++) cost += 0.035 * (this.car.feud || 0) * Math.abs(P.d[i] - this._feudD);   // (leaning on you)
+    if (this._feudD != null) for (let i = 0; i < n && i * DS < 30; i++) cost += 0.035 * (this.ctx.feudK || 0) * Math.abs(P.d[i] - this._feudD);   // (leaning on you)
     return cost;
   }
 
@@ -284,13 +324,32 @@ export class AIDriver {
     const spinning = Math.abs(c.r) > 1.4 && v > 6;
     const tight = (zone && zone.maxCurv > 1 / 60) || this.nextCorner(40)?.maxCurv > 1 / 60;
     const look = Math.min(T.lookMax, Math.max(T.lookMin, T.lookK * v + T.lookBase));
-    const sA = c.s + look;
+    // (the road's edges are read at the aim point's own sample, not under the car: on a road that widens ahead - Austin's
+    //  Turn 1 opens out from 17 m to 38 m over 120 m, on its outside - the edge under the car is up to 10 m short of the
+    //  one at the aim point, and an aim point held to it kept the car inside a racing line swinging out to use the width.
+    //  It fell further behind every metre, the planner gave the line up for paths holding the car where it was, and it
+    //  reached the apex 20 m wide of it and ran off - at Turns 1, 11 and 12, every lap)
+    const sA = c.s + look, iA = tr.idxAtS(sA);
     let dT = P.at(B.d, sA); if (dT == null) dT = this.line.offsetAt(sA);
-    if (this.error && this.error.type === 'scrape' && zone) dT = -zone.dir * (tr.halfWidth + 0.6);
+    // (a wall kiss: on the pinned wall's stretch only, the car runs out to a hand's width of it)
+    const kiss = this.error?.type === 'scrape' && this.error.wall && tr.pinAt?.(c.s + 8, this.error.side) ? this.error.side : 0;
+    if (kiss) dT = kiss * (tr.wallAt(c.trackIdx, kiss) - 0.95);
+    else if (this.error && this.error.type === 'scrape' && !this.error.wall && zone) dT = -zone.dir * (tr.edgeAt(iA, -zone.dir) + 0.6);
     // (a feud, alongside you: it squeezes you - steers onto your line and leans on you; the stewards may have a view)
-    if (this._feudD != null && this._me) { const me = this._me, ds = P.ds(c.s, me.s); if (ds > -8 && ds < 8) dT += (me.d - dT) * Math.min(1, 0.95 * (c.feud || 0)); }
-    const lim = tr.halfWidth - 0.9 + (this.error?.type === 'scrape' ? 2 : 0);
-    dT = Math.max(-lim, Math.min(lim, dT));
+    if (this._feudD != null && this._feudCar) { const me = this._feudCar, ds = P.ds(c.s, me.s); if (ds > -8 && ds < 8) dT += (me.d - dT) * Math.min(1, 0.95 * (this.ctx.feudK || 0)); }
+    const sc2 = this.error?.type === 'scrape' && !this.error.wall ? 2 : 0;
+    const limL = kiss ? tr.wallAt(c.trackIdx, kiss) - 0.9 : tr.hwL[iA] - 0.9 + sc2, limR = kiss ? tr.wallAt(c.trackIdx, kiss) - 0.9 : tr.hwR[iA] - 0.9 + sc2;
+    // (behind the safety car or under the VSC: on a straight, with its tyres short of their window and nobody alongside,
+    //  it weaves to put heat back in - the lateral load is what warms them, vehicle/Tyres.js - and stops for the corners.
+    //  The weave is in the steering itself, under a second a swing: an offset on the path the car steers for came out of
+    //  the path follower as no load at all, only a slower car)
+    const ph = world.sc?.phase, neutral = !!this.rule?.noPass && (ph === 'sc' || ph === 'scIn' || ph === 'vsc');
+    let wv = 0;
+    if (neutral && T.weave !== false && !zone && v > 12 && v < 75 && (c.tyres.temp < 0.97 || T.weave === 'always') && !this.nextCorner(70)) {
+      wv = 1; for (let r = 0; r < P.nOthers; r++) { const R = P.others[r]; if (Math.abs(R.s0) < 8 && Math.abs(R.car.d - c.d) < 4) { wv = 0; break; } /* (alongside: the queue's 15 m gaps are room enough) */ }
+    }
+    this._wA = Math.max(0, Math.min(1, (this._wA || 0) + (wv ? 0.6 : -1.5) * dt));
+    dT = Math.max(-limR, Math.min(limL, dT));
     const f = tr.sample(sA, dT, this._f || (this._f = {}));
     const dx = f.x - c.x, dz = f.z - c.z, cth = Math.cos(c.th), sth = Math.sin(c.th);
     const fwd = dx * cth + dz * sth, lft = dx * sth - dz * cth, Ld = Math.hypot(dx, dz) || 1;
@@ -312,6 +371,7 @@ export class AIDriver {
     const slipR = Math.atan2(c.vLat - c.r * CAR.lr, Math.max(3, Math.abs(c.vLong)));
     steer += slipR * T.csGain * (0.6 + 0.4 * c.rating);   // countersteer when the rear steps out
     if (this.error && this.error.type === 'snap' && this.error.t < 0.4) steer += this.error.sign * 0.4;
+    if (this._wA > 0) { this._wPh = ((this._wPh || 0) + dt * 0.9) % 1; steer += this._wA * 0.3 * Math.sin(2 * Math.PI * this._wPh); }   // (the weave)
     c.steer += (Math.max(-1, Math.min(1, steer)) - c.steer) * Math.min(1, dt * T.steerRate);
 
     // ---- speed: the most the plan allows a moment ahead (the plan is up to 0.1 s old): flat out below it, braking
@@ -335,7 +395,7 @@ export class AIDriver {
     // (only running wide of the plan near the edge: the plan itself uses the whole road)
     let dPlan = P.at(B.d, c.s); if (dPlan == null) dPlan = this.line.offsetAt(c.s);
     const wide = (c.d - dPlan) * Math.sign(c.d) > 0.8;
-    if (T.edgeGuard && !flat && wide && Math.abs(c.d) > tr.halfWidth - 1.6 && Math.sign(dDot) === Math.sign(c.d) && Math.abs(dDot) > 0.6) { vT = Math.min(vT, v * 0.94 * guardV); lift = true; }
+    if (T.edgeGuard && !flat && wide && Math.abs(c.d) > tr.edgeAt(c.trackIdx, Math.sign(c.d) || 1) - 1.6 && Math.sign(dDot) === Math.sign(c.d) && Math.abs(dDot) > 0.6) { vT = Math.min(vT, v * 0.94 * guardV); lift = true; }
     if (T.satLift && (c.satF || 0) > 1.04 && v > 15) { vT = Math.min(vT, v * 0.97 * guardV); lift = true; }
     if (c.offTrack) vT = Math.min(vT, 32);
     if (spinning) vT = 0;
@@ -395,12 +455,14 @@ export class AIDriver {
     const ps = P.samples, lim = P.limiter, v = c.speed, T = AI_TUNE;
     const box = P.boxFor(c.boxIdx ?? c.number + c.id), u = Math.max(0, q.u);
     // past the box, or stopped beside it but not in it (pushed wide by a car in the next box): missed - on down the
-    // lane and round again next lap (the request stands), never stopped for good
-    if (c.pitRequested && c.pitLaneState === 'in' && !this.missed) {
+    // lane and round again next lap (the request stands), never stopped for good. (Your car, driven in for you -
+    // RaceDirector.pitTakeover: boxing - stops whatever its request says: the stop is what the takeover is for)
+    const boxing = c.pitRequested || this.boxing;
+    if (boxing && c.pitLaneState === 'in' && !this.missed) {
       this._boxWait = v < 0.4 && Math.abs(box.u - u) < 8 ? (this._boxWait || 0) + dt : 0;
       if (u > box.u + 6 || this._boxWait > 2.5) this.missed = true;
     }
-    const stopping = c.pitRequested && c.pitLaneState !== 'out' && !this.missed;
+    const stopping = boxing && c.pitLaneState !== 'out' && !this.missed;
     // turned round in the lane (a spin at the entry, a tap): it stops and the crew push it round to face down the
     // lane (in the pit lane a car is not reversed under its own power)
     const iL = Math.max(0, Math.min(ps.n - 1, Math.round(u / ps.ds)));
@@ -414,11 +476,14 @@ export class AIDriver {
       if (Math.abs(off) < 0.08) { this.laneTurn = null; c.brake = 0; }
       return true;
     }
-    // where in the lane: the fast lane, easing over to the box's lateral position for the last 35 m before it
-    const nearBox = stopping ? Math.max(0, Math.min(1, 1 - (box.u - u - 8) / 35)) : 0;
-    const look = Math.max(7, Math.min(25, 0.35 * v + 6)), uA = Math.min(ps.length - 1, u + look);
-    const nb = stopping ? Math.max(0, Math.min(1, 1 - (box.u - uA - 8) / 35)) : 0;
-    const latT = box.lat * (u > box.u + 4 ? 0 : nb);
+    // where in the lane: the fast lane - along the garages, on the pit wall's side of the lane, clear of the crews at work
+    // on the lane side of their cars - then a late, steep turn-in, past the box before yours (once it eased over for 35
+    // m and went through the neighbours' car and crew, or queued behind them): a cosine S of 14.5 m, at the steering's
+    // lock for the speed, onto the box's line 3.5 m short of it and straight in; out of the box the same S back out
+    const latAt = this._laneLat(P, box, stopping, c.pitLaneState === 'out' && u < box.u + 19 && !this.missed);
+    const nearMine = (stopping && box.u - u < 26 && u < box.u + 4) || (c.pitLaneState === 'out' && u < box.u + 19 && u > box.u - 6);
+    const look = nearMine ? Math.max(4, Math.min(25, 0.3 * v + 2.5)) : Math.max(7, Math.min(25, 0.35 * v + 6)), uA = Math.min(ps.length - 1, u + look);
+    const latT = latAt(uA);
     const j = Math.min(ps.n - 1, Math.round(uA / ps.ds));
     const tx = ps.px[j] + ps.nx[j] * latT, tz = ps.pz[j] + ps.nz[j] * latT;
     const dx = tx - c.x, dz = tz - c.z, cth = Math.cos(c.th), sth = Math.sin(c.th);
@@ -431,13 +496,22 @@ export class AIDriver {
     // (into the box on a gentle stop), then the exit road at speed again
     const iu = Math.max(0, Math.min(ps.n - 1, Math.round(u / ps.ds))), S = laneSpeeds(P);
     let vT = u < P.limitFrom ? S.vIn[iu] : u <= P.limitTo ? lim : S.vOut[iu];
-    if (stopping && c.pitLaneState === 'in') vT = Math.min(vT, Math.sqrt(Math.max(0, 2 * 5 * (box.u - u - 0.5))));
+    if (stopping && c.pitLaneState === 'in') vT = Math.min(vT, Math.sqrt(Math.max(0, 2 * 5 * (box.u - u - 0.5))), Math.sqrt(81 + 2 * 6 * Math.max(0, box.u - 26 - u)));   // (into the S at 32 km/h at most)
+    // a double stack: the team-mate in the box, or released from it under 4 s ago (its crew still clearing it and
+    // fetching the next set of tyres) - wait 9.5 m short of it, out of everyone's way
+    if (stopping && c.pitLaneState === 'in') {
+      const mine = Math.abs(c.boxIdx ?? c.number + c.id) % P.boxes.length, now = world.time ?? 0;
+      for (const o of world.cars) if (o !== c && Math.abs(o.boxIdx ?? o.number + o.id) % P.boxes.length === mine && (o.pitLaneState === 'stop' || (o.pitLaneState === 'out' && now - (o._pitDoneT ?? -99) < 4))) { vT = Math.min(vT, Math.sqrt(Math.max(0, 2 * 5 * (box.u - 9.5 - u)))); break; }
+    }
+    if (c.pitLaneState === 'out' && u < box.u + 18 && u > box.u - 6) vT = Math.min(vT, 6 + Math.max(0, u - box.u) * 0.25);   // (and out of it)
     // a car ahead in the lane (stopped in its box, or slower): braking in time for it from the entry road's speeds, a
     // car length and a half behind it (one stopped in its own box beside the fast lane is passed)
+    // (and a car still on the lane's run-in, driven by its own pitDrive, not yet counted as in the lane: under a safety
+    //  car half the field dives in at once, and the queue forms before the speed line - Montreal's lane leaves 110 m early)
     for (const o of world.cars) {
-      if (o === c || !o.pitLane || o.cleared) continue;
+      if (o === c || o.cleared || !(o.pitLane || o.ai?.inPitMode)) continue;
       const qo = P.nearest(o.x, o.z, this._po || (this._po = {})), gap = qo.u - u;
-      if (gap <= 0 || gap > 150 || (o.held && Math.abs(qo.lat - latT) > 2.6) || (gap < 30 && Math.abs(qo.lat - q.lat) > 2.6)) continue;
+      if (gap <= 0 || gap > 150 || (o.held && Math.abs(qo.lat - latAt(qo.u)) > 2.6) || (gap < 30 && Math.abs(qo.lat - q.lat) > 2.6)) continue;   // (one held in a box the path does not go into is passed)
       vT = Math.min(vT, Math.sqrt(Math.max(0, o.speed * o.speed + 2 * 12 * (gap - 9))));
     }
     const err = vT - v;
@@ -448,6 +522,22 @@ export class AIDriver {
     return true;
   }
 
+  /**
+   * The lane's lateral target along it (u -> lat, the pit lane's own offset): the fast lane 1.2 m toward the pit wall
+   * by the garages (from 40 m before the first box to 40 m past the last), into the box by a cosine S from 18 m before
+   * it to 3.5 m before it (in: stopping), out of it straight for 3 m - its front clear of its own crew on the lane
+   * side, the back half going by them as it turns, swinging away from them - then the same S over 12 m (out)
+   */
+  _laneLat(P, box, inn, out) {
+    if (!P._boxSpan) { let a = Infinity, b = -Infinity; for (const x of P.boxes) { const uu = P.samples.s[x.i]; a = Math.min(a, uu); b = Math.max(b, uu); } P._boxSpan = [a, b]; }
+    const [b0, b1] = P._boxSpan, side = -Math.sign(box.lat) || 1, sm = (t) => { t = Math.max(0, Math.min(1, t)); return t * t * (3 - 2 * t); };
+    const fast = (uu) => side * 1.2 * sm((uu - (b0 - 40)) / 30) * sm(((b1 + 40) - uu) / 30);
+    const S = (t) => (1 - Math.cos(Math.PI * Math.max(0, Math.min(1, t)))) / 2;
+    if (inn) return (uu) => { if (uu > box.u + 4) return fast(uu); const f = fast(uu), e = S((uu - (box.u - 18)) / 14.5); return f + (box.lat - f) * e; };
+    if (out) return (uu) => { const f = fast(uu), e = S((uu - (box.u + 3)) / 12); return box.lat + (f - box.lat) * e; };
+    return fast;
+  }
+
   /** the nearest car ahead whose body is in my planned path (centre-to-centre gap), within 30 m */
   closestAhead() {
     const P = this.planner, c = this.car; let best = null;
@@ -455,14 +545,16 @@ export class AIDriver {
       const R = P.others[r], o = R.car, gap = P.ds(c.s, o.s);
       if (gap <= 0 || gap > 30 || (best && gap > best.gap)) continue;
       let dp = P.at(P.best.d, o.s); if (dp == null) dp = c.d;
-      if (Math.abs(o.d - dp) < 2.2) best = { o, gap };
+      // (in its path: within 2.2 m of it - but a car alongside, its tail beside my nose, only if we overlap: two cars a car's
+      //  width apart are racing side by side, and a twitch of its wheel is no reason to stand on the brakes - AI_TUNE.bold)
+      if (Math.abs(o.d - dp) < (AI_TUNE.bold && gap < 6 && R.human ? 1.95 : 2.2)) best = { o, gap };
     }
     return best;
   }
 
   /** a car that can't go on: to the edge of the road (the run-off beyond it if there is one) and stop there */
   pullOver(dt) {
-    const c = this.car, tr = this.track, hw = tr.halfWidth, side = Math.sign(c.d - this.line.offsetAt(c.s)) || Math.sign(c.d) || 1;
+    const c = this.car, tr = this.track, hw = tr.edgeAt(c.trackIdx, Math.sign(c.d) || 1), side = Math.sign(c.d - this.line.offsetAt(c.s)) || Math.sign(c.d) || 1;
     const room = tr.wallAt(c.trackIdx, side), dT = side * Math.min(room - 2, hw + 6);
     const f = tr.sample(c.s + Math.max(25, c.speed * 1.6), dT, this._fp || (this._fp = {}));
     const dx = f.x - c.x, dz = f.z - c.z, cth = Math.cos(c.th), sth = Math.sin(c.th);
@@ -484,7 +576,7 @@ export class AIDriver {
    * road: beached, out of the race.
    */
   rejoin(dt, world) {
-    const c = this.car, tr = this.track, R = this.rj, v = c.speed, hw = tr.halfWidth;
+    const c = this.car, tr = this.track, R = this.rj, v = c.speed, hw = tr.edgeAt(c.trackIdx, Math.sign(c.d) || 1);
     R.t += dt; R.total += dt;
     const side = Math.sign(c.d) || 1, onRoad = Math.abs(c.d) < hw - 0.5;
     const f = tr.sample(c.s + 35, side * Math.min(Math.abs(c.d), hw - 2.5), this._fr || (this._fr = {}));
@@ -532,11 +624,12 @@ export class AIDriver {
     const c = this.car;
     if (this.error || c.speed < 15 || this.isSC || this.rule) return;   // (nobody makes a mistake at safety-car pace)
     const cold = c.tyres.temp < 0.5 ? 1.8 : 1;
-    const worn = 1 + 2.2 * c.tyres.wear + 4 * c.tyres.instability();
+    const worn = 1 + 2.2 * c.tyres.wear + 4 * Math.max(0, (c.tyres.wear - 0.7) / 0.3);   // (the cliff's; cold is counted above)
     // (the driver's form: focus sets how often, composure how much a car on the gearbox gets to him - FORM.err and
     //  FORM.pressure; the cap stays the cap)
     const F = c.form || NF;
-    const p = Math.min(0.08, AI_TUNE.errBase * (1 - c.rating) * 4 * worn * (1 + 1.6 * this.pressure * F.pressure) * cold * (0.6 + 0.4 * this.aggression) * (1 + 0.6 * ((zone.runoff || 0) / 16)) * F.err);   // braking mistakes happen where the run-off invites them
+    const zc = zoneCal(this.track, zone);   // (the circuit's calibration: some corners invite more mistakes, ai/Calibration.js)
+    const p = Math.min(0.08, AI_TUNE.errBase * (1 - c.rating) * 4 * worn * (1 + 1.6 * this.pressure * F.pressure) * cold * (0.6 + 0.4 * this.aggression) * (1 + 0.6 * ((zone.runoff || 0) / 16)) * F.err * (zc?.err ?? 1));   // braking mistakes happen where the run-off invites them
     if (rnd() > p) return;
     const tight = zone.maxCurv > 1 / 45, r = rnd();
     // mostly lock-ups (they run wide into the run-off, no spin); the bigger the run-off, the more of them; snaps are
@@ -544,6 +637,8 @@ export class AIDriver {
     const runoff = zone.runoff || 0, lockBias = runoff >= 16 ? 0.85 : runoff >= 10 ? 0.72 : 0.55;
     if (zone.maxCurv < 1 / 55) this.error = { type: 'wide', t: 0, dur: 1.2 };
     else if (zone.turn === 14 && this.track.def.id === 'lasvegas' && this.pressure > 0.4 && r > 0.9 && tight) this.error = { type: 'scrape', t: 0, dur: 1.4 };
+    // a wall right off the exit kerb (Montreal's Wall of Champions): the mistake there is using a little too much of it
+    else if (zc?.scrape && r < zc.scrape && (this.track.pins || []).some((p) => p.side === -zone.dir)) this.error = { type: 'scrape', t: 0, dur: 4, wall: true, side: -zone.dir };
     else if (r < lockBias) this.error = { type: 'lockup', t: 0, dur: 1.3 + 0.3 * (runoff / 16) };
     else this.error = { type: 'snap', t: 0, dur: 0.7, sign: -zone.dir };
     world.onAIError?.(c, this.error.type, zone);
@@ -551,11 +646,11 @@ export class AIDriver {
 
   /**
    * The race plan, made on the grid (RaceDirector): how long the first stint runs and how the car reacts to the others.
-   *  - standard: stops near the cliff (62-68 % wear), covers a rival's undercut some of the time;
-   *  - early: the undercut - softs to start, stops at about half wear, usually covers rivals;
-   *  - long: the overcut - starts on mediums or hards, runs to the cliff (70-74 %), ignores rivals' stops;
-   *  - gamble (mostly the back of the grid): hards and the longest first stint, waiting for a safety car to stop
-   *    under - which it takes at once, whatever its tyres; without one it stops at the cliff.
+   *  - standard: stops short of the cliff (60-68 % wear), takes an undercut when the sums say so, covers one on it;
+   *  - early: the undercut - softs to start, stops at about half wear, the first to take an undercut and to cover one;
+   *  - long: the overcut - starts on mediums or hards, runs to the cliff's edge (68-72 %), rarely covers a stop;
+   *  - gamble (mostly the back of the grid): hards, which last the race (vehicle/Tyres.js: 110 % of it) - waiting for a
+   *    safety car to stop under, which it takes at once; without one it makes the mandatory stop on the last lap.
    * After every stop the plan is made again for the next stint. Returns true when it changed the starting tyres.
    */
   planRace(world, gridPos, n) {
@@ -563,48 +658,147 @@ export class AIDriver {
     const pick = (opts) => { let x = rnd() * opts.reduce((a, o) => a + o[1], 0); for (const o of opts) { x -= o[1]; if (x <= 0) return o[0]; } return opts[0][0]; };
     this.setStrat(back ? pick([['gamble', 0.4], ['long', 0.2], ['early', 0.2], ['standard', 0.2]]) : pick([['standard', 0.45], ['early', 0.3], ['long', 0.25]]));
     if (c.wetness >= 0.2 || world.lapsTotal < 3) return false;
-    const type = this.strat.type, comp = type === 'early' ? 'SOFT' : type === 'long' ? (rnd() < 0.5 ? 'MEDIUM' : 'HARD') : type === 'gamble' ? (rnd() < 0.7 ? 'HARD' : 'MEDIUM') : c.tyres.compound;
+    // (the start tyre from the strategy screen's sums - ui/Strategy.js planRace: each compound's pace, life and cliff for
+    //  this race - the quickest plan's, now and then the next one's, for a standard race; the softest start among the
+    //  plans for the undercut, the hardest for the overcut; hards for the gamble. A soft dies at half distance: in a sprint
+    //  it is a gamble of its own, not the default)
+    const type = this.strat.type, O = ['SOFT', 'MEDIUM', 'HARD'];
+    let comp = type === 'gamble' ? 'HARD' : c.tyres.compound;
+    if (type !== 'gamble') try {
+      const R = planStints({ laps: world.lapsTotal, trackLength: this.track.length, pace: world.lapT || tyreLap(this.track.length), pitLoss: world.pitLoss || 22, wet: c.wetness });
+      const st = R.plans.map((p) => p.stints[0].compound).filter((k) => O.includes(k));
+      if (st.length) comp = type === 'early' ? st.reduce((a, b) => (O.indexOf(b) < O.indexOf(a) ? b : a)) : type === 'long' ? st.reduce((a, b) => (O.indexOf(b) > O.indexOf(a) ? b : a)) : rnd() < 0.7 || st.length < 2 ? st[0] : st[1];
+    } catch (e) { /* (the plans could not be made: the tyre it has) */ }
     if (comp === c.tyres.compound) return false;
-    c.fitTyres(comp); c.tyres.temp = 0.35;
+    c.fitTyres(comp); c.tyres.temp = c.tyres.spec.start ?? 0.7; c.tyres.work = 0.45;   // (on the grid: as the formation lap leaves them)
     return true;
   }
   setStrat(type) {
     const r = rnd();
-    this.strat = { type, wear: { early: 0.46 + 0.08 * r, standard: 0.62 + 0.06 * r, long: 0.7 + 0.04 * r, gamble: 0.74 }[type],
-      cover: { early: 0.65, standard: 0.3 + 0.3 * this.aggression, long: 0.05, gamble: 0 }[type] };
+    this.strat = { type, wear: { early: 0.46 + 0.08 * r, standard: 0.6 + 0.08 * r, long: 0.68 + 0.04 * r, gamble: 0.92 }[type],
+      cover: { early: 0.9, standard: 0.5 + 0.35 * this.aggression, long: 0.15, gamble: 0 }[type],
+      // (the margin an undercut has to beat the gap by before this plan takes it, s - null: never)
+      under: { early: 0.35, standard: 0.7, long: 1.6, gamble: null }[type] };
+    this._coverK = rnd();
   }
-  /** a rival just ahead or behind (within 2.5 s) has turned into the pit lane: cover the undercut, or stay out */
-  watchRivals(world) {
-    const c = this.car, S = this.strat; this._inLane = this._inLane || new Set();
+  /** this car's (or another's) wear per lap: the last full lap's on this set, else the nominal rate */
+  perLap(car = this.car) {
+    const a = car === this.car ? this : car.ai, t = car.tyres;
+    return a && a._wPerLap > 0 && a._wTyres === t ? a._wPerLap : RATE_NOM * this.track.length / Math.max(1, t.lifeMeters);
+  }
+  /** a compound's pace against a new soft's (s a lap), from its grip (vehicle/Tyres.js: how a lap time answers grip) */
+  basePace(comp, lapT) { const g = 1 - (COMPOUNDS[comp]?.grip ?? 1); return lapT * (0.405 * g + 1.53 * g * g); }
+  /** the set for the rest of the race: the softest that reaches the flag (else a hard: another stop to come); rain tyres */
+  nextCompound(lapsLeft) {
+    const c = this.car;
+    if (c.wetness > 0.6) return 'WET'; if (c.wetness > 0.3) return 'INTER';
+    for (const comp of ['SOFT', 'MEDIUM', 'HARD']) if (cliffLaps(comp, c.raceLaps) >= lapsLeft - 0.3) return comp;
+    return 'HARD';
+  }
+  /**
+   * The undercut on the car just ahead (within 3 s, on as many stops): what a stop now gains on it by the time it has
+   * stopped too - its in-lap on the old set against my out-lap on a cold new one, then its out-lap on a cold set against
+   * my second lap. With the same new set for both the two warm-ups cancel, and what is left is what its old set has
+   * lost (vehicle/Tyres.js lapLoss, at its own rate of wear) and the compounds' pace. Taken when that beats the gap by the
+   * plan's margin, the car is in its window (its tyres near the plan's stop), the new set reaches the flag or the race
+   * wants another stop anyway, and it would not rejoin behind a car still on its old set (a stop's time back on the road).
+   * -> the car undercut, or null
+   */
+  undercutOn(world, lapsLeft) {
+    const c = this.car, t = c.tyres, S = this.strat;
+    if (S.under == null || t.wear < S.wear - 0.2 || lapsLeft < 2.5) return null;
+    const lapT = world.lapT || tyreLap(this.track.length), loss = world.pitLoss || 22, comp = this.nextCompound(lapsLeft), cl = cliffLaps(comp, c.raceLaps);
+    if (cl < lapsLeft - 0.3 && cl * 1.6 > lapsLeft) return null;   // (one set short of the flag, two a stop too many: not yet)
+    let ahead = null, g = Infinity;
+    for (const o of world.cars) {
+      if (o === c || o.retired || o.finished || o.isSC || o.pitLane || o.inPit || o.pitStops !== c.pitStops) continue;
+      const x = world.gap?.(c, o); if (x == null || x <= 0 || x > 3 || x >= g) continue;
+      ahead = o; g = x;
+    }
+    if (!ahead || ahead.tyres.wear < 0.25) return null;
+    const oT = ahead.tyres;
+    let gain = this.basePace(oT.compound, lapT) - this.basePace(comp, lapT) + lapLoss(oT.compound, oT.wear + 0.5 * this.perLap(ahead), oT.raceLaps) - lapLoss(comp, 0.5 * this.perLap(), c.raceLaps);
+    for (const o of world.cars) {
+      if (o === c || o === ahead || o.retired || o.finished || o.pitLane || o.isSC || o.pitStops !== c.pitStops) continue;
+      const x = world.gap?.(o, c); if (x != null && x > loss - 2.5 && x < loss + 0.5) { gain -= 1.5; break; }   // (traffic where it would rejoin)
+    }
+    this.lastUndercut = { on: ahead, gain, gap: g };
+    return gain > g + S.under ? ahead : null;
+  }
+  /**
+   * A rival just behind (within 3 s) has turned into the pit lane: the undercut on me. Covered - a stop at this lap's
+   * entry - when it adds up for that car (my set's loss and the compounds' pace against the gap) and my tyres are in
+   * their window, as often as the plan covers; otherwise it stays out (the overcut: that car's cold new set against my
+   * old one, still quick). A rival ahead that stops is no threat: my own tyres say when.
+   */
+  watchRivals(world, lapsLeft) {
+    const c = this.car, S = this.strat, t = c.tyres, lapT = world.lapT || tyreLap(this.track.length); this._inLane = this._inLane || new Set();
     for (const o of world.cars) {
       if (o === c || o.isSC) continue;
       if (!o.pitLane) { this._inLane.delete(o); continue; }
       if (this._inLane.has(o)) continue;
       this._inLane.add(o);
-      const g = world.gap?.(c, o);
-      if (g == null || Math.abs(g) > 2.5 || c.tyres.wear < 0.3 || rnd() > S.cover) continue;
-      this.coverOf = o; return true;
+      const g = world.gap?.(o, c);   // (+: it is behind me by g)
+      if (g == null || g <= 0 || g > 3 || t.wear < 0.28 || !S.cover || o.pitStops !== c.pitStops) continue;
+      const theirs = o.ai?.pitPlan?.compound || o.pitPlan?.compound || this.nextCompound(lapsLeft);
+      const threat = this.basePace(t.compound, lapT) - this.basePace(theirs, lapT) + lapLoss(t.compound, t.wear + 0.5 * this.perLap(), t.raceLaps) - lapLoss(theirs, 0.03, c.raceLaps);
+      if (threat > g - 0.3 && this._coverK < S.cover) { this.coverOf = o; return true; }
     }
     return false;
   }
 
+  /**
+   * Is the safety car (or the VSC) the moment to stop? It is for the mandatory stop not made yet, and for a stop that
+   * would be the car's last: its tyres will not last to the flag (their wear now, and the last lap's wear per lap, against
+   * the plan's limit) and a new set will. Under the safety car also when the tyres are well used with the laps left to use
+   * new ones, unless the car runs in the top three (the track position is worth more). Under the VSC (it saves less, and
+   * ends any moment) only once the tyres are a quarter worn. The gamblers were waiting for exactly this. (AI_TUNE.bold
+   * off: the old wear thresholds)
+   */
+  scStop(world, lapsLeft) {
+    const c = this.car, t = c.tyres, S = this.strat;
+    if (!AI_TUNE.bold) return t.wear > (S.type === 'gamble' ? 0.08 : S.type === 'long' ? 0.25 : 0.32) || (world.lapsTotal >= 13 && c.pitStops === 0 && t.wear > 0.2);
+    const vsc = world.sc?.phase === 'vsc';
+    const perLap = this._wPerLap > 0 && this._wTyres === t ? this._wPerLap : 0.75 * this.track.length / Math.max(1, t.lifeMeters);
+    // (one cheap stop per neutralisation: a car that has stopped under this one - SafetyCar.neutralT - stays out; it
+    //  used to read its new set as "won't last to the flag, a new one would" and come in again, twice)
+    if (this._stopN != null && this._stopN === world.sc?.neutralT) return false;
+    const mustStop = world.lapsTotal >= 8 && c.pitStops === 0, lim = S.wear + 0.08;
+    // (the stop it needs, and its last one: the set it is on will not see the flag - clearly, not by a whisker - and has
+    //  done real work, and a new one will)
+    const last = t.wear > 0.2 && t.wear + perLap * lapsLeft > lim + 0.04 && perLap * lapsLeft <= lim;
+    if (S.type === 'gamble' || mustStop) return true;
+    if (vsc) return last && t.wear > 0.25;
+    if (last) return true;
+    if (lapsLeft < 3 || t.wear < 0.3) return false;
+    const L = this.track.length, prog = (o) => o.lap * L + o.lapDist, me = prog(c);
+    let ahead = 0; for (const o of world.cars) if (o !== c && !o.retired && !o.isSC && prog(o) > me) ahead++;
+    return ahead >= 3 || t.wear > 0.5;
+  }
   strategy(world) {
     const c = this.car;
+    // a stop called for the safety car's sake, the race green again before the pit entry: called off - at racing speed
+    // it costs the full stop, and one the car needs is called again when its tyres say so (AI_TUNE.bold)
+    if (AI_TUNE.bold && c.pitRequested && this.pitReason === 'cheap' && !world.sc?.cheapStop && !c.pitLane && !c.inPit && world.pit && this.planner.ds(c.s, world.pit.entryS) > 250) {
+      c.pitRequested = false; this.pitPlan = null; this.pitReason = null;
+    }
     if (c.pitRequested || c.inPit || !world.racing || this.isSC) return;
     const lapsLeft = world.lapsTotal - c.lap;
     if (lapsLeft < 1.2) return;
     const t = c.tyres;
     if (!this.strat) this.setStrat('standard');
     // a new stint: a new plan (the gamble and the undercut were for the first stint; now the tyres just have to last)
-    if (this._stratStops !== c.pitStops) { this._stratStops = c.pitStops; if (c.pitStops > 0) this.setStrat(rnd() < 0.25 ? 'long' : 'standard'); }
+    if (this._stratStops !== c.pitStops) {
+      this._stratStops = c.pitStops; if (c.pitStops > 0) this.setStrat(rnd() < 0.25 ? 'long' : 'standard');
+      if (c.pitStops > 0 && world.sc && world.sc.phase !== 'green') this._stopN = world.sc.neutralT;   // (stopped under this neutralisation: scStop)
+    }
     const S = this.strat;
-    // a cheap stop under the safety car / VSC: the field is slow, a stop costs half as much - any car whose tyres are
-    // past their best (or that has not stopped yet in a long race) takes it; the gamblers were waiting for exactly this
-    const cheap = world.sc?.cheapStop && lapsLeft >= 2 && (t.wear > (S.type === 'gamble' ? 0.08 : S.type === 'long' ? 0.25 : 0.32) || (world.lapsTotal >= 13 && c.pitStops === 0 && t.wear > 0.2));
+    // a cheap stop under the safety car / VSC: the field is slow, a stop costs a fraction of one at racing speed
+    const cheap = world.sc?.cheapStop && lapsLeft >= 2 && this.scStop(world, lapsLeft);
     // a rival's stop (checked twice a second)
     this._rivalT = (this._rivalT || 0) - 1 / 60;
-    let cover = false;
-    if (this._rivalT <= 0) { this._rivalT = 0.5; cover = lapsLeft >= 2 && this.watchRivals(world); }
+    let cover = false, under = null;
+    if (this._rivalT <= 0) { this._rivalT = 0.5; cover = lapsLeft >= 2 && this.watchRivals(world, lapsLeft); if (!cover) under = this.undercutOn(world, lapsLeft); }
     const wetMismatch = (c.wetness > 0.45 && (t.compound !== 'INTER' && t.compound !== 'WET')) || (c.wetness < 0.15 && (t.compound === 'INTER' || t.compound === 'WET'));
     // the pit entry comes once a lap: if the tyres would go over the cliff (70 % wear) before the one after this,
     // box at this one - a lap on worn-out tyres costs far more than the stop. The wear of the last full lap says how
@@ -616,15 +810,25 @@ export class AIDriver {
     const wornOut = (cliffSoon || t.wear > S.wear + 0.05) && (lapsLeft >= 2.5 || t.wear > 0.85);
     // (a front wing that has lost real downforce is changed: a lap understeering on it costs more than the stop)
     const damaged = (c.dmg.fwL + c.dmg.fwR) > 0.45 || c.dmg.rw > 0.35 || c.dmg.susp > 0.55;
-    // (8 laps or more: one stop is mandatory - in a short race it is made whatever the wear, and never left too late)
-    const mustStop = world.lapsTotal >= 8 && c.pitStops === 0 && lapsLeft <= Math.ceil(world.lapsTotal * (S.type === 'gamble' ? 0.3 : 0.45)) && (t.wear > 0.45 || world.lapsTotal < 13 || lapsLeft <= 2.5) && lapsLeft >= 0.6;
-    if (wornOut || damaged || wetMismatch || mustStop || cheap || cover) {
-      this.pitReason = cheap ? 'cheap' : cover ? 'cover' : damaged ? 'damage' : wetMismatch ? 'weather' : 'tyres';
+    // (8 laps or more: one stop is mandatory - in a short race it is made whatever the wear, and never left too late; a
+    //  gambler holds out for a safety car to the last lap, and makes it there)
+    const mustStop = world.lapsTotal >= 8 && c.pitStops === 0 && lapsLeft >= 0.6 && (S.type === 'gamble' ? lapsLeft <= 2.05
+      : lapsLeft <= Math.ceil(world.lapsTotal * 0.45) && (t.wear > 0.45 || world.lapsTotal < 13 || lapsLeft <= 2.5));
+    // (the pit wall gets it wrong now and then - the more often the smaller the team: race/Calls.js FAULT_P. A stop for
+    //  worn tyres alone left a lap too late, once a stint; it stays out to the next lap's entry, on the cliff's edge)
+    const fp = FAULT_P[c.tier] ?? FAULT_P[2], onlyTyres = wornOut && !damaged && !wetMismatch && !mustStop && !cheap && !cover && !under;
+    if (onlyTyres && this._lateStint !== c.pitStops && lapsLeft >= 3) { this._lateStint = c.pitStops; if (rnd() < fp) { this._lateLap = c.lap; world.calls?.fault(c, 'late'); } }
+    if (onlyTyres && this._lateLap === c.lap) return;
+    if (wornOut || damaged || wetMismatch || mustStop || cheap || cover || under) {
+      this.pitReason = cheap ? 'cheap' : cover ? 'cover' : under ? 'undercut' : damaged ? 'damage' : wetMismatch ? 'weather' : 'tyres';
       c.pitRequested = true;
-      const laps = lapsLeft, L = this.track.length;
-      let comp = 'HARD';
-      if (c.wetness > 0.6) comp = 'WET'; else if (c.wetness > 0.3) comp = 'INTER';
-      else { const softLife = new (Object.getPrototypeOf(t).constructor)('SOFT', c.raceLaps, L).lifeMeters / L; if (laps <= softLife * 0.95) comp = 'SOFT'; else if (laps <= softLife * 1.65 * 0.95) comp = 'MEDIUM'; }
+      // (the set for the rest of the race: the softest that reaches the flag - a different one from the first stint's,
+      //  where it can be, as the rules want two in a dry race)
+      let comp = this.nextCompound(lapsLeft);
+      if (c.pitStops === 0 && comp === t.compound && c.wetness < 0.3) comp = comp === 'HARD' ? 'MEDIUM' : comp === 'MEDIUM' ? 'HARD' : 'MEDIUM';
+      // (... and now and then a set that will not last: one softer than the race wants, it falls away before the flag)
+      const softer = { HARD: 'MEDIUM', MEDIUM: 'SOFT' }[comp];
+      if (softer && c.wetness < 0.3 && lapsLeft > cliffLaps(softer, c.raceLaps) * 1.15 && rnd() < fp * 0.6) { comp = softer; world.calls?.fault(c, 'tyre', { comp }); }
       this.pitPlan = { compound: comp, repair: damaged ? ((c.dmg.rw > 0.35 || c.dmg.susp > 0.55) ? 'full' : 'wing') : 'none' };
     }
   }

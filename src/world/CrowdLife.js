@@ -5,11 +5,15 @@
 // middle of the grid to somewhere else; photographers working the front rows (their flashes going off); the TV crews.
 // Drawn as world/Crowd.js's instanced templates, flipbook-style: a person in a pose is an instance of that pose's
 // template for their look (a three-frame walk cycle), re-sorted into the templates every frame. Templates are baked
-// the first time they are needed, a couple a frame at most. You can push through them (push()).
+// the first time they are needed, a couple a frame at most. You can push through them (push()). Everyone is moved on
+// the flat plan and drawn on the ground under them (world/Terrain.js).
 import * as THREE from 'three';
 import { bakeTemplate, bakeFarTemplate, crowdMaterial, SKINS, HAIRS } from './Crowd.js';
+import { TERRAIN } from './Terrain.js';
 
 const pick = (a) => a[(Math.random() * a.length) | 0];
+/** the ground under person p (looked up again only once they have moved: hundreds of them, every frame) */
+const groundOf = (p) => { if (!TERRAIN.on) return 0; if (p._gx !== p.x || p._gz !== p.z) { p._gx = p.x; p._gz = p.z; p._gy = TERRAIN.at(p.x, p.z); } return p._gy; };
 const rnd = (a, b) => a + Math.random() * (b - a);
 const HS = ['short', 'short', 'buzz', 'side', 'quiff', 'swept', 'curly', 'wavy', 'mullet', 'locs'];
 const FH = [null, null, null, 'stubble', 'beard', 'mustache'];
@@ -218,7 +222,7 @@ export class CrowdLife {
       for (const p of ppl) {
         if (p.role !== 'photo') continue;
         const on = p.act === 'shoot' && !p.path && ((p.ph * 0.73 + p.li) % 1.6) < 0.07;
-        if (on) { const c = Math.cos(p.yaw), s = Math.sin(p.yaw); a.setXYZ(k, p.x + c * 0.52 * p.scale, 1.52 * p.scale, p.z - s * 0.52 * p.scale); } else a.setXYZ(k, 0, -100, 0);
+        if (on) { const c = Math.cos(p.yaw), s = Math.sin(p.yaw); a.setXYZ(k, p.x + c * 0.52 * p.scale, 1.52 * p.scale + groundOf(p), p.z - s * 0.52 * p.scale); } else a.setXYZ(k, 0, -100, 0);
         k++;
       }
       a.needsUpdate = true;
@@ -234,7 +238,7 @@ export class CrowdLife {
       let pose = this._pose(p), e = (far && (this._mesh(p, pose, this.bakes < 2, true) || this._mesh(p, pose, false))) || this._mesh(p, pose, this.bakes < 2);
       if (!e) { pose = p.path ? 'talk' : p.idlePose; e = this._mesh(p, pose, true) || this._mesh(p, 'talk', true); }
       const i = e.n++, m = e.mesh, g = m.geometry;
-      M.compose(P.set(p.x, p.by, p.z), Q.setFromAxisAngle(Y, p.yaw), S.setScalar(p.scale)); m.setMatrixAt(i, M);
+      M.compose(P.set(p.x, p.by + groundOf(p), p.z), Q.setFromAxisAngle(Y, p.yaw), S.setScalar(p.scale)); m.setMatrixAt(i, M);
       for (let k = 0; k < 6; k++) { const A = g.attributes[ATTR[k]].array; A[i * 3] = p.cols[k * 3]; A[i * 3 + 1] = p.cols[k * 3 + 1]; A[i * 3 + 2] = p.cols[k * 3 + 2]; }
       const mi = g.attributes.iMisc.array; mi[i * 4] = p.ph0 ?? (p.ph0 = Math.random() * 6.28); mi[i * 4 + 1] = 0; mi[i * 4 + 2] = p.nod; mi[i * 4 + 3] = p.look;
     }

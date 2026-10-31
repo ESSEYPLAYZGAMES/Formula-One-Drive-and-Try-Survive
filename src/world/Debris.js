@@ -5,6 +5,9 @@
 // minutes; the big parts (wing planes, endplates, rear wings, wheels) mostly stay for good - but not on the racing
 // surface: once one has lain there a while the marshals drag it off to the verge (Debris.sweep, set by the game).
 import * as THREE from 'three';
+import { TERRAIN } from './Terrain.js';
+// (the pieces fly and settle on the flat plan; drawn on the ground's height where the circuit is not flat - world/Terrain.js)
+const _lp = new THREE.Vector3(), onGround = (p) => (TERRAIN.on ? _lp.set(p.x, p.y + TERRAIN.at(p.x, p.z), p.z) : p);
 
 const G = 9.81;
 const KINDS = {
@@ -55,11 +58,11 @@ class Pool {
       if (it.drag) {
         const D = it.drag; D.t += dt; const u = Math.min(1, D.t / SWEEP_T), e = u * u * (3 - 2 * u);
         it.p.x = D.x0 + (D.x1 - D.x0) * e; it.p.z = D.z0 + (D.z1 - D.z0) * e;
-        this.mesh.setMatrixAt(k, _m.compose(it.p, it.q, _s)); this.dirty = true;
+        this.mesh.setMatrixAt(k, _m.compose(onGround(it.p), it.q, _s)); this.dirty = true;
         if (u >= 1) it.drag = null;
         continue;
       }
-      if (it.sleep) { if (fading) { this.mesh.setMatrixAt(k, _m.compose(it.p, it.q, _sf)); this.dirty = true; } continue; }
+      if (it.sleep) { if (fading) { this.mesh.setMatrixAt(k, _m.compose(onGround(it.p), it.q, _sf)); this.dirty = true; } continue; }
       it.v.y -= G * dt; it.p.addScaledVector(it.v, dt);
       const wl = it.w.length(); if (wl > 1e-3) { _q.setFromAxisAngle(_ax.copy(it.w).divideScalar(wl), wl * dt); it.q.premultiply(_q); }
       if (it.p.y < half) {                                    // hits the ground: bounce, scrub speed, slow the spin
@@ -72,7 +75,7 @@ class Pool {
           const e = new THREE.Euler().setFromQuaternion(it.q, 'YXZ'); it.q.setFromEuler(new THREE.Euler(0, e.y, 0, 'YXZ'));
         }
       }
-      this.mesh.setMatrixAt(k, _m.compose(it.p, it.q, fading ? _sf : _s)); this.dirty = true;
+      this.mesh.setMatrixAt(k, _m.compose(onGround(it.p), it.q, fading ? _sf : _s)); this.dirty = true;
     }
     if (this.dirty) { this.mesh.instanceMatrix.needsUpdate = true; this.dirty = false; }
     this.mesh.visible = live > 0;   // an empty pool costs no draw call

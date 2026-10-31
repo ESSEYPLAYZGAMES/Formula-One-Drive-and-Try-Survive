@@ -8,7 +8,7 @@
 // them as plain JSON and turns the round over in the right order, and the engines do the rest. You choose your driver
 // once: you race as them until they die - a death is final. An AI driver hurt in an accident misses the next round or
 // two, and a driver who reaches twelve penalty points misses the next one: a stand-in in their seat either way.
-import { ROSTER, RESERVES, F2 } from '../race/Roster.js';
+import { ROSTER, RESERVES, F2, PERF_GAIN, dayPerf } from '../race/Roster.js';
 import { BRANCHES, UP, startLevels, techEffects, upgradeState, develop, devTick, aiDevelop, migrateTeam, upgradeName, branchMaxed } from './TechTree.js';
 import { moraleInit, moodOf, shiftMorale, moraleFromRace, moraleFromQuali, moraleRoundTick, moraleNewSeason, formOf, moraleSimBonus } from './Morale.js';
 import { LICENCE_MAX, pointsFor, licenceInit, activePoints, isBanned, banText, addPoints, licenceRoundTick } from './Licence.js';
@@ -55,6 +55,8 @@ export const TROPHIES = [
   ['board', 'The board is delighted', 'Beat the board\'s target for a season', (x) => x.season && x.season.teamPos < x.season.target],
   ['champ', 'World Champion', 'Win the drivers\' championship', (x) => x.season && x.season.youPos === 1],
   ['cons', 'Constructors\' Champions', 'Win the constructors\' championship', (x) => x.season && x.season.teamPos === 1],
+  // (Montreal: the wall at the exit of the last chicane has caught world champions - Hill, Schumacher, Villeneuve in 1999)
+  ['woc', 'Wall of Champions', 'Kiss the Wall of Champions in Montreal and still win the title that season', (x) => x.season && x.season.youPos === 1 && (x.c.wocSeasons || []).includes(x.season.season)],
   // (the life around the racing: a clean licence, the public, the papers, the grid walk, the sponsors)
   ['clean', 'Clean licence', 'A whole season without a penalty point', (x) => x.season && x.season.youPos && x.c.me && !(x.c.me.licence || []).some((e) => e.season === x.season.season) && x.c.me.ptsSeason !== x.season.season],
   ['darling', 'Fan favourite', 'Win the public over: an image of 60 or more', (x) => (x.c?.pr?.image ?? -100) >= 60],
@@ -62,9 +64,12 @@ export const TROPHIES = [
   ['handbags', 'Handbags on the grid', 'Hold your own in a scuffle you didn\'t start', (x) => x.brawl && !x.brawl.started && x.brawl.result !== 'lost' && !x.brawl.walkedAway && !x.brawl.aborted],
   ['mogul', 'Brand ambassador', 'Hold three endorsement deals at once', (x) => (x.c?.pr?.deals?.length || 0) >= 3],
 ].map(([id, name, desc, check]) => ({ id, name, desc, check }));
-// (a simulated weekend's pole lap, s: the real ones - Las Vegas 2024 1:32.3, Silverstone 2024 1:25.8)
-const SIM_LAP = { lasvegas: 92.3, silverstone: 85.8 };
+// (a simulated weekend's pole lap, s: the real ones - Las Vegas 2024 1:32.3, Silverstone 2024 1:25.8, Montreal 2025 1:10.9)
+const SIM_LAP = { lasvegas: 92.3, silverstone: 85.8, montreal: 70.9, austin: 92.5 };
 const gauss = () => { let u = 0, v = 0; while (!u) u = Math.random(); while (!v) v = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+/** a car's pace in a simulated session: its development as the physics sees it (Roster PERF_GAIN) on this circuit (how
+ *  it suits the car: Roster dayPerf, without the weekend's form - the luck below is that) */
+const carPace = (e, tid) => 1 + (e.perf + dayPerf(e.team, tid, () => 0.5) - 1) * PERF_GAIN;
 const pick = (a) => a[(Math.random() * a.length) | 0];
 const r1 = (v) => Math.round(v * 10) / 10;
 const r2 = (v) => Math.round(v * 100) / 100;
@@ -130,7 +135,7 @@ export class Career {
     let playerId;
     if (o.driver === 'custom') {
       const c = o.custom || {}, tn = (c.teamName || 'Independent').slice(0, 22);
-      teams[tn] = { name: tn, color: c.color || '#00d4ff', color2: c.color2 || '#ffffff', tier: 3, budget: TIER_BUDGET[3], levels: startLevels(3), quality: {}, dev: [], seats: [], points: 0, garage: 'own', own: true };
+      teams[tn] = { name: tn, color: c.color || '#00d4ff', color2: c.color2 || '#ffffff', livery: c.livery || null, tier: 3, budget: TIER_BUDGET[3], levels: startLevels(3), quality: {}, dev: [], seats: [], points: 0, garage: 'own', own: true };
       playerId = 'you-' + id(c.name || 'driver');
       // (your look on your own record - the game's own pick where you chose nothing; the helmet's base colour as the plain one)
       const look = normLook(c.look) || blankLook();
@@ -279,7 +284,7 @@ export class Career {
    */
   simQuali() {
     const tid = this.calendar[this.round - 1], wet = this.forecastAt().weather, base = SIM_LAP[tid] || 90, es = this.entries();
-    const sc = (e) => e.perf + (e.rating + moraleSimBonus(e.morale)) * 0.02, best = Math.max(...es.map(sc)), luck = wet === 'wet' ? 0.004 : wet === 'damp' ? 0.0028 : 0.0015;
+    const sc = (e) => carPace(e, tid) + (e.rating + moraleSimBonus(e.morale)) * 0.02, best = Math.max(...es.map(sc)), luck = wet === 'wet' ? 0.004 : wet === 'damp' ? 0.0028 : 0.0015;
     const laps = es.map((e) => ({ e, t: base * (wet === 'wet' ? 1.12 : wet === 'damp' ? 1.05 : 1) * (1 + (best - sc(e)) * 1.4 + gauss() * luck + (Math.random() < 0.03 ? 0.01 + Math.random() * 0.02 : 0)) }));   // (now and then a lap spoiled: traffic, a mistake, a red flag)
     laps.sort((a, b) => a.t - b.t);
     const ids = laps.map((x) => x.e.careerId);
@@ -303,7 +308,7 @@ export class Career {
     const tid = this.calendar[this.round - 1], wet = this.forecastAt().weather, base = SIM_LAP[tid] || 90, laps = this.laps || 10;
     const es = this.entries(), by = Object.fromEntries(es.map((e) => [e.careerId, e])), grid = this.savedGrid.ids.filter((id) => by[id]);
     for (const e of es) if (!grid.includes(e.careerId)) grid.push(e.careerId);
-    const sc = (e) => e.perf + (e.rating + moraleSimBonus(e.morale)) * 0.02, best = Math.max(...es.map(sc)), rain = wet === 'wet' ? 2.2 : wet === 'damp' ? 1.5 : 1;
+    const sc = (e) => carPace(e, tid) + (e.rating + moraleSimBonus(e.morale)) * 0.02, best = Math.max(...es.map(sc)), rain = wet === 'wet' ? 2.2 : wet === 'damp' ? 1.5 : 1;
     const rows = grid.map((id, gi) => {
       const e = by[id], lap = base * 1.035 * (wet === 'wet' ? 1.12 : wet === 'damp' ? 1.05 : 1) * (1 + (best - sc(e)) * 1.4);
       // (the start and the traffic: a place on the grid is worth a little over the distance; the pace varies lap to lap)
@@ -352,7 +357,7 @@ export class Career {
           taken.add(d.id); standInFor = d0.name;
         }
         const m = moodOf(d);
-        out.push({ careerId: d.id, name: d.name, short: d.short, team: t.name, color: t.color, color2: t.color2, helmet: d.helmet, tier: t.tier, perf: fx.perf, rating: d.rating, number: d.number, fx, garage: t.garage, isPlayer: d.id === this.playerId || (!!standInFor && d0.id === this.playerId), standInFor,
+        out.push({ careerId: d.id, name: d.name, short: d.short, team: t.name, color: t.color, color2: t.color2, livery: t.livery || null, helmet: d.helmet, tier: t.tier, perf: fx.perf, rating: d.rating, number: d.number, fx, garage: t.garage, isPlayer: d.id === this.playerId || (!!standInFor && d0.id === this.playerId), standInFor,
           outWhy, morale: m, form: formOf(m), licence: activePoints(this, d) });
       }
     }
@@ -508,6 +513,8 @@ export class Career {
     // (you: your driver - or, while they are out hurt or banned, the stand-in you drove in their place)
     const meRow = rows.find((r) => r.car.careerId === this.playerId) || rows.find((r) => r.car.isPlayer), mate = this.teammate(), mateRow = mate ? rows.find((r) => r.car.careerId === mate.id) : null;
     const flRow = rows.filter((r) => isFinite(r.car.bestLap) && r.car.bestLap > 20).sort((a, b) => a.car.bestLap - b.car.bestLap)[0];
+    // (a kiss of the Wall of Champions: the season it came in, for the trophy if the title follows)
+    if (X.woc && meRow) { this.wocSeasons = this.wocSeasons || []; if (!this.wocSeasons.includes(S0)) { this.wocSeasons.push(S0); this.addNews('You kissed the Wall of Champions in Montreal. It has caught world champions before: win the title now and it is a story.'); } }
     if (flRow) { const fd = this.drivers[flRow.car.careerId]; if (fd) fd.fl = (fd.fl || 0) + 1; }
     // (the round is yours to talk about only when your own driver raced it and nobody was hurt)
     const mine = !!meRow && meRow.car.careerId === this.playerId, live = mine && !grave, fin = !!meRow && !meRow.car.retired;
@@ -604,7 +611,32 @@ export class Career {
     } else if (meRow && !mine && !grave && meRow.car.isPlayer) press('standin', { did: meRow.car.careerId, name: this.drivers[meRow.car.careerId]?.name || meRow.car.name });
     const win = rows.find((r) => r.pos === 1);
     this.log.push({ round: this.round, track: trackId, winner: win?.car.name || '', you: meRow?.pos ?? null });
-    if (win) this.addNews(`Round ${this.round} (${trackId === 'lasvegas' ? 'Las Vegas' : 'Silverstone'}): ${win.car.name} wins.`);
+    // the strategy stories (race/Calls.js, main.js raceFacts): the day's biggest in the paddock news - yours to the press
+    // too (a call that made or cost your race) - none in a grave round
+    const strat = !grave && Array.isArray(X.strategy) ? X.strategy.filter((x) => x && typeof x.text === 'string') : [];
+    for (const x of strat.slice(0, 2).reverse()) this.addNews(`Strategy: ${x.text}.`);
+    const ms = live ? strat.find((x) => x.mine) : null;
+    if (ms) press('strategy', { kind: ms.kind, good: !!ms.good, pos: ms.pos, n: ms.n >= 2 ? ms.n : null, rival: ms.rival, comp: ms.comp, track: trackId });
+    // team orders (race/TeamOrders.js, main.js raceFacts): the day's biggest in the paddock news; yours to the press, and
+    // to your team-mate - what it does to what they think of you (Paddock Rapport) and to their morale. A team-mate
+    // with number-one status takes your defiance worse.
+    const ords = !grave && Array.isArray(X.orders) ? X.orders.filter((x) => x && typeof x.text === 'string') : [];
+    for (const x of ords.slice(0, 2).reverse()) this.addNews(`${x.text}.`);
+    const mo = live ? ords.find((x) => x.mine && x.sub) : null;
+    if (mo) {
+      const mid = mo.did === this.playerId ? mo.other : mo.did, md = this.drivers[mid], lead = md?.contract?.role === 'lead';
+      if (mid && md) {
+        press('orders', { sub: mo.sub, rival: mid, track: trackId, contra: !!mo.contra, n: mo.n });
+        const R = { youRefused: [-14, 'you ignored team orders'], youBrokeHold: [-12, 'you broke the hold order'], youHeldUp: [-16, 'you held them up on purpose'], youHit: [-18, 'you took them out'],
+          youObeyed: [6, 'you let them through'], youSacrificed: [10, 'you gave way, standings and all'], mateRefused: [-6, 'refused to let you by'], mateHeldUp: [-6, 'held you up'],
+          mateHit: [-5, 'hit you'], mateBrokeHold: [-5, 'ignored the hold order'], mateObeyed: [-3, 'moved over for you'], clash: [-6, 'a team-mate collision'] }[mo.sub];
+        if (R) this.relate(mid, Math.round(R[0] * (lead && R[0] < 0 && mo.sub.startsWith('you') ? 1.4 : 1) * (mo.dirty ? 1.3 : 1)), R[1]);
+        const M = { youRefused: -6, youBrokeHold: -5, youHeldUp: -6, youHit: -8, youObeyed: 3, youSacrificed: 4, mateObeyed: -4, mateRefused: 2 }[mo.sub];
+        if (M) shiftMorale(this, mid, M, M < 0 ? 'team orders went against them' : 'the team came first');
+        if (mo.sub === 'youSacrificed' || mo.sub === 'mateRefused' || mo.sub === 'mateHeldUp') shiftMorale(this, this.playerId, -4, 'team orders');
+      }
+    }
+    if (win) this.addNews(`Round ${this.round} (${{ lasvegas: 'Las Vegas', montreal: 'Montreal', austin: 'Austin' }[trackId] || 'Silverstone'}): ${win.car.name} wins.`);
     // (each team's best race lap this round: the measured race pace, for the charts)
     this._laps = {}; for (const r of rows) { const t = r.car.team, b = r.car.bestLap; if (this.teams[t] && isFinite(b) && b > 20) this._laps[t] = Math.min(this._laps[t] ?? Infinity, +b.toFixed(3)); }
     if (meRow) report.trophies = this.award({ me: this.me, row: meRow, mateRow, rows, report, fastest: flRow === meRow });

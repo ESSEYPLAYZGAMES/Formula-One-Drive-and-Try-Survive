@@ -34,7 +34,11 @@ it runs from `file://` because nothing is fetched. Rebuild after editing the sou
 | Space | Handbrake |
 | Shift | ERS deploy |
 | P | Request pit stop (opens the pit menu: 1-5 tyres, 7/8/9 repairs, Enter confirm) |
+| Y / N | Team order on the radio: copy (then let your team-mate by) / refuse |
+| G | Ask the pit wall to have your team-mate ahead let you through |
 | R | Reset to track (offered after 4 s stationary; damage is kept) |
+
+Volume: a slider in the pause menu and on the setup's Driving page (one master volume for everything, remembered).
 | V | Camera: cockpit → T-cam (airbox broadcast view) → chase → TV |
 | C (hold) | Look back, cut in instantly, per camera: cockpit → the driver's view back over the engine cover; T-cam → the rear-facing T-cam; chase → reverse chase from in front of the car; TV → the trackside camera behind |
 | Q / E (hold) | Look left / right: the head turns up to 80° and moves out past the halo (chase cam swings round) |
@@ -62,13 +66,15 @@ src/world/PitLane.js       continuous pit building, team garages, banners, paint
 src/world/Grandstands.js   auto-placed grandstands with instanced cheering fans (collision-checked placement)
 src/world/Lighting.js      camera-following floodlight SpotLights + the Sphere's coloured PointLight
 src/world/Environment.js   night sky, lights, ground, fog, PMREM environment for glass/water
-src/world/Buildings.js     footprint extrusion (height → levels×3.5 → 12 m) + lit-window facade shader
+src/world/Buildings.js     the map's buildings in five kinds (brick, modern, stucco, tiered, civic) + their facade shader
 src/world/Landmarks.js     Landmark Intercept Engine: 25 name-matched procedural overrides (+ geo anchors when the
                            footprint is missing from the export)
 src/vehicle/Car.js         car step: four wheels, aero/slipstream, diff, damage, barriers, crash rigid body
 src/vehicle/Chassis.js     sprung body (heave/pitch/roll), load-sensitive tyres, road under each wheel, grip fit
-src/vehicle/Tyres.js       compounds, distance-scaled wear with 70 % cliff, temperature
-src/vehicle/CarMesh.js     procedural F1 car (damage visuals, halo, compound stripes)
+src/vehicle/Tyres.js       compounds, wear set in lap time with a 70 % cliff, work-driven temperature
+src/vehicle/CarMesh.js     the F1 car: the model's parts per car, wheels, DRS, damage, punctures, split, distance states
+src/vehicle/CarModel.js    the car model (assets/car): its parts at five levels of detail, loaded once and shared
+src/vehicle/Livery.js      team liveries painted from where a point is on the car (layers, wordmarks), designs
 src/ai/Planner.js          candidate paths, speed along each, traffic prediction, costs: the AI's tactical planner
 src/ai/AIDriver.js         drives the plan (steering, pedals, ERS), racecraft costs, mistakes, pit strategy;
                            AI_TUNE constants exposed for live balancing
@@ -131,7 +137,9 @@ src/audio/Audio.js         synthesised engine/wind/impact audio
 * Dynamic racing line (on by default; L or the setup option toggles it): 1.2 m dashes painted along the racing
   line for the next ~280 m, as in the F1 games. Green, and red wherever the circuit's speed profile (corner speeds
   and the braking curves into them, scaled for your tyres' grip) is below the speed you are doing now: the braking
-  zone and the corner ahead show red until you have slowed enough. With a stop called it becomes a guide into the
+  zone and the corner ahead show red until you have slowed enough. Where the circuit has a driver's own lap
+  (`show` in ai/Calibration.js, from tools/ai_fit.mjs on laps driven there - Austin) the dashes follow that lap's line
+  and go red wherever you are quicker than it was there. With a stop called it becomes a guide into the
   pit entry and up to your box (red in the lane when over the limiter). (The old ribbon was wound facing down and
   back-face culled: it never showed.)
 * Engineer radio (`Engineer.js`): only real events (position changes held for 2 s, retirements and pit stops of
@@ -209,6 +217,17 @@ src/audio/Audio.js         synthesised engine/wind/impact audio
   from there; the sign, helmet and stream repeat on the far side (the stream wraps cylindrically), while the
   one-sided emoji keeps a flat gold back. Canvas backgrounds are flat so there are no colour seams.
 * Daytime facades: the window shader switches to sunlit stone/concrete with sky-reflecting glass panes.
+* The map's own buildings (`world/Buildings.js`) come in five kinds, chosen by each footprint's height and a hash of
+  its id, in muted colours: *brick* (terraces and warehouses - white-framed windows with stone sills and lintels, an
+  arched shop floor, a cornice and a parapet, the low ones under a gabled tile roof), *modern* (rendered blocks with a
+  balcony slab and glass railing all round every floor; above 16 storeys a curtain-wall tower), *stucco* (sandstone,
+  cream, sage: shuttered windows, balconies on some bays - the same bays all the way up - and terracotta on the low
+  ones), *tiered* (slate offices stepping back 3 m at 55 % and 80 % of their height, a railed terrace on each step,
+  ribbon windows) and *civic* (limestone: an arcade of columns along the ground floor with the arches cut right
+  through, tall arched windows above, a rusticated base). Big flat roofs carry plant boxes, stair cores and tanks.
+  Every facade holds a whole number of window bays, none cut at a corner; it is still one shader (`makeFacadeMaterial`,
+  from what each vertex carries: kind, part, storey height, its place along the facade) and one mesh per 400 m cell.
+  Las Vegas has little brick (`buildingStyle.brick`). The landmarks' glass reflects the sky the same way by day.
 * Damp/Wet weather adds GPU rain (a camera-following point cloud), heavier greyer fog, dimmed sun and wet,
   reflective asphalt; it previews live in the menu.
 * Driver selection is team-first: a 4×3 grid of team tiles (plus the Independent 23rd car); picking a team reveals
@@ -246,7 +265,8 @@ the fans were 86 % of all triangles, and the 23 cars were 1 562 of the meshes (d
 * the broadcast atlas only refreshes while the F1 stream is on the Sphere (or fading in), one 256 px tile per frame;
 * fans are flat coloured sheets (2 triangles) in one InstancedMesh per stand with a bounding sphere, so a stand
   off camera costs nothing;
-* every static car part is merged per material (~38 meshes instead of ~68) and beyond 110 m a car is a 4-mesh LOD;
+* every static car part is merged per material, and a car has five states by distance (see "Car: real dimensions"):
+  beyond 95 m it is one baked mesh and its shadow;
 * lap-long track ribbons (road, lines, kerbs, run-off, sponsor walls, caps, fence, rail, masts) are split into
   chunk meshes that share their vertex buffers with a bounding sphere each, and the generic buildings are merged
   per 400 m cell, so only what the camera sees is drawn ("don't draw what isn't on camera");
@@ -336,7 +356,7 @@ on), timing the GPU, not just the main thread. Grid start, 1200 x 640, 4x MSAA:
 
 ## Tracks
 
-Two circuits are registered in `src/track/tracks.js`: `lasvegas` and `silverstone`. The game opens on a home
+Three circuits are registered in `src/track/tracks.js`: `lasvegas`, `silverstone` and `montreal`. The game opens on a home
 screen with a card per circuit (outline from `outline` in the definition) and builds nothing until one is picked
 (`switchTrack(id)`, also on `__F1`); the built circuit is kept, so going back to the list and picking it again is
 instant, and picking the other one replaces it. Going back to the circuit list unloads the circuit completely
@@ -344,7 +364,8 @@ instant, and picking the other one replaces it. Going back to the circuit list u
 render targets and show canvas exist only while Las Vegas is loaded. Only one circuit is ever in memory. A definition holds the OSM chain (road-name legs for a
 street circuit, or an ordered list of raceway way ids via `ways`), the pit-lane way, and the venue dressing: ground,
 kerb style, sponsor panels, run-off paint and text, default time of day, cinematic shots, landmark set.
-`src/world/Venue.js` turns OSM grandstand footprints and the named pit building (the Silverstone Wing) into geometry.
+`src/world/Venue.js` turns OSM grandstand footprints and the named pit building into plain geometry for a permanent circuit
+without scenery of its own (a circuit with `scenery` builds its venue itself: Silverstone's in `src/world/Silverstone.js`).
 Every `data/*.geojson` is embedded by the bundler.
 
 Both tracks set `line: 'optimal'`: a minimum-curvature racing line over the usable width (`RacingLine.js`,
@@ -352,6 +373,156 @@ p-norm of the path curvature, projected Gauss-Seidel on a 40/20/10 m grid). Fast
 Las Vegas keeps it 1.5 m off the white lines (`lineMargin: 2.5`): walls, not grass, if a car runs wide. Where the OSM
 chain steps sideways between two parallel carriageways (Sands Avenue at Koval, T10), `easeJogs` in `TrackBuilder.js`
 spreads the step over 160 m of road instead of letting the spline turn it into two 15 m hairpins.
+### Montreal: the Circuit Gilles Villeneuve
+
+`data/montreal.geojson` (the OSM export: the raceway, the pit lane, the island's buildings) holds the lap as one
+closed one-way raceway (4.356 km built, 4.361 km real); the start line sits on the pit straight, the grid backs up to
+the last chicane. It is a park circuit (`verge: 'park'`): grass verges, red and white kerbs and escape areas like a
+permanent circuit, but concrete walls with debris fences all the way round (`Track.walled`), a TecPro run across the
+back of the deep escape areas. The Wall of Champions is `Track.pinWall`: the outside of the T14 exit pulled in to 1.7
+m of green paint behind the kerb, the yellow "BIENVENUE AU QUÉBEC" wall, "WALL OF CHAMPIONS" painted on the strip. The
+pit lane is led in and out along the left edge of the road (`pitLeads`: the export draws it from the racing line's own
+nodes) and its wall starts clear of the T13 kerb (`pitWallClear`). Past the last chicane the pit-entry road widens
+into the paved escape road the real circuit has (`pitEscape`: 26 m wide from 6 m past the lane's branching to 25 m
+short of the speed line, eased over 50 m; the lane's `garageW` / `escape` arrays in `TrackBuilder.buildPitLane`),
+backed by a red and white tyre wall: a car that misses the chicane runs straight on instead of into the concrete (flat
+out with no braking, about 22 g into the tyres).
+
+`src/world/Montreal.js` is everything the export does not carry, drawn by hand against the buildings it does: the
+Olympic rowing basin parallel to the pit building, the Seaway, the lake and its beach inside the Senna end, the Chenal
+Le Moyne, Ile Sainte-Hélène; the Biosphère (a see-through double-layer geodesic lattice, 76 m), the casino (the French
+pavilion's aluminium fins, the Quebec pavilion's gold cube), the pit building with the Paddock Club on its roof, the
+Tour de Lévis, the hairpin's screen, Habitat 67, downtown's towers and Mount Royal with its cross, the Jacques Cartier
+Bridge; 14 grandstands by their real numbers (1 Gold, Platinum, 11/12/15 at the Senna S, 21, 24, 31/33/34, 46/47/47B at
+the hairpin, the infield stand); the logos painted on the grass and run-offs (Rolex, AWS, Shell, the maple leaf);
+and about 5,600 trees of five kinds (maples, green ash, Lombardy poplars in rows along the basin, weeping willows on
+the shores, white spruce on Sainte-Hélène's hill) - two instanced meshes per kind, a detailed model within 300 m of
+the camera and a 26-triangle one beyond (10 draw calls for every tree; the whole circuit draws ~90 calls / ~230 k
+triangles a frame, under Las Vegas). The water and shores are approximations: the export has no water polygons.
+
+Career: a kiss of the Wall of Champions in a race (`RaceDirector.onImpact`, `car.wocKiss`) is kept with the season it
+came in; win the title that season and the **Wall of Champions** trophy is yours.
+
+### Silverstone: the British Grand Prix weekend
+
+`src/world/Silverstone.js` (`scenery: 'silverstone'`) builds the venue in place of `Venue.js`, on the same contract: the
+footprints it claims (the generic extruder skips them) and the real stands' placements for `Grandstands.js`, which
+builds their tiers and crowds while the roofs and the rest are dressed on in the same frame.
+
+* **The Wing**, on its real footprint fitted clear of the pit lane, in its own frame (along the building toward the Club
+  end, across it from the garages to the paddock). Three floors of glass over the garages, each with a 3 m balcony, a
+  glass rail and its guests. The roof is a row of long blades, each overlapping the next and raked up toward the Club end
+  so their leading edges step up like stacked wings: white on top, dark red under the overhang and on their ends. At the
+  end the cars arrive from, the prow is a dark lofted wedge with grey checks, rising from the ground past the roof to a
+  tip 44 m up that leans out over the pit lane, with a red arris up its leading edge. On its face are the podium balcony
+  (with the three steps of the podium), the red-and-white chequered panel and the F1 screen. Open steps stand beyond it,
+  in the pocket the curving pit entry leaves. The survey's glass footbridge runs from the hotel over the start to the
+  Wing, 14.5-18.5 m up. Also built: a start gantry, DHL and Emirates banners down the pit wall, and the paddock behind
+  the Wing (motorhomes, trucks, the broadcast compound).
+* **28 grandstands by their real names**, each from its footprint's front edge (per 4 m of the lap, the outline's point
+  nearest the road). A stand that curves with its corner, as Club's does, becomes a chain of straight runs with one roof
+  over the whole chain. Each stand has its own build (`DESIGN`):
+  * roof: `arc` (Club's white shell), `cantilever` (grey at Luffield and Hamilton Straight, turquoise at Stowe, blue at
+    Woodcote and Village), `flat` on columns (Abbey, Copse, Chapel), `skillion` (Becketts' white), `membrane` (The View)
+    or none;
+  * rows of 0.66 m by 1.05 m, steeper than the default (`style.tierH` / `tierD`), with blue seats (`style.seat`);
+  * a sponsor's hoarding along the front, its name on the roof's edge or on a board over its back, flags on poles along
+    its top, and a screen at some;
+  * a crowd in papaya, navy, red and team colours (`style.shirts` / `poses`), about one in forty of them waving a flag:
+    Union Flags most, St George, LN4 papaya, the Dutch orange.
+* **Crowds and trackside**:
+  * 30 general-admission banks wherever nothing else stands. Each bank's fence, with its boards, stands 13 m past the
+    run-off's or verge's cap (`track.wallAt`, smoothed, never brought nearer). Behind it the crowd stands on a raked
+    mound, then a walkway with people walking, food trucks, marquees, toilets, flagpoles and light towers, and a screen
+    every third bank.
+  * Each bank's footprint, from the fence back, is a solid (`scenery.solids`, added to the obstacles by main.js), so a car
+    off the road still runs out onto open grass first.
+  * Marshal posts behind the run-offs and TV towers on the outside of the corners.
+* **The site**:
+  * the Stowe circuit, the National pit lane and the Porsche Experience's tracks, from the export's other raceways;
+  * the old National pits restyled (white, a canopy, team-coloured doors) and the BRDC clubhouse;
+  * the Paddock Club (two storeys of glass near the pit exit) and hospitality villages of white marquees;
+  * the infield lake, placed on the most open ground;
+  * the fan zone: the big blue-and-white top, a turning wheel, a stage and screen, stalls and a crowd.
+* **The land** to 2.3 km round the circuit, in ~170 m fields with jittered corners:
+  * campsites to the north and west (about 12,000 tents, caravans, Union Flags on poles);
+  * car parks to the east and south (about 8,500 cars);
+  * Silverstone Park's sheds to the west;
+  * beyond them, farmland: wheat, barley, beans, pasture with sheep and ploughed earth, all in one mesh, each field its
+    crop's colour with its own drill-line direction;
+  * hedgerows with oaks in them, tree-lined roads, woods (about 30,000 trees in three kinds), and a perimeter road with
+    roads in from it;
+  * TV helicopters (CotaLife's `buildHelicopters`).
+
+Everything is merged or instanced, a few draw calls per kind, with the land's kinds in 1.5 km cells that each have their own
+cut-off distance (`userData.cut`, main.js `cullBuildings`). The road, kerbs, run-offs, barriers, surfaces, pit wall and
+racing line are exactly as before; the catch fences on the barriers follow the stands' real outlines (`markFences`).
+
+### AI calibration: training, and telemetry
+
+`src/ai/Calibration.js` holds, per circuit and corner, how much the AI commits on top of the physics: `v` (corner
+speed over the planner's grip limit around the apex), `b` (braking commitment into it), `err` (how often a mistake
+happens there), `scrape` (the share of those that brush the outside wall - Montreal's T14). The planner reads them per
+sample (`track.aiV`, `track.aiB`).
+
+* `node tools/ai_train.mjs montreal [--target s] [--dry]`: headless laps of one AI car (seeded, neutral form, softs,
+  no stops, mistakes off - `__calRun` in tools/harness.js). Makes every corner clean first, then tries every corner
+  group a step faster and slower, keeps what is quicker by more than the run-to-run noise and stays clean, confirms
+  it, shrinks the steps; takes a margin back; writes the result into Calibration.js.
+* `node tools/ai_fit.mjs montreal lap.csv [more...] [--offset m] [--blend 0.7] [--dry]`: fits the calibration to
+  telemetry - the game's own export (`f1sim-telemetry/2`), a CSV with Distance / Speed / Brake columns (FastF1's
+  telemetry saved with `to_csv` works as is; the fastest lap when there is a Lap column), or JSON. The trace is lined
+  up against the AI's own lap by its shape; each corner's minimum speed and braking point, relative to that lap's
+  average, move the AI's numbers toward it (the sim car is not the real car: the shape of the lap is fitted, its
+  overall pace is left alone); the AI then drives the result and any corner that is no longer clean goes back.
+
+* The lap mode (`node tools/ai_fit.mjs austin telemetry.json`, the game's own export on the same circuit): one lap is
+  made out of all of them - the circuit in sections between the corners, each from the fastest lap through it that
+  stayed on the road and was not rewound there (a flashback: the attempt it abandoned and what came after it), blended at
+  the joins, its line smoothed of steering corrections. That lap is the racing line drawn on the track (`show`: where it
+  was on the road and its speed every 2 m; red wherever you are quicker than it was there). The AI keeps its own line -
+  driven by the AI, a human's line was no quicker through any section: its controller cannot scrub speed at full lock
+  as a driver does - and its corners are fitted to the lap's minimum speeds and braking points, at the difficulty
+  slider's top (`--diff`, what holds there holds below) on new tyres at every line, then driven: a corner group that is
+  no longer clean goes back, and a pass that is still not clean is undone. A car on its own is not a race: the whole
+  of such a fit spun a full field three to seven times as often (the pack on the opening lap above all, then traffic and
+  dirty air), so the corners are written at `--race 0.5` of it and marked `pack`: the AI drives them only in clean air
+  after the opening lap (AIDriver: from 25 m to 100 m behind the nearest car ahead they fade back in; with a car
+  alongside, none). Austin's racing line is the composite of three laps of Leclerc's at Legend (95.5 / 96.9 / 104.5 s,
+  flashbacks in each; the composite 96.7 s); its corners took the AI's solo flying lap at Legend from 101.6 s to
+  100.2 s (the full fit, 99.7-100.3 s, gained little more), and in full 5-lap races at Legend (the same 3 seeds) the
+  field's median best lap from 105.3 s to 103.6 s with as few spins (19 against 19.3) and fewer damaging hits (51 against
+  57). Halving every factor did better in races than capping the large ones (1.15 / 1.08: 25 spins). That still left
+  the AI 3-4 s off the driver (it cannot scrub speed at full lock as they do), so Austin also gives the AI cars 8 % more
+  grip (`aiGrip: 1.08` in tracks.js - the car and its plan both, the same margin to the limit): alone at Legend 95.9 s,
+  the driver's own 95.5-96.9; in full races fastest laps 95.0-96.5 s, the median best 98.5-100.8 s, spins (20 against
+  19.3), solo spins (7 against 7) and damaging hits (57 against 57) as without it.
+
+* Silverstone, from the driver's own laps (8 laps, flashbacks and two trips down the pit lane in them): the composite
+  88.25 s; its first pass took the AI's solo lap at Legend to 90.0-90.3 s and is written at half of it, `pack` as
+  Austin's (the second pass, up to 1.45 x at Maggotts, was not clean and was undone). The composite now takes a section
+  from a lap only if it was on the road all the way through it (every sample, not only the stretches marked off) and in
+  a time a car can take (a flashback once left a section 0.02 s long), and a section no lap went through cleanly comes
+  from the export's reference lap - it had come from a lap through the pit lane, 101 m off the centreline. Full 8-lap
+  races there: the field's median best 92.8-93.4 s against 93.5-95.6 s before, no retirements in three. Where the AI
+  was slowest against the driver - Maggotts and Becketts at ~215 km/h against ~305 - is its line (radii of 109-116 m
+  against 125-132) and its planning margins in a corner held by downforce (8 % of grip and 10 % of downforce cost ~23 %
+  of the speed there); the driver's line could not be lent there (the composite joins two laps inside it, with a kink).
+* Two calibration keys the fits do not write and keep: `lineFrom: [[sA, sB]]` - stretches of the AI's line taken from
+  the driver's (`show`), blended in and out over 40 m (main.js makeRacingLine; Austin's Turn 11: the AI's line swung
+  wide and went deep into a V, 13 m across at 56 km/h, the driver's rounder one carried 70-80, a second a lap); and a
+  corner's `race: { v, b, win }` - factors driven always, in traffic and on the opening lap too, where a `pack`
+  calibration is not (Austin's Turn 11 at 0.92 over [-45, 70] m: in races the field ran wide out of it, 30-70 m past
+  the apex, 1.5-9 m beyond the line - 53 such offs in a 5-lap race, 32 after, and half as far).
+* Calibrations come from dry laps: on a wet track they fade out (gone by 0.45 wetness, AIDriver), and the AI keeps more
+  in hand on the brakes at speed in the wet (from 160 km/h, all of it by 290: 15 % of the stop and a rear that
+  trail-brakes inside 0.8 - 0.3 x wetness of its grip - Planner.brakeA). In 8-lap wet races at Silverstone that took
+  the spins from 15-65 to 11-16 at the same pace.
+
+Both need Playwright and a Chromium (the scripts find `/opt/pw-browsers`, or set `CHROME`). After a fit, rebuild the
+game (`tools/bundle.py`, or `tools/splice_artifact.py <commit>` for the published Artifact, which carries changes of
+its own that a rebuild from src/ would lose).
+
 ### AI: a planner
 
 `src/ai/Planner.js` plans, `src/ai/AIDriver.js` drives. About ten times a second (staggered across the field) each AI
@@ -378,6 +549,37 @@ the start, and one defensive move to the inside of a braking zone when a car wit
 in a fast sweeper, not every time, then a cool-down). Overtakes, following, side-by-side racing, giving room and
 avoiding wrecks all come out of that one comparison. The first lap is driven with a little more room.
 
+Racing the player (`AI_TUNE.bold`, by the driver's aggression; half of it on the opening lap, none under race control).
+The player is the one car the AI cannot read by its plan, and it used to give every attack up: a twitch of the wheel
+read as a move (the raw sideways speed extrapolated), braking read as stopping dead (the deceleration carried on for
+1.5 s: every lane behind the car a wall), the racing line it was predicted to trace sweeping across every lane in a
+corner, extra room that grew the faster the AI was closing, and a direct check that stood on the brakes when a car a
+car's width beside it moved 20 cm. Now: the player's sideways motion is read through 0.4 s with a dead band for
+corrections; braking predicted down to the corner, not to a standstill; a meeting with the player more than 2 s off is
+a guess (gone for, at a cost) rather than a wall; a player clearly ahead turns in - in a corner its distance from the
+racing line closes over 1.2 s; side by side on a straight - its front wheels up to the player's rear ones, a car's width
+between them - the AI expects the player to keep to its side and squeezes rather than lifts, and in a corner it expects
+the room only when it has the corner (on the inside, level with the player where they meet: as between two AI cars,
+below) - anywhere else in a corner it is the player's; the direct check only fires on a real overlap. And it races for
+the place: a path that gets past (or alongside) counts for more than the time (only a path that is beside the car where
+it draws level, not one through it), it sticks to a move it is making, and it has two more moves - the lunge (the
+attacking lanes braked 4 % later) and the switchback (wide into the corner, across behind the car at the apex, up the
+inside out of it). The move is made before the braking point: while racing a car, a change of line in a braking zone
+costs by how far across and how hard the stop (swerving under braking loads the rear, and the pedal logic - rightly -
+takes the brakes away: the car reached Turn 1 70 km/h too fast). In a test at Austin against a scripted car the AI
+could not read, about 5 s a lap slower and weaving +-0.4 m round its line, the AI behind got by in 5 runs of 5 in a
+median 39 s (the old AI 52 s) with no contact; against one that gave no room at all (it drove as if alone), 4 of 5
+with 2 contacts, 1 of them hard (the old AI: 5 of 5, 4 contacts, 1 hard).
+
+The same moves against another AI car (`AI_TUNE.boldAI`, by aggression; none on the opening lap or under race
+control), read by its plan - the fixes for an unread car do not apply - plus corner ownership: where an AI car's path
+meets another's in a corner, on the inside of it and level with it there (its nose at least to the other's middle),
+the corner is its own, and the other car is expected to leave the room. Its own plan reads it the same way round - it
+is the one outside - and gives way, so the two agree rather than both lifting. In a duel of two AI cars (the attacker
+about 4 s a lap quicker) the attacker got by in 8 runs of 8 in a median 55 s (66 s before) with 2 contacts (6 before);
+in 5-lap races of the full field, a race averaged 135 overtakes (122 before), 16 spins (23), 39 damaging hits (47)
+and 1.8 retirements (2.2).
+
 `AIDriver` drives the chosen plan: pure pursuit to a point on the path with a slip-angle feed-forward (above 35 m/s)
 and countersteer; the pedals aim at the most the plan allows a moment ahead (flat out below it, braking onto it),
 limited by what the rear tyres actually have left after the cornering (with the rear at its limit it lifts instead
@@ -386,26 +588,121 @@ straights from 270 km/h, and lower down only to attack or defend on a straight w
 (lock-ups, running wide, rare snaps) are rolled once per corner from rating, tyres and pressure. Spun or stuck cars
 stop, wait 2 s and are put back on the track.
 
-Strategy (`AIDriver.planRace / strategy`): every AI car gets a race plan on the grid. *Standard* stops near the cliff
-and sometimes covers a rival's stop; *early* (the undercut) starts on softs, stops at about half wear and usually
-covers; *long* (the overcut) starts on mediums or hards, runs to the cliff and ignores rivals; *gamble* - mostly the
-back of the grid - starts on hards and stays out as long as it can, waiting for a safety car, and stops under one
-whatever its tyres. A car just ahead or behind (within 2.5 s) turning into the pit lane may be covered at once. Pit
-calls look ahead (boxing at this entry if the tyres would pass the plan's wear before the next one; a front wing that
-has lost real downforce is changed), a stop under the SC / VSC is cheap and taken, and after every stop the plan is
-made again for the next stint. With two laps or less to go a stop for tyres is never made unless they are finished
-(it cannot pay back), and a short race's tyres last it - a 3-lap race's softs are near the cliff at the flag, not two
-laps before it - so nobody stops in a sprint.
+Tyres (`vehicle/Tyres.js`): a soft reaches its cliff (70 % wear) at half the race distance, a medium at 75 %, a hard
+at 110 % - a hard can run a race through - at the AI's rate of wear (a driver who slides less makes a set last longer).
+Wear is set in lap time: each lap of normal wear costs a soft a second, a medium 0.75 s, a hard 0.5 s, as stated in a
+race of up to ten laps (a longer race's tyres last longer and lose what a ten-lap race's do at their cliff, 5-5.6 s,
+over more laps); past the cliff each lap costs from one to six times that as the tyre goes, and it is twitchier. The
+seconds become grip through how a lap answers grip, measured on the AI (Silverstone, 91.35 s: 5 % less grip +2.2 s,
+10 % +5.1 s, 15 % +8.1 s). Temperature chases a target set by the last ~12 s of the tyre's work (the load past 0.4,
+squared, and real sliding) - quickly up, slowly down: a soft is in its window ~40 s off the blankets, a medium ~55 s,
+a hard ~2 minutes (a push brings it in sooner); racing it stays there, a little lower down a long straight; behind the
+safety car the field falls to ~0.6 in two minutes unless it weaves (the AI weaves on the straights, in its steering,
+with nobody alongside), which holds it at 0.9 or more - a hard holds its heat best. Cold, a tyre is down by up to 13 %
+grip (a hard's out-lap 3-5 s, a soft's a second or so) and a little twitchy; the grid starts as the formation lap
+leaves it (a soft at 0.8, a hard at 0.6). A rain tyre wears as a slick does in the dry until the track is drier than
+it is made for (an inter below 0.3 wetness, a full wet below 0.6). The fit was made over every car's recorded inputs
+(a temperature that only heated with work and cooled to the track could not have a soft warm in half a lap and still
+cool behind a safety car).
+
+Strategy (`AIDriver.planRace / strategy`): every AI car gets a race plan on the grid. *Standard* stops short of the
+cliff (60-68 % wear); *early* (the undercut) starts on softs and stops at about half wear; *long* (the overcut) starts
+on mediums or hards and runs to the cliff's edge; *gamble* - mostly the back of the grid - starts on hards, runs as long
+as the race waiting for a safety car, stops under one at once, and without one makes the mandatory stop (8+ laps) on
+the last lap. The undercut is worked out: the car just ahead within 3 s on as many stops - what a stop now gains on it
+once it has stopped too (its in-lap on the old set against my out-lap on a cold new one, then its out-lap on a cold set
+against my second lap: with the same new set the warm-ups cancel and what is left is its old set's loss and the
+compounds' pace) against the gap and the plan's margin (early 0.35 s, standard 0.7, long 1.6, the gambler never), with
+the car in its window, a new set that reaches the flag or a race that wants another stop anyway, and no car on its old
+set where it would rejoin. A car just behind that turns into the pit lane is covered when its undercut adds up the same
+way and the plan covers (early nearly always, long rarely); a rival ahead stopping is no threat. Pit calls look ahead
+(boxing at this entry if the tyres would pass the plan's wear before the next one; a front wing that has lost real
+downforce is changed - repairs are decided in the box, by what the car needs then), the new set is the softest that
+reaches the flag (a different one from the first stint's where it can be), and after every stop the plan is made again
+for the next stint. Under the safety car a stop costs a fraction of one at racing speed, and it is taken when it is one
+the car has to make before the flag anyway - the mandatory stop not made yet, or a set that has done real work and will
+clearly not last (its wear now and the wear of the last lap against the plan's limit) - or when the tyres are past
+their best with the laps left to use new ones, unless the car runs in the top three on tyres that will last; under the
+VSC only for a stop it has to make; and once per neutralisation (`SafetyCar.neutralT` - it used to read its new set as
+"won't last, a new one would" and come in two or three times under one). A stop called for the safety car's sake is
+called off if the race is green again 250 m or more before the pit entry. With two laps or less to go a stop for tyres
+is never made unless they are finished.
+
+Strategy calls (`race/Calls.js`): a pit wall gets calls wrong. At a stop the team may leave the car out a lap too long
+on worn tyres, or fit a set softer than the race needs that will not last - by the team's tier (`FAULT_P`: 5 % of the
+front-runners' calls, 9 % in the midfield, 14 % at the back; your own pit wall too, `strategyCalls` in main.js). Every
+plan, stop (lap, reason, tyres, place) and mistake is kept; at the flag `StrategyCalls.stories()` works out what they
+came to: a safety-car gamble that paid (one cheap stop, three places or more) or failed (a last-lap stop that cost
+three or more), a stop less than a minute before a safety car that cost places, an undercut that got ahead of the car
+it went for (or not - your own stop counts as one when you pitted within 2.5 s of the car ahead and it stopped one to
+four laps later), the late call and the wrong tyres and what they cost. The biggest go to the results (STRATEGY, YOUR
+STRATEGY), the paddock news, the press (`HL.strategy` in `career/PR.js`: the team's call, so the team's name is in it)
+and the post-race interview, where your story of the day is likely to be asked about.
+
+Team orders (`race/TeamOrders.js`): who has priority in a team is its contracted number one (career contracts: number-one
+status or the number two), else - any AI team, and every team outside a career - the clearly better-rated driver (0.02
+or more); your own career team on equal terms has none, and decides by the race and the title instead. A *swap*: the
+number two within 1.5 s ahead of the number one for 15 s is told to let it through (a team-mate 15 points or more ahead
+in the standings has the same claim after 18 s; on equal terms a car stuck 25 s behind that is half a second a lap
+quicker gets it one time in two). You hear it on the radio (Y copy, N refuse) and have about a lap; G asks for your
+team-mate ahead to be moved over, which the team does if you have priority, or the pace and the standings back you.
+A *hold*: late in the race (the last 30 %), both cars in the points within 2 s - no racing; passing anyway breaks it.
+An AI driver obeys by its standing (a number two more), the order's reason (less for "the other car is quicker"), the
+standings (told to give way to a team-mate it leads in the championship: much less - the contradiction), the stakes
+(the win, a podium), its temper and, toward you, Paddock Rapport and any feud. Obeying, it lifts as its team-mate
+closes and does not defend; holding, it queues behind (`Planner`: as under the safety car). Refusing, it holds its
+team-mate up on purpose for 75 s (`AIDriver`: a grudge, raced like a feud - every corner covered, less room, leant on
+alongside), and the one held up races it harder too; a team-mate at -35 Paddock Rapport or worse may hold you up
+without being told to. Contact between team-mates is watched (`TeamOrders.contact`: the stewards' culprit, what it did)
+and with a grudge in it, it is dirty. At the flag the stories (an order obeyed - above all against the standings -
+refused or ignored, a hold broken, a car held up 20 s or more, team-mates colliding) go to the results (TEAM ORDERS,
+YOUR TEAM), the paddock news, the press (`HL.orders`, from your seat: your defiance, your team-mate's, your sacrifice),
+Paddock Rapport and morale (your team-mate takes defiance worse with number-one status, and a dirty clash worse still)
+and the post-race interview, where defiance, blocking and contact are asked about straight after the result.
 
 ### Car: real dimensions, four wheels, suspension
 
-`CAR` in `src/vehicle/Car.js` carries the figures of a 2022-25 F1 car: 798 kg, 3.6 m wheelbase, 2.0 m wide, 5.66 m
-long, 45.5 % of the mass on the front axle, 44 % of the downforce. `CarMesh.js` remaps its hand-laid parts onto that
-envelope (0.97 m tall at the roll hoop, rear wing top at 0.9 m, 720 mm tyres 305 / 405 mm wide) and the onboard
-cameras sit at the matching heights (driver's eye 0.77 m).
+`CAR` in `src/vehicle/Car.js` carries the figures of a 2026 F1 car, the car model's: 768 kg, 3.4 m wheelbase, 1.9 m
+wide, 5.4 m long, 45.5 % of the mass on the front axle, 44.5 % of the downforce (the yaw, roll and pitch inertias, the
+track widths at the model's hubs, the crash body's contact points and the collision outline follow it). The onboard
+cameras sit at the car model's heights (driver's eye 0.77 m, the T-cam just over its pod on the airbox).
+
+The car is a 2026 model: "2026 Redbull RB22" by Dave Love (sketchfab.com/Tyler_Dave, CC BY 4.0 - the credit is in
+`assets/car/CREDIT.txt`), with its livery, sponsors' decals, numbers and team logos taken off. `tools/car_model.mjs`
+cuts it into the parts the game moves - the four wheels about their hubs, the front wing with its outer thirds (the
+endplates come off on their own), the rear wing and its flap (DRS, about its leading edge), the halo, the steering
+wheel about its column - each piece whole (an endplate never leaves half of itself behind; a wing element that spans
+the cut is clipped clean along it), and simplifies it to five levels (meshoptimizer), quantized and gzipped (2.5 MB);
+`tools/car_textures.py` shrinks its textures to WebP (0.3 MB) and makes the tyres' red lettering a mask, tinted in the
+compound's colour. It is 5.4 m long on a 3.4 m wheelbase, the real 2026 figures, and the physics use the same. The
+geometry is decoded once and shared by the field: a car has only its own paint, number, T-cam colour and lights.
+
+| state | distance | what is drawn | triangles | draw calls |
+| --- | --- | --- | --- | --- |
+| ultra | < 9 m | the model at its finest, textured (carbon weave, bolts, sensors, rims, Pirelli sidewalls), the cockpit's own (steering wheel and its display, the driver's arms) | ~126 k | ~55 |
+| high | < 38 m | the same at ~49 k, the cockpit's insides dropped | ~49 k | ~48 |
+| medium | < 95 m | each part one mesh, its colours in the vertices, the paint still the livery's | ~16 k | ~16 |
+| far | < 260 m | one mesh (shared by every car with the same parts on: a lost wing or wheel picks another) and its shadow | ~7 k | 2 |
+| minimum | beyond | the same, coarser | ~5 k | 2 |
+
+### Liveries
+
+`src/vehicle/Livery.js` paints a livery from where a point is on the car - x along it, y up, z across - so a line runs
+on unbroken over every panel and every level of detail draws the same car. A livery is a base colour and up to twelve
+layers, each over the last: a waterline (the lower body in a second colour), a band between two curves, a pinstripe
+along one, a stripe down the spine, a box, a blend along or up the car, the nose tip, the halo, the front and rear
+wings' paint (each part knows which wing it is), the surfaces facing up; and up to four wordmarks drawn into an atlas
+and projected onto the sides (reading front to back on the left, back to front on the right). The race number and
+the driver's name go on the model's own number plates (the nose, the engine cover, the cockpit's flanks). The eleven
+2026 teams each have their own, four to seven layers and two wordmarks: McLaren papaya over anthracite, Ferrari red
+with a slanting white HP band and a black floor, Red Bull matt navy with a red flank, a yellow nose and ORACLE,
+Mercedes black fading to silver with a teal pinstripe, Aston Martin green with lime, Williams blue with a light blue
+stripe, Racing Bulls white into blue, Haas white over red and black, Alpine blue into pink, Audi titanium and black
+split by a red line, Cadillac white over a black sweep. A new team (the career's own) is designed: a pattern (classic,
+arrow, fade, split, stripes, blade), four colours, a finish (gloss, matte, metallic) and a sponsor's wordmark.
 
 `src/vehicle/Chassis.js` is the four-wheel model. The body is sprung: heave, pitch and roll on corner springs
-(~4 Hz), dampers and anti-roll bars (58 % of the roll stiffness at the front), so weight transfer takes the time the
+(~4 Hz), dampers and anti-roll bars (57 % of the roll stiffness at the front), so weight transfer takes the time the
 body takes to move and every wheel has its own load. Each tyre's grip comes from its own load with load sensitivity
 (grip ~ load^-0.09), and the rears are a third wider (higher nominal load). Drive goes to the rear wheels through a
 limited-slip diff; brakes, ABS, traction control and the friction circle work per wheel, and the yaw moment includes
@@ -413,8 +710,10 @@ the left / right force difference. The road under each wheel is sampled: kerbs r
 with ridges along them (a wheel on a kerb is loaded and unloaded several kN, the car rolls, the far wheel can go
 light), grass and gravel are lumpy, and a wheel follows a step over the tyre's envelopment time. Elevation from survey
 data plugs into `roadHeight`. Grip is set from what the real cars do, not from lap times: about 2.35 g at 100 km/h
-and 5.45 g at 290 km/h, with the rear axle 4 % (slow corners) to 7 % (fast) in hand, so at the limit the front lets
-go first and a lift at 280 km/h does not spin the car. `fitGrip` turns that into the effective friction and downforce
+and 5.45 g at 290 km/h, with the rear axle 4.3 % (slow corners) to 5.9 % (fast) in hand, so at the limit the front
+lets go first and a lift at 280 km/h does not spin the car. (The 2022-25 car had 4.6-7.3 %: it pushed through every
+fast corner. Nearer neutral than the 2026 set-up and a car lifting at 4 g in a fast direction change snaps - the
+drag's half a g off the rear tyres: with 2.5 % the AI spun in Montreal's fast chicanes and at Silverstone.) `fitGrip` turns that into the effective friction and downforce
 the speed profile and the AI plan with. `brakeMax` is a 5.2 g stop on the tyres plus about 1 g of drag from top
 speed. Power and drag are unchanged (about 350 km/h with ERS). The car body pitches, rolls and squats (about 35 mm at
 speed under downforce) on screen, each wheel stays on the road under it, and the cockpit and T-cam ride the body.
@@ -445,7 +744,7 @@ Coulomb friction along the barrier): a glancing hit slides the car along the wal
 the rear corner spins it. Damage follows the impact speed at the contact point; the rear wing only takes damage from
 a solid rear hit (losing it should take a real accident).
 
-Car-to-car contact knows what touched what (`RaceDirector.js`: each car is a 5.66 x 2.0 m outline with probe points
+Car-to-car contact knows what touched what (`RaceDirector.js`: each car is a 5.3 x 1.9 m outline with probe points
 at the four wheels, the wing corners, the nose, the sidepods and the rear; `touch()` sets the consequences):
 
 * wheel against wheel: the tyres interlock and kick each other (more restitution and friction, the impulse turns the
@@ -469,18 +768,50 @@ harder) or a rear-ender with more than 26 m/s closing speed (20-80 % of the time
 Damage starts at about 7 km/h of impact speed into the bodywork, so taps leave no mark and it takes a big hit to
 wreck a car outright. A launch is a 5-14 m/s kick at the wheel that climbed: up to about 2 m in the air, mostly a
 roll or a flip, as real airborne accidents are; a car coming down on another one does not bounce off it. Nothing about the crash is scripted: the car becomes a 3D rigid body (centre, velocity,
-quaternion, angular velocity, roll / yaw / pitch inertia 450 / 1150 / 1100 kg m²) carrying its own motion, plus
+quaternion, angular velocity, roll / yaw / pitch inertia 400 / 990 / 950 kg m²) carrying its own motion, plus
 one impulse at the wheel that hit (it climbs the barrier or the other car's tyre). From then on gravity, drag and
 contact impulses with friction at 17 body points (the four wheels, tub corners, sidepods, roll hoop, nose, engine
 cover, rear wing) against the ground and the barriers decide the flight, the rolls, the bounces and where it stops:
 on its wheels, its side or its roof. Concrete walls carry a 4.2 m debris fence, so a wreck never clears one.
-Wheels and wings come off where the hits land (and stop being contact points); the bodywork crumples and darkens.
+Wheels and wings come off where the hits land (and stop being contact points); the bodywork crumples (Damage, below).
 A stopped retired car stays where it is until the marshals recover it (25 s on the racing surface, 35 s beside it)
 and the AI steers around it. Recovery does not delete it: the chassis is craned up and set down off the road (inside
 the barrier on a permanent circuit's verge, over the wall on a street circuit) and stays there for the rest of the
-race (`RaceDirector.marshals / parkWreck`); one already far off the road is left where it stopped. Every impact throws carbon shards and lost parts into
-`world/Debris.js`: five pooled instanced meshes (shards, wing planes, endplates, rear wings, tyres), oldest piece
-recycled, resting pieces no longer updated. The player's camera cuts to a chase shot of the wreck.
+race (`RaceDirector.marshals / parkWreck`); one already far off the road is left where it stopped. Every impact throws carbon shards into
+`world/Debris.js` (pooled instanced meshes, oldest piece recycled, resting pieces no longer updated); the parts that
+come off are the car's own (Damage). The player's camera cuts to a chase shot of the wreck.
+
+### Damage
+
+`src/vehicle/Damage.js`, drawn by `CarMesh`, recorded by `Car`:
+
+* **Dents.** Every hit that pushes into the bodywork - a wall, another car, the ground in a roll, a barrier on the
+  way over - is a dent where it touched (`Car.crush`): its depth from the speed square on into the car (deeper where
+  a car is built to crumple: the nose and the crash structures most, the sidepods, hardly at all the survival cell),
+  its radius from the same, its direction the push. The vertex shader of every car material bends the bodywork by
+  them: the middle of the hit crushed flat by the whole depth, sharp creases a few centimetres deep folded across it
+  (the normals bent with them, so the light finds every fold), the paint scraped to the dark carbon underneath where
+  it is crushed and cracked along the folds. Twelve dents at a time per car (its deepest). The code is in every car
+  material from the start, and a car's own copies of the shared materials (made at its first dent) use the same
+  programs: the first hit compiles nothing.
+* **Parts coming off.** The bodywork has regions that break: the nose, the four corners' suspension, the sidepods'
+  panels, the engine cover, the floor's edges, the mirrors, the rear crash structure, the rear wing's endplates (and
+  the T-cam, knocked off in a roll), on top of the wings and the wheels as before. A hit breaks what is within its
+  reach outright if it is hard enough (a mirror at ~30 km/h, the nose at ~55, a sidepod panel at ~60), or a region
+  falls off once enough crushing has gone into it. The regions are index lists over the model's own geometry, sorted
+  at start-up (a car without its nose draws the same meshes with fewer triangles); what comes off breaks along the
+  triangles' edges into one to three pieces - the harder the hit, the more - and flies (`world/Chunks.js`) as rigid
+  bodies of the model's own geometry in the car's livery and dents: tumbling, bouncing, sliding to rest, dragged off
+  the racing surface by the marshals 14 s later. A wheel takes its suspension with it.
+* **Torn in two**, along a ragged line behind the survival cell: every body triangle was put in front of or behind it
+  at start-up, so the tear is a frayed edge, not a cut, at every level of detail; both edges are crushed and the
+  panels round it break off and fly.
+* **On record.** The dents, the parts lost and when, and every piece's flight (20 times a second until it lies
+  still, then its drag off the road) are the car's own state (`Car.dents / lost / pieces`): a flashback shows the car
+  exactly as it was at any moment while scrubbing (the pieces back where they were, the dents not yet made gone) and
+  resumes with the pieces flying on from there; the news and the driver's-eye replays show each car as it was at
+  each moment of the accident (`CarMesh.replay`). Lost bodywork costs a little: the nose 12 % of the front
+  downforce, each floor edge 5 %, each rear endplate 7 % of the rear's, the panels some drag.
 
 Spins are physical all the way round: every tyre works in its own frame against the contact patch's velocity in any
 direction (forwards, sideways, backwards), and once a car has gone (more than ~35 degrees off its path) a driver on
@@ -571,11 +902,13 @@ keep a car out of the crowd and send it back toward the track. A car that clears
 
 ### Red flags
 
-A car torn in two, or three or more cars stopped on the circuit in one accident, is a red flag (not on the final lap:
-that finishes behind the safety car). The field drives round slowly for 14 s, then the race is suspended: every
-wreck is recovered, the debris and fires are cleared, and the cars line up on the grid in race order with fresh tyres
-and repairs (the player picks tyres in the pit menu) for a standing restart. Laps done so far stand; DRS comes back
-two laps after the restart.
+Red flags are for what a safety car cannot cover: a car torn in two that comes to rest on the road, or four or more
+cars stopped on it in one accident (not on the final lap: that finishes behind the safety car). Everything else is a
+safety car; only a life lost cancels the race. 4 s after the flag the race is suspended and every car, wherever it is
+(on track, in the pit lane, in its box), is on the grid: every wreck is recovered, the debris and fires are cleared,
+and the cars line up in race order with fresh tyres and repairs (the player picks tyres in the pit menu) for a
+standing restart. Laps done so far stand; DRS comes back two laps after the restart. (The field used to drive round
+slowly for 14 s first - some cars stopped behind the incident while others raced on.)
 
 ### Injuries and stand-ins
 
@@ -809,9 +1142,11 @@ grid (`Career.savedGrid`, cleared when the round is raced): come back to the rou
 
 Before every race (after qualifying, or straight from the grid choice) the strategy screen (`ui/Strategy.js`).
 `planRace` times every no-stop, one-stop and two-stop plan lap by lap on the cars' own tyre model (each compound's
-life for this race distance from `Tyres.js`, the grip lost as it wears, the cliff, a lap to warm a new set), with
+life for this race distance from `Tyres.js`, its pace, the seconds it loses as it wears, the cliff's ramp, and the cold
+out-lap on a new set - the first stint's as the formation lap leaves it), with
 this circuit's pit-lane time loss (the lane's length at the limiter against the same distance at race pace, plus the
-stop). It applies the rule that a dry race of 12 laps or more uses two dry compounds, and offers three plans: A, the
+stop). It applies the rules that a race of 8 laps or more has a stop (30 s at the flag without one) and a dry race of 12
+laps or more uses two dry compounds, and offers three plans: A, the
 quickest; B, the quickest with a different number of stops; C, the quickest on a different starting tyre. Each card
 shows the stints as a bar in the compounds' colours, the box laps, the predicted race time against A, and a warning
 if a stint runs to the edge of its tyre; the first stop's lap can be moved. The engineer gives their view, and the
@@ -957,10 +1292,10 @@ little, slowly (a click locks it if the browser wants one). Otherwise you drive 
 the one in the car, after a while at the scene) the screen fades and the news begins. The results read RACE
 CANCELLED. A race stopped by an accident and not resumed - cancelled or abandoned - pays points the way F1 does for a shortened race: none if fewer than two laps were run, 6-4-3-2-1 up to a quarter of the distance, 13-10-8-6-5-4-3-2-1 up to half, 19-14-12-9-8-6-5-3-2-1 up to three-quarters, full points beyond; the results say which.
 
-In the news replays too the damaged cars are shown as they were, not as they ended up (`_replayFx`): a whole car
-going into the accident, and at every recorded hit debris and sparks from where it was, the parts the real car lost
-torn away at its biggest hits, the fire taking hold if it burned; the wreck's own fire and debris as they are now are
-held back until the live pictures. The broadcast camera for the replay is never inside a building or a stand, and
+In the news replays too the damaged cars are shown as they were, not as they ended up: a whole car going into the
+accident, crumpling, losing its parts and tearing in two exactly when it did, the pieces flying where they flew (from
+the car's damage record: `CarMesh.replay`), at every recorded hit debris and sparks from where it was, the fire taking
+hold if it burned; the wreck's own pieces, fire and debris as they are now are held back until the live pictures. The broadcast camera for the replay is never inside a building or a stand, and
 when nothing along the circuit has a clear view it goes up high over the track.
 
 Helmets: every F1 driver wears their own design (`src/world/HelmetDesigns.js`, the 2026 helmets reduced to their
@@ -1060,10 +1395,10 @@ every fire on the circuit; a source follows a point on a car or on half of one. 
 in two usually does; once a burning car has stopped the marshals arrive (8-16 s) and put it out.
 
 The hardest hits tear a car in two behind the survival cell (a barrier at more than ~40 m/s straight on, a T-bone at
-more than ~32 m/s): `CarMesh.split` cuts the car's meshes along that plane (every triangle crossing it clipped, so
-the tear is a clean edge), and the rear half - engine cover, gearbox, rear wheels and wing - becomes a free rigid body
-of its own (`src/world/Chunks.js`: box contacts, friction, barriers) that tumbles and slides to rest; the tub carries
-on as the car's body, with contact points on its torn face.
+more than ~32 m/s): `CarMesh.split` parts the car along a ragged line (Damage: the triangles either side of it, sorted
+at start-up - a frayed, crushed edge, not a cut), and the rear half - engine cover, gearbox, rear wheels and wing -
+becomes a free rigid body of its own (`src/world/Chunks.js`: box contacts, friction, barriers) that tumbles and slides
+to rest; the tub carries on as the car's body, with contact points on its torn face.
 
 ### No ghost cars
 
@@ -1243,7 +1578,9 @@ valid (fields gained since are removed); static data, the HUD, audio, telemetry 
 of it (the plans are made again). Recording costs ~1 ms per snapshot, a restore ~7 ms, and a restore is exact. While
 rewinding the race freezes and the picture fades; A / D or the arrows scrub (the cars eased between snapshots), Enter
 resumes from there - the car models are rebuilt (a split car, lost wings), the smoke and debris of what no longer
-happened cleared, the later recording dropped - and Esc goes back to now. A lap with a flashback is not a clean one.
+happened cleared, the later recording dropped - and Esc goes back to now. The damage is part of the snapshot (Damage):
+scrubbing shows each car's dents and lost parts as they were then and every piece where it was, and resuming lets the
+pieces still in the air fly on. A lap with a flashback is not a clean one.
 
 Photo mode (pause menu): the simulation is frozen (or plays on with your car handed to an AI), the free camera can't
 go into the ground, a building or a grandstand, and a panel sets the lens and the grade - field of view (15-110),
@@ -1256,7 +1593,10 @@ exposure (the tone mapping's), contrast, saturation and a vignette. SAVE PHOTO w
 racing line, speed, throttle, brake, steering, gear, rpm, longitudinal / lateral g, surface, ERS, slip angles, tyre
 temperature and wear, wheels on a kerb, body pitch / roll / heave, the four wheel loads) and every AI car at 10 Hz
 (speed, pedals, line). Laps are cut at the timing line; a lap with a
-reset or a pit visit is marked not clean. The reference is the fastest clean AI lap of the session (a standing-start
+reset or a pit visit is marked not clean. A flashback takes the recording back with the clock: what was recorded after
+the moment it rewound to is dropped (a lap begun after it is not begun yet, a lap finished after it is open again), so
+a lap is the one driven - not the abandoned attempt up to the rewind followed by the retry from where the clock caught
+up again (older exports have both, and tools/ai_fit.mjs leaves those stretches out). The reference is the fastest clean AI lap of the session (a standing-start
 lap never counts), else the ideal lap of the speed profile (Time Trial).
 
 `ui/TelemetryView.js` (T in a session, TELEMETRY in the pause menu and on the results screen): lap picker, lap and
@@ -1290,8 +1630,8 @@ after WALK THE GRID, `__F1.PRE.walk` the grid walk (`_open(npc)`, `_choose(i)`, 
   elevation yet and no ride-height-sensitive aero.
 * Which Silverstone corners get gravel or asphalt is a per-turn list, not surveyed geometry; trap depth is whatever
   fits before the nearest OSM building or grandstand. Barrier placement is inferred from OSM buildings, not surveyed.
-* Crash bodies are boxes for ground contact; mangling is a fixed set of effects (parts off, crumple, scorch), not
-  mesh deformation. Debris does not interact with cars.
+* Crash bodies and the pieces that come off are boxes for ground contact; dents bend the surface in the shader (the
+  structure underneath is not simulated). Debris and pieces do not interact with cars.
 * Silverstone's AI has only been tuned over a few headless runs; the pit lane, night mode and wet running there
   are untested.
 * No shadow maps or post-processing bloom (emissive materials approximate the neon look).

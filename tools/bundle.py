@@ -154,6 +154,15 @@ def main():
     if os.path.isdir(adir) and not artifact:   # (the Artifact: published as files beside the page, too big to inline)
         geo += '\n' + '\n'.join(f'<script id="audio-{os.path.splitext(fn)[0]}" type="text/plain">' + base64.b64encode(open(os.path.join(adir, fn), 'rb').read()).decode('ascii') + '</script>'
                                 for fn in sorted(os.listdir(adir)) if fn.endswith('.mp3'))
+    # the car model (assets/car: vehicle/CarModel.js loadCarModel) - its parts, its binary (gzipped) and its textures as
+    # <script id="car-json|car-bin|car-tex-<name>">: inline in both builds (2.8 MB, base64 3.8 MB)
+    cdir = os.path.join(ROOT, 'assets', 'car')
+    if os.path.isdir(cdir):
+        geo += '\n<script id="car-json" type="application/json">' + read(os.path.join(cdir, 'car.json')).replace('</', '<\\/') + '</script>'
+        geo += '\n<script id="car-bin" type="text/plain">' + base64.b64encode(open(os.path.join(cdir, 'car.bin.gz'), 'rb').read()).decode('ascii') + '</script>'
+        tdir = os.path.join(cdir, 'tex')
+        geo += '\n' + '\n'.join(f'<script id="car-tex-{os.path.splitext(fn)[0]}" type="text/plain">' + base64.b64encode(open(os.path.join(tdir, fn), 'rb').read()).decode('ascii') + '</script>'
+                                for fn in sorted(os.listdir(tdir)) if fn.endswith('.webp'))
     html = re.sub(r'<link rel="stylesheet" href="src/ui/style.css">', lambda _: f'<style>\n{css}\n</style>', html)
     html = re.sub(r'<script type="importmap">.*?</script>', lambda _: '<script type="importmap">\n' + json.dumps(importmap) + '\n</script>', html, flags=re.S)
     html = html.replace('<script type="module" src="src/main.js"></script>',
@@ -161,6 +170,8 @@ def main():
     out = OUT
     if artifact:
         out = os.path.join(ROOT, 'dist', 'artifact.html')
+    if '--out' in sys.argv:   # (tools/splice_artifact.py: a build to compare against, not the shipped file)
+        out = os.path.abspath(sys.argv[sys.argv.index('--out') + 1])
         head = re.search(r'<head>(.*?)</head>', html, re.S).group(1)
         body = re.search(r'<body[^>]*>(.*?)</body>', html, re.S).group(1)
         head = re.sub(r'<title>.*?</title>|<meta name="viewport"[^>]*>', '', head, flags=re.S)   # keep the charset meta: the file holds UTF-8 text

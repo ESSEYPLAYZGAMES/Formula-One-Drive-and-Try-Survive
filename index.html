@@ -96,6 +96,8 @@
   <div class="brand">
     <div class="brand-line"></div>
     <h1 id="brand-title">FORMULA 1<span id="brand-sub">SIMULATOR</span></h1>
+    <!-- the build's version: +0.01 with every build handed out -->
+    <span id="app-ver" title="Version">V1.87</span>
     <div id="menu-sub">Real circuits built from OpenStreetMap</div>
   </div>
   <div id="loading" class="hidden"><div class="ld"><i></i></div><span>Building the circuit from OpenStreetMap…</span></div>
@@ -111,7 +113,7 @@
     <button id="race-again" class="ghost hidden"><b>↻ RACE AGAIN</b><span></span></button>
     <footer class="home-foot">
       <div id="memoriam-home" class="memoriam hidden"></div>
-      <span class="credit">Real circuits built from OpenStreetMap</span>
+      <span class="credit">Real circuits built from OpenStreetMap · Car model: “2026 Redbull RB22” by Dave Love, <a href="http://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a> (livery removed)</span>
       <span class="keys"><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> choose<span id="keys-r" class="hidden">&nbsp;· <kbd>R</kbd> race again</span></span>
       <button id="dl-offline" class="ghost small hidden">⬇ Download the offline version (one HTML file, 4 MB)</button>
       <div id="dl-msg" class="small hidden"></div>
@@ -151,7 +153,7 @@
             <div id="su-mem" class="su-mem m-calm hidden"></div>
           </section>
           <section class="m-pg" data-p="event">
-            <div class="opt"><div class="lbl">Circuit</div><div id="opt-track" class="tracks"><button data-v="lasvegas" class="circ sel"><span class="map"></span><b>Las Vegas</b><small></small></button><button data-v="silverstone" class="circ"><span class="map"></span><b>Silverstone</b><small></small></button></div></div>
+            <div class="opt"><div class="lbl">Circuit</div><div id="opt-track" class="tracks"><button data-v="lasvegas" class="circ sel"><span class="map"></span><b>Las Vegas</b><small></small></button><button data-v="silverstone" class="circ"><span class="map"></span><b>Silverstone</b><small></small></button><button data-v="montreal" class="circ"><span class="map"></span><b>Montréal</b><small></small></button><button data-v="austin" class="circ"><span class="map"></span><b>Austin</b><small></small></button></div></div>
             <div class="opt race-only"><div class="lbl">Distance</div><div class="seg k-seg" id="opt-len"><button data-v="3">3 laps</button><button data-v="5" class="sel">5 laps</button><button data-v="8">8 laps</button><button data-v="13">25%</button><button data-v="25">50%</button><button data-v="50">Full</button></div></div>
             <div class="grid2">
               <div class="opt"><div class="lbl">Time</div><div class="seg k-seg" id="opt-time"><button data-v="night" class="sel">Midnight</button><button data-v="day">Midday</button></div><small id="time-note" class="su-note"></small></div>
@@ -177,6 +179,8 @@
               <div class="opt"><div class="lbl">Assists</div><div class="seg k-seg" id="opt-assist"><button data-v="full" class="sel">TC+ABS</button><button data-v="abs">ABS</button><button data-v="none">None</button></div></div>
               <div class="opt"><div class="lbl">Racing line (L)</div><div class="seg k-seg" id="opt-line"><button data-v="on" class="sel">On</button><button data-v="off">Off</button></div></div>
               <div class="opt"><div class="lbl">Flashbacks</div><div class="seg k-seg" id="opt-fb"><button data-v="off">Off</button><button data-v="inf" class="sel">Unlimited</button></div></div>
+              <div class="opt"><div class="lbl">Volume</div><div class="vol-row"><input type="range" id="vol-menu" class="vol" min="0" max="100" step="1"><span class="vol-val"></span></div></div>
+              <div class="opt"><div class="lbl">Race start</div><div class="seg k-seg" id="opt-intro"><button data-v="on" class="sel">Build-up</button><button data-v="skip">Straight to lights</button></div></div>
             </div>
             <div class="su-keys"><div class="lbl">Controls · keyboard or gamepad</div><dl>
               <div><dt><kbd>WASD</kbd> <kbd>Arrows</kbd></dt><dd>Drive</dd></div>
@@ -185,6 +189,7 @@
               <div><dt><kbd>F</kbd></dt><dd>Shut the DRS (it opens itself)</dd></div>
               <div><dt><kbd>Backspace</kbd></dt><dd>Flashback</dd></div>
               <div><dt><kbd>P</kbd></dt><dd>Pit stop</dd></div>
+              <div><dt><kbd>Y</kbd> <kbd>N</kbd> <kbd>G</kbd></dt><dd>Team orders: copy · refuse · ask for a swap</dd></div>
               <div><dt><kbd>V</kbd></dt><dd>Camera: cockpit, T-cam, chase, TV</dd></div>
               <div><dt><kbd>C</kbd> <kbd>Q</kbd> <kbd>E</kbd></dt><dd>Look back, left, right</dd></div>
               <div><dt><kbd>L</kbd></dt><dd>Racing line</dd></div>
@@ -228,8 +233,9 @@
 
 <div id="pause" class="panel hidden">
   <h2>PAUSED</h2>
-  <div class="row center"><button id="btn-resume" class="go">RESUME<span>→</span></button><button id="btn-tel" class="ghost">TELEMETRY</button><button id="btn-photo" class="ghost">PHOTO MODE</button><button id="btn-finish" class="ghost hidden">FINISH SESSION</button><button id="btn-end" class="ghost hidden">END SESSION</button><button id="btn-quit" class="ghost">QUIT TO MENU</button></div>
-  <div class="hint">Photo mode: WASD fly · Q/E down/up · Shift fast · drag or arrow keys to look · H toggle HUD · Esc back</div>
+  <div class="row center"><button id="btn-resume" class="go">RESUME<span>→</span></button><button id="btn-restart" class="ghost hidden">RESTART RACE</button><button id="btn-tel" class="ghost">TELEMETRY</button><button id="btn-photo" class="ghost">PHOTO MODE</button><button id="btn-finish" class="ghost hidden">FINISH SESSION</button><button id="btn-end" class="ghost hidden">END SESSION</button><button id="btn-quit" class="ghost">QUIT TO MENU</button></div>
+  <div class="row center vol-row"><label for="vol-pause">VOLUME</label><input type="range" id="vol-pause" class="vol" min="0" max="100" step="1"><span class="vol-val"></span></div>
+  <div class="hint">Photo mode: WASD fly · Q/E down/up · Shift fast · Alt (or Ctrl) fine · drag or arrow keys to look · H toggle HUD · Esc back</div>
 </div>
 <div id="photo-hint" class="hidden"><span>PHOTO MODE · WASD fly · Q/E · Shift · drag to look · H HUD · P/Space play · Esc back</span><button id="photo-play">▶ PLAY</button></div>
 

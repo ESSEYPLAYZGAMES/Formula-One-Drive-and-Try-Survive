@@ -148,7 +148,12 @@ function questions(ctx) {
 
   // ---- the rest: a pool for the day ----
   const pool = [], hurt = new Set((ctx.hurt || []).map((h) => h.d?.id));
+  // team orders (race/TeamOrders.js): what you or your team-mate did with the pit wall's order, a team-mate held up, the
+  // two cars colliding - defiance, blocking and contact are the story of the day, asked straight after the result
+  const TO = ctx.orders && tm ? orderQuestion(ctx.orders.sub, tm) : null;
+  if (TO) (TO.big && Q.length < 3 ? Q : pool).push(TO);
   for (const c of ctx.contacts.slice(0, 2)) {
+    if (TO && /Hit|clash/.test(ctx.orders.sub) && c.d.id === tm.id) continue;   // (the collision is asked about as a team story)
     // (the driver you touched is the one in hospital: about him, nothing for the press)
     const X = c.d, gr = hurt.has(X.id);
     if (c.crash) pool.push({ k: 'clash', grave: gr, w: 5, q: pick([`${first(X)} is out after your clash. Any regrets?`, `You and ${last(X)} collided and ${first(X)} retired. Your view?`]), answers: [
@@ -191,6 +196,47 @@ function questions(ctx) {
     A('One race at a time for us.', [], null, 'diplomatic'), A('His car is doing the work.', [[ctx.leader.id, -10]], 'He will not like that.', 'cruel')] });
   if (ctx.leading && near.length >= 3) pool.push({ k: 'title', w: 3, q: pick(['You lead the championship. Biggest threat?', 'Top of the table - who can stop you?']), answers: [
     ...near.map((d) => A(`${last(d)}. Fast and relentless.`, [[d.id, 6]], null, 'diplomatic')), A('Nobody can stop us now.', near.map((d) => [d.id, -4]), 'Bold.', 'confident')] });
+  // your strategy story today (race/Calls.js): a call of the pit wall's that went wrong, a stop just before the safety
+  // car, an undercut that worked or did not, a gamble on a safety car
+  const SG = ctx.strat, SR = SG?.rival ? ctx.grid.find((d) => d.id === SG.rival) : null;
+  const SQ = SG && {
+    late: () => ({ q: pick(['The team left you out a lap too long today. Did the strategy let you down?', 'You stayed out on worn tyres while the others pitted. Whose call was that?', 'That stop looked a lap late from here. What happened?']), answers: [
+      A('We win and lose as a team. We will look at it together.', [], 'Loyal to the pit wall.', 'diplomatic'),
+      A('I should have pushed harder for the stop on the radio.', [], 'Taking it on the chin.', 'humble'),
+      A('It cost us places, and we cannot afford that. It has to be better.', [], 'The pit wall will hear that.', 'confident'),
+      A('I think my tyres pitted themselves in the end.', [], 'Laughter, but the point is made.', 'funny')] }),
+    tyre: () => ({ q: pick([`Those ${SG.comp ? String(SG.comp).toLowerCase() + 's' : 'tyres'} fell away early. Was it the wrong call?`, 'You struggled for grip on that last set. Was it the wrong tyre?']), answers: [
+      A('On paper it was the right tyre. The track had other ideas.', [], 'Measured.', 'diplomatic'),
+      A('I could have looked after them better. That is on me too.', [], 'Generous to the team.', 'humble'),
+      A('It was the wrong tyre. We all knew it by the second lap.', [], 'Frank. The engineers will wince.', 'confident'),
+      A('We will go through the data before I say anything.', [], 'Giving nothing away.', 'evasive')] }),
+    unlucky: () => ({ q: pick(['You pitted just before the safety car. How frustrating was that?', 'One lap later and the safety car would have given you a free stop. Painful?']), answers: [
+      A('That is racing. Sometimes the timing goes against you.', [], 'Philosophical.', 'diplomatic'),
+      A('Nobody could have known. The team made the right call with what we had.', [], 'Backing the pit wall.', 'humble'),
+      A('It hurts. We had the pace to finish higher today.', [], 'Frustration showing.', 'confident'),
+      A('I am going to start pitting a lap later for the rest of my life.', [], 'A laugh from the pen.', 'funny')] }),
+    undercutWon: () => ({ q: pick([SR ? `That undercut on ${last(SR)} was perfectly timed. Your call or the team's?` : 'That undercut was perfectly timed. Your call or the team\'s?', 'You jumped a car in the stops today. How did you plan it?']), answers: [
+      A('All the team. The out-lap was the easy part.', [], 'Credit where it is due.', 'humble'),
+      A('I asked for it and the team backed me. It worked.', [], 'A driver who reads a race.', 'confident'),
+      A('Teamwork. Good stop, good out-lap, good timing.', [], null, 'diplomatic'),
+      SR ? A(`${first(SR)} stayed out too long. Their loss.`, [[SR.id, -6]], 'A little dig.', 'cruel') : A('A magician never reveals the trick.', [], 'Smiles all round.', 'funny')] }),
+    undercutFailed: () => ({ q: pick([SR ? `You pitted early to get ahead of ${last(SR)}, but it didn't work. What went wrong?` : 'The undercut didn\'t come off today. What went wrong?', 'The early stop did not get you the place. Wrong call?']), answers: [
+      A('The out-lap was not good enough. That is on me.', [], 'Honest.', 'humble'),
+      A('It was the right idea. It just did not quite work today.', [], null, 'diplomatic'),
+      SR ? A(`${last(SR)} had good pace on old tyres. Fair play.`, [[SR.id, 6]], 'Respect.', 'diplomatic') : A('We tried something. You never know until you try.', [], null, 'diplomatic'),
+      A('We will look at the numbers before I judge it.', [], 'Giving nothing away.', 'evasive')] }),
+    gamblePaid: () => ({ q: pick(['You ran a long first stint waiting for a safety car, and it paid off. Was that the plan from the start?', 'A big strategy gamble, and it worked. How nervous were you?']), answers: [
+      A('The team took a risk and it came good. All credit to them.', [], 'Generous.', 'humble'),
+      A('We planned for it. Sometimes you make your own luck.', [], 'A strategist as well as a driver.', 'confident'),
+      A('It could easily have gone the other way. We will take it.', [], null, 'diplomatic'),
+      A('I was praying for a safety car for twenty minutes.', [], 'Laughter in the pen.', 'funny')] }),
+    gambleFailed: () => ({ q: pick(['You waited for a safety car that never came. Was the gamble worth it?', 'The long stint didn\'t pay off today. Would you do it again?']), answers: [
+      A('Sometimes the dice do not roll your way. No regrets.', [], 'Unbowed.', 'confident'),
+      A('We gambled and lost. I will take my share of that.', [], 'Owning it.', 'humble'),
+      A('It was a calculated risk. It just did not work today.', [], null, 'diplomatic'),
+      A('Let us just say I am not going to a casino tonight.', [], 'A grin from the pen.', 'funny')] }),
+  }[SG.kind];
+  if (SQ) pool.push({ k: 'strategy', w: SG.good ? 5 : 7, ...SQ() });
   // the car, the team
   if (ctx.upgrade) pool.push({ k: 'upgrade', w: 2, q: pick([`The new ${ctx.upgrade} - did it make a difference?`, `How much did the ${ctx.upgrade} bring?`]), answers: [
     A('Massive step. The factory delivered.', [], null, 'humble'), A("Small gain, but we're learning.", [], null, 'diplomatic'), A('Too early to tell, honestly.', [], null, 'evasive'), A('We need more, and faster.', [], null, 'confident')] });
@@ -231,6 +277,74 @@ function questions(ctx) {
     picked.push(pool.splice(i, 1)[0]);
   }
   return [...Q, ...picked, ...(T ? [T] : [])].map((q) => ({ ...q, answers: shuffle(q.answers) }));
+}
+/** a team-order story of yours (race/TeamOrders.js orderSub) as a question: tm is your team-mate -> question | null */
+function orderQuestion(sub, tm) {
+  const F = first(tm), S = last(tm), id = tm.id;
+  const B = {
+    youRefused: [[`The team told you to let ${F} through and you didn't. Why?`, 'You ignored a team order today. Was that the right call?', `${S} was supposed to come past you. What happened?`], [
+      A("I was faster. I'm here to race, not to wave people through.", [[id, -8]], 'Defiant.', 'confident'),
+      A(`I got it wrong. I'll apologise to the team and to ${F}.`, [[id, 8]], 'Contrite.', 'humble'),
+      A("We'll talk about it inside the team. That's where it stays.", [], 'Giving nothing away.', 'diplomatic'),
+      A(`If ${F} wants to get past, they can overtake me.`, [[id, -14]], 'That will not calm things down.', 'cruel')]],
+    youBrokeHold: [[`The team asked you to hold position behind ${S}. You passed anyway. Why?`, `You overtook ${F} against orders. Will you apologise?`], [
+      A('I had the pace. Holding back would have been a waste.', [[id, -8]], 'Unrepentant.', 'confident'),
+      A(`It was wrong of me. I'll make it right with ${F}.`, [[id, 8]], 'Contrite.', 'humble'),
+      A('The radio was not very clear at that point.', [[id, -3]], 'Nobody in the pen believes that.', 'evasive'),
+      A(`${F} was in my way. Simple.`, [[id, -14]], 'That will run and run.', 'cruel')]],
+    youHeldUp: [[`${S} says you held them up on purpose. Did you?`, 'It looked like you were blocking your own team-mate. Fair?'], [
+      A('I was defending my position. That is what racing is.', [[id, -6]], null, 'confident'),
+      A("Maybe I made it harder than I needed to. I'll talk to them.", [[id, 6]], 'A rare admission.', 'humble'),
+      A('I race everyone the same, team-mate or not.', [[id, -3]], null, 'diplomatic'),
+      A(`${F} should try being quicker.`, [[id, -14]], 'Ouch.', 'cruel')]],
+    youHit: [['You collided with your own team-mate. What happened?', `Contact with ${F} - how do you explain that to the team?`, `${S} and you hit each other. Your fault?`], [
+      A(`My fault. I'll apologise to ${F} and to everyone in the garage.`, [[id, 12]], 'Owning it.', 'humble'),
+      A('A racing incident. These things happen when you race hard.', [[id, -4]], 'Not everyone will see it that way.', 'diplomatic'),
+      A(`${F} turned in on me. I had nowhere to go.`, [[id, -12]], 'This one will run.', 'confident'),
+      A("I'm not discussing it in public.", [[id, -2]], 'Evasive.', 'evasive')]],
+    youObeyed: [[`You let ${F} through on team orders. Happy to play the team game?`, `Giving the place to ${S} - did that hurt?`], [
+      A('The team comes first. It was the right thing to do.', [[id, 6]], 'A team player.', 'humble'),
+      A("It hurts, but I understand why. I'll get it back.", [[id, 2]], null, 'diplomatic'),
+      A('I did what I was asked. Next time it might be the other way round.', [], null, 'confident'),
+      A("I'm sure they'll buy me dinner.", [[id, 3]], 'Laughter in the pen.', 'funny')]],
+    youSacrificed: [[`You're ahead of ${F} in the championship and the team still made you move over. How do you feel?`, `The team put ${S} first, despite the standings. Is that fair?`], [
+      A('The team made a call. I accept it, even if I do not like it.', [[id, 4]], 'Loyal, through gritted teeth.', 'diplomatic'),
+      A("I'm ahead in the points. That should mean something in this team.", [[id, -6]], 'The team will hear that.', 'confident'),
+      A('For the team, I would do it again.', [[id, 8]], 'Selfless.', 'humble'),
+      A(`Let's just say ${F} owes me one.`, [[id, -2]], 'A pointed smile.', 'funny')]],
+    mateRefused: [[`${F} ignored the order to let you through. Your reaction?`, `${S} would not move over for you. Is there a problem in the team?`], [
+      A('It shows you what kind of team-mate they are.', [[id, -12]], 'The gloves are off.', 'cruel'),
+      A('The team will deal with it. I just want to race.', [[id, -2]], null, 'diplomatic'),
+      A("They were racing. I understand. I'd have done the same.", [[id, 8]], 'Generous.', 'humble'),
+      A("It changes nothing. I'll beat them on my own.", [[id, -5]], 'Fighting talk.', 'confident')]],
+    mateHeldUp: [[`It looked like ${F} held you up on purpose. Did they?`, 'Stuck behind your own team-mate for laps - what was going on?'], [
+      A('Ask them. It was obvious from where I was sitting.', [[id, -10]], 'A pointed reply.', 'confident'),
+      A('I need to be quick enough to pass. That is on me.', [[id, 4]], null, 'humble'),
+      A("We'll sort it out inside the team.", [], null, 'diplomatic'),
+      A('Maybe they forgot which team they drive for.', [[id, -14]], 'That will sting.', 'cruel')]],
+    mateHit: [[`${F} ran into you today. Your view?`, 'Your own team-mate hit you. Have you spoken to them?'], [
+      A(`${F} made a mistake. We all do.`, [[id, 8]], 'Gracious.', 'humble'),
+      A("Racing incident. Let's move on.", [[id, 2]], null, 'diplomatic'),
+      A('That was not acceptable. Not from a team-mate.', [[id, -10]], 'Strong words.', 'confident'),
+      A('They will be buying the mechanics a lot of pizza.', [[id, -2]], 'Laughter, of a kind.', 'funny')]],
+    mateBrokeHold: [[`${F} passed you despite the hold order. Were you surprised?`, `The team said hold position and ${S} went past anyway. Your view?`], [
+      A('Disappointed. We had an agreement.', [[id, -8]], null, 'confident'),
+      A('The team will deal with it.', [], null, 'diplomatic'),
+      A('I should have been quicker. Then there is no question.', [[id, 4]], null, 'humble'),
+      A('Rules are for other people, apparently.', [[id, -12]], 'A jab.', 'cruel')]],
+    mateObeyed: [[`${F} let you through on team orders. Do you owe them one?`, `The team swapped the cars for you today. Fair on ${S}?`], [
+      A(`Big thanks to ${F}. That was real teamwork.`, [[id, 8]], 'Gracious.', 'humble'),
+      A('It was the right call for the team.', [[id, 2]], null, 'diplomatic'),
+      A('I was quicker. It made sense.', [[id, -6]], 'They may not enjoy hearing that.', 'confident'),
+      A("I'll buy them a coffee. A small one.", [[id, 1]], 'A smile from the pen.', 'funny')]],
+    clash: [[`You and ${F} collided. Whose fault was it?`, 'Team-mates touching - what happened out there?'], [
+      A('A racing incident. Nobody meant it.', [[id, 4]], null, 'diplomatic'),
+      A(`Maybe I could have left more room. I'll talk to ${F}.`, [[id, 8]], null, 'humble'),
+      A(`${F} left me no room.`, [[id, -10]], 'That will run.', 'confident'),
+      A("Let's leave it in the garage.", [], null, 'evasive')]],
+  }[sub];
+  if (!B) return null;
+  return { k: 'orders', w: 5, big: !['youObeyed', 'mateObeyed', 'mateBrokeHold', 'clash'].includes(sub), q: pick(B[0]), answers: B[1] };
 }
 /**
  * 'How will you celebrate tonight?' - ctx.tonight: { team (the team's celebration is open to you), club (a club night is),

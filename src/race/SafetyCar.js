@@ -24,8 +24,9 @@ import { AIDriver } from '../ai/AIDriver.js';
 const YELLOW_T = [5, 9];          // seconds of yellow flags before race control neutralises the race (random in range)
 const SC_MIN = 50, SC_MAX = 170;  // the safety car stays out at least / at most this long (s) once the incident is clear
 const VSC_MIN = 22, VSC_END = 8;
+const CLEAR_T = 3;                // seconds an incident must stay clear before it counts as clear (a stopped car shunted by the next one moves for a moment)
 const RAMP = 8;                   // seconds over which the delta speed comes in after the call
-const RED_T = 14;                 // seconds the field drives round slowly under the red flag before the race is suspended
+const RED_T = 4;                  // seconds after the red flag (the board, the radio) before the race is suspended and every car is on the grid - no lap round at a crawl in which some cars stopped and others raced on
 const RED = { scale: 0.5, vCap: 38 };
 const SC_PACE = { scale: 0.7, vCap: 52, brake: 0.5 };   // the safety car itself (~185 km/h on the straights, braking gently: no accordion behind it)
 const DELTA = { scale: 0.76, vCap: 62 };       // the field catching up under the safety car
@@ -64,6 +65,7 @@ export class SafetyCar {
     const d = this.d; if (!this.enabled || !d.world.racing || d.done) return;
     this.t += dt;
     this.scanT -= dt; if (this.scanT <= 0) { this.scanT = 0.5; this.scan(); }
+    this.clearT = this.incidentLive() ? 0 : (this.clearT || 0) + dt;
     const L = d.track.length;
     switch (this.phase) {
       case 'red':
@@ -73,11 +75,11 @@ export class SafetyCar {
       case 'yellow':
         if (this.t > this.yellowT) {
           if (this.incident.onRoad || this.incident.cars.size > 1) this.deploySC(); else this.deployVSC();
-        } else if (!this.incidentLive()) { this.phase = 'green'; this.t = 0; this.say('GREEN FLAG · TRACK CLEAR', 'good', 2); }
+        } else if (this.clear()) { this.phase = 'green'; this.t = 0; this.say('GREEN FLAG · TRACK CLEAR', 'good', 2); }
         break;
       case 'vsc':
         if (this.incident.onRoad) { this.deploySC(); break; }   // (it got worse: a car on the road)
-        if (this.t > VSC_MIN && !this.incidentLive()) { this.phase = 'vscEnd'; this.t = 0; this.say('VSC ENDING', 'warn', 3, 'VSC ending, VSC ending. Get ready, it goes green any moment.'); }
+        if (this.t > VSC_MIN && this.clear()) { this.phase = 'vscEnd'; this.t = 0; this.say('VSC ENDING', 'warn', 3, 'VSC ending, VSC ending. Get ready, it goes green any moment.'); }
         break;
       case 'vscEnd':
         if (this.t > VSC_END) { this.phase = 'green'; this.t = 0; this.say('GREEN FLAG', 'good', 2.5, 'Green, green, green. Push now.'); }
@@ -86,7 +88,7 @@ export class SafetyCar {
         if (this.waiting) this.release();
         const leader = this.leader(), finalLap = leader && leader.lap + 1 >= d.lapsTotal;
         const toPit = this.car ? this.ds(this.car.s, d.pit ? d.pit.entryS : 0) : 0;
-        const clear = !this.incidentLive();
+        const clear = this.clear();
         const unlapping = d.cars.some((c) => c._unlap);
         if (finalLap || (clear && this.picked && !unlapping && this.t > SC_MIN && (this.bunched() || this.t > SC_MAX) && toPit > 700 && toPit < 0.6 * L)) {
           this.phase = 'scIn'; this.t = 0;
@@ -151,10 +153,13 @@ export class SafetyCar {
   }
 
   // ---- incidents --------------------------------------------------------------------------------------------------
-  /** a stopped, retired car on or near the racing surface (not yet recovered) */
-  blocking(c) { return c.retired && !c.cleared && !c.air && c.speed < 3 && Math.abs(c.d) < this.d.track.halfWidth + 14 && !c.inPit && !c.pitLane; }
-  onRoad(c) { return Math.abs(c.d) < this.d.track.halfWidth + 2.5; }
+  /** a stopped, retired car on or near the racing surface (not yet recovered); this and onRoad measure from the road's
+   *  edge on the car's own side (Austin's corners are widened on their outside only) */
+  blocking(c) { return c.retired && !c.cleared && !c.air && c.speed < 3 && Math.abs(c.d) < this.d.track.edgeAt(c.trackIdx, Math.sign(c.d) || 1) + 14 && !c.inPit && !c.pitLane; }
+  onRoad(c) { return Math.abs(c.d) < this.d.track.edgeAt(c.trackIdx, Math.sign(c.d) || 1) + 2.5; }
   incidentLive() { return this.incident && [...this.incident.cars].some((c) => this.blocking(c)); }
+  /** the incident has stayed clear for CLEAR_T seconds */
+  clear() { return !this.incidentLive() && (this.clearT || 0) > CLEAR_T; }
   /**
    * Red flag: a car torn in two, three or more cars stopped on the circuit in one accident - the race is suspended
    * (not on the final lap: that finishes under the safety car).
@@ -167,18 +172,23 @@ export class SafetyCar {
     const d = this.d, lead = this.leader();
     if (this.phase === 'red' || (lead && lead.lap + 1 >= d.lapsTotal)) return false;
     this.removeCar(); this.phase = 'red'; this.t = 0; this.neutralT = d.time - RAMP; this.redCount = (this.redCount || 0) + 1;
+    d.rank(); d._order = d.positions.slice();   // (the order frozen at the flag: RaceDirector.rank, redFlagRestart)
     this.say(`RED FLAG\n${why}`, 'bad', 5, 'Red flag, red flag. Slow down, the race is suspended.', 3);
     return true;
   }
   scan() {
     const d = this.d;
     if (this.phase !== 'red' && !this._redLock) {
-      const split = d.cars.find((c) => c.split && !c._redSeen);
-      if (split) { split._redSeen = true; if (this.redFlag(`${split.short} · MAJOR ACCIDENT`)) return; }
-      if (this.incident && this.incident.onRoad && this.incident.cars.size >= 3 && !this.incident.red) { this.incident.red = true; if (this.redFlag('MULTIPLE CARS STOPPED')) return; }
+      // (red flags only for what the safety car cannot cover: a car torn in two lying on the road, or four or more cars
+      //  stopped on it in one accident - everything else is a safety car; only a life lost cancels the race)
+      const split = d.cars.find((c) => c.split && !c._redSeen && c.speed < 1);
+      if (split) { split._redSeen = true; if (this.onRoad(split) && this.redFlag(`${split.short} · MAJOR ACCIDENT`)) return; }
+      if (this.incident && this.incident.onRoad && this.incident.cars.size >= 4 && !this.incident.red) { this.incident.red = true; if (this.redFlag('MULTIPLE CARS STOPPED')) return; }
     }
     for (const c of d.cars) {
-      if (!this.blocking(c) || c._scSeen) continue;
+      // (a car already flagged counts again once the flags are green: the incident went clear - shunted, rolling -
+      //  and it has stopped on the road again)
+      if (!this.blocking(c) || (c._scSeen && this.phase !== 'green')) continue;
       c._scSeen = true;
       if (!this.incident || this.phase === 'green') this.incident = { s: c.s, cars: new Set(), onRoad: false };
       this.incident.cars.add(c); if (this.onRoad(c)) this.incident.onRoad = true;

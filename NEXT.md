@@ -197,6 +197,17 @@ Built 02:07 (`dist/index.html` 31.7 MB, `dist/artifact.html` 8.5 MB, 112 modules
   - no photographers in the Memorial/Mourning3D scenes;
   - grief headlines say "him".
 
+## Montreal: Circuit Gilles Villeneuve (2026-10-15)
+- **What's in:** the circuit from the OSM export (`data/montreal.geojson`), the park verge mode (walled, grass verges), the Wall of Champions (pinned wall, yellow board, green strip), `src/world/Montreal.js` (water, islands, Biosphère, casino, pits, trees, stands, painted logos, skyline, bridges), the menus, the career and party name tables, and the Wall of Champions trophy.
+- **The AI:**
+  - per-corner calibration in `src/ai/Calibration.js`, trained with `tools/ai_train.mjs`;
+  - telemetry fit with `tools/ai_fit.mjs`, waiting for the user's telemetry.
+- **Pit lane fixes** (they were the AI's real problem at Montreal): `pitLeads` and `pitWallClear` in `tracks.js`, plus a pit wall clamp in `TrackBuilder.buildPitLane`. Before them, almost every AI stop crashed at the entry.
+- **dist/artifact.html** gets these changes through `tools/splice_artifact.py <base commit>`, a three-way merge per module. The Artifact still has its own Version 93 modules, which are not in src/.
+- **Open:**
+  - the water and shore shapes are hand-drawn approximations; an OSM export with `natural=water` and the island coastlines would replace them;
+  - Montreal has no nightclub venue: the career's night after Montreal offers the team party only.
+
 ## Artifact Version 93 (2026-10-15): Tidewater pool club fixes (dist/artifact.html only)
 - **Source not updated:** dist/artifact.html is the published artifact (Version 93) and is AHEAD of src/. It contains src/world/PoolLife.js and src/ui/PoolPlay.js, which are not in the repo. Port them back to src/ before the next bundle, or the next `tools/bundle.py` run loses them.
 - **Black water:** not a shader bug. The pool club was anchored at street level (main.js hangoutAnchor), so the world's ground plane (y -0.05, polygon offset) covered the sunken basin when looking down; how much depended on the driver. poolclub/dayclub now anchor 7 m up, on the podium PartyPool.js always expected.

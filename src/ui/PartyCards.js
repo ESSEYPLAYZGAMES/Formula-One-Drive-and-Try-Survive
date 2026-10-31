@@ -154,9 +154,9 @@ export const hhmm = (h) => { if (h == null || !isFinite(+h)) return ''; const m 
 // ($M -> '$100' / '$20K' / '$1.2M': under a thousand dollars in dollars, never '$0K')
 const money = (m) => { const v = Math.abs(num(m)); if (!v) return '$0'; return v < 0.001 ? `$${Math.max(1, Math.round(v * 1e6))}` : v < 1 ? `$${Math.round(v * 1000)}K` : `$${(Math.round(v * 10) / 10).toFixed(1)}M`; };
 const sgn = (v) => (v > 0 ? `+${v}` : v < 0 ? `−${-v}` : '±0');
-const TRACK = { lasvegas: 'Las Vegas', silverstone: 'Silverstone' };
-const GP = { lasvegas: 'Las Vegas GP', silverstone: 'British GP' };
-const CITY = { lasvegas: 'Las Vegas', silverstone: 'London' };
+const TRACK = { lasvegas: 'Las Vegas', silverstone: 'Silverstone', montreal: 'Montreal', austin: 'Austin' };
+const GP = { lasvegas: 'Las Vegas GP', silverstone: 'British GP', montreal: 'Canadian GP', austin: 'United States GP' };
+const CITY = { lasvegas: 'Las Vegas', silverstone: 'London', montreal: 'Montreal', austin: 'Austin' };
 // (each host brand's colours on the cards and the morning-after: invented brands, as career/PR.js BRANDS)
 const BRAND_HUE = { ampwave: ['#1fd1c8', '#0b4b6e'], lanternfish: ['#3b6cff', '#1a1446'], lumora: ['#c48cff', '#2b1a4a'], vireo: ['#2bb673', '#0f3b2c'], solenne: ['#f0a73a', '#5a2a10'], arlette: ['#d9c3a1', '#2a2018'], velane: ['#b9a8d8', '#231c33'] };
 // (who someone is to you, as a small badge on their disc)

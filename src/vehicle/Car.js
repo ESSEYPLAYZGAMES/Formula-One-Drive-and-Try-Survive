@@ -4,19 +4,23 @@
 // Heading th: forward = (cos th, sin th) in world XZ. The player's form on the day (car.form, career/Morale.js) is
 // the only driver term in the physics, and a gentle one: confidence a quarter of a per cent of grip at the extremes
 // and a little brake force, racecraft how much downforce is lost in the dirty air behind another car.
-import { TyreSet } from './Tyres.js';
+import { TyreSet, BLANKET } from './Tyres.js';
 import { CH, tyreCap, fitGrip, roadHeight } from './Chassis.js';
 import { neutralForm } from '../career/Morale.js';
+import { PERF_GAIN } from '../race/Roster.js';
+import { TERRAIN } from '../world/Terrain.js';
+import { REGIONS, TEAR_X } from './Damage.js';
 
-// Figures of a current (2022-25 regulations) F1 car: 798 kg minimum mass, 3.6 m wheelbase, 2.0 m wide, 5.66 m long,
-// 45.5 % of the mass on the front axle (the rules ask for at least 44.5 %), 44 % of the downforce: the aero balance
-// sits a little behind the weight, so the faster the corner the more the rear has in hand (lifting at 280 km/h, the
-// drag alone is a 0.5-1 g stop that takes load off the rear: the car has to stay planted through that).
+// Figures of a 2026 F1 car (the car model's, vehicle/CarModel.js): 768 kg minimum mass, 3.4 m wheelbase, 1.9 m wide,
+// 5.4 m long, 45.5 % of the mass on the front axle (the rules ask for at least 44.5 %), 44.5 % of the downforce: the aero
+// balance a touch behind the weight, so the faster the corner the more the rear has in hand - less than the 2022-25
+// car's 44 % gave it, which pushed through every fast corner (Chassis.js). (Lifting at 280 km/h, the drag alone is a
+// 0.5-1 g stop that takes load off the rear: the car has to stay planted through that.)
 // Grip comes out of the tyres (Chassis.js): about 5.5 g laterally at 290 km/h (Copse), 2.3 g at 100 km/h, and a
 // 5 g stop on the tyres plus about 1 g of drag from top speed.
 export const CAR = {
-  mass: 798, Izz: 1150, lf: 1.96, lr: 1.64, wheelbase: 3.6, halfWidth: 1.0, halfLength: 2.83, cgH: 0.3,
-  powerKW: 745, ersKW: 160, cdA: 1.35, clA: 4.5, aeroFrontShare: 0.44, rho: 1.18,
+  mass: 768, Izz: 990, lf: 1.851, lr: 1.549, wheelbase: 3.4, halfWidth: 0.95, halfLength: 2.7, cgH: 0.3,
+  powerKW: 745, ersKW: 160, cdA: 1.35, clA: 4.5, aeroFrontShare: 0.445, rho: 1.18,
   brakeMax: 41000, brakeBias: 0.58, rolling: 300,
   gearTop: [68, 104, 140, 176, 212, 248, 290, 348].map((k) => k / 3.6), maxRpm: 12000, idleRpm: 4000,
 };
@@ -29,23 +33,36 @@ const FS = [CAR.mass * 9.81 * CAR.lr / CAR.wheelbase / 2, 0, CAR.mass * 9.81 * C
 /** surface codes from Track.surface(): grip multiplier and rolling resistance (m/s^2 = a + b v) of each */
 export const SURFACE = { ROAD: 0, KERB: 1, PAVED: 2, GRASS: 3, GRAVEL: 4 };
 const SURF_GRIP = [1.0, 0.93, 0.82, 0.55, 0.5];     // paved run-off: grippy but dirty; grass: slippery; gravel: loose
-const SURF_DRAG_A = [0, 0, 0, 0.6, 2.5], SURF_DRAG_B = [0, 0, 0, 0.02, 0.09];   // a gravel trap stops a car at about 1 g from speed
+// a gravel trap stops a car at about 1 g from speed - mostly the speed's doing (the stones piling up in front of the
+// tyres): a car crawling through it, a tyre down or on full lock, still gets itself out
+const SURF_DRAG_A = [0, 0, 0, 0.5, 0.8], SURF_DRAG_B = [0, 0, 0, 0.022, 0.125];
 const G = 9.81;
 /** normal impact speed (m/s) at the barrier above which the car is launched (about 85 km/h straight into it) */
 export const LAUNCH_WALL = 32;
-const _v2 = [0, 0], _t2 = [0, 0, 0], _t3 = [0, 0, 0];
+const _v2 = [0, 0], _t2 = [0, 0, 0], _t3 = [0, 0, 0], _t4 = [0, 0, 0];
 // ---- rigid body of a wrecked car
 const REST_H = 0.48;                       // height of the body centre above the ground when on its wheels
-const INERTIA = [450, 1150, 1100];         // roll (about x, forward), yaw (y), pitch (z), kg m^2
+const INERTIA = [400, 990, 950];           // roll (about x, forward), yaw (y), pitch (z), kg m^2
 /** contact points in the body frame (x forward, y up, z right): the four wheels first, then the tub and wings */
 const RB_POINTS = [
-  [1.8, -0.48, -0.85], [1.8, -0.48, 0.85], [-1.8, -0.48, -0.85], [-1.8, -0.48, 0.85],   // FL FR RL RR
-  [2.7, -0.38, -0.95], [2.7, -0.38, 0.95], [-2.5, -0.38, -0.95], [-2.5, -0.38, 0.95],   // floor / wing corners
-  [1.5, 0.12, -0.75], [1.5, 0.12, 0.75], [-1.6, 0.3, -0.7], [-1.6, 0.3, 0.7],           // sidepod and engine cover shoulders
-  [-0.2, 0.49, 0], [2.95, -0.25, 0], [-2.4, 0.42, 0],                                    // roll hoop, nose tip, rear wing top
-  [-1.2, 0.36, 0], [-2.3, 0.0, 0],                                                       // engine cover, gearbox / crash structure
+  [1.7, -0.48, -0.78], [1.7, -0.48, 0.78], [-1.7, -0.48, -0.74], [-1.7, -0.48, 0.74],   // FL FR RL RR (the 2026 car's hubs)
+  [2.75, -0.38, -0.9], [2.75, -0.38, 0.9], [-2.35, -0.38, -0.9], [-2.35, -0.38, 0.9],   // floor / wing corners
+  [1.4, 0.12, -0.7], [1.4, 0.12, 0.7], [-1.5, 0.3, -0.66], [-1.5, 0.3, 0.66],           // sidepod and engine cover shoulders
+  [-0.2, 0.56, 0], [2.92, -0.2, 0], [-2.3, 0.48, 0],                                     // roll hoop, nose tip, rear wing top
+  [-1.2, 0.36, 0], [-2.2, 0.0, 0],                                                       // engine cover, gearbox / crash structure
 ];
 const RB_REAR_WING = 14;
+/**
+ * The damage the bodywork takes (crush): how hard a hit has to be, square on (m/s into the car), to break a region off
+ * outright, and how much crushing (m of dents within its reach, all told) it takes before it falls off anyway
+ * (vehicle/Damage.js REGIONS: where they are). The mirrors and the floor's edges go first, the suspension and the
+ * sidepods' panels take a real hit, the engine cover a big one.
+ */
+const BREAK = { nose: [15, 0.22], armFL: [16, 0.25], armFR: [16, 0.25], armRL: [16, 0.25], armRR: [16, 0.25], podL: [17, 0.28], podR: [17, 0.28], cover: [19, 0.3], floorL: [13, 0.18], floorR: [13, 0.18], mirL: [8, 0.06], mirR: [8, 0.06], crash: [16, 0.25], rwL: [11, 0.15], rwR: [11, 0.15] };
+/** the suspension that goes with each wheel (FL FR RL RR) */
+const ARM = ['armFL', 'armFR', 'armRL', 'armRR'];
+/** the model's frame (vehicle/CarMesh.js: x from the axles' midpoint, y from the ground, z right) from the body's: x - MX */
+const MX = () => CAR.lf - CAR.wheelbase / 2;
 /** the same points for the front half of a car torn in two: the rear ones moved onto the torn face (x = -0.65) */
 const RB_SPLIT = RB_POINTS.map((p, k) => (k >= 4 && p[0] < -0.9 ? [-0.65, Math.max(-0.38, Math.min(0.45, p[1])), Math.sign(p[2]) * Math.min(0.75, Math.abs(p[2]))] : p));
 const BAR_H = [0, 0.85, 1.3, 4.2];          // barrier height by type (none, Armco, tyre wall, concrete wall + debris fence)
@@ -72,7 +89,7 @@ function rot(q, x, y, z, out) {
 function rotInv(q, x, y, z, out) { _qc[0] = -q[0]; _qc[1] = -q[1]; _qc[2] = -q[2]; _qc[3] = q[3]; return rot(_qc, x, y, z, out); }
 const _qc = [0, 0, 0, 1];
 /** body-frame collision probe points [forward, left] (module constant: the physics step allocates nothing) */
-const CORNERS = [[2.83, 0.95], [2.83, -0.95], [-2.83, 0.95], [-2.83, -0.95], [0, 1.0], [0, -1.0]];
+const CORNERS = [[3.0, 0.92], [3.0, -0.92], [-2.3, 0.92], [-2.3, -0.92], [0, 0.95], [0, -0.95]];   // (nose and rear wing ends from the centre of mass, the tyres' outer walls)
 /** the driver's form for every car but the player's (and the player's when none was given): every multiplier 1 */
 const NF = Object.freeze(neutralForm());
 
@@ -87,7 +104,7 @@ export class Car {
     this.team = opts.team || 'Team';
     this.color = opts.color || '#ffffff';
     this.isPlayer = !!opts.isPlayer;
-    this.perf = opts.perf ?? 1.0;            // car performance index (power/aero scale, ~0.985..1.0)
+    this.perf = 1 + ((opts.perf ?? 1.0) - 1) * PERF_GAIN;   // car performance index (power/aero scale, ~0.98..1.0): the team's, amplified (Roster PERF_GAIN)
     this.rating = opts.rating ?? 0.85;       // driver rating 0..1 (AI)
     this.number = opts.number || 0;
 
@@ -140,6 +157,10 @@ export class Car {
     // rates, world velocity), then a wreck at rest
     this.air = false; this.wreck = false; this.y = 0; this.vy = 0; this.pitch = 0; this.roll = 0; this.wp = 0; this.wr = 0; this.wvx = 0; this.wvz = 0;
     this.events = [];               // impacts for the renderer (debris, mangling)
+    // the bodywork's damage, kept for the flashback and the replays (vehicle/Damage.js draws it): the dents [x, y, z,
+    // radius, push x y z, seed, race time] in the model's frame, the parts that have come off (name -> { t, v }: when,
+    // and how hard the hit was), how crushed each region is, the pieces flying or lying about (CarMesh records them)
+    this.dents = []; this.lost = {}; this.crushed = {}; this.pieces = []; this._now = 0; this.lostK = null;
     this.p = null; this.v = null; this.q = null; this.w = null; this.wheelsOn = [true, true, true, true];   // rigid body (big accidents only)
     this.cleared = false;           // a stopped retired car the marshals have removed
   }
@@ -162,9 +183,9 @@ export class Car {
   worldVel() { const c = Math.cos(this.th), s = Math.sin(this.th); return [this.vLong * c + this.vLat * s, this.vLong * s - this.vLat * c]; }
 
   // damage-derived multipliers
-  aeroFront() { return Math.max(0.1, 1 - 0.45 * this.dmg.fwL - 0.45 * this.dmg.fwR); }
-  aeroRear() { return Math.max(0.0, 1 - this.dmg.rw); }
-  enginePower() { return this.perf * (this.puLoss ? 0.93 : 1) * (1 - 0.35 * this.dmg.eng) * (1 - 0.3 * Math.max(0, this.engTemp - 0.8)) * (1 + 0.08 * (this.band || 0)); }
+  aeroFront() { return Math.max(0.1, 1 - 0.45 * this.dmg.fwL - 0.45 * this.dmg.fwR) * (this.lostK ? this.lostK[0] : 1); }
+  aeroRear() { return Math.max(0.0, 1 - this.dmg.rw) * (this.lostK ? this.lostK[1] : 1); }
+  enginePower() { return this.perf * (this.puLoss ? 0.93 : 1) * (1 - 0.35 * this.dmg.eng) * (1 - 0.3 * Math.max(0, this.engTemp - 0.8)) * (1 + 0.12 * (this.band || 0)); }
   damageTotal() { const d = this.dmg; return Math.min(1, (d.fwL + d.fwR) * 0.25 + d.rw * 0.3 + d.susp * 0.4 + d.eng * 0.3); }
 
   /**
@@ -338,8 +359,14 @@ export class Car {
    * (CarMesh.split -> world/Chunks.js); the tub carries on as this body. Mostly it catches fire.
    */
   splitApart() {
-    if (this.split || !this.air) return; this.split = true;
+    if (this.split || !this.air) return; this.split = true; this.splitT = this._now || 0;
     this.wheelsOn[2] = this.wheelsOn[3] = false; this.dmg.rw = 1; this.dmg.eng = 1;
+    // (torn, not cut: both edges crushed and splintered, the panels round the tear broken off)
+    for (const [y, z] of [[0.3, -0.42], [0.3, 0.42], [0.62, -0.2], [0.62, 0.2], [0.12, 0]]) {
+      const r = () => (Math.random() - 0.5) * 0.7;
+      this.crush(TEAR_X + 0.18, y, z, -1, r(), r(), 24 + Math.random() * 10);
+      this.crush(TEAR_X - 0.22, y, z, 1, r(), r(), 24 + Math.random() * 10);
+    }
     this.retired = true; this.retireReason = 'Accident';
     this.emit('split', this.x, this.z, 1);
     if (Math.random() < 0.7) this.emit('fire', this.x, this.z, 1);
@@ -399,6 +426,7 @@ export class Car {
           const e = vy < -3 ? 0.3 : 0, j = -(1 + e) * vy / this._rbK(rx, ry, rz, 0, 1, 0);
           this._rbApply(rx, ry, rz, 0, j, 0);
           if (-vy > hard) { hard = -vy; hx = c[0]; hy = c[1]; hz = c[2]; }
+          if (k >= 4 && vy < -3) { const a = rotInv(q, 0, 1, 0, _t4); this.crush(pt[0] - MX(), pt[1] + REST_H, pt[2], a[0], a[1], a[2], -vy); }   // (the bodywork that lands on the road)
           // Coulomb friction against the sliding: a wheel rolls on (low), the tub scrapes, gravel and grass dig in
           const tvx = v[0] + (w[1] * rz - w[2] * ry), tvz = v[2] + (w[0] * ry - w[1] * rx), tv = Math.hypot(tvx, tvz);
           if (tv > 1e-4) {
@@ -413,7 +441,7 @@ export class Car {
       if (O && O.hit(c[0], c[2], c[1], oh)) {
         p[0] += oh.nx * oh.pen; p[2] += oh.nz * oh.pen;
         const vn = (v[0] + (w[1] * rz - w[2] * ry)) * oh.nx + (v[2] + (w[0] * ry - w[1] * rx)) * oh.nz;
-        if (vn < 0) { const j = -1.2 * vn / this._rbK(rx, ry, rz, oh.nx, 0, oh.nz); this._rbApply(rx, ry, rz, oh.nx * j, 0, oh.nz * j); if (-vn > hard) { hard = -vn; hx = c[0]; hy = c[1]; hz = c[2]; } hitKind = 'building'; }
+        if (vn < 0) { const j = -1.2 * vn / this._rbK(rx, ry, rz, oh.nx, 0, oh.nz); this._rbApply(rx, ry, rz, oh.nx * j, 0, oh.nz * j); if (-vn > hard) { hard = -vn; hx = c[0]; hy = c[1]; hz = c[2]; } hitKind = 'building'; if (k >= 4 && vn < -3) { const a = rotInv(q, oh.nx, 0, oh.nz, _t4); this.crush(pt[0] - MX(), pt[1] + REST_H, pt[2], a[0], a[1], a[2], -vn); } }
       }
       // ---- barriers (vertical, as tall as their type): the same impulse against the barrier's normal
       {
@@ -427,6 +455,7 @@ export class Car {
             const j = -1.2 * vn / this._rbK(rx, ry, rz, nx, 0, nz);
             this._rbApply(rx, ry, rz, nx * j, 0, nz * j);
             if (-vn > hard) { hard = -vn; hx = c[0]; hy = c[1]; hz = c[2]; }
+            if (k >= 4 && vn < -3) { const a = rotInv(q, nx, 0, nz, _t4); this.crush(pt[0] - MX(), pt[1] + REST_H, pt[2], a[0], a[1], a[2], -vn); }
             hitKind = BAR_KIND[side > 0 ? tr.barL[i] : tr.barR[i]] || 'wall';
           }
         }
@@ -482,15 +511,92 @@ export class Car {
   }
 
   repair(depth) {
-    if (depth === 'wing' || depth === 'full') { this.dmg.fwL = 0; this.dmg.fwR = 0; }
-    if (depth === 'full') { this.dmg.susp = 0; this.dmg.rw = 0; this.dmg.eng = Math.min(this.dmg.eng, 0.3); this.engTemp = 0.3; }
+    // (a new nose and front wing: the dents ahead of the front bulkhead go with the old ones; a full repair is new
+    //  bodywork all round)
+    if (depth === 'wing' || depth === 'full') { this.dmg.fwL = 0; this.dmg.fwR = 0; delete this.lost.nose; this.crushed.nose = 0; this.dents = this.dents.filter((d) => d[0] < 1.95); }
+    if (depth === 'full') {
+      this.dmg.susp = 0; this.dmg.rw = 0; this.dmg.eng = Math.min(this.dmg.eng, 0.3); this.engTemp = 0.3;
+      for (const R of REGIONS) if (!ARM.includes(R[0])) delete this.lost[R[0]];
+      this.crushed = {}; this.dents = [];
+    }
+    this.dentVer = (this.dentVer || 0) + 1; this._lostCheck(); this._lostAero();
   }
-  fitTyres(compound) { this.tyres = new TyreSet(compound, this.raceLaps, this.track.length); this.tyres.wearMul = this.wearMul || 1; this.tyres.temp = 0.3; this.punct = null; this.punctP = 0; this.punctShred = false; }
+
+  // ---- the bodywork: dents, and the parts that break off ------------------------------------------------------
+  /**
+   * A hit that crushes the bodywork at (x, y, z) in the model's frame (x forward from the axles' midpoint, y up from
+   * the ground, z to the right), pushing it along (ax, ay, az) - into the car - at v m/s square on: a dent (deeper
+   * where a car is built to crumple - the nose, the crash structures, the sidepods; hardly any in the survival cell),
+   * and whatever of the bodywork within its reach that breaks (BREAK).
+   */
+  crush(x, y, z, ax, ay, az, v) {
+    if (!(v > 2.5)) return;
+    const now = this._now || 0, al = Math.hypot(ax, ay, az) || 1; ax /= al; ay /= al; az /= al;
+    const soft = x > 2.0 ? 1.8 : x < -2.0 ? 1.5 : Math.abs(z) > 0.4 ? 1.25 : x > -0.7 && x < 1.5 ? 0.45 : 1;
+    const k = Math.min(0.26, 0.0085 * (v - 2) * soft), r = Math.min(0.85, 0.3 + 0.017 * v), D = this.dents;
+    // (the same spot hit again within half a second is the same impact: that dent deepens; a full list folds the hit
+    //  into the nearest dent)
+    let m = null, md = Infinity;
+    for (const d of D) { const q = (d[0] - x) ** 2 + (d[1] - y) ** 2 + (d[2] - z) ** 2; if (q < md) { md = q; m = d; } }
+    if (m && ((md < (0.45 * m[3]) ** 2 && now - m[8] < 0.5) || D.length >= 32)) {
+      m[4] += ax * k; m[5] += ay * k; m[6] += az * k; m[3] = Math.min(0.9, Math.max(m[3], r));
+      const l = Math.hypot(m[4], m[5], m[6]); if (l > 0.32) { m[4] *= 0.32 / l; m[5] *= 0.32 / l; m[6] *= 0.32 / l; }
+    } else D.push([+x.toFixed(3), +y.toFixed(3), +z.toFixed(3), +r.toFixed(3), ax * k, ay * k, az * k, Math.random() * 6.28, now]);
+    this.dentVer = (this.dentVer || 0) + 1;
+    for (const R of REGIONS) {
+      const name = R[0]; if (this.lost[name]) continue;
+      const c = R[3], reach = R[4] + r * 0.5, dist = Math.hypot(c[0] - x, c[1] - y, c[2] - z); if (dist > reach) continue;
+      const w = 1 - dist / reach, B = BREAK[name], acc = (this.crushed[name] = (this.crushed[name] || 0) + k * w);
+      if (acc > B[1] || v * w > B[0] * (0.85 + 0.3 * Math.random())) this.lose(name, v);
+    }
+    // (the T-cam on the airbox: knocked off when the car goes over)
+    if (!this.lost.tcam && Math.hypot(x + 0.25, y - 1.15, z) < 0.35 + r * 0.5 && v > 6) this.lose('tcam', v);
+  }
+  /** crush at a point of the body frame on the road (bx forward from the centre of mass, by left, at height h), pushed along the world direction (wx, wz) */
+  crushFlat(bx, by, h, wx, wz, v) {
+    const c = Math.cos(this.th), s = Math.sin(this.th), f = wx * c + wz * s, l = wx * s - wz * c;
+    // (on the bodywork: a probe on the tyres' outer walls or the wing tips is pulled in a little, onto the panels)
+    this.crush(bx - MX(), h, -by * 0.85, f, 0, -l, v);
+  }
+  /** crush at a world point, pushed along the world direction (dx, dy, dz): a tumbling body or one on its wheels */
+  crushWorld(px, py, pz, dx, dy, dz, v) {
+    if (this.rigid && this.q) {
+      const p = rotInv(this.q, px - this.p[0], py - this.p[1], pz - this.p[2], [0, 0, 0]), a = rotInv(this.q, dx, dy, dz, [0, 0, 0]);
+      this.crush(p[0] - MX(), p[1] + REST_H, p[2], a[0], a[1], a[2], v);
+    } else {
+      const c = Math.cos(this.th), s = Math.sin(this.th), rx = px - this.x, rz = pz - this.z;
+      this.crush(rx * c + rz * s - MX(), Math.max(0.1, Math.min(0.9, py - (this.hv || 0))), -(rx * s - rz * c) * 0.85, dx * c + dz * s, dy, -(dx * s - dz * c), v);
+    }
+  }
+  /** a part of the bodywork comes off (v: how hard the hit was - the harder, the more pieces it breaks into) */
+  lose(name, v = 0) {
+    if (this.lost[name]) return;
+    this.lost[name] = { t: this._now || 0, v: +(+v || 0).toFixed(1) };
+    if (name === 'nose') { this.dmg.fwL = 1; this.dmg.fwR = 1; }   // (the front wing hangs off the nose: it goes with it)
+    if (name === 'rwL' || name === 'rwR') this.dmg.rw = Math.min(1, this.dmg.rw + 0.1);
+    this._lostCheck(); this._lostAero();
+  }
+  /** what the physics' own damage (dmg, wheelsOn) has taken off: the wings, the wheels - and their times */
+  _lostCheck() {
+    const d = this.dmg, L = this.lost, v = +((this.lastImpact || 0) * 26 + 2).toFixed(1);
+    const mark = (k, on) => { if (on) { if (!L[k]) L[k] = { t: this._now || 0, v }; } else if (L[k]) delete L[k]; };
+    mark('fwL', d.fwL >= 0.6); mark('fwR', d.fwR >= 0.6); mark('fw', d.fwL > 0.95 && d.fwR > 0.95); mark('rw', d.rw >= 0.85);
+    // (a wheel torn off takes its suspension with it; a car torn in two keeps its rear wheels on its other half)
+    for (let k = 0; k < 4; k++) if (!this.wheelsOn[k] && !L['w' + k] && !(this.split && k >= 2)) { L['w' + k] = { t: this._now || 0, v: 20 }; if (!L[ARM[k]]) L[ARM[k]] = { t: this._now || 0, v: 20 }; }
+  }
+  /** the aero cost of what has come off: [front downforce, rear downforce, drag] */
+  _lostAero() {
+    const L = this.lost, h = (k) => (L[k] ? 1 : 0), floor = 1 - 0.05 * (h('floorL') + h('floorR'));
+    this.lostK = Object.keys(L).length ? [(1 - 0.12 * h('nose')) * floor, (1 - 0.07 * (h('rwL') + h('rwR'))) * floor, 1 + 0.04 * h('nose') + 0.03 * (h('podL') + h('podR')) + 0.02 * h('cover')] : null;
+  }
+  fitTyres(compound) { this.tyres = new TyreSet(compound, this.raceLaps, this.track.length); this.tyres.wearMul = this.wearMul || 1; this.tyres.temp = BLANKET; this.punct = null; this.punctP = 0; this.punctShred = false; }
 
   // --------------------------------------------------------------------------
   /** Fixed-step physics. */
   step(dt, world) {
     const T = CAR; const m = T.mass;
+    if (world && world.time != null) this._now = world.time;
+    this._lostCheck();
     this.dmgCooldown = Math.max(0, this.dmgCooldown - dt);
     if (this.ghost > 0) this.ghost -= dt;
     if (this.wreck) return;                                       // at rest after a big accident
@@ -515,7 +621,7 @@ export class Car {
     const dfF = df * T.aeroFrontShare * this.aeroFront();
     const dfR = df * (1 - T.aeroFrontShare) * this.aeroRear() * (this.drs ? 0.8 : 1);   // (DRS open: the flap stalls the rear wing)
     const sy = Math.sin(Math.min(Math.PI / 2, yawA));
-    const dragCoef = T.cdA * (1 + 0.15 * (this.dmg.fwL + this.dmg.fwR) + 0.1 * this.dmg.rw) * (1 - 0.38 * ss) * (1 + 1.2 * sy * sy) * (this.drs ? 0.82 - (this.drsGain || 0) : 1) * (1 - 0.05 * (this.band || 0));   // (drsGain: a developed DRS, career tech tree)
+    const dragCoef = T.cdA * (1 + 0.15 * (this.dmg.fwL + this.dmg.fwR) + 0.1 * this.dmg.rw) * (this.lostK ? this.lostK[2] : 1) * (1 - 0.38 * ss) * (1 + 1.2 * sy * sy) * (this.drs ? 0.82 - (this.drsGain || 0) : 1) * (1 - 0.07 * (this.band || 0));   // (drsGain: a developed DRS, career tech tree)
     const L = T.wheelbase, W = this.wh, Fz = W.fz, fx = W.fx, fy = W.fy, sat = W.sat;
 
     // ---- the road under each wheel (from last step's track position): what it is and how high it is. A wheel
@@ -561,6 +667,8 @@ export class Car {
     const wetSurface = 1 - 0.1 * wet;
     let grip = tyre.grip(wet) * wetSurface * (1 - 0.22 * this.dmg.susp);
     if (this.perf) grip *= 0.985 + 0.015 * this.perf;
+    if (this.band) grip *= 1 + 0.012 * this.band;   // (speed banding: RaceDirector.speedBands)
+    if (this.aiGrip && !this.startRun) grip *= this.aiGrip;   // (an AI car at a circuit that gives it more: AIDriver - not off the line to Turn 1, where everyone launches on the same tyres)
     grip *= F.grip;   // (confidence: the last fraction of the tyre a driver dares to use)
     const gripFW = 1 - 0.06 * (this.dmg.fwL + this.dmg.fwR);
 
@@ -594,8 +702,10 @@ export class Car {
     for (let k = 0; k < 4; k++) {
       // (a wheel that was just struck by another car's wheel bounces and skips: most of its grip is gone for a moment)
       if (W.lift[k] > 0) W.lift[k] = Math.max(0, W.lift[k] - dt / 0.22);
-      // (a punctured tyre has little grip left; shredded to the rim, less still)
-      const front = k < 2, cap = tyreCap(Fz[k], front) * grip * SURF_GRIP[W.surf[k]] * (front ? gripFW : 1) * (1 - 0.65 * W.lift[k]) * (this.punct === k ? (this.punctShred ? 0.22 : 0.38 - 0.1 * (this.punctP || 0)) : 1);
+      // (a punctured tyre has little grip left; shredded to the rim, less still - on grass or gravel the worse of the two,
+      //  not both: a flat in a gravel trap would leave that wheel a tenth of its grip, and the car beached on it)
+      const pf = this.punct === k ? (this.punctShred ? 0.22 : 0.38 - 0.1 * (this.punctP || 0)) : 1, sgr = SURF_GRIP[W.surf[k]];
+      const front = k < 2, cap = tyreCap(Fz[k], front) * grip * (W.surf[k] >= 3 ? Math.min(sgr, pf) : sgr * pf) * (front ? gripFW : 1) * (1 - 0.65 * W.lift[k]);
       sat[k] = W.cap[k] = cap;   // (sat: the capacity for now, the saturation below)
       const bx = this.vLong - this.r * WY[k], by = this.vLat + this.r * WX[k];
       const vx = front ? bx * cd + by * sd : bx, vy = front ? by * cd - bx * sd : by;
@@ -654,6 +764,9 @@ export class Car {
     this.ax = Fx / m; this.ay = Fy / m;
     let dvLong = this.ax + this.r * this.vLat;
     let dvLat = this.ay - this.r * this.vLong;
+    // (on a circuit that is not flat, gravity along the slope: slower up the hill to Turn 1, quicker down it - the body
+    //  feels none of it, ax / ay stay the tyres' and the air's - world/Terrain.js)
+    if (TERRAIN.on) { const g = TERRAIN.grad(this.x, this.z, this._grad || (this._grad = [0, 0])), c = Math.cos(this.th), s = Math.sin(this.th); dvLong -= G * (g[0] * c + g[1] * s); dvLat -= G * (g[0] * s - g[1] * c); }
     // (a little yaw damping from the air and the floor; next to none in a spin, which winds down through the tyres)
     let dr = Mz / T.Izz - this.r * (this.spinning ? 0.06 : 0.35);
 
@@ -740,7 +853,7 @@ export class Car {
     const q = P.nearest(this.x, this.z, this._pq || (this._pq = {}));
     // inside the lane: between the garage wall and the lane's track-side edge (which is clipped to the kerb until the pit wall starts)
     const g = -P.trackSide * q.lat;   // + toward the garages
-    const inLane = g > -P.laneEdge[q.i] && g < P.halfWidth + 1.2 && q.u > P.divergeU - 4 && q.u < P.mergeU + 4 && !P.overlapsTrack[q.i];
+    const inLane = g > -P.laneEdge[q.i] && g < (P.garageW ? P.garageW[q.i] + 0.5 : P.halfWidth + 1.2) && q.u > P.divergeU - 4 && q.u < P.mergeU + 4 && !P.overlapsTrack[q.i];
     if (inLane && !this.pitLane) this.pitEntered = true;          // edge: entered the lane this step
     if (!inLane && this.pitLane) this.pitExited = true;
     this.pitLane = inLane; this.pitU = q.u; this.pitLat = q.lat; this.pitI = q.i;
@@ -754,7 +867,7 @@ export class Car {
     let nx, nz, px, pz, boL, boR;   // wall distance on the left / right of the centreline (Infinity = open)
     if (this.pitLane) {                                             // pit-lane walls: garage wall + the pit wall once it exists
       const P = this.pit, ps = P.samples, i = this.pitI; nx = ps.nx[i]; nz = ps.nz[i]; px = ps.px[i]; pz = ps.pz[i];
-      const garage = P.halfWidth + 0.7, wall = P.wallIn[i];
+      const garage = P.garageW ? P.garageW[i] : P.halfWidth + 0.7, wall = P.wallIn[i];   // (garageW: wide where the lane is an escape road - TrackBuilder buildPitLane)
       boL = P.trackSide > 0 ? wall : garage; boR = P.trackSide > 0 ? garage : wall;
     } else {
       // where a barrier stands (pushed back on the outside of corners; a permanent circuit has none along most of the lap)
@@ -789,10 +902,10 @@ export class Car {
     const tx = -wnz, tz = wnx, vt = v[0] * tx + v[1] * tz;               // Coulomb friction along the barrier
     const jt = Math.max(-0.35 * j, Math.min(0.35 * j, -vt / this.invMassAt(cx, cz, tx, tz)));
     this.impulseAt(cx, cz, j * wnx + jt * tx, j * wnz + jt * tz);
-    const bk = this.pitLane ? 'wall' : BAR_KIND[dc0 > 0 ? tr.barL[this.trackIdx] : tr.barR[this.trackIdx]] || 'wall';
+    const bk = this.pitLane ? (this.pit?.escape?.[this.pitI] ? 'tyres' : 'wall') : BAR_KIND[dc0 > 0 ? tr.barL[this.trackIdx] : tr.barR[this.trackIdx]] || 'wall';
     const gHit = this.pulse(Math.hypot(j, jt) / CAR.mass, PULSE[bk], bk);
     const sev = this.applyImpact(hitBx, hitBy, into);
-    if (sev > 0) { world.onImpact?.(this, sev, 'wall'); this.emit('hit', cx, cz, sev); }
+    if (sev > 0) { world.onImpact?.(this, sev, 'wall'); this.emit('hit', cx, cz, sev); this.crushFlat(hitBx, hitBy, 0.32, wnx, wnz, into); }
     // A heavy hit wrecks the car. The harder it is, the likelier the corner digs in and the car vaults off the barrier
     // (1-2 m up, about a second in the air, part of a roll); otherwise it is torn up and spun along the wall.
     // The wheel nearest the contact climbs the barrier: its hub is kicked up (and a little off the wall) by an amount
@@ -824,7 +937,7 @@ export class Car {
     const tx = -nz, tz = nx, vt = v[0] * tx + v[1] * tz, jt = Math.max(-0.35 * j, Math.min(0.35 * j, -vt / this.invMassAt(cx, cz, tx, tz)));
     this.impulseAt(cx, cz, j * nx + jt * tx, j * nz + jt * tz);
     const g = this.pulse(Math.hypot(j, jt) / CAR.mass, PULSE.building, 'building');
-    const sev = this.applyImpact(hb, hy, into); if (sev > 0) { world.onImpact?.(this, sev, 'wall'); this.emit('hit', cx, cz, sev); }
+    const sev = this.applyImpact(hb, hy, into); if (sev > 0) { world.onImpact?.(this, sev, 'wall'); this.emit('hit', cx, cz, sev); this.crushFlat(hb, hy, 0.32, nx, nz, into); }
     if (into > LAUNCH_WALL) { this.launch(cx, 0.36, cz, nx * into * 0.1, into * (0.06 + Math.random() * 0.08), nz * into * 0.1); if (g > SPLIT_G && Math.random() < Math.min(0.8, 0.15 + (g - SPLIT_G) / 40)) this.splitApart(); }
   }
   /**

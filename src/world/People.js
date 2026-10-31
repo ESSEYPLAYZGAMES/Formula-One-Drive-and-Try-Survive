@@ -231,6 +231,15 @@ const POSES = {
     shL: V(0.02, 1.38, 0.19), elL: V(0.1, 1.13, 0.22), wrL: V(0.21, 0.93, 0.19),
     shR: V(0.02, 1.38, -0.19), elR: V(-0.07, 1.13, -0.22), wrR: V(-0.13, 0.92, -0.19),
   }),
+  // the bind pose of a skinned figure (world/PersonRig.js - a pit crew that moves): standing straight, the arms held
+  // out and down at 40 degrees, clear of the body, so that every part of it can be told whose bone it moves with
+  rig: () => ({
+    pelvis: V(0, 0.96, 0), torsoA: V(0, 1.04, 0), torsoB: V(0, 1.34, 0), neck: V(0, 1.48, 0), head: V(0, 1.61, 0), bow: 0,
+    hipR: V(0, 0.93, -0.1), kneeR: V(0, 0.5, -0.105), ankleR: V(0, 0.09, -0.11), footR: 'flat',
+    hipL: V(0, 0.93, 0.1), kneeL: V(0, 0.5, 0.105), ankleL: V(0, 0.09, 0.11), footL: 'flat',
+    shR: V(0, 1.4, -0.19), elR: V(0, 1.19, -0.366), wrR: V(0, 1.011, -0.516),
+    shL: V(0, 1.4, 0.19), elL: V(0, 1.19, 0.366), wrL: V(0, 1.011, 0.516),
+  }),
   // standing, talking to a reporter: arms at the sides
   talk: () => ({
     pelvis: V(0, 0.96, 0), torsoA: V(0, 1.04, 0), torsoB: V(0.01, 1.34, 0), neck: V(0.02, 1.48, 0), head: V(0.03, 1.61, 0), bow: 0.02,
@@ -4607,9 +4616,12 @@ function buildPerson(o) {
     // a pit-crew member: an open-face helmet in the team's colour and a dark visor, no face to build (quick: a crew is
     // a dozen people)
     const shellG = new THREE.SphereGeometry(0.135, 20, 14); shellG.scale(1.02, 1.05, 0.95); shellG.translate(hc.x - 0.01, hc.y + 0.01, hc.z);
-    const visorG = new THREE.SphereGeometry(0.137, 20, 8, -0.85, 1.7, Math.PI * 0.36, Math.PI * 0.2); visorG.scale(1.02, 1.05, 0.95); visorG.translate(hc.x - 0.008, hc.y + 0.01, hc.z);
+    // (the visor across the front - a sphere's angle 0 is its -x, the back of the head: centred on pi, the face's +x - and
+    // a chin guard under it in the shell's colour, so it reads as a helmet with someone in it, not a ball)
+    const visorG = new THREE.SphereGeometry(0.139, 24, 10, Math.PI - 1.05, 2.1, Math.PI * 0.34, Math.PI * 0.24); visorG.scale(1.02, 1.05, 0.95); visorG.translate(hc.x - 0.008, hc.y + 0.01, hc.z);
+    const chinG = new THREE.SphereGeometry(0.137, 20, 6, Math.PI - 0.95, 1.9, Math.PI * 0.58, Math.PI * 0.16); chinG.scale(1.04, 1.05, 0.95); chinG.translate(hc.x - 0.006, hc.y + 0.01, hc.z);
     mats.visor = new THREE.MeshStandardMaterial({ color: '#0d0f14', roughness: 0.15, metalness: 0.6 });
-    head.add(M([shellG], mats.team), M([visorG], mats.visor));
+    head.add(M([shellG, chinG], mats.team), M([visorG], mats.visor));
   } else {
   const seed = seedOf();
   const vary = (k) => (((seed >>> k) % 100) / 100 - 0.5);   // (a face of its own: small differences, the same for the same name)
@@ -4646,9 +4658,10 @@ function buildPerson(o) {
       Nm.setXYZ(i, x / l, y / l, z / l);
     }
   };
-  // (detail: a person seen from a few metres or more - a crowd - is built on coarser spheres, far quicker; a crowd's
-  // faces carry no paint, their features made of their own few parts in the crowd's colours)
-  const DQ = Math.max(o.segQ ? 0.2 : 0.35, Math.min(1, o.detail ?? 1)), sg = (k) => Math.max(o.segQ ? 9 : 12, Math.round(k * DQ)), painted = !o.segQ;
+  // (detail: only a crowd's template (segQ - world/Crowd.js) is built coarser; everyone built one at a time - the pit
+  // crew, the grid's mechanics, the people you walk past and talk to - is built in full, whatever detail they ask for. A
+  // crowd's faces carry no paint, their features made of their own few parts in the crowd's colours)
+  const DQ = o.segQ ? Math.max(0.2, Math.min(1, o.detail ?? 1)) : 1, sg = (k) => Math.max(o.segQ ? 9 : 12, Math.round(k * DQ)), painted = !o.segQ;
   /** the head's surface: out (a number, or a function of the direction) grows it outward (hair, a beard); bumps: the face's features on it */
   const skull = (geo, out = 0, bumps = !out) => {
     const p = geo.attributes.position, A = p.array, fn = typeof out === 'function';
@@ -4970,16 +4983,17 @@ function buildPerson(o) {
       };
     }
   } else {
-    // (a crowd's face: eyes, brows and a mouth of their own)
+    // (a crowd's face: eyes, brows and a mouth of their own - the eyes set into the face, an almond of white mostly filled
+    //  by the iris, as eyes are seen from a few metres; not balls on the surface (they read as googly eyes))
     const white = [], iris = [], feat = [], mouth = [], P = (nz, ny, d = 0) => { const nx = Math.sqrt(Math.max(0, 1 - nz * nz - ny * ny)), [x, y, z] = HSf(nx, ny, nz); return V(hc.x + x * R0 + d, hc.y + y * R0, hc.z + z * R0); };
     for (const s of [-1, 1]) {
-      const e = P(s * FACE.eyeZ, FACE.eyeY, -0.004), sc = new THREE.SphereGeometry(0.0125, n(14), n(10, 2)); sc.scale(0.7, 0.8, 1); sc.translate(e.x, e.y, e.z); white.push(sc);
-      const ir = new THREE.SphereGeometry(0.0062, n(12), n(8, 2)); ir.scale(0.5, 1, 1); ir.translate(e.x + 0.0085, e.y, e.z); iris.push(ir);
+      const e = P(s * FACE.eyeZ, FACE.eyeY, -0.001), sc = new THREE.SphereGeometry(0.011, n(14), n(10, 2)); sc.scale(0.3, 0.48, 1); sc.translate(e.x, e.y, e.z); white.push(sc);
+      const ir = new THREE.SphereGeometry(0.0056, n(12), n(8, 2)); ir.scale(0.32, 0.92, 0.92); ir.translate(e.x + 0.0024, e.y, e.z); iris.push(ir);
       feat.push(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([P(s * 0.17, FACE.browY - 0.02, 0.002), P(s * 0.36, FACE.browY + 0.02, 0.002), P(s * 0.56, FACE.browY - 0.03, 0.001)]), n(8, 2), 0.0034, n(5), false));
     }
     mouth.push(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([P(-0.22, FACE.mouthY + 0.01, 0.001), P(0, FACE.mouthY - 0.01, 0.002), P(0.22, FACE.mouthY + 0.01, 0.001)]), n(8, 2), 0.0021, n(5), false));
     mats.feat = new THREE.MeshStandardMaterial({ color: hairC, roughness: 0.85 });
-    mats.white = new THREE.MeshStandardMaterial({ color: '#f2efe9', roughness: 0.35 });
+    mats.white = new THREE.MeshStandardMaterial({ color: '#e4ded4', roughness: 0.5 });
     mats.iris = new THREE.MeshStandardMaterial({ color: ['#3b2a1e', '#4a6b8a', '#2a1c14', '#5a6e4a'][seed % 4], roughness: 0.25 });
     mats.lip = new THREE.MeshStandardMaterial({ color: skinC.clone().multiplyScalar(0.62), roughness: 0.6 });
     head.add(M([face, ...ears], mats.skin), M(feat, mats.feat), M(white, mats.white), M(iris, mats.iris), M(mouth, mats.lip));

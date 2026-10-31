@@ -98,7 +98,7 @@ const TICK = 5;          // the model's step, real seconds (0.2 Hz)
 const TIER_NAME = ['SOBER', 'MERRY', 'TIPSY', 'DRUNK', 'DRUNK'];
 const FILL = [0, 0.38, 0.62, 0.86, 1];
 /** the legal age to drink, by the race's city (Nevada 21, the UK 18) */
-const LEGAL = { lasvegas: 21, silverstone: 18 };
+const LEGAL = { lasvegas: 21, silverstone: 18, montreal: 18, austin: 21 };
 /** a drink by its name, where the venue's list has no units of its own (a party venue opened without PartyPlay) */
 const GUESS = [[/water/i, 'water', 0], [/lemonade|soft drink|cola|juice|mocktail|soda/i, 'soft', 0], [/champagne|flute|prosecco|bottle/i, 'champagne', 1.5], [/margarita|cocktail|martini|spritz|negroni/i, 'cocktail', 2],
   [/\bshots?\b|tequila/i, 'shot', 1.7], [/beer|lager|pint/i, 'beer', 2], [/wine/i, 'wine', 2.3], [/whisky|whiskey|gin\b|vodka|\brum\b/i, 'spirit', 1.5]];
@@ -264,7 +264,7 @@ export class AffectionDrink {
     let kind = D?.kind || 'soft', units = D ? num(+D.units, 0) : 0;
     if (!D && ev.isParty) { const G = GUESS.find((x) => x[0].test(s)); if (G) { kind = G[1]; units = G[2]; } }
     if (!this.own || units <= 0) return { kind, units: 0, line: null };
-    if (this.meUnder) return { kind: 'soft', units: 0, line: `Soft drinks only for you here: you are under ${LEGAL[this.track] || 21} in ${this.track === 'silverstone' ? 'England' : 'Nevada'}.` };
+    if (this.meUnder) return { kind: 'soft', units: 0, line: `Soft drinks only for you here: you are under ${LEGAL[this.track] || 21} in ${this.track === 'silverstone' ? 'England' : this.track === 'montreal' ? 'Quebec' : this.track === 'austin' ? 'Texas' : 'Nevada'}.` };
     this._meTick();
     // (the bar's own line: past 12 units it is water; a real driver keeps to his, as at the party)
     if (this.mLevel + this.mPend >= AFF_TIER[4]) { this.mWater++; return { kind: 'water', units: 0, line: 'Water, sir.' }; }

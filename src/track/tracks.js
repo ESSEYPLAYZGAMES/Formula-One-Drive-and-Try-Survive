@@ -4,6 +4,7 @@
 export const TRACKS = {
   lasvegas: {
     id: 'lasvegas',
+    buildingStyle: { brick: 0.2 },   // (world/Buildings.js: a desert city - little brick among its blocks)
     name: 'Las Vegas Strip Circuit',
     title: ['LAS VEGAS', 'STRIP CIRCUIT'],
     // outline for the home-screen card (SVG path in a 100 x 100 box, generated from the built track)
@@ -134,13 +135,14 @@ export const TRACKS = {
     osmStands: /^(grandstand)$/,     // building=grandstand footprints become real stands
     standNames: /^(Club [AB]|Stowe [AC]|Village [AB]|Vale|The View)$/,   // stands mapped as building=yes
     pitBuilding: 'Silverstone Wing',
+    scenery: 'silverstone',          // world/Silverstone.js: the Wing, the stands by their names, the crowds, the campsites, the fields
     defaultBuildingHeight: 7,
     buildingStyle: { base: 0x6f757d, litProb: 0.12 },
     zoneSeq: [9, 1, 10, 5, 9, 11, 0, 1, 10, 9, 5, 11],
     runoffPaint: [{ turns: [9, 15, 17, 18], color: [0.13, 0.3, 0.62] }, { turns: [1, 6, 7], color: [0.7, 0.12, 0.14] }, { turns: [3, 4, 16], color: [0.13, 0.3, 0.62] }],
     runoffDecalTurns: [1, 6, 9, 15, 17],
     shots: [
-      { building: 'Silverstone Wing', label: 'THE WING', rMul: 1.0, az: 0.6 }, { s: -150, label: 'HAMILTON STRAIGHT', side: -1 },
+      { scene: 'wing', label: 'THE WING', rMul: 1.0, az: 0.6 }, { s: -150, label: 'HAMILTON STRAIGHT', side: -1 },
       { turn: 1, label: 'ABBEY', side: -1 }, { turn: 4, label: 'THE LOOP', side: 1 }, { turn: 6, label: 'BROOKLANDS', side: 1 },
       { turn: 7, label: 'LUFFIELD', side: 1 }, { turn: 9, label: 'COPSE', side: 1 }, { turn: 12, label: 'MAGGOTTS · BECKETTS', side: -1 },
       { turn: 15, label: 'STOWE', side: 1 }, { turn: 17, label: 'CLUB', side: 1 },
@@ -164,6 +166,205 @@ export const TRACKS = {
       { n: 16, name: 'Vale', ll: [-1.02215, 52.066553] },
       { n: 17, name: 'Club', ll: [-1.023537, 52.066416] },
       { n: 18, name: 'Club', ll: [-1.02428, 52.067258] },
+    ],
+    landmarkAnchors: {},
+  },
+
+  montreal: {
+    id: 'montreal',
+    name: 'Circuit Gilles Villeneuve',
+    title: ['MONTRÉAL', 'CIRCUIT GILLES VILLENEUVE'],
+    outline: 'M60.2 71.3L60.4 72.3L60.7 73.3L60.9 74.3L61.1 75.3L61.3 76.3L61.5 77.3L61.7 78.3L61.9 79.3L62.1 80.3L62.3 81.3L62.4 82.3L62.4 83.4L62.4 84.4L62.3 85.4L62.2 86.4L62.1 87.4L61.9 88.4L61.8 89.5L61.7 90.5L62.1 91.4L63.0 91.9L63.9 92.3L64.6 93.1L64.4 94.1L63.7 94.8L62.7 95.0L61.7 94.9L60.7 94.6L59.8 94.3L58.8 94.0L57.8 93.7L56.9 93.2L56.0 92.7L55.2 92.1L54.4 91.4L53.6 90.8L52.8 90.1L52.0 89.5L51.3 88.8L50.5 88.1L49.8 87.3L49.7 86.4L50.0 85.4L50.1 84.4L49.6 83.5L48.9 82.7L48.3 81.9L47.6 81.1L47.0 80.3L46.4 79.5L45.7 78.8L44.8 78.2L44.0 77.6L43.3 76.8L42.8 75.9L42.5 75.0L42.3 74.0L42.2 73.0L42.2 71.9L42.2 70.9L42.2 69.9L42.2 68.9L42.3 67.9L42.3 66.8L42.1 65.8L41.4 65.1L40.4 65.1L39.4 65.3L38.4 65.1L37.6 64.5L36.9 63.7L36.5 62.8L36.2 61.8L36.0 60.8L35.9 59.8L35.8 58.8L35.7 57.8L35.7 56.7L35.6 55.7L35.6 54.7L35.5 53.7L35.4 52.6L35.4 51.6L35.4 50.6L35.5 49.6L35.5 48.6L35.6 47.5L35.7 46.5L35.8 45.5L35.9 44.5L36.1 43.5L36.2 42.5L36.5 41.5L36.7 40.5L37.0 39.5L37.3 38.5L37.5 37.5L37.8 36.5L38.1 35.6L38.4 34.6L39.2 34.1L40.2 34.0L41.1 33.5L41.7 32.6L42.1 31.7L42.4 30.7L42.7 29.8L43.0 28.8L43.3 27.8L43.5 26.8L43.8 25.8L44.0 24.8L44.2 23.8L44.3 22.8L44.5 21.8L44.7 20.8L44.8 19.8L45.0 18.7L45.1 17.7L45.1 16.7L45.2 15.7L45.2 14.7L45.1 13.6L45.0 12.6L44.8 11.6L44.6 10.6L44.4 9.6L44.2 8.6L44.0 7.6L43.8 6.6L43.7 5.6L44.4 5.0L45.2 5.5L45.5 6.5L45.7 7.5L45.7 8.5L45.8 9.6L46.1 10.5L46.4 11.5L46.9 12.4L47.3 13.3L47.8 14.3L48.2 15.2L48.6 16.1L48.9 17.1L49.3 18.1L49.7 19.0L50.0 20.0L50.4 20.9L50.8 21.9L51.1 22.8L51.5 23.8L51.8 24.8L52.2 25.7L52.5 26.7L52.8 27.7L53.0 28.7L53.2 29.7L53.4 30.7L53.6 31.7L53.8 32.7L54.0 33.7L54.2 34.7L54.4 35.7L54.6 36.7L54.8 37.7L55.0 38.7L55.2 39.7L55.4 40.7L55.7 41.7L55.9 42.7L56.1 43.7L56.3 44.7L56.5 45.7L56.7 46.7L56.9 47.7L57.1 48.7L57.4 49.7L57.6 50.7L57.8 51.7L58.0 52.7L58.2 53.7L58.4 54.7L58.6 55.7L58.8 56.7L59.0 57.7L59.1 58.7L58.4 59.4L58.0 60.3L58.1 61.3L58.3 62.3L58.5 63.3L58.8 64.3L59.0 65.3L59.2 66.3L59.4 67.3L59.6 68.3L59.8 69.3L60.0 70.3Z',
+    geojson: 'data/montreal.geojson',
+    // Start/finish line: on the pit straight, a third of the way down from the last chicane, opposite the middle of
+    // the pit building (the grid runs back toward the Wall of Champions)
+    origin: [-73.5231651, 45.5015981],
+    // The lap is one closed, one-way raceway (way 136717490, 4.34 km): the Casino straight, the last chicane (T13-T14),
+    // the pit straight, the Senna S (T1-T2), the run along the lake (T3-T4, T5), T6-T7, the back straight beside the
+    // Chenal Le Moyne, T8-T9, L'Epingle (the T10 hairpin) and back down the Casino straight
+    ways: ['way/136717490'],
+    pitLaneWayId: 'way/413000959',   // in at the last chicane, out after the Senna S
+    // (the export draws the lane from the racing line's own nodes: led in and out along the left edge of the road)
+    pitLeads: { side: 1, d: 5.2, in: 110, out: 90 }, pitWallClear: 9.6,
+    // the last chicane's straight-on escape is the pit entry road (missed at 300 km/h, a car went down the lane into its
+    // garage wall): from its branching to short of the speed line it is a wide paved area with a tyre wall at the edge
+    pitEscape: { width: 26, from: 6, before: 25 },
+    // the 80 km/h zone brackets the garages; calibrated to the real stop: about 18.5 s lost against staying out
+    pitLimit: { before: 85, after: 70 },
+    // DRS: three zones (the real ones): T7 -> T8, the Casino straight after the hairpin, the pit straight
+    drs: [
+      { detect: { turn: 6, at: 'start', off: -30 }, open: { turn: 7, at: 'end', off: 60 }, close: { turn: 8, at: 'start', off: -60 } },
+      { detect: { turn: 9, at: 'end', off: 40 }, open: { turn: 10, at: 'end', off: 90 }, close: { turn: 13, at: 'start', off: -90 } },
+      { detect: { turn: 9, at: 'end', off: 40 }, open: { turn: 14, at: 'end', off: 70 }, close: { turn: 1, at: 'start', off: -70 } },
+    ],
+    direction: 1,
+    width: 13,
+    laps100: 70,
+    // A park circuit: grass verges and kerbs like a permanent circuit, but concrete walls all the way round a few
+    // metres back (verge 'park'). Escape areas are short: asphalt at the Senna S, T8-T9, the hairpin and the last
+    // chicane (its straight-on escape road), gravel at T3-T4 and T6-T7, grass at the T5 kink
+    verge: 'park', vergeWidth: 4.5,
+    runoffCaps: [55, 30, 12],
+    // the corners that are open, not lined with concrete: the Senna S (paved escape outside T1, the big lawn inside
+    // it), T3-T4, T6-T7, T8-T9, the hairpin (the paved escape beyond it, the painted infield), the last chicane's
+    // straight-on escape road - metres from the centreline to the barrier on each side (left / right of the racing direction)
+    openCorners: [
+      { turn: 1, left: 34, right: 38, before: 90, after: 40 }, { turn: 2, left: 30, right: 22, before: 20, after: 70 },
+      { turn: 3, left: 22, right: 14, before: 60, after: 20 }, { turn: 4, left: 14, right: 18, before: 10, after: 50 },
+      { turn: 6, left: 14, right: 22, before: 60, after: 20 }, { turn: 7, left: 20, right: 14, before: 10, after: 50 },
+      { turn: 8, left: 24, right: 16, before: 70, after: 20 }, { turn: 9, left: 14, right: 20, before: 10, after: 50 },
+      { turn: 10, left: 36, right: 24, before: 90, after: 60 }, { turn: 13, left: 28, right: 13, before: 60, after: 10 },
+    ],
+    runoff: { asphalt: [1, 2, 8, 9, 10, 13, 14], grass: [5] },
+    // the Wall of Champions: the outside of the T14 exit, 1.7 m of green paint behind the kerb and then the yellow wall
+    wallOfChampions: { turn: 14, side: -1, from: -6, len: 78 },
+    fillet: false, smoothSigma: 8,
+    // the chicanes are taken over the kerbs (the telemetry: T3-T4 and the last chicane 20-40 km/h quicker on them):
+    // the racing line runs to 0.6 m inside the white line, so the outside wheels ride the kerb, and the planner may too
+    line: 'optimal', lineMargin: 0.6, aiEdgeMargin: -0.5,
+    // ---- venue dressing
+    defaultTime: 'day',
+    ground: 'park',
+    kerb: 'redwhite',
+    runoffText: 'MONTRÉAL',
+    landmarkSet: null,
+    autoStands: false,
+    scenery: 'montreal',             // world/Montreal.js: the water, the trees, the Biosphere, the stands, the paint on the grass
+    defaultBuildingHeight: 8,
+    buildingStyle: { base: 0x8a8d90, litProb: 0.1 },
+    zoneSeq: [12, 13, 1, 14, 12, 17, 5, 15, 12, 19, 1, 18, 13, 12, 0, 15],
+    // the hairpin's boards: Pirelli yellow round the outside, crypto.com along the straight in; Rolex at the Senna S
+    sponsorZones: [{ panel: 1, fromTurn: 10, toTurn: 10, side: 1, before: 140, after: 90 }, { panel: 19, fromTurn: 10, toTurn: 10, side: -1, before: 170, after: 150 }, { panel: 12, fromTurn: 1, toTurn: 2, before: 120, after: 40 }, { panel: 14, fromTurn: 8, toTurn: 9, before: 80, after: 60 }],
+    runoffPaint: [],   // (bare asphalt escapes)
+    runoffDecalTurns: [1, 10, 13],
+    shots: [
+      { scene: 'biosphere', label: 'BIOSPHÈRE', rMul: 1.2, az: 0.5 }, { s: -150, label: 'PIT STRAIGHT', side: -1 },
+      { turn: 1, label: 'VIRAGE SENNA', side: 1 }, { turn: 10, label: "L'ÉPINGLE", side: -1 },
+      { scene: 'casino', label: 'CASINO DE MONTRÉAL', rMul: 1.1, az: -0.5 }, { turn: 14, label: 'WALL OF CHAMPIONS', side: -1 },
+      { turn: 6, label: 'TURN 6', side: 1 }, { turn: 3, label: 'TURN 3', side: -1 }, { turn: 8, label: 'TURN 8', side: 1 },
+    ],
+    corners: [
+      { n: 1, name: 'Virage Senna', ll: [-73.5224243, 45.4977084] },
+      { n: 2, name: 'Virage Senna', ll: [-73.5219885, 45.4973400] },
+      { n: 3, name: 'Turn 3', ll: [-73.5260260, 45.4985797] },
+      { n: 4, name: 'Turn 4', ll: [-73.5259235, 45.4991187] },
+      { n: 5, name: 'Turn 5', ll: [-73.5277820, 45.5005560] },
+      { n: 6, name: 'Turn 6', ll: [-73.5282050, 45.5027569] },
+      { n: 7, name: 'Turn 7', ll: [-73.5292176, 45.5028288] },
+      { n: 8, name: 'Turn 8', ll: [-73.5290253, 45.5086858] },
+      { n: 9, name: 'Turn 9', ll: [-73.5282050, 45.5089822] },
+      { n: 10, name: "L'Épingle", ll: [-73.5274616, 45.5142284] },
+      { n: 11, name: 'Casino straight', ll: [-73.5264490, 45.5122790] },
+      { n: 12, name: 'Casino straight', ll: [-73.5251031, 45.5095481] },
+      { n: 13, name: 'Final chicane', ll: [-73.5235394, 45.5039157] },
+      { n: 14, name: 'Wall of Champions', ll: [-73.5237958, 45.5037360] },
+    ],
+    landmarkAnchors: {},
+  },
+  austin: {
+    id: 'austin',
+    name: 'Circuit of the Americas',
+    title: ['AUSTIN', 'CIRCUIT OF THE AMERICAS'],
+    outline: 'M14.8 60.0L15.8 60.8L16.9 61.7L18.0 62.5L19.0 63.4L20.1 64.2L21.2 65.0L22.3 65.9L23.3 66.7L24.4 67.6L25.5 68.4L26.5 69.2L27.6 70.1L28.7 70.9L29.8 71.8L30.8 72.6L31.9 73.4L33.0 74.2L34.1 75.0L35.3 75.7L36.5 75.3L36.3 73.9L35.8 72.7L35.4 71.4L34.9 70.1L34.5 68.8L34.1 67.5L33.9 66.2L34.0 64.8L34.5 63.5L35.2 62.4L36.2 61.5L37.4 60.7L38.5 60.0L39.7 59.3L40.9 58.6L42.0 57.9L43.2 57.2L44.2 56.3L45.0 55.2L45.5 54.0L46.1 52.7L47.0 51.7L48.2 51.1L49.4 50.6L50.5 49.7L51.0 48.4L51.2 47.1L51.5 45.7L52.1 44.5L53.0 43.6L54.1 42.8L55.4 42.3L56.7 42.0L58.1 42.3L59.3 42.8L60.5 43.4L61.8 44.0L63.1 44.4L64.3 44.1L65.4 43.3L66.4 42.3L67.3 41.3L68.2 40.2L69.4 39.7L70.7 39.8L71.9 40.5L72.7 41.6L73.9 42.1L75.2 41.9L76.5 41.6L77.9 41.3L79.2 41.0L80.5 40.7L81.9 40.4L83.1 40.0L84.0 39.0L84.9 37.9L85.8 36.9L86.6 35.8L87.5 34.7L88.4 33.7L89.2 32.6L90.1 31.6L91.0 30.5L91.8 29.5L92.7 28.4L93.6 27.4L94.4 26.3L95.0 25.1L94.1 24.3L92.8 24.6L91.5 25.0L90.2 25.4L88.9 25.8L87.6 26.2L86.3 26.6L85.0 27.0L83.7 27.4L82.4 27.8L81.1 28.1L79.8 28.5L78.4 28.8L77.1 29.2L75.8 29.5L74.5 29.8L73.1 30.1L71.8 30.4L70.5 30.8L69.2 31.0L67.8 31.3L66.5 31.6L65.2 31.8L63.8 32.1L62.5 32.3L61.1 32.6L59.8 32.8L58.4 33.0L57.1 33.2L55.8 33.4L54.4 33.6L53.0 33.8L51.7 33.9L50.3 34.1L49.0 34.2L47.6 34.4L46.3 34.5L44.9 34.7L43.6 34.8L42.2 35.0L40.9 35.1L39.5 35.3L38.2 35.5L37.4 36.4L38.2 37.5L39.0 38.6L39.8 39.6L40.6 40.7L41.4 41.9L42.1 43.0L42.8 44.2L42.6 45.5L41.3 45.8L39.9 45.7L38.6 45.4L37.8 44.4L37.3 43.1L36.5 42.0L35.6 41.0L34.6 40.1L33.2 39.9L31.9 40.1L32.1 41.4L32.8 42.5L33.4 43.7L34.1 44.9L34.8 46.1L35.5 47.3L36.1 48.5L36.4 49.8L36.3 51.1L35.8 52.4L35.2 53.6L34.2 54.5L33.0 55.1L31.7 55.7L30.4 56.1L29.1 56.0L27.7 55.7L26.5 55.2L25.3 54.6L24.4 53.6L23.6 52.5L22.8 51.4L22.0 50.3L21.1 49.2L20.2 48.2L19.1 47.4L17.9 46.7L16.7 46.2L15.3 45.9L14.0 45.8L12.6 45.7L11.3 45.6L9.9 45.7L8.6 45.9L7.3 46.3L6.1 47.1L5.4 48.2L5.1 49.5L5.1 50.9L5.4 52.2L6.2 53.3L7.3 54.1L8.3 54.9L9.4 55.8L10.5 56.6L11.5 57.5L12.6 58.3L13.7 59.1Z',
+    geojson: 'data/austin.geojson',
+    // Start/finish line: on the main straight, 230 m on from Turn 20, opposite the main grandstand (the grid runs back
+    // toward Turn 20; the straight climbs from here to the top of the hill at Turn 1)
+    origin: [-97.6413604, 30.132933],
+    // The lap from a GPS survey (tools: scratchpad build.py): the export's ways, Turn 1 to Turn 18, chained into one
+    // closed way; Turns 19 and 20 (not in it) from the circuit's OpenStreetMap outline - the left kink, the straight
+    // run down to the Turn 20 left and onto the main straight - their height eased between the two ends. Every
+    // point carries its height: 155 m on the line, 182 m on top of the hill at Turn 1 - and the ground around the
+    // circuit follows it (world/Terrain.js)
+    ways: ['way/cota-circuit'],
+    elevation: true,
+    pitLaneWayId: 'way/cota-pit',   // in on the inside of Turn 20, out on the inside of Turn 1's exit
+    pitLimit: { before: 150, after: 140 },
+    // DRS: the back straight (detection before Turn 11, the hairpin, open out of it to Turn 12) and the main straight
+    // (detection at Turn 19, open out of Turn 20 to Turn 1)
+    drs: [
+      { detect: { turn: 10, at: 'end', off: 60 }, open: { turn: 11, at: 'end', off: 80 }, close: { turn: 12, at: 'start', off: -100 } },
+      { detect: { turn: 19, at: 'start', off: -40 }, open: { turn: 20, at: 'end', off: 60 }, close: { turn: 1, at: 'start', off: -90 } },
+    ],
+    direction: 1,
+    // COTA is wide everywhere (a choice of lines through every corner), widest of all up the hill into Turn 1 - forty
+    // metres across at the top - and through the hairpin, Turn 12 and the last corner (TrackBuilder widen)
+    width: 17,
+    widths: [
+      { turn: 1, before: 110, after: 30, width: 38, ease: 120 }, { turn: 2, before: 20, after: 40, width: 22, ease: 50 },
+      { turn: 11, before: 60, after: 50, width: 26, ease: 80 }, { turn: 12, before: 70, after: 40, width: 26, ease: 80 },
+      { turn: 15, before: 30, after: 30, width: 21, ease: 50 }, { turn: 19, before: 30, after: 30, width: 21, ease: 50 },
+      { turn: 20, before: 50, after: 40, width: 24, ease: 70 },
+    ],
+    runoffBase: [0.74, 0.66, 0.52],   // (every paved apron the tan of the real ones, painted or not)
+    laps100: 56,
+    cornerCurv: 1 / 240,
+    // A permanent circuit: wide grass verges and, round every corner - the Esses' too - big paved run-offs painted red,
+    // white and blue, then grass out to the barriers, which stand far back (apronMax: the paving at most 24 m past the
+    // kerb; austinCrowdZones: the spectator fences 22-26 m back)
+    verge: 'circuit', vergeWidth: 12,
+    runoffCaps: [80, 70, 55],
+    runoff: { asphalt: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20], grass: [] },
+    apronMax: 24,
+    apronWide: { 1: 70, 11: 70, 12: 70, 20: 50 },   // (the big paved run-offs: up the hill at Turn 1, the hairpin, Turn 12's with its flag, the last corner)
+    selfArmco: false,   // (no Armco between the legs of a hairpin: open grass inside Turn 1, Turn 11, Turn 12)
+    pitWallRun: 0,      // (the pit wall stops where the lane leaves and rejoins: inside Turn 20 and Turn 1, not wrapped round either apex)
+    fillet: false, smoothSigma: 10,
+    line: 'optimal',
+    // the field at a quick human's pace (AIDriver: more grip, the same margin to the limit - not a braver driver): the
+    // uploaded laps at Legend ran 95.5-96.9 s; the AI alone at Legend runs 101.6 s on 1.0, 98.1 on 1.04, 95.9 on 1.08,
+    // 94.2 on 1.12, clean at all of them, and in full races at 1.08 spins and hits no more than at 1.0 (3 seeds)
+    aiGrip: 1.08,
+    // ---- venue dressing
+    defaultTime: 'day',
+    ground: 'texas',
+    kerb: 'redwhite',
+    runoffText: 'AUSTIN',
+    landmarkSet: null,
+    autoStands: false,
+    scenery: 'austin',              // world/Austin.js: the tower and its red veil, the amphitheatre, the Texas flag, the stands, the oaks
+    defaultBuildingHeight: 6,
+    buildingStyle: { base: 0xb4b0a8, litProb: 0.08, cellW: 9, cellH: 6 },   // (the circuit's low white support buildings: few, wide windows)
+    zoneSeq: [21, 22, 12, 5, 21, 23, 1, 24, 22, 19, 12, 21, 25, 14],
+    // the boards: Archer round the stadium section (Turns 12-15), Rolex along the Esses, the stripes at Turn 1
+    sponsorZones: [{ panel: 21, fromTurn: 12, toTurn: 15, before: 60, after: 40 }, { panel: 12, fromTurn: 3, toTurn: 6, before: 40, after: 40 }, { panel: 25, fromTurn: 1, toTurn: 1, before: 140, after: 60 }],
+    // the run-offs: the flag's stripes at Turn 1 (the stars on the blue: world/Austin.js), the Esses, Turn 9, the hairpin,
+    // Turn 12, the stadium and the last two corners - seven bands along the kerb, the tan of the paved apron beyond
+    runoffPaint: [
+      { turns: [1, 2], stripes: [[0.06, 0.2, 0.5], [0.06, 0.2, 0.5], [0.06, 0.2, 0.5], [0.06, 0.2, 0.5], [0.9, 0.9, 0.92], [0.72, 0.09, 0.16], [0.9, 0.9, 0.92], [0.72, 0.09, 0.16]], w: 2.4, bands: 24, base: [0.74, 0.66, 0.52] },
+      { turns: [3, 4, 5, 6], stripes: [[0.72, 0.09, 0.16], [0.9, 0.9, 0.92], [0.06, 0.2, 0.5], [0.9, 0.9, 0.92]], w: 2.2, bands: 7, base: [0.74, 0.66, 0.52] },
+      { turns: [9, 10], stripes: [[0.06, 0.2, 0.5], [0.9, 0.9, 0.92], [0.72, 0.09, 0.16], [0.9, 0.9, 0.92]], w: 2.6, bands: 7, base: [0.74, 0.66, 0.52] },
+      { turns: [11], stripes: [[0.72, 0.09, 0.16], [0.9, 0.9, 0.92], [0.06, 0.2, 0.5], [0.9, 0.9, 0.92]], w: 3, bands: 7, base: [0.74, 0.66, 0.52] },
+      { turns: [12], stripes: [[0.06, 0.2, 0.5], [0.9, 0.9, 0.92], [0.72, 0.09, 0.16], [0.9, 0.9, 0.92]], w: 2.6, bands: 7, base: [0.74, 0.66, 0.52] },
+      { turns: [15, 16, 17, 18], stripes: [[0.72, 0.09, 0.16], [0.9, 0.9, 0.92], [0.06, 0.2, 0.5], [0.9, 0.9, 0.92]], w: 2.4, bands: 7, base: [0.74, 0.66, 0.52] },
+      { turns: [19, 20], stripes: [[0.06, 0.2, 0.5], [0.9, 0.9, 0.92], [0.72, 0.09, 0.16], [0.9, 0.9, 0.92]], w: 2.4, bands: 7, base: [0.74, 0.66, 0.52] },
+    ],
+    runoffDecalTurns: [11, 12, 20],
+    shots: [
+      { scene: 'tower', label: 'COTA OBSERVATION TOWER', rMul: 1.3, az: 0.6 }, { s: -150, label: 'MAIN STRAIGHT', side: 1 },
+      { turn: 1, label: 'TURN 1', side: 1 }, { turn: 4, label: 'THE ESSES', side: -1 }, { turn: 11, label: 'TURN 11', side: 1 },
+      { turn: 12, label: 'TURN 12', side: -1 }, { turn: 15, label: 'THE STADIUM', side: 1 }, { turn: 19, label: 'TURN 19', side: -1 },
+    ],
+    corners: [
+      { n: 1, name: 'Turn 1', ll: [-97.6369831, 30.1300583] },
+      { n: 2, name: 'Turn 2', ll: [-97.6372212, 30.1322687] },
+      { n: 3, name: 'The Esses', ll: [-97.6355682, 30.1333355] },
+      { n: 4, name: 'The Esses', ll: [-97.6346749, 30.1343720] },
+      { n: 5, name: 'The Esses', ll: [-97.6338390, 30.1348066] },
+      { n: 6, name: 'The Esses', ll: [-97.6329206, 30.1361214] },
+      { n: 7, name: 'Turn 7', ll: [-97.6309674, 30.1358041] },
+      { n: 8, name: 'Turn 8', ll: [-97.6298481, 30.1366290] },
+      { n: 9, name: 'Turn 9', ll: [-97.6289986, 30.1361786] },
+      { n: 10, name: 'Turn 10', ll: [-97.6270359, 30.1365355] },
+      { n: 11, name: 'Turn 11', ll: [-97.6245049, 30.1391661] },
+      { n: 12, name: 'Turn 12', ll: [-97.6363097, 30.1374056] },
+      { n: 13, name: 'Turn 13', ll: [-97.6354873, 30.1355676] },
+      { n: 14, name: 'Turn 14', ll: [-97.6363314, 30.1355675] },
+      { n: 15, name: 'Turn 15', ll: [-97.6368978, 30.1363276] },
+      { n: 16, name: 'Turn 16', ll: [-97.6377833, 30.1364851] },
+      { n: 17, name: 'Turn 17', ll: [-97.6368894, 30.1343766] },
+      { n: 18, name: 'Turn 18', ll: [-97.6385592, 30.1336905] },
+      { n: 19, name: 'Turn 19', ll: [-97.6408000, 30.1355270] },
+      { n: 20, name: 'Turn 20', ll: [-97.6434630, 30.1344190] },
     ],
     landmarkAnchors: {},
   },

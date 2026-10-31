@@ -6,14 +6,18 @@
 // follow it up, and you answer again - or turn the talk to someone behind their back - and they move on. Two
 // back-and-forths each. In a career what you say lasts: rapport with the drivers, the press's quotes in the news, and
 // word getting round. Cruel is allowed and costs; no one on the grid ever wishes harm on anyone.
-// The stars are on the grid too (career/Celebs.js's celebrities, every one made up): a first hello, small talk, a
+// The stars are on the grid too (career/Celebs.js's celebrities, every one made up) and talk as who they are (career/
+// Persona.js: the Spark, the Ice, the Sunshine - opening in the mood you left them in): a first hello, small talk, a
 // little flirting, a word with your partner before you get in (ui/GridTalk4.js). And F at a driver close by gives him
 // a shove - open hands on the chest, nothing more - which he laughs off, answers with a look or a shove of his own, or
 // (pushed far enough) squares up to: handbags, played as quick prompts until people pull you apart (ui/Brawl.js has
 // the camera while it plays). What any of it costs - penalty points, rapport, morale, a star's view of you, the papers
 // - is worked out in ui/WalkFx.js. Never on a memorial weekend.
-// Built on the pre-race show's grid (ui/PreRace.js), which it hands back to be disposed when done.
+// Built on the pre-race show's grid (ui/PreRace.js), which it hands back to be disposed when done. You walk on the flat
+// plan, your eye 1.7 m over the ground (pos); on a circuit that is not flat everyone stands on the ground under them
+// (world/Terrain.js) and main.js lifts the eye by the ground you stand on (this.look: the eye itself, on the flat).
 import * as THREE from 'three';
+import { TERRAIN } from '../world/Terrain.js';
 import { makePerson } from '../world/People.js';
 import { TOPICS, buildTopic, weatherLine } from './GridTalk.js';
 import { TOPICS2, venueLines } from './GridTalk2.js';
@@ -21,6 +25,7 @@ import { TOPICS3 } from './GridTalk3.js';
 import { TOPICS4, FAREWELL4 } from './GridTalk4.js';
 import { Jab, Brawl } from './Brawl.js';
 import * as WalkFx from './WalkFx.js';
+import { personaTalk, TONE_TAG } from '../career/Persona.js';
 
 const CSS = `
 #gridwalk { position: fixed; inset: 0; z-index: 44; pointer-events: none; font-family: 'Segoe UI', Roboto, Arial, sans-serif; color: #fff; }
@@ -53,7 +58,7 @@ const CSS = `
 #gridwalk .talk .opts button b { font: 900 12px/1.6 'Segoe UI', Arial, sans-serif; color: #8c93a0; min-width: 14px; }
 #gridwalk .talk .opts button i { margin-left: auto; font: 700 9.5px/1.9 'Segoe UI', Arial, sans-serif; letter-spacing: .14em; font-style: normal; color: #7d8592; white-space: nowrap; }
 #gridwalk .talk .opts button[data-tone=cruel] i { color: #d9534f; } #gridwalk .talk .opts button[data-tone=kind] i { color: #6cc08b; } #gridwalk .talk .opts button[data-tone=sorry] i { color: #c8b66a; } #gridwalk .talk .opts button[data-tone=gossip] i { color: #c27ad6; }
-#gridwalk .talk .opts button[data-tone=flirt] i { color: #e77fae; } #gridwalk .talk .opts button[data-tone=show] i { color: #e0a33c; }
+#gridwalk .talk .opts button[data-tone=flirt] i { color: #e77fae; } #gridwalk .talk .opts button[data-tone=passive] i { color: #c9ced8; } #gridwalk .talk .opts button[data-tone=flirty] i { color: #e77fae; } #gridwalk .talk .opts button[data-tone=risque] i { color: #ff4f7a; } #gridwalk .talk .opts button[data-tone=show] i { color: #e0a33c; }
 #gridwalk .talk .next { text-align: right; font: 600 11px/1 'Segoe UI', Arial, sans-serif; color: #7d8592; letter-spacing: .1em; min-height: 11px; }
 #gridwalk .toasts { position: absolute; right: 3vw; top: 11vh; display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
 #gridwalk .toast { background: rgba(10,12,18,.85); border-left: 3px solid #8c93a0; padding: 7px 11px; font: 600 13px/1.3 'Segoe UI', Arial, sans-serif; animation: gwt 5.5s forwards; max-width: 340px; }
@@ -71,8 +76,10 @@ const first = (n) => String(n || '').split(' ')[0], last = (n) => String(n || ''
 const hash = (s) => { let h = 2166136261; for (const ch of String(s)) h = Math.imul(h ^ ch.charCodeAt(0), 16777619); return h >>> 0; };
 const facing = (dx, dz) => Math.atan2(-dz, dx);
 // how a tone lands (mood), and its tag on the option (flirt and show are for the stars)
-const TONE = { kind: 2, firm: 1, light: 1, cold: -1, cruel: -5, sorry: 3, gossip: 0, leave: -1, flirt: 1, show: 0 };
-const TAG = { kind: 'KIND', firm: 'FIRM', light: 'LIGHT', cold: 'COLD', cruel: 'CRUEL', sorry: 'APOLOGISE', gossip: 'BEHIND THEIR BACK', leave: '', flirt: 'FLIRT', show: 'SHOW OFF' };
+const TONE = { kind: 2, firm: 1, light: 1, cold: -1, cruel: -5, sorry: 3, gossip: 0, leave: -1, flirt: 1, show: 0, passive: 0, flirty: 1, risque: 2 };
+const TAG = { kind: 'KIND', firm: 'FIRM', light: 'LIGHT', cold: 'COLD', cruel: 'CRUEL', sorry: 'APOLOGISE', gossip: 'BEHIND THEIR BACK', leave: '', flirt: 'FLIRT', show: 'SHOW OFF', ...TONE_TAG };
+// (a personality's tones as the walk's own reckon them - ui/WalkFx: how a star takes a whole conversation)
+const AS_WALK = { cold: 'cold', passive: 'kind', flirty: 'flirt', risque: 'flirt' };
 const OUTLET = 'Paddock Weekly';
 // the action that ends a hostile talk in a shove (never on a memorial weekend, nor once there has been a scuffle, nor
 // at anyone who cannot be shoved: x.jabbable, from ui/WalkFx.js)
@@ -344,7 +351,7 @@ export class GridWalk {
     this.F = pre.fwd.clone(); this.L = pre.left.clone(); this.front = pre.front.clone();
     const cars = pre.grid, P = (c) => new THREE.Vector3(c.x, 0, c.z), fwOf = (c) => new THREE.Vector3(Math.cos(c.th), 0, Math.sin(c.th)), lfOf = (c) => new THREE.Vector3(Math.sin(c.th), 0, -Math.cos(c.th));
     const lift = (p) => { if (this.night) for (const k in p.mats) { const m = p.mats[k]; if (m.emissive && m.color) m.emissive.copy(m.color).multiplyScalar(0.2); } };
-    const add = (person, at, face) => { lift(person); person.group.position.set(at.x, 0, at.z); person.group.rotation.y = face; pre.group.add(person.group); pre.people.push(person); return person; };
+    const add = (person, at, face) => { lift(person); person.group.position.set(at.x, TERRAIN.at(at.x, at.z), at.z); person.group.rotation.y = face; pre.group.add(person.group); pre.people.push(person); return person; };
     const C = this.career;
     // the drivers back at their cars (the suits at the memorial were them), the reporter's walk over
     for (const m of pre.mourners) if (m.driverName) m.group.visible = false;
@@ -377,13 +384,15 @@ export class GridWalk {
     // ---- the context the lines are written from
     const lost = pre.memorial || [];
     const TL = { lasvegas: { drv: `Tyres are going to be like ice on the out-lap tonight.`, eng: `Track's barely above ten degrees. The fronts will grain if you push too early.`, press: `It's cold out here on the Strip tonight. How does that change things?` },
+      austin: { drv: `It's bumpy into Turn 12 and the wind's swirling on the hill. Brake by the board, not by feel.`, eng: `Tyre temperatures climb through the Esses - look after the fronts in sector one.`, press: `Austin, the hill, the Texas crowd - what makes this place special?` },
+      montreal: { drv: `Grip's coming back but the walls haven't moved. Keep it off the Wall of Champions.`, eng: `Brakes are working hard today, watch the temperatures behind other cars.`, press: `Montreal, the island, the crowd - what's it like to race here?` },
       silverstone: { drv: `Wind's swinging round again. Copse is going to be fun.`, eng: `The wind's on the nose into Stowe now. Brake a touch earlier than practice.`, press: `A home crowd for some - what does Silverstone mean to you?` } }[tr.def?.id] || { drv: `Tyres are going to be tricky early on.`, eng: `Bring the fronts in gently on the formation lap.`, press: `How does the track feel compared to practice?` };
     if (this.weather && this.weather !== 'dry') TL.drv = `Wet one tonight. Visibility in the spray's going to be horrible.`;
     this.x = { me, L: lost[0] ? { name: lost[0].name, number: lost[0].number, team: lost[0].team } : null, trackLines: TL,
       trash: (X) => pick(TRASH)(last(X.name)),
       // (for the topics in GridTalk.js)
-      meFirst: first(me.name), trackName: o.trackName || tr.def?.name || 'here', city: tr.def?.id === 'silverstone' ? 'Silverstone' : 'Vegas',
-      corners: tr.def?.id === 'silverstone' ? ['Copse', 'Maggotts and Becketts', 'Stowe', 'Club', 'Luffield', 'Brooklands', 'Abbey', 'Vale'] : ['Turn 1', 'the Turn 5 hairpin', 'the Sphere section', 'Turn 12', 'Turn 14', 'the chicane before the Strip', 'the end of the Strip'],
+      meFirst: first(me.name), trackName: o.trackName || tr.def?.name || 'here', city: tr.def?.id === 'silverstone' ? 'Silverstone' : tr.def?.id === 'montreal' ? 'Montreal' : tr.def?.id === 'austin' ? 'Austin' : 'Vegas',
+      corners: tr.def?.id === 'austin' ? ['Turn 1', 'the Esses', 'the Turn 11 hairpin', 'Turn 12', 'the stadium section', 'Turns 16 to 18', 'Turn 19', 'Turn 20'] : tr.def?.id === 'montreal' ? ['the hairpin', 'the Senna S', 'the last chicane', 'the Wall of Champions', 'Turns 8 and 9', 'Turn 3', 'the Casino straight'] : tr.def?.id === 'silverstone' ? ['Copse', 'Maggotts and Becketts', 'Stowe', 'Club', 'Luffield', 'Brooklands', 'Abbey', 'Vale'] : ['Turn 1', 'the Turn 5 hairpin', 'the Sphere section', 'Turn 12', 'Turn 14', 'the chicane before the Strip', 'the end of the Strip'],
       planText: me.strategy ? `${['no-stop', 'one-stop', 'two-stop', 'three-stop'][me.strategy.stints.length - 1] || 'multi-stop'}, ${me.strategy.stints.map((s) => s.compound.toLowerCase() + 's').join(' to ')}` : 'one-stop', startTyre: (me.strategy?.stints?.[0]?.compound || me.tyres?.compound || 'medium').toLowerCase(), stopLap: me.strategy?.stints?.[0]?.end ?? '15', laps: me.strategy?.laps ?? '',
       mate: (() => { const m = cars.find((c) => c !== me && c.team === me.team); return m ? last(m.name) : null; })(),
       wet: o.wet ?? (this.weather === 'wet' ? 0.8 : this.weather === 'damp' ? 0.35 : 0), night: !!this.night,
@@ -391,12 +400,12 @@ export class GridWalk {
     this.x.weatherText = weatherLine(this.x); this.x.venue = venueLines(tr.def?.id);
 
     // ---- where you start: beside your car, looking down the grid
-    this.pos = pm.clone().addScaledVector(lm, 1.9).addScaledVector(fm, -0.5); this.pos.y = 1.7;
+    this.pos = pm.clone().addScaledVector(lm, 1.9).addScaledVector(fm, -0.5); this.pos.y = 1.7; this.look = this.pos.clone();
     this.yaw = Math.atan2(fm.z, fm.x) + 0.35; this.pitch = -0.05;
     const along = cars.map((c) => (c.x - this.front.x) * this.F.x + (c.z - this.front.z) * this.F.z);
     this.bounds = { a0: Math.min(...along) - 14, a1: (pre.mem ? 36 : 14), w: tr.halfWidth + 0.6 };
     // (the people in full detail you can push past, gently; the memorial you can't)
-    this.hq = pre.people.filter((p) => p.group.position.y < 0.5 && p.group.visible && !p.busy).map((p) => p.group.position);
+    this.hq = pre.people.filter((p) => p.group.position.y - TERRAIN.at(p.group.position.x, p.group.position.z) < 0.5 && p.group.visible && !p.busy).map((p) => p.group.position);
     this.solid = []; if (pre.mem) this.solid.push(pre.mem.c0.clone());
     this.life = pre.life || null; this.cars = pre.grid;
     this.cars = cars;
@@ -470,7 +479,7 @@ export class GridWalk {
     for (const p of this.hq) {
       const dx = p.x - x, dz = p.z - z, d = Math.hypot(dx, dz); if (d >= r) continue;
       const k = Math.min(0.05, (r - d) * 0.3), nx = p.x + (d > 1e-3 ? dx / d : 1) * k, nz = p.z + (d > 1e-3 ? dz / d : 0) * k;
-      if (!this.cars.some((c) => { const ex = nx - c.x, ez = nz - c.z, ca = Math.cos(c.th), sa = Math.sin(c.th); return Math.abs(ex * ca + ez * sa) < 3.0 && Math.abs(-ex * sa + ez * ca) < 1.2; })) { p.x = nx; p.z = nz; }
+      if (!this.cars.some((c) => { const ex = nx - c.x, ez = nz - c.z, ca = Math.cos(c.th), sa = Math.sin(c.th); return Math.abs(ex * ca + ez * sa) < 3.0 && Math.abs(-ex * sa + ez * ca) < 1.2; })) { p.y += TERRAIN.at(nx, nz) - TERRAIN.at(p.x, p.z); p.x = nx; p.z = nz; }   // (still on the ground)
       hard = Math.max(hard, (r - d) / r);
     }
     return hard;
@@ -593,6 +602,15 @@ export class GridWalk {
     // with a score to settle, the crew and the press on the week's stories)
     for (const def of TOPICS4) if (def.who.includes(n.kind) && (!def.when || def.when(x, n))) W.push([(xx, nn) => buildTopic(def, xx, nn), def.w, def.id]);
     if (!W.length) W.push([quiet ? T.quiet : T.celeb, 1, quiet ? 'quiet' : null]);
+    // (a star talks as who she is (career/Persona.js): her personality's conversations, opening in the mood you left her
+    //  in - except on a quiet day, as an ex, or now and then when there is something to do: ask her out, your partner's
+    //  good luck before the start)
+    if (star && !quiet && n.stage !== 'ex' && n.celebId) {
+      const does = W.filter((w) => w[2] && TOPICS4.some((d) => d.id === w[2] && JSON.stringify(d.opts || []).match(/askout|partner/)));
+      if (!(does.length && Math.random() < 0.3)) {
+        try { const t = personaTalk(this.career || (this._pc || (this._pc = {})), 'c:' + n.celebId,   /* (a quick race: her moods for this walk only) */ { where: 'grid', T: { name: n.name, job: n.job, venue: 'the grid', track: x.trackName } }); if (t) return t; } catch (e) { console.warn('GridWalk: the personality talk failed', e); }
+      } else W.splice(0, W.length, ...does);
+    }
     let r = Math.random() * W.reduce((s, w) => s + w[1], 0);
     // (each tree knows which topic it is: ui/WalkFx.js reads it - a T.mourn tree is never news)
     const tree = (f, id) => { const t = f(x, n); if (t && id && !t.id) t.id = id; return t; };
@@ -604,7 +622,7 @@ export class GridWalk {
     this.keys.clear();
     const tree = this._topics(n);
     const greet = n.kind === 'driver' && n.mood <= -2 ? pick([`Oh. You.`, `Make it quick.`, `What do you want?`]) : n.kind === 'driver' && n.mood >= 2 ? pick([`Hey!`, `There you are.`, `${first(this.player.name)}!`]) : '';
-    this.talk = { n, step: 0, queue: [], opts: null, typed: 0, line: null, hold: 0, dm: 0, fx: [], topic: tree.id || null, mourn: tree.id === 'mourn' };
+    this.talk = { n, step: 0, queue: [], opts: null, typed: 0, line: null, hold: 0, dm: 0, fx: [], topic: tree.id || null, mourn: tree.id === 'mourn', tree, ptones: [] };
     this._queue([greet ? `${greet} ${tree.say}` : tree.say], tree.opts);
     const P = this.el.querySelector('.talk'); P.querySelector('.who').innerHTML = `${esc(n.name)}<small>${esc(n.role)}</small>`; P.classList.add('in');
     this.el.querySelector('.prompt').classList.remove('in');
@@ -648,7 +666,8 @@ export class GridWalk {
     T0.opts = null; this.el.querySelector('.opts').innerHTML = '';
     const dm = o.m ?? TONE[o.tone] ?? 0; n.mood += dm; T0.dm += dm;
     // (every tone chosen, [actions] too: how a star takes a whole conversation, ui/WalkFx.js)
-    (T0.tones || (T0.tones = [])).push(o.tone);
+    (T0.tones || (T0.tones = [])).push(AS_WALK[o.tone] || o.tone);
+    if (T0.tree?.persona) T0.ptones.push(o.tone);
     if (!o.t.startsWith('[')) (T0.said || (T0.said = [])).push({ t: o.t, tone: o.tone });
     // reactions with a mind of their own: gossip (who they are), the dead (everyone hears of it)
     let r = o.r;
@@ -672,11 +691,12 @@ export class GridWalk {
       T0.step = 1;
       let opts = o.then.opts.slice();
       // and a chance to turn it to someone else, behind their back (not straight after an apology for being cruel)
-      if (x.X && n.kind !== 'press' && o.tone !== 'cruel' && opts.length < 4 && !(n.car && n.car === x.X) && !(n.kind === 'star' && (x.L || n.grieving))) opts.push({ t: x.trash(x.X), tone: 'gossip', fx: { about: x.X } });
+      if (x.X && !T0.tree?.persona && n.kind !== 'press' && o.tone !== 'cruel' && opts.length < 4 && !(n.car && n.car === x.X) && !(n.kind === 'star' && (x.L || n.grieving))) opts.push({ t: x.trash(x.X), tone: 'gossip', fx: { about: x.X } });
       lines.push(o.then.say); this._queue(lines, opts); return;
     }
     T0.step = 2;
-    lines.push(this._farewell(n)); this._queue(lines, null);
+    if (T0.tree?.persona) this._farewell(n); else lines.push(this._farewell(n));   // (a personality talk's last reaction is its goodbye)
+    this._queue(lines, null);
   }
   _farewell(n) {
     if (n.mood - n.mood0 <= -5) n.offended = true;
@@ -693,6 +713,7 @@ export class GridWalk {
   _close() {
     const T0 = this.talk; if (!T0) return; const n = T0.n; this.talk = null; n.talked = true;
     this.el.querySelector('.talk').classList.remove('in');
+    if (T0.tree?.done && T0.ptones?.length) { try { T0.tree.done(T0.ptones); } catch (e) { console.warn('GridWalk: the mood could not be kept', e); } }   // (where you steered it: how she opens next time - here, at a party, on the phone)
     this._consequences(n, T0);
     if (n.offended) n.turn = n.face0 + Math.PI;   // (their back to you)
     const i = this.npcs.indexOf(n); this.tags[i]?.classList.add('done');
@@ -785,11 +806,11 @@ export class GridWalk {
     }
     // a shove or a scuffle playing: it has the eye, the people in it and your arms (and leaves pos, yaw and pitch
     // where it ends, so the walk carries on from there without a jump)
-    if (this.brawl) { this._actUpdate(dt); return; }
+    if (this.brawl) { this._actUpdate(dt); this.look.copy(cam.position); return; }
     if (this.respect) this._respectUpdate(dt);
     else if (this.talk) {
       // the camera turns to them; their line types out
-      const T0 = this.talk, hp = new THREE.Vector3(); (T0.n.person.head || T0.n.person.group).getWorldPosition(hp); hp.y -= 0.32;   // (their face in the upper part of the frame, over the talk)
+      const T0 = this.talk, hp = new THREE.Vector3(); (T0.n.person.head || T0.n.person.group).getWorldPosition(hp); hp.y -= 0.32 + this.groundAt(this.pos.x, this.pos.z);   // (their face in the upper part of the frame, over the talk; on the flat, as the eye sees it from the ground you are on)
       const dx = hp.x - this.pos.x, dz = hp.z - this.pos.z, wy = Math.atan2(dz, dx), wp = Math.atan2(hp.y - this.pos.y, Math.hypot(dx, dz));
       let d = wy - this.yaw; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; this.yaw += d * Math.min(1, dt * 5); this.pitch += (wp - this.pitch) * Math.min(1, dt * 5);
       if (T0.line) {
@@ -828,16 +849,19 @@ export class GridWalk {
     cam.position.set(this.pos.x, this.pos.y + by - (this.respect ? this.respect.dip || 0 : 0), this.pos.z);
     const cp = Math.cos(this.pitch); cam.up.set(0, 1, 0);
     cam.lookAt(cam.position.x + Math.cos(this.yaw) * cp, cam.position.y + Math.sin(this.pitch), cam.position.z + Math.sin(this.yaw) * cp);
-    // the name tags over the people you can talk to
-    const W = innerWidth, H = innerHeight, v = new THREE.Vector3();
+    this.look.copy(cam.position);
+    // the name tags over the people you can talk to (where they are, on the flat the eye is placed on)
+    const W = innerWidth, H = innerHeight, v = new THREE.Vector3(), gy = this.groundAt(cam.position.x, cam.position.z);
     this.npcs.forEach((n, i) => {
-      const tag = this.tags[i]; (n.person.head || n.person.group).getWorldPosition(v); v.y += 0.38;
+      const tag = this.tags[i]; (n.person.head || n.person.group).getWorldPosition(v); v.y += 0.38 - gy;
       const dist = v.distanceTo(cam.position); v.project(cam);
       const show = !this.talk && !this.respect && !this.brawl && v.z < 1 && dist < 14 && Math.abs(v.x) < 1.1 && Math.abs(v.y) < 1.1;
       tag.style.opacity = show ? Math.min(1, (14 - dist) / 5) * (n.talked ? 0.55 : 1) : 0;
       if (show) { tag.style.left = `${(v.x * 0.5 + 0.5) * W}px`; tag.style.top = `${(-v.y * 0.5 + 0.5) * H}px`; }
     });
   }
+  /** the ground at (x, z) - what the people stand on (ui/Brawl.js too: him and the people pulling you apart) */
+  groundAt(x, z) { return TERRAIN.at(x, z); }
   _respectUpdate(dt) {
     const R = this.respect; R.t += dt;
     // to the memorial, head bowed, a long moment, then up again

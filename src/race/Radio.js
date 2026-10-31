@@ -82,7 +82,8 @@ export class RaceRadio {
     // ---- tyres
     const t = p.tyres, life = 1 - t.wear;
     if (t.wear > 0.6) add('tyres', t.wear > 0.7 ? 8 : 5, t.wear > 0.7 ? `Tyres are on the cliff. Box this lap if you can.` : `Tyres at ${Math.round(life * 100)} percent, the cliff isn't far. Think about the stop.`);
-    else if (t.temp < 0.5) add('tyres', 4, `Tyres are still cold, careful on the brakes.`);
+    else if (t.temp < 0.75 && (d.sc.phase === 'sc' || d.sc.phase === 'scIn' || d.sc.phase === 'vsc')) add('tyres', 6, t.temp < 0.6 ? `Tyre temps are well down. Weave, get some heat in them before the restart.` : `Tyres are cooling behind the safety car. Keep them warm, weave on the straights.`);
+    else if (t.temp < 0.6) add('tyres', 4, t.compound === 'HARD' ? `Hards are still cold, they take a lap. Gently on the brakes.` : `Tyres are still cold, careful on the brakes.`);
     else add('tyres', 1, `Tyres at ${Math.round(life * 100)} percent, they're fine.`);
     // ---- rivals' strategies: an undercut on you (a car just ahead or behind gone in), a gambler staying out
     for (const o of near) {

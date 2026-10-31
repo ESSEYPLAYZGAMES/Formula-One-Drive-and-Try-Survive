@@ -15,6 +15,11 @@ import { buildGrandstands } from './world/Grandstands.js';
 import { StandCrowds } from './world/StandCrowds.js';
 import { crowdTime } from './world/Crowd.js';
 import { buildVenue, standFootprints } from './world/Venue.js';
+import { buildMontreal } from './world/Montreal.js';
+import { buildAustin, austinCrowdZones } from './world/Austin.js';
+import { buildSilverstone } from './world/Silverstone.js';
+import { TERRAIN, setTerrain, trackHeights, buildHeightField, elevateWorld, terrainGround } from './world/Terrain.js';
+import { WOC_PANEL } from './track/Branding.js';
 import { TrackLights, floodlitAll } from './world/Lighting.js';
 import { PitCrews } from './world/PitCrew.js';
 import { Marshals } from './world/Marshals.js';
@@ -26,7 +31,8 @@ import { GridWalk } from './ui/GridWalk.js';
 import { PitTiming } from './ui/PitTiming.js';
 import { showStrategy } from './ui/Strategy.js';
 import { Car, CAR } from './vehicle/Car.js';
-import { CarMesh, setDebris, setFire, setChunks } from './vehicle/CarMesh.js';
+import { CarMesh, setDebris, setFire, setChunks, prewarmParts } from './vehicle/CarMesh.js';
+import { loadCarModel, carModel } from './vehicle/CarModel.js';
 import { Fire } from './world/Fire.js';
 import { Chunks } from './world/Chunks.js';
 import { Obstacles } from './world/Obstacles.js';
@@ -42,7 +48,7 @@ import { Debris } from './world/Debris.js';
 import { Input } from './input/Input.js';
 import { CockpitCamera } from './camera/CockpitCamera.js';
 import { AudioEngine } from './audio/Audio.js';
-import { ROSTER, customDriver, POINTS, standIn } from './race/Roster.js';
+import { ROSTER, customDriver, POINTS, standIn, dayPerf } from './race/Roster.js';
 import { showMemorial } from './ui/Memorial.js';
 import { NewsBroadcast } from './ui/NewsBroadcast.js';
 import { openCareer, closeCareer, showMourning, syncLooks } from './ui/CareerHub.js';
@@ -70,11 +76,14 @@ import * as BrawlMod from './ui/Brawl.js';
 import { makeHelmet, bloodPool } from './world/People.js';
 import { RaceDirector } from './race/RaceDirector.js';
 import { AIDriver, AI_TUNE } from './ai/AIDriver.js';
+import { AI_CAL, applyCalibration } from './ai/Calibration.js';
 import { HUD, fmtTime } from './ui/HUD.js';
 import { TelemetryView } from './ui/TelemetryView.js';
 import * as Kit from './ui/Motion.js';
 import { TRACK_MAPS } from './ui/TrackMaps.js';
 import { BUILTIN_SHOTS } from './ui/LoadingShots.js';
+import { FAULT_P } from './race/Calls.js';
+import { orderSub } from './race/TeamOrders.js';
 
 const $ = (id) => document.getElementById(id);
 /** teams in roster order (pit garage k belongs to TEAMS[k]; the custom 23rd car gets the last garage) */
@@ -90,6 +99,8 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
 renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(74, 16 / 9, 0.3, 6000);   // tighter depth range: less z-fighting on painted surfaces
+/** how much the lens magnifies against the default 74 degrees (the cars' detail by distance scales with it: CarMesh.detail) */
+const carZoom = () => Math.tan(37 * Math.PI / 180) / Math.tan(camera.fov * Math.PI / 360);
 // The canvas is sized by CSS (fixed, 100% x 100%); the drawing buffer follows its CSS size. three.js must never
 // write inline width/height on the canvas (updateStyle = false everywhere), otherwise a frame that lays out after
 // load (an embedded artifact) keeps the initial size and stretches the picture.
@@ -155,12 +166,21 @@ async function loadWorld(def) {
   await set('Loading the map data…', 4);
   const json = await loadGeoJSON(def.geojson);
   const geo = new GeoWorld(json, def);
+  const before = new Set(scene.children);   // (what this circuit adds to the scene: raised onto its ground at the end, world/Terrain.js)
   await set('Routing the circuit through the road graph…', 12);
   const circuit = geo.buildCircuit();
   const curve = buildSpline(circuit.pts, { closed: true, filletSigma: def.smoothSigma || 6, step: 4, tension: 0.5, fillet: def.fillet !== false });
   const samples = rotateSamples(sampleCurve(curve, true, 2), 0, 0);   // s = 0 at the start/finish line (projection origin)
   const track = new Track(samples, def);
   labelCorners(track, def, geo);
+  track.widen();   // (a road wider in places: def.widths - before anything is laid along its edges, the ground included)
+  // the ground's height (a circuit that is not flat: its way's third coordinates - world/Terrain.js), else flat
+  setTerrain(null);
+  if (def.elevation) {
+    const w = geo.roadById(def.ways[0]), pts = w ? w.pts.map((p, k) => [p[0], p[1], w.lonlat[k]?.[2]]) : null, h = trackHeights(track, pts);
+    if (h) { track.h = h; setTerrain(buildHeightField(track, h), track); TERRAIN.halfRoad = track.maxHalfWidth + track.kerbWidth + 1; TERRAIN.halfRoadAt = (i, side = 1) => track.edgeAt(i, side) + track.kerbWidth + 1; }
+  }
+  track.openCorners();   // (corners left open: Montreal's Senna S and hairpin - before the barriers are capped against everything else)
   // permanent circuits: the escape aprons stop short of the venue's real grandstands
   if (def.osmStands || def.standNames) {
     const stands = standFootprints(geo, def).map((b) => b.rings[0]);
@@ -173,17 +193,24 @@ async function loadWorld(def) {
     track.capRunoff(rings, 4); track.capSelf();
     track.layoutBarriers(rings);   // barriers only where something stands behind the verge
   }
+  // Montreal's Wall of Champions: the outside of the last chicane's exit, the kerb, 1.7 m of green paint and the wall
+  if (def.wallOfChampions) {
+    const w = def.wallOfChampions, c = def.corners.find((k) => k.n === w.turn);
+    if (c && c.s != null) track.pinWall(c.s + (w.from || 0), c.s + (w.from || 0) + w.len, w.side || -1, track.halfWidth + track.kerbWidth + 1.75, { panel: WOC_PANEL, name: 'Wall of Champions' });
+  }
   track.layoutSurfaces();
+  applyCalibration(track);   // the AI's corner-by-corner commitment on this circuit (ai/Calibration.js)
   env.setGround(def.ground || 'city');
   const pitWay = geo.roadById(def.pitLaneWayId);
-  const pit = pitWay ? buildPitLane(track, pitWay.pts) : null;
+  const pit = pitWay ? buildPitLane(track, pitLaneLeads(track, pitWay.pts, def.pitLeads)) : null;
+  // a circuit's spectator areas round the lap (Austin's general admission): a barrier and a catch fence in front of each
+  if (def.scenery === 'austin') {
+    const rings = [...geo.buildings.filter((b) => b.rings[0] && b.rings[0].length >= 3).map((b) => b.rings[0]), ...((def.osmStands || def.standNames) ? standFootprints(geo, def).map((b) => b.rings[0]) : [])];
+    track.guardZones(austinCrowdZones(track, def, pit), rings, pit);
+  }
+  track.fairWalls();   // (every circuit's barrier lines in long runs and gentle bends: no wedge of barrier jutting into a run-off)
   await set('Computing the racing line…', 26);
-  const line = new RacingLine(track, { optimal: def.line === 'optimal', ...(def.lineMargin ? { maxOffset: track.halfWidth - def.lineMargin } : {}) });
-  // the car's cornering limit (fitted to the four-wheel model's steady state: Chassis.fitGrip), with a margin that
-  // grows with speed (8 % in a hairpin, ~13 % in Copse: a fast corner is entered on the limit of the tyres and the
-  // aero at once, and a car that runs a metre wide there has no road left to tighten its line)
-  const profile = line.speedProfile({ mu: CAR.muBase * 0.92, mass: CAR.mass, dfCoef: CAR.dfm * CAR.mass * 0.9, dragCoef: 0.5 * CAR.rho * CAR.cdA,
-    axle: { rearStatic: CAR.lf / CAR.wheelbase, transfer: CAR.cgH / CAR.wheelbase, rearBrake: 1 - CAR.brakeBias, dfRear: 0.5 * CAR.rho * CAR.clA * (1 - CAR.aeroFrontShare) }, vMax: 96, brakeG: CAR.brakeMax / CAR.mass / 9.81, accel: (v) => Math.min(CAR.powerKW * 1000 / (CAR.mass * Math.max(8, v)), 14) });
+  const { line, profile, shown, showLine } = makeRacingLine(track, def);
   await set('Laying the track, kerbs and barriers…', 40);
   const trackMesh = buildTrackMeshes(track, pit, gridLayout(track, 23, 1));
   scene.add(trackMesh);
@@ -201,11 +228,15 @@ async function loadWorld(def) {
     u.uFace.value.set(fx / fl, 0, fz / fl); u.uRight.value.set(fz / fl, 0, -fx / fl);   // right = (-face) x up
     W.faceAngle0 = Math.atan2(fz, fx);   // the content then turns slowly (one revolution per 5 min) so it faces every part of the circuit over a race
   }
-  // venue pieces taken from the OSM footprints (a permanent circuit's pit building and real grandstands)
-  const venue = (def.osmStands || def.pitBuilding) ? buildVenue(geo, track, def, pit) : null;
+  // venue pieces taken from the OSM footprints (a permanent circuit's pit building and real grandstands) - unless the
+  // circuit has scenery of its own, which builds them itself (Silverstone's Wing and stands: world/Silverstone.js)
+  const venue = !def.scenery && (def.osmStands || def.pitBuilding) ? buildVenue(geo, track, def, pit) : null;
   if (venue) scene.add(venue.group);
+  // a circuit's own scenery (Montreal: the islands' water and trees, the Biosphere, the casino, the stands, the paint on the grass)
+  const scenery = def.scenery === 'montreal' ? buildMontreal(geo, track, def, pit) : def.scenery === 'austin' ? buildAustin(geo, track, def, pit) : def.scenery === 'silverstone' ? buildSilverstone(geo, track, def, pit) : null;
+  if (scenery) scene.add(scenery.group);
   await set('Raising the city…', 68);
-  const buildings = buildGenericBuildings(geo, track, new Set([...lm.claimed, ...(venue ? venue.claimed : [])]), pit);
+  const buildings = buildGenericBuildings(geo, track, new Set([...lm.claimed, ...(venue ? venue.claimed : []), ...(scenery ? scenery.claimed : [])]), pit);
   scene.add(buildings);
   // branded pit garages: one per team, the Independent entry gets the last one
   const pitBoxes = pit ? buildPitBoxes(pit, [...TEAMS, { name: 'Independent', color: '#00d4ff', color2: '#ffffff' }]) : null;
@@ -213,14 +244,15 @@ async function loadWorld(def) {
   await set('Filling the grandstands…', 80);
   // grandstands only where nothing else stands: corridor + margin, masts, landmarks and every kept footprint are avoided
   const lmBoxes = lm.group.children.map((o) => new THREE.Box3().setFromObject(o)).filter((b) => !b.isEmpty());
-  const stands = buildGrandstands(track, pit, { rings: buildings.userData.rings, boxes: lmBoxes, masts: trackMesh.userData.masts }, { auto: def.autoStands !== false, fixed: venue ? venue.stands : [] });
+  const stands = buildGrandstands(track, pit, { rings: buildings.userData.rings, boxes: lmBoxes, masts: trackMesh.userData.masts }, { auto: def.autoStands !== false, fixed: [...(venue ? venue.stands : []), ...(scenery ? scenery.stands : [])] });
   scene.add(stands.group);
   // the solid things beside the circuit (buildings, landmarks, grandstands: nothing drives or flies through them), and
   // catch fences on the barriers in front of the grandstands
   const obstacles = new Obstacles(), standRings = [];
-  const clearOfTrack = (ring) => ring.every(([x, z]) => Math.abs(track.nearest(x, z).d) > track.halfWidth + 3);
+  const clearOfTrack = (ring) => ring.every(([x, z]) => { const q = track.nearest(x, z); return Math.abs(q.d) > track.hw[q.i] + 3; });
   for (const r of buildings.userData.rings || []) if (r && r.length >= 3 && clearOfTrack(r)) obstacles.add(r, 12);
   for (const b of lmBoxes) { const r = [[b.min.x, b.min.z], [b.max.x, b.min.z], [b.max.x, b.max.z], [b.min.x, b.max.z]]; if (b.max.y > 2 && clearOfTrack(r)) obstacles.add(r, b.max.y); }
+  for (const o of scenery?.solids || []) if (clearOfTrack(o.ring)) obstacles.add(o.ring, o.h);   // (a circuit's own scenery: its buildings, the fences of its crowds)
   for (const p of stands.stands) {
     const L = p.len, D = p.depth || 12, r = [p.world(-L / 2, 0), p.world(L / 2, 0), p.world(L / 2, D), p.world(-L / 2, D)];
     standRings.push(r); if (clearOfTrack(r)) obstacles.add(r, p.height || 14);
@@ -232,14 +264,21 @@ async function loadWorld(def) {
   const sphereObj = lm.group.children.find((o) => o.name === 'lm:sphere');
   const sphereInfo = sphereObj ? (() => { const b = new THREE.Box3().setFromObject(sphereObj); const c = new THREE.Vector3(); b.getCenter(c); return { center: c, radius: (b.max.y - b.min.y) / 2 }; })() : null;
   const lights = new TrackLights(scene, trackMesh.userData.masts, sphereInfo, 8);
+  // onto the ground: everything this circuit added (world/Terrain.js), the flat plane lowered to the edge of the field
+  // and a ground mesh of its own near the circuit
+  if (TERRAIN.on) {
+    const n = elevateWorld(scene.children.filter((o) => !before.has(o) && !o.isDirectionalLight && !o.isHemisphereLight && !o.isAmbientLight));
+    W.terrainMesh = terrainGround(TERRAIN.field, env.ground.material); scene.add(W.terrainMesh); env.ground.position.y = TERRAIN.edge - 0.08;
+    console.info(`[world] terrain: ${n} objects raised, ${TERRAIN.field.nx} x ${TERRAIN.field.nz} cells, heights ${Math.min(...track.h).toFixed(1)} .. ${Math.max(...track.h).toFixed(1)} m`);
+  }
   floodlitAll(scene);   // (the still world: lit by the baked light field, not the scene's spot lights)
-  Object.assign(W, { geo, track, pit, line, profile, trackMesh, landmarks: lm, buildings, circuit, pitBoxes, stands, lights, sphereInfo, venue, obstacles, fences });
+  Object.assign(W, { geo, track, pit, line, profile, lineSpeed: shown, showLine, trackMesh, landmarks: lm, buildings, circuit, pitBoxes, stands, lights, sphereInfo, venue, obstacles, fences, scenery });
   chunks.track = track; chunks.obstacles = obstacles;
   // big debris lying on the racing surface is dragged off by the marshals: to the verge (inside the barrier)
   debris.sweep = (x, z) => {
-    const q = track.nearest(x, z); if (!(Math.abs(q.d) < track.halfWidth + 1)) return null;
+    const q = track.nearest(x, z); if (!(Math.abs(q.d) < track.hw[q.i] + 1)) return null;
     const side = Math.sign(q.d) || 1, wall = track.wallAt(q.i, side);
-    const f = track.sample(q.s, side * Math.min(wall - 1.2, track.halfWidth + track.kerbWidth + 2 + Math.random() * 2));
+    const f = track.sample(q.s, side * Math.min(wall - 1.2, track.hw[q.i] + track.kerbWidth + 2 + Math.random() * 2));
     return [f.x, f.z];
   };
   console.info(`[world] grandstands: ${stands.count} (${stands.fans} fans), floodlight masts: ${trackMesh.userData.masts.length}`);
@@ -251,23 +290,85 @@ async function loadWorld(def) {
   return W;
 }
 
+/**
+ * A pit lane mapped from the middle of the road (Montreal's leaves from the racing line at the last chicane's turn-in
+ * and rejoins on it after the Senna S) gets a lead-in and a lead-out along the road's pit-side edge (def.pitLeads:
+ * { side, d (m off the centreline), in, out (m of lead) }): the lane's own points still on the road are dropped and the
+ * edge run joins them, so a car peels off from the edge of the road and comes back to it, as at the real circuit.
+ */
+function pitLaneLeads(track, pts, L) {
+  if (!L) return pts;
+  const q = {}, on = (p) => Math.abs(track.nearest(p[0], p[1], -1, q).d) < L.d + 1.2;
+  let a = 0, b = pts.length - 1; while (a < b && on(pts[a])) a++; while (b > a && on(pts[b])) b--;
+  const sA = track.nearest(pts[a][0], pts[a][1], -1, q).s, sB = track.nearest(pts[b][0], pts[b][1], -1, q).s;
+  const edge = (s0, s1) => { const o = []; for (let s = s0; s <= s1; s += 6) { const f = track.sample(s, L.side * L.d); o.push([f.x, f.z]); } return o; };
+  return [...edge(sA - (L.in || 100), sA - 12), ...pts.slice(a, b + 1), ...edge(sB + 12, sB + (L.out || 100))];
+}
+
+/**
+ * The racing line and the speed profile on it: a driver's own line when the circuit's AI calibration carries one
+ * (ai/Calibration.js `line`: from telemetry, tools/ai_fit.mjs), else the minimum-curvature line (def.line 'optimal')
+ * or the out-in-out one. The profile is the car's cornering limit (fitted to the four-wheel model's steady state:
+ * Chassis.fitGrip) with a margin that grows with speed (8 % in a hairpin, ~13 % in Copse: a fast corner is entered on
+ * the limit of the tyres and the aero at once, and a car that runs a metre wide there has no road left to tighten its line).
+ */
+function makeRacingLine(track, def) {
+  const opts = { optimal: def.line === 'optimal', ...(def.lineMargin ? { maxOffset: track.halfWidth - def.lineMargin } : {}) };
+  let fixed = track.aiCal?.line || null;
+  // (a calibration can hand stretches of the AI's line to the driver's own lap - ai/Calibration.js `lineFrom`, [[sA, sB]]
+  //  - the AI's own kept everywhere else, blended in and out over 40 m: Austin's Turn 11, where its line swung out wide
+  //  and went deep into a V, 13 m across at 56 km/h, and the driver's rounder one carried 70-80)
+  const sh0 = track.aiCal?.show, from = track.aiCal?.lineFrom;
+  if (!fixed && from?.length && sh0?.d?.length) {
+    const base = new RacingLine(track, opts), every = 2, m = Math.ceil(track.length / every), d = new Array(m), L = track.length;
+    const shD = (s) => { const u = s / sh0.every, j = Math.floor(u) % sh0.d.length, f = u - Math.floor(u); return sh0.d[j] + (sh0.d[(j + 1) % sh0.d.length] - sh0.d[j]) * f; };
+    const sm = (t) => { t = Math.max(0, Math.min(1, t)); return t * t * (3 - 2 * t); };
+    for (let j = 0; j < m; j++) {
+      const s = j * every; let w = 0;
+      for (const [a, b] of from) { const x = ((s - a) % L + L) % L, span = ((b - a) % L + L) % L; if (x <= span) w = Math.max(w, sm(x / 40) * sm((span - x) / 40)); }
+      d[j] = base.offsetAt(s) * (1 - w) + shD(s) * w;
+    }
+    fixed = { every, d };
+  }
+  const line = new RacingLine(track, { ...opts, fixed });
+  const P = {mu: CAR.muBase * 0.92, mass: CAR.mass, dfCoef: CAR.dfm * CAR.mass * 0.9, dragCoef: 0.5 * CAR.rho * CAR.cdA,
+    axle: { rearStatic: CAR.lf / CAR.wheelbase, transfer: CAR.cgH / CAR.wheelbase, rearBrake: 1 - CAR.brakeBias, dfRear: 0.5 * CAR.rho * CAR.clA * (1 - CAR.aeroFrontShare) }, vMax: 96, brakeG: CAR.brakeMax / CAR.mass / 9.81, accel: (v) => Math.min(CAR.powerKW * 1000 / (CAR.mass * Math.max(8, v)), 14) };
+  const profile = line.speedProfile(P);
+  // the racing line on screen: a driver's own lap where the circuit has one (ai/Calibration.js `show`, tools/ai_fit.mjs
+  // from laps driven here) - where they were on the road, and red wherever you carry more speed into a braking zone or
+  // a corner than they did: their speed holds wherever they were slowing or turning, braking curves (4 g) lead back
+  // up from it, and nothing caps you where they were gaining speed (a better exit, a tow); else the AI's line, coloured
+  // by the corner speeds and braking it is calibrated to (or the physics' profile)
+  const sh = track.aiCal?.show;
+  if (sh?.d?.length && sh.kmh?.length) {
+    const n = track.n, ds = track.ds, showLine = new RacingLine(track, { fixed: sh }), m = sh.kmh.length, vd = new Float32Array(n), shown = new Float32Array(n).fill(96);
+    for (let i = 0; i < n; i++) { const u = (i * ds) / sh.every, j = Math.floor(u) % m, f = u - Math.floor(u); vd[i] = (sh.kmh[j] + (sh.kmh[(j + 1) % m] - sh.kmh[j]) * f) / 3.6; }
+    for (let c = 2 * n - 1; c >= 0; c--) { const i = c % n, j = (i + 1) % n, cap = vd[j] <= vd[i] + 0.05 ? vd[i] : 96; shown[i] = Math.min(cap, Math.sqrt(shown[j] * shown[j] + 2 * 40 * ds)); }
+    return { line, profile, shown, showLine };
+  }
+  const shown = track.aiCal?.corners ? line.speedProfile({ ...P, vMul: track.aiV, bMul: track.aiB }) : profile;
+  return { line, profile, shown, showLine: line };
+}
+
 /** Remove everything loadWorld built (switching circuits): scene objects, lights, the racing line, the title shots. */
 function unloadWorld() {
   clearAmbient(); CINE.shots = null; CINE.i = -1; CINE.look = null; debris.clear(); ANCHORS.clear();
+  if (W.terrainMesh) { scene.remove(W.terrainMesh); W.terrainMesh.traverse((x) => x.geometry?.dispose?.()); W.terrainMesh = null; }
+  setTerrain(null); env.ground.position.y = -0.05;
   // every texture a material holds (maps, emissive maps, shader uniforms), every geometry, every material
   const freeMat = (m) => {
     for (const k in m) { const v = m[k]; if (v && v.isTexture) v.dispose(); }
     if (m.uniforms) for (const k in m.uniforms) { const v = m.uniforms[k].value; if (v && v.isTexture) v.dispose(); }
     m.dispose();
   };
-  for (const o of [W.trackMesh, W.landmarks?.group, W.buildings, W.pitBoxes?.group, W.stands?.group, W.venue?.group, W.fences, RL.group]) {
+  for (const o of [W.trackMesh, W.landmarks?.group, W.buildings, W.pitBoxes?.group, W.stands?.group, W.venue?.group, W.scenery?.group, W.fences, RL.group]) {
     if (!o) continue; scene.remove(o);
     o.traverse((x) => { x.geometry?.dispose?.(); const ms = Array.isArray(x.material) ? x.material : x.material ? [x.material] : []; for (const m of ms) freeMat(m); });
   }
   W.lights?.dispose(scene); W.standHD?.dispose(); W.standHD = null;
   feed?.dispose(); show?.texture.dispose(); feed = null; show = null;
   RL.group = null; RL.main = null; RL.pitGuide = null;
-  for (const k of ['geo', 'track', 'pit', 'line', 'profile', 'trackMesh', 'landmarks', 'buildings', 'circuit', 'pitBoxes', 'stands', 'lights', 'sphereInfo', 'venue', 'faceAngle0']) W[k] = null;
+  for (const k of ['geo', 'track', 'pit', 'line', 'profile', 'lineSpeed', 'showLine', 'trackMesh', 'landmarks', 'buildings', 'circuit', 'pitBoxes', 'stands', 'lights', 'sphereInfo', 'venue', 'scenery', 'faceAngle0']) W[k] = null;
 }
 /** brand header + track chips follow the selected circuit */
 function applyTrackUI() {
@@ -302,8 +403,11 @@ function applyTrackUI() {
  * Build a circuit (when a weekend on it starts: nothing is built at start-up, and the one built is kept - starting
  * another weekend on it is instant, another circuit replaces it). The menu stays where it is; a loading line shows.
  */
+// the car model (vehicle/CarModel.js): loading from the start; every car is made after a circuit is built, which waits for it
+const CAR_MODEL = loadCarModel().catch((e) => console.error('[car model]', e));
 async function switchTrack(id) {
   if (W.loading || !TRACKS[id] || S.director) return;
+  await CAR_MODEL;
   W.home = false; document.body.classList.remove('home');
   if (W.track && W.def.id === id) { applyTrackUI(); return; }
   W.loading = true; $('loading').classList.remove('hidden'); if (!Loader.on) $('fade').style.opacity = '1';
@@ -338,6 +442,7 @@ function setTimeOfDay(mode) {
   if (W.buildings) applyTimeToMaterials(W.buildings, mode);
   if (W.pitBoxes) applyTimeToMaterials(W.pitBoxes.group, mode);
   if (W.stands) applyTimeToMaterials(W.stands.group, mode);
+  if (W.scenery) { applyTimeToMaterials(W.scenery.group, mode); W.scenery.setTime?.(mode); }
   if (W.lights) W.lights.setDay(mode === 'day');
 }
 
@@ -348,7 +453,7 @@ function setTimeOfDay(mode) {
 // is ui/Motion.js's: only transform and opacity, nothing over 260 ms, none at all with reduced motion.
 // ---------------------------------------------------------------------------
 Kit.ensureMotion();
-const settings = { track: 'lasvegas', mode: 'quick', driver: null, len: 5, grid: 'quali', slot: 1, tyre: 'SOFT', weather: 'dry', time: 'night', assist: 'full', aggr: 1.0, diff: 75, stewards: 50, sc: 'on', fail: 'on', fb: 'inf', rounds: 3, custom: { name: 'E. Esselink', color: '#00d4ff', tier: 1 } };
+const settings = { track: 'lasvegas', mode: 'quick', driver: null, len: 5, grid: 'quali', slot: 1, tyre: 'SOFT', weather: 'dry', time: 'night', assist: 'full', aggr: 1.0, diff: 75, stewards: 50, sc: 'on', fail: 'on', fb: 'inf', intro: 'on', rounds: 3, custom: { name: 'E. Esselink', color: '#00d4ff', tier: 1 } };
 /** AI pace slider (0-100) -> cornering commitment multiplier for every AI driver (0.94 .. 1.02; 75 = the tuned default) */
 const skillOf = (diff) => 0.94 + 0.08 * (diff / 100);
 const diffName = (d) => (d < 20 ? 'Rookie' : d < 40 ? 'Amateur' : d < 60 ? 'Semi-pro' : d < 80 ? 'Pro' : d < 95 ? 'Elite' : 'Legend');
@@ -411,6 +516,7 @@ wireSeg('opt-aggr', 'aggr', Number);
 wireSeg('opt-sc', 'sc');
 wireSeg('opt-fail', 'fail');
 wireSeg('opt-fb', 'fb');
+wireSeg('opt-intro', 'intro');   // (Straight to lights: no build-up before a race outside a career - the grid, then the five lights)
 wireSeg('opt-line', 'line', String, (v) => { RL.on = v === 'on'; });
 
 let noteTm = 0;
@@ -927,7 +1033,27 @@ $('btn-quali-done').addEventListener('click', () => { $('quali-panel').classList
 $('btn-next').addEventListener('click', () => { $('results').classList.add('hidden'); nextAfterResults(); });
 $('btn-menu').addEventListener('click', () => { $('results').classList.add('hidden'); toMenu(); });
 $('btn-resume').addEventListener('click', () => setPaused(false));
+// the master volume: a slider in the pause menu and in the setup's Driving page, both the same setting (Audio.setVolume)
+{
+  const sliders = ['vol-menu', 'vol-pause'].map($).filter(Boolean);
+  const show = () => { for (const s of sliders) { s.value = Math.round(audio.volume * 100); const v = s.parentElement.querySelector('.vol-val'); if (v) v.textContent = `${s.value}%`; } };
+  for (const s of sliders) s.addEventListener('input', () => { audio.setVolume(s.value / 100); show(); });
+  show();
+}
 $('btn-quit').addEventListener('click', () => { setPaused(false); quitSession(); });
+$('btn-restart').addEventListener('click', () => { setPaused(false); restartRace(); });
+/**
+ * RESTART RACE (pause menu, any race - a career's too): the same race again from the same grid - a fresh field (new
+ * cars: no damage, laps or tyre wear carried over), no build-up, straight to the five red lights.
+ */
+function restartRace() {
+  const wk = S.weekend; if (!wk || S.director?.mode !== 'race') return;
+  const order = (wk.gridOrder || []).map((c) => c.name);
+  endSession(); NEWS.cancelled = false;
+  wk.cars = buildField(wk.lapsTotal); wk.player = wk.cars.find((c) => c.isPlayer) || null;
+  wk.gridOrder = order.map((n) => wk.cars.find((c) => c.name === n)).filter(Boolean); for (const c of wk.cars) if (!wk.gridOrder.includes(c)) wk.gridOrder.push(c);
+  S.skipIntro = true; beginRace(); S.skipIntro = false;
+}
 $('btn-photo').addEventListener('click', () => enterPhoto());
 $('btn-tel').addEventListener('click', () => openTelemetry(false));       // (already paused)
 $('btn-res-tel').addEventListener('click', () => openTelemetry(false));
@@ -1004,7 +1130,7 @@ function crashFlash() {
 /** the car the crash is about, a damaged zone's smoke, sparks and glass where it hit */
 function crashBurst(car, e, k) {
   const [vx, vz] = car.air && car.wvx != null ? [car.wvx, car.wvz] : car.worldVel();
-  fire.sparks(e.x, 0.35, e.z, Math.round(12 + 40 * k), vx, vz);
+  fire.sparks(e.x, 0.35 + TERRAIN.at(e.x, e.z), e.z, Math.round(12 + 40 * k), vx, vz);   // (on the ground there: world/Terrain.js)
   debris.burst(e.x, e.z, vx, vz, Math.round(3 + 10 * k), 0x9fd8ff);   // (glass-bright shards: the visor, the mirrors, the lights)
 }
 function startCrash(car, e) {
@@ -1038,8 +1164,80 @@ function ensureCrashComposer() {
   const sz = renderer.getSize(new THREE.Vector2()); crashComposer.setPixelRatio(renderer.getPixelRatio()); crashComposer.setSize(sz.x, sz.y);
   return crashComposer;
 }
+/**
+ * On a circuit that is not flat (world/Terrain.js) the camera is worked out on the flat plan like everything else and
+ * lifted for the frame only, with what the shot is of (camSubject: the car it follows, the wreck, the point the
+ * build-up, a title shot or the news is aimed at). Near it, rigidly by the ground under that - the shot exactly as framed
+ * on the flat; from ~12 m to ~42 m away, more and more by the ground under the camera itself (a tripod on its own part of
+ * the hill). Then never less than 0.4 m over the ground under it (a low shot just up the hill from the car would stand in
+ * the slope), and wherever it was lifted otherwise than its subject, turned so the subject stays where it was in the
+ * frame (no wreck, no leader, no TV long-lens shot lost off the top or the bottom of the picture). An onboard camera
+ * rides on the body instead: carried by the lift, pitch and roll the car model was given. -> undo
+ */
+const _camQ = new THREE.Quaternion(), _camP = new THREE.Vector3(), _camF = new THREE.Quaternion(), _camE = new THREE.Euler(), _camO = new THREE.Vector3();
+const _camU = new THREE.Vector3(), _camV = new THREE.Vector3(), _camI = new THREE.Quaternion(), _camG = [0, 0], _camUp = new THREE.Vector3(0, 1, 0);
+const SUBJ = { p: new THREE.Vector3(), car: null, ride: false, own: false, free: false };
+/** what the shot is of, on the flat (p.y: its height over the ground under it) -> SUBJ; null: nothing in particular (the
+ *  camera on its own ground); 'world': a camera placed off the car models themselves, already on the ground */
+function camSubject() {
+  const s = SUBJ; s.car = null; s.ride = s.own = s.free = false;
+  const at = (v) => (v?.isVector3 ? (s.p.copy(v), s) : null);
+  const car = (c) => { if ((c.air || c.wreck) && c.p) s.p.set(c.p[0], c.p[1], c.p[2]); else s.p.set(c.x, 0.55 + (c.hv || 0), c.z); s.car = c; return s; };
+  if (POV.on) return 'world';   // (inside the helmet: placed off the car model, the replay's ones lifted as it is drawn - povReplay)
+  if (NEWS.on) { const n = NEWS.cut, k = n?.seg?.k; if (!at(n?.look)) return null; s.ride = k === 'tcam' || k === 'tcam2'; return s; }   // (ui/NewsBroadcast.js: its shots placed on the flat, aimed at look)
+  if (HANG.on || FINALE.on) return null;
+  // (on foot on the grid the camera is your eyes: on the ground you stand on, turned to keep what you look at in view)
+  if (PRE.walk) { if (!at(PRE.walk.look)) return null; s.own = true; return s; }
+  if (PRE.on && PRE.show) return at(PRE.show.look) || (S.player ? car(S.player) : null);
+  if (crashCam.on && crashCam.car) return car(crashCam.car);
+  if (S.player) { car(S.player); s.free = PHOTO.on; return s; }   // (the race cameras; the photo camera flies free: far from the car it is left as aimed)
+  if (!S.director && CINE.i >= 0 && CINE.aim) return at(CINE.aim);   // (the title screen's tripods)
+  return null;
+}
+function terrainLift() {
+  if (!TERRAIN.on) return null;
+  const s = camSubject(); if (s === 'world') return null;
+  const c = camera.position; _camP.copy(c); _camQ.copy(camera.quaternion);
+  const gc = TERRAIN.at(c.x, c.z), d = s ? Math.hypot(c.x - s.p.x, c.z - s.p.z) : Infinity, p = s?.car;
+  // an onboard camera (the cockpit, the T-cam) rides on the body: carried by exactly the lift, pitch and roll the car model
+  // was given (CarMesh: the slope under it), about the car's own origin - the cockpit round it never swims and the climb
+  // is as smooth as the model's
+  const m = p && d < 4 && !crashCam.on && !p.air && !p.wreck ? S.meshes.get(p) : null, g = m?.group;
+  if (g && Math.abs(g.position.x - p.x) + Math.abs(g.position.z - p.z) < 0.01) {
+    _camF.setFromEuler(_camE.set(p.rl || 0, -p.th, p.pt || 0, 'YZX')).invert().premultiply(g.quaternion);   // (the slope's own turn: model / flat)
+    c.sub(_camO.set(p.x, p.hv || 0, p.z)).applyQuaternion(_camF).add(g.position); camera.quaternion.premultiply(_camF);
+  } else if (s?.ride) {
+    // (an onboard shot of a car drawn by someone else - the news's replay, its look the car: carried as that car is
+    //  stood on the ground there, lifted and tilted with the slope about its floor - NewsBroadcast._toGround)
+    const gr = TERRAIN.grad(s.p.x, s.p.z, _camG); _camF.setFromUnitVectors(_camUp, _camU.set(-gr[0], 1, -gr[1]).normalize());
+    c.sub(_camO.set(s.p.x, 0, s.p.z)).applyQuaternion(_camF).add(_camO.setY(TERRAIN.at(s.p.x, s.p.z))); camera.quaternion.premultiply(_camF);
+  } else {
+    const gs = s ? TERRAIN.at(s.p.x, s.p.z) : gc, w = !s || s.own ? 1 : Math.min(1, Math.max(0, (d - 12) / 30)), y0 = c.y;
+    c.y = Math.max(y0 + gs * (1 - w) + gc * w, gc + Math.max(0.15, Math.min(0.4, y0)));   // (0.4 m over the ground, or as low as it was put)
+    // turned to keep the subject where it was in the frame: from where it was seen on the flat to where it is now
+    const k = s && Math.abs(c.y - y0 - gs) > 0.005 ? (s.free ? 1 - w : 1) : 0;
+    if (k > 0 && _camU.copy(s.p).sub(_camP).lengthSq() > 0.01) {
+      _camF.setFromUnitVectors(_camU.normalize(), _camV.copy(s.p).setY(s.p.y + gs).sub(c).normalize()); if (k < 1) _camF.slerp(_camI, 1 - k);
+      camera.quaternion.premultiply(_camF);
+    }
+  }
+  camera.updateMatrixWorld();
+  return () => { c.copy(_camP); camera.quaternion.copy(_camQ); camera.updateMatrixWorld(); };
+}
+/** a pose recorded on the flat (race/Replay.js carPose) put on the ground as CarMesh draws a car: lifted by the ground
+ *  under it and tilted with the slope there */
+const _gndQ = new THREE.Quaternion(), _gndN = new THREE.Vector3(), _gndG = [0, 0];
+function onGround(o) {
+  if (!TERRAIN.on) return;
+  const x = o.position.x, z = o.position.z, gr = TERRAIN.grad(x, z, _gndG);
+  o.position.y += TERRAIN.at(x, z); o.quaternion.premultiply(_gndQ.setFromUnitVectors(_camUp, _gndN.set(-gr[0], 1, -gr[1]).normalize()));
+}
 /** the frame: through the depth-of-field chain while a photo is being framed with it on, else straight */
 function renderView() {
+  const undo = terrainLift();
+  try { renderFrame(); } finally { undo?.(); }
+}
+function renderFrame() {
   if (!PHOTO.on && crashCam.on && (crashCam.blur > 0.01 || crashCam.sat > 1.01)) {
     ensureCrashComposer(); crashPass.uniforms.uBlur.value = crashCam.blur; crashPass.uniforms.uSat.value = crashCam.sat;
     crashComposer.render(); return;
@@ -1074,10 +1272,23 @@ function setPhotoLive(live) {
   const d = S.director; if (!d) return;
   PHOTO.live = live; $('photo-play').textContent = live ? '⏸ PAUSE' : '▶ PLAY';
   if (live && S.player && !PHOTO.ai && !S.player.retired) {
-    PHOTO.ai = new AIDriver(S.player, W.line, W.profile, W.track, { aggression: 0.7 }); d.ai.push(PHOTO.ai); d.player = null;
+    PHOTO.ai = new AIDriver(S.player, W.line, W.profile, W.track, { aggression: 0.7 }); PHOTO.ai.photo = true; d.ai.push(PHOTO.ai); d.player = null;
   } else if (!live && PHOTO.ai) {
     d.ai = d.ai.filter((a) => a !== PHOTO.ai); PHOTO.ai = null; d.player = S.player;
   }
+}
+/**
+ * Outside photo mode's play, your car is yours: any AI driver photo mode put in it is taken out and the controls go back
+ * to you. (Every frame: a flashback rewound into a stretch photo mode played - its snapshot had that driver in the
+ * field and no player - and left the AI driving your car for good.)
+ */
+function releasePhotoAI() {
+  const d = S.director; if (!d || PHOTO.live) return;
+  if (d.ai.some((a) => a.photo)) d.ai = d.ai.filter((a) => !a.photo);
+  if (PHOTO.ai && !PHOTO.live) PHOTO.ai = null;
+  const p = S.player;
+  if (p && !d.player && !S.spectating && !p.autopilot && d.cars.includes(p)) d.player = p;
+  if (p?.ai?.photo) p.ai = null;
 }
 function exitPhoto() {
   setPhotoLive(false);
@@ -1091,8 +1302,10 @@ function exitPhoto() {
 }
 $('photo-play').addEventListener('click', () => setPhotoLive(!PHOTO.live));
 function updatePhoto(dt) {
-  const k = input.keys; const fast = k.has('ShiftLeft') || k.has('ShiftRight');
-  const speed = (fast ? 90 : 22) * dt, look = 1.6 * dt;
+  // (Shift: fast; Ctrl or Alt: fine - a few centimetres at a time for framing a shot (Alt for W too: most browsers keep
+  //  Ctrl+W to close the tab, the page never sees it))
+  const k = input.keys; const fast = k.has('ShiftLeft') || k.has('ShiftRight'), fine = photoFine();
+  const speed = (fine ? 2 : fast ? 90 : 22) * dt, look = (fine ? 0.3 : 1.6) * dt;
   if (k.has('ArrowLeft')) PHOTO.yaw -= look; if (k.has('ArrowRight')) PHOTO.yaw += look;
   if (k.has('ArrowUp')) PHOTO.pitch += look; if (k.has('ArrowDown')) PHOTO.pitch -= look;
   PHOTO.pitch = Math.max(-1.5, Math.min(1.5, PHOTO.pitch));
@@ -1112,10 +1325,16 @@ function updatePhoto(dt) {
 }
 canvas.addEventListener('mousedown', (e) => { if (!PHOTO.on) return; PHOTO.drag = true; PHOTO.lx = e.clientX; PHOTO.ly = e.clientY; canvas.style.cursor = 'grabbing'; });
 window.addEventListener('mouseup', () => { if (PHOTO.on) { PHOTO.drag = false; canvas.style.cursor = 'grab'; } });
+/** fine moves in photo mode: Ctrl or Alt held */
+const photoFine = () => { const k = input.keys; return k.has('ControlLeft') || k.has('ControlRight') || k.has('AltLeft') || k.has('AltRight'); };
 window.addEventListener('mousemove', (e) => {
   if (!PHOTO.on || !PHOTO.drag) return;
-  PHOTO.yaw += (e.clientX - PHOTO.lx) * 0.0035; PHOTO.pitch -= (e.clientY - PHOTO.ly) * 0.0035; PHOTO.lx = e.clientX; PHOTO.ly = e.clientY;
+  const sens = photoFine() || e.ctrlKey || e.altKey ? 0.0008 : 0.0035;
+  PHOTO.yaw += (e.clientX - PHOTO.lx) * sens; PHOTO.pitch -= (e.clientY - PHOTO.ly) * sens; PHOTO.lx = e.clientX; PHOTO.ly = e.clientY;
 });
+// (in photo mode the fine keys are the camera's, not the browser's: Alt's menu bar, Ctrl+S / D / A / E / Q - all but
+//  Ctrl+W, which the browser keeps)
+window.addEventListener('keydown', (e) => { if (PHOTO.on && (e.altKey || (e.ctrlKey && ['KeyS', 'KeyD', 'KeyA', 'KeyE', 'KeyQ'].includes(e.code)) || e.code === 'AltLeft' || e.code === 'AltRight')) e.preventDefault(); });
 
 // ---------------------------------------------------------------------------
 // finale: at the end of a race / qualifying the camera cuts to a static shot of the Sphere, which shows the
@@ -1156,6 +1375,15 @@ function applyWeather(wet) {
   const rm = W.trackMesh.userData.roadMat; rm.roughness = 0.62 - 0.4 * wet; rm.metalness = 0.06 + wet * 0.25; rm.envMapIntensity = 0.55 + wet * 1.4;
 }
 
+/** a team's car on the day (Roster dayPerf: the circuit's fit and the weekend's form) - drawn once a weekend and kept
+ *  for every session of it (qualifying and the race the same car) */
+function onTheDay(team) {
+  const wk = S.weekend, key = `${W.def?.id}|${wk?.round ?? ''}`;
+  if (!wk) return dayPerf(team, W.def?.id || '');
+  const M = wk.dayP?.key === key ? wk.dayP : (wk.dayP = { key, m: new Map() });
+  let v = M.m.get(team); if (v == null) M.m.set(team, (v = dayPerf(team, W.def?.id || '')));
+  return v;
+}
 /** an AI car's starting tyre: wet weather, or by the race length and the car's pace */
 function aiCompound(e, lapsTotal) {
   const wet = weatherWetness(settings.weather);
@@ -1171,8 +1399,8 @@ function careerField(C, lapsTotal, assists) {
   const room = new Map();
   if (!standing) try { for (const f of friendFavours(C)) if (f.kind === 'room' && f.mul) room.set(f.did, f.mul); } catch (e) { console.warn('[career] favours', e); }
   for (const e of E) {
-    const car = new Car(W.track, { name: e.name, short: e.short, team: e.team, color: e.color, isPlayer: e.isPlayer, perf: e.perf, rating: e.rating, number: e.number, compound: e.isPlayer ? settings.tyre : aiCompound(e, lapsTotal), raceLaps: lapsTotal, assists });
-    car.tier = e.tier; car.color2 = e.color2; car.helmet = e.helmet; car.boxIdx = e.garage === 'own' ? TEAMS.length : e.garage;
+    const car = new Car(W.track, { name: e.name, short: e.short, team: e.team, color: e.color, isPlayer: e.isPlayer, perf: e.perf + onTheDay(e.team), rating: e.rating, number: e.number, compound: e.isPlayer ? settings.tyre : aiCompound(e, lapsTotal), raceLaps: lapsTotal, assists });
+    car.tier = e.tier; car.color2 = e.color2; car.helmet = e.helmet; car.livery = e.livery || null; car.boxIdx = e.garage === 'own' ? TEAMS.length : e.garage;
     car.careerId = e.careerId; car.standInFor = e.standInFor || null; car.outWhy = e.outWhy || (e.standInFor ? outWhyOf(C, e.standInFor) : null);
     // (the driver's head this weekend - career/Morale.js FORM, read live by the race code - and the licence they carry)
     const rec = C.drivers[e.careerId];
@@ -1182,7 +1410,11 @@ function careerField(C, lapsTotal, assists) {
     // (your tyres also wear by your focus: smooth inputs when your head is in it - baseWear kept for the walk's refresh)
     car.baseWear = fx.wear || 1; car.wearMul = e.isPlayer ? car.baseWear * (car.form.wear || 1) : car.baseWear; car.tyres.wearMul = car.wearMul;
     // (Paddock Rapport: a driver you have fallen out with races harder; one you get on with gives you a little more room)
-    if (!e.isPlayer) { const v = C.rapportOf(e.careerId); car.aggrMul = v < 0 ? 1 + Math.min(0.5, -v / 160) : 1 - Math.min(0.12, v / 600); car.aggrMul *= room.get(e.careerId) || 1; }
+    if (!e.isPlayer) { const v = C.rapportOf(e.careerId); car.aggrMul = v < 0 ? 1 + Math.min(0.5, -v / 160) : 1 - Math.min(0.12, v / 600); car.aggrMul *= room.get(e.careerId) || 1; car.rapport = v; }
+    // (team orders - race/TeamOrders.js: the contract's standing in the team, yours by your team-mate's, and the points)
+    const mateRec = e.isPlayer ? E.filter((x) => x.team === e.team && !x.isPlayer).map((x) => C.drivers[x.careerId])[0] : null, mr = mateRec?.contract?.role;
+    car.role = e.isPlayer ? (mr === 'lead' ? 'support' : mr === 'support' ? 'lead' : 'equal') : rec?.contract?.role || null;
+    car.champPts = Number.isFinite(rec?.points) ? rec.points : null;
     cars.push(car);
   }
   // (never a race without you in it: if your driver somehow has no car, watch your team's - never a frozen camera)
@@ -1240,8 +1472,8 @@ function buildField(lapsTotal) {
     const wet = weatherWetness(settings.weather);
     let compound = settings.tyre;
     if (!isPlayer) compound = wet > 0.5 ? 'WET' : wet > 0.2 ? 'INTER' : lapsTotal >= 13 ? (e.tier <= 1 ? (Math.random() < 0.5 ? 'MEDIUM' : 'SOFT') : (Math.random() < 0.6 ? 'SOFT' : 'MEDIUM')) : (Math.random() < 0.85 ? 'SOFT' : 'MEDIUM');
-    const car = new Car(W.track, { name: e.name, short: e.short, team: e.team, color: e.color, isPlayer, perf: e.perf, rating: e.rating, number: e.number, compound, raceLaps: lapsTotal, assists });
-    car.tier = e.tier; car.color2 = e.color2; car.helmet = e.helmet; car.boxIdx = e.custom ? TEAMS.length : teamIndexOf(e.team); cars.push(car);   // one pit garage per team
+    const car = new Car(W.track, { name: e.name, short: e.short, team: e.team, color: e.color, isPlayer, perf: e.perf + onTheDay(e.team), rating: e.rating, number: e.number, compound, raceLaps: lapsTotal, assists });
+    car.tier = e.tier; car.color2 = e.color2; car.helmet = e.helmet; car.livery = e.livery || null; car.boxIdx = e.custom ? TEAMS.length : teamIndexOf(e.team); cars.push(car);   // one pit garage per team
     if (e.standInFor) { car.standInFor = e.standInFor; car.outWhy = e.outWhy || 'injury'; }
     // (form: yours neutral - nothing carried between quick races but the licence; the stand-in's licence is his own)
     car.form = isPlayer ? neutralForm() : formOf(moodOf({ morale: moodFor(e.name), moodOff: { focus: 0, racecraft: 0, confidence: 0, composure: 0 } }));
@@ -1251,9 +1483,14 @@ function buildField(lapsTotal) {
 }
 
 function spawnMeshes(cars) {
-  for (const c of cars) { const m = new CarMesh(c.color, c.tyres.compound, { color2: c.color2, helmet: c.helmet, driver: c.name, number: c.number, glove: People.lookOf(c.name).suit?.secondary, tcamColor: c.number % 2 ? 0xffd400 : 0x111111 }); m.setHalo(S.halo); scene.add(m.group); S.meshes.set(c, m); }
+  for (const c of cars) { const m = new CarMesh(c.color, c.tyres.compound, { color2: c.color2, team: c.team, livery: c.livery, helmet: c.helmet, driver: c.name, number: c.number, glove: People.lookOf(c.name).suit?.secondary, tcamColor: c.number % 2 ? 0xffd400 : 0x111111 }); m.setHalo(S.halo); scene.add(m.group); S.meshes.set(c, m); }
   // (the cars first among the solid things: they hide the road under and beyond them, which is then not shaded)
   for (const m of S.meshes.values()) m.group.traverse((o) => { if (o.isMesh) o.renderOrder = -1; });
+}
+/** one car's model made again (a flashback back to before it was torn in two: a torn mesh cannot be made whole) */
+function respawnMesh(c) {
+  const old = S.meshes.get(c); if (old) { scene.remove(old.group); old.dispose(); S.meshes.delete(c); }
+  spawnMeshes([c]);
 }
 // ---------------------------------------------------------------------------
 // flashback: Backspace opens it (the race freezes, the picture fades), A / D or the arrows scrub back and forth through
@@ -1275,7 +1512,7 @@ function startFlashback() {
   const d = S.director, fb = d?.flashback;
   if (!fb || fb.uses <= 0) { hud.msg('NO FLASHBACKS LEFT', 'warn', 1.5); return; }
   if (fb.buf.length < 2) { hud.msg('NOTHING TO REWIND YET', 'warn', 1.5); return; }
-  endCrash();
+  endCrash(); if (POV.on) cancelScreen();   // (the last seconds through your eyes: back out of the helmet to rewind)
   S.fb = { now: fb.snap(), pos: d.time, max: d.time, shown: null, base: new Map() };
   if (audio.engGain) { const tt = audio.ctx.currentTime; audio.engGain.gain.setTargetAtTime(0, tt, 0.05); audio.noiseGain.gain.setTargetAtTime(0, tt, 0.05); }   // (the engine falls silent)
   fbShow(true);
@@ -1289,7 +1526,10 @@ function updateFlashback(dt) {
   // the snapshot at or before the playhead, and the cars eased toward the next one (smooth at 60 fps from 4 a second)
   const i = Math.max(0, fb.buf.findIndex((s) => s.t > F.pos) - 1), s0 = F.pos >= F.max - 1e-3 ? F.now : fb.buf[i >= 0 ? i : fb.buf.length - 1];
   const s1 = s0 === F.now ? null : fb.buf[i + 1] || F.now;
-  if (F.shown !== s0) { fb.restore(s0); F.shown = s0; F.base.clear(); for (const c of S.cars) F.base.set(c, [c.x, c.z, c.th]); }
+  if (F.shown !== s0) {
+    fb.restore(s0); F.shown = s0; F.base.clear(); for (const c of S.cars) F.base.set(c, [c.x, c.z, c.th]);
+    for (const c of S.cars) if (S.meshes.get(c)?.splitDone && !c.split) respawnMesh(c);   // (the damage as it was then: CarMesh._sync)
+  }
   if (s1) {
     const f = Math.max(0, Math.min(1, (F.pos - s0.t) / Math.max(1e-3, s1.t - s0.t)));
     for (const [a, st] of s1.state) {
@@ -1310,7 +1550,12 @@ function updateFlashback(dt) {
 function endFlashback(resume) {
   const F = S.fb, d = S.director, fb = d.flashback; S.fb = null; fbShow(false);
   if (resume && F.pos < F.max - 0.15) {
+    // (a driver's fate, once decided, is kept for a moment after the accident: the same news comes again - only going
+    //  back to before it changes anything; the replay clip of an accident that no longer happened goes)
+    const fates = new Map(); for (const c of S.cars) if (c.fate) fates.set(c, { fate: c.fate, _out: c._out, _sev: c._sev, _pDeath: c._pDeath });
     const s = fb.at(F.pos); fb.restore(s); fb.cut(s.t); fb.uses--;
+    for (const c of S.cars) { if (c.injured && fates.has(c)) Object.assign(c, fates.get(c)); if (!c.injured) c.injuryClip = null; }
+    NEWS.wait = 0; if (NEWS.cancel || NEWS.cancelled) uncancel();
     // the models and effects of what no longer happened
     for (const m of S.meshes.values()) { scene.remove(m.group); m.dispose(); } S.meshes.clear(); spawnMeshes(S.cars);
     debris.clear(); fire.clear(); chunks.clear(); camCtl._crash = null; engineer.queue = [];
@@ -1365,6 +1610,7 @@ function setPaused(v) {
   S.paused = v; $('pause').classList.toggle('hidden', !v);
   const d = S.director, career = !!S.weekend?.career;
   $('btn-finish').classList.toggle('hidden', !(v && d && d.mode === 'tt'));
+  $('btn-restart').classList.toggle('hidden', !(v && d && d.mode === 'race' && !NEWS.cancel));
   $('btn-end').classList.toggle('hidden', !(v && d && d.mode === 'quali' && !d.done));
   $('btn-end').firstChild.textContent = d?.practice ? 'END PRACTICE' : 'END SESSION · SIMULATE THE REST';
   $('btn-quit').firstChild.textContent = career ? (d?.mode === 'quali' && !d.practice && isFinite(d?.player?.bestLap) ? 'QUIT TO CAREER · KEEP YOUR LAP' : 'QUIT TO CAREER') : 'QUIT TO MENU';
@@ -1435,6 +1681,13 @@ function estimatePace() { let t = 0; for (let i = 0; i < W.track.n; i++) t += W.
 
 function makeDirector(mode, cars, player, extra = {}) {
   const wk = S.weekend;
+  // (the title screen's ambient cars: any frame between two sessions with no director - the results, the build-up, a
+  //  career's next session - made them again, and a session started any way but the menu's START left them standing
+  //  frozen where they had been placed: the "ghost cars" at the same spots every race. Never two fields at once)
+  // (and the last session's car models, if it was not ended first: one model per car of THIS session)
+  clearAmbient();
+  for (const m of S.meshes.values()) { scene.remove(m.group); m.dispose(); } S.meshes.clear();
+  for (const o of [...scene.children]) if (o.userData?.isCar) scene.remove(o);
   // (stood down: no player - the camera and the dash follow your team's stand-in, and the race can be fast-forwarded)
   S.cars = cars; S.player = player || extra.spectate || null; S.spectating = !player && !!extra.spectate; S.ff = false; S.contacts = new Map(); spawnMeshes(cars);
   endCrash(); if (player) player.crashLog = [];   // (the crash director listens to the player's car)
@@ -1451,7 +1704,7 @@ function makeDirector(mode, cars, player, extra = {}) {
   if (S.spectating) hud.msg(`STOOD DOWN · WATCHING ${S.player.name.toUpperCase()}\nEnter: fast-forward`, 'warn', 6);
   else if (player?.standInFor) hud.msg(standInBanner(player), 'warn', 6);   // (your driver hurt, or banned: you race their stand-in)
   ensureRacingLine(); RL.group.visible = RL.on;
-  S.crews?.dispose(); S.crews = W.pit ? new PitCrews(scene, 3, S.meshes, W.time === 'night') : null;   // (the crews: a whole stop, choreographed - world/PitCrew.js)
+  S.crews?.dispose(); S.crews = W.pit ? new PitCrews(scene, 5, S.meshes, W.time === 'night') : null;   // (the crews: a whole stop, choreographed - world/PitCrew.js)
   S.fireworks?.dispose(); S.fireworks = W.def.id === 'lasvegas' && mode === 'race' ? new Fireworks(scene) : null;   // (the Strip's fireworks for the winner)
   S.flags?.dispose(); S.flags = new Marshals(scene, W.track, W.pit);       // (the marshal posts' flags: an incident, blue flags, the chequered flag)
   floodlitAll(scene); precompile();
@@ -1493,8 +1746,20 @@ function formBriefing() {
  */
 function precompile() {
   const hidden = []; scene.traverse((o) => { if (!o.visible && !o.isLight) { hidden.push(o); o.visible = true; } });
-  try { renderer.compile(scene, camera); } catch (e) { console.warn('precompile', e); }
+  const warm = prewarmParts(); scene.add(warm);   // (the materials a car only shows once it is hurt: a tyre coming apart)
+  try {
+    renderer.compile(scene, camera);
+    // the crash camera's screen (renderFrame: a composer - every material drawn into its own target, untoned and linear,
+    // is a second program): made and compiled at the first crash, it held the game up a second just as the car went
+    // over; compiled now, and its blur and output passes drawn once
+    const C = ensureCrashComposer(), prev = renderer.getRenderTarget();
+    renderer.setRenderTarget(C.readBuffer); renderer.compile(scene, camera); renderer.setRenderTarget(prev);
+    crashPass.uniforms.uBlur.value = 0; crashPass.uniforms.uSat.value = 1; C.render();
+  } catch (e) { console.warn('precompile', e); }
+  scene.remove(warm);
   for (const o of hidden) o.visible = false;
+  // (the car model's textures on the GPU now, not the first time a car comes close)
+  for (const t of Object.values(carModel()?.tex || {})) renderer.initTexture(t);
 }
 
 /**
@@ -1574,6 +1839,9 @@ function strategyCalls(d, p) {
   const k = Math.min(p.pitStops, st.stints.length - 1); if (k >= st.stints.length - 1) return;
   const cur = st.stints[k], next = st.stints[k + 1], lapNow = p.lap + 1, nm = next.compound.toLowerCase();
   if (lapNow === cur.end - 1 && st.warned !== k) { st.warned = k; engineer.say(`Plan ${st.name} is on. Box next lap for ${nm}s.`, 2); }
+  // (your pit wall gets it wrong now and then too - race/Calls.js FAULT_P, by the team's tier: the call a lap late)
+  if (lapNow >= cur.end && st.called !== k && st.rolled !== k) { st.rolled = k; if (d.lapsTotal - p.lap >= 3 && Math.random() < (FAULT_P[p.tier] ?? FAULT_P[2])) { st.late = lapNow; d.calls?.fault(p, 'late'); } }
+  if (st.late === lapNow) return;
   if (lapNow >= cur.end && st.called !== k && !p.pitRequested && !p.pitLane && !p.inPit) {
     st.called = k; p.pitPlan = { compound: next.compound, repair: (p.dmg.fwL > 0.3 || p.dmg.fwR > 0.3) ? 'wing' : 'none' }; d.requestPit(p);
     hud.msg(`BOX THIS LAP · ${next.compound}\nP TO STAY OUT`, 'warn', 4);
@@ -1607,12 +1875,17 @@ function beginRace() {
         const memorial = !!C._lostNow?.(), bw = wk.brawl;
         // (fought: the driver you squared up to on the grid - a real scuffle, not a shove you walked away from - over
         //  anyone you only touched on track; Career keeps it for a live round only)
-        const extra = { dotd: !!facts?.dotd?.[0]?.me, overtakes: pc?.overtakes || 0, grave: !!(NEWS.abandoned || NEWS.cancelled || S.cars.some((c) => c.injured) || memorial), hurtIds: S.cars.filter((c) => c.injured && c.careerId).map((c) => c.careerId),
-          fought: bw && !bw.aborted && !bw.walkedAway ? bw.did || bw.id || null : null };
+        // (the strategy stories - race/Calls.js - for the paddock news, the press and the interview: plain data, no cars)
+        const strategy = (facts?.strat || []).slice(0, 4).map((x) => ({ kind: x.kind, good: x.good, text: x.text, mine: x.mine, team: x.team, did: x.car.careerId || null, pos: x.pos, n: x.n ?? null, rival: x.rival?.careerId || null, comp: x.comp || null }));
+        const orders = (facts?.orders || []).slice(0, 4).map((x) => ({ kind: x.kind, sub: orderSub(x), good: x.good, text: x.text, mine: x.mine, team: x.team, did: x.actor.careerId || null, other: x.other.careerId || null, contra: !!x.contra, dirty: !!x.dirty, n: x.n ?? null }));
+        const extra = { strategy, orders, dotd: !!facts?.dotd?.[0]?.me, overtakes: pc?.overtakes || 0, grave: !!(NEWS.abandoned || NEWS.cancelled || S.cars.some((c) => c.injured) || memorial), hurtIds: S.cars.filter((c) => c.injured && c.careerId).map((c) => c.careerId),
+          fought: bw && !bw.aborted && !bw.walkedAway ? bw.did || bw.id || null : null,
+          // (your car touched the Wall of Champions today - Montreal's last chicane: the season remembers it)
+          woc: !!pc?.wocKiss && !pc.standInFor };
         // (who of yours was here this weekend, as the race leaves it - asked about in the pen; before the round moves on)
         let seen = []; if (!extra.grave) try { seen = Celebs.seeingAtRace(C); } catch (e) { console.warn('[career] celebs', e); }
         C.applyRace(rows, W.def.id, contacts, table, extra);
-        wk.interview = C.me?.alive && pc && !pc.injured && !pc.standInFor ? interviewCtx(C, rows, contacts, upgrade, { grave: extra.grave, seen }) : null;   // (standing in: the stand-in's media pen, not yours)   // (hurt: in the medical centre, not the media pen)
+        wk.interview = C.me?.alive && pc && !pc.injured && !pc.standInFor ? interviewCtx(C, rows, contacts, upgrade, { grave: extra.grave, seen, strat: strategy.find((x) => x.mine) || null, orders: orders.find((x) => x.mine && x.sub) || null }) : null;   // (standing in: the stand-in's media pen, not yours)   // (hurt: in the medical centre, not the media pen)
         wk.incident = S.cars.some((c) => c.injured);   // (the interview after it: under the strings)
       } else {
         rememberResult(rows, me);   // (for the loading screen's news)
@@ -1636,7 +1909,10 @@ function beginRace() {
       startFinale(winner.car, 'RACE WINNER', podium);
     },
   });
-  if (S.director && !S.spectating) startPreRace();   // (the build-up first: the race waits on the grid)
+  if (S.director && !S.spectating) {
+    if (S.skipIntro || (settings.intro === 'skip' && !S.weekend?.career)) { input.enabled = true; hud.show(); camCtl.mode = 'tcam'; if (S.player) for (let i = 0; i < 30; i++) camCtl.update(S.player, 1 / 30, W.track); }   // (straight to the grid and the lights)
+    else startPreRace();   // (the build-up first: the race waits on the grid)
+  }
 }
 
 /**
@@ -1663,11 +1939,22 @@ function raceFacts(d, rows) {
   // the crew's award: the quickest clean stop (no penalty served, no wing changed), stationary time
   const fs = (d.stops || []).filter((s) => s.clean).sort((a, b) => a.t - b.t)[0];
   if (fs) out.splice(out.length - 1, 0, ['FASTEST PIT STOP', `${fs.c.team} · ${fs.t.toFixed(2)}s (${fs.c.name.split(' ').pop()}, lap ${fs.lap})`, fs.c.color]);
+  // the strategy story of the day (race/Calls.js: a gamble paid or backfired, a stop just before the safety car, an
+  //  undercut, a pit wall's mistake) - and yours, if you have one and it is not the same
+  let strat = []; try { strat = d.calls?.stories() || []; } catch (e) { console.warn('[strategy] stories', e); }
+  const st0 = strat[0], stMe = strat.find((x) => x.mine);
+  if (st0) out.push(['STRATEGY', st0.text, st0.car.color]);
+  if (stMe && stMe !== st0) out.push(['YOUR STRATEGY', stMe.text, stMe.car.color]);
+  // team orders (race/TeamOrders.js: an order obeyed, refused or ignored, a hold broken, a car held up, team-mates colliding)
+  let ords = []; try { ords = d.orders?.stories() || []; } catch (e) { console.warn('[orders] stories', e); }
+  const or0 = ords[0], orMe = ords.find((x) => x.mine);
+  if (or0) out.push(['TEAM ORDERS', or0.text, or0.actor.color]);
+  if (orMe && orMe !== or0) out.push(['YOUR TEAM', orMe.text, orMe.actor.color]);
   const n = d.sc?.count || { sc: 0, vsc: 0 }, red = d.sc?.redCount || 0;
   out.push(['NEUTRALISATIONS', [n.sc && `${n.sc} safety car${n.sc > 1 ? 's' : ''}`, n.vsc && `${n.vsc} VSC`, red && `${red} red flag${red > 1 ? 's' : ''}`].filter(Boolean).join(' · ') || 'none']);
   const dnf = rows.filter((r) => r.car.retired);
   out.push(['DID NOT FINISH', dnf.length ? dnf.map((r) => r.name.split(' ').pop()).join(', ') : 'everyone finished']);
-  return { dotd, facts: out };
+  return { dotd, facts: out, strat, orders: ords };
 }
 
 // ---------------------------------------------------------------------------
@@ -1732,6 +2019,8 @@ function interviewCtx(C, rows, contacts, upgrade, o = {}) {
   const pts = activePoints(C, C.playerId), ban = banText(C, C.playerId), nextId = C.round <= C.rounds ? C.calendar?.[C.round - 1] : null;
   const off = {
     grave: !!o.grave,
+    strat: o.grave ? null : o.strat || null,
+    orders: o.grave ? null : o.orders || null,   // (your team-order story today - race/TeamOrders.js: an order you or your team-mate obeyed or defied, a hold broken, held up, a collision)   // (your strategy story today - race/Calls.js: a pit wall's mistake, a stop before the safety car, an undercut)
     brawl: bd ? { d: bd, result: B.result || 'even', started: B.started !== false, escalated: !!B.escalated, walkedAway: !!B.walkedAway } : null,
     partner: pid && pb && !pb.grieving ? { id: pid, name: pn, first: pn.split(' ')[0], public: !!pb.public, secret: !!pb.secret } : null,
     points: ban || pts >= 8 ? { n: pts, ban: !!ban, next: nextId ? TRACKS[nextId]?.name.replace(/ (Strip )?Circuit$/, '') : null, max: LICENCE_MAX } : null,
@@ -1868,7 +2157,7 @@ function beginCancel(hurt) {
   hud.msg('RED FLAG · RACE CANCELLED\nReturn to the pit lane', 'bad', 9);
   if (!mine && d.engineer) {
     engineer.queue = []; engineer.say("Red flag. The race will not be restarted. Bring it back to the pit lane, slowly. ... Just bring it home.", 5);
-    setTimeout(() => { if (S.director === d) d.engineer = null; }, 9000);   // (no more race chatter)
+    clearTimeout(NEWS.muteT); NEWS.muteT = setTimeout(() => { if (S.director === d && NEWS.cancelled) d.engineer = null; }, 9000);   // (no more race chatter)
   }
   strings(true, { offset: 0, fadeIn: 6, gain: 0.55 });
   if (mine) povStart(p);   // (you were in it: through your own eyes)
@@ -1938,14 +2227,14 @@ function povStart(p) {
   const C = p.injuryClip, j = C ? C.cars.indexOf(p) : -1;
   if (C && j >= 0 && C.frames.length > 8 && C.pulses) {
     const imp = (C.impact?.k ?? 0) / C.hz;
-    const Rp = POV.rep = { C, j, imp, tau: Math.max(0, imp - 3.2), t1: (C.frames.length - 1) / C.hz, reps: new Map(), lastK: -1, shake: 0, flash: 0, broken: new Map(), fires: new Map() };
+    const Rp = POV.rep = { C, j, imp, tau: Math.max(0, imp - 3.2), t1: (C.frames.length - 1) / C.hz, reps: new Map(), lastK: -1, shake: 0, flash: 0, fires: new Map() };
     Rp.lastK = Math.floor(Rp.tau * C.hz);
     for (const c of C.cars) {
-      const R = new CarMesh(c.color, c.tyres.compound, { color2: c.color2, helmet: c.helmet, driver: c.name, number: c.number, glove: People.lookOf(c.name).suit?.secondary, tcamColor: c.number % 2 ? 0xffd400 : 0x111111 });
-      scene.add(R.group); Rp.reps.set(c, R); c._povHide = true;
-      Rp.broken.set(c, {}); Rp.peak = Math.max(1, ...C.pulses.map((pp) => pp[j] || 0));
+      const R = new CarMesh(c.color, c.tyres.compound, { color2: c.color2, team: c.team, livery: c.livery, helmet: c.helmet, driver: c.name, number: c.number, glove: People.lookOf(c.name).suit?.secondary, tcamColor: c.number % 2 ? 0xffd400 : 0x111111 });
+      scene.add(R.group); Rp.reps.set(c, R); c._povHide = true; S.meshes.get(c)?.showPieces(false);
+      Rp.peak = Math.max(1, ...C.pulses.map((pp) => pp[j] || 0));
     }
-    fire.clear(); debris.clear(); chunks.clear(); fire.paused = true;
+    fire.clear(); debris.clear(); fire.paused = true;   // (the real cars' pieces and halves out of sight meanwhile: showPieces)
     POV.m = Rp.reps.get(p); POV.m.helmet.visible = false; POV.m.halo.visible = false;
   }
   return true;
@@ -1960,20 +2249,17 @@ function povReplay(dt) {
     const R = Rp.reps.get(c), o = jj * 7;
     R.group.position.set(A[o] + (B[o] - A[o]) * a, A[o + 1] + (B[o + 1] - A[o + 1]) * a, A[o + 2] + (B[o + 2] - A[o + 2]) * a);
     R.group.quaternion.set(A[o + 3], A[o + 4], A[o + 5], A[o + 6]).slerp(POVQ2.set(B[o + 3], B[o + 4], B[o + 5], B[o + 6]), a);
+    onGround(R.group);   // (recorded on the flat: on a hill, under it - and the eyes in its helmet with it)
+    R.replay(c, C.t0 + Rp.tau);   // (its dents, the parts it had lost, its pieces in the air: as they were then)
   });
   // the hits as they came: debris and sparks, the parts torn off as the real cars lost them, the fire if one burned;
   // your own: the head thrown, the picture gone for an instant, the crunch
   for (let f = Rp.lastK + 1; f <= k; f++) C.cars.forEach((c, jj) => {
     const g = C.pulses[f]?.[jj] || 0; if (g < 6) return;
     const F0 = C.frames[f], F1 = C.frames[Math.max(0, f - 1)], o = jj * 7, x = F0[o], y = F0[o + 1], z = F0[o + 2], vx = (F0[o] - F1[o]) * C.hz, vz = (F0[o + 2] - F1[o + 2]) * C.hz;
-    const R = Rp.reps.get(c), real = S.meshes.get(c), col = R.livery.color.getHex(), BR = Rp.broken.get(c), d = c.dmg || {};
-    debris.burst(x, z, vx, vz, Math.min(18, 2 + Math.round(g / 3)), col); fire.sparks(x, y + 0.3, z, Math.min(70, Math.round(g * 1.6)), vx, vz);
-    if (g >= 18) {
-      if (!BR.fw && ((d.fwL || 0) > 0.95 || (d.fwR || 0) > 0.95 || real?.lost?.fw)) { BR.fw = true; R.frontWing.visible = false; debris.part('plate', x, 0.3, z, vx, vz, col, 6); }
-      if (!BR.rw && ((d.rw || 0) >= 0.85 || real?.lost?.rw)) { BR.rw = true; R.rearWing.visible = false; debris.part('rearwing', x, 0.8, z, vx, vz, col, 6); }
-      (real?.wheels || []).forEach((w, i) => { if (w.gone && !BR['w' + i] && R.wheels[i]) { BR['w' + i] = true; R.wheels[i].hub.visible = false; debris.part('tyre', x, 0.4, z, vx, vz, 0x141414, 9); } });
-      if (!Rp.fires.has(c) && (c._burned || g >= 45)) { const e = fire.add((out) => { if (!R.group.parent) return false; R.body.localToWorld(out.set(-1.3, 0.55, 0)); return true; }, 'fire', 0.5, () => false); e.replay = true; Rp.fires.set(c, e); }
-    }
+    const R = Rp.reps.get(c), col = R.livery.color.getHex();
+    debris.burst(x, z, vx, vz, Math.min(18, 2 + Math.round(g / 3)), col); fire.sparks(x, y + 0.3 + TERRAIN.at(x, z), z, Math.min(70, Math.round(g * 1.6)), vx, vz);
+    if (g >= 18 && !Rp.fires.has(c) && (c._burned || g >= 45)) { const e = fire.add((out) => { if (!R.group.parent) return false; R.body.localToWorld(out.set(-1.3, 0.55, 0)); return true; }, 'fire', 0.5, () => false); e.replay = true; Rp.fires.set(c, e); }
     if (jj === Rp.j) { Rp.shake = Math.max(Rp.shake, Math.min(1, g / 35)); if (g >= 22) Rp.flash = Math.max(Rp.flash, Math.min(0.95, g / 50)); audio.crunch?.(Math.min(1, g / 30)); }
   });
   Rp.lastK = k;
@@ -1994,7 +2280,7 @@ function povReplay(dt) {
 function povReplayEnd() {
   const P = POV, Rp = P.rep; P.rep = null;
   for (const e of Rp.fires.values()) e.dead = true;
-  for (const [c, R] of Rp.reps) { scene.remove(R.group); R.dispose(); c._povHide = false; }
+  for (const [c, R] of Rp.reps) { scene.remove(R.group); R.dispose(); c._povHide = false; S.meshes.get(c)?.showPieces(true); }
   fire.paused = false;
   P.m = S.meshes.get(P.car); P.m.helmet.visible = false; P.m.halo.visible = false; P.t = 0;
   P.els.black.style.opacity = '1';   // (an instant of black as it comes to rest)
@@ -2051,6 +2337,23 @@ function povEnd() {
   const v = visor(); v.style.display = 'none'; v.className = ''; v.onclick = null;
 }
 function endFlashbackIfOpen() { if (S.fb) endFlashback(false); }
+/** out of the helmet (the last seconds through your eyes) and the black, the HUD back: a flashback is taken in it */
+function cancelScreen() {
+  if (POV.on) povEnd();
+  blackout().style.opacity = '0'; if (visorEl) visorEl.style.display = 'none';
+  hud.show(); $('hud').classList.remove('hidden'); input.enabled = true; if (RL.group) RL.group.visible = RL.on;
+}
+/**
+ * A flashback out of a cancelled race: the state is back to before the accident (RaceDirector stops recording once a
+ * race is cancelled, so it is still there), and the cancellation with it - the red flag, the drive back, the strings.
+ * Back to just after it instead, the same fate stands and the news comes again (crashNews).
+ */
+function uncancel() {
+  const d = S.director;
+  cancelScreen(); NEWS.cancel = null; NEWS.cancelled = false; NEWS.wait = 0;
+  clearTimeout(NEWS.muteT); if (d) d.engineer = engineer;
+  strings(false, { fade: 1.5 });
+}
 /** each frame of a cancelled race, until the news */
 function cancelFrame(dt) {
   const C = NEWS.cancel, p = S.director.player; C.t += dt;
@@ -2129,7 +2432,7 @@ function playNews(hurt, then) {
   const race = { abandoned: NEWS.abandoned, winner: winner && !hurt.includes(winner) ? winner.name : null, retired: d.cars.filter((x) => x.retired && !hurt.includes(x)).map((x) => ({ name: x.name, reason: x.retireReason })), sc: d.sc?.count?.sc || 0, vsc: d.sc?.count?.vsc || 0, red: d.sc?.redCount || 0 };
   NEWS.cut = new NewsBroadcast({ THREE, hurt, cars: S.cars, meshes: S.meshes, fx: { fire, debris, chunks }, track: W.track, stands: W.stands, obstacles: W.obstacles, pit: W.pit, trackName: W.track.def.name, race,
     // (a whole car for the replay of one torn in two, before it was)
-    makeCarMesh: (c) => { const m = new CarMesh(c.color, c.tyres.compound, { color2: c.color2, helmet: c.helmet, driver: c.name, number: c.number, glove: People.lookOf(c.name).suit?.secondary, tcamColor: c.number % 2 ? 0xffd400 : 0x111111 }); m.setHalo(S.halo); return m; },
+    makeCarMesh: (c) => { const m = new CarMesh(c.color, c.tyres.compound, { color2: c.color2, team: c.team, livery: c.livery, helmet: c.helmet, driver: c.name, number: c.number, glove: People.lookOf(c.name).suit?.secondary, tcamColor: c.number % 2 ? 0xffd400 : 0x111111 }); m.setHalo(S.halo); return m; },
     scene, camera, renderer, audio, passes: { EffectComposer, RenderPass, ShaderPass, OutputPass },
     onDone: () => { NEWS.on = false; NEWS.cut = null; input.enabled = true; then(); } });
   NEWS.on = true;
@@ -2207,8 +2510,9 @@ function preFrame(dt) {
   { const s = PRE.show, g = s?.seg; if (s && !PRE.walk && g && s.t - g.t0 > 2.6 && (s._shots = s._shots || {})[g.k] == null) { s._shots[g.k] = Math.random() < 0.6; const tag = { aerial: 'aerial', fans: 'crowd', stands: 'crowd', grid: 'grid' }[g.k]; if (tag && s._shots[g.k]) Gallery.want(tag, W.def.id); } }   // (some of the build-up kept for the loading screen)
   simTime += dt;
   if (W.lights) W.lights.update(camera.position, simTime);
-  for (const m of S.meshes.values()) m.detail(camera.position);
+  for (const m of S.meshes.values()) m.detail(camera.position, carZoom());
   if (W.stands) W.stands.update(simTime);
+  W.scenery?.update?.(simTime, camera, S.player);
   if (W.landmarks) for (const fn of W.landmarks.anims) fn(simTime, dt);
   if (W.buildings) W.buildings.material.uniforms.uTime.value = simTime;
   cullBuildings(); env.sky.position.copy(camera.position);
@@ -2222,12 +2526,14 @@ function newsFrame(dt) {
   fire.update(dt, camera, renderer.domElement.height); debris.update(dt);
   rain.update(camera, dt);
   if (W.lights) W.lights.update(camera.position, simTime);
-  for (const m of S.meshes.values()) m.detail(camera.position);
+  for (const m of S.meshes.values()) m.detail(camera.position, carZoom());
   if (W.stands) W.stands.update(simTime);
+  W.scenery?.update?.(simTime, camera);
   if (W.landmarks) for (const fn of W.landmarks.anims) fn(simTime, dt);
   if (W.buildings) W.buildings.material.uniforms.uTime.value = simTime;
   cullBuildings(); env.sky.position.copy(camera.position);
-  NEWS.cut.render(); input.endFrame();
+  { const undo = terrainLift(); try { NEWS.cut.render(); } finally { undo?.(); } }   // (its shots are placed on the flat too: lifted with what they are of)
+  input.endFrame();
 }
 
 // ---------------------------------------------------------------------------
@@ -2273,7 +2579,7 @@ async function careerHangout(launch, done, c0 = null) {
   if (c?.drivers) syncLooks(c);   // (you at the evening as your save has you: face, hair, skin)
   const next = c?.calendar?.[(c.round || 1) - 1];
   const id = (party ? [L0.track, W.track ? W.def?.id : null, 'lasvegas'] : [V?.where, W.track ? W.def?.id : null, next, 'lasvegas']).find((t) => t && TRACKS[t]);
-  const fc = c?.forecastAt?.() || null, mode = party ? (L0.night === false ? 'day' : 'night') : vid === 'rooftop' || vid === 'pub' || vid === 'poolclub' ? 'night' : (id === next && fc?.time) || TRACKS[id]?.defaultTime || 'night';
+  const fc = c?.forecastAt?.() || null, mode = party ? (L0.night === false || vid === 'dayclub' ? 'day' : 'night') : vid === 'dayclub' ? 'day' : vid === 'rooftop' || vid === 'pub' || vid === 'poolclub' ? 'night' : (id === next && fc?.time) || TRACKS[id]?.defaultTime || 'night';
   let sent = false;
   const back = (r) => { if (sent) return; sent = true; HANG.busy = false; try { done?.(r); } catch (e) { console.error('[hangout] hub', e); } };
   // (no world to stage it in: the venue in its own little scene, over the hub)
@@ -2352,6 +2658,7 @@ function hangFrame(dt, interval) {
   if (sealed) input.endFrame();
   else {
     if (W.stands) W.stands.update(simTime);
+    W.scenery?.update?.(simTime, camera);
     if (W.landmarks) for (const fn of W.landmarks.anims) fn(simTime, dt);
     const seen = sphereShow();
     input.endFrame(); sphereFeed(seen);
@@ -2468,7 +2775,8 @@ function hangoutAnchor(venueId, o = {}) {
   let a = null;
   if (W.sphereInfo && (venueId === 'rooftop' || venueId === 'apartment' || venueId === 'vegasclub')) { try { a = skyAnchor(venueId); } catch (e) { console.warn('[hangout] sky anchor', e); } }
   if (!a && venueId === 'teamparty') { try { a = paddockAnchor(venueId, o.team); } catch (e) { console.warn('[hangout] paddock anchor', e); } }
-  if (!a) { try { a = groundAnchor(venueId, venueId === 'rooftop' ? 70 : venueId === 'apartment' ? 9 : venueId === 'vegasclub' ? 60 : 0); } catch (e) { console.warn('[hangout] anchor', e); } }
+  // (the pool club: the roof of the resort's podium, 7 m up - at street level the world's ground covered its sunken basin)
+  if (!a) { try { a = groundAnchor(venueId, venueId === 'rooftop' ? 70 : venueId === 'apartment' ? 9 : venueId === 'vegasclub' ? 60 : venueId === 'poolclub' || venueId === 'dayclub' ? 7 : 0); } catch (e) { console.warn('[hangout] anchor', e); } }
   if (!a) { const f = tr.sample(0, tr.wallAt(0, 1) + 40); a = anchorAt(f.x, 0, f.z, tr.px[0], 0, tr.pz[0]); }
   a.trackId = W.def.id; a.venue = venueId; ANCHORS.set(key, a);
   return { ...a, look: { ...a.look } };
@@ -2480,7 +2788,7 @@ function hangoutAnchor(venueId, o = {}) {
  */
 function footClear(vid, x, z, tx, tz, margin) {
   const [f, b, w] = footOf(vid), L = Math.hypot(tx - x, tz - z) || 1, fx = (tx - x) / L, fz = (tz - z) / L, oh = {};
-  const at = (u, v) => { const px = x + fx * v - fz * u, pz = z + fz * v + fx * u; return corridorSigned(W.track, W.pit, px, pz, margin) >= 0 && !W.obstacles?.hit(px, pz, 0, oh) && !onVenueBuilding(px, pz); };
+  const at = (u, v) => { const px = x + fx * v - fz * u, pz = z + fz * v + fx * u; return corridorSigned(W.track, W.pit, px, pz, margin) >= 0 && !W.obstacles?.hit(px, pz, 0, oh) && !onVenueBuilding(px, pz) && !W.scenery?.blocked?.(px, pz); };
   if (!at(0, 0) || !at(-w - 1, f + 1) || !at(w + 1, f + 1) || !at(-w - 1, -b - 1) || !at(w + 1, -b - 1)) return false;
   const nu = Math.ceil((2 * w + 2) / 5), nv = Math.ceil((f + b + 2) / 5);
   for (let i = 0; i <= nu; i++) for (let j = 0; j <= nv; j++) if (!at(-w - 1 + (2 * w + 2) * i / nu, -b - 1 + (f + b + 2) * j / nv)) return false;
@@ -2685,7 +2993,7 @@ function dashLine(pts, width = 1.2, dash = 2.8, period = 7) {
   const pos = [], idx = [], dashes = [], q = {};
   for (let d0 = 0; d0 + dash <= cum[n - 1]; d0 += period) {
     const v0 = pos.length / 3;
-    for (const d of [d0, d0 + dash / 2, d0 + dash]) { at(d, q); pos.push(q.x + q.nx * width / 2, 0.04, q.z + q.nz * width / 2, q.x - q.nx * width / 2, 0.04, q.z - q.nz * width / 2); }
+    for (const d of [d0, d0 + dash / 2, d0 + dash]) { at(d, q); const y = 0.04 + TERRAIN.at(q.x, q.z); pos.push(q.x + q.nx * width / 2, y, q.z + q.nz * width / 2, q.x - q.nx * width / 2, y, q.z - q.nz * width / 2); }   // (on the road's own height: world/Terrain.js)
     // wound to face UP (counter-clockwise seen from above: the old ribbon faced down and was back-face culled, which
     // is why the racing line never showed)
     idx.push(v0, v0 + 1, v0 + 2, v0 + 1, v0 + 3, v0 + 2, v0 + 2, v0 + 3, v0 + 4, v0 + 3, v0 + 5, v0 + 4);
@@ -2702,13 +3010,14 @@ function ensureRacingLine() {
   if (RL.group || !W.track) return;
   const tr = W.track;
   RL.group = new THREE.Group(); RL.group.name = 'racingline';
-  const pts = []; for (let i = 0; i < tr.n; i++) { const f = tr.sample(tr.s[i], W.line.offset[i]); pts.push({ x: f.x, z: f.z, s: tr.s[i] }); }
+  const RLn = W.showLine || W.line;   // (a driver's own line where the circuit has one: makeRacingLine)
+  const pts = []; for (let i = 0; i < tr.n; i++) { const f = tr.sample(tr.s[i], RLn.offset[i]); pts.push({ x: f.x, z: f.z, s: tr.s[i] }); }
   pts.push({ ...pts[0], s: tr.length });   // close the lap
   RL.main = dashLine(pts); RL.group.add(RL.main);
   if (W.pit) {
     // guide: racing line from 250 m before the pit entry, blending onto the pit-lane centre, ending at the player's box
     const P = W.pit, gp = []; const s0 = tr.wrapS(P.entryS - 250);
-    for (let d = 0; d < 250; d += 2) { const s = tr.wrapS(s0 + d); const f = tr.sample(s, W.line.offsetAt(s) * (1 - d / 250) + (P.sideSign * (tr.halfWidth - 2)) * (d / 250)); gp.push({ x: f.x, z: f.z, s }); }
+    for (let d = 0; d < 250; d += 2) { const s = tr.wrapS(s0 + d); const f = tr.sample(s, RLn.offsetAt(s) * (1 - d / 250) + (P.sideSign * (tr.halfWidth - 2)) * (d / 250)); gp.push({ x: f.x, z: f.z, s }); }
     const ps = P.samples; for (let i = 0; i < ps.n; i++) gp.push({ x: ps.px[i], z: ps.pz[i], pitU: ps.s[i] });
     RL.pitGuide = dashLine(gp); RL.pitGuide.visible = false; RL.group.add(RL.pitGuide);
   }
@@ -2727,7 +3036,7 @@ function colourLine(mesh, sFn, car, gripF, forceRed = null) {
     const ds = sFn(dsh.p); let a = 0, red = false;
     if (ds > -2 && ds < RL_RANGE) {
       if (forceRed != null) red = forceRed;
-      else red = v > W.profile[W.track.idxAtS(dsh.p.s ?? car.s)] * gripF * 1.03;
+      else red = v > (W.lineSpeed || W.profile)[W.track.idxAtS(dsh.p.s ?? car.s)] * gripF * 1.03;
       a = 0.88 * Math.min(1, (RL_RANGE - ds) / 40);                              // fade over the last 40 m
     }
     const c = red ? RL_RED : RL_GREEN;
@@ -2762,7 +3071,7 @@ function ds0carS(car, s0) { const L = W.track.length; let d = car.s - s0; if (d 
 // ---------------------------------------------------------------------------
 // Static tripod shots: landmark beauty shots framed with the track in view, and trackside shots where the
 // ambient cars pass through. Each shot holds ~10 s with a very slow push-in, then crossfades.
-const CINE = { shots: null, i: -1, t: 0, dur: 10, box: new THREE.Box3() };
+const CINE = { shots: null, i: -1, t: 0, dur: 10, box: new THREE.Box3(), aim: new THREE.Vector3() };   // (aim: what the shot is of, on the flat - terrainLift)
 function buildShots() {
   const tr = W.track, shots = [];
   const objShot = (o, label, rMul = 1.0, azOff = 0.6) => {
@@ -2776,6 +3085,7 @@ function buildShots() {
   // (by arc length, negative = before the line, or by turn number: the tripod stands 90 m before the corner)
   for (const sh of (W.def.shots || [])) {
     if (sh.lm) objShot(W.landmarks?.group.children.find((c) => c.name === `lm:${sh.lm}`), sh.label, sh.rMul, sh.az);
+    else if (sh.scene) objShot(W.scenery?.group.children.find((c) => c.name === `mtl:${sh.scene}` || c.name === `scene:${sh.scene}`), sh.label, sh.rMul, sh.az);
     else if (sh.building) objShot(W.venue?.group.children.find((c) => c.name === 'venue:wing'), sh.label, sh.rMul, sh.az);
     else {
       let s = sh.s ?? 0;
@@ -2800,7 +3110,7 @@ function cinematic(dt) {
   if (sh.type === 'static') {
     const r = sh.r * (1.0 - 0.05 * u), sway = Math.sin(CINE.t * 0.25) * 0.01;   // slow push-in, barely-there sway
     camera.position.set(sh.c.x + Math.cos(sh.az + sway) * r, sh.h + u * 2, sh.c.z + Math.sin(sh.az + sway) * r);
-    camera.up.set(0, 1, 0); camera.lookAt(sh.c.x, sh.lookY, sh.c.z);
+    camera.up.set(0, 1, 0); camera.lookAt(sh.c.x, sh.lookY, sh.c.z); CINE.aim.set(sh.c.x, sh.lookY, sh.c.z);
   } else {
     // tripod at the barrier, looking down the road; a passing car gets a gentle pan
     const f = tr.sample(sh.s, sh.sd * (tr.wallAt(tr.idxAtS(sh.s), sh.sd) + 5)); camera.position.set(f.x, 3.2, f.z); camera.up.set(0, 1, 0);   // just behind the barrier, wherever the run-off puts it
@@ -2808,7 +3118,7 @@ function cinematic(dt) {
     for (const c of cars) { const L = tr.length; let ds = c.s - sh.s; if (ds > L / 2) ds -= L; if (ds < -L / 2) ds += L; if (Math.abs(ds) < bd) { bd = Math.abs(ds); best = c; } }
     const a = tr.sample(sh.s + 140, 0); const tx = best ? best.x * 0.6 + a.x * 0.4 : a.x, tz = best ? best.z * 0.6 + a.z * 0.4 : a.z;
     if (!CINE.look) CINE.look = new THREE.Vector3(tx, 1.2, tz); CINE.look.lerp(new THREE.Vector3(tx, 1.2, tz), Math.min(1, dt * 2));
-    camera.lookAt(CINE.look); fov = 42;
+    camera.lookAt(CINE.look); CINE.aim.copy(CINE.look); fov = 42;
   }
   if (Math.abs(camera.fov - fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }
 }
@@ -2821,7 +3131,7 @@ function ensureAmbient() {
   picks.forEach((e, k) => {
     const car = new Car(W.track, { name: e.name, short: e.short, team: e.team, color: e.color, perf: e.perf, rating: e.rating, number: e.number, compound: 'MEDIUM', raceLaps: 50, assists: { tc: true, abs: true } });
     car.wetness = weatherWetness(settings.weather); car.placeOnTrack(k * (W.track.length / picks.length) + 300, W.line.offsetAt(k * (W.track.length / picks.length) + 300), 60);
-    const mesh = new CarMesh(e.color, 'MEDIUM', { color2: e.color2, helmet: e.helmet, driver: e.name, number: e.number }); scene.add(mesh.group);
+    const mesh = new CarMesh(e.color, 'MEDIUM', { color2: e.color2, team: e.team, helmet: e.helmet, driver: e.name, number: e.number }); scene.add(mesh.group);
     cars.push(car); ais.push(new AIDriver(car, W.line, W.profile, W.track, { aggression: 0.5 })); meshes.push(mesh);
   });
   S.ambient = { cars, ais, meshes, world: { cars, time: 0, racing: true, lapsTotal: 999, wetness: 0, raceStart: -100 }, acc: 0, sub: 0 };
@@ -2834,7 +3144,7 @@ function stepAmbient(dt) {
     if (A.sub % 2 === 0) for (const ai of A.ais) ai.update(1 / 60, A.world);
     for (const c of A.cars) { c.step(1 / 120, A.world); c.tyres.wear = Math.min(c.tyres.wear, 0.3); }
   }
-  A.cars.forEach((c, i) => A.meshes[i].update(c, dt));
+  A.cars.forEach((c, i) => { A.meshes[i].update(c, dt); A.meshes[i].detail(camera.position, carZoom()); });
 }
 function clearAmbient() {
   const A = S.ambient; if (!A) return;
@@ -2935,6 +3245,8 @@ const BUILDING_CUTOFF = 1800;
 function cullBuildings() {
   const b = W.buildings; if (!b) return;
   for (const m of b.children) { const s = m.geometry.boundingSphere; m.visible = s.center.distanceTo(camera.position) - s.radius < BUILDING_CUTOFF; }
+  // (a circuit's own scenery cells - car parks, cars, scrub - each with its own cut-off)
+  const sg = W.scenery?.group; if (sg) for (const m of sg.children) { const cut = m.userData.cut; if (!cut) continue; const s = m.boundingSphere || m.geometry.boundingSphere; if (s) m.visible = s.center.distanceTo(camera.position) - s.radius < cut; }
   cullDetail();
 }
 /** thin track details (lines, kerbs, banners, pit paint) are not drawn beyond their cut-off (TrackBuilder DETAIL_CUT) */
@@ -2970,11 +3282,12 @@ function frame(now) {
       updatePhoto(dt);
     }
   } else {
+    releasePhotoAI();
     if (telView.open) { if (input.pressed('Escape') || input.pressed('KeyT')) telView.close(); }   // the report sits over the game
     else if (input.pressed('KeyT') && d && !hud.pit.open) openTelemetry(!S.paused);
     else if (!S.fb && input.pressed('Escape') && d && !d.done && !hud.pit.open) setPaused(!S.paused);
     if (S.fb) updateFlashback(dt);
-    else if (d && !S.paused && !d.done && !hud.pit.open && !FINALE.on && !NEWS.cancel && !NEWS.cancelled && input.pressed('Backspace')) startFlashback();   // (no rewinding a life lost)
+    else if (d && !S.paused && !d.done && !hud.pit.open && !FINALE.on && !NEWS.fading && input.pressed('Backspace')) startFlashback();   // (a red flag too: back to before the accident, and it never happened)
     if (input.pressed('KeyV')) camCtl.toggle();
     camCtl.lookIn = input.look; camCtl.back = input.lookBack;   // Q / E look left / right, C look back (updated with the input below)
     if (input.pressed('KeyL') && d) {
@@ -2989,6 +3302,8 @@ function frame(now) {
     if (d && p && !S.paused && !d.done && !S.spectating) {
       if (hud.pit.open) { for (const k of ['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5', 'Digit7', 'Digit8', 'Digit9', 'Enter']) if (input.pressed(k)) hud.handlePitKey(k); }
       if (p.pitAuto && p._pull && !p._pull.done && (input.pressed('Space') || input.pressed('Enter') || input.padATap)) d.pullIn(p);   // (the pull-in into your box, timed)
+      // team orders (race/TeamOrders.js): Y copy / N refuse an order to let your team-mate by; G ask for your team-mate ahead to be moved over
+      if (d.mode === 'race' && d.orders && !p.autopilot) { if (d.orders.ask?.Y === p) { if (input.pressed('KeyY')) d.orders.reply(p, true); else if (input.pressed('KeyN')) d.orders.reply(p, false); } if (input.pressed('KeyG')) d.orders.request(p); }
       if (input.pressed('KeyP') && d.mode !== 'quali') {
         const on = d.requestPit(p);
         if (on) { hud.openPit(p, (plan) => { p.pitPlan = plan; engineer.say(`Copy, box this lap for ${plan.compound.toLowerCase()}s${plan.repair !== 'none' ? ' and repairs' : ''}. Follow the line into the pit entry, the limiter is automatic.`, 3); }); hud.msg('PIT REQUESTED · choose tyres & repairs', 'warn', 3); }   // the action pauses while the menu is open
@@ -2997,9 +3312,14 @@ function frame(now) {
       // (no reset: drive it back - hold the brake at a standstill for reverse; beached, hold R to retire)
     }
   }
-  // (a driver hurt: a second and a half for the rest of the accident to play out, then the news - crashNews)
-  if (d && d.mode === 'race' && !d.done && !NEWS.fading && !S.paused && S.cars.some((c) => c.injured && !c.standInFor && !c._newsShown && (c.injuryClip || c._clipAt == null))) { NEWS.wait += dt; if (NEWS.wait > 1.5) crashNews(); }
-  if (NEWS.cancel && d && !d.done && !S.paused && !NEWS.fading) cancelFrame(dt);   // (a race cancelled: the drive back, then the news)
+  // (a driver hurt: a second and a half for the rest of the accident to play out - three with a flashback to hand, the
+  //  time to take it - then the news: crashNews. Never while a flashback is open: it would shut it)
+  if (d && d.mode === 'race' && !d.done && !NEWS.fading && !S.paused && !S.fb && S.cars.some((c) => c.injured && !c.standInFor && !c._newsShown && (c.injuryClip || c._clipAt == null))) {
+    const fbOk = d.flashback?.uses > 0 && d.flashback.buf.length > 1;
+    if (!NEWS.wait && fbOk && !NEWS.cancel) hud.msg('MAJOR ACCIDENT\nBACKSPACE · FLASHBACK', 'bad', 3);
+    NEWS.wait += dt; if (NEWS.wait > (fbOk ? 3 : 1.5)) crashNews();
+  }
+  if (NEWS.cancel && d && !d.done && !S.paused && !NEWS.fading && !S.fb) cancelFrame(dt);   // (a race cancelled: the drive back, then the news)
   const halted = (PHOTO.on ? !PHOTO.live : S.paused) || hud.pit.open || !!S.fb || NEWS.fading || !!S.simming;
 
   if (d && !halted) {
@@ -3028,12 +3348,6 @@ function frame(now) {
       S.fireworks.update(sdt, camera);
     }
     debris.update(sdt); fire.update(sdt, camera, renderer.domElement.height); chunks.update(sdt);
-    // a car torn in two: where its rear half flies, by race time (the news replays it: ui/NewsBroadcast.js)
-    for (const c of S.cars) {
-      const m = S.meshes.get(c); if (!c.split || !m?.half?.parent) continue;
-      const T = c._halfTrack || (c._halfTrack = []);
-      if (T.length < 900 && (!T.length || d.time - T[T.length - 1][0] > 0.04)) T.push([d.time, ...m.half.position.toArray(), ...m.half.quaternion.toArray()]);
-    }
     if (p) updateRacingLine(p);
     pitTiming.update(p, d.time, sdt, camCtl.mode === 'cockpit'); if (p && !S.spectating) strategyCalls(d, p);
     // (the turn-in point for your pull-in, painted across the lane: you can time it by eye from the cockpit)
@@ -3048,7 +3362,7 @@ function frame(now) {
           S.pullMark = g; scene.add(g);
         }
         const ps = P.samples, i = Math.max(0, Math.min(ps.n - 1, Math.round(pl.at / ps.ds))), m = S.pullMark;
-        m.visible = true; m.position.set(ps.px[i], 0.03, ps.pz[i]); m.rotation.set(0, Math.atan2(-ps.nz[i], ps.nx[i]), 0); m.userData.band.scale.set(P.halfWidth * 2, 1, 1);
+        m.visible = true; m.position.set(ps.px[i], 0.03 + TERRAIN.at(ps.px[i], ps.pz[i]), ps.pz[i]); m.rotation.set(0, Math.atan2(-ps.nz[i], ps.nx[i]), 0); m.userData.band.scale.set(P.halfWidth * 2, 1, 1);
         for (const [post, s] of m.userData.posts) post.position.x = s * (P.halfWidth + 0.2);
         m.userData.mat.opacity = 0.55 + 0.4 * Math.abs(Math.sin(d.time * 6));
       } else if (S.pullMark) S.pullMark.visible = false;
@@ -3065,14 +3379,17 @@ function frame(now) {
   } else if (d && hud.pit.open && p) {
     hud.update(p, { mode: d.mode, lapsTotal: d.lapsTotal, positions: d.positions, time: d.time, qualiStarted: d.qualiStarted, sectors: d.sectors, delta: (c) => d.telemetry?.liveDelta(c, d.time), sc: d.sc?.hudState(), gap: (a, b) => d.radio?.gap(a, b), drs: (c) => d.drs?.state(c) }, dt);
   } else if (!d && !W.home) {
-    simTime += dt; ensureAmbient(); stepAmbient(dt); cinematic(dt);
+    // (the ambient field only behind the menus themselves: not between a weekend's sessions, not under the results)
+    simTime += dt; if (!S.weekend && !PRE.show && !PRE.walk) { ensureAmbient(); stepAmbient(dt); } else clearAmbient(); cinematic(dt);
   }
+  if (d && S.ambient) clearAmbient();
   standsHD(FINALE.on || (!d && !W.home), dt, simTime);   // (the finale's shots, the title shots behind the menus: the stands full of people)
   if (W.home || !W.track) { input.endFrame(); return; }   // home screen / building: no 3D scene to draw
   rain.update(camera, halted ? 0 : dt);
   if (W.lights) W.lights.update(camera.position, simTime);
-  for (const m of S.meshes.values()) m.detail(camera.position);
+  for (const m of S.meshes.values()) m.detail(camera.position, carZoom());
   if (W.stands) W.stands.update(simTime);
+  W.scenery?.update?.(simTime, camera, S.player);   // (the TV helicopter covers the car you follow, whatever the camera does)
   if (W.landmarks) for (const fn of W.landmarks.anims) fn(simTime, halted ? 0 : dt);
   if (W.buildings) W.buildings.material.uniforms.uTime.value = simTime;
   const sphereSeen = sphereShow();
@@ -3088,7 +3405,13 @@ function frame(now) {
 // ---------------------------------------------------------------------------
 {
   document.body.classList.add('home');   // (also in index.html; an Artifact host supplies its own <body>)
-  window.__F1 = { PRE, W, S, settings, scene, camera, renderer, input, hud, AIDriver, AI_TUNE, camCtl, setTimeOfDay, corridorSigned, CINE, cinematic, get feed() { return feed; }, get show() { return show; }, frame, ensureAmbient, PHOTO, TRACKS, switchTrack, NEWS, playNews, nextAfterResults, crashNews, helmetURL, openCareerHub, simToEnd, strings, get audio() { return audio; },
+  window.__F1 = { PRE, W, S, settings, scene, camera, renderer, input, hud, AIDriver, AI_TUNE, AI_CAL, applyCalibration, chunks, debris, fire, respawnMesh,
+    /** (tests: one frame drawn as the crash camera draws it - through its composer - and the programs that compiled) */
+    crashFrame() { const n0 = renderer.info.programs.length; ensureCrashComposer(); crashPass.uniforms.uBlur.value = 0.6; crashPass.uniforms.uSat.value = 1.5; crashComposer.render(); return renderer.info.programs.length - n0; },
+    /** (tests: the crash director, and the camera as drawn - terrainLift() lifts it for the frame and returns the undo; renderView() draws a frame through it) */
+    crashCam, terrainLift, renderView,
+    /** (tools: a calibration applied, the racing line and the speed profile rebuilt from it - the next session's AI drives them) */
+    rebuildLine(cal) { applyCalibration(W.track, cal === undefined ? AI_CAL[W.def.id] : cal); const r = makeRacingLine(W.track, W.def); W.line = r.line; W.profile = r.profile; W.lineSpeed = r.shown; W.showLine = r.showLine; if (RL.group) { scene.remove(RL.group); RL.group = null; } return { fixed: !!r.line.fixed }; }, camCtl, setTimeOfDay, corridorSigned, CINE, cinematic, get feed() { return feed; }, get show() { return show; }, frame, ensureAmbient, PHOTO, TRACKS, switchTrack, NEWS, playNews, nextAfterResults, crashNews, helmetURL, openCareerHub, simToEnd, strings, get audio() { return audio; },
     restart() { if (settings.driver == null) settings.driver = 0; /* test hook: the field needs a player */ S.noStrategy = !window.__keepStrategy; endSession(); $('results').classList.add('hidden'); $('quali-panel').classList.add('hidden'); $('pause').classList.add('hidden'); S.paused = false; startWeekend(); if (PRE.show && !window.__keepPre) PRE.show.finish(); },   // (tests: no pre-race show unless asked for)
     // the driver's life (tests): the engines as modules, the career class, the scuffle module, the walk, the evening out.
     // Test switches read where they matter: window.__forceStars (ui/PreRace.js), window.__forceJab, window.__qteAuto,

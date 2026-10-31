@@ -28,9 +28,9 @@ const usd = (v) => `$${r2(v)}M`;
 const sgn = (v) => `${v > 0 ? '+' : ''}${r1(v)}`;
 const PR_V = 1, FEED_CAP = 60, POSTS_CAP = 20, HIST_CAP = 80, PAST_CAP = 12, MAX_DEALS = 4, MAX_OFFERS = 3;
 const POSTS_A_ROUND = 2, POST_IMAGE_CAP = 3, NEWS_A_ROUND = 3;
-const TRACK = { lasvegas: 'Las Vegas', silverstone: 'Silverstone' };
-const GP = { lasvegas: 'Las Vegas Grand Prix', silverstone: 'British Grand Prix' };
-const CITY = { lasvegas: 'Las Vegas', silverstone: 'London' };
+const TRACK = { lasvegas: 'Las Vegas', silverstone: 'Silverstone', montreal: 'Montreal', austin: 'Austin' };
+const GP = { lasvegas: 'Las Vegas Grand Prix', silverstone: 'British Grand Prix', montreal: 'Canadian Grand Prix', austin: 'United States Grand Prix' };
+const CITY = { lasvegas: 'Las Vegas', silverstone: 'London', montreal: 'Montreal', austin: 'Austin' };
 const ORD = ['', 'first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth', 'ninth', 'tenth', 'eleventh', 'twelfth', 'thirteenth', 'fourteenth', 'fifteenth',
   'sixteenth', 'seventeenth', 'eighteenth', 'nineteenth', 'twentieth', 'twenty-first', 'twenty-second', 'twenty-third'];
 // (the romance roster's fixed ids - each name is its id in title case; PR never imports Celebs.js)
@@ -352,6 +352,134 @@ const HL = {
     tv: [`Penalty! {sur} punished for {reason}`],
     tab: [`Naughty step for {sur}! {ptsTxt} at {track}`, `Teacher's watching: {sur} in trouble with the stewards`],
     feed: [`Fans debate {sur}'s penalty for {reason}: harsh or fair?`, `"Fair call" - most of Chequered agrees with {sur}'s penalty`],
+  },
+  // (team orders - race/TeamOrders.js: an order you or your team-mate ({whoSur}) obeyed or defied, a hold order broken, a
+  //  car held up on purpose, the team's two cars colliding)
+  orders: {
+    youRefused: {
+      serious: [`{sur} ignores {team} orders at {track}`, `{sur} refuses to let team-mate {whoSur} through at {track}`, `Defiance at {team}: {sur} disobeys the pit wall at {track}`],
+      weekly: [`Analysis: what {sur}'s defiance means for {team}`],
+      tv: [`Mutiny! {sur} says no to {team} orders at {track}`],
+      pod: [`Ep. {ep}: {sur} ignored team orders and we cannot stop talking about it`],
+      tab: [`Who's the boss? {sur} snubs the {team} pit wall`, `No way! {sur} won't budge for {whoSur}`],
+      feed: [`Chequered splits over {sur} ignoring team orders at {track}`, `"Racer's instinct" or "selfish"? Fans on {sur}'s defiance`],
+    },
+    youBrokeHold: {
+      serious: [`{sur} passes {whoSur} despite {team}'s hold order at {track}`, `{sur} ignores the order to hold position behind {whoSur}`],
+      tv: [`Against orders! {sur} goes past {whoSur} at {track}`],
+      tab: [`Rules? What rules? {sur} passes {whoSur} against orders`],
+      feed: [`Fans debate {sur}'s pass on {whoSur}: brave or out of order?`],
+    },
+    youHeldUp: {
+      serious: [`{sur} accused of holding up team-mate {whoSur} at {track}`, `Tension at {team} as {sur} keeps {whoSur} behind`],
+      tv: [`{sur} holds up {whoSur} - and {team} are not happy`],
+      tab: [`Road block! {sur} keeps {whoSur} stuck behind`],
+      feed: [`"Selfish" - fans react to {sur} holding up {whoSur} at {track}`],
+    },
+    youHit: {
+      serious: [`{team} team-mates collide: {sur} hits {whoSur} at {track}`, `{sur} at fault as {team}'s drivers collide at {track}`, `A team-mate clash at {track}: {sur} into {whoSur}`],
+      weekly: [`The {team} collision at {track}: how it came to this`],
+      tv: [`Team-mates collide! {sur} and {whoSur} tangle at {track}`],
+      pod: [`Ep. {ep}: {sur}, {whoSur} and the {team} civil war`],
+      tab: [`Civil war at {team}! {sur} takes a swipe at {whoSur}`, `Friendly fire: {sur} hits team-mate {whoSur}`],
+      feed: [`Chequered is furious after {sur} hit team-mate {whoSur} at {track}`],
+    },
+    youObeyed: {
+      serious: [`{sur} lets {whoSur} through on team orders at {track}`, `Team player: {sur} gives way to {whoSur} at {track}`],
+      tv: [`{sur} moves over for {whoSur} - team orders at {track}`],
+      tab: [`After you! {sur} waves {whoSur} through`],
+      feed: [`Fans praise {sur} for playing the team game at {track}`],
+    },
+    youSacrificed: {
+      serious: [`{team} order {sur} to give way to {whoSur} - despite the standings`, `{sur} lets {whoSur} through at {track}, though ahead in the championship`, `Questions for {team} as {sur} is told to move over for {whoSur}`],
+      apex: [`Why {team} put {whoSur} first at {track} - and what it costs {sur}`],
+      tv: [`Controversy at {track}! {team} make {sur} give way to {whoSur}`],
+      tab: [`Robbed! {team} make {sur} hand {whoSur} the place`],
+      feed: [`"{sur} deserved better" - Chequered fumes at {team}'s order`],
+    },
+    mateRefused: {
+      serious: [`{whoSur} defies {team} orders to let {sur} through at {track}`, `{whoSur} refuses to move over for team-mate {sur} at {track}`],
+      tv: [`{whoSur} says no! {team} order ignored at {track}`],
+      tab: [`Snub! {whoSur} won't let {sur} past`, `Trouble at {team}: {whoSur} ignores the pit wall`],
+      feed: [`Fans side with {sur} after {whoSur} ignored team orders`],
+    },
+    mateHeldUp: {
+      serious: [`{sur} held up by team-mate {whoSur} at {track}`, `{whoSur} accused of holding up {sur} at {track}`],
+      tv: [`{whoSur} keeps {sur} stuck behind at {track}`],
+      tab: [`Blocked! {whoSur} gives {sur} the cold shoulder on track`],
+      feed: [`"Sabotage" - fans furious as {whoSur} holds up {sur}`],
+    },
+    mateHit: {
+      serious: [`{whoSur} hits team-mate {sur} at {track}`, `{team} team-mates collide as {whoSur} runs into {sur}`],
+      tv: [`Team-mates collide! {whoSur} into {sur} at {track}`],
+      tab: [`Friendly fire! {whoSur} takes a swipe at {sur}`],
+      feed: [`Fans fume at {whoSur} after the clash with {sur} at {track}`],
+    },
+    mateBrokeHold: {
+      serious: [`{whoSur} passes {sur} against {team}'s orders at {track}`],
+      tab: [`Sneaky! {whoSur} ignores orders to pass {sur}`],
+      feed: [`Fans call out {whoSur} for passing {sur} against orders`],
+    },
+    mateObeyed: {
+      serious: [`{whoSur} lets {sur} through on team orders at {track}`, `{team} swap their cars at {track}: {sur} ahead of {whoSur}`],
+      tab: [`Thanks, mate! {whoSur} waves {sur} through`],
+      feed: [`Fans debate {team}'s call to put {sur} ahead of {whoSur}`],
+    },
+    clash: {
+      serious: [`{team} team-mates {sur} and {whoSur} collide at {track}`, `Contact between the {team} team-mates at {track}`],
+      tv: [`Team-mates tangle at {track}!`],
+      tab: [`Awkward! {team} team-mates bump at {track}`],
+      feed: [`Chequered can't agree who's to blame in the {team} clash`],
+    },
+  },
+  // (a strategy call that made or cost your race - race/Calls.js: most are the pit wall's, so the team is in the line)
+  strategy: {
+    late: {
+      serious: [`{team} admit {sur} was left out a lap too long at {track}`, `A late call from {team} costs {sur} {n} places at {track}`, `Questions for the {team} pit wall after {sur}'s late stop at {track}`],
+      tv: [`Too late! {team} leave {sur} out on worn tyres at {track}`, `Strategy blunder at {track}: {sur} kept out a lap too long`],
+      pod: [`Ep. {ep}: the lap {team} left {sur} out, and what it cost`],
+      tab: [`Asleep on the pit wall? {team} leave {sur} out too long at {track}`, `Box, box - eventually! {team}'s slow call costs {sur}`],
+      feed: [`"Box a lap ago!" - Chequered fumes at {team}'s late call for {sur}`, `Fans want answers from {team} after {sur}'s late stop at {track}`],
+    },
+    tyre: {
+      serious: [`Wrong tyres from {team}: {sur}'s {comp}s fall away at {track}`, `{team}'s tyre choice leaves {sur} struggling at {track}`, `{sur} let down by {team}'s tyre call at {track}`],
+      tv: [`The tyres are gone! {team}'s call backfires on {sur} at {track}`],
+      tab: [`Wheel of misfortune: {team} pick the wrong {comp}s for {sur}`, `Rubber trouble for {sur} at {track}`],
+      feed: [`"Who picked those tyres?" - fans on {team}'s call for {sur} at {track}`],
+    },
+    unlucky: {
+      serious: [`Safety car timing cruel to {sur} at {track}`, `{sur} pits a lap before the safety car and pays for it at {track}`, `Bad luck for {sur}: a stop just before the safety car at {track}`],
+      tv: [`Gutted! {sur} pits just before the safety car at {track}`],
+      tab: [`Typical! {sur} pits - and out comes the safety car`, `Worst timing at {track}? {sur} stops a lap too soon`],
+      feed: [`"Worst timing ever" - fans feel for {sur} after the safety car at {track}`],
+    },
+    undercutWon: {
+      serious: [`{team}'s undercut puts {sur} ahead of {whoSur} at {track}`, `A well-timed stop gets {sur} past {whoSur} at {track}`, `{team} win the strategy battle at {track}`],
+      apex: [`The undercut, done right: how {team} got {sur} ahead at {track}`],
+      tv: [`Undercut! {sur} jumps {whoSur} in the stops at {track}`],
+      pod: [`Ep. {ep}: the {sur} undercut at {track}, lap by lap`],
+      tab: [`Pit-stop pickpocket! {sur} steals a place from {whoSur}`, `In and out: {sur} sneaks ahead at {track}`],
+      feed: [`"Textbook" - fans hail {team}'s undercut for {sur} at {track}`],
+    },
+    undercutFailed: {
+      serious: [`{sur}'s undercut on {whoSur} falls short at {track}`, `An early stop fails to get {sur} ahead at {track}`],
+      tv: [`No dice! {sur}'s undercut doesn't work at {track}`],
+      tab: [`Nice try, {sur}: the undercut flops at {track}`],
+      feed: [`Fans debate {team}'s early stop for {sur} at {track}`],
+    },
+    gamblePaid: {
+      serious: [`{team}'s safety-car gamble pays off for {sur} at {track}`, `{sur} gains {n} places on one well-timed stop at {track}`, `A long first stint and a cheap stop: {sur} up to {pos} at {track}`],
+      apex: [`How {team}'s patient strategy won {sur} {n} places at {track}`],
+      tv: [`The gamble pays off! {sur} up to {pos} at {track}`],
+      tab: [`Jackpot! {sur}'s strategy gamble comes good at {track}`],
+      feed: [`"Big-brain strategy" - fans love {team}'s call for {sur} at {track}`],
+    },
+    gambleFailed: {
+      serious: [`No safety car, no reward: {team}'s gamble fails {sur} at {track}`, `{sur} drops {n} places with a last-lap stop at {track}`, `{team} wait for a safety car that never came at {track}`],
+      tv: [`It never came! {sur}'s safety-car gamble fails at {track}`],
+      tab: [`Waiting for a miracle: {team}'s gamble leaves {sur} short`],
+      feed: [`Fans question {team}'s all-or-nothing strategy for {sur} at {track}`],
+    },
   },
   ban: {
     serious: [`{sur} to miss {nextgp} after reaching 12 penalty points`, `Twelve points: {sur} handed a one-race ban`, `{sur} suspended for one race under the penalty-points system`],
@@ -702,6 +830,7 @@ const tokens = (c, kind, x = {}, anon = PERSONAL.has(kind)) => {
     brand: x.brand ? String(x.brand) : undefined, trophy: kind === 'trophy' && x.name ? x.name : undefined, newTeam: kind === 'signing' && x.team ? x.team : undefined,
     sub: kind === 'standin' && x.name ? x.name : undefined, line: clip(x.line), season: num(x.season, num(c?.season, 2026)), title: titleRace(c), story: x.story || undefined,
     where: WHERE[x.venue], racy: RACY[x.venue], place: typeof x.place === 'string' && x.place ? x.place : undefined,
+    comp: typeof x.comp === 'string' && /^(SOFT|MEDIUM|HARD|INTER|WET)$/i.test(x.comp) ? ({ INTER: 'intermediate', WET: 'wet' }[x.comp.toUpperCase()] || x.comp.toLowerCase()) : undefined,
   };
 };
 /** how an outlet takes a story: its tone, what it is about against the outlet's taste, its opinion of you, your persona -> about -1.5..1.5 */
@@ -848,6 +977,22 @@ const EV = {
     const p = clamp(Math.round(num(x.pts, 0)), 0, 12);
     return { tone: -1, theme: { drama: 0.3, results: -0.3 }, fx: { image: -(0.6 + p * 0.6), heat: 2 + p * 2, appeal: -1 }, cover: p >= 3 ? ['f1news', 'weekly', 'race24', 'gptv', 'post', 'feed'] : ['f1news', 'weekly', 'race24', 'feed'],
       size: p >= 3 ? 2 : 1, persona: p >= 3 ? { controversial: 1 } : null };
+  },
+  // (a team-order story of your race - race/TeamOrders.js: defying your pit wall or hitting your team-mate is on you; your
+  //  team-mate's defiance is drama around you, not your doing)
+  orders: (c, x) => {
+    const k = String(x.sub || ''); if (!HL.orders[k]) return null;
+    const F = { youRefused: [-1, -1.5, 5, 'controversial', 2], youBrokeHold: [-1, -1.2, 4, 'controversial', 1], youHeldUp: [-1, -1.5, 4, 'controversial', 1], youHit: [-1, -3, 7, 'controversial', 2],
+      youObeyed: [1, 0.8, -1, 'humble', 1], youSacrificed: [1, 2, 0, 'humble', 2], mateRefused: [0, 0, 2, null, 1], mateHeldUp: [0, 0, 2, null, 1], mateHit: [0, -0.3, 2, null, 2],
+      mateBrokeHold: [0, 0, 1, null, 1], mateObeyed: [0, 0.3, 0, null, 1], clash: [-1, -1, 3, null, 2] }[k];
+    return { tone: F[0], theme: { drama: 0.7, humility: F[3] === 'humble' ? 0.6 : F[3] ? -0.4 : 0 }, fx: { image: F[1], heat: F[2] },
+      cover: F[4] >= 2 ? ['f1news', 'race24', 'gptv', 'weekly', 'apex', 'pitlane', 'post', 'feed'] : ['f1news', 'race24', 'gptv', 'post', 'feed'], size: F[4], lines: 'orders', sub: k, persona: F[3] ? { [F[3]]: 1 } : null };
+  },
+  // (a strategy story of your race - race/Calls.js: the pit wall's mistakes cost you little image, it is the team's call)
+  strategy: (c, x) => {
+    const k = String(x.kind || ''); if (!HL.strategy[k]) return null;
+    const good = !!x.good, mine = k === 'undercutFailed' || k === 'gambleFailed';
+    return { tone: good ? 1 : -1, theme: { results: good ? 0.3 : -0.2 }, fx: { image: good ? 0.8 : mine ? -0.4 : 0, appeal: good ? 0.5 : 0 }, cover: ['f1news', 'race24', 'gptv', 'apex', 'pitlane', 'post', 'feed'], size: 1, lines: 'strategy', sub: k };
   },
   ban: () => ({ tone: -1, theme: { drama: 0.8, results: -0.4 }, fx: { image: -6, heat: 15, appeal: -6, fame: [0.01, 0.02] }, cover: ['gptv', 'f1news', 'weekly', 'apex', 'pitlane', 'post', 'feed'], size: 3, persona: { controversial: 1 } }),
   banReturn: () => ({ tone: 0, theme: { results: 0.2 }, fx: { image: 1, heat: -5 }, cover: ['f1news', 'weekly', 'gptv', 'feed', 'post'], size: 1 }),

@@ -22,16 +22,17 @@ function smoothArr(a, n, r, closed = true) {
  */
 function minCurvatureOffsets(track, maxOffset, p = 6) {
   const n = track.n; let off = new Float32Array(n);
+  const hi = (i) => maxOffset + (track.hwL ? track.hwL[i] - track.halfWidth : 0), lo = (i) => -maxOffset - (track.hwR ? track.hwR[i] - track.halfWidth : 0);   // (wider where the road is, on the side it is)
   for (const spacing of [40, 20, 10]) {
     const m = Math.round(n * track.ds / spacing);
     // grid points at exact fractional sample positions: uneven spacing would read as curvature
     const CX = new Float64Array(m), CZ = new Float64Array(m), NX = new Float64Array(m), NZ = new Float64Array(m);
-    const d = new Float64Array(m), X = new Float64Array(m), Z = new Float64Array(m);
+    const d = new Float64Array(m), X = new Float64Array(m), Z = new Float64Array(m), M = new Float64Array(m), M0 = new Float64Array(m);
     for (let j = 0; j < m; j++) {
       const u = j * n / m, i0 = Math.floor(u) % n, i1 = (i0 + 1) % n, f = u - Math.floor(u);
       CX[j] = track.px[i0] + (track.px[i1] - track.px[i0]) * f; CZ[j] = track.pz[i0] + (track.pz[i1] - track.pz[i0]) * f;
       const ax = track.nx[i0] + (track.nx[i1] - track.nx[i0]) * f, az = track.nz[i0] + (track.nz[i1] - track.nz[i0]) * f, l = Math.hypot(ax, az) || 1;
-      NX[j] = ax / l; NZ[j] = az / l;
+      NX[j] = ax / l; NZ[j] = az / l; M[j] = hi(f < 0.5 ? i0 : i1); M0[j] = lo(f < 0.5 ? i0 : i1);
       d[j] = off[i0] + (off[i1] - off[i0]) * f; X[j] = CX[j] + d[j] * NX[j]; Z[j] = CZ[j] + d[j] * NZ[j];
     }
     const e2 = (0.002 * spacing * spacing) ** 2, ex = (p - 2) / 2;   // weight floor at R = 500 m keeps the straights well conditioned
@@ -45,7 +46,7 @@ function minCurvatureOffsets(track, maxOffset, p = 6) {
         const qx = (wa * (2 * X[a] - X[a2]) + 2 * wj * (X[a] + X[b]) + wb * (2 * X[b] - X[b2])) / den;
         const qz = (wa * (2 * Z[a] - Z[a2]) + 2 * wj * (Z[a] + Z[b]) + wb * (2 * Z[b] - Z[b2])) / den;
         const best = (qx - CX[j]) * NX[j] + (qz - CZ[j]) * NZ[j];
-        const dj = Math.max(-maxOffset, Math.min(maxOffset, d[j] + om * (best - d[j])));
+        const dj = Math.max(M0[j], Math.min(M[j], d[j] + om * (best - d[j])));
         d[j] = dj; X[j] = CX[j] + dj * NX[j]; Z[j] = CZ[j] + dj * NZ[j];
       }
     }
@@ -54,7 +55,7 @@ function minCurvatureOffsets(track, maxOffset, p = 6) {
       const u = i * m / n, j = Math.floor(u), f = u - j;
       const p0 = d[(j - 1 + m) % m], p1 = d[j % m], p2 = d[(j + 1) % m], p3 = d[(j + 2) % m];
       const v = 0.5 * (2 * p1 + (p2 - p0) * f + (2 * p0 - 5 * p1 + 4 * p2 - p3) * f * f + (3 * p1 - p0 - 3 * p2 + p3) * f * f * f);
-      off[i] = Math.max(-maxOffset, Math.min(maxOffset, v));
+      off[i] = Math.max(lo(i), Math.min(hi(i), v));
     }
   }
   return off;
@@ -93,10 +94,24 @@ export function rearBrakeLimit(mu, fzRear, aLat, margin, ax) {
 }
 
 export class RacingLine {
-  /** @param optimal true: minimum-curvature line over the usable width (permanent circuits with fast corners) */
-  constructor(track, { optimal = false, maxOffset = track.halfWidth - (optimal ? 1.5 : 3.4) } = {}) {
+  /**
+   * @param optimal true: minimum-curvature line over the usable width (permanent circuits with fast corners)
+   * @param fixed { every (m), d: [lateral offset every `every` metres from the line] }: a line given, not computed - a
+   *   driver's own, taken from telemetry (ai/Calibration.js `line`, tools/ai_fit.mjs); kept within `fixedMax` of the centreline
+   */
+  constructor(track, { optimal = false, maxOffset = track.halfWidth - (optimal ? 1.5 : 3.4), fixed = null, fixedMax = track.halfWidth + 0.6 } = {}) {
     this.track = track;
     const n = track.n, ds = track.ds;
+    if (fixed && fixed.d?.length > 8) {
+      const m = fixed.d.length, raw = new Float32Array(n);
+      // (kept on the road: up onto the kerb in a corner, to the white line elsewhere - the car's centre over the edge
+      //  where there is no kerb is off the track, a driver's two wheels over it are not)
+      const kw = track.kerbWidth || 1, wdL = (i) => (track.hwL ? track.hwL[i] - track.halfWidth : 0), wdR = (i) => (track.hwR ? track.hwR[i] - track.halfWidth : 0), lim0 = (i) => (track.inCorner?.[i] ? Math.min(fixedMax, track.halfWidth + 0.6 * kw) : Math.min(fixedMax, track.halfWidth - 0.2));
+      for (let i = 0; i < n; i++) { const u = (i * ds) / fixed.every, j = Math.floor(u) % m, f = u - Math.floor(u), L = lim0(i); raw[i] = Math.max(-L - wdR(i), Math.min(L + wdL(i), fixed.d[j] + (fixed.d[(j + 1) % m] - fixed.d[j]) * f)); }
+      this.offset = smoothArr(raw, n, Math.round(4 / ds)); this.fixed = true;
+      this.lineCurv = smoothArr(pathCurvature(track, this.offset, Math.round(10 / ds)), n, 3);
+      return;
+    }
     if (optimal) {
       this.offset = smoothArr(minCurvatureOffsets(track, maxOffset), n, Math.round(6 / ds));
       this.lineCurv = smoothArr(pathCurvature(track, this.offset, Math.round(10 / ds)), n, 3);
@@ -115,7 +130,7 @@ export class RacingLine {
     }
     const sm = smoothArr(raw, n, Math.round(30 / ds));
     this.offset = new Float32Array(n);
-    for (let i = 0; i < n; i++) this.offset[i] = Math.max(-maxOffset, Math.min(maxOffset, sm[i]));
+    for (let i = 0; i < n; i++) { const H = maxOffset + (track.hwL ? track.hwL[i] - track.halfWidth : 0), Lo = maxOffset + (track.hwR ? track.hwR[i] - track.halfWidth : 0); this.offset[i] = Math.max(-Lo, Math.min(H, sm[i])); }
     // curvature of the actual line (offset path): kappa_line ~ kappa / (1 - kappa*d) with a numeric derivative correction
     this.lineCurv = new Float32Array(n);
     for (let i = 0; i < n; i++) {
@@ -135,7 +150,9 @@ export class RacingLine {
   /**
    * Speed profile for a car: v(s) limited by lateral grip (with downforce), braking and traction.
    * @param {object} p { mu, mass, dfCoef (N/(m/s)^2 usable downforce), dragCoef (N/(m/s)^2), vMax, brakeG, accel(v) -> m/s^2,
-   *                     axle: { rearStatic, transfer, rearBrake, dfRear (N/(m/s)^2) } for the trail-braking limit }
+   *                     axle: { rearStatic, transfer, rearBrake, dfRear (N/(m/s)^2) } for the trail-braking limit,
+   *                     vMul, bMul: per-sample multipliers on the corner speed and the braking (a circuit's calibration:
+   *                     track.aiV / track.aiB, what the AI commits to there) }
    */
   speedProfile(p) {
     const t = this.track, n = t.n, ds = t.ds, g = 9.81;
@@ -145,7 +162,7 @@ export class RacingLine {
       const k = Math.abs(this.lineCurv[i]) + 1e-5;
       // v^2 k = mu (g + (D/m) v^2)  ->  v^2 (k - mu D/m) = mu g
       const a = k - p.mu * p.dfCoef / p.mass;
-      v[i] = a > 1e-6 ? Math.min(p.vMax, Math.sqrt(p.mu * g / a)) : p.vMax;
+      v[i] = a > 1e-6 ? Math.min(p.vMax, Math.sqrt(p.mu * g / a) * (p.vMul ? p.vMul[i] : 1)) : p.vMax;
     }
     // friction circle: the longitudinal grip left over once the lateral load at a sample is being used
     const longAvail = (i, vi) => {
@@ -171,7 +188,7 @@ export class RacingLine {
       for (let c = 2 * n; c >= 0; c--) {
         const i = c % n, j = (i + 1) % n;
         const vj = v[j];
-        const aB = brakeAvail(j, vj);
+        const aB = brakeAvail(j, vj) * (p.bMul ? p.bMul[j] : 1);
         v[i] = Math.min(v[i], Math.sqrt(vj * vj + 2 * aB * ds));
       }
       // forward pass: traction (rear axle share of the remaining grip) / power limit

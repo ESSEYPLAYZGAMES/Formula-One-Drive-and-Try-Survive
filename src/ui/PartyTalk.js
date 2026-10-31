@@ -256,8 +256,8 @@ export function partyEvening(c, launch = null, x = {}) {
   const idOf = (v) => (v && typeof v === 'object' ? v.id || v.did || null : v || null);
   const track = idOf(L.track) || S.track || null;
   // (the city where you are: the club's, else the circuit's - the team party at Silverstone is at Silverstone, not London)
-  const city = venue === 'londonclub' ? 'London' : venue === 'vegasclub' ? 'Las Vegas' : track === 'silverstone' ? 'Silverstone' : track === 'lasvegas' ? 'Las Vegas' : (S.city || x.track || null);
-  const gp = L.gp || S.gp || { lasvegas: 'Las Vegas Grand Prix', silverstone: 'British Grand Prix' }[track] || null;
+  const city = venue === 'londonclub' ? 'London' : venue === 'vegasclub' ? 'Las Vegas' : track === 'silverstone' ? 'Silverstone' : track === 'lasvegas' ? 'Las Vegas' : track === 'montreal' ? 'Montreal' : track === 'austin' ? 'Austin' : (S.city || x.track || null);
+  const gp = L.gp || S.gp || { lasvegas: 'Las Vegas Grand Prix', silverstone: 'British Grand Prix', montreal: 'Canadian Grand Prix', austin: 'United States Grand Prix' }[track] || null;
   const offer = Array.isArray(c?.party?.offers) ? c.party.offers.find((o) => o && (o.id === L.partyId)) : null;
   const brand = L.brand || offer?.brand || null, B = brand ? BRAND_BY_ID[brand] : null;
   // (under age here - you: the launch says, else the career's birthday on the race's date; a driver guest: his soft drinks)
@@ -276,7 +276,7 @@ export function partyEvening(c, launch = null, x = {}) {
   const exnewD = plan.find((d) => d && d.id === 'exnew'), exnewG = exnewD ? byCid(exnewD.cid) : null, exOfD = exnewD ? byCid(exnewD.with) : null;
   const winner = idOf(S.winner);
   const R = Object.assign(Q, {
-    venue, kind: venue === 'teamparty' ? 'team' : 'club', city, gp, track, age: venue === 'londonclub' || (venue === 'teamparty' && track === 'silverstone') ? 18 : 21,
+    venue, kind: venue === 'teamparty' ? 'team' : 'club', city, gp, track, age: venue === 'londonclub' || (venue === 'teamparty' && (track === 'silverstone' || track === 'montreal')) ? 18 : 21,
     pos, dnf: sdnf, won: S.won != null ? !!S.won : !sdnf && pos === 1, podium: S.podium != null ? !!S.podium : !sdnf && pos >= 1 && pos <= 3,
     scored: S.points != null ? !!S.points : !sdnf && pos >= 1 && pos <= 10,
     fought, foughtName: fought ? D[fought]?.name || null : null, foughtReal: fought ? realDriver(D[fought]) : true, contact: contacts,

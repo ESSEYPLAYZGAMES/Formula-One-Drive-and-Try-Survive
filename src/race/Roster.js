@@ -1,11 +1,23 @@
-// 2026 grid (11 teams / 22 cars) with tiered performance brackets. The spread between
-// the best and worst car+driver combination is ~1.2 s/lap; a custom 23rd entry can be added.
+// 2026 grid (11 teams / 22 cars) with tiered performance brackets, and an order inside each (TEAM_EDGE). The spread
+// between the best and worst car+driver combination is ~1.6 s/lap; a custom 23rd entry can be added.
+import { TEAM_EDGE } from '../career/TechTree.js';
 export const TIERS = ['Top Tier', 'Upper Midfield', 'Lower Midfield', 'Backmarker'];
 // car performance index by tier (power/aero scale). Rating = driver skill (cornering commitment, error rate).
 const TIER_PERF = [1.0, 0.995, 0.990, 0.985];
+/** how much the car counts: a car's perf below 1 is this much further below in the physics (Car) and the simulated
+ *  sessions - the car, and its development, decides more of a result than the driver does (~3 : 1) */
+export const PERF_GAIN = 1.35;
+/** the same car on the day: how the circuit suits it (fixed for a team at a circuit, +-0.15 %: a car good in slow
+ *  corners, one quick on the straights) and how its weekend goes (form, +-0.08 %: set-up, track evolution) - the
+ *  quickest car on paper is the favourite, not a certainty */
+export function dayPerf(team, track, rnd = Math.random) {
+  let h = 2166136261; for (const ch of `${team}|${track}`) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
+  const suit = ((h >>> 0) / 4294967295) * 2 - 1;
+  return 0.0015 * suit + 0.0008 * (rnd() + rnd() + rnd() - 1.5) * 1.63;
+}
 
 // color = primary livery, color2 = accent (engine cover / wing flaps / stripes), helmet = driver helmet colour
-const T = (team, color, color2, tier, drivers) => drivers.map(([name, short, rating, number, helmet]) => ({ name, short, team, color, color2, helmet, tier, perf: TIER_PERF[tier], rating, number }));
+const T = (team, color, color2, tier, drivers) => drivers.map(([name, short, rating, number, helmet]) => ({ name, short, team, color, color2, helmet, tier, perf: TIER_PERF[tier] + (TEAM_EDGE[team] || 0), rating, number }));
 
 export const ROSTER = [
   ...T('McLaren', '#ff8000', '#1b1b1f', 0, [['Lando Norris', 'NOR', 0.95, 1, '#ffe600'], ['Oscar Piastri', 'PIA', 0.94, 81, '#1e8cff']]),

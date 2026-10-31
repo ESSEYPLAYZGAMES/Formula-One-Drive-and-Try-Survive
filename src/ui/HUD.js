@@ -221,7 +221,7 @@ export class HUD {
       this._t('gap-behind', behind ? fmtGap(gap(p, behind)) : '--');
       const t = p.tyres; this._t('tyre-compound', t.compound); this._s('tyre-compound', 'background', COMPOUNDS[t.compound].color); this._s('tyre-compound', 'color', t.compound === 'HARD' || t.compound === 'MEDIUM' ? '#000' : '#fff');
       const life = 1 - t.wear; this._s('tyre-wear', 'width', `${(life * 100).toFixed(0)}%`); this._s('tyre-wear', 'background', life > 0.5 ? '#33d17a' : life > 0.3 ? '#ffb020' : '#e10600');
-      this._t('tyre-temp', t.wear > 0.7 ? 'CLIFF!' : t.temp < 0.5 ? 'COLD' : t.temp > 0.95 ? 'HOT' : 'TEMP OK');
+      this._t('tyre-temp', t.wear > 0.7 ? 'CLIFF!' : t.temp < 0.6 ? 'COLD' : t.temp < 0.92 ? 'WARMING' : 'IN WINDOW');
       const d = p.dmg; const set = (id, v) => this._s(id, 'fill', dmgColor(v));
       set('dmg-fwl', d.fwL); set('dmg-fwr', d.fwR); set('dmg-rw', d.rw); set('dmg-susp', p.suspSide > 0 ? d.susp : d.susp * 0.4); set('dmg-susp2', p.suspSide < 0 ? d.susp : d.susp * 0.4); set('dmg-eng', Math.max(d.eng, p.engTemp > 0.85 ? 0.6 : 0)); set('dmg-body', p.damageTotal() * 0.8);
       this._t('dmg-label', p.retired ? 'RETIRED' : d.susp > 0.5 ? 'SUSPENSION' : d.rw > 0.5 ? 'REAR WING' : (d.fwL > 0.4 || d.fwR > 0.4) ? 'FRONT WING' : p.engTemp > 0.85 ? 'ENGINE HOT' : 'CAR OK');

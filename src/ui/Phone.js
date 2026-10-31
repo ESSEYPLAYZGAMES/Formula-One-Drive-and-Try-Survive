@@ -16,6 +16,9 @@
 // away, Backspace goes back a screen, Enter confirms.
 import { contactsOf, threadOf, markRead, replyOptions, sendText, deleteThread, inviteOut, respondInvite, unreadCount, VENUES } from '../career/Social.js';
 import * as Celebs from '../career/Celebs.js';
+import { PERSONAS, personaOf } from '../career/Persona.js';
+// (who she is, in a word: career/Persona.js's personality, on her chat's header)
+const persName = (cid) => { try { return PERSONAS[personaOf(cid)]?.name || ''; } catch (_) { return ''; } };
 
 const CSS = `
 #phone { position: fixed; inset: 0; z-index: 46; pointer-events: none; font-family: 'Segoe UI', Roboto, Arial, sans-serif; color: #151a22; --tc: #e10600; }
@@ -195,7 +198,7 @@ const luma = (hex) => {
   const n = parseInt(h, 16); if (h.length !== 6 || Number.isNaN(n)) return 0.4;
   return (0.2126 * ((n >> 16) & 255) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255)) / 255;
 };
-const TRACK = { lasvegas: 'Las Vegas', silverstone: 'Silverstone' };
+const TRACK = { lasvegas: 'Las Vegas', silverstone: 'Silverstone', montreal: 'Montreal', austin: 'Austin' };
 const trackName = (id) => TRACK[id] || String(id || '').replace(/^\w/, (x) => x.toUpperCase());
 const svg = (d, w = 24) => `<svg viewBox="0 0 24 24" width="${w}" height="${w}" aria-hidden="true">${d}</svg>`;
 // (line icons, drawn in currentColor)
@@ -225,7 +228,8 @@ const VC = { poolclub: '#0fa3b8', rooftop: '#5b3fd0', pub: '#8a5a2b', simlounge:
 const vIcon = (id) => VI[id] || (/coffee|cafe/i.test(id || '') ? VI.coffee : VI.other);
 // (a reply's tone, tagged like the grid walk's options; leave and neutral lines carry no tag)
 const TONE = { kind: ['KIND', '#1f8a52'], firm: ['FIRM', '#3d7bd9'], light: ['LIGHT', '#a87400'], cold: ['COLD', '#6b7480'], cruel: ['CRUEL', '#d6202e'], sorry: ['APOLOGISE', '#7c5cc9'],
-  gossip: ['GOSSIP', '#a849b8'], flirt: ['FLIRT', '#d6336c'], show: ['SHOW OFF', '#d9480f'], cover: ['COVER STORY', '#5d6675'], deep: ['HEART TO HEART', '#3d7bd9'], banter: ['BANTER', '#a87400'], advice: ['ADVICE', '#0f8f84'] };
+  gossip: ['GOSSIP', '#a849b8'], flirt: ['FLIRT', '#d6336c'], show: ['SHOW OFF', '#d9480f'], cover: ['COVER STORY', '#5d6675'], deep: ['HEART TO HEART', '#3d7bd9'], banter: ['BANTER', '#a87400'], advice: ['ADVICE', '#0f8f84'],
+  passive: ['PASSIVE', '#8a93a0'], flirty: ['FLIRTY', '#d6336c'], risque: ['RISQUÉ', '#e0184e'] };   // (a personality's answers: career/Persona.js)
 // (where you stand: a friendship's stage with a driver, a bond's stage with a celebrity)
 const FRIEND = { acquaintance: ['Acquaintance', '#8a93a0'], friendly: ['Friendly', '#3d7bd9'], friend: ['Friend', '#1f9d5a'], mate: ['Mate', '#0f8f84'], best: ['Best mate', '#c08a12'] };
 const HEART = { stranger: ['Not met', '#8a93a0'], met: ['Just met', '#8a93a0'], friendly: ['Friendly', '#3d7bd9'], flirting: ['Flirting', '#d6336c'], dating: ['Dating', '#c2255c'], partner: ['Partner', '#a61e4d'], ex: ['Ex', '#6b7480'] };
@@ -383,7 +387,7 @@ function threadView(c, S) {
   const s = stageOf(x), armed = S.armed === 'del:' + cid, b = k === 'celeb' ? bond(c, idOf(cid)) : null;
   const sus = b && (b.stage === 'dating' || b.stage === 'partner') && (b.suspicion || 0) >= 40;
   const opts = (safe(() => replyOptions(c, cid), []) || []).slice(0, 4), dis = typing ? ' disabled' : '';
-  return `<div class="ph-th"><button class="ph-ib" data-pa="back" aria-label="Back">${svg(I.back)}</button>${avatar(c, cid, x.name, 'sm', lock)}<span class="ph-who"><b>${esc(x.name)}</b><small>${s ? `<em style="--sc:${s[1]}">${esc(s[0])}</em>` : ''}${esc(x.sub || '')}${lock ? ' · kept quiet' : ''}</small>${meterOf(c, cid)}</span>${T.length ? `<button class="ph-ib${armed ? ' armed' : ''}" data-pa="del" aria-label="Delete this chat">${armed ? 'DELETE?' : svg(I.bin, 20)}</button>` : ''}</div>
+  return `<div class="ph-th"><button class="ph-ib" data-pa="back" aria-label="Back">${svg(I.back)}</button>${avatar(c, cid, x.name, 'sm', lock)}<span class="ph-who"><b>${esc(x.name)}</b><small>${s ? `<em style="--sc:${s[1]}">${esc(s[0])}</em>` : ''}${esc(x.sub || '')}${k === 'celeb' && persName(cid) ? ` · ${esc(persName(cid))}` : ''}${lock ? ' · kept quiet' : ''}</small>${meterOf(c, cid)}</span>${T.length ? `<button class="ph-ib${armed ? ' armed' : ''}" data-pa="del" aria-label="Delete this chat">${armed ? 'DELETE?' : svg(I.bin, 20)}</button>` : ''}</div>
     ${sus ? `<div class="ph-sus">${svg(I.warn, 14)}<span>${esc(F)} has been asking questions lately.</span></div>` : ''}
     <div class="ph-msgs">${out}</div>
     <div class="ph-dock">${opts.map((o, i) => { const t = TONE[o.tone]; return `<button class="ph-rp" data-pr="${esc(o.key)}" data-kn="${i + 1}"${dis}><kbd>${i + 1}</kbd><span>${esc(o.text)}</span>${t ? `<i style="--tn:${t[1]}">${t[0]}</i>` : ''}</button>`; }).join('') || '<p class="ph-none">Nothing more to say for now.</p>'}${planOk(c, k) ? `<button class="ph-plan" data-pa="plan"${dis}>${svg(I.plans, 16)}<span>${grave(c) ? `A quiet coffee with ${esc(F)}` : `Make plans with ${esc(F)}`}</span>${svg(I.next, 14)}</button>` : ''}</div>`;
