@@ -206,8 +206,8 @@ export const TRACKS = {
     verge: 'park', vergeWidth: 4.5,
     runoffCaps: [55, 30, 12],
     // the corners that are open, not lined with concrete: the Senna S (paved escape outside T1, the big lawn inside
-    // it), T3-T4, T6-T7, T8-T9, the hairpin (the paved escape beyond it, the painted infield), the last chicane's
-    // straight-on escape road - metres from the centreline to the barrier on each side (left / right of the racing direction)
+    // it), T3-T4, T6-T7, T8-T9, the hairpin (the paved escape beyond it), the last chicane's straight-on escape road -
+    // metres from the centreline to the barrier on each side (left / right of the racing direction)
     openCorners: [
       { turn: 1, left: 34, right: 38, before: 90, after: 40 }, { turn: 2, left: 30, right: 22, before: 20, after: 70 },
       { turn: 3, left: 22, right: 14, before: 60, after: 20 }, { turn: 4, left: 14, right: 18, before: 10, after: 50 },
@@ -216,6 +216,9 @@ export const TRACKS = {
       { turn: 10, left: 36, right: 24, before: 90, after: 60 }, { turn: 13, left: 28, right: 13, before: 60, after: 10 },
     ],
     runoff: { asphalt: [1, 2, 8, 9, 10, 13, 14], grass: [5] },
+    // L'Epingle's infield (the inside of the hairpin, right of the racing direction): an island of open grass between the
+    // two straights, no wall round it or down the middle of it, 230 m either way from the apex (Track.openInfields)
+    openInfields: [{ turn: 10, side: -1, before: 230, after: 230 }],
     // the Wall of Champions: the outside of the T14 exit, 1.7 m of green paint behind the kerb and then the yellow wall
     wallOfChampions: { turn: 14, side: -1, from: -6, len: 78 },
     fillet: false, smoothSigma: 8,
@@ -233,10 +236,11 @@ export const TRACKS = {
     defaultBuildingHeight: 8,
     buildingStyle: { base: 0x8a8d90, litProb: 0.1 },
     zoneSeq: [12, 13, 1, 14, 12, 17, 5, 15, 12, 19, 1, 18, 13, 12, 0, 15],
-    // the hairpin's boards: Pirelli yellow round the outside, crypto.com along the straight in; Rolex at the Senna S
-    sponsorZones: [{ panel: 1, fromTurn: 10, toTurn: 10, side: 1, before: 140, after: 90 }, { panel: 19, fromTurn: 10, toTurn: 10, side: -1, before: 170, after: 150 }, { panel: 12, fromTurn: 1, toTurn: 2, before: 120, after: 40 }, { panel: 14, fromTurn: 8, toTurn: 9, before: 80, after: 60 }],
+    // the hairpin's boards: the Rolex green along the straight in, round the outside of the escape area and down the exit
+    // (its infield has no wall to carry any); Rolex at the Senna S too
+    sponsorZones: [{ panel: 12, fromTurn: 10, toTurn: 10, side: 1, before: 140, after: 90 }, { panel: 12, fromTurn: 1, toTurn: 2, before: 120, after: 40 }, { panel: 14, fromTurn: 8, toTurn: 9, before: 80, after: 60 }],
     runoffPaint: [],   // (bare asphalt escapes)
-    runoffDecalTurns: [1, 10, 13],
+    runoffDecalTurns: [1, 13],   // ("MONTRÉAL" on the strip behind the kerb; the hairpin's escape area has "bonjour Montréal": world/Montreal.js)
     shots: [
       { scene: 'biosphere', label: 'BIOSPHÈRE', rMul: 1.2, az: 0.5 }, { s: -150, label: 'PIT STRAIGHT', side: -1 },
       { turn: 1, label: 'VIRAGE SENNA', side: 1 }, { turn: 10, label: "L'ÉPINGLE", side: -1 },

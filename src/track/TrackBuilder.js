@@ -687,6 +687,37 @@ export class Track {
       this.crowdZones = out;
     }
     this.layoutSurfaces();
+    this.openInfields();   // (a hairpin's open infield, def.openInfields: after everything else has laid the barriers out)
+  }
+  /**
+   * A hairpin's infield left open (def.openInfields: [{ turn, side, before, after }]): from `before` metres ahead of the
+   * corner's apex to `after` past it, on `side` (+1 left / -1 right of the racing direction: the inside), no barrier at
+   * all - Montreal's L'Epingle, open grass between the two legs, where a walled park circuit would draw a concrete wall
+   * down the middle of it. The barrier's line there moves out to the middle of the grass (halfway across to the other
+   * leg's road; round the apex short of the bend's centre), eased in over 30 m at either end: whatever is set down
+   * "inside the barrier" - a car that cannot go on pulled off, a wreck the marshals park, the scenery kept clear of the
+   * corridor - is out on the grass, not back on the road. The ground there is grass: no escape area.
+   */
+  openInfields(list = this.def.openInfields) {
+    if (!list) return;
+    const n = this.n, q = {}, R = Math.round(10 / this.ds), E = Math.max(1, Math.round(30 / this.ds));
+    for (const o of list) {
+      const c = (this.def.corners || []).find((k) => k.n === o.turn); if (!c || c.s == null) continue;
+      const side = o.side || -1, bar = side > 0 ? this.barL : this.barR, arr = side > 0 ? this.wallL : this.wallR, ap = side > 0 ? this.apronL : this.apronR;
+      const i0 = this.idxAtS(c.s - (o.before ?? 150)), m = Math.round(((o.before ?? 150) + (o.after ?? 150)) / this.ds);
+      for (let k = 0; k <= m; k++) {
+        const i = (i0 + k) % n; bar[i] = BAR.NONE; ap[i] = -1;
+        let mid = 60;   // (half the way across to the first road met that belongs to another part of the lap)
+        for (let d = this.edgeAt(i, side) + this.kerbWidth; d < 120; d += 0.5) {
+          this.nearest(this.px[i] + this.nx[i] * side * d, this.pz[i] + this.nz[i] * side * d, -1, q);
+          if (Math.min(Math.abs(q.i - i), n - Math.abs(q.i - i)) * this.ds > 30 && Math.abs(q.d) < this.edgeAt(q.i, Math.sign(q.d) || 1)) { mid = d / 2; break; }
+        }
+        let cv = 0; for (let j = -R; j <= R; j++) cv = Math.max(cv, this.curv[(i + j + n) % n] * side);
+        const t = Math.min(1, k / E, (m - k) / E), w = t * t * (3 - 2 * t), want = Math.min(mid - 0.5, cv > 1e-4 ? 0.9 / cv : Infinity);
+        if (want > arr[i]) arr[i] += (want - arr[i]) * w;
+      }
+    }
+    this.layoutSurfaces();
   }
   /** how tall the barrier on a side (+1 left / -1 right) stands at sample i (m; 0: none) */
   barrierHeight(i, side) {

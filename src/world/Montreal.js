@@ -8,7 +8,8 @@
 // The water and the shores are drawn by hand (lon/lat via the anchor below), placed against the buildings the export
 // does carry: the pit building (Paddocks), the rowing club's boathouses and finish tower, the beach chalet, the
 // Ile Sainte-Hélène pavilions. Also here: the casino (the French and Quebec pavilions of Expo 67), the new pit
-// building, the hairpin's screen, the trees (silver and sugar maples, green ash, Lombardy poplars along the basin,
+// building, L'Epingle as the TV picture shows it (the Rolex green round the tip of its open infield, its TV platform,
+// "bonjour Montréal" round its escape area, the big screen with the session on it), the trees (silver and sugar maples, green ash, Lombardy poplars along the basin,
 // weeping willows on the shores, white spruce on Sainte-Hélène), the grandstands by their real numbers, and the
 // sponsors painted on the grass and the run-offs (Rolex, AWS, Shell, the maple leaf), and the Wall of Champions'
 // green strip.
@@ -64,7 +65,14 @@ const STANDS = [
   { name: 'Grandstand 47', turn: 10, along: 245, side: 1, len: 150, tiers: 18 },    // ... the big covered stand along the exit, by the basin
   { name: 'Grandstand 47B', turn: 10, along: 420, side: 1, len: 120, tiers: 11 },
   { name: 'Hairpin infield', at: [-232, 655], face: [-262, 1000], len: 110, tiers: 16 },   // between the straights, looking up at L'Epingle
+  // the hairpin's outside: a stand behind its escape area, and the big open stand round the outside of its exit on the
+  // export's own footprints (HAIRPIN_STAND: two unnamed outlines, 200 m along the exit and round behind the escape area,
+  // their front edge stepped block by block) - a run down the exit and a run facing the hairpin
+  { name: "L'Epingle (escape)", at: [-315, 1109], face: [-301, 1076], len: 62, tiers: 16, style: { roof: 'none', fill: 0.97 } },   // behind the escape area's barrier and its catch fence, facing the apex
+  { name: "L'Epingle (exit)", at: [-257.5, 1050], face: [-355.5, 1030], len: 110, tiers: 24, style: { roof: 'none', fill: 0.97 } },
+  { name: "L'Epingle (north)", at: [-277, 1152.5], face: [-374.9, 1132], len: 62, tiers: 22, style: { roof: 'none', fill: 0.97 } },
 ];
+const HAIRPIN_STAND = ['way/115814115', 'way/697858334'];
 
 // ---- paint on the grass and the run-offs (TV logos): at a corner (along = metres from its apex, side, lateral = metres
 //      beyond the kerb to the near edge), w across x l along the track
@@ -73,8 +81,8 @@ const ADS = [
   { logo: 'dhl', turn: 2, along: 30, side: -1, lateral: 5, w: 10, l: 28 },
   { logo: 'aws', turn: 1, along: -20, side: -1, lateral: 6, w: 16, l: 30 },      // the T1 escape area
   { logo: 'rolex', turn: 8, along: -18, side: -1, lateral: 3, w: 16, l: 30 },     // inside T8, the Biosphère behind it
-  { logo: 'pzero', turn: 10, along: 5, side: -1, lateral: 2.5, w: 11, l: 34 },    // the hairpin's black-painted infield
-  { logo: 'aws', turn: 10, along: 25, side: 1, lateral: 8, w: 18, l: 34 },        // ... and its escape area
+  // (the hairpin's own paint - the Rolex green round the tip of its infield, "bonjour Montréal" across its escape area -
+  //  follows the corner's curve: L'Epingle, below)
   { logo: 'shell', turn: 13, along: 8, side: 1, lateral: 4, w: 16, l: 18 },       // the last chicane's escape road
   { logo: 'shell', turn: 13, along: -55, side: -1, lateral: 2.5, w: 12, l: 13 },  // ... and the grass before it
   { logo: 'canada', turn: 5, along: 0, side: 1, lateral: 3, w: 9, l: 34 },
@@ -208,19 +216,121 @@ function adTexture(logo) {
     x.fillStyle = '#d40511'; x.save(); x.transform(1, 0, -0.22, 1, LH * 0.1, 0); x.font = `900 italic ${LH * 0.56}px Arial, sans-serif`; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('DHL', LW * 0.5, LH * 0.52);
     for (let k = 0; k < 3; k++) { x.fillRect(LW * 0.06, LH * (0.36 + k * 0.12), LW * 0.18, LH * 0.05); x.fillRect(LW * 0.76, LH * (0.36 + k * 0.12), LW * 0.18, LH * 0.05); }
     x.restore();
-  } else if (logo === 'pzero') {   // black paint, the yellow P ZERO
-    x.fillStyle = '#111214'; x.beginPath(); x.ellipse(LW / 2, LH / 2, LW * 0.49, LH * 0.47, 0, 0, 7); x.fill();
-    x.fillStyle = '#ffd500'; x.font = `900 ${LH * 0.38}px Arial, sans-serif`; x.textAlign = 'center'; x.textBaseline = 'middle'; try { x.letterSpacing = '24px'; } catch (e) { /* */ } x.fillText('P ZERO', LW * 0.5, LH * 0.52);
   } else if (logo === 'canada') {
     x.fillStyle = '#ffffff'; x.font = `900 ${LH * 0.42}px Arial, sans-serif`; x.textAlign = 'center'; x.textBaseline = 'middle'; try { x.letterSpacing = '22px'; } catch (e) { /* */ } x.fillText('CANADA', LW * 0.5, LH * 0.52);
   }
   if (logo !== 'canada') grassy(x);
   return canvasTex(c);
 }
+/**
+ * The Rolex green round the tip of the hairpin's infield: the canvas spans the paint's frame - W m across, L m down the
+ * island from its tip (its top row the far end) - and is green all over (the mesh's outline, the kerb's line, cuts it to
+ * shape); the gold crown over ROLEX as large as the island's width allows, centred between its edges. widthAt(u): the
+ * paint across at u m from the tip, [from, to] in m from its left edge (null past the end).
+ */
+function rolexPaint(W, L, widthAt) {
+  const K = 1024 / Math.max(W, L), CW = Math.max(64, Math.round(W * K)), CH = Math.max(64, Math.round(L * K)), c = document.createElement('canvas'); c.width = CW; c.height = CH;
+  const x = c.getContext('2d'), Y = (u) => CH * (1 - u / L), X = (v) => v * K;
+  x.fillStyle = '#0b6a3f'; x.fillRect(0, 0, CW, CH);
+  for (let i = 0; i < 3200; i++) { x.fillStyle = `rgba(0,0,0,${0.03 + rnd() * 0.05})`; x.fillRect(rnd() * CW, rnd() * CH, 2, 5 + rnd() * 7); }   /* (the turf through the paint) */
+  // the block: ROLEX (height 0.42 hc, ~4 of its heights wide) under the crown (hc tall, 1.3 hc wide), 0.14 hc between them
+  const fitsAt = (u0, u1, need) => { for (let u = u0; u <= u1; u += 0.25) { const w = widthAt(u); if (!w || w[1] - w[0] < need) return false; } return true; };
+  for (let hc = Math.min(W, L) * 0.6; hc > 1.2; hc *= 0.95) {
+    const ht = hc * 0.42, tw = ht * 4.1, gap = hc * 0.14;
+    for (let ub = 1.5; ub + ht + gap + hc < L - 1; ub += 0.5) {
+      if (!fitsAt(ub, ub + ht, tw + 1.6) || !fitsAt(ub + ht + gap, ub + ht + gap + hc, hc * 1.3 + 1.6)) continue;
+      const wt = widthAt(ub + ht / 2), wc = widthAt(ub + ht + gap + hc * 0.4), mt = (wt[0] + wt[1]) / 2, mc = (wc[0] + wc[1]) / 2;
+      x.fillStyle = '#c9a43b';
+      const cx = X(mc), cy = Y(ub + ht + gap + hc * 0.55), h = hc * K * 0.92, w = h * 1.3;
+      x.beginPath(); x.moveTo(cx - w * 0.42, cy + h * 0.32); x.lineTo(cx - w * 0.5, cy - h * 0.18);
+      for (let k = 0; k < 5; k++) { const px = cx - w * 0.5 + k * w * 0.25; x.lineTo(px + w * 0.06, cy - h * 0.05); x.lineTo(px + w * 0.125, cy - h * (k === 2 ? 0.5 : 0.36)); }
+      x.lineTo(cx + w * 0.42, cy + h * 0.32); x.closePath(); x.fill();
+      for (let k = 0; k < 5; k++) { x.beginPath(); x.arc(cx - w * 0.375 + k * w * 0.25, cy - h * (k === 2 ? 0.58 : 0.44), h * 0.07, 0, 7); x.fill(); }
+      x.fillRect(cx - w * 0.42, cy + h * 0.38, w * 0.84, h * 0.09);
+      x.font = `700 ${ht * K * 1.32}px Georgia, serif`; x.textAlign = 'center'; x.textBaseline = 'middle'; try { x.letterSpacing = `${Math.round(ht * K * 0.14)}px`; } catch (e) { /* */ }
+      const m = x.measureText('ROLEX').width, s = Math.min(1, (tw * K) / m);
+      x.save(); x.translate(X(mt), Y(ub + ht / 2)); x.scale(s, 1); x.fillText('ROLEX', 0, 0); x.restore();
+      return canvasTex(c);
+    }
+  }
+  return canvasTex(c);
+}
+
+/** m:ss.sss */
+const lapTime = (t) => (isFinite(t) && t > 0 ? `${Math.floor(t / 60)}:${(t % 60).toFixed(3).padStart(6, '0')}` : '');
+/**
+ * The hairpin's screen: the session as it stands (d: the RaceDirector; null: no session - the Grand Prix's card). A
+ * race: the top ten (position, team colour, three-letter code, the gap to the leader - laps down, in the pits, out),
+ * the lap, and the flag (yellow, the safety car, the VSC, red); qualifying and practice: the timing order, best laps
+ * and the session's clock; a time trial: your best.
+ */
+function drawBoard(B, d) {
+  const x = B.x, W = 640, H = 360, LX = 410;
+  x.fillStyle = '#04060b'; x.fillRect(0, 0, W, H);
+  const txt = (s, px, py, size, col, align = 'left', weight = 800) => { x.font = `${weight} ${size}px Arial, Helvetica, sans-serif`; x.textAlign = align; x.textBaseline = 'middle'; x.fillStyle = col; x.fillText(s, px, py); };
+  if (!d) {
+    x.fillStyle = '#d52b1e'; x.fillRect(0, 0, 120, H); x.fillRect(W - 120, 0, 120, H);
+    x.fillStyle = '#ffffff'; x.fillRect(120, 0, W - 240, H);
+    const P = [[0, -1], [0.14, -0.72], [0.3, -0.8], [0.25, -0.38], [0.52, -0.62], [0.58, -0.48], [0.86, -0.54], [0.76, -0.24], [0.9, -0.16], [0.46, 0.2], [0.52, 0.36], [0.06, 0.3], [0.08, 0.78], [-0.08, 0.78], [-0.06, 0.3], [-0.52, 0.36], [-0.46, 0.2], [-0.9, -0.16], [-0.76, -0.24], [-0.86, -0.54], [-0.58, -0.48], [-0.52, -0.62], [-0.25, -0.38], [-0.3, -0.8], [-0.14, -0.72]];
+    x.fillStyle = '#d52b1e'; x.beginPath(); P.forEach(([px, py], k) => (k ? x.lineTo : x.moveTo).call(x, W / 2 + px * 90, 130 + py * 90)); x.closePath(); x.fill();
+    txt('GRAND PRIX DU CANADA', W / 2, 262, 34, '#111111', 'center', 900); txt('MONTRÉAL', W / 2, 306, 26, '#d52b1e', 'center', 800);
+    B.tex.needsUpdate = true; return;
+  }
+  const race = d.mode === 'race', L = d.track.length, pos = d.positions, lead = pos.find((c) => !c.retired) || pos[0];
+  // (the flag: a band across the top in its colour; green, the session's name in red)
+  const ph = d.sc?.phase || 'green', flag = race && ph !== 'green' ? d.sc.hudState?.() : null;
+  const band = !flag ? '#e10600' : ph === 'red' ? '#e10600' : ph === 'restart' ? '#1fa64a' : '#ffd400', ink = !flag || ph === 'red' || ph === 'restart' ? '#ffffff' : '#111111';
+  x.fillStyle = band; x.fillRect(0, 0, W, 50);
+  const title = flag ? flag.label : race ? (d.state === 'grid' || d.state === 'lights' ? 'STARTING GRID' : d.leaderFinished ? 'CHEQUERED FLAG' : 'GRAND PRIX DU CANADA') : d.mode === 'quali' ? (d.practice ? 'PRACTICE' : 'QUALIFYING') : 'TIME TRIAL';
+  txt(title, 16, 26, 30, ink, 'left', 900);
+  // the right-hand panel: the lap (the leader's), or the session's clock
+  x.fillStyle = '#0d1420'; x.fillRect(LX + 8, 58, W - LX - 16, H - 66);
+  if (race) {
+    const lap = Math.max(1, Math.min(d.lapsTotal, (lead?.lap ?? 0) + 1));
+    txt('LAP', (LX + W) / 2, 92, 26, '#9fb3c8', 'center', 800);
+    txt(`${lap}`, (LX + W) / 2, 160, 84, '#ffffff', 'center', 900);
+    txt(`/ ${d.lapsTotal}`, (LX + W) / 2, 226, 32, '#9fb3c8', 'center', 800);
+    let fl = null; for (const c of d.cars) if (isFinite(c.bestLap) && (!fl || c.bestLap < fl.bestLap)) fl = c;
+    if (fl) { x.fillStyle = '#8a2be2'; x.fillRect(LX + 20, 266, W - LX - 40, 72); txt('FASTEST LAP', (LX + W) / 2, 284, 17, '#ffffff', 'center', 800); txt(`${fl.short}  ${lapTime(fl.bestLap)}`, (LX + W) / 2, 316, 22, '#ffffff', 'center', 800); }
+  } else if (d.mode === 'quali') {
+    const left = Math.max(0, (d.qualiLimit ?? 0) - d.time);
+    txt(d.practice ? 'FP' : 'Q', (LX + W) / 2, 110, 64, '#ffffff', 'center', 900);
+    txt(`${Math.floor(left / 60)}:${String(Math.floor(left % 60)).padStart(2, '0')}`, (LX + W) / 2, 200, 48, '#ffd400', 'center', 800);
+    txt('REMAINING', (LX + W) / 2, 246, 18, '#9fb3c8', 'center', 800);
+  } else {
+    const p = d.player; txt('BEST', (LX + W) / 2, 120, 26, '#9fb3c8', 'center', 800); txt(p && isFinite(p.bestLap) ? lapTime(p.bestLap) : '-:--.---', (LX + W) / 2, 170, 38, '#ffffff', 'center', 800);
+  }
+  // the order: ten rows
+  const rows = d.mode === 'tt' ? [d.player].filter(Boolean) : pos.slice(0, 10), RH = (H - 60) / 10;
+  rows.forEach((c, k) => {
+    const y = 60 + k * RH;
+    x.fillStyle = k % 2 ? '#0b111b' : '#070b12'; x.fillRect(0, y, LX, RH - 1);
+    txt(`${k + 1}`, 34, y + RH / 2, 21, '#ffffff', 'right', 800);
+    x.fillStyle = c.color || '#888888'; x.fillRect(46, y + 5, 7, RH - 11);
+    txt(c.short || '???', 64, y + RH / 2, 23, '#ffffff', 'left', 900);
+    let g = '';
+    if (race) {
+      if (c.retired) g = 'OUT';
+      else if (c.pitLane || c.inPit) g = 'PIT';
+      else if (c === lead) g = d.state === 'racing' ? 'LEADER' : '';
+      else if (d.state === 'racing') {
+        const back = d.progress(lead) - d.progress(c);
+        if (back > L) g = `+${Math.floor(back / L)} LAP${back >= 2 * L ? 'S' : ''}`;
+        else { let s = d.radio?.gap(c, lead); if (s == null) s = back / Math.max(30, lead.speed || 0); g = `+${Math.max(0, s).toFixed(3)}`; }
+      }
+    } else {
+      const best = pos[0]?.bestLap;
+      g = !isFinite(c.bestLap) ? 'NO TIME' : k === 0 || d.mode === 'tt' ? lapTime(c.bestLap) : `+${(c.bestLap - best).toFixed(3)}`;
+    }
+    txt(g, LX - 14, y + RH / 2, 21, g === 'OUT' ? '#ff5a4f' : g === 'PIT' ? '#5fd3ff' : '#ffd400', 'right', 800);
+  });
+  B.tex.needsUpdate = true;
+}
 
 // ---------------------------------------------------------------------------------------------------------------------
 /**
- * @returns { group, claimed:Set<id>, stands:[fixed grandstand placements for Grandstands.js], update(t), setTime(mode) }
+ * @returns { group, claimed:Set<id>, stands:[fixed grandstand placements for Grandstands.js], solids:[{ ring, h }: what a
+ *   car can hit on the hairpin's open infield, for main.js's obstacles], update(t, cam, player, director), setTime(mode) }
  */
 export function buildMontreal(geo, track, def, pit) {
   const group = new THREE.Group(); group.name = 'montreal';
@@ -348,31 +458,106 @@ export function buildMontreal(geo, track, def, pit) {
     const lt = new THREE.Group(); lt.name = 'mtl:levis'; lt.add(t, crown, cap); group.add(lt); solid.push([info.c[0], info.c[1], 12]);
   }
   // every other footprint; the small ones (kiosks, toilets, sheds under 16 m) give way to a grandstand (and are not built)
+  for (const id of HAIRPIN_STAND) if (byId(id)) claimed.add(id);   // (the hairpin's stand stands there instead: STANDS)
   for (const b of geo.buildings) { if (claimed.has(b.id) || !b.rings[0]) continue; const info = footprintInfo(b.rings[0]), big = Math.max(info.length, info.width); solid.push([info.c[0], info.c[1], big / 2 + 5, big < 16 ? b.id : null, b.rings[0]]); }
 
-  // ---- the hairpin's giant screen: a red lattice tower in the infield, the screen facing the stands to the south ----
+  // ---- L'Epingle, the T10 hairpin: its infield an island of open grass between the two straights (no wall round it:
+  //      the barrier is taken off it, def.openInfields), the Rolex green painted round its tip inside the kerb, a low
+  //      concrete TV platform halfway down it, the big screen on its pole at the far end facing the hairpin with the
+  //      race on it; "bonjour Montréal" in white across the paved escape area round the outside ------------------------
+  const solids = [];   // (what a car can hit out on the open grass: main.js adds these to the obstacles)
+  let board = null;    // the screen's live order (drawn by update, once a second at most)
   {
     const s10 = cornerS(10);
     if (s10 != null) {
-      // the infield: from the apex toward the middle of the two straights 150 m back
-      const a = tr.sample(s10 - 150, 0), b = tr.sample(s10 + 150, 0), mx = (a.x + b.x) / 2, mz = (a.z + b.z) / 2, apex = tr.sample(s10, 0);
-      let dx = mx - apex.x, dz = mz - apex.z; const dl = Math.hypot(dx, dz) || 1; dx /= dl; dz /= dl;
-      // up the infield from the apex until the pole stands clear of both walls (the screen up on it can overhang them)
-      let px = null, pz = null;
-      for (let u = 10; u < 260 && px == null; u += 4) { const x = apex.x + dx * u, z = apex.z + dz * u; if (corridorSigned(tr, pit, x, z, 1.5) > 1.2) { px = x; pz = z; } }
-      if (px != null) {
-        const red = new THREE.MeshStandardMaterial({ color: 0xc8202a, roughness: 0.5, metalness: 0.3 });
-        const sc = new THREE.Group(); sc.name = 'mtl:screen';
-        const mast = new THREE.Mesh(new THREE.BoxGeometry(1.6, 16, 1.6), red); mast.position.set(0, 8, 0); sc.add(mast);
-        const frame = new THREE.Mesh(new THREE.BoxGeometry(13, 8, 0.8), red); frame.position.set(0, 20, 0); sc.add(frame);
-        const c = document.createElement('canvas'); c.width = 512; c.height = 300; const x = c.getContext('2d');
-        x.fillStyle = '#05070c'; x.fillRect(0, 0, 512, 300); x.fillStyle = '#e10600'; x.fillRect(0, 0, 512, 46);
-        x.fillStyle = '#fff'; x.font = '900 34px Arial'; x.fillText('GRAND PRIX DU CANADA', 16, 34);
-        ['VER', 'NOR', 'LEC', 'RUS', 'HAM', 'PIA', 'ALO', 'STR'].forEach((n, i) => { x.fillStyle = i % 2 ? '#141a26' : '#0c111a'; x.fillRect(0, 52 + i * 30, 512, 30); x.fillStyle = '#fff'; x.font = '700 22px Arial'; x.fillText(`${i + 1}  ${n}`, 20, 74 + i * 30); x.fillStyle = '#ffd400'; x.fillText(i ? `+${(i * 1.37).toFixed(3)}` : 'LEADER', 380, 74 + i * 30); });
-        const tex = canvasTex(c);
-        const panel = new THREE.Mesh(new THREE.PlaneGeometry(12, 7), new THREE.MeshBasicMaterial({ map: tex })); panel.position.set(0, 20, 0.45); sc.add(panel);
-        sc.position.set(px, 0, pz); sc.rotation.y = Math.atan2(dx, dz);   // the screen's face (+z) looks away from the apex, at the stands
-        group.add(sc); solid.push([px, pz, 10]);
+      // the island's axis: from the apex toward the middle of the two straights 150 m back (u down it, v across it - to
+      // the right looking down it from the apex)
+      const A = tr.sample(s10, 0), a = tr.sample(s10 - 150, 0), b = tr.sample(s10 + 150, 0);
+      let ux = (a.x + b.x) / 2 - A.x, uz = (a.z + b.z) / 2 - A.z; const ul = Math.hypot(ux, uz) || 1; ux /= ul; uz /= ul;
+      const vx = -uz, vz = ux, at = (u, v) => [A.x + ux * u + vx * v, A.z + uz * u + vz * v];
+      const uOf = (x, z) => (x - A.x) * ux + (z - A.z) * uz, vOf = (x, z) => (x - A.x) * vx + (z - A.z) * vz;
+      // grass at a point: metres past the kerb of the nearest road (< 0 on the road or a kerb)
+      const q0 = {}, grass = (x, z) => { const q = tr.nearest(x, z, -1, q0); return Math.abs(q.d) - (tr.edgeAt(q.i, Math.sign(q.d) || 1) + kw); };
+      // the island across at u: from the kerb of one leg to the other's (v0, v1), from its axis outward
+      const across = (u) => { let v0 = 0, v1 = 0; if (grass(...at(u, 0)) < 0) return null; while (v0 > -80 && grass(...at(u, v0 - 0.5)) > 0) v0 -= 0.5; while (v1 < 80 && grass(...at(u, v1 + 0.5)) > 0) v1 += 0.5; return [v0, v1]; };
+      const concrete = new THREE.MeshStandardMaterial({ color: 0xc4c4bf, roughness: 0.92 });
+      const dark = new THREE.MeshStandardMaterial({ color: 0x24272b, roughness: 0.55, metalness: 0.45 });
+
+      // the Rolex paint: the tip of the island, 0.6 m in from the back of the kerb all the way round, to 46 m down it -
+      // its outline is the kerb's own line, so it follows the rounded end exactly and never reaches the kerb or the road
+      const U_END = 46, ring = [];
+      for (const dir of [-1, 1]) {   // (round from the end of the approach's leg to the end of the exit's)
+        const leg = [];
+        for (let ds = 0; ds < 160; ds += 1) { const s = s10 + dir * ds, i = tr.idxAtS(s), p = tr.sample(s, -(tr.edgeAt(i, -1) + kw + 0.6)); if (uOf(p.x, p.z) > U_END) break; leg.push([p.x, p.z]); }
+        if (dir < 0) ring.push(...leg.reverse()); else ring.push(...leg.slice(1));
+      }
+      if (ring.length > 8) {
+        const g = flat(ring, [], 0.03), P = g.attributes.position, uv = g.attributes.uv;
+        let v0 = Infinity, v1 = -Infinity, u0 = Infinity; for (const [x, z] of ring) { v0 = Math.min(v0, vOf(x, z)); v1 = Math.max(v1, vOf(x, z)); u0 = Math.min(u0, uOf(x, z)); }
+        // (the paint's frame: across it v0..v1, down the island u0..U_END - the canvas upright to a camera behind the
+        //  hairpin looking down the island, as the TV picture has it: its top the far end)
+        for (let k = 0; k < P.count; k++) { const x = P.getX(k), z = P.getZ(k); uv.setXY(k, (vOf(x, z) - v0) / (v1 - v0), (uOf(x, z) - u0) / (U_END - u0)); }
+        const wAt = (u) => { let lo = Infinity, hi = -Infinity; for (let k = 0; k < ring.length; k++) { const [x0, z0] = ring[k], [x1, z1] = ring[(k + 1) % ring.length], a0 = uOf(x0, z0), a1 = uOf(x1, z1); if ((a0 - u) * (a1 - u) > 0 || a0 === a1) continue; const t = (u - a0) / (a1 - a0), v = vOf(x0, z0) + (vOf(x1, z1) - vOf(x0, z0)) * t; lo = Math.min(lo, v); hi = Math.max(hi, v); } return hi > lo ? [lo, hi] : null; };
+        const m = new THREE.MeshStandardMaterial({ map: rolexPaint(v1 - v0, U_END - u0, (u) => { const w = wAt(u0 + u); return w ? [w[0] - v0, w[1] - v0] : null; }), roughness: 0.85, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+        const mesh = new THREE.Mesh(g, m); mesh.name = 'mtl:paint:hairpin'; mesh.renderOrder = 1; group.add(mesh);
+      }
+
+      // the TV platform halfway down: a low concrete box, a dark slot of window along its front, a railed roof
+      {
+        const u = 92, w = across(u);
+        if (w) {
+          const [x, z] = at(u, (w[0] + w[1]) / 2), ang = Math.atan2(ux, uz), parts = [];
+          const box = (bw, bh, bd, y, dz = 0) => { const g = new THREE.BoxGeometry(bw, bh, bd); g.translate(0, y, dz); g.rotateY(ang); g.translate(x, 0, z); parts.push(nonIdx(g)); };
+          box(5.2, 2.4, 3.6, 1.2); box(5.8, 0.25, 4.2, 2.52);
+          const rail = []; for (const [bw, bd, dx, dz] of [[5.8, 0.08, 0, -2.06], [5.8, 0.08, 0, 2.06], [0.08, 4.2, -2.86, 0], [0.08, 4.2, 2.86, 0]]) { const g = new THREE.BoxGeometry(bw, 0.08, bd); g.translate(dx, 3.6, dz); g.rotateY(ang); g.translate(x, 0, z); rail.push(nonIdx(g)); }
+          const win = new THREE.BoxGeometry(3.6, 0.7, 0.06); win.translate(0, 1.6, -1.83); win.rotateY(ang); win.translate(x, 0, z);   // (its slot of window looks up the island at the hairpin)
+          const plat = new THREE.Mesh(mergeGeometries(parts), concrete); plat.name = 'mtl:tvplatform'; group.add(plat);
+          group.add(new THREE.Mesh(mergeGeometries([...rail, nonIdx(win)]), dark));
+          const ca = Math.cos(ang), sa = Math.sin(ang), c = (lx, lz) => [x + lx * ca + lz * sa, z - lx * sa + lz * ca];
+          solids.push({ ring: [c(-2.6, -1.8), c(2.6, -1.8), c(2.6, 1.8), c(-2.6, 1.8)], h: 3.6 }); solid.push([x, z, 5]);
+        }
+      }
+
+      // the screen: at the far end of the island, where it has 26 m of grass across, on a single tall dark pole, facing
+      // the hairpin (its back to the infield stand)
+      {
+        let u = 120, w = across(u); while (u < 230 && (!w || w[1] - w[0] < 26)) { u += 4; w = across(u); }
+        if (w) {
+          const [x, z] = at(u, (w[0] + w[1]) / 2), SW = 15, SH = SW * 9 / 16, Y = 15 + SH / 2;
+          const sc = new THREE.Group(); sc.name = 'mtl:screen';
+          const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.85, Y + SH / 2 - 1, 12), dark); pole.position.set(0, (Y + SH / 2 - 1) / 2, -1.6); sc.add(pole);   // (behind the screen, into its back)
+          const frame = new THREE.Mesh(new THREE.BoxGeometry(SW + 0.8, SH + 0.8, 1.1), dark); frame.position.set(0, Y, -0.2); sc.add(frame);
+          const c = document.createElement('canvas'); c.width = 640; c.height = 360;
+          const tex = canvasTex(c); tex.anisotropy = 4;
+          const face = new THREE.Mesh(new THREE.PlaneGeometry(SW, SH), new THREE.MeshBasicMaterial({ map: tex, toneMapped: false })); face.position.set(0, Y, 0.38); face.name = 'mtl:screen:face'; sc.add(face);
+          sc.position.set(x, 0, z); sc.rotation.y = Math.atan2(-ux, -uz);   // (the face, +z, looks back up the island at the apex)
+          sc.userData.screenY = Y; group.add(sc);
+          solids.push({ ring: [[x - 1, z - 1], [x + 1, z - 1], [x + 1, z + 1], [x - 1, z + 1]], h: Y + SH / 2 }); solid.push([x, z, 9]);
+          board = { c, x: c.getContext('2d'), tex, px: x, pz: z, t: -1e9, dir: undefined };
+          drawBoard(board, null);
+        }
+      }
+
+      // "bonjour Montréal": the city's greeting in white letters across the escape area, following the curve round the
+      // outside of the hairpin - on the asphalt, clear of the green strip behind the kerb and of the barrier, never on
+      // the road; its letters' tops toward the road, read from behind the hairpin
+      {
+        const IN = hw + kw + 3.2, H = 8.5, LEN = H * 8, i0 = tr.idxAtS(s10), mid = IN + H / 2;   // (LEN: the texture is 8 to 1)
+        const fits = (i) => tr.surfL[i] === 1 && tr.wallAt(i, 1) - 1.5 > tr.edgeAt(i, 1) + (IN - hw) + H + 0.5;
+        // the longest run of the escape area deep enough for it, round the apex
+        let lo = i0, hi = i0; while (fits((lo - 1 + tr.n) % tr.n) && i0 - lo < 200) lo--; while (fits((hi + 1) % tr.n) && hi - i0 < 200) hi++;
+        // (the letters' length measured along their middle line - round the outside of a 16 m bend that is twice as long
+        //  as the centreline - so they are square)
+        const arc = [0]; let px0 = null, pz0 = null;
+        for (let k = lo; k <= hi; k++) { const i = (k + tr.n) % tr.n, e = tr.edgeAt(i, 1) - hw, x = tr.px[i] + tr.nx[i] * (mid + e), z = tr.pz[i] + tr.nz[i] * (mid + e); if (px0 != null) arc.push(arc[arc.length - 1] + Math.hypot(x - px0, z - pz0)); px0 = x; pz0 = z; }
+        const total = arc[arc.length - 1];
+        if (total > LEN) {
+          // (round the curve: centred a few metres before the apex, as far as the run lets it)
+          const a0 = Math.max(0, Math.min(total - LEN, arc[i0 - lo] - LEN / 2 - 6)), idx = new Map(); for (let k = lo; k <= hi; k++) idx.set((k + tr.n) % tr.n, arc[k - lo] - a0);
+          const inT = (i) => { const v = idx.get(i); return v != null && v >= 0 && v <= LEN; };
+          const g = ribbon(tr, (i) => tr.edgeAt(i, 1) - hw + IN, (i) => tr.edgeAt(i, 1) - hw + IN + H, 0.013, { mask: (i) => inT(i) && inT((i + 1) % tr.n), uvFn: (i) => (idx.get(i) ?? 0) / LEN });
+          if (g.index.count) { const t = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ map: runoffTextTexture('bonjour Montréal', false), transparent: true, opacity: 0.95, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 })); t.name = 'mtl:paint:bonjour'; group.add(t); }
+        }
       }
     }
   }
@@ -465,7 +650,7 @@ export function buildMontreal(geo, track, def, pit) {
     const clear = () => { for (let u = -S.len / 2; u <= S.len / 2; u += 5) for (let v = 0; v <= DEPTH; v += 6) { const x = ox + ex[0] * u + ez[0] * v, z = oz + ex[1] * u + ez[1] * v; if (corridorSigned(tr, pit, x, z, 3) < 0) { why = `the circuit at u ${u} v ${v}`; return false; } if (!okAt(x, z)) { const hit = hitSolid(x, z, 2, true); why = `${isWater(x, z) ? 'water' : `a building (${hit?.slice(0, 3).map(Math.round)})`} at u ${u} v ${v}`; return false; } } return true; };
     let k = 0; while (k < 20 && !clear()) { ox += ez[0] * 2; oz += ez[1] * 2; k++; }
     if (k >= 20) { console.info(`[montreal] no room for ${S.name} (${why})`); continue; }
-    stands.push({ x: ox, z: oz, ex, ez, len: S.len, tiers: S.tiers, name: S.name });
+    stands.push({ x: ox, z: oz, ex, ez, len: S.len, tiers: S.tiers, name: S.name, style: S.style });
     for (const q of solid) if (q[3] && Math.abs((q[0] - ox) * ex[0] + (q[1] - oz) * ex[1]) < S.len / 2 + 3 && ((q[0] - ox) * ez[0] + (q[1] - oz) * ez[1]) > -3 && ((q[0] - ox) * ez[0] + (q[1] - oz) * ez[1]) < DEPTH + 3) claimed.add(q[3]);
     standBoxes.push([ox + ez[0] * DEPTH / 2, oz + ez[1] * DEPTH / 2, S.len / 2 + 8]);
   }
@@ -493,10 +678,13 @@ export function buildMontreal(geo, track, def, pit) {
       const s0 = cornerS(A.turn); if (s0 == null) continue;
       const sC = s0 + A.along, f = tr.sample(sC, 0);
       let lat = hw + kw + A.lateral + A.w / 2;
-      // never on the road or a kerb: slide it out until every corner of it is clear
-      const corners = (lt) => [[-1, -1], [1, -1], [1, 1], [-1, 1], [0, 0]].map(([a, b]) => { const p = tr.sample(sC + b * A.l / 2, A.side * (lt + a * A.w / 2)); return [p.x, p.z]; });
-      let tries = 0; const clearOf = (pts) => pts.every(([x, z]) => Math.abs(tr.nearest(x, z).d) > hw + kw + 0.4 && !isWater(x, z));
-      while (tries < 20 && !clearOf(corners(lat))) { lat += 1.5; tries++; }
+      // never on the road or a kerb: slide it out until all of it is clear. (The quad is flat and straight, set square to
+      // the track at its centre - so its own points are tested, every metre and a half over it, against the nearest
+      // road's edge, not points taken along the curve of the track: on the inside of a bend the two part company, and the
+      // ends of the quad would lie across the road.)
+      const pts = (lt) => { const P = tr.sample(sC, A.side * lt), out = []; for (let a = -A.w / 2; a <= A.w / 2 + 0.01; a += A.w / Math.ceil(A.w / 1.5)) for (let b = -A.l / 2; b <= A.l / 2 + 0.01; b += A.l / Math.ceil(A.l / 1.5)) out.push([P.x + P.nx * a + P.tx * b, P.z + P.nz * a + P.tz * b]); return out; };
+      const q0 = {}; let tries = 0; const clearOf = (ps) => ps.every(([x, z]) => { const q = tr.nearest(x, z, -1, q0); return Math.abs(q.d) > tr.edgeAt(q.i, Math.sign(q.d) || 1) + kw + 0.5 && !isWater(x, z); });
+      while (tries < 20 && !clearOf(pts(lat))) { lat += 1.5; tries++; }
       if (tries >= 20) continue;
       // the quad follows the track's frame at its centre (u across, v along)
       const P = tr.sample(sC, A.side * lat); const g = new THREE.PlaneGeometry(A.w, A.l); g.rotateX(-Math.PI / 2);
@@ -594,13 +782,20 @@ export function buildMontreal(geo, track, def, pit) {
 
   let wt = 0;
   return {
-    group, claimed, stands, trees: treeCount,
+    group, claimed, stands, trees: treeCount, solids,
     /** water, or something of the scenery standing at (x, z) (where an evening's venue cannot go: main.js footClear) */
     blocked: (x, z) => isWater(x, z) || !!hitSolid(x, z, 2) || standBoxes.some(([sx, sz, r]) => (sx - x) ** 2 + (sz - z) ** 2 < r * r),
-    /** t: the session clock; cam: the camera (the trees of a cell nearer than TREE_NEAR get the detailed model) */
-    update(t, cam) {
+    /** t: the session clock; cam: the camera (the trees of a cell nearer than TREE_NEAR get the detailed model);
+     *  director: the session (main.js S.director - undefined from the callers that do not pass it: the screen keeps
+     *  what it shows), redrawn on the hairpin's screen once a second at most, and only with the camera within 1.5 km */
+    update(t, cam, player, director) {
       if (cam && (cam.position.x - lastPos.x) ** 2 + (cam.position.z - lastPos.z) ** 2 > TREE_STEP * TREE_STEP) { lastPos.copy(cam.position); placeTrees(lastPos.x, lastPos.z); }
-      const sh = treeMat.userData.shader; if (sh) sh.uniforms.uTime.value = t; const d = t - wt; wt = t; if (d > 0 && d < 1) { ripple.offset.x += d * 0.004; ripple.offset.y += d * 0.0025; } },
+      const sh = treeMat.userData.shader; if (sh) sh.uniforms.uTime.value = t; const d = t - wt; wt = t; if (d > 0 && d < 1) { ripple.offset.x += d * 0.004; ripple.offset.y += d * 0.0025; }
+      if (board && director !== undefined && (director !== board.dir || (director && (t < board.t || t - board.t >= 1)))) {
+        const far = cam && (cam.position.x - board.px) ** 2 + (cam.position.z - board.pz) ** 2 > 1500 * 1500;
+        if (!far || director !== board.dir) { drawBoard(board, director || null); board.t = t; board.dir = director; }
+      }
+    },
     setTime(mode) { const day = mode === 'day'; waterMat.color.set(day ? 0x3d6f86 : 0x0b1622); waterMat.roughness = day ? 0.12 : 0.06; },
   };
 }

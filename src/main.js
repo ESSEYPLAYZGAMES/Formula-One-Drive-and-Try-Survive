@@ -3394,7 +3394,7 @@ function frame(now) {
   if (W.lights) W.lights.update(camera.position, simTime);
   for (const m of S.meshes.values()) m.detail(camera.position, carZoom());
   if (W.stands) W.stands.update(simTime);
-  W.scenery?.update?.(simTime, camera, S.player);   // (the TV helicopter covers the car you follow, whatever the camera does)
+  W.scenery?.update?.(simTime, camera, S.player, S.director);   // (the TV helicopter covers the car you follow, whatever the camera does; Montreal's hairpin screen shows the session)
   if (W.landmarks) for (const fn of W.landmarks.anims) fn(simTime, halted ? 0 : dt);
   if (W.buildings) W.buildings.material.uniforms.uTime.value = simTime;
   const sphereSeen = sphereShow();

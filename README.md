@@ -379,7 +379,9 @@ spreads the step over 160 m of road instead of letting the spline turn it into t
 closed one-way raceway (4.356 km built, 4.361 km real); the start line sits on the pit straight, the grid backs up to
 the last chicane. It is a park circuit (`verge: 'park'`): grass verges, red and white kerbs and escape areas like a
 permanent circuit, but concrete walls with debris fences all the way round (`Track.walled`), a TecPro run across the
-back of the deep escape areas. The Wall of Champions is `Track.pinWall`: the outside of the T14 exit pulled in to 1.7
+back of the deep escape areas - except inside L'Epingle, the T10 hairpin, whose infield is open grass between its two
+straights (`openInfields`, `Track.openInfields`: no barrier 230 m either way from the apex, its line moved out to the
+middle of the grass, so a car pulled off or a wreck set down is out on the island, not back on the road). The Wall of Champions is `Track.pinWall`: the outside of the T14 exit pulled in to 1.7
 m of green paint behind the kerb, the yellow "BIENVENUE AU QUÉBEC" wall, "WALL OF CHAMPIONS" painted on the strip. The
 pit lane is led in and out along the left edge of the road (`pitLeads`: the export draws it from the racing line's own
 nodes) and its wall starts clear of the T13 kerb (`pitWallClear`). Past the last chicane the pit-entry road widens
@@ -392,9 +394,14 @@ out with no braking, about 22 g into the tyres).
 Olympic rowing basin parallel to the pit building, the Seaway, the lake and its beach inside the Senna end, the Chenal
 Le Moyne, Ile Sainte-Hélène; the Biosphère (a see-through double-layer geodesic lattice, 76 m), the casino (the French
 pavilion's aluminium fins, the Quebec pavilion's gold cube), the pit building with the Paddock Club on its roof, the
-Tour de Lévis, the hairpin's screen, Habitat 67, downtown's towers and Mount Royal with its cross, the Jacques Cartier
-Bridge; 14 grandstands by their real numbers (1 Gold, Platinum, 11/12/15 at the Senna S, 21, 24, 31/33/34, 46/47/47B at
-the hairpin, the infield stand); the logos painted on the grass and run-offs (Rolex, AWS, Shell, the maple leaf);
+Tour de Lévis, Habitat 67, downtown's towers and Mount Royal with its cross, the Jacques Cartier Bridge; 14 grandstands
+by their real numbers (1 Gold, Platinum, 11/12/15 at the Senna S, 21, 24, 31/33/34, 46/47/47B at the hairpin, the
+infield stand) and the hairpin's big open stands (behind its escape area, and round the outside of its exit on the
+export's two unnamed footprints there); the logos painted on the grass and run-offs (Rolex, AWS, Shell, the maple leaf);
+L'Epingle as the TV picture from behind it shows it - the Rolex green painted round the tip of its infield on the kerb's
+own line, a concrete TV platform halfway down the island, "bonjour Montréal" in white round its escape area, and the big
+screen on its pole at the far end facing the hairpin with the session on it (the race's top ten, gaps, lap and flag;
+qualifying's timing order and clock: drawn once a second at most, from main.js passing `S.director` to `scenery.update`);
 and about 5,600 trees of five kinds (maples, green ash, Lombardy poplars in rows along the basin, weeping willows on
 the shores, white spruce on Sainte-Hélène's hill) - two instanced meshes per kind, a detailed model within 300 m of
 the camera and a 26-triangle one beyond (10 draw calls for every tree; the whole circuit draws ~90 calls / ~230 k
