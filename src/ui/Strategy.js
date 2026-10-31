@@ -1,16 +1,16 @@
 // Race strategy, before the start: the plans worked out from the same tyre model the cars race on (vehicle/Tyres.js -
-// each compound's life for this race distance, the grip lost as it wears, the cliff), the pit lane's time loss here,
+// each compound's life for this race distance, the seconds it loses a lap as it wears, the cliff, its pace, and the cold
+// out-lap on a new set), the pit lane's time loss here,
 // the race length and the rules (a dry race of 12 laps or more must use two dry compounds). Every no-stop, one-stop
 // and two-stop plan is timed lap by lap and the best of each are offered: Plan A (the quickest), B and C, with the
 // stint bars, the predicted race time against A, the box laps (the first stop's lap can be moved), and what the rest
 // of the field is starting on. Chosen, it is yours for the race: you start on its tyre and the engineer calls each
 // stop on its lap (main.js strategyCalls) - box this lap, the next compound already set; P stays out.
-import { COMPOUNDS } from '../vehicle/Tyres.js';
+import { COMPOUNDS, cliffLaps, lapLoss, outLapLoss } from '../vehicle/Tyres.js';
 import { ensureMotion, reduced, keys, open, close } from './Motion.js';
 
 const DRY = ['SOFT', 'MEDIUM', 'HARD'];
-const wearGrip = (w) => (w < 0.7 ? 1 - 0.07 * w : 1 - 0.049 - 0.6 * (w - 0.7));
-const RATE = 1.15;   // (the average wear rate on a lap: the slip and load terms of TyreSet.update, on a racing lap)
+const RATE = 1.05;   // (the wear rate on a racing lap, against the nominal: the AI's, measured 0.98-1.08 - TyreSet.update)
 
 /**
  * The plans. o: { laps, trackLength, pace (a clean lap, s), pitLoss (s), wet (0..1) } -> [{ name, label, stints:
@@ -18,21 +18,26 @@ const RATE = 1.15;   // (the average wear rate on a lap: the slip and load terms
  */
 export function planRace(o) {
   const L = Math.max(1, Math.round(o.laps)), T0 = o.pace, wet = o.wet || 0;
-  const softLaps = Math.min(18, Math.max(2.2, L * 0.6, Math.min(L * 1.3, 7.8)));
   const comps = wet > 0.5 ? ['WET', 'INTER'] : wet > 0.2 ? ['INTER', 'WET', 'SOFT'] : DRY;
-  const life = (c) => softLaps * COMPOUNDS[c].life / (RATE * (COMPOUNDS[c].dryWear && wet < 0.2 ? COMPOUNDS[c].dryWear : 1));
+  const wearMul = (c) => { const k = COMPOUNDS[c]; return k.dryWear ? 1 + (k.dryWear - 1) * Math.max(0, Math.min(1, (k.wetFrom - wet) / k.wetFrom)) : 1; };   // (a rain tyre on a track too dry for it - TyreSet.update)
+  const life = (c) => cliffLaps(c, L) / (RATE * wearMul(c));   // (laps to the cliff)
   const gripIn = (c) => { const s = COMPOUNDS[c]; return s.grip * (1 - wet) + s.wetGrip * wet * s.grip; };
-  // a stint's lap times: the grip as it wears (and a lap to warm a new set - not the first stint, which starts on the grid)
+  const best = Math.max(...comps.map(gripIn));
+  // (a compound's pace: its grip against the best for the conditions, as a lap time answers grip - vehicle/Tyres.js)
+  const paceOf = (c) => { const g = 1 - gripIn(c) / best; return T0 * (0.405 * g + 1.53 * g * g); };
+  // a stint's lap times: the pace, the seconds lost as the set wears (to the cliff, then the ramp; a set worn through
+  // is not a plan), and its cold start - a new set off the blankets, the first stint as the formation lap leaves it
   const pre = {};
   for (const c of comps) {
-    const a = [0], lf = life(c);
-    for (let n = 1; n <= L; n++) { const w = (n - 0.5) / lf, g = gripIn(c) * wearGrip(Math.min(1.2, w)); a.push(a[n - 1] + T0 * (1 + 0.55 * (1 - g)) + (w > 1 ? 4 : 0)); }
-    pre[c] = { sum: a, life: lf };
+    const a = [0], per = 0.7 / life(c);
+    for (let n = 1; n <= L; n++) { const w = (n - 0.5) * per; a.push(w > 1 ? Infinity : a[n - 1] + T0 + paceOf(c) + lapLoss(c, w, L)); }
+    pre[c] = { sum: a, life: life(c) };
   }
-  const stint = (c, n, first) => (n > pre[c].life * 1.02 ? Infinity : pre[c].sum[n] + (first ? 0 : 0.9));
+  const stint = (c, n, first) => pre[c].sum[n] + (first ? outLapLoss(c, T0, COMPOUNDS[c].start) : outLapLoss(c, T0));
   const two = wet < 0.2 && L >= 12;   // (the rule: two dry compounds in a dry race of any length)
   const out = [];
-  const add = (stints, time) => { if (!isFinite(time)) return; if (two && new Set(stints.map((s) => s.compound)).size < 2) return; out.push({ stints, time, stops: stints.length - 1 }); };
+  // (8 laps or more: a stop is mandatory - RaceDirector adds 30 s at the flag to a car that never made one)
+  const add = (stints, time) => { if (!isFinite(time)) return; if (L >= 8 && stints.length < 2) return; if (two && new Set(stints.map((s) => s.compound)).size < 2) return; out.push({ stints, time, stops: stints.length - 1 }); };
   for (const c of comps) add([{ compound: c, start: 1, end: L }], stint(c, L, true));
   for (const a of comps) for (const b of comps) {
     let best = Infinity, bk = 0; for (let k = 1; k < L; k++) { const t = stint(a, k, true) + stint(b, L - k, false) + o.pitLoss; if (t < best) { best = t; bk = k; } }

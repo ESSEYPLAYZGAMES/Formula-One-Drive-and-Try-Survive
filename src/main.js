@@ -308,8 +308,24 @@ function pitLaneLeads(track, pts, L) {
  * the limit of the tyres and the aero at once, and a car that runs a metre wide there has no road left to tighten its line).
  */
 function makeRacingLine(track, def) {
-  const fixed = track.aiCal?.line || null;
-  const line = new RacingLine(track, { optimal: def.line === 'optimal', ...(def.lineMargin ? { maxOffset: track.halfWidth - def.lineMargin } : {}), fixed });
+  const opts = { optimal: def.line === 'optimal', ...(def.lineMargin ? { maxOffset: track.halfWidth - def.lineMargin } : {}) };
+  let fixed = track.aiCal?.line || null;
+  // (a calibration can hand stretches of the AI's line to the driver's own lap - ai/Calibration.js `lineFrom`, [[sA, sB]]
+  //  - the AI's own kept everywhere else, blended in and out over 40 m: Austin's Turn 11, where its line swung out wide
+  //  and went deep into a V, 13 m across at 56 km/h, and the driver's rounder one carried 70-80)
+  const sh0 = track.aiCal?.show, from = track.aiCal?.lineFrom;
+  if (!fixed && from?.length && sh0?.d?.length) {
+    const base = new RacingLine(track, opts), every = 2, m = Math.ceil(track.length / every), d = new Array(m), L = track.length;
+    const shD = (s) => { const u = s / sh0.every, j = Math.floor(u) % sh0.d.length, f = u - Math.floor(u); return sh0.d[j] + (sh0.d[(j + 1) % sh0.d.length] - sh0.d[j]) * f; };
+    const sm = (t) => { t = Math.max(0, Math.min(1, t)); return t * t * (3 - 2 * t); };
+    for (let j = 0; j < m; j++) {
+      const s = j * every; let w = 0;
+      for (const [a, b] of from) { const x = ((s - a) % L + L) % L, span = ((b - a) % L + L) % L; if (x <= span) w = Math.max(w, sm(x / 40) * sm((span - x) / 40)); }
+      d[j] = base.offsetAt(s) * (1 - w) + shD(s) * w;
+    }
+    fixed = { every, d };
+  }
+  const line = new RacingLine(track, { ...opts, fixed });
   const P = {mu: CAR.muBase * 0.92, mass: CAR.mass, dfCoef: CAR.dfm * CAR.mass * 0.9, dragCoef: 0.5 * CAR.rho * CAR.cdA,
     axle: { rearStatic: CAR.lf / CAR.wheelbase, transfer: CAR.cgH / CAR.wheelbase, rearBrake: 1 - CAR.brakeBias, dfRear: 0.5 * CAR.rho * CAR.clA * (1 - CAR.aeroFrontShare) }, vMax: 96, brakeG: CAR.brakeMax / CAR.mass / 9.81, accel: (v) => Math.min(CAR.powerKW * 1000 / (CAR.mass * Math.max(8, v)), 14) };
   const profile = line.speedProfile(P);

@@ -13,6 +13,7 @@ import { Flashback } from './Flashback.js';
 import { ReplayBuffer } from './Replay.js';
 import { Sectors, Passes } from './Sectors.js';
 import { neutralForm } from '../career/Morale.js';
+import { setTyreLap, lapLoss, outLapLoss, cliffLaps, RATE_NOM } from '../vehicle/Tyres.js';
 
 const SUB = 1 / 120;
 /** a driver's form when the car carries none (career/Morale.js FORM: every multiplier 1, every addition 0) */
@@ -92,6 +93,10 @@ export class RaceDirector {
     this.state = this.mode === 'race' ? 'grid' : 'racing';
     this.qualiStarted = false; this.qualiDone = false;
     this.positions = [...this.cars];
+    // (the lap the tyres' seconds of wear are measured on - vehicle/Tyres.js: the speed profile's lap, a touch slower as
+    //  the AI drives it)
+    this.lapT = null;
+    if (this.profile && this.track) { let t = 0; const n = this.track.n, ds = this.track.ds; for (let i = 0; i < n; i++) t += ds / Math.max(5, this.profile[i] || 5); this.lapT = t * 1.03; setTyreLap(this.lapT); }
     this.sectors = new Sectors(this);   // (live sector times: purple / green / yellow)
     this.passes = new Passes(this);     // (on-track overtakes: c.overtakes)
     this.finishOrder = []; this.leaderFinished = false; this.leaderFinishTime = 0; this.endTimer = -1; this.done = false;
@@ -105,6 +110,9 @@ export class RaceDirector {
       onLine: (c, full) => this.onLine(c, full), onImpact: (c, sev, type) => this.onImpact(c, sev, type),
       onAIError: (c, type, zone) => this.onAIError(c, type, zone),
       pit: this.pit || null,   // (the AI brakes for the pit lane's speed limit line before it gets there)
+      // (what a stop costs here - the lane at the limiter against the same stretch at racing speed, the stop and the
+      //  slowing and the getting going - and the reference lap: the AI's undercut sums, AIDriver)
+      lapT: this.lapT, pitLoss: this.pit && this.lapT ? Math.max(12, this.pit.samples.length / this.pit.limiter - this.pit.samples.length / (this.track.length / this.lapT) + 2.4 + 2.2) : 22,
       obstacles: o.obstacles || null,   // buildings and grandstands the cars can hit (world/Obstacles.js)
     };
     this.ai = this.cars.filter((c) => !c.isPlayer).map((c) => new AIDriver(c, this.line, this.profile, this.track, { aggression: s.aggression * (c.aggrMul || 1), skill: s.skill ?? 1 }));
@@ -142,7 +150,7 @@ export class RaceDirector {
       this.poleSide = zone ? zone.dir || 1 : 1;
       const order = this.settings.gridOrder || this.cars;
       this.slots = gridLayout(tr, order.length, this.poleSide);
-      order.forEach((c, i) => { c.placeOnTrack(this.slots[i].s, this.slots[i].d, 0); c.held = true; c.gridSlot = this.slots[i]; c.gridPos = i + 1; c.lapDist = -(14 + 8 * i); });
+      order.forEach((c, i) => { c.placeOnTrack(this.slots[i].s, this.slots[i].d, 0); c.held = true; c.gridSlot = this.slots[i]; c.gridPos = i + 1; c.lapDist = -(14 + 8 * i); c.tyres.temp = c.tyres.spec.start ?? 0.7; c.tyres.work = 0.45; });   // (the tyres as the formation lap left them: a soft near its window, a hard well short of it)
       for (const a of this.ai) a.reaction = Infinity;
       this.hud?.msg('FORMATION COMPLETE', '', 3);
     } else {
@@ -598,11 +606,11 @@ export class RaceDirector {
       if (a) {
         a.reaction = Infinity; a.rj = null; a.spun = false; a.defend = null; a.error = null; a.pitPlan = null; a.planner.best.n = 0; a.planner.best.spec = null;
         const left = this.lapsTotal - c.lap, soft = left <= 4, comp = this.settings.wetness > 0.6 ? 'WET' : this.settings.wetness > 0.3 ? 'INTER' : soft ? 'SOFT' : left <= 9 ? 'MEDIUM' : 'HARD';
-        c.fitTyres(comp); c.tyres.temp = 0.4; this.onPitDone?.(c);
+        c.fitTyres(comp); c.tyres.temp = c.tyres.spec.start ?? 0.7; this.onPitDone?.(c);
       }
     });
     const p = this.player;
-    if (p && !p.retired && this.hud?.openPit) this.hud.openPit(p, (plan) => { p.fitTyres(plan.compound); p.tyres.temp = 0.4; this.onPitDone?.(p); });
+    if (p && !p.retired && this.hud?.openPit) this.hud.openPit(p, (plan) => { p.fitTyres(plan.compound); p.tyres.temp = p.tyres.spec.start ?? 0.7; this.onPitDone?.(p); });
     for (const z of this.drs.zones) z.last.clear();
     this.drs.fromLap = (lead ? lead.lap : 0) + 2;
     this.state = 'grid'; this.stateT = 0; this.world.racing = false; this.lightsOn = 0; this.holdTime = 0; this.lightsOutAt = Infinity;
@@ -783,7 +791,10 @@ export class RaceDirector {
       if (!p.boxWarned && ahead < 45 && ahead > 0) { p.boxWarned = true; hud?.msg('BOX AHEAD', 'warn', 1.5); }
       const inBox = Math.abs(ahead) < 7.5 && Math.abs(p.pitLat - box.lat) < 3.2;   // anywhere on the painted box (8.8 m long) counts
       if (inBox && p.speed < 0.4 && (me || p.pitRequested)) {
-        const plan = p.pitPlan || p.ai?.pitPlan || { compound: p.tyres.compound, repair: (p.dmg.fwL > 0.3 || p.dmg.fwR > 0.3) ? 'wing' : 'none' };
+        let plan = p.pitPlan || p.ai?.pitPlan || { compound: p.tyres.compound, repair: 'none' };
+        // (an AI car's repairs are what it needs now it is in the box, not what it needed when the stop was called: a stop
+        //  called for tyres under the safety car, the car damaged in the incident, came straight back in for a wing)
+        if (!me || !p.pitPlan) { const R = ['none', 'wing', 'full'], need = p.dmg.rw > 0.35 || p.dmg.susp > 0.55 ? 'full' : p.dmg.fwL > 0.3 || p.dmg.fwR > 0.3 ? 'wing' : 'none'; if (R.indexOf(need) > R.indexOf(plan.repair)) plan = { ...plan, repair: need }; }
         p.held = true; p.pitLaneState = 'stop'; p.pitStopT = this.stopTime(p, plan) + p.penalties + (me && p._pull ? p._pull.pen : 0); p._stopServe = p.penalties; p.penaltyServed += p.penalties; p.penalties = 0; p.pitPlanActive = plan; p._stopAt = this.time; p._stopDur = p.pitStopT; p._stopPlan = plan;   // (_stop*: the crew's choreography, world/PitCrew.js)
         hud?.msg(`STOP · ${p.pitStopT.toFixed(1)}s${p._slowStop ? '\nSLOW STOP' : ''}`, p._slowStop ? 'bad' : 'warn', p.pitStopT);
         if (p._slowStop) E?.say('Slow stop, sorry, problem on the rear left.', 3);
@@ -1010,7 +1021,7 @@ export class RaceDirector {
       const b = base(c) * 1.012, into = Math.max(0, Math.min(L, c.lapDist || 0));   // (a race lap: fuel and tyres, a touch off a flying one)
       return { c, b, at: this.time + ((L - into) / L) * b * (c.speed < 5 ? 1.4 : 1), laps: c.lap + 1, w: c.tyres.wear, life: c.tyres.lifeMeters / L, comp: c.tyres.compound, stops: 0, lt: b, times: [], out: null };
     });
-    const pitLoss = 19 + 2.4, finishers = [];
+    const pitLoss = this.world.pitLoss || 21.4, finishers = [];
     let Tw = Infinity, sc = 0, guard = 0;
     while (S.some((s) => !s.done && !s.out) && guard++ < 400) {
       // the crossing each car is at: the flag falls on the first to complete the distance, everyone after it is done
@@ -1020,20 +1031,21 @@ export class RaceDirector {
       if (!run.length) break;
       const crash = [];
       for (const s of run) {
-        const c = s.c, perLap = (1.1 / s.life) * (c.wearMul || 1), left = N - s.laps;
-        // the lap: pace, tyres, a mistake now and then
-        let lt = s.b * (1 + gauss() * 0.0025) + (s.w < 0.7 ? 1.2 * s.w : 0.84 + (s.w - 0.7) * 14);
+        const c = s.c, perLap = (RATE_NOM * 1.05 / s.life) * (c.wearMul || 1), left = N - s.laps, rl = c.raceLaps || N;
+        // the lap: pace, tyres (vehicle/Tyres.js: the seconds a set loses as it wears, the cliff), a mistake now and then
+        let lt = s.b * (1 + gauss() * 0.0025) + lapLoss(s.comp, s.w, rl) + (s.cold ? outLapLoss(s.comp, s.b) : 0); s.cold = false;
         const r = rnd();
         if (r < 0.0012 * (c.relMul || 1)) { s.out = 'Mechanical'; continue; }
         if (r < 0.0012 * (c.relMul || 1) + 0.0015 * (1 + 2 * wet)) { s.out = 'Accident'; crash.push(s); continue; }
         if (rnd() < 0.012 * (1 + 1.5 * wet)) lt += 3 + rnd() * 7;   // (a spin, a trip across the run-off)
         s.w += perLap;
-        // (a stop only when it pays: what the worn set would cost over the laps left against the stop and a fresh set)
-        const pen = (w) => (w < 0.7 ? 1.2 * w : 0.84 + (w - 0.7) * 14);
-        let stay = 0, fresh = pitLoss; for (let j = 1; j <= left; j++) { stay += pen(s.w + j * perLap); fresh += pen(j * perLap * 0.6); }
+        // (a stop only when it pays: what the worn set would cost over the laps left against the stop, a fresh set - the
+        //  softest that reaches the flag - and its cold out-lap)
+        const nx = wet > 0.5 ? 'WET' : wet > 0.2 ? 'INTER' : ['SOFT', 'MEDIUM', 'HARD'].find((k) => cliffLaps(k, rl) >= left - 0.3) || 'HARD';
+        const nLife = new TS(nx, rl, L).lifeMeters / L, nPer = (RATE_NOM * 1.05 / nLife) * (c.wearMul || 1);
+        let stay = 0, fresh = pitLoss + outLapLoss(nx, s.b); for (let j = 1; j <= left; j++) { stay += lapLoss(s.comp, s.w + j * perLap, rl); fresh += lapLoss(nx, (j - 0.5) * nPer, rl); }
         if (left >= 1 && fresh < stay) {   // (the tyres are done: a stop for a fresh set)
-          s.comp = wet > 0.5 ? 'WET' : wet > 0.2 ? 'INTER' : left <= 3 ? 'SOFT' : 'MEDIUM';
-          s.life = new TS(s.comp, c.raceLaps, L).lifeMeters / L; s.w = 0; s.stops++; lt += pitLoss * (0.85 + 0.15 * (c.pitMul || 1));
+          s.comp = nx; s.life = nLife; s.w = 0; s.stops++; s.cold = true; lt += pitLoss * (0.85 + 0.15 * (c.pitMul || 1));
         }
         s.lt = lt; s.raw = s.at + lt + (sc ? 26 : 0);
       }

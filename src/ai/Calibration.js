@@ -20,6 +20,8 @@ export const AI_CAL = {
     source: "the driver's own laps (tools/ai_fit.mjs, lap mode): the racing line shown is the composite of 3 laps (96.71 s); the AI on its own line, its corners fitted to that lap's speeds and braking points at difficulty 100 (solo flying laps 102.4-103.0 s -> 99.7-100.3 s) and written at half that (--race 0.5: what held in full races - 4 seeds, the field as clean as without it and 1.7 s a lap quicker; applied in clean air after the opening lap, AIDriver packCal) (2026-10-29)",
     fitted: "the composite of 3 laps (96.71 s) (2026-10-29, blend 0.7)",
     pack: true,
+    // (Turn 11 driven on the driver's line - main.js makeRacingLine: the AI's went deep into a V, 13 m across at 56 km/h)
+    lineFrom: [[2242, 2602]],
     show: { every: 2, d: [
       -2.32, -2.47, -2.6, -2.71, -2.79, -2.85, -2.91, -2.96, -3.01, -3.06, -3.1, -3.14, -3.17, -3.19, -3.19, -3.18,
       -3.16, -3.12, -3.06, -2.99, -2.91, -2.83, -2.74, -2.64, -2.55, -2.45, -2.35, -2.26, -2.16, -2.06, -1.97, -1.87,
@@ -378,7 +380,7 @@ export const AI_CAL = {
       8: { v: 1.139, b: 1.075 },
       9: { v: 1.139, b: 1.075 },
       10: { v: 1.059, b: 1.075 },
-      11: { v: 1.074, b: 1.075 },
+      11: { v: 1, b: 1 },   // (on the driver's line now - lineFrom: the factors fitted on the old one went)
       12: { v: 0.956, b: 1.075 },
       13: { v: 1.083, b: 1.075 },
       14: { v: 1.083, b: 1.075 },

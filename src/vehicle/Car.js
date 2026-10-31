@@ -4,7 +4,7 @@
 // Heading th: forward = (cos th, sin th) in world XZ. The player's form on the day (car.form, career/Morale.js) is
 // the only driver term in the physics, and a gentle one: confidence a quarter of a per cent of grip at the extremes
 // and a little brake force, racecraft how much downforce is lost in the dirty air behind another car.
-import { TyreSet } from './Tyres.js';
+import { TyreSet, BLANKET } from './Tyres.js';
 import { CH, tyreCap, fitGrip, roadHeight } from './Chassis.js';
 import { neutralForm } from '../career/Morale.js';
 import { PERF_GAIN } from '../race/Roster.js';
@@ -589,7 +589,7 @@ export class Car {
     const L = this.lost, h = (k) => (L[k] ? 1 : 0), floor = 1 - 0.05 * (h('floorL') + h('floorR'));
     this.lostK = Object.keys(L).length ? [(1 - 0.12 * h('nose')) * floor, (1 - 0.07 * (h('rwL') + h('rwR'))) * floor, 1 + 0.04 * h('nose') + 0.03 * (h('podL') + h('podR')) + 0.02 * h('cover')] : null;
   }
-  fitTyres(compound) { this.tyres = new TyreSet(compound, this.raceLaps, this.track.length); this.tyres.wearMul = this.wearMul || 1; this.tyres.temp = 0.3; this.punct = null; this.punctP = 0; this.punctShred = false; }
+  fitTyres(compound) { this.tyres = new TyreSet(compound, this.raceLaps, this.track.length); this.tyres.wearMul = this.wearMul || 1; this.tyres.temp = BLANKET; this.punct = null; this.punctP = 0; this.punctShred = false; }
 
   // --------------------------------------------------------------------------
   /** Fixed-step physics. */

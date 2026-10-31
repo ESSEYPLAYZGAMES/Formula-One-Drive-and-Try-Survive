@@ -217,7 +217,7 @@ window.__race = {
 window.__calRun = function (laps = 3, cal = undefined, opts = {}) {
   const tr = F.W.track, own = F.AI_CAL[tr.def.id];
   // (a calibration with a driver's line or lap rebuilds the racing line and the AI's speeds on it: main.js rebuildLine)
-  const use = cal === undefined ? own : cal, lapCal = (c) => !!(c && (c.line || c.speed));
+  const use = cal === undefined ? own : cal, lapCal = (c) => !!(c && (c.line || c.speed || c.lineFrom));
   if (lapCal(use) || lapCal(own)) F.rebuildLine(use); else F.applyCalibration(tr, use);
   const errBase = F.AI_TUNE.errBase; if (!opts.mistakes) F.AI_TUNE.errBase = 0;
   // (seeded: the same calibration gives the same laps to the millisecond, so two runs differ only by what was changed)
