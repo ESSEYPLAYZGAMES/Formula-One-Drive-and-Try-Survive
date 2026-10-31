@@ -417,15 +417,37 @@ footprints it claims (the generic extruder skips them) and the real stands' plac
 builds their tiers and crowds while the roofs and the rest are dressed on in the same frame.
 
 * **The Wing**, on its real footprint fitted clear of the pit lane, in its own frame (along the building toward the Club
-  end, across it from the garages to the paddock). Three floors of glass over the garages, each with a 3 m balcony, a
-  glass rail and its guests. The roof is a row of long blades, each overlapping the next and raked up toward the Club end
-  so their leading edges step up like stacked wings: white on top, dark red under the overhang and on their ends. At the
-  end the cars arrive from, the prow is a dark lofted wedge with grey checks, rising from the ground past the roof to a
-  tip 44 m up that leans out over the pit lane, with a red arris up its leading edge. On its face are the podium balcony
-  (with the three steps of the podium), the red-and-white chequered panel and the F1 screen. Open steps stand beyond it,
-  in the pocket the curving pit entry leaves. The survey's glass footbridge runs from the hotel over the start to the
-  Wing, 14.5-18.5 m up. Also built: a start gantry, DHL and Emirates banners down the pit wall, and the paddock behind
-  the Wing (motorhomes, trucks, the broadcast compound).
+  end, across it from the garages to the paddock):
+  * Over the garages, three bands of blue-green glass between bands of light-grey cladding. Each floor has a 3 m
+    balcony with a glass rail and its guests.
+  * The roof is about 20 wings, every one the same the whole length: a thin, sharp section reaching out over the
+    balconies, with a white nose fascia and white top, dark beneath and on its ends. Each is raked 2.8 m up toward the
+    Club end and laps over the next, so the roofline is one sawtooth. Its leading edge reaches 5 m further out at the
+    high end, so the front zig-zags in plan too. Only the base climbs, 4.4 m evenly toward the prow; alternate tops
+    are a shade apart so the blades read one by one from the air.
+  * At the end the cars arrive from, the prow is a black lofted wedge with a faint check. It rises from the ground past
+    the roof to a tip 44 m up that leans out over the pit lane, with a white arris up to the tip. Its end, the face the
+    arriving cars see, is one big cream triangle, lit a little from within because it faces north. On its face are the
+    podium balcony (with the three steps of the podium), the red-and-white chequered board at its foot and the F1
+    screen.
+  * Open steps stand beyond it, in the pocket the curving pit entry leaves.
+  * Also built: a start gantry, DHL and Emirates banners down the pit wall, and the paddock behind the Wing (motorhomes,
+    trucks, the broadcast compound).
+* **The hotel and the footbridge**, across the start from the Wing:
+  * The survey's hotel footprint (122 m x 19 m, in its own frame square to its long sides) holds two buildings. Where
+    the bridge lands is a dark block of black glass, a few storeys high, with a dark roof line and its plant. Either side
+    of it is the white hotel: five storeys, each floor's continuous white balcony slab with a glass balustrade (white
+    bands, glass between). It stands on white V-shaped pilotis over a recessed dark ground floor and a light-grey base,
+    with a white frame on the roof carrying a dark, slightly tilted slatted canopy.
+  * A low open stand of blue seats runs along the straight in front of it, built here rather than as a `Grandstands.js`
+    stand, so the barriers' catch fences are unchanged. The footprint stays one solid, as the generic building's was.
+  * The survey's glass footbridge (14.5-18.5 m up) runs from the Wing's top balcony into the dark block. It stands on two
+    pairs of white Y-shaped steel supports: one on the strip behind the pit wall (never on the pit lane), one on the grass
+    past the far barrier. Each pair is two legs leaning out from one foot to the bridge's edges, each forking under the
+    floor. Purple "LAS VEGAS GRAND PRIX" banners run along both sides.
+* **Boards** (one atlas, `board()`): which way the words run is worked out segment by segment along each board, so a
+  stand front that turns back on itself round its ends (Becketts, Village B, Farm Curve, Vale) reads the right way
+  round on every run. The pit wall's banners read the right way from the track, unbroken across the line.
 * **28 grandstands by their real names**, each from its footprint's front edge (per 4 m of the lap, the outline's point
   nearest the road). A stand that curves with its corner, as Club's does, becomes a chain of straight runs with one roof
   over the whole chain. Each stand has its own build (`DESIGN`):

@@ -1,8 +1,10 @@
 // Silverstone on British Grand Prix weekend: the old airfield in the Northamptonshire fields as the race fills it. The
-// Silverstone Wing over the International pits - 380 m of glass in three levels of balconies under its layered white
-// blades, red along their edges and undersides, sweeping up at the Club end (where the cars arrive) into the dark
-// chequered prow with the podium balcony, the chequered panel and the F1 screen on its face, open steps beyond it; the
-// glass footbridge from the hotel across the start; the grandstands by their real names on their real footprints, each
+// Silverstone Wing over the International pits - 380 m of blue-green glass in three bands between grey ones under its
+// roof of wings, one sharp blade after another the whole length (white knife edges, dark beneath, stepping up in a
+// sawtooth), climbing at the Club end (where the cars arrive) into the black prow with its cream face, the podium
+// balcony, the chequered board and the F1 screen, open steps beyond it; the glass footbridge on its white Y-shaped legs
+// across the start into the hotel opposite (the dark block it lands in, the white hotel's balcony bands either side,
+// a low open stand in front); the grandstands by their real names on their real footprints, each
 // its own build (Club's long white roof curving round the corner, Stowe's turquoise, the blue roofs at Copse and Village,
 // grey cantilevers at Luffield and Hamilton Straight, Becketts' white skillion, the open stands with blue seats, flags on
 // poles along their tops, the hoardings along their fronts) and packed - papaya above all, Union Flags waving; the
@@ -37,6 +39,17 @@ const vc = (g, hex) => { g = keepPN(nonIdx(g)); const c = new THREE.Color(hex), 
 const canvasTex = (w, h, draw, o = {}) => { const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = o.aniso || 8; if (o.repeat) t.wrapS = t.wrapT = THREE.RepeatWrapping; if (o.repeatS) t.wrapS = THREE.RepeatWrapping; return t; };
 const VMAT = (o = {}) => new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, metalness: 0.08, ...o });
 const inRing = (x, z, r) => { let c = false; for (let i = 0, j = r.length - 1; i < r.length; j = i++) { const a = r[i], b = r[j]; if ((a[1] > z) !== (b[1] > z) && x < ((b[0] - a[0]) * (z - a[1])) / (b[1] - a[1]) + a[0]) c = !c; } return c; };
+/** a geometry built in a local frame (matrix M) put into the world: a mirrored frame turns its triangles back the right way */
+function framer(M) {
+  const flip = M.determinant() < 0;
+  return (g) => { g = nonIdx(g); g.applyMatrix4(M); if (flip) { const p = g.attributes.position.array, nrm = g.attributes.normal?.array, cl = g.attributes.color?.array, uv = g.attributes.uv?.array; for (let k = 0; k < p.length; k += 9) for (const arr of [p, nrm, cl]) if (arr) for (let j = 0; j < 3; j++) { const t = arr[k + 3 + j]; arr[k + 3 + j] = arr[k + 6 + j]; arr[k + 6 + j] = t; } if (uv) for (let k = 0; k < uv.length; k += 6) for (let j = 0; j < 2; j++) { const t = uv[k + 2 + j]; uv[k + 2 + j] = uv[k + 4 + j]; uv[k + 4 + j] = t; } } return g; };
+}
+/** a round tube from a to b ([x, y, z]), radius r */
+function tubeG(a, b, r, seg = 6) {
+  const d = new THREE.Vector3(b[0] - a[0], b[1] - a[1], b[2] - a[2]), l = d.length(), g = new THREE.CylinderGeometry(r, r, l, seg);
+  g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize())); g.translate((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2);
+  return g;
+}
 const merged = (gs, mat, name, cut) => { const list = gs.filter((g) => g && g.attributes.position.count); if (!list.length) return null; const m = new THREE.Mesh(mergeGeometries(list), mat); m.name = name; if (cut) { m.geometry.computeBoundingSphere(); m.userData.cut = cut; } return m; };
 
 // ---- the crowd: papaya above all (McLaren's home race, and the Dutch orange of Verstappen's fans), the Union Flag's navy,
@@ -48,7 +61,7 @@ const MARSHAL = [0xf36c21, 0xf2731e];
 
 // ---- the boards: one atlas, a row each - the sponsors' hoardings (two logos to a row, repeating along a board) and the
 //      stands' names (one to a row)
-const BRANDS = ['globant', 'qatar', 'dhl', 'emirates', 'santander', 'rolex', 'aramco', 'pirelli', 'heineken', 'msc', 'aws', 'crypto', 'silverstone', 'britishgp', 'paddock', 'lenovo'];
+const BRANDS = ['globant', 'qatar', 'dhl', 'emirates', 'santander', 'rolex', 'aramco', 'pirelli', 'heineken', 'msc', 'aws', 'crypto', 'silverstone', 'britishgp', 'paddock', 'lenovo', 'vegas'];
 const NAMES = ['CLUB', 'VALE', 'STOWE', 'BECKETTS', 'CHAPEL', 'COPSE', 'STIRLING', 'NATIONAL PIT STRAIGHT', 'WOODCOTE', 'LUFFIELD', 'JIM CLARK', 'WELLINGTON', 'VILLAGE', 'FARM CURVE', 'ABBEY',
   'HAMILTON STRAIGHT', 'THE VIEW', 'INTERNATIONAL PADDOCK', 'SILVERSTONE SIX', 'SILVERSTONE', 'PADDOCK CLUB', 'FAN ZONE', 'BRDC'];
 const ROWS = 40, RH = 48, BOARD_REPEAT = 23.5;   // (a row is 1024 x 48 px: 23.5 m of a 1.1 m board)
@@ -78,6 +91,8 @@ function boardAtlas() {
       britishgp: (y, h) => { x.fillStyle = '#ffffff'; x.fillRect(0, y, 1024, h); x.fillStyle = '#012169'; x.fillRect(0, y, 1024, 7); x.fillStyle = '#c8102e'; x.fillRect(0, y + h - 7, 1024, 7); for (const o of [0, 512]) txt('BRITISH GRAND PRIX', o + 256, y + h / 2, 26, '#012169', { max: 400 }); },
       paddock: (y, h) => { x.fillStyle = '#111214'; x.fillRect(0, y, 1024, h); for (const o of [0, 512]) txt('PADDOCK CLUB', o + 256, y + h / 2, 28, '#ffffff', { weight: 600, max: 330 }); },
       lenovo: (y, h) => { x.fillStyle = '#e2231a'; x.fillRect(0, y, 1024, h); for (const o of [0, 512]) txt('Lenovo', o + 256, y + h / 2, 32, '#ffffff', { weight: 700, max: 220 }); },
+      // (the footbridge's purple banners, one logo to a 13 m panel)
+      vegas: (y, h) => { x.fillStyle = '#41197f'; x.fillRect(0, y, 1024, h); x.fillStyle = '#7c4dd6'; x.fillRect(0, y + h - 4, 1024, 4); for (const o of [0, 512]) { txt('LAS VEGAS', o + 214, y + h / 2, 34, '#ffffff', { weight: 900, max: 250 }); txt('GRAND PRIX', o + 408, y + h / 2, 22, '#ffffff', { weight: 600, max: 130 }); x.fillStyle = '#ffffff'; x.beginPath(); for (let k = 0; k < 10; k++) { const r = k % 2 ? 6 : 15, t = k * Math.PI / 5 - Math.PI / 2; x.lineTo(o + 52 + Math.cos(t) * r, y + h / 2 + Math.sin(t) * r); } x.closePath(); x.fill(); } },
     };
     BRANDS.forEach((b, k) => paint[b](k * RH, RH));
     NAMES.forEach((n, k) => { const y = (BRANDS.length + k) * RH; x.fillStyle = '#0b1f4d'; x.fillRect(0, y, 1024, RH); x.fillStyle = '#c8102e'; x.fillRect(0, y + RH - 5, 1024, 5); x.fillStyle = '#ffffff'; x.fillRect(0, y, 1024, 3); txt(n, 512, y + RH / 2 - 1, 32, '#ffffff', { max: 900 }); });
@@ -150,13 +165,16 @@ function sampler(pts, away, step = 3, normals = null) {
     P.tx.push(tx); P.tz.push(tz);
     if (!normals) { let nx = -tz, nz = tx; if (nx * away[0] + nz * away[1] < 0) { nx = -nx; nz = -nz; } P.nx.push(nx); P.nz.push(nz); }
   }
-  // (which way its boards' words run, seen from the track: along the right hand of someone facing them)
-  P.read = P.tx[0] * -P.nz[0] + P.tz[0] * P.nx[0] >= 0 ? 1 : -1;
+  // (which way its boards' words run, seen from the track: along the right hand of someone facing them - taken segment
+  //  by segment, so a chain that turns back on itself, as some stands' fronts do round their ends, reads the right way
+  //  round on every run, not only on its first; the coordinate along it kept continuous: P.ru, metres of reading)
+  P.ru = new Float32Array(P.n);
+  for (let i = 1; i < P.n; i++) { const tx = P.px[i] - P.px[i - 1], tz = P.pz[i] - P.pz[i - 1], nx = P.nx[i - 1] + P.nx[i], nz = P.nz[i - 1] + P.nz[i]; P.ru[i] = P.ru[i - 1] + (tx * -nz + tz * nx >= 0 ? 1 : -1) * (P.s[i] - P.s[i - 1]); }
   return P;
 }
 /** a board standing along sampler P at offset d (m out from it), y0 to y1, painted with atlas row `row` repeating every `period` m */
 function board(P, d, y0, y1, row, period = BOARD_REPEAT, mask = null) {
-  const g = ribbon(P, () => d, () => d, y0, { closed: false, yB: y1, mask, uvFn: (i) => (P.read * P.s[i]) / period });
+  const g = ribbon(P, () => d, () => d, y0, { closed: false, yB: y1, mask, uvFn: (i) => P.ru[i] / period });
   const uv = g.attributes.uv, [v0, v1] = rowV(row);
   for (let k = 0; k < uv.count; k++) { const across = uv.getX(k), along = uv.getY(k); uv.setXY(k, along, v0 + (v1 - v0) * across); }
   return keepPNU(g);
@@ -241,8 +259,10 @@ export function buildSilverstone(geo, track, def, pit) {
   const infield = (x, z) => x >= LX0 && x <= LX1 && z >= LZ0 && z <= LZ1 && INF[Math.floor((z - LZ0) / 8) * INX + Math.floor((x - LX0) / 8)] === 1;
 
   // ---- materials
-  const white = new THREE.MeshStandardMaterial({ color: 0xf2f3f5, roughness: 0.45, metalness: 0.2, emissive: 0x18191c });
-  const glassMat = new THREE.MeshStandardMaterial({ color: 0x1d3142, roughness: 0.06, metalness: 0.85, envMapIntensity: 1.6, emissive: 0x22303e, emissiveIntensity: 0.7 });
+  // (the glass of the Wing, the footbridge and the hotel's floors tinted blue-green; the dark block's black, and the
+  //  hotel's recessed ground floor's)
+  const glassMat = new THREE.MeshStandardMaterial({ color: 0x4f9a9c, roughness: 0.07, metalness: 0.6, envMapIntensity: 1.4, emissive: 0x2a6164, emissiveIntensity: 0.8 });
+  const darkGlass = new THREE.MeshStandardMaterial({ color: 0x10161c, roughness: 0.07, metalness: 0.85, envMapIntensity: 1.3, emissive: 0x0b1116, emissiveIntensity: 0.6 });
   const railMat = new THREE.MeshStandardMaterial({ color: 0xa9c3d3, roughness: 0.05, metalness: 0.3, transparent: true, opacity: 0.38, side: THREE.DoubleSide, depthWrite: false });
   const vmat = VMAT(), vmatD = VMAT({ side: THREE.DoubleSide, roughness: 0.55 });
   const boardMat = new THREE.MeshStandardMaterial({ map: boardAtlas(), roughness: 0.55, side: THREE.DoubleSide, emissive: 0xffffff, emissiveMap: boardAtlas(), emissiveIntensity: 0.16 });
@@ -276,22 +296,24 @@ export function buildSilverstone(geo, track, def, pit) {
     const M = new THREE.Matrix4().makeBasis(new THREE.Vector3(ux, 0, uz), new THREE.Vector3(0, 1, 0), new THREE.Vector3(vx, 0, vz)).setPosition(c[0], 0, c[1]);
     const flip = M.determinant() < 0;
     // (a geometry built in the Wing's frame, into the world: a mirrored frame turns its triangles back the right way)
-    const W = (g) => { g = nonIdx(g); g.applyMatrix4(M); if (flip) { const p = g.attributes.position.array, nrm = g.attributes.normal?.array, cl = g.attributes.color?.array, uv = g.attributes.uv?.array; for (let k = 0; k < p.length; k += 9) for (const arr of [p, nrm, cl]) if (arr) for (let j = 0; j < 3; j++) { const t = arr[k + 3 + j]; arr[k + 3 + j] = arr[k + 6 + j]; arr[k + 6 + j] = t; } if (uv) for (let k = 0; k < uv.length; k += 6) for (let j = 0; j < 2; j++) { const t = uv[k + 2 + j]; uv[k + 2 + j] = uv[k + 4 + j]; uv[k + 4 + j] = t; } } return g; };
+    const W = framer(M);
     const at = (u, v) => [c[0] + ux * u + vx * v, c[1] + uz * u + vz * v];
     // (a picture on a plane, read the right way round from the track in a mirrored frame too)
     const mirrorU = (g) => { if (flip) { const uv = g.attributes.uv; for (let k = 0; k < uv.count; k++) uv.setX(k, 1 - uv.getX(k)); } return g; };
-    wingFrame = { c, ux, uz, vx, vz, uMin, uMax, fF, fB, at };
     const B = (u0, u1, y0, y1, v0, v1, hex) => vc(new THREE.BoxGeometry(u1 - u0, y1 - y0, v1 - v0).translate((u0 + u1) / 2, (y0 + y1) / 2, (v0 + v1) / 2), hex);
+    wingFrame = { c, ux, uz, vx, vz, uMin, uMax, fF, fB, at, W, B };
     const parts = [], glassG = [], railG = [];
     const PEAK = 40, uP = uMax - PEAK, L = uMax - uMin;
     const LV = [5.4, 9.8, 14.2], TOPY = 18.6;
-    const WHITE = 0xf3f4f6, PALE = 0xdfe3e7, RED = 0xa8222c, DARK = 0x2b2f35;
-    // the ground floor behind the garages, the floors with their balconies (3 m out past the glass), the roof deck
+    const WHITE = 0xf3f4f6, PALE = 0xdfe3e7, CLAD = 0xc2c8ce, RED = 0xa8222c, DARK = 0x2b2f35, UNDER = 0x2a2e34;
+    // the ground floor behind the garages; the three floors, each with its balcony 3 m out past the glass, the balcony's
+    // edge a band of light-grey cladding; the roof deck with its own grey band - so from the track the front reads as
+    // three bands of blue-green glass between grey ones, over the garages
     parts.push(B(uMin, uP + 3, 0, 5.4, fF + 0.8, fB, PALE), B(uMin, uP + 3, 0.4, 5.0, fF + 0.6, fF + 0.8, DARK));
-    for (const y of LV) parts.push(B(uMin, uP + 2, y, y + 0.55, fF - 3.0, fB, WHITE), B(uMin, uP + 2, y + 0.55, y + 0.85, fF - 3.0, fF - 2.85, WHITE));
-    parts.push(B(uMin, uP + 2, TOPY, TOPY + 0.6, fF - 0.6, fB, WHITE));
+    for (const y of LV) parts.push(B(uMin, uP + 2, y, y + 0.55, fF - 3.0, fB, WHITE), B(uMin, uP + 2, y - 0.3, y + 0.85, fF - 3.12, fF - 2.86, CLAD));
+    parts.push(B(uMin, uP + 2, TOPY, TOPY + 0.6, fF - 0.6, fB, WHITE), B(uMin, uP + 2, TOPY - 0.55, TOPY + 0.6, fF - 0.78, fF - 0.56, CLAD));
     glassG.push(B(uMin + 0.4, uP + 2, 5.95, TOPY, fF + 0.35, fF + 0.6, 0xffffff));
-    for (const y of LV) railG.push(B(uMin, uP + 2, y + 0.55, y + 1.65, fF - 2.98, fF - 2.9, 0xffffff));
+    for (const y of LV) railG.push(B(uMin, uP + 2, y + 0.85, y + 1.75, fF - 2.98, fF - 2.9, 0xffffff));
     // the mullions every 3.6 m, the slender columns at the balconies' edge every 21.6 m
     for (let u = uMin + 1.8; u < uP + 1; u += 3.6) for (const y of LV) parts.push(B(u - 0.09, u + 0.09, y + 0.55, y + 4.4, fF + 0.15, fF + 0.4, 0xc9cfd5));
     for (let u = uMin + 3; u < uP; u += 21.6) parts.push(B(u - 0.22, u + 0.22, 5.95, TOPY + 0.6, fF - 2.75, fF - 2.3, WHITE));
@@ -299,33 +321,35 @@ export function buildSilverstone(geo, track, def, pit) {
     parts.push(B(uMin, uP + 2, 0, TOPY, fB - 0.4, fB, PALE));
     for (const y of [6.4, 10.8, 15.2]) parts.push(B(uMin + 2, uP, y, y + 2.4, fB, fB + 0.05, 0x34404c));
     parts.push(B(uMin - 0.4, uMin, 0, TOPY + 0.6, fF - 0.6, fB, WHITE)); glassG.push(B(uMin - 0.5, uMin - 0.4, 6, TOPY - 0.4, fF + 2, fB - 2, 0xffffff));
-    // the roof: the blades - long thin wing sections side by side down the building, each overlapping the next and raked
-    // up toward the prow end, so their leading edges step up like stacked aircraft wings; white on top, pale under the
-    // back, dark red under the overhang and on the blades' ends
+    // the roof: the wings. Blade after blade the whole length of the building, every one the same: a thin sharp section
+    // reaching out over the balconies - a bright white knife edge in front, dark beneath - raked up toward the Club end
+    // and lapping over the next one, so the roofline steps up in one sawtooth from the Abbey end to the prow. Each blade
+    // reaches further out at its high end than at its low one, so its leading edge runs out at an angle and the front
+    // zig-zags in plan as well. Only the base climbs (4.4 m over the length, evenly) toward the prow; alternate blades'
+    // tops a shade apart, so from the air they read one by one
     {
-      const K = Math.max(6, Math.round((uP - uMin) / 30)), step = (uP + 8 - uMin) / K, vL = fF - 7.5;
-      const base = (u) => TOPY + 1.0 + 3.6 * Math.pow(Math.max(0, (u - uMin) / (uP - uMin)), 1.5);
+      const K = Math.max(8, Math.round((uP + 6 - uMin) / 16.5)), step = (uP + 6 - uMin) / K, OVER = 5, RAKE = 2.8;
+      const base = (u) => TOPY + 0.95 + 4.4 * Math.min(1, Math.max(0, (u - uMin) / (uP - uMin)));
+      // (the section, round from the top of the leading edge over the top and back under: [v, dy, colour of the face after
+      //  it] - the nose a white fascia 0.44 m deep, the first metre under it white too, the rest beneath dark)
+      const sec = (tip, top) => [[tip, 0.22, WHITE], [fF - 1.2, 0.95, top], [fF + 8, 1.4, top], [fB + 2.5, 0.75, PALE], [fB + 2.5, 0.15, UNDER], [fF + 8, -0.2, UNDER], [fF - 0.6, -0.28, UNDER], [tip + 1.0, -0.24, WHITE], [tip, -0.22, WHITE]];
+      const col = new THREE.Color();
       for (let k = 0; k < K; k++) {
-        const a = uMin - 4 + k * step, b = a + step + 6, ya = base(a), yb = ya + 2.3, lead = vL + (k % 2 ? 1.2 : 0);
-        // (the section, round from the leading edge over the top and back under: [v, dy, colour of the face after it])
-        const S = [[lead, 0, WHITE], [fF - 1, 1.05, WHITE], [fF + 8, 1.5, WHITE], [fB + 2.5, 0.85, PALE], [fB + 2.5, 0.25, PALE], [fF + 8, -0.05, PALE], [fF + 0.5, -0.15, RED], [lead + 0.6, -0.12, RED]];
-        const P = [], C = [], col = new THREE.Color();
-        const vtx = (u, s) => [u, (u === a ? ya : yb) + s[1], s[0]];
-        for (let j = 0; j < S.length; j++) {
-          const s0 = S[j], s1 = S[(j + 1) % S.length], A0 = vtx(a, s0), A1 = vtx(a, s1), B0 = vtx(b, s0), B1 = vtx(b, s1);
-          P.push(...A0, ...B0, ...B1, ...A0, ...B1, ...A1); col.setHex(s0[2]); for (let q = 0; q < 6; q++) C.push(col.r, col.g, col.b);
-        }
-        for (const [u, sgn] of [[a, -1], [b, 1]]) for (let j = 1; j < S.length - 1; j++) {   // (the ends: dark red)
-          const p0 = vtx(u, S[0]), p1 = vtx(u, S[j]), p2 = vtx(u, S[j + 1]);
-          if (sgn > 0) P.push(...p0, ...p1, ...p2); else P.push(...p0, ...p2, ...p1); col.setHex(RED); for (let q = 0; q < 3; q++) C.push(col.r, col.g, col.b);
-        }
+        const a = uMin - 3 + k * step, b = a + step + OVER, ya = base(a), yb = ya + RAKE, top = k % 2 ? WHITE : 0xe4e7ea;
+        const SA = sec(fF - 4.4, top), SB = sec(fF - 9.4, top), n = SA.length, P = [], C = [];
+        const pa = (j) => [a, ya + SA[j][1], SA[j][0]], pb = (j) => [b, yb + SB[j][1], SB[j][0]];
+        const tri = (p0, p1, p2, hex) => { P.push(...p0, ...p1, ...p2); col.setHex(hex); for (let q = 0; q < 3; q++) C.push(col.r, col.g, col.b); };
+        for (let j = 0; j < n; j++) { const j1 = (j + 1) % n; tri(pa(j), pb(j), pb(j1), SA[j][2]); tri(pa(j), pb(j1), pa(j1), SA[j][2]); }
+        // (its ends, dark: the low one tucked under the blade before, the high one the step's riser - the section is convex)
+        for (let j = 1; j < n - 1; j++) { tri(pa(0), pa(j + 1), pa(j), UNDER); tri(pb(0), pb(j), pb(j + 1), UNDER); }
         const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(C, 3)); g.computeVertexNormals(); parts.push(g);
-        // (its struts: raked from the top floor's edge up under the blade's front)
-        for (const t of [0.3, 0.75]) { const u = a + (b - a) * t, yTop = (u === a ? ya : ya + (yb - ya) * t) - 0.1, h = yTop - TOPY; const s = new THREE.CylinderGeometry(0.18, 0.18, Math.hypot(h, 4.2), 6); s.rotateX(-Math.atan2(4.2, h)); s.translate(u, TOPY + h / 2, fF - 2.6 - 2.1); parts.push(vc(s, 0xd8dde2)); }
+        // (its struts: from the roof deck's edge raked out under the overhang)
+        for (const t of [0.3, 0.75]) { const u = a + (b - a) * t; parts.push(vc(tubeG([u, TOPY + 0.6, fF - 0.7], [u, ya + (yb - ya) * t - 0.3, fF - 4.2], 0.17), 0xd8dde2)); }
       }
     }
     // the prow: the dark wedge at the Club end - from the ground up past the roof to a sharp tip 44 m up, leaning out over
-    // the pit lane; grey checks over its black, a red edge up its leading arris
+    // the pit lane; black with a faint check, a white arris up its leading edge to the tip, and its end - the face the
+    // cars see as they arrive - one big cream triangle
     {
       const uA = uP - 1, uB = uMax + 1;
       // (its sections where it leaves the roof and at its end: low at the back, the tip high over the front)
@@ -339,29 +363,31 @@ export function buildSilverstone(geo, track, def, pit) {
       };
       const n = SA.length;
       for (let j = 0; j < n; j++) { const a0 = SA[j], a1 = SA[(j + 1) % n], b0 = SB[j], b1 = SB[(j + 1) % n]; quad([uA, a0[1], a0[0]], [uB, b0[1], b0[0]], [uB, b1[1], b1[0]], [uA, a1[1], a1[0]]); }
+      const cream = [];
       for (const [u, S, sgn] of [[uA, SA, -1], [uB, SB, 1]]) {
         const tri = THREE.ShapeUtils.triangulateShape(S.map(([v, y]) => new THREE.Vector2(v, y)), []);
-        for (const [i0, i1, i2] of tri) { const pts = (sgn > 0 ? [i0, i1, i2] : [i0, i2, i1]).map((i) => [u, S[i][1], S[i][0]]); for (const p of pts) { P.push(...p); U.push(p[2] / 4, p[1] / 4); } }
+        for (const [i0, i1, i2] of tri) { const pts = (sgn > 0 ? [i0, i1, i2] : [i0, i2, i1]).map((i) => [u, S[i][1], S[i][0]]); if (sgn > 0) cream.push(...pts.flat()); else for (const p of pts) { P.push(...p); U.push(p[2] / 4, p[1] / 4); } }
       }
+      // (the cream face a material of its own, lit a little from within: it faces north, out of the sun, all day)
+      { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(cream, 3)); g.computeVertexNormals(); const m = new THREE.Mesh(W(g), new THREE.MeshStandardMaterial({ color: 0xf1e3c2, emissive: 0x4a4130, roughness: 0.6, side: THREE.DoubleSide })); m.name = 'silverstone:prowface'; group.add(m); }
       const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(U, 2)); g.computeVertexNormals();
       // (if the loft's winding came out inside-out, its normals point in: flip them by the prow's centre)
       { const p = g.attributes.position, nn = g.attributes.normal; let dot = 0; const cu = (uA + uB) / 2, cy = 16, cv = (fF + fB) / 2; for (let k = 0; k < p.count; k++) dot += (p.getX(k) - cu) * nn.getX(k) + (p.getY(k) - cy) * nn.getY(k) + (p.getZ(k) - cv) * nn.getZ(k); if (dot < 0) { const a = p.array; for (let k = 0; k < a.length; k += 9) for (let j = 0; j < 3; j++) { const t = a[k + 3 + j]; a[k + 3 + j] = a[k + 6 + j]; a[k + 6 + j] = t; } const uv = g.attributes.uv.array; for (let k = 0; k < uv.length; k += 6) for (let j = 0; j < 2; j++) { const t = uv[k + 2 + j]; uv[k + 2 + j] = uv[k + 4 + j]; uv[k + 4 + j] = t; } g.computeVertexNormals(); } }
-      const chk = canvasTex(128, 128, (x) => { x.fillStyle = '#16181b'; x.fillRect(0, 0, 128, 128); x.fillStyle = '#4a4f56'; x.fillRect(0, 0, 64, 64); x.fillRect(64, 64, 64, 64); x.fillStyle = 'rgba(255,255,255,0.06)'; x.fillRect(0, 62, 128, 4); x.fillRect(62, 0, 4, 128); }, { repeat: true });
+      const chk = canvasTex(128, 128, (x) => { x.fillStyle = '#131518'; x.fillRect(0, 0, 128, 128); x.fillStyle = '#23262b'; x.fillRect(0, 0, 64, 64); x.fillRect(64, 64, 64, 64); x.fillStyle = 'rgba(255,255,255,0.04)'; x.fillRect(0, 62, 128, 4); x.fillRect(62, 0, 4, 128); }, { repeat: true });
       const prow = new THREE.Mesh(W(g), new THREE.MeshStandardMaterial({ map: chk, roughness: 0.35, metalness: 0.45, emissive: 0x0a0b0d, side: THREE.DoubleSide })); prow.name = 'silverstone:prow'; group.add(prow);
-      // (the red arris up its leading edge, from the roof to the tip; and along the tip's underside)
-      for (const [p, q] of [[[uA, SA[3][1], SA[3][0]], [uB, SB[3][1], SB[3][0]]], [[uB, SB[3][1], SB[3][0]], [uB, SB[4][1], SB[4][0]]], [[uA, SA[4][1], SA[4][0]], [uB, SB[4][1], SB[4][0]]]]) {
-        const d = new THREE.Vector3(q[0] - p[0], q[1] - p[1], q[2] - p[2]), l = d.length(), t = new THREE.CylinderGeometry(0.32, 0.32, l, 6);
-        t.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize())); t.translate((p[0] + q[0]) / 2, (p[1] + q[1]) / 2, (p[2] + q[2]) / 2); parts.push(vc(t, 0xb3212b));
-      }
+      // (the white arris up its leading edge, from the roof to the tip; down the end's front edge from the tip; and along
+      //  the foot of the face over the pit lane)
+      for (const [p, q] of [[[uA, SA[3][1], SA[3][0]], [uB, SB[3][1], SB[3][0]]], [[uB, SB[3][1], SB[3][0]], [uB, SB[4][1], SB[4][0]]], [[uA, SA[4][1], SA[4][0]], [uB, SB[4][1], SB[4][0]]]]) parts.push(vc(tubeG(p, q, 0.32), 0xf4f5f7));
       // its face: the podium balcony at 11 m (its rail, the three steps of the podium on it), the red-and-white chequered
-      // panel over it, the F1 screen beside that
+      // board at the prow's foot under it, the F1 screen above
       const ub0 = uMax - 27, ub1 = uMax - 9;
       parts.push(B(ub0, ub1, 11.1, 11.65, fF - 6.8, fF - 0.4, WHITE), B(ub0, ub1, 10.6, 11.1, fF - 6.8, fF - 6.3, RED));
       railG.push(B(ub0, ub1, 11.65, 12.75, fF - 6.75, fF - 6.65, 0xffffff));
       for (const [du, h, hex] of [[-2.2, 0.9, 0xe8e8e8], [0, 1.3, 0xe8e8e8], [2.2, 0.6, 0xe8e8e8]]) parts.push(B((ub0 + ub1) / 2 + du - 1.1, (ub0 + ub1) / 2 + du + 1.1, 11.65, 11.65 + h, fF - 4.2, fF - 2.6, hex));
       const chq = canvasTex(256, 128, (x) => { for (let i = 0; i < 16; i++) for (let j = 0; j < 8; j++) { x.fillStyle = (i + j) % 2 ? '#c8102e' : '#ffffff'; x.fillRect(i * 16, j * 16, 16, 16); } });
-      const cp = new THREE.PlaneGeometry(13, 4.6); cp.rotateY(Math.PI); cp.translate(uMax - 30 + 6.5, 15.4, fF - 3.4);   // (facing the pit straight)
+      const cp = new THREE.PlaneGeometry(16, 4.4); cp.rotateY(Math.PI); cp.translate(uMax - 21, 8.0, fF - 1.4);   // (facing the pit straight)
       const chqMesh = new THREE.Mesh(W(mirrorU(cp)), new THREE.MeshStandardMaterial({ map: chq, side: THREE.DoubleSide, roughness: 0.6, emissive: 0xffffff, emissiveMap: chq, emissiveIntensity: 0.12 })); group.add(chqMesh);
+      parts.push(B(uMax - 29.3, uMax - 12.7, 5.6, 10.4, fF - 1.3, fF - 0.9, 0x15171a));   // (its frame)
       const f1 = canvasTex(512, 288, (x) => {
         x.fillStyle = '#0a0a0c'; x.fillRect(0, 0, 512, 288); x.fillStyle = '#e10600';
         x.save(); x.translate(256, 120); x.transform(1, 0, -0.35, 1, 0, 0);
@@ -370,7 +396,7 @@ export function buildSilverstone(geo, track, def, pit) {
       });
       const sp = new THREE.PlaneGeometry(14, 7.9); sp.rotateY(Math.PI); sp.translate(uMax - 9.5, 17.2, fF - 6.2);
       group.add(new THREE.Mesh(W(mirrorU(sp)), new THREE.MeshStandardMaterial({ map: f1, emissive: 0xffffff, emissiveMap: f1, emissiveIntensity: 0.55, roughness: 0.3, side: THREE.DoubleSide })));
-      parts.push(B(uMax - 29.5, uMax - 29, 13, 17.8, fF - 3.3, fF - 1, 0x15171a), B(uMax - 18, uMax - 17.5, 13, 17.8, fF - 3.3, fF - 1, 0x15171a), B(uMax - 16.9, uMax - 2.1, 12.8, 21.6, fF - 5.9, fF - 5.4, 0x15171a), B(uMax - 13, uMax - 12, 13, 21, fF - 5.4, fF - 1.5, 0x15171a), B(uMax - 7, uMax - 6, 13, 21, fF - 5.4, fF - 1.5, 0x15171a));
+      parts.push(B(uMax - 16.9, uMax - 2.1, 12.8, 21.6, fF - 5.9, fF - 5.4, 0x15171a), B(uMax - 13, uMax - 12, 13, 21, fF - 5.4, fF - 1.5, 0x15171a), B(uMax - 7, uMax - 6, 13, 21, fF - 5.4, fF - 1.5, 0x15171a));
       for (let k = 0; k < 14; k++) { const [x, z, a] = wingWorld(ub0 + 1 + k * 1.2 + rnd() * 0.3, fF - 5.2 - rnd() * 1.2); sheets.push([x, 11.65, z, a + (rnd() - 0.5) * 0.4, UK_POSES[(rnd() * UK_POSES.length) | 0]]); }
     }
     function wingWorld(u, v) { const [x, z] = at(u, v); return [x, z, Math.atan2(-vx, -vz)]; }
@@ -406,27 +432,156 @@ export function buildSilverstone(geo, track, def, pit) {
     console.info(`[silverstone] the Wing: ${L.toFixed(0)} m x ${(fB - fF).toFixed(1)} m, the prow at the ${tr.nearest(...at(uMax, 0)).s.toFixed(0)} m end`);
   }
 
-  // ---- the footbridge from the hotel over the start to the Wing (the survey's bridge, 14.5 - 18.5 m up): a glass tube in
-  //      a white frame, the race's name along it
+  // ======================================================================================================================
+  // ---- across the start from the Wing: the hotel on the survey's footprint (122 m along the straight, 19 m deep), and
+  //      the footbridge (the survey's, 14.5 - 18.5 m up) from the Wing's top balcony over the pit lane and the track
+  //      into it. The footprint holds two buildings: where the bridge lands, a dark block of black glass a few storeys
+  //      high under a dark roof line; either side of it the white hotel - five storeys, a continuous white balcony slab
+  //      with a glass balustrade at every floor (white bands, dark glass between), on white V-shaped pilotis over a
+  //      recessed dark ground floor and a light-grey base, a white frame on its roof carrying a dark slatted canopy,
+  //      tilted a little. In front of it, along the straight, a low open stand of blue seats. The hotel in its own
+  //      frame: a along the footprint, b across it from its front (the track's side) to its back, y up
+  // ======================================================================================================================
+  const rndH = rng(15270);   // (its own stream: everything after it keeps the draws it always had)
+  const DARK_FACE = 0.8;     // (the dark block's face, set back from the hotel's balcony line)
+  let hotelF = null, hotelHull = null;
+  const tintG = [];          // (the blue-green glass of the footbridge and of the hotel's windows: one mesh)
+  {
+    const hb = geo.buildings.find((b) => b.props.building === 'hotel' && b.rings[0]?.length >= 4);
+    const info = hb ? footprintInfo(hb.rings[0]) : null, q = info ? tr.nearest(info.c[0], info.c[1]) : null;
+    if (info && Math.abs(q.d) < 160 && info.length > 40) {
+      claimed.add(hb.id);
+      // (its frame square to its long sides: of the outline's edges, the one whose bounding box is the tightest)
+      const r = hb.rings[0]; let ax = null, area = Infinity;
+      for (let k = 0; k < r.length; k++) { const p = r[k], p2 = r[(k + 1) % r.length], l = Math.hypot(p2[0] - p[0], p2[1] - p[1]); if (l < 2) continue; const e = [(p2[0] - p[0]) / l, (p2[1] - p[1]) / l]; let e0 = Infinity, e1 = -Infinity, n0 = Infinity, n1 = -Infinity; for (const [x, z] of r) { const a = x * e[0] + z * e[1], b = z * e[0] - x * e[1]; e0 = Math.min(e0, a); e1 = Math.max(e1, a); n0 = Math.min(n0, b); n1 = Math.max(n1, b); } if ((e1 - e0) * (n1 - n0) < area) { area = (e1 - e0) * (n1 - n0); ax = (e1 - e0) >= (n1 - n0) ? e : [-e[1], e[0]]; } }
+      const f = tr.sample(q.s, 0); let bx = [-ax[1], ax[0]];
+      if ((info.c[0] - f.x) * bx[0] + (info.c[1] - f.z) * bx[1] < 0) bx = [-bx[0], -bx[1]];   /* (+b: away from the track) */
+      let a0 = Infinity, a1 = -Infinity, b0 = Infinity, b1 = -Infinity;
+      for (const [x, z] of hb.rings[0]) { const a = (x - info.c[0]) * ax[0] + (z - info.c[1]) * ax[1], b = (x - info.c[0]) * bx[0] + (z - info.c[1]) * bx[1]; a0 = Math.min(a0, a); a1 = Math.max(a1, a); b0 = Math.min(b0, b); b1 = Math.max(b1, b); }
+      const O = [info.c[0] + ax[0] * a0 + bx[0] * b0, info.c[1] + ax[1] * a0 + bx[1] * b0];
+      const M = new THREE.Matrix4().makeBasis(new THREE.Vector3(ax[0], 0, ax[1]), new THREE.Vector3(0, 1, 0), new THREE.Vector3(bx[0], 0, bx[1])).setPosition(O[0], 0, O[1]);
+      hotelF = { ring: hb.rings[0], La: a1 - a0, Db: b1 - b0, ax, bx, H: framer(M), land: null, at: (a, b) => [O[0] + ax[0] * a + bx[0] * b, O[1] + ax[1] * a + bx[1] * b], loc: (x, z) => [(x - O[0]) * ax[0] + (z - O[1]) * ax[1], (x - O[0]) * bx[0] + (z - O[1]) * bx[1]] };
+    }
+  }
+
+  // ---- the footbridge: a glass tube in a white frame from the Wing's top balcony to 1.2 m inside the dark block; on two
+  //      pairs of white Y-shaped steel supports - one pair on the strip behind the pit wall (between it and the pit
+  //      lane: never on the lane), one pair on the grass past the far barrier - each pair two legs leaning out from one
+  //      foot to the bridge's edges (a V seen along it), each leg forking under the floor (a Y seen from the track); the
+  //      purple banners along both its sides
   for (const b of geo.buildings) {
-    if (b.props.building !== 'bridge' || !b.rings[0]) continue;
+    if (b.props.building !== 'bridge' || !b.rings[0] || !wingFrame) continue;
     const info = footprintInfo(b.rings[0]), q = tr.nearest(info.c[0], info.c[1]);
     if (Math.abs(q.d) > tr.wallAt(q.i, q.d > 0 ? 1 : -1) + 40) continue;   // (the ones over the circuit only: the others stay as the extruder makes them)
     claimed.add(b.id);
-    const y0 = parseFloat(b.props.min_height) || 14.5, y1 = parseFloat(b.props.height) || y0 + 4, L = info.length + 2, Wd = Math.max(3.4, info.width), ang = -info.angle;
-    const G = new THREE.Group(); G.name = 'scene:footbridge'; G.position.set(info.c[0], 0, info.c[1]); G.rotation.y = ang;
-    const fr = [];
-    const bx = (w, h, d, x, y, z) => fr.push(keepPN(new THREE.BoxGeometry(w, h, d).translate(x, y, z)));
-    bx(L, 0.6, Wd + 0.4, 0, y0, 0); bx(L, 0.5, Wd + 0.4, 0, y1, 0);
-    for (let x = -L / 2; x <= L / 2 + 0.01; x += 3) for (const z of [-Wd / 2, Wd / 2]) bx(0.18, y1 - y0, 0.18, x, (y0 + y1) / 2, z);
-    for (let x = -L / 2; x < L / 2 - 2.9; x += 6) for (const z of [-Wd / 2 - 0.05, Wd / 2 + 0.05]) { const g = new THREE.BoxGeometry(0.14, Math.hypot(6, y1 - y0), 0.14); g.rotateZ(Math.atan2(6, y1 - y0)); g.translate(x + 3, (y0 + y1) / 2, z); fr.push(keepPN(g)); }
-    G.add(new THREE.Mesh(mergeGeometries(fr), white));
-    const gl = new THREE.BoxGeometry(L - 0.2, y1 - y0 - 0.6, Wd - 0.1); gl.translate(0, (y0 + y1) / 2, 0); G.add(new THREE.Mesh(gl, glassMat));
-    G.updateMatrixWorld(true);
-    // (its name boards along both faces, just under its roof)
-    for (const z of [-Wd / 2 - 0.3, Wd / 2 + 0.3]) { const a = new THREE.Vector3(-L / 2 + 1, 0, z).applyMatrix4(G.matrixWorld), e = new THREE.Vector3(L / 2 - 1, 0, z).applyMatrix4(G.matrixWorld), o = new THREE.Vector3(0, 0, 0).applyMatrix4(G.matrixWorld), w = new THREE.Vector3(0, 0, z).applyMatrix4(G.matrixWorld); const P = sampler([[a.x, a.z], [e.x, e.z]], [o.x - w.x, o.z - w.z], 4); boards.push(board(P, 0, y1 - 1.6, y1 - 0.25, rowOf('britishgp'), 30)); }
-    group.add(G);
+    const { at, W, B, c: wc, ux, uz, vx, vz, fF } = wingFrame, uvOf = (x, z) => [(x - wc[0]) * ux + (z - wc[1]) * uz, (x - wc[0]) * vx + (z - wc[1]) * vz];
+    const uv = b.rings[0].map(([x, z]) => uvOf(x, z)), uBr = uvOf(info.c[0], info.c[1])[0];
+    const vFar = Math.min(...uv.map((p) => p[1])), vNear = Math.max(...uv.map((p) => p[1]));   // (the hotel's end, the Wing's)
+    const y0 = parseFloat(b.props.min_height) || 14.5, y1 = parseFloat(b.props.height) || y0 + 4, hw = Math.max(1.7, info.width / 2), WHITE = 0xf3f4f6;
+    // (its ends: on the Wing's top balcony; and 1.2 m inside the dark block's face - else the survey's end)
+    const vW = fF - 2.6; let vH = vFar;
+    if (hotelF) { const k0 = hotelF.loc(...at(uBr, 0))[1], k1 = hotelF.loc(...at(uBr, 1))[1] - k0; if (Math.abs(k1) > 0.5) { vH = (DARK_FACE + 1.2 - k0) / k1; hotelF.land = hotelF.loc(...at(uBr, vH))[0]; } }
+    const bp = [], bg = [];
+    bp.push(B(uBr - hw - 0.25, uBr + hw + 0.25, y0 - 0.5, y0, vH, vW, 0xe4e7ea), B(uBr - hw - 0.3, uBr + hw + 0.3, y1 - 0.2, y1 + 0.3, vH, vW, WHITE));
+    for (let v = vH + 1.5; v < vW - 0.5; v += 3) for (const s of [-1, 1]) bp.push(B(uBr + s * hw - 0.09, uBr + s * hw + 0.09, y0, y1 - 0.2, v - 0.08, v + 0.08, WHITE));
+    bg.push(keepPN(W(B(uBr - hw, uBr + hw, y0, y1 - 0.2, vH, vW, 0xffffff))));
+    // (the supports: where the track's centre is under it; behind the pit wall, the v with the most room either side of
+    //  the foot; past the far barrier, the first with 6 m of grass)
+    const cAt = (v, du) => corr(...at(uBr + du, v), 0);
+    const vC = (() => { const f = tr.sample(tr.nearest(...at(uBr, (vNear + vFar) / 2)).s, 0); return uvOf(f.x, f.z)[1]; })();
+    let vS1 = null, room1 = 0.34; for (let v = vC + 4; v < vW - 4; v += 0.1) { const m = Math.min(cAt(v, -0.6), cAt(v, 0.6)); if (m > room1) { room1 = m; vS1 = v; } }
+    let vS2 = null; for (let v = vC - 4; v > vH + 8; v -= 0.5) if (Math.min(cAt(v, -1.2), cAt(v, 1.2)) >= 6) { vS2 = v; break; }
+    for (const [vS, room] of [[vS1, room1], [vS2, 6]]) {
+      if (vS == null) continue;
+      const fy = 8.6, ex = hw - 0.3, pad = Math.min(0.8, room - 0.12);
+      bp.push(B(uBr - 0.9, uBr + 0.9, 0, 0.45, vS - pad, vS + pad, 0xc9ccd0));
+      for (const s of [-1, 1]) {
+        const fk = [uBr + s * ex, fy, vS];
+        bp.push(vc(tubeG([uBr + s * 0.18, 0.3, vS], fk, 0.28, 8), WHITE));
+        for (const e of [-1, 1]) bp.push(vc(tubeG(fk, [uBr + s * ex, y0 - 0.45, vS + e * 4.6], 0.2, 8), WHITE));
+      }
+      bp.push(vc(tubeG([uBr - ex, fy, vS], [uBr + ex, fy, vS], 0.16), WHITE));
+    }
+    const bc = at(uBr, (vH + vW) / 2); for (const g of bp) vcell(bc[0], bc[1], W(g));
+    tintG.push(...bg);
+    // (the banners: 13 m panels along both faces, the full logo on each, read the right way round from outside)
+    const PL = 13, GAP = 1.6, nP = Math.max(1, Math.floor((vW - vH - 5 + GAP) / (PL + GAP))), vTop = (vW + vH) / 2 + (nP * (PL + GAP) - GAP) / 2;
+    for (const s of [-1, 1]) for (let k = 0; k < nP; k++) { const vb = vTop - k * (PL + GAP), va = vb - PL, uu = uBr + s * (hw + 0.14); boards.push(board(sampler([at(uu, va), at(uu, vb)], [-s * ux, -s * uz], 4), 0, y0 + 0.05, y0 + 0.05 + PL * RH / 512, rowOf('vegas'), PL * 2)); }
+    console.info(`[silverstone] the footbridge: ${(vW - vH).toFixed(0)} m, supports at ${[vS1, vS2].map((v) => (v == null ? '-' : (v - vC).toFixed(1))).join(' / ')} m from the track's centre`);
   }
+
+  // ---- the hotel and the dark block (from the footprint's front, the track's side: the stand, the balcony line, the glass)
+  if (hotelF) {
+    const { La, Db, H, at } = hotelF, hp = [], hg = [], hr = [], hw = [];
+    const HB = (a0, a1, y0, y1, b0, b1, hex = 0xffffff) => vc(new THREE.BoxGeometry(a1 - a0, y1 - y0, b1 - b0).translate((a0 + a1) / 2, (y0 + y1) / 2, (b0 + b1) / 2), hex);
+    const WHITE = 0xf3f4f6, LGREY = 0xc9cdd1, SLAT = 0x262b31;
+    const land = hotelF.land ?? La * 0.53, d0 = Math.max(10, land - 13), d1 = Math.min(La - 10, land + 16);
+    const G = 6.0, FH = 3.3, NF = 4, ROOF = G + NF * FH;
+    for (const [s0, s1] of [[0, d0], [d1, La]]) {
+      if (s1 - s0 < 8) continue;
+      // the ground floor, tall: dark glass recessed 3.3 m under the first slab, on a light-grey base wall, light-grey ends
+      hp.push(HB(s0 + 0.3, s1 - 0.3, 0, 1.0, 3.1, 3.5, LGREY), HB(s0 + 0.2, s1 - 0.2, 0, G, 3.5, Db - 0.2, LGREY), HB(s0, s0 + 0.5, 0, G, 1.0, Db, LGREY), HB(s1 - 0.5, s1, 0, G, 1.0, Db, LGREY));
+      hg.push(HB(s0 + 0.5, s1 - 0.5, 1.0, G - 0.45, 3.3, 3.45));   // (dark)
+      // the V-shaped pilotis along the front, two legs from one foot up to the first slab
+      for (let a = s0 + 3.9; a < s1 - 2; a += 7.8) for (const s of [-1, 1]) hp.push(vc(tubeG([a, 0, 1.0], [a + s * 1.9, G - 0.42, 1.0], 0.24, 8), WHITE));
+      // the floors: the body (white), the glass 2.1 m back, the slab of every floor and the roof out to the front line with
+      // the glass balustrade along it, slim fins between the rooms
+      hp.push(HB(s0 + 0.1, s1 - 0.1, G, ROOF, 2.3, Db, 0xeceef0));
+      hw.push(HB(s0 + 0.2, s1 - 0.2, G, ROOF - 0.42, 2.1, 2.3));
+      for (let k = 0; k <= NF; k++) { const y = G + k * FH; hp.push(HB(s0, s1, y - 0.42, y, 0, Db + 0.12, WHITE)); if (k < NF) hr.push(HB(s0 + 0.15, s1 - 0.15, y, y + 1.1, 0.05, 0.13)); }
+      for (let a = s0 + 3.9; a < s1 - 2; a += 7.8) hp.push(HB(a - 0.09, a + 0.09, G, ROOF - 0.42, 1.0, 2.1, 0xdfe2e5));
+      // the back: a window band a floor
+      for (let k = 0; k < NF; k++) hw.push(HB(s0 + 1.2, s1 - 1.2, G + k * FH + 0.8, G + k * FH + 2.5, Db - 0.02, Db + 0.05));
+      // the roof: its parapet, the white frame (posts, beams along and across) and the dark slats of the canopy on it,
+      // falling a little toward the back
+      hp.push(HB(s0, s1, ROOF, ROOF + 0.55, 0, 0.3, WHITE), HB(s0, s1, ROOF, ROOF + 0.55, Db - 0.18, Db + 0.12, WHITE), HB(s0, s0 + 0.3, ROOF, ROOF + 0.55, 0, Db + 0.12, WHITE), HB(s1 - 0.3, s1, ROOF, ROOF + 0.55, 0, Db + 0.12, WHITE));
+      const cb0 = 1.6, cb1 = Db - 2.2, cy = (b) => ROOF + 3.8 - 1.2 * (b - cb0) / (cb1 - cb0), tilt = Math.atan2(1.2, cb1 - cb0), ca0 = s0 + 2.2, ca1 = s1 - 2.2;
+      for (let a = ca0 + 0.2; a <= ca1 + 0.01; a += Math.max(4, (ca1 - ca0) / Math.max(1, Math.round((ca1 - ca0) / 7.8)))) {
+        for (const b of [cb0 + 0.6, cb1 - 0.6]) hp.push(vc(tubeG([a, ROOF, b], [a, cy(b) - 0.3, b], 0.13), WHITE));
+        hp.push(vc(tubeG([a, cy(cb0) - 0.28, cb0], [a, cy(cb1) - 0.28, cb1], 0.12), WHITE));
+      }
+      for (const b of [cb0, cb1]) hp.push(HB(ca0, ca1, cy(b) - 0.42, cy(b) - 0.18, b - 0.12, b + 0.12, WHITE));
+      for (let b = cb0 + 0.45; b < cb1 - 0.2; b += 0.9) hp.push(vc(new THREE.BoxGeometry(ca1 - ca0 - 0.4, 0.07, 0.62).rotateX(tilt).translate((ca0 + ca1) / 2, cy(b) - 0.1, b), SLAT));
+    }
+    // the dark block where the bridge lands: black glass over a dark body, its floors' bands and mullions, a dark roof
+    // line standing over the hotel's roof
+    {
+      const HD = 21.8, bf = DARK_FACE;
+      hp.push(HB(d0, d1, 0, HD - 1.5, bf + 0.12, Db - 0.1, 0x22262b));
+      hg.push(HB(d0 + 0.25, d1 - 0.25, 0.3, HD - 1.6, bf, bf + 0.14));
+      for (const y of [4.6, 9.6, 14.1, 19.0]) hp.push(HB(d0 + 0.2, d1 - 0.2, y - 0.35, y + 0.3, bf - 0.08, bf + 0.02, 0x4b5159));
+      for (let a = d0 + 1.8; a < d1 - 1; a += 1.8) hp.push(HB(a - 0.06, a + 0.06, 0.3, HD - 1.6, bf - 0.06, bf + 0.02, 0x3a3f46));
+      hp.push(HB(d0 - 0.15, d1 + 0.15, HD - 1.6, HD, bf - 0.25, Db + 0.1, 0x15171a));
+      for (const [a, b, w, d, h] of [[0.3, 0.45, 7, 5, 1.8], [0.62, 0.5, 5, 6, 2.4], [0.8, 0.62, 3, 3, 1.4]]) { const pa = d0 + (d1 - d0) * a, pb = Db * b; hp.push(HB(pa - w / 2, pa + w / 2, HD - 1.5, HD - 1.5 + h, pb - d / 2, pb + d / 2, 0x3b4046)); }   /* (its plant on the roof) */
+      hg.push(HB(d0 - 0.06, d0 + 0.1, ROOF + 0.6, HD - 1.6, bf + 0.3, Db - 0.4), HB(d1 - 0.1, d1 + 0.06, ROOF + 0.6, HD - 1.6, bf + 0.3, Db - 0.4));
+      for (const y of [6.4, 11.4, 16.0]) hg.push(HB(d0 + 0.8, d1 - 0.8, y, y + 2.2, Db - 0.12, Db - 0.04));
+    }
+    // the low open stand in front, along the straight: up to six rows of blue seats climbing from the track's side to a
+    // walkway 4.5 m off the hotel's front (low enough that the pilotis show over it), its front kept 4 m clear of the
+    // barrier's corridor, full
+    const tD = 1.05, tH = 0.46, bBack = -4.5, sa0 = 1.0, sa1 = La - 1.0, face = Math.atan2(-hotelF.bx[0], -hotelF.bx[1]);
+    let rows = 6; const fits = (bb) => { for (let a = sa0; a <= sa1 + 0.01; a += (sa1 - sa0) / 30) if (corr(...at(a, bb), 4) <= 0) return false; return true; };
+    while (rows > 3 && !fits(bBack - rows * tD)) rows--;
+    const bF = bBack - rows * tD;
+    for (let k = 0; k < rows; k++) {
+      const b0 = bF + k * tD, y = 0.45 + k * tH;
+      hp.push(HB(sa0, sa1, 0, y, b0, b0 + tD, 0xb9bcc0), HB(sa0 + 0.3, sa1 - 0.3, y, y + 0.4, b0 + 0.3, b0 + 0.75, 0x1f4fa8));
+      for (let a = sa0 + 0.7; a < sa1 - 0.5; a += 0.64 + rndH() * 0.12) if (rndH() < 0.84) { const [x, z] = at(a, b0 + 0.85); sheets.push([x, y, z, face + (rndH() - 0.5) * 0.4, UK_POSES[(rndH() * UK_POSES.length) | 0]]); }
+    }
+    hp.push(HB(sa0, sa1, 0, rows * tH + 1.0, bBack, bBack + 0.3, 0xdfe3e7), HB(sa0 - 0.4, sa0, 0, rows * tH + 1.0, bF, bBack + 0.3, 0xdfe3e7), HB(sa1, sa1 + 0.4, 0, rows * tH + 1.0, bF, bBack + 0.3, 0xdfe3e7));
+    boards.push(board(sampler([at(sa0, bF - 0.06), at(sa1, bF - 0.06)], hotelF.bx, 3), 0, 0.05, 1.1, rowOf('globant')));
+    const hc = at(La / 2, Db / 2); for (const g of hp) vcell(hc[0], hc[1], H(g));
+    const Gh = new THREE.Group(); Gh.name = 'scene:hotel';
+    Gh.add(new THREE.Mesh(mergeGeometries(hg.map((g) => keepPN(H(g)))), darkGlass), new THREE.Mesh(mergeGeometries(hr.map((g) => keepPN(H(g)))), railMat));
+    group.add(Gh);
+    for (const g of hw) tintG.push(keepPN(H(g)));
+    // (what the cars hit: the footprint, one solid, as the generic extruder's was; the stand's ground taken)
+    solids.push({ ring: hotelF.ring, h: 22 });
+    hotelHull = [[-1, bF - 1], [La + 1, bF - 1], [La + 1, Db + 1], [-1, Db + 1]].map(([a, b]) => at(a, b));
+    occRing([at(sa0, bF), at(sa1, bF), at(sa1, bBack), at(sa0, bBack)], 2);
+    console.info(`[silverstone] the hotel: ${La.toFixed(0)} m x ${Db.toFixed(1)} m, the dark block ${d0.toFixed(0)} - ${d1.toFixed(0)} m along it, the stand in front ${rows} rows`);
+  }
+  if (tintG.length) { const Gb = new THREE.Group(); Gb.name = 'scene:footbridge'; Gb.add(new THREE.Mesh(mergeGeometries(tintG), glassMat)); group.add(Gb); }
 
   // ---- the start gantry over the line: its black frame, the lights, the title partner's name across it
   {
@@ -442,12 +597,15 @@ export function buildSilverstone(geo, track, def, pit) {
     for (let k = 0; k < 5; k++) for (const z of [-0.36, 0.36]) { const l = new THREE.Mesh(new THREE.CircleGeometry(0.22, 12), lamp); l.position.set(-1.4 + k * 0.7, 9.85, z); if (z < 0) l.rotation.y = Math.PI; G.add(l); }
   }
 
-  // ---- the pit wall's banners (DHL's yellow, the Emirates red) along its face to the track, the length of the garages
+  // ---- the pit wall's banners (DHL's yellow, the Emirates red) along its face to the track, the length of the garages:
+  //      the board atlas reads along +u, and a viewer on the track facing a wall on side `side` has side * s to their
+  //      right (the barrier atlas of track/Branding.js reads the other way, hence its walls' -side * s); measured from the
+  //      start of the run, so it carries on unbroken across the line, where s runs back to 0
   if (pit) {
-    const side = pit.sideSign, a = tr.idxAtS(pit.entryS + 40), b = tr.idxAtS(pit.exitS - 40), n = tr.n;
+    const side = pit.sideSign, a = tr.idxAtS(pit.entryS + 40), b = tr.idxAtS(pit.exitS - 40), n = tr.n, s0 = tr.s[a];
     const inB = (i) => (a <= b ? i >= a && i <= b : i >= a || i <= b);
     for (const [row, ph] of [[rowOf('dhl'), 0], [rowOf('emirates'), 1]]) {
-      const g = ribbon(tr, (i) => side * (tr.wallAt(i, side) - 0.07), (i) => side * (tr.wallAt(i, side) - 0.07), 0.05, { yB: 1.15, mask: (i) => inB(i) && inB((i + 1) % n) && tr.pitWall?.[i] && Math.floor(tr.s[i] / 36) % 2 === ph && Math.floor(tr.s[(i + 1) % n] / 36) % 2 === ph, uvFn: (i) => (-side * tr.s[i]) / BOARD_REPEAT });
+      const g = ribbon(tr, (i) => side * (tr.wallAt(i, side) - 0.07), (i) => side * (tr.wallAt(i, side) - 0.07), 0.05, { yB: 1.15, mask: (i) => inB(i) && inB((i + 1) % n) && tr.pitWall?.[i] && Math.floor(tr.s[i] / 36) % 2 === ph && Math.floor(tr.s[(i + 1) % n] / 36) % 2 === ph, uvFn: (i) => (side * tr.wrapS(tr.s[i] - s0)) / BOARD_REPEAT });
       const uv = g.attributes.uv, [v0, v1] = rowV(row); for (let k = 0; k < uv.count; k++) { const across = uv.getX(k), along = uv.getY(k); uv.setXY(k, along, v0 + (v1 - v0) * across); }
       if (g.index.count) boards.push(keepPNU(nonIdx(g)));
     }
@@ -1144,7 +1302,7 @@ export function buildSilverstone(geo, track, def, pit) {
   return {
     group, claimed, stands, solids, wing: wingFrame,
     /** something of the scenery standing at (x, z) (where an evening's venue cannot go: main.js footClear) */
-    blocked: (x, z) => (wingHull && inRing(x, z, wingHull)) || hitSolid(x, z) || solids.some((o) => inRing(x, z, o.ring)),
+    blocked: (x, z) => (wingHull && inRing(x, z, wingHull)) || (hotelHull && inRing(x, z, hotelHull)) || hitSolid(x, z) || solids.some((o) => inRing(x, z, o.ring)),
     update(t, cam, focus) {
       const dt = tPrev == null ? 0 : Math.max(0, Math.min(0.2, t - tPrev)); tPrev = t;
       for (const m of [fansMat, flagMat]) { const sh = m.userData.shader; if (sh) sh.uniforms.uTime.value = t; }
