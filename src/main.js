@@ -1261,6 +1261,7 @@ function savePhoto() {
 }
 function enterPhoto() {
   PHOTO.on = true; PHOTO.hud = false; PHOTO.live = false; S.paused = true; showPhotoPanel(true);
+  if (RL.group) RL.group.visible = false;   // (no racing line in a photo: back on leaving - exitPhoto)
   $('pause').classList.add('hidden'); $('hud').classList.add('hidden'); $('photo-hint').classList.remove('hidden'); $('photo-play').textContent = '▶ PLAY';
   PHOTO.saved = { pos: camera.position.clone(), quat: camera.quaternion.clone(), fov: camera.fov };
   const dir = camera.getWorldDirection(new THREE.Vector3());
@@ -1293,6 +1294,9 @@ function releasePhotoAI() {
 function exitPhoto() {
   setPhotoLive(false);
   PHOTO.on = false; PHOTO.drag = false; canvas.style.cursor = ''; showPhotoPanel(false);
+  // (the racing line as the race has it now - your setting, a session running, no crash view or news on the screen -
+  //  never a state remembered from before: it cannot stay hidden after a photo)
+  if (RL.group) RL.group.visible = RL.on && !!S.director && !POV.on && !NEWS.on;
   $('photo-hint').classList.add('hidden'); $('hud').classList.remove('hidden'); $('pause').classList.remove('hidden');
   // the camera goes back to the car - where it is now, looking the way it is pointing - so the paused view shows where
   // you are going (with no car to follow, back where it was)
@@ -3279,6 +3283,7 @@ function frame(now) {
     else {
       if (input.pressed('KeyH')) { PHOTO.hud = !PHOTO.hud; $('hud').classList.toggle('hidden', !PHOTO.hud); }
       if (input.pressed('KeyP') || input.pressed('Space')) setPhotoLive(!PHOTO.live);
+      if (RL.group) RL.group.visible = false;   // (kept hidden all through, whatever else turns it on)
       updatePhoto(dt);
     }
   } else {

@@ -940,10 +940,15 @@ export function buildCatchFences(track, pit) {
   const tr = track, group = new THREE.Group(); group.name = 'catch-fences';
   if (!tr.fenceL) return group;
   const pitSide = pit ? pit.sideSign : 0;
+  // (behind the barrier it stands on, always: on the pit side the barrier drawn is the pit wall (buildTrackMeshes'
+  //  wallGeo), not the track's own line - a fence on the track's line stood in front of it round Austin's pit roads)
+  const pitWall = pit ? new Float32Array(tr.n) : null;
+  if (pit) for (let i = 0; i < tr.n; i++) { let v = pit.wallD[i]; for (let k = 1; isNaN(v) && k < 12; k++) { v = pit.wallD[(i - k + tr.n) % tr.n]; if (isNaN(v)) v = pit.wallD[(i + k) % tr.n]; } pitWall[i] = isNaN(v) ? tr.wallAt(i, pitSide) : v; }
+  const barAt = (i, side) => (pit && side === pitSide ? pitWall[i] : tr.wallAt(i, side));
   const geos = [1, -1].map((side) => {
     const f = side > 0 ? tr.fenceL : tr.fenceR;
     const mask = (i) => f[i] && f[(i + 1) % tr.n] && !(pit && side === pitSide && pit.laneCovers?.[i]);
-    return ribbon(tr, (i) => side * (tr.wallAt(i, side) + 0.25), (i) => side * (tr.wallAt(i, side) + 0.25), 0.4, { yB: FENCE_H, mask, uvFn: (i) => tr.s[i] / 3 });
+    return ribbon(tr, (i) => side * (barAt(i, side) + 0.25), (i) => side * (barAt(i, side) + 0.25), 0.4, { yB: FENCE_H, mask, uvFn: (i) => tr.s[i] / 3 });
   }).filter((g) => g.index.count);
   if (geos.length) group.add(spatialChunks(geos, fenceMaterial(), 'catchFences'));
   return group;
