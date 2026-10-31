@@ -1016,13 +1016,14 @@ export function ribbon(tr, offA, offB, y, { mask = null, colorFn = null, uvV = 8
   let vcount = 0; let prevEmitted = false;
   const yAt = (i) => (typeof y === 'function' ? y(i) : y);
   const yBAt = (i) => (yB == null ? yAt(i) : (typeof yB === 'function' ? yB(i) : yB));
-  const emit = (i) => {
+  const vAt = (i) => (uvFn ? uvFn(i) : tr.s[i] / uvV);
+  const emit = (i, vOver = null) => {
     let a = offA(i), b = offB(i);
     // a flat ribbon always runs right edge to left edge, whatever order its offsets were given in (backwards, it
     // faces down and is culled - which once made Silverstone's pit lane grass); walls (yB) keep their order
     if (yB == null && a > b) { const t = a; a = b; b = t; }
     pos.push(tr.px[i] + tr.nx[i] * a, yAt(i), tr.pz[i] + tr.nz[i] * a, tr.px[i] + tr.nx[i] * b, yBAt(i), tr.pz[i] + tr.nz[i] * b);
-    const v = uvFn ? uvFn(i) : tr.s[i] / uvV;
+    const v = vOver ?? vAt(i);
     uv.push(0, v, 1, v);
     if (colorFn) { col.push(...colorFn(i, a), ...colorFn(i, b)); }
     return vcount++;
@@ -1032,7 +1033,9 @@ export function ribbon(tr, offA, offB, y, { mask = null, colorFn = null, uvV = 8
     if (mask && !mask(i)) { prevEmitted = false; continue; }
     let vi;
     if (!prevEmitted) vi = emit(i); else vi = vcount - 1;
-    const vj = emit(j);
+    // (the segment that closes the lap, back across the line to sample 0: its far end's coordinate runs on from the
+    //  last sample's, not back to the first's - a lap's worth of banner or kerb squeezed into one segment otherwise)
+    const vj = closed && k === n - 1 && n > 2 ? emit(j, 2 * vAt(n - 1) - vAt(n - 2)) : emit(j);
     const a0 = vi * 2, a1 = vi * 2 + 1, b0 = vj * 2, b1 = vj * 2 + 1;
     idx.push(a0, b0, a1, a1, b0, b1);
     prevEmitted = true;
