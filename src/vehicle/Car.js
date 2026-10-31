@@ -33,7 +33,9 @@ const FS = [CAR.mass * 9.81 * CAR.lr / CAR.wheelbase / 2, 0, CAR.mass * 9.81 * C
 /** surface codes from Track.surface(): grip multiplier and rolling resistance (m/s^2 = a + b v) of each */
 export const SURFACE = { ROAD: 0, KERB: 1, PAVED: 2, GRASS: 3, GRAVEL: 4 };
 const SURF_GRIP = [1.0, 0.93, 0.82, 0.55, 0.5];     // paved run-off: grippy but dirty; grass: slippery; gravel: loose
-const SURF_DRAG_A = [0, 0, 0, 0.6, 2.5], SURF_DRAG_B = [0, 0, 0, 0.02, 0.09];   // a gravel trap stops a car at about 1 g from speed
+// a gravel trap stops a car at about 1 g from speed - mostly the speed's doing (the stones piling up in front of the
+// tyres): a car crawling through it, a tyre down or on full lock, still gets itself out
+const SURF_DRAG_A = [0, 0, 0, 0.5, 0.8], SURF_DRAG_B = [0, 0, 0, 0.022, 0.125];
 const G = 9.81;
 /** normal impact speed (m/s) at the barrier above which the car is launched (about 85 km/h straight into it) */
 export const LAUNCH_WALL = 32;
@@ -700,8 +702,10 @@ export class Car {
     for (let k = 0; k < 4; k++) {
       // (a wheel that was just struck by another car's wheel bounces and skips: most of its grip is gone for a moment)
       if (W.lift[k] > 0) W.lift[k] = Math.max(0, W.lift[k] - dt / 0.22);
-      // (a punctured tyre has little grip left; shredded to the rim, less still)
-      const front = k < 2, cap = tyreCap(Fz[k], front) * grip * SURF_GRIP[W.surf[k]] * (front ? gripFW : 1) * (1 - 0.65 * W.lift[k]) * (this.punct === k ? (this.punctShred ? 0.22 : 0.38 - 0.1 * (this.punctP || 0)) : 1);
+      // (a punctured tyre has little grip left; shredded to the rim, less still - on grass or gravel the worse of the two,
+      //  not both: a flat in a gravel trap would leave that wheel a tenth of its grip, and the car beached on it)
+      const pf = this.punct === k ? (this.punctShred ? 0.22 : 0.38 - 0.1 * (this.punctP || 0)) : 1, sgr = SURF_GRIP[W.surf[k]];
+      const front = k < 2, cap = tyreCap(Fz[k], front) * grip * (W.surf[k] >= 3 ? Math.min(sgr, pf) : sgr * pf) * (front ? gripFW : 1) * (1 - 0.65 * W.lift[k]);
       sat[k] = W.cap[k] = cap;   // (sat: the capacity for now, the saturation below)
       const bx = this.vLong - this.r * WY[k], by = this.vLat + this.r * WX[k];
       const vx = front ? bx * cd + by * sd : bx, vy = front ? by * cd - bx * sd : by;

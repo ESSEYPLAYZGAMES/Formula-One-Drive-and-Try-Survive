@@ -427,12 +427,14 @@ export class AIDriver {
     const ps = P.samples, lim = P.limiter, v = c.speed, T = AI_TUNE;
     const box = P.boxFor(c.boxIdx ?? c.number + c.id), u = Math.max(0, q.u);
     // past the box, or stopped beside it but not in it (pushed wide by a car in the next box): missed - on down the
-    // lane and round again next lap (the request stands), never stopped for good
-    if (c.pitRequested && c.pitLaneState === 'in' && !this.missed) {
+    // lane and round again next lap (the request stands), never stopped for good. (Your car, driven in for you -
+    // RaceDirector.pitTakeover: boxing - stops whatever its request says: the stop is what the takeover is for)
+    const boxing = c.pitRequested || this.boxing;
+    if (boxing && c.pitLaneState === 'in' && !this.missed) {
       this._boxWait = v < 0.4 && Math.abs(box.u - u) < 8 ? (this._boxWait || 0) + dt : 0;
       if (u > box.u + 6 || this._boxWait > 2.5) this.missed = true;
     }
-    const stopping = c.pitRequested && c.pitLaneState !== 'out' && !this.missed;
+    const stopping = boxing && c.pitLaneState !== 'out' && !this.missed;
     // turned round in the lane (a spin at the entry, a tap): it stops and the crew push it round to face down the
     // lane (in the pit lane a car is not reversed under its own power)
     const iL = Math.max(0, Math.min(ps.n - 1, Math.round(u / ps.ds)));

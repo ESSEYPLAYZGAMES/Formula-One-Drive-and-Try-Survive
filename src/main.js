@@ -1487,7 +1487,7 @@ function startFlashback() {
   const d = S.director, fb = d?.flashback;
   if (!fb || fb.uses <= 0) { hud.msg('NO FLASHBACKS LEFT', 'warn', 1.5); return; }
   if (fb.buf.length < 2) { hud.msg('NOTHING TO REWIND YET', 'warn', 1.5); return; }
-  endCrash();
+  endCrash(); if (POV.on) cancelScreen();   // (the last seconds through your eyes: back out of the helmet to rewind)
   S.fb = { now: fb.snap(), pos: d.time, max: d.time, shown: null, base: new Map() };
   if (audio.engGain) { const tt = audio.ctx.currentTime; audio.engGain.gain.setTargetAtTime(0, tt, 0.05); audio.noiseGain.gain.setTargetAtTime(0, tt, 0.05); }   // (the engine falls silent)
   fbShow(true);
@@ -1525,7 +1525,12 @@ function updateFlashback(dt) {
 function endFlashback(resume) {
   const F = S.fb, d = S.director, fb = d.flashback; S.fb = null; fbShow(false);
   if (resume && F.pos < F.max - 0.15) {
+    // (a driver's fate, once decided, is kept for a moment after the accident: the same news comes again - only going
+    //  back to before it changes anything; the replay clip of an accident that no longer happened goes)
+    const fates = new Map(); for (const c of S.cars) if (c.fate) fates.set(c, { fate: c.fate, _out: c._out, _sev: c._sev, _pDeath: c._pDeath });
     const s = fb.at(F.pos); fb.restore(s); fb.cut(s.t); fb.uses--;
+    for (const c of S.cars) { if (c.injured && fates.has(c)) Object.assign(c, fates.get(c)); if (!c.injured) c.injuryClip = null; }
+    NEWS.wait = 0; if (NEWS.cancel || NEWS.cancelled) uncancel();
     // the models and effects of what no longer happened
     for (const m of S.meshes.values()) { scene.remove(m.group); m.dispose(); } S.meshes.clear(); spawnMeshes(S.cars);
     debris.clear(); fire.clear(); chunks.clear(); camCtl._crash = null; engineer.queue = [];
@@ -2108,7 +2113,7 @@ function beginCancel(hurt) {
   hud.msg('RED FLAG · RACE CANCELLED\nReturn to the pit lane', 'bad', 9);
   if (!mine && d.engineer) {
     engineer.queue = []; engineer.say("Red flag. The race will not be restarted. Bring it back to the pit lane, slowly. ... Just bring it home.", 5);
-    setTimeout(() => { if (S.director === d) d.engineer = null; }, 9000);   // (no more race chatter)
+    clearTimeout(NEWS.muteT); NEWS.muteT = setTimeout(() => { if (S.director === d && NEWS.cancelled) d.engineer = null; }, 9000);   // (no more race chatter)
   }
   strings(true, { offset: 0, fadeIn: 6, gain: 0.55 });
   if (mine) povStart(p);   // (you were in it: through your own eyes)
@@ -2288,6 +2293,23 @@ function povEnd() {
   const v = visor(); v.style.display = 'none'; v.className = ''; v.onclick = null;
 }
 function endFlashbackIfOpen() { if (S.fb) endFlashback(false); }
+/** out of the helmet (the last seconds through your eyes) and the black, the HUD back: a flashback is taken in it */
+function cancelScreen() {
+  if (POV.on) povEnd();
+  blackout().style.opacity = '0'; if (visorEl) visorEl.style.display = 'none';
+  hud.show(); $('hud').classList.remove('hidden'); input.enabled = true; if (RL.group) RL.group.visible = RL.on;
+}
+/**
+ * A flashback out of a cancelled race: the state is back to before the accident (RaceDirector stops recording once a
+ * race is cancelled, so it is still there), and the cancellation with it - the red flag, the drive back, the strings.
+ * Back to just after it instead, the same fate stands and the news comes again (crashNews).
+ */
+function uncancel() {
+  const d = S.director;
+  cancelScreen(); NEWS.cancel = null; NEWS.cancelled = false; NEWS.wait = 0;
+  clearTimeout(NEWS.muteT); if (d) d.engineer = engineer;
+  strings(false, { fade: 1.5 });
+}
 /** each frame of a cancelled race, until the news */
 function cancelFrame(dt) {
   const C = NEWS.cancel, p = S.director.player; C.t += dt;
@@ -3221,7 +3243,7 @@ function frame(now) {
     else if (input.pressed('KeyT') && d && !hud.pit.open) openTelemetry(!S.paused);
     else if (!S.fb && input.pressed('Escape') && d && !d.done && !hud.pit.open) setPaused(!S.paused);
     if (S.fb) updateFlashback(dt);
-    else if (d && !S.paused && !d.done && !hud.pit.open && !FINALE.on && !NEWS.cancel && !NEWS.cancelled && input.pressed('Backspace')) startFlashback();   // (no rewinding a life lost)
+    else if (d && !S.paused && !d.done && !hud.pit.open && !FINALE.on && !NEWS.fading && input.pressed('Backspace')) startFlashback();   // (a red flag too: back to before the accident, and it never happened)
     if (input.pressed('KeyV')) camCtl.toggle();
     camCtl.lookIn = input.look; camCtl.back = input.lookBack;   // Q / E look left / right, C look back (updated with the input below)
     if (input.pressed('KeyL') && d) {
@@ -3244,9 +3266,14 @@ function frame(now) {
       // (no reset: drive it back - hold the brake at a standstill for reverse; beached, hold R to retire)
     }
   }
-  // (a driver hurt: a second and a half for the rest of the accident to play out, then the news - crashNews)
-  if (d && d.mode === 'race' && !d.done && !NEWS.fading && !S.paused && S.cars.some((c) => c.injured && !c.standInFor && !c._newsShown && (c.injuryClip || c._clipAt == null))) { NEWS.wait += dt; if (NEWS.wait > 1.5) crashNews(); }
-  if (NEWS.cancel && d && !d.done && !S.paused && !NEWS.fading) cancelFrame(dt);   // (a race cancelled: the drive back, then the news)
+  // (a driver hurt: a second and a half for the rest of the accident to play out - three with a flashback to hand, the
+  //  time to take it - then the news: crashNews. Never while a flashback is open: it would shut it)
+  if (d && d.mode === 'race' && !d.done && !NEWS.fading && !S.paused && !S.fb && S.cars.some((c) => c.injured && !c.standInFor && !c._newsShown && (c.injuryClip || c._clipAt == null))) {
+    const fbOk = d.flashback?.uses > 0 && d.flashback.buf.length > 1;
+    if (!NEWS.wait && fbOk && !NEWS.cancel) hud.msg('MAJOR ACCIDENT\nBACKSPACE · FLASHBACK', 'bad', 3);
+    NEWS.wait += dt; if (NEWS.wait > (fbOk ? 3 : 1.5)) crashNews();
+  }
+  if (NEWS.cancel && d && !d.done && !S.paused && !NEWS.fading && !S.fb) cancelFrame(dt);   // (a race cancelled: the drive back, then the news)
   const halted = (PHOTO.on ? !PHOTO.live : S.paused) || hud.pit.open || !!S.fb || NEWS.fading || !!S.simming;
 
   if (d && !halted) {

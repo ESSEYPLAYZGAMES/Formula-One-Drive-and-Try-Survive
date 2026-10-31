@@ -177,6 +177,7 @@ export class RaceDirector {
    */
   cancelRace() {
     if (this.cancelled || this.done) return; this.cancelled = true;
+    this._order = this.positions.slice();   // (the order stands as it was at the red flag: nobody gains a place on the drive in)
     this.sc.cancel?.();
     for (const c of this.cars) if (!c.isPlayer && !c.retired && !c.finished) { c.pitRequested = true; if (c.ai) c.ai.pitPlan = { compound: c.tyres.compound, repair: 'none' }; }
   }
@@ -271,7 +272,7 @@ export class RaceDirector {
     }
     // (your run over: after a moment the car is handed over and the session goes on - it ends when every car is done)
     if (this.endTimer > 0) { this.endTimer -= dt; if (this.endTimer <= 0) { this.endTimer = -1; if (p && !p.autopilot) this.handOver(); else this.finish(); } }
-    if (this.flashback.uses > 0 && !this.done) this.flashback.record(dt);
+    if (this.flashback.uses > 0 && !this.done && !this.cancelled) this.flashback.record(dt);   // (cancelled: the moments before the accident stay rewindable - main.js uncancel)
     if (this.mode === 'race' && !this.cancelled && this.leaderFinished && this.endTimer < 0 && (this.cars.every((c) => c.finished || c.retired) || this.time - this.leaderFinishTime > 150)) this.finish();
     if (this.mode === 'quali' && this.endTimer < 0 && (this.cars.every((c) => c.qualiDone || c.retired) || this.time > this.qualiLimit)) this.finish();
   }
@@ -587,7 +588,7 @@ export class RaceDirector {
     const lead = this.positions.find((c) => !c.retired);
     for (const c of this.cars) if (c.retired && !c.parked && !c.isPlayer) { if (!c.parkMove) this.parkWreck(c); c.parkMove.t = 1e9; this.parkStep(c, 0); }
     this.onRedFlag?.();
-    const order = this.positions.filter((c) => !c.retired && !c.finished);
+    const order = (this._order || this.positions).filter((c) => !c.retired && !c.finished); this._order = null;   // (in the order at the red flag)
     this.slots = gridLayout(this.track, order.length, this.poleSide);
     order.forEach((c, i) => {
       const a = c.ai;
@@ -616,6 +617,9 @@ export class RaceDirector {
 
   rank() {
     if (this.mode === 'quali') { this.positions.sort((a, b) => a.bestLap - b.bestLap || (a.retired ? 1 : 0) - (b.retired ? 1 : 0)); return; }
+    // (under a red flag the order is frozen where it stood when it came out - SafetyCar.redFlag, cancelRace: the field
+    //  is slowing, some cars stopped, and nobody gains or loses a place by it; a car that retires meanwhile drops back)
+    if (this._order) { const o = this._order; this.positions.sort((a, b) => (a.retired ? 1 : 0) - (b.retired ? 1 : 0) || o.indexOf(a) - o.indexOf(b)); return; }
     const fo = this.finishOrder;
     this.positions.sort((a, b) => {
       const ra = a.retired ? 1 : 0, rb = b.retired ? 1 : 0; if (ra !== rb) return ra - rb;
@@ -768,6 +772,9 @@ export class RaceDirector {
     }
     if (p.pitExited) { p.pitExited = false; if (p.pitLaneState) { p.pitLaneState = null; hud?.msg('REJOIN', 'good', 1.2); } }
     if (!p.pitLane) { if (p.pitAuto) { p.pitAuto = null; p._pull = null; } return; }
+    // (driven in for you and missed anyway - stopped beside the box, pushed off it: the car is yours again at once, on
+    //  down the lane - never an AI driving you on toward the exit with the stop given up)
+    if (me && p.pitAuto?.missed && p.pitLaneState === 'in') { p.pitAuto = null; p._pull = null; p.steer = 0; hud?.msg('MISSED YOUR BOX · YOUR CAR', 'bad', 2.5); }
     if (p.pitLaneState === 'in') {
       // yours: from the speed-limit line the car is driven to the box for you (pitTakeover); you time the pull-in (pullIn)
       if (me && !p.pitAuto && !p.autopilot && p.pitU >= P.limitFrom - 1 && p.pitU < box.u - 12) this.pitTakeover(p, box);
@@ -801,7 +808,7 @@ export class RaceDirector {
    * The turn-in point is 18 m before the box (a late, steep turn-in, past the neighbours' box).
    */
   pitTakeover(p, box) {
-    p.pitAuto = new AIDriver(p, this.line, this.profile, this.track, { aggression: 0.4, skill: 1 });
+    p.pitAuto = new AIDriver(p, this.line, this.profile, this.track, { aggression: 0.4, skill: 1 }); p.pitAuto.boxing = true;
     p.pitRequested = true; p.steer = 0; p.handbrake = 0; p.ers = 0;
     p._pull = { at: box.u - 18, done: false, pen: 0, result: null };   // (the turn-in: AIDriver._laneLat's S starts 18 m before the box)
     this.hud?.msg('PIT LANE · AI DRIVING\nPRESS SPACE TO PULL IN', 'warn', 2.5);
@@ -886,6 +893,7 @@ export class RaceDirector {
   // pit lane
   requestPit(c, plan) {
     if (c.inPit || c.finished) return false;
+    if (c.pitLane && c.pitLaneState === 'in') { c.pitRequested = true; if (plan) c.pitPlan = plan; return true; }   // (in the lane on the way to the box: P picks the tyres, it never calls the stop off)
     c.pitRequested = !c.pitRequested; if (plan) c.pitPlan = plan;
     return c.pitRequested;
   }

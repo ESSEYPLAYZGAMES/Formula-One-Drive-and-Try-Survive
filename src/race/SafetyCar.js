@@ -172,6 +172,7 @@ export class SafetyCar {
     const d = this.d, lead = this.leader();
     if (this.phase === 'red' || (lead && lead.lap + 1 >= d.lapsTotal)) return false;
     this.removeCar(); this.phase = 'red'; this.t = 0; this.neutralT = d.time - RAMP; this.redCount = (this.redCount || 0) + 1;
+    d.rank(); d._order = d.positions.slice();   // (the order frozen at the flag: RaceDirector.rank, redFlagRestart)
     this.say(`RED FLAG\n${why}`, 'bad', 5, 'Red flag, red flag. Slow down, the race is suspended.', 3);
     return true;
   }
