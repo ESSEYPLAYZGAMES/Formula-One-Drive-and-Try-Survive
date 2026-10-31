@@ -456,24 +456,24 @@ export const DATA = [
     opts: [
       { tone: 'cold', t: "You'll be fine.", r: "i'll be fine. i'll be fine and gorgeous and miserable. thanks" },
       { tone: 'passive', t: "I miss you too. Sorry about before.", r: "okay. apology accepted. miss me louder. it helps" },
-      { tone: 'flirty', t: "Miss me harder. I'm worth it.", r: "you are worth it. that's what's so annoying. come home" },
+      { tone: 'flirty', t: "Miss me harder. I'm worth it.", r: "you are worth it. that's what's so annoying. come back" },
       { tone: 'risque', t: "When I'm back, I'll make up for the cold. Thoroughly.", r: "thoroughly. mm. i'll hold you to every bit of thoroughly" },
     ] },
   { id: 'flirtatious-text-week-close-1-passive', on: 'week', stage: 'close', slot: 1, mood: 'passive',
     say: "miss you. that's the text. no line, no tease. just that. it's very unlike me",
     opts: [
       { tone: 'cold', t: "I'm busy. Talk later.", r: "later. fine. i'll miss you in the meantime. it's what i do now" },
-      { tone: 'passive', t: "Miss you too. Back soon.", r: "soon. good. i'm sleeping on your side again. don't tell anyone" },
-      { tone: 'flirty', t: "No tease? Who are you?", r: "someone who misses you. horribly. it's very unflattering. come home" },
+      { tone: 'passive', t: "Miss you too. Back soon.", r: "soon. good. i'm sleeping on the side i've decided is yours. don't tell anyone" },
+      { tone: 'flirty', t: "No tease? Who are you?", r: "someone who misses you. horribly. it's very unflattering. come back" },
       { tone: 'risque', t: "Miss me tonight. I'll call when the lights are off.", r: "lights off. mm. then i'll answer in my lowest voice. sleep's cancelled" },
     ] },
   { id: 'flirtatious-text-week-close-1-flirty', on: 'week', stage: 'close', slot: 1, mood: 'flirty',
-    say: "the bed's too big without you. i've started sleeping diagonally. it's lonely and spacious. come home 🔥",
+    say: "missing you has made my bed enormous. i've started sleeping diagonally. it's lonely and spacious. come back 🔥",
     opts: [
       { tone: 'cold', t: "Enjoy the space.", r: "enjoy the space. romantic. i'll stretch out and sulk" },
       { tone: 'passive', t: "Three more days.", r: "three. i'm counting. i never used to count. you did that" },
-      { tone: 'flirty', t: "Save my side. I'm coming back for it.", r: "saved. it's got your scent all over it. i'm guarding it with my life" },
-      { tone: 'risque', t: "Keep it warm. I'll be very cold when I get back.", r: "cold? come here and i'll fix that. slowly. all night. come home" },
+      { tone: 'flirty', t: "Save me a side. I'm coming for it.", r: "saved. there's a pillow on it. a terrible stand-in. i'm guarding it with my life" },
+      { tone: 'risque', t: "Keep it warm. I'll be very cold when I get back.", r: "cold? come here and i'll fix that. slowly. all night. come back" },
     ] },
   // ==== close 2: jealous of {track} for having you ====
   { id: 'flirtatious-text-week-close-2-cold', on: 'week', stage: 'close', slot: 2, mood: 'cold',
@@ -543,12 +543,12 @@ export const DATA = [
       ] },
     ] },
   { id: 'flirtatious-text-week-close-3-flirty', on: 'week', stage: 'close', slot: 3, mood: 'flirty',
-    say: "alarm set for your race start. i'll be there in spirit. and in your hoodie. which i stole. good luck 😏",
+    say: "alarm set for your race start. i'll be there in spirit. and in my lucky jumper. i've never lent it out. good luck 😏",
     opts: [
-      { tone: 'cold', t: "Give the hoodie back.", r: "no. it's mine now. it's warm and it's yours. possession is nine tenths. good luck", opts: [
-        { tone: 'cold', t: "I mean it. Give it back.", r: "you mean it. fine. it'll be on your doorstep. slightly sulky. like me" },
-        { tone: 'passive', t: "Fine. Keep it.", r: "keeping it. thank you. i'll wear it all weekend" },
-        { tone: 'flirty', t: "It looks better on you anyway.", r: "it does. but i like hearing you admit it" },
+      { tone: 'cold', t: "A lucky jumper? Bit superstitious.", r: "superstitious. yes. it's warm and it's lucky and it's on. luck is nine tenths. good luck", opts: [
+        { tone: 'cold', t: "Take it off. It won't help.", r: "it won't help. fine. it's going back in the drawer. slightly sulky. like me" },
+        { tone: 'passive', t: "Fine. Keep it on.", r: "keeping it on. thank you. i'll wear it all weekend" },
+        { tone: 'flirty', t: "I bet it looks good on you anyway.", r: "it does. but i like hearing you say it" },
       ] },
       { tone: 'passive', t: "Thanks. Wish me luck.", r: "good luck. good luck. good luck. there. that's three. that's the lucky number", opts: [
         { tone: 'cold', t: "One would've done.", r: "one would've done. fine. take two back. you're very hard to please" },
@@ -556,11 +556,11 @@ export const DATA = [
         { tone: 'flirty', t: "I'll win one for each.", r: "three wins. ambitious. i'll take one. and a voice note" },
         { tone: 'risque', t: "Save the fourth for when I'm back.", r: "the fourth. mm. i'll save it. it's a very special kind of luck 🔥" },
       ] },
-      { tone: 'flirty', t: "My hoodie and a good luck. Perfect.", r: "your hoodie and nothing on my mind but you. go on. fast", opts: [
+      { tone: 'flirty', t: "Your lucky jumper and a good luck. Perfect.", r: "my lucky jumper and nothing on my mind but you. go on. fast", opts: [
         { tone: 'cold', t: "Concentrate on your own day.", r: "my own day. fine. i'll do {work}. thinking of you anyway" },
-        { tone: 'passive', t: "Thanks. I'll text after.", r: "after. good. i'll be right here. in the hoodie" },
+        { tone: 'passive', t: "Thanks. I'll text after.", r: "after. good. i'll be right here. in the jumper" },
         { tone: 'flirty', t: "Think of me all race.", r: "every lap. i'll be a wreck. a gorgeous one" },
-        { tone: 'risque', t: "Keep the hoodie on till I'm back.", r: "till you're back. then you'll have to win it back. i'm a tough negotiator 😏" },
+        { tone: 'risque', t: "Keep the jumper on till I'm back.", r: "till you're back. then you'll have to talk me out of it. i'm a tough negotiator 😏" },
       ] },
     ] },
   // ==== close 4: grandmother Vivi ====
@@ -587,30 +587,30 @@ export const DATA = [
       { tone: 'flirty', t: "She's right. I'm keeping you too.", r: "keeping me. mm. okay. we're keeping each other. vivi will be insufferable" },
       { tone: 'risque', t: "Keeper. Tonight, let me keep you up.", r: "up. mm. i'm always up. you'll have to try very hard to keep up 😏" },
     ] },
-  // ==== close 5: wearing your shirt and a bad attitude ====
+  // ==== close 5: wearing your number and a bad attitude ====
   { id: 'flirtatious-text-week-close-5-cold', on: 'week', stage: 'close', slot: 5, mood: 'cold',
-    say: "wearing your shirt and a bad attitude. you were cold earlier. the shirt's nicer than you. barely",
+    say: "wearing a shirt with your number on and a bad attitude. you were cold last time. the shirt's nicer than you. barely",
     opts: [
-      { tone: 'cold', t: "Give it back, then.", r: "no. the shirt stays. the attitude stays. you can come and argue in person" },
-      { tone: 'passive', t: "Sorry about earlier.", r: "forgiven. the shirt helped. it's very persuasive. annoyingly" },
+      { tone: 'cold', t: "Take it off, then.", r: "no. the shirt stays. the attitude stays. you can come and argue in person" },
+      { tone: 'passive', t: "Sorry about last time.", r: "forgiven. the shirt helped. it's very persuasive. annoyingly" },
       { tone: 'flirty', t: "Keep the shirt. Lose the attitude.", r: "lose the attitude. mm. come over and make me" },
       { tone: 'risque', t: "Bad attitude? Come here and be bad at me in person.", r: "in person. mm. i'll be terrible. thoroughly. come over 😏" },
     ] },
   { id: 'flirtatious-text-week-close-5-passive', on: 'week', stage: 'close', slot: 5, mood: 'passive',
-    say: "update: i'm wearing your shirt. it's huge. i look incredible. that's all",
+    say: "update: i bought a shirt with your number on. it's huge. i look incredible. that's all",
     opts: [
-      { tone: 'cold', t: "I need that shirt.", r: "you need it? come and get it. i'm very attached. literally" },
-      { tone: 'passive', t: "It suits you.", r: "everything suits me. but yes. it suits me. and it smells like you" },
+      { tone: 'cold', t: "Bit much, wearing my number.", r: "a bit much? come and say that to my face. i'm very attached. literally" },
+      { tone: 'passive', t: "It suits you.", r: "everything suits me. but yes. it suits me. and it's got your name on the back" },
       { tone: 'flirty', t: "Photo or it didn't happen.", r: "📷 ...no. you'll have to come and see in person. i'll still be wearing it" },
       { tone: 'risque', t: "Wear it till I'm back. I'll want to see it in person.", r: "in person. mm. i'll wear it. you'll be very distracted" },
     ] },
   { id: 'flirtatious-text-week-close-5-flirty', on: 'week', stage: 'close', slot: 5, mood: 'flirty',
-    say: "guess what i'm wearing. hint: it's yours. hint two: it's the shirt you've been looking for 😏",
+    say: "guess what i'm wearing. hint: your number. hint two: it's very big on me 😏",
     opts: [
-      { tone: 'cold', t: "I'd like it back.", r: "you'd like it back. try me. i'll put up a fight" },
-      { tone: 'passive', t: "My grey one? I was looking for that.", r: "your grey one. found it. it's mine now. those are the rules" },
+      { tone: 'cold', t: "My number? You're not on the team.", r: "not yet. try and stop me wearing it. i'll put up a fight" },
+      { tone: 'passive', t: "My team shirt? Where'd you get it?", r: "the shop. i queued. me. queued. it's mine now. those are the rules" },
       { tone: 'flirty', t: "It looks better on you. Keep it.", r: "i'm keeping it. and you. that's the deal" },
-      { tone: 'risque', t: "Keep it on till I'm home. Then I'll take it back.", r: "take it back. mm. that's a long negotiation. lights low" },
+      { tone: 'risque', t: "Keep it on till I'm back. Then I'll take it off you.", r: "take it off me. mm. that's a long negotiation. lights low" },
     ] },
   // ==== close 6 (two exchanges): space made for you - don't make it weird ====
   { id: 'flirtatious-text-week-close-6-cold', on: 'week', stage: 'close', slot: 6, mood: 'cold',

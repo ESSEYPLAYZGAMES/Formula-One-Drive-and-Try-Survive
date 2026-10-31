@@ -65,98 +65,98 @@ export const DATA = [
         { tone: 'risque', t: "Save the next one for in person. Whispered.", r: "whispered. mm. you're a natural. i'm almost worried 😏" },
       ] },
     ] },
-  // ==== date, warm 1: the morning after a first proper date ====
+  // ==== date, warm 1: the morning after a date ====
   { id: 'flirtatious-text-date-warm-1-cold', on: 'date', stage: 'warm', slot: 1, mood: 'cold',
-    say: "about last night. dinner was gorgeous. you were frosty at the end. i'm choosing to remember the dinner",
+    say: "about yesterday. you were gorgeous. you were frosty at the goodbye. i'm choosing to remember the gorgeous",
     opts: [
-      { tone: 'cold', t: "It was fine.", r: "fine. dinner by candlelight was 'fine.' i'll tell the candles. they'll be crushed" },
+      { tone: 'cold', t: "It was fine.", r: "fine. i wore my best everything for 'fine.' i'll tell my wardrobe. it'll be crushed" },
       { tone: 'passive', t: "Sorry. I had a good time.", r: "did you? you hid it well. next time, hide it worse" },
       { tone: 'flirty', t: "Remember the bit where I couldn't stop staring.", r: "i remember. i'm choosing that bit too. it's my favourite bit" },
-      { tone: 'risque', t: "Remember the walk home. I do.", r: "the walk home. mm. i remember the door. you nearly came up. nearly" },
+      { tone: 'risque', t: "Remember the goodbye. I nearly didn't leave.", r: "nearly. mm. next time i'll make leaving a lot harder" },
     ] },
   { id: 'flirtatious-text-date-warm-1-passive', on: 'date', stage: 'warm', slot: 1, mood: 'passive',
-    say: "last night was lovely. i don't say lovely. it was lovely. thank you, trouble",
+    say: "yesterday was lovely. i don't say lovely. it was lovely. thank you, trouble",
     opts: [
       { tone: 'cold', t: "It was alright.", r: "alright. ouch. i'll aim for 'lovely' next time. or i won't" },
       { tone: 'passive', t: "Thank you too. Again soon?", r: "soon. yes. i've already picked the next place" },
       { tone: 'flirty', t: "Lovely? I was aiming for unforgettable.", r: "unforgettable. mm. you hit that too. i can't stop replaying it" },
-      { tone: 'risque', t: "Next time, don't let me leave at the door.", r: "i won't. i'll lock it. joking. mostly joking 😏" },
+      { tone: 'risque', t: "Next time, don't let me leave.", r: "i won't. i'll hide your keys. joking. mostly joking 😏" },
     ] },
   { id: 'flirtatious-text-date-warm-1-flirty', on: 'date', stage: 'warm', slot: 1, mood: 'flirty',
-    say: "you looked at me over that candle like i was dessert. i'm still not over it 🔥",
+    say: "you looked at me yesterday like i was dessert. i'm still not over it 🔥",
     opts: [
-      { tone: 'cold', t: "I was looking at the menu.", r: "the menu. sure. you never looked at the menu once. i counted" },
-      { tone: 'passive', t: "It was a great night.", r: "it was. thank you. i'd like several more of those" },
+      { tone: 'cold', t: "I wasn't looking at you like that.", r: "like that. sure. you barely looked anywhere else. i counted" },
+      { tone: 'passive', t: "It was a great date.", r: "it was. thank you. i'd like several more of those" },
       { tone: 'flirty', t: "You were better than dessert.", r: "better. mm. you're very good at this. i'm in trouble" },
-      { tone: 'risque', t: "Next time, skip dinner. Straight to dessert.", r: "straight to dessert. mm. i'll set the table. or forget the table" },
+      { tone: 'risque', t: "Next time, skip the small talk. Straight to dessert.", r: "straight to dessert. mm. i'll set the table. or forget the table" },
     ] },
   // ==== date, warm 2 (two exchanges) ====
   { id: 'flirtatious-text-date-warm-2-cold', on: 'date', stage: 'warm', slot: 2, mood: 'cold',
-    say: "second date and you went cold on the walk home. i'm not sulking. i'm reflecting. dramatically",
+    say: "you went cold on me at the goodbye. i'm not sulking. i'm reflecting. dramatically",
     opts: [
       { tone: 'cold', t: "I was tired.", r: "tired. okay. i'll accept tired. once", opts: [
         { tone: 'cold', t: "Accept it twice.", r: "twice? no. you'll have to wake up. i don't date sleepwalkers" },
         { tone: 'passive', t: "Next time I'll be awake.", r: "awake. good. i like you awake. you're very good awake" },
         { tone: 'flirty', t: "I was tired of saying goodnight.", r: "oh. that's... annoyingly good. you're forgiven. barely" },
       ] },
-      { tone: 'passive', t: "Sorry. I loved the evening.", r: "loved. that's a big word from you. i'll keep it", opts: [
+      { tone: 'passive', t: "Sorry. I loved the date.", r: "loved. that's a big word from you. i'll keep it", opts: [
         { tone: 'cold', t: "It's just a word.", r: "just a word. fine. i'll read into it anyway. at length" },
         { tone: 'passive', t: "So what's next?", r: "my place. a record. a very slow song. you'll see" },
-        { tone: 'flirty', t: "Loved it. Loved you in that light.", r: "that light. mm. candlelight is my best friend. you're my second" },
+        { tone: 'flirty', t: "Loved it. Loved how you looked.", r: "how i looked. mm. i did try. you noticed. good. you're my favourite audience" },
         { tone: 'risque', t: "Next time, walk me home and come in.", r: "come in. mm. i'll leave the hall light on. just the hall light" },
       ] },
-      { tone: 'flirty', t: "Reflect on the kiss, then.", r: "the kiss. that's what i'm reflecting on. that's the problem", opts: [
-        { tone: 'cold', t: "It was just a kiss.", r: "just a kiss. right. lovely. i'll reflect elsewhere" },
-        { tone: 'passive', t: "It was a good one.", r: "it was a very good one. my grandmother would be proud. long story" },
-        { tone: 'flirty', t: "Reflect harder. I'll do it again.", r: "again. mm. soon. i'm still dizzy" },
-        { tone: 'risque', t: "Next time I won't stop at one.", r: "not at one. mm. trouble. i'm going to need to lie down 🔥" },
+      { tone: 'flirty', t: "Reflect on how much I like you, then.", r: "how much you like me. that's what i'm reflecting on. that's the problem", opts: [
+        { tone: 'cold', t: "Don't reflect too hard.", r: "too hard. right. lovely. i'll reflect elsewhere" },
+        { tone: 'passive', t: "A lot. More than I let on.", r: "more than you let on. good. my grandmother would be proud. long story" },
+        { tone: 'flirty', t: "Reflect harder. I'll give you more to reflect on.", r: "more. mm. soon. i'm still dizzy" },
+        { tone: 'risque', t: "Next time I'm kissing you goodnight. Properly.", r: "properly. mm. trouble. i'm going to need to lie down 🔥" },
       ] },
     ] },
   { id: 'flirtatious-text-date-warm-2-passive', on: 'date', stage: 'warm', slot: 2, mood: 'passive',
-    say: "two dates down. i'm keeping score. it's two-nil to you. you're very good at evenings",
+    say: "i'm keeping score. it's two-nil to you so far. you're very good at dates. it's irritating",
     opts: [
       { tone: 'cold', t: "I'm not keeping score.", r: "no need. i'm keeping it for both of us. two-nil", opts: [
         { tone: 'cold', t: "Stop keeping it.", r: "stop? i can't. it's a compulsion. fine. one-nil. to me. for spite" },
-        { tone: 'passive', t: "Okay. What's my prize?", r: "a third date. obviously. my choice of venue" },
+        { tone: 'passive', t: "Okay. What's my prize?", r: "another date. obviously. my choice of venue" },
         { tone: 'flirty', t: "Make it three-nil.", r: "three-nil. mm. you're confident. i love confident" },
       ] },
-      { tone: 'passive', t: "Two-nil? What did I win?", r: "the evening. the look. the bit where i laughed my real laugh. nobody gets that", opts: [
+      { tone: 'passive', t: "Two-nil? What did I win?", r: "the look. the goodbye. the bit where i laughed my real laugh. nobody gets that", opts: [
         { tone: 'cold', t: "Just a laugh.", r: "just a laugh. you don't know how rare it is. fine. back in the box it goes" },
         { tone: 'passive', t: "I loved your real laugh.", r: "you did? it's a snort. you're very kind. or deaf" },
         { tone: 'flirty', t: "I want to hear it again. Soon.", r: "soon. mm. make me laugh like that again and i'll give you anything" },
-        { tone: 'risque', t: "Third date at yours, then.", r: "mine. mm. records. low lights. i'll laugh. and other things" },
+        { tone: 'risque', t: "Next one at yours, then.", r: "mine. mm. records. low lights. i'll laugh. and other things" },
       ] },
       { tone: 'flirty', t: "I'm going for a hat-trick.", r: "a hat-trick. mm. bold. i'll wear something worth scoring for", opts: [
         { tone: 'cold', t: "Kidding. Maybe.", r: "maybe. such a tease. it's very attractive" },
         { tone: 'passive', t: "Next week?", r: "next week. thursday. i'll be early. i'm never early" },
         { tone: 'flirty', t: "I'll score in style.", r: "in style. of course. you do everything in style. annoyingly" },
-        { tone: 'risque', t: "Third date: your place, no curfew.", r: "no curfew. mm. i don't believe in curfews. or sleep. bring stamina 😏" },
+        { tone: 'risque', t: "Next date: your place, no curfew.", r: "no curfew. mm. i don't believe in curfews. or sleep. bring stamina 😏" },
       ] },
     ] },
   { id: 'flirtatious-text-date-warm-2-flirty', on: 'date', stage: 'warm', slot: 2, mood: 'flirty',
-    say: "that second date. the way you held my hand under the table. i've been useless all morning",
+    say: "the way you looked at me when we said bye yesterday. i've been useless all morning",
     opts: [
-      { tone: 'cold', t: "It was only my hand.", r: "only your hand. darling. it was a whole event", opts: [
+      { tone: 'cold', t: "It was only a look.", r: "only a look. darling. it was a whole event", opts: [
         { tone: 'cold', t: "Really. Calm down.", r: "calm down. fine. calm. useless. both" },
         { tone: 'passive', t: "Okay. It was nice.", r: "nice. i'll take nice. i'll frame nice" },
-        { tone: 'flirty', t: "I'll hold it again. Longer.", r: "longer. mm. i'll clear my afternoon" },
+        { tone: 'flirty', t: "I'll look again. Longer.", r: "longer. mm. i'll clear my afternoon" },
       ] },
-      { tone: 'passive', t: "I didn't want to let go.", r: "then don't next time. i won't let you", opts: [
+      { tone: 'passive', t: "I didn't want to say bye.", r: "then don't next time. i won't let you", opts: [
         { tone: 'cold', t: "Maybe next time.", r: "maybe. you're very careful. i'm very not. we'll meet in the middle" },
         { tone: 'passive', t: "Deal.", r: "deal. that's binding. i'm a stickler for deals" },
-        { tone: 'flirty', t: "Hold on all night next time.", r: "all night. mm. i'll make sure there's a reason to" },
-        { tone: 'risque', t: "Next time I'll hold more than your hand.", r: "more than my hand. mm. useless all morning and now all afternoon. thanks 🔥" },
+        { tone: 'flirty', t: "Next time the goodbye takes an hour.", r: "an hour. mm. i'll make it worth every minute" },
+        { tone: 'risque', t: "Next time I'll do more than look.", r: "more than look. mm. useless all morning and now all afternoon. thanks 🔥" },
       ] },
       { tone: 'flirty', t: "Useless is cute on you.", r: "everything's cute on me. useless is just the latest", opts: [
         { tone: 'cold', t: "Get some work done.", r: "work. {work}. fine. i'll pretend. i'll fail" },
-        { tone: 'passive', t: "Third date soon?", r: "soon. this week. i'm bad at waiting for you" },
+        { tone: 'passive', t: "Another date soon?", r: "soon. this week. i'm bad at waiting for you" },
         { tone: 'flirty', t: "I'll make you useless again.", r: "again. mm. please do. i'll take the whole week off" },
-        { tone: 'risque', t: "Wait till date three. You'll lose a whole day.", r: "a whole day. mm. i'll clear two. just in case" },
+        { tone: 'risque', t: "Wait till next time. You'll lose a whole day.", r: "a whole day. mm. i'll clear two. just in case" },
       ] },
     ] },
   // ==== date, warm 3 ====
   { id: 'flirtatious-text-date-warm-3-cold', on: 'date', stage: 'warm', slot: 3, mood: 'cold',
-    say: "third date. you went quiet at the end again. i'm starting to think endings are your weak spot. i'll fix it",
+    say: "you went quiet at the goodbye. i'm starting to think endings are your weak spot. i'll fix it",
     opts: [
       { tone: 'cold', t: "There's nothing to fix.", r: "there's always something to fix. you're just very fixable" },
       { tone: 'passive', t: "I'm bad at goodbyes.", r: "then don't say goodbye. say 'see you in the morning'" },
@@ -164,7 +164,7 @@ export const DATA = [
       { tone: 'risque', t: "Then don't make me say goodbye next time.", r: "no goodbye. mm. i'll keep the door closed and the record on" },
     ] },
   { id: 'flirtatious-text-date-warm-3-passive', on: 'date', stage: 'warm', slot: 3, mood: 'passive',
-    say: "three dates. my grandmother says three is when it's serious. she has rules. i'm ignoring most of them",
+    say: "a few dates in. my grandmother says that's when it's serious. she has rules. i'm ignoring most of them",
     opts: [
       { tone: 'cold', t: "It's not that serious yet.", r: "not that serious. okay. i'll tell her. she'll laugh at you" },
       { tone: 'passive', t: "Serious sounds good.", r: "it really does. i've never said that before. it's terrifying. good" },
@@ -172,24 +172,24 @@ export const DATA = [
       { tone: 'risque', t: "Ignore the rest of them tonight with me.", r: "tonight. mm. no rules. not even hers. come over" },
     ] },
   { id: 'flirtatious-text-date-warm-3-flirty', on: 'date', stage: 'warm', slot: 3, mood: 'flirty',
-    say: "last night. the kitchen. the slow song. i'm still swaying. send help. don't send help 🔥",
+    say: "yesterday. you. me. that goodbye. i'm still swaying. send help. don't send help 🔥",
     opts: [
-      { tone: 'cold', t: "It was one dance.", r: "one dance. you keep saying 'just' and 'one.' nothing with you is one" },
-      { tone: 'passive', t: "That was a lovely night.", r: "it was. i'll play that song every night now. it's yours" },
+      { tone: 'cold', t: "It was one date.", r: "one date. you keep saying 'just' and 'one.' nothing with you is one" },
+      { tone: 'passive', t: "That was a lovely date.", r: "it was. i've had one song on repeat since. it's yours now" },
       { tone: 'flirty', t: "I'm still swaying too.", r: "good. we'll sway in separate kitchens. it's very romantic" },
-      { tone: 'risque', t: "Next time, we don't stop at one song.", r: "not one song. mm. the whole side, twice. we'll lose count" },
+      { tone: 'risque', t: "Next time, put a record on and I'll stay.", r: "stay. mm. the whole side, twice. we'll lose count" },
     ] },
   // ==== date, close 1 ====
   { id: 'flirtatious-text-date-close-1-cold', on: 'date', stage: 'close', slot: 1, mood: 'cold',
-    say: "about last night. you were moody. i was gorgeous. we kissed anyway. i'm calling that a win",
+    say: "about yesterday. you were moody. i was gorgeous. i had a lovely time anyway. i'm calling that a win",
     opts: [
       { tone: 'cold', t: "If you say so.", r: "i do say so. i'm always right. you're always moody. it works" },
-      { tone: 'passive', t: "Sorry about the mood. Great night.", r: "great night. forgiven. you're very forgivable. it's annoying" },
+      { tone: 'passive', t: "Sorry about the mood. Great date.", r: "great date. forgiven. you're very forgivable. it's annoying" },
       { tone: 'flirty', t: "You were very gorgeous.", r: "i was. thank you. you were very kissable. even moody" },
       { tone: 'risque', t: "Win again tonight?", r: "tonight. mm. i'll be gorgeous again. you be less moody. door's open" },
     ] },
   { id: 'flirtatious-text-date-close-1-passive', on: 'date', stage: 'close', slot: 1, mood: 'passive',
-    say: "woke up still smiling about last night. no line. just that. thank you, trouble",
+    say: "woke up still smiling about yesterday. no line. just that. thank you, trouble",
     opts: [
       { tone: 'cold', t: "It was decent.", r: "decent. mm. you'll have to work harder at lying. i saw your face" },
       { tone: 'passive', t: "Me too. It was perfect.", r: "perfect. okay. two people smiling at their phones. disgusting. lovely" },
@@ -197,16 +197,16 @@ export const DATA = [
       { tone: 'risque', t: "Keep smiling. I'm coming back tonight.", r: "tonight. mm. i'll keep the smile. you bring the rest 😏" },
     ] },
   { id: 'flirtatious-text-date-close-1-flirty', on: 'date', stage: 'close', slot: 1, mood: 'flirty',
-    say: "last night. the rooftop. the stars. you. i've run out of ways to say perfect so i'm just saying it 🔥",
+    say: "yesterday. you. that look you do. i've run out of ways to say perfect so i'm just saying it 🔥",
     opts: [
-      { tone: 'cold', t: "It was cold up there.", r: "it was. you kept me warm. that's the point. try to keep up" },
+      { tone: 'cold', t: "Perfect's a stretch.", r: "it isn't. you were there. i was there. that's the definition. try to keep up" },
       { tone: 'passive', t: "It was perfect. Thank you.", r: "thank you. say it again sometime. i like hearing it" },
-      { tone: 'flirty', t: "You were the best view.", r: "the best view. mm. you're getting dangerously good at this" },
+      { tone: 'flirty', t: "You were the best part.", r: "the best part. mm. you're getting dangerously good at this" },
       { tone: 'risque', t: "Next time, I'm not letting you go home.", r: "not going home. mm. good. home's overrated. you're not" },
     ] },
   // ==== date, close 2 (two exchanges) ====
   { id: 'flirtatious-text-date-close-2-cold', on: 'date', stage: 'close', slot: 2, mood: 'cold',
-    say: "you were distant at dinner. then you weren't. then you were. i'm dizzy. kiss me properly next time and we're even",
+    say: "you were distant yesterday. then you weren't. then you were. i'm dizzy. kiss me properly next time and we're even",
     opts: [
       { tone: 'cold', t: "I had a lot on my mind.", r: "a lot on your mind. okay. put me on it. near the top", opts: [
         { tone: 'cold', t: "You're on it. Low down.", r: "low down. ouch. i'll climb. i'm very determined" },
@@ -223,36 +223,36 @@ export const DATA = [
         { tone: 'cold', t: "Once. Don't push it.", r: "once. fine. make it count. you always do" },
         { tone: 'passive', t: "We'll call it even.", r: "even. good. i like even. sometimes" },
         { tone: 'flirty', t: "Three times. Let's be generous.", r: "three. mm. generous. i'll pay you back with interest" },
-        { tone: 'risque', t: "Twice at dinner. The rest at yours.", r: "the rest at mine. mm. i've already turned the lights down 🔥" },
+        { tone: 'risque', t: "Twice when I see you. The rest at yours.", r: "the rest at mine. mm. i've already turned the lights down 🔥" },
       ] },
     ] },
   { id: 'flirtatious-text-date-close-2-passive', on: 'date', stage: 'close', slot: 2, mood: 'passive',
-    say: "dinner was perfect. you were perfect. i'm saying perfect a lot. i'm stopping. it was perfect",
+    say: "yesterday was perfect. you were perfect. i'm saying perfect a lot. i'm stopping. it was perfect",
     opts: [
-      { tone: 'cold', t: "Food was good.", r: "the food. of course. you were looking at the food. fine. the food was good", opts: [
-        { tone: 'cold', t: "Very good food.", r: "very good. you're impossible. i'll take the chef next time" },
+      { tone: 'cold', t: "It was okay.", r: "okay. of course. you were there too, you know. fine. it was okay", opts: [
+        { tone: 'cold', t: "Just okay.", r: "just okay. you're impossible. i'll date a thesaurus next time" },
         { tone: 'passive', t: "And the company.", r: "and the company. good. much better. thank you" },
         { tone: 'flirty', t: "The company was better.", r: "the company was me. i was very good company. thank you" },
       ] },
-      { tone: 'passive', t: "It was. Same time next week?", r: "same time. same table. same staring contest. i'll still win", opts: [
+      { tone: 'passive', t: "It was. Same time next week?", r: "same time. same staring contest. i'll still win", opts: [
         { tone: 'cold', t: "You always say that.", r: "because it's always true. you blink. it's very cute" },
         { tone: 'passive', t: "I'll be there.", r: "you'll be there. good. i'll be early. again" },
         { tone: 'flirty', t: "I'll win this time.", r: "you won't. but i love watching you try" },
-        { tone: 'risque', t: "Same table. Then your place. Like last time.", r: "like last time. mm. i'll set the record. and the mood" },
+        { tone: 'risque', t: "Same time. Then your place.", r: "then my place. mm. i'll set the record. and the mood" },
       ] },
       { tone: 'flirty', t: "You were perfect. I couldn't stop staring.", r: "i noticed. i stared back. we're terrible. we're perfect", opts: [
-        { tone: 'cold', t: "Let's tone it down in public.", r: "tone it down. fine. we'll stare discreetly. it's worse" },
+        { tone: 'cold', t: "Let's tone it down a bit.", r: "tone it down. fine. we'll stare discreetly. it's worse" },
         { tone: 'passive', t: "Next time we'll stare more.", r: "more. mm. we'll need a bigger table. or a darker corner" },
         { tone: 'flirty', t: "Let's stare all weekend.", r: "all weekend. you're very ambitious. i accept" },
-        { tone: 'risque', t: "Next time, let's skip the restaurant.", r: "skip it. mm. order in. lights off. we'll eat at midnight. maybe" },
+        { tone: 'risque', t: "Next time, let's skip going out.", r: "skip it. mm. order in. lights off. we'll eat at midnight. maybe" },
       ] },
     ] },
   { id: 'flirtatious-text-date-close-2-flirty', on: 'date', stage: 'close', slot: 2, mood: 'flirty',
-    say: "can still feel your hand on my back from last night. i'm going to need a minute. or a week 🔥",
+    say: "still thinking about how you said goodbye yesterday. i'm going to need a minute. or a week 🔥",
     opts: [
-      { tone: 'cold', t: "A week? Dramatic.", r: "dramatic. yes. you know me. it was a very good hand", opts: [
+      { tone: 'cold', t: "A week? Dramatic.", r: "dramatic. yes. you know me. it was a very good goodbye", opts: [
         { tone: 'cold', t: "Calm yourself.", r: "calm. fine. i'll sit down. fan myself. sulk" },
-        { tone: 'passive', t: "It was a good night.", r: "the best. i'm still glowing" },
+        { tone: 'passive', t: "It was a good date.", r: "the best. i'm still glowing" },
         { tone: 'flirty', t: "Take the week. I'll be back for more.", r: "for more. mm. i'll be ready. more than ready" },
       ] },
       { tone: 'passive', t: "Take as long as you need.", r: "kind. i'll take forever. you'll have to come and get me", opts: [
@@ -261,7 +261,7 @@ export const DATA = [
         { tone: 'flirty', t: "I'll come and get you tonight.", r: "tonight. mm. i'll be the one at the window" },
         { tone: 'risque', t: "Tonight. Lights low. I'm coming over.", r: "lights low. mm. the door's on the latch 😏" },
       ] },
-      { tone: 'flirty', t: "I'll put it there again tonight.", r: "tonight. mm. i'll wear something with a back", opts: [
+      { tone: 'flirty', t: "I'll say goodbye like that again tonight.", r: "tonight. mm. say hello first. i'll wear something worth it", opts: [
         { tone: 'cold', t: "Maybe not tonight.", r: "not tonight. fine. tomorrow. i'll wear it anyway. for spite" },
         { tone: 'passive', t: "Dinner first.", r: "dinner first. so proper. i'll wear it to dinner, then" },
         { tone: 'flirty', t: "Wear something I'll remember.", r: "you'll remember. you'll be thinking about it for weeks" },
@@ -270,7 +270,7 @@ export const DATA = [
     ] },
   // ==== date, close 3 ====
   { id: 'flirtatious-text-date-close-3-cold', on: 'date', stage: 'close', slot: 3, mood: 'cold',
-    say: "lovely evening till you went quiet. i've decided you're shy, not cold. shy is cute. cold isn't",
+    say: "lovely date till you went quiet. i've decided you're shy, not cold. shy is cute. cold isn't",
     opts: [
       { tone: 'cold', t: "I'm not shy.", r: "then you're cold. and i'll warm you up. that's a threat" },
       { tone: 'passive', t: "Maybe a little shy.", r: "a little. cute. i'll be loud for both of us" },
@@ -278,20 +278,20 @@ export const DATA = [
       { tone: 'risque', t: "Warm me up properly next time.", r: "properly. mm. starting in the hallway. you won't be shy for long" },
     ] },
   { id: 'flirtatious-text-date-close-3-passive', on: 'date', stage: 'close', slot: 3, mood: 'passive',
-    say: "last night: the balcony, the slow record, your head on my shoulder. i've never felt so ordinary. it's wonderful",
+    say: "yesterday was so easy. no lines. no showing off. just us. i've never felt so ordinary. it's wonderful",
     opts: [
       { tone: 'cold', t: "Ordinary?", r: "ordinary means safe. i've never been safe. it's very new. don't ruin it" },
       { tone: 'passive', t: "It was wonderful.", r: "it was. let's be ordinary again soon. it suits us" },
       { tone: 'flirty', t: "Ordinary with you is my favourite thing.", r: "mine too. keep it quiet. my reputation can't take it" },
-      { tone: 'risque', t: "Ordinary, and then extraordinary.", r: "then extraordinary. mm. you remember that part too. good 🔥" },
+      { tone: 'risque', t: "Ordinary, and then extraordinary.", r: "then extraordinary. mm. next time. i'm holding you to that 🔥" },
     ] },
   { id: 'flirtatious-text-date-close-3-flirty', on: 'date', stage: 'close', slot: 3, mood: 'flirty',
-    say: "can't stop thinking about last night. you. my kitchen. that song. i'm ruined for other evenings, trouble",
+    say: "can't stop thinking about yesterday. you. me. all of it. i'm ruined for other days, trouble",
     opts: [
-      { tone: 'cold', t: "It was one night.", r: "one night. the best one. fine. i'll pretend it was ordinary" },
-      { tone: 'passive', t: "Me too. That song's ours now.", r: "ours. mm. i've never had an 'ours.' i like it" },
-      { tone: 'flirty', t: "Let me ruin all your evenings.", r: "all of them. mm. you're already doing it. thank you" },
-      { tone: 'risque', t: "Tonight, let's ruin the next one.", r: "the next one. mm. my kitchen. that song. door locked" },
+      { tone: 'cold', t: "It was just one day.", r: "one day. the best one. fine. i'll pretend it was ordinary" },
+      { tone: 'passive', t: "Me too. Yesterday's ours now.", r: "ours. mm. i've never had an 'ours.' i like it" },
+      { tone: 'flirty', t: "Let me ruin all your days.", r: "all of them. mm. you're already doing it. thank you" },
+      { tone: 'risque', t: "Tonight, let's ruin the next one.", r: "the next one. mm. my place. a slow song. door locked" },
     ] },
   // ==== win 1 (two exchanges): the first win ====
   { id: 'flirtatious-text-win-any-1-cold', on: 'win', stage: 'any', slot: 1, mood: 'cold',

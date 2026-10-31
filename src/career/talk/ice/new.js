@@ -12,7 +12,7 @@ export const DATA = [
         { tone: 'passive', t: "What else is in it?", r: "Your name, a firm handshake and one point in your favour. Review pending. Off you go." },
         { tone: 'flirty', t: "Leave a page blank for later.", r: "Presumptuous. I'll leave a margin. Margins are where I write the honest notes." },
       ] },
-      { tone: 'passive', t: "Fair. Long day. I'm {me}.", r: "I know who you are. Your face is on a banner somewhere behind me. I'm {first}. Use it sparingly.", opts: [
+      { tone: 'passive', t: "Fair. Long day. I'm {me}.", r: "I know who you are. Your face is on half the posters in town. I'm {first}. Use it sparingly.", opts: [
         { tone: 'cold', t: "Sparingly it is.", r: "Good. Names wear out. Yours is already a little shiny from overuse." },
         { tone: 'passive', t: "Nice to meet you, {first}.", r: "Is it. We'll see. I'll let you know when I've decided. Don't wait up." },
         { tone: 'flirty', t: "I'll save it for special occasions.", r: "There won't be many. Plan accordingly. ...That was nearly a smile. Don't mention it." },
@@ -421,7 +421,7 @@ export const DATA = [
     opts: [
       { tone: 'cold', t: "It's noted.", r: "Dry. Very dry. You're doing it again, and I'm resisting again.", opts: [
         { tone: 'cold', t: "Don't let me keep you.", r: "You won't. You can't. ...You're doing quite well at it, though." },
-        { tone: 'passive', t: "What was funny?", r: "The way you said 'right' when you meant 'go away'. I've started using it. At work." },
+        { tone: 'passive', t: "What was funny?", r: "The way you went quiet when you meant 'go away'. I've started doing it. At work." },
         { tone: 'flirty', t: "One day you'll laugh in front of me.", r: "One day. Not today. Today I'm made of granite. Mostly." },
       ] },
       { tone: 'passive', t: "What made you laugh?", r: "Something you said. I won't repeat it; you'd only try it again. It works by accident.", opts: [

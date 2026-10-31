@@ -1,6 +1,6 @@
 // Emotional - in person, stage 'warm' (getting closer). Slots 1..9, each in a cold / passive / flirty opening mood.
 // Arc: 1 butterflies admitted - 2 the playlist - 3 the hill and the stars - 4 the note on the fridge - 5 a pang of
-// jealousy, said honestly - 6 tiny anniversaries (the pigeon joke) - 7 the paper star - 8 nearly a kiss - 9 'I want to
+// jealousy, said honestly - 6 tiny anniversaries (a pigeon joke told now, for the list) - 7 the paper star - 8 nearly a kiss - 9 'I want to
 // be yours'. Risque here flusters them: their heart can't keep up.
 export const DATA = [
   // ------------------------------------------------------------------------------------------------ slot 1: butterflies
@@ -9,7 +9,7 @@ export const DATA = [
     opts: [
       { tone: 'cold', t: "Maybe say less, then.", r: "Oh. Okay... I gave you something real and you handed it back. I'll be quiet, if that's what you want.", opts: [
         { tone: 'cold', t: "It is.", r: "Then I'll go quiet. I won't go numb, though. I'll feel this all the way home. Just so you know." },
-        { tone: 'passive', t: "Sorry. I'm bad at this. What do you think about?", r: "Your laugh. The way you look at the sky before a race. Whether you think of me at all. Mostly that last one." },
+        { tone: 'passive', t: "Sorry. I'm bad at this. What do you think about?", r: "Your laugh. How serious you look on the telly before the lights. Whether you think of me at all. Mostly that last one." },
         { tone: 'flirty', t: "Say more. I was scared you didn't.", r: "Scared? You? Oh... we've both been scared of the same thing. That's almost funny. My hands have gone all trembly." },
       ] },
       { tone: 'passive', t: "Same. More often than I expected.", r: "You do? Really? Say that again, slower. I'm trying to memorise your face while you say it.", opts: [
@@ -43,12 +43,12 @@ export const DATA = [
       ] },
     ] },
   { id: 'emotional-warm-1-flirty', stage: 'warm', slot: 1, mood: 'flirty',
-    say: "There you are. I've watched the door for twenty minutes. I think about you more than I'd ever admit. Oops. Admitted.",
+    say: "There you are. I've been looking out for you for twenty minutes. I think about you more than I'd admit. Oops. Admitted.",
     opts: [
-      { tone: 'cold', t: "Twenty minutes is a long time to watch a door.", r: "It is. It felt longer. I hoped you'd find it sweet. You've found it something else, I can tell.", opts: [
+      { tone: 'cold', t: "Twenty minutes is a long time to look out for someone.", r: "It is. It felt longer. I hoped you'd find it sweet. You've found it something else, I can tell.", opts: [
         { tone: 'cold', t: "Find a hobby.", r: "I have hobbies. You were becoming one. I'll stop. I'm not going to hide that it hurt. It did." },
         { tone: 'passive', t: "Sorry. It is sweet. I'm just tired.", r: "Oh, tired, okay. Come and sit. Tired I can help with. I make a very good shoulder, I've been told." },
-        { tone: 'flirty', t: "Next time I'll come early, so you don't have to.", r: "You'd do that? For me? I'd still watch the door. But I'd watch it smiling. I'm smiling now." },
+        { tone: 'flirty', t: "Next time I'll come early, so you don't have to.", r: "You'd do that? For me? I'd still look out for you. But I'd do it smiling. I'm smiling now." },
       ] },
       { tone: 'passive', t: "What do you think about, when you think about me?", r: "Whether you're eating properly. What your laugh sounds like when nobody's listening. Whether you think of me back.", opts: [
         { tone: 'cold', t: "That's a lot of wondering.", r: "It is. I wonder loudly. I'm sorry it's too much... I keep forgetting not everyone wants all of me." },
@@ -225,7 +225,7 @@ export const DATA = [
   { id: 'emotional-warm-4-flirty', stage: 'warm', slot: 4, mood: 'flirty',
     say: "Before I fall any harder, there's something you should know. Someone once left me with a note on the fridge. That's my ghost.",
     opts: [
-      { tone: 'cold', t: "Bit of a mood killer.", r: "Oh. I know. I'm sorry. I wanted you to know me before... I've ruined the evening, haven't I?", opts: [
+      { tone: 'cold', t: "Bit of a mood killer.", r: "Oh. I know. I'm sorry. I wanted you to know me before... I've ruined the moment, haven't I?", opts: [
         { tone: 'cold', t: "A bit.", r: "Okay. Then I'll stop. But I'm not sorry I told you. I'm only sorry you didn't want to hear it." },
         { tone: 'passive', t: "No, sorry. Tell me. I want to know.", r: "No goodbye, just a note. So I need people to say things out loud. Often. That's the ghost. That's all of it." },
         { tone: 'flirty', t: "You haven't. Fall harder. I've got you.", r: "You've got me? Okay. I'm falling, then. Eyes closed. That's the bravest thing I've done in years." },
@@ -243,14 +243,14 @@ export const DATA = [
     ] },
   // ------------------------------------------------------------------------------------------------ slot 5: the pang
   { id: 'emotional-warm-5-cold', stage: 'warm', slot: 5, mood: 'cold',
-    say: "I need to say something, honestly. I saw you laughing with someone the other day, and it hurt. I know I've no right to that.",
+    say: "I need to say something, honestly. When I see people crowding round you, laughing with you, it hurts. I know I've no right to that.",
     opts: [
       { tone: 'cold', t: "You're right. You've no right.", r: "I know. I said that. I wasn't asking for a right, just a little care. You've given me neither.", opts: [
         { tone: 'cold', t: "I don't owe you anything.", r: "You don't. But I'd hoped you'd want to give it. That's the difference. I'm going home to cry. Honestly." },
-        { tone: 'passive', t: "Sorry. That was harsh. They're just a friend.", r: "A friend. Okay. I believe you. I feel it before I think it, that's all." },
+        { tone: 'passive', t: "Sorry. That was harsh. They're just people I work with.", r: "Just work. Okay. I believe you. I feel it before I think it, that's all." },
         { tone: 'flirty', t: "Nobody makes me laugh like you do, though.", r: "Nobody? Even them? Oh... I'm so relieved I could sit on the floor. I'm not going to. I'm considering it." },
       ] },
-      { tone: 'passive', t: "They're a friend. But I'm glad you told me.", r: "You are? I thought you'd be annoyed. I'm trying to say things instead of stewing. It's new. It's scary.", opts: [
+      { tone: 'passive', t: "They're nobody special. But I'm glad you told me.", r: "You are? I thought you'd be annoyed. I'm trying to say things instead of stewing. It's new. It's scary.", opts: [
         { tone: 'cold', t: "Don't make a habit of it.", r: "Of honesty? I can't promise that. It's who I'm trying to be. I'm sorry you'd rather I stewed." },
         { tone: 'passive', t: "Keep telling me. I'd rather know.", r: "You'd rather know. Okay. Then I'll keep telling you. Even the silly bits. Especially the silly bits." },
         { tone: 'flirty', t: "Jealous suits you. But you've nothing to worry about.", r: "Nothing to worry about. I'm writing that on my mirror. Jealous suits me? Don't encourage it." },
@@ -263,14 +263,14 @@ export const DATA = [
       ] },
     ] },
   { id: 'emotional-warm-5-passive', stage: 'warm', slot: 5, mood: 'passive',
-    say: "Can I be honest about something small and stupid? I saw you laughing with someone the other day, and I got a pang. A big one.",
+    say: "Can I be honest about something small and stupid? When I see you laughing with other people, I get a pang. A big one.",
     opts: [
       { tone: 'cold', t: "That's your problem, not mine.", r: "It is mine. I said so. I just wanted you to know me, even the jealous bits. Maybe that was a mistake.", opts: [
         { tone: 'cold', t: "Maybe it was.", r: "Okay. Then I'll keep the jealous bits to myself. And the soft bits. You've made it hard to share either." },
-        { tone: 'passive', t: "Sorry. I didn't mean it like that. It was nothing.", r: "Nothing? Okay. I believe you. I always believe you. I just need to hear it sometimes." },
+        { tone: 'passive', t: "Sorry. I didn't mean it like that. It's nothing.", r: "Nothing? Okay. I believe you. I always believe you. I just need to hear it sometimes." },
         { tone: 'flirty', t: "A pang? I'd be flattered if it weren't so sweet.", r: "Sweet? It didn't feel sweet. It felt like falling down stairs. But if you're smiling, it's better already." },
       ] },
-      { tone: 'passive', t: "I'm glad you said it. It wasn't anything.", r: "I believe you. I just didn't want it festering. I'd rather say it and look silly than swallow it and go cold.", opts: [
+      { tone: 'passive', t: "I'm glad you said it. It isn't anything.", r: "I believe you. I just didn't want it festering. I'd rather say it and look silly than swallow it and go cold.", opts: [
         { tone: 'cold', t: "You do look a bit silly.", r: "Okay. I said I'd risk it. I didn't think you'd agree so quickly. That stings more than the pang did." },
         { tone: 'passive', t: "You don't look silly. You look honest.", r: "Honest. I'll take honest. It's the best thing I know how to be. Thank you for seeing it." },
         { tone: 'flirty', t: "For the record, I'd rather laugh with you.", r: "With me? Really? Okay. Then I'll be very funny from now on. Starting now. Er... I've got nothing. Help." },
@@ -283,11 +283,11 @@ export const DATA = [
       ] },
     ] },
   { id: 'emotional-warm-5-flirty', stage: 'warm', slot: 5, mood: 'flirty',
-    say: "Okay, confession, then you can laugh. I saw you laughing with someone, and I got jealous. Wildly. Over a laugh.",
+    say: "Okay, confession, then you can laugh. When you laugh with other people, I get jealous. Wildly. Over a laugh.",
     opts: [
       { tone: 'cold', t: "Jealousy's not a great look.", r: "It isn't. I know. I'm telling you because I'd rather be honest than hide it. I didn't expect you to judge it.", opts: [
-        { tone: 'cold', t: "Well, I do.", r: "Okay. Then I'll stop telling you things. That's what you're teaching me tonight. I'm sad to learn it." },
-        { tone: 'passive', t: "Sorry. Honesty is good. It wasn't anything.", r: "Okay. Thank you. I feel calmer already. I'm sorry I'm like this. I'm not sorry I told you." },
+        { tone: 'cold', t: "Well, I do.", r: "Okay. Then I'll stop telling you things. That's what you're teaching me today. I'm sad to learn it." },
+        { tone: 'passive', t: "Sorry. Honesty is good. It's nothing, though.", r: "Okay. Thank you. I feel calmer already. I'm sorry I'm like this. I'm not sorry I told you." },
         { tone: 'flirty', t: "Nobody laughs at my jokes like you. Relax.", r: "Nobody? Really? Okay. I'm going to laugh at all of them, then. Even the bad ones. Especially those." },
       ] },
       { tone: 'passive', t: "Wildly? Over a laugh? Come here.", r: "Over a laugh. You've got a lovely laugh and I want all of it. That's selfish, isn't it? I'm sorry.", opts: [
@@ -304,63 +304,63 @@ export const DATA = [
     ] },
   // ------------------------------------------------------------------------------------------------ slot 6: tiny anniversaries
   { id: 'emotional-warm-6-cold', stage: 'warm', slot: 6, mood: 'cold',
-    say: "Today's a month since you first laughed at one of my jokes. I keep track of small things. It felt sad to mark it, after last time.",
+    say: "I keep a list of tiny anniversaries. After last time I nearly didn't come, but I want today on it. So: a joke. Laugh and it counts.",
     opts: [
-      { tone: 'cold', t: "You track that? Seriously?", r: "It's a bit me. I remember the small things because they're what hold me up. I'll stop telling you them.", opts: [
+      { tone: 'cold', t: "A list of anniversaries? Seriously?", r: "It's a bit me. I remember the small things because they're what hold me up. I'll stop telling you them.", opts: [
         { tone: 'cold', t: "Then stop telling me.", r: "Okay. I'll keep my little dates. I'll mark this one too: the day you made me feel silly for remembering." },
-        { tone: 'passive', t: "Sorry. That was mean. Which joke was it?", r: "The one about the pigeon in the pit lane. It's not even funny. You laughed anyway. That's why I remember." },
+        { tone: 'passive', t: "Sorry. That was mean. Go on, tell the joke.", r: "A pigeon walks into the pit lane and asks for fresh tyres. It's not even funny. You laughed anyway. Today counts." },
         { tone: 'flirty', t: "Unless you've marked the day we met too.", r: "The day we met is circled in three colours. Of course it is. Oh... you're smiling. Last time feels smaller." },
       ] },
-      { tone: 'passive', t: "A month? I'm sorry it felt sad. What was the joke?", r: "The pigeon in the pit lane. Awful. You laughed so hard. I wrote the date down. I keep a list of tiny anniversaries.", opts: [
+      { tone: 'passive', t: "I'm sorry last time felt sad. Go on. What's the joke?", r: "Why did the pigeon stop in the pit lane? For a feather change. Awful. Oh, you laughed! Today's going on the list.", opts: [
         { tone: 'cold', t: "A list? Of course you do.", r: "Of course I do. You said it like it's a flaw. It's how I love things. I'm a bit wounded now." },
-        { tone: 'passive', t: "What else is on the list?", r: "The first time you said my name. The first time you texted first. The day you held a door for me. Small. Precious." },
-        { tone: 'flirty', t: "Add today. The day I asked.", r: "Today. 'The day they asked.' I'm writing it now. Look, it's going right under the pigeon. Perfect." },
+        { tone: 'passive', t: "What else is on the list?", r: "My first snow. The day I got my cat. The day we met, underlined twice. Small things. Precious." },
+        { tone: 'flirty', t: "Add today. The day I laughed.", r: "Today. 'The day they laughed.' I'm writing it now. Look, it's going right next to the pigeon. Perfect." },
       ] },
-      { tone: 'flirty', t: "A month of laughs. Let's celebrate. Tell me the joke again.", r: "Again? Okay. A pigeon walks into a pit lane... no, I can't, I'm giggling. This is my favourite anniversary already.", opts: [
+      { tone: 'flirty', t: "Tell me the joke. I'm laughing already.", r: "Already? Okay. A pigeon walks into a pit lane... no, I can't, I'm giggling. This is my favourite anniversary ever.", opts: [
         { tone: 'cold', m: -3, t: "Okay, stop. It's not that funny.", r: "No... it isn't. It was the laughing that mattered. I wanted today to be good. It's a bit less good now." },
-        { tone: 'passive', t: "Ha. Do you remember a lot of dates like this?", r: "All of them. First text, first laugh, first time you looked at me too long. I keep a list. Don't tease." },
+        { tone: 'passive', t: "Ha. Do you remember a lot of dates like this?", r: "All of them. Meeting you. My first text to you. Now this one. I keep a list. Don't tease." },
         { tone: 'risque', t: "Let's make today an anniversary worth remembering.", r: "Worth remembering how? No, don't answer. Slow down, I'm still back at the pigeon. Tell me in a week." },
         { tone: 'flirty', t: "I'll laugh at it every month, then.", r: "Every month? You'd have to stay around for ages. Oh, that's what you meant. My heart's doing somersaults." },
       ] },
     ] },
   { id: 'emotional-warm-6-passive', stage: 'warm', slot: 6, mood: 'passive',
-    say: "Guess what today is. A month since you first laughed at one of my jokes. Yes, I keep track. I have a whole list of tiny anniversaries.",
+    say: "Can I tell you a joke? I keep a list of tiny anniversaries, and if you laugh, today goes on it. No pressure. Lots of pressure.",
     opts: [
       { tone: 'cold', t: "That's a strange thing to track.", r: "Maybe. But the small things are the big things, to me. I hoped it'd make you smile. It didn't, I can see.", opts: [
         { tone: 'cold', t: "No. It didn't.", r: "Okay. That's a hard little sentence. I'll cross today off the list, I think. It's not a happy one now." },
-        { tone: 'passive', t: "Sorry. It's sweet, actually. What joke?", r: "The pigeon in the pit lane one. Terrible joke. You laughed till you coughed. I wrote the date down that night." },
-        { tone: 'flirty', t: "Strange, but adorable. What else is on it?", r: "First time you said my name right. First text. First time you looked at me like that. That look. Yes. That one." },
+        { tone: 'passive', t: "Sorry. It's sweet, actually. Go on, then.", r: "What's a pigeon's favourite bit of a race? The pit stop. Terrible. You're laughing, though! On the list it goes." },
+        { tone: 'flirty', t: "Strange, but adorable. What else is on it?", r: "The day my gran taught me to press flowers. The day you and I met. And that look you're giving me now. Yes. That one." },
       ] },
-      { tone: 'passive', t: "What else have you written down?", r: "First time you texted first. The day you remembered my order. The day you laughed at the pigeon joke.", opts: [
+      { tone: 'passive', t: "What else have you written down?", r: "The day my cat came home. My first pressed daisy. Meeting you, obviously. Today, if my pigeon joke lands.", opts: [
         { tone: 'cold', t: "You need more going on in your life.", r: "I have plenty going on. I just notice it. I'm sorry you see it as small. It hurt to hear that." },
         { tone: 'passive', t: "I can't believe you remember all that.", r: "I remember everything about people I care about. It's a gift and a burden. With you it's mostly a gift." },
         { tone: 'flirty', t: "What will next month's anniversary be?", r: "I don't know yet. That's the exciting part. I hope it's something with you in it. It will be. It always is." },
       ] },
-      { tone: 'flirty', t: "A month of making you laugh? Then I'm on a winning streak.", r: "You are. A streak nobody's ever had. I keep a list, and you're most of it. I'm going red.", opts: [
+      { tone: 'flirty', t: "Go on, joke away. I'm going for a winning streak.", r: "A streak! Okay. Why do pigeons love pit lanes? All the fast food. You laughed before the end! You're most of my list now.", opts: [
         { tone: 'cold', t: "Bit sad, keeping a list.", r: "It's not sad. It's love, in small pieces. You don't have to like it. But I wish you hadn't called it sad." },
-        { tone: 'passive', t: "What's the first thing on the list?", r: "Day one, when we met. I wrote 'they smiled first'. You did, you know. I'll never let you forget it." },
+        { tone: 'passive', t: "What's the first thing on the list?", r: "My first snow, when I was six. The day we met isn't first, but it's in my best pen. Don't tease." },
         { tone: 'risque', t: "Let's give your list something new tonight.", r: "Something new? Tonight? Oh... my heart's doing doughnuts. I'll need a separate list. A private one." },
         { tone: 'flirty', t: "Let's see how long the streak lasts.", r: "Forever, I hope. Too much? Probably. But it's an anniversary. I'm allowed to be too much today." },
       ] },
     ] },
   { id: 'emotional-warm-6-flirty', stage: 'warm', slot: 6, mood: 'flirty',
-    say: "Happy anniversary! A month since you laughed at my pigeon joke. There's a list of tiny anniversaries in my notebook. You're on it a lot.",
+    say: "There's a list of tiny anniversaries in my notebook, and I want today on it. So I've brought a joke. A pigeon joke. Ready?",
     opts: [
-      { tone: 'cold', t: "I don't remember the joke.", r: "Oh. I remember it perfectly. That's the trouble with being me. I hold on and other people let go.", opts: [
+      { tone: 'cold', t: "I'm not in the mood for jokes.", r: "Oh. Then I'll hold on to it. That's the trouble with being me. I hold on and other people let go.", opts: [
         { tone: 'cold', t: "I let go of a lot.", r: "I can tell. I'll try not to take it personally. I'll fail. I'm telling you so it's not a secret." },
-        { tone: 'passive', t: "Remind me. I'm bad with these things.", r: "A pigeon walks into a pit lane and asks for a tyre change. It's not even good. You laughed for ages." },
-        { tone: 'flirty', t: "Tell it again. I'll remember it this time.", r: "You'll remember it? Promise? Okay. I'm going to tell it badly on purpose so you laugh. A pigeon..." },
+        { tone: 'passive', t: "Sorry. Go on. Tell it.", r: "Why was the pigeon slow in the pit lane? It kept stopping for crumbs. It's not even good. And you laughed! It counts." },
+        { tone: 'flirty', t: "Tell it. I'll remember it forever.", r: "You'll remember it? Promise? Okay. I'm going to tell it badly on purpose so you laugh. A pigeon..." },
       ] },
-      { tone: 'passive', t: "A list of tiny anniversaries? What else?", r: "First text. First time you said my name. First time you looked at me across a room. Dates for all of them.", opts: [
+      { tone: 'passive', t: "A list of tiny anniversaries? What else?", r: "My first pressed flower. My gran's birthday. When we first met. Dates for all of them.", opts: [
         { tone: 'cold', t: "That's a little intense.", r: "It's a little me. I know you know that by now. I'm sorry it made you step back. I saw you step back." },
         { tone: 'passive', t: "That's actually really sweet.", r: "You think so? Okay. Then the list stays. And keeps growing. You keep giving me things to add." },
         { tone: 'flirty', t: "What's the date you first fancied me?", r: "Oh, you'd love to know. It's on the list. It's very early. Embarrassingly early. Day one. Minute four." },
       ] },
-      { tone: 'flirty', t: "A month? Happy anniversary. I got you a present.", r: "A present? For a joke anniversary? You're the only person who's ever played along. What is it? I'm shaking.", opts: [
+      { tone: 'flirty', t: "Then happy anniversary. I've got you a present.", r: "A present? For a joke anniversary? You're the only person who's ever played along. What is it? I'm shaking.", opts: [
         { tone: 'cold', t: "Joking. I didn't get you anything.", r: "Oh. Okay. I believed you. I always will, I think. That's why it hurt. I'll laugh later. Not now." },
-        { tone: 'passive', t: "It's small. A pigeon keyring.", r: "A pigeon! A pigeon keyring! I'm going to cry. I'm crying. It's going on my keys and in my notebook forever." },
+        { tone: 'passive', t: "It's small. A joke back. Ready?", r: "A joke swap! Nobody's ever told me one back. I'm going to cry. I'm crying. It's going in my notebook forever." },
         { tone: 'risque', t: "Close your eyes. It's a kiss.", r: "A kiss? Here? Now? Oh... my heart isn't ready. It's still tying its laces. Okay. One. Quickly. Oh." },
-        { tone: 'flirty', t: "It's me. All evening. That's the present.", r: "All evening? That's the best present anyone's given me. I'm adding it to the list. Right at the top." },
+        { tone: 'flirty', t: "It's me, all to yourself. That's the present.", r: "All to myself? That's the best present anyone's given me. I'm adding it to the list. Right at the top." },
       ] },
     ] },
   // ------------------------------------------------------------------------------------------------ slot 7: the paper star
@@ -429,7 +429,7 @@ export const DATA = [
     say: "I don't want another talk like last time. So I'll ask. What do you want from me? I need to know before I give you more of my heart.",
     opts: [
       { tone: 'cold', t: "I don't know. Not this much.", r: "Not this much. Okay. That's the clearest thing you've said. It's also the hardest. I need to sit with it.", opts: [
-        { tone: 'cold', t: "Sit with it, then.", r: "I will. On my own. You should know I'd have given you all of it. Tonight it just hurts. Goodnight, {me}." },
+        { tone: 'cold', t: "Sit with it, then.", r: "I will. On my own. You should know I'd have given you all of it. Right now it just hurts. Take care, {me}." },
         { tone: 'passive', t: "That's not it. I'm scared of how much I like you.", r: "Scared? Oh... me too. All the time. Okay. Scared together. That's something. That's a lot, actually." },
         { tone: 'flirty', t: "Not this much talking. More of this.", r: "More of... you're stepping closer. Oh. Wait. My heart's going too fast. Okay. Don't stop. Don't stop." },
       ] },
@@ -447,7 +447,7 @@ export const DATA = [
       ] },
     ] },
   { id: 'emotional-warm-8-passive', stage: 'warm', slot: 8, mood: 'passive',
-    say: "It's late, and I love late. Everything feels truer. Can I ask you a late-night question? What do you want? With us. Be honest.",
+    say: "I save my truest questions for late at night, but I can't wait that long. Can I ask one now? What do you want? With us. Be honest.",
     opts: [
       { tone: 'cold', t: "I'm not sure there's an us.", r: "Oh. I thought... okay. I asked for honest. I didn't know it would feel like a door closing on my fingers.", opts: [
         { tone: 'cold', t: "Sorry. That's the honest answer.", r: "Then thank you for it. I'm going to go and fall apart a little at home. I'll be okay. Later. Much later." },
@@ -458,7 +458,7 @@ export const DATA = [
         { tone: 'cold', t: "Let's not get carried away.", r: "I'm already carried. I'm halfway down the river. You can stand on the bank if you want. I'll wave sadly." },
         { tone: 'passive', t: "Slowly. Carefully. But yes.", r: "Slowly and carefully. I'm terrible at both. But for you I'll learn. That's another promise. I'm collecting them." },
         { tone: 'risque', t: "And right now, I want to kiss you.", r: "Right now? Oh. My heart's not ready. It's not ready but it's saying yes. Okay. Yes. Softly." },
-        { tone: 'flirty', t: "Somewhere with a lot more nights like this.", r: "More nights like this. Late, quiet, true. I'd give anything for a hundred more. A thousand. All of them." },
+        { tone: 'flirty', t: "Somewhere with a lot more moments like this.", r: "More moments like this. Quiet and true. I'd give anything for a hundred more. A thousand. All of them." },
       ] },
       { tone: 'flirty', t: "What I want? I'd rather show you.", r: "Show me? How? Oh... you're leaning in. Slow down, you're three corners ahead of me. Okay. Lean a little more.", opts: [
         { tone: 'cold', t: "Kidding. Not tonight.", r: "Not tonight. Okay. My heart was already halfway there. Now it's standing in the road. That hurt, a lot." },
@@ -499,7 +499,7 @@ export const DATA = [
       ] },
       { tone: 'passive', m: 3, t: "I want that too. I've just been scared to say it.", r: "You want that too? Me, yours. And you, mine? Oh. I'm going to have to sit down on the floor.", opts: [
         { tone: 'cold', t: "Let's not put labels on it.", r: "No labels. Okay. I don't need the word. I needed the feeling. I'm not sure you gave me that either. It hurts." },
-        { tone: 'passive', t: "Yes. Mine. If you'll have me.", r: "If I'll have you? You've been in my notebook for months. Yes. Yes. I'm crying. Of course I'm crying." },
+        { tone: 'passive', t: "Yes. Mine. If you'll have me.", r: "If I'll have you? You've been in my notebook for ages. Yes. Yes. I'm crying. Of course I'm crying." },
         { tone: 'risque', t: "Mine. And to prove it, come home with me.", r: "Home with you? Oh... wait, I'm still on the word 'mine'. Yes. Not tonight. Soon. Very soon. Oh, my heart." },
         { tone: 'flirty', t: "Mine. Say it back.", r: "Yours. Yours, yours, yours. I've been saying it in my head for weeks. It sounds so much better out loud." },
       ] },
@@ -535,7 +535,7 @@ export const DATA = [
     say: "I've rehearsed this all week, so let me get it out. I'm done being someone you see between races. Yours, properly. That's what I want.",
     opts: [
       { tone: 'cold', t: "That's a lot of pressure.", r: "Is it? I'm sorry. I'm not trying to pressure you. I'm trying to be brave. It seems to come out the same.", opts: [
-        { tone: 'cold', t: "It does.", r: "Okay. Then I'll stop being brave for a while. It hurts too much when it lands like this. Goodnight, {me}." },
+        { tone: 'cold', t: "It does.", r: "Okay. Then I'll stop being brave for a while. It hurts too much when it lands like this. Go gently, {me}." },
         { tone: 'passive', t: "Sorry. It's not pressure. It's just big. Yes, though.", r: "Yes? You said yes after all that? Oh, I can't breathe properly. I'm laughing and crying at the same time." },
         { tone: 'flirty', t: "Pressure I like. Ask me again, slower.", r: "Slower. Okay. Will you... be mine? There. I did it slowly. You're smiling. Tell me that's a yes." },
       ] },

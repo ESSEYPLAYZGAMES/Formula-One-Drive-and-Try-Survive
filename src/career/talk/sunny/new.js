@@ -254,7 +254,7 @@ export const DATA = [
       ] },
     ] },
   { id: 'sunny-new-5-passive', stage: 'new', slot: 5, mood: 'passive',
-    say: "Can I tell you a slightly soppy thing? I keep a jar. One good thing a day, on a slip of paper. You were in it on Tuesday.",
+    say: "Can I tell you a slightly soppy thing? I keep a jar. One good thing a day, on a slip of paper. You made it in after we talked.",
     opts: [
       { tone: 'cold', t: "You put me in a jar? We barely know each other.", r: "I know. It's not a big deal, I promise. It was just a nice chat, and nice chats go in the jar. Sorry.", opts: [
         { tone: 'cold', t: "Still. It's a bit intense.", r: "Okay. I hear you. I'll keep you out of the jar. That makes me a bit sad, but I'll do it. Bye, {me}." },
@@ -266,7 +266,7 @@ export const DATA = [
         { tone: 'passive', t: "That's a nice slip. Where did the jar come from?", r: "Gran gave it to me when I was nine. I'd had an awful year at school. A slip every day, she said. It worked." },
         { tone: 'flirty', t: "I hope I make it in there again.", r: "You might! It depends. Keep being nice and you'll need your own shelf. Oh. I said that out loud." },
       ] },
-      { tone: 'flirty', t: "Only Tuesday? I'll have to work harder.", r: "You don't have to work at all! That's the point. You just turned up and were lovely. Oh, I'm pink. Ignore that.", opts: [
+      { tone: 'flirty', t: "Only once? I'll have to work harder.", r: "You don't have to work at all! That's the point. You just turned up and were lovely. Oh, I'm pink. Ignore that.", opts: [
         { tone: 'cold', t: "I wasn't trying to be lovely.", r: "No. I know. That's what made it nice. But okay. I'll stop putting things on you. Sorry, {me}." },
         { tone: 'passive', t: "How long have you kept the jar?", r: "Ever since I was nine. Gran's idea. There are three jars now, actually. They live on my windowsill with my fern." },
         { tone: 'flirty', t: "I'm aiming for every day this week.", r: "Every day! Greedy. I like it. I'm warning you, I'll write very soppy things. You can't read them." },
@@ -419,7 +419,7 @@ export const DATA = [
       { tone: 'passive', t: "Last time was my fault. A glasshouse sounds nice.", r: "It is! It's warm and quiet and there's a little cafe that does very sad scones. A non-racing thing. For you.", opts: [
         { tone: 'cold', t: "I don't really have time for that.", r: "Oh. Of course. Your diary's awful, I know. I'll stop asking. If it changes, I'm here." },
         { tone: 'passive', t: "Sad scones are my favourite kind. Let's do it.", r: "Really? Okay! I'm so happy I could hop. I won't. I'll hop at home. Thank you, {me}." },
-        { tone: 'flirty', t: "Is this you asking me out?", r: "No! I mean - is it? Maybe it is. I didn't plan for you to notice. I'm pink. It's very warm in here." },
+        { tone: 'flirty', t: "Is this you asking me out?", r: "No! I mean - is it? Maybe it is. I didn't plan for you to notice. I'm pink. It's suddenly very warm." },
       ] },
       { tone: 'flirty', t: "You want to take me to meet Dennis's family? That's serious.", r: "It's not serious! It's ferns! Okay, it's a bit serious. Dennis would want me to bring someone nice.", opts: [
         { tone: 'cold', t: "Then find someone else.", r: "Oh. Right. I'll stop asking. You don't have to come. I'm sorry I made it a thing." },

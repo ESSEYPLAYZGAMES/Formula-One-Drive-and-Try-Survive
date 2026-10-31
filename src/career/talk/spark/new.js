@@ -128,7 +128,7 @@ export const DATA = [
         { tone: 'flirty', t: "Forget tyres. Let's talk about you.", r: "Me? My favourite subject! See, this is how you get un-cross. Ask about me. More of this, Turbo." },
       ] },
       { tone: 'flirty', t: "I'll protect you. Stand behind me.", r: "Behind you? Like a bodyguard? ...Okay, that's quite heroic. I'm still cross, but heroically cross now.", opts: [
-        { tone: 'cold', t: "On second thoughts, you're on your own.", r: "Abandoned mid-rescue! That's a crime against hiding etiquette. Fine. I'll hide behind a plant." },
+        { tone: 'cold', t: "On second thoughts, you're on your own.", r: "Abandoned mid-rescue! That's a crime against hiding etiquette. Fine. I'll hide behind my own hands." },
         { tone: 'passive', t: "Who is it, anyway?", r: "The one in the scarf. They want me for a charity golf day. Golf! I'd rather eat the ball." },
         { tone: 'flirty', t: "I'll stand here as long as you need. All night if I have to.", r: "All night? That's a big promise for someone who was frosty last time. ...I'll hold you to it. Stay." },
       ] },
@@ -158,7 +158,7 @@ export const DATA = [
       { tone: 'cold', t: "Two minutes of acting? No.", r: "No? Not even for me? That was a cold little splash right in the face. ...They're coming over. Thanks a lot.", opts: [
         { tone: 'cold', t: "Then it's lucky I'm leaving.", r: "Leaving me to the wolves! Well, the wolf. One wolf with a brochure. I'll remember this, Turbo." },
         { tone: 'passive', t: "Sorry. I'm a terrible actor.", r: "Terrible's fine! Just stare at me adoringly. ...Wow, that's creepy. Okay, never mind, they've gone anyway." },
-        { tone: 'flirty', t: "Who said I'd be acting?", r: "Oh! Oh no. That's not fair, you can't say that when I'm hiding. Now I'm blushing behind a pillar like a fool." },
+        { tone: 'flirty', t: "Who said I'd be acting?", r: "Oh! Oh no. That's not fair, you can't say that when I'm hiding. Now I'm blushing in my hiding place like a fool." },
       ] },
       { tone: 'passive', t: "Madly in love. Got it. What do I do?", r: "Gaze at me. Laugh at my jokes. Touch my arm once. Not twice, twice is overdoing it. Go!", opts: [
         { tone: 'cold', t: "I'll gaze. That's all you get.", r: "Just a gaze? A stingy, grudging gaze? They can tell, you know. They can see the grudge. Ugh." },
@@ -343,26 +343,26 @@ export const DATA = [
       ] },
     ] },
   { id: 'spark-new-7-cold', stage: 'new', slot: 7, mood: 'cold',
-    say: "Hi. You've been chilly, so here's a warm-up: race you to the gate. I'll even leave Banana, my scooter, behind. Loser does a victory dance.",
+    say: "Hi. You've been chilly, so here's a warm-up: race you to the far end and back. Banana, my scooter, sits it out. Loser does a victory dance.",
     opts: [
       { tone: 'cold', t: "I'm not racing you. I race for a living.", r: "Oh, the professional card. Big scary professional. Fine. I'll race a pigeon. Pigeons are fun. Unlike some.", opts: [
         { tone: 'cold', t: "Enjoy the pigeon.", r: "I will. Me and the pigeon are best friends now. You're not invited to the wedding." },
         { tone: 'passive', t: "Fine. Short race.", r: "Short race! Ready, set— I'm already gone! Cheating's allowed when you've been frosty. Catch me if you can!" },
         { tone: 'flirty', t: "Only if you promise to do the dance either way.", r: "Either way? You want to see my dance? I'm not even cross any more. It's a very good dance. It has a spin." },
       ] },
-      { tone: 'passive', t: "Fine. To the gate.", r: "You said fine like a tax form, but I'll take it! Three, two— I went on two! Rules are for sad people! Run!", opts: [
-        { tone: 'cold', t: "This is stupid.", r: "Stupid is a strong word for 'fun'. Fine. Walk. I'll wait at the gate. Doing my victory dance. Alone." },
+      { tone: 'passive', t: "Fine. To the far end.", r: "You said fine like a tax form, but I'll take it! Three, two— I went on two! Rules are for sad people! Run!", opts: [
+        { tone: 'cold', t: "This is stupid.", r: "Stupid is a strong word for 'fun'. Fine. Walk. I'll wait at the far end. Doing my victory dance. Alone." },
         { tone: 'passive', t: "You cheated. I demand a rematch.", r: "A rematch? So you do care! I knew it. Next time, I'll go on three. Probably. Maybe four." },
         { tone: 'flirty', t: "I let you win. I wanted to see the dance.", r: "You didn't let me, I won! ...Okay, you did. I'm not cross any more. It's hard to be cross and dance." },
       ] },
       { tone: 'flirty', t: "Loser does the dance? I'll lose on purpose.", r: "On purpose? You want to dance for me? Okay, that's brilliant. The frost is officially defrosting.", opts: [
         { tone: 'cold', t: "Never mind. I'm not dancing.", r: "Not dancing? You can't promise a dance and back out! That's the worst kind of backing out!" },
         { tone: 'passive', t: "Fine. But don't film it.", r: "No filming. I'll just remember it. Forever. In vivid detail. And describe it to everyone. Better than filming." },
-        { tone: 'flirty', t: "I'll dance. But you have to dance with me.", r: "With you? That's not a forfeit, that's a reward. Gate's that way. Last one there leads." },
+        { tone: 'flirty', t: "I'll dance. But you have to dance with me.", r: "With you? That's not a forfeit, that's a reward. Far end's that way. Last one there leads." },
       ] },
     ] },
   { id: 'spark-new-7-passive', stage: 'new', slot: 7, mood: 'passive',
-    say: "Race you to the gate! No scooter, Banana stays parked. Loser does the winner's victory dance. Mine's got a spin and a kick. Ready? Set—",
+    say: "Race you to the far end! No scooter, Banana stays parked. Loser does the winner's victory dance. Mine has a spin. Ready? Set—",
     opts: [
       { tone: 'cold', t: "No. I'm not running anywhere.", r: "Not running? You're a racer! It's literally your thing! ...Fine. I'll run alone and do my dance alone. Like a hero.", opts: [
         { tone: 'cold', t: "Go on, then.", r: "I'm going! Watch me go! Look how fast I am! ...You're not watching. That's the worst part of losing to nobody." },
@@ -381,11 +381,11 @@ export const DATA = [
       ] },
     ] },
   { id: 'spark-new-7-flirty', stage: 'new', slot: 7, mood: 'flirty',
-    say: "Turbo! Have you met Banana? My scooter. Bright yellow. Very fast. Banana versus your legs, from here to the gate. Go?",
+    say: "Turbo! Have you met Banana? My scooter. Parked outside. Bright yellow. Very fast. Banana versus your legs, next time, any road. Deal?",
     opts: [
       { tone: 'cold', t: "That's not a fair race.", r: "It's not supposed to be fair, it's supposed to be fun! ...Okay, that came out flatter than I meant. Hmph.", opts: [
         { tone: 'cold', t: "Then I'm not racing.", r: "Banana's very disappointed. So am I. We're leaving together. Without you. Toot toot." },
-        { tone: 'passive', t: "Fine. Head start for me.", r: "Head start! Fine. I'll count to five. One, two, three-four-five! Go! Banana's coming for you!" },
+        { tone: 'passive', t: "Fine. Head start for me.", r: "Head start! Fine. Five seconds. I'm writing it down. Banana's already revving. In spirit. Banana's coming for you!" },
         { tone: 'flirty', t: "Only if I get to ride on the back.", r: "On the back? With me? Banana's never had a passenger! ...Okay. You can hold on. Tightly. For safety." },
       ] },
       { tone: 'passive', t: "You named your scooter Banana?", r: "It's yellow! What else would I call it? Banana's been with me through everything. Three flat tyres and a pond.", opts: [
@@ -393,9 +393,9 @@ export const DATA = [
         { tone: 'passive', t: "A pond?", r: "Long story. I lost a bet. Juno said I wouldn't ride through a puddle. It wasn't a puddle. It was a pond." },
         { tone: 'flirty', t: "Banana and I are going to be best friends.", r: "Banana's very picky about friends. But I think you're in. You've got a Banana-friendly face." },
       ] },
-      { tone: 'flirty', t: "I'd race anything for you. Even a fruit.", r: "A fruit! Banana is not a fruit, Banana is a lifestyle. ...But that's very sweet. Okay. Gate. Go!", opts: [
+      { tone: 'flirty', t: "I'd race anything for you. Even a fruit.", r: "A fruit! Banana is not a fruit, Banana is a lifestyle. ...But that's very sweet. Okay. Next time. You versus Banana. It's on.", opts: [
         { tone: 'cold', t: "On second thought, I'll pass.", r: "Pass? You can't pass on Banana. Nobody passes on Banana. You've broken my heart and Banana's." },
-        { tone: 'passive', t: "Fine. Ready when you are.", r: "Ready, set... Banana went first! Banana can't wait! ...You're catching up! How?! You're a menace!" },
+        { tone: 'passive', t: "Fine. Ready when you are.", r: "Ready? Banana's always ready. Banana was born ready. Name the day and you'll lose to a lifestyle." },
         { tone: 'flirty', t: "Loser buys the winner a smoothie.", r: "A smoothie? A banana smoothie? That's cannibalism! Banana's horrified. I'm delighted. You're on." },
       ] },
     ] },

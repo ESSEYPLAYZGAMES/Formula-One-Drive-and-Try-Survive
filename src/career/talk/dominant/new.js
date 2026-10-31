@@ -24,7 +24,7 @@ export const DATA = [
   },
   {
     id: 'dominant-new-1-passive', stage: 'new', slot: 1, mood: 'passive',
-    say: ["We were introduced badly. Let's do it again, properly. I'm {first}. You stand there - the light's better.", "That introduction earlier was a mess. I'm redoing it. {first}. Stand on my left - the light's better there."],
+    say: ["We were introduced badly. Let's do it again, properly. I'm {first}. You stand there - the light's better.", "That first introduction was a mess. I'm redoing it. {first}. Stand on my left - the light's better there."],
     opts: [
       { tone: 'cold', t: "I'm good here, thanks.", r: "Are you. Fine. Then I'll move. Note that I don't, usually.", opts: [
         { tone: 'cold', t: "Don't put yourself out.", r: "I won't. Enjoy your spot, {me}. I'll be over there, being much better company." },
@@ -61,21 +61,21 @@ export const DATA = [
       { tone: 'flirty', t: "Hoping, were you?", r: "Always. I don't leave things to chance, but I do allow myself to hope. Rarely. Tonight.", opts: [
         { tone: 'cold', t: "Don't hope too hard.", r: "Too late. The hoping's done. Now I'll just wait and see what you do with it. Elsewhere, apparently." },
         { tone: 'passive', t: "Well, here I am.", r: "Here you are. Exactly where I wanted you. Things are going very well for me." },
-        { tone: 'flirty', t: "Hope's not your style. Admit you planned it.", r: "Planned it to the minute. You arrived three minutes late. I forgive you." },
+        { tone: 'flirty', t: "Hope's not your style. Admit you planned it.", r: "Planned it to the minute. Hoping was only the backup plan. I always have one." },
         { tone: 'risque', t: "Plan the rest of the night too?", r: "I already have. You don't get to see the plan. You just get to find out, one step at a time." },
       ] },
     ],
   },
   {
     id: 'dominant-new-2-cold', stage: 'new', slot: 2, mood: 'cold',
-    say: ["You don't have to like me. You do have to hear this: you defended into turn one far too late.", "I watched {last}. You were cold with me last time, so I'll be blunt: turn one, you left the door open."],
+    say: ["You don't have to like me. You do have to hear this: you defend into turn one far too late. Every time.", "I watched {last}. You were cold with me last time, so I'll be blunt: into turn one, you leave the door open."],
     opts: [
       { tone: 'cold', t: "I don't need driving tips from you.", r: "No? The replay disagrees. Keep your pride. I'll keep the notes.", opts: [
         { tone: 'cold', t: "I'll keep ignoring them.", r: "Do. I'll keep them in a drawer. Labelled. Good night." },
         { tone: 'passive', t: "Okay. What would you have done?", r: "Moved over a braking zone earlier. Made them commit. Then made them regret committing." },
         { tone: 'flirty', t: "You've been studying me, then.", r: "Studying is a strong word. Memorising. Every lap. Don't flatter yourself. Do, a little." },
       ] },
-      { tone: 'passive', t: "You're right, I left a gap.", r: "Good. Admitting it is the first step. The second is never doing it again.", opts: [
+      { tone: 'passive', t: "You're right, I leave a gap.", r: "Good. Admitting it is the first step. The second is never doing it again.", opts: [
         { tone: 'cold', t: "Thanks for the lecture.", r: "It wasn't a lecture. It was free. The next one costs you dinner. Or nothing at all - your choice." },
         { tone: 'passive', t: "You'd make a good engineer.", r: "I'd make a terrifying engineer. You'd win everything and hate me. Probably worth it." },
         { tone: 'flirty', t: "Coach me, then.", r: "Gladly. Lesson one: never let anyone past who you'd rather have chasing you." },
@@ -89,7 +89,7 @@ export const DATA = [
   },
   {
     id: 'dominant-new-2-passive', stage: 'new', slot: 2, mood: 'passive',
-    say: ["I watched {last}. Turn one, you defended a fraction late. I'd have gone earlier. Then won.", "Your race. Let's discuss it. You were brilliant for forty laps and polite for one. The polite one cost you."],
+    say: ["I watched {last}. Into turn one, you defend a fraction late. I'd go earlier. Then win.", "Your racing. Let's discuss it. You're brilliant for forty laps and polite for one. The polite one costs you."],
     opts: [
       { tone: 'cold', t: "Have you ever driven a racing car?", r: "No. I've never lost a race in one either. Draw your own conclusions.", opts: [
         { tone: 'cold', t: "That's not how it works.", r: "It's exactly how it works. But I'll drop it. You're clearly not in the mood to be right." },
@@ -118,9 +118,9 @@ export const DATA = [
         { tone: 'passive', t: "Fine. Quickly.", r: "Brake later, defend earlier, smile less at the cameras. That's the whole note. You're welcome." },
         { tone: 'flirty', t: "Only if you say it nicely.", r: "I don't do nicely. I do accurately. Accurately: you're better than that corner." },
       ] },
-      { tone: 'passive', t: "Okay, coach. What went wrong?", r: "You defended the outside and left them the inside. Never give anyone a door you don't want them through.", opts: [
+      { tone: 'passive', t: "Okay, coach. What went wrong?", r: "You defend the outside and leave them the inside. Never give anyone a door you don't want them through.", opts: [
         { tone: 'cold', t: "It's racing. It happens.", r: "It happens to other people. I'd prefer it didn't happen to you. Fine. Night." },
-        { tone: 'passive', t: "Noted. Anything I did right?", r: "Everything after lap thirty. You stopped being careful and started being yourself. Do that from lap one." },
+        { tone: 'passive', t: "Noted. Anything I did right?", r: "Every lap where you stop being careful and start being yourself. Do that from lap one." },
         { tone: 'flirty', t: "Do you give everyone this attention?", r: "No. You should be thrilled. Or nervous. Ideally both." },
       ] },
       { tone: 'flirty', t: "You were watching my onboard?", r: "Twice. Once for the race. Once for no reason I'm prepared to say out loud.", opts: [
@@ -202,7 +202,7 @@ export const DATA = [
     opts: [
       { tone: 'cold', t: "I'm fine. I don't need feeding.", r: "You do, and you know it. Fine - you're an adult. Make a bad choice. I'll watch.", opts: [
         { tone: 'cold', t: "I'll eat when I want to.", r: "Fair. Your call. I'll just stand here disapproving. Silently. Mostly." },
-        { tone: 'passive', t: "Okay. Fine. Something small.", r: "Good. Small is a start. I'll get you something. Sit." },
+        { tone: 'passive', t: "Okay. Fine. Something small.", r: "Good. Small is a start. I'll find you something. Stay put." },
         { tone: 'flirty', t: "Are you this bossy with everyone?", r: "With everyone who needs it. You need it more than most. Take that as an honour." },
       ] },
       { tone: 'passive', t: "You're right. I forgot lunch.", r: "I knew it. Here. Eat this first. Talk second.", opts: [
@@ -228,7 +228,7 @@ export const DATA = [
       ] },
       { tone: 'passive', t: "Is it that obvious?", r: "To me. You're reading the room like it's lap fifty. Eat. Then you can talk to me properly.", opts: [
         { tone: 'cold', t: "I'll manage.", r: "I know you'll manage. Managing isn't the point. Off you go." },
-        { tone: 'passive', t: "What would you recommend?", r: "The thing on the left. I've had it. It's the best thing here. I don't recommend things lightly." },
+        { tone: 'passive', t: "What would you recommend?", r: "Anything with protein. Nothing sugary. Nothing you'll regret on lap fifty. I don't recommend things lightly." },
         { tone: 'flirty', t: "You noticed that quickly.", r: "I notice everything about the people I'm watching. You're one of them. Eat." },
       ] },
       { tone: 'flirty', t: "Are you looking after me?", r: "I'm looking after my investment. I plan to watch you win things. Eat something.", opts: [
@@ -245,13 +245,13 @@ export const DATA = [
     opts: [
       { tone: 'cold', t: "I'm not hungry.", r: "Your stomach disagrees. I can hear it from here. Fine - be wrong at your own pace.", opts: [
         { tone: 'cold', t: "Drop it.", r: "Dropped. You've got a weekend to run on empty. I won't stop you." },
-        { tone: 'passive', t: "Okay, maybe a little.", r: "A little is enough. Here. That's the best thing on the table. I checked." },
+        { tone: 'passive', t: "Okay, maybe a little.", r: "A little is enough. Here. I always carry something. I checked it's good." },
         { tone: 'flirty', t: "Distract me and I'll forget I'm hungry.", r: "No. Eat. Distraction comes after. I'm very good at after." },
       ] },
-      { tone: 'passive', t: "Fine. What should I eat?", r: "That. And that. Don't look at me like that - I've already decided for both of us.", opts: [
+      { tone: 'passive', t: "Fine. What should I eat?", r: "Protein. Then more protein. Don't look at me like that - I've already decided for both of us.", opts: [
         { tone: 'cold', t: "I'll choose myself.", r: "Fine. Choose badly. I'll pretend I'm not disappointed." },
         { tone: 'passive', t: "Decided for both of us?", r: "I always do. It saves time. You can overrule me. You won't want to." },
-        { tone: 'flirty', t: "I like it when you decide.", r: "I know. I could tell from across the room. Eat. Then come back and like it some more." },
+        { tone: 'flirty', t: "I like it when you decide.", r: "I know. I could tell from a distance. Eat. Then come back and like it some more." },
       ] },
       { tone: 'flirty', t: "So you've been worrying about me?", r: "Worrying is for people with no plan. I have a plan. Step one: you eat something.", opts: [
         { tone: 'cold', t: "I can look after myself.", r: "You can. Prove it with a plate, not a speech. Night." },
@@ -393,42 +393,42 @@ export const DATA = [
   },
   {
     id: 'dominant-new-7-cold', stage: 'new', slot: 7, mood: 'cold',
-    say: ["That reporter earlier was right in your face. I moved them along. Don't thank me. I didn't do it for thanks.", "Before you start being cold again: the photographer who was crowding you won't be. I had a quiet word."],
+    say: ["Every time a camera finds you, someone's in your face. If it happens near me, I'll move them along. Don't thank me.", "Before you start being cold again: I've watched people crowd you on TV. Near me, they won't. I'll have a quiet word."],
     opts: [
-      { tone: 'cold', t: "I didn't need rescuing.", r: "I know. That's why I did it quietly. You can tell me to stay out of it. I will.", opts: [
+      { tone: 'cold', t: "I don't need rescuing.", r: "I know. That's why I'd do it quietly. You can tell me to stay out of it. I will.", opts: [
         { tone: 'cold', t: "Then stay out of it.", r: "Done. Next time I'll stand back and let you deal with it. I'll hate it. I'll do it." },
-        { tone: 'passive', t: "It was a bit much. Thanks.", r: "You're welcome. They were being rude. I don't tolerate rude around people I'm talking to." },
-        { tone: 'flirty', t: "You were kind of impressive, though.", r: "Kind of. I'll take kind of. Next time I'll go for completely." },
+        { tone: 'passive', t: "It can get a bit much. Thanks.", r: "You're welcome. They're often rude. I don't tolerate rude around people I'm talking to." },
+        { tone: 'flirty', t: "That's kind of impressive, though.", r: "Kind of. I'll take kind of. When it happens I'll go for completely." },
       ] },
-      { tone: 'passive', t: "Okay. Thank you. That got a bit much.", r: "It did. You were too polite. I'm not. Between us, we're one very effective person.", opts: [
-        { tone: 'cold', t: "I can handle it myself.", r: "You can. You were. I just made it faster. I'll back off if you'd rather. Say so and I'm gone." },
-        { tone: 'passive', t: "What did you say to them?", r: "Nothing interesting. It's how you say it. And where you stand while you say it." },
+      { tone: 'passive', t: "Okay. Thank you. It does get a bit much.", r: "It does. You're too polite. I'm not. Between us, we're one very effective person.", opts: [
+        { tone: 'cold', t: "I can handle it myself.", r: "You can. You do. I'd just make it faster. I'll back off if you'd rather. Say so and I'm gone." },
+        { tone: 'passive', t: "What would you say to them?", r: "Nothing interesting. It's how you say it. And where you stand while you say it." },
         { tone: 'flirty', t: "You're a good person to have nearby.", r: "I'm a very good person to have nearby. Bear that in mind." },
       ] },
       { tone: 'flirty', t: "My hero.", r: "Don't. I'm not a hero. I'm someone who doesn't like people being crowded. Especially you, it turns out.", opts: [
-        { tone: 'cold', t: "Bit dramatic.", r: "It was. You're right. Less drama next time. Or less of me. Good night." },
+        { tone: 'cold', t: "Bit dramatic.", r: "It is. You're right. Less drama. Or less of me. Good night." },
         { tone: 'passive', t: "Especially me?", r: "Especially you. Don't make a thing of it. I'll make a thing of it, eventually. On my timing." },
-        { tone: 'flirty', t: "Then stay close. They might come back.", r: "They won't. But I'll stay close anyway. For other reasons." },
-        { tone: 'risque', t: "Come home and protect me some more.", r: "Not tonight. I don't rush anything that matters. You'll be protected from across the room until I decide otherwise." },
+        { tone: 'flirty', t: "Then stay close. Just in case.", r: "Nobody's coming. But I'll stay close anyway. For other reasons." },
+        { tone: 'risque', t: "Come home and protect me some more.", r: "Not tonight. I don't rush anything that matters. You'll be protected from a polite distance until I decide otherwise." },
       ] },
     ],
   },
   {
     id: 'dominant-new-7-passive', stage: 'new', slot: 7, mood: 'passive',
-    say: ["Someone was crowding you earlier. I stepped in. Politely. Tell me if I shouldn't have - I mean it.", "You looked trapped earlier with that fan. I gave them somewhere else to be. If that's too much, say so."],
+    say: ["People crowd you. I've watched it. If it happens near me, I'll step in. Politely. Tell me if I shouldn't - I mean it.", "Fans corner you everywhere. If one corners you near me, I'll give them somewhere else to be. Too much? Say so."],
     opts: [
-      { tone: 'cold', t: "You shouldn't have.", r: "Then I won't, next time. I'll stand there and glare instead. You can't stop me glaring.", opts: [
+      { tone: 'cold', t: "You shouldn't.", r: "Then I won't. I'll stand there and glare instead. You can't stop me glaring.", opts: [
         { tone: 'cold', t: "Don't glare either.", r: "Fine. I'll look at the ceiling. Furiously. Good night." },
         { tone: 'passive', t: "It's fine. Just ask first.", r: "Fair. I will. I'm better at asking than I look. Slightly." },
         { tone: 'flirty', t: "I wouldn't mind the glaring.", r: "Good. It's one of my best. I'll save a softer version for you." },
       ] },
-      { tone: 'passive', t: "No, that was good. Thanks.", r: "Good. You're too nice to people who take more than they ask for. I'm not.", opts: [
+      { tone: 'passive', t: "No, that sounds good. Thanks.", r: "Good. You're too nice to people who take more than they ask for. I'm not.", opts: [
         { tone: 'cold', t: "I like being nice.", r: "I know. Keep doing it. I'll keep doing the other thing. Night." },
         { tone: 'passive', t: "Does that happen to you too?", r: "Never. People see me coming. You should borrow that. I'll lend it to you." },
         { tone: 'flirty', t: "You'd make a good bodyguard.", r: "I'd make a terrible bodyguard. I'd keep looking at the person I was guarding." },
       ] },
       { tone: 'flirty', t: "Do you look out for everyone?", r: "No. A few people. The list is short and very hard to get onto.", opts: [
-        { tone: 'cold', t: "Don't put me on a list.", r: "Fine. You're not on a list. I'll just keep half an eye on the room. Out of habit." },
+        { tone: 'cold', t: "Don't put me on a list.", r: "Fine. You're not on a list. I'll just keep half an eye out. Out of habit." },
         { tone: 'passive', t: "Am I on it?", r: "You were on it before you'd said a word to me. Don't ask me why. I don't know yet." },
         { tone: 'flirty', t: "I'd like to stay on it.", r: "Then stay. I'm told I'm very good at keeping what I've decided to keep." },
         { tone: 'risque', t: "What do people on the list get?", r: "Protection. Attention. Eventually, a great deal more. Eventually is my word, not yours." },
@@ -437,12 +437,12 @@ export const DATA = [
   },
   {
     id: 'dominant-new-7-flirty', stage: 'new', slot: 7, mood: 'flirty',
-    say: ["That fan who wouldn't let go of your arm? I stood there until they did. Very patiently. I don't share well.", "You had a whole crowd round you earlier. I thinned it. I hope you don't mind. I don't share well."],
+    say: ["Fans who won't let go of your arm? Near me, I'd stand there until they did. Very patiently. I don't share well.", "You always have a crowd round you. Near me, I'd thin it. I hope you don't mind. I don't share well."],
     opts: [
-      { tone: 'cold', t: "That was unnecessary.", r: "Possibly. It felt necessary. But if it crosses a line, you say so, and I stop. Promise.", opts: [
-        { tone: 'cold', t: "It crossed a line.", r: "Then I'm sorry. I mean that. I'll keep to my side of it. Good night, {me}." },
-        { tone: 'passive', t: "It was okay. Just this once.", r: "Just this once. I'll pretend I'm not already planning the next time." },
-        { tone: 'flirty', t: "I'll allow it. You were very still.", r: "Very still and very determined. That's me in a nutshell. Get used to it." },
+      { tone: 'cold', t: "That's unnecessary.", r: "Possibly. It feels necessary. But if it crosses a line, you say so, and I stop. Promise.", opts: [
+        { tone: 'cold', t: "It crosses a line.", r: "Then I'm sorry. I mean that. I'll keep to my side of it. Good night, {me}." },
+        { tone: 'passive', t: "Okay. Just once, then.", r: "Just once. I'll pretend I'm not already planning the second time." },
+        { tone: 'flirty', t: "I'll allow it. If you stay that calm.", r: "Very calm and very determined. That's me in a nutshell. Get used to it." },
       ] },
       { tone: 'passive', t: "You don't share well?", r: "Badly. I'm trying to improve. Not very hard. You'll have noticed.", opts: [
         { tone: 'cold', t: "That's not a great quality.", r: "No. But it's an honest one, and I keep it on a short lead. Good night." },
@@ -450,7 +450,7 @@ export const DATA = [
         { tone: 'flirty', t: "Good. I don't like being shared.", r: "Then we understand each other. That's a dangerous thing to say to me. I'll remember it." },
       ] },
       { tone: 'flirty', t: "My very own guard.", r: "Not yours. Not yet. But you get the benefits of the service, free of charge, for now.", opts: [
-        { tone: 'cold', t: "I don't want a guard.", r: "Fair. I'll stand down. Across the room, guarding nothing. Mostly." },
+        { tone: 'cold', t: "I don't want a guard.", r: "Fair. I'll stand down. At a distance, guarding nothing. Mostly." },
         { tone: 'passive', t: "What would it cost later?", r: "Dinner. A conversation without anyone else in it. A few hours of not being polite." },
         { tone: 'flirty', t: "Not yet, you said.", r: "I did. I choose my words. You should start choosing yours. You're on my radar now." },
         { tone: 'risque', t: "Then guard me all night.", r: "Ha. All night is a privilege, not a request. Keep talking like that and you might earn it." },

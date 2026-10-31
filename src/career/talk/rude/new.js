@@ -4,7 +4,7 @@
 export const DATA = [
   // ---- slot 1: they rate everyone out of ten -------------------------------------------------------------------------
   { id: 'rude-new-1-cold', stage: 'new', slot: 1, mood: 'cold',
-    say: "You walked straight past me earlier. I rate everyone out of ten, and that got you a four. Highest score all day. Don't celebrate.",
+    say: "You were short with me when we met. I rate everyone out of ten, and that got you a four. Highest score all week. Don't celebrate.",
     opts: [
       { tone: 'cold', t: "I wasn't trying to impress you.", r: "Which is exactly why it worked. Ugh. Fine. Holding at four. Say something stupid, I dare you.", opts: [
         { tone: 'cold', t: "You first. You've had practice.", r: "Ha. Okay. That's a five. I'm furious about it. Go away before it drops." },
@@ -16,7 +16,7 @@ export const DATA = [
         { tone: 'passive', t: "Fair enough. Nice to meet you, anyway.", r: "Is it? We'll see. 'Nice to meet you' is what people say to dentists. Three." },
         { tone: 'flirty', t: "Let me make it up to you. Coffee sometime?", r: "Coffee. On a first conversation. Did you get that from a film? Two. A very bad film." },
       ] },
-      { tone: 'flirty', t: "I walked past because I didn't trust myself to stop.", r: "Oh no. A line. You've been here thirty seconds and you brought a line. Dropping fast.", opts: [
+      { tone: 'flirty', t: "I was short because I didn't trust myself to say more.", r: "Oh no. A line. You've been here thirty seconds and you brought a line. Dropping fast.", opts: [
         { tone: 'cold', t: "Fine. Forget it. Wasn't for you anyway.", r: "Better. A dry exit beats a soggy line every time. Five. I hate that it's five." },
         { tone: 'passive', t: "Okay, that was a lot. Start again?", r: "No restarts. I've already formed opinions and they're stubborn. Holding at three." },
         { tone: 'flirty', t: "Admit it, you liked it a little.", r: "I liked it the way I like a pothole. Memorable. Four. Don't look so pleased with yourself." },
@@ -82,7 +82,7 @@ export const DATA = [
       ] },
     ] },
   { id: 'rude-new-2-passive', stage: 'new', slot: 2, mood: 'passive',
-    say: "I hate-watched your race. It's like regular watching but with more sighing. You did something at turn one. Explain yourself.",
+    say: "I hate-watched your race. It's like regular watching but with more sighing. Turn one. Talk me through it. Explain yourself.",
     opts: [
       { tone: 'cold', t: "I overtook three cars. Sigh at that.", r: "Three cars who were clearly asleep. But fine. That was a decent comeback. I'll allow it.", opts: [
         { tone: 'cold', t: "Allow it? I didn't ask permission.", r: "No, you didn't. Disgusting. I respect it. Get out of my sight, I'm thinking." },
@@ -105,7 +105,7 @@ export const DATA = [
     opts: [
       { tone: 'cold', t: "Never hoping. I don't need your reviews.", r: "Everyone needs my reviews. Most people can't handle them. You're handling it. Annoyingly.", opts: [
         { tone: 'cold', t: "Then stop reviewing and go.", r: "Dismissing me? That's a new one. Fine. I'm going. Slowly, so you can watch. Kidding. Bye." },
-        { tone: 'passive', t: "What would make it more than fine?", r: "Winning. Or not doing the little fist pump. The fist pump scores a two." },
+        { tone: 'passive', t: "What would make it more than fine?", r: "Winning. Fine is what you get for not winning. Fine scores a five. That's generous." },
         { tone: 'flirty', t: "I bet you can handle me too.", r: "I bet I can't be bothered. Stop doing the face. The face is a rating killer." },
       ] },
       { tone: 'passive', t: "Fine is fine. I'll take fine.", r: "You'll take fine. Wow. That's your ceiling? Fine? I'm embarrassed for your helmet.", opts: [
@@ -115,14 +115,14 @@ export const DATA = [
       ] },
       { tone: 'flirty', t: "You watched it twice, didn't you?", r: "Once. And the highlights. And the replay. That's research. Wipe that look off your face.", opts: [
         { tone: 'cold', t: "Research. Sure. Keep telling yourself that.", r: "I will. I'm very convincing. More convincing than your braking. Bye." },
-        { tone: 'passive', t: "What did you think of the restart?", r: "Messy. Like your hair. Both looked like they happened in a wind tunnel. Next question." },
+        { tone: 'passive', t: "What did you think of the start?", r: "Messy. Like your hair. Both looked like they happened in a wind tunnel. Next question." },
         { tone: 'flirty', t: "Next time watch it with me. I'll do commentary.", r: "Your commentary would be you saying 'that was me' for two hours. Pass. Probably pass." },
       ] },
     ] },
 
   // ---- slot 3: your taste, their contrary opinions -----------------------------------------------------------------
   { id: 'rude-new-3-cold', stage: 'new', slot: 3, mood: 'cold',
-    say: "You. I saw your playlist in that interview. Who hurt you? Don't answer. I'll guess. A ballad, probably.",
+    say: "You. What's on your driving playlist? Don't answer. I'll guess. A ballad, probably. Who hurt you?",
     opts: [
       { tone: 'cold', t: "This from someone who's clearly never enjoyed anything.", r: "I enjoy plenty. Rain. Cold toast. Silence. Things you'd hate. That's how I know they're good.", opts: [
         { tone: 'cold', t: "Cold toast. Bold of you to judge my taste.", r: "Cold toast is correct and you'll come round. Your playlist won't. Off you go." },
@@ -160,12 +160,12 @@ export const DATA = [
       ] },
     ] },
   { id: 'rude-new-3-flirty', stage: 'new', slot: 3, mood: 'flirty',
-    say: "It's the flirt again. Before you start: your fist pump. The one you do even for tenth. Defend it.",
+    say: "It's the flirt again. Before you start: you look like someone who fist pumps for tenth. Do you? Defend yourself.",
     opts: [
-      { tone: 'cold', t: "I don't defend things to people who sit and watch.", r: "Oof. That's mean. I liked it. Keep the fist pump. Lose the attitude. Actually, keep the attitude.", opts: [
+      { tone: 'cold', t: "I don't defend things to people who sit and watch.", r: "Oof. That's mean. I liked it. Lose the fist pump, if there is one. Keep the attitude.", opts: [
         { tone: 'cold', t: "Keep your notes. I'll keep the pump.", r: "Fine. We're at an impasse. I love an impasse. It's an argument that never has to end." },
         { tone: 'passive', t: "Do you not celebrate anything?", r: "I celebrate quietly. A nod. Maybe a slightly better sandwich. Fist pumps are for golfers." },
-        { tone: 'flirty', t: "You've been watching my hands that closely?", r: "I've been watching your dignity leave the building. Your hands were just nearby." },
+        { tone: 'flirty', t: "You've been picturing my hands that closely?", r: "I've been picturing your dignity leaving the building. Your hands were just nearby." },
       ] },
       { tone: 'passive', t: "It's just a habit. I don't think about it.", r: "Clearly. Nothing about it suggests thought. It's like watching a seal applaud.", opts: [
         { tone: 'cold', t: "Seals are better company than you, so thanks.", r: "Ha. Probably true. Seals don't talk. Neither should you, ideally. That was good, though." },
@@ -317,7 +317,7 @@ export const DATA = [
       ] },
     ] },
   { id: 'rude-new-6-passive', stage: 'new', slot: 6, mood: 'passive',
-    say: "You know why I'm like this? Honesty saves time. Nobody near you is honest. Your team said 'great job' to a stalled car.",
+    say: "You know why I'm like this? Honesty saves time. Nobody near you is honest. Your team would say 'great job' to a stalled car.",
     opts: [
       { tone: 'cold', t: "You think rude is the same as honest.", r: "Rude is honest with the packaging off. Ooh. You want to argue? Good. I've been bored all week.", opts: [
         { tone: 'cold', t: "No. I've got better things to do.", r: "You don't, but I respect the bluff. A six-out-of-ten bluff. Go." },
@@ -326,7 +326,7 @@ export const DATA = [
       ] },
       { tone: 'passive', t: "Maybe they're just being kind.", r: "Kind is cowardice in a nice jumper. I'd rather be accurate than liked. It's less crowded.", opts: [
         { tone: 'cold', t: "And rude is cowardice in a worse jumper.", r: "Ha! Okay. That was good. I'm keeping it. I'll pretend I thought of it." },
-        { tone: 'passive', t: "So you'd tell me if I was slow?", r: "You were slow. Sector two. Every lap. See? Easy. Painless for me." },
+        { tone: 'passive', t: "So you'd tell me if I was slow?", r: "Instantly. Like this: you're slow in sector two. See? Easy. Painless for me." },
         { tone: 'flirty', t: "So you'll be my honest one?", r: "Your honest one? Like a pet? Like a lucky charm? ...I'll think about it. Badly. Slowly." },
       ] },
       { tone: 'flirty', t: "I like that you don't sugarcoat things.", r: "Nobody likes it. They say they do, then they cry in a car park. You'll cry in a car park.", opts: [
@@ -360,7 +360,7 @@ export const DATA = [
     say: "Don't read into this. I didn't save you a spot. It was an accident. Stand there. No, there.",
     opts: [
       { tone: 'cold', t: "I'd have found my own.", r: "Of course you would. Fine. Go and find it. ...It's taken. They're all taken. Get in this one.", opts: [
-        { tone: 'cold', t: "Fine. Only because the others are taken.", r: "Exactly. Logistics. That's all this is. Stand still, you're letting the draught in." },
+        { tone: 'cold', t: "Fine. Only because the others are taken.", r: "Exactly. Logistics. That's all this is. Stand still, you're blocking my view." },
         { tone: 'passive', t: "Thanks. That's nice of you.", r: "It isn't nice, it's an accident. Say 'thanks' again and I'll give it to a stranger." },
         { tone: 'flirty', t: "You saved it. Admit it.", r: "I admit nothing. I'm a vault. A vault with one spare spot in it. Shut up." },
       ] },
@@ -416,7 +416,7 @@ export const DATA = [
 
   // ---- slot 8: only they get to roast you ---------------------------------------------------------------------------
   { id: 'rude-new-8-cold', stage: 'new', slot: 8, mood: 'cold',
-    say: "Someone over there called your driving 'sloppy'. I told them to sit down. Only I'm allowed to say that. Don't thank me.",
+    say: "Someone called your driving 'sloppy' in front of me today. I told them to sit down. Only I'm allowed to say that. Don't thank me.",
     opts: [
       { tone: 'cold', t: "I can defend myself.", r: "You can't. You'd say 'fair point' and nod. I've seen your interviews. That's not defending, it's bowing.", opts: [
         { tone: 'cold', t: "Fine. Next time I'll bow at you.", r: "Do and I'll rate it. A three for posture. Ha. Okay, you're quick today." },
@@ -435,7 +435,7 @@ export const DATA = [
       ] },
     ] },
   { id: 'rude-new-8-passive', stage: 'new', slot: 8, mood: 'passive',
-    say: "Someone over there was mocking your qualifying. I corrected them. Loudly. Roasting you is my job. Get your own critic.",
+    say: "Someone was mocking your qualifying in front of me. I corrected them. Loudly. Roasting you is my job. Get your own critic.",
     opts: [
       { tone: 'cold', t: "Get my own critic? You volunteered.", r: "I did not volunteer. I was conscripted by your terrible braking. Fair, though. Point to you.", opts: [
         { tone: 'cold', t: "Then resign.", r: "Can't. The pay is wonderful. It's nothing, but I get to watch you sulk. Off you go." },
@@ -464,7 +464,7 @@ export const DATA = [
       { tone: 'passive', t: "What did they say about me?", r: "That you're overrated. Which is lazy. You're appropriately rated. By me. A four, holding.", opts: [
         { tone: 'cold', t: "A four. Generous of you.", r: "It is generous. Most people are minus. You're a four with potential. Don't let it out." },
         { tone: 'passive', t: "Okay. I'll try to deserve the four.", r: "'Try to deserve.' Wow. Humble pie. I hate pie. Have a spine instead." },
-        { tone: 'flirty', t: "A four you'd fight a stranger for.", r: "I'd fight a stranger for a sandwich. Don't flatter the four. ...It's a five tonight. Shut up." },
+        { tone: 'flirty', t: "A four you'd fight a stranger for.", r: "I'd fight a stranger for a sandwich. Don't flatter the four. ...It's a five today. Shut up." },
       ] },
       { tone: 'flirty', t: "You're cute when you're protective.", r: "I'm not cute. I'm a security system. Alarms aren't cute. They're loud and correct.", opts: [
         { tone: 'cold', t: "You're loud. I'll give you that.", r: "Thank you. Loud and correct. It's on my business cards. You're quicker today. Suspicious." },

@@ -1,6 +1,6 @@
 // Emotional - in person, stage 'close' (dating). Slots 1..9, each in a cold / passive / flirty opening mood.
-// Arc: 1 'day one' - 2 sleeping in the jacket you left - 3 'umbrella' (the in-joke) - 4 jealousy, said honestly - 5 the
-// ten seconds the camera lost you - 6 the box of unsent letters - 7 the window seat house - 8 enough, or too much - 9 'I
+// Arc: 1 'day one' - 2 sleeping in a fan jacket with your name on - 3 'umbrella' (the in-joke) - 4 jealousy, said honestly - 5 the
+// seconds the camera loses you - 6 the box of unsent letters - 7 the window seat house - 8 enough, or too much - 9 'I
 // love you' and a new notebook, for both of you. Cold hurts most here; risque is tender and intense, then fades out.
 export const DATA = [
   // ------------------------------------------------------------------------------------------------ slot 1: day one
@@ -64,19 +64,19 @@ export const DATA = [
         { tone: 'flirty', t: "Tell everyone. I'll tell them louder.", r: "Louder! We'll have a competition. I'll win. I've had practice. Oh, I love this. I love us." },
       ] },
     ] },
-  // ------------------------------------------------------------------------------------------------ slot 2: the jacket
+  // ------------------------------------------------------------------------------------------------ slot 2: the fan jacket
   { id: 'emotional-close-2-cold', stage: 'close', slot: 2, mood: 'cold',
-    say: "I've missed you till it ached, and last time still felt cold. I've been sleeping in the jacket you left. Is that silly?",
+    say: "I've missed you till it ached, and last time still felt cold. I bought a fan jacket with your name on. I sleep in it. Silly?",
     opts: [
-      { tone: 'cold', t: "I need that jacket back, actually.", r: "Oh. Of course. I'll bring it. It's only a jacket. It's just... it smelled like you and you weren't there.", opts: [
-        { tone: 'cold', t: "Bring it next time.", r: "I will. I'll fold it nicely. I'll try not to cry on it. I can't promise. You've made missing you lonelier." },
-        { tone: 'passive', t: "No, keep it. Sorry. I've missed you too.", r: "You have? Then the jacket stays. I'll stop counting the days. No, I won't. I'll count them happier." },
-        { tone: 'flirty', t: "Keep it. I'd rather you wore it than me.", r: "You'd rather... oh. That's so tender I can't look at you. I'm wearing it right now under my coat. Look." },
+      { tone: 'cold', t: "Bit odd, wearing my name to bed.", r: "Oh. Is it? It's only a jacket. It's just... it had your name on and you weren't there.", opts: [
+        { tone: 'cold', t: "Maybe don't wear it out.", r: "I won't. I'll fold it away. I'll try not to cry on it. I can't promise. You've made missing you lonelier." },
+        { tone: 'passive', t: "No, wear it. Sorry. I've missed you too.", r: "You have? Then the jacket stays on. I'll stop counting the days. No, I won't. I'll count them happier." },
+        { tone: 'flirty', t: "Wear it. My name looks better on you.", r: "Better on me... oh. That's so tender I can't look at you. I'm wearing it right now under my coat. Look." },
       ] },
       { tone: 'passive', t: "Not silly. The missing goes both ways.", r: "You have? Say how much. I need numbers. I've missed you eleven out of ten. I've worn the jacket every night.", opts: [
         { tone: 'cold', t: "I don't measure it.", r: "You don't have to measure. You could just say it. I said mine. I needed yours and got nothing. That hurts." },
         { tone: 'passive', t: "Ten out of ten. Every night.", r: "Ten. Okay. I'll take ten. I'll round it up to eleven in my head. Don't tell me if that's cheating." },
-        { tone: 'flirty', t: "Eleven. And I'm jealous of my own jacket.", r: "Jealous of your jacket! It's the luckiest jacket in the world. Come here. You can have the real thing." },
+        { tone: 'flirty', t: "Eleven. And I'm jealous of a jacket with my name on.", r: "Jealous of your jacket! It's the luckiest jacket in the world. Come here. You can have the real thing." },
       ] },
       { tone: 'flirty', t: "Silly? I'm jealous of a jacket now.", r: "Jealous? It's kept me warm while you were away. It's been a very good jacket. You're better.", opts: [
         { tone: 'cold', t: "It's just a jacket.", r: "It's not just a jacket when I miss you. It's the closest I could get. You made that sound small. I'm sad now." },
@@ -86,19 +86,19 @@ export const DATA = [
       ] },
     ] },
   { id: 'emotional-close-2-passive', stage: 'close', slot: 2, mood: 'passive',
-    say: "Can I tell you something embarrassing? The jacket you left? I've been sleeping in it. It smells like you. I miss you that much.",
+    say: "Can I tell you something embarrassing? I bought a fan jacket with your name on the back. I've been sleeping in it. I miss you that much.",
     opts: [
       { tone: 'cold', t: "That's a bit much, honestly.", r: "Is it? I'm sorry. I don't know how to miss someone quietly. I'll stop telling you, if it's too much.", opts: [
         { tone: 'cold', t: "Maybe just keep it to yourself.", r: "Then I'll miss you in secret. That's lonelier than missing you out loud. I'm telling you that much, at least." },
         { tone: 'passive', t: "Sorry. It's sweet. I'm just bad at missing people.", r: "Bad at missing people? Then I'll miss you for both of us. I've got plenty. I've got so much missing." },
-        { tone: 'flirty', t: "Much, but lovely. Keep it on.", r: "Keep it on. Okay. I'll wear it to bed every night you're away. You'll have to fight me for it back." },
+        { tone: 'flirty', t: "Much, but lovely. Keep it on.", r: "Keep it on. Okay. I'll wear it to bed every night you're away. You'd have to fight me for it." },
       ] },
       { tone: 'passive', t: "I miss you too. Races keep me away.", r: "I know. I'm proud of you. I'm also lonely. Both at once. Every race, I count the days till you're back.", opts: [
         { tone: 'cold', t: "It's my job. You knew that.", r: "I knew. I still miss you. Knowing doesn't stop missing. I wasn't complaining. I was missing you out loud." },
         { tone: 'passive', t: "I count them too. Honestly.", r: "You do? Then we're counting together. That makes it a bit shorter, I think. Like sharing a heavy bag." },
-        { tone: 'flirty', t: "Next time, come with me.", r: "Come with you? To a race? I'd scream through every lap. Yes. Yes. I'll bring the jacket. Ironic." },
+        { tone: 'flirty', t: "Next time, come with me.", r: "Come with you? To a race? I'd scream through every lap. Yes. Yes. I'll wear the jacket. Very subtle." },
       ] },
-      { tone: 'flirty', t: "It smells like me? Then I'll have to top it up.", r: "Top it up? Oh. Yes. Please. Come here and stand very close to the jacket. And me. Mostly me.", opts: [
+      { tone: 'flirty', t: "It's only got my name? Then it needs the smell of me too.", r: "The smell of you? Oh. Yes. Please. Come here and stand very close to the jacket. And me. Mostly me.", opts: [
         { tone: 'cold', t: "I'm not going to hug a jacket.", r: "Not the jacket. Me. I meant me. Oh, it's okay. I'll hug it on my own. That's what I've been doing." },
         { tone: 'passive', t: "Okay. Come here.", r: "There. Oh, that's better. That's so much better than the jacket. You're warmer. You hug back." },
         { tone: 'risque', t: "Or you could keep me instead. All night.", r: "All night? Yes. The jacket can have the chair. I want the real you. Stay, and hold on till it's light." },
@@ -106,12 +106,12 @@ export const DATA = [
       ] },
     ] },
   { id: 'emotional-close-2-flirty', stage: 'close', slot: 2, mood: 'flirty',
-    say: "I missed you so much I started sleeping in your jacket. It's on now. Under my coat. Don't tell anyone I'm this far gone.",
+    say: "I missed you so much I bought a jacket with your name on the back. It's on now, under my coat. Don't tell anyone I'm this far gone.",
     opts: [
       { tone: 'cold', t: "Bit strange, wearing it out.", r: "Strange? It made me feel close to you. I'm sorry. I'll take it off. I didn't think you'd mind.", opts: [
         { tone: 'cold', t: "I do mind, a bit.", r: "Okay. It's off. Here. I'll go home and sleep in my own things. I won't sleep, but I'll try. It hurt, {me}." },
-        { tone: 'passive', t: "Sorry. Keep it. I'm just tired.", r: "Tired. Okay. Come here, then. Put your head on my shoulder. It's your jacket anyway. You're allowed." },
-        { tone: 'flirty', t: "Strange, but it looks better on you.", r: "Better on me? Then it's mine now. Stolen fair and square. You'll have to steal it back. Slowly." },
+        { tone: 'passive', t: "Sorry. Keep it. I'm just tired.", r: "Tired. Okay. Come here, then. Put your head on my shoulder. It's your name on it anyway. You're allowed." },
+        { tone: 'flirty', t: "Strange, but it looks better on you.", r: "Better on me? Then it's mine. Bought fair and square. You'll have to steal it off me. Slowly." },
       ] },
       { tone: 'passive', t: "I missed you too. How far gone?", r: "Very. I set alarms for your practice sessions. I watch the onboard just to hear your engine. That far.", opts: [
         { tone: 'cold', t: "That's a bit obsessive.", r: "I call it missing you. I'm sorry it looks like that from outside. From in here it feels like love." },
@@ -188,15 +188,15 @@ export const DATA = [
     ] },
   // ------------------------------------------------------------------------------------------------ slot 4: jealousy, honestly
   { id: 'emotional-close-4-cold', stage: 'close', slot: 4, mood: 'cold',
-    say: "Even with how cold things got, I need to say this. Someone flirted with you, and you let them. It hurt. I need you to hear it.",
+    say: "Even with how cold things got, I need to say this. People flirt with you all the time, and you let them. It hurts. Hear it.",
     opts: [
       { tone: 'cold', t: "You're overreacting.", r: "Maybe. But it's my reaction. You don't get to decide its size. I'd rather tell you than go quiet.", opts: [
         { tone: 'cold', t: "Then let's not do this.", r: "Not tonight, then. But I'm not going to pretend I'm fine. I'm not fine. I'm hurt, and I'm going home with it." },
-        { tone: 'passive', t: "Okay. I hear you. It didn't mean anything.", r: "Thank you for hearing it. I believe you. I needed to say it out loud, not swallow it. That's new for me." },
+        { tone: 'passive', t: "Okay. I hear you. It doesn't mean anything.", r: "Thank you for hearing it. I believe you. I needed to say it out loud, not swallow it. That's new for me." },
         { tone: 'flirty', t: "I hear you. And there's only one person I want flirting with me.", r: "Only one? Say who. I know, I know. Say it anyway. Oh... yes. That. Okay. I'm okay now." },
       ] },
       { tone: 'passive', t: "I'm sorry. I didn't realise it hurt you.", r: "I know you didn't. That's why I'm telling you. I'm not angry. I needed you to know where it landed.", opts: [
-        { tone: 'cold', t: "It was harmless.", r: "To you. Not to me. I'm not asking you to never talk to anyone. I'm asking you to care that it hurt." },
+        { tone: 'cold', t: "It's harmless.", r: "To you. Not to me. I'm not asking you to never talk to anyone. I'm asking you to care that it hurt." },
         { tone: 'passive', t: "I'll be more careful.", r: "Thank you. That's all I needed. Not a promise, just care. I feel lighter. I'm glad I said it instead of stewing." },
         { tone: 'flirty', t: "Nobody else gets my attention like you do.", r: "Like I do? Then look at me like that more often. In public. So everyone knows. I'm feeling a bit better." },
       ] },
@@ -208,7 +208,7 @@ export const DATA = [
       ] },
     ] },
   { id: 'emotional-close-4-passive', stage: 'close', slot: 4, mood: 'passive',
-    say: "Can I be honest about something that hurt? Someone was flirting with you the other day. You laughed. I know it's silly. It still hurt.",
+    say: "Can I be honest about something that hurts? People flirt with you everywhere you go. You laugh. I know it's silly. It still hurts.",
     opts: [
       { tone: 'cold', t: "It's not a big deal.", r: "It's a big deal to me. That's why I said it. I'm not accusing you. I'm telling you how my heart works.", opts: [
         { tone: 'cold', t: "Your heart works too hard.", r: "It does. I know. But it works for you. You just made it feel like a fault. I'm going to go and be quiet." },
@@ -228,20 +228,20 @@ export const DATA = [
       ] },
     ] },
   { id: 'emotional-close-4-flirty', stage: 'close', slot: 4, mood: 'flirty',
-    say: "You know I adore you. So I'll say this kindly. Someone flirted with you and you lit up. It hurt more than I want to admit.",
+    say: "You know I adore you. So I'll say this kindly. When people flirt with you, you light up. It hurts more than I want to admit.",
     opts: [
       { tone: 'cold', t: "You can't police who flirts with me.", r: "I'm not policing. I'm telling you how it felt. Those aren't the same. I hoped you'd know the difference.", opts: [
         { tone: 'cold', t: "Feels the same to me.", r: "Then I'll stop telling you how I feel. That's the opposite of what I want for us. I'm hurt, and I'm going." },
         { tone: 'passive', t: "Sorry. You're right to tell me.", r: "Thank you for listening. Not a fight, just to be heard. I feel so much better." },
-        { tone: 'flirty', t: "I lit up because I was thinking about you.", r: "About me? Really? Is that true or is that charm? Oh... it's true. I can tell. Okay. Okay. Forgiven." },
+        { tone: 'flirty', t: "I light up because I'm thinking about you.", r: "About me? Really? Is that true or is that charm? Oh... it's true. I can tell. Okay. Okay. Forgiven." },
       ] },
-      { tone: 'passive', t: "I'm sorry. I didn't think about how that looked.", r: "You're not careless, usually. You just didn't see me watching. I'm telling you so next time you will.", opts: [
+      { tone: 'passive', t: "I'm sorry. I didn't think about how that looked.", r: "You're not careless, usually. You just don't see me watching, on the telly or wherever. I'm telling you so you will.", opts: [
         { tone: 'cold', t: "Next time, don't watch.", r: "Don't watch you? I always watch you. That's what loving someone looks like, mostly. You've made it sound sad." },
         { tone: 'passive', t: "I'll see you next time. I promise.", r: "Thank you. That's all. See me. I'll be the one in the corner with my heart on my sleeve. As usual." },
         { tone: 'flirty', t: "I'll only light up for you from now on.", r: "Only for me? That's a lot of lighting up. You'll have to practise. Practise on me. Now. Yes. Like that." },
       ] },
       { tone: 'flirty', t: "You know nobody else gets the real smile.", r: "The real smile? Show me. Yes. That one. Okay, they definitely didn't get that one. I feel better. Sort of.", opts: [
-        { tone: 'cold', t: "Don't be dramatic.", r: "Dramatic? I've been sick with it for two days and I'm telling you kindly. That's the opposite of dramatic." },
+        { tone: 'cold', t: "Don't be dramatic.", r: "Dramatic? I've been sick with it for days and I'm telling you kindly. That's the opposite of dramatic." },
         { tone: 'passive', t: "Sort of? What would make it all the way better?", r: "Tell me I'm the one you want. Just once, clearly. Then I'll let it go. I promise I'll let it go." },
         { tone: 'risque', t: "Let me give you the real smile all night, then.", r: "All night. Just me and the real smile. Take me somewhere quiet and show me. I want all of it." },
         { tone: 'flirty', t: "You get the real smile and every one after it.", r: "Every one after it? That's a lifetime of smiles. Oh, I'm all right now. More than all right." },
@@ -249,14 +249,14 @@ export const DATA = [
     ] },
   // ------------------------------------------------------------------------------------------------ slot 5: the ten seconds
   { id: 'emotional-close-5-cold', stage: 'close', slot: 5, mood: 'cold',
-    say: "Can I tell you what's in my head? In a race the camera lost your car for ten seconds and I couldn't breathe. Then you went cold on me.",
+    say: "Can I tell you what's in my head? When the camera loses your car, even for ten seconds, I can't breathe. Then you went cold on me.",
     opts: [
       { tone: 'cold', t: "It's racing. You knew the risks.", r: "I knew. Knowing doesn't help at three in the morning. I'm not asking you to stop. I'm asking you to hold me.", opts: [
         { tone: 'cold', t: "I can't fix that for you.", r: "I didn't ask you to fix it. I asked you to hold it with me. You won't. Okay. I'll hold it alone. It's heavy." },
         { tone: 'passive', t: "Sorry. I know it's hard watching.", r: "It is. Every lap. I'm so proud and so scared at once. Just... always come home. That's all I want." },
         { tone: 'flirty', t: "Come here. I'll always come back to you.", r: "Always? Promise me. Out loud. Oh... you did. Okay. I'm holding on to you until my heart calms down." },
       ] },
-      { tone: 'passive', t: "I'm here. I'm okay. Ten seconds is nothing.", r: "Ten seconds is forever when it's you out there. I watched the screen till my eyes stung. Come home. Always.", opts: [
+      { tone: 'passive', t: "I'm here. I'm okay. Ten seconds is nothing.", r: "Ten seconds is forever when it's you out there. I watch the screen till my eyes sting. Come home. Always.", opts: [
         { tone: 'cold', t: "I always come home. Stop worrying.", r: "I can't just stop. That's not how worry works. Not mine. You could hold my hand instead of saying that." },
         { tone: 'passive', t: "I always will. That's a promise.", r: "A promise. I'll keep it in the notebook. I'll reread it every race. Thank you. My chest is unknotting." },
         { tone: 'flirty', t: "Then I'll wave at every camera, just for you.", r: "Every camera? You'll look ridiculous. I'll love it. Wave at me. I'll be the one sobbing and clapping." },
@@ -269,7 +269,7 @@ export const DATA = [
       ] },
     ] },
   { id: 'emotional-close-5-passive', stage: 'close', slot: 5, mood: 'passive',
-    say: "I need to say a fear out loud so it shrinks. In a race the camera lost you for ten seconds. I couldn't breathe. What if one day...",
+    say: "I need to say a fear out loud so it shrinks. Every race the camera loses you for a few seconds. I can't breathe. What if one day...",
     opts: [
       { tone: 'cold', t: "Don't go there.", r: "I have to go there. It's where my mind goes. I'm not asking you to quit. I'm asking you to let me be scared.", opts: [
         { tone: 'cold', t: "Be scared quietly, then.", r: "Quietly. That's the loneliest thing you could ask me. I'll do it. I won't pretend I'm fine with it." },
@@ -289,9 +289,9 @@ export const DATA = [
       ] },
     ] },
   { id: 'emotional-close-5-flirty', stage: 'close', slot: 5, mood: 'flirty',
-    say: "Hold me a second? In a race the camera lost you for ten seconds and I stopped breathing. You're here now. I just need to feel it.",
+    say: "Hold me a second? When the camera loses you, even for ten seconds, I stop breathing. You're here now. I just need to feel it.",
     opts: [
-      { tone: 'cold', t: "You're being dramatic. I was fine.", r: "I know you were fine. I wasn't. I'm not asking you to fix it. Just hold me for ten seconds. Equal and opposite.", opts: [
+      { tone: 'cold', t: "You're being dramatic. I'm always fine.", r: "I know you're fine. I'm not, in those seconds. I'm not asking you to fix it. Just hold me for ten seconds. Equal and opposite.", opts: [
         { tone: 'cold', t: "I'm not doing this right now.", r: "Okay. Not now. Not with me. I'll hold myself, then. You should know that hurt worse than the ten seconds." },
         { tone: 'passive', t: "Sorry. Come here. Ten seconds.", r: "One... two... you're counting slowly on purpose. Nine. Ten. Eleven. Don't stop at ten. Please." },
         { tone: 'flirty', t: "Ten seconds? You'll get ten minutes.", r: "Ten minutes? You're squeezing me so tight. I can feel your heart. It's steady. Mine's catching up." },
@@ -302,8 +302,8 @@ export const DATA = [
         { tone: 'flirty', t: "I like carrying it. It's light.", r: "Light? My heart? It's the heaviest thing I own. You're lying. You're lying beautifully. I'll let you." },
       ] },
       { tone: 'flirty', t: "Feel it, then. Hand here. My heart. Still beating.", r: "Still beating. Fast, too. Is that me? I've done that? Okay. I'm not scared now. Not right now.", opts: [
-        { tone: 'cold', t: "It's fast from the race, not you.", r: "Oh. The race. I wanted it to be me. You could have let me have it. Tonight I needed to have it." },
-        { tone: 'passive', t: "Both. The race and you.", r: "Both. I'll take both. I'll share with the race. It can have the start. I want the after." },
+        { tone: 'cold', t: "That's adrenaline, not you.", r: "Oh. Adrenaline. I wanted it to be me. You could have let me have it. Today I needed to have it." },
+        { tone: 'passive', t: "Both. Adrenaline and you.", r: "Both. I'll take both. I'll share with the race. It can have the start. I want the after." },
         { tone: 'risque', t: "That's you. Want to feel it race all night?", r: "All night, my hand on your heart. Yes. Take me home. I want to fall asleep counting your heartbeats." },
         { tone: 'flirty', t: "That's all you. Every time.", r: "Every time. I'm keeping my hand there. I'm never moving. They'll have to race around me." },
       ] },
@@ -323,7 +323,7 @@ export const DATA = [
         { tone: 'flirty', t: "Mostly to me? What do they say?", r: "That I miss you when you're in the next room. That I'm scared. That you're the best thing. Here. Read one." },
       ] },
       { tone: 'flirty', t: "Letters to me? Hand one over. Now.", r: "Now? You're so bossy when you want something. Okay. Here. It's the first one I wrote. It's... a lot.", opts: [
-        { tone: 'cold', t: "Maybe I won't read it.", r: "Then give it back. No, keep it. Read it when you're kinder. It's been in my box for months. It can wait." },
+        { tone: 'cold', t: "Maybe I won't read it.", r: "Then give it back. No, keep it. Read it when you're kinder. It's been in my box for ages. It can wait." },
         { tone: 'passive', t: "I'll read it tonight. Properly.", r: "Properly. In a quiet room, with nothing else on. Then tell me how you felt. I'll be awake. I'm always awake." },
         { tone: 'risque', t: "Read it to me tonight, in bed.", r: "In bed, out loud, in the dark? Yes. I'll whisper every word against your shoulder. Stay tonight." },
         { tone: 'flirty', t: "A lot is my favourite amount.", r: "Your favourite amount? Then you'll love it. There are thirty more where that came from. Thirty-one. Thirty-two." },
@@ -334,7 +334,7 @@ export const DATA = [
     opts: [
       { tone: 'cold', t: "Why not just say it?", r: "Because some things are too big to say. Letters let me be brave slowly. I'm sorry that's not good enough.", opts: [
         { tone: 'cold', t: "It's not. Just talk to me.", r: "I do talk to you. All the time. This is the bit that's too big. You won't take it. Okay. Back in the box." },
-        { tone: 'passive', t: "Sorry. I'd love to read one.", r: "Here. The top one. I wrote it the night we first met. Don't laugh at the spelling. I was crying." },
+        { tone: 'passive', t: "Sorry. I'd love to read one.", r: "Here. The top one. I wrote it the day we first met. Don't laugh at the spelling. I was crying." },
         { tone: 'flirty', t: "Then be brave slowly, with me. Hand it over.", r: "Slowly. With you. Okay. Here it is. My hands won't keep still. Read it, and come and find me after." },
       ] },
       { tone: 'passive', t: "I'd love that. Which one?", r: "This one. I wrote it when I was scared you'd leave. You didn't. I want you to read what I was scared of.", opts: [
@@ -350,10 +350,10 @@ export const DATA = [
       ] },
     ] },
   { id: 'emotional-close-6-flirty', stage: 'close', slot: 6, mood: 'flirty',
-    say: "I've got a secret box. Letters I never sent. Thirty-two of them are to you. Tonight I'm finally brave enough to give you one.",
+    say: "I've got a secret box. Letters I never sent. Thirty-two of them are to you. Today I'm finally brave enough to give you one.",
     opts: [
       { tone: 'cold', t: "Thirty-two? You should get out more.", r: "I get out. I just feel a lot when I'm home. I thought you'd be touched. You're... not. I'll keep them.", opts: [
-        { tone: 'cold', t: "Keep them.", r: "I will. All thirty-two. I'll add a thirty-third, about tonight. It won't be a happy one. Goodnight, {me}." },
+        { tone: 'cold', t: "Keep them.", r: "I will. All thirty-two. I'll add a thirty-third, about today. It won't be a happy one. Take care of yourself, {me}." },
         { tone: 'passive', t: "Sorry. That was a cheap dig. I'd like one.", r: "Well, it landed. But okay. Here. The one with the pressed daisy inside. Gentle with it." },
         { tone: 'flirty', t: "Thirty-two? I'm honoured. Give me the best one.", r: "The best one is the scariest one. It says what I haven't said out loud yet. Read it tonight. Then come back." },
       ] },
@@ -404,7 +404,7 @@ export const DATA = [
         { tone: 'flirty', t: "I'd find my way home to you in the dark.", r: "In the dark. With the lamp on. I need to write that down before it melts. I'll keep the light on forever." },
       ] },
       { tone: 'flirty', t: "And when I come home, what happens?", r: "I run to the door. I'm in socks. I slip. You catch me. We both laugh. That's the whole dream, really.", opts: [
-        { tone: 'cold', t: "You'd probably cry, too.", r: "I cry when I'm happy. You know that. You've said it like a flaw tonight. It isn't one." },
+        { tone: 'cold', t: "You'd probably cry, too.", r: "I cry when I'm happy. You know that. You've said it like a flaw today. It isn't one." },
         { tone: 'passive', t: "I like that dream.", r: "You like it? Then it's not just mine. It's ours. A shared dream. That's the first step to a real one." },
         { tone: 'risque', t: "And then I carry you upstairs.", r: "Upstairs. Oh... the dream just got a second floor. Yes. Carry me. Don't let me walk. Not tonight either." },
         { tone: 'flirty', t: "I catch you. And I never let go.", r: "Never let go. Even when the socks are dry? Even when we're old? I'm going to cry on you. Sorry." },
@@ -530,14 +530,14 @@ export const DATA = [
       { tone: 'flirty', t: "Hold that pen. I want to say it first.", r: "You first? Then you say it, and I write it. Say it. Oh. You said it. I'm writing. My hand's shaking so much.", opts: [
         { tone: 'cold', t: "Let's not be cheesy about it.", r: "Cheesy? It's the truest thing in me. I'll write it plainly, then. Without the heart. It looks so lonely." },
         { tone: 'passive', t: "Your handwriting's perfect. Leave it shaky.", r: "Shaky and true. That's us. Page one done. I love you. I'll love you on every page." },
-        { tone: 'risque', t: "Now put the pen down and let me love you back.", r: "Pen down. Yes. I love you. Turn off the lamp. No, leave it on. I want to see your face. Stay." },
+        { tone: 'risque', t: "Now put the pen down and let me love you back.", r: "Pen down. Yes. I love you. Lights off later? No, leave them on. I want to see your face. Stay." },
         { tone: 'flirty', t: "Write it big. With hearts. Lots of hearts.", r: "Lots of hearts. Here. A pressed daisy. A tear, a happy one. Page one is perfect. You're perfect. I love you." },
       ] },
     ] },
   { id: 'emotional-close-9-flirty', stage: 'close', slot: 9, mood: 'flirty',
     say: "I love you. There. I've said it. I've been bursting for weeks. My notebook's full of you, so I bought a new one. For us. Say something!",
     opts: [
-      { tone: 'cold', t: "I don't know what to say.", r: "You don't know? Oh. I'll be okay. I'll be okay. I just said the biggest thing in me and the room went quiet.", opts: [
+      { tone: 'cold', t: "I don't know what to say.", r: "You don't know? Oh. I'll be okay. I'll be okay. I just said the biggest thing in me and everything went quiet.", opts: [
         { tone: 'cold', t: "Give me time. Don't push.", r: "I won't push. I'll sit with my blank notebook and my heart in my hands. It's very cold out here." },
         { tone: 'passive', t: "Sorry. I'm stunned. Happy-stunned. I love you, as well.", r: "Happy-stunned! Oh, thank goodness. I nearly melted into the floor. You love me back. Say it slower." },
         { tone: 'flirty', t: "Say something? I'll do better. I'll write it.", r: "On page one? In your own hand? 'I love you too.' It's crooked and it's the best thing I own." },

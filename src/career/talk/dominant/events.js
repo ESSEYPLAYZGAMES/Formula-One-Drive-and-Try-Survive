@@ -72,7 +72,7 @@ export const DATA = [
         { tone: 'passive', t: "It was good, actually.", r: "Good. I thought so. I'm rarely wrong about evenings." },
         { tone: 'flirty', t: "It was better than fine.", r: "I know. I watched you trying not to enjoy it. You failed. Beautifully." },
       ] },
-      { tone: 'passive', t: "Sorry. I was tired. I had a great time.", r: "Good. Tired I forgive. You ate well. I noticed. I approve.", opts: [
+      { tone: 'passive', t: "Sorry. I was tired. I had a great time.", r: "Good. Tired I forgive. Great I'd already worked out. I watched your face all night.", opts: [
         { tone: 'cold', t: "Let's not make it a thing.", r: "No thing made. Talk soon." },
         { tone: 'passive', t: "Same again next week?", r: "Same again. Different place. I've got three in mind." },
         { tone: 'flirty', t: "I'd do it again tonight.", r: "Tonight's too soon. I like making people wait. You included." },
@@ -94,7 +94,7 @@ export const DATA = [
         { tone: 'passive', t: "Very nice.", r: "Better. I'll take 'very'. Next time I'll earn 'perfect'." },
         { tone: 'flirty', t: "Nice. Very nice. Unforgettable.", r: "There it is. Correct." },
       ] },
-      { tone: 'passive', t: "Yes. Again soon.", r: "Good. Thursday. I'll book. You'll eat dessert this time. All of it.", opts: [
+      { tone: 'passive', t: "Yes. Again soon.", r: "Good. Thursday. I'll book. You'll clear the whole evening. All of it.", opts: [
         { tone: 'cold', t: "Not Thursday.", r: "Then another day. Your choice. I'll fit around it. I don't fit around anyone else." },
         { tone: 'passive', t: "Thursday's perfect.", r: "Good. Booked. That was fast. I'm very efficient when I want something." },
         { tone: 'flirty', t: "I'll eat whatever you put in front of me.", r: "Careful. I'll take that literally. I take most things literally." },
@@ -131,7 +131,7 @@ export const DATA = [
   },
   {
     id: 'dominant-text-date-warm-2-cold', on: 'date', stage: 'warm', slot: 2, mood: 'cold',
-    say: ["You let me order for both of us last night, then went quiet. The next choice is yours. Truly.", "Last night: I ordered, you went cool. Maybe I took over. You're choosing next time. I mean it."],
+    say: ["I made every call last night and you went quiet. I noticed. The next choice is yours. Truly.", "Last night: I steered, you went cool. Maybe I took over. You're choosing next time. I mean it."],
     opts: [
       { tone: 'cold', t: "You did take over a bit.", r: "I know. Noted. Next time it's your call, start to finish." },
       { tone: 'passive', t: "It was fine. I liked it.", r: "Good. Still - next time, you pick. I'd like to see your taste." },
@@ -140,16 +140,16 @@ export const DATA = [
   },
   {
     id: 'dominant-text-date-warm-2-passive', on: 'date', stage: 'warm', slot: 2, mood: 'passive',
-    say: ["You let me order dessert for both of us. Brave. Good choice, though. Next time, you pick the place.", "Last night, you trusted me with dessert. It was the right call. Next time, you choose where we eat."],
+    say: ["You let me run the whole of last night. Brave. Good call, though. Next time, you're in charge.", "Last night, you trusted me with the plan. It was the right call. Next time, you choose what we do."],
     opts: [
-      { tone: 'cold', t: "One-off.", r: "One-off. Fine. Next time you order and I judge silently." },
+      { tone: 'cold', t: "One-off.", r: "One-off. Fine. Next time you decide and I judge silently." },
       { tone: 'passive', t: "Okay. I'll pick next time.", r: "Good. I'll behave. I'll only comment twice." },
-      { tone: 'flirty', t: "You can order for me anytime.", r: "Careful. I'll take you up on that. Every time." },
+      { tone: 'flirty', t: "You can decide for me anytime.", r: "Careful. I'll take you up on that. Every time." },
     ],
   },
   {
     id: 'dominant-text-date-warm-2-flirty', on: 'date', stage: 'warm', slot: 2, mood: 'flirty',
-    say: ["Dessert last night was excellent. You were better. Your turn to pick a place. I'll pick everything else.", "You let me order. You let me pay. You let me walk you home. I'm getting spoiled. You decide where, next time."],
+    say: ["Last night was superb. You were better. Your turn to choose next time. I'll handle everything else.", "You let me plan it. You let me lead. You let me have the last word. I'm getting spoiled. You decide, next time."],
     opts: [
       { tone: 'cold', t: "Let's not make it a habit.", r: "Habits are how I live. But fine. Your rules next time." },
       { tone: 'passive', t: "Okay. My pick.", r: "Good. Surprise me. I'm rarely surprised." },
@@ -158,27 +158,27 @@ export const DATA = [
   },
   {
     id: 'dominant-text-date-warm-3-cold', on: 'date', stage: 'warm', slot: 3, mood: 'cold',
-    say: ["Walked you home. You didn't look back. Fine. I don't need you to. I'd like you to.", "I walked you to your door. You were gone before I'd turned round. Noted. Not offended. Slightly offended."],
+    say: ["You said goodnight like you had somewhere to be. Fine. I don't need a long goodbye. I'd like one.", "You were gone before I'd finished saying goodnight. Noted. Not offended. Slightly offended."],
     opts: [
       { tone: 'cold', t: "I was tired.", r: "Fair. Tired is allowed. Sleep. I'll text tomorrow." },
-      { tone: 'passive', t: "Sorry. I did want to look back.", r: "Good. Next time, do. I'll be watching for it." },
-      { tone: 'flirty', t: "I wanted you to come in.", r: "...I know. I didn't. That was on purpose. Next time, maybe." },
-      { tone: 'risque', t: "Next time, come in.", r: "We'll see. I decide that. I'm leaning heavily one way." },
+      { tone: 'passive', t: "Sorry. I didn't mean to rush off.", r: "Good. Next time, linger. I'll be watching for it." },
+      { tone: 'flirty', t: "I wanted you to stop me leaving.", r: "...I know. I didn't. That was on purpose. Next time, maybe." },
+      { tone: 'risque', t: "Next time, don't let me go.", r: "We'll see. I decide that. I'm leaning heavily one way." },
     ],
   },
   {
     id: 'dominant-text-date-warm-3-passive', on: 'date', stage: 'warm', slot: 3, mood: 'passive',
-    say: ["Walked you to your door and didn't come in. Hardest thing I did all week. You're welcome.", "I didn't come in last night. I wanted to. I'm very disciplined. It's exhausting."],
+    say: ["I said goodnight when I wanted to say stay. Hardest thing I did all week. You're welcome.", "I ended last night on time. I didn't want to. I'm very disciplined. It's exhausting."],
     opts: [
-      { tone: 'cold', t: "Good. Too soon.", r: "Agreed. That's why I didn't. I'm usually right about timing." },
+      { tone: 'cold', t: "Good. Too soon.", r: "Agreed. That's why I went. I'm usually right about timing." },
       { tone: 'passive', t: "Thank you. I liked that.", r: "I know. I'm patient when it matters. This matters." },
-      { tone: 'flirty', t: "I almost asked you in.", r: "I know. I saw. That's why I left. Next time, ask." },
+      { tone: 'flirty', t: "I almost asked you to stay.", r: "I know. I saw. That's why I left. Next time, ask." },
       { tone: 'risque', t: "Don't be so disciplined next time.", r: "Ask me properly. Then I'll decide. I'm told I'm very decisive." },
     ],
   },
   {
     id: 'dominant-text-date-warm-3-flirty', on: 'date', stage: 'warm', slot: 3, mood: 'flirty',
-    say: ["Didn't come in last night. Kissing you goodnight was enough. Barely. Don't make me be that strong again.", "I walked away from your door last night. It took everything. Next time I might not manage it."],
+    say: ["Saying goodnight was all I allowed myself last night. Barely enough. Don't make me be that strong again.", "I walked away last night. It took everything. Next time I might not manage it."],
     opts: [
       { tone: 'cold', t: "Next time, I might not ask.", r: "Then I'll go home. Respect. Sulk. In that order." },
       { tone: 'passive', t: "That was a good goodnight.", r: "It was. I'm very good at goodnights. I'd like to try the alternative sometime." },
@@ -188,21 +188,21 @@ export const DATA = [
   },
   {
     id: 'dominant-text-date-close-1-cold', on: 'date', stage: 'close', slot: 1, mood: 'cold',
-    say: ["You left early this morning. Without waking me. I didn't like it. I'd have made you breakfast.", "I woke up and you'd gone. No note. I'm not cross. I'm a bit cross. Next time, wake me."],
+    say: ["You cut last night short. Barely a goodbye. I didn't like it. I'd have kept you till midnight.", "You were off before I'd had my goodnight. I'm not cross. I'm a bit cross. Next time, stay."],
     opts: [
-      { tone: 'cold', t: "I had an early start.", r: "I know. Wake me anyway. I'd rather a tired goodbye than none.", opts: [
-        { tone: 'cold', t: "I didn't want to wake you.", r: "Then don't. But leave a note. That's all. One line." },
-        { tone: 'passive', t: "Next time I'll wake you.", r: "Good. You'll eat first. Then you can go." },
-        { tone: 'flirty', t: "I'll make it up to you.", r: "You will. Tonight. With breakfast. For dinner." },
+      { tone: 'cold', t: "I had an early start.", r: "I know. Say it properly anyway. I'd rather a tired goodbye than none.", opts: [
+        { tone: 'cold', t: "I didn't want a big goodbye.", r: "Then not a big one. A proper one. That's all. One line." },
+        { tone: 'passive', t: "Next time I'll stay longer.", r: "Good. You'll stay till I'm done with you. Then you can go." },
+        { tone: 'flirty', t: "I'll make it up to you.", r: "You will. Tonight. With a long goodbye. A very long one." },
       ] },
-      { tone: 'passive', t: "Sorry. I should've woken you.", r: "You should. It's fine. I'll forgive you over coffee. Tonight.", opts: [
+      { tone: 'passive', t: "Sorry. I should've stayed.", r: "You should. It's fine. I'll forgive you over coffee. Tonight.", opts: [
         { tone: 'cold', t: "It's not a big deal.", r: "It is to me. Small things are big things with me. You'll learn." },
-        { tone: 'passive', t: "Coffee tonight. Deal.", r: "Deal. Then you're staying. Then I wake you. Fair's fair." },
-        { tone: 'flirty', t: "I'll stay till you wake up next time.", r: "Correct. The only answer, in fact." },
+        { tone: 'passive', t: "Coffee tonight. Deal.", r: "Deal. Then you're staying. Then I choose when you go. Fair's fair." },
+        { tone: 'flirty', t: "I'll stay till you send me home next time.", r: "Correct. The only answer, in fact." },
       ] },
       { tone: 'flirty', t: "I left so I'd miss you all day.", r: "...That's either very romantic or very annoying. Both. Come back tonight.", opts: [
         { tone: 'cold', t: "Don't overthink it.", r: "I never overthink. I think exactly enough. Fine. Tonight, if you want." },
-        { tone: 'passive', t: "I'll come back tonight.", r: "Good. I'll be waiting with breakfast. At 8pm." },
+        { tone: 'passive', t: "I'll come back tonight.", r: "Good. 8. I'll be waiting by quarter to. Don't make me wait longer." },
         { tone: 'flirty', t: "I did miss you all day.", r: "Good. That was the point. Mine was worse. I always win." },
         { tone: 'risque', t: "Tonight I'm not leaving early.", r: "Tonight you're not leaving at all. I'll decide when morning starts." },
       ] },
@@ -210,44 +210,44 @@ export const DATA = [
   },
   {
     id: 'dominant-text-date-close-1-passive', on: 'date', stage: 'close', slot: 1, mood: 'passive',
-    say: ["Woke up and you'd stolen the entire blanket. I've decided to allow it. This once. Every time.", "You steal blankets. Noted. Also noted: I didn't mind. Come back tonight. Bring your own blanket. Or don't."],
+    say: ["You stole the whole of last night. I had plans for it. You were better. I'm allowing it. This once. Every time.", "You steal evenings. Noted. Also noted: I didn't mind. Come back tonight. Steal another. Or don't."],
     opts: [
-      { tone: 'cold', t: "I did not steal the blanket.", r: "You did. I have evidence. I was cold. I didn't say a word. That's love.", opts: [
-        { tone: 'cold', t: "Prove it.", r: "I don't need to. I was there. Fine. I'll buy a second blanket." },
+      { tone: 'cold', t: "I did not steal anything.", r: "You did. Every hour of it. I let you. I didn't say a word. That's love.", opts: [
+        { tone: 'cold', t: "Prove it.", r: "I don't need to. I was there. Fine. I'll guard tonight more carefully." },
         { tone: 'passive', t: "Okay, maybe I did.", r: "You did. I've filed it under 'forgivable'. It's a short file. You're most of it." },
-        { tone: 'flirty', t: "You kept me warm instead.", r: "I did. That's my job. I do it better than the blanket." },
+        { tone: 'flirty', t: "You didn't fight me for it.", r: "I didn't. I always fight. For you I just... didn't. Don't spread it." },
       ] },
-      { tone: 'passive', t: "Sorry. Old habit.", r: "Fine. I'll adapt. I'm very adaptable. Second blanket. Ordered.", opts: [
-        { tone: 'cold', t: "It's just a blanket.", r: "It's my blanket. Was. It's yours now, apparently. Like everything else." },
-        { tone: 'passive', t: "Tonight I'll share.", r: "You won't. I'll let you not share. I'm generous at night." },
-        { tone: 'flirty', t: "I'll make it up to you tonight.", r: "Tonight. Bring yourself. Leave the blanket theft at the door." },
+      { tone: 'passive', t: "Sorry. I lose track of time with you.", r: "Fine. I'll adapt. I'm very adaptable. Tonight's cleared too.", opts: [
+        { tone: 'cold', t: "It's just an evening.", r: "It's my evening. Was. It's yours now, apparently. Like everything else." },
+        { tone: 'passive', t: "Tonight I'll give some back.", r: "You won't. I'll let you keep it. I'm generous at night." },
+        { tone: 'flirty', t: "I'll make it up to you tonight.", r: "Tonight. Bring yourself. I'll bring the plans you'll ruin." },
       ] },
-      { tone: 'flirty', t: "Steal me back, then.", r: "I intend to. Tonight. I'll take the blanket and you.", opts: [
-        { tone: 'cold', t: "Not tonight. I've got an early one.", r: "Then tomorrow. I'll guard my blanket till then." },
-        { tone: 'passive', t: "Tonight. Deal.", r: "Good. 8. I'm cooking. Then I'm taking my blanket back." },
-        { tone: 'flirty', t: "You can have me and the blanket.", r: "That's the deal I wanted. Accepted." },
+      { tone: 'flirty', t: "Steal me back, then.", r: "I intend to. Tonight. I'll take the evening back and you with it.", opts: [
+        { tone: 'cold', t: "Not tonight. I've got an early one.", r: "Then tomorrow. I'll guard my diary till then." },
+        { tone: 'passive', t: "Tonight. Deal.", r: "Good. 8. I'm cooking. Then I'm taking my evening back." },
+        { tone: 'flirty', t: "You can have me and the evening.", r: "That's the deal I wanted. Accepted." },
         { tone: 'risque', t: "Come and take it back.", r: "I'll take it back. And more. Tonight. Don't be late." },
       ] },
     ],
   },
   {
     id: 'dominant-text-date-close-1-flirty', on: 'date', stage: 'close', slot: 1, mood: 'flirty',
-    say: ["You stole the blanket, the pillow and my shirt. I've never slept better. Explain that.", "You stole my shirt and most of the bed. Still thinking about it. Come back tonight."],
+    say: ["I barely slept last night. Too busy thinking about you. I've never felt better. Explain that.", "You took over my whole night and most of my head. Still thinking about it. Come back tonight."],
     opts: [
       { tone: 'cold', t: "You're very sentimental this morning.", r: "I'm never sentimental. I'm accurate. Fine. A bit sentimental.", opts: [
         { tone: 'cold', t: "Stop it.", r: "Stopping. Very hard. Good morning anyway." },
         { tone: 'passive', t: "It's sweet.", r: "It's rare. Enjoy it. I'll be bossy again by lunch." },
         { tone: 'flirty', t: "I like you sentimental.", r: "Then I'll be sentimental. In private. Only with you." },
       ] },
-      { tone: 'passive', t: "I slept well too.", r: "Good. Then we're doing it again. Tonight. Statement, not question.", opts: [
+      { tone: 'passive', t: "I've been thinking about you too.", r: "Good. Then we're doing it again. Tonight. Statement, not question.", opts: [
         { tone: 'cold', t: "Not tonight. Busy.", r: "...Not tonight. Fine. Tomorrow. That's a question." },
-        { tone: 'passive', t: "Tonight it is.", r: "Good. I'll cook. You'll steal the blanket again. I'll let you." },
-        { tone: 'flirty', t: "I'll bring my own pillow.", r: "Don't. I like it when you steal mine." },
+        { tone: 'passive', t: "Tonight it is.", r: "Good. I'll cook. You'll distract me again. I'll let you." },
+        { tone: 'flirty', t: "I'll try to behave.", r: "Don't. Your bad behaviour is my favourite thing about you." },
       ] },
-      { tone: 'flirty', t: "I'll steal it all again tonight.", r: "Good. I'll put up a fight. A very small one.", opts: [
-        { tone: 'cold', t: "Maybe tomorrow instead.", r: "Tomorrow, then. I'll keep the blanket warm." },
+      { tone: 'flirty', t: "I'll take it all again tonight.", r: "Good. I'll put up a fight. A very small one.", opts: [
+        { tone: 'cold', t: "Maybe tomorrow instead.", r: "Tomorrow, then. I'll keep the evening free." },
         { tone: 'passive', t: "Tonight. Promise.", r: "Promise accepted. Then you're mine for the night." },
-        { tone: 'flirty', t: "Keep the shirt for me.", r: "It's yours now. Like most of my things. Like me." },
+        { tone: 'flirty', t: "Keep me in your head.", r: "You've moved in. Like you own the place. You do. Like most of me." },
         { tone: 'risque', t: "Tonight, and I'm not giving it back.", r: "Then I'll have to take it back. Slowly. Tonight." },
       ] },
     ],
@@ -274,27 +274,27 @@ export const DATA = [
   },
   {
     id: 'dominant-text-date-close-2-flirty', on: 'date', stage: 'close', slot: 2, mood: 'flirty',
-    say: ["Last night. I've thought about nothing else. I've been useless all morning. Your fault. Rematch.", "I won last night. You'll say you did. Rematch to settle it. Tonight."],
+    say: ["Last night. I've thought about nothing else. I've been useless all morning. Your fault. Rematch.", "I was the better company last night. You'll say you were. Rematch to settle it. Tonight."],
     opts: [
       { tone: 'cold', t: "Settle it later.", r: "Later. Fine. I'll gloat in the meantime." },
-      { tone: 'passive', t: "I definitely won.", r: "You didn't. But I'll let you think it till tonight." },
+      { tone: 'passive', t: "I was definitely better company.", r: "You weren't. But I'll let you think it till tonight." },
       { tone: 'flirty', t: "Tonight. I'll win this time.", r: "You won't. But I'll enjoy every minute of you trying." },
       { tone: 'risque', t: "Tonight. Winner decides everything.", r: "Then I'll decide everything. As usual. 8." },
     ],
   },
   {
     id: 'dominant-text-date-close-3-cold', on: 'date', stage: 'close', slot: 3, mood: 'cold',
-    say: ["You fell asleep on me in the car last night, then went quiet this morning. Forty minutes I sat still. Talk to me.", "I sat in the car forty minutes so you could sleep. Then you were distant all morning. I'd like to understand."],
+    say: ["You went quiet near the end last night. I sat up for an hour after, wondering why. Talk to me.", "You were distant by the end of last night. I'd like to understand. I've been trying since goodnight."],
     opts: [
-      { tone: 'cold', t: "Nothing to understand.", r: "There always is. Fine. When you're ready. I'll still sit still for you.", opts: [
+      { tone: 'cold', t: "Nothing to understand.", r: "There always is. Fine. When you're ready. For you, I can wait.", opts: [
         { tone: 'cold', t: "Leave it.", r: "Left. I'm still here when you want me." },
-        { tone: 'passive', t: "Just worn out. Sorry.", r: "Tired I'll take. Next time, tell me. I'll drive you home slower." },
-        { tone: 'flirty', t: "Thank you for not moving.", r: "...You noticed. Again, any time. Forty hours, if needed." },
+        { tone: 'passive', t: "Just worn out. Sorry.", r: "Tired I'll take. Next time, say so. I'll send you to bed early. Grumbling." },
+        { tone: 'flirty', t: "Thank you for noticing.", r: "...I notice everything about you. It's a problem. I'm not fixing it." },
       ] },
-      { tone: 'passive', t: "Sorry. Long week. Thank you for that.", r: "Don't thank me. Just sleep more. On me, preferably.", opts: [
-        { tone: 'cold', t: "You didn't have to do that.", r: "I know. I wanted to. That's different." },
-        { tone: 'passive', t: "Forty minutes? Really?", r: "Forty-two. I counted. My arm's still asleep. Worth it." },
-        { tone: 'flirty', t: "Next time wake me with a kiss.", r: "Next time I'll let you sleep and steal one. Fair." },
+      { tone: 'passive', t: "Sorry. Long week. Thanks for asking.", r: "Don't thank me. Just sleep more. On me, preferably.", opts: [
+        { tone: 'cold', t: "You didn't have to ask.", r: "I know. I wanted to. That's different." },
+        { tone: 'passive', t: "Was it that obvious?", r: "To me. Nobody else would have seen it. I'm not nobody." },
+        { tone: 'flirty', t: "Next time, distract me.", r: "Next time I'll distract you so well you won't have room to drift." },
       ] },
       { tone: 'flirty', t: "You're soft, you know.", r: "Tell no one. I'll deny it. I'll deny it very firmly.", opts: [
         { tone: 'cold', t: "It's really not a big deal.", r: "It was to me. Fine. Good morning." },
@@ -306,45 +306,45 @@ export const DATA = [
   },
   {
     id: 'dominant-text-date-close-3-passive', on: 'date', stage: 'close', slot: 3, mood: 'passive',
-    say: ["Last night you fell asleep on me in the car. I didn't move for forty minutes. Tell no one.", "You slept on my shoulder all the way home. I sat in the car forty more minutes. That's not like me. Don't spread it."],
+    say: ["After we said goodnight I didn't move for forty minutes. Just sat there, smiling. Tell no one.", "Forty minutes after goodnight I was still sitting there like an idiot. That's not like me. Don't spread it."],
     opts: [
-      { tone: 'cold', t: "You should've woken me.", r: "No. You needed it. I decide these things. Fine. You'll be woken next time.", opts: [
-        { tone: 'cold', t: "I mean it. Wake me next time.", r: "Understood. I'll wake you. Gently. Reluctantly." },
-        { tone: 'passive', t: "Thanks for letting me sleep.", r: "Always. You sleep, I guard. That's the arrangement." },
-        { tone: 'flirty', t: "I'd fall asleep on you any day.", r: "Good. I'll keep the shoulder free." },
+      { tone: 'cold', t: "You should've gone to bed.", r: "No. I was busy. Thinking. I decide these things. Fine. Bed sooner next time.", opts: [
+        { tone: 'cold', t: "I mean it. Sleep next time.", r: "Understood. I'll sleep. Reluctantly. Still thinking about you." },
+        { tone: 'passive', t: "Thanks for telling me, at least.", r: "Always. I tell you things. Nobody else gets told things. That's the arrangement." },
+        { tone: 'flirty', t: "I was smiling after too.", r: "Good. Then we're both idiots. I'll allow it. Just us." },
       ] },
-      { tone: 'passive', t: "That's really sweet.", r: "It's not sweet. It's practical. You were exhausted. ...It was a bit sweet.", opts: [
+      { tone: 'passive', t: "That's really sweet.", r: "It's not sweet. It's a malfunction. I'm looking into it. ...It was a bit sweet.", opts: [
         { tone: 'cold', t: "Don't make a habit of it.", r: "I make habits of everything. This one's a good one." },
-        { tone: 'passive', t: "Did your arm survive?", r: "Barely. I've lost all feeling. Worth it." },
+        { tone: 'passive', t: "Forty minutes of what, exactly?", r: "You. Obviously. I've never sat that still for anything." },
         { tone: 'flirty', t: "I feel safe with you.", r: "...Good. That's what I'm for. Sleep well tonight." },
       ] },
       { tone: 'flirty', t: "Tell no one? Too late. I'm telling everyone.", r: "Don't you dare. ...Fine. Tell them I'm terrifying, and also that.", opts: [
         { tone: 'cold', t: "Fine, I won't.", r: "Good. Secret kept. Good morning." },
         { tone: 'passive', t: "Just my closest friends.", r: "Fine. Only if they promise to be scared of me as well." },
         { tone: 'flirty', t: "I'm telling them you're mine.", r: "That they can know. That's not a secret. That's a fact." },
-        { tone: 'risque', t: "Tonight, I'm not sleeping in the car.", r: "No. You're sleeping somewhere much better. After." },
+        { tone: 'risque', t: "Tonight, don't say goodnight at all.", r: "I won't. I'll say good morning instead. Eventually." },
       ] },
     ],
   },
   {
     id: 'dominant-text-date-close-3-flirty', on: 'date', stage: 'close', slot: 3, mood: 'flirty',
-    say: ["You fell asleep on me in the car. Drooled a bit. I've gone soft. Come back tonight.", "I let you sleep on me for forty minutes in a parked car. You drooled. I'm going soft. Your fault. Come and fix it."],
+    say: ["After goodnight I sat there forty minutes grinning at nothing. I've gone soft. Come back tonight.", "I smiled at a wall for forty minutes after goodnight. I'm going soft. Your fault. Come and fix it."],
     opts: [
-      { tone: 'cold', t: "I did not drool.", r: "You did. A small amount. I didn't mind. I'll never mention it again. I'll mention it constantly.", opts: [
+      { tone: 'cold', t: "You? Soft? Never.", r: "Me. Soft. Briefly. I'll never mention it again. I'll mention it constantly.", opts: [
         { tone: 'cold', t: "Never mention it again.", r: "Never. Locked away. ...Mostly." },
-        { tone: 'passive', t: "Fine. A tiny bit.", r: "A little. Adorable. Don't tell anyone I said adorable." },
-        { tone: 'flirty', t: "Drooling on you is a privilege.", r: "It's a privilege I grant to one person. Don't abuse it." },
+        { tone: 'passive', t: "Fine. A tiny bit soft.", r: "A tiny bit. And adorable about it. Don't tell anyone I said adorable." },
+        { tone: 'flirty', t: "Making you soft is a privilege.", r: "It's a privilege I grant to one person. Don't abuse it." },
       ] },
-      { tone: 'passive', t: "Sorry for falling asleep.", r: "Don't be. That was the best forty minutes of my week. And I won things this week.", opts: [
-        { tone: 'cold', t: "It won't happen again.", r: "It will. I'll make sure of it. Long drives. Late nights." },
-        { tone: 'passive', t: "I'll stay awake next time.", r: "Don't. I'd rather you slept. On me." },
-        { tone: 'flirty', t: "Come and get me tonight, then.", r: "8. I'll drive. You'll sleep. I'll sit there afterwards like an idiot again." },
+      { tone: 'passive', t: "Sorry for leaving you like that.", r: "Don't be. That was the best forty minutes of my week. And I won things this week.", opts: [
+        { tone: 'cold', t: "It won't happen again.", r: "It will. I'll make sure of it. Long nights. Slow goodbyes." },
+        { tone: 'passive', t: "I'll stay longer next time.", r: "Do. Then I won't have forty minutes spare to be an idiot in." },
+        { tone: 'flirty', t: "Come and get me tonight, then.", r: "8. I'll collect you. I'll be early. I'll sit there afterwards like an idiot again." },
       ] },
       { tone: 'flirty', t: "Come here and I'll make you softer.", r: "Not possible. I'm entirely soft already. Your fault. Come here.", opts: [
         { tone: 'cold', t: "Actually, not tonight.", r: "Not tonight. Fine. I'll be soft on my own. Tragic." },
         { tone: 'passive', t: "Tonight, then.", r: "Tonight. I'll be firm about it." },
         { tone: 'flirty', t: "I'll fix it. Tonight.", r: "Good. Fix it thoroughly. I'll supervise." },
-        { tone: 'risque', t: "Fix it in bed instead of the car.", r: "Agreed. Much better setting. 8. Don't be late." },
+        { tone: 'risque', t: "Fix it tonight. And skip the goodbye.", r: "Agreed. No goodbye at all. 8. Don't be late." },
       ] },
     ],
   },
@@ -722,7 +722,7 @@ export const DATA = [
   },
   {
     id: 'dominant-text-bad-any-1-passive', on: 'bad', stage: 'any', slot: 1, mood: 'passive',
-    say: ["{result}. Not your day. Eat something. Sleep. Then we'll talk about turn one.", "Bad race. It happens. It doesn't happen twice. Eat. Sleep. Tomorrow I want you angry, not sad."],
+    say: ["{result}. Not your day. Eat something. Sleep. Then we'll go through it, lap by lap.", "Bad race. It happens. It doesn't happen twice. Eat. Sleep. Tomorrow I want you angry, not sad."],
     opts: [
       { tone: 'cold', t: "I'm fine.", r: "You're not. But fine. Eat anyway.", opts: [
         { tone: 'cold', t: "Really. I'm fine.", r: "Fine. I'll take your word. I'll check again tomorrow." },

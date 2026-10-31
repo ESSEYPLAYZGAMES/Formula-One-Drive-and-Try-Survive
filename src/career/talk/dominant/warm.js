@@ -45,11 +45,11 @@ export const DATA = [
   },
   {
     id: 'dominant-warm-1-flirty', stage: 'warm', slot: 1, mood: 'flirty',
-    say: ["I booked Friday the second I knew you were free. Corner table. I face the door. You face me. Non-negotiable, mostly.", "You're free Friday. Corner table. My seat faces the door - it always does. Yours faces me. Non-negotiable. Mostly."],
+    say: ["I booked Friday. I've decided you're free. Corner table. I face the door. You face me. Non-negotiable, mostly.", "You're free Friday. Corner table. My seat faces the door - it always does. Yours faces me. Non-negotiable. Mostly."],
     opts: [
-      { tone: 'cold', t: "Who says I'm free?", r: "You did. Last week. I listen. Am I wrong?", opts: [
+      { tone: 'cold', t: "Who says I'm free?", r: "I assumed. I assume well. Am I wrong?", opts: [
         { tone: 'cold', t: "Something came up.", r: "Then it came up. Another night. I'm disappointed - but not in you. Good night." },
-        { tone: 'passive', t: "No, I'm free. Friday.", r: "Good. I listen, you see. It's one of my scarier talents." },
+        { tone: 'passive', t: "No, I'm free. Friday.", r: "Good. I assume well, you see. It's one of my scarier talents." },
         { tone: 'flirty', t: "For you, I'm free.", r: "Correct answer. I was hoping you'd give it. I'd have waited for it either way." },
       ] },
       { tone: 'passive', t: "Why does it face the door?", r: "So I see everything coming. Habit. You'll get used to me watching the room.", opts: [
@@ -189,7 +189,7 @@ export const DATA = [
       ] },
       { tone: 'flirty', t: "Lucky me, indeed.", r: "Very lucky. I'm better at this than anyone you've ever met. I'm also better at other things.", opts: [
         { tone: 'cold', t: "Modest, too.", r: "Modesty is for people who aren't sure. I'm sure. Good night." },
-        { tone: 'passive', t: "What other things?", r: "Remembering how you take your coffee. Knowing when you're tired. Arguing. Winning. Not in that order." },
+        { tone: 'passive', t: "What other things?", r: "Remembering everyone's coffee order. Knowing when you're tired. Arguing. Winning. Not in that order." },
         { tone: 'flirty', t: "Show me the other things.", r: "Not all at once. You'd never recover. One a week." },
         { tone: 'risque', t: "Show me the other things tonight.", r: "Tonight you get one. I choose which. Come here." },
       ] },
@@ -197,14 +197,14 @@ export const DATA = [
   },
   {
     id: 'dominant-warm-4-cold', stage: 'warm', slot: 4, mood: 'cold',
-    say: ["You were friendlier with that one over there than you've been with me all week. I noticed. I've made notes.", "Interesting. Cold with me, warm with them. I'm not jealous. I'm keeping notes."],
+    say: ["You're friendlier with everyone else than you've been with me lately. I noticed. I've made notes.", "Interesting. Cold with me, warm with the rest of the world. I'm not jealous. I'm keeping notes."],
     opts: [
       { tone: 'cold', t: "I can talk to whoever I want.", r: "You can. You should. I'm not your keeper. I'm just a sore loser. Two different things.", opts: [
         { tone: 'cold', t: "Then stop keeping notes.", r: "Notebook closed. You're right. Good night, {me}." },
-        { tone: 'passive', t: "They're just a friend.", r: "Good. Friends are fine. I'll be civil. I might even be nice. Don't hold me to nice." },
+        { tone: 'passive', t: "They're just friends.", r: "Good. Friends are fine. I'll be civil. I might even be nice. Don't hold me to nice." },
         { tone: 'flirty', t: "You're cute when you're sulking.", r: "I don't sulk. I simmer. And I'm not cute. I'm formidable. ...Fine. A bit cute." },
       ] },
-      { tone: 'passive', t: "They're nobody. Honestly.", r: "Honestly is all I want. Thank you. I'll put the notebook away.", opts: [
+      { tone: 'passive', t: "There's nobody. Honestly.", r: "Honestly is all I want. Thank you. I'll put the notebook away.", opts: [
         { tone: 'cold', t: "Don't do this.", r: "Fair. I'm doing it, and I'll stop. You're allowed friends. I'm allowed to be quietly annoyed. Night." },
         { tone: 'passive', t: "You'd be the first to know.", r: "Good. I like being first. At everything. This included." },
         { tone: 'flirty', t: "I was trying to make you jealous.", r: "...It worked. I'm annoyed that it worked. Very well played." },
@@ -218,14 +218,14 @@ export const DATA = [
   },
   {
     id: 'dominant-warm-4-passive', stage: 'warm', slot: 4, mood: 'passive',
-    say: ["Who was that? The one with their hand on your arm. No - don't tell me. I'll just stand a little closer.", "Someone was very friendly with you earlier. I'm not asking who. I'm just standing here now. Closer than before."],
+    say: ["People always have a hand on your arm. Fans, friends, whoever. No - don't tell me who. I'll just stand a little closer.", "Everyone's very friendly with you. I'm not asking who's friendliest. I'm just standing here now. Closer than before."],
     opts: [
       { tone: 'cold', t: "It's none of your business.", r: "You're right. It isn't. I'm still allowed to dislike them. Quietly. From here.", opts: [
         { tone: 'cold', t: "Dislike them somewhere else.", r: "Fair. I'll take my disliking elsewhere. Good night, {me}." },
-        { tone: 'passive', t: "Just someone from work.", r: "Fine. Someone from work. They can keep their hands to themselves at work, then. Joking. Half." },
+        { tone: 'passive', t: "They're just people from work.", r: "Fine. People from work. They can keep their hands to themselves at work, then. Joking. Half." },
         { tone: 'flirty', t: "I like you standing closer.", r: "Good. I wasn't going to move. Now I've got permission. Even better." },
       ] },
-      { tone: 'passive', t: "They're nobody. Just a friend.", r: "Good. Your friend can stay your friend. I'll stay here.", opts: [
+      { tone: 'passive', t: "They're nobody. Just friends.", r: "Good. Your friends can stay your friends. I'll stay here.", opts: [
         { tone: 'cold', t: "You don't own me.", r: "No. I don't. I wouldn't want to. I'd just like to be the one you're standing next to. Your choice. Always." },
         { tone: 'passive', t: "You don't have to worry.", r: "I don't worry. I prepare. But thank you. That was nice to hear." },
         { tone: 'flirty', t: "I'd rather be talking to you anyway.", r: "Good. Then talk to me. Only me. For the next ten minutes, at least." },
@@ -233,23 +233,23 @@ export const DATA = [
       { tone: 'flirty', t: "Jealous, are we?", r: "Never. I'm competitive. There's a difference. Jealous people sulk. Competitive people win.", opts: [
         { tone: 'cold', t: "Don't make it a contest.", r: "Fine. No contest. I'll stand down. I'd have won, but I'll stand down." },
         { tone: 'passive', t: "You've got nothing to compete with.", r: "I know. I wanted you to say it. Now you have. Lovely." },
-        { tone: 'flirty', t: "Then win.", r: "I already have. You're talking to me. They're over there. That's the scoreboard." },
+        { tone: 'flirty', t: "Then win.", r: "I already have. You're talking to me. They're not here. That's the scoreboard." },
         { tone: 'risque', t: "Show me you won.", r: "I don't show off in public. Later I'll remind you exactly who won. Thoroughly." },
       ] },
     ],
   },
   {
     id: 'dominant-warm-4-flirty', stage: 'warm', slot: 4, mood: 'flirty',
-    say: ["Someone was flirting with you. Badly. I watched the whole thing. I'm not jealous. I'm competitive. Watch how it's done.", "I saw someone trying their luck with you earlier. Weak technique. Here's how it's done. Come here."],
+    say: ["People flirt with you. Badly. I've watched them try. I'm not jealous. I'm competitive. Watch how it's done.", "Everyone tries their luck with you. Weak technique, all of them. Here's how it's done. Come here."],
     opts: [
-      { tone: 'cold', t: "It wasn't bad flirting.", r: "It was dreadful flirting. But you're entitled to your bad taste. Briefly.", opts: [
-        { tone: 'cold', t: "I enjoyed it.", r: "Then enjoy it. I don't get a vote in who you like. I'll take my excellent technique elsewhere." },
-        { tone: 'passive', t: "Fine. It was a bit weak.", r: "A bit? They complimented your shoes. Your shoes. Amateurs." },
+      { tone: 'cold', t: "Some of them are good at it.", r: "None of them are. But you're entitled to your bad taste. Briefly.", opts: [
+        { tone: 'cold', t: "I enjoy it.", r: "Then enjoy it. I don't get a vote in who you like. I'll take my excellent technique elsewhere." },
+        { tone: 'passive', t: "Fine. It's usually a bit weak.", r: "A bit? They try small talk. On you. Amateurs." },
         { tone: 'flirty', t: "Yours is better.", r: "Obviously. I don't even need to try. Watch me not try. You're blushing." },
       ] },
-      { tone: 'passive', t: "You saw that?", r: "I see everything in a room you're in. They lasted forty seconds. I'd have lasted the night.", opts: [
+      { tone: 'passive', t: "You've been watching them?", r: "I see everything when you're near. They last forty seconds. I'd last the night.", opts: [
         { tone: 'cold', t: "That's a bit intense.", r: "It is. I'll turn it down. Not off. Down. Good night." },
-        { tone: 'passive', t: "How would you have done it?", r: "Like this: I wouldn't have asked. I'd have told you we were leaving. And you'd have smiled." },
+        { tone: 'passive', t: "How would you do it?", r: "Like this: I wouldn't ask. I'd tell you we were leaving. And you'd smile." },
         { tone: 'flirty', t: "Show me how it's done, then.", r: "Gladly. Step one: stand closer. Step two: say your name like I mean it. {me}. There." },
       ] },
       { tone: 'flirty', t: "So show me.", r: "Come here. Closer. That's the technique. That's it. It works because I mean it.", opts: [
@@ -331,10 +331,10 @@ export const DATA = [
     opts: [
       { tone: 'cold', t: "I don't need to sit.", r: "You do. But you're an adult, and stubborn. Stand, then. I'll stand with you.", opts: [
         { tone: 'cold', t: "I'd rather be alone.", r: "Then you'll be alone. I'll go. Text me when you're home. That's all I ask." },
-        { tone: 'passive', t: "Fine. Five minutes.", r: "Good. Shoulders down. There. You've been carrying that since lap one." },
+        { tone: 'passive', t: "Fine. Five minutes.", r: "Good. Shoulders down. There. You've been carrying that all week." },
         { tone: 'flirty', t: "Stand with me, then.", r: "I am. I'm also standing slightly in front of you. Nobody's getting through for five minutes." },
       ] },
-      { tone: 'passive', t: "Okay. Sitting.", r: "Good. Water. Here. Drink it. I watched the race. You were brilliant and you look like it cost you.", opts: [
+      { tone: 'passive', t: "Okay. Sitting.", r: "Good. Water. Here. Drink it. I watched {last}. Whatever it was, you look like it cost you.", opts: [
         { tone: 'cold', t: "Don't fuss.", r: "I'm not fussing. I'm managing. Fine. I'll stop. Drink the water, though." },
         { tone: 'passive', t: "Thanks. I needed that.", r: "I know. I usually know. It's my one superpower. Apart from the others." },
         { tone: 'flirty', t: "You watched?", r: "Every lap. I hate watching. I hate not watching more. Don't make anything of that. Make something of it." },
@@ -405,7 +405,7 @@ export const DATA = [
         { tone: 'flirty', t: "Only for you.", r: "I know. That's the only reason I asked. Nobody else gets asked." },
       ] },
       { tone: 'flirty', t: "Make me.", r: "I don't make people do things. I make them want to. ...See? You're already closer.", opts: [
-        { tone: 'cold', t: "Not working.", r: "Fine. I'm not going to chase you round the room. Good night." },
+        { tone: 'cold', t: "Not working.", r: "Fine. I'm not going to chase you. I don't chase. Good night." },
         { tone: 'passive', t: "Okay. You win.", r: "I usually do. You lose very well. It's attractive." },
         { tone: 'flirty', t: "Make me want to, then.", r: "I'm doing it right now. Can you feel it working? You can." },
         { tone: 'risque', t: "Make me want to stay the night.", r: "Bold. Making you want to is easy. Whether you get to is my decision. Come here." },
@@ -417,7 +417,7 @@ export const DATA = [
     say: ["Come here. ...That was quick. Good. Now stay there. I'm deciding what happens next.", "Come here. Closer. Good. You follow instructions well. Let's find out how well."],
     opts: [
       { tone: 'cold', t: "Don't order me around.", r: "Fair. I'll rephrase. Would you come here? ...See. Same result. Better manners.", opts: [
-        { tone: 'cold', t: "Still not coming.", r: "Then I'll stay where I am, you stay where you are. We'll glare across the room. Romantic." },
+        { tone: 'cold', t: "Still not coming.", r: "Then I'll stay where I am, you stay where you are. We'll glare at each other from here. Romantic." },
         { tone: 'passive', t: "Fine. Since you asked nicely.", r: "I can ask nicely. I just prefer not to. Thank you for making me." },
         { tone: 'flirty', t: "I like being asked.", r: "Then I'll ask. Once. Come here. Please. ...There. Don't say I never do anything for you." },
       ] },

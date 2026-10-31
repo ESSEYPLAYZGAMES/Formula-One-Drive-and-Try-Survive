@@ -329,25 +329,25 @@ export const DATA = [
   },
   {
     id: 'dominant-text-week-warm-3-cold', on: 'week', stage: 'warm', slot: 3, mood: 'cold',
-    say: ["You've been cold. I'm still on your side. Your rival said you're 'beatable'. I've taken it personally.", "Not talking to me? Fine. Your rival called you beatable in an interview. I'm furious. Somebody should be."],
+    say: ["You've been cold. I'm still on your side. Someone online called you 'beatable'. I've taken it personally.", "Not talking to me? Fine. Some stranger online called you beatable. I'm furious. Somebody should be."],
     opts: [
-      { tone: 'cold', t: "It's just media talk.", r: "It's an insult. Fine. You're calm. I'll be furious for both of us." },
+      { tone: 'cold', t: "It's just internet talk.", r: "It's an insult. Fine. You're calm. I'll be furious for both of us." },
       { tone: 'passive', t: "Ignore them. I will.", r: "Good. Then prove them wrong at {track}. I'll be watching." },
       { tone: 'flirty', t: "You're cute when you're furious.", r: "I'm not cute. I'm committed. Win at {track}. For both of us." },
     ],
   },
   {
     id: 'dominant-text-week-warm-3-passive', on: 'week', stage: 'warm', slot: 3, mood: 'passive',
-    say: ["Saw your rival's interview. They called you 'beatable'. I'm offended. Professionally. Make them eat it at {track}.", "Your rival thinks you're beatable. I've added them to my list. People I glare at. Short, select, glared at."],
+    say: ["Saw a comment calling you 'beatable'. I'm offended. Professionally. Make them eat it at {track}.", "Someone online thinks you're beatable. I've added them to my list. People I glare at. Short, select, glared at."],
     opts: [
       { tone: 'cold', t: "Don't make it your fight.", r: "It's not my fight. It's my opinion. Loudly held. Quietly expressed. Mostly." },
-      { tone: 'passive', t: "I'll beat them.", r: "Good. Then I'll watch their next interview very carefully. With popcorn." },
+      { tone: 'passive', t: "I'll beat them.", r: "Good. Then I'll reread their comment very slowly afterwards. With popcorn." },
       { tone: 'flirty', t: "My own personal enforcer.", r: "Your own personal supporter. With an excellent glare." },
     ],
   },
   {
     id: 'dominant-text-week-warm-3-flirty', on: 'week', stage: 'warm', slot: 3, mood: 'flirty',
-    say: ["Your rival called you beatable. I'm offended on your behalf. Win at {track}. Then I'll reward you.", "I read the interview. 'Beatable'. Ha. Beat them at {track}. Then come and tell me about it. In person."],
+    say: ["Someone online called you beatable. I'm offended on your behalf. Win at {track}. Then I'll reward you.", "I read the comments. 'Beatable'. Ha. Prove them wrong at {track}. Then come and tell me about it. In person."],
     opts: [
       { tone: 'cold', t: "I don't need a reward.", r: "Everyone needs a reward. Fine. I'll keep it. It'll keep." },
       { tone: 'passive', t: "I'll win. For you.", r: "For yourself. Then for me. In that order. Good." },
@@ -506,26 +506,26 @@ export const DATA = [
   },
   {
     id: 'dominant-text-week-close-2-cold', on: 'week', stage: 'close', slot: 2, mood: 'cold',
-    say: ["You've been miles away. Literally and otherwise. The bed's too big. I don't like either.", "The bed's enormous without you. And you've been distant. One of those I can fix. Thursday."],
+    say: ["You've been miles away. Literally and otherwise. The week's too long. I don't like either.", "The week's enormous without you. And you've been distant. One of those I can fix. Thursday."],
     opts: [
-      { tone: 'cold', t: "I need a bit of room.", r: "Then have it. I'll keep your side free. Thursday's still there if you want it." },
-      { tone: 'passive', t: "Sorry. I miss you too.", r: "Good. Thursday, then. I'll fix the bed. You fix the distance." },
-      { tone: 'flirty', t: "I'll fix the bed Thursday.", r: "That's the one. Thursday. Don't be late." },
+      { tone: 'cold', t: "I need a bit of room.", r: "Then have it. Room's yours. Thursday's still there if you want it." },
+      { tone: 'passive', t: "Sorry. I miss you too.", r: "Good. Thursday, then. I'll fix the week. You fix the distance." },
+      { tone: 'flirty', t: "I'll fix the week Thursday.", r: "That's the one. Thursday. Don't be late." },
     ],
   },
   {
     id: 'dominant-text-week-close-2-passive', on: 'week', stage: 'close', slot: 2, mood: 'passive',
-    say: ["Bed's too big without you. Fix it Thursday.", "I've slept badly all week. Your fault. You're not here. Thursday. You're here."],
+    say: ["My evenings are too long without you. Fix it Thursday.", "I've slept badly all week. Your fault. You're not here. Thursday. You're here."],
     opts: [
-      { tone: 'cold', t: "I'm busy Thursday.", r: "Then Friday. Then whenever. I'll keep the side free. I don't share it anyway." },
+      { tone: 'cold', t: "I'm busy Thursday.", r: "Then Friday. Then whenever. Your evenings are yours. Mine are mostly yours too." },
       { tone: 'passive', t: "Thursday. Promise.", r: "Good. Promises from you I keep a record of. Thursday." },
-      { tone: 'flirty', t: "I miss your side too.", r: "My side. It's all yours. Get here." },
+      { tone: 'flirty', t: "I miss being by your side too.", r: "My side. It's all yours. Get here." },
       { tone: 'risque', t: "I'll make it worth the wait.", r: "Good. I expect a lot. Thursday. Early." },
     ],
   },
   {
     id: 'dominant-text-week-close-2-flirty', on: 'week', stage: 'close', slot: 2, mood: 'flirty',
-    say: ["Bed's too big. Pillows are the wrong temperature. It's all your fault. Get back here.", "I'm in bed. You're not. This is a problem I intend to solve Thursday."],
+    say: ["Can't sleep. Pillows are the wrong temperature. It's all your fault. Get over here.", "I'm in bed. You're not. This is a problem I intend to solve Thursday."],
     opts: [
       { tone: 'cold', t: "You'll survive.", r: "I'll survive. Badly. Fine." },
       { tone: 'passive', t: "Thursday. I'll be there.", r: "Good. I'll make sure the pillows are correct." },
@@ -535,16 +535,16 @@ export const DATA = [
   },
   {
     id: 'dominant-text-week-close-3-cold', on: 'week', stage: 'close', slot: 3, mood: 'cold',
-    say: ["You've been cool with me, but warm in all your team photos. Who's the one with their arm round you? Asking calmly.", "I'm not jealous. I'm noticing. You're distant with me and very close with someone in your team photos."],
+    say: ["You've been cool with me lately. Meanwhile half the paddock gets you all weekend. Who's your favourite? Asking calmly.", "I'm not jealous. I'm noticing. You're distant with me and spend every weekend with a garage full of people."],
     opts: [
-      { tone: 'cold', t: "It's a teammate. Relax.", r: "I'm relaxed. I'm also noticing. Both. Fine. Teammate.", opts: [
+      { tone: 'cold', t: "It's my team. Relax.", r: "I'm relaxed. I'm also noticing. Both. Fine. Team.", opts: [
         { tone: 'cold', t: "Stop doing this.", r: "Fine. Stopping. I don't like the distance, though. I'll say that once." },
-        { tone: 'passive', t: "They're just a friend, honestly.", r: "I believe you. I wanted to hear it. That's all." },
+        { tone: 'passive', t: "They're just colleagues, honestly.", r: "I believe you. I wanted to hear it. That's all." },
         { tone: 'flirty', t: "You're cute jealous.", r: "I'm not cute. I'm extremely calm. With a slight twitch." },
       ] },
-      { tone: 'passive', t: "It's nobody. I promise.", r: "I know. I trust you. I just wanted you to tell me. And now you have.", opts: [
+      { tone: 'passive', t: "There's nobody. I promise.", r: "I know. I trust you. I just wanted you to tell me. And now you have.", opts: [
         { tone: 'cold', t: "You don't trust me?", r: "I trust you completely. I just like you telling me things. Good night." },
-        { tone: 'passive', t: "Want me to send you a better photo?", r: "Yes. Just you. I'll keep it. That's not jealousy. That's taste." },
+        { tone: 'passive', t: "Want a photo of just me?", r: "Yes. Just you. I'll keep it. That's not jealousy. That's taste." },
         { tone: 'flirty', t: "You're the only one I want an arm round.", r: "Good. My arm. Your shoulder. Thursday." },
       ] },
       { tone: 'flirty', t: "Jealous?", r: "Not jealous. Attentive. Very attentive.", opts: [
@@ -556,29 +556,29 @@ export const DATA = [
   },
   {
     id: 'dominant-text-week-close-3-passive', on: 'week', stage: 'close', slot: 3, mood: 'passive',
-    say: ["Who's the one with their arm round you in the team photo. I'm asking calmly. Very calmly. Look how calm.", "New team photos. Someone's very close to you in all of them. I've noticed. That's all. I'm fine."],
+    say: ["Who do you stand next to all race weekend. I'm asking calmly. Very calmly. Look how calm.", "Race weekend. Hundreds of people near you. None of them me. I've noticed. That's all. I'm fine."],
     opts: [
-      { tone: 'cold', t: "Not your business.", r: "It's not. You're right. I'm still allowed to dislike the arm. Quietly.", opts: [
+      { tone: 'cold', t: "Not your business.", r: "It's not. You're right. I'm still allowed to dislike the hundreds. Quietly.", opts: [
         { tone: 'cold', t: "Still none of your business.", r: "Fine. Out of it. Good night." },
-        { tone: 'passive', t: "Just someone from my team.", r: "Good. They can keep their arm. For now. Joking. Mostly joking." },
+        { tone: 'passive', t: "Just my team.", r: "Good. They can keep you. For the weekend. Joking. Mostly joking." },
         { tone: 'flirty', t: "Jealousy looks good on you.", r: "It looks better on you. Send me a photo of just you." },
       ] },
-      { tone: 'passive', t: "It's my engineer. They're married.", r: "...Good. I mean - lovely for them. Very happy for them. Unclench, I'm telling myself.", opts: [
-        { tone: 'cold', t: "You're being a lot.", r: "I am. I'll stop. You're mine. I trust that more than I distrust their arm." },
+      { tone: 'passive', t: "Mostly my engineer. Who talks about tyre data. Relax.", r: "...Good. I mean - riveting for them. Very happy for them. Unclench, I'm telling myself.", opts: [
+        { tone: 'cold', t: "You're being a lot.", r: "I am. I'll stop. You're mine. I trust that more than I distrust the paddock." },
         { tone: 'passive', t: "They're harmless.", r: "I'm sure they are. I'm not. Harmless, I mean. But I'll behave." },
         { tone: 'flirty', t: "Nothing to worry about. Really.", r: "I know. I wanted to hear it in writing. Saved." },
       ] },
       { tone: 'flirty', t: "Calm? You?", r: "Calm. Composed. Mature. Slightly furious. Mostly calm.", opts: [
         { tone: 'cold', t: "Get over it.", r: "...Fine. Over it. You could've been nicer, but fine." },
         { tone: 'passive', t: "It's nobody. I promise you.", r: "I believe you. Thank you. I'll put my glare away." },
-        { tone: 'flirty', t: "Come put your arm round me instead.", r: "Thursday. Every photo. Both arms." },
+        { tone: 'flirty', t: "Come put your arm round me instead.", r: "Thursday. Both arms. No photos." },
         { tone: 'risque', t: "Show me whose I am this weekend.", r: "Planning to. Clear Saturday. And Sunday morning." },
       ] },
     ],
   },
   {
     id: 'dominant-text-week-close-3-flirty', on: 'week', stage: 'close', slot: 3, mood: 'flirty',
-    say: ["Saw the team photo. Someone's arm is round my person. I'm being extremely mature. Formal request: stop that.", "I'm not jealous. I just want to be the one standing that close to my person. Formal request lodged."],
+    say: ["Race weekend again. Everyone near you except me. I'm being extremely mature. Formal request: save me the best of you.", "I'm not jealous. I just want to be the one standing next to my person all weekend. Formal request lodged."],
     opts: [
       { tone: 'cold', t: "You don't get to make requests like that.", r: "Correct. I don't. It's a wish, then. Very politely made. Through gritted teeth.", opts: [
         { tone: 'cold', t: "Wish denied.", r: "...Denied. Fine. I'll sulk with dignity." },
@@ -600,29 +600,29 @@ export const DATA = [
   },
   {
     id: 'dominant-text-week-close-4-cold', on: 'week', stage: 'close', slot: 4, mood: 'cold',
-    say: ["Quiet week. Admiral - the cat - slept on your hoodie all night. Neither of us will admit we miss you. He's cracking.", "The cat's sleeping on your hoodie. He doesn't know you've gone cold on us. I'm not telling him."],
+    say: ["Quiet week. Admiral - my cat - is my only company. Poor substitute. I won't admit for what. I'm cracking.", "The cat's asleep on me. He doesn't know you've gone cold on me. I'm not telling him. He'd gloat."],
     opts: [
-      { tone: 'cold', t: "It's just a hoodie.", r: "It's your hoodie. Fine. I'll take it off him. He'll hate me. You've made us both sad." },
-      { tone: 'passive', t: "Sorry. I miss you two.", r: "Good. He'll be pleased. So will I. More than him." },
-      { tone: 'flirty', t: "The cat has taste.", r: "So do I. We miss you. Him more. Me most." },
+      { tone: 'cold', t: "So talk to the cat.", r: "He doesn't answer either. Fine. He's a cat. You're not here. That's the problem." },
+      { tone: 'passive', t: "Sorry. I miss you.", r: "Good. I'll tell him. He won't care. I do. A great deal." },
+      { tone: 'flirty', t: "Lucky cat.", r: "He is. He doesn't know it. I'd swap him for you in a heartbeat. Don't tell him." },
     ],
   },
   {
     id: 'dominant-text-week-close-4-passive', on: 'week', stage: 'close', slot: 4, mood: 'passive',
-    say: ["Admiral slept on your hoodie all night. My cat, the tyrant. I let him. We miss you. He'll deny it. I won't.", "[photo] The cat. Your hoodie. He refuses to move. I've stopped trying. Come back and reclaim it."],
+    say: ["Admiral slept on me all night. My cat, the tyrant. I let him. Poor substitute for you. Don't tell him I said so.", "[photo] The cat. My lap. He refuses to move. I've stopped trying. Come and reclaim it."],
     opts: [
-      { tone: 'cold', t: "Tell him to get off it.", r: "I don't tell him anything. He outranks me. You can tell him Thursday." },
-      { tone: 'passive', t: "That's adorable. Give him a scratch from me.", r: "Done. He bit me. He misses you. I'm sulking more elegantly than he is." },
-      { tone: 'flirty', t: "Keep it warm for me.", r: "He's on it. I'm on it. It's the warmest hoodie in the country." },
+      { tone: 'cold', t: "Tell him to get off.", r: "I don't tell him anything. He outranks me. You can tell him Thursday." },
+      { tone: 'passive', t: "That's adorable. Give him a scratch from me.", r: "Done. He bit me. Typical. I'm sulking. Elegantly. Missing you, less elegantly." },
+      { tone: 'flirty', t: "Keep it warm for me.", r: "He's on it. I'm on it. It's the warmest lap in the country." },
     ],
   },
   {
     id: 'dominant-text-week-close-4-flirty', on: 'week', stage: 'close', slot: 4, mood: 'flirty',
-    say: ["Admiral's asleep on your hoodie. I'm envious of a cat. Hurry back.", "The cat's lying on your hoodie. I'd rather you were here instead of the hoodie. Thursday."],
+    say: ["Admiral's asleep on my chest. Wrong occupant. I'm envious of a cat. Thursday, hurry up.", "The cat's lying across me. I'd rather it was you instead of the cat. Thursday."],
     opts: [
-      { tone: 'cold', t: "Get your own hoodie.", r: "I have one. It's yours. I'm keeping it. Fine. Good night." },
-      { tone: 'passive', t: "Missing you both.", r: "We miss you. Thursday. Bring nothing. Half your clothes are here already." },
-      { tone: 'flirty', t: "Thursday. I'll replace the hoodie.", r: "Good. You're warmer. He'll have to cope." },
+      { tone: 'cold', t: "Get a second cat.", r: "One tyrant's enough. Fine. Good night." },
+      { tone: 'passive', t: "Missing you too.", r: "Good. Thursday. Bring nothing but yourself. I'll see to everything else." },
+      { tone: 'flirty', t: "Thursday. I'll replace the cat.", r: "Good. You're warmer. He'll have to cope." },
       { tone: 'risque', t: "Thursday you can have me instead.", r: "...Agreed. Strongly agreed. Thursday. Early." },
     ],
   },

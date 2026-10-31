@@ -65,9 +65,9 @@ export const DATA = [
       ] },
     ] },
 
-  // ---- slot 2: cold at {venue}; you lend them your jacket; they don't give it back. Establishes: they have your jacket
+  // ---- slot 2: they're cold (always are); you lend them your jacket; they don't give it back. Establishes: they have your jacket
   { id: 'ice-warm-2-cold', stage: 'warm', slot: 2, mood: 'cold',
-    say: "It's freezing at {venue}, and you were frosty with me last time. I'd say the temperature's consistent, at least.",
+    say: "I'm cold. I'm always cold. And you were frosty with me last time. The temperature's consistent, at least.",
     opts: [
       { tone: 'cold', t: "Should have brought a coat.", r: "My coat's in the car. Bringing one is a rule. Leaving it is the first rule I've broken this year.", opts: [
         { tone: 'cold', t: "Then go and get it.", r: "I will. Thank you for nothing. It suits you, the nothing." },
@@ -86,7 +86,7 @@ export const DATA = [
       ] },
     ] },
   { id: 'ice-warm-2-passive', stage: 'warm', slot: 2, mood: 'passive',
-    say: "It's cold at {venue}. I'm saying that as a fact, not a complaint. I don't complain. I report.",
+    say: "I'm cold. I left my coat behind. That's a fact, not a complaint. I don't complain. I report.",
     opts: [
       { tone: 'cold', t: "Report noted.", r: "Is that all. You have a jacket on. I have a thin something. The maths isn't complicated.", opts: [
         { tone: 'cold', t: "I'm cold too.", r: "Then we'll both be cold, and principled. How lovely for us." },
@@ -99,14 +99,14 @@ export const DATA = [
         { tone: 'flirty', t: "Looks good on you.", r: "Everything suits me. This suits me unfairly. I'm keeping it. Forever, probably." },
       ] },
       { tone: 'flirty', t: "I could keep you warm.", r: "You could lend me your jacket. That's the version that doesn't make me roll my eyes.", opts: [
-        { tone: 'cold', t: "No jacket, then.", r: "No jacket. I'll stand here in principle and the wind. You've made your choice." },
+        { tone: 'cold', t: "No jacket, then.", r: "No jacket. I'll stand here, principled and shivering. You've made your choice." },
         { tone: 'passive', t: "Jacket it is.", r: "Thank you. It's still warm from you. That's a fact, not a compliment. I'm keeping it." },
         { tone: 'flirty', t: "Jacket now. The other version later.", r: "The other version is under review. The jacket is approved. And confiscated." },
         { tone: 'risque', t: "Jacket now. Me later, if you're still cold.", r: "If I'm still cold. Bold. ...I'll let you know. With a look, probably." },
       ] },
     ] },
   { id: 'ice-warm-2-flirty', stage: 'warm', slot: 2, mood: 'flirty',
-    say: "It's cold, and you've got that look again. Either lend me your jacket or stop looking. Preferably the first.",
+    say: "I'm cold, and you've got that look again. Either lend me your jacket or stop looking. Preferably the first.",
     opts: [
       { tone: 'cold', t: "I'll stop looking.", r: "That's the wrong choice, and you know it. You're being difficult on purpose.", opts: [
         { tone: 'cold', t: "Maybe I am.", r: "Then I'll be cold on purpose. We'll see who breaks first. It won't be me." },
@@ -245,35 +245,35 @@ export const DATA = [
       ] },
     ] },
 
-  // ---- slot 5: jealousy-lite: someone laughing at everything you say ----------------------------------------------
+  // ---- slot 5: jealousy-lite: a colleague of theirs who's a fan of yours ----------------------------------------------
   { id: 'ice-warm-5-cold', stage: 'warm', slot: 5, mood: 'cold',
-    say: "You were cold with me last time, and very warm with the one in green just now. I'm not jealous. I'm keeping records.",
+    say: "You were cold with me last time. Then a colleague asked me to introduce them to you. I said no. I'm not jealous. I'm keeping records.",
     opts: [
       { tone: 'cold', t: "Keep all the records you want.", r: "I will. They're very thorough. Yours has a new page. It's not a flattering page.", opts: [
-        { tone: 'cold', t: "I'll live with that.", r: "I'm sure you will. Go back to green. Green is waiting." },
-        { tone: 'passive', t: "They were asking about the car. That's all.", r: "For twenty minutes. With their hand on your arm. The car must be fascinating." },
+        { tone: 'cold', t: "I'll live with that.", r: "I'm sure you will. My colleague is still asking. I'm still saying no." },
+        { tone: 'passive', t: "I don't even know them.", r: "They know your lap times. All of them. Out loud. The car must be fascinating." },
         { tone: 'flirty', t: "You're cute when you keep records.", r: "I'm not cute. I'm accurate. ...Your page just got a footnote. A slightly better one." },
       ] },
-      { tone: 'passive', t: "It was just polite chat.", r: "Polite. They laughed at every word. You're amusing, but not that amusing. I'd know.", opts: [
-        { tone: 'cold', t: "Maybe they think I'm funny.", r: "Maybe they think a great many things. I'll leave you to their opinion." },
-        { tone: 'passive', t: "You're the one I came to talk to.", r: "Then you took a scenic route. ...Fine. You're here now. That counts. Slightly." },
+      { tone: 'passive', t: "It's just a fan.", r: "A fan with your photo on their desk. You're appealing, but not that appealing. I'd know.", opts: [
+        { tone: 'cold', t: "Maybe they think I'm great.", r: "Maybe they think a great many things. I'll leave you to their opinion." },
+        { tone: 'passive', t: "You're the one I came to talk to.", r: "Then you're in the right place. ...Fine. That counts. Slightly. Not a word to my colleague." },
         { tone: 'flirty', t: "You don't laugh at everything. That's why I like making you.", r: "...That's annoyingly good. I'm not laughing. I'm not. Go away. Stay." },
       ] },
-      { tone: 'flirty', t: "So you were watching me.", r: "I was watching them. They were holding your arm like a handrail. I'm a keen observer.", opts: [
-        { tone: 'cold', t: "Watch whoever you like.", r: "I always do. Tonight it'll be anyone but you. Enjoy your handrail." },
-        { tone: 'passive', t: "I didn't notice. Really.", r: "You never notice. It's half your charm and all of my problem." },
+      { tone: 'flirty', t: "So you said no for me.", r: "I said no for accuracy. They'd have held your arm like a handrail. Typical of the breed.", opts: [
+        { tone: 'cold', t: "Say yes next time.", r: "I won't. You'd be bored. I'd be worse. Enjoy your imaginary handrail." },
+        { tone: 'passive', t: "I'd never have noticed them anyway.", r: "You never notice. It's half your charm and all of my problem." },
         { tone: 'flirty', t: "Next time, come and hold my arm yourself.", r: "I don't do handrails. ...I might do an elbow. Lightly. In public, rarely." },
       ] },
     ] },
   { id: 'ice-warm-5-passive', stage: 'warm', slot: 5, mood: 'passive',
-    say: "The one in green has laughed at every single thing you've said. Nothing you say is that funny. I'd know.",
+    say: "Someone at my work laughs at every clip of you they can find. Nothing you say is that funny. I'd know.",
     opts: [
       { tone: 'cold', t: "Are you jealous?", r: "I don't get jealous. I get accurate. Accurately: they're overdoing it.", opts: [
-        { tone: 'cold', t: "Sounds like jealousy.", r: "It sounds like observation. You should try it. Good luck with green." },
-        { tone: 'passive', t: "Fair. They were overdoing it.", r: "Thank you. Agreement. My favourite. You're forgiven for standing so close to them." },
+        { tone: 'cold', t: "Sounds like jealousy.", r: "It sounds like observation. You should try it. Good luck with your fan." },
+        { tone: 'passive', t: "Fair. They're overdoing it.", r: "Thank you. Agreement. My favourite. You're forgiven for being so watchable." },
         { tone: 'flirty', t: "It's a little bit flattering.", r: "It's not meant to flatter. It's meant to inform. ...Fine. A little bit. Don't frame it." },
       ] },
-      { tone: 'passive', t: "I hadn't noticed.", r: "Of course you hadn't. You never do. That's why you need me.", opts: [
+      { tone: 'passive', t: "I didn't know I had a fan there.", r: "Of course you hadn't. You never do. That's why you need me.", opts: [
         { tone: 'cold', t: "I don't need anyone.", r: "Noted. Strongly noted. I'll go and need nobody over there, then." },
         { tone: 'passive', t: "Maybe I do need you.", r: "...Maybe is a beginning. I'll be your eyes. You be... less oblivious." },
         { tone: 'flirty', t: "I only notice you.", r: "That's a terrible line, and it worked, and I'm going to have to sit down." },
@@ -281,26 +281,26 @@ export const DATA = [
       { tone: 'flirty', t: "I'd rather make you laugh.", r: "I know. It's harder. You like hard things. So do I, apparently.", opts: [
         { tone: 'cold', t: "Easier to get a laugh elsewhere.", r: "It is. Go and get one. Mine's off the table tonight." },
         { tone: 'passive', t: "One laugh. I'll get it eventually.", r: "Eventually is permitted. I'm very patient with people who make the effort." },
-        { tone: 'flirty', t: "And worth more.", r: "Considerably more. Green's laugh is small change. Mine is the whole bank." },
+        { tone: 'flirty', t: "And worth more.", r: "Considerably more. Their laugh is small change. Mine is the whole bank." },
         { tone: 'risque', t: "Leave with me and I'll work on it all evening.", r: "All evening. That's a dare. ...I'll accept it with a look, and you'll know which look." },
       ] },
     ] },
   { id: 'ice-warm-5-flirty', stage: 'warm', slot: 5, mood: 'flirty',
-    say: "Someone's been flirting with you for ten minutes. Badly. I came over to show them how it's done.",
+    say: "Someone at my work flirts with your poster. Badly. Daily. I've decided to show you how it's actually done.",
     opts: [
-      { tone: 'cold', t: "I can handle myself.", r: "Clearly. You've been handling them for ten minutes. It's been painful to watch.", opts: [
+      { tone: 'cold', t: "I can handle myself.", r: "Clearly. You've handled posters for years. You've never once blinked. Painful to watch.", opts: [
         { tone: 'cold', t: "Then don't watch.", r: "Fine. I'll leave you to your audience. They clap at the wrong moments." },
-        { tone: 'passive', t: "Okay. I was trying to get away.", r: "I know. Your left foot was pointing at the exit. I came to be the exit." },
+        { tone: 'passive', t: "Okay. Fans are a lot.", r: "They are. I'll be the opposite. Quieter. Considerably better at it." },
         { tone: 'flirty', t: "Show me how it's done, then.", r: "Watch. Say very little. Mean all of it. Look away first. ...Your turn." },
       ] },
       { tone: 'passive', t: "Go on, then. Show me.", r: "You lean in a little less than you'd like. You say one true thing. Then you leave first.", opts: [
         { tone: 'cold', t: "You're leaving first, then?", r: "I am, apparently. You've made that easy. Goodbye." },
-        { tone: 'passive', t: "And what's the true thing?", r: "That I've been watching you all night. Not them. You. Lesson over." },
+        { tone: 'passive', t: "And what's the true thing?", r: "That I've been watching you all night. Only you. Lesson over." },
         { tone: 'flirty', t: "Don't leave first. Not this time.", r: "...That's not in the lesson. I'll stay. A little longer. Don't tell anyone." },
       ] },
       { tone: 'flirty', t: "Were you jealous?", r: "I don't do jealous. I do quality control. They failed. You were the product.", opts: [
         { tone: 'cold', t: "I'm not a product.", r: "No. You're a sulk, at the moment. Enjoy it." },
-        { tone: 'passive', t: "And did the product pass?", r: "The product passed. The packaging needs work. Your collar's under again." },
+        { tone: 'passive', t: "And did the product pass?", r: "The product passed. The packaging needs work. Your collar's folded under." },
         { tone: 'flirty', t: "Quality control can test me personally.", r: "It intends to. Rigorously. Not here. Somewhere with a lock on the door." },
         { tone: 'risque', t: "Then take me away for testing.", r: "Not tonight. But I'll think about it. With that look. You know the one." },
       ] },
@@ -356,7 +356,7 @@ export const DATA = [
         { tone: 'flirty', t: "Don't solve it. Keep playing me.", r: "...You'd like that. I'd hate it. I'd do it anyway. Nothing about you makes sense." },
       ] },
       { tone: 'passive', t: "You play the piano at two in the morning?", r: "Badly, by my standards. Well, by anyone else's. The neighbours know. Now you.", opts: [
-        { tone: 'cold', t: "And now everyone at {venue}.", r: "Lower your voice. If this gets out I'll have to move. And blame you." },
+        { tone: 'cold', t: "I'll tell everyone.", r: "Lower your voice. If this gets out I'll have to move. And blame you." },
         { tone: 'passive', t: "What's it like, at that hour?", r: "Quiet. Blue. The only time nobody wants anything from me. You crept in anyway." },
         { tone: 'flirty', t: "I want a private concert.", r: "Private is the only kind I give. Very short. No applause. You'd applaud." },
       ] },
@@ -417,7 +417,7 @@ export const DATA = [
       ] },
       { tone: 'passive', t: "What else did she ask?", r: "Whether you make me laugh. Whether you're kind to waiters. I said yes, and probably.", opts: [
         { tone: 'cold', t: "I'm kind to most people.", r: "Most. That's the probably. Fine. You're kind to me. Most of the time." },
-        { tone: 'passive', t: "I'm always kind to waiters.", r: "I know. I've watched. It's one of the first things I noticed. I notice everything." },
+        { tone: 'passive', t: "I'm always kind to waiters.", r: "I know. I'd have guessed it anyway. I notice everything. It's a condition." },
         { tone: 'flirty', t: "And do I make you laugh?", r: "You know you do. Don't fish. ...You do. Annoyingly. In public." },
       ] },
       { tone: 'flirty', t: "So I'm 'the one'. Good to know.", r: "'The one with the good posture.' Read the whole sentence. ...You're smiling at the first half.", opts: [
@@ -433,7 +433,7 @@ export const DATA = [
     opts: [
       { tone: 'cold', t: "I've been busy.", r: "Busy. Everyone's busy. Some people are busy near me. You're busy elsewhere.", opts: [
         { tone: 'cold', t: "That's how it is right now.", r: "Then that's how I'll be, too. At a distance. I'm very good at distance.", m: -2 },
-        { tone: 'passive', t: "Sorry. You do matter to me.", r: "Then let me know it. Not with words. With a chair pulled up next to mine. Like now." },
+        { tone: 'passive', t: "Sorry. You do matter to me.", r: "Then let me know it. Not with words. With you right next to me. Like now." },
         { tone: 'flirty', t: "I'd rather be busy near you.", r: "Then be. Here. This close. ...Closer than that, actually. I'm being precise." },
       ] },
       { tone: 'passive', t: "You mind? I didn't think you would.", r: "Neither did I. I thought I was made of sterner things. Apparently I'm made of you, partly.", opts: [
@@ -476,7 +476,7 @@ export const DATA = [
         { tone: 'passive', t: "Sorry. I didn't want to rush you.", r: "That's kind. Too kind. Next time, rush a little. I'll stop you if I mind." },
         { tone: 'flirty', t: "Changed my mind. I'm staying close.", r: "Good. That's better. Not moving. Neither of us. ...Your move." },
       ] },
-      { tone: 'passive', t: "I'm not moving either.", r: "Then we're very still. Two statues. People are staring. I don't care, for once.", opts: [
+      { tone: 'passive', t: "I'm not moving either.", r: "Then we're very still. Two statues. Anyone watching would stare. I don't care, for once.", opts: [
         { tone: 'cold', t: "Let them stare.", r: "...You're right. I hate that you're right. Step back, then. We'll be a rumour." },
         { tone: 'passive', t: "You don't mind people looking?", r: "I always mind. Not tonight. Tonight I'm busy looking at you." },
         { tone: 'flirty', t: "Give them something to stare at.", r: "...Yes. One kiss. Short. Elegant. There. Now nobody say anything, especially you." },

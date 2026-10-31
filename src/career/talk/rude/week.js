@@ -1,29 +1,29 @@
 // RUDE - texts in the week between races. Lowercase, terse, sarcastic; the softness leaks out and gets denied.
-// new: 1 'obviously' x11, 2 a contrary take, 3 meet the cat (deep), 4 your team's colour, 5 the soap at 1am, 6 checking
+// new: 1 the 'obviously' tally, 2 a contrary take, 3 meet the cat (deep), 4 your team's colour, 5 the soap at 1am, 6 checking
 // you're alive (deep). warm: 1 bored, 2 an awful shirt, 3 can't sleep (deep), 4 'overrated', 5 too much food, 6 a long
-// week (deep). close: 1 good morning, 2 your hoodie, 3 who's in your photo (deep), 4 the cat at the door, 5 miss you,
+// week (deep). close: 1 good morning, 2 your merch hoodie, 3 who's in the race photos (deep), 4 the cat at the door, 5 miss you,
 // 6 come home (deep).
 export const DATA = [
   // ==== new ====
   { id: 'rude-text-week-new-1-cold', on: 'week', stage: 'new', slot: 1, mood: 'cold',
-    say: "you were short with me last time so here's something shorter: 'obviously'. eleven times. one interview. i counted",
+    say: "you were short with me last time so here's something shorter: next interview i'm counting your 'obviously's. bet: ten",
     opts: [
       { tone: 'cold', t: "Thanks for the audit.", r: "anytime. invoice to follow. it's long" },
-      { tone: 'passive', t: "Did I really? Didn't notice.", r: "nobody notices their own crimes. that's why there's me. lol" },
-      { tone: 'flirty', t: "You watched the whole interview for me?", r: "i watched it for the comedy. you were the comedy. don't flatter yourself" },
+      { tone: 'passive', t: "I don't say obviously.", r: "nobody notices their own crimes. that's why there's me. lol" },
+      { tone: 'flirty', t: "You'll watch a whole interview for me?", r: "i'll watch it for the comedy. you'll be the comedy. don't flatter yourself" },
     ] },
   { id: 'rude-text-week-new-1-passive', on: 'week', stage: 'new', slot: 1, mood: 'passive',
-    say: "[screenshot: you, mid-interview, mouth open] caption: 'obviously' number eleven. i counted. you're welcome",
+    say: "[screenshot: you, mid-interview, mouth open] caption: 'about to say obviously'. i've started a tally. you're welcome",
     opts: [
       { tone: 'cold', t: "Counting is a weird hobby.", r: "says the person who drives in circles for a living. k" },
       { tone: 'passive', t: "Ha. Nerves, I guess.", r: "nerves. sure. say 'basically' next time. mix it up. range" },
-      { tone: 'flirty', t: "You counted. So you were paying attention to me.", r: "to your vocabulary. which is small. like a hamster's. don't read into it" },
+      { tone: 'flirty', t: "A tally. So you'll be paying attention to me.", r: "to your vocabulary. which is small. like a hamster's. don't read into it" },
     ] },
   { id: 'rude-text-week-new-1-flirty', on: 'week', stage: 'new', slot: 1, mood: 'flirty',
-    say: "stop smiling at your phone. this isn't a compliment. you said 'obviously' eleven times in that interview. i counted",
+    say: "stop smiling at your phone. this isn't a compliment. next interview i'm counting every 'obviously'. tally sheet's ready",
     opts: [
-      { tone: 'cold', t: "I'm not smiling.", r: "you are. i can tell from here. it's in the punctuation. anyway. eleven" },
-      { tone: 'passive', t: "Okay, eleven is a lot.", r: "it's a record. i'd frame it but i have standards. obviously" },
+      { tone: 'cold', t: "I'm not smiling.", r: "you are. i can tell from here. it's in the punctuation. anyway. tally sheet" },
+      { tone: 'passive', t: "What's the record?", r: "eleven. some other driver. i'd frame it but i have standards. obviously" },
       { tone: 'flirty', t: "Count how many times I think about you.", r: "lol no. terrible line. it's going on the list. what list. never mind" },
     ] },
   { id: 'rude-text-week-new-2-cold', on: 'week', stage: 'new', slot: 2, mood: 'cold',
@@ -81,7 +81,7 @@ export const DATA = [
       ] },
       { tone: 'flirty', t: "She hates me specifically? I'm honoured.", r: "you should be. she usually hates people generally. specific hate is effort", opts: [
         { tone: 'cold', t: "I'll hate her back.", r: "you can't hate biscuit. it's illegal. in my house. which is the only house that matters" },
-        { tone: 'passive', t: "What did I do?", r: "turn four. she saw it. she got up and left. that's a one-star review" },
+        { tone: 'passive', t: "What did I do?", r: "existed. on her telly. she got up and left. that's a one-star review" },
         { tone: 'flirty', t: "Specific effort. Like you texting me.", r: "this is minimum effort. this is biscuit-level effort. stop" },
       ] },
     ] },
@@ -105,7 +105,7 @@ export const DATA = [
       ] },
     ] },
   { id: 'rude-text-week-new-4-cold', on: 'week', stage: 'new', slot: 4, mood: 'cold',
-    say: "your team's new colour. who approved that. was it a dare. was it you. tell me it wasn't you",
+    say: "your team's colour. who approved that. was it a dare. was it you. tell me it wasn't you",
     opts: [
       { tone: 'cold', t: "Wasn't me. Wasn't asked.", r: "good. you'd have picked worse. ok. that's fair. the colour is still awful" },
       { tone: 'passive', t: "I think it's alright.", r: "'alright'. that's how they get you. one 'alright' at a time" },
@@ -119,7 +119,7 @@ export const DATA = [
       { tone: 'flirty', t: "I'll wear it better than anyone.", r: "you'll wear it like a wet cat wears a raincoat. reluctantly. damply. lol" },
     ] },
   { id: 'rude-text-week-new-4-flirty', on: 'week', stage: 'new', slot: 4, mood: 'flirty',
-    say: "saw your new team kit. the colour is a felony. you somehow pull it off. not a compliment. a medical mystery",
+    say: "saw your team kit. the colour is a felony. you somehow pull it off. not a compliment. a medical mystery",
     opts: [
       { tone: 'cold', t: "Not a compliment. Noted.", r: "good. noted. filed. the mystery continues. that's all" },
       { tone: 'passive', t: "Thanks? I think?", r: "don't thank me. it's a diagnosis. 'pulls off bad colours' syndrome. incurable" },
@@ -135,7 +135,7 @@ export const DATA = [
   { id: 'rude-text-week-new-5-passive', on: 'week', stage: 'new', slot: 5, mood: 'passive',
     say: "you up? my soap just did a twin reveal. again. i need someone to argue with and you're the least annoying option. barely",
     opts: [
-      { tone: 'cold', t: "Soaps aren't real.", r: "wow. heartless. nothing's real. your braking isn't real either, judging by sunday" },
+      { tone: 'cold', t: "Soaps aren't real.", r: "wow. heartless. nothing's real. your braking isn't real either, by the look of it" },
       { tone: 'passive', t: "Sorry, never seen it.", r: "you've never seen lighthouse lane? who raised you. never mind. i'll explain. it'll take 9 years" },
       { tone: 'flirty', t: "The least annoying option? Progress.", r: "by a whisker. one of biscuit's. go to sleep. don't" },
     ] },
@@ -226,10 +226,10 @@ export const DATA = [
       { tone: 'cold', t: "Deny it now. Save time.", r: "denied. ok. undenied. ugh. i'm bored, not thinking. stop it" },
       { tone: 'passive', t: "What made you think of me?", r: "a car alarm went off. loud and needy. no. it was a nice car. ok" },
       { tone: 'flirty', t: "I'd testify for you.", r: "you'd testify against me. under oath. 'they texted me hearts'. i didn't. lol" },
-      { tone: 'risque', t: "Come over and I'll make you un-bored.", r: "bold of you. you can't even make toast. ask again when you're less smug. so never" },
+      { tone: 'risque', t: "Come over and I'll make you un-bored.", r: "bold of you. you probably can't even make toast. ask again when you're less smug. so never" },
     ] },
   { id: 'rude-text-week-warm-2-cold', on: 'week', stage: 'warm', slot: 2, mood: 'cold',
-    say: "[photo: a hideous floral shirt on a mannequin] this is you. i'm not saying why. you know why",
+    say: "[photo: a hideous floral shirt on a mannequin] this is you. spiritually. i'm not explaining",
     opts: [
       { tone: 'cold', t: "Wear it yourself.", r: "i'd look incredible. that's the tragedy. ok. you win. i'm not buying it. i might" },
       { tone: 'passive', t: "Ha. It's not that bad.", r: "it's that bad. it's worse in person. it hummed at me" },
@@ -443,36 +443,36 @@ export const DATA = [
     say: "morning. i woke up thinking about you. that's disgusting. i'm going back to sleep. good morning",
     opts: [
       { tone: 'cold', t: "Go back to sleep, then.", r: "i will. ...i can't. you're in my head. it's very crowded. go away. don't" },
-      { tone: 'passive', t: "Morning. Coffee?", r: "always. you know that. you make it wrong. make it anyway" },
+      { tone: 'passive', t: "Morning. Coffee?", r: "always. you know that. you'd make it wrong. make it anyway" },
       { tone: 'flirty', t: "I woke up thinking about you too.", r: "of course you did. we're disgusting. a disgusting pair. morning" },
       { tone: 'risque', t: "Thinking about me how, exactly?", r: "bold of you. at this hour. lol. ...you know how. i'm not typing it. come round" },
     ] },
   { id: 'rude-text-week-close-2-cold', on: 'week', stage: 'close', slot: 2, mood: 'cold',
-    say: "i'm wearing your hoodie. it was cold. it's not a statement. you were frosty last time and i'm wearing it anyway",
+    say: "bought your merch hoodie. it was cold. it's not a statement. you were frosty last time and i'm wearing it anyway",
     opts: [
-      { tone: 'cold', t: "Give it back.", r: "no. possession is nine tenths of the law. i've read the law. it says 'mine'" },
+      { tone: 'cold', t: "You bought my merch?", r: "ironically. it was on sale. heavily reduced. i'm not saying why" },
       { tone: 'passive', t: "Keep it. It suits you.", r: "nothing suits me. but this is... adequate. warm. i'm keeping it. forever" },
-      { tone: 'flirty', t: "It looks better on you anyway.", r: "obviously. you're not getting it back. you've lost it. you've got me instead. ugh" },
+      { tone: 'flirty', t: "It looks better on you anyway.", r: "obviously. it's wasted on fans. you've got me in it instead. ugh" },
       { tone: 'risque', t: "Wear just the hoodie next time I'm over.", r: "bold of you. lol. very bold. ...we'll see. the hoodie and a frown. that's the outfit" },
     ] },
   { id: 'rude-text-week-close-2-passive', on: 'week', stage: 'close', slot: 2, mood: 'passive',
-    say: "your hoodie's on me right now. it was cold. this isn't a statement. it's a temperature solution",
+    say: "your merch hoodie's on me right now. it was cold. this isn't a statement. it's a temperature solution",
     opts: [
-      { tone: 'cold', t: "A temperature solution. Sure.", r: "yes. a practical one. with your name on the tag. coincidence. k" },
+      { tone: 'cold', t: "A temperature solution. Sure.", r: "yes. a practical one. with your name across the back. coincidence. k" },
       { tone: 'passive', t: "Glad it's useful.", r: "useful. it's essential. i'm a different person in it. warmer. softer. no. delete" },
       { tone: 'flirty', t: "Send a photo.", r: "[photo: just the sleeve, and a cat] that's all you get. that's plenty. that's more than anyone" },
       { tone: 'risque', t: "I'll come and warm you up instead.", r: "bold. the hoodie's doing fine. ...the hoodie can't make toast. come round" },
     ] },
   { id: 'rude-text-week-close-2-flirty', on: 'week', stage: 'close', slot: 2, mood: 'flirty',
-    say: "wearing your hoodie. it smells like you. not praise. an observation. i'm not taking it off",
+    say: "wearing your merch hoodie. it smells like a gift shop. not praise. an observation. i'm not taking it off",
     opts: [
-      { tone: 'cold', t: "It smells like the garage.", r: "garage, you, same smell. i'm not complaining. i'm sniffing. lol. no" },
+      { tone: 'cold', t: "Merch? Really? Wow.", r: "ironically. very ironically. i'm wearing it ironically to bed. lol. no" },
       { tone: 'passive', t: "Keep it as long as you want.", r: "forever. i'm adding it to my collection. collection of you. it's two things" },
-      { tone: 'flirty', t: "I like you in my stuff.", r: "i know. i'm in your stuff. you're in my brain. we're even. ugh" },
-      { tone: 'risque', t: "Keep it on till I get there. Then I'll take it back.", r: "bold of you. lol. you can try. i'll put up a fight. a small one" },
+      { tone: 'flirty', t: "I like you in my name.", r: "i know. i'm in your name. you're in my brain. we're even. ugh" },
+      { tone: 'risque', t: "Keep it on till I get there. Then I'll take it off you.", r: "bold of you. lol. you can try. i'll put up a fight. a small one" },
     ] },
   { id: 'rude-text-week-close-3-cold', on: 'week', stage: 'close', slot: 3, mood: 'cold',
-    say: "who's the person in your photo. the one with a hand on your shoulder. not jealous. curious. aggressively curious",
+    say: "who's that in the race photos. the one with a hand on your shoulder. not jealous. curious. aggressively curious",
     opts: [
       { tone: 'cold', t: "Not your business.", r: "everything's my business. i'm your partner. it's in the contract. i wrote the contract", opts: [
         { tone: 'cold', t: "I never signed anything.", r: "you did. when you said yes. ugh. fine. who is it" },
@@ -493,7 +493,7 @@ export const DATA = [
       ] },
     ] },
   { id: 'rude-text-week-close-3-passive', on: 'week', stage: 'close', slot: 3, mood: 'passive',
-    say: "quick question. who's that in your latest photo. no reason. just asking. with my whole chest",
+    say: "quick question. who's that next to you in the race photos. no reason. just asking. with my whole chest",
     opts: [
       { tone: 'cold', t: "Your whole chest? Calm down.", r: "i'm calm. very calm. my chest is calm. who is it", opts: [
         { tone: 'cold', t: "A sponsor. That's it.", r: "a sponsor. fine. sponsors should keep their hands on their wallets. ok" },
@@ -513,7 +513,7 @@ export const DATA = [
       ] },
     ] },
   { id: 'rude-text-week-close-3-flirty', on: 'week', stage: 'close', slot: 3, mood: 'flirty',
-    say: "you look happy in that photo. who's the one next to you. not jealous. just making a list. of names. for no reason",
+    say: "you look happy in the race photos. who's that next to you. not jealous. just making a list. of names. no reason",
     opts: [
       { tone: 'cold', t: "Making a list? That's unhinged.", r: "i'm organised. unhinged people are disorganised. i have tabs", opts: [
         { tone: 'cold', t: "Delete the tabs.", r: "never. the tabs are my life's work. ok. one tab. who is it" },
@@ -534,15 +534,15 @@ export const DATA = [
       ] },
     ] },
   { id: 'rude-text-week-close-4-cold', on: 'week', stage: 'close', slot: 4, mood: 'cold',
-    say: "the cat's sitting by the door. waiting for you. it's embarrassing for her. i'm not waiting. i'm sitting next to her",
+    say: "the cat's by the door. waiting for you. i talk about you too much. i'm not waiting. i'm sitting next to her",
     opts: [
       { tone: 'cold', t: "Tell her to stop.", r: "she won't. she's stubborn. she gets it from me. i won't stop either. ugh" },
       { tone: 'passive', t: "Tell her I'll be back Sunday.", r: "she's relieved. she's not. she's a cat. i'm relieved. on her behalf" },
-      { tone: 'flirty', t: "And you? Waiting too?", r: "next to her. coincidentally. holding your hoodie. coincidentally. come home" },
+      { tone: 'flirty', t: "And you? Waiting too?", r: "next to her. coincidentally. in the hoodie with your number on. coincidentally. come home" },
       { tone: 'risque', t: "Wait in bed instead. I'll be quick.", r: "bold. you're never quick. lol. ...fine. bed. door. whatever gets you here" },
     ] },
   { id: 'rude-text-week-close-4-passive', on: 'week', stage: 'close', slot: 4, mood: 'passive',
-    say: "the cat's been by the front door all evening. waiting for you. it's humiliating. for her. obviously not for me",
+    say: "the cat's been by the front door all evening. waiting for you. she's heard a lot about you. it's humiliating. for her",
     opts: [
       { tone: 'cold', t: "Cats don't wait. You're projecting.", r: "i'm not projecting. i'm observing. she's projecting. on to the door. ok i'm projecting" },
       { tone: 'passive', t: "Aw. Give her a scratch from me.", r: "she bit me. she wanted you. this is your fault. come home and get bitten" },
@@ -550,7 +550,7 @@ export const DATA = [
       { tone: 'risque', t: "I'll make it worth both your waits.", r: "bold. she'll get treats. what'll i get. don't answer. ...answer when you're back" },
     ] },
   { id: 'rude-text-week-close-4-flirty', on: 'week', stage: 'close', slot: 4, mood: 'flirty',
-    say: "the cat misses you. she's by the door. i'm not by the door. i'm near the door. ten feet. eight",
+    say: "the cat's decided she misses you. she's by the door. i'm not by the door. i'm near the door. ten feet. eight",
     opts: [
       { tone: 'cold', t: "Eight feet. That's close.", r: "it's a measured distance. i'm a professional. ok. six. it's six" },
       { tone: 'passive', t: "I miss you both.", r: "both. the cat first, probably. fine. she's lovely. i'm adequate. come back" },
@@ -562,7 +562,7 @@ export const DATA = [
     opts: [
       { tone: 'cold', t: "Annoying is your speciality.", r: "it is. i'm brilliant at it. so are you. we're a team. a very annoying team" },
       { tone: 'passive', t: "Miss you too. Back soon.", r: "soon. good. soon is a good word. the cat agrees" },
-      { tone: 'flirty', t: "Never deleting it. I'm screenshotting it.", r: "lol. of course you are. fine. frame it. hang it in the garage. next to my hoodie" },
+      { tone: 'flirty', t: "Never deleting it. I'm screenshotting it.", r: "lol. of course you are. fine. frame it. hang it in the garage. next to your helmet" },
       { tone: 'risque', t: "Miss me harder. I'll make it up to you.", r: "bold. lol. i'll miss you as hard as i like. make it up to me friday" },
     ] },
   { id: 'rude-text-week-close-5-passive', on: 'week', stage: 'close', slot: 5, mood: 'passive',
@@ -595,8 +595,8 @@ export const DATA = [
         { tone: 'passive', t: "Sunday evening.", r: "sunday. ok. i'll make dinner. it'll be good. i'll pretend it's not for you" },
         { tone: 'flirty', t: "And I'll stay. Properly.", r: "properly. ok. that's... big. good. i want that. ugh. don't screenshot" },
       ] },
-      { tone: 'flirty', t: "Your place is home now?", r: "it's not home. it's... yes. it's home. you live there. a bit. your hoodie lives there", opts: [
-        { tone: 'cold', t: "My hoodie pays more rent.", r: "lol. your hoodie is a better tenant. it doesn't snore. come home anyway" },
+      { tone: 'flirty', t: "Your place is home now?", r: "it's not home. it's... yes. it's home. you'd live there. a bit. your number on my hoodie already does", opts: [
+        { tone: 'cold', t: "My hoodie pays more rent.", r: "lol. your hoodie is a better tenant. it never argues. come home anyway" },
         { tone: 'passive', t: "Then I'll come home.", r: "good. i'll be here. being normal. not waiting. waiting" },
         { tone: 'flirty', t: "Home is wherever you are.", r: "that's a fridge magnet. ugh. it's true. it's a true fridge magnet. come home" },
         { tone: 'risque', t: "I'll come home and show you how much I missed it.", r: "bold. ok. show me. i'll be very critical. lol. no i won't" },

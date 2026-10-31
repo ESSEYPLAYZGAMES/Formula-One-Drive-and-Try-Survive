@@ -93,9 +93,9 @@ export const DATA = [
         { tone: 'passive', t: "That's a lovely thing to keep doing.", r: "It really helps. When it's grey, I tip one out and read. It's like being hugged by all my old days." },
         { tone: 'flirty', t: "And I'm taking over the newest jar?", r: "Most of it. There's room for the odd heron. But it's mostly you. Don't look so pleased. It's going to your head." },
       ] },
-      { tone: 'flirty', t: "Taking it over? I'm honoured. What do the slips say?", r: "That's private! Mostly. One says 'they laughed at my joke about geese'. That's a safe one. The others are... less safe.", opts: [
+      { tone: 'flirty', t: "Taking it over? I'm honoured. What do the slips say?", r: "That's private! Mostly. One says 'so easy to talk to'. That's a safe one. The others are... less safe.", opts: [
         { tone: 'cold', t: "I don't need to know.", r: "Okay. That's fine. They're mine anyway. I'll keep them folded. I'm sorry. I overshared." },
-        { tone: 'passive', t: "The goose joke was good. I'll give you that.", r: "It was, wasn't it? I've got loads more. Some about ducks. Ducks are the backup material." },
+        { tone: 'passive', t: "Easy to talk to. I'll take that.", r: "Good, because I've got loads more to say. Some about ducks. Ducks are the backup material." },
         { tone: 'flirty', t: "Less safe how? Now you have to tell me.", r: "No! Absolutely not. They're going with me to the end of time. Okay, one says 'nice hands'. That's all you're getting." },
         { tone: 'risque', t: "Write one tonight about me kissing you.", r: "Kissing me? On a slip? In my jar? You're not allowed to just SAY that! Gran reads the jar! I'm bright red. Maybe." },
       ] },
@@ -323,12 +323,12 @@ export const DATA = [
       ] },
     ] },
   { id: 'sunny-warm-6-passive', stage: 'warm', slot: 6, mood: 'passive',
-    say: "Okay. I've been building up to this. Can I hold your hand? The otter way? I've thought about it since I told you the otter fact.",
+    say: "Okay. I've been building up to this. Can I hold your hand? The otter way, so we don't drift apart? I've thought about it for ages.",
     opts: [
-      { tone: 'cold', t: "Not in public. Sorry.", r: "Oh. No, that's fine. Totally fine. You're probably always watched. I didn't think. I'm sorry, {me}.", opts: [
+      { tone: 'cold', t: "Not here. Sorry.", r: "Oh. No, that's fine. Totally fine. You're probably always watched. I didn't think. I'm sorry, {me}.", opts: [
         { tone: 'cold', t: "It's just not my thing.", r: "Okay. Not your thing. That's alright. I'll stop asking. I'll keep my hands to myself. Bye for a bit." },
         { tone: 'passive', t: "Somewhere quieter, maybe. I'd like that.", r: "Somewhere quieter. Yes. That's even better, actually. I'll find a bench. A secret bench. Thank you." },
-        { tone: 'flirty', t: "Not in public. But I'll walk you home after.", r: "Walk me home? And maybe then? Oh. Okay. I'll be so pink for hours. That's your fault." },
+        { tone: 'flirty', t: "Not here. But I'll walk you home after.", r: "Walk me home? And maybe then? Oh. Okay. I'll be so pink for hours. That's your fault." },
       ] },
       { tone: 'passive', t: "Of course you can.", r: "Oh. Okay. Here. Oh, that's nice. Your hands are warmer than I thought. I don't know why I thought they'd be cold.", opts: [
         { tone: 'cold', t: "Okay, that's enough.", r: "Oh. Right. Sorry. That was a long hold. I'll let go. Thank you for the bit I got, {me}." },
@@ -479,8 +479,8 @@ export const DATA = [
       { tone: 'flirty', t: "What's my star called?", r: "It's called... your name. Obviously. Oh, I'm being so soppy. I'm saying it. I like you. A lot. Like-like.", opts: [
         { tone: 'cold', t: "Steve would've been fine.", r: "Oh. Okay. I'll rename it Steve Two. I'm sorry. I'll keep my feelings in the garden. Bye, {me}." },
         { tone: 'passive', t: "That's the nicest thing anyone's done for me.", r: "Really? It cost nothing! I just pointed! But I meant it. Every bit. You're my favourite, {me}. I really do." },
-        { tone: 'flirty', t: "Feeling's mutual. Show me which star.", r: "That one! No, that one. No. I've no idea. Come here and I'll guess. Closer. You'll see it better." },
-        { tone: 'risque', t: "Show me tonight. We can count stars till morning.", r: "Till MORNING? Out loud? Where people can hear? I can't stop laughing. I'm the colour of a fire engine. Okay. Maybe." },
+        { tone: 'flirty', t: "Feeling's mutual. Show me which star.", r: "I'll show you. Tonight, when it's dark. I'll point at the wrong one. Come closer anyway. Closer." },
+        { tone: 'risque', t: "Show me tonight. We can count stars till morning.", r: "Till MORNING? You said that out loud! I can't stop laughing. I'm the colour of a fire engine. Okay. Maybe." },
       ] },
     ] },
   // ===================================================================== WARM 9: be mine? (end of chapter)
@@ -520,8 +520,8 @@ export const DATA = [
       { tone: 'flirty', t: "I've been yours for weeks. You just hadn't asked.", r: "Weeks? You've been mine for weeks and I didn't know? I wasted so much time being nervous! Okay. Mine. Mine!", opts: [
         { tone: 'cold', t: "Don't shout it.", r: "Sorry! Sorry. Inside voice. Mine. Quietly. Mine. I'm sorry, I got excited. I'll be calmer." },
         { tone: 'passive', t: "Yours. Let's make up for lost time.", r: "Lost time. Yes. We'll make it up. Starting with this. Hugging you. Right now. No arguments." },
-        { tone: 'flirty', t: "Shout it. Let everyone know.", r: "MINE! There. Everyone heard. I'm so red. I don't care. I'm the happiest I've ever been. Kiss me?" },
-        { tone: 'risque', t: "Then let's go somewhere and make it official.", r: "Make it - oh! You're not allowed to SAY that in public! I'm laughing. I'm so red. Yes. Yes, later. Shh!" },
+        { tone: 'flirty', t: "Shout it. Let everyone know.", r: "MINE! There. All of {venue} heard. I'm so red. I don't care. I'm the happiest I've ever been. Kiss me?" },
+        { tone: 'risque', t: "Then let's go somewhere and make it official.", r: "Make it - oh! You're not allowed to SAY that out loud! I'm laughing. I'm so red. Yes. Yes, later. Shh!" },
       ] },
     ] },
   { id: 'sunny-warm-9-flirty', stage: 'warm', slot: 9, mood: 'flirty',

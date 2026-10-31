@@ -85,7 +85,7 @@ export const DATA = [
     opts: [
       { tone: 'cold', t: "I'm not going to be a moment in your diary.", r: "It's not a diary... it's a jar for small good things. But okay. I won't write you down. I'm sad about it.", opts: [
         { tone: 'cold', t: "Good.", r: "Good. Right. That's the shortest word and it hurt the most today. I'll go and put my notebook away." },
-        { tone: 'passive', t: "Sorry. That sounded mean. What would you have written?", r: "That you had a smudge on your thumb and didn't notice. It was sweet. Little things like that. They're my favourite." },
+        { tone: 'passive', t: "Sorry. That sounded mean. What would you have written?", r: "That you listened like it mattered and didn't notice me noticing. Little things like that. They're my favourite." },
         { tone: 'flirty', t: "Unless it's a very flattering moment.", r: "Every moment I write is flattering. It's a kind notebook. You'd come out glowing. A bit like I am now." },
       ] },
       { tone: 'passive', t: "Go on, then. What's today's moment?", r: "Someone held a door for a stranger in the rain. And now this. You asking. That might be today's moment.", opts: [
@@ -107,9 +107,9 @@ export const DATA = [
         { tone: 'passive', t: "No, it's fine. I'm just a private person.", r: "I understand. I'll keep you in pencil, then. Faint. Just for me. I'm sorry if I rushed you. I rush." },
         { tone: 'flirty', t: "Unless it's good. Is it good?", r: "It's very good. Embarrassingly good. There's a little drawing of your smile. Oh no. I've said far too much." },
       ] },
-      { tone: 'passive', t: "What did you write?", r: "That you're funnier than you let people see. And that I laughed so hard I snorted. I wrote that too. For honesty.", opts: [
+      { tone: 'passive', t: "What did you write?", r: "That you're funnier than you let people see. And that I snorted, remembering it later. I wrote that too. For honesty.", opts: [
         { tone: 'cold', t: "Funnier? I wasn't trying to be.", r: "Then it was an accident and I loved it anyway. You're making me feel silly for saying so. I'll stop sharing." },
-        { tone: 'passive', t: "You snorted? I missed that.", r: "Lucky you. Not my finest sound. But the evening was one of my finest. That's the real line on the page." },
+        { tone: 'passive', t: "You snorted? I missed that.", r: "Lucky you. Not my finest sound. But meeting you was one of my finest days. That's the real line on the page." },
         { tone: 'flirty', t: "Funnier than people see? You see a lot.", r: "I see everything. It's a blessing and a curse. Right now it's a blessing. You're looking at me again. Keep going." },
       ] },
       { tone: 'flirty', t: "I made the list? I'm honoured. Am I near the top?", r: "Top three this month. Just below a perfect sunset and a stranger's dog. You're climbing fast, though.", opts: [
@@ -375,7 +375,7 @@ export const DATA = [
     opts: [
       { tone: 'cold', t: "No idea. Probably something sentimental.", r: "Yes. Something sentimental. That's me. I was going to say it was for you. Maybe I'll keep that bit.", opts: [
         { tone: 'cold', t: "Keep it.", r: "I will. I'll keep the flower too. I wanted to give you something and you wouldn't let me. That hurt." },
-        { tone: 'passive', t: "Sorry. Tell me. Why?", r: "Because yesterday you made me laugh so hard I forgot to be nervous. Gran said keep those days flat and safe." },
+        { tone: 'passive', t: "Sorry. Tell me. Why?", r: "Because I spent yesterday smiling about the last time we talked. Gran said keep those days flat and safe." },
         { tone: 'flirty', t: "Sentimental is fine, if it's about me.", r: "It is. Annoyingly, entirely. There's a little daisy in my notebook with yesterday's date and your name." },
       ] },
       { tone: 'passive', t: "Your gran sounds lovely. What did she say about it?", r: "'Keep the good days flat and safe, so they last.' I keep them in my notebook. It's half flowers now.", opts: [
@@ -438,7 +438,7 @@ export const DATA = [
       ] },
       { tone: 'passive', t: "Scared at the start. Free by lap two. Tired after.", r: "Scared, then free... that's exactly what falling for someone feels like. Oh. I mean in general. In films.", opts: [
         { tone: 'cold', t: "Let's not make it romantic.", r: "Sorry... I make everything romantic. It's a flaw. I'll keep my metaphors to myself. That stung a bit." },
-        { tone: 'passive', t: "What did it look like from where you were?", r: "Like you were made of nerve. I watched through my fingers till you crossed the line. Then I clapped alone in my kitchen." },
+        { tone: 'passive', t: "What did it look like from where you were?", r: "Like you were made of nerve. I watched through my fingers till the very end. Then I clapped alone in my kitchen." },
         { tone: 'flirty', t: "In films, huh? Sure.", r: "Fine! Not in films! In me! Happy now? I'm going pink and you're grinning. This is so unfair." },
       ] },
       { tone: 'flirty', t: "When you're watching? I feel like I'd better not mess up.", r: "Oh... you think about me watching? I watched {last} through my fingers. My heart was in my mouth all race.", opts: [

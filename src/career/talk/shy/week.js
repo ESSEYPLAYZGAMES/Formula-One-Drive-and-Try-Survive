@@ -3,24 +3,24 @@ export const DATA = [
   // ==== NEW ==============================================================================================================
   // ---- 1: a long noticed-detail text -----------------------------------------------------------------------------------
   { id: 'shy-text-week-new-1-cold', on: 'week', stage: 'new', slot: 1, mood: 'cold',
-    say: "I wasn't sure I should text, after last time. But you hold your cup in both hands. I noticed. That's all. Sorry.",
+    say: "Not sure I should text, after last time. But you listen properly. With your whole face. I noticed. That's all. Sorry.",
     opts: [
       { tone: 'cold', t: "Ok.", r: "Okay. Sorry. I'll keep the noticing to myself. It's where it usually lives." },
       { tone: 'passive', t: "Ha, I do do that. Thanks.", r: "You're welcome. It's the kind of thing nobody says, so I said it. Badly. In writing. At least it's spelled right." },
-      { tone: 'flirty', t: "What else have you noticed?", r: "Not telling. Writing is permanent. ...You squint when you smile. That's all. Goodnight. Sorry." },
+      { tone: 'flirty', t: "What else have you noticed?", r: "Not telling. Writing is permanent. ...You smile before you mean to. That's all. Goodnight. Sorry." },
     ] },
   { id: 'shy-text-week-new-1-passive', on: 'week', stage: 'new', slot: 1, mood: 'passive',
-    say: "You hold your cup with both hands, like it's always winter. I noticed. I liked it. Sorry. A lot, for a text about a cup.",
+    say: "You listen like it's the most important thing happening. I noticed. I liked it. Sorry. A lot, for a text about ears.",
     opts: [
       { tone: 'cold', t: "Bit of a strange text.", r: "It is. I know. I typed it eleven times and it got stranger each time. I'll stop now." },
       { tone: 'passive', t: "Ha. News to me.", r: "Most people don't know their own habits. That's what other people are for. Apparently I'm for that." },
       { tone: 'flirty', t: "Keep noticing. I like it.", r: "Okay. Noted. I'll keep noticing. Quietly. And then text you about it at inconvenient hours." },
     ] },
   { id: 'shy-text-week-new-1-flirty', on: 'week', stage: 'new', slot: 1, mood: 'flirty',
-    say: "Can't stop thinking: you hold your cup in both hands, like it's precious. I'd like to be held like a cup. Ignore that.",
+    say: "Can't stop thinking: you listen like every word's precious. I'd like to be listened to like that. Always. Ignore that.",
     opts: [
       { tone: 'cold', t: "Ignored.", r: "Thank you. Genuinely. I'll be under a blanket for the rest of the evening." },
-      { tone: 'passive', t: "Like a cup? Explain.", r: "Carefully, with both hands, as if it's warm. ...I've explained it now. That's worse. Sorry. Too much." },
+      { tone: 'passive', t: "Listened to how? Explain.", r: "Carefully. Closely. As if it's warm. ...I've explained it now. That's worse. Sorry. Too much." },
       { tone: 'flirty', t: "Not ignoring it. Noted for later.", r: "For later. Oh no. I'm putting my phone face down and walking away from it. Slowly." },
     ] },
   // ---- 2: Pickle on the jigsaw (ESTABLISHES in texts: the cat Pickle, the all-sky jigsaw) ------------------------------
@@ -99,7 +99,7 @@ export const DATA = [
       ] },
       { tone: 'flirty', t: "Faster. Your texts are faster.", r: "My texts are faster than a racing car? That's the first time I've ever been called fast.", opts: [
         { tone: 'cold', t: "Only the texts.", r: "Only the texts. Yes. In person I'm a slow lane. Okay." },
-        { tone: 'passive', t: "In the best way.", r: "The best way. I'll keep it. I'll put it next to the cup thing. I have a folder." },
+        { tone: 'passive', t: "In the best way.", r: "The best way. I'll keep it. I'll put it next to the listening thing. I have a folder." },
         { tone: 'flirty', t: "And they make my heart race.", r: "That's a pun. You've done a racing pun. ...I liked it. I'm ashamed of how much I liked it." },
       ] },
     ] },
@@ -319,22 +319,22 @@ export const DATA = [
     opts: [
       { tone: 'cold', t: "Nothing wrong. Drop it.", r: "Okay. Dropped. ...Thank you for saying it was nothing. That helps more than you'd think." },
       { tone: 'passive', t: "You didn't say anything wrong. I was worn out.", r: "Tired. Okay. I'll tell my brain. My brain had made it into a whole film." },
-      { tone: 'flirty', t: "Only thing wrong was you left too early.", r: "Too early. Then I'll leave later. Next time. Much later. If you'll let me." },
+      { tone: 'flirty', t: "Only thing wrong was it ended too soon.", r: "Too soon. Then I'll stay later. Next time. Much later. If you'll let me." },
     ] },
   { id: 'shy-text-week-warm-4-passive', on: 'week', stage: 'warm', slot: 4, mood: 'passive',
-    say: "I'm fairly sure I said 'you too' to something that didn't need it, last time. I've replayed it for two days. Sorry.",
+    say: "I'm fairly sure I said something silly last time. I've replayed every word for two days. Sorry. If I did.",
     opts: [
       { tone: 'cold', t: "Didn't notice.", r: "Oh. Good. That's good. I'll stop replaying it, then. Maybe." },
       { tone: 'passive', t: "It was sweet. Stop worrying.", r: "Sweet. I'll file it under sweet instead of under 'disasters'. That's a much nicer folder." },
-      { tone: 'flirty', t: "You can say 'you too' to me any time.", r: "Any time? Even when it doesn't make sense? ...You too. There. I did it in writing. On purpose." },
+      { tone: 'flirty', t: "You can say silly things to me any time.", r: "Any time? Even when they don't make sense? ...Marmalade. There. I did it in writing. On purpose." },
     ] },
   { id: 'shy-text-week-warm-4-flirty', on: 'week', stage: 'warm', slot: 4, mood: 'flirty',
-    say: "Did I actually call you 'lovely' out loud last time? To your face? I've been hiding under a cushion since.",
+    say: "I nearly called you 'lovely' out loud last time. To your face. I swallowed it. I've been hiding under a cushion since.",
     opts: [
-      { tone: 'cold', t: "You did. Bit over the top.", r: "Yes. I thought so. I'm going to stay under the cushion. It's nice here. Goodbye." },
-      { tone: 'passive', t: "You did. And it was lovely.", r: "It was lovely to say lovely? That's very circular. I'm still under the cushion, but smiling." },
-      { tone: 'flirty', t: "You did. Say it again next time.", r: "Again? On purpose? ...I'll practise. On the cushion. The cushion is going to hear a lot." },
-      { tone: 'risque', t: "Say it again, closer. I won't mind.", r: "Closer. I can't type closer. I can't think closer. I'm going to need a new cushion. A bigger one." },
+      { tone: 'cold', t: "Good thing you didn't. Bit over the top.", r: "Yes. I thought so. I'm going to stay under the cushion. It's nice here. Goodbye." },
+      { tone: 'passive', t: "You should have. It'd have been lovely.", r: "It'd have been lovely to say lovely? That's very circular. I'm still under the cushion, but smiling." },
+      { tone: 'flirty', t: "Next time, say it. Out loud.", r: "Out loud? On purpose? ...I'll practise. On the cushion. The cushion is going to hear a lot." },
+      { tone: 'risque', t: "Say it next time, closer. I won't mind.", r: "Closer. I can't type closer. I can't think closer. I'm going to need a new cushion. A bigger one." },
     ] },
   // ---- 5: flirting in writing - 'in person I would just nod' -----------------------------------------------------------------
   { id: 'shy-text-week-warm-5-cold', on: 'week', stage: 'warm', slot: 5, mood: 'cold',
@@ -424,7 +424,7 @@ export const DATA = [
   // ==== CLOSE ============================================================================================================
   // ---- 1: good morning ------------------------------------------------------------------------------------------------------
   { id: 'shy-text-week-close-1-cold', on: 'week', stage: 'close', slot: 1, mood: 'cold',
-    say: "Morning. I wasn't sure I should, after last time. But my cat Pickle and I always text you in the morning. So.",
+    say: "Morning. I wasn't sure I should, after last time. But mornings feel wrong without texting you. Pickle agrees. So.",
     opts: [
       { tone: 'cold', t: "Morning.", r: "Morning. ...That's all? That's fine. I'll take morning. It's a start." },
       { tone: 'passive', t: "Glad you did. Good morning to you.", r: "You're glad. Then I'll keep doing it. Every morning. Even the strange ones." },
@@ -463,31 +463,31 @@ export const DATA = [
       { tone: 'flirty', t: "I miss you already too. Keep the countdown.", r: "I'll keep it. I'll cross off hours. I'm aware that's unhinged. Doing it regardless." },
     ] },
   { id: 'shy-text-week-close-2-flirty', on: 'week', stage: 'close', slot: 2, mood: 'flirty',
-    say: "You're off to {track}. I've put your jumper on. It doesn't smell of you enough. Come back and fix it.",
+    say: "You're off to {track}. I've put my biggest jumper on. It's a poor substitute for you. Come back and fix it.",
     opts: [
       { tone: 'cold', t: "It's just a jumper.", r: "Yes. Just a jumper. ...I'm still wearing it, though." },
       { tone: 'passive', t: "Keep it on. I'll be back soon.", r: "Soon. I'll keep it on until soon. It might get washed. It might not." },
-      { tone: 'flirty', t: "I'll fix it. Thoroughly. When I'm back.", r: "Thoroughly. I'm going to think about that all week, in your jumper, like a fool." },
+      { tone: 'flirty', t: "I'll fix it. Thoroughly. When I'm back.", r: "Thoroughly. I'm going to think about that all week, in this jumper, like a fool." },
       { tone: 'risque', t: "Keep it warm. I'll be back to claim it. And you.", r: "And me. Okay. I'm in a supermarket. I've gone red in the cereal aisle. Claim away." },
     ] },
   // ---- 3: jealous of a photo -------------------------------------------------------------------------------------------------
   { id: 'shy-text-week-close-3-cold', on: 'week', stage: 'close', slot: 3, mood: 'cold',
-    say: "I saw a photo. You and someone. I won't be weird about it. After last time. I'm being normal. This is me, normal.",
+    say: "The race coverage is full of glamorous people near you. I won't be weird about it. After last time. This is me, normal.",
     opts: [
       { tone: 'cold', t: "It's nothing.", r: "Nothing. Okay. I knew. Normal me knew. ...Thank you." },
-      { tone: 'passive', t: "You can be weird. It was just a photo. I'm yours.", r: "Yours. Okay. Weird me feels much better. Normal me is relieved. We're all fine now." },
+      { tone: 'passive', t: "You can be weird. It's just TV. I'm yours.", r: "Yours. Okay. Weird me feels much better. Normal me is relieved. We're all fine now." },
       { tone: 'flirty', t: "Normal you is adorable. Jealous you too.", r: "Both adorable. That's a relief. I was worried one of us had to go." },
     ] },
   { id: 'shy-text-week-close-3-passive', on: 'week', stage: 'close', slot: 3, mood: 'passive',
-    say: "Saw a photo of you with someone very glamorous. You looked happy. I'm glad you're happy. Also a little jealous. Sorry.",
+    say: "Watched the coverage. So many glamorous people near you. You looked happy. I'm glad. Also a little jealous. Sorry.",
     opts: [
       { tone: 'cold', t: "It's work. Nothing to read into.", r: "No. I won't. I didn't. ...A little. I'm reading into it a little. I'll stop." },
-      { tone: 'passive', t: "That was a sponsor thing. Nothing to worry about.", r: "Nothing. I knew. I needed it in writing, that's all. Thank you for not laughing at me." },
+      { tone: 'passive', t: "That's just sponsor stuff. Nothing to worry about.", r: "Nothing. I knew. I needed it in writing, that's all. Thank you for not laughing at me." },
       { tone: 'flirty', t: "You're cute jealous. And the only one I want.", r: "The only one. That's going in the folder. The big folder. Top of the pile." },
       { tone: 'risque', t: "Let me show you who I'd rather be with. In person.", r: "In person. Show me. ...I'll stop being jealous at about the front door." },
     ] },
   { id: 'shy-text-week-close-3-flirty', on: 'week', stage: 'close', slot: 3, mood: 'flirty',
-    say: "Saw a photo of you with someone very shiny. I'm jealous. Quietly. It's my new hobby. Tell me I'm the shiniest.",
+    say: "Everyone near you on TV is very shiny. I'm jealous. Quietly. It's my new hobby. Tell me I'm the shiniest.",
     opts: [
       { tone: 'cold', t: "Not everything's about you.", r: "No. You're right. Sorry. I'll find a different hobby." },
       { tone: 'passive', t: "You're the shiniest. By miles.", r: "By miles. That's a car thing. You've measured. Thank you. I'm very shiny now." },
@@ -539,7 +539,7 @@ export const DATA = [
     opts: [
       { tone: 'cold', t: "A drawer's a lot.", r: "Yes. A drawer is a lot. I'll give it back to Pickle. Pickle will be delighted." },
       { tone: 'passive', t: "Thank you. Tell Pickle sorry.", r: "I told Pickle. Pickle doesn't accept apologies. Pickle accepts sardines. I'll handle it." },
-      { tone: 'flirty', t: "A drawer at yours means I'm staying over more.", r: "That's the idea. The entire idea. The drawer is a very obvious hint. I'm not subtle in writing." },
+      { tone: 'flirty', t: "A drawer at yours means I'm staying over.", r: "That's the idea. The entire idea. The drawer is a very obvious hint. I'm not subtle in writing." },
       { tone: 'risque', t: "I'll fill it with things I only need at night.", r: "Only at night. ...Okay. I'm going to stop thinking about the drawer. I'm going to think about it a lot." },
     ] },
   // ---- 6: the longest text, not sorry (deep) -------------------------------------------------------------------------------
@@ -554,7 +554,7 @@ export const DATA = [
       { tone: 'passive', t: "Glad you're still here. Last time's on me.", r: "It's fine. It wasn't fine. It's fine now. That's what the long text said, roughly.", opts: [
         { tone: 'cold', t: "Let's move on.", r: "Moving on. Okay. ...I'm good at moving on quietly. I'll be quiet." },
         { tone: 'passive', t: "Tell me the long version when I see you.", r: "In person? It would take an hour. With pauses. ...You'd wait, though. You always wait." },
-        { tone: 'flirty', t: "I'll make it up to you properly.", r: "Properly. I'll hold you to properly. I'll write it on the shelf. In pen." },
+        { tone: 'flirty', t: "I'll make it up to you properly.", r: "Properly. I'll hold you to properly. I'll write it on my hand. In pen." },
         { tone: 'risque', t: "Let me make up for it. All night.", r: "All night. That's a very long apology. I accept. In advance. I accept all of it." },
       ] },
       { tone: 'flirty', t: "Still here and not sorry. My favourite combination.", r: "Mine too. It's new. I used to be gone and sorry. You changed the setting.", opts: [

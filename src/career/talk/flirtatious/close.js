@@ -52,8 +52,8 @@ export const DATA = [
     id: 'flirtatious-close-1-flirty', stage: 'close', slot: 1, mood: 'flirty',
     say: "Look at us. Officially together. I keep saying 'my person' to the mirror. I'm a disgrace, Trouble. Kiss me so I stop talking.",
     opts: [
-      { tone: 'cold', t: "Not here.", r: "Not here. Spoilsport. Fine. I'll keep talking. Forever. About you. In public.", opts: [
-        { tone: 'cold', t: "Please don't.", r: "Please don't. Fine. Mouth shut. Hands to myself. Deeply, publicly sulking." },
+      { tone: 'cold', t: "Not here.", r: "Not here. Spoilsport. Fine. I'll keep talking. Forever. About you. Out loud.", opts: [
+        { tone: 'cold', t: "Please don't.", r: "Please don't. Fine. Mouth shut. Hands to myself. Deeply, visibly sulking." },
         { tone: 'passive', t: "Somewhere quieter. I promise.", r: "Quieter. You promised. I'm writing it down. In ink. On my wrist." },
         { tone: 'flirty', t: "Fine. One. Quickly.", r: "One. Quickly. ...That wasn't quick. You lied. I love it." },
       ] },
@@ -109,9 +109,9 @@ export const DATA = [
         { tone: 'passive', t: "Okay, it's a bit cute.", r: "Cute. That's a blush. Plus one to you. You're cheating by being nice." },
         { tone: 'flirty', t: "Fine. Let me score again.", r: "Go on. I'm braced. ...Oh, don't look at me like that. Eight." },
       ] },
-      { tone: 'passive', t: "Seven? When did I score seven?", r: "Dinner. The car park. The thing you said on the phone. I don't blush, Trouble. Except at you.", opts: [
+      { tone: 'passive', t: "Seven? When did I score seven?", r: "Every time you look at me like that. The rest is classified. I don't blush, Trouble. Except at you.", opts: [
         { tone: 'cold', t: "Sounds made up.", r: "Made up? I have dates and times. Fine. I'll keep the evidence to myself." },
-        { tone: 'passive', t: "Which was the best one?", r: "The phone one. You said goodnight like you meant it. I hid under a pillow. Don't tell anyone." },
+        { tone: 'passive', t: "Which was the best one?", r: "The one where you said my name like that. I nearly hid behind a cushion. Don't tell anyone." },
         { tone: 'flirty', t: "Let me make it eight.", r: "Make it eight. ...Oh, you only had to smile. That's unfair. Eight." },
         { tone: 'risque', t: "I'll take it to double figures tonight.", r: "Double figures. Mm. Brave. I'll lose on purpose. Several times." },
       ] },
@@ -155,18 +155,18 @@ export const DATA = [
   // ==== slot 3: you've been away - they counted the days, and they never count ====
   {
     id: 'flirtatious-close-3-cold', stage: 'close', slot: 3, mood: 'cold',
-    say: "You were away eleven days and you barely called. I counted. I never count. I'm furious. I missed you. Both. Deal with it.",
+    say: "You were away for ages, Trouble. I counted the days. I never count. I'm furious. I missed you. Both. Deal with it.",
     opts: [
       { tone: 'cold', t: "I was racing. I was busy.", r: "Busy. Again. Everyone's busy. I made time to miss you. It's exhausting.", opts: [
         { tone: 'cold', t: "That's not my fault.", r: "No. It's mine, for caring. I'll stop. Watch me stop. ...Not yet. But soon." },
         { tone: 'passive', t: "I know. I'm sorry. It was the same for me.", r: "Did you. Then say it more. In the middle of the night. I'm awake anyway." },
         { tone: 'flirty', t: "I missed you every night.", r: "Every night. Mm. Then call me every night. I'll answer in my most dangerous voice." },
       ] },
-      { tone: 'passive', t: "Eleven days? I missed you too.", r: "Did you? You hid it brilliantly. I danced alone in the kitchen to the slow song. Twice. Pathetic.", opts: [
+      { tone: 'passive', t: "I missed you too. Every day of it.", r: "Did you? You hid it brilliantly. I danced alone in the kitchen to a slow song. Twice. Pathetic.", opts: [
         { tone: 'cold', t: "That's quite tragic.", r: "It was very tragic. I was magnificent and sad. You missed both. Your loss." },
-        { tone: 'passive', t: "Next time I'll call more.", r: "You will. I'll make sure. I'll text you photos of your empty side of the sofa." },
-        { tone: 'flirty', t: "Dance with me now. Make up for it.", r: "Now? Here? ...Fine. Sway. Slowly. Mm. Eleven days forgiven. Nearly." },
-        { tone: 'risque', t: "Let me make up for all eleven tonight.", r: "All eleven. That's a lot of nights in one. I hope you're well rested." },
+        { tone: 'passive', t: "Next time I'll stay in touch more.", r: "You will. I'll make sure. I'll send you photos of my empty sofa. Very sad ones." },
+        { tone: 'flirty', t: "Dance with me now. Make up for it.", r: "Now? Here? ...Fine. Sway. Slowly. Mm. Every day forgiven. Nearly." },
+        { tone: 'risque', t: "Let me make up for every day tonight.", r: "Every day. That's a lot of nights in one. I hope you're well rested." },
       ] },
       { tone: 'flirty', t: "You counted? That's adorable.", r: "It's not adorable. It's a symptom. I've caught something and its name is you.", opts: [
         { tone: 'cold', t: "Get over it.", r: "Get over it. Mm. Cold. Fine. I'll get over it. In about a hundred years." },
@@ -177,50 +177,50 @@ export const DATA = [
   },
   {
     id: 'flirtatious-close-3-passive', stage: 'close', slot: 3, mood: 'passive',
-    say: "Embarrassing confession: when you're away I sleep on your side. It smells like you. I've never done that for anyone, Trouble.",
+    say: "Embarrassing confession: when you're away I fall asleep to your interviews. Your voice. I've never done that for anyone, Trouble.",
     opts: [
-      { tone: 'cold', t: "That's a bit weird.", r: "It's not weird. It's love-adjacent. Fine. I'll sleep in the middle. Pointedly.", opts: [
+      { tone: 'cold', t: "That's a bit weird.", r: "It's not weird. It's love-adjacent. Fine. I'll fall asleep to the weather instead. Pointedly.", opts: [
         { tone: 'cold', t: "Whatever helps.", r: "Whatever helps. Wow. I'll put that on a pillow. A cold one." },
         { tone: 'passive', t: "Okay. It's a bit sweet.", r: "A bit. Thank you. I'll be sweet in private. It's safer." },
-        { tone: 'flirty', t: "I steal your pillow too, when I can.", r: "Do you? Mm. Then we're both disgusting. I've never been happier." },
+        { tone: 'flirty', t: "I'd fall asleep to your voice too.", r: "Do you? Mm. Then we're both disgusting. I've never been happier." },
       ] },
-      { tone: 'passive', t: "I miss you when I'm away too.", r: "Do you? You never say. You just text 'landed.' Landed! I want paragraphs, Trouble.", opts: [
+      { tone: 'passive', t: "I miss you when I'm away too.", r: "Do you? Then say so. Out loud. In paragraphs. I want paragraphs, Trouble.", opts: [
         { tone: 'cold', t: "I'm not a paragraph person.", r: "No. You're a full-stop person. I'll do the paragraphs for both of us." },
         { tone: 'passive', t: "I'll write you paragraphs.", r: "Promise? Long ones. With feelings in. I'll read them in the bath." },
         { tone: 'flirty', t: "Landed. Missed you. Coming straight to you.", r: "That's three sentences. Look at you. Paragraph-adjacent. Come straight to me, then." },
         { tone: 'risque', t: "I'll text you a paragraph about what I'll do when I'm back.", r: "Mm. Send it. Then don't. I'd rather hear it whispered. Late. In person." },
       ] },
-      { tone: 'flirty', t: "My side? Then you'd better keep it warm.", r: "Warm. Mm. It's the warmest it's ever been. Come home and check.", opts: [
-        { tone: 'cold', t: "I'll be late tonight.", r: "Late. Fine. I'll keep it warm and then be cross. Equal measures." },
-        { tone: 'passive', t: "I'll be home Sunday.", r: "Sunday. I'll count the hours. Ugh. I count things now. You did this." },
-        { tone: 'flirty', t: "Keep it warm for me.", r: "Always. Mm. I'll be in the middle when you get back. You'll have to negotiate." },
-        { tone: 'risque', t: "Keep it warm. I'll make it warmer.", r: "Warmer. Mm. Come home, then. I'll be waiting in the dark. Fade out, Trouble." },
+      { tone: 'flirty', t: "My interviews? I'll whisper you to sleep in person.", r: "In person. Mm. That's the dream. Come back and prove it.", opts: [
+        { tone: 'cold', t: "I'll be late tonight.", r: "Late. Fine. I'll keep the interviews on and then be cross. Equal measures." },
+        { tone: 'passive', t: "I'm back Sunday.", r: "Sunday. I'll count the hours. Ugh. I count things now. You did this." },
+        { tone: 'flirty', t: "Keep the volume up till then.", r: "Always. Mm. Then I mute it when you're back and you do the talking. You'll have to negotiate." },
+        { tone: 'risque', t: "Turn me off. I'll be there to keep you up instead.", r: "Keep me up. Mm. Come back, then. I'll be waiting in the dark. Fade out, Trouble." },
       ] },
     ],
   },
   {
     id: 'flirtatious-close-3-flirty', stage: 'close', slot: 3, mood: 'flirty',
-    say: "You've been gone forever, Trouble. Ten days. Forever. Come here. I missed you in ways I can't say in public.",
+    say: "You've been gone forever, Trouble. Days and days. Forever. Come here. I missed you in ways I can't say here.",
     opts: [
-      { tone: 'cold', t: "It was only ten days.", r: "Only ten. You'd say 'only' about a fire. Fine. I missed you. You apparently didn't.", opts: [
+      { tone: 'cold', t: "It wasn't that long.", r: "Not that long. You'd say that about a fire. Fine. I missed you. You apparently didn't.", opts: [
         { tone: 'cold', t: "I was focused.", r: "Focused. On everything but me. Fine. I'll focus on someone grateful. My balcony. My plants." },
         { tone: 'passive', t: "I missed you. I'm just bad at saying it.", r: "Then show me. That's easier. Start with a hug. A long one." },
-        { tone: 'flirty', t: "Ten days of wanting you. Better?", r: "Better. Much. Say it slower and I'll forget the ten days entirely." },
+        { tone: 'flirty', t: "Every day of it, wanting you. Better?", r: "Better. Much. Say it slower and I'll forget the whole stretch entirely." },
       ] },
-      { tone: 'passive', t: "Ten days is a lot. Same here.", r: "It's a lot. I hated it. I'm not built for missing people. I'm built for being missed.", opts: [
+      { tone: 'passive', t: "It felt like forever. Same here.", r: "It's a lot. I hated it. I'm not built for missing people. I'm built for being missed.", opts: [
         { tone: 'cold', t: "It gets easier.", r: "Easier. I don't want to get used to it. I want you here. Never mind." },
         { tone: 'passive', t: "Next time come with me.", r: "Come with you? To {track}? ...Don't tempt me. I'll pack tonight." },
         { tone: 'flirty', t: "Let me make you feel missed now.", r: "Now. Mm. I feel missed. Very. Keep going." },
-        { tone: 'risque', t: "Whisper the things you can't say in public.", r: "Come closer. ...Mm. That's the tamest one. The rest need a locked door." },
+        { tone: 'risque', t: "Whisper the things you can't say here.", r: "Come closer. ...Mm. That's the tamest one. The rest need a locked door." },
       ] },
-      { tone: 'flirty', t: "Ways you can't say in public? Say them in private.", r: "In private. Oh, I will. In detail. You'll want to sit down for it.", opts: [
-        { tone: 'cold', t: "Later. I'm tired.", r: "Tired. After ten days. Fine. I'll whisper at the ceiling instead." },
+      { tone: 'flirty', t: "Ways you can't say here? Say them in private.", r: "In private. Oh, I will. In detail. You'll want to sit down for it.", opts: [
+        { tone: 'cold', t: "Later. I'm tired.", r: "Tired. After all that. Fine. I'll whisper at the ceiling instead." },
         { tone: 'passive', t: "Tonight, then.", r: "Tonight. My place. I'll put the slow record on and tell you all of it." },
         { tone: 'flirty', t: "I'll sit down. You come closer.", r: "Closer. Mm. ...You missed me too. I can tell. Your ears are pink. Point to me." },
-        { tone: 'risque', t: "Show me instead of saying.", r: "Show you. Mm. Come home. Door shut. Lights low. I'll show you all ten days." },
+        { tone: 'risque', t: "Show me instead of saying.", r: "Show you. Mm. Come home. Door shut. Lights low. I'll show you every day I missed." },
       ] },
-      { tone: 'risque', t: "Take me home and miss me properly.", r: "Properly. Mm. I've had ten days to plan it. You won't sleep, Trouble.", opts: [
-        { tone: 'cold', t: "Actually, I need sleep.", r: "Sleep. After ten days. Wow. Fine. Sleep. I'll lie there missing you, right beside you. Loudly." },
+      { tone: 'risque', t: "Take me home and miss me properly.", r: "Properly. Mm. I've had all week to plan it. You won't sleep, Trouble.", opts: [
+        { tone: 'cold', t: "Actually, I need sleep.", r: "Sleep. After all that time. Wow. Fine. Sleep. I'll lie there missing you, right beside you. Loudly." },
         { tone: 'passive', t: "Home first. Then we'll see.", r: "We'll see. Mm. We both know what we'll see. Come on. Home." },
         { tone: 'flirty', t: "I don't need sleep. I need you.", r: "Need. Mm. That's my favourite word from you. Let's go." },
         { tone: 'risque', t: "No sleep. Just you. Fade to black.", r: "Fade to black. Mm. I'll lock the door. You turn off the lights. Welcome home." },
@@ -230,7 +230,7 @@ export const DATA = [
   // ==== slot 4: jealousy - "I don't get jealous. So what is this?" ====
   {
     id: 'flirtatious-close-4-cold', stage: 'close', slot: 4, mood: 'cold',
-    say: "Someone had a hand on your arm for ten whole seconds the other night. I counted. I don't get jealous. So what is this burning?",
+    say: "I saw a clip. Someone had a hand on your arm for ten whole seconds. I counted. I don't get jealous. So what is this burning?",
     opts: [
       { tone: 'cold', t: "You're being ridiculous.", r: "I'm being ridiculous. Yes. Thank you for confirming. It doesn't stop the burning, Trouble.", opts: [
         { tone: 'cold', t: "Then deal with it.", r: "Deal with it. Mm. I will. Coldly. Far away. With very good posture." },
@@ -252,7 +252,7 @@ export const DATA = [
   },
   {
     id: 'flirtatious-close-4-passive', stage: 'close', slot: 4, mood: 'passive',
-    say: "I'll be honest. Someone was all over you after the race and I wanted to throw something. I don't get jealous, Trouble. Help.",
+    say: "Honestly? Someone was all over you on the telly after the race and I wanted to throw something. Me. Jealous. Help.",
     opts: [
       { tone: 'cold', t: "You don't own me.", r: "I know I don't. I never wanted to own anyone. I just want to be the one you leave with.", opts: [
         { tone: 'cold', t: "Then don't act like it.", r: "Noted. Hands off. Heart... also off. Somewhere. I'll find it later." },
@@ -275,7 +275,7 @@ export const DATA = [
   },
   {
     id: 'flirtatious-close-4-flirty', stage: 'close', slot: 4, mood: 'flirty',
-    say: "Someone flirted with you tonight and I watched. My heart went green, Trouble. I didn't know it could. Make it go back.",
+    say: "I watched a clip of someone flirting with you. My heart went green, Trouble. I didn't know it could. Make it go back.",
     opts: [
       { tone: 'cold', t: "Not my job to fix.", r: "Not your job. Nothing's your job tonight. Fine. I'll go green alone.", opts: [
         { tone: 'cold', t: "Go green, then.", r: "Green, cross and gorgeous. Over there. Not looking at you. Constantly looking at you." },
@@ -296,7 +296,7 @@ export const DATA = [
       ] },
       { tone: 'risque', t: "Let me kiss the jealousy right out of you.", r: "Kiss it out. Mm. It's very stubborn, my jealousy. You'll need several attempts.", opts: [
         { tone: 'cold', t: "One attempt. That's it.", r: "One. ...Ugh. It worked. I hate that it worked. I'm still sulking, on principle." },
-        { tone: 'passive', t: "As many as it takes.", r: "That's the most romantic thing anyone's said to me in public." },
+        { tone: 'passive', t: "As many as it takes.", r: "That's the most romantic thing anyone's said to me out loud." },
         { tone: 'flirty', t: "Starting now. Hold still.", r: "Holding still. ...Mm. Again. I'm still slightly green. There. Gone." },
         { tone: 'risque', t: "Then let me take you home and kiss the rest away.", r: "The rest. Mm. Let's go. Right now. I'll be quiet in the car. Barely." },
       ] },
@@ -305,16 +305,16 @@ export const DATA = [
   // ==== slot 5: tenderness - you've seen them without the show; Vivi wants to meet you ====
   {
     id: 'flirtatious-close-5-cold', stage: 'close', slot: 5, mood: 'cold',
-    say: "You've seen me without the show now. Morning hair. No lines. And then you went frosty. It's not fair, Trouble. I'm unarmoured.",
+    say: "You've seen me without the show now. No lines. No armour. And then you went frosty. It's not fair, Trouble. I'm unarmoured.",
     opts: [
-      { tone: 'cold', t: "You're overthinking it.", r: "Am I? You know my morning face and my burnt toast. And you're frosty. I'm thinking exactly enough.", opts: [
+      { tone: 'cold', t: "You're overthinking it.", r: "Am I? You know the real me now. And you're frosty. I'm thinking exactly enough.", opts: [
         { tone: 'cold', t: "Then stop.", r: "Stop thinking. Sure. Armour back on. It doesn't fit anymore, you know. You did that." },
         { tone: 'passive', t: "Sorry. I didn't mean to be cold.", r: "I know. I just feel everything now. It's terribly inconvenient. Hug me." },
-        { tone: 'flirty', t: "I love the morning hair.", r: "You love the morning hair. Oh. Okay. It's staying. Forever. Ugh. Thank you." },
+        { tone: 'flirty', t: "I love the real you. Unarmoured and all.", r: "You love the real me. Oh. Okay. I'm staying like this. Forever. Ugh. Thank you." },
       ] },
       { tone: 'passive', t: "I like you without the show.", m: 2, r: "Do you? Most people want the show. You keep asking for the quiet. I don't know what to do with that.", opts: [
         { tone: 'cold', t: "Don't make it a big deal.", r: "It is a big deal. To me. Fine. I'll make it a small deal. A tiny, secret, enormous deal." },
-        { tone: 'passive', t: "You don't have to do anything with it.", r: "Don't I? ...Okay. I'll just keep it. Like your sunglasses. Did I ever give those back?" },
+        { tone: 'passive', t: "You don't have to do anything with it.", r: "Don't I? ...Okay. I'll just keep it. Like I keep everything of yours. I'm a magpie." },
         { tone: 'flirty', t: "Give it to me. I'll keep it safe.", r: "Keep it safe. Mm. Then I'll give you the quiet. And the snort-laugh. Lucky you." },
         { tone: 'risque', t: "No show. No armour. Just you, in my shirt, on a Sunday.", r: "In your shirt. On a Sunday. Mm. That's the most dangerous thing anyone's ever offered me." },
       ] },
@@ -350,7 +350,7 @@ export const DATA = [
   },
   {
     id: 'flirtatious-close-5-flirty', stage: 'close', slot: 5, mood: 'flirty',
-    say: "You've seen me without the show, Trouble. Burnt toast, no lines, my snort-laugh. And you're still here. Nobody's ever stayed for that.",
+    say: "You've seen me without the show, Trouble. No lines, no armour, my worst jokes. And you're still here. Nobody's ever stayed for that.",
     opts: [
       { tone: 'cold', t: "Don't make a speech.", r: "No speech. Fine. Bullet points: you stayed, I'm terrified, I'm happy. There.", opts: [
         { tone: 'cold', t: "Okay. Thanks.", r: "'Okay, thanks.' Romance is on mute tonight. I'll turn it up later." },
@@ -369,7 +369,7 @@ export const DATA = [
         { tone: 'flirty', t: "You're worth staying for.", r: "Worth it. Mm. Write that down. I'll read it at two a.m. when I'm being silly." },
         { tone: 'risque', t: "I'm staying. Tonight and every night.", r: "Every night. Then I'd better buy a second pillow. And lock the door." },
       ] },
-      { tone: 'risque', t: "Burnt toast and the snort. Now show me the rest.", r: "The rest. Mm. You've seen most of it. The best bit only comes out after midnight. Door shut.", opts: [
+      { tone: 'risque', t: "No lines, no armour. Now show me the rest.", r: "The rest. Mm. You've seen most of it. The best bit only comes out after midnight. Door shut.", opts: [
         { tone: 'cold', t: "Maybe later.", r: "Later. Of course. You love later. Later loves you less." },
         { tone: 'passive', t: "No rush. I like this part too.", r: "This part. The talking. Mm. You're very good at this part. Rare." },
         { tone: 'flirty', t: "After midnight, then. I'll wait up.", r: "You'll wait up. You. That's love, that is. Or madness." },
@@ -510,7 +510,7 @@ export const DATA = [
       ] },
       { tone: 'passive', t: "I'm not leaving. That's a promise.", m: 2, r: "A promise. I've had promises. ...But yours sound different. Like you're already staying.", opts: [
         { tone: 'cold', t: "Don't make me repeat it.", r: "Once is enough. Okay. I'll hold onto it. Very tightly. Like a railing." },
-        { tone: 'passive', t: "I am already staying.", r: "You are. Your mug's in my cupboard. Your jacket's on my chair. Oh. You've been staying for weeks." },
+        { tone: 'passive', t: "I am already staying.", r: "You are. You keep coming back. You stay for the quiet bits. Oh. You've been staying for weeks." },
         { tone: 'flirty', t: "Your trick's broken. Get a new one.", r: "A new trick. Mm. How about: I fall in love and see what happens. ...I said that out loud." },
         { tone: 'risque', t: "I'll prove it. Tonight. And tomorrow.", r: "And tomorrow. Mm. And the day after. Bring your toothbrush. Leave it here." },
       ] },
@@ -554,7 +554,7 @@ export const DATA = [
         { tone: 'passive', t: "Sorry. I know it matters.", r: "It matters. You matter. That's the whole problem. Come here. Sit." },
         { tone: 'flirty', t: "Silly rule. Worth breaking. For me.", r: "For you. Mm. Yes. Worth it. I'd break all the others too. Watch." },
       ] },
-      { tone: 'passive', t: "When did you fall?", r: "Honestly? The first time you didn't blink. Or the time you stayed for the quiet bit. Both. Ages ago.", opts: [
+      { tone: 'passive', t: "When did you fall?", r: "Honestly? Somewhere around the way you never look away. And the way you stay for the quiet. Ages ago.", opts: [
         { tone: 'cold', t: "That's a long time to hide it.", r: "It is. I'm very good at hiding. It's my entire act. Fine. I'll hide it again." },
         { tone: 'passive', t: "I'm glad you told me.", r: "I'm glad I told you. I think. Ask me after I stop shaking." },
         { tone: 'flirty', t: "I fell the first time you looked at me.", r: "The first time? Then you fell first. Oh. Oh, Vivi's going to be furious. I'm thrilled." },
@@ -574,7 +574,7 @@ export const DATA = [
     opts: [
       { tone: 'cold', t: "That's a lot of pressure.", r: "Pressure. Mm. It's not pressure, it's a fact. Facts are just very heavy, sometimes. Never mind.", opts: [
         { tone: 'cold', t: "It's too much for me.", r: "Too much. Okay. I hear you. I'll carry it myself. I'm stronger than I look. Barely." },
-        { tone: 'passive', t: "Sorry. I'm glad. I'm just surprised.", r: "Surprised? I've been obvious for weeks. Everyone knew. Even the waiters." },
+        { tone: 'passive', t: "Sorry. I'm glad. I'm just surprised.", r: "Surprised? I've been obvious for weeks. Everyone knew. Even Vivi's postman." },
         { tone: 'flirty', t: "It's the best pressure.", r: "The best. Mm. Then I'll lean on you a little harder. Gladly." },
       ] },
       { tone: 'passive', t: "Hopelessly? That's a big word for you.", r: "It's accurate. No hope at all. I'm completely gone. I keep humming in public.", opts: [
@@ -631,7 +631,7 @@ export const DATA = [
       ] },
       { tone: 'passive', t: "Same table. Same contest. I'll win eventually.", r: "You'll never win. But you'll keep trying. That's the most annoying, wonderful thing about you.", opts: [
         { tone: 'cold', t: "We'll see about that.", r: "We'll see. Mm. You'll see. I'll be there. Not blinking." },
-        { tone: 'passive', t: "And in ten years?", r: "Ten years. Same table. A slow record. Probably your sunglasses, still. I never gave them back, did I?" },
+        { tone: 'passive', t: "And in ten years?", r: "Ten years. Same table. A slow record. Probably in your sunglasses, if I've stolen them by then. I will have." },
         { tone: 'flirty', t: "In a year, I'll make you blink.", r: "You've already made me do worse. I'm in love with you, Trouble. ...There. I blinked." },
         { tone: 'risque', t: "In a year: same table, then home early.", r: "Home early. Mm. Some things never change. I'll be counting on it." },
       ] },

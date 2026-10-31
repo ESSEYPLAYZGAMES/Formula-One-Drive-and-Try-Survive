@@ -1,61 +1,61 @@
 // Sunny (SWEET) - in person, stage 'close': dating. 9 story slots x 3 opening moods.
 export const DATA = [
-  // ===================================================================== CLOSE 1: hi, you - I hugged your hoodie
+  // ===================================================================== CLOSE 1: hi, you - I hugged a hoodie and pretended it was you
   { id: 'sunny-close-1-cold', stage: 'close', slot: 1, mood: 'cold',
-    say: "Hi, you. I've still got your hoodie. I wore it all week, even after last time. I'm not giving it back. I'm just a bit sad in it.",
+    say: "Hi, you. I lived in my biggest hoodie all week, even after last time. I pretended it was yours. I'm just a bit sad in it.",
     opts: [
-      { tone: 'cold', t: "You can give it back, actually.", r: "Oh. Right. Okay. I'll wash it first. It smells of my shampoo now. I didn't think you'd want it back like this.", opts: [
-        { tone: 'cold', t: "Just bring it next time.", r: "I will. I'll fold it nicely. I'll head off, {me}. I don't want to cry in your hoodie. Not here." },
-        { tone: 'passive', t: "No, keep it. I'm sorry. I was being petty.", r: "Petty's allowed, once. Thank you for taking it back. The hoodie and I accept. We're both relieved." },
-        { tone: 'flirty', t: "Keep it. I like the idea of you in it.", r: "Do you? Then I'll keep wearing it. And I'll be slightly less sad in it now. Come here. Hoodie hug." },
+      { tone: 'cold', t: "Pretending it was mine? Bit strange.", r: "Oh. Right. Okay. Maybe it is. It's just what I do when I miss someone. I didn't think you'd mind.", opts: [
+        { tone: 'cold', t: "Just say you missed me. Leave the hoodie out of it.", r: "I did miss you. That's the whole hoodie. I'll head off, {me}. I don't want to cry in it. Not here." },
+        { tone: 'passive', t: "No, it's sweet. I'm sorry. I was being petty.", r: "Petty's allowed, once. Thank you for taking it back. The hoodie and I accept. We're both relieved." },
+        { tone: 'flirty', t: "It's sweet. I like the idea of you in it.", r: "Do you? Then I'll keep wearing it. And I'll be slightly less sad in it now. Come here. Hoodie hug." },
       ] },
-      { tone: 'passive', t: "Keep it. Last time was me being awful. Why sad?", r: "Because you felt far away, and the hoodie was the closest I could get. I hugged it on the sofa for an hour. Don't laugh.", opts: [
+      { tone: 'passive', t: "Last time was me being awful. Why sad?", r: "Because you felt far away, and the hoodie was the closest I could get. I hugged it on the sofa for an hour. Don't laugh.", opts: [
         { tone: 'cold', t: "That's a bit sad, yeah.", r: "It was. That was the point. I wanted you to know, that's all. I'll be okay. I'm going home, {me}." },
         { tone: 'passive', t: "I'm not laughing. I'm sorry I made you feel that.", r: "Thank you. Saying sorry like that fixes so much. Come here. I want a real hug. Not a hoodie one." },
         { tone: 'flirty', t: "Next time hug me. I'm much better than a hoodie.", r: "You are. Warmer. Less fluffy. Better at hugging back. Okay. Here. I've missed you, you menace." },
       ] },
-      { tone: 'flirty', t: "You stole my hoodie and you're sad? I should be sad.", r: "You can be sad together with me. In the hoodie. There's room for two. There isn't. We'd make it work.", opts: [
-        { tone: 'cold', t: "I'm not in the mood for this.", r: "Okay. Not the mood. I'll stop. I'll take my sad and your hoodie home. We'll talk when you are." },
-        { tone: 'passive', t: "Forgive me for before? I'd like it back with you inside it.", r: "With me inside it? That's the sweetest way to say sorry. Okay. Forgiven. Come here. It's a big hoodie." },
+      { tone: 'flirty', t: "A hoodie standing in for me? I'm much cuddlier.", r: "Prove it, then. Be sad with me. In the hoodie. There's room for two. There isn't. We'd make it work.", opts: [
+        { tone: 'cold', t: "I'm not in the mood for this.", r: "Okay. Not the mood. I'll stop. I'll take my sad and my hoodie home. We'll talk when you are." },
+        { tone: 'passive', t: "Forgive me for before? I'd like a hug with you inside it.", r: "With me inside it? That's the sweetest way to say sorry. Okay. Forgiven. Come here. It's a big hoodie." },
         { tone: 'flirty', t: "Two in one hoodie. Let's test it.", r: "Here? Now? We'll fall over. We'll fall over together. That's the most romantic way to fall over." },
         { tone: 'risque', t: "We'd make it work better without the hoodie.", r: "Oh, would we now? Bold. After last time? I'll allow it. Later. Mine. I'll leave the hoodie by the door." },
       ] },
     ] },
   { id: 'sunny-close-1-passive', stage: 'close', slot: 1, mood: 'passive',
-    say: "Hi, you. Confession: I missed you so much this week I hugged your hoodie on the sofa for an hour. The grey one you left. It's mine now.",
+    say: "Hi, you. Confession: I missed you so much this week I hugged my biggest hoodie on the sofa for an hour and called it {me}.",
     opts: [
-      { tone: 'cold', t: "That's my favourite hoodie.", r: "Oh. Is it? I didn't know. I can give it back. I'm sorry. I thought you'd think it was sweet.", opts: [
-        { tone: 'cold', t: "Yeah, I'd like it back.", r: "Okay. I'll bring it. Washed. It's not as fun as I thought it'd be, this. I'll see you, {me}." },
-        { tone: 'passive', t: "No, keep it. It's sweet. I'm only teasing.", r: "Teasing! You got me. I was about to fold it with great sadness. Okay. It's mine. Forever now." },
-        { tone: 'flirty', t: "Keep it. It looks better on you anyway.", r: "It doesn't! It's enormous. I look like a duvet with a face. But thank you. I'll wear it tomorrow." },
+      { tone: 'cold', t: "You named a hoodie after me?", r: "Oh. Is that weird? I can un-name it. I'm sorry. I thought you'd think it was sweet.", opts: [
+        { tone: 'cold', t: "Yeah, un-name it.", r: "Okay. It's just a hoodie again. It's not as fun as I thought it'd be, this. I'll see you, {me}." },
+        { tone: 'passive', t: "No, keep the name. It's sweet. I'm only teasing.", r: "Teasing! You got me. I was about to un-name it with great sadness. Okay. It stays {me}. Forever now." },
+        { tone: 'flirty', t: "Keep it. I bet you look cute in it.", r: "I don't! It's enormous. I look like a duvet with a face. But thank you. I'll wear it tomorrow." },
       ] },
       { tone: 'passive', t: "An hour? I missed you too.", r: "You did? Good. I mean, not good, but good. Was it the sort of missing where you keep turning round to tell someone something?", opts: [
         { tone: 'cold', t: "Not really. I was busy.", r: "Oh. Okay. Busy is fine. I know your weeks. I'll keep my turning round to myself. It's fine." },
         { tone: 'passive', t: "Exactly that sort. All week.", r: "Oh, good. The same sort. We're synchronised. I saw a dog in boots and you weren't there. Tragic." },
-        { tone: 'flirty', t: "The sort where I stole your pillow back.", r: "My pillow? You took my pillow? You thief. Okay, we're even. We're two thieves. Partners in crime. I like that." },
+        { tone: 'flirty', t: "The sort where I hugged a pillow and called it you.", r: "A pillow? You too? You copycat. Okay, we're even. Two huggers. Partners in crime. I like that." },
       ] },
       { tone: 'flirty', t: "An hour with the hoodie? Lucky hoodie.", r: "It's had a very good week. It got hugs and tea spilled on it. It's living its best life. Jealous?", opts: [
         { tone: 'cold', t: "Jealous of a hoodie? No.", r: "No. Right. Silly. I'll stop talking about the hoodie. It's just a hoodie. Sorry, {me}." },
         { tone: 'passive', t: "A bit. Hug me instead now.", r: "Now? Here? Okay. Come here. Oh, you're much better than the hoodie. Sorry, hoodie." },
         { tone: 'flirty', t: "Very jealous. Make it up to me.", r: "How? Oh. I know how. Come here. That's one. Hoodie never got that. That's two. Hoodie's furious." },
-        { tone: 'risque', t: "Jealous. Next time skip the hoodie and hug me in bed.", r: "In bed? You're on. I'll put the hoodie in the wardrobe. It doesn't need to see that. Come home soon." },
+        { tone: 'risque', t: "Jealous. Next time skip the hoodie and hug me in bed.", r: "In bed? You're on. I'll put the hoodie in the wardrobe. It doesn't need to see that. Come over soon." },
       ] },
     ] },
   { id: 'sunny-close-1-flirty', stage: 'close', slot: 1, mood: 'flirty',
-    say: "Hi, you. I'm wearing your hoodie under my coat. Don't look. You looked. I've worn it every day since you left. It smells like you.",
+    say: "Hi, you. I'm wearing my biggest hoodie under my coat. Don't look. You looked. I've worn it all week and pretended it was yours.",
     opts: [
       { tone: 'cold', t: "You should probably wash it.", r: "Oh. Yes. I suppose. That would ruin it, though. But okay. I'll wash it. That's very practical of you.", opts: [
-        { tone: 'cold', t: "And give it back.", r: "Oh. Okay. I didn't know it was a borrowing thing. I'm sorry. I'll bring it, washed. See you, {me}." },
-        { tone: 'passive', t: "Sorry. I'm joking. Keep it unwashed. It's yours.", r: "Thank goodness. I was about to do a very sad wash. It's mine now. That's the law of hoodies." },
-        { tone: 'flirty', t: "Or I could just give it a fresh smell of me.", r: "Like a refill? That's - okay, that's a great idea. Here. Hug. Refill. You're very clever." },
+        { tone: 'cold', t: "And stop pretending it's mine.", r: "Oh. Okay. I didn't know there were rules. I'm sorry. I'll stop pretending. See you, {me}." },
+        { tone: 'passive', t: "Sorry. I'm joking. Keep pretending.", r: "Thank goodness. I was about to do a very sad wash. It's honorary-yours now. That's the law of hoodies." },
+        { tone: 'flirty', t: "Or I could make it smell of me for real.", r: "Like a refill? That's - okay, that's a great idea. Here. Hug. Refill. You're very clever." },
       ] },
-      { tone: 'passive', t: "Every day? You must have really missed me.", r: "So much! I kept telling Dennis things and then remembering he's a fern. Dennis is my fern. I might've said?", opts: [
+      { tone: 'passive', t: "All week? You must have really missed me.", r: "So much! I kept telling Dennis things and then remembering he's a fern. Dennis is my fern. I might've said?", opts: [
         { tone: 'cold', t: "You talk to a plant?", r: "I do. I always have. I'm sorry, I thought I'd said. Never mind. It's not important. I'll stop." },
         { tone: 'passive', t: "Same here, honestly. I missed Dennis less.", r: "He'd be so offended. He's sulking anyway. He thinks you should visit more. So do I. Hint, hint." },
         { tone: 'flirty', t: "Tell Dennis I'm back now. You don't need him.", r: "Oh, he'll hear that. He's got big ears. Fronds. Whatever. Come here. You're back. I'm so pleased." },
       ] },
-      { tone: 'flirty', t: "You look good in my hoodie. Better than me.", r: "Liar. It's enormous. But I'll take it. I might even let you have it back. For an hour. Supervised.", opts: [
-        { tone: 'cold', t: "I'll take it back now, then.", r: "Now? Here? Oh. You're serious. Okay. I'll give it you at home. That's - okay. That stings." },
+      { tone: 'flirty', t: "You look good in it. I'm flattered it's me.", r: "Liar. It's enormous. But I'll take it. I might even let you wear it. For an hour. Supervised.", opts: [
+        { tone: 'cold', t: "I'll pass on the hoodie, thanks.", r: "Oh. You're serious. Okay. It can just be mine, then. That's - okay. That stings." },
         { tone: 'passive', t: "Keep it. I'll steal one of yours to make it fair.", r: "My cardigan? The yellow one? You'd look ridiculous. Wonderful. Ridiculous. Take it. It's yours." },
         { tone: 'flirty', t: "Supervised? I'll need very close supervision.", r: "The closest. I'll be right there. Watching. Pink. Ready to take it back the second you look away." },
         { tone: 'risque', t: "I'd rather take it off you myself.", r: "Would you? Then you'll have to come home with me to do it. I'm not taking it off at {venue}. Later." },
@@ -70,7 +70,7 @@ export const DATA = [
         { tone: 'passive', t: "Sorry. I'd like to be back in it too.", r: "Then you are. Tonight's slip is 'they said sorry'. That's a really good one, actually. Thank you." },
         { tone: 'flirty', t: "Let me give you something worth writing.", r: "Like what? You're smiling. It's working already. Okay. That's half a slip. Keep going." },
       ] },
-      { tone: 'passive', t: "I'm sorry. What does it say, mostly? The you bits?", r: "Small things. 'They laughed at my goose joke.' 'They texted good morning first.' My gran says I'll need a fourth jar.", opts: [
+      { tone: 'passive', t: "I'm sorry. What does it say, mostly? The you bits?", r: "Small things. 'Made me laugh.' 'Looked at me like I was the good thing.' My gran says I'll need a fourth jar.", opts: [
         { tone: 'cold', t: "That's a lot of jar for one person.", r: "You're a lot, in a good way, I thought. Okay. The slips stay folded. I'm sorry." },
         { tone: 'passive', t: "I'll do better at being slip-worthy.", r: "You already are. Last time was one day. The jar's got weeks of you. Weeks win. Come here." },
         { tone: 'flirty', t: "Fourth jar? I'll buy it. A big one.", r: "A big one! You'd do that? Then I'll fill it with you. Every day. Oh, I've gone soppy. Forgiven." },
@@ -110,21 +110,21 @@ export const DATA = [
         { tone: 'passive', t: "Sorry. That came out mean. I like being in it.", r: "You do? Okay. I'll keep going, then. But I'll put a nice cloud in once a week, for balance." },
         { tone: 'flirty', t: "Fine. Write about me, then the weather. Me first.", r: "You first. Always. Then the weather. The weather's never been first anyway. You've been warned." },
       ] },
-      { tone: 'passive', t: "Two jars of me? What do they say?", r: "'Made them laugh on the phone.' 'They remembered my gran's name.' 'Kissed me in the rain.' That one's my favourite.", opts: [
+      { tone: 'passive', t: "Two jars of me? What do they say?", r: "'Made me laugh.' 'Asked about Gran.' And a blank one, saved for when you kiss me in the rain. That one's my favourite.", opts: [
         { tone: 'cold', t: "I don't remember half of those.", r: "That's okay. That's what the jar's for. I remember for both of us. But that stung a bit. A little bit." },
-        { tone: 'passive', t: "The rain one's mine too.", r: "Is it? Oh, good. I was soaked. You were laughing. I've never been so happy to be soaked. Write it down too." },
-        { tone: 'flirty', t: "Let's make another one tonight. Rain or not.", r: "Rain or not! Then I'll need a third jar. And an umbrella. Neither, actually. Just you." },
+        { tone: 'passive', t: "The blank one's my favourite too.", r: "Is it? Oh, good. I've been checking the forecast. I've never wanted to be soaked so much. Write it with me." },
+        { tone: 'flirty', t: "Let's fill the blank one tonight. Rain or not.", r: "Rain or not! Then I'll need a third jar. And an umbrella. Neither, actually. Just you." },
       ] },
       { tone: 'flirty', t: "Officially full of me? I'm very proud.", r: "You should be! It took ages. Gran started the jar to cheer me up when I was nine, and now it's just your face, mostly.", opts: [
         { tone: 'cold', t: "My face isn't in a jar.", r: "No. It's a figure of speech. A silly one. I'll stop. I'm sorry, {me}. I got carried away." },
         { tone: 'passive', t: "Your gran would be proud.", r: "She is. She says 'that driver's taken over the jar' every Sunday. She sounds cross. She's not." },
         { tone: 'flirty', t: "Let me earn a third jar.", r: "A third? You're greedy. I love that. Kiss me and that's the first slip in it. I'm counting." },
-        { tone: 'risque', t: "A whole jar for last night alone?", r: "A whole jar? Last night gets a shelf. Keep looking at me like that and tonight gets a cupboard." },
+        { tone: 'risque', t: "A whole jar for tonight alone?", r: "A whole jar? Tonight gets a shelf. Keep looking at me like that and the whole week gets a cupboard." },
       ] },
     ] },
   // ===================================================================== CLOSE 3: a little jealous
   { id: 'sunny-close-3-cold', stage: 'close', slot: 3, mood: 'cold',
-    say: "I saw you laughing with someone earlier. Really laughing. And after last time, I went all wobbly. I'm not jealous. I'm a little jealous.",
+    say: "I saw a photo of you laughing with someone. Really laughing. After last time, I went all wobbly. I'm not jealous. I'm a little jealous.",
     opts: [
       { tone: 'cold', t: "I'm allowed to laugh with people.", r: "Of course you are. I'd never stop you. I just wanted you to laugh like that with me again. That's all it is.", opts: [
         { tone: 'cold', t: "You're being insecure.", r: "Maybe I am. I'll own that. But I won't keep asking you to see me. I'm off home, {me}. Call when you want to." },
@@ -144,27 +144,27 @@ export const DATA = [
       ] },
     ] },
   { id: 'sunny-close-3-passive', stage: 'close', slot: 3, mood: 'passive',
-    say: "Okay, I'm going to say something and you're not allowed to laugh. I saw you chatting with someone and I got a little jealous. Tiny. A pea.",
+    say: "Okay, say nothing and don't laugh. I saw a photo of you chatting with someone and I got a little jealous. Tiny. A pea.",
     opts: [
       { tone: 'cold', t: "That's a bit possessive.", r: "Is it? I don't want to be possessive. I'm sorry. It's just a pea. I didn't want to hide it. I'll go and squash it.", opts: [
         { tone: 'cold', t: "Yes. Squash it.", r: "Okay. Squashing it. Along with a bit of me, maybe. I'll see you later, {me}. I'm going for a walk." },
         { tone: 'passive', t: "No, I'm glad you said it. It was nothing.", r: "Okay. Thank you. The pea's gone. Well, it's very small now. Practically a lentil. Thank you." },
         { tone: 'flirty', t: "Possessive looks good on you, honestly.", r: "It does? Huh. I'll be possessive more often, then. No, I won't. Maybe a bit. Mine. There." },
       ] },
-      { tone: 'passive', t: "I'm not laughing. Tell me about the pea.", r: "It's silly. You laugh differently with other people. Louder. I wondered if you laugh like that with me. That's all.", opts: [
-        { tone: 'cold', t: "I laugh how I laugh.", r: "Okay. That's fair. I'll stop counting laughs. It's a weird thing to count. I'm sorry, {me}." },
-        { tone: 'passive', t: "I laugh like that with you all the time. You make me.", r: "Really? I've never noticed because I'm always laughing too. Okay. Pea gone. Completely. Thank you." },
-        { tone: 'flirty', t: "With you I laugh differently. Softer. It's better.", r: "Softer? Oh. That's lovely. That's actually lovely. The pea's turned into a little flower. Come here." },
+      { tone: 'passive', t: "I'm not laughing. Tell me about the pea.", r: "It's silly. You looked so lit up in it. I wondered if you light up like that with me. That's all.", opts: [
+        { tone: 'cold', t: "It's just a photo.", r: "Okay. That's fair. I'll stop studying photos. It's a weird thing to do. I'm sorry, {me}." },
+        { tone: 'passive', t: "I light up like that with you all the time. You make me.", r: "Really? I've never noticed because I'm always grinning too. Okay. Pea gone. Completely. Thank you." },
+        { tone: 'flirty', t: "With you it's different. Softer. It's better.", r: "Softer? Oh. That's lovely. That's actually lovely. The pea's turned into a little flower. Come here." },
       ] },
       { tone: 'flirty', t: "A jealous pea? That's the cutest thing ever.", r: "It's not cute, it's a pea! It's very serious. Peas can grow. It's growing a bit now. You're smiling at me like that.", opts: [
         { tone: 'cold', t: "Okay, it's a bit much.", r: "Okay. Pea away. Sorry. I'll be less pea about it. Take care, {me}. I'll be fine in a bit." },
         { tone: 'passive', t: "It was nothing. Promise. Your pea can rest.", r: "My pea can rest. Thank you. I'll tuck it in. Goodnight, pea. Okay. I'm better. Thank you, {me}." },
-        { tone: 'flirty', t: "Your pea's got nothing to worry about. You're my favourite.", r: "Your favourite? Out loud? In front of people? Okay. Pea's thrilled. I'm thrilled. Kiss me." },
+        { tone: 'flirty', t: "Your pea's got nothing to worry about. You're my favourite.", r: "Your favourite? Out loud? At {venue}? Okay. Pea's thrilled. I'm thrilled. Kiss me." },
         { tone: 'risque', t: "Come home with me and I'll prove the pea wrong.", r: "Prove it? All night? Then I'm coming. Pea's coming too. No, pea's staying here. Let's go." },
       ] },
     ] },
   { id: 'sunny-close-3-flirty', stage: 'close', slot: 3, mood: 'flirty',
-    say: "I'm going to be very mature about this. Someone was flirting with you earlier and I wanted to throw a bread roll at them. Very mature.",
+    say: "I'll be very mature about this. Someone flirted with you in a video and I wanted to throw a bread roll at the screen. Very mature.",
     opts: [
       { tone: 'cold', t: "You need to calm down about that.", r: "I know. I'm not going to throw anything. I just felt it. And I wanted to tell you instead of sulking. Sorry.", opts: [
         { tone: 'cold', t: "Sulking would've been better.", r: "Oh. Okay. Then I'll do that. Quietly. Somewhere else. I'm leaving now, {me}. That hurt a bit." },
@@ -174,23 +174,23 @@ export const DATA = [
       { tone: 'passive', t: "They were just being friendly. You know that.", r: "I know. I do. I just saw their hand on your arm and my brain went 'bread roll'. It's a new feeling. I don't like it.", opts: [
         { tone: 'cold', t: "Then stop feeling it.", r: "If only it worked like that. I'll try. I'll go and try somewhere else. See you later, {me}." },
         { tone: 'passive', t: "I don't like making you feel that. I'm all yours.", r: "All mine. Okay. Say that again. No, don't, I'll go to pieces. Okay. Better. Much better. Thank you." },
-        { tone: 'flirty', t: "If it helps, I didn't notice. I was looking at you.", r: "Were you? The whole time? Okay, that's a good answer. That's a very good answer. I've put the roll down." },
+        { tone: 'flirty', t: "If it helps, I didn't even notice them. I was thinking about you.", r: "Were you? Honestly? Okay, that's a good answer. That's a very good answer. I've put the roll down." },
       ] },
       { tone: 'flirty', t: "Jealous you is very attractive.", r: "Is it? Then I'll be jealous more often. No. That's bad. But you liked it. I can tell. Your eyebrow did a thing.", opts: [
         { tone: 'cold', t: "Not that attractive.", r: "Oh. Right. Okay. I'll put the jealousy away, then. And myself. Later, {me}." },
         { tone: 'passive', t: "You've got nothing to be jealous of. Honestly.", r: "I know. I just like hearing it. Okay. I'll stop. Thank you. You're very patient with my bread rolls." },
-        { tone: 'flirty', t: "My eyebrow does that when I want to kiss you.", r: "It does? Then it's been doing it all night. Oh. Oh, okay. Come here. I'll forget all about bread." },
+        { tone: 'flirty', t: "My eyebrow does that when I want to kiss you.", r: "It does? Then it's been doing it since we started talking. Oh. Oh, okay. Come here. I'll forget all about bread." },
         { tone: 'risque', t: "Get jealous again later. In private. I'll make it worth it.", r: "In private? Then I'm going to be outrageously jealous. All the way home. Brace yourself, {me}." },
       ] },
     ] },
   // ===================================================================== CLOSE 4: tell me a tiny secret
   { id: 'sunny-close-4-cold', stage: 'close', slot: 4, mood: 'cold',
-    say: "I keep a list on my phone of tiny things about you. Your tea. How you hum when you're nervous. It hasn't grown since last time.",
+    say: "I keep a list on my phone of tiny things about you. Your laugh. How you go quiet before a race. It hasn't grown since last time.",
     opts: [
       { tone: 'cold', t: "That's a bit much, keeping a list.", r: "Is it? I thought it was sweet. It's only so I don't forget. I'm sorry. I'll stop adding to it.", opts: [
         { tone: 'cold', t: "Maybe delete it.", r: "Oh. Okay. I won't delete it. That's my bit to keep. But I'll stop. Home for me, {me}. Goodnight." },
         { tone: 'passive', t: "No. It's sweet. I'm just prickly today.", r: "Prickly's allowed. I'll add it. 'Gets prickly, comes round.' That's a good one. Thank you." },
-        { tone: 'flirty', t: "Add this: they're sorry, and they adore you.", r: "Typing it now. In capitals. Oh, that's going at the very top. Above the tea thing. Come here." },
+        { tone: 'flirty', t: "Add this: they're sorry, and they adore you.", r: "Typing it now. In capitals. Oh, that's going at the very top. Above the laugh thing. Come here." },
       ] },
       { tone: 'passive', t: "Let me add to it. Ask me anything.", r: "Okay. Tell me something you've never told anyone. It can be tiny. Tiny's my favourite size. I collect tiny.", opts: [
         { tone: 'cold', t: "I don't do secrets.", r: "Okay. That's fine. I won't push. I'll leave the list as it is. Maybe it'll grow another day." },
@@ -208,19 +208,19 @@ export const DATA = [
     say: "Give me a secret. A teeny one. I collect tiny things about you. I've got a list. It's long. Don't be scared.",
     opts: [
       { tone: 'cold', t: "I'm not giving you all my secrets.", r: "Not all. Just one. A tiny one. But okay. You're allowed to keep them. I'm sorry for pushing. It's just a list.", opts: [
-        { tone: 'cold', t: "Good. Leave it.", r: "Leaving it. I'll go and make tea. You take yours with a splash of milk. That's on the list. See you." },
+        { tone: 'cold', t: "Good. Leave it.", r: "Leaving it. I'll go and make tea. I still don't know how you take yours. That's a gap in the list. See you." },
         { tone: 'passive', t: "Okay. One. I wanted to be a vet before racing.", r: "A vet! Oh, little you with a stethoscope and a hamster! Adding it now. With a hamster drawing." },
         { tone: 'flirty', t: "One secret, for a kiss.", r: "That's a very fair trade. I accept. Kiss first, though. Then secret. I don't trust you. I do. Come here." },
       ] },
       { tone: 'passive', t: "Okay. I eat cereal standing up at midnight. Every night.", r: "Every night? Standing up? That's so you. Listed. Starred. Treasured. What else is on there? Want to see?", opts: [
         { tone: 'cold', t: "I'd rather not see the list.", r: "Okay. That's fine. It's mine anyway. I'll keep it safe. It's just little things, I promise." },
-        { tone: 'passive', t: "Show me. I want to know what you noticed.", r: "Here. 'Hums when nervous.' 'Splash of milk.' 'Says thank you to the car.' 'Lovely laugh.' It goes on." },
+        { tone: 'passive', t: "Show me. I want to know what you noticed.", r: "Here. 'Goes quiet before a race.' 'Lovely laugh.' 'Eats cereal standing up at midnight.' It goes on." },
         { tone: 'flirty', t: "Is there anything on there about my kisses?", r: "There's a whole section. With ratings. All tens. Some elevens. You're not allowed to read that bit." },
         { tone: 'risque', t: "Add this: they want you in their bed every night.", r: "Adding it. Underlined. And a reply: so do I. Every night. Starting tonight, if you can keep up." },
       ] },
       { tone: 'flirty', t: "Here's one: I fell for you the first time you went pink at me.", r: "The first time? I go pink at you constantly! Which one? Oh, I'm going to cry. That's going at the very top of the list.", opts: [
         { tone: 'cold', t: "Well, maybe not that exact day.", r: "Oh. Okay. Some other day, then. I'll rub it out. I'll write 'some day'. It's still nice. Sort of." },
-        { tone: 'passive', t: "It's true. You went pink over a compliment about your shoes.", r: "They were good shoes! But yes. I remember. I didn't know you were falling. I'd have fallen faster." },
+        { tone: 'passive', t: "It's true. You went pink and I was done for.", r: "I go pink at everything! But yes. I believe you. I didn't know you were falling. I'd have fallen faster." },
         { tone: 'flirty', t: "And every day since. A bit more.", r: "Every day? A bit more? Oh, you. Come here. That's the best tiny thing. It isn't even tiny. It's huge." },
       ] },
     ] },
@@ -244,9 +244,9 @@ export const DATA = [
         { tone: 'risque', t: "My secret is what I'm planning for you tonight.", r: "Then whisper all of it. Every bit. I'll want it all. And I'll be expecting it all. I'm not shy now." },
       ] },
     ] },
-  // ===================================================================== CLOSE 5: thinking about kissing you since you landed
+  // ===================================================================== CLOSE 5: thinking about kissing you all week
   { id: 'sunny-close-5-cold', stage: 'close', slot: 5, mood: 'cold',
-    say: "I've wanted to kiss you since you landed. But after last time I didn't know if I was allowed. So I'm just asking. Am I?",
+    say: "I've wanted to kiss you since the second I saw you today. But after last time I didn't know if I was allowed. So I'm just asking. Am I?",
     opts: [
       { tone: 'cold', t: "Not right now.", r: "Okay. Not right now. That's alright. Thank you for saying it straight. I'll hold on to it for later. If there's a later.", opts: [
         { tone: 'cold', t: "Later's not looking likely.", r: "I see. Okay. I won't ask again. Not until you do. I'm going home now, {me}. I hope you're alright." },
@@ -259,15 +259,15 @@ export const DATA = [
         { tone: 'flirty', t: "Most of it? Let's fix all of it.", r: "All of it? That's going to take a while. Good thing I'm patient. And very, very motivated." },
         { tone: 'risque', t: "Let's fix the rest somewhere without an audience.", r: "Yes. Yours is closer. Mine has a fern that stares. Yours, then. Walk fast. I'm not waiting another week." },
       ] },
-      { tone: 'flirty', t: "Since I landed? I've been waiting since I took off.", r: "Since you took off? That's - okay, you're very good at that. I was cross. I'm much less cross. Come here.", opts: [
+      { tone: 'flirty', t: "Since you saw me? I've been waiting all week.", r: "All week? That's - okay, you're very good at that. I was cross. I'm much less cross. Come here.", opts: [
         { tone: 'cold', t: "Actually, I'm still a bit annoyed.", r: "Oh. Then I'll wait. I don't want a kiss you don't mean. Tell me when you do. I'll be over there." },
         { tone: 'passive', t: "I'm sorry about before. Come here.", r: "Forgiven. Kissed. In that order. Oh. That was worth a whole week of wobbling. Hi." },
         { tone: 'flirty', t: "Much less cross? Let's get you to not cross at all.", r: "Keep going like that and I'll forget I was ever cross. Oh. I've forgotten. What was I saying?" },
-        { tone: 'risque', t: "I've thought about more than kissing since take-off.", r: "Good. So have I. Since the moment your plane left. You'd better have the energy. I've planned it." },
+        { tone: 'risque', t: "I've thought about more than kissing all week.", r: "Good. So have I. Every single night of it. You'd better have the energy. I've planned it." },
       ] },
     ] },
   { id: 'sunny-close-5-passive', stage: 'close', slot: 5, mood: 'passive',
-    say: "I've been thinking about kissing you since you landed. That's a long time to think about one thing. I'm very focused. Like you, in a car.",
+    say: "I've been thinking about kissing you all week. That's a long time to think about one thing. I'm very focused. Like you, in a car.",
     opts: [
       { tone: 'cold', t: "Can we not right now? I'm wiped.", r: "Oh. Course. You're shattered. I'll just stand near you and be supportive. Quietly. With my lips to myself.", opts: [
         { tone: 'cold', t: "Thanks. I'll see you later.", r: "Okay. Later. Go rest. I'll be thinking about it, but quietly. Sleep well, {me}. I mean it." },
@@ -275,20 +275,20 @@ export const DATA = [
         { tone: 'flirty', t: "Lips to yourself? That's a terrible plan.", r: "It is a terrible plan. I'm abandoning it immediately. Come here, you exhausted person. Kiss." },
       ] },
       { tone: 'passive', t: "Focused like me in a car? Then do something about it.", r: "I am. I'm doing something. This is me doing something. Oh. Yes. That was worth all the focusing.", opts: [
-        { tone: 'cold', t: "Okay, that's enough. People are looking.", r: "Oh! Sorry. I forget there are people. There's only ever you, in my head. Okay. I'll behave." },
+        { tone: 'cold', t: "Okay, that's enough. Not here.", r: "Oh! Sorry. I forget where we are. There's only ever you, in my head. Okay. I'll behave." },
         { tone: 'passive', t: "Worth the wait. Missed you.", r: "Missed you more. I've been counting days on the fridge. With a pen. I crossed out today with hearts." },
         { tone: 'flirty', t: "Lap two, please.", r: "Lap two! And three. And a fastest lap. I'm going for the record. I'm extremely competitive now." },
         { tone: 'risque', t: "Keep that focus. I want the full race distance tonight.", r: "Full race distance? No safety car? Okay. You're on. I'll set the pace. Try to keep up, {me}." },
       ] },
-      { tone: 'flirty', t: "I've been thinking about it since I saw you across the room.", r: "Across the room? You looked so calm! You were thinking about it? Oh, that's lovely. Okay. Come here, calm person.", opts: [
+      { tone: 'flirty', t: "I've been thinking about it since the second I saw you.", r: "Since the second? You looked so calm! You were thinking about it? Oh, that's lovely. Okay. Come here, calm person.", opts: [
         { tone: 'cold', t: "I was calm. I was just being civil.", r: "Oh. Polite. Right. I'll stop being soppy at you, then. I'll go and be soppy at my plants. Bye, {me}." },
         { tone: 'passive', t: "Calm on the outside. Here.", r: "Oh. Oh, that one was perfect. That's going in the jar. Under 'kisses'. It's a very big section." },
         { tone: 'flirty', t: "I'm never calm around you.", r: "Never? Good. I'm never calm around you either. Let's be not-calm together. Starting with this. Mm." },
-        { tone: 'risque', t: "Let's skip the polite bit. Come back to mine.", r: "Yes. Right now. Stop talking. Get your coat. I've been patient since you landed and I'm done." },
+        { tone: 'risque', t: "Let's skip the polite bit. Come back to mine.", r: "Yes. Right now. Stop talking. Get your coat. I've been patient all week and I'm done." },
       ] },
     ] },
   { id: 'sunny-close-5-flirty', stage: 'close', slot: 5, mood: 'flirty',
-    say: "Don't talk. I've been thinking about kissing you since you landed, and if I don't do it now I'll explode. Okay? Okay.",
+    say: "Don't talk. I've been thinking about kissing you all week, and if I don't do it now I'll explode. Okay? Okay.",
     opts: [
       { tone: 'cold', t: "Not here.", r: "Oh. Okay. Not here. Sorry. I ran away with myself. I'll put the explosion away for later. It'll keep.", opts: [
         { tone: 'cold', t: "Not later either. I'm not in the mood.", r: "Okay. I hear you. I won't push. I'll go and be quietly disappointed. Take care of you, {me}." },
@@ -297,7 +297,7 @@ export const DATA = [
       ] },
       { tone: 'passive', t: "Okay.", r: "Okay. Oh. Oh, hello. I've missed that. I've missed you. Hi. Sorry. Hi. That was the explosion.", opts: [
         { tone: 'cold', t: "Steady on.", r: "Sorry. Steadying. I'm steady. I'm a table. A very happy, slightly wobbly table. I'll calm down." },
-        { tone: 'passive', t: "Hi. Hi. Missed you.", r: "Hi. Good. Now I can talk. How was the flight? Did you eat? Did you sleep? Ignore me. Kiss me again." },
+        { tone: 'passive', t: "Hi. Hi. Missed you.", r: "Hi. Good. Now I can talk. How was your week? Did you eat? Did you sleep? Ignore me. Kiss me again." },
         { tone: 'flirty', t: "That's all of it? I think there's more in there.", r: "So much more. Hours more. I've been saving it. You've got a lot to catch up on, {me}." },
         { tone: 'risque', t: "Explode again. At mine. All night.", r: "All night? Deal. I'll bring the slips for the jar. I'll need a lot. You'll be very busy, {me}." },
       ] },
@@ -400,7 +400,7 @@ export const DATA = [
       ] },
       { tone: 'passive', t: "It's been a rough patch. On track and off.", r: "Okay. Thanks for letting me in. You don't have to fix it with me. You can just put it down. I'll hold it for a bit.", opts: [
         { tone: 'cold', t: "You can't hold it for me.", r: "No. Maybe not. But I can stand next to you while you carry it. That's something. I'll be here." },
-        { tone: 'passive', t: "That helps more than you know.", r: "Good. That's all I wanted. To help a tiny bit. I'll make tea. Proper tea. Splash of milk. I know." },
+        { tone: 'passive', t: "That helps more than you know.", r: "Good. That's all I wanted. To help a tiny bit. I'll make tea. Proper tea. However you like it. Tell me and I'll remember." },
         { tone: 'flirty', t: "You're the best part of every week. Even this one.", r: "Even this one? Then this week's not all bad. Come here. Let's sit. You don't have to say anything else." },
       ] },
       { tone: 'flirty', t: "I've been in my head. Get me out of it?", r: "Leave it to me. I'm very good at that. I'm going to say something stupid and you're going to laugh. Ready? Ducks.", opts: [
@@ -463,7 +463,7 @@ export const DATA = [
         { tone: 'cold', t: "Don't cry. It's only a key.", r: "It's not only a key. To me it isn't. But okay. I'll stop crying. I'll go home and cry there. Happily." },
         { tone: 'passive', t: "I'll take it. Thank you. This means a lot.", r: "It means a lot to me too. Use it whenever. Even when I'm out. Make tea. Talk to Dennis. Be home." },
         { tone: 'flirty', t: "Cry on me instead. I'm waterproof.", r: "You're not waterproof, you're a racing driver! But you'll do. Come here. Happy crying incoming." },
-        { tone: 'risque', t: "I'll use the key tonight. Wait up for me.", r: "I'll be waiting. In your hoodie, with the lamp on low. Hurry up, {me}. I mean it." },
+        { tone: 'risque', t: "I'll use the key tonight. Wait up for me.", r: "I'll be waiting. In my big hoodie, with the lamp on low. Hurry up, {me}. I mean it." },
       ] },
       { tone: 'flirty', t: "Five years? Waking up next to you, probably.", r: "Probably? Only probably? Okay. Definitely. Say definitely. Oh, you're grinning. Here. Take the key. Practise.", opts: [
         { tone: 'cold', t: "Probably. Let's not jinx it.", r: "Okay. Probably. I'll take probably. Probably's a nice word. I'll keep the key warm for you." },
@@ -549,7 +549,7 @@ export const DATA = [
       ] },
       { tone: 'flirty', t: "You win? I've been saying it in my head for weeks.", r: "In your head? For weeks? That doesn't count! You have to say it out loud! Say it! Say it now!", opts: [
         { tone: 'cold', t: "I'll say it when I'm ready.", r: "Okay. When you're ready. I'll be here. I'll know. You'll get that soft face. I'll wait for it." },
-        { tone: 'passive', t: "I love you. Out loud. There.", r: "There! Out loud! Oh, I heard it. Everyone heard it. I don't care. I love you. I love you. I love you." },
+        { tone: 'passive', t: "I love you. Out loud. There.", r: "There! Out loud! Oh, I heard it. The whole of {venue} heard it. I don't care. I love you. I love you. I love you." },
         { tone: 'flirty', t: "I love you. Now kiss me, winner.", r: "Winner's kiss. Here. The best prize. Better than a trophy. Better than a podium. Better than anything." },
         { tone: 'risque', t: "I love you. Now take me home and let me prove it.", r: "Prove it all you like. I'll prove it back. We'll be up till morning. I love you, you menace. Let's go." },
       ] },

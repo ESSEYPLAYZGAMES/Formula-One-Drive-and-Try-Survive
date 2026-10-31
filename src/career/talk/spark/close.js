@@ -11,7 +11,7 @@ export const DATA = [
       { tone: 'passive', t: "I'm sorry about last time. What's the score?", r: "Four out of ten. Our lowest ever. I drew a little sad kart next to it. Look. It's crying oil.", opts: [
         { tone: 'cold', t: "Four's harsh.", r: "Harsh? You were a fridge! A fridge gets a four! A generous four! ...Now we're both cross. Brilliant." },
         { tone: 'passive', t: "Fair. I'll aim for a ten today.", r: "A ten! Okay. Tens need three things: a laugh, a surprise and you not looking at your phone. Go." },
-        { tone: 'flirty', t: "What's the record?", r: "A ten. Twice. Once with a fountain, once with a bad karaoke song. I want a third. With you. Today." },
+        { tone: 'flirty', t: "What's the record?", r: "A ten. Twice. Both with Juno, both before you. A fountain and a bad karaoke song. I want a third. With you. Today." },
         { tone: 'risque', t: "What does a ten look like, exactly?", r: "A ten has a very specific ending. It's not written down. It's... implied. Earn it and find out." },
       ] },
       { tone: 'flirty', t: "Give me the pen. I'll write today's entry myself.", r: "You want the pen? Nobody touches the pen! ...Fine. One line. And it'd better be nice, I'm still a bit hurt.", opts: [
@@ -29,7 +29,7 @@ export const DATA = [
         { tone: 'passive', t: "Okay, it's sweet. What's our average?", r: "Eight point four. Higher than anyone. Ever. My friend Juno's furious. Juno's average is five." },
         { tone: 'flirty', t: "Score me now. Right here.", r: "Right here? Okay. Smile, eye contact, terrible joke... nine. You lost a point for being smug." },
       ] },
-      { tone: 'passive', t: "What's the highest score so far?", r: "A nine. The night with the chips and the terrible film. I'm looking for a ten. It's out there.", opts: [
+      { tone: 'passive', t: "What's the highest score so far?", r: "A nine. I'm not saying which night. You'd get smug. I'm looking for a ten. It's out there.", opts: [
         { tone: 'cold', t: "Nine's plenty.", r: "Plenty? Nine's not a ten! You don't win races to come second! ...Fine. I'll settle. I won't settle." },
         { tone: 'passive', t: "Then let's go and find a ten.", r: "Now? Okay! A ten needs a laugh, a surprise and one thing we've never done. Think fast." },
         { tone: 'flirty', t: "Tonight. I'll give you a ten.", r: "A ten? Tonight? You can't promise a ten! ...Can you? Okay. I'm holding you to it. In biro." },
@@ -50,13 +50,13 @@ export const DATA = [
         { tone: 'passive', t: "Sorry. Go on. What's the average?", r: "Eight point four. Higher than anyone. Ever. Stay humble. I'm not going to." },
         { tone: 'flirty', t: "Only if I can grade you back.", r: "You'd grade me? Oh, this is dangerous. ...Fine. But I want a ten. Nothing less." },
       ] },
-      { tone: 'passive', t: "What's the lowest?", r: "A six. The night it rained and my scooter broke down. You still made it a six, though. That's a skill.", opts: [
-        { tone: 'cold', t: "Six is generous.", r: "Generous? We were soaking! You were sulking! A six is a gift! ...Okay. Now we're both grumpy." },
+      { tone: 'passive', t: "What's the lowest?", r: "A six. We don't talk about the six. Even the six had you in it, so it wasn't a five. That's a skill.", opts: [
+        { tone: 'cold', t: "Six is generous.", r: "Generous? A six from me is a gift! You don't even know which one it was! ...Okay. Now we're both grumpy." },
         { tone: 'passive', t: "I'll do better tonight.", r: "Tonight? Okay. Tonight's open. Clean slate. Fresh line. I've got a very sharp pen." },
-        { tone: 'flirty', t: "I'd score it a ten. Because you were there.", r: "A ten for a rainy breakdown? Because of me? ...That's going in the notebook. In red. Underlined." },
+        { tone: 'flirty', t: "I'd score it a ten. Because you were there.", r: "A ten for the six? Because of me? ...That's going in the notebook. In red. Underlined." },
         { tone: 'risque', t: "Tonight's going to break your scale.", r: "Break it? The scale only goes to ten! ...I'll get a bigger scale. A much bigger scale." },
       ] },
-      { tone: 'flirty', t: "Average? I'm aiming for the record.", r: "The record's a nine. The night with the chips. Beat that and you get a prize. A very good prize.", opts: [
+      { tone: 'flirty', t: "Average? I'm aiming for the record.", r: "The record's a nine. Which night is classified. Beat it and you get a prize. A very good prize.", opts: [
         { tone: 'cold', t: "Never mind. Too much pressure.", r: "Pressure? It's a game! ...Okay. You've gone cold right in the middle of a lovely moment. Rude." },
         { tone: 'passive', t: "What's the prize?", r: "A dance. A slow one. In the kitchen. With the radio on. It's a very good prize." },
         { tone: 'flirty', t: "I'll beat it tonight. Watch me.", r: "Tonight? Oh, you're confident. I like confident. ...Okay. Show me. I'll be scoring." },
@@ -64,33 +64,33 @@ export const DATA = [
       ] },
     ] },
   { id: 'spark-close-2-cold', stage: 'close', slot: 2, mood: 'cold',
-    say: "You were away nine days. I made a countdown chart. With stickers. Then you came back and barely said hi. I'm wearing your hoodie anyway.",
+    say: "You were away nine days. I made a countdown chart. With stickers. Then you barely said hi. I'm in a hoodie with your number on it anyway.",
     opts: [
-      { tone: 'cold', t: "It's just a hoodie.", r: "It's your hoodie. And I missed you. And you said 'hi' like I was your dentist. ...That one stung, {me}.", opts: [
-        { tone: 'cold', t: "Give it back, then.", r: "Fine. Here. ...Actually, no. It's mine now. You don't get the hoodie or the hug. Sulking." },
+      { tone: 'cold', t: "It's just a hoodie.", r: "It's YOUR number. And I missed you. And you said 'hi' like I was your dentist. ...That one stung, {me}.", opts: [
+        { tone: 'cold', t: "Wear someone else's number, then.", r: "Fine. ...Actually, no. It's staying on. You don't get the hoodie or the hug. Sulking." },
         { tone: 'passive', t: "Sorry. I was jet-lagged. I missed you.", r: "Jet-lagged? Okay. I'll forgive the jet lag. Not you. ...Okay, you a bit. Come here." },
-        { tone: 'flirty', t: "It looks better on you anyway.", r: "Don't. Don't flatter me in your own hoodie. That's cheating. ...It does look better on me." },
+        { tone: 'flirty', t: "My number's never looked that good.", r: "Don't. Don't flatter me in your own number. That's cheating. ...It does look good on me." },
       ] },
       { tone: 'passive', t: "Sorry. I was knackered. Show me the chart.", r: "Here. Nine days. A sticker for each. A star on the last one. Then you yawned at me. The star cried.", opts: [
         { tone: 'cold', t: "It's just a chart.", r: "It's not just a chart! It's nine days of missing you! With glitter! ...Okay. I'm going to sulk now." },
         { tone: 'passive', t: "I'm sorry. Can I have a sticker?", r: "One sticker. For trying. The rest you have to earn. And you're not getting the hoodie back." },
         { tone: 'flirty', t: "I missed you every single day of that chart.", r: "Every day? Even day four? Day four was rough. ...Okay. You get a star. A big one." },
-        { tone: 'risque', t: "Keep the hoodie. I'll take you instead.", r: "Take me? In your hoodie? ...You're very good at getting out of trouble. Annoyingly good." },
+        { tone: 'risque', t: "Keep the hoodie. I'll take you instead.", r: "Take me? In this hoodie? ...You're very good at getting out of trouble. Annoyingly good." },
       ] },
       { tone: 'flirty', t: "I missed you so much I couldn't speak.", r: "Couldn't speak? That's a good excuse. Better than jet lag. ...Is it true? Tell me it's true.", opts: [
         { tone: 'cold', t: "Kidding. I was just tired.", r: "Kidding? You'd better be kidding about the kidding. ...I'm going to sulk in the hoodie." },
         { tone: 'passive', t: "It's true. I'm bad at hellos.", r: "Bad at hellos. Me too. I'm too loud at hellos. We'll practise. I'll do the loud bit." },
-        { tone: 'flirty', t: "True. You took my breath away. In my own hoodie.", r: "In your own hoodie! That's very cheesy, {me}. ...I'm keeping the hoodie. And you." },
+        { tone: 'flirty', t: "True. You took my breath away. In my number.", r: "In your number! That's very cheesy, {me}. ...I'm keeping the hoodie. And you." },
         { tone: 'risque', t: "True. And I want to show you how much I missed you.", r: "Show me? Here? Now? ...Okay, the sulking's over. Completely over. Lead on." },
       ] },
     ] },
   { id: 'spark-close-2-passive', stage: 'close', slot: 2, mood: 'passive',
-    say: "Nine days you were gone. I made a countdown chart with stickers. And I stole your hoodie. Don't ask for it back. It smells like you.",
+    say: "Nine days you were gone. I made a countdown chart with stickers. And I bought a hoodie with your number on. Don't laugh. I live in it.",
     opts: [
-      { tone: 'cold', t: "Can I have my hoodie back?", r: "No! It's mine now! Possession is nine-tenths of the law! ...That was a cold welcome home, {me}.", opts: [
-        { tone: 'cold', t: "I need it. It's my favourite.", r: "Mine too! Fine. Here. Take it. I'll just be cold and sad without it. And without you." },
-        { tone: 'passive', t: "Okay. Keep it.", r: "Kept. Forever. You'll never see it again. It lives with me now. Like a pet." },
-        { tone: 'flirty', t: "You can keep it if you keep me too.", r: "Keep you? In the hoodie? That's a lot of hoodie. ...Deal. Both of you. Mine." },
+      { tone: 'cold', t: "My number? Really?", r: "Really! It's devotion! In cotton! ...That was a cold welcome home, {me}.", opts: [
+        { tone: 'cold', t: "You look like a fan.", r: "I AM a fan! Fine. I'll just be cold and sad. In a very loyal hoodie. Without you." },
+        { tone: 'passive', t: "Okay. It suits you.", r: "It does. It's staying. Forever. It lives with me now. Like a pet." },
+        { tone: 'flirty', t: "Wear it. And keep me too.", r: "Keep you? In the hoodie? That's a lot of hoodie. ...Deal. Both of you. Mine." },
       ] },
       { tone: 'passive', t: "I missed you too. Can I see this chart?", r: "Behold. Nine days, nine stickers, a glitter star for today. I ran out of stickers on day six and used plasters.", opts: [
         { tone: 'cold', t: "It's a bit much.", r: "A bit much? It's love in sticker form! ...Okay. That was a frosty little sticker. Ouch." },
@@ -101,41 +101,41 @@ export const DATA = [
       { tone: 'flirty', t: "Keep the hoodie. I've got something better for you.", r: "Better than the hoodie? Nothing's better than the hoodie. ...What is it? Tell me. Now.", opts: [
         { tone: 'cold', t: "Never mind. It's nothing.", r: "Nothing? You dangled something and took it away? That's evil. Pure evil." },
         { tone: 'passive', t: "A sticker for your chart. Gold.", r: "Gold! The rarest sticker! Okay, you're forgiven for being away. It's going on day ten." },
-        { tone: 'flirty', t: "Me. Back. For good.", r: "For good? Not just for a week? ...Okay. I'm crying into your hoodie now. This is your fault." },
+        { tone: 'flirty', t: "Me. Back. For good.", r: "For good? Not just for a week? ...Okay. I'm crying into my hoodie now. This is your fault." },
         { tone: 'risque', t: "A very long hello. Starting now.", r: "A very long hello? How long? ...Actually, surprise me. Come here." },
       ] },
     ] },
   { id: 'spark-close-2-flirty', stage: 'close', slot: 2, mood: 'flirty',
-    say: "You're back! Nine whole days, every one crossed off on a chart. I'm in your hoodie, I've lived in it all week, and it's mine now.",
+    say: "You're back! Nine whole days, every one crossed off on a chart. I bought a hoodie with your number on and lived in it all week.",
     opts: [
-      { tone: 'cold', t: "I need that hoodie.", r: "You need it? More than you need me? ...Okay. That came out a bit cold, {me}. I was hugging it for nine days.", opts: [
+      { tone: 'cold', t: "That's my number on you.", r: "It is! And you said it like I'm a stranger in a queue. That came out a bit cold, {me}. I hugged this for nine days.", opts: [
         { tone: 'cold', t: "Then hug something else.", r: "Fine! I'll hug a pillow. Pillows are softer. And they don't ask for things back." },
-        { tone: 'passive', t: "Sorry. Keep it. I missed you.", r: "You missed me? More than the hoodie? Say it. Say you missed me more than your hoodie." },
-        { tone: 'flirty', t: "Keep it. I'll steal it back later.", r: "Steal it back? From me? While I'm wearing it? ...Oh, that's very cheeky. I like cheeky. Try it." },
+        { tone: 'passive', t: "Sorry. It looks great. I missed you.", r: "You missed me? More than the hoodie? Say it. Say you missed me more than your hoodie." },
+        { tone: 'flirty', t: "Nice. I'll steal it off you later.", r: "Steal it? From me? While I'm wearing it? ...Oh, that's very cheeky. I like cheeky. Try it." },
       ] },
-      { tone: 'passive', t: "How did you survive nine days?", r: "Badly. I watched your races twice. I talked to your poster. I wore your hoodie to the shops. I'm a mess.", opts: [
+      { tone: 'passive', t: "How did you survive nine days?", r: "Badly. I watched your races twice. I talked to your poster. I wore this hoodie to the shops. I'm a mess.", opts: [
         { tone: 'cold', t: "That sounds a bit sad.", r: "Sad? It's romantic! ...Okay, it's a bit sad. But it's sad because I missed you. That's allowed." },
         { tone: 'passive', t: "I'm sorry I was gone so long.", r: "Never again. Nine days is too long. Six days. Max. I've written it on the chart." },
         { tone: 'flirty', t: "I talked to your photo every night.", r: "You did? Really? ...Oh, we're both disasters. Disasters in love. I'm keeping the hoodie forever." },
         { tone: 'risque', t: "Next time, I'm taking you with me. In the suitcase.", r: "In the suitcase? With the hoodie? ...It's a very big suitcase. I'll fit. I'm flexible." },
       ] },
-      { tone: 'flirty', t: "Wear it forever. It suits you.", r: "Forever? In your hoodie? Okay. I'll be the person in your hoodie. That's my identity now.", opts: [
-        { tone: 'cold', t: "Actually, I'll want it back eventually.", r: "Eventually? Like a library book? ...That's a very cold way to say you love me." },
-        { tone: 'passive', t: "I'll get another one.", r: "Another one? Then I'll steal that one too. You'll have no hoodies. Just me." },
-        { tone: 'flirty', t: "It looks better on you than on me.", r: "Everything looks better on me. But thank you. ...Come here. It's warmer with you in it." },
-        { tone: 'risque', t: "It'll look even better on my floor.", r: "On your floor! {me}! In public! ...Okay. Fine. Later. Definitely later." },
+      { tone: 'flirty', t: "Wear it forever. It suits you.", r: "Forever? Okay. I'll be the person in the hoodie with your number. That's my identity now.", opts: [
+        { tone: 'cold', t: "Maybe wash it eventually.", r: "Wash it? Like a library book gets returned? ...That's a very cold way to say you love me." },
+        { tone: 'passive', t: "I'll sign it for you.", r: "Signed? Then it's priceless. I'll never take it off. You'll have to live with that." },
+        { tone: 'flirty', t: "It looks better on you than on any fan.", r: "Everything looks better on me. But thank you. ...Come here. It's warmer with you in it." },
+        { tone: 'risque', t: "It'll look even better on my floor.", r: "On your floor! {me}! Out loud! ...Okay. Fine. Later. Definitely later." },
       ] },
     ] },
   { id: 'spark-close-3-cold', stage: 'close', slot: 3, mood: 'cold',
-    say: "So. That person you were laughing with last week. Funnier than me, were they? I've been stewing. You were frosty, so I stewed more.",
+    say: "So. I dreamt you were laughing with someone funnier than me. I woke up stewing. You were frosty last time, so I stewed more.",
     opts: [
-      { tone: 'cold', t: "That's none of your business.", r: "None of my business. Okay. Cool. Cool cool cool. I'll be over here, not business-ing. With my stew.", opts: [
+      { tone: 'cold', t: "It was a dream.", r: "A dream. Okay. Cool. Cool cool cool. I'll be over here, still stewing. Dreams count.", opts: [
         { tone: 'cold', t: "Fine by me.", r: "Good! Great! Lovely! I'll go and laugh with someone very funny too. Very, very loudly." },
-        { tone: 'passive', t: "They're a sponsor. That's all.", r: "A sponsor. Right. I may have overreacted. Slightly. I'd made up a whole story. It had a villain." },
-        { tone: 'flirty', t: "Nobody's funnier than you. Come on.", r: "Say it again. Slower. ...Okay, fine, I believe you. But I'm keeping an eye on them." },
+        { tone: 'passive', t: "Dream me has terrible taste.", r: "Terrible taste. Right. I may have overreacted. Slightly. My brain made up a whole story. It had a villain." },
+        { tone: 'flirty', t: "Nobody's funnier than you. Come on.", r: "Say it again. Slower. ...Okay, fine, I believe you. But I'm keeping an eye on dream you." },
       ] },
-      { tone: 'passive', t: "It was my engineer's cousin. Relax.", r: "The engineer's cousin. Of course. Totally knew that. I'm completely relaxed. See how relaxed I am?", opts: [
-        { tone: 'cold', t: "You're being ridiculous.", r: "Ridiculous? You laughed at their joke and it wasn't even good! I could hear it from where I was standing!" },
+      { tone: 'passive', t: "Who was it, then?", r: "Nobody real. A blur with good jokes. I'm completely relaxed about it. See how relaxed I am?", opts: [
+        { tone: 'cold', t: "You're being ridiculous.", r: "Ridiculous? Dream you laughed at their joke and it wasn't even good! I was standing RIGHT there! In the dream!" },
         { tone: 'passive', t: "Were you jealous?", r: "Jealous? Me? No! ...A little. A smidge. You laugh with your whole face. It's unfair to share it." },
         { tone: 'flirty', t: "You're cute when you're jealous.", r: "I'm not jealous! I'm vigilant. Fine, a bit jealous. Stop looking so smug. It suits you, which is worse." },
       ] },
@@ -147,28 +147,28 @@ export const DATA = [
       ] },
     ] },
   { id: 'spark-close-3-passive', stage: 'close', slot: 3, mood: 'passive',
-    say: "Quick question. The person in the paddock you were laughing with. Was it a funny laugh, or a 'you're funny' laugh? Asking for me.",
+    say: "Quick question. I dreamt you were laughing at someone's jokes. Was it a funny laugh, or a 'you're funny' laugh? Asking for me.",
     opts: [
-      { tone: 'cold', t: "Do I need your permission to laugh?", r: "Permission? No! I just— okay, that came out sharper than I meant. And you came back sharper.", opts: [
+      { tone: 'cold', t: "Do I need permission to laugh in your dreams?", r: "Permission? No! I just— okay, that came out sharper than I meant. And you came back sharper.", opts: [
         { tone: 'cold', t: "Then stop asking.", r: "Stopping. Stopped. Not jealous. Very calm. Extremely calm. Look how calm I'm being." },
-        { tone: 'passive', t: "Sorry. It was nothing. They told a joke.", r: "A joke? Was it a good one? Tell me. If it's better than mine, I'll be devastated." },
-        { tone: 'flirty', t: "It was a polite laugh. My real laugh's only for you.", r: "Your real laugh? The snorty one? Only for me? ...Okay. I feel very special now. Stop it." },
+        { tone: 'passive', t: "Sorry. What was the joke?", r: "I can't remember! But dream you loved it. If it's better than mine, I'll be devastated." },
+        { tone: 'flirty', t: "It was a polite laugh. My real laugh's only for you.", r: "Your real laugh? Only for me? ...Okay. I feel very special now. Stop it." },
       ] },
-      { tone: 'passive', t: "It was the team's new physio. Nice person.", r: "Nice person. Okay. Nice is fine. As long as they're not funnier than me. Are they?", opts: [
+      { tone: 'passive', t: "Who was the comedian?", r: "No idea. A stranger. A nice one. Nice is fine. As long as they're not funnier than me. Are they?", opts: [
         { tone: 'cold', t: "Maybe a bit.", r: "A bit?! Funnier than me? ...That's the cruellest thing you've ever said to me. I'm going to sulk for a week." },
         { tone: 'passive', t: "Nobody beats you for funny.", r: "Correct answer. You win a prize. The prize is me not being jealous. For an hour." },
         { tone: 'flirty', t: "You're the funniest person I've ever met.", r: "The funniest? Ever? Okay. I'll stop being jealous. For a whole day. Maybe two." },
-        { tone: 'risque', t: "Funnier than you? Never. And they're not you in a hundred ways.", r: "A hundred ways? Name ten. ...No, don't. You'll make me blush in public. Just know I'm counting." },
+        { tone: 'risque', t: "Funnier than you? Never. And they're not you in a hundred ways.", r: "A hundred ways? Name ten. ...No, don't. You'll make me blush. Just know I'm counting." },
       ] },
       { tone: 'flirty', t: "Were you jealous? That's adorable.", r: "Adorable? I'm not adorable, I'm fuming! ...Okay, I'm adorable and fuming. Both.", opts: [
         { tone: 'cold', t: "Don't be. It's childish.", r: "Childish? I'm not being childish, I'm being in love! ...Oops. Or not oops. I'm cross." },
-        { tone: 'passive', t: "I'm only teasing. They're just a friend.", r: "Just a friend. Okay. Good. I'll stop fuming. I'll simmer. Gently." },
+        { tone: 'passive', t: "I'm only teasing. Dream me's an idiot.", r: "Just a friend. Okay. Good. I'll stop fuming. I'll simmer. Gently." },
         { tone: 'flirty', t: "You're the only one I want. You know that.", r: "I know. I just like hearing it. Say it again. Slower. With your hand on my face." },
         { tone: 'risque', t: "Come here. Let me remind you who I go home with.", r: "Remind me? Oh. Oh, you're good at reminding. ...Okay. I'm not jealous. Not even a little." },
       ] },
     ] },
   { id: 'spark-close-3-flirty', stage: 'close', slot: 3, mood: 'flirty',
-    say: "So. That person you were laughing with. Should I worry? I've planned my revenge already. A water pistol and a very loud song.",
+    say: "So. I dreamt you were laughing with someone else. Should I worry? I've planned my revenge already. A water pistol and a very loud song.",
     opts: [
       { tone: 'cold', t: "You're being paranoid.", r: "Paranoid? I'm being thorough! ...That came out like a slap, {me}. I was joking. Mostly.", opts: [
         { tone: 'cold', t: "Stop being so possessive.", r: "Possessive? I'm— okay. Okay. I'll stop. I'll stop everything. That really hurt." },
@@ -196,7 +196,7 @@ export const DATA = [
         { tone: 'passive', t: "Fine. Send them a photo of a stranger's dog.", r: "Evil, but genius. Pancake shall be borrowed. ...See? You can be fun when you're not being a fridge." },
         { tone: 'flirty', t: "Or we could actually get one.", r: "Wait. Really? Don't joke, I'm already a bit fragile today. A real dog? With you? ...I'm crying a bit." },
       ] },
-      { tone: 'passive', t: "Sorry I've been distant. What's Pancake like?", r: "Very fluffy. Scared of the hoover. Sleeps on your side of the bed. Steals socks. Pancake's perfect.", opts: [
+      { tone: 'passive', t: "Sorry I've been distant. What's Pancake like?", r: "Very fluffy. Scared of the hoover. Would sleep on your side of the bed. Steals socks. Pancake's perfect.", opts: [
         { tone: 'cold', t: "Pancake's not sleeping on my side.", r: "Pancake sleeps where Pancake likes. You're being very harsh on our imaginary dog. Pancake has feelings." },
         { tone: 'passive', t: "Pancake sounds great, honestly.", r: "Pancake IS great. Best thing that's never happened to us. We should get a real Pancake one day." },
         { tone: 'flirty', t: "My side of the bed's reserved for you.", r: "Oh, is it? Then Pancake's on the floor. Sorry, Pancake. Some spots are taken. Permanently." },
@@ -205,7 +205,7 @@ export const DATA = [
       { tone: 'flirty', t: "Tell them Pancake looks just like you. Cute and chaotic.", r: "That's going in my bio. You're very good at summing me up, you know. Suspiciously good. ...I'm less cross now.", opts: [
         { tone: 'cold', t: "Mostly chaotic.", r: "Mostly?! The cute was doing all the heavy lifting there. Rude. I'll be chaotic at you all week now." },
         { tone: 'passive', t: "So are we getting one or not?", r: "After the season. A rescue. I'm already looking at pictures. I've got a folder. A big folder." },
-        { tone: 'flirty', t: "I've already got one cute chaotic thing. You.", r: "Stop. I'm grinning in public again. People will think I've won something. I suppose I have. You." },
+        { tone: 'flirty', t: "I've already got one cute chaotic thing. You.", r: "Stop. I'm grinning like an idiot again. People will think I've won something. I suppose I have. You." },
       ] },
     ] },
   { id: 'spark-close-4-passive', stage: 'close', slot: 4, mood: 'passive',
@@ -230,7 +230,7 @@ export const DATA = [
       ] },
     ] },
   { id: 'spark-close-4-flirty', stage: 'close', slot: 4, mood: 'flirty',
-    say: "I've told everyone we've got a dog called Pancake. My friend Juno wants photos. Your team wants photos. I've overcommitted. Help?",
+    say: "I've told everyone we've got a dog called Pancake. My friend Juno wants photos. My mum wants photos. I've overcommitted. Help?",
     opts: [
       { tone: 'cold', t: "That was silly.", r: "Silly? It was a romantic lie! ...Okay, that landed flat. I wanted you to laugh. Not tell me off.", opts: [
         { tone: 'cold', t: "It's still silly.", r: "Fine. Pancake is cancelled. Pancake was never real. Pancake has gone to live on a farm. A lovely farm." },
@@ -302,7 +302,7 @@ export const DATA = [
       ] },
       { tone: 'passive', t: "What's the surprise?", r: "Cut it and find out. ...Careful. It's fragile. Like my heart. Okay, that's dramatic. Just cut it.", opts: [
         { tone: 'cold', t: "I'll cut it later.", r: "Later? The surprise is waiting! It's been waiting all day! ...Okay. That was a very flat later." },
-        { tone: 'passive', t: "A tiny trophy. 'World's best.'", r: "World's best! Because you are. Okay, not at everything. You're terrible at bowling. But at us." },
+        { tone: 'passive', t: "A tiny trophy. 'World's best.'", r: "World's best! Because you are. Okay, not at everything. Nobody's best at everything. But at us." },
         { tone: 'flirty', t: "A tiny trophy. You made me a trophy.", r: "I did! It's plastic and I painted it myself. You've got loads of trophies, but this is the best." },
         { tone: 'risque', t: "I'll put the trophy by the bed. Where I can see it. And you.", r: "By the bed? Where you can see me? ...Okay. That's very flirty for a cake. I approve. Strongly." },
       ] },
@@ -422,11 +422,11 @@ export const DATA = [
     opts: [
       { tone: 'cold', t: "That's not like you.", r: "I know. That's the point. ...But you said it like I'm broken. I'm not broken. I'm just tired.", opts: [
         { tone: 'cold', t: "Just a bit odd.", r: "Odd. Okay. I'll be odd on my own. On the sofa. Without you. ...That hurt more than you know." },
-        { tone: 'passive', t: "Sorry. Of course it's allowed.", r: "Thank you. ...Okay. Come here. Sofa. Blanket. No jokes. Just you." },
+        { tone: 'passive', t: "Sorry. Of course it's allowed.", r: "Thank you. ...Okay. Come here. Pretend you're a sofa. No jokes. Just you." },
         { tone: 'flirty', t: "It's allowed. I'll hold you all day.", r: "All day? Promise? ...Okay. Then I'm not moving. Ever. You're my sofa now." },
       ] },
       { tone: 'passive', t: "Allowed. Come here.", r: "Thank you. ...You're very warm. Like a radiator. A radiator I love. Sorry, that was a joke. It slipped out.", opts: [
-        { tone: 'cold', t: "I've got the sim later.", r: "The sim. Okay. I'll be here. On the sofa. Not fizzing. Waiting. ...That one stung." },
+        { tone: 'cold', t: "I've got the sim later.", r: "The sim. Okay. I'll be here. Not fizzing. Waiting. ...That one stung." },
         { tone: 'passive', m: 2, t: "Take all the time you need.", r: "I will. Thank you. ...This is the best I've felt all week. Just this. Just you." },
         { tone: 'flirty', t: "No jokes. Just this. Forever if you want.", r: "Forever on the sofa? We'd need snacks. And a blanket. ...Okay. Forever. I'm staying." },
         { tone: 'risque', t: "I'll hold you. And then maybe something more. If you want.", r: "Maybe. Later. ...Okay, definitely later. But hold me first. Hold me a long time." },
@@ -444,13 +444,13 @@ export const DATA = [
       { tone: 'cold', t: "That's a big step.", r: "It is a big step. ...And you said it like it's a step off a cliff. That hurts, {me}.", opts: [
         { tone: 'cold', t: "Maybe too big.", r: "Too big. Okay. I'll put it back in my pocket. With all my other too-big things." },
         { tone: 'passive', t: "Sorry. It's a big step. A good one.", r: "A good one? You mean it? ...Okay. Take it. Don't lose it. It's the only trophy I've ever won." },
-        { tone: 'flirty', t: "Big step. I want to take it with you.", r: "With me? Together? ...Okay. Then take the key. And come home tonight. I'll make pancakes. Not Pancake. Pancakes." },
+        { tone: 'flirty', t: "Big step. I want to take it with you.", r: "With me? Together? ...Okay. Then take the key. And come over tonight. I'll make pancakes. Not Pancake. Pancakes." },
       ] },
       { tone: 'passive', t: "I'm sorry I've been cold. Thank you.", r: "You're welcome. It's just a key. ...It's not just a key. It's a very big key. Please be normal about it.", opts: [
         { tone: 'cold', t: "I'll use it sometimes.", r: "Sometimes. Okay. Sometimes is fine. ...It's not fine. I wanted always. Never mind." },
         { tone: 'passive', t: "I'll use it every day.", r: "Every day? Even the days I'm grumpy? Even the days the kitchen's a disaster? ...Okay. Every day." },
         { tone: 'flirty', t: "I love the keyring. And I love you.", r: "You love me? Say it again. In person. Slowly. ...Okay. I'm keeping that one forever. On the keyring." },
-        { tone: 'risque', t: "I'll let myself in tonight. Late. You'll know it's me.", r: "Late? Very late? ...Okay. I'll leave a light on. And myself on the sofa. In your hoodie." },
+        { tone: 'risque', t: "I'll let myself in tonight. Late. You'll know it's me.", r: "Late? Very late? ...Okay. I'll leave a light on. And myself on the sofa. In the hoodie with your number on." },
       ] },
       { tone: 'flirty', t: "A key? To you? I'm keeping it on me always.", r: "Always? In your race suit? On the grid? ...That's very sweet. And very cheesy. I love cheesy.", opts: [
         { tone: 'cold', t: "Not on the grid. That's weird.", r: "Weird? It's romantic! ...Okay, it's a bit weird. You don't have to be so blunt about it." },
@@ -544,7 +544,7 @@ export const DATA = [
       ] },
     ] },
   { id: 'spark-close-9-flirty', stage: 'close', slot: 9, mood: 'flirty',
-    say: "I bet my shoes on you once, the night we met. Did I tell you? Now I'm betting it all. Us, forever. Me, you, my scooter, a pretend dog. In?",
+    say: "I bet my shoes on you once, when we met. Did I tell you? Now I'm betting it all. Us, forever. Me, you, my scooter, a pretend dog. In?",
     opts: [
       { tone: 'cold', t: "Forever's a long time.", r: "It is. ...And you said it like a sentence. A prison one. That's a very cold way to say no.", opts: [
         { tone: 'cold', t: "Maybe too long.", r: "Too long. Okay. I'll bet on something smaller. Like lunch. ...That really hurt, {me}." },
@@ -557,7 +557,7 @@ export const DATA = [
         { tone: 'flirty', t: "I'll take you. The rest is bonus.", r: "The rest is bonus? Okay. That's the most romantic thing ever. I'm all yours." },
         { tone: 'risque', t: "I'll take you. Tonight, and for good.", r: "For good? Forever? ...Okay. I'm yours. Starting now. Starting right now." },
       ] },
-      { tone: 'flirty', t: "I'm all in. I have been since you bet your shoes.", r: "Since the shoes? That's the first night! ...You've been in since then? Okay. That's everything.", opts: [
+      { tone: 'flirty', t: "I'm all in. I have been since you bet your shoes.", r: "Since the shoes? That's the very start! ...You've been in since then? Okay. That's everything.", opts: [
         { tone: 'cold', t: "Okay, not since then. Recently.", r: "Recently? Okay. That's fine. Recently's fine. It's not the shoes. But it's fine." },
         { tone: 'passive', t: "Since the start. I mean it.", r: "The start. Okay. I'm keeping that. Forever. Somewhere safe. Here." },
         { tone: 'flirty', t: "Since the start. And I'm never leaving.", r: "Never? Okay. Me neither. Us. Forever. Shoes and all. ...I love you, {me}. All in." },

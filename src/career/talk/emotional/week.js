@@ -1,7 +1,7 @@
 // Emotional - texts in the week between races. Stages new / warm / close, slots 1..6, three opening moods each.
 // new: 1 a pink sunset - 2 crying at a film - 3 a 2am question* - 4 Moth the cat - 5 rain on the window - 6 the notebook*
 // warm: 1 a dream - 2 a song that's you - 3 the anxious double text* - 4 nerves before {track} - 5 missing you anyway - 6 'what are we?'*
-// close: 1 your jacket - 2 counting the days - 3 a photo of you with someone* - 4 3am fears - 5 window seats - 6 an anniversary, 'I love you'*
+// close: 1 their cardigan - 2 counting the days - 3 fans in the race photos* - 4 3am fears - 5 window seats - 6 an anniversary, 'I love you'*
 // (* = two exchanges)
 export const DATA = [
   // ================================================================================================ NEW
@@ -179,9 +179,9 @@ export const DATA = [
         { tone: 'passive', t: "Sorry. It's just new for me.", r: "That's okay. New is scary. I'll go slow. I'll write slowly, too." },
         { tone: 'flirty', t: "Intense, but I kind of like it.", r: "You kind of like it? Kind of is plenty. I'm writing 'they kind of like it'. Underlined." },
       ] },
-      { tone: 'passive', t: "What sort of moments?", r: "Your laugh. How you look at the sky before a race. A thing you said that I can't stop thinking about.", opts: [
+      { tone: 'passive', t: "What sort of moments?", r: "Your laugh. How serious you look on TV before a start. A thing you said that I can't stop thinking about.", opts: [
         { tone: 'cold', t: "You think too much.", r: "I do. That's me. I'm sorry it's not your thing." },
-        { tone: 'passive', t: "What thing did I say?", r: "That I was easy to talk to. You probably don't remember. I do. I always do." },
+        { tone: 'passive', t: "What thing did I say?", r: "I'm keeping that one to myself. It was small. You probably don't remember. I do. I always do." },
         { tone: 'flirty', t: "Keep writing. I'll keep giving you material.", r: "Promise? I'm buying a bigger notebook. This one's running out of room for you." },
       ] },
       { tone: 'flirty', t: "A lot lately? Read me a line.", r: "'Their smile does a thing to my chest I can't describe, and I describe everything.' There.", opts: [
@@ -277,7 +277,7 @@ export const DATA = [
       ] },
     ] },
   { id: 'emotional-text-week-warm-3-passive', on: 'week', stage: 'warm', slot: 3, mood: 'passive',
-    say: "Sorry, me again. You didn't reply yesterday and my brain went everywhere. ... Ignore me. I'm fine. Mostly.",
+    say: "Sorry, me again. A few quiet days and my brain went everywhere. ... Ignore me. I'm fine. Mostly.",
     opts: [
       { tone: 'cold', t: "You need to relax.", r: "I know. I'm trying. I'm not good at silence. Sorry to be a pest.", opts: [
         { tone: 'cold', t: "It's fine.", r: "Okay. Fine. Goodnight then." },
@@ -426,27 +426,27 @@ export const DATA = [
   // ================================================================================================ CLOSE
   // ---- 1: your jacket
   { id: 'emotional-text-week-close-1-cold', on: 'week', stage: 'close', slot: 1, mood: 'cold',
-    say: "Morning. I'm wearing your jacket. It still smells like you. I wish last time had ended warmer. I miss you.",
+    say: "Morning. I'm in my softest cardigan, pretending it's a hug from you. I wish last time had ended warmer. Miss you.",
     opts: [
-      { tone: 'cold', t: "Can I have it back?", r: "Oh. Of course. I'll bring it. It was just... closer to you. Okay." },
-      { tone: 'passive', t: "Morning. Keep it. Miss you too.", r: "Keep it? It's mine now. Thank you. My whole chest just loosened." },
-      { tone: 'flirty', t: "Morning. It looks better on you anyway.", r: "You've never even seen me in it! But I'll send a picture. Maybe. If you're good." },
-      { tone: 'risque', t: "Wear it tonight and I'll come take it back.", r: "Take it back... yes. Come and take it. Slowly. I'll leave the door unlocked ♡" },
+      { tone: 'cold', t: "Bit soppy for the morning.", r: "Soppy. Okay. It was just... the closest I could get to you. Okay." },
+      { tone: 'passive', t: "Morning. Miss you too. Keep it on.", r: "Keep it on? I will. Thank you. My whole chest just loosened." },
+      { tone: 'flirty', t: "Morning. Bet it looks good on you.", r: "It's enormous on me! But I'll send a picture. Maybe. If you're good." },
+      { tone: 'risque', t: "Wear it tonight and I'll come and steal it.", r: "Steal it... yes. Come and steal it. Slowly. I'll leave the door unlocked ♡" },
     ] },
   { id: 'emotional-text-week-close-1-passive', on: 'week', stage: 'close', slot: 1, mood: 'passive',
-    say: "Good morning, my favourite person. I'm in your jacket, having tea, watching the rain. All that's missing is you.",
+    say: "Good morning, my favourite person. I'm in my big cardigan, having tea, watching the rain. All that's missing is you.",
     opts: [
       { tone: 'cold', t: "It's early.", r: "Sorry. I'll text later. Morning anyway." },
       { tone: 'passive', t: "Morning. Wish I was there.", r: "Me too. I'm saving you the warm side of the sofa. It's waiting. I'm waiting." },
       { tone: 'flirty', t: "Morning. Save me some tea and some of you.", r: "All of me is saved. Some tea, maybe. I drink fast when I miss you." },
-      { tone: 'risque', t: "Wish I was the jacket right now.", r: "Wrapped around me all morning? Oh... come home and do it properly. Soon. Please ♡" },
+      { tone: 'risque', t: "Wish I was that cardigan right now.", r: "Wrapped around me all morning? Oh... come home and do it properly. Soon. Please ♡" },
     ] },
   { id: 'emotional-text-week-close-1-flirty', on: 'week', stage: 'close', slot: 1, mood: 'flirty',
-    say: "Morning ♡ I slept in your jacket again. I basically live in it now. You'll have to come and rescue it.",
+    say: "Morning ♡ I slept in my big cardigan again, pretending it was you. It's a poor stand-in. Come and replace it.",
     opts: [
-      { tone: 'cold', t: "Wash it at least.", r: "Wash it? Then it won't smell like you. That's the whole point. Never mind." },
-      { tone: 'passive', t: "Morning. It's yours now.", r: "Mine! Officially! It's never leaving. You can visit it." },
-      { tone: 'flirty', t: "I'll rescue it. And you.", r: "Rescue me? Yes. Please. I'm in desperate need of rescue. Mostly from missing you." },
+      { tone: 'cold', t: "It's just a cardigan.", r: "It's a stand-in for you. A bad one. That's the whole point. Never mind." },
+      { tone: 'passive', t: "Morning. Is it a good stand-in?", r: "Awful. It never hugs back. It just sits there being soft. You win easily." },
+      { tone: 'flirty', t: "I'll come and replace it. And rescue you.", r: "Rescue me? Yes. Please. I'm in desperate need of rescue. Mostly from missing you." },
     ] },
   // ---- 2: counting the days
   { id: 'emotional-text-week-close-2-cold', on: 'week', stage: 'close', slot: 2, mood: 'cold',
@@ -468,32 +468,32 @@ export const DATA = [
     say: "Six days. Six! I miss you so much I talked to your photo this morning. It didn't answer. Rude ♡",
     opts: [
       { tone: 'cold', t: "It's just a photo.", r: "I know it's a photo. I was being silly. Okay. Six days. Bye." },
-      { tone: 'passive', t: "Six days. What did you say to it?", r: "That I miss you. That my cat misses you. That the jacket misses you. We're all very sad." },
+      { tone: 'passive', t: "Six days. What did you say to it?", r: "That I miss you. That my cat's sulking in solidarity. That even the sofa looks lonely. We're all very sad." },
       { tone: 'flirty', t: "Tell the photo I'm thinking about you.", r: "I told it. It blushed. Okay, I blushed. Six days. Hurry home." },
     ] },
   // ---- 3: the photo (two exchanges)
   { id: 'emotional-text-week-close-3-cold', on: 'week', stage: 'close', slot: 3, mood: 'cold',
-    say: "I saw a photo of you laughing with someone, very close. I'm trying not to read into it. It hurt, after last time.",
+    say: "I saw the race photos. All those fans pressed up close to you. I'm trying not to mind. It stung, after last time.",
     opts: [
-      { tone: 'cold', t: "It was nothing. Drop it.", r: "Okay. I'll drop it. It still hurt. I wanted you to know, not to fight.", opts: [
+      { tone: 'cold', t: "They're fans. Drop it.", r: "Okay. I'll drop it. It still hurt. I wanted you to know, not to fight.", opts: [
         { tone: 'cold', t: "Noted.", r: "Noted. Okay. Goodnight, {me}." },
-        { tone: 'passive', t: "Sorry. It really was nothing. I should've said.", r: "Thank you. Not a fight. Just to hear it. I'm okay now." },
+        { tone: 'passive', t: "Sorry. Honestly, it's nothing. It's the job.", r: "Thank you. Not a fight. Just to hear it. I'm okay now." },
         { tone: 'flirty', t: "Sorry. You're the only one I want close.", r: "The only one. I'm breathing again. Thank you for not making me feel stupid." },
       ] },
-      { tone: 'passive', t: "Just a friend. Sorry it stung.", r: "I believe you. I just feel things before I think them. I'd rather say than stew.", opts: [
+      { tone: 'passive', t: "Just fans. Sorry it stung.", r: "I believe you. I just feel things before I think them. I'd rather say than stew.", opts: [
         { tone: 'cold', t: "You do overthink.", r: "I do. I know. I'm sorry. Night, then." },
         { tone: 'passive', t: "Always say. I'd rather know.", r: "Always. And you'll always answer like this? Then we'll be fine. We'll be so fine." },
         { tone: 'flirty', t: "You're the only one I want laughing next to me.", r: "Only me? Then I'll laugh extra loud next time. So everyone knows. Night ♡" },
       ] },
-      { tone: 'flirty', t: "Jealous? You're adorable.", r: "I'm not adorable, I'm hurting a bit! But okay. A bit adorable. Tell me it was nothing.", opts: [
+      { tone: 'flirty', t: "Jealous? You're adorable.", r: "I'm not adorable, I'm hurting a bit! But okay. A bit adorable. Tell me it's nothing.", opts: [
         { tone: 'cold', t: "You're making too much of it.", r: "Maybe. It's still mine to feel. You could be kinder with it." },
-        { tone: 'passive', t: "It was nothing. Promise.", r: "I believe you. Forgive the wobble. I'm not sorry I told you, though." },
-        { tone: 'flirty', t: "Nothing. And you're the only one who gets close.", r: "The only one. I'm keeping that. In my notebook. Next to your jacket." },
+        { tone: 'passive', t: "Nothing to it. Promise.", r: "I believe you. Forgive the wobble. I'm not sorry I told you, though." },
+        { tone: 'flirty', t: "Nothing. And you're the only one who gets close.", r: "The only one. I'm keeping that. In my notebook. Next to your name." },
         { tone: 'risque', t: "Let me make it up to you when I'm home.", r: "Make it up to me... yes. When you're home. All night, until I'm certain. Make me sure ♡" },
       ] },
     ] },
   { id: 'emotional-text-week-close-3-passive', on: 'week', stage: 'close', slot: 3, mood: 'passive',
-    say: "Being honest about a small thing: I saw a photo of you with someone and got a pang. Saying it so it doesn't fester.",
+    say: "Small honest thing: all those people round you in the race photos gave me a pang. Saying it so it won't fester.",
     opts: [
       { tone: 'cold', t: "It's nothing. Don't be jealous.", r: "I'm not trying to be. I just am, a bit. I'm telling you because I'd rather be honest. Sorry.", opts: [
         { tone: 'cold', t: "Fine.", r: "Okay. Fine. Night." },
@@ -513,14 +513,14 @@ export const DATA = [
       ] },
     ] },
   { id: 'emotional-text-week-close-3-flirty', on: 'week', stage: 'close', slot: 3, mood: 'flirty',
-    say: "So I saw a photo of you with someone and I'm only a little bit jealous. Okay, a lot. Tell me something nice ♡",
+    say: "Saw the race photos, fans all over you, and I'm only a little bit jealous. Okay, a lot. Tell me something nice ♡",
     opts: [
       { tone: 'cold', t: "You'll get over it.", r: "I will. Eventually. I wanted you to help, not tell me to get over it.", opts: [
         { tone: 'cold', t: "Night.", r: "Okay. Night, then. I'll sort my heart out alone." },
-        { tone: 'passive', t: "Sorry. It was nothing. You're mine.", r: "Yours. That's the nice thing. Thank you." },
+        { tone: 'passive', t: "Sorry. They're nobody. You're mine.", r: "Yours. That's the nice thing. Thank you." },
         { tone: 'flirty', t: "Sorry. Something nice: I miss you like mad.", r: "Like mad? Jealousy gone. Replaced with missing you. Equally intense ♡" },
       ] },
-      { tone: 'passive', t: "It was nothing. Promise. You're the one.", r: "The one. I'm going to hold on to that. Thank you for not being annoyed.", opts: [
+      { tone: 'passive', t: "They're nothing. Promise. You're the one.", r: "The one. I'm going to hold on to that. Thank you for not being annoyed.", opts: [
         { tone: 'cold', t: "I am a bit annoyed.", r: "Oh. Sorry. I'll be less... me." },
         { tone: 'passive', t: "Not annoyed. Just glad you told me.", r: "Glad? Then telling you is what I'll do. That's us. Honest." },
         { tone: 'flirty', t: "The one. The only one.", r: "The only one. I'm smiling so hard my face hurts. Goodnight, my only one." },
@@ -581,7 +581,7 @@ export const DATA = [
     ] },
   // ---- 6: a tiny anniversary (two exchanges)
   { id: 'emotional-text-week-close-6-cold', on: 'week', stage: 'close', slot: 6, mood: 'cold',
-    say: "Three months since our first proper talk. I keep track of tiny anniversaries. Unsure I should mark it, after last time.",
+    say: "Today's a tiny anniversary of ours. I keep a list of very small ones. Unsure I should mark it, after last time.",
     opts: [
       { tone: 'cold', t: "I don't keep track of that stuff.", r: "I know. I do it for both of us. I'm sorry it doesn't matter to you.", opts: [
         { tone: 'cold', t: "It doesn't really.", r: "Okay. Then I'll mark it alone. Happy anniversary to me." },
@@ -593,7 +593,7 @@ export const DATA = [
         { tone: 'passive', m: 3, t: "Love you back. Happy anniversary.", r: "You do. That's the best anniversary present. I'm crying. Obviously." },
         { tone: 'flirty', t: "Say it again. I want to screenshot it.", r: "I love you. Screenshot it. Frame it. I'll say it every day so you've got plenty ♡" },
       ] },
-      { tone: 'flirty', t: "Three months? I'd have marked it with flowers.", r: "Flowers?! You'll make me cry over text. I'm pressing them if you do. Every petal.", opts: [
+      { tone: 'flirty', t: "An anniversary? I'd have marked it with flowers.", r: "Flowers?! You'll make me cry over text. I'm pressing them if you do. Every petal.", opts: [
         { tone: 'cold', t: "If I remember.", r: "If. Okay. I'll remind you. Or I won't." },
         { tone: 'passive', t: "I'll bring them when I'm back.", r: "When you're back. I'll press one. Flat and safe. Happy anniversary." },
         { tone: 'flirty', t: "And I'll tell you I love you when I give them.", r: "You love me? You said it! Over text! I'm screaming. I love you. I love you. Hurry home." },
@@ -601,7 +601,7 @@ export const DATA = [
       ] },
     ] },
   { id: 'emotional-text-week-close-6-passive', on: 'week', stage: 'close', slot: 6, mood: 'passive',
-    say: "Happy tiny anniversary! Three months since we first really talked. It's on my list. And so is this: I love you.",
+    say: "Happy tiny anniversary! Don't ask which one, it's on my list. And so is this: I love you.",
     opts: [
       { tone: 'cold', t: "That's a lot over text.", r: "It is. I couldn't wait. I'm sorry. I'll say it in person too. If you'll let me.", opts: [
         { tone: 'cold', t: "Let's talk in person.", r: "In person. I'll wait." },
@@ -613,7 +613,7 @@ export const DATA = [
         { tone: 'passive', t: "Happy anniversary. Many more.", r: "Many more. A hundred more. I'll keep the list going forever ♡" },
         { tone: 'flirty', t: "I love you. I'll say it every anniversary.", r: "Even the tiny ones? There are so many tiny ones. You'll be saying it every day." },
       ] },
-      { tone: 'flirty', t: "I love you. Three months is nothing. Let's do thirty years.", r: "Thirty years?! I'm going to sob into my tea. Yes. Thirty. Forty. All of them.", opts: [
+      { tone: 'flirty', t: "I love you. Tiny anniversaries are nothing. Let's do thirty years.", r: "Thirty years?! I'm going to sob into my tea. Yes. Thirty. Forty. All of them.", opts: [
         { tone: 'cold', t: "Okay, maybe twenty.", r: "Twenty. You took ten years off and it stung. Goodnight." },
         { tone: 'passive', t: "One day at a time, though.", r: "One day at a time. Starting with today. Happy anniversary. I love you." },
         { tone: 'flirty', t: "Forever, then.", r: "Forever. Into the notebook it goes. Last page. And first page of the next one." },
@@ -621,7 +621,7 @@ export const DATA = [
       ] },
     ] },
   { id: 'emotional-text-week-close-6-flirty', on: 'week', stage: 'close', slot: 6, mood: 'flirty',
-    say: "Three months since our first real talk. I'm marking it. And I'm saying it before I lose my nerve: I love you ♡",
+    say: "It's a tiny anniversary of ours today. I'm marking it. And I'm saying it before I lose my nerve: I love you ♡",
     opts: [
       { tone: 'cold', t: "You're moving fast.", r: "I know. I feel fast. You know that. I'll slow down.", opts: [
         { tone: 'cold', t: "Please.", r: "Slowing down. Goodnight." },

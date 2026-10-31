@@ -4,7 +4,7 @@ export const DATA = [
   // ==== slot 1: across {venue}, a look you held - the blink game is born ====
   {
     id: 'flirtatious-new-1-cold', stage: 'new', slot: 1, mood: 'cold',
-    say: "You walked straight past me earlier like I was furniture. Nobody does that. I've decided to take it personally.",
+    say: "Last time you looked straight through me like I was furniture. Nobody does that. I've decided to take it personally.",
     opts: [
       { tone: 'cold', t: "I didn't notice you.", r: "Mm. Liar. Nobody misses me twice. Look at me and say it again - without blinking.", opts: [
         { tone: 'cold', t: "Fine. Still didn't notice you.", r: "You blinked. Shame. I was starting to enjoy you. Run along - I'll make you regret that later." },
@@ -17,7 +17,7 @@ export const DATA = [
         { tone: 'flirty', t: "Funny. Now I can't stop looking.", r: "Good. Neither can I. First one to look away owes the other a very long evening." },
         { tone: 'risque', t: "Keep staring like that and I'll forget I was busy.", r: "Oh, I'd like to watch you forget. It suits you. Let's see what else slips your mind." },
       ] },
-      { tone: 'flirty', t: "I walked past on purpose. Wanted to see if you'd follow.", r: "Bold. Wrong, but bold. I don't follow, darling. I wait - and look, here you are.", opts: [
+      { tone: 'flirty', t: "I did it on purpose. Wanted to see if you'd come over.", r: "Bold. Wrong, but bold. I don't chase, darling. I wait - and look, here we are.", opts: [
         { tone: 'cold', t: "Don't flatter yourself.", r: "Too late; I always do. Shame you went shy right when it got interesting." },
         { tone: 'passive', t: "Fair. Round one to you.", r: "Round one. So there'll be a round two. I'll hold you to that." },
         { tone: 'flirty', t: "Then I'll stand here until you're bored of me.", r: "Bored? Mm. You'd have to try much harder than standing there looking like that." },
@@ -130,9 +130,9 @@ export const DATA = [
     id: 'flirtatious-new-2-flirty', stage: 'new', slot: 2, mood: 'flirty',
     say: "I've given you a name. Trouble. You walked over like you knew exactly what you were doing, so it fits. Am I right?",
     opts: [
-      { tone: 'cold', t: "Not really. I just wanted a seat.", r: "Mm. A seat. Next to me, of all the seats. Your excuses need work, Trouble.", opts: [
-        { tone: 'cold', t: "Any seat would've done.", r: "Then go and find one. Far away. I'll look lovely without you." },
-        { tone: 'passive', t: "Okay, this seat was the best one.", r: "It's the best one because I'm next to it. Glad we agree, Trouble." },
+      { tone: 'cold', t: "Not really. I just needed somewhere to stand.", r: "Mm. Somewhere to stand. Next to me, of all the spots. Your excuses need work, Trouble.", opts: [
+        { tone: 'cold', t: "Any spot would've done.", r: "Then go and find one. Far away. I'll look lovely without you." },
+        { tone: 'passive', t: "Okay, this spot was the best one.", r: "It's the best one because I'm in it. Glad we agree, Trouble." },
         { tone: 'flirty', t: "This one came with a view.", r: "Ooh. Recovering nicely. The view says thank you. And it's looking back." },
       ] },
       { tone: 'passive', t: "Maybe. I'm still working out what I'm doing.", r: "Honest. Rare. Most people pretend there's a plan. I'm {first}, by the way. I never have one either.", opts: [
@@ -179,7 +179,7 @@ export const DATA = [
   },
   {
     id: 'flirtatious-new-3-passive', stage: 'new', slot: 3, mood: 'passive',
-    say: "My grandmother Vivi rang this morning - ninety-one, outrageous. She asked if I'd met anyone interesting. I said ask me tonight.",
+    say: "My grandmother Vivi rang this morning - ninety-one, outrageous. She asked if I'd met anyone interesting. I said ask me later.",
     opts: [
       { tone: 'cold', t: "And?", r: "And I'm still deciding. You're not making it easy. Vivi says the hard ones are worth it. Usually.", opts: [
         { tone: 'cold', t: "Tell her not to bother.", r: "I tell Vivi nothing. She knows anyway. She'll be very disappointed in you." },
@@ -293,7 +293,7 @@ export const DATA = [
       { tone: 'flirty', t: "Only with things I really want.", r: "Mm. And what do you really want right now? Careful. I always find out.", opts: [
         { tone: 'cold', t: "To get to my briefing.", r: "Swept aside for a briefing. I'll recover. Slowly. Publicly." },
         { tone: 'passive', t: "I'm still deciding.", r: "Decide quickly. I'm not usually this patient, and I'm enjoying it far too much." },
-        { tone: 'flirty', t: "Guess. You've been looking at it all day.", r: "Oh. Oh, you're good. I need a minute. Nobody's made me need a minute in years." },
+        { tone: 'flirty', t: "Guess. You've been looking at it this whole time.", r: "Oh. Oh, you're good. I need a minute. Nobody's made me need a minute in years." },
         { tone: 'risque', t: "Five minutes alone with you, to start.", r: "To start. Mm. And after the five minutes? No, don't tell me. Make me wonder." },
       ] },
       { tone: 'risque', t: "I'm precise everywhere. Ask nicely and I'll prove it.", r: "Nicely? I don't do nicely, darling. I do directly. Prove it, then.", opts: [
@@ -336,7 +336,7 @@ export const DATA = [
         { tone: 'passive', t: "Fine. When do I get them back?", r: "When I decide. That's how hostages work. I've seen films." },
         { tone: 'flirty', t: "Okay, I'll come and collect.", r: "Good. Wear something nice. The hostage has standards." },
       ] },
-      { tone: 'passive', t: "Do they suit you?", r: "Everything suits me. But these smell like you. Sun cream and engine. It's terribly distracting.", opts: [
+      { tone: 'passive', t: "Do they suit you?", r: "Everything suits me. But these are yours. Still warm. It's terribly distracting.", opts: [
         { tone: 'cold', t: "That's weird.", r: "Weird is just honest in a nice outfit. You'll get used to me. Or you won't. Your loss." },
         { tone: 'passive', t: "Keep them for now, then.", r: "For now. See? You're learning. Rule three: make them chase. And here you are, chasing." },
         { tone: 'flirty', t: "They look better on you, honestly.", r: "I know. But thank you. I'll wear them to every race now, just to watch you notice." },
@@ -611,10 +611,10 @@ export const DATA = [
     opts: [
       { tone: 'cold', t: "That sounds like your problem.", r: "It is. And I'm making it yours. That's what I do with problems. Brace yourself, Trouble.", opts: [
         { tone: 'cold', t: "I'll pass.", r: "Pass, then. I'll be here. Gorgeous, furious and completely unbothered. You'll come back." },
-        { tone: 'passive', t: "Okay. What does that mean?", r: "It means next time, somewhere with fewer people. Just you, me and whatever you're hiding." },
+        { tone: 'passive', t: "Okay. What does that mean?", r: "It means next time, somewhere that's just ours. You, me and whatever you're hiding." },
         { tone: 'flirty', t: "Make it mine, then.", r: "Oh, I will. Thoroughly. Next time, Trouble: somewhere quiet. I'll choose." },
       ] },
-      { tone: 'passive', t: "I like seeing you too. I'm just slow.", r: "Slow. I've said I like slow, haven't I? Damn. ...Fine. Next time, somewhere with fewer people.", opts: [
+      { tone: 'passive', t: "I like seeing you too. I'm just slow.", r: "Slow. I've said I like slow, haven't I? Damn. ...Fine. Next time, just the two of us.", opts: [
         { tone: 'cold', t: "I didn't say yes.", r: "You didn't say no. I'll take what I can get. It's beneath me. I'm doing it anyway." },
         { tone: 'passive', t: "Somewhere quieter sounds good.", r: "Quieter. A corner. Bad lighting for everyone but us. You'll see." },
         { tone: 'flirty', t: "Name the place. I'll be there.", r: "There. That's the first thing you've said that sounded like a promise. Keep it." },
@@ -623,30 +623,30 @@ export const DATA = [
       { tone: 'flirty', t: "Good. Stay furious. It suits you.", r: "It does, doesn't it. Everything does. ...This isn't a game anymore, Trouble. I hate that it isn't.", opts: [
         { tone: 'cold', t: "Then stop playing.", r: "Stop? You'd miss me by Tuesday. Fine. I'll go. You'll call. Watch." },
         { tone: 'passive', t: "What is it, then?", r: "I don't know. That's what scares me. Next time, somewhere quieter, and we'll find out." },
-        { tone: 'flirty', t: "Not a game. A head start.", r: "A head start. Mm. On what? Don't answer. Next time. Somewhere with fewer people." },
+        { tone: 'flirty', t: "Not a game. A head start.", r: "A head start. Mm. On what? Don't answer. Next time. Somewhere nobody knows us." },
       ] },
     ],
   },
   {
     id: 'flirtatious-new-9-passive', stage: 'new', slot: 9, mood: 'passive',
-    say: "A confession, Trouble. I came over that first time to win a staring contest. Somewhere along the way I stopped keeping score.",
+    say: "A confession, Trouble. I've treated you like a staring contest from the start. Somewhere along the way I stopped keeping score.",
     opts: [
       { tone: 'cold', t: "So you lost.", r: "Lost? I never lose. I just... changed games. You're hard work. I'm not used to wanting hard work.", opts: [
         { tone: 'cold', t: "Don't bother, then.", r: "Too late. I'm bothered. Be as cold as you like. I'll be very patient, very warm, very annoying." },
-        { tone: 'passive', t: "What game is it now?", r: "The one where I see you somewhere without a crowd. Next time. My choice of place." },
+        { tone: 'passive', t: "What game is it now?", r: "The one where I see you somewhere that's just us. Next time. My choice of place." },
         { tone: 'flirty', t: "I stopped keeping score too.", r: "Did you? Then we're both in trouble. You more. You're Trouble." },
       ] },
       { tone: 'passive', t: "I noticed. You stopped counting.", r: "You noticed. Of course you did. You notice everything, which is very inconvenient for my reputation.", opts: [
         { tone: 'cold', t: "Your reputation's safe.", r: "Is it. Pity. I'd hoped you'd ruin it. Go on, then. Stay safe and far away." },
-        { tone: 'passive', t: "What happens now?", r: "Now we go somewhere with fewer people. Next time. You get the real me. Some of it." },
+        { tone: 'passive', t: "What happens now?", r: "Now we go somewhere quiet. Next time. You get the real me. Some of it." },
         { tone: 'flirty', t: "I'd like to ruin it a little.", r: "A little? Darling, if you're going to ruin me, do it properly. Next time. Somewhere quiet." },
         { tone: 'risque', t: "Let me take you somewhere nobody's counting anything.", r: "Nobody counting. Nobody watching. Mm. I'd like that more than I'm going to admit." },
       ] },
-      { tone: 'flirty', t: "Good. Neither have I.", r: "Then we're both done for. ...You know what I want? You, somewhere with fewer people. Soon.", opts: [
+      { tone: 'flirty', t: "Good. Neither have I.", r: "Then we're both done for. ...You know what I want? You, somewhere nobody's watching. Soon.", opts: [
         { tone: 'cold', t: "Not soon. Maybe not ever.", r: "Ever. That's a long word for someone who keeps looking back at me. Fine. Pretend." },
         { tone: 'passive', t: "Soon works.", r: "Soon. You're very easy to plan with. I'll pick the place. You bring that face." },
         { tone: 'flirty', t: "Just say when.", r: "When. ...I said it. Now you have to come. No backing out, Trouble." },
-        { tone: 'risque', t: "Fewer people. Lights low. Doors closed.", r: "You've done this before. Mm. So have I. It's never felt like this, though. Don't tell anyone." },
+        { tone: 'risque', t: "Just us. Lights low. Doors closed.", r: "You've done this before. Mm. So have I. It's never felt like this, though. Don't tell anyone." },
       ] },
     ],
   },

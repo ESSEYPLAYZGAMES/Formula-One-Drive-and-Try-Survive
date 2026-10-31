@@ -25,9 +25,9 @@ export const DATA = [
   { id: 'rude-text-met-new-1-passive', on: 'met', stage: 'new', slot: 1, mood: 'passive',
     say: "it's {first}. we met. you were wrong about everything. thought you'd want to know",
     opts: [
-      { tone: 'cold', t: "Wrong about everything? Name one thing.", r: "sunsets. your shoes. the fist pump. that's three. i stopped counting at nine", opts: [
+      { tone: 'cold', t: "Wrong about everything? Name one thing.", r: "your helmet. your team's colour. your whole vibe. that's three. i stopped counting at nine", opts: [
         { tone: 'cold', t: "Your list is wrong.", r: "my lists are never wrong. but fine. you argue well. i'll allow it" },
-        { tone: 'passive', t: "The fist pump is a habit.", r: "so is biting your nails. you stop. you grow. you become a person" },
+        { tone: 'passive', t: "My helmet's a classic.", r: "so is a bad haircut. you grow out of it. you become a person" },
         { tone: 'flirty', t: "Keep counting. I like the attention.", r: "it's not attention. it's an audit. lol. ok. it's a bit of attention" },
       ] },
       { tone: 'passive', t: "Ha. Nice to hear from you too.", r: "'too'. i didn't say nice. you invented nice. that's fan fiction", opts: [
@@ -38,7 +38,7 @@ export const DATA = [
       { tone: 'flirty', t: "Wrong about everything except you.", r: "lol. smooth. too smooth. like a bad floor. i'd slip and sue you", opts: [
         { tone: 'cold', t: "Sue me, then.", r: "i would. i'd win. i'd spend the money on rain gear. ha. ok" },
         { tone: 'passive', t: "Okay, too much?", r: "much too much. but you committed. points for commitment. not many" },
-        { tone: 'flirty', t: "I'd catch you if you slipped.", r: "you'd drop me. you drop places at turn one. lol. ...nice try though" },
+        { tone: 'flirty', t: "I'd catch you if you slipped.", r: "you'd drop me. like places at turn one, probably. lol. ...nice try though" },
       ] },
     ] },
   { id: 'rude-text-met-new-1-flirty', on: 'met', stage: 'new', slot: 1, mood: 'flirty',
@@ -67,7 +67,7 @@ export const DATA = [
     opts: [
       { tone: 'cold', t: "A six. Generous.", r: "i know. i'm furious with myself. don't tell anyone" },
       { tone: 'passive', t: "I had a good time.", r: "'good time'. like a theme park. ok. i did too. fine. a six" },
-      { tone: 'flirty', t: "Next time I'm going for a nine.", r: "nine is for people who don't talk during films. lol. ok. try" },
+      { tone: 'flirty', t: "Next time I'm going for a nine.", r: "nine is for people i haven't met yet. lol. ok. try" },
       { tone: 'risque', t: "Next time let's end it at yours.", r: "bold of you. very. ...we'll see. not a no. not a yes. a hm" },
     ] },
   { id: 'rude-text-date-warm-1-passive', on: 'date', stage: 'warm', slot: 1, mood: 'passive',
@@ -75,7 +75,7 @@ export const DATA = [
     opts: [
       { tone: 'cold', t: "Only a six?", r: "only? a six from me is a parade. you got a parade" },
       { tone: 'passive', t: "Thanks for coming out.", r: "that's what you say after a meeting. lol. it was a date. it was fine. fine is a six" },
-      { tone: 'flirty', t: "You smiled the whole time.", r: "i smiled twice. you counted wrong. you always count wrong. ...three times" },
+      { tone: 'flirty', t: "You smiled the whole time.", r: "i smiled twice. you counted wrong. obviously. ...three times" },
     ] },
   { id: 'rude-text-date-warm-1-flirty', on: 'date', stage: 'warm', slot: 1, mood: 'flirty',
     say: "a six for last night. i'm being generous. you flirted so much i forgot to be annoyed. briefly",
@@ -86,63 +86,63 @@ export const DATA = [
       { tone: 'risque', t: "Next time forget to be annoyed all night.", r: "bold of you. lol. all night. i'd remember everything. ask again at a decent hour" },
     ] },
   { id: 'rude-text-date-warm-2-cold', on: 'date', stage: 'warm', slot: 2, mood: 'cold',
-    say: "you hummed in the car last night. i've told everyone. you went quiet on me after, so i told them twice",
+    say: "you looked annoyingly good last night. i've told everyone. you went quiet on me after, so i told them twice",
     opts: [
       { tone: 'cold', t: "Who's everyone? You have no friends.", r: "my cat. my sister. a pigeon. that's everyone. they were appalled", opts: [
         { tone: 'cold', t: "The pigeon has bad taste.", r: "the pigeon has excellent taste. it left. lol" },
         { tone: 'passive', t: "What did your sister say?", r: "she thinks everything is sweet. it wasn't sweet. it was a bit" },
-        { tone: 'flirty', t: "You liked it.", r: "i liked the silence after it. ...i liked it. one percent. ok two" },
+        { tone: 'flirty', t: "You liked how I looked.", r: "i liked the view. ...i liked it. one percent. ok two" },
       ] },
-      { tone: 'passive', t: "Was it that bad?", r: "it was a car advert. you hummed a car advert. for twenty minutes", opts: [
-        { tone: 'cold', t: "It's a great advert.", r: "it's a terrible advert. you're a terrible hummer. we agree on nothing. good" },
-        { tone: 'passive', t: "Sorry. Habit.", r: "don't be sorry. be quieter. no. don't be. ugh" },
-        { tone: 'flirty', t: "I'll hum it next time too.", r: "you'd better not. you'd better. i don't know. hum it" },
+      { tone: 'passive', t: "Was it that bad?", r: "it was worse. it was good. you looked good. for hours. exhausting", opts: [
+        { tone: 'cold', t: "I always look good.", r: "you don't. you're a terrible judge. we agree on nothing. good" },
+        { tone: 'passive', t: "Sorry. I'll look worse next time.", r: "don't be sorry. be scruffier. no. don't be. ugh" },
+        { tone: 'flirty', t: "I'll look even better next time.", r: "you'd better not. you'd better. i don't know. do it" },
       ] },
-      { tone: 'flirty', t: "I'll hum you a better one next time.", r: "next time. presumptuous. there's a next time? ...there's a next time", opts: [
+      { tone: 'flirty', t: "Wait till you see me next time.", r: "next time. presumptuous. there's a next time? ...there's a next time", opts: [
         { tone: 'cold', t: "Maybe there isn't.", r: "lol. ok. rude. there is. i've decided. you can sulk about it" },
         { tone: 'passive', t: "Good. Next time, then.", r: "good. fine. great. normal. i'm normal about it" },
-        { tone: 'flirty', t: "Next time I'll hum closer.", r: "closer. ugh. in my ear? that's a crime. that's a lovely crime. no" },
-        { tone: 'risque', t: "Next time I'll give you something better than humming.", r: "bold of you. lol. better than humming isn't hard. ...go on then" },
+        { tone: 'flirty', t: "Next time you'll see me closer up.", r: "closer up. ugh. that's a crime. that's a lovely crime. no" },
+        { tone: 'risque', t: "Next time I'll give you something better than looking.", r: "bold of you. lol. better than looking. hm. ...go on then" },
       ] },
     ] },
   { id: 'rude-text-date-warm-2-passive', on: 'date', stage: 'warm', slot: 2, mood: 'passive',
-    say: "you hummed in the car. the whole way. i've told everyone. you can never recover from this",
+    say: "you looked good last night. i've told everyone. it's a scandal. you can never recover from this",
     opts: [
       { tone: 'cold', t: "Telling everyone is petty.", r: "petty is my love language. no. petty is my language. no love. ok", opts: [
         { tone: 'cold', t: "Your love language is complaints.", r: "accurate. you've studied me. creepy. lovely. no. creepy" },
         { tone: 'passive', t: "Who did you tell?", r: "the cat. she judged you. the barista. they judged you more" },
         { tone: 'flirty', t: "So there is love in it.", r: "a crumb. a crouton. tiny. don't eat it" },
       ] },
-      { tone: 'passive', t: "Ha. Guilty.", r: "guilty. good. a confession. i'll have it framed. next to the receipt", opts: [
+      { tone: 'passive', t: "Ha. Guilty.", r: "guilty. good. a confession. i'll have it framed. above the cat", opts: [
         { tone: 'cold', t: "Frame your own crimes.", r: "i don't commit crimes. i report them. lol. ok" },
         { tone: 'passive', t: "Did you have a good time, though?", r: "i had a seven time. that's very high. don't repeat it" },
-        { tone: 'flirty', t: "Admit you liked the humming.", r: "i liked the person humming. not the humming. delete that. no" },
+        { tone: 'flirty', t: "Admit you liked looking.", r: "i liked the person. the looking was a side effect. delete that. no" },
       ] },
-      { tone: 'flirty', t: "You'll never recover either. You smiled.", r: "i grimaced. at the humming. ...i smiled. once. at the bridge. it had a bridge", opts: [
+      { tone: 'flirty', t: "You'll never recover either. You smiled.", r: "i grimaced. at the situation. ...i smiled. once. maybe twice. don't count", opts: [
         { tone: 'cold', t: "Grimace. Sure.", r: "my grimace and my smile are related. like cousins. you met the nice cousin" },
-        { tone: 'passive', t: "It did have a bridge.", r: "it had a key change. you missed it. badly. it was the best part" },
-        { tone: 'flirty', t: "I'll keep humming till you smile again.", r: "you'll be humming for years. ...that's fine. hum" },
-        { tone: 'risque', t: "Hum for you in private next time?", r: "bold. a private concert. lol. the neighbours will call someone. ...fine" },
+        { tone: 'passive', t: "Twice. I counted.", r: "you counted wrong. it was three. the third was the best part" },
+        { tone: 'flirty', t: "I'll keep going till you smile again.", r: "you'll be going for years. ...that's fine. go" },
+        { tone: 'risque', t: "Next time, a private viewing?", r: "bold. a private viewing. lol. the cat will call someone. ...fine" },
       ] },
     ] },
   { id: 'rude-text-date-warm-2-flirty', on: 'date', stage: 'warm', slot: 2, mood: 'flirty',
-    say: "you hummed the whole way home. worst thing i've ever heard. i'd like to hear it again. no",
+    say: "you looked far too good last night. worst thing i've ever seen. i'd like to see it again. no",
     opts: [
-      { tone: 'cold', t: "Worst thing you've heard? Rude.", r: "accurate. you'd want accurate. ok. second worst. my alarm clock's first", opts: [
-        { tone: 'cold', t: "Your alarm clock has more talent.", r: "it does. it's very punctual. you're not. ha" },
-        { tone: 'passive', t: "Fair. I'm not a singer.", r: "you're not. you're a driver who hums. that's a different category. a sad one" },
-        { tone: 'flirty', t: "But you want to hear it again.", r: "i said no. ...i said no after i said yes. listen to the first bit" },
+      { tone: 'cold', t: "Worst thing you've seen? Rude.", r: "accurate. you'd want accurate. ok. second worst. my reflection at 6am is first", opts: [
+        { tone: 'cold', t: "Your reflection wins, then.", r: "it does. it's very consistent. you're not. ha" },
+        { tone: 'passive', t: "Fair. I'm not a model.", r: "you're not. you're a driver who scrubs up. that's a different category. a dangerous one" },
+        { tone: 'flirty', t: "But you want to see it again.", r: "i said no. ...i said no after i said yes. listen to the first bit" },
       ] },
-      { tone: 'passive', t: "Okay, I'll stop humming.", r: "don't stop. i didn't say stop. i said worst. those are different instructions", opts: [
-        { tone: 'cold', t: "Pick a lane.", r: "i pick both lanes. i'm a menace. hum" },
-        { tone: 'passive', t: "Okay. Humming continues.", r: "good. i'll complain throughout. it's a ritual now" },
-        { tone: 'flirty', t: "So you'll be in the car again.", r: "obviously. who else will judge you. nobody. just me. ok" },
+      { tone: 'passive', t: "Okay, I'll dress down next time.", r: "don't. i didn't say dress down. i said worst. those are different instructions", opts: [
+        { tone: 'cold', t: "Pick a lane.", r: "i pick both lanes. i'm a menace. dress up" },
+        { tone: 'passive', t: "Okay. Dressing up continues.", r: "good. i'll complain throughout. it's a ritual now" },
+        { tone: 'flirty', t: "So you'll be there next time.", r: "obviously. who else will judge you. nobody. just me. ok" },
       ] },
-      { tone: 'flirty', t: "Again? I'll hum all the way to yours.", r: "all the way to mine. presumptuous. ...it's a long way. hum something good", opts: [
-        { tone: 'cold', t: "Actually, I'll drive in silence.", r: "silence is worse. it's fine. no. hum. i've changed my mind" },
-        { tone: 'passive', t: "Any requests?", r: "something without words. you'll ruin words. hum the rain" },
-        { tone: 'flirty', t: "And when we get to yours?", r: "the humming stops. the cat starts. she hums too. badly. like you" },
-        { tone: 'risque', t: "And then I'll stop humming and kiss you.", r: "bold of you. very bold. ...that's a better ending than the song. ok" },
+      { tone: 'flirty', t: "Again? I'll walk you to yours next time.", r: "all the way to mine. presumptuous. ...it's a long way. talk the whole way", opts: [
+        { tone: 'cold', t: "Actually, I'll walk in silence.", r: "silence is worse. it's fine. no. talk. i've changed my mind" },
+        { tone: 'passive', t: "Any requests for the walk?", r: "no racing talk. you'll ruin it. just look like that again" },
+        { tone: 'flirty', t: "And when we get to yours?", r: "the walking stops. the cat starts. she judges everyone. like me" },
+        { tone: 'risque', t: "And then I'll kiss you goodnight.", r: "bold of you. very bold. ...that's a better ending than the walk. ok" },
       ] },
     ] },
   { id: 'rude-text-date-warm-3-cold', on: 'date', stage: 'warm', slot: 3, mood: 'cold',
@@ -172,88 +172,88 @@ export const DATA = [
 
   // ==== the day after a date: close ====
   { id: 'rude-text-date-close-1-cold', on: 'date', stage: 'close', slot: 1, mood: 'cold',
-    say: "you left your watch here. i'm keeping it as a hostage. you were difficult last night. the watch is paying for it",
+    say: "last night: acceptable. you were difficult, so i've drawn up demands for next time. it's a long list. laminated",
     opts: [
-      { tone: 'cold', t: "Keep it. I'll get another.", r: "you won't. it's your favourite. i know. i'm holding it. hostage" },
-      { tone: 'passive', t: "What are your demands?", r: "dinner. friday. you pay. and you don't hum" },
-      { tone: 'flirty', t: "I'll come and rescue it tonight.", r: "the watch is fine. it's being well treated. come anyway" },
-      { tone: 'risque', t: "I'll come and negotiate. In person.", r: "bold. negotiations happen in my bedroom. lol. that's where it is. the watch. on the bedside" },
+      { tone: 'cold', t: "Keep your list.", r: "i'll keep it. somewhere you'll see it. eventually" },
+      { tone: 'passive', t: "What are your demands?", r: "dinner. friday. you pay. and no tyre talk" },
+      { tone: 'flirty', t: "I'll come and read it tonight.", r: "it's not a bedtime story. it's a contract. come anyway" },
+      { tone: 'risque', t: "I'll come and negotiate. In person.", r: "bold. negotiations happen in my bedroom. lol. that's where it is. the list. on the bedside" },
     ] },
   { id: 'rude-text-date-close-1-passive', on: 'date', stage: 'close', slot: 1, mood: 'passive',
-    say: "you left your watch at mine. i'm keeping it. as a hostage. demands to follow",
+    say: "last night was fine. i'm putting my terms in writing. demands to follow. read them carefully",
     opts: [
-      { tone: 'cold', t: "Hostages are a crime.", r: "so is your watch. it's enormous. it's a dinner plate on a strap" },
-      { tone: 'passive', t: "Okay. I'll pick it up later.", r: "later. fine. the watch says 7. come at 7. the watch knows" },
-      { tone: 'flirty', t: "Keep it. Then I have to come back.", r: "that's the plan. that was always the plan. lol. ok. come back" },
-      { tone: 'risque', t: "Ransom paid in kisses?", r: "bold. yes. the ransom is high. many. come pay" },
+      { tone: 'cold', t: "Demands are a bit much.", r: "so is your ego. it's enormous. it's a billboard on legs" },
+      { tone: 'passive', t: "Okay. Send them over.", r: "demand one: friday. 7. don't be late. there are eleven more" },
+      { tone: 'flirty', t: "Make one of them 'come back'.", r: "it's number one. it was always number one. lol. ok. come back" },
+      { tone: 'risque', t: "Payment in kisses?", r: "bold. yes. the price is high. many. come pay" },
     ] },
   { id: 'rude-text-date-close-1-flirty', on: 'date', stage: 'close', slot: 1, mood: 'flirty',
-    say: "your watch is still here. i'm wearing it. it's too big. i'm not giving it back. come and get it. or don't. come",
+    say: "last night was... adequate. very adequate. i'm demanding a sequel. this week. or don't. no, do",
     opts: [
-      { tone: 'cold', t: "It looks ridiculous on you.", r: "it does. i look ridiculous. it stays on. that's commitment" },
-      { tone: 'passive', t: "Okay, I'll come and get it.", r: "good. come. bring snacks. the hostage is hungry" },
-      { tone: 'flirty', t: "It looks better on you.", r: "everything looks better on me. you included. lol. come get it" },
-      { tone: 'risque', t: "Keep it on. Just the watch.", r: "bold of you. lol. very bold. ...just the watch. hm. come and see" },
+      { tone: 'cold', t: "A sequel? Calm down.", r: "i'm calm. i'm ridiculous. the sequel stays on the list. that's commitment" },
+      { tone: 'passive', t: "Okay. Sequel this week.", r: "good. come. bring snacks. the sequel is hungry" },
+      { tone: 'flirty', t: "Sequels are usually worse.", r: "usually. not this one. lol. come and prove it" },
+      { tone: 'risque', t: "Make the sequel last all night.", r: "bold of you. lol. very bold. ...all night. hm. come and see" },
     ] },
   { id: 'rude-text-date-close-2-cold', on: 'date', stage: 'close', slot: 2, mood: 'cold',
-    say: "you snore. like a small engine. a tiny, determined engine. you went quiet on me before bed and then you snored",
+    say: "you left too early last night. you went quiet on me first, then you left. i timed it. too early",
     opts: [
-      { tone: 'cold', t: "I don't snore.", r: "you do. i have a recording. i'm not sending it. i'm keeping it for leverage", opts: [
-        { tone: 'cold', t: "Delete it.", r: "never. it's my favourite song. no. it's evidence. evidence. ok" },
-        { tone: 'passive', t: "How loud?", r: "loud enough to annoy the cat. not loud enough to wake me. i was awake anyway" },
-        { tone: 'flirty', t: "You listened all night?", r: "i listened for scientific reasons. for hours. scientifically" },
+      { tone: 'cold', t: "It ended when it ended.", r: "it ended early. i wrote the time down. i'm keeping it for leverage", opts: [
+        { tone: 'cold', t: "Throw that away.", r: "never. it's my favourite number. no. it's evidence. evidence. ok" },
+        { tone: 'passive', t: "How early?", r: "early enough to annoy me. i'd got comfortable. i'm never comfortable. anyway" },
+        { tone: 'flirty', t: "You wanted me to stay?", r: "i wanted more data. for hours. scientifically" },
       ] },
-      { tone: 'passive', t: "Sorry. I'll get it checked.", r: "don't. it's fine. it's... i got used to it. in one night. annoying", opts: [
+      { tone: 'passive', t: "Sorry. I'll stay longer next time.", r: "good. fine. it's... i got used to you. in one night. annoying", opts: [
         { tone: 'cold', t: "Then stop complaining.", r: "i'm not complaining. i'm reporting. lol. ok complaining. lightly" },
-        { tone: 'passive', t: "Did you sleep at all?", r: "a bit. the engine was rhythmic. like a train. a small train" },
-        { tone: 'flirty', t: "You'll miss it tonight.", r: "i won't. i will. ugh. come back. bring the engine" },
-        { tone: 'risque', t: "Next time I'll keep you up another way.", r: "bold. that's... better than snoring. lol. come back" },
+        { tone: 'passive', t: "Did you sleep at all?", r: "a bit. i was busy replaying it. annoyingly. on a loop" },
+        { tone: 'flirty', t: "You'll miss me tonight.", r: "i won't. i will. ugh. come back. stay longer" },
+        { tone: 'risque', t: "Next time I'll keep you up another way.", r: "bold. that's... better than leaving. lol. come back" },
       ] },
-      { tone: 'flirty', t: "A determined engine. That's cute.", r: "it's not cute. it's loud. it's a bit cute. a tiny bit", opts: [
-        { tone: 'cold', t: "Cute is your word now?", r: "no. it slipped. like you. into my bed. lol. that was a joke. sort of" },
-        { tone: 'passive', t: "I'll sleep on my side.", r: "sleep however you want. just sleep here. ...i said that out loud" },
-        { tone: 'flirty', t: "You liked having me there.", r: "i liked the engine. you came with it. fine. i liked you there" },
+      { tone: 'flirty', t: "You're cute when you sulk.", r: "i'm not sulking. i'm reporting. it's a bit cute. a tiny bit", opts: [
+        { tone: 'cold', t: "Cute is your word now?", r: "no. it slipped. like you. out the door. too early. lol" },
+        { tone: 'passive', t: "I'll stay till you're bored next time.", r: "i'm never bored of... just stay. ...i said that out loud" },
+        { tone: 'flirty', t: "You liked having me around.", r: "i liked the company. you came with it. fine. i liked you there" },
       ] },
     ] },
   { id: 'rude-text-date-close-2-passive', on: 'date', stage: 'close', slot: 2, mood: 'passive',
-    say: "you snore. it's fine. it's like a small engine. idling. i timed it. you did eleven laps",
+    say: "last night went too fast. i timed it. it was over in eleven laps. i'm filing a complaint",
     opts: [
-      { tone: 'cold', t: "Eleven laps. You're a nerd.", r: "i'm a thorough nerd. you're a snoring engine. we're even", opts: [
+      { tone: 'cold', t: "Eleven laps. You're a nerd.", r: "i'm a thorough nerd. you're a fast date. we're even", opts: [
         { tone: 'cold', t: "Not even close.", r: "lol. fine. i'm winning. as usual" },
-        { tone: 'passive', t: "Did I keep you up?", r: "a bit. i didn't mind. that's new. i always mind" },
-        { tone: 'flirty', t: "You counted my snores. That's love.", r: "it's statistics. love is... statistics with a soft centre. ugh" },
+        { tone: 'passive', t: "Too fast? Really?", r: "much too fast. i minded. that's new. i never mind things ending" },
+        { tone: 'flirty', t: "You timed our date. That's love.", r: "it's statistics. love is... statistics with a soft centre. ugh" },
       ] },
-      { tone: 'passive', t: "Sorry for keeping you up.", r: "don't be. it's fine. the cat slept on you. first time ever. traitor", opts: [
-        { tone: 'cold', t: "The cat knows quality.", r: "my cat has betrayal. lol. ok. quality" },
-        { tone: 'passive', t: "She did? That's sweet.", r: "it's not sweet. it's a coup. you're taking over. slowly. like damp" },
-        { tone: 'flirty', t: "Then I'll come back. For her.", r: "for her. sure. come back. for her. she's waiting. i'm not. i am" },
+      { tone: 'passive', t: "Sorry it went so fast.", r: "don't be. fast means it was good. i'm furious. i've betrayed myself. traitor", opts: [
+        { tone: 'cold', t: "Good. Quality's quick.", r: "quality takes ages. you're a fluke. lol. ok. quality" },
+        { tone: 'passive', t: "So it was good?", r: "it's not good. it's a coup. you're taking over. slowly. like damp" },
+        { tone: 'flirty', t: "Then I'll come back for more.", r: "for more. sure. come back. i'm not waiting. i'm not. i am" },
         { tone: 'risque', t: "Then I'll come back and keep you awake properly.", r: "bold of you. properly. lol. i'd allow that. tonight?" },
       ] },
-      { tone: 'flirty', t: "An engine. So I'm high performance.", r: "you're a lawnmower. a determined lawnmower. lol", opts: [
+      { tone: 'flirty', t: "Eleven laps? I'm high performance.", r: "you're a lawnmower. a determined lawnmower. lol", opts: [
         { tone: 'cold', t: "Lawnmower. Wow.", r: "a premium lawnmower. top of the range. ok" },
         { tone: 'passive', t: "Okay. Lawnmower. I'll take it.", r: "you'd take anything. it's sweet. it's tragic. it's sweet" },
         { tone: 'flirty', t: "Your favourite lawnmower, though.", r: "my only lawnmower. ...my favourite. ugh" },
       ] },
     ] },
   { id: 'rude-text-date-close-2-flirty', on: 'date', stage: 'close', slot: 2, mood: 'flirty',
-    say: "you snore. like a small, adorable engine. i didn't sleep. i listened. i'm not saying that's romantic. it's data",
+    say: "i didn't sleep last night. i lay there replaying the date. i'm not saying that's romantic. it's data",
     opts: [
-      { tone: 'cold', t: "It's data. Sure.", r: "it's data. i've got a spreadsheet. column a: snore. column b: also snore", opts: [
+      { tone: 'cold', t: "It's data. Sure.", r: "it's data. i've got a spreadsheet. column a: things you said. column b: things i should've said", opts: [
         { tone: 'cold', t: "Your spreadsheets are a cry for help.", r: "my spreadsheets are perfect. you're column c. 'mine'. ugh" },
         { tone: 'passive', t: "What's the conclusion?", r: "conclusion: come back. more data needed. lol" },
         { tone: 'flirty', t: "Column c sounds good.", r: "column c is the best column. stay humble" },
       ] },
-      { tone: 'passive', t: "Sorry. I'll try not to.", r: "don't try. it's fine. it's yours. it's... i like it. ok. i said it", opts: [
+      { tone: 'passive', t: "Sorry. Did I keep you up?", r: "you did. it's fine. it's you. it's... i like it. ok. i said it", opts: [
         { tone: 'cold', t: "You're going soft.", r: "i'm not. it's a gentle hardness. lol. no. i'm soft. a bit" },
-        { tone: 'passive', t: "Okay. Snore on, then.", r: "snore on. yes. that's our motto now. it's a terrible motto" },
+        { tone: 'passive', t: "Okay. Replay on, then.", r: "replay on. yes. that's our motto now. it's a terrible motto" },
         { tone: 'flirty', t: "Soft looks good on you.", r: "soft looks terrible on me. i'm wearing it anyway. for you" },
         { tone: 'risque', t: "Next time I won't be sleeping.", r: "bold. very bold. lol. ...good. i'll set an alarm. no i won't" },
       ] },
-      { tone: 'flirty', t: "Listening all night is romantic.", r: "it's insomnia with a soundtrack. ...ok it's a bit romantic. a bit", opts: [
+      { tone: 'flirty', t: "Replaying all night is romantic.", r: "it's insomnia with a soundtrack. ...ok it's a bit romantic. a bit", opts: [
         { tone: 'cold', t: "It's not romantic. It's weird.", r: "it's both. i'm both. you're dating both. too late" },
-        { tone: 'passive', t: "I'll come back tonight.", r: "good. i'll bring earplugs. i won't use them" },
-        { tone: 'flirty', t: "I'd listen to you all night too.", r: "you'd fall asleep. in two minutes. snoring. lol. ...listen anyway" },
-        { tone: 'risque', t: "Tonight, let's not sleep at all.", r: "bold of you. lol. the engine needs rest. ...the engine can rest tomorrow" },
+        { tone: 'passive', t: "I'll come back tonight.", r: "good. i'll pretend to be busy. i won't be" },
+        { tone: 'flirty', t: "I'd replay you all night too.", r: "you'd fall asleep. in two minutes. probably snoring. lol. ...replay anyway" },
+        { tone: 'risque', t: "Tonight, let's not sleep at all.", r: "bold of you. lol. i need rest. ...i can rest tomorrow" },
       ] },
     ] },
   { id: 'rude-text-date-close-3-cold', on: 'date', stage: 'close', slot: 3, mood: 'cold',
@@ -278,7 +278,7 @@ export const DATA = [
       { tone: 'cold', t: "Wow. You said wow.", r: "i did. delete it. you won't. screenshot it. you have. i know you" },
       { tone: 'passive', t: "It was really special.", r: "special. ugh. it was. i won't say so. i'm agreeing silently. loudly" },
       { tone: 'flirty', t: "I'll find you more adjectives tonight.", r: "tonight. ok. bring a dictionary. bring yourself. mostly yourself" },
-      { tone: 'risque', t: "No adjectives. Just come back to bed.", r: "bold. lol. ok. adjectives are overrated. bed isn't" },
+      { tone: 'risque', t: "No adjectives. Just come to bed next time.", r: "bold. lol. ok. adjectives are overrated. bed isn't" },
     ] },
 
   // ==== after the race: win ====
@@ -305,7 +305,7 @@ export const DATA = [
     say: "you won. did everyone else forget how to drive? ...ok fine. that was good. very good. don't",
     opts: [
       { tone: 'cold', t: "Very good? Who are you?", r: "i don't know. you've broken me. i'm a fan now. disgusting. well done", opts: [
-        { tone: 'cold', t: "Go back to being rude.", r: "gladly. your podium jump was a crime. better?" },
+        { tone: 'cold', t: "Go back to being rude.", r: "gladly. your podium celebration was a crime. better?" },
         { tone: 'passive', t: "Thanks. It was a hard race.", r: "i know. i watched. you were brilliant. ugh. i said brilliant" },
         { tone: 'flirty', t: "Fan suits you.", r: "nothing suits me. but fan... fits. a bit. well done" },
       ] },
@@ -384,31 +384,31 @@ export const DATA = [
 
   // ==== after the race: podium ====
   { id: 'rude-text-podium-any-1-cold', on: 'podium', stage: 'any', slot: 1, mood: 'cold',
-    say: "{result}. podium. the little dance up there was a crime. i've reported it. well done otherwise",
+    say: "{result}. podium. your celebrating up there was a crime. i've reported it. well done otherwise",
     opts: [
-      { tone: 'cold', t: "The dance stays.", r: "then i stay annoyed. it's a balance. well done" },
-      { tone: 'passive', t: "Thanks. Felt good up there.", r: "it looked good. the jump didn't. the rest did" },
-      { tone: 'flirty', t: "You watched my dance closely, then.", r: "i watched it the way you watch a crash. couldn't look away. ok" },
+      { tone: 'cold', t: "The celebrating stays.", r: "then i stay annoyed. it's a balance. well done" },
+      { tone: 'passive', t: "Thanks. Felt good up there.", r: "it looked good. the celebrating didn't. the rest did" },
+      { tone: 'flirty', t: "You watched me closely up there, then.", r: "i watched it the way you watch a crash. couldn't look away. ok" },
     ] },
   { id: 'rude-text-podium-any-1-passive', on: 'podium', stage: 'any', slot: 1, mood: 'passive',
-    say: "podium! fine. good. the podium jump though. who taught you that. i want names",
+    say: "podium! fine. good. your podium celebration though. who taught you that. i want names",
     opts: [
       { tone: 'cold', t: "Nobody taught me. It's natural.", r: "natural. like weeds. like a disaster. ok. well done" },
       { tone: 'passive', t: "Ha. Thanks for watching.", r: "i didn't watch. i hate-watched. it counts double" },
-      { tone: 'flirty', t: "Jump with me next time.", r: "i don't jump. i nod. i'll nod next to you. that's a lot" },
+      { tone: 'flirty', t: "Celebrate with me next time.", r: "i don't do celebrating. i do nodding. i'll nod next to you. that's a lot" },
     ] },
   { id: 'rude-text-podium-any-1-flirty', on: 'podium', stage: 'any', slot: 1, mood: 'flirty',
-    say: "{result}. you were on the podium. you did the jump. i hated it. i watched it four times. hated it four times",
+    say: "{result}. you were on the podium. you did your celebration. i hated it. i watched it four times. hated it four times",
     opts: [
-      { tone: 'cold', t: "Four times? Obsessed.", r: "four times for research. the research says: bad jump, good driver" },
+      { tone: 'cold', t: "Four times? Obsessed.", r: "four times for research. the research says: bad celebration, good driver" },
       { tone: 'passive', t: "Thanks. Glad you watched.", r: "glad. ok. i'm glad too. i'm glad you're... fine. well done" },
       { tone: 'flirty', t: "Five times next time.", r: "next time i'll watch it five times and hate it five times. it's a hobby" },
     ] },
   { id: 'rude-text-podium-any-2-cold', on: 'podium', stage: 'any', slot: 2, mood: 'cold',
-    say: "podium again. your spray technique is still embarrassing. you sprayed yourself. i watched it in slow motion",
+    say: "podium again. your spray technique is still embarrassing. i watched it in slow motion. twice",
     opts: [
-      { tone: 'cold', t: "I meant to spray myself.", r: "lol. sure. a tactical drenching. ok. well done anyway", opts: [
-        { tone: 'cold', t: "Tactical. Very.", r: "very. you're a tactical genius. a damp one" },
+      { tone: 'cold', t: "My technique is flawless.", r: "lol. sure. flawless. like a sprinkler. ok. well done anyway", opts: [
+        { tone: 'cold', t: "Flawless. Very.", r: "very. you're a genius. a damp one" },
         { tone: 'passive', t: "Thanks for watching again.", r: "i always watch. it's a habit. i'm stuck with it. you know" },
         { tone: 'flirty', t: "Slow motion. For me?", r: "for comedy. you're a podium comedy. ok. for you. a bit" },
       ] },
@@ -424,20 +424,20 @@ export const DATA = [
       ] },
     ] },
   { id: 'rude-text-podium-any-2-passive', on: 'podium', stage: 'any', slot: 2, mood: 'passive',
-    say: "another podium. your bottle spray is still terrible. you hit a photographer. i laughed for ten minutes",
+    say: "another podium. your bottle spray is still terrible. i rewound it. i laughed for ten minutes",
     opts: [
-      { tone: 'cold', t: "That photographer deserved it.", r: "lol. maybe. you're ruthless with a bottle. less so with braking", opts: [
+      { tone: 'cold', t: "My spray is art.", r: "art. lol. maybe. you're ruthless with a bottle. less so with braking", opts: [
         { tone: 'cold', t: "My braking's fine.", r: "braking's... fine. ok. today it's fine. well done" },
-        { tone: 'passive', t: "Is the photographer okay?", r: "fine. damp. annoyed. like a cat in rain. they'll survive" },
+        { tone: 'passive', t: "Was it really that bad?", r: "worse. a damp disaster. like a cat in rain. you'll survive" },
         { tone: 'flirty', t: "Ruthless suits me?", r: "it does. annoyingly. ruthless and damp. good look. bad look. both" },
       ] },
       { tone: 'passive', t: "Ha. Oops.", r: "'oops'. that's your podium speech? oops? ok. iconic. well done", opts: [
         { tone: 'cold', t: "Better than your speeches.", r: "i don't give speeches. i give verdicts. verdict: good race" },
         { tone: 'passive', t: "Was it a good race to watch?", r: "it was a good race. you were good. the spray was not. two out of three" },
-        { tone: 'flirty', t: "Ten minutes of laughing. Because of me.", r: "because of the photographer. ...and you. your face. ok. you" },
+        { tone: 'flirty', t: "Ten minutes of laughing. Because of me.", r: "because of the spray. ...and you. your grin. ok. you" },
       ] },
-      { tone: 'flirty', t: "I'll spray you next time.", r: "you'll miss. you'll hit yourself. again. lol", opts: [
-        { tone: 'cold', t: "I never miss.", r: "you always miss. but you finish on podiums. it balances out" },
+      { tone: 'flirty', t: "I'll spray you next time.", r: "you'll miss. you'll hit yourself. probably. lol", opts: [
+        { tone: 'cold', t: "I never miss.", r: "you'd miss. but you finish on podiums. it balances out" },
         { tone: 'passive', t: "Fair. I'd probably miss.", r: "you would. it's fine. stay dry. no. spray. whatever" },
         { tone: 'flirty', t: "Then you'll have to come to the podium.", r: "i'm not coming to a podium. i'm watching from my sofa. ...fine. one day" },
       ] },
@@ -581,7 +581,7 @@ export const DATA = [
     say: "another bad one. was the handbrake on? lol. seriously though. you ok?",
     opts: [
       { tone: 'cold', t: "Funny.", r: "i'm hilarious. you're having a bad week. both true. ok" },
-      { tone: 'passive', t: "I'm fine. Rough patch.", r: "rough patches end. like bad haircuts. you'd know. lol. sorry. you'll be fine" },
+      { tone: 'passive', t: "I'm fine. Rough patch.", r: "rough patches end. like bad haircuts. everyone's had one. lol. you'll be fine" },
       { tone: 'flirty', t: "Better for hearing from you.", r: "don't. you'll make me nice. i can't afford nice. fine. glad" },
     ] },
   { id: 'rude-text-bad-any-2-flirty', on: 'bad', stage: 'any', slot: 2, mood: 'flirty',
@@ -653,8 +653,8 @@ export const DATA = [
   { id: 'rude-text-dnf-any-1-cold', on: 'dnf', stage: 'any', slot: 1, mood: 'cold',
     say: "you're out. are you ok. answer first. then i'll mock you",
     opts: [
-      { tone: 'cold', t: "I'm fine. Mock away.", r: "good. ok. fine. ...the car looked like a deckchair. there. mocked. you're fine. good", opts: [
-        { tone: 'cold', t: "Deckchair. Fair.", r: "a folded one. a sad one. ok. you're fine. that's what matters" },
+      { tone: 'cold', t: "I'm fine. Mock away.", r: "good. ok. fine. ...the car. what a diva. there. mocked. you're fine. good", opts: [
+        { tone: 'cold', t: "Diva. Fair.", r: "a sulking one. a sad one. ok. you're fine. that's what matters" },
         { tone: 'passive', t: "The team's gutted.", r: "they'll fix it. it's their job. your job is to be fine. you're fine" },
         { tone: 'flirty', t: "You were worried.", r: "i was mildly concerned. extremely mildly. for eleven seconds. ok worried" },
       ] },
@@ -672,8 +672,8 @@ export const DATA = [
   { id: 'rude-text-dnf-any-1-passive', on: 'dnf', stage: 'any', slot: 1, mood: 'passive',
     say: "{last}. you're out. are you ok? answer that before anything. the mocking comes later",
     opts: [
-      { tone: 'cold', t: "Fine. Car isn't.", r: "the car's a car. you're... ok. good. you're fine. the car's a pancake", opts: [
-        { tone: 'cold', t: "A pancake. Thanks.", r: "a crispy pancake. you're fine though. that's the main thing. ok" },
+      { tone: 'cold', t: "Fine. Car isn't.", r: "the car's a car. you're... ok. good. you're fine. the car's a disgrace", opts: [
+        { tone: 'cold', t: "A disgrace. Thanks.", r: "a total disgrace. you're fine though. that's the main thing. ok" },
         { tone: 'passive', t: "The team will sort it.", r: "they'd better. you'd better be fine. you are. good" },
         { tone: 'flirty', t: "You were scared for me.", r: "i wasn't scared. i stood up. i sat down. i stood up. that's not scared. that's cardio" },
       ] },
@@ -691,7 +691,7 @@ export const DATA = [
   { id: 'rude-text-dnf-any-1-flirty', on: 'dnf', stage: 'any', slot: 1, mood: 'flirty',
     say: "you're out. you ok? you'd better be ok. answer first. then i'll be rude about the car",
     opts: [
-      { tone: 'cold', t: "Fine. Be rude about the car.", r: "your car folded like a cheap umbrella. there. rude. you're fine. that's what counts", opts: [
+      { tone: 'cold', t: "Fine. Be rude about the car.", r: "your car gave up like a cheap umbrella. there. rude. you're fine. that's what counts", opts: [
         { tone: 'cold', t: "Cheap umbrella. Harsh.", r: "accurate. it's ok. it's just a car. you're not just anything" },
         { tone: 'passive', t: "Yeah. It's a mess.", r: "the car's a mess. you're not. that's what matters to me" },
         { tone: 'flirty', t: "You're relieved I'm ok.", r: "relieved. yes. fine. very. ok. stop it" },
@@ -708,32 +708,32 @@ export const DATA = [
       ] },
     ] },
   { id: 'rude-text-dnf-any-2-cold', on: 'dnf', stage: 'any', slot: 2, mood: 'cold',
-    say: "out again? the barrier's filing a restraining order. ...you ok? answer first",
+    say: "out again? at this point the car's filing a complaint. ...you ok? answer first",
     opts: [
-      { tone: 'cold', t: "The barrier started it.", r: "lol. sure. it moved. it lunged. ok. you're fine. good" },
+      { tone: 'cold', t: "The car started it.", r: "lol. sure. it sulked. it plotted. ok. you're fine. good" },
       { tone: 'passive', t: "I'm fine. Frustrating.", r: "frustrating. yes. i'm frustrated for you. loudly. at the telly" },
       { tone: 'flirty', t: "Okay now. Better for your text.", r: "don't. ok. fine. good. you're ok. that's plenty" },
     ] },
   { id: 'rude-text-dnf-any-2-passive', on: 'dnf', stage: 'any', slot: 2, mood: 'passive',
-    say: "{last}. out again. the barriers have started a support group. you ok though?",
+    say: "{last}. out again. your car's started a support group. you ok though?",
     opts: [
       { tone: 'cold', t: "Hilarious. I'm fine.", r: "good. i'm funny. you're fine. we're both good at something" },
       { tone: 'passive', t: "Yeah, I'm ok. Bad luck.", r: "bad luck. ok. you're having a lot of it. take a day off. no. don't" },
       { tone: 'flirty', t: "Join the support group with me.", r: "lol. i'll run it. i'll be very unsupportive. you'll love it" },
     ] },
   { id: 'rude-text-dnf-any-2-flirty', on: 'dnf', stage: 'any', slot: 2, mood: 'flirty',
-    say: "you're out again. i'm not mad. i'm just disappointed. in the barrier. you ok?",
+    say: "you're out again. i'm not mad. i'm just disappointed. in the car. you ok?",
     opts: [
-      { tone: 'cold', t: "Be disappointed in me instead.", r: "no. you're fine. i'm disappointed in the barrier. it knows what it did" },
+      { tone: 'cold', t: "Be disappointed in me instead.", r: "no. you're fine. i'm disappointed in the car. it knows what it did" },
       { tone: 'passive', t: "I'm ok. Promise.", r: "ok. good. eat something. sleep. don't hit anything" },
       { tone: 'flirty', t: "Come and comfort me.", r: "comfort. ugh. i'll bring soup. and criticism. mostly soup" },
     ] },
   { id: 'rude-text-dnf-any-3-cold', on: 'dnf', stage: 'any', slot: 3, mood: 'cold',
-    say: "out. again. you have to stop hitting things. for my blood pressure. purely medical. you ok?",
+    say: "out. again. you have to stop doing this. for my blood pressure. purely medical. you ok?",
     opts: [
       { tone: 'cold', t: "Your blood pressure is your problem.", r: "it's yours now. you caused it. you're fine? good. ok. lowering" },
       { tone: 'passive', t: "I'm ok. Third time's not charming.", r: "it's really not. but you're ok. that's the bit. the only bit" },
-      { tone: 'flirty', t: "You care. Just admit it.", r: "i admit nothing. i admit... yes. ok. stop crashing" },
+      { tone: 'flirty', t: "You care. Just admit it.", r: "i admit nothing. i admit... yes. ok. finish a race" },
     ] },
   { id: 'rude-text-dnf-any-3-passive', on: 'dnf', stage: 'any', slot: 3, mood: 'passive',
     say: "third time out. this is a pattern now. stop it. my blood pressure can't take it. you ok?",
@@ -743,10 +743,10 @@ export const DATA = [
       { tone: 'flirty', t: "I owe you one. A big one.", r: "you'll pay it back by finishing a race. and soup. bring soup" },
     ] },
   { id: 'rude-text-dnf-any-3-flirty', on: 'dnf', stage: 'any', slot: 3, mood: 'flirty',
-    say: "you have to stop crashing. my blood pressure is a sports car now. you ok?",
+    say: "you have to stop going out. my blood pressure is a sports car now. you ok?",
     opts: [
       { tone: 'cold', t: "Sports car? Show-off.", r: "it's a fast blood pressure. it's your fault. ok. you're fine. good" },
       { tone: 'passive', t: "I'm ok. Sorry for the stress.", r: "stress is fine. you being fine is better. ok" },
-      { tone: 'flirty', t: "Your heart races for me.", r: "my heart races because you crash. ...and other reasons. stop it" },
+      { tone: 'flirty', t: "Your heart races for me.", r: "my heart races because you keep going out. ...and other reasons. stop it" },
     ] },
 ];

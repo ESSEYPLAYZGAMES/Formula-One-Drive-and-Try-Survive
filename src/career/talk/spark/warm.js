@@ -15,7 +15,7 @@ export const DATA = [
         { tone: 'flirty', t: "For a sunrise with you, I'll smile the whole way.", r: "The whole way? It's a four-hour crossing, Turbo. That's a lot of smiling. ...I'll hold you to every minute." },
       ] },
       { tone: 'flirty', t: "Deserve it? I'll wear the moustache to earn it.", r: "You'd wear the moustache? In public? Oh. Okay. The frost is cracking. You know my weak spots, don't you?", opts: [
-        { tone: 'cold', t: "Kidding. I'm not wearing that.", r: "You dangled the moustache and snatched it back! That's the cruellest thing you've done all week. And it's Tuesday." },
+        { tone: 'cold', t: "Kidding. I'm not wearing that.", r: "You dangled the moustache and snatched it back! That's the cruellest thing anyone's ever done to a moustache." },
         { tone: 'passive', t: "Fine, a small one. Discreet.", r: "Discreet is not a moustache setting. It's big or nothing. But okay. Small one. Baby steps. Baby moustache." },
         { tone: 'flirty', t: "A big curly one. To make you laugh.", r: "A curly one! You've done it. I'm laughing. The goose laugh. In public. Plan's back on, Turbo." },
       ] },
@@ -79,7 +79,7 @@ export const DATA = [
         { tone: 'cold', t: "Never mind. Truth.", r: "You chickened out! Chicken! There's a chicken in a team jacket! ...Okay. Truth, then. You're no fun." },
         { tone: 'passive', t: "Fine. Hand.", r: "Hand out. ...There. A very dashing moustache. Don't wash it. I'm still cross, but it's a great moustache." },
         { tone: 'flirty', t: "Draw it. And I'm not washing it off.", r: "Not washing it off? Even on the grid? Okay, the cross is gone. You win. I'm terrible at being cross." },
-        { tone: 'risque', t: "A moustache is easy. Dare me something harder.", r: "Harder? Fine. Kiss my cheek. In front of everyone. ...You did it. Oh no. I'm completely un-cross now." },
+        { tone: 'risque', t: "A moustache is easy. Dare me something harder.", r: "Harder? Fine. Kiss my cheek. Right now. No hesitating. ...You did it. Oh no. I'm completely un-cross now." },
       ] },
     ] },
   { id: 'spark-warm-2-passive', stage: 'warm', slot: 2, mood: 'passive',
@@ -88,7 +88,7 @@ export const DATA = [
       { tone: 'cold', t: "Neither. I'm not twelve.", r: "I'm a grown-up too, I just hide it well. Enjoy being sensible. Sounds awful. Truly, deeply awful.", opts: [
         { tone: 'cold', t: "Sensible suits me fine.", r: "Then you'll love my accountant. I'll give you their number. You can be sensible at each other." },
         { tone: 'passive', t: "Fine. Truth. Ask away.", r: "Okay! What's the most nervous you've ever been? 'Right now' is allowed. 'Right now' is encouraged." },
-        { tone: 'flirty', t: "Fine. Dare. Make it a good one.", r: "Look at you! I dare you to hold my hand until somebody notices. Starting now. Don't let go." },
+        { tone: 'flirty', t: "Fine. Dare. Make it a good one.", r: "Look at you! I dare you to hold my hand until I say stop. Starting now. I'm not saying stop." },
       ] },
       { tone: 'passive', t: "Truth.", r: "Boring! But fine. Most rebellious thing you've ever done? Speeding doesn't count. That's your job.", opts: [
         { tone: 'cold', t: "That's a private question.", r: "Private! In truth or dare! That's the entire game! You're the worst player I've ever met. Next!" },
@@ -109,11 +109,11 @@ export const DATA = [
       { tone: 'cold', t: "Downgrade them. I'm not in the mood.", r: "Not in the mood? After last time? That's a bucket of cold water over my head, Turbo. Drip, drip.", opts: [
         { tone: 'cold', t: "Find someone who is.", r: "Fine. I'll truth-or-dare a pigeon. The pigeon always picks dare. The pigeon's braver than you." },
         { tone: 'passive', t: "Sorry. Truth, then. A gentle one.", r: "Gentle. Fine. What's your favourite thing about me? You've got three seconds. And 'nothing' loses." },
-        { tone: 'flirty', t: "Okay. One dare. For you.", r: "For me? See, that's better. I dare you to tell me what you'd do if this were a date. Go." },
+        { tone: 'flirty', t: "Okay. One dare. For you.", r: "For me? See, that's better. I dare you to describe our perfect date. Every detail. Go." },
       ] },
       { tone: 'passive', t: "Truth. A grown-up one.", r: "Ooh. Okay. When did you first think about kissing me? And don't say never. I can see your ears going red.", opts: [
         { tone: 'cold', t: "I haven't.", r: "You haven't? Never? Not once? Wow. Okay. That was a very flat truth. I'll stop asking grown-up ones." },
-        { tone: 'passive', t: "When you laughed at your own joke. Last time.", r: "My own joke? The one about the seagull? That's a terrible moment to fall for someone. I love it." },
+        { tone: 'passive', t: "When you laughed at your own joke.", r: "At my own joke? I do that constantly! That's a terrible moment to fall for someone. I love it." },
         { tone: 'flirty', t: "The first time I saw you. Honestly.", r: "The first time? Before I'd even said anything? Oh, that's dangerous. You're making me blush. I don't blush." },
         { tone: 'risque', t: "Right now, actually.", r: "Right now? While I'm asking? ...Okay, the game's over, I've lost track of the rules. Shall we?" },
       ] },
@@ -121,68 +121,68 @@ export const DATA = [
         { tone: 'cold', t: "That this is silly.", r: "Silly? You picked dare! You picked grown-up! And then 'silly'? That's an anticlimax. A massive one." },
         { tone: 'passive', t: "That I'm having fun.", r: "Fun? That's the safest answer in the world. You cheated. But fine. I'm having fun too." },
         { tone: 'flirty', t: "That I can't take my eyes off you.", r: "Oh. Oh, that's— okay, that's not a dare, that's a confession. I'm keeping it. In the notebook." },
-        { tone: 'risque', t: "That I want to take you somewhere quieter.", r: "Quieter? For grown-up dares? Oh, Turbo. You've won the game. And possibly the night. Lead on." },
+        { tone: 'risque', t: "That I want you somewhere with just us.", r: "Just us? For grown-up dares? Oh, Turbo. You've won the game. And possibly the night. Lead on." },
       ] },
     ] },
   { id: 'spark-warm-3-cold', stage: 'warm', slot: 3, mood: 'cold',
-    say: "Hi. Look, I'm still a bit miffed, but this can't wait. The karting place down the road shuts in ten minutes. The staff are on a break.",
+    say: "Hi. Look, I'm still a bit miffed, but this can't wait. The karting place by the river does a secret midnight session. Friday. Two spots.",
     opts: [
-      { tone: 'cold', t: "I'm not sneaking into a kart track.", r: "Course you're not. You never do anything fun when I'm cross. That's when I need fun most.", opts: [
-        { tone: 'cold', t: "Then do it alone.", r: "I will. I'll do three laps and wave every time I pass you. Loudly. With both hands." },
+      { tone: 'cold', t: "I'm not doing secret karting.", r: "Course you're not. You never do anything fun when I'm cross. That's when I need fun most.", opts: [
+        { tone: 'cold', t: "Then do it alone.", r: "I will. Three laps, and I'll wave at the empty spot where you should be. With both hands." },
         { tone: 'passive', t: "Okay. What's the plan?", r: "We walk in like we own it, grab two karts, five laps, out before they notice. You can do research. Very official." },
-        { tone: 'flirty', t: "Fine. But only because it's you.", r: "Only because it's me! That's the best reason anyone's ever given. Okay, miffed is fading. Quick. Run!" },
+        { tone: 'flirty', t: "Fine. But only because it's you.", r: "Only because it's me! That's the best reason anyone's ever given. Okay, miffed is fading. Friday. Bring your fast face." },
       ] },
-      { tone: 'passive', t: "Ten minutes? Is that enough?", r: "Ten minutes is a lifetime! I've done more chaos in less. Come on. Helmets are by the door.", opts: [
-        { tone: 'cold', t: "This is a terrible idea.", r: "Terrible ideas are the best ideas. Ask anyone. Fine. Stay here. Safe and dull. And miffed at." },
-        { tone: 'passive', t: "Three laps. No more.", r: "Three laps, and I'm counting the third one twice. Quick, before the break ends. You're still on thin ice, Turbo." },
-        { tone: 'flirty', t: "If we're caught, I'll say it was my idea.", r: "You'd take the blame? That's the most romantic thing anyone's said to me near a kart. Forgiven. Run." },
+      { tone: 'passive', t: "Midnight? Is that even allowed?", r: "Allowed-ish! I've done more chaos with less permission. Friday. Helmets are on me.", opts: [
+        { tone: 'cold', t: "This is a terrible idea.", r: "Terrible ideas are the best ideas. Ask anyone. Fine. Stay home. Safe and dull. And miffed at." },
+        { tone: 'passive', t: "Three laps. No more.", r: "Three laps, and I'm counting the third one twice. You're still on thin ice, Turbo. Very thin." },
+        { tone: 'flirty', t: "If we're caught, I'll say it was my idea.", r: "You'd take the blame? That's the most romantic thing anyone's said to me about a kart. Forgiven. Friday." },
       ] },
       { tone: 'flirty', t: "Only if I get to chase you round it.", r: "Chase me? Even when I'm cross? ...Okay. You know chasing's my weakness. That's a low blow. Effective, but low.", opts: [
         { tone: 'cold', t: "Never mind. I'm tired.", r: "Tired? You can't offer a chase and then yawn. That breaks every rule in one go. Impressive, honestly." },
         { tone: 'passive', t: "A few laps, then.", r: "A few laps, then chips by the river, your treat. Don't argue. That's the price of forgiveness." },
-        { tone: 'flirty', t: "I'll catch you. I always do.", r: "Big talk! Catch me, then. If you do, you get a prize. Not telling you what. Go!" },
+        { tone: 'flirty', t: "I'll catch you. I always do.", r: "Big talk! Catch me, then. If you do, you get a prize. Not telling you what. Friday!" },
         { tone: 'risque', t: "And when I catch you, you're mine for the night.", r: "Mine for the— oh. My heart just did a handbrake turn. Fine. Catch me first. I'm very slippery." },
       ] },
     ] },
   { id: 'spark-warm-3-passive', stage: 'warm', slot: 3, mood: 'passive',
-    say: "Psst. The karting place shuts in ten minutes and the staff are on a break. I'm not saying we should. I'm saying we could.",
+    say: "Psst. The karting place by the river does a secret midnight session on Friday. I'm not saying we should. I'm saying we could.",
     opts: [
       { tone: 'cold', t: "I'm not getting banned from a kart track for you.", r: "For me! As if I'm not worth one tiny ban. Fine. I'll just stand here being worth it.", opts: [
         { tone: 'cold', t: "Stand there all you like.", r: "Oh, I'll stand so well. Legendary standing. Enjoy your spotless record, goody-two-shoes." },
         { tone: 'passive', t: "We could just ask nicely?", r: "Ask nicely? Where's the adventure? ...Fine. Nicely. But I'm asking. I'm extremely persuasive." },
-        { tone: 'flirty', t: "For you, I'd risk a small ban. A tiny one.", r: "A tiny ban! Swoon! Quick, before they're back. Take the blue one, it's the fastest." },
+        { tone: 'flirty', t: "For you, I'd risk a small ban. A tiny one.", r: "A tiny ban! Swoon! Friday, then. Wear something fast. And something black. For sneaking." },
       ] },
       { tone: 'passive', t: "What happens if we get caught?", r: "We say you're doing research. Nobody tells off a famous racer. Probably. Come on, don't be sensible.", opts: [
         { tone: 'cold', t: "Nobody'd buy that.", r: "Everybody would buy it, I've seen it happen! ...Fine. I'll stay law-abiding and bored. With you. Woohoo." },
-        { tone: 'passive', t: "Five laps. Then we're gone.", r: "Deal! I'll lose all five, you'll be smug, it'll be glorious. Helmets on, Turbo!" },
-        { tone: 'flirty', t: "If we're caught, I'll tell them you kidnapped me.", r: "Kidnapped! I love it. I'll play the villain. I've always wanted to be the villain. Hurry!" },
+        { tone: 'passive', t: "Five laps. Then we're gone.", r: "Deal! I'll lose all five, you'll be smug, it'll be glorious. Friday, Turbo!" },
+        { tone: 'flirty', t: "If we're caught, I'll tell them you kidnapped me.", r: "Kidnapped! I love it. I'll play the villain. I've always wanted to be the villain. Friday!" },
       ] },
       { tone: 'flirty', t: "Only if I get to chase you.", r: "Chase me? I love being chased. I'm very hard to catch, though. Slippery. Like soap on wheels.", opts: [
         { tone: 'cold', t: "Actually, I'd rather watch.", r: "Watch? Watching's for people on benches! Fine. Sit there. Hold my bag. Clap when I bounce off the tyres." },
-        { tone: 'passive', t: "Two laps. Then we're out.", r: "Two laps! You drive like a librarian today. A fast librarian. Go, go, go!" },
-        { tone: 'flirty', t: "I'll catch you. You know I will.", r: "The confidence! I'm in the blue one, I'm gone, I'm a rumour. Catch me and find out what you win." },
-        { tone: 'risque', t: "When I catch you, I'm claiming the prize right there.", r: "Right there? On the track? Scandalous. ...Okay. Fine. Go. Catch me. I dare you." },
+        { tone: 'passive', t: "Two laps. Then we're out.", r: "Two laps! You plan like a librarian. A fast librarian. Fine. Two. Friday." },
+        { tone: 'flirty', t: "I'll catch you. You know I will.", r: "The confidence! I'll be in the blue one, gone, a rumour. Catch me and find out what you win." },
+        { tone: 'risque', t: "When I catch you, I'm claiming the prize right there.", r: "Right there? On the track? Scandalous. ...Okay. Fine. Friday. Catch me. I dare you." },
       ] },
     ] },
   { id: 'spark-warm-3-flirty', stage: 'warm', slot: 3, mood: 'flirty',
-    say: "Turbo. The karting place shuts in ten minutes. Staff on break. Two karts unlocked. I've been waiting all week to beat you at something.",
+    say: "Turbo. The karting place by the river. Secret midnight session, Friday. Two karts. I've been waiting all week to beat you at something.",
     opts: [
       { tone: 'cold', t: "All week? You need a hobby.", r: "A hobby? I have hundreds! You're one of them! ...Okay, that came out wrong. And you came out very rude.", opts: [
         { tone: 'cold', t: "Then find another one.", r: "Fine! I'll take up knitting. Very calm. Very quiet. Nothing like you. Ha. Bye." },
         { tone: 'passive', t: "Sorry. Okay. Five laps.", r: "Five laps! I'll take five. You'll be very sorry by lap three. You'll be begging by four." },
         { tone: 'flirty', t: "I'm your favourite hobby, then.", r: "Favourite? You're in the top three. Top two. Okay, top one. You win. Again. Ugh." },
       ] },
-      { tone: 'passive', t: "Unlocked? How do you know?", r: "I checked. Earlier. While you were talking to your engineer. I'm very thorough when I want something.", opts: [
-        { tone: 'cold', t: "That's a bit creepy.", r: "Creepy? It's strategic! ...Okay, a bit creepy. But for a good cause. Fine. Stay here." },
-        { tone: 'passive', t: "Fine. Five laps.", r: "Five laps. Go! I'm already in the blue one. It's the fastest. You'll get the wobbly one. Sorry!" },
+      { tone: 'passive', t: "Secret? How do you know about it?", r: "I asked. Repeatedly. Until they gave in. I'm very thorough when I want something.", opts: [
+        { tone: 'cold', t: "That's a bit creepy.", r: "Creepy? It's strategic! ...Okay, a bit creepy. But for a good cause. Fine. Stay home." },
+        { tone: 'passive', t: "Fine. Five laps.", r: "Five laps. I've already bagged the blue one. It's the fastest. You'll get the wobbly one. Sorry!" },
         { tone: 'flirty', t: "You've been thinking about this all week?", r: "All week. In meetings, in the shower, in queues. Mostly the bit where I win. And you look grumpy." },
-        { tone: 'risque', t: "What do I get if I let you win?", r: "Let me— oh. You want a reward. Fine. If I win, you get a kiss. If you win, you get two. Go!" },
+        { tone: 'risque', t: "What do I get if I let you win?", r: "Let me— oh. You want a reward. Fine. If I win, you get a kiss. If you win, you get two. Friday!" },
       ] },
       { tone: 'flirty', t: "You've been waiting all week? I've been waiting longer.", r: "Longer? You've been waiting to lose to me? That's very romantic. And very wrong. You'll lose.", opts: [
         { tone: 'cold', t: "Okay, maybe not that long.", r: "Maybe not? You've ruined it. You had a lovely moment and you crumpled it like a napkin." },
         { tone: 'passive', t: "Since we met, actually.", r: "Since we met? Really? ...Okay. I'm going to beat you so lovingly you won't even mind." },
         { tone: 'flirty', t: "For you to stop running away from me.", r: "Running away? I'm always running! It's how I— oh. You mean that. Okay. I'm stopping. Briefly." },
-        { tone: 'risque', t: "For a reason to get you alone.", r: "Alone? On a kart track? With ten minutes? Turbo, that's barely enough time. ...Let's go anyway." },
+        { tone: 'risque', t: "For a reason to get you alone.", r: "Alone? On a kart track? At midnight? Turbo, that's not a race, that's a plot. ...I'm in." },
       ] },
     ] },
   { id: 'spark-warm-4-cold', stage: 'warm', slot: 4, mood: 'cold',
@@ -223,7 +223,7 @@ export const DATA = [
         { tone: 'cold', t: "Forget it.", r: "Forget it? You can't say 'it worked' and walk away! That's the worst thing you've ever done to me." },
         { tone: 'passive', t: "It made me smile.", r: "A smile! Step one. Step two is a blush. Step three is classified. Very classified." },
         { tone: 'flirty', t: "It made me want to get closer.", r: "Closer? Like this? ...Okay, I got closer and now I've forgotten every word I know. Help." },
-        { tone: 'risque', t: "It made me want to kiss you. Right here.", r: "Right here? With an audience? You wouldn't dare. ...Would you? Oh, you would. Go on, then." },
+        { tone: 'risque', t: "It made me want to kiss you. Right here.", r: "Right here? Right now? You wouldn't dare. ...Would you? Oh, you would. Go on, then." },
       ] },
     ] },
   { id: 'spark-warm-4-flirty', stage: 'warm', slot: 4, mood: 'flirty',
@@ -238,7 +238,7 @@ export const DATA = [
         { tone: 'cold', t: "Not worth six hours.", r: "Not worth six hours?! I'll get my six hours back from you somehow. You'll pay in waiting." },
         { tone: 'passive', t: "Not bad. A nine.", r: "A nine? From you? Juno owes me a pizza. I'm going to tell everyone I'm a nine-wink person now." },
         { tone: 'flirty', t: "Worth every minute. Do it again.", r: "Again? I've only got a few left. My eye is tired. ...There. That's the last one. For today." },
-        { tone: 'risque', t: "Do that again and I'll forget we're in public.", r: "Forget we're in public? That's a dare. I'm very bad with dares. Here. ...Well?" },
+        { tone: 'risque', t: "Do that again and I'll forget my manners.", r: "Forget your manners? That's a dare. I'm very bad with dares. Here. ...Well?" },
       ] },
       { tone: 'flirty', t: "Hit me with it. I'm ready.", r: "Ready? You're not ready. Nobody's ready for this. Here we go. ...Okay, you're blushing. I won.", opts: [
         { tone: 'cold', t: "That wasn't a wink. That was a twitch.", r: "A twitch? Six hours! Juno said it was perfect! You're a terrible critic. Truly awful." },
@@ -248,15 +248,15 @@ export const DATA = [
       ] },
     ] },
   { id: 'spark-warm-5-cold', stage: 'warm', slot: 5, mood: 'cold',
-    say: "I'm still a bit hurt about last time. But I found a staff-only door that goes up to a roof, and the view's too good to sulk through.",
+    say: "I'm still a bit hurt about last time. But I know a staff-only door near here that goes up to a roof. The view's too good to sulk through.",
     opts: [
       { tone: 'cold', t: "Go on your own.", r: "Of course. Go on my own. That's what you'd like, isn't it? Me, alone, on a roof. Sulking with pigeons.", opts: [
         { tone: 'cold', t: "That sounds about right.", r: "Wow. Okay. The pigeons are nicer to me than you are. I'm going up. Enjoy the ground." },
-        { tone: 'passive', t: "Sorry. Show me the roof.", r: "Okay. Up the stairs, mind the bucket. ...See? The whole town, lit up. And you nearly missed it being grumpy." },
+        { tone: 'passive', t: "Sorry. Show me the roof.", r: "Okay. Short walk, some stairs, one bucket to step over, then the whole town lit up. You nearly missed it being grumpy." },
         { tone: 'flirty', t: "I'd rather go with you than without you.", r: "Then why were you so frosty? ...Never mind. Come on. I'll forgive you on the roof. It's easier up there." },
       ] },
       { tone: 'passive', t: "Is it safe?", r: "Safe-ish. There's a rail. And a very cross-looking cat. I'll hold your hand on the stairs. For safety.", opts: [
-        { tone: 'cold', t: "No thanks. I'll stay down here.", r: "Down here? The ground's so boring. I'll wave from up there. You'll see a tiny me having a better evening." },
+        { tone: 'cold', t: "No thanks. I'll stay here.", r: "Here? Here's so boring. I'll wave from the roof. You won't see it. I'll be having a better evening." },
         { tone: 'passive', t: "Okay. Five minutes.", r: "Five minutes is plenty. You can see the whole river. Bring your coat. It's windy and I'm always cold." },
         { tone: 'flirty', t: "I'll hold your hand. Not just on the stairs.", r: "Not just on the stairs? Okay. The hurt's fading. You're very good at this when you try." },
         { tone: 'risque', t: "Is it the kind of roof where nobody can see us?", r: "Oh! You've been thinking about this. Maybe it is. Maybe I checked. Come on, before I lose my nerve." },
@@ -269,7 +269,7 @@ export const DATA = [
       ] },
     ] },
   { id: 'spark-warm-5-passive', stage: 'warm', slot: 5, mood: 'passive',
-    say: "Come with me. I've found a door marked 'staff only' that goes up to a roof. I've propped it open with a breadstick. Best view in town.",
+    say: "Come with me. Not far from here there's a 'staff only' door up to a roof. I propped it open with a breadstick. Best view in town.",
     opts: [
       { tone: 'cold', t: "I'm not sneaking onto a roof.", r: "Not sneaking? It's not sneaking, it's exploring! There's a difference! A small one. ...Fine. Stay grounded.", opts: [
         { tone: 'cold', t: "Fine. I'm staying grounded.", r: "Grounded. Like a naughty child. Enjoy it. I'll be on the roof having all the fun." },
@@ -283,14 +283,14 @@ export const DATA = [
         { tone: 'risque', t: "Will anyone else be up there?", r: "Nobody. Just us, the stars and possibly a cat. ...Why? What were you thinking? Oh. Oh. Okay. Come on." },
       ] },
       { tone: 'flirty', t: "The best view in town is standing right in front of me.", r: "No. You didn't. That's the cheesiest line ever spoken. It worked. Come on, roof.", opts: [
-        { tone: 'cold', t: "Actually, I'm comfy down here.", r: "You can't say that and not come! You've ruined the moment and the breadstick. Hmph." },
+        { tone: 'cold', t: "Actually, I'd rather stay put.", r: "You can't say that and not come! You've ruined the moment and the breadstick. Hmph." },
         { tone: 'passive', t: "Okay. Lead the way.", r: "Follow the breadstick trail. Kidding, there's only one breadstick. Up the stairs. Don't wake the cat." },
         { tone: 'flirty', t: "After you. Always.", r: "Always? That's a big word for a roof. But okay. I'll hold you to always. Up we go." },
         { tone: 'risque', t: "Is it the kind of roof where we could stay all night?", r: "All night? On a roof? You've got plans, Turbo. Good thing I packed a flask and strong opinions about constellations." },
       ] },
     ] },
   { id: 'spark-warm-5-flirty', stage: 'warm', slot: 5, mood: 'flirty',
-    say: "Hey, you. Want to see something? I found a staff-only door that goes up to a roof. Nobody up there but the stars. And me. Obviously.",
+    say: "Hey, you. Want to see something? A staff-only door near here goes up to a roof. Nobody up there but the stars. And me. Obviously.",
     opts: [
       { tone: 'cold', t: "Not tonight.", r: "Not tonight? That was a door shut in my face. Not the roof door. The other door. The one in my chest.", opts: [
         { tone: 'cold', t: "It's just not happening.", r: "Okay. I'll go up alone and look at the stars, and they'll be much nicer company than you. Bye." },
@@ -435,10 +435,10 @@ export const DATA = [
       ] },
     ] },
   { id: 'spark-warm-8-cold', stage: 'warm', slot: 8, mood: 'cold',
-    say: "Peace offering, since last time was frosty. Race you to that lamp post. Loser does whatever the winner says for one whole song. Deal?",
+    say: "Peace offering, since last time was frosty. First to touch something red wins. Loser does whatever the winner says for one whole song. Deal?",
     opts: [
-      { tone: 'cold', t: "I'm not racing to a lamp post.", r: "A lamp post's a perfectly good finish line! Fine. I'll race it alone. And I'll still lose to you somehow.", opts: [
-        { tone: 'cold', t: "Lose alone, then.", r: "I will. Very dramatically. The lamp post will cheer for me. It's on my side now." },
+      { tone: 'cold', t: "I'm not racing to touch something red.", r: "Something red is a perfectly good finish line! Fine. I'll race it alone. And I'll still lose to you somehow.", opts: [
+        { tone: 'cold', t: "Lose alone, then.", r: "I will. Very dramatically. Every red thing in sight will cheer for me. They're on my side now." },
         { tone: 'passive', t: "Alright. Just the one race.", r: "One race! Three, two— I'm off! Frosty people don't get a fair start. It's in the rulebook." },
         { tone: 'flirty', t: "Only if I get to pick the song.", r: "The song? Oh, you're thinking about the forfeit. Interesting. Very interesting. Go!" },
       ] },
@@ -446,17 +446,17 @@ export const DATA = [
         { tone: 'cold', t: "Not a chance.", r: "Not a chance? You asked a question and then ran away from the answer! Coward. A cute one. But still." },
         { tone: 'passive', t: "Go on. Go!", r: "Gone! ...You're fast. How are you so fast? I lost again! Fine. What do I have to do? Be gentle." },
         { tone: 'flirty', t: "If I win, you dance with me. Close.", r: "Close? For a whole song? After last time? ...Okay. That's a forfeit I'll pretend to hate." },
-        { tone: 'risque', t: "If I win, you kiss me before the song ends.", r: "Kiss you? For a lamp post race? You've raised the stakes, Turbo. ...Now I want to lose." },
+        { tone: 'risque', t: "If I win, you kiss me before the song ends.", r: "Kiss you? For a red-thing race? You've raised the stakes, Turbo. ...Now I want to lose." },
       ] },
       { tone: 'flirty', t: "I'm losing deliberately. I want you to boss me around.", r: "Boss you around? Oh, you've just made a very big mistake. I'm excellent at bossing. And still a bit cross.", opts: [
         { tone: 'cold', t: "Changed my mind. No bossing.", r: "No bossing? You offered! I had plans! Big ones! ...You're very good at taking things away." },
         { tone: 'passive', t: "Okay. One song. Boss away.", r: "One song. First order: smile. Properly. ...There. Second order: don't stop. Third: closer." },
-        { tone: 'flirty', t: "One song. Anything you want.", r: "Anything? Careful. I'll make you dance in the street. With me. To no music. Starting now." },
+        { tone: 'flirty', t: "One song. Anything you want.", r: "Anything? Careful. I'll make you dance right here. With me. To no music. Starting now." },
         { tone: 'risque', t: "One song. And then the next one's mine.", r: "The next one's yours? Ooh. Two songs. Two forfeits. Two very interesting minutes. Deal." },
       ] },
     ] },
   { id: 'spark-warm-8-passive', stage: 'warm', slot: 8, mood: 'passive',
-    say: "Lamp post, over there. First to touch it wins, and the loser does whatever the winner says for a whole song. Feeling lucky? I am.",
+    say: "Whoever touches something red first wins, and the loser does whatever the winner says for a whole song. Feeling lucky? I am.",
     opts: [
       { tone: 'cold', t: "No races today.", r: "No races? You're a racer! It's literally your job. ...Fine. I'll be lucky on my own. It's less fun.", opts: [
         { tone: 'cold', t: "Be lucky on your own, then.", r: "I will. I'll find a four-leaf clover and a lucky coin and I won't share either of them." },
@@ -466,7 +466,7 @@ export const DATA = [
       { tone: 'passive', t: "Fine. Three, two, one—", r: "Go! ...You're a rocket! I didn't stand a chance. Okay. What do I have to do for a whole song? Be nice.", opts: [
         { tone: 'cold', t: "Stand there and be quiet.", r: "Be quiet? Through an entire song? That's the worst forfeit ever invented! ...Okay. I'll try. It'll be agony." },
         { tone: 'passive', t: "Tell me a secret. A good one.", r: "A secret? Okay. I've never won a race against you. And I've been trying very hard to." },
-        { tone: 'flirty', t: "Dance with me. The whole song.", r: "The whole song? Close? With people watching? ...Okay. I lost fair and square. Mostly square." },
+        { tone: 'flirty', t: "Dance with me. The whole song.", r: "The whole song? Close? With my terrible rhythm? ...Okay. I lost fair and square. Mostly square." },
         { tone: 'risque', t: "Kiss me before the song ends.", r: "Before the song ends? That's a very short song. ...I'll make it count. Come here." },
       ] },
       { tone: 'flirty', t: "And the loser has to do what, exactly?", r: "Whatever the winner says. Any order. Within reason. Ish.", opts: [
@@ -477,10 +477,10 @@ export const DATA = [
       ] },
     ] },
   { id: 'spark-warm-8-flirty', stage: 'warm', slot: 8, mood: 'flirty',
-    say: "New game. First to that lamp post wins. Loser obeys the winner for one entire song. I've already picked the song. It's long.",
+    say: "New game. Race you to the nearest red thing. Loser obeys the winner for one entire song. I've already picked the song. It's long.",
     opts: [
       { tone: 'cold', t: "I'm not playing tonight.", r: "Not playing? Tonight? After everything? ...That came out of nowhere, Turbo. That really stung.", opts: [
-        { tone: 'cold', t: "Just not in the mood.", r: "Okay. I'll take my long song and my lamp post and go. Hope your mood finds you soon." },
+        { tone: 'cold', t: "Just not in the mood.", r: "Okay. I'll take my long song and my red thing and go. Hope your mood finds you soon." },
         { tone: 'passive', t: "Sorry. Long day. One race.", r: "One race. Okay. I'll forgive you if you lose. Badly. And dance badly. For six minutes." },
         { tone: 'flirty', t: "Sorry. Okay. But I pick the forfeit.", r: "You pick? Only if you win. And you won't win. I've been training. Against pigeons." },
       ] },
@@ -494,7 +494,7 @@ export const DATA = [
         { tone: 'cold', t: "Never mind. Go find someone else.", r: "Someone else? To boss? You offered! That's the cruellest offer ever withdrawn." },
         { tone: 'passive', t: "Six minutes. Anything. Within reason.", r: "Within reason? I'm not reasonable. But fine. First order: dance. Second: closer. Third: don't stop." },
         { tone: 'flirty', t: "Six minutes of anything you want.", r: "Anything? Okay. I want you to hold my hand the whole song. And look at me. That's all. That's everything." },
-        { tone: 'risque', t: "Six minutes. And then you're mine for the night.", r: "The night? That's a very long song. ...Okay. Lamp post first. Then the night. Go!" },
+        { tone: 'risque', t: "Six minutes. And then you're mine for the night.", r: "The night? That's a very long song. ...Okay. Something red first. Then the night. Go!" },
       ] },
     ] },
   { id: 'spark-warm-9-cold', stage: 'warm', slot: 9, mood: 'cold',
@@ -535,7 +535,7 @@ export const DATA = [
         { tone: 'cold', t: "I'm not sure yet.", r: "Not sure? After all this? ...Okay. That stings. I'll stop guessing for you. You guess for me." },
         { tone: 'passive', t: "Yes. Same answer as yours.", r: "Yes! You said yes! Okay. Okay. I'm calm. I'm very calm. I'm not calm at all. Us. Officially." },
         { tone: 'flirty', t: "Yes. I've been waiting for you to ask.", r: "You were waiting for me? You could've asked! We're both cowards! Cute cowards. Officially yours." },
-        { tone: 'risque', t: "Yes. And I'm going to kiss you now to prove it.", r: "Prove it, then. Right here. With the whole world watching. ...Okay. That's the best game I've ever won." },
+        { tone: 'risque', t: "Yes. And I'm going to kiss you now to prove it.", r: "Prove it, then. Right here. Right now. ...Okay. That's the best game I've ever won." },
       ] },
     ] },
   { id: 'spark-warm-9-flirty', stage: 'warm', slot: 9, mood: 'flirty',

@@ -267,11 +267,11 @@ export const DATA = [
     ] },
   // ===================================================================== WEEK WARM 2: the note I made after we met (deep)
   { id: 'sunny-text-week-warm-2-cold', on: 'week', stage: 'warm', slot: 2, mood: 'cold',
-    say: "found my note from the night we met. 'nice laugh' and a doodle of a car. been looking at it since last time",
+    say: "found the note i wrote after we met. 'nice laugh' and a doodle of a car. been looking at it since last time",
     opts: [
       { tone: 'cold', t: "Why are you keeping notes about me?", r: "it's just one note!! i write things down. i'm sorry. i hoped you'd find it sweet", opts: [
         { tone: 'cold', t: "It's a bit odd.", r: "ok. it's going in a drawer. bye {me}" },
-        { tone: 'passive', t: "Sorry. It is sweet. Send me the doodle.", r: "📸 it's terrible. the car has five wheels. i was very excited that night" },
+        { tone: 'passive', t: "Sorry. It is sweet. Send me the doodle.", r: "📸 it's terrible. the car has five wheels. i was very excited when i drew it" },
         { tone: 'flirty', t: "Fine. Did you write anything else?", r: "there's a second line. i'm not telling you. it's too soppy. it involves your eyes 🙈" },
       ] },
       { tone: 'passive', t: "I was grumpy last time. Sorry. Nice laugh? Really?", r: "really!! it's a great laugh. a sort of surprised one. and thank you. that helps", opts: [
@@ -279,15 +279,15 @@ export const DATA = [
         { tone: 'passive', t: "I'll laugh more around you, then.", r: "please do!! it's my favourite sound. after kettles. ok, before kettles" },
         { tone: 'flirty', t: "You make me laugh like that. It's your fault.", r: "my fault!! good. i'll take full blame. i'll be very funny from now on. brace" },
       ] },
-      { tone: 'flirty', t: "You doodled my car? What else is on the note?", r: "nothing!! ok. 'nice laugh. kind eyes. ask about the dog'. you said you had a dog? or wanted one? i forget", opts: [
-        { tone: 'cold', t: "I don't remember saying that.", r: "oh. maybe i got it wrong. i wrote it very fast. sorry. bye {me}" },
+      { tone: 'flirty', t: "You doodled my car? What else is on the note?", r: "nothing!! ok. 'nice laugh. kind eyes. ask if they like dogs'. i forgot to ask. so. do you like dogs?", opts: [
+        { tone: 'cold', t: "Not really a dog person.", r: "oh. ok. that's allowed. i'll cross it off the note. sorry. bye {me}" },
         { tone: 'passive', t: "I want one. One day. A big daft one.", r: "big and daft!! perfect. i'm adding that to the note. it's growing. sorry not sorry" },
         { tone: 'flirty', t: "Kind eyes, huh?", r: "that's the bit you picked?? ok. yes. kind eyes. and the rest. i'm not writing the rest" },
         { tone: 'risque', t: "Add a line about what you'd like to do with me.", r: "i'm not writing that on my nice note!! it's a CHILDHOOD-STYLE note!! you menace. i'm laughing 🙈" },
       ] },
     ] },
   { id: 'sunny-text-week-warm-2-passive', on: 'week', stage: 'warm', slot: 2, mood: 'passive',
-    say: "found a list i wrote when we first met. 'nice laugh, kind eyes, scared of geese?'. are you scared of geese? need to know",
+    say: "found a list i wrote after we met. 'nice laugh, kind eyes, find out: scared of geese?'. so. are you? need to know",
     opts: [
       { tone: 'cold', t: "No. And that's a weird list.", r: "oh. ok. it was meant to be a nice list. sorry. i'll put it in a drawer", opts: [
         { tone: 'cold', t: "Good idea.", r: "ok. drawer. done. bye {me} 🙂" },
@@ -303,7 +303,7 @@ export const DATA = [
         { tone: 'cold', t: "Doesn't sound restrained.", r: "haha. fair. ok. i'll be more restrained. bye {me}" },
         { tone: 'passive', t: "What would the fourth have been?", r: "'makes me nervous in a nice way.' there. that's the fourth. i'm adding it now" },
         { tone: 'flirty', t: "Don't restrain yourself. Write the whole list.", r: "the whole list would be a book. a big pink book. ok. i'll start chapter one tonight" },
-        { tone: 'risque', t: "Write one about what you noticed when I took my jacket off.", r: "you can't just TEXT that!! i'm at the shops!! i nearly dropped a melon. bright red. no comment 🍈" },
+        { tone: 'risque', t: "Write one about what you'd like to notice next time.", r: "you can't just TEXT that!! i'm at the shops!! i nearly dropped a melon. bright red. no comment 🍈" },
       ] },
     ] },
   { id: 'sunny-text-week-warm-2-flirty', on: 'week', stage: 'warm', slot: 2, mood: 'flirty',
@@ -495,17 +495,17 @@ export const DATA = [
         { tone: 'risque', t: "Say it again in person. Then I'll kiss you.", r: "you'll KISS me?? you can't promise that over text!! now i'll think about it all week. scarlet. yes" },
       ] },
     ] },
-  // ===================================================================== WEEK CLOSE 1: your hoodie, cereal for dinner
+  // ===================================================================== WEEK CLOSE 1: big hoodie, cereal for dinner
   { id: 'sunny-text-week-close-1-cold', on: 'week', stage: 'close', slot: 1, mood: 'cold',
-    say: "your hoodie's on and it's cereal for dinner. still a bit sad about last time. the hoodie is helping. you aren't",
+    say: "big hoodie on, cereal for dinner. still a bit sad about last time. the hoodie is helping. you aren't",
     opts: [
       { tone: 'cold', t: "Then take the hoodie off.", r: "no. the hoodie's done nothing wrong. ok. i'll talk to you when you're less prickly. night {me}" },
       { tone: 'passive', t: "I'm sorry. I was out of order. Is the cereal good at least?", r: "it's the good cereal. the honey one. and thank you. you're helping now. a lot actually 💛" },
-      { tone: 'flirty', t: "Let me help. I'll come home and replace the hoodie.", r: "replace the hoodie with you?? ok. that's a good apology. i'll put the kettle on. hurry" },
-      { tone: 'risque', t: "I'll be home Sunday. Stay up. Wear the hoodie.", r: "hmm. that's quite the apology. accepted. sunday. i'll wait up. in the hoodie. with ideas 😌" },
+      { tone: 'flirty', t: "Let me help. I'll come round and replace the hoodie.", r: "replace the hoodie with you?? ok. that's a good apology. i'll put the kettle on. hurry" },
+      { tone: 'risque', t: "I'm back Sunday. Stay up. Wear the hoodie.", r: "hmm. that's quite the apology. accepted. sunday. i'll wait up. in the hoodie. with ideas 😌" },
     ] },
   { id: 'sunny-text-week-close-1-passive', on: 'week', stage: 'close', slot: 1, mood: 'passive',
-    say: "i'm wearing your hoodie and eating cereal for dinner. this is what you've reduced me to. come home",
+    say: "i'm in my biggest hoodie pretending it's yours. cereal for dinner. this is what you've reduced me to. come back",
     opts: [
       { tone: 'cold', t: "You're an adult. Cook something.", r: "i know how to cook!! i'm choosing cereal. it's a mood. ok. i'll make toast. happy? 🙂" },
       { tone: 'passive', t: "Three more days. Eat a vegetable for me.", r: "i ate a raisin. that's fruit. close enough. three days. i've crossed them out on the calendar already" },
@@ -513,39 +513,39 @@ export const DATA = [
       { tone: 'risque', t: "Keep it warm for me. I'll take it off you when I'm back.", r: "promise? because i'm holding you to that. sunday. i'll be the one in the hoodie, looking innocent" },
     ] },
   { id: 'sunny-text-week-close-1-flirty', on: 'week', stage: 'close', slot: 1, mood: 'flirty',
-    say: "status report: hoodie (yours) on. cereal for dinner. missing you at a level that should be studied by scientists",
+    say: "status report: hoodie on (enormous, pretending it's yours). cereal for dinner. missing you at a level for scientists",
     opts: [
       { tone: 'cold', t: "You'll survive a week.", r: "i will. obviously. just teasing. ok. night {me}" },
       { tone: 'passive', t: "Missing you too. What cereal?", r: "the crunchy one with the bear on the box. the bear understands me. he's also lonely" },
       { tone: 'flirty', t: "Studied by scientists? I'll volunteer for the research.", r: "you're the main subject!! we'll need lots of close observation. very close. for science 🙈" },
-      { tone: 'risque', t: "Status report back: thinking about you in that hoodie all night.", r: "all night?? good. same. but you in it. then not in it. that's my report. get home 😌" },
+      { tone: 'risque', t: "Status report back: thinking about you in that hoodie all night.", r: "all night?? good. same. but you in it. then not in it. that's my report. get back here 😌" },
     ] },
   // ===================================================================== WEEK CLOSE 2: bonfire crisps (deep)
   { id: 'sunny-text-week-close-2-cold', on: 'week', stage: 'close', slot: 2, mood: 'cold',
-    say: "big shop done. your bonfire crisps are in it. i hate them. two bags. even though i'm still cross about last time",
+    say: "big shop done. got you bonfire crisps. i hate them. i just know you'll love them. two bags. even though i'm cross",
     opts: [
       { tone: 'cold', t: "You didn't have to.", r: "i know i didn't have to. that's the point. ok. i'll eat them myself. i won't. i'll bin them", opts: [
         { tone: 'cold', t: "Whatever you want.", r: "ok. night {me}" },
-        { tone: 'passive', t: "That's really kind. Sorry for being a pain.", r: "thank you. that's the cross bit gone. mostly. the crisps are on your side of the cupboard 💛" },
-        { tone: 'flirty', t: "You bought crisps you hate for me. That's love.", r: "it IS love. crisp love. the most serious kind. ok. you're forgiven. come home and eat them" },
+        { tone: 'passive', t: "That's really kind. Sorry for being a pain.", r: "thank you. that's the cross bit gone. mostly. the crisps are saving you a seat 💛" },
+        { tone: 'flirty', t: "You bought crisps you hate for me. That's love.", r: "it IS love. crisp love. the most serious kind. ok. you're forgiven. come round and eat them" },
       ] },
       { tone: 'passive', t: "You got two bags even when cross? You're the best.", r: "i AM the best. remember that next time you're grumpy at me. thank you for the sorry, by the way. oh wait", opts: [
         { tone: 'cold', t: "I didn't say sorry.", r: "no. you didn't. i noticed. ok. i'm waiting. night {me}" },
         { tone: 'passive', t: "I'm sorry. Properly. I'll say it again in person.", r: "deal. in person, with crisps. i'll hold one bag hostage until then 😌" },
-        { tone: 'flirty', t: "Sorry. Let me make it up to you. Not with crisps.", r: "not with crisps?? with what?? oh. OH. ok. i see. i accept. hurry home" },
+        { tone: 'flirty', t: "Sorry. Let me make it up to you. Not with crisps.", r: "not with crisps?? with what?? oh. OH. ok. i see. i accept. hurry back" },
         { tone: 'risque', t: "Sorry. I'll say it properly. In bed. Repeatedly.", r: "repeatedly?? that's a very thorough apology. good. i'll expect every word. and the rest" },
       ] },
       { tone: 'flirty', t: "Two bags of crisps you hate? You must really love me.", r: "i really do. unfortunately. even when you're a pain. the crisps are proof. they smell like a garden fire", opts: [
         { tone: 'cold', t: "Unfortunately?", r: "joking!! a cross joke. ok. not funny. sorry. night {me}" },
-        { tone: 'passive', t: "Love you too. I was horrible last time.", r: "there it is. thank you. ok. we're fine. we're crisp-fine. come home 💛" },
+        { tone: 'passive', t: "Love you too. I was horrible last time.", r: "there it is. thank you. ok. we're fine. we're crisp-fine. come back soon 💛" },
         { tone: 'flirty', t: "A garden fire, like the one you light in me.", r: "that's TERRIBLE. that's the worst line. i'm laughing so hard i've dropped the shopping. i love you" },
       ] },
     ] },
   { id: 'sunny-text-week-close-2-passive', on: 'week', stage: 'close', slot: 2, mood: 'passive',
-    say: "did the big shop and bought your weird crisps. the ones that taste like a bonfire. i hate them. i got two bags",
+    say: "did the big shop and got you the weirdest crisps. they taste like a bonfire. i hate them. two bags. am i right?",
     opts: [
       { tone: 'cold', t: "I'm off crisps this month.", r: "oh!! no!! ok. they'll wait. they're not going anywhere. they're too horrible to eat", opts: [
-        { tone: 'cold', t: "Give them away.", r: "ok. Waffles' owner likes them. weirdo. done. bye {me} 🙂" },
+        { tone: 'cold', t: "Give them away.", r: "ok. my neighbour likes them. weirdo. done. bye {me} 🙂" },
         { tone: 'passive', t: "Sorry. Keep them. I'll have one bag when I'm back.", r: "one bag. ok. i'll guard the other one. from myself. i won't eat it. they're vile" },
         { tone: 'flirty', t: "Keep them for a cheat night. With you.", r: "a cheat night with me?? you're on. crisps and a film and you. ok. i'm excited now" },
       ] },
@@ -557,12 +557,12 @@ export const DATA = [
       ] },
       { tone: 'flirty', t: "You hate them but bought two? That's love.", r: "it is love. it's the most love thing i've ever done. i hid them behind the pasta so i don't have to see them", opts: [
         { tone: 'cold', t: "You can stop saying love every text.", r: "oh. ok. sorry. i'll say it less. night {me}" },
-        { tone: 'passive', t: "Love you. And the pasta hiding place.", r: "the pasta knows everything. it's our secret keeper. love you. come home" },
-        { tone: 'flirty', t: "Behind the pasta. I'll find them. And you.", r: "you'll find me in the hoodie, on the sofa, waiting. smelling of not-crisps. hurry 🙈" },
+        { tone: 'passive', t: "Love you. And the pasta hiding place.", r: "the pasta knows everything. it's our secret keeper. love you. come back soon" },
+        { tone: 'flirty', t: "Behind the pasta. I'll find them. And you.", r: "you'll find me in my big hoodie, on the sofa, waiting. smelling of not-crisps. hurry 🙈" },
       ] },
     ] },
   { id: 'sunny-text-week-close-2-flirty', on: 'week', stage: 'close', slot: 2, mood: 'flirty',
-    say: "stood in the crisp aisle for five minutes deciding if i love you enough to buy the bonfire ones. i do. two bags",
+    say: "stood in the crisp aisle for five minutes guessing your crisp. bonfire. i hate them. bought two bags. that's love",
     opts: [
       { tone: 'cold', t: "Five minutes? That's long.", r: "they're REALLY bad crisps. ok. silly joke. night {me}", opts: [
         { tone: 'cold', t: "Sleep well.", r: "night 🙂" },
@@ -577,9 +577,9 @@ export const DATA = [
       ] },
       { tone: 'flirty', t: "You love me two bags' worth? I'm honoured.", r: "two bags. that's my highest unit of love. there's nothing above two bags. ok there's one thing", opts: [
         { tone: 'cold', t: "What's the one thing?", r: "you. obviously. but you went all flat. so. never mind. night {me}" },
-        { tone: 'passive', t: "What's above two bags?", r: "you coming home. that's above everything. even three bags" },
+        { tone: 'passive', t: "What's above two bags?", r: "you coming back. that's above everything. even three bags" },
         { tone: 'flirty', t: "Tell me the one thing.", r: "you, here, on my sofa, eating the horrible crisps while i pretend to be cross. that's it 💛" },
-        { tone: 'risque', t: "The one thing involves us and a locked door. Right?", r: "it might. it really might. you'll have to come home and check. and brush your teeth first 😌" },
+        { tone: 'risque', t: "The one thing involves us and a locked door. Right?", r: "it might. it really might. you'll have to come round and check. and brush your teeth first 😌" },
       ] },
     ] },
   // ===================================================================== WEEK CLOSE 3: holiday spreadsheet
@@ -604,7 +604,7 @@ export const DATA = [
     opts: [
       { tone: 'cold', t: "Can we plan it later?", r: "course. later. i'll save the colours. night {me}" },
       { tone: 'passive', t: "Send it. Where are we going?", r: "somewhere warm with a hammock and nobody who knows what a lap time is. three options. tab 2 is best" },
-      { tone: 'flirty', t: "And is there a column for you in a swimsuit?", r: "there is NOT. ok there is. you added it. i can see the edit history. sneaky" },
+      { tone: 'flirty', t: "And is there a column for you in a swimsuit?", r: "there is NOT. ok. i've just added one. for fairness. there's one for you too 🙈" },
       { tone: 'risque', t: "What's the column for when the sunglasses come off?", r: "it's called 'night time' and it's highlighted. heavily. i've been thinking about this a lot 😌" },
     ] },
   // ===================================================================== WEEK CLOSE 4: rain, under an awning (deep)
@@ -734,7 +734,7 @@ export const DATA = [
         { tone: 'cold', t: "Don't cry in public.", r: "too late. a stranger gave me a tissue. night {me}" },
         { tone: 'passive', t: "Cry a bit. Then text me when you're home.", r: "home. tea on. still teary. still thinking about old us. i love you so much it's silly" },
         { tone: 'flirty', t: "Slowly. With the long way home. Every time.", r: "the long way home every time. that's my whole retirement plan. you and the long way" },
-        { tone: 'risque', t: "Slow car, fast once we're through the door.", r: "ha!! you would. i'd be faster. i'm very motivated, even at eighty. get home soon 😌" },
+        { tone: 'risque', t: "Slow car, fast once we're through the door.", r: "ha!! you would. i'd be faster. i'm very motivated, even at eighty. get back soon 😌" },
       ] },
     ] },
   { id: 'sunny-text-week-close-6-flirty', on: 'week', stage: 'close', slot: 6, mood: 'flirty',

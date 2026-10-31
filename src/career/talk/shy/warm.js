@@ -4,9 +4,9 @@ export const DATA = [
   { id: 'shy-warm-1-cold', stage: 'warm', slot: 1, mood: 'cold',
     say: "I saved you a spot. In the quiet bit. I wasn't sure you'd... after last time. You can say no. I'd understand.",
     opts: [
-      { tone: 'cold', t: "I don't need a spot saved.", r: "No. Of course. You don't. I'll unsave it. That's fine. It's just a wall.", opts: [
-        { tone: 'cold', t: "It is just a wall.", r: "Yes. ...I'll go and stand by it. On my own. That's fine." },
-        { tone: 'passive', t: "Sorry. That was rude. Thank you for saving it.", r: "You're welcome. It's not much. A wall and some quiet. But it's the good wall." },
+      { tone: 'cold', t: "I don't need a spot saved.", r: "No. Of course. You don't. I'll unsave it. That's fine. It's just a spot.", opts: [
+        { tone: 'cold', t: "It is just a spot.", r: "Yes. ...I'll go and stand by it. On my own. That's fine." },
+        { tone: 'passive', t: "Sorry. That was rude. Thank you for saving it.", r: "You're welcome. It's not much. A spot and some quiet. But it's the good spot." },
         { tone: 'flirty', t: "Actually, I'll take it. If you're in it.", r: "I'm in it. I'm always in it. ...That sounded sadder than I meant. I'm glad you're in it too." },
       ] },
       { tone: 'passive', t: "Of course I'd come. What's new with you?", r: "My cat, Pickle, bit the postman's bag. That's the news. That's all of the news.", opts: [
@@ -14,9 +14,9 @@ export const DATA = [
         { tone: 'passive', t: "Tell me more. I like your news.", r: "You do? The postman forgave Pickle. I didn't. That's the whole saga. I liked telling you it." },
         { tone: 'flirty', t: "Your news is my favourite news.", r: "Out of all the— you have real news. With cars in it. ...I'm going to collect better news for you." },
       ] },
-      { tone: 'flirty', t: "You saved me a spot? That might be the sweetest thing anyone's done.", r: "It's a spot. By a wall. Don't— okay. It is a bit sweet. I thought about it for a while.", opts: [
+      { tone: 'flirty', t: "You saved me a spot? That might be the sweetest thing anyone's done.", r: "It's a spot. A quiet one. Don't— okay. It is a bit sweet. I thought about it for a while.", opts: [
         { tone: 'cold', t: "Let's not get carried away.", r: "No. Not big. A very small deal. ...Sorry." },
-        { tone: 'passive', t: "How long is 'a while'?", r: "Since you walked in. I saw you and thought 'the good side'. Then I moved. That's a lot, for me." },
+        { tone: 'passive', t: "How long is 'a while'?", r: "Since I knew I'd see you. I thought 'the good side'. Then I moved. That's a lot, for me." },
         { tone: 'flirty', t: "Save me a spot every time. Right next to you.", r: "Every time. Right next to— okay. I'll bring a second chair. To every corner. Forever." },
       ] },
     ] },
@@ -28,7 +28,7 @@ export const DATA = [
         { tone: 'passive', t: "Sorry. You're right. It's not a switch.", r: "Thank you. It's more like a dimmer. You turn it up. Slowly. You're doing it, a bit." },
         { tone: 'flirty', t: "Then I'll hide with you. Wherever you go.", r: "Even the cupboard ones? I'm joking. Mostly. ...Yes. Hide with me." },
       ] },
-      { tone: 'passive', t: "Hiding with you sounds nice. Budge up.", r: "Budging. There. You can have more wall. I've had wall all day.", opts: [
+      { tone: 'passive', t: "Hiding with you sounds nice. Budge up.", r: "Budging. There. The good side's yours. I've had it all day.", opts: [
         { tone: 'cold', t: "I won't stay long.", r: "Okay. Short is fine. Short's still... something." },
         { tone: 'passive', t: "This is nice. Quiet. Just us.", r: "Just us. It's my favourite kind of busy. That doesn't— it does make sense, actually. To me." },
         { tone: 'flirty', t: "Any closer and we'll be one person.", r: "One very quiet person. With your laugh. ...I'd like that. That's a strange thing to like. I'd still like it." },
@@ -44,7 +44,7 @@ export const DATA = [
     say: "Hi. I saved you the good side of the quiet corner. I've never saved anyone anything. Don't make it a big deal. It's a big deal.",
     opts: [
       { tone: 'cold', t: "It's a corner. Let's not make it romantic.", r: "No. Right. It's a corner. Corners aren't romantic. I'll stop.", opts: [
-        { tone: 'cold', t: "Agreed.", r: "...Okay. Just a corner. Just a wall." },
+        { tone: 'cold', t: "Agreed.", r: "...Okay. Just a corner. Just quiet." },
         { tone: 'passive', t: "Okay, it's a little romantic. Thank you.", r: "A little. That's what I was going for. Not a lot. A little. You noticed the little." },
         { tone: 'flirty', t: "Fine. It's very romantic. Come here.", r: "I'm already here. You mean closer. Oh. Okay. Closer. That's— hi." },
       ] },
@@ -64,14 +64,14 @@ export const DATA = [
   { id: 'shy-warm-2-cold', stage: 'warm', slot: 2, mood: 'cold',
     say: "I have to confess something. And you were a bit short, last time. So this is a bad time. But. I keep a list. About you.",
     opts: [
-      { tone: 'cold', t: "A list? Of what?", r: "Small things. Like how you say 'right' before anything hard. It's in my phone. I'll delete it.", opts: [
+      { tone: 'cold', t: "A list? Of what?", r: "Small things. Like how you go quiet before anything hard. It's in my phone. I'll delete it.", opts: [
         { tone: 'cold', t: "Maybe delete it.", r: "Okay. ...Deleting. It's gone. Sorry." },
-        { tone: 'passive', t: "Don't delete it. I say 'right'?", r: "Every time. 'Right.' Before the hard thing. It's very brave-sounding. I wrote it down in March." },
+        { tone: 'passive', t: "Don't delete it. I go quiet?", r: "Every time. Quiet. Before the hard thing. It's very brave-looking. I wrote it down weeks ago." },
         { tone: 'flirty', t: "Keep it. Add that you're adorable when you confess.", r: "That's about me. Then it's not your list, it's— okay. I'll start a second one. About... that." },
       ] },
-      { tone: 'passive', t: "That's not creepy. That's kind of lovely.", r: "Is it? I worried. It's mostly things like 'hums when thinking' and 'laces left first'.", opts: [
+      { tone: 'passive', t: "That's not creepy. That's kind of lovely.", r: "Is it? I worried. It's mostly things like 'laughs with whole face' and 'kind to people carrying things'.", opts: [
         { tone: 'cold', t: "It's a bit much, honestly.", r: "It is. I know. I'll keep it shorter. Or in my head. Sorry." },
-        { tone: 'passive', t: "Laces left first? I never noticed that.", r: "Nobody notices their own laces. That's why someone else has to. ...That sounded wiser in my head." },
+        { tone: 'passive', t: "Kind to people carrying things? I never noticed that.", r: "Nobody notices their own kindness. That's why someone else has to. ...That sounded wiser in my head." },
         { tone: 'flirty', t: "I want to read it. Every word.", r: "Every— no. Not yet. Some of the words are... later words. Ones I haven't said yet." },
       ] },
       { tone: 'flirty', t: "I'd keep a list about you too. It'd be longer.", r: "It wouldn't. There's not much. I'm mostly cardigan and pauses.", opts: [
@@ -85,10 +85,10 @@ export const DATA = [
     opts: [
       { tone: 'cold', t: "That's a little strange.", r: "Yes. It is. Strange. I knew it. I'll stop. I'll stop noticing.", opts: [
         { tone: 'cold', t: "I'd appreciate that.", r: "Okay. ...I'll try. I won't manage, but I'll try. Quietly." },
-        { tone: 'passive', t: "Sorry. Strange isn't bad. What's on it?", r: "You laugh before the punchline. You touch your ear when you fib. You've never fibbed to me. I checked." },
-        { tone: 'flirty', t: "Strange and sweet. Read me one.", r: "One. 'Looks at the sky before deciding things.' ...You just did it. Just now. You're doing it." },
+        { tone: 'passive', t: "Sorry. Strange isn't bad. What's on it?", r: "You laugh with your whole face. You listen properly. You've never once rushed me. I checked." },
+        { tone: 'flirty', t: "Strange and sweet. Read me one.", r: "One. 'Thinks hard before deciding things.' ...You're doing it now. Just now. You're doing it." },
       ] },
-      { tone: 'passive', t: "What kind of things?", r: "You say 'right' before anything hard. You tie your left lace tighter. You hum. Things like that.", opts: [
+      { tone: 'passive', t: "What kind of things?", r: "You go quiet before anything hard. You're gentle with people carrying things. You wait for me. Things like that.", opts: [
         { tone: 'cold', t: "Bit much to keep track of.", r: "It is. Sorry. My head just keeps things. I'll try to keep less." },
         { tone: 'passive', t: "I had no idea I did any of that.", r: "Nobody does. That's the point of a list. So someone knows. ...So I know." },
         { tone: 'flirty', t: "Is there anything on it about how I look at you?", r: "There is. It's item fourteen. I'm not reading item fourteen. Not today." },
@@ -104,10 +104,10 @@ export const DATA = [
     opts: [
       { tone: 'cold', t: "I wasn't really flirting.", r: "Oh. Then the list is just... a list. Of a person. Who's fine. Sorry.", opts: [
         { tone: 'cold', t: "It's fine. Just a list.", r: "Just a list. Yes. ...I'll stop adding to it." },
-        { tone: 'passive', t: "Okay, I was. What's in the note?", r: "'Says right before hard things.' 'Hums.' 'Smells like rain sometimes.' ...That last one's weird. Ignore it." },
+        { tone: 'passive', t: "Okay, I was. What's in the note?", r: "'Goes quiet before hard things.' 'Waits for me.' 'Smells like rain sometimes.' ...That last one's weird. Ignore it." },
         { tone: 'flirty', t: "Fine. I was. And I want to read 'things'.", r: "Not yet. There's a section. A later section. You'd have to earn the later section." },
       ] },
-      { tone: 'passive', t: "What's in 'things'?", r: "Small stuff. You say 'right' before anything difficult. You never sit with your back to a door.", opts: [
+      { tone: 'passive', t: "What's in 'things'?", r: "Small stuff. You go quiet before anything difficult. You look at people when they talk to you.", opts: [
         { tone: 'cold', t: "You've been watching pretty closely.", r: "Yes. Sorry. I'll watch less closely. From further away." },
         { tone: 'passive', t: "Huh. I never noticed. What else?", r: "You're kind to people carrying things. Every time. I noticed that one first. It's item one." },
         { tone: 'flirty', t: "What does it say about you looking at me?", r: "That's not in 'things'. That's in a different note. That note is called 'no'." },
@@ -259,22 +259,22 @@ export const DATA = [
       ] },
     ] },
   { id: 'shy-warm-5-passive', stage: 'warm', slot: 5, mood: 'passive',
-    say: "I've worked out you're terrible at standing still. You've shifted your weight eleven times. I counted. It's going on the list.",
+    say: "I've worked out you're terrible at keeping still. You've fidgeted eleven times. I counted. It's going on the list.",
     opts: [
       { tone: 'cold', t: "Do you ever stop counting?", r: "No. Sorry. My brain does it. I'll stop doing it out loud, at least.", opts: [
         { tone: 'cold', t: "That'd help.", r: "Yes. ...Twelve. Sorry. I'll stop." },
-        { tone: 'passive', t: "Sorry, that was snappy. What else is on the list?", r: "'Taps visor twice.' 'Says right.' 'Can't stand still.' 'Kind to waiters.' ...It's a good list. You're a good list." },
+        { tone: 'passive', t: "Sorry, that was snappy. What else is on the list?", r: "'Goes quiet before hard things.' 'Can't keep still.' 'Kind to everyone.' ...It's a good list. You're a good list." },
         { tone: 'flirty', t: "Count all you want. Just keep looking at me.", r: "I'll count your eyelashes next. No. That's— don't move. I'm joking. I'm— thirteen." },
       ] },
       { tone: 'passive', t: "Eleven? I'm a racing driver. Stillness isn't in the job.", r: "Clearly. You'd be a terrible tree. ...I'm allowed that one. I was a tree. I've earned it.", opts: [
         { tone: 'cold', t: "I wouldn't want to be a tree.", r: "No. Nobody does. ...Sorry. I'll stop with the trees." },
         { tone: 'passive', t: "You're funny today. Funnier than usual.", r: "I'm funny every day. Usually on the inside. You're getting the outside version. Limited release." },
-        { tone: 'flirty', t: "I'd stand still for you. If you asked nicely.", r: "Please... stand still? ...You did. You actually did. Now I don't know what to do with you." },
+        { tone: 'flirty', t: "I'd keep still for you. If you asked nicely.", r: "Please... keep still? ...You did. You actually did. Now I don't know what to do with you." },
       ] },
-      { tone: 'flirty', t: "I can't stand still because you're standing there.", r: "No. You were moving before I— okay. That's a nice lie. I'll write it down.", opts: [
+      { tone: 'flirty', t: "I can't keep still because you're right there.", r: "No. You were moving before I— okay. That's a nice lie. I'll write it down.", opts: [
         { tone: 'cold', t: "It was a joke.", r: "Yes. I know. ...I'll write it down anyway. Under 'jokes'." },
-        { tone: 'passive', t: "Honestly? It's the race. My head's still going.", r: "Then stand next to me. I'm very still. It's catching. ...That's the one useful thing about me." },
-        { tone: 'flirty', t: "Not a lie. You make me restless.", r: "Restless. I make you— okay. I'm going to stand very still now. One of us should." },
+        { tone: 'passive', t: "Honestly? It's racing. My head never stops.", r: "Then stay next to me. I'm very still. It's catching. ...That's the one useful thing about me." },
+        { tone: 'flirty', t: "Not a lie. You make me restless.", r: "Restless. I make you— okay. I'm going to keep very still now. One of us should." },
       ] },
     ] },
   { id: 'shy-warm-5-flirty', stage: 'warm', slot: 5, mood: 'flirty',
@@ -299,26 +299,26 @@ export const DATA = [
 
   // ---- slot 6: the two a.m. text (generic - they think they sent one) ---------------------------------------------------
   { id: 'shy-warm-6-cold', stage: 'warm', slot: 6, mood: 'cold',
-    say: "I think I texted you at two in the morning. After last time. I haven't dared look at what I sent. Sorry. Whatever it was.",
+    say: "I nearly texted you at two in the morning. After last time. I wrote it and didn't send it. Sorry. Whatever it would've been.",
     opts: [
-      { tone: 'cold', t: "I didn't read it.", r: "Oh. Good. That's good. Don't. Please. It was... not your problem. Sorry.", opts: [
-        { tone: 'cold', t: "Wasn't planning to.", r: "No. Okay. ...That's fine. That's better. Probably." },
-        { tone: 'passive', t: "I'll read it. If you want me to.", r: "I don't know what I want. That's sort of what the text was about. Read it. Then don't say anything." },
-        { tone: 'flirty', t: "Twice, I'll read it. Slowly.", r: "Twice? No. Once, very fast, with your eyes half shut. ...Okay. Twice. But don't tell me." },
+      { tone: 'cold', t: "Good thing you didn't send it.", r: "Yes. Good. It's still in drafts. It was... not your problem. Sorry.", opts: [
+        { tone: 'cold', t: "I wasn't asking to see it.", r: "No. Okay. ...That's fine. That's better. Probably." },
+        { tone: 'passive', t: "Send it. If you want me to read it.", r: "I don't know what I want. That's sort of what the text was about. I'll send it. Then don't say anything." },
+        { tone: 'flirty', t: "Send it. I'll read it twice. Slowly.", r: "Twice? No. Once, very fast, with your eyes half shut. ...Okay. Twice. But don't tell me." },
       ] },
-      { tone: 'passive', t: "Whatever it was, it's okay. You can tell me things.", r: "Can I? I think I told you... that I think about you. At two. And other times. Sorry.", opts: [
+      { tone: 'passive', t: "Whatever it was, it's okay. You can tell me things.", r: "Can I? It said... that I think about you. At two. And other times. Sorry.", opts: [
         { tone: 'cold', t: "That's a lot.", r: "Yes. It is. That's why it was two in the morning. Sorry." },
         { tone: 'passive', t: "I think about you too, you know.", r: "You do? At two? ...Not at two. Normal hours. That's fine. Normal hours are healthier." },
         { tone: 'flirty', t: "Two a.m. is when the honest stuff comes out.", r: "It is. Then honest me goes back to sleep, and awake me has to live with it. Here. With you." },
       ] },
-      { tone: 'flirty', t: "If it said what I hope, don't apologise.", r: "What did you hope? No. Don't tell me. I'll check. I'll check later. Alone.", opts: [
+      { tone: 'flirty', t: "If it says what I hope, don't apologise.", r: "What do you hope? No. Don't tell me. I'll check the draft. Later. Alone.", opts: [
         { tone: 'cold', t: "Forget it.", r: "Okay. Forgotten. ...I'll still check." },
-        { tone: 'passive', t: "Check it. Then tell me if you meant it.", r: "I meant it. I always mean them. That's the problem. I just don't mean to send them." },
-        { tone: 'flirty', t: "I hope it said you can't stop thinking about me.", r: "That's almost word for word. How did you— okay. I'm going to go and lie face down somewhere." },
+        { tone: 'passive', t: "Check it. Then tell me if you mean it.", r: "I mean it. I always mean them. That's the problem. I just don't mean to send them." },
+        { tone: 'flirty', t: "I hope it says you can't stop thinking about me.", r: "That's almost word for word. How did you— okay. I'm going to go and lie face down somewhere." },
       ] },
     ] },
   { id: 'shy-warm-6-passive', stage: 'warm', slot: 6, mood: 'passive',
-    say: "We don't talk about the text. The two a.m. one. I know I sent something. I can't look at it. It's... accurate, probably.",
+    say: "We don't talk about the text. The two a.m. one I wrote and didn't send. It's sitting in drafts. It's... accurate, probably.",
     opts: [
       { tone: 'cold', t: "Good. Let's not.", r: "Thank you. ...Okay. Not talking about it. This is us not talking about it.", opts: [
         { tone: 'cold', t: "Exactly.", r: "Exactly. ...This is very hard. The not talking." },
@@ -334,46 +334,46 @@ export const DATA = [
       { tone: 'flirty', t: "We absolutely talk about the text.", r: "No. We don't. We absolutely don't. I'll leave. I'll leave the country.", opts: [
         { tone: 'cold', t: "Fine. We won't.", r: "Thank you. ...We won't. Okay." },
         { tone: 'passive', t: "Okay, okay. One day we will.", r: "One day. When I'm very old. And brave. We'll read it together. And I'll faint." },
-        { tone: 'flirty', t: "I read it. I liked it. Especially the end.", r: "The end. Oh no. You read the end. ...I'm going to stand very still and be a tree." },
+        { tone: 'flirty', t: "Send it. I'll like it. Especially the end.", r: "The end. Oh no. You want the end. ...I'm going to stand very still and be a tree." },
       ] },
     ] },
   { id: 'shy-warm-6-flirty', stage: 'warm', slot: 6, mood: 'flirty',
-    say: "I texted you at two in the morning. My cat woke me and I just... did. Was it flirting? I didn't read it back. It felt like flirting.",
+    say: "I almost texted you at two a.m. My cat woke me and I typed it all. Was it flirting? I didn't send it. It felt like flirting.",
     opts: [
-      { tone: 'cold', t: "It was a bit much.", r: "Yes. I thought so. Sorry. Two a.m. me is braver than is good for anyone.", opts: [
+      { tone: 'cold', t: "Sounds like a bit much.", r: "Yes. I thought so. Sorry. Two a.m. me is braver than is good for anyone.", opts: [
         { tone: 'cold', t: "Maybe keep two a.m. you quiet.", r: "Yes. I'll put the phone in a drawer. At night. Sorry." },
         { tone: 'passive', t: "A bit much. But sweet.", r: "Much, but sweet. That's most of me, really. Thank you." },
-        { tone: 'flirty', t: "A lot much. Do it again.", r: "Again? At two? I'll set an alarm. That's not how it works. I'll set one anyway." },
+        { tone: 'flirty', t: "A lot much. Send it next time.", r: "Next time? At two? I'll set an alarm. That's not how it works. I'll set one anyway." },
       ] },
-      { tone: 'passive', t: "It was flirting. And it was nice.", r: "It was nice. Oh, thank goodness. I was worried I'd used the word 'yearning'.", opts: [
-        { tone: 'cold', t: "You did, actually.", r: "I didn't. Did I? ...Oh no. Okay. I'm going." },
-        { tone: 'passive', t: "No yearning. Just a lot of commas.", r: "Commas. That's fine. I love a comma. It's a little pause. Like me, typed." },
+      { tone: 'passive', t: "It sounds like flirting. And it sounds nice.", r: "Nice. Oh, thank goodness. I'm worried I used the word 'yearning'.", opts: [
+        { tone: 'cold', t: "I bet you did.", r: "I didn't. Did I? ...Oh no. I'm checking. Okay. I'm going." },
+        { tone: 'passive', t: "No yearning. Just a lot of commas, I bet.", r: "Commas. That's fine. I love a comma. It's a little pause. Like me, typed." },
         { tone: 'flirty', t: "You can yearn at me any time.", r: "Any time. I'll yearn at a reasonable hour. Respectfully. Oh, this is going badly. It's going well." },
       ] },
-      { tone: 'flirty', t: "It was definitely flirting. I've read it six times.", r: "Six? That's five times too many. Why six?", opts: [
+      { tone: 'flirty', t: "Send it. I'll read it six times.", r: "Six? That's five times too many. Why six?", opts: [
         { tone: 'cold', t: "Mostly to check the spelling.", r: "The spelling. Okay. ...It's fine. I'll spell better. Sorry." },
-        { tone: 'passive', t: "Because it made me smile. Every time.", r: "Even the sixth? Then— okay. I'll be less sorry about it. Ten percent less." },
-        { tone: 'flirty', t: "Because I wanted to hear your voice saying it.", r: "My voice. Saying— I can't say it out loud. Not yet. It took two in the morning to type it." },
+        { tone: 'passive', t: "Because it'll make me smile. Every time.", r: "Even the sixth? Then— okay. I'll be less sorry about it. Ten percent less. I'll send it." },
+        { tone: 'flirty', t: "Because I want to hear your voice saying it.", r: "My voice. Saying— I can't say it out loud. Not yet. It took two in the morning to type it." },
       ] },
     ] },
 
   // ---- slot 7: your loud world (they keep coming anyway) ----------------------------------------------------------------
   { id: 'shy-warm-7-cold', stage: 'warm', slot: 7, mood: 'cold',
-    say: "It's very loud. Everywhere you are. I came anyway. I'm not sure you wanted me to. After last time. I'll stand at the edge.",
+    say: "Your life is very loud. Everywhere you go. I keep turning up anyway. I'm not sure you want me to. After last time.",
     opts: [
-      { tone: 'cold', t: "Nobody's making you come.", r: "No. Nobody is. That's true. Maybe I'll stay home next time. Sorry.", opts: [
+      { tone: 'cold', t: "Nobody's making you turn up.", r: "No. Nobody is. That's true. Maybe I'll stay home next time. Sorry.", opts: [
         { tone: 'cold', t: "Might be easier.", r: "Easier. Yes. For both— okay. ...Okay." },
-        { tone: 'passive', t: "But I'm glad you did. Honestly.", r: "Are you? Even at the edge? The edge is fine. The edge has a good view of you." },
-        { tone: 'flirty', t: "Nobody's making you. But I'm very glad you came.", r: "Very glad. Then I'll come louder. No. I'll come the same. But I'll stand closer." },
+        { tone: 'passive', t: "But I'm glad you do. Honestly.", r: "Are you? Even at the edges? The edges are fine. The edges have a good view of you." },
+        { tone: 'flirty', t: "Nobody's making you. But I'm very glad you do.", r: "Very glad. Then I'll come louder. No. I'll come the same. But I'll stand closer." },
       ] },
-      { tone: 'passive', t: "I wanted you here. Is it too loud?", r: "Always. But you sort of... turn it down. When you come over. Everything goes quieter.", opts: [
+      { tone: 'passive', t: "I want you around. Is it too loud?", r: "Always. But you sort of... turn it down. When you come over. Everything goes quieter.", opts: [
         { tone: 'cold', t: "That's not really my problem.", r: "No. It isn't. I know. ...I'll manage. Sorry." },
         { tone: 'passive', t: "Then I'll keep coming over.", r: "You don't have to. But— thank you. Every time you do, I write it down." },
         { tone: 'flirty', t: "I'll be your volume knob any day.", r: "That's the least romantic thing anyone's ever— I love it. I love that. Volume knob." },
       ] },
-      { tone: 'flirty', t: "Stand next to me, not at the edge.", r: "Next to you? Where the cameras are? They'd see me. I'd be in the background of things.", opts: [
+      { tone: 'flirty', t: "Stand next to me, not at the edges.", r: "Next to you? Where the cameras are? They'd see me. I'd be in the background of things.", opts: [
         { tone: 'cold', t: "Fine. Stay at the edge.", r: "Okay. The edge. It's familiar. Bye." },
-        { tone: 'passive', t: "Just for a minute. I'll keep them away.", r: "A minute. Okay. ...That was a minute. I survived. You did that. Thank you." },
+        { tone: 'passive', t: "Just for a minute. I'll keep them away.", r: "A minute. Okay. ...I'd survive a minute. With you there. Thank you." },
         { tone: 'flirty', t: "Be in the background of my things. Every single one.", r: "I'd be in every photo. A little blur. Going red. ...Okay. Yes. A blur. Your blur." },
       ] },
     ] },
@@ -383,14 +383,14 @@ export const DATA = [
       { tone: 'cold', t: "You could just stay home.", r: "I could. I've thought about that. A lot. ...I'm still here, though.", opts: [
         { tone: 'cold', t: "Your choice.", r: "My choice. Yes. ...I'll make a different one next time. Maybe." },
         { tone: 'passive', t: "And I'm glad you are. Sorry. Why do you come?", r: "You. It's you. I'm not good at— it's you. That's the whole why. It fits in one word." },
-        { tone: 'flirty', t: "You're here because of me. Say it.", r: "Because of you. There. I said it. To your face. In public. With engines. I need to lie down." },
+        { tone: 'flirty', t: "You're here because of me. Say it.", r: "Because of you. There. I said it. To your face. Out loud. I need to lie down." },
       ] },
-      { tone: 'passive', t: "Why do you keep coming?", r: "Because in the middle of all this noise, there's you. And you're quiet. With me. That's the why.", opts: [
+      { tone: 'passive', t: "Why do you keep coming?", r: "Because in the middle of all that noise, there's you. And you're quiet. With me. That's the why.", opts: [
         { tone: 'cold', t: "I'm not quiet.", r: "No. Not usually. Just with me. ...Never mind. Sorry." },
         { tone: 'passive', t: "You make me quiet too. The good kind.", r: "Do I? A good quiet? Not a bored quiet? ...I've worried it's a bored quiet." },
-        { tone: 'flirty', t: "I'm quiet with you because I'm busy looking at you.", r: "I'm the least interesting thing here. There are cars. ...You're still looking. Stop. Don't stop." },
+        { tone: 'flirty', t: "I'm quiet with you because I'm busy looking at you.", r: "I'm the least interesting thing in your life. There are cars. ...You're still looking. Stop. Don't stop." },
       ] },
-      { tone: 'flirty', t: "You know why. I want to hear you say it, though.", r: "Because— no. You know why. I'm not saying it. With all these people.", opts: [
+      { tone: 'flirty', t: "You know why. I want to hear you say it, though.", r: "Because— no. You know why. I'm not saying it. Not out loud.", opts: [
         { tone: 'cold', t: "Fine. Keep it.", r: "I will. ...It's a good why. Shame." },
         { tone: 'passive', t: "Okay. Tell me somewhere quiet, then.", r: "Somewhere quiet. I'll tell you somewhere quiet. I'll whisper it. You'll have to lean in." },
         { tone: 'flirty', t: "Whisper it. Nobody else will hear.", r: "...It's you. I come for you. That's all. That's the loudest thing I've ever said." },

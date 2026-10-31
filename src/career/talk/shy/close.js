@@ -6,7 +6,7 @@ export const DATA = [
     opts: [
       { tone: 'cold', t: "We're fine. Drop it.", r: "Okay. Not a thing. ...I'll just notice it quietly, then. Like I used to.", opts: [
         { tone: 'cold', t: "Good. Leave it.", r: "Leaving it. ...I'm good at leaving things. I'll go and be good at it." },
-        { tone: 'passive', t: "Sorry. I was tired. We're okay. Really.", r: "Really? Then I'll stop holding my breath. I've been holding it since Tuesday." },
+        { tone: 'passive', t: "Sorry. I was tired. We're okay. Really.", r: "Really? Then I'll stop holding my breath. I've been holding it since last time." },
         { tone: 'flirty', t: "We're more than okay. Come here, unrehearsed.", r: "Unrehearsed. Here I am. No script. ...I'm better without one. With you. Who knew." },
       ] },
       { tone: 'passive', t: "We're okay. I was in my head. What's going on with you?", r: "Nothing. Everything. I missed you and didn't say it, because you seemed... somewhere else.", opts: [
@@ -36,7 +36,7 @@ export const DATA = [
       ] },
       { tone: 'flirty', t: "So I'm finally getting the real you?", r: "You've had the real me for ages. You just didn't get the full sentences. Now you get those too.", opts: [
         { tone: 'cold', t: "The full sentences are a lot.", r: "They are. I've got a backlog. ...I'll ration them. Sorry." },
-        { tone: 'passive', t: "Full sentences and all. Lucky me.", r: "Lucky you. I've never been anyone's luck. ...Two taps on the visor, that's your luck. I'm a visor now. Two taps." },
+        { tone: 'passive', t: "Full sentences and all. Lucky me.", r: "Lucky you. I've never been anyone's luck. ...I'll try. I'll be a lucky charm. A quiet one. In your pocket." },
         { tone: 'flirty', t: "Give me the sentence you've been saving.", r: "The one I've been saving is: I'd like to kiss you now. ...Full stop. Not a question. A full stop." },
         { tone: 'risque', t: "The real you, later, with nobody else around?", r: "Later. Nobody else around. ...Yes. I didn't even hesitate. Look at me. Not hesitating." },
       ] },
@@ -103,7 +103,7 @@ export const DATA = [
       ] },
     ] },
   { id: 'shy-close-2-flirty', stage: 'close', slot: 2, mood: 'flirty',
-    say: "You're in my phone as 'Do Not Panic'. And every time it lights up, I panic. Happily. You lit it up a lot this week.",
+    say: "You're in my phone as 'Do Not Panic'. And every time it lights up, I panic. Happily. Every single time.",
     opts: [
       { tone: 'cold', t: "Maybe I'll text less, then.", r: "No— that's not— I wasn't— okay. Less. That's fine. Sorry. I liked the lighting up.", opts: [
         { tone: 'cold', t: "Less is easier.", r: "Easier. ...The phone will be very quiet. I'll manage." },
@@ -125,17 +125,17 @@ export const DATA = [
 
   // ---- slot 3: jealousy (someone loud, all over you) -------------------------------------------------------------------
   { id: 'shy-close-3-cold', stage: 'close', slot: 3, mood: 'cold',
-    say: "You were cold with me last time. And then I saw someone loud, all over you, and I went quiet. I'm still a bit quiet.",
+    say: "You were cold with me last time. And people are always so easy with you. Loud ones. I go quiet watching. Still a bit quiet.",
     opts: [
-      { tone: 'cold', t: "It was nothing. You're overreacting.", r: "Okay. Overreacting. Quietly, though. I overreact quietly. Sorry.", opts: [
+      { tone: 'cold', t: "It's nothing. You're overreacting.", r: "Okay. Overreacting. Quietly, though. I overreact quietly. Sorry.", opts: [
         { tone: 'cold', t: "Then let it go.", r: "Letting it go. ...It's going. Slowly." },
-        { tone: 'passive', t: "Sorry. That was dismissive. It really was nothing.", r: "Nothing. I believe you. I always believe you. I just needed to hear it. Thank you." },
+        { tone: 'passive', t: "Sorry. That was dismissive. It really is nothing.", r: "Nothing. I believe you. I always believe you. I just needed to hear it. Thank you." },
         { tone: 'flirty', t: "Nothing compared to you. Nobody is.", r: "I'll keep that next to the jealousy and see which one wins. ...That one wins." },
       ] },
-      { tone: 'passive', t: "I'm sorry. I didn't realise. Talk to me.", r: "It's silly. They were so easy with you. Loud. And I was over here being... a tree. Watching.", opts: [
-        { tone: 'cold', t: "You could've come over.", r: "Yes. I could. I can't, though. Not into loud. ...Sorry." },
+      { tone: 'passive', t: "I'm sorry. I didn't realise. Talk to me.", r: "It's silly. They're so easy with you. Loud. And I'm off to the side being... a tree. Watching.", opts: [
+        { tone: 'cold', t: "You could just come over.", r: "Yes. I could. I can't, though. Not into loud. ...Sorry." },
         { tone: 'passive', t: "Next time, come stand next to me. I'll make room.", r: "In the loud. ...Okay. I'll try. If you hold my hand, I'll try." },
-        { tone: 'flirty', t: "They were loud. You're the one I go home thinking about.", r: "Me? Not the loud one? ...Okay. The tree is feeling much better. The tree's blushing." },
+        { tone: 'flirty', t: "They're loud. You're the one I go home thinking about.", r: "Me? Not the loud one? ...Okay. The tree is feeling much better. The tree's blushing." },
       ] },
       { tone: 'flirty', t: "You're cute jealous. But there's only you.", r: "I'm not cute jealous. Okay, I'm a bit cute jealous. But only me? Promise?", opts: [
         { tone: 'cold', t: "Don't make me promise things.", r: "No. Okay. ...That's fine. I won't ask. Sorry." },
@@ -145,34 +145,34 @@ export const DATA = [
       ] },
     ] },
   { id: 'shy-close-3-passive', stage: 'close', slot: 3, mood: 'passive',
-    say: "Someone was very loud near you earlier. Laughing at everything. Touching your arm. I went quiet. I'm jealous, I think. It's new.",
+    say: "People are so loud around you. Laughing at everything. Touching your arm. I go quiet. I'm jealous, I think. It's new.",
     opts: [
-      { tone: 'cold', t: "They're a friend. Don't be jealous.", r: "A friend. Sorry. I'll stop. I don't know how, but I'll stop.", opts: [
+      { tone: 'cold', t: "They're just friends. Don't be jealous.", r: "Friends. Sorry. I'll stop. I don't know how, but I'll stop.", opts: [
         { tone: 'cold', t: "Try, at least.", r: "Yes. Trying. ...Okay." },
         { tone: 'passive', t: "Sorry, that was abrupt. It's okay to feel it.", r: "Is it? I thought I'd be the calm one in this. I'm not. I'm the tree with opinions." },
         { tone: 'flirty', t: "Jealous looks good on you, though.", r: "Does it? I'll wear it more often. No. I won't. It was a one-off. Mostly." },
       ] },
-      { tone: 'passive', t: "Jealous? Oh, you. Come here. It was nothing.", r: "I'm here. ...They were just so easy. And I'm not easy. I'm a thousand pieces of sky.", opts: [
+      { tone: 'passive', t: "Jealous? Oh, you. Come here. It's nothing.", r: "I'm here. ...They're just so easy. And I'm not easy. I'm a thousand pieces of sky.", opts: [
         { tone: 'cold', t: "You are hard work sometimes.", r: "Yes. I know. ...Sorry. I'll go and be less work." },
         { tone: 'passive', t: "I like the thousand pieces. That's why I'm here.", r: "That's why you're— okay. That's the right answer. That was very much the right answer." },
         { tone: 'flirty', t: "I'd rather do a thousand pieces with you than five with anyone.", r: "Five. Anyone. ...You're very good at this. Jealousy over. Cancelled. You cancelled it." },
       ] },
-      { tone: 'flirty', t: "I like that you're jealous. It means you want me.", r: "Of course I want— oh. I said that loudly. Someone turned round. I want you. Quietly. Mostly.", opts: [
+      { tone: 'flirty', t: "I like that you're jealous. It means you want me.", r: "Of course I want— oh. I said that loudly. Out loud. I want you. Quietly. Mostly.", opts: [
         { tone: 'cold', t: "Don't make a scene.", r: "No scene. ...Sorry. I'll want you quietly." },
-        { tone: 'passive', t: "I want you too. Only you.", r: "The loud one can have the arm. I've got the rest of you. That's a better deal." },
+        { tone: 'passive', t: "I want you too. Only you.", r: "The loud ones can have the arm. I've got the rest of you. That's a better deal." },
         { tone: 'flirty', t: "Say it again. Louder.", r: "Never louder. ...I want you. There. That was a seven out of ten. For me that's a scream." },
         { tone: 'risque', t: "Want me where nobody can see?", r: "Yes. Somewhere with a door. I'll find one. I'm very good at finding places nobody looks." },
       ] },
     ] },
   { id: 'shy-close-3-flirty', stage: 'close', slot: 3, mood: 'flirty',
-    say: "That person touching your arm earlier. Laughing at everything. I didn't like it. I'm jealous. Very quietly. ...Kiss me so I stop.",
+    say: "People touching your arm. Laughing at everything. I don't like it. I'm jealous. Very quietly. ...Kiss me so I stop.",
     opts: [
       { tone: 'cold', t: "I'm not kissing you because you're jealous.", r: "No. That's fair. I'll be jealous on my own, then. Sorry.", opts: [
         { tone: 'cold', t: "That's your call.", r: "Yes. ...My call. Corner's that way. Calling it." },
         { tone: 'passive', t: "I'll kiss you because I want to. Not to fix anything.", r: "That's a better reason. ...Do you want to? Now? For the better reason?" },
         { tone: 'flirty', t: "Not because you're jealous. Because you're you.", r: "Because I'm me. ...Okay. The jealousy's gone. You can still kiss me. It's not conditional." },
       ] },
-      { tone: 'passive', t: "I didn't even notice them. I was looking for you.", r: "For me? While they were— oh. Oh. I wasted a whole hour being jealous.", opts: [
+      { tone: 'passive', t: "I never even notice them. I'm always looking for you.", r: "For me? While they're— oh. Oh. I've wasted a lot of hours being jealous.", opts: [
         { tone: 'cold', t: "Yes. Waste of time, sulking.", r: "Yes. A waste. ...Sorry. I'll stop sulking." },
         { tone: 'passive', t: "You never need to worry. I mean it.", r: "I'll still worry. Quietly. It's what I do. But less. You've taken about half of it away." },
         { tone: 'flirty', t: "And now I've found you. Kiss accepted.", r: "Accepted. Good. ...I asked, didn't I. Out loud. Jealousy makes me very brave. Who knew." },
@@ -191,11 +191,11 @@ export const DATA = [
     opts: [
       { tone: 'cold', t: "You read a list about me instead of talking to me?", r: "Yes. It's easier. The list doesn't go quiet on me. Sorry. That came out sharp.", opts: [
         { tone: 'cold', t: "It did.", r: "...Yes. Okay. I'll go. The list and me." },
-        { tone: 'passive', t: "Fair. I went quiet. I'm sorry. What's on it?", r: "'Says sorry by bringing tea.' 'Hates being called brave.' 'Comes back.' That last one's the important one." },
+        { tone: 'passive', t: "Fair. I went quiet. I'm sorry. What's on it?", r: "'Says sorry properly.' 'Listens to the end.' 'Comes back.' That last one's the important one." },
         { tone: 'flirty', t: "Read me the best one. I'll earn it back.", r: "Item fifty-six: 'Kisses like an apology even when nothing's wrong.' ...You can start earning. Now's good." },
       ] },
-      { tone: 'passive', t: "That makes me happy. Read me one?", r: "Item twelve. 'Laughs with the whole face. Even the ears.' ...Your ears are moving now. It's true.", opts: [
-        { tone: 'cold', t: "My ears don't move.", r: "They do. ...Okay. Sorry. They don't." },
+      { tone: 'passive', t: "That makes me happy. Read me one?", r: "Item twelve. 'Laughs with the whole face.' ...You're doing it now. It's true.", opts: [
+        { tone: 'cold', t: "I do not.", r: "You do. ...Okay. Sorry. You don't." },
         { tone: 'passive', t: "Another one. Please.", r: "Item forty. 'Asks how I am and waits for the real answer.' That one made me cry. In a car park. Nicely." },
         { tone: 'flirty', t: "Is there a list of what you'd like to do to me?", r: "That's a separate document. Password-protected. You don't have clearance. Yet." },
         { tone: 'risque', t: "Add one: 'is going to be kissed thoroughly later'.", r: "Adding. 'Is going to be kissed thoroughly later.' Saved. ...I'll be ticking it off. Personally." },
@@ -222,7 +222,7 @@ export const DATA = [
       ] },
       { tone: 'flirty', t: "Read them all. I've got time.", r: "All of them? It takes about forty minutes. I've timed it. ...I've timed it. Forget that.", opts: [
         { tone: 'cold', t: "Forty minutes. Maybe not.", r: "No. Maybe not. ...Five, then. Or none." },
-        { tone: 'passive', t: "Then read me five. Your choice.", r: "'Hums.' 'Says right before hard things.' 'Tips well.' 'Good at edges.' 'Mine.' ...The last one's new." },
+        { tone: 'passive', t: "Then read me five. Your choice.", r: "'Smiles with the eyes.' 'Waits for me.' 'Kind to everyone.' 'Patient.' 'Mine.' ...The last one's new." },
         { tone: 'flirty', t: "Forty minutes on your sofa, hearing about me? Perfect.", r: "On my sofa. With the cat. You'd fall asleep by item thirty. I'd let you. I'd write that down too." },
       ] },
     ] },
@@ -232,7 +232,7 @@ export const DATA = [
       { tone: 'cold', t: "Rude? Then keep it.", r: "Okay. Keeping it. ...It wasn't that rude. It was a bit rude. Sorry.", opts: [
         { tone: 'cold', t: "Better that way.", r: "Better. Yes. ...It's still there, though. Item one-oh-four." },
         { tone: 'passive', t: "Okay, I'm curious. Rude how?", r: "It's about how you look when you're concentrating. And what I'd like to do about it. ...That's your lot." },
-        { tone: 'flirty', t: "Now I need to know. Whisper it.", r: "...'Bites lip when concentrating. Should be kissed for it, immediately.' There. Whispered. I'm still red." },
+        { tone: 'flirty', t: "Now I need to know. Whisper it.", r: "...'Looks serious when concentrating. Should be kissed for it, immediately.' There. Whispered. I'm still red." },
       ] },
       { tone: 'passive', t: "Rude? You? Read it to me.", r: "'Looks better in the morning than anyone should.' ...It's rude for me. It's rude for the list.", opts: [
         { tone: 'cold', t: "That's barely rude.", r: "Barely. Okay. ...It's rude for me. Never mind." },
@@ -504,12 +504,12 @@ export const DATA = [
       { tone: 'cold', t: "It's just a puzzle piece.", r: "It is. ...It's the last one, though. I've never saved the last one. For anyone.", opts: [
         { tone: 'cold', t: "Keep it, then.", r: "Okay. I'll keep it. ...The sky's got a hole in it. That's fine. It's had one before." },
         { tone: 'passive', t: "Sorry. I didn't understand. Why save it for me?", r: "Because you're the last piece. Of everything. I love you. ...I've been saving that even longer than the piece." },
-        { tone: 'flirty', t: "Then let me put it in. With you.", r: "With me. ...There. It's finished. The whole sky. ...I love you. That's the other thing I saved. That's done too." },
+        { tone: 'flirty', t: "Then let me put it in. With you.", r: "With me. At mine. Then it's finished. The whole sky. ...I love you. That's the other thing I saved. That's said now." },
       ] },
       { tone: 'passive', t: "I want it. Of course I want it.", r: "Here. ...It's the bit where the blue goes gold. I always save that bit for the end.", opts: [
         { tone: 'cold', t: "It's very small.", r: "Yes. It's small. ...So are the important things. Usually." },
         { tone: 'passive', t: "Thank you. I'll keep it safe.", r: "Keep it safe. ...I love you. There. I said it to a person. To you. I didn't plan it. I meant it." },
-        { tone: 'flirty', t: "Let's put it in together. Then the sky's ours.", r: "Ours. ...There. Done. A whole sky. And I love you. And I didn't stammer. Look. Not once." },
+        { tone: 'flirty', t: "Let's put it in together. Then the sky's ours.", r: "Ours. Soon. At mine. ...And I love you. And I didn't stammer. Look. Not once." },
         { tone: 'risque', t: "Let's finish it at yours. And not leave till morning.", r: "At mine. Not till morning. ...Yes. I love you. I wanted to say that before the yes. It goes before the yes." },
       ] },
       { tone: 'flirty', t: "You saved the last piece for me? That might make me cry.", r: "Don't. If you cry, I'll cry. Then nobody finishes the sky. ...I love you. Oh. There it is.", opts: [
@@ -527,16 +527,16 @@ export const DATA = [
         { tone: 'passive', t: "Sorry. I didn't mean 'just'. Tell me what it means.", r: "It means I don't finish things without you now. Not even skies. ...I love you. That's what it means." },
         { tone: 'flirty', t: "It's not just a jigsaw. It's you. I know.", r: "Of course you know. You always— I love you. You knew that too. I'm saying it anyway." },
       ] },
-      { tone: 'passive', t: "I'd be honoured to put the last piece in.", r: "Here. The gold bit. Where the sky goes morning. ...Go on. Then it's done. Then I can say the thing.", opts: [
+      { tone: 'passive', t: "I'd be honoured to put the last piece in.", r: "Here. The gold bit. Where the sky goes morning. It's yours now. Which means I can say the thing.", opts: [
         { tone: 'cold', t: "What thing? Just say it.", r: "I love you. ...You sounded tired. It's fine. It's still true. I'll say it again when you're less tired." },
-        { tone: 'passive', t: "Done. What's the thing?", r: "I love you. ...That's the thing. I've been saving it longer than the piece. It was harder to keep." },
-        { tone: 'flirty', t: "Done. Now say the thing. I've been waiting.", r: "Okay. I love you. I love you. ...You were waiting. I didn't know anyone waited for me." },
-        { tone: 'risque', t: "Done. Now say it, and then come here.", r: "I love you. ...Coming. And not letting go. And not saying anything else for a very long time." },
+        { tone: 'passive', t: "It's mine. What's the thing?", r: "I love you. ...That's the thing. I've been saving it longer than the piece. It was harder to keep." },
+        { tone: 'flirty', t: "Mine. Now say the thing. I've been waiting.", r: "Okay. I love you. I love you. ...You were waiting. I didn't know anyone waited for me." },
+        { tone: 'risque', t: "Mine. Now say it, and then come here.", r: "I love you. ...Coming. And not letting go. And not saying anything else for a very long time." },
       ] },
       { tone: 'flirty', t: "You saved it for me. I think I'm in love with you.", r: "You said it first. I had it written down. I— I love you too. I love you. No paper.", opts: [
         { tone: 'cold', t: "Let's not rush it.", r: "No. Not rushing. ...You still said it. I'm keeping it. Slowly." },
-        { tone: 'passive', t: "I am. Completely. Quiet and all.", r: "Quiet and all. ...The sky's finished. We're finished. I mean— we're not finished. We're started." },
-        { tone: 'flirty', t: "Say it again so I can hear it properly.", r: "I love you. Properly. ...You're the one person I'd say it to out loud. With people watching. Even here." },
+        { tone: 'passive', t: "I am. Completely. Quiet and all.", r: "Quiet and all. ...The sky's nearly finished. We're finished. I mean— we're not finished. We're started." },
+        { tone: 'flirty', t: "Say it again so I can hear it properly.", r: "I love you. Properly. ...You're the one person I'd say it to out loud. With people watching, even." },
         { tone: 'risque', t: "Take me home and say it in the quiet room.", r: "The quiet room. ...Yes. Over and over, there. Until it's not quiet at all." },
       ] },
     ] },
@@ -544,20 +544,20 @@ export const DATA = [
     say: "I've finished the sky jigsaw. Nine hundred and ninety-nine pieces. The last one's in my pocket. I want you to put it in. It's... a metaphor.",
     opts: [
       { tone: 'cold', t: "A metaphor. Right.", r: "Yes. A metaphor. Never mind. No need. I'll put it in myself. ...Sorry.", opts: [
-        { tone: 'cold', t: "Do that.", r: "...Okay. Done. The sky's finished. On my own. Like usual." },
-        { tone: 'passive', t: "Sorry. Show me. I'll put it in.", r: "There. It's done. ...The metaphor was: I love you. That's what I couldn't say. So I did a jigsaw for a month." },
+        { tone: 'cold', t: "Do that.", r: "...Okay. I'll finish the sky on my own. Like usual." },
+        { tone: 'passive', t: "Sorry. Show me. I'll put it in.", r: "Here. It's yours to put in. ...The metaphor was: I love you. That's what I couldn't say. So I did a jigsaw for a month." },
         { tone: 'flirty', t: "I like metaphors. Especially yours.", r: "Then here's the end of it: I love you. You're the last piece. That's always been the metaphor." },
       ] },
-      { tone: 'passive', t: "Give it here. Let me.", r: "Here. ...Gently. There. Oh. It's done. It's never been done before. One's always gone missing.", opts: [
-        { tone: 'cold', t: "It's only a jigsaw.", r: "Only a jigsaw. Yes. ...It's done, though. Thank you." },
+      { tone: 'passive', t: "Give it here. Let me.", r: "Here. ...Gently. It's yours. Oh. It'll be done. It's never been done before. One's always gone missing.", opts: [
+        { tone: 'cold', t: "It's only a jigsaw.", r: "Only a jigsaw. Yes. ...It'll be done, though. Thank you." },
         { tone: 'passive', t: "Not any more. Nothing's missing.", r: "Nothing's missing. ...I love you. That's the bit that was missing. The last piece. From me." },
-        { tone: 'flirty', t: "Now what's the metaphor? Tell me.", r: "The metaphor is: I love you. I've loved you since a corner. And now the sky's finished." },
+        { tone: 'flirty', t: "Now what's the metaphor? Tell me.", r: "The metaphor is: I love you. I've loved you since a corner. And now the sky can be finished." },
         { tone: 'risque', t: "Now let's celebrate. Properly.", r: "Properly. ...I love you. First. Then celebrating. Then— I'll stop narrating. I'll just love you." },
       ] },
       { tone: 'flirty', t: "I know what it means. And I love you back.", r: "Back. You said 'back'. So you knew I— oh. Of course you knew. You noticed. Like me.", opts: [
         { tone: 'cold', t: "It was obvious.", r: "Obvious. I'm obvious. ...I'm still glad I said it. Sort of." },
         { tone: 'passive', t: "I noticed. You're not as quiet as you think.", r: "With you I'm not quiet at all. I'm loud. I'm loudly in love with you. Look at me." },
-        { tone: 'flirty', t: "Now finish the sky. Then kiss me.", r: "Sky first. ...There. Kiss second. ...I love you. Third. That's the order. That's the right order." },
+        { tone: 'flirty', t: "Kiss me. Then we finish the sky.", r: "Kiss first. ...There. Sky second, at mine. ...I love you. Third. That's the order. That's the right order." },
         { tone: 'risque', t: "Put the piece in. Then let's not come out for a day.", r: "A day. ...Yes. I'll tell nobody. We'll just be gone. Quietly. Together." },
       ] },
     ] },
