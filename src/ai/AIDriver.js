@@ -8,6 +8,7 @@
 // and how much a car on the gearbox or a feud gets to it (composure). The numbers are tiny on purpose: the whole
 // field's rating spread is only ~0.5 % of corner speed.
 import { COMPOUNDS, cliffLaps, lapLoss, tyreLap, RATE_NOM } from '../vehicle/Tyres.js';
+import { planRace as planStints } from '../ui/Strategy.js';
 import { CAR } from '../vehicle/Car.js';
 import { Planner, DS, NMAX } from './Planner.js';
 import { neutralForm } from '../career/Morale.js';
@@ -99,12 +100,16 @@ export class AIDriver {
    */
   gripState() {
     const c = this.car, P = this.line.grip, T = AI_TUNE;
-    const muR = (c.tyres.grip(c.wetness) / COMPOUNDS.SOFT.grip) * (1 - 0.12 * c.tyres.instability()) * (c.offTrack ? c.surfGrip : 1) * (1 - 0.1 * c.wetness) * (1 - 0.22 * c.dmg.susp) * (1 - 0.06 * (c.dmg.fwL + c.dmg.fwR)) * (c.aiGrip || 1);
+    const muR = (c.tyres.grip(c.wetness) / COMPOUNDS.SOFT.grip) * (1 - 0.25 * c.tyres.instability()) * (c.offTrack ? c.surfGrip : 1) * (1 - 0.1 * c.wetness) * (1 - 0.22 * c.dmg.susp) * (1 - 0.06 * (c.dmg.fwL + c.dmg.fwR)) * (c.aiGrip || 1);
     const rearLtd = c.aeroRear() < c.aeroFront() - 0.05;   // a damaged rear wing makes the car rear-limited: drive it well inside
     const dfR = c.perf * (1 - 0.22 * c.slipstream) * Math.min(c.aeroFront(), c.aeroRear()) * (rearLtd ? 0.65 : 1);
     const g = this.g;
     g.mu = P.mu * muR; g.dfm = P.dfm * dfR; g.scale = this.vScale;
     g.brake = (T.aBBase + T.aBK * c.rating) * (0.6 + 0.4 * this.skill) * (1 - 0.5 * c.dmg.rw) * (c.form || NF).brake;   // (a confident driver brakes a touch later: FORM.brake)
+    // (in the wet, at speed: the stop planned short of the limit and the rear trail-braked well inside its grip - turning
+    //  in on the brakes at 300 km/h is where they spun, Maggotts above all; below ~160 km/h nothing kept back - Planner
+    //  .brakeA ramps it in with the speed)
+    g.wetB = 0.15 * c.wetness; g.wetM = 0.3 * c.wetness;
     g.power = c.enginePower(); g.ers = c.ersEnergy > 0.05;
     this._muPhys = CAR.muBase * muR; this._dfm = P.dfm * dfR;   // the car's real limit (the plan keeps a margin under it)
   }
@@ -116,7 +121,7 @@ export class AIDriver {
   }
   gripFactor() {
     const c = this.car;
-    const g = c.tyres.grip(c.wetness) / COMPOUNDS.SOFT.grip * (1 - 0.12 * c.tyres.instability());
+    const g = c.tyres.grip(c.wetness) / COMPOUNDS.SOFT.grip * (1 - 0.25 * c.tyres.instability());   // (a set past the cliff, or cold and twitchy: well inside it - it slid off at the old margin)
     const dmg = 1 - 0.18 * (c.dmg.fwL + c.dmg.fwR) * 0.5 - 0.3 * c.dmg.rw - 0.15 * c.dmg.susp;
     return Math.sqrt(Math.max(0.2, g * dmg * (c.offTrack ? Math.min(0.75, c.surfGrip) : 1) * (1 - 0.13 * c.slipstream) * (1 - 0.12 * c.wetness)));
   }
@@ -178,6 +183,7 @@ export class AIDriver {
       if (ds > -8 && ds < 100) near = Math.min(near, ds < 6 ? 0 : ds);
     }
     ctx.calW = !pack ? 1 : c.lap >= 1 ? Math.max(0, Math.min(1, (near - 25) / 75)) : 0;
+    ctx.calW *= Math.max(0, 1 - c.wetness / 0.45);   // (a calibration is from dry laps: on a wet track the physics alone - at Maggotts the fitted pace spun them)
     this._hold = sinceStart < T.laneHoldT && c.gridSlot ? Math.max(-ctx.m, Math.min(ctx.m, c.gridSlot.d)) : null;
     ctx.forceLane = this._hold != null || !!this.defend;
     // boxing this lap: braking for the pit entry like any corner - to the speed the entry road allows at its first
@@ -607,7 +613,7 @@ export class AIDriver {
     const c = this.car;
     if (this.error || c.speed < 15 || this.isSC || this.rule) return;   // (nobody makes a mistake at safety-car pace)
     const cold = c.tyres.temp < 0.5 ? 1.8 : 1;
-    const worn = 1 + 2.2 * c.tyres.wear + 4 * c.tyres.instability();
+    const worn = 1 + 2.2 * c.tyres.wear + 4 * Math.max(0, (c.tyres.wear - 0.7) / 0.3);   // (the cliff's; cold is counted above)
     // (the driver's form: focus sets how often, composure how much a car on the gearbox gets to him - FORM.err and
     //  FORM.pressure; the cap stays the cap)
     const F = c.form || NF;
@@ -641,7 +647,17 @@ export class AIDriver {
     const pick = (opts) => { let x = rnd() * opts.reduce((a, o) => a + o[1], 0); for (const o of opts) { x -= o[1]; if (x <= 0) return o[0]; } return opts[0][0]; };
     this.setStrat(back ? pick([['gamble', 0.4], ['long', 0.2], ['early', 0.2], ['standard', 0.2]]) : pick([['standard', 0.45], ['early', 0.3], ['long', 0.25]]));
     if (c.wetness >= 0.2 || world.lapsTotal < 3) return false;
-    const type = this.strat.type, comp = type === 'early' ? 'SOFT' : type === 'long' ? (rnd() < 0.5 ? 'MEDIUM' : 'HARD') : type === 'gamble' ? 'HARD' : c.tyres.compound;
+    // (the start tyre from the strategy screen's sums - ui/Strategy.js planRace: each compound's pace, life and cliff for
+    //  this race - the quickest plan's, now and then the next one's, for a standard race; the softest start among the
+    //  plans for the undercut, the hardest for the overcut; hards for the gamble. A soft dies at half distance: in a sprint
+    //  it is a gamble of its own, not the default)
+    const type = this.strat.type, O = ['SOFT', 'MEDIUM', 'HARD'];
+    let comp = type === 'gamble' ? 'HARD' : c.tyres.compound;
+    if (type !== 'gamble') try {
+      const R = planStints({ laps: world.lapsTotal, trackLength: this.track.length, pace: world.lapT || tyreLap(this.track.length), pitLoss: world.pitLoss || 22, wet: c.wetness });
+      const st = R.plans.map((p) => p.stints[0].compound).filter((k) => O.includes(k));
+      if (st.length) comp = type === 'early' ? st.reduce((a, b) => (O.indexOf(b) < O.indexOf(a) ? b : a)) : type === 'long' ? st.reduce((a, b) => (O.indexOf(b) > O.indexOf(a) ? b : a)) : rnd() < 0.7 || st.length < 2 ? st[0] : st[1];
+    } catch (e) { /* (the plans could not be made: the tyre it has) */ }
     if (comp === c.tyres.compound) return false;
     c.fitTyres(comp); c.tyres.temp = c.tyres.spec.start ?? 0.7; c.tyres.work = 0.45;   // (on the grid: as the formation lap leaves them)
     return true;

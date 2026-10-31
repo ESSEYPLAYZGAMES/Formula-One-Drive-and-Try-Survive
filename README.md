@@ -69,7 +69,7 @@ src/world/Landmarks.js     Landmark Intercept Engine: 25 name-matched procedural
                            footprint is missing from the export)
 src/vehicle/Car.js         car step: four wheels, aero/slipstream, diff, damage, barriers, crash rigid body
 src/vehicle/Chassis.js     sprung body (heave/pitch/roll), load-sensitive tyres, road under each wheel, grip fit
-src/vehicle/Tyres.js       compounds, distance-scaled wear with 70 % cliff, temperature
+src/vehicle/Tyres.js       compounds, wear set in lap time with a 70 % cliff, work-driven temperature
 src/vehicle/CarMesh.js     the F1 car: the model's parts per car, wheels, DRS, damage, punctures, split, distance states
 src/vehicle/CarModel.js    the car model (assets/car): its parts at five levels of detail, loaded once and shared
 src/vehicle/Livery.js      team liveries painted from where a point is on the car (layers, wordmarks), designs
@@ -425,6 +425,27 @@ sample (`track.aiV`, `track.aiB`).
   the driver's own 95.5-96.9; in full races fastest laps 95.0-96.5 s, the median best 98.5-100.8 s, spins (20 against
   19.3), solo spins (7 against 7) and damaging hits (57 against 57) as without it.
 
+* Silverstone, from the driver's own laps (8 laps, flashbacks and two trips down the pit lane in them): the composite
+  88.25 s; its first pass took the AI's solo lap at Legend to 90.0-90.3 s and is written at half of it, `pack` as
+  Austin's (the second pass, up to 1.45 x at Maggotts, was not clean and was undone). The composite now takes a section
+  from a lap only if it was on the road all the way through it (every sample, not only the stretches marked off) and in
+  a time a car can take (a flashback once left a section 0.02 s long), and a section no lap went through cleanly comes
+  from the export's reference lap - it had come from a lap through the pit lane, 101 m off the centreline. Full 8-lap
+  races there: the field's median best 92.8-93.4 s against 93.5-95.6 s before, no retirements in three. Where the AI
+  was slowest against the driver - Maggotts and Becketts at ~215 km/h against ~305 - is its line (radii of 109-116 m
+  against 125-132) and its planning margins in a corner held by downforce (8 % of grip and 10 % of downforce cost ~23 %
+  of the speed there); the driver's line could not be lent there (the composite joins two laps inside it, with a kink).
+* Two calibration keys the fits do not write and keep: `lineFrom: [[sA, sB]]` - stretches of the AI's line taken from
+  the driver's (`show`), blended in and out over 40 m (main.js makeRacingLine; Austin's Turn 11: the AI's line swung
+  wide and went deep into a V, 13 m across at 56 km/h, the driver's rounder one carried 70-80, a second a lap); and a
+  corner's `race: { v, b, win }` - factors driven always, in traffic and on the opening lap too, where a `pack`
+  calibration is not (Austin's Turn 11 at 0.92 over [-45, 70] m: in races the field ran wide out of it, 30-70 m past
+  the apex, 1.5-9 m beyond the line - 53 such offs in a 5-lap race, 32 after, and half as far).
+* Calibrations come from dry laps: on a wet track they fade out (gone by 0.45 wetness, AIDriver), and the AI keeps more
+  in hand on the brakes at speed in the wet (from 160 km/h, all of it by 290: 15 % of the stop and a rear that
+  trail-brakes inside 0.8 - 0.3 x wetness of its grip - Planner.brakeA). In 8-lap wet races at Silverstone that took
+  the spins from 15-65 to 11-16 at the same pace.
+
 Both need Playwright and a Chromium (the scripts find `/opt/pw-browsers`, or set `CHROME`). After a fit, rebuild the
 game (`tools/bundle.py`, or `tools/splice_artifact.py <commit>` for the published Artifact, which carries changes of
 its own that a rebuild from src/ would lose).
@@ -494,22 +515,45 @@ straights from 270 km/h, and lower down only to attack or defend on a straight w
 (lock-ups, running wide, rare snaps) are rolled once per corner from rating, tyres and pressure. Spun or stuck cars
 stop, wait 2 s and are put back on the track.
 
-Strategy (`AIDriver.planRace / strategy`): every AI car gets a race plan on the grid. *Standard* stops near the cliff
-and sometimes covers a rival's stop; *early* (the undercut) starts on softs, stops at about half wear and usually
-covers; *long* (the overcut) starts on mediums or hards, runs to the cliff and ignores rivals; *gamble* - mostly the
-back of the grid - starts on hards and stays out as long as it can, waiting for a safety car, and stops under one
-whatever its tyres. A car just ahead or behind (within 2.5 s) turning into the pit lane may be covered at once. Pit
-calls look ahead (boxing at this entry if the tyres would pass the plan's wear before the next one; a front wing that
-has lost real downforce is changed), and after every stop the plan is made again for the next stint. Under the safety
-car a stop costs a fraction of one at racing speed, and it is taken when it is one the car has to make before the flag
-anyway - the mandatory stop not made yet, or tyres that will not last (their wear now and the wear of the last lap
-against the plan's limit) - or when the tyres are past their best with the laps left to use new ones, unless the car
-runs in the top three on tyres that will last (the track position is worth more); under the VSC (it saves less, and
-ends any moment) only for a stop it has to make. A stop called for the safety car's sake is called off if the race is
-green again 250 m or more before the pit entry (a stop the car needs is called again when its tyres say so). With two
-laps or less to go a stop for tyres is never made unless they are finished
-(it cannot pay back), and a short race's tyres last it - a 3-lap race's softs are near the cliff at the flag, not two
-laps before it - so nobody stops in a sprint.
+Tyres (`vehicle/Tyres.js`): a soft reaches its cliff (70 % wear) at half the race distance, a medium at 75 %, a hard
+at 110 % - a hard can run a race through - at the AI's rate of wear (a driver who slides less makes a set last longer).
+Wear is set in lap time: each lap of normal wear costs a soft a second, a medium 0.75 s, a hard 0.5 s, as stated in a
+race of up to ten laps (a longer race's tyres last longer and lose what a ten-lap race's do at their cliff, 5-5.6 s,
+over more laps); past the cliff each lap costs from one to six times that as the tyre goes, and it is twitchier. The
+seconds become grip through how a lap answers grip, measured on the AI (Silverstone, 91.35 s: 5 % less grip +2.2 s,
+10 % +5.1 s, 15 % +8.1 s). Temperature chases a target set by the last ~12 s of the tyre's work (the load past 0.4,
+squared, and real sliding) - quickly up, slowly down: a soft is in its window ~40 s off the blankets, a medium ~55 s,
+a hard ~2 minutes (a push brings it in sooner); racing it stays there, a little lower down a long straight; behind the
+safety car the field falls to ~0.6 in two minutes unless it weaves (the AI weaves on the straights, in its steering,
+with nobody alongside), which holds it at 0.9 or more - a hard holds its heat best. Cold, a tyre is down by up to 13 %
+grip (a hard's out-lap 3-5 s, a soft's a second or so) and a little twitchy; the grid starts as the formation lap
+leaves it (a soft at 0.8, a hard at 0.6). A rain tyre wears as a slick does in the dry until the track is drier than
+it is made for (an inter below 0.3 wetness, a full wet below 0.6). The fit was made over every car's recorded inputs
+(a temperature that only heated with work and cooled to the track could not have a soft warm in half a lap and still
+cool behind a safety car).
+
+Strategy (`AIDriver.planRace / strategy`): every AI car gets a race plan on the grid. *Standard* stops short of the
+cliff (60-68 % wear); *early* (the undercut) starts on softs and stops at about half wear; *long* (the overcut) starts
+on mediums or hards and runs to the cliff's edge; *gamble* - mostly the back of the grid - starts on hards, runs as long
+as the race waiting for a safety car, stops under one at once, and without one makes the mandatory stop (8+ laps) on
+the last lap. The undercut is worked out: the car just ahead within 3 s on as many stops - what a stop now gains on it
+once it has stopped too (its in-lap on the old set against my out-lap on a cold new one, then its out-lap on a cold set
+against my second lap: with the same new set the warm-ups cancel and what is left is its old set's loss and the
+compounds' pace) against the gap and the plan's margin (early 0.35 s, standard 0.7, long 1.6, the gambler never), with
+the car in its window, a new set that reaches the flag or a race that wants another stop anyway, and no car on its old
+set where it would rejoin. A car just behind that turns into the pit lane is covered when its undercut adds up the same
+way and the plan covers (early nearly always, long rarely); a rival ahead stopping is no threat. Pit calls look ahead
+(boxing at this entry if the tyres would pass the plan's wear before the next one; a front wing that has lost real
+downforce is changed - repairs are decided in the box, by what the car needs then), the new set is the softest that
+reaches the flag (a different one from the first stint's where it can be), and after every stop the plan is made again
+for the next stint. Under the safety car a stop costs a fraction of one at racing speed, and it is taken when it is one
+the car has to make before the flag anyway - the mandatory stop not made yet, or a set that has done real work and will
+clearly not last (its wear now and the wear of the last lap against the plan's limit) - or when the tyres are past
+their best with the laps left to use new ones, unless the car runs in the top three on tyres that will last; under the
+VSC only for a stop it has to make; and once per neutralisation (`SafetyCar.neutralT` - it used to read its new set as
+"won't last, a new one would" and come in two or three times under one). A stop called for the safety car's sake is
+called off if the race is green again 250 m or more before the pit entry. With two laps or less to go a stop for tyres
+is never made unless they are finished.
 
 ### Car: real dimensions, four wheels, suspension
 
@@ -993,9 +1037,11 @@ grid (`Career.savedGrid`, cleared when the round is raced): come back to the rou
 
 Before every race (after qualifying, or straight from the grid choice) the strategy screen (`ui/Strategy.js`).
 `planRace` times every no-stop, one-stop and two-stop plan lap by lap on the cars' own tyre model (each compound's
-life for this race distance from `Tyres.js`, the grip lost as it wears, the cliff, a lap to warm a new set), with
+life for this race distance from `Tyres.js`, its pace, the seconds it loses as it wears, the cliff's ramp, and the cold
+out-lap on a new set - the first stint's as the formation lap leaves it), with
 this circuit's pit-lane time loss (the lane's length at the limiter against the same distance at race pace, plus the
-stop). It applies the rule that a dry race of 12 laps or more uses two dry compounds, and offers three plans: A, the
+stop). It applies the rules that a race of 8 laps or more has a stop (30 s at the flag without one) and a dry race of 12
+laps or more uses two dry compounds, and offers three plans: A, the
 quickest; B, the quickest with a different number of stops; C, the quickest on a different starting tyre. Each card
 shows the stints as a bar in the compounds' colours, the box laps, the predicted race time against A, and a warning
 if a stint runs to the edge of its tyre; the first stop's lap can be moved. The engineer gives their view, and the

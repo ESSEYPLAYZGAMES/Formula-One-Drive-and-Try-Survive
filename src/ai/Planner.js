@@ -121,6 +121,7 @@ export class Planner {
       const s = ctx.s0 + i * DS; tr.sample(s, 0, f);
       const ci = tr.idxAtS(s), w = ctx.calW ?? 1;   // (calW: AIDriver - a calibration fitted solo, eased off in the pack)
       cV[i] = !aV ? 1 : w === 1 ? aV[ci] : 1 + (aV[ci] - 1) * w; cB[i] = !aB ? 1 : w === 1 ? aB[ci] : 1 + (aB[ci] - 1) * w;
+      if (tr.aiVr) { cV[i] *= tr.aiVr[ci]; cB[i] *= tr.aiBr[ci]; }   // (a corner's race factors: always - ai/Calibration.js)
       N.cx[i] = f.x; N.cz[i] = f.z; const idx = tr.idxAtS(s); N.nx[i] = f.nx; N.nz[i] = f.nz;
       N.dl[i] = line.offsetAt(s); N.lk[i] = line.lineCurv[idx]; N.wd[i] = tr.hwL ? tr.hwL[idx] - tr.halfWidth : 0; N.wdR[i] = tr.hwR ? tr.hwR[idx] - tr.halfWidth : 0;   // (how much wider the road is there, left and right)
       X[i] = f.x + N.nx[i] * N.dl[i]; Z[i] = f.z + N.nz[i] * N.dl[i];
@@ -136,14 +137,15 @@ export class Planner {
   }
   /** braking available at speed v while cornering at curvature k (friction circle, the rear axle's trail-brake limit, drag) */
   brakeA(v, k, g, cal = 1) {
-    const aMax = Math.min(BRAKE_A, g.mu * (G + g.dfm * v * v)) * g.brake * cal;
+    const wk = g.wetB || g.wetM ? Math.max(0, Math.min(1, (v - 45) / 35)) : 0;   // (the wet's margin, ramped in from 45 m/s to 80: AIDriver.gripState)
+    const aMax = Math.min(BRAKE_A, g.mu * (G + g.dfm * v * v)) * g.brake * cal * (1 - (g.wetB || 0) * wk);
     const aLat = v * v * Math.abs(k), circle = Math.sqrt(Math.max(0.12 * aMax * aMax, aMax * aMax - aLat * aLat));
     const ax = this.line.grip.axle; if (!ax) return circle + DRAG_M * v * v;
     const load = Math.min(1, 2 * aLat / (g.mu * (G + g.dfm * v * v)));
     if (load <= 0) return circle + DRAG_M * v * v;
     // the rear axle at 80 % of its grip with the cornering it does (RacingLine.rearBrakeLimit, solved in closed form:
     // (rearBrake a)^2 + (rearStatic aLat)^2 = (M (fz - transfer a))^2 is a quadratic in a)
-    const M = 0.8 * g.mu, fz = ax.rearStatic * G + ax.dfRear * v * v / CAR.mass, tr = ax.transfer, rb = ax.rearBrake, rl = ax.rearStatic * aLat;
+    const M = (0.8 - (g.wetM || 0) * wk) * g.mu, fz = ax.rearStatic * G + ax.dfRear * v * v / CAR.mass, tr = ax.transfer, rb = ax.rearBrake, rl = ax.rearStatic * aLat;
     const A = rb * rb - M * M * tr * tr, B = 2 * M * M * fz * tr, C = rl * rl - M * M * fz * fz, disc = B * B - 4 * A * C;
     const rear = C >= 0 ? 0 : disc > 0 ? (-B + Math.sqrt(disc)) / (2 * A) : 0;
     return circle + (Math.min(circle, rear) - circle) * load + DRAG_M * v * v;

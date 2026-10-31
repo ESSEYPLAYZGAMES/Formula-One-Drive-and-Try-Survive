@@ -126,7 +126,8 @@ export class TyreSet {
     const rain = this.spec.wetGrip > 0.9, s = Math.min(1.5, slip), l = Math.min(3, load), H = HEAT;
     const w = Math.max(0, l - H.l0) ** 2 + Math.max(0, s - H.slip0);
     this.work += (w - this.work) * Math.min(1, dt / H.tau);
-    const tgt = 0.2 + H.gain * (this.work / H.ref) * (1 - (rain ? 0.1 : 0.45) * wetness);
+    // (a rain tyre is made to work at the lower loads of a wet track: in the wet it reaches its window on less work)
+    const tgt = 0.2 + H.gain * (this.work / (rain ? H.ref * (1 - 0.5 * wetness) : H.ref)) * (rain ? 1 : 1 - 0.45 * wetness);
     const k = tgt > this.temp ? this.spec.warm * H.up : this.spec.cool * H.down * (1 + (rain ? 0.3 : 1.2) * wetness);
     this.temp = Math.max(0, Math.min(1, this.temp + (tgt - this.temp) * Math.min(1, k * dt)));
   }

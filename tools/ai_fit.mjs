@@ -116,8 +116,15 @@ function ownLaps(file) {
   return (J.laps || []).filter((l) => l.time && l.samples?.d?.length > 50 && l.samples.x).map((l) => ({ label: `${path.basename(file)} lap ${l.n} (${l.time}s${l.flags?.length ? `, ${l.flags.join(', ')}` : ''})`,
     S: Object.fromEntries(['t', 'd', 'x', 'z', 'v', 'thr', 'brk'].map((k) => [k, l.samples[k]])) }));
 }
+/** the export's reference lap (the session's fastest clean AI lap): the fallback for a section no lap of the driver's
+ *  went through cleanly (on the road all the way, no flashback, a time that is possible) */
+function ownRef(file) {
+  let J; try { J = JSON.parse(fs.readFileSync(file, 'utf8')); } catch (e) { return null; }
+  const r = J?.reference?.samples; if (J?.track?.id !== track || !r?.d?.length || !r.lat) return null;
+  return { label: `the reference lap (${J.reference.label || 'AI'}, ${J.reference.time}s)`, S: { t: r.t, d: r.d, v: r.v, thr: r.thr || r.d.map(() => 0), brk: r.brk || r.d.map(() => 0), lat: r.lat } };
+}
 /** (in the game) the one lap out of all of them, its line and its speeds every `every` m - see the head of this file */
-function composite({ laps, every, lam }) {
+function composite({ laps, every, lam, ref }) {
   const F = window.__F1, tr = F.W.track, L = tr.length, n = Math.round(L / every), q = {}, prof = F.W.profile;
   const wrap = (s) => ((s % L) + L) % L;
   const interp = (D, V, x) => { let lo = 0, hi = D.length - 1; if (x <= D[0]) return V[0]; if (x >= D[hi]) return V[hi]; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (D[m] <= x) lo = m; else hi = m; } const f = (x - D[lo]) / ((D[hi] - D[lo]) || 1); return V[lo] + (V[hi] - V[lo]) * f; };
@@ -128,13 +135,16 @@ function composite({ laps, every, lam }) {
       keep.push(i);
     }
     const c = {}; for (const k of Object.keys(S)) c[k] = keep.map((i) => S[k][i]);
-    c.off = []; let hint = -1;
+    c.off = []; c.over = []; let hint = -1;
     for (let i = 0; i < c.d.length; i++) {
       tr.nearest(c.x[i], c.z[i], hint, q); hint = q.i; c.off.push(q.d);
-      if (Math.abs(q.d) - tr.edgeAt(q.i, Math.sign(q.d) || 1) - tr.kerbWidth > 1.5) bad.push([c.d[i] - 60, c.d[i] + 30]);
+      const over = Math.abs(q.d) - tr.edgeAt(q.i, Math.sign(q.d) || 1) - tr.kerbWidth; c.over.push(over);
+      if (over > 1.5) bad.push([c.d[i] - 60, c.d[i] + 30]);
     }
     return { label: lap.label, c, bad };
   });
+  // (the reference lap, if the export has one: only ever the fallback - its line is its lateral offset channel)
+  if (ref) { const c = { ...ref.S, off: ref.S.lat, over: ref.S.d.map(() => 0) }; per.push({ label: ref.label, c, bad: [], ref: true }); }
   // the sections: cut where the speed profile peaks between two corners
   const cs = tr.def.corners.filter((k) => k.s != null).map((k) => k.s).sort((a, b) => a - b), B = [];
   for (let j = 0; j < cs.length; j++) {
@@ -148,8 +158,14 @@ function composite({ laps, every, lam }) {
   const secT = (c, a, b) => (b <= L ? tAt(c, b) - tAt(c, a) : (tAt(c, L) - tAt(c, a)) + (tAt(c, b - L) - tAt(c, 0)));
   const overlaps = (bad, a, b) => bad.some(([x0, x1]) => (x0 < b && x1 > a) || (b > L && x0 < b - L));
   const pick = secs.map(([a, b]) => {
-    const opts = per.map((p, k) => ({ k, t: secT(p.c, a, b), ok: !overlaps(p.bad, a, b) && p.c.d[0] <= Math.max(0, a) + 15 && p.c.d[p.c.d.length - 1] >= Math.min(L, b) - 15 }));
-    const ok = opts.filter((o) => o.ok), o = (ok.length ? ok : opts).reduce((x, y) => (y.t < x.t ? y : x));
+    // (a pass counts when it was on the road all the way through - every sample, not only the marked stretches - took a
+    //  time a car can take (a flashback can leave a section 0.02 s long) and covers it; the reference only when none does)
+    const inSec = (c, i) => { const x = c.d[i]; return b <= L ? x >= a && x < b : x >= a || x < b - L; };
+    const clean = (p) => { for (let i = 0; i < p.c.d.length; i++) if (inSec(p.c, i) && p.c.over[i] > 1.5) return false; return true; };
+    const opts = per.map((p, k) => ({ k, ref: !!p.ref, t: secT(p.c, a, b), ok: !p.ref && !overlaps(p.bad, a, b) && clean(p) && p.c.d[0] <= Math.max(0, a) + 15 && p.c.d[p.c.d.length - 1] >= Math.min(L, b) - 15 }));
+    for (const o of opts) if (!(o.t > (b - a) / 95)) o.ok = false;
+    const ok = opts.filter((o) => o.ok), rf = opts.find((o) => o.ref);
+    const o = ok.length ? ok.reduce((x, y) => (y.t < x.t ? y : x)) : rf || opts.reduce((x, y) => (y.t < x.t ? y : x));
     return { k: o.k, t: o.t, clean: !!ok.length };
   });
   // every bin from its section's lap, blended over 30 m either side of a join
@@ -181,8 +197,9 @@ if (own.length && own.every(Boolean)) {
   const laps = own.flat(), EVERY = 2;
   console.log(`[fit] ${laps.length} lap(s) of the game's own car on ${track}: the lap mode`);
   const G = await openGame(track);
-  const R = await G.page.evaluate(composite, { laps, every: EVERY, lam: opt('lambda', 12) });
-  for (const sc of R.secs) console.log(`[fit]   ${String(sc.a).padStart(5)}-${String(sc.b).padEnd(5)} ${sc.t.toFixed(2).padStart(6)} s  ${sc.lap}${sc.clean ? '' : '  (no clean pass: the fastest)'}`);
+  const ref = files.map(ownRef).find(Boolean) || null;
+  const R = await G.page.evaluate(composite, { laps, every: EVERY, lam: opt('lambda', 12), ref });
+  for (const sc of R.secs) console.log(`[fit]   ${String(sc.a).padStart(5)}-${String(sc.b).padEnd(5)} ${sc.t.toFixed(2).padStart(6)} s  ${sc.lap}${sc.clean ? '' : '  (no clean pass: the reference lap)'}`);
   console.log(`[fit] the lap: ${R.time.toFixed(2)} s from its speeds; the line ${Math.max(...R.line.map(Math.abs)).toFixed(1)} m off the centreline at the widest`);
   const bins = R.kmh.map((_, k) => k * EVERY);
   LAP = { G, show: { every: EVERY, d: R.line, kmh: R.kmh }, T: [{ label: `the composite of ${laps.length} laps (${R.time.toFixed(2)} s)`, d: bins, v: R.kmh, b: R.brk, hasBrake: true, own: true, track }] };
