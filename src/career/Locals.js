@@ -62,11 +62,16 @@ const HOME = ['London', 'Manchester', 'Paris', 'Barcelona', 'Berlin', 'Amsterdam
 const DATES = ['beach', 'concert', 'cooking', 'dinner', 'gala', 'gallery', 'karting', 'rooftop'];
 const LIKES = ['romantic', 'kind', 'funny', 'confident', 'adventurous', 'humble', 'winner'];
 const DISLIKES = ['arrogant', 'neglect', 'cruel', 'showoff', 'scandal'];
-// (her personality - career/Persona.js's eight; the ids only, so this stays a pure function with no imports)
+// (her personality - career/Persona.js's; the ids only, so this stays a pure function with no imports. The eight are
+// drawn as they always were - the rest of her is drawn after, so nobody's face or wardrobe moves - and then about one
+// in seven turns out to be the Fling (out for a good night and nothing that needs managing), by a draw of its own)
 const PERSONA_IDS = ['spark', 'ice', 'sunny', 'flirtatious', 'emotional', 'rude', 'dominant', 'shy'];
-const VIBE = { spark: 'Bubbly, playful and impulsive; a dare in everything, a laugh you hear across the room', ice: 'Cool, sharp and guarded; says less than she thinks and notices everything', sunny: 'Warm, sincere and a little dorky; easy company, blushes easily',
+const FLING_IN = 15;   // (percent)
+const hash = (s) => { let h = 2166136261; for (const ch of String(s)) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; };
+export const VIBE = { spark: 'Bubbly, playful and impulsive; a dare in everything, a laugh you hear across the room', ice: 'Cool, sharp and guarded; says less than she thinks and notices everything', sunny: 'Warm, sincere and a little dorky; easy company, blushes easily',
   flirtatious: 'Seductive, bold and sultry; turns everything into a flirt', emotional: 'Sensitive, romantic and tender; feels everything at full volume', rude: 'Blunt, sarcastic and hard to impress; secretly soft',
-  dominant: 'Commanding, assertive and competitive; takes charge of every room', shy: 'Quiet, gentle and nervous; braver over text than in person' };
+  dominant: 'Commanding, assertive and competitive; takes charge of every room', shy: 'Quiet, gentle and nervous; braver over text than in person',
+  fling: 'Fun, flirty and allergic to anything serious; all in tonight, unreachable by Tuesday' };
 // (looks: skin tones light to deep; hair colours as people have them; the styles World/People builds)
 const SKIN = ['#f6dcc8', '#f2d3bd', '#eac4a8', '#e0b08c', '#d29c74', '#c08660', '#a8704a', '#8d5a3a', '#6e4329', '#57341f', '#45291a'];
 const HAIR_LIGHT = ['#e8d3a6', '#d9b77a', '#c9a066', '#b2824d', '#8a5a33', '#6a4428', '#4a2f1c', '#2b1d14', '#161012', '#8a3b1c', '#a64b24'];
@@ -94,11 +99,11 @@ export const localId = (seed) => `l-${(seed >>> 0).toString(36)}`;
 export const isLocalId = (id) => /^l-[0-9a-z]+$/.test(String(id || ''));
 const seedOf = (id) => parseInt(String(id).slice(2), 36) >>> 0;
 
-/** the person for an id (or a seed): the stars' shape (career/Celebs.js), plus local: true and her persona */
+/** the person for an id (or a seed): the stars' shape (career/Celebs.js), plus local: true, her persona and persona0 (the one of the eight she would have been before the Fling: what a save from before keeps for her) */
 export function makeLocal(idOrSeed) {
   const seed = typeof idOrSeed === 'number' ? idOrSeed >>> 0 : seedOf(idOrSeed), id = localId(seed), R = POOL(seed);
   const name = `${pk(R, FIRST)} ${pk(R, LAST)}`, [job, work] = pk(R, JOBS), from = pk(R, FROM), home = pk(R, HOME), age = 23 + ((R() * 14) | 0), hobby = pk(R, HOBBY);
-  const persona = PERSONA_IDS[(R() * PERSONA_IDS.length) | 0];
+  const persona0 = PERSONA_IDS[(R() * PERSONA_IDS.length) | 0], persona = hash(`fling|${seed}`) % 100 < FLING_IN ? 'fling' : persona0;
   const deep = R() < 0.35, skin = deep ? pk(R, SKIN.slice(6)) : pk(R, SKIN.slice(0, 8)), hair = deep ? pk(R, HAIR_DEEP) : pk(R, HAIR_LIGHT), hs = deep && R() < 0.6 ? pk(R, HS_CURLY) : pk(R, HS);
   const [col, acc] = pk(R, PAL), [col2, acc2] = pk(R, PAL), legs = () => pk(R, LEGS);
   const likes = [...new Set([pk(R, LIKES), pk(R, LIKES), pk(R, LIKES)])], dislikes = [...new Set([pk(R, DISLIKES), pk(R, DISLIKES)])].filter((d) => !(d === 'arrogant' && likes.includes('confident') && R() < 0.5));
@@ -117,9 +122,11 @@ export function makeLocal(idOrSeed) {
     pool: [cfit(pk(R, POOLW), col, acc, null, ['shades'], acc), cfit('meshcover', col2, acc2, null, ['sunhat'], acc2)],
   };
   const traits = { likes, dislikes, jealousy: 0.2 + R() * 0.5, privacy: 0.2 + R() * 0.5, drama: 0.1 + R() * 0.5, free: R() < 0.2 ? 0.3 + R() * 0.3 : 0, wreck: R() < 0.15 ? 0.2 + R() * 0.3 : 0 };
+  // (the Fling: she never expects to be the only one and never wants to be - a free spirit, no trouble-maker)
+  if (persona === 'fling') Object.assign(traits, { free: Math.max(traits.free, 0.65), jealousy: Math.min(traits.jealousy, 0.3), wreck: 0 });
   const look = { skin, hair, hs, kit: wear.grid.kit, outfit: col, accent: acc, legs: wear.grid.legs, pose: pk(R, ['talk', 'hips', 'cross', 'pose']), len: 0.9 + R() * 0.1, wid: 0.88 + R() * 0.1, jaw: 0.2 + R() * 0.2 };
   return {
-    id, name, job, from, home, age, fame: 6 + ((R() * 20) | 0), often: [], local: true, persona, vibe: VIBE[persona],
+    id, name, job, from, home, age, fame: 6 + ((R() * 20) | 0), often: [], local: true, persona, persona0, vibe: VIBE[persona],
     bio: `${job} from ${from}, living in ${home}. Spends her free time on ${hobby}.`,
     work, hobby, fav, favLine: 'She says it is exactly her kind of evening.', meh, mehLine: 'She is polite about it. Mostly.', traits, look, wear,
   };

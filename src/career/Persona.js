@@ -1,14 +1,16 @@
-// Who they are, and where you left things. Everyone you can date has one of eight personalities - Playful, Aloof,
-// Sweet, Flirtatious, Emotional, Rude, Dominant, Shy - each with its own conversations and texts (career/talk/<id>.js:
-// written as trees, nothing shared between them). Every answer you give has a tone - cold, passive, flirty and, now and
-// then, risque - and where you steer a conversation is the mood it ends in; the next one, in person or on the phone,
-// opens in that mood: leave it flirty and they come back flirting, leave it cold and you have some ground to make up.
+// Who they are, and where you left things. Everyone you can date has one of nine personalities - Playful, Aloof,
+// Sweet, Flirtatious, Emotional, Rude, Dominant, Shy and the Fling (out for a good night, never for anything serious:
+// career/Celebs.js keeps her from ever becoming your partner) - each with its own conversations and texts (career/
+// talk/<id>.js: written as trees, nothing shared between them). Every answer you give has a tone - cold, passive,
+// flirty and, now and then, risque - and where you steer a conversation is the mood it ends in; the next one, in
+// person or on the phone, opens in that mood: leave it flirty and they come back flirting, leave it cold and you have
+// some ground to make up.
 // It is a story told in order: at each stage of where you are with them (just met, getting closer, together) every
 // conversation is the next one of that stage's nine, and every text the next of its kind - the mood you left them in
 // picks which version of it you get - so nothing is ever said twice and nothing comes before what it builds on (only
 // once a stage's are all told does the least recent come round again). The state is plain JSON on the career
-// (c.persona.npcs['c:<id>'] - a star's id, or a local's 'l-...' (career/Locals.js): the personality, the mood, how far
-// the story has got); the callers save.
+// (c.persona.npcs['c:<id>'] - a star's id, a local's 'l-...' (career/Locals.js) or one of the paddock's 'k-...'
+// (career/Paddock.js): the personality, the mood, how far the story has got); the callers save.
 import { CELEB } from './Celebs.js';
 import { PERSONA as spark } from './talk/spark.js';
 import { PERSONA as ice } from './talk/ice.js';
@@ -18,6 +20,7 @@ import { PERSONA as emotional } from './talk/emotional.js';
 import { PERSONA as rude } from './talk/rude.js';
 import { PERSONA as dominant } from './talk/dominant.js';
 import { PERSONA as shy } from './talk/shy.js';
+import { PERSONA as fling } from './talk/fling.js';
 
 export const PERSONAS = {
   spark: { id: 'spark', name: 'Playful', blurb: 'Bubbly, playful, impulsive, teasing. Loves a flirt and a dare; coldness stings.', data: spark },
@@ -28,13 +31,18 @@ export const PERSONAS = {
   rude: { id: 'rude', name: 'Rude', blurb: 'Blunt, sarcastic, mocking, hard to impress. Give it back and they respect you; secretly soft.', data: rude },
   dominant: { id: 'dominant', name: 'Dominant', blurb: 'Commanding, assertive, competitive, protective. Takes the lead; respects someone who pushes back.', data: dominant },
   shy: { id: 'shy', name: 'Shy', blurb: 'Quiet, nervous, awkward, gentle. Flirting overwhelms and delights them; braver over text.', data: shy },
+  // (casual: never anyone's partner - Celebs.js turns the question down - and hot then cold on the phone, below)
+  fling: { id: 'fling', name: 'Fling', blurb: 'Fun, flirty, late-night, allergic to serious. Hot then cold; wants the night, never the relationship.', data: fling, casual: true },
 };
 export const PERSONA_IDS = Object.keys(PERSONAS);
+/** a personality that never commits (the Fling): they date, they never become your partner */
+export const isCasual = (p) => !!PERSONAS[p]?.casual;
 export const MOODS = ['cold', 'passive', 'flirty'];
 export const TONE_TAG = { cold: 'COLD', passive: 'PASSIVE', flirty: 'FLIRTY', risque: 'RISQUÉ' };
-// (the twelve stars, by who each of them is - career/Celebs.js's vibe)
+// (the twelve stars, by who each of them is - career/Celebs.js's vibe; Jade Okafor, the DJ who is always out and never
+// anyone's, is the Fling - her own def says so, persona: 'fling', and a save that met her before keeps the Playful one)
 const CELEB_PERSONA = {
-  'jade-okafor': 'spark', 'ava-rennick': 'spark', 'tessa-kealoha': 'spark', 'sasha-ivers': 'ice', 'noor-haddad': 'ice', 'maya-lindqvist': 'sunny', 'zoe-hartley': 'sunny',
+  'ava-rennick': 'spark', 'tessa-kealoha': 'spark', 'sasha-ivers': 'ice', 'noor-haddad': 'ice', 'maya-lindqvist': 'sunny', 'zoe-hartley': 'sunny',
   'mira-vale': 'emotional', 'lena-marsh': 'rude', 'clara-voss': 'dominant', 'elena-marchetti': 'flirtatious', 'priya-raman': 'shy',
 };
 // how each personality takes a tone, by stage [new, warm, close] (the affinity an answer is worth when the line itself
@@ -48,6 +56,8 @@ const TAKE = {
   rude: { cold: [2, 1, 0], passive: [-1, -1, -1], flirty: [-1, 1, 3], risque: [0, 0, 3] },
   dominant: { cold: [1, 0, -2], passive: [1, 1, 1], flirty: [2, 2, 3], risque: [1, 3, 4] },
   shy: { cold: [-4, -4, -4], passive: [2, 2, 2], flirty: [1, 2, 3], risque: [-1, -1, 2] },
+  // (coldness rolls off them, a sensible answer bores them a little once they know you, a flirt always lands)
+  fling: { cold: [-1, -1, -2], passive: [0, 0, -1], flirty: [3, 3, 3], risque: [1, 4, 4] },
 };
 const STAGE_I = { new: 0, warm: 1, close: 2 };
 const TONE_V = { cold: -1, passive: 0, flirty: 1, risque: 2 };
@@ -67,8 +77,8 @@ export function fillPersona(s, T = {}) { return String(s ?? '').replace(/\{(\w+)
 export function personaOf(cid) {
   const s = String(cid || ''), id = s.replace(/^[cn]:/, '');
   if (CELEB_PERSONA[id]) return CELEB_PERSONA[id];
-  if (PERSONAS[CELEB[id]?.persona]) return CELEB[id].persona;   // (someone met on a race night: career/Locals.js)
-  return PERSONA_IDS[hash(`persona|${id}`) % PERSONA_IDS.length];
+  if (PERSONAS[CELEB[id]?.persona]) return CELEB[id].persona;   // (someone met on a race night - career/Locals.js - or in the paddock: Paddock.js)
+  return PERSONA_IDS[hash(`persona|${id}`) % 8];   // (nobody the roster knows: one of the eight that came first, so the draw never moved)
 }
 /** the state kept for one person (made on first sight) */
 export function psOf(c, cid) {
@@ -210,7 +220,21 @@ const HI = {
   flirty: ['I keep thinking about the other night.', 'Tell me you are as bored as I am.', 'Hi trouble. Miss me?'],
 };
 export function personaHello(c, cid) { const s = psOf(c, cid); if (!s) return null; return { key: 'pt:hi', tone: s.mood, text: pickS(HI[s.mood], `${cid}|${s.texts}`) }; }
-/** your hello sent: they answer with the week's next thread (the hello's tone nudges nothing - the mood is the last talk's) */
-export function personaHelloSend(c, cid, T0 = {}) { const t = personaIncoming(c, cid, 'week', T0); return t ? { ok: true, reply: t, more: true } : { ok: false }; }
+/**
+ * your hello sent: they answer with the week's next thread (the hello's tone nudges nothing - the mood is the last
+ * talk's). A Fling runs hot and cold: some weeks your hello is read and left there (read: true, no reply - more often
+ * when you left them anything but flirting; never twice running, and once they have gone quiet on you the week stays
+ * quiet) - they text again when they want a night out -> { ok, reply, more, read }
+ */
+export function personaHelloSend(c, cid, T0 = {}) {
+  const s = psOf(c, cid);
+  if (s && isCasual(s.p)) {
+    const k = rk(c);
+    if (s.onRead === k) return { ok: true, reply: null, read: true };
+    if (s.onRead !== `${k}:no` && s.readLast !== true && hash(`${cid}|read|${k}|${s.texts}`) % 100 < (s.mood === 'flirty' ? 25 : 45)) { s.onRead = k; s.readLast = true; return { ok: true, reply: null, read: true }; }
+    s.onRead = `${k}:no`; s.readLast = false;
+  }
+  const t = personaIncoming(c, cid, 'week', T0); return t ? { ok: true, reply: t, more: true } : { ok: false };
+}
 /** for the phone's list and the hub: the personality's name and the mood you left them in */
 export function personaLabel(c, cid) { const s = c?.persona?.npcs?.[cid]; if (!s) return null; return { name: PERSONAS[s.p]?.name || '', mood: s.mood }; }

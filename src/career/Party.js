@@ -129,7 +129,8 @@
  * =========================================================================================================================
  */
 import { localSeed, isLocalId } from './Locals.js';
-import { CELEB, CELEBS, registerLocal, celebsAtRace, partnerAtRace, bondOf, seeing, meet, flirt, charm, dateResult, relateCeleb, trustCeleb, upsetCeleb, exposure, stageLabel } from './Celebs.js';
+import { CELEB, CELEBS, registerLocal, celebsAtRace, partnerAtRace, bondOf, seeing, meet, flirt, charm, dateResult, relateCeleb, trustCeleb, upsetCeleb, exposure, stageLabel, registerPaddock, paddockOf, brandPerson, celebLook } from './Celebs.js';
+import { isPaddockId, agentPaddockId, makePaddock } from './Paddock.js';
 import { BRAND_BY_ID, fameIndex, prEvent, crisisFrom, offerFrom } from './PR.js';
 import { pushText, relateFriend, meetDriver, friendOf, stageName } from './Social.js';
 import { weekOf, weekGain, setHangover } from './Agenda.js';
@@ -295,8 +296,13 @@ export const REPS = {
 /** the drivers' agents (invented; ui/Negotiation.js seats the same one at the table): each driver has one, by a hash of his id */
 export const AGENTS = [P_('webb', 'Daniel Webb', 'Driver manager', false), P_('marchetti', 'Sofia Marchetti', 'Driver manager', true), P_('kapoor', 'Ravi Kapoor', 'Driver manager', false),
   P_('brooks', 'Hannah Brooks', 'Driver manager', true), P_('ruiz', 'Mateo Ruiz', 'Driver manager', false), P_('dubois', 'Claire Dubois', 'Driver manager', true)]
-  // (dressed for business, her hair up or short: a trouser suit at the table and at a party alike)
-  .map((a) => ({ ...a, look: a.fem ? lookOf(`agent|${a.id}`, true, 'pantsuit', '#1c2a44', '#e8e6e0', { style: { hs: hash(a.id) % 2 ? 'bun' : 'bob', fh: null, lip: true } }) : lookOf(`agent|${a.id}`, false, 'jacket', '#1c2a44', '#e8e6e0') }));
+  // (dressed for business: a trouser suit at the table and at a party alike. The women among them are the paddock's own
+  // people too (career/Paddock.js - you can get to know them, and date them): at the table each looks as she does
+  // everywhere else, her face and her day clothes from her own wardrobe, seated by the meeting room)
+  .map((a) => {
+    const K = a.fem ? makePaddock(agentPaddockId(a.id)) : null, L = K ? (() => { try { const o = celebLook(K, { occasion: 'grid', detail: 0.75 }); delete o.pose; return o; } catch (e) { return null; } })() : null;
+    return { ...a, paddock: K ? K.id : null, look: L || (a.fem ? lookOf(`agent|${a.id}`, true, 'pantsuit', '#1c2a44', '#e8e6e0', { style: { hs: hash(a.id) % 2 ? 'bun' : 'bob', fh: null, lip: true } }) : lookOf(`agent|${a.id}`, false, 'jacket', '#1c2a44', '#e8e6e0')) };
+  });
 /** a driver's agent (the same one in a contract talk and at a party) -> { id, name, title, fem, look } */
 export function agentFor(did) { return AGENTS[hash(`agent|${did}`) % AGENTS.length]; }
 const DIARIST = P_('kemble', 'Rosie Kemble', "The Paddock Post's diary columnist", true);
@@ -462,9 +468,15 @@ const agentG = (c, S, R) => {
   const by = {}; for (const d of ds) { const a = agentFor(d.id).id; (by[a] = by[a] || []).push(d); }
   const ranked = AGENTS.filter((a) => by[a.id]?.length).map((a) => ({ a, v: Math.max(...by[a.id].map(score)) + R() * 0.2 })).sort((x, y) => y.v - x.v);
   const A = ranked[0]?.a; if (!A) return null;
-  const clients = by[A.id].sort((x, y) => score(y) - score(x)).map((d) => d.id), top = c.drivers[clients[0]];
-  return personG(`p:agent:${A.id}`, A.name, 'agent', smartLook(`agent|${A.id}`, A.fem, { style: A.look.style }), `Driver manager · looks after ${last(top?.name)}${clients.length > 1 ? ` and ${clients.length - 1} more` : ''}`, { clients });
+  const clients = by[A.id].sort((x, y) => score(y) - score(x)).map((d) => d.id), top = c.drivers[clients[0]], why = `Driver manager · looks after ${last(top?.name)}${clients.length > 1 ? ` and ${clients.length - 1} more` : ''}`;
+  // (one of the women among them: she comes as herself - someone you can get to know, flirt with and date - and the
+  //  networking counts all the same: partyResult reads her clients from the guest)
+  const K = A.paddock && registerPaddock(c, A.paddock);
+  if (K && !c.celebs?.bonds?.[K.id]?.grieving) return { ...celebG(c, S, K.id, 'celeb', { why }), clients };
+  return personG(`p:agent:${A.id}`, A.name, 'agent', smartLook(`agent|${A.id}`, A.fem, { style: A.look.style }), why, { clients });
 };
+/** one of the paddock's own people (career/Paddock.js) on the night's list, as a star or a local is: someone you can get to know -> guest | null */
+const paddockG = (c, S, id, why = '') => { const K = id && registerPaddock(c, id); return K && !c.celebs?.bonds?.[K.id]?.grieving ? celebG(c, S, K.id, 'celeb', { why: why || `${K.job} · ${K.org}` }) : null; };
 /**
  * The night's guest list -> { principals (8 at most, ranked), present (2 at most), staff, reserved, drama }. The club:
  * your partner, your team-mate, the host brand's rep, the stars (those at the race topped up to four by those often
@@ -492,7 +504,7 @@ function guestsFor(c, S, O) {
     stars.forEach((id, i) => put([85, 72, 55, 40][i] ?? 30, celebG(c, S, id, S.exes.includes(id) ? 'ex' : 'celeb')));
     // (and people who are not famous at all (career/Locals.js): two out tonight with friends - anyone could be someone -
     //  and now and then one you have met before, out again)
-    const metL = Object.keys(B).filter((id) => isLocalId(id) && CELEB[id] && !['stranger', 'ex'].includes(B[id].stage) && !B[id].grieving && id !== S.partner).sort(() => R() - 0.5);
+    const metL = Object.keys(B).filter((id) => (isLocalId(id) || isPaddockId(id)) && CELEB[id] && !['stranger', 'ex'].includes(B[id].stage) && !B[id].grieving && id !== S.partner).sort(() => R() - 0.5);
     if (metL[0] && R() < 0.45) put(76, celebG(c, S, metL[0], 'celeb', { why: `${CELEB[metL[0]].job} · out again tonight` }));
     for (let k = 0; k < 2; k++) { const L = registerLocal(localSeed(S.season, S.round, O.venue, k)); put(77 - k * 4, celebG(c, S, L.id, 'celeb', { why: `${L.job} · out with friends` })); }
     const rv = [S.fought, ...S.contacts].find((did) => did && did !== S.mate && okD(did));
@@ -503,6 +515,11 @@ function guestsFor(c, S, O) {
     // (a gossip writer some nights, not every night - likelier on the Strip and at a sponsor's party; one of a few, in turn)
     if (R() < (O.venue === 'vegasclub' ? 0.5 : 0.35) + (O.brand ? 0.2 : 0)) { const W0 = pickR(PRESS_POOL, R); put(65, personG(`p:press:${W0.id}`, W0.name, 'press', smartLook(`press|${W0.id}`, W0.fem), `${W0.title} · hears everything`)); }
     const inf = pickR(INFLS, R); put(60, personG(`p:infl:${inf.id}`, inf.name, 'infl', clubLook(`infl|${inf.id}`, inf.fem, { pose: 'selfie' }), `${inf.title} · filming for 2M followers`));
+    // (the paddock's people out tonight (career/Paddock.js): the host brand's ambassador at its own party; most nights
+    //  someone from a rival team, the press pack or a creator's crew - below the networking and the press in the ranking)
+    const K = safe('paddock', () => paddockOf(c), null);
+    if (O.brand && R() < 0.8) put(64, paddockG(c, S, safe('ambassador', () => brandPerson(c, O.brand), null), `${O.brandName} · brand ambassador · it is her party too`));
+    if (K && R() < 0.6) { const id = pickR([...K.rivals, K.press, K.infl], R); put(52, paddockG(c, S, id)); }
     if (!O.brand) { const held = arr(c.pr?.deals).map((d) => d.bid).filter((b) => REPS[b]), courting = arr(c.pr?.offers).map((o) => o.bid).filter((b) => REPS[b]); const b = held[0] || courting[0] || (R() < 0.5 ? pickR(HOSTS, R) : null); if (b && !snubbed(c, b)) put(54, repG(c, S, b, true)); }
     if (fr[1]) put(50, driverG(c, S, fr[1][0], 'friend'));
     const ex = Object.keys(ensure(c).mates).find((did) => did !== S.mate && okD(did) && !used.has(`d:${did}`));
@@ -512,6 +529,15 @@ function guestsFor(c, S, O) {
     put(85, personG('x:eng', 'Race engineer', 'eng', lookOf(`eng|${team}|${pid}`, false, 'polo', T?.color || '#1c1f26', T?.color2 || '#ffffff', { teamName: team }), `${team} · your voice on the radio`, { team }));
     stars.filter((id) => B[id] && B[id].stage !== 'stranger').slice(0, 2).forEach((id, i) => put(80 - i * 5, celebG(c, S, id, S.exes.includes(id) ? 'ex' : 'celeb')));
     const deal = arr(c.pr?.deals)[0]; if (deal && REPS[deal.bid]) put(70, repG(c, S, deal.bid, false, `${deal.brand} · ${REPS[deal.bid].title} · one of your sponsors`));
+    // (the paddock's people in your own hospitality (career/Paddock.js): the team's chief executive, your agent, the head
+    //  of hospitality running the night, your sponsor's ambassador - each someone you could get to know)
+    const K = safe('paddock', () => paddockOf(c), null);
+    if (K) {
+      if (R() < 0.7) put(72, paddockG(c, S, K.ceo, `${team} · chief executive · runs the business you own`));
+      if (R() < 0.5) put(68, paddockG(c, S, K.myagent, `Your agent · ${CELEB[K.myagent]?.org || 'driver management'}`));
+      if (R() < 0.4) put(62, paddockG(c, S, K.staff, `${team} · head of hospitality · tonight is hers`));
+      if (deal && R() < 0.45) put(60, paddockG(c, S, safe('ambassador', () => brandPerson(c, deal.bid), null), `${deal.brand} · brand ambassador · your sponsor's face`));
+    }
   }
   cand.sort((a, b) => b.p - a.p);
   const principals = cand.slice(0, CAP).map((x) => x.g);
@@ -751,6 +777,15 @@ export function partyResult(c, r) {
     const open = clients.map((did) => c.drivers[did]).find((d) => !d.team || (d.contract && d.contract.until <= c.season)) || c.drivers[clients[0]];
     if (open) say(cid, `Good to meet you properly. ${open.name} would take a call from you, by the way.`, { name: A.name, sub: A.title });
     delta(cid, A.name, 'agent', 'agent', 4, `Rapport +4 with ${clients.length} of ${A.fem ? 'her' : 'his'} drivers`);
+  }
+  // (an agent who came as herself (career/Paddock.js): the same networking, read from the guest's clients)
+  for (const [cid, x] of Object.entries(C)) {
+    const id = cid.startsWith('c:') ? cid.slice(2) : null, key = id && CELEB[id]?.paddock?.agent; if (!key || num(x.dm, 0) < 3) continue;
+    const A = AGENTS.find((a) => a.id === key); if (!A) continue;
+    P.met[A.id] = { season: c.season, round: c.round }; delete c._nego;
+    const clients = arr(roles[cid]?.clients).filter((did) => live(c.drivers?.[did]) && did !== c.playerId);
+    for (const did of clients) safe('relate', () => c.relate?.(did, 4, null));
+    if (clients.length) delta(cid, A.name, 'agent', 'agent', 4, `Rapport +4 with ${clients.length} of her drivers`);
   }
   const pressCid = Object.keys(C).find((k) => k.startsWith('p:press:')), pressDm = pressCid ? num(C[pressCid].dm, 0) : 0;
   if (pressCid && pressDm >= 3 && Pr?.media) { const W0 = pressOf(pressCid); Pr.media[W0.outlet] = clamp(num(Pr.media[W0.outlet], 0) + 4, -100, 100); delta(pressCid, W0.name, 'press', 'appeal', 4, `${outletOf(W0.outlet)} likes you a little more`); }

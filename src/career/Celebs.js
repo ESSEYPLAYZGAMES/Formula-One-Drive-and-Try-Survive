@@ -16,12 +16,20 @@
 // you (morale, focus) race after race; neglect, jealousy and long lenses wear them down, and there is a warning before
 // she walks away. None of it ever touches the memorial, mourning or injury side of the game: in a grave week the
 // photographers keep their distance, nobody is found out and nothing here makes a story of it; if your driver dies,
-// those close to him are left in peace. The state lives on the career as plain JSON (c.celebs: bonds, partner (the
-// public partner), met, log, confront); the callers save.
+// those close to him are left in peace. Two more kinds of people share the stars' shape and everything above: the
+// strangers out on a race night (career/Locals.js) and the paddock's own - your agent, your team's chief executive,
+// a sponsor's ambassador, someone on a rival team's pit wall, a journalist (career/Paddock.js). Seeing your own agent
+// or the chief executive of the team you own is a conflict of interest the papers make a story of once they know;
+// ending it badly with a sponsor's ambassador or brand manager cools that brand on you. And whoever has the Fling's
+// personality (career/Persona.js: fun, late, allergic to serious - Jade Okafor among the stars) dates you happily and
+// never becomes your partner: ask, and she dodges, and asked once too often she reminds you what this was. The state
+// lives on the career as plain JSON (c.celebs: bonds, partner (the public partner), met, log, confront, pv); the
+// callers save.
 import { shiftMorale, moodOf } from './Morale.js';
-import { prEvent, crisisFrom, fameIndex } from './PR.js';
+import { prEvent, crisisFrom, fameIndex, BRAND_BY_ID, OUTLET_BY_ID, brandCools } from './PR.js';
 import { styleEnsure, resolveRec, applyStyle, lookColor } from './Style.js';
 import { makeLocal, isLocalId } from './Locals.js';
+import { makePaddock, isPaddockId, paddockParts, paddockRoster, conflictKind, ambassadorId, brandManagerId, orgSlug } from './Paddock.js';
 
 const pick = (a) => a[(Math.random() * a.length) | 0];
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -94,7 +102,8 @@ export const CELEBS = [
     wear: { grid: fit('blazer', '#a3162b', '#f2ead8', '#3a4a66', ['lanyard', 'shadesUp']), night: [fit('slip', '#a3162b', '#f2d7a0', null, ['lanyard', 'clutch']), fit('bodycon', '#a3162b', '#f2d7a0', null, ['lanyard', 'clutch', 'earrings'])], wet: fit('trench', '#d9c9a8', '#a3162b', '#151515', ['lanyard']), evening: [fit('slitgown', '#a3162b', '#f2d7a0', null, ['clutch', 'earrings']), fit('halter', '#151515', '#f2d7a0', null, ['earrings']), fit('sequin', '#a3162b', '#f2d7a0', null, ['clutch'], '#a3162b'), fit('oneshoulder', '#f2d7a0', '#a3162b', null, ['clutch', 'earrings'], '#c9a24a')], dinner: [fit('slip', '#151515', '#f2d7a0', null, ['clutch']), fit('corset', '#151515', '#f2d7a0', null, ['earrings']), fit('bodycon', '#151515', '#f2d7a0', null, ['clutch', 'earrings'])], casual: fit('bomber', '#4a5240', '#f2ead8', '#3a4a66', ['shadesUp']), sporty: fit('athleisure', '#a3162b', '#f4f4f2', '#151515', ['watch']), home: fit('sweater', '#e8b4b8', '#f2d7a0', '#6a6e78'),
       // (red, bold, made for the cameras: a red sequin halter micro-mini, a red cut-out mini, a black plunging slip, a red suit open over a bralette with thigh-high boots)
       club: [cfit('haltermicro', '#a3162b', '#f2d7a0', null, ['earrings'], '#f2d7a0', { shoeFinish: 'metallic' }), cfit('cutoutmini', '#a3162b', '#f2d7a0', null, ['earrings', 'bag'], '#151515', { shoe: 'sandal' }), cfit('slipmini', '#151515', '#f2d7a0', null, ['earrings'], '#151515'), cfit('blazerbra', '#a3162b', '#151515', null, ['earrings'], '#151515', { shoe: 'thighboot' })] } },
-  { id: 'jade-okafor', name: 'Jade Okafor', job: 'DJ', from: 'London, England', home: 'London', age: 27, fame: 66, often: ['lasvegas'],
+  // (always out, never anyone's: the Fling - career/Persona.js reads her persona from here)
+  { id: 'jade-okafor', name: 'Jade Okafor', job: 'DJ', from: 'London, England', home: 'London', age: 27, fame: 66, often: ['lasvegas'], persona: 'fling',
     vibe: 'Loud, kind and always up for it',
     bio: 'South London DJ and producer who went from pirate-radio sets as a teenager to headlining festival main stages. Plays the race-weekend after-party in Las Vegas and knows every sound engineer on the Strip by name.',
     work: ['her summer residency in Ibiza', 'the new EP', 'the race-weekend after-party set', 'her Friday-night radio show'], hobby: 'digging through record shops for old vinyl',
@@ -292,6 +301,45 @@ export const CELEB =Object.fromEntries(CELEBS.map((x) => [x.id, x]));
  * -> her def
  */
 export function registerLocal(idOrSeed) { const L = makeLocal(idOrSeed); if (!CELEB[L.id]) { CELEBS.push(L); CELEB[L.id] = L; } return CELEB[L.id]; }
+/** the name the career knows a paddock person's org by: a team's (by its slug), a sponsor's, an outlet's - else null (Paddock.js title-cases the slug) */
+const orgNameOf = (c, id) => {
+  const P = paddockParts(id); if (!P) return null;
+  if (['ceo', 'staff', 'dtp', 'com'].includes(P.role)) return Object.keys(c?.teams || {}).find((t) => orgSlug(t) === P.org) || (orgSlug(c?.myTeam) === P.org ? c.myTeam : null);
+  if (P.role === 'amb' || P.role === 'bm') return BRAND_BY_ID[P.org]?.brand || null;
+  if (P.role === 'press') return OUTLET_BY_ID[P.org]?.name || null;
+  return null;
+};
+/**
+ * One of the paddock's own people (career/Paddock.js: made from her id) taken into the game the way a local is: in
+ * CELEB / CELEBS from now on - bonds, the phone, plans and dates (c: the career, for her team's or brand's name) -> her def | null
+ */
+export function registerPaddock(c, id) {
+  if (CELEB[id]) return CELEB[id];
+  const K = makePaddock(id, orgNameOf(c, id)); if (!K) return null;
+  CELEBS.push(K); CELEB[K.id] = K; return K;
+}
+/**
+ * This career's paddock (Paddock.js paddockRoster), registered: your agent, your team's chief executive and head of
+ * hospitality, three driver managers from contract talks, two people at rival teams, a journalist, a creator - and,
+ * for each sponsor you have a deal with or an offer from, its ambassador -> the roster ({ ids, ceo, staff, myagent, agents, rivals, press, infl, amb: { bid: id } })
+ */
+export function paddockOf(c) {
+  const R = paddockRoster({ playerId: c?.playerId, myTeam: c?.myTeam, teams: Object.keys(c?.teams || {}) });
+  for (const id of R.ids) registerPaddock(c, id);
+  R.amb = {};
+  for (const bid of [...(c?.pr?.deals || []), ...(c?.pr?.offers || [])].map((d) => d?.bid).filter((b) => BRAND_BY_ID[b])) { R.amb[bid] = ambassadorId(bid); registerPaddock(c, R.amb[bid]); }
+  return R;
+}
+/** a sponsor's ambassador (or brand manager: bm true), registered -> id | null */
+export function brandPerson(c, bid, bm = false) { if (!BRAND_BY_ID[bid]) return null; const id = bm ? brandManagerId(bid) : ambassadorId(bid); return registerPaddock(c, id) ? id : null; }
+/**
+ * She has the Fling's personality (career/Persona.js): fun, never serious - read as plain JSON (the personality kept
+ * for her once you have talked; before that, her own: a local's, a paddock person's, a star's persona field), so
+ * this module never imports Persona.js (it imports this one)
+ */
+export function flingOf(c, id) { return (c?.persona?.npcs?.[`c:${id}`]?.p || CELEB[id]?.persona) === 'fling'; }
+/** seeing her is a conflict of interest: 'agent' (your own) | 'ceo' (of the team you own) | null */
+export function conflictOf(c, id) { return CELEB[id] ? conflictKind(CELEB[id], c?.myTeam) : null; }
 export const STAGES = ['stranger', 'met', 'friendly', 'flirting', 'dating', 'partner', 'ex'];
 const STAGE_LABEL = { stranger: 'Not met', met: 'Just met', friendly: 'Friendly', flirting: 'Flirting', dating: 'Dating', partner: 'Partner', ex: 'Ex' };
 const SI = (st) => STAGES.indexOf(st);
@@ -359,21 +407,35 @@ const weekMood = (c, v, why, stat = null) => {
  * (you are keeping it quiet), exclusive (as your partner she expects to be the only one - unless she is a free spirit),
  * suspicion (0..100: how sure she is there is someone else), evidence (0..100: how hard it would be to explain away),
  * susOf (who she suspects), susSrc / susAt (what last gave you away, and when), hintAt (her last hint), knows (the others
- * she knows about and accepted), confronted, caught (times), begged (times you begged her to stay)
+ * she knows about and accepted), confronted, caught (times), begged (times you begged her to stay), coi (when the papers
+ * made a conflict of interest of it: your agent, your own chief executive), dodged (times the Fling would not make it official)
  */
 const newBond = () => ({ aff: 0, trust: 30, stage: 'stranger', since: null, last: null, dates: 0, public: false, upset: 0, invited: null, msgRound: null, flirts: 0,
   accepted: null, refused: null, metAt: null, talks: 0, talkRound: null, exAt: null, idle: 0, ultimatum: false, photos: 0, official: null, lastDate: null,
   jealousRound: null, invRound: null, grieving: false, griefSeason: null,
-  secret: false, exclusive: false, suspicion: 0, evidence: 0, susOf: [], susSrc: null, susAt: null, hintAt: null, knows: [], confronted: null, caught: 0, begged: 0 });
+  secret: false, exclusive: false, suspicion: 0, evidence: 0, susOf: [], susSrc: null, susAt: null, hintAt: null, knows: [], confronted: null, caught: 0, begged: 0,
+  coi: null, dodged: 0 });
 /** your public partner (made official, the two of you in the open) among the bonds -> id | null */
 const publicPartner = (s) => Object.keys(s.bonds).find((id) => CELEB[id] && s.bonds[id].stage === 'partner' && s.bonds[id].public && !s.bonds[id].grieving) || null;
 /** a new career's c.celebs (exp: the evidence already counted this round) */
-export function celebState() { return { bonds: {}, partner: null, met: [], log: [], eyes: null, confront: null, exp: null }; }
+export function celebState() { return { bonds: {}, partner: null, met: [], log: [], eyes: null, confront: null, exp: null, pv: 2 }; }
 /** an older save's c.celebs, filled in (unknown celebrities dropped; a partner from before secrets expects to be the only one, unless she is a free spirit) -> c.celebs */
 export function celebEnsure(c) {
   const s = c.celebs && typeof c.celebs === 'object' ? c.celebs : (c.celebs = celebState());
   s.bonds = s.bonds && typeof s.bonds === 'object' ? s.bonds : {};
   for (const id of Object.keys(s.bonds)) if (!CELEB[id] && isLocalId(id)) registerLocal(id);   // (someone met on a race night: rebuilt from her id's seed before anything checks for her)
+  for (const id of Object.keys(s.bonds)) if (!CELEB[id] && isPaddockId(id)) registerPaddock(c, id);   // (one of the paddock's people: the same, from her id)
+  if (c?.drivers && c.playerId) { try { paddockOf(c); } catch (e) { console.warn('Celebs: the paddock roster failed', e); } }
+  // (pv 2, once: the Fling joined the personalities. Anyone an older save had already met keeps the one she had - a
+  // local the one of the eight she was drawn, Jade Okafor the Playful one - so nobody you know changes overnight)
+  if (s.pv !== 2) {
+    const P = c.persona && typeof c.persona === 'object' ? c.persona : (c.persona = { v: 1, npcs: {} }); if (!P.npcs || typeof P.npcs !== 'object') P.npcs = {};
+    for (const [id, b] of Object.entries(s.bonds)) {
+      const C = CELEB[id], was = id === 'jade-okafor' ? 'spark' : C?.persona0; if (!C || !was || !b || b.stage === 'stranger' || P.npcs[`c:${id}`]) continue;
+      P.npcs[`c:${id}`] = { p: was, mood: 'passive', heat: 0, seen: [], tseen: [], thread: null, talks: 0, texts: 0, slot: {}, tslot: {} };
+    }
+    s.pv = 2;
+  }
   s.met = Array.isArray(s.met) ? s.met.filter((id) => CELEB[id]) : [];
   s.log = Array.isArray(s.log) ? s.log.slice(0, 30) : []; if (s.eyes === undefined) s.eyes = null; if (s.exp === undefined) s.exp = null;
   for (const id of Object.keys(s.bonds)) {
@@ -406,12 +468,14 @@ export function bondLabel(c, id) {
   if (b.grieving && c && b.griefSeason === c.season) return 'In mourning';
   if (c?.celebs?.confront?.id === id) return 'Wants to talk';
   if (b.accepted) return 'Said yes to a date';
-  const tail = TOGETHER.includes(b.stage) ? `${b.upset >= 2 ? ' · upset' : ''}${b.secret ? ' · secret' : ''}` : '';
+  const tail = TOGETHER.includes(b.stage) ? `${flingOf(c, id) ? ' · casual' : ''}${b.upset >= 2 ? ' · upset' : ''}${b.secret ? ' · secret' : ''}` : '';
   return stageLabel(b.stage) + tail;
 }
 /** where you are likely to see her: 'Often at Las Vegas' / 'At most races' */
 export function oftenText(celeb) {
   const C = typeof celeb === 'string' ? CELEB[celeb] : celeb; if (!C) return '';
+  if (C.paddock) return C.org || 'In the paddock';   // (the paddock's people: who she works for)
+  if (!C.often.length) return 'Out on race nights';   // (someone met out: no circuit of her own)
   return C.often.length > 1 ? 'At most races' : `Often at ${TRACK[C.often[0]] || C.often[0]}`;
 }
 /** the one you are most openly with: your public partner, else your first other partner, else whoever you are dating -> id | null */
@@ -608,6 +672,10 @@ const YES_TAKEN = ['{her} looks at you for a long moment. "You are with {partner
 const YES_WRECK = ['"{partner}?" {her} smiles. "She does not have to know. Yet."', '{her} looks pleased with herself. "Somewhere {partner} would never think to look, then."',
   '"I wondered how long it would take you," says {her}. "Do not tell {partner}. I will."'];
 const NO_TAKEN = ['"You are with {partner}," says {her}, kindly enough. "Ask me when you are not."', '{her} laughs, not unkindly. "Does {partner} know you are asking?"'];
+// (the Fling: yes to a night - late, and nothing that sounds like a date)
+const YES_FLING = ['"Tonight? Late. Do not call it a date," says {her}.', '{her} grins. "Yes. After eleven. Wear something you can leave in a hurry."',
+  '"Go on, then," says {her}. "Just do not make it a whole thing."'];
+const NO_FLING = ['"Ask me at midnight," says {her}. It does not sound like a no.', '{her} is going somewhere louder tonight. "Another night. I mean it. Probably."'];
 /**
  * Ask her out: the chance comes from her affection and trust, your fame against hers, your public image, your
  * confidence and what she likes (a winner, confidence, humility; not arrogance, not scandal) - and whether the world
@@ -626,14 +694,15 @@ export function askOut(c, id) {
   if (T.likes.includes('humble') && (ps.humble || 0) > (ps.showman || 0) + (ps.controversial || 0)) p += 0.05;
   if (T.dislikes.includes('arrogant') && (ps.showman || 0) + (ps.controversial || 0) > (ps.humble || 0) + 3) p -= 0.06;
   if (taken) p += T.wreck ? 0.12 * T.wreck : -(0.22 * (1 - (T.free || 0)) + (T.dislikes.includes('scandal') ? 0.12 : 0));
+  const fl = flingOf(c, id); if (fl) p += 0.15;   // (a night out is the Fling's favourite question)
   p = clamp(p - 0.1 * b.upset, 0.05, 0.9);
   if (Math.random() < p) {
     b.accepted = now(c); b.refused = null; note(c, id, `${f} said yes to a date.`, 1); mood(c, 2, `${f} said yes`);
-    const lk = T.likes.find((k) => YES_TRAIT[k]), line = taken ? pick(T.wreck ? YES_WRECK : YES_TAKEN) : lk && Math.random() < 0.5 ? YES_TRAIT[lk] : pick(YES);
+    const lk = T.likes.find((k) => YES_TRAIT[k]), line = taken ? pick(T.wreck ? YES_WRECK : YES_TAKEN) : fl ? pick(YES_FLING) : lk && Math.random() < 0.5 ? YES_TRAIT[lk] : pick(YES);
     return { ok: true, text: `${fill(line, C, { partner: pn })} Arrange the date in THE WEEK.` };
   }
   b.refused = now(c); relateCeleb(c, id, -3, `${f} said not yet`);
-  const line = taken && Math.random() < 0.6 ? pick(NO_TAKEN) : C.fame - fameIndex(P.fame ?? 0.4) > 30 && Math.random() < 0.5 ? '"You are sweet," says {her}, "but my life is a circus as it is."' : pick(NO);
+  const line = fl ? pick(NO_FLING) : taken && Math.random() < 0.6 ? pick(NO_TAKEN) : C.fame - fameIndex(P.fame ?? 0.4) > 30 && Math.random() < 0.5 ? '"You are sweet," says {her}, "but my life is a circus as it is."' : pick(NO);
   return { ok: false, text: fill(line, C, { partner: pn }) };
 }
 
@@ -699,7 +768,11 @@ const startDating = (c, id, b) => {
   const f = first(CELEB[id].name), others = seeing(c).filter((k) => k !== id);
   b.stage = 'dating'; b.since = now(c); b.accepted = null; b.secret = others.length > 0;
   note(c, id, b.secret ? `You and ${f} are seeing each other - quietly, for now.` : `You and ${f} are seeing each other.`, 1);
+  if (flingOf(c, id)) { b.exclusive = false; note(c, id, `${f} calls it nothing serious. Very much nothing serious.`, 0); }
+  const k = conflictOf(c, id); if (k) note(c, id, k === 'agent' ? `${f} is your agent. If the papers find out, it is a story.` : `${f} runs the team you own. If the papers find out, it is a story.`, -1);
 };
+/** the closing words when a first date makes you a couple: quietly or not - and, with the Fling, only casually */
+const seeingNow = (c, id, b) => ` You and ${first(CELEB[id].name)} are seeing each other${b.secret ? ' - quietly, for now' : ''}${flingOf(c, id) ? '. Casually, she insists' : ''}.`;
 /** the two of you in the papers: no longer a secret, known to the world - and to anyone else you are seeing -> what it led to ('' when nothing) */
 const snapped = (c, id, b) => {
   // (the others see it while it is still news: exposure passes over what is already public)
@@ -740,7 +813,7 @@ export function goOnDate(c, id, key, o = {}) {
     else snap = T.drama >= 0.45 ? ` A photographer was waiting outside. ${f} gives them her best side.` : ' A photographer was waiting outside.';
     snap += snapped(c, id, b);
   }
-  const text = `${fill(pick(DATE_LINES[key] || DATE_LINES.dinner), C)}${O.fav ? ` ${C.favLine}` : O.meh ? ` ${C.mehLine}` : ''}${snap}${start ? ` You and ${f} are seeing each other${b.secret ? ' - quietly, for now' : ''}.` : ''}`;
+  const text = `${fill(pick(DATE_LINES[key] || DATE_LINES.dinner), C)}${O.fav ? ` ${C.favLine}` : O.meh ? ` ${C.mehLine}` : ''}${snap}${start ? seeingNow(c, id, b) : ''}`;
   return { ok: true, text, gain: got, photographed: !!snap };
 }
 
@@ -831,7 +904,7 @@ export function dateResult(c, id, score, venue, seen = false, o = {}) {
   if (both.length >= 2) { const r = exposure(c, 'room', both, 1.2, both); if (r?.text) extra += ` ${r.text}`; }
   const band = s >= 0.65 ? 'good' : s >= 0.35 ? 'mid' : s >= 0.15 ? 'flat' : 'bad', V = VENUE_LINES[v];
   const line = band === 'bad' ? pick(VENUE_BAD) : band === 'mid' || !V ? pick(VENUE_MID) : pick(V[band]);
-  const text = `${fill(line, C)}${fit.fav && s >= 0.35 ? ` ${C.favLine}` : fit.meh ? ` ${C.mehLine}` : ''}${extra}${started ? ` You and ${f} are seeing each other${b.secret ? ' - quietly, for now' : ''}.` : ''}`;
+  const text = `${fill(line, C)}${fit.fav && s >= 0.35 ? ` ${C.favLine}` : fit.meh ? ` ${C.mehLine}` : ''}${extra}${started ? seeingNow(c, id, b) : ''}`;
   return { ok: true, text: text.trim(), gain: got, started };
 }
 
@@ -864,6 +937,8 @@ export function officialWhy(c, id) {
   const b = bondOf(c, id), f = first(C.name), P = c.celebs.partner;
   if (b.grieving || !TOGETHER.includes(b.stage)) return `You are not seeing ${f}`;
   if (b.stage === 'partner' && b.public) return `You and ${f} are already official`;
+  // (the Fling: you can always ask - she will not say yes - once you are seeing each other at all)
+  if (flingOf(c, id) && b.stage === 'dating') return grave(c) ? 'Not this week. It can wait' : null;
   if (b.stage === 'dating' && b.dates < 2) return `Too soon: ${f} wants a few more dates first`;
   if (b.stage === 'dating' && b.aff < 55) return `${f} is not ready for that yet`;
   if (grave(c)) return 'Not this week. It can wait';
@@ -879,6 +954,7 @@ export function officialWhy(c, id) {
 export function makeOfficial(c, id) {
   const why = officialWhy(c, id); if (why) return { ok: false, text: `${why}.` };
   const C = CELEB[id], b = bondOf(c, id), f = first(C.name), T = C.traits, s = c.celebs;
+  if (flingOf(c, id) && b.stage === 'dating') return dodge(c, id, b);
   if (b.stage === 'dating' && b.secret) {
     b.stage = 'partner'; b.official = now(c); b.exclusive = (T.free || 0) < 0.5;
     trustCeleb(c, id, 5); mood(c, 4, `Together with ${f}`);
@@ -891,11 +967,42 @@ export function makeOfficial(c, id) {
   b.public = true; s.partner = id;
   trustCeleb(c, id, was === 'dating' ? 5 : 3); mood(c, 6, `Official with ${f}`);
   pr(c, 'official', { celeb: id, celebName: C.name, job: C.job });
+  const coi = conflictStory(c, id, b);
   let text = T.privacy >= 0.7 ? `You and ${f} make it official - on her terms: one photograph, no interviews.` : T.drama >= 0.45 ? `You and ${f} make it official, and the internet talks about nothing else for a day.` : `You and ${f} make it official. The photographs are everywhere by the evening.`;
   note(c, id, text, 1);
   if (r?.text) text += ` ${r.text}`;
+  if (coi) text += ` ${coi}`;
   return { ok: true, text };
 }
+// (what the Fling says when you ask to make it official - a dodge, a joke, now and then a hint it could be more one day)
+const DODGE = ['{her} kisses you instead of answering. "Ask me something fun."', '"Official?" {her} laughs. "We are having such a nice time. Do not ruin it with paperwork."',
+  '{her} goes quiet for a second too long. "Ask me after the season. Maybe."', '"You know what I am," says {her}, gently. "I am the fun part. I am not the official part."',
+  '{her} changes the subject so fast you almost miss it. Almost.', '"If I ever did that, it would be you," says {her}. "I do not do that."'];
+const DODGE_LAST = ['"I told you what this was," says {her}. It is the first time she has sounded tired of you.', '{her} does not laugh this time. "You keep asking. I keep not being that person."'];
+/**
+ * Asking the Fling to make it official: she dodges - a joke, a kiss, a maybe after the season - and it costs a little
+ * (affection -2, trust -1, your morale -1); the third time and after, she is upset: you knew what this was (two of
+ * those and she wants to talk, three and she ends it) -> { ok: false, text, dodged }
+ */
+const dodge = (c, id, b) => {
+  const C = CELEB[id], f = first(C.name); b.dodged = (b.dodged || 0) + 1;
+  relateCeleb(c, id, -2); trustCeleb(c, id, -1); mood(c, -1, `${f} dodged the question`);
+  let text = fill(pick(b.dodged >= 3 ? DODGE_LAST : DODGE), C);
+  if (b.dodged >= 3) { const L = upset(c, id, `${f} is tired of being asked to be something she is not.`); text += ` ${L.join(' ')}`; }
+  note(c, id, `You asked ${f} to make it official. She did not say yes.`, -1);
+  return { ok: false, text: text.trim(), dodged: b.dodged };
+};
+// (a conflict of interest, as the papers put it to you)
+const COI_LINE = { agent: 'The Paddock Post has found out you are seeing {her} - your own agent - and calls it a conflict of interest.',
+  ceo: 'The Paddock Post has found out you are seeing {her}, the chief executive of the team you own, and calls it a conflict of interest.' };
+/** seeing someone it is a conflict to see, out in the open: once a relationship, a PR 'conflict' story, composure -3, the line -> text | '' */
+const conflictStory = (c, id, b) => {
+  const k = conflictOf(c, id); if (!k || b.coi || !b.public || grave(c)) return '';
+  b.coi = now(c);
+  pr(c, 'conflict', { sub: k, pdName: CELEB[id].name });
+  mood(c, -3, k === 'agent' ? 'Dating your agent is in the papers' : 'Dating your chief executive is in the papers', 'composure');
+  const t = fill(COI_LINE[k], CELEB[id]); note(c, id, t, -1); return t;
+};
 /**
  * Keep it quiet with her, or stop hiding it (on: true / false). Too late once the world knows. A private person is glad
  * of it; one who loves the spotlight would rather not be anyone's secret -> { ok, text }
@@ -971,9 +1078,19 @@ const endBond = (c, id, byHer) => {
   b.public = false;
   mood(c, was === 'partner' ? -10 : was === 'dating' ? -6 : -2, byHer ? `${f} ended it` : `You ended it with ${f}`);
   const how = T.drama >= 0.45 ? 'She does not take it quietly.' : T.privacy >= 0.6 ? 'She asks only that it stays private.' : 'She is kind about it, which somehow makes it worse.';
-  const text = byHer ? `${f} has ended it. ${T.drama >= 0.45 ? 'She does it loudly.' : T.privacy >= 0.6 ? 'She asks only that it stays private.' : 'She is kind about it.'}`
+  let text = byHer ? `${f} has ended it. ${T.drama >= 0.45 ? 'She does it loudly.' : T.privacy >= 0.6 ? 'She asks only that it stays private.' : 'She is kind about it.'}`
     : serious ? `It is over with ${f}. ${how}` : `You tell ${f} it is not going anywhere. She shrugs it off.`;
   note(c, id, text, -1);
+  // (a sponsor's ambassador or brand manager, and it ended badly - she ended it, or you ended something real: her brand
+  // goes cool on you - no offers for a while, and a deal you hold loses its warmth: career/PR.js brandCools)
+  const bid = C.paddock && (C.paddock.role === 'amb' || C.paddock.role === 'bm') ? C.paddock.org : null;
+  if (bid && (byHer || serious) && !grave(c)) {
+    const r = (() => { try { return brandCools(c, bid, { who: f, role: C.job }); } catch (e) { console.warn('Celebs: brand cooling failed', e); return null; } })();
+    // (career/Party.js c.party.snub, as plain JSON - its partyEnsure fills in the rest of a c.party made here: its rep keeps his distance at the parties too)
+    const PP = c.party && typeof c.party === 'object' && !Array.isArray(c.party) ? c.party : (c.party = {});
+    PP.snub = PP.snub && typeof PP.snub === 'object' && !Array.isArray(PP.snub) ? PP.snub : {}; PP.snub[bid] = (c.season || 0) * (c.rounds || 6) + (c.round || 1) + 4;
+    if (r?.text) { text += ` ${r.text}`; note(c, id, r.text, -1); }
+  }
   return { ok: true, text };
 };
 /** you end it (flirting, dating or official): a PR 'breakup' story if it was public, morale -10 for a partner -> { ok, text } */
@@ -1250,7 +1367,7 @@ const ULTIMATUM = ['"I am done being the secret," says {her}. "{other} or me. Ch
 const wreckers = (c) => {
   const s = c.celebs, W = seeing(c), out = [];
   for (const id of W) {
-    const C = CELEB[id], T = C.traits, b = s.bonds[id]; if (!T.wreck || b.grieving || b.aff < 40 || ago(c, b.since) < 2) continue;
+    const C = CELEB[id], T = C.traits, b = s.bonds[id]; if (!T.wreck || flingOf(c, id) || b.grieving || b.aff < 40 || ago(c, b.since) < 2) continue;   // (the Fling never wants to be the one)
     const rivals = W.filter((k) => k !== id); if (!rivals.length) continue;
     if (Math.random() > 0.1 + 0.3 * T.wreck + (b.stalled ? 0.25 : 0)) continue;
     const f = first(C.name), O = listOf(rivals.slice(0, 2));
@@ -1281,9 +1398,10 @@ const answerUltimatum = (c, cf, key) => {
   if (key === 'chooseHer') {
     const ended = others.map((k) => endBond(c, k, false).text);
     b.stalled = 0; relateCeleb(c, id, 12, `You chose ${f}`); trustCeleb(c, id, 8);
-    const was = b.public; b.stage = 'partner'; b.secret = false; b.public = true; b.official = now(c); b.exclusive = true; s.partner = id;
+    const fl = flingOf(c, id), was = b.public; b.secret = false; b.public = true;
+    if (!fl) { b.stage = 'partner'; b.official = now(c); b.exclusive = true; s.partner = id; }   /* (the Fling: chosen, still never anyone's partner) */
     mood(c, 4, `Chose ${f}`);
-    if (!was) pr(c, 'official', { celeb: id, celebName: C.name, job: C.job });
+    if (!was && !fl) pr(c, 'official', { celeb: id, celebName: C.name, job: C.job });
     const text = `You end it with ${O} and go public with ${f}. She does not even pretend to be surprised.${ended[0] ? ` ${ended[0]}` : ''}`;
     note(c, id, text, 1); return { ok: true, text, stays: true, id };
   }
@@ -1319,6 +1437,7 @@ const rng = (s) => {
  * random -> [ids]
  */
 export function celebsAtRace(c, trackId) {
+  if (c?.drivers) { try { paddockOf(c); } catch (e) { /* (the paddock's people stay off this grid) */ } }
   const R = c ? rng(`${c.season}|${c.round}|${trackId}`) : Math.random, s = c?.celebs?.bonds ? c.celebs : null, forced = [];
   if (s) {
     if (s.partner && CELEB[s.partner] && !s.bonds[s.partner]?.grieving) forced.push(s.partner);
@@ -1326,7 +1445,8 @@ export function celebsAtRace(c, trackId) {
   }
   const n = c ? Math.max(forced.length, R() < 0.5 ? 3 : 2) : 2, out = forced.slice(0, 3);
   const pool = CELEBS.filter((C) => !out.includes(C.id) && !(s?.bonds[C.id]?.grieving && s.bonds[C.id].griefSeason === c.season)).map((C) => {
-    const b = s?.bonds[C.id]; let w = 1 + (C.often.includes(trackId) ? 2 : 0);
+    // (the paddock's people work every race, but a guest slot on the grid is a star's first: someone you have met there is likelier)
+    const b = s?.bonds[C.id]; let w = (C.paddock ? (b && SI(b.stage) >= 1 ? 0.8 : 0.3) : 1) + (C.often.includes(trackId) ? 2 : 0);
     if (b) w *= b.stage === 'ex' ? 0.4 : SI(b.stage) >= 1 && SI(b.stage) <= 4 ? 1.4 : 1;
     return { id: C.id, w };
   });
@@ -1407,7 +1527,14 @@ export function celebRoundTick(c) {
     if (!contact && dec) relateCeleb(c, id, -(half ? Math.ceil(dec / 2) : dec) - (T.dislikes.includes('neglect') && b.idle >= 2 ? 1 : 0));
     if (b.accepted && ago(c, b.accepted) >= 4) { b.accepted = null; relateCeleb(c, id, -4, 'You never called'); lines.push(`${f} said yes to a date weeks ago. You never called.`); }
     if (b.stage !== 'dating' && b.stage !== 'partner') continue;
-    if (b.idle >= 3) { b.idle = 0; upset(c, id, `${f} feels neglected: three rounds without seeing you.`, lines); if (b.stage === 'ex') continue; }
+    // (the Fling does not do neglected - she has gone quiet herself, and will text when she wants a night out)
+    if (b.idle >= 3 && flingOf(c, id)) { b.idle = 0; note(c, id, `${f} has gone quiet. Not upset - just elsewhere.`, 0); }
+    else if (b.idle >= 3) { b.idle = 0; upset(c, id, `${f} feels neglected: three rounds without seeing you.`, lines); if (b.stage === 'ex') continue; }
+    // (your own agent, the chief executive of your own team: the paddock talks - kept quiet, it gets out more slowly)
+    if (conflictOf(c, id) && !b.coi) {
+      if (!b.public && Math.random() < (b.secret ? 0.08 : 0.2)) { const was = b.secret; b.secret = false; b.public = true; lines.push(`Word has got round the paddock about you and ${f}.${was ? ' The secret is out.' : ''}`); const r = exposure(c, 'friend', [id], 0.8); if (r?.text) lines.push(r.text); }
+      const t = conflictStory(c, id, b); if (t) lines.push(t);
+    }
     // (the papers: a couple nobody knows about yet, photographed - a couple keeping it quiet is careful, but not always careful enough; now and then a rumour about her)
     if (!b.public && Math.random() < C.fame / 100 * 0.22 * (b.secret ? 0.35 : 1)) {
       const was = b.secret; b.secret = false;
@@ -1450,7 +1577,7 @@ export function celebRoundTick(c) {
     if (W.length >= 2) lines.push(...wreckers(c));
     // (she is sure enough: the most suspicious one wants to talk, if nobody else is waiting)
     if (!s.confront) {
-      const k = seeing(c).filter((x) => ripe(s.bonds[x])).sort((a, b) => s.bonds[b].suspicion - s.bonds[a].suspicion)[0];
+      const k = seeing(c).filter((x) => ripe(s.bonds[x]) && !flingOf(c, x)).sort((a, b) => s.bonds[b].suspicion - s.bonds[a].suspicion)[0];
       const nc = k ? confront(c, k) : null; if (nc) lines.push(`${first(CELEB[k].name)} has found out about ${listOf(nc.otherIds)}, and she wants to talk.`);
     }
   }

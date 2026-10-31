@@ -609,6 +609,14 @@ const HL = {
     feed: [`Chequered is in meltdown over photos of {celeb} and {sur}`, `Fans can't get over photos of {celeb} with {sur}`, `Fans spot {celeb} and {sur} {where}`],
     tv: [`Off-track: {sur} and {celeb} pictured together`],
   },
+  // (seeing someone it is a conflict to see (career/Celebs.js): your own agent, the chief executive of the team you own -
+  // nobody is named: she is invented, and the papers call her by her job)
+  conflict: {
+    agent: { tab: [`Ten per cent of everything? {sur} is dating their own agent`, `Contract talks get cosy: {sur} and the agent who negotiates them`],
+      weekly: [`{sur}'s relationship with their own manager raises conflict-of-interest questions`], feed: [`Fans split over {sur} dating their own agent`] },
+    ceo: { tab: [`Boardroom romance? {sur} and the {team} chief executive`, `Mixing business and pleasure: {sur} dating {team}'s own chief executive`],
+      weekly: [`Questions at {team} over {sur}'s relationship with the team's chief executive`], feed: [`Chequered can't decide if {sur} dating the {team} boss is a problem`] },
+  },
   official: {
     tab: [`It's official! {sur} and {celeb} go public`, `The paddock's new power couple: {sur} and {celeb}`, `Love is in the air (and the pit lane): {sur} and {celeb} confirm romance`],
     feed: [`{celeb} and {sur} make it official - and Chequered approves`, `The most-liked post on Chequered today: {celeb} and {sur}, official`],
@@ -777,7 +785,7 @@ const headline = (bank, sub, o, tone, evTone, X) => {
   return null;
 };
 // (the personal side of life: a real driver in these stories is only ever 'the <team> driver')
-const PERSONAL = new Set(['date', 'official', 'breakup', 'rumour', 'scandal', 'nightout', 'hangout', 'party']);
+const PERSONAL = new Set(['date', 'official', 'breakup', 'rumour', 'scandal', 'nightout', 'hangout', 'party', 'conflict']);
 /** the driver a story names: { did, name } in data, or target / about / who / rival as an id, a name or such an object - drivers only, never you -> { did, name } | null */
 const whoOf = (c, x) => {
   const D = c?.drivers || {}, all = Object.values(D);
@@ -1045,6 +1053,7 @@ const EV = {
   post: (c, x) => { const D = POSTS[x.key]; return !D || D.quiet ? null : { tone: D.tone, theme: D.theme || {}, fx: D.fx, persona: D.persona, cover: [], size: 0 }; },
   date: (c, x, X) => (X.celeb && x.publicly !== false ? { tone: 0, theme: { romance: 1 }, fx: { image: 1, heat: 4, appeal: 1, fame: [0.04, 0.05] }, cover: ['post', 'feed', 'race24'], size: Math.random() < 0.4 ? 2 : 1 } : null),
   official: (c, x, X) => (X.celeb ? { tone: 1, theme: { romance: 1 }, fx: { image: 3, heat: 3, appeal: 3, fame: [0.08, 0.1] }, cover: ['post', 'feed', 'race24', 'gridfm', 'pitlane'], size: 3, news: true } : null),
+  conflict: (c, x) => ({ tone: -1, theme: { romance: 1, drama: 0.6 }, fx: { image: -2, heat: 8, appeal: -2, fame: [0.02, 0.03] }, cover: ['post', 'feed', 'weekly'], size: 2, sub: x.sub === 'agent' ? 'agent' : 'ceo' }),
   breakup: (c, x, X) => (X.celeb ? { tone: -1, theme: { romance: 1, drama: 0.4 }, fx: { image: x.by === 'her' ? 0 : -1.5, heat: 8, fame: [0.02, 0.03] }, cover: ['post', 'feed', 'race24'], size: 2, sub: x.by === 'her' ? 'her' : 'you' } : null),
   rumour: (c, x, X) => (X.celeb ? { tone: 0, theme: { romance: 1, drama: 0.3 }, fx: { heat: X.other ? 3 : 4, fame: [X.other ? 0.01 : 0.02, 0.02] }, cover: ['post', 'feed'], size: 1, sub: X.other ? 'linked' : 'together' } : null),
   scandal: (c, x, X) => (X.celeb ? { tone: -1, theme: { romance: 1, drama: 1 }, fx: { image: -4, heat: 14, appeal: -3, fame: [0.03, 0.04] }, cover: ['post', 'feed', 'race24'], size: 2, persona: { controversial: 1 },
@@ -1514,6 +1523,19 @@ export function acceptDeal(c, id) {
   P.deals.push(D); bump(P, { appeal: 2 });
   story(c, P, 'deal', 'sign', ['f1news', 'feed', 'post'], 1, { brand: D.brand }, false, true);
   return { ok: true, text: `Signed with ${D.brand} (${D.kind}): ${usd(D.value)} a round for ${D.rounds} rounds${D.bonus ? `, ${usd(D.bonus)} for a win` : ''}. Paid after every race - 70% to your own account, 30% to the team.` };
+}
+/**
+ * A brand goes cool on you (career/Celebs.js: it ended badly with its ambassador or brand manager - o: { who, role }):
+ * no offers from it for four rounds (an open one is withdrawn), and a deal you hold loses its warmth (appeal -4, and a
+ * strike against it: one more bad round of heat and the morality clause ends it) -> { text } | null (no such brand)
+ */
+export function brandCools(c, bid, o = {}) {
+  const P = ensure(c), B = BRAND_BY_ID[bid]; if (!P || !B) return null;
+  P.snub[bid] = ahead(c, 4);
+  const had = P.offers.some((x) => x.bid === bid); P.offers = P.offers.filter((x) => x.bid !== bid);
+  const D = P.deals.find((d) => d.bid === bid), who = o.who ? `${o.who}${o.role ? `, its ${String(o.role).toLowerCase()}` : ''}` : 'its people';
+  if (D) { D.strikes = num(D.strikes, 0) + 1; bump(P, { appeal: -4 }); return { text: `${B.brand} has gone cool on you since it ended with ${who}. Your deal stands, for now, but sponsor appeal -4.` }; }
+  return { text: `${B.brand} has gone cool on you since it ended with ${who}.${had ? ' Its offer is off the table, and no more are coming for a while.' : ' No offers from them for a while.'}` };
 }
 /** turn an offer down (the brand will not ask again for three rounds) -> { ok, text } */
 export function declineDeal(c, id) {

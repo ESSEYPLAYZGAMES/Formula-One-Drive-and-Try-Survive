@@ -25,7 +25,7 @@
 import { shiftMorale, moodOf } from './Morale.js';
 import { prEvent, fameIndex, fameText, imageLabel, heatLabel, socialPosts, crisisAdvice } from './PR.js';
 import * as Celebs from './Celebs.js';
-import { personaIncoming, personaPending, personaTextOpts, personaTextSend, personaHello, personaHelloSend, psOf } from './Persona.js';
+import { personaIncoming, personaPending, personaTextOpts, personaTextSend, personaHello, personaHelloSend, psOf, isCasual } from './Persona.js';
 
 // ---- small helpers --------------------------------------------------------------------------------------------------
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -669,7 +669,7 @@ export function contactsOf(c) {
     const b = peek(c, C.id), cid = `c:${C.id}`;
     if (!((b && b.stage !== 'stranger') || met.has(C.id) || TH[cid]?.length)) continue;
     const st = b?.stage && b.stage !== 'stranger' ? b.stage : 'met';
-    add(cid, 'celeb', C.name, C.job, st, !!b?.secret, ROM.includes(st) ? 2 : st === 'flirting' ? 3 : 9);
+    add(cid, 'celeb', C.name, C.org ? `${C.job} · ${C.org}` : C.job, st, !!b?.secret, ROM.includes(st) ? 2 : st === 'flirting' ? 3 : 9);   // (one of the paddock's people: her job and who she works for)
   }
   const team = c.myTeam || meOf(c)?.team || 'Your team';
   add('x:boss', 'staff', STAFF.boss, team, null, false, 20); add('x:eng', 'staff', STAFF.eng, team, null, false, 21);
@@ -852,6 +852,8 @@ const textCeleb = (c, X, o) => {
   if (String(key).startsWith('pt:')) {
     const pT = PT(X.C, X.T), r = key === 'pt:hi' ? personaHelloSend(c, X.cid, pT) : personaTextSend(c, X.cid, key, pT);
     if (!r.ok) return '';
+    // (a Fling who has gone cold this week: your message is read, and that is all - they will text when they want a night out)
+    if (r.read) return LEFT_ON_READ;
     call('message', c, id);
     if (r.tone === 'flirty' || r.tone === 'risque') call('flirt', c, id);
     if (r.worth && n <= 3) call('relateCeleb', c, id, Math.round(r.worth * 0.6));
@@ -882,6 +884,9 @@ const textCeleb = (c, X, o) => {
   if ((b.secret || X.others.length) && ['flirting', 'dating', 'partner'].includes(X.stage)) P.trail[id] = num(P.trail[id], 0) + 1;
   return fill(pick(pool), X.T);
 };
+// (a reply that is no reply: the chat shows when they read it, late, and nothing after)
+const LEFT_ON_READ = '\u0000read';
+const readAt = (c, cid) => { const h = hash(`${cid}|${rk(c)}|read`), m = 23 * 60 + 5 + (h % 200); return `Read ${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`; };
 /** the factory's next arrival, as the team principal puts it */
 const devLine = (c) => {
   const L = arr(c.teams?.[c.myTeam]?.dev).slice().sort((a, b) => num(a.left, 9) - num(b.left, 9));
@@ -933,6 +938,7 @@ export function sendText(c, cid, key) {
   push(c, cid, 'me', o.text, 'text');
   let reply;
   try { reply = X.k === 'driver' ? textDriver(c, X, o) : X.k === 'celeb' ? textCeleb(c, X, o) : textStaff(c, X, o); } catch (e) { warn('the reply failed', e); reply = ''; }
+  if (reply === LEFT_ON_READ) { push(c, cid, 'sys', readAt(c, cid), 'system'); return { ok: true, text: o.text, reply: null, read: true }; }
   if (!reply) reply = pick([`Ha. Okay.`, `Noted.`, `Speak soon.`]);
   push(c, cid, 'them', reply, 'reply');
   return { ok: true, text: o.text, reply };
@@ -1160,7 +1166,7 @@ export function inboxTick(c, rows = null) {
     const tv = p === 1 ? 'tvWin' : p >= 2 && p <= 3 ? 'tvPod' : me.dnf ? 'tvDnf' : 'tvOther';
     let kind = null;
     if (rom && others.length && num(b.suspicion, 0) >= 40 && chance(0.6)) kind = 'jealous';
-    else if (rom && chance(0.8)) kind = out === 'ban' ? 'banOut' : out || fin || p == null ? 'check' : p === 1 ? 'partnerWin' : me.dnf || p >= 11 ? 'partnerBad' : p <= 3 ? 'partnerPod' : 'partnerOk';
+    else if (rom && chance(casualOf(c, C.id) ? 0.5 : 0.8)) kind = out === 'ban' ? 'banOut' : out || fin || p == null ? 'check' : p === 1 ? 'partnerWin' : me.dnf || p >= 11 ? 'partnerBad' : p <= 3 ? 'partnerPod' : 'partnerOk';
     else if (b.stage === 'flirting' && chance(0.45)) kind = p != null && !out && chance(0.5) ? tv : 'flirt';
     else if (!rom && p != null && !out && chance(p === 1 ? 0.3 : p >= 2 && p <= 3 ? 0.18 : 0.06)) kind = tv;
     if (!kind) continue;
@@ -1197,6 +1203,8 @@ export function inboxTick(c, rows = null) {
   for (const x of invs) { const v = [...S.invites].reverse().find((w) => w.from === x); if (v) lines.push(`${shortOf(c, x)} ${v.kind === 'date' ? 'wants an evening with you' : 'has invited you out'} this week: ${VENUE_BY_ID[v.venue]?.name.toLowerCase() || 'somewhere'}.`); }
   return { lines };
 }
+/** a Fling (career/Persona.js): hot and cold - after a race they text half as often as someone serious would */
+const casualOf = (c, id) => { try { return isCasual(psOf(c, `c:${id}`)?.p); } catch (e) { return false; } };
 /** what a friend texts about after a race (null: nothing this time) */
 const typeFor = (c, M, did, X) => {
   const me = M.me, p = me.pos, t = M.pos[did];
