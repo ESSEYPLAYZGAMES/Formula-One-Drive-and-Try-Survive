@@ -41,12 +41,16 @@
 //   scene, queue, pos, yaw, cam, clock, t, lib. A party (E.isParty): Hangout and PartyPlay run the crowd; an ordinary
 //   evening: this builds and runs its own (the same PoolCrowd, the same spots).
 // ======================================================================================================================
+
+
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import * as People from '../world/People.js';
 import * as Celebs from '../career/Celebs.js';
 import { SKINS } from '../world/Crowd.js';
 import { PartyCrowd } from '../world/PartyCrowd.js';
+import { PoolBrain } from '../world/PoolLife.js';
+import { poolPlay } from './PoolPlay.js';
 
 const TAU = Math.PI * 2;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -429,36 +433,115 @@ function beams(K, heads, tex) {
   return mesh;
 }
 /**
- * The water: one mesh over every basin, a MeshBasicMaterial (no light of the world's or the room's: it is the same
- * hosted and not) with a few travelling waves summed into its slope, the sky by the Fresnel term and the sun's glint -
- * more see-through looking down, a mirror at a low angle, as water is. The legs of anyone standing in it go on beneath
- * the surface, tinted and dimmed, the cut clean where they meet it.
+ * The water: one mesh over every basin. Two looks, both a MeshBasicMaterial (no light of the world's or the room's: the
+ * same hosted and not): the flat one - a translucent turquoise, nothing but its colour - and the full one (WATER_FX), a few
+ * travelling waves summed into its slope, the swimmers' own rings in it, the sky by the Fresnel term, the sun's glint, the
+ * shelf lighter than the deep end - more see-through looking down, a mirror at a low angle, as water is. The legs of anyone
+ * standing in it go on beneath the surface, tinted and dimmed, the cut clean where they meet it.
+ * (2026-10-15: the full look came out solid black on the user's Intel UHD laptop. It does not on software GL (bisected: the
+ * water alone, the multiply layer alone, the caustics alone, the rings - each fine there), so the driver's own maths is the
+ * suspect: an unguarded pow() of 0 to the 420th, a normalize() of a zero vector, an unbounded glint - any NaN in it is black.
+ * Now every pow is of max(x, 1e-4), every normalize guarded, every term clamped, a floor under its brightness and a NaN
+ * check at the end; and which look draws is decided where it runs: the first frame renders the full look by itself over a
+ * grey card and reads the pixels back (waterProbe) - black or NaN, and the flat water takes its place for the night.
+ * ?waterfx=1 / ?waterfx=0 (or #waterfx=, or localStorage 'f1sim-waterfx') forces either.)
+ * (Later the same day, raycast from the deck's edge looking down: the black was not the water at all - the world's own
+ * ground plane, 5 cm under a deck anchored at street level, drawn over the sunken basin; its polygon offset hid it at a
+ * grazing angle and lost to it looking down - how far is up to the driver. The pool club now stands on its podium, 7 m
+ * up (main.js hangoutAnchor), as this file always meant it to.)
  */
-const WATER_FX = false;
-function waterMat(night, sunW) {
-  const U = { uT: { value: 0 }, uSun: { value: sunW.clone().normalize() }, uSky: { value: new THREE.Color(night ? '#121733' : '#4f8ed8') }, uHor: { value: new THREE.Color(night ? '#3a2a44' : '#d2e3ec') }, uGl: { value: night ? 0.18 : 1 } };
-  const m = new THREE.MeshBasicMaterial({ color: night ? '#1fb4d4' : '#27b2c6', transparent: true, opacity: night ? 0.72 : 0.5, depthWrite: false });
-  // (the waves/Fresnel/glint shader below came out solid black on the user's Intel UHD laptop - off until it is made
-  //  safe there: the plain translucent water always draws; WATER_FX true brings the shader back)
-  if (WATER_FX) m.onBeforeCompile = (sh) => {
+const WATER_FX = 'auto';
+/** what the page asks for: 1 the full look, 0 the flat water, null decide by the probe */
+function waterFxWanted() {
+  if (globalThis.__waterFx != null) return globalThis.__waterFx ? 1 : 0;
+  try {
+    const q = String(location.search) + '&' + String(location.hash).replace(/^#/, ''), m = /[?&]waterfx=(\w+)/.exec(q);
+    const v = m ? m[1] : localStorage.getItem('f1sim-waterfx');
+    if (v != null && v !== '') return /^(1|on|true|yes|fx)$/i.test(v) ? 1 : 0;
+  } catch (_) { /* (no location or storage: a test page) */ }
+  return WATER_FX === 'auto' ? null : WATER_FX ? 1 : 0;
+}
+const RIPN = 8;   // (the swimmers whose rings are in the full look's slope: the nearest to the camera)
+function waterMat(night, sunW, shelfZ) {
+  const U = {
+    uT: { value: 0 }, uSun: { value: sunW.clone().normalize() }, uSky: { value: new THREE.Color(night ? '#1a2350' : '#4f8ed8') }, uHor: { value: new THREE.Color(night ? '#5c3c5c' : '#d2e3ec') },
+    uGl: { value: night ? 0.16 : 1 }, uFrMax: { value: night ? 0.42 : 0.8 }, uFloor: { value: night ? 0.1 : 0.2 }, uShelf: { value: shelfZ },
+    uShallow: { value: new THREE.Color(night ? '#46e6f2' : '#8fe8ea') }, uDeep: { value: new THREE.Color(night ? '#0aa6cc' : '#1aa9c6') },
+    uA: { value: new THREE.Vector2(night ? 0.4 : 0.3, night ? 0.64 : 0.56) }, uRip: { value: Array.from({ length: RIPN }, () => new THREE.Vector4(0, 0, 0, 0)) }, uBreak: { value: 0 },
+  };
+  const flat = new THREE.MeshBasicMaterial({ color: night ? '#1fb4d4' : '#27b2c6', transparent: true, opacity: night ? 0.72 : 0.5, depthWrite: false });
+  flat.customProgramCacheKey = () => 'pool-water-flat';
+  const fx = new THREE.MeshBasicMaterial({ color: night ? '#1fb4d4' : '#27b2c6', transparent: true, opacity: 1, depthWrite: false });
+  fx.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, U);
-    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vWP;').replace('#include <project_vertex>', '#include <project_vertex>\nvWP = ( modelMatrix * vec4( transformed, 1.0 ) ).xyz;');
-    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform float uT, uGl; uniform vec3 uSun, uSky, uHor; varying vec3 vWP;').replace('#include <opaque_fragment>', `{
-      vec2 wp = vWP.xz;
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vWP; varying vec3 vLP;').replace('#include <project_vertex>', '#include <project_vertex>\nvWP = ( modelMatrix * vec4( transformed, 1.0 ) ).xyz; vLP = transformed;');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
+uniform float uT, uGl, uFrMax, uFloor, uShelf, uBreak; uniform vec3 uSun, uSky, uHor, uShallow, uDeep; uniform vec2 uA; uniform vec4 uRip[ ${RIPN} ]; varying vec3 vWP; varying vec3 vLP;`).replace('#include <opaque_fragment>', `{
+      vec2 wp = vLP.xz;
       vec2 sl = vec2( 0.8, 0.6 ) * cos( dot( wp, vec2( 0.8, 0.6 ) ) * 2.1 + uT * 1.6 ) * 0.05 + vec2( -0.5, 0.866 ) * cos( dot( wp, vec2( -0.5, 0.866 ) ) * 3.4 + uT * 2.2 ) * 0.034
         + vec2( 0.96, -0.28 ) * cos( dot( wp, vec2( 0.96, -0.28 ) ) * 5.9 + uT * 3.0 ) * 0.02 + vec2( -0.2, -0.98 ) * cos( dot( wp, vec2( -0.2, -0.98 ) ) * 9.3 + uT * 3.9 ) * 0.012;
-      vec3 wn = normalize( vec3( -sl.x, 1.0, -sl.y ) ), wv = normalize( cameraPosition - vWP );
-      float fr = 0.02 + 0.98 * pow( 1.0 - clamp( dot( wn, wv ), 0.0, 1.0 ), 5.0 );
-      vec3 rf = reflect( -wv, wn ); float sd = max( dot( rf, uSun ), 0.0 );
+      // (the rings round the swimmers: each a travelling ring out to 3 m, fading with distance)
+      for ( int i = 0; i < ${RIPN}; i ++ ) {
+        vec4 r = uRip[ i ]; vec2 d = wp - r.xy; float dd = max( length( d ), 0.05 );
+        sl += ( d / dd ) * ( r.z * exp( -dd * 1.7 ) * step( dd, 3.0 ) * sin( dd * 15.0 - uT * 7.0 + r.w ) );
+      }
+      sl = clamp( sl, vec2( -0.4 ), vec2( 0.4 ) );
+      vec3 wn = vec3( -sl.x, 1.0, -sl.y ); wn *= inversesqrt( max( dot( wn, wn ), 1e-4 ) );
+      vec3 dv = cameraPosition - vWP; vec3 wv = dv * inversesqrt( max( dot( dv, dv ), 1e-6 ) );
+      float nv = clamp( dot( wn, wv ), 0.0, 1.0 );
+      float fr = clamp( 0.02 + 0.98 * pow( max( 1.0 - nv, 1e-4 ), 5.0 ), 0.0, uFrMax );
+      vec3 rf = reflect( -wv, wn );
+      float sd = clamp( dot( rf, uSun ), 0.0, 1.0 );
       vec3 sky = mix( uHor, uSky, clamp( rf.y * 1.8, 0.0, 1.0 ) );
-      float gl = ( pow( sd, 420.0 ) * 5.0 + pow( sd, 48.0 ) * 0.14 ) * uGl;
-      outgoingLight = mix( outgoingLight, sky, fr ) + vec3( gl );
-      diffuseColor.a = clamp( mix( diffuseColor.a, 1.0, fr ) + gl, 0.0, 1.0 );
+      float gl = min( pow( max( sd, 1e-4 ), 260.0 ) * 2.4 + pow( max( sd, 1e-4 ), 36.0 ) * 0.12, 2.0 ) * clamp( uGl, 0.0, 1.0 );
+      // (the shelf lighter, the deep end deeper; the plunge pools - up on their decks - between)
+      float deep = vLP.y > 0.0 ? 0.55 : 1.0 - smoothstep( uShelf - 0.35, uShelf + 0.35, vLP.z );
+      vec3 body = mix( uShallow, uDeep, deep );
+      vec3 col = mix( body, sky, fr ) + vec3( gl );
+      // (never darker than its own glow: a floor under the brightness, in the water's own hue)
+      float lum = dot( col, vec3( 0.2126, 0.7152, 0.0722 ) );
+      col += body * max( 0.0, uFloor - lum ) * 2.0;
+      col = clamp( col, 0.0, 3.0 );
+      float a = clamp( mix( mix( uA.x, uA.y, deep ), 0.9, fr ) + gl * 0.4, 0.2, 0.95 );
+      // (a NaN anywhere above fails every comparison: then the plain body colour)
+      if ( !( col.r >= 0.0 && col.g >= 0.0 && col.b >= 0.0 && a >= 0.0 && lum < 1e4 ) ) { col = body; a = uA.y; }
+      if ( uBreak > 0.5 ) { col = vec3( 0.0 ); a = 1.0; }
+      outgoingLight = col; diffuseColor.a = a;
     }
     #include <opaque_fragment>`);
   };
-  m.customProgramCacheKey = () => 'pool-water-v1';
-  m.userData.u = U; return m;
+  fx.customProgramCacheKey = () => 'pool-water-fx-v2';
+  fx.userData.u = U; flat.userData.u = U;
+  return { flat, fx, U };
+}
+/**
+ * Does the full look draw here? It alone on a 24-pixel square in the corner of the canvas (scissored: nothing else of the
+ * frame touched, and the frame drawn over it straight after), over a grey card, from three places - low over the water,
+ * straight down, and in the sun's glint - and the pixels read back: black (a NaN draws black) or near it, and it fails.
+ * Runs once, the frame the room is first shown; everything it makes is freed again. -> { ok, lum, black } | null (no renderer)
+ */
+function waterProbe(R, mat, sunW) {
+  if (!R?.getContext) return null;
+  const gl = R.getContext(), n = 24, buf = new Uint8Array(n * n * 4), out = { ok: true, lum: 1, black: 0 };
+  const sc = new THREE.Scene(); sc.background = new THREE.Color(0.42, 0.42, 0.42);
+  const g = new THREE.PlaneGeometry(60, 60, 1, 1); g.rotateX(-Math.PI / 2); g.translate(0, -0.12, -4);
+  const m = new THREE.Mesh(g, mat); m.frustumCulled = false; sc.add(m);
+  const cam = new THREE.PerspectiveCamera(60, 1, 0.05, 400), s = sunW.clone().normalize();
+  const rt0 = R.getRenderTarget(), vp = R.getViewport(new THREE.Vector4()), sci = R.getScissor(new THREE.Vector4()), st = R.getScissorTest(), ac = R.autoClear;
+  try {
+    R.setRenderTarget(null); R.autoClear = true;
+    const pr = R.getPixelRatio() || 1, css = Math.ceil(n / pr) + 1;
+    R.setViewport(0, 0, css, css); R.setScissor(0, 0, css, css); R.setScissorTest(true);
+    let sum = 0, blk = 0, k = 0;
+    for (const [p, l] of [[[0, 1.66, 8], [0, -0.12, -8]], [[0, 9, -4], [0, -0.12, -4.01]], [[-s.x * 9, s.y * 9, -4 - s.z * 9], [0, -0.12, -4]]]) {
+      cam.position.set(p[0], p[1], p[2]); cam.lookAt(l[0], l[1], l[2]); cam.updateMatrixWorld();
+      R.render(sc, cam); gl.readPixels(0, 0, n, n, gl.RGBA, gl.UNSIGNED_BYTE, buf);
+      for (let i = 0; i < buf.length; i += 4) { const L = (0.2126 * buf[i] + 0.7152 * buf[i + 1] + 0.0722 * buf[i + 2]) / 255; sum += L; if (L < 0.035) blk++; k++; }
+    }
+    out.lum = +(sum / k).toFixed(3); out.black = +(blk / k).toFixed(3); out.ok = out.lum > 0.12 && out.black < 0.15;
+  } catch (e) { console.warn('PartyPool: the water probe failed', e); out.ok = false; }
+  finally { R.setScissorTest(st); R.setScissor(sci); R.setViewport(vp); R.autoClear = ac; R.setRenderTarget(rt0); g.dispose(); }
+  return out;
 }
 /**
  * What the water takes out of the light through it - the reds first, as real water does: a multiply layer drawn just
@@ -723,7 +806,7 @@ export function poolclub(K, E) {
 
   // ---- the water: one mesh over the main pool and both plunge pools; the light netted on their floors by day ----------
   const sunW = sunL.clone().normalize(); if (hosted && E.scene?.quaternion) sunW.applyQuaternion(E.scene.quaternion);
-  const wm = waterMat(night, sunW), rects = [[x0, z0, x1, z1, POOL.wl], ...plunges.map(([a, b, cc, d]) => [a, b, cc, d, BUNG.h - 0.1])];
+  const WM = waterMat(night, sunW, POOL.shelf), want = waterFxWanted(), wm = want === 0 ? WM.flat : WM.fx, rects = [[x0, z0, x1, z1, POOL.wl], ...plunges.map(([a, b, cc, d]) => [a, b, cc, d, BUNG.h - 0.1])];
   const wg = mergeGeometries(rects.map(([a, b, cc, d, y]) => { const g = new THREE.PlaneGeometry(cc - a, d - b); g.rotateX(-Math.PI / 2); g.translate((a + cc) / 2, y, (b + d) / 2); return norm(g); }));
   const water = K.obj(new THREE.Mesh(wg, wm)); water.renderOrder = 2; water.matrixAutoUpdate = false; water.updateMatrix(); water.userData.water = true;
   const absorb = K.obj(new THREE.Mesh(wg, absorbMat(night))); absorb.renderOrder = 1.5; absorb.matrixAutoUpdate = false; absorb.updateMatrix();
@@ -742,8 +825,22 @@ export function poolclub(K, E) {
   cm.customProgramCacheKey = () => 'pool-caustic-v1';
   const cg = mergeGeometries([[x0, z0, x1, sz, D], [x0, sz, x1, z1, Lg], ...plunges.map(([a2, b, cc, d]) => [a2, b, cc, d, BUNG.h - 0.9])].map(([a2, b, cc, d, y]) => { const q = new THREE.PlaneGeometry(cc - a2, d - b); q.rotateX(-Math.PI / 2); q.translate((a2 + cc) / 2, y + 0.012, (b + d) / 2); const p = q.attributes.position, uv = q.attributes.uv; for (let i = 0; i < p.count; i++) uv.setXY(i, p.getX(i) / 1.9, -p.getZ(i) / 1.9); return norm(q); }));
   const cau = K.obj(new THREE.Mesh(cg, cm)); cau.renderOrder = 1; cau.matrixAutoUpdate = false; cau.updateMatrix();
-  const U = wm.userData.u;
+  const U = WM.U;
   K.anim((t) => { U.uT.value = t; CU.uT.value = t; });
+  // (which look draws: the one asked for, else the full look if it passes the probe the first frame the room is shown)
+  const wstate = { fx: want !== 0, probe: null, forced: want };
+  if (globalThis.__waterBreak) U.uBreak.value = 1;   // (a test switch: the full look drawn black, as the laptop drew it - the probe must catch it)
+  const useFlat = (why) => { if (water.material === WM.flat) return; water.material = WM.flat; wstate.fx = false; wstate.why = why; WM.fx.dispose(); };
+  if (want === 0) WM.fx.dispose(); else if (want === 1) WM.flat.dispose();
+  if (want == null) {
+    let probed = false;
+    K.anim(() => {
+      if (probed || !E.renderer) return; probed = true;
+      const r = wstate.probe = waterProbe(E.renderer, WM.fx, sunW);
+      if (r && !r.ok) { console.warn(`PartyPool: the full water look draws black here (mean ${r.lum}, ${Math.round(r.black * 100)}% black) - the flat water instead`); useFlat('probe'); }
+      else if (r) WM.flat.dispose();
+    });
+  }
   // (where someone stands in the water, the ring of ripples round them at the surface: one instanced mesh, its places
   // refreshed four times a second from the crowd and the guests - nothing allocated after the build)
   const ringT = K.t(ctex(64, 64, (x, w) => { x.clearRect(0, 0, w, w); const g = x.createRadialGradient(w / 2, w / 2, w * 0.16, w / 2, w / 2, w / 2); for (const [p, a] of [[0, 0], [0.3, 0.95], [0.5, 0.25], [0.7, 0.45], [0.85, 0.12], [1, 0]]) g.addColorStop(p, `rgba(255,255,255,${a})`); x.fillStyle = g; x.fillRect(0, 0, w, w); }));
@@ -751,11 +848,22 @@ export function poolclub(K, E) {
   const rings = K.obj(new THREE.InstancedMesh(ringG, new THREE.MeshBasicMaterial({ map: ringT, color: night ? '#9fefff' : '#ffffff', transparent: true, opacity: night ? 0.3 : 0.5, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, fog: false }), RMAX));
   rings.count = 0; rings.renderOrder = 3; rings.frustumCulled = false; rings.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   const _rm = new THREE.Matrix4(); let ringAcc = 1;
+  // (the full look's own rings, in its slope: the RIPN swimmers nearest the camera - kept sorted in place, nothing allocated)
+  const rip = U.uRip.value, ripD = new Float32Array(RIPN), _rc = V3(0, 0, 0);
   K.anim((t, dt) => {
     if ((ringAcc += dt) < 0.25) return; ringAcc = 0;
-    let n = 0; const C = E.crowd, put = (x, z, s) => { if (n >= RMAX) return; _rm.makeScale(s, 1, s).setPosition(x, POOL.wl + 0.004, z); rings.setMatrixAt(n++, _rm); };
-    if (C?.ready && C.people) for (const p of C.people) if (p.on && p.y < -0.3) put(p.x, p.z, 0.8 * (p.scale || 1));
+    if (E.cam) { _rc.copy(E.cam.position); if (hosted && E._toL) E._toL(_rc); }
+    let n = 0, nr = 0; ripD.fill(1e9); for (let i = 0; i < RIPN; i++) rip[i].z = 0;
+    const C = E.crowd, put = (x, z, s, k = 0.035, ph = 0) => {
+      if (n < RMAX) { _rm.makeScale(s, 1, s).setPosition(x, POOL.wl + 0.004, z); rings.setMatrixAt(n++, _rm); }
+      const d = (x - _rc.x) ** 2 + (z - _rc.z) ** 2; if (d >= ripD[RIPN - 1]) return;
+      let i = RIPN - 1; while (i > 0 && ripD[i - 1] > d) { ripD[i] = ripD[i - 1]; rip[i].copy(rip[i - 1]); i--; }
+      ripD[i] = d; rip[i].set(x, z, k, ph); nr++;
+    };
+    if (C?.ready && C.people) for (const p of C.people) if (p.on && p.y < -0.3) put(p.x, p.z, (p.swimR || 0.8) * (p.scale || 1), p.swimK || 0.035, p.misc?.[0] || 0);
     for (const g of E.gs || []) if (g.person && !g.gone && (g.spot?.y || 0) < -0.3) put(g.person.group.position.x, g.person.group.position.z, 0.84);
+    const me = E.pool;   // (you, in the water: ui/PoolLife.js's swim state)
+    if (me?.inWater) put(me.x, me.z, me.swim ? 1.15 : 0.9, me.swim ? 0.07 : 0.04, 0);
     if (n || rings.count) { rings.count = n; rings.instanceMatrix.needsUpdate = true; }
   });
 
@@ -784,6 +892,7 @@ export function poolclub(K, E) {
   K.hot({ id: 'photo', kind: 'photo', x: 4.4, y: 1.3, z: 2.0, reach: 2.4, label: 'Take a photo by the pool' });
   K.hot({ id: 'feet', kind: 'flavour', x: x1 + 0.5, y: 0.3, z: -6.0, reach: 2.0, label: 'Sit on the edge, feet in the water', text: night ? 'The water is warm, lit blue from below. The bass comes up through it.' : 'Warm as a bath by now. The light nets on the floor of the pool.' });
   K.area(DECK.x0 + 0.1, DECK.z0 + 0.2, DECK.x1 - 0.1, DECK.z1 - 0.1);
+  K.hot({ id: 'towels', kind: 'flavour', x: 6.7, y: 1.0, z: 14.55, reach: 1.9, label: 'The towel stand', sub: 'Towels, and swim shorts to change into', text: 'Stacks of white towels, rolled.' });
 
   // ---- the zones (each an array of rects - ui/PartyVenues.js's ZL - the bounding rect on it as well) ---------------
   const zones = {
@@ -881,8 +990,64 @@ export function poolclub(K, E) {
   const crowdSpots = CS.filter((s) => !heroes.some((h) => (h.x - s.x) ** 2 + (h.z - s.z) ** 2 < 0.5625));
   // (an ordinary evening has no DJ of the party's cast: the resident one at the decks, first in - so always there)
   if (!E.isParty) crowdSpots.unshift({ x: 0, z: -15.75, y: STAGE.h, yaw: +facing(0, 1).toFixed(3), zone: 'dj', role: 'dancer', pose: 'dance', from: t0 - 1 });
+  // ---- the crowd's lives (world/PoolLife.js): where the bars are served, the queues, the floors, the seats, the water -
+  // and the guests who fill the deck to ~170 at the peak, walking in at the door as the night fills
+  const n0 = CS.length;
+  {
+    const more = (x, z, o) => { if (CS.length < n0 + 84) cs(x, z, o); };
+    for (let k = 0; k < 22 && swim; k++) { const x = -9.6 + RN() * 19.2, z = -1.6 - RN() * 9.6; if (!nearPod(x, z)) more(x, z, { y: F, zone: 'floor', role: 'bar', pose: 'talk', yaw: RN() * TAU, from: t0 + 0.8 + RN() * 1.2 }); }
+    for (let k = 0; k < 10 && swim; k++) more(-9.4 + RN() * 18.8, -0.7 + RN() * 1.4, { y: Lg, zone: 'floor', role: 'bar', pose: 'drink', yaw: RN() * TAU, from: t0 + 0.9 + RN() * 1.2 });
+    for (let k = 0; k < 16; k++) { const s = RN() < 0.5 ? -1 : 1; more(s * (11.9 + RN() * 1.4), -10.5 + RN() * 11, { zone: 'floor', role: 'bar', pose: 'drink', yaw: facing(-s, 0), from: t0 + 0.7 + RN() * 1.3 }); }
+    for (let k = 0; k < 18; k++) more(-10 + RN() * 20, 3.2 + RN() * 7.6, { zone: 'tables', role: 'bar', pose: RN() < 0.5 ? 'drink' : 'talk', yaw: RN() * TAU, from: t0 + 0.6 + RN() * 1.4 });
+    for (let k = 0; k < 6; k++) more(-22.6 + RN() * 3.4, 6 + RN() * 2.2, { zone: 'quiet', role: 'bar', pose: 'talk', yaw: RN() * TAU, from: t0 + 1.0 + RN() });
+    for (let k = 0; k < 8; k++) more(-6 + RN() * 12, 2.0 + RN() * 0.8, { zone: 'floor', role: 'dancer', pose: 'dance', look: toDJ, from: t0 + 0.9 + RN() });
+  }
+  crowdSpots.push(...CS.slice(n0).filter((s) => !heroes.some((h) => (h.x - s.x) ** 2 + (h.z - s.z) ** 2 < 0.5625)));
+  const lifeVoid = (x, z, r = 0.9) => heroes.some((h) => (h.x - x) ** 2 + (h.z - z) ** 2 < r * r);
+  const lifePlan = (() => {
+    const fz = facing(0, 1), bz = facing(0, -1), L = [];
+    // (the long bar: places at the counter either side of yours (where the bartender serves you), three deep behind)
+    const longSlots = [], longQ = []; for (let x = BAR.x0 + 0.7; x < BAR.x1 - 0.4; x += 0.8) if (Math.abs(x + 12.9) > 0.7) longSlots.push({ x, z: 11.92, yaw: fz });   // (a place every 0.8 m: at a party the principals' own spots take some)
+    for (let i = 0; i < 12; i++) longQ.push({ x: -13.1 + ((i % 4) - 1.5) * 1.15 + (i >> 2) * 0.3, z: 10.95 - (i >> 2) * 0.7, yaw: fz });
+    const isl = ISLAND, islSlots = [], islQ = [];
+    for (let x = isl.x - 2.7; x <= isl.x + 2.75; x += 1.05) { if (Math.abs(x - isl.x) > 0.7) islSlots.push({ x, z: isl.z - 2.65, yaw: fz }); islSlots.push({ x, z: isl.z + 2.65, yaw: bz }); }
+    for (let z = isl.z - 1.5; z <= isl.z + 1.55; z += 1.0) { islSlots.push({ x: isl.x - 3.65, z, yaw: 0 }); islSlots.push({ x: isl.x + 3.65, z, yaw: Math.PI }); }
+    for (let i = 0; i < 10; i++) islQ.push({ x: isl.x - 1.6 + (i % 4) * 1.1 + (i >> 2) * 0.3, z: isl.z - 3.7 - (i >> 2) * 0.7, yaw: fz });
+    const bars = [{ id: 'long', slots: longSlots.filter((s) => !lifeVoid(s.x, s.z, 0.62)), queue: longQ }, { id: 'island', slots: islSlots.filter((s) => !lifeVoid(s.x, s.z, 0.62)), queue: islQ }];
+    // (the floors: in the water before the DJ (swum in), along the shallow end, the decks beside the stage)
+    const dance = [];
+    for (let iz = 0; iz < 4; iz++) for (let ix = 0; ix < 9; ix++) { const x = -8.8 + ix * 2.2 + (iz % 2) * 0.6, z = -10.7 + iz * 1.25; if (!nearPod(x, z)) dance.push({ x, z, y: F, yaw: facing(-x * 0.6, toDJ.z - z), water: true }); }
+    for (let k = 0; k < 16; k++) { const x = -9.6 + k * 1.28, z = 1.85 + (k % 2) * 0.7; dance.push({ x, z, y: 0, yaw: facing(-x * 0.5, toDJ.z - z) }); }
+    for (const s of [-1, 1]) for (let k = 0; k < 6; k++) dance.push({ x: s * (8.9 + (k % 3) * 0.9), z: -11.9 + Math.floor(k / 3) * 0.9, y: 0, yaw: facing(-s * 0.4, 1) + Math.PI });
+    // (where people stand and talk: the south deck, the pool's sides, the garden, the shelf and the deep end's back half)
+    const chat = [];
+    for (const [x, z] of [[-3.2, 6.1], [3.2, 6.1], [0, 7.6], [-6.6, 8.8], [6.6, 8.4], [-8.8, 4.6], [9.6, 4.6], [-1.6, 9.6], [2.4, 10.6], [-4.4, 11.2], [5.2, 12.0], [-10.4, 8.2], [10.6, 11.6], [-16.0, 6.8], [-15.4, 3.6], [16.2, 2.6], [-12.4, -2.0], [12.4, -4.6], [-12.4, -8.6], [12.4, -9.8], [-20.6, 7.2], [-21.8, 13.6], [19.0, 12.6], [18.6, 4.8], [-18.4, -12.8], [17.0, -12.4]]) if (!lifeVoid(x, z)) chat.push({ x, z });
+    for (const [x, z] of [[-6.2, 0.0], [-2.0, -0.2], [2.6, 0.1], [6.0, -0.1], [-7.4, -3.2], [-3.0, -2.6], [1.6, -3.4], [7.8, -2.8], [-4.4, -5.0], [3.6, -4.4]]) chat.push({ x, z, water: true });
+    // (seats: the daybeds, the cabanas (not yours), the loungers, the garden's sofas round the fire)
+    const seats = [], fire = [], DB = DAYBED_X - 0.42;
+    for (const s of [-1, 1]) DAYBED_Z.forEach((z) => { for (const dz of [-0.5, 0.5]) seats.push({ x: s * DB, z: z + dz, y: 0, yaw: facing(-s, 0), kind: 'daybed' }); });
+    for (const s of [-1, 1]) CABANA_Z.forEach((z, i) => { if (s < 0 && i === 2) return; for (const dz of [-0.7, 0.7]) seats.push({ x: s * (CABANA_X + 0.97), z: z + dz, y: 0.12, yaw: facing(-s, 0), kind: 'cabana' }); });
+    for (const s of [-1, 1]) for (const ax of [6.2, 7.6, 9.0]) seats.push({ x: s * ax + 0.15, z: 3.55, y: -0.05, yaw: bz, kind: 'lounger' });
+    const qs = [[-22.85, 9.1, 0], [-22.85, 10.0, 0], [-22.85, 10.9, 0], [-21.8, 12.62, Math.PI / 2], [-20.6, 12.62, Math.PI / 2]];
+    for (const [x, z, yaw] of qs) (night ? fire : seats).push({ x, z, y: 0, yaw, kind: 'sofa' });
+    const S2 = seats.filter((q) => !lifeVoid(q.x, q.z));
+    // (the deep water to swim and float in, the edges to jump from - each with the far wall to race to)
+    const swimP = []; for (let k = 0; k < 24; k++) { const x = -9.4 + (k % 6) * 3.76, z = -10.6 + Math.floor(k / 6) * 2.6; if (!nearPod(x, z)) swimP.push({ x, z }); }
+    const edge = [];
+    for (const z of [-9.4, -6.0, -2.8]) { edge.push({ x: x1 + 0.75, z, ix: x1 - 1.2, iz: z, far: { x: x0 + 1.0, z } }); edge.push({ x: x0 - 0.75, z, ix: x0 + 1.2, iz: z, far: { x: x1 - 1.0, z } }); }
+    const patrol = [[0, 13.0], [-10.6, 9.6], [-12.4, -4], [-10.5, -12.6], [10.5, -12.6], [12.4, -4], [11.6, 5.2], [18.2, 10.6], [3.2, 9.0], [-17.0, 12.6]].map(([x, z]) => ({ x, z }));
+    const sun = [[-3.6, 3.4], [3.8, 3.2], [-9.6, 3.0], [9.8, 3.4], [-12.2, -6.4], [12.2, -7.4], [-12.3, 1.8], [12.4, 0.9]].map(([x, z]) => ({ x, z }));
+    void L;
+    return {
+      K, deck: DECK, pool: POOL, night, wet, heightAt: (x, z) => V.heightAt(x, z), door: { x: 0, z: 15.1 }, host: { x: 1.9, z: 13.3 }, bars, service: { x: -7.9, z: 11.6 },
+      towel: { x: 6.7, z: 14.05, yaw: fz }, dance, chat, seats: S2, fire, swim: swimP, edge, patrol, sun, birthday: { x: CABANA_X - 2.0, z: CABANA_Z[1] },
+      blockW: [[6.0, -6.2, 1.05], [-6.0, -6.2, 1.05], [-3.4, -9.4, 0.65], [4.6, -10.2, 0.65], [-9.2, 0, 0.8], [-7.4, 0, 0.8], [7.4, 0, 0.8], [9.2, 0, 0.8]],
+      djName: 'DJ Tavi', say: (t) => ledWall.say(t, 7), splash: (x, z, k) => life.splash(x, z, k),
+      phase: () => (E.moodI >= 0 ? V.moods[E.moodI]?.name : null) || 'Peak time',
+    };
+  })();
   const crowdPools = { kind: 'club', pool: true, women: 0.58, seed: 'tidewater:' + (night ? 'night' : 'day'), occ: 0.6, cam: { x: 0, z: 12 }, ...(brand ? { brand: { name: brand.name, color: brand.color, accent: '#ffffff' } } : {}) };
-  const crowdMake = (o = {}) => new PoolCrowd({ ...o, night, swim: true });
+  const crowdMake = (o = {}) => new PoolCrowd({ ...o, night, swim: true, life: globalThis.__poolStill ? null : lifePlan });
 
   // ---- the LED wall's message line (PartyPlay puts a name or a table number up): a band of its own over the wall -----
   const msgCv = document.createElement('canvas'); msgCv.width = 1024; msgCv.height = 128;
@@ -931,8 +1096,11 @@ export function poolclub(K, E) {
       dj: { name: 'DJ Tavi', look: { kit: 'casual', color: '#f2f0ea', accent: '#111114', legs: '#1b2440', shoe: 'trainer', shoes: '#ecebe6', pose: 'talk', seed: 'tidewater-resident-dj', acc: ['watch'] } },
       security: { name: 'Security', look: { kit: 'polo', color: '#0c0c0e', accent: '#0c0c0e', legs: '#0c0c0e', pose: 'cross', seed: 'tidewater-security', jitter: 0.02 } },
     },
-    water: { mesh: water, level: POOL.wl, rects: rects.map((r) => r.slice()), caustics: cau, wet }, screens: [ledWall],
+    water: { mesh: water, level: POOL.wl, rects: rects.map((r) => r.slice()), caustics: cau, wet, fx: wstate }, screens: [ledWall],
   };
+
+  // ---- you in the water, the guests' lines over their heads, E to talk to one (ui/PoolPlay.js; Hangout's pool hooks)
+  const life = V.life = poolPlay(K, E, { pool: POOL, night, heightAt: V.heightAt, swimKit: (k) => { if (!k || ![...swimKits('f'), ...swimKits('m')].includes(k)) return null; const I = swimInfo(k); return I.shirt || I.cover ? 'shirt' : 'swim'; } });
 
   // ---- an ordinary evening (no party engine to run a crowd): the crowd built and run here, as Hangout does a party's -
   if (!E.isParty && Array.isArray(E.queue)) {
@@ -940,12 +1108,21 @@ export function poolclub(K, E) {
       const C = crowdMake({ bpm, patch: hosted ? E.lib?.roomPatch || null : null, keepKey: 'hgKeep', lift: night ? 0.1 : 0.05 }); K.obj(C.group);
       for (const st of C.build(crowdSpots, crowdPools)) E.queue.push(st);
       const cp = V3(0, 1.6, 0), fwd = { x: 0, z: -1 };
-      let beat = 0;
+      let beat = 0; const MA = { i: -1, req: -9, ix: null };
+      { const ix = (n) => V.moods.findIndex((m) => m.name === n); MA.ix = { warm: ix('Warm-up'), peak: ix('Peak time'), last: ix('Last hour') }; if (MA.ix.peak < 0) MA.ix = null; }
       K.anim((t, dt) => {
         if (!C.ready || !E.cam) return;
         cp.copy(E.cam.position); if (hosted && E._toL) E._toL(cp);
         fwd.x = Math.cos(E.yaw || 0); fwd.z = Math.sin(E.yaw || 0);
-        const M = E.moodI >= 0 ? V.moods[E.moodI] : null, h = +E.clock || t0, occ = clamp(0.45 + (0.55 * (h - t0)) / 1.5, 0.3, 1) * (M?.music === null ? 0.5 : 1);
+        // (an ordinary evening - no party's DJ to move the night on - the clock does, as PartyPlay's _autoMood: the warm-up
+        // for the first 35 minutes, then the peak, the last hour once it is late; a set you picked holds 20 minutes)
+        if (!E.party && !E.quiet && MA.ix && typeof E._moodSet === 'function' && E.moodI >= 0) {
+          const hh = +E.clock || t0, ai = E.x?.late ? MA.ix.last : hh < t0 + 0.6 ? MA.ix.warm : MA.ix.peak;
+          if (MA.i >= 0 && E.moodI !== MA.i) { MA.req = hh; MA.i = E.moodI; } else if (MA.i < 0) MA.i = E.moodI;
+          if (ai >= 0 && hh - MA.req > 0.35 && E.moodI !== ai) { try { E._moodSet(ai); } catch (_) { /* */ } MA.i = E.moodI; }
+        }
+        const M = E.moodI >= 0 ? V.moods[E.moodI] : null, h = +E.clock || t0, occ = clamp(0.45 + (0.55 * (h - t0)) / 1.5, 0.3, 1) * (M?.music === null ? 0.5 : 1)
+          * (!E.party && M && Number.isFinite(M.occ) ? 0.4 + 0.6 * M.occ : 1);   // (an ordinary evening: the set's own fill too - the peak full, the last hour thinning)
         // (as at the clubs' parties: the music's tempo and how hard the deck dances by the set playing - a warm-up's sway,
         // the peak's full swing, the quiet hour's stillness - eased, never snapped)
         const d = Math.min(0.1, Math.max(0, dt || 0)), en = M ? (Number.isFinite(M.energy) ? M.energy : 1) : 1;
@@ -1054,12 +1231,20 @@ function swimInfo(k) {
   if (/shirt/.test(s)) return { shirt: 1 };
   return { mid: 'skin' };
 }
-/** the pool's crowd: PartyCrowd's, its templates in swimwear when People has it (else the club's, unchanged) */
+/** the pool's crowd: PartyCrowd's, its templates in swimwear when People has it (else the club's, unchanged). Given
+ * o.life (ui/PartyPool.js's plan for world/PoolLife.js), every guest has a life: a wardrobe of their own kit in every pose
+ * they need (walking, a drink, talking, dancing, sitting back), walked in at the door, up to 168 of them */
+const LIFE_MAX = 168;
 export class PoolCrowd extends PartyCrowd {
-  constructor(o = {}) { super(o); this.swim = o.swim !== false; this.dayOut = o.night === false; }
+  constructor(o = {}) {
+    super(o); this.swim = o.swim !== false; this.dayOut = o.night === false;
+    this.lifePlan = o.life || null; this.life = null; if (this.lifePlan) { this.maxP = LIFE_MAX; this.walkIn = true; }
+    this._Q2 = new THREE.Quaternion(); this._Z = new THREE.Vector3(0, 0, 1);
+  }
   _plan(pools, R) {
     const SF = this.swim ? swimKits('f') : [], SM = this.swim ? swimKits('m') : [];
     if (!SF.length) return super._plan(pools, R);
+    if (this.lifePlan) return this._planLife(pools, R, SF, SM);
     const T = [], day = this.dayOut, CK = People.CLUB_KITS || [], CM = People.CLUB_KITS_M || [];
     // (in the water - and dancing on the decks and the podiums - only what is swum in: the cover-ups, the open shirts and
     // the kaftans at the bars, on the daybeds and in the cabanas)
@@ -1099,6 +1284,86 @@ export class PoolCrowd extends PartyCrowd {
     for (const t of T) if (t.alt) Object.assign(t.alt.spec, { seed: t.spec.seed, build: t.spec.build, jewel: t.spec.jewel, acc: t.spec.acc, fh: t.spec.fh, hold: t.spec.hold });
     return T;
   }
+  /** the living crowd's templates: wardrobes - one kit (and hair, and build) in every pose its wearer needs; the
+   * house's staff a few poses each. Each wardrobe { id, fig, water (may go in the water), w (its share), role, map (pose ->
+   * template index), idx } on this.W */
+  _planLife(pools, R, SF, SM) {
+    const T = [], W = this.W = [], day = this.dayOut, CK = People.CLUB_KITS || [], CM = People.CLUB_KITS_M || [];
+    const inW = (k) => { const I = swimInfo(k); return !I.cover && !I.shirt; };
+    const WF = SF.filter(inW), CF = SF.filter((k) => swimInfo(k).cover), WM = SM.filter(inW), SHM = SM.filter((k) => swimInfo(k).shirt);
+    const ONE = WF.filter((k) => !swimInfo(k).mid), TWO = WF.filter((k) => swimInfo(k).mid);
+    const pk = (L, alt) => (L.length ? pickR(R, L) : pickR(R, alt.length ? alt : SF));
+    const held = (pose, glass) => (pose === 'drink' || pose === 'toast' || pose === 'sitBooth' || pose === 'lean' ? glass : null);
+    // (a wardrobe: one kit, one hair, one build in each pose - the dancing pair's two poses swapped on the beat)
+    const wd = (id, fig, kit, poses, o = {}) => {
+      const fem = fig === 'f', hs = o.hs || (fem ? pickR(R, HS_F) : pickR(R, HS_M)), fh = fem ? null : o.fh !== undefined ? o.fh : pickR(R, FH_M), glass = o.glass || (fem ? pickR(R, ['glass', 'flute', 'coupe']) : 'glass');
+      const seed = Math.floor(R() * 1e9), build = fem ? (R() < 0.6 ? 'slim' : 'average') : R() < 0.5 ? 'average' : 'athletic', jewel = fem ? { earrings: pickR(R, ['hoop', 'stud', 'drop']), chain: R() < 0.35 } : undefined;
+      const map = {}, idx = [];
+      for (const pose of poses) {
+        const role = o.role || (pose === 'dance1' ? 'dancer' : pose === 'drink' ? 'bar' : pose === 'sitBooth' ? 'booth' : 'x');
+        const hold = o.hold || held(pose, glass), t = { role, fig, kit, pose, hs, alt: null, w: o.role ? (pose === poses[0] ? 1 : 0) : role === 'x' ? 0 : o.w ?? 1, spec: null, swim: SF.includes(kit) || SM.includes(kit), seat: pose === 'sitBooth', lean: pose === 'lean', rare: true, wd: id, staff: o.role ? 1 : 0 };
+        t.spec = { club: true, figure: fem ? 'f' : undefined, build, kit, pose, hs, fh, cap: false, hold: hold || undefined, prop: o.prop || undefined, acc: fem ? ['earrings'] : undefined, jewel, seed, q: 0.32, detail: 0.2, shoe: o.water ? 'bare' : undefined };   // (what goes in the water goes barefoot: no slides or heels on a swimmer)
+        map[pose] = T.length; idx.push(T.length); T.push(t);
+      }
+      if (map.dance1 != null && map.dance2 != null) { T[map.dance1].alt = T[map.dance2]; T[map.dance2].pair = true; }
+      W.push({ id, fig, kit, water: !!o.water, w: o.share ?? 1, role: o.role || null, map, idx });
+    };
+    const P7 = ['walk1', 'walk3', 'drink', 'talk', 'dance1', 'dance2', 'sitBooth'], P6 = ['walk1', 'walk3', 'drink', 'talk', 'dance1', 'sitBooth'], P5 = ['walk1', 'walk3', 'drink', 'dance1', 'sitBooth'];
+    // (hers: a bikini and a one-piece that go in the water, a third by day; a cover-up - or, after dark, her clubwear - that stays on the deck)
+    wd('bikini', 'f', pk(TWO, WF), P7, { water: true, share: 1.3, hs: pickR(R, ['long', 'waves', 'curlyLong']) });
+    wd('onepiece', 'f', pk(ONE, WF), P7, { water: true, share: 1.1, hs: pickR(R, ['highpony', 'ponytail', 'messybun']) });
+    if (day) wd('swim3', 'f', pk(WF, SF), P6, { water: true, hs: pickR(R, ['topknot', 'bun', 'bob', 'blowout']) });
+    else wd('club', 'f', pk(CK, SF), P6, { water: false, share: 0.8, hs: pickR(R, ['blowout', 'long', 'waves']) });
+    wd('cover', 'f', pk(CF, SF), P6, { water: false, share: day ? 0.7 : 0.6, hs: pickR(R, ['long', 'bun', 'waves']) });
+    // (his: swim shorts that go in, a second pair; an open shirt - or his clubwear after dark - that stays dry)
+    wd('trunks', 'm', pk(WM, SM), P7, { water: true, share: 1.3 });
+    if (day) wd('shorts2', 'm', pk(WM.length > 1 ? WM : SM, SM), P5, { water: true });
+    else wd('clubm', 'm', CM.length ? pickR(R, CM) : pk(SHM, SM), P5, { water: false, share: 0.8 });
+    wd('shirt', 'm', pk(SHM, SM), ['walk1', 'walk3', 'drink', 'talk', 'sitBooth'], { water: false, share: 0.8 });
+    // (the house: a server in the club's black one-piece with a bottle, a podium dancer, security and the photographer in black polos)
+    wd('server', 'f', pk(ONE, WF), ['drink', 'walk1', 'walk3'], { role: 'server', hold: 'bottle', hs: pickR(R, ['highpony', 'ponytail']) });
+    wd('performer', 'f', pk(WF, SF), ['dance1', 'dance2'], { role: 'performer', hs: pickR(R, ['long', 'waves', 'highpony']) });
+    wd('security', 'm', 'polo', ['cross', 'walk1', 'walk3'], { role: 'security', hs: pickR(R, ['buzz', 'short']), fh: pickR(R, [null, 'beard', 'stubble']) });
+    wd('photographer', 'm', 'polo', ['photo', 'walk1', 'walk3'], { role: 'photographer', prop: 'photo' });
+    return T;
+  }
+  /** a guest's own wardrobe (PartyCrowd.build's hook): which of this.W they wear - only one that is swum in for a spot in
+   * the water - their pose in it, their colours for it; p.W (pose -> template), p.can (every template they may wear) */
+  _wardrobe(p, t, s, R) {
+    const WS = this.W; if (!WS) return;
+    let w = null;
+    if (p.staff) w = WS.find((x) => x.role === p.role) || null;
+    else {
+      const wet = (+s.y || 0) < -0.05, c = WS.filter((x) => !x.role && x.fig === p.fig && (!wet || x.water));
+      let tot = 0; for (const x of c) tot += x.w; let u = R() * tot; for (const x of c) { u -= x.w; if (u <= 0) { w = x; break; } } w = w || c[0] || null;
+    }
+    if (!w) return;
+    const M = w.map, pose = s.seat ? 'sitBooth' : t.pose, at = M[pose] ?? M[pose === 'lean' || pose === 'toast' ? 'drink' : pose === 'dance3' ? 'dance1' : 'drink'] ?? w.idx[0];
+    p.W = M; p.wk = w.id; p.can = w.idx; p.water = w.water; p.t = at; p.alt = at === M.dance1 && M.dance2 != null ? M.dance2 : -1; p.swap = p.alt >= 0 && R() < 0.55;
+    this._colours(p, this.tpl[at], this.pools || {}, R);
+  }
+  /** the meshes made: every one drawn whatever its bounds (people walk between re-packs), then the lives begun */
+  _make() {
+    super._make(); if (this.gone) return;
+    for (const r of this.recs) r.mesh.frustumCulled = false;
+    if (this.lifePlan && this.W && !this.life) { try { this.life = new PoolBrain(this, this.lifePlan); this.life.init(); } catch (e) { console.warn('PoolCrowd: no life for the crowd', e); this.life = null; } }
+  }
+  update(dt, cam, beat, occupancy = 1, fwd = null) {
+    const L = this.life;
+    if (L && this.ready && !this.gone) { try { L.energy = this.energy; L.pre(Math.min(0.1, Math.max(0, dt || 0))); } catch (e) { if (!this._lifeErr) console.warn('PoolCrowd: a life frame failed', e); this._lifeErr = (this._lifeErr || 0) + 1; } }
+    super.update(dt, cam, beat, occupancy, fwd);
+  }
+  /** a swimmer laid flat at the surface (L.roll -pi/2, face down) or floating (+pi/2, face up): turned about their middle */
+  _write(p, all = false) {
+    const ro = p.L?.roll || 0; if (!ro || !p.mesh) return super._write(p, all);
+    if (all) super._write(p, true);
+    const { _M: M, _Q: Q, _P: P, _S: S, _Y: Y, _Q2: Q2, _Z: Z } = this, c = Math.cos(p.yaw), sn = Math.sin(p.yaw), k = ro < 0 ? -0.85 : 0.85;
+    Q.setFromAxisAngle(Y, p.yaw).multiply(Q2.setFromAxisAngle(Z, ro));
+    M.compose(P.set(p.x + c * k * p.scale, p.y, p.z - sn * k * p.scale), Q, S.setScalar(p.scale)); p.mesh.mesh.setMatrixAt(p.slot, M); p.mesh.moved = true;
+  }
+  push(x, z, r = 0.45) { const h = super.push(x, z, r); if (h > 0 && this.life) { try { this.life.bump(x, z, r); } catch (_) { /* */ } } return h; }
+  stats() { const s = super.stats(); if (this.life) { s.acts = this.life.counts(); s.lifeMs = this.life.ms; } return s; }
+  dispose() { this.life = null; super.dispose(); }
   _colours(p, t, pools, R) {
     if (!t.swim) return super._colours(p, t, pools, R);
     const c = new THREE.Color(), set = (k, v) => { c.set(v); p.cols[k * 3] = c.r; p.cols[k * 3 + 1] = c.g; p.cols[k * 3 + 2] = c.b; };

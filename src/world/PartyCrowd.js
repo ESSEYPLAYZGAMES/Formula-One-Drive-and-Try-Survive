@@ -330,7 +330,7 @@ export class PartyCrowd {
     list.sort((a, b) => (STAFF.has(b.role) - STAFF.has(a.role)) || a.ord - b.ord);
     const women = pools.women ?? (kind === 'team' ? 0.3 : 0.55);
     const byRole = (role, fig) => T.filter((t) => t.role === role && t.fig === fig && t.w > 0);
-    for (const { s, role: r0, ord } of list.slice(0, MAXP)) {
+    for (const { s, role: r0, ord } of list.slice(0, this.maxP || MAXP)) {   // (a subclass may hold more: the pool club's maxP)
       let role = r0, fig = role === 'security' || role === 'photographer' || role === 'mechanic' ? 'm' : role === 'performer' || role === 'promo' || role === 'server' ? (kind === 'team' && role === 'server' ? 'm' : 'f') : Rp() < women ? 'f' : 'm';
       // (a sofa's seat: a woman sitting back on it; a counter: a man's forearms on it, else a drink in his hand)
       let cand;
@@ -352,6 +352,7 @@ export class PartyCrowd {
       };
       p.want = p.yaw;
       this._colours(p, t, pools, Rp);
+      this._wardrobe?.(p, t, s, Rp);   // (a subclass's own: everything else this person can wear - p.can, the templates' indices)
       // (iMisc: x - the phase against the beat (most on it, some on the off-beat); y - how hard they dance; z - a nod;
       // w - how much the shoulders turn)
       const off = Rp() < 0.8 ? 0 : Math.PI;
@@ -361,8 +362,8 @@ export class PartyCrowd {
     }
     // ---- the steps: each template near and mid, then its far one (as tall as the near one), two bakes a step - one
     // baked before costs nothing (no step of its own); a far body is a quarter of one
-    const used = new Map(); for (const p of this.people) { used.set(p.t, (used.get(p.t) || 0) + 1); if (p.alt >= 0) used.set(p.alt, (used.get(p.alt) || 0) + 1); }
-    this.tpl.forEach((t, i) => { t.used = used.has(i); t.few = (used.get(i) || 0) <= 3; });
+    const used = new Map(); for (const p of this.people) { used.set(p.t, (used.get(p.t) || 0) + 1); if (p.alt >= 0) used.set(p.alt, (used.get(p.alt) || 0) + 1); for (const i of p.can || []) if (i !== p.t && i !== p.alt) used.set(i, (used.get(i) || 0) + 1); }
+    this.tpl.forEach((t, i) => { t.used = used.has(i); t.few = (used.get(i) || 0) <= 3 || !!t.rare; });   // (t.rare: a pose worn only now and then - no middle body of its own)
     const steps = []; let cur = [], cost = 0;
     const put = (f, c) => { cur.push(f); cost += c; if (cost >= 2) { const fs = cur; steps.push(() => { for (const g of fs) g(); }); cur = []; cost = 0; } };
     for (const t of T) {
@@ -407,7 +408,7 @@ export class PartyCrowd {
   _make() {
     if (this.gone) return;
     const cap = new Map();
-    for (const p of this.people) { cap.set(p.t, (cap.get(p.t) || 0) + 1); if (p.alt >= 0) cap.set(p.alt, (cap.get(p.alt) || 0) + 1); }
+    for (const p of this.people) { cap.set(p.t, (cap.get(p.t) || 0) + 1); if (p.alt >= 0) cap.set(p.alt, (cap.get(p.alt) || 0) + 1); for (const i of p.can || []) if (i !== p.t && i !== p.alt) cap.set(i, (cap.get(i) || 0) + 1); }
     this.recs = [];
     this.tpl.forEach((t, i) => {
       const n = cap.get(i) || 0; t.M = [null, null, null]; if (!n || !t.geo) return;
@@ -515,7 +516,7 @@ export class PartyCrowd {
       this._occ(occupancy);
       for (const p of this.people) {
         // (out of sight - or, kept waiting half a minute while you watch, further off than 6 m among the others)
-        if (p.wantOn !== p.on) { p.waitT = (p.waitT || 0) + 0.5; if (this._unseen(p, fwd) || (p.waitT > 30 && Math.hypot(p.hx - this._cam.x, p.hz - this._cam.z) > 6)) { p.on = p.wantOn; p.waitT = 0; this._dirty = true; if (p.on) { p.x = p.hx; p.z = p.hz; } } }
+        if (p.wantOn !== p.on && !this.walkIn) { p.waitT = (p.waitT || 0) + 0.5; if (this._unseen(p, fwd) || (p.waitT > 30 && Math.hypot(p.hx - this._cam.x, p.hz - this._cam.z) > 6)) { p.on = p.wantOn; p.waitT = 0; this._dirty = true; if (p.on) { p.x = p.hx; p.z = p.hz; } } }
         const l = this._lodOf(p, p.lod); if (l !== p.lod) { p.lod = l; if (p.on) this._dirty = true; }
       }
     }

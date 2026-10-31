@@ -2273,7 +2273,7 @@ async function careerHangout(launch, done, c0 = null) {
   if (c?.drivers) syncLooks(c);   // (you at the evening as your save has you: face, hair, skin)
   const next = c?.calendar?.[(c.round || 1) - 1];
   const id = (party ? [L0.track, W.track ? W.def?.id : null, 'lasvegas'] : [V?.where, W.track ? W.def?.id : null, next, 'lasvegas']).find((t) => t && TRACKS[t]);
-  const fc = c?.forecastAt?.() || null, mode = party ? (L0.night === false ? 'day' : 'night') : vid === 'rooftop' || vid === 'pub' || vid === 'poolclub' ? 'night' : (id === next && fc?.time) || TRACKS[id]?.defaultTime || 'night';
+  const fc = c?.forecastAt?.() || null, mode = party ? (L0.night === false || vid === 'dayclub' ? 'day' : 'night') : vid === 'dayclub' ? 'day' : vid === 'rooftop' || vid === 'pub' || vid === 'poolclub' ? 'night' : (id === next && fc?.time) || TRACKS[id]?.defaultTime || 'night';
   let sent = false;
   const back = (r) => { if (sent) return; sent = true; HANG.busy = false; try { done?.(r); } catch (e) { console.error('[hangout] hub', e); } };
   // (no world to stage it in: the venue in its own little scene, over the hub)
@@ -2468,7 +2468,8 @@ function hangoutAnchor(venueId, o = {}) {
   let a = null;
   if (W.sphereInfo && (venueId === 'rooftop' || venueId === 'apartment' || venueId === 'vegasclub')) { try { a = skyAnchor(venueId); } catch (e) { console.warn('[hangout] sky anchor', e); } }
   if (!a && venueId === 'teamparty') { try { a = paddockAnchor(venueId, o.team); } catch (e) { console.warn('[hangout] paddock anchor', e); } }
-  if (!a) { try { a = groundAnchor(venueId, venueId === 'rooftop' ? 70 : venueId === 'apartment' ? 9 : venueId === 'vegasclub' ? 60 : 0); } catch (e) { console.warn('[hangout] anchor', e); } }
+  // (the pool club: the roof of the resort's podium, 7 m up - at street level the world's ground covered its sunken basin)
+  if (!a) { try { a = groundAnchor(venueId, venueId === 'rooftop' ? 70 : venueId === 'apartment' ? 9 : venueId === 'vegasclub' ? 60 : venueId === 'poolclub' || venueId === 'dayclub' ? 7 : 0); } catch (e) { console.warn('[hangout] anchor', e); } }
   if (!a) { const f = tr.sample(0, tr.wallAt(0, 1) + 40); a = anchorAt(f.x, 0, f.z, tr.px[0], 0, tr.pz[0]); }
   a.trackId = W.def.id; a.venue = venueId; ANCHORS.set(key, a);
   return { ...a, look: { ...a.look } };
