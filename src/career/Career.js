@@ -617,6 +617,25 @@ export class Career {
     for (const x of strat.slice(0, 2).reverse()) this.addNews(`Strategy: ${x.text}.`);
     const ms = live ? strat.find((x) => x.mine) : null;
     if (ms) press('strategy', { kind: ms.kind, good: !!ms.good, pos: ms.pos, n: ms.n >= 2 ? ms.n : null, rival: ms.rival, comp: ms.comp, track: trackId });
+    // team orders (race/TeamOrders.js, main.js raceFacts): the day's biggest in the paddock news; yours to the press, and
+    // to your team-mate - what it does to what they think of you (Paddock Rapport) and to their morale. A team-mate
+    // with number-one status takes your defiance worse.
+    const ords = !grave && Array.isArray(X.orders) ? X.orders.filter((x) => x && typeof x.text === 'string') : [];
+    for (const x of ords.slice(0, 2).reverse()) this.addNews(`${x.text}.`);
+    const mo = live ? ords.find((x) => x.mine && x.sub) : null;
+    if (mo) {
+      const mid = mo.did === this.playerId ? mo.other : mo.did, md = this.drivers[mid], lead = md?.contract?.role === 'lead';
+      if (mid && md) {
+        press('orders', { sub: mo.sub, rival: mid, track: trackId, contra: !!mo.contra, n: mo.n });
+        const R = { youRefused: [-14, 'you ignored team orders'], youBrokeHold: [-12, 'you broke the hold order'], youHeldUp: [-16, 'you held them up on purpose'], youHit: [-18, 'you took them out'],
+          youObeyed: [6, 'you let them through'], youSacrificed: [10, 'you gave way, standings and all'], mateRefused: [-6, 'refused to let you by'], mateHeldUp: [-6, 'held you up'],
+          mateHit: [-5, 'hit you'], mateBrokeHold: [-5, 'ignored the hold order'], mateObeyed: [-3, 'moved over for you'], clash: [-6, 'a team-mate collision'] }[mo.sub];
+        if (R) this.relate(mid, Math.round(R[0] * (lead && R[0] < 0 && mo.sub.startsWith('you') ? 1.4 : 1) * (mo.dirty ? 1.3 : 1)), R[1]);
+        const M = { youRefused: -6, youBrokeHold: -5, youHeldUp: -6, youHit: -8, youObeyed: 3, youSacrificed: 4, mateObeyed: -4, mateRefused: 2 }[mo.sub];
+        if (M) shiftMorale(this, mid, M, M < 0 ? 'team orders went against them' : 'the team came first');
+        if (mo.sub === 'youSacrificed' || mo.sub === 'mateRefused' || mo.sub === 'mateHeldUp') shiftMorale(this, this.playerId, -4, 'team orders');
+      }
+    }
     if (win) this.addNews(`Round ${this.round} (${{ lasvegas: 'Las Vegas', montreal: 'Montreal', austin: 'Austin' }[trackId] || 'Silverstone'}): ${win.car.name} wins.`);
     // (each team's best race lap this round: the measured race pace, for the charts)
     this._laps = {}; for (const r of rows) { const t = r.car.team, b = r.car.bestLap; if (this.teams[t] && isFinite(b) && b > 20) this._laps[t] = Math.min(this._laps[t] ?? Infinity, +b.toFixed(3)); }

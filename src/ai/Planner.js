@@ -291,7 +291,8 @@ export class Planner {
           // (no overtaking - yellow flags, safety car: a running car ahead is followed wherever it is on the road)
           // (... unless it owes me the place: then it is letting me by)
           // (and the safety car only for the leader: anyone else behind it is waved by)
-          const queue = ctx.noPass && R.ahead0 && !R.car.retired && !R.car.spinning && !R.car.rigid && R.car.speed > 6 && R.car._owes !== this.drv.car && (!R.car.isSC || ctx.queueSC);
+          // (a team order to hold position: the team-mate ahead is followed the same way - race/TeamOrders.js)
+          const queue = (ctx.noPass || R.car === ctx.holdFor) && R.ahead0 && !R.car.retired && !R.car.spinning && !R.car.rigid && R.car.speed > 6 && R.car._owes !== this.drv.car && (!R.car.isSC || ctx.queueSC);
           // (a feud - you said something on the grid: it leaves you far less room and sits on your gearbox)
           const fk = R.car === ctx.feud ? ctx.feudK : 0, Wr = W * (1 - 0.72 * fk), xr = fk ? 0 : R.extra * (ctx.unreadRoom ?? 1), gp = (ctx.gap + R.braking) * (1 - 0.8 * fk);
           if (gs > -Lc && gs < (R.ahead0 ? gp : Lc) && (queue || dd < Wr + xr)) {

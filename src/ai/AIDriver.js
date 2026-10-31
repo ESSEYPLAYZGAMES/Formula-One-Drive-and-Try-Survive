@@ -144,6 +144,11 @@ export class AIDriver {
     // a place taken when it was not allowed: lift and let that car back by (it is still close behind)
     const owed = c._owes;
     if (owed && !owed.retired) { const x = this.planner.ds(owed.s, c.s); if (x > -3 && x < 400) ctx.vCap = Math.min(ctx.vCap ?? 99, Math.max(8, x < 80 ? owed.speed * 0.8 - 2 : owed.speed * 0.93)); }
+    // a team order (race/TeamOrders.js): let the team-mate by - lift once it is close behind, on its way past; and stay
+    // behind one it has been told to hold position to (Planner: queued behind it, as under the safety car)
+    const yt = c._yieldTo;
+    if (yt && !yt.retired && world.time < (c._yieldUntil ?? 0) && yt.speed > 25) { const x = this.planner.ds(yt.s, c.s); if (x > -3 && x < 250) ctx.vCap = Math.min(ctx.vCap ?? 99, Math.max(20, x < 60 ? yt.speed * 0.88 - 1 : yt.speed * 0.96)); }
+    const hf = c._holdFor; ctx.holdFor = hf && !hf.retired && !hf.pitLane && !hf.inPit ? hf : null;
     const H = Math.max(120, Math.min(300, 80 + v * 2.6));
     ctx.n = Math.min(NMAX, Math.round(H / DS) + 1);
     ctx.s0 = c.s; ctx.v = v; ctx.e0 = c.d - line.offsetAt(c.s);
@@ -203,12 +208,16 @@ export class AIDriver {
     // a feud (ui/GridWalk.js: what you said to this driver, or what they heard): this race, you get no room, a car on your
     // gearbox, every door shut - and, now and then when alongside, it leans on you (racecraftCost); a driver short on
     // composure flares up more often (FORM.flare)
-    const fk = c.feud || 0, me = fk > 0 ? (this._me || (this._me = world.cars.find((o) => o.isPlayer))) : null;
-    ctx.feud = me && !me.retired && !me.inPit && !me.pitLane ? me : null; ctx.feudK = fk; this._feudD = null;
-    if (ctx.feud) {
-      const ds = this.planner.ds(c.s, me.s);
+    // (a grudge - race/TeamOrders.js: a team-mate it refused to make way for, one that would not make way for it, one it
+    //  has fallen out with - is raced the same way for a while, whoever it is)
+    const fk0 = c.feud || 0, me = fk0 > 0 ? (this._me || (this._me = world.cars.find((o) => o.isPlayer))) : null, onTrack = (o) => o && !o.retired && !o.inPit && !o.pitLane;
+    let tgt = onTrack(me) ? me : null, fk = tgt ? fk0 : 0;
+    const gr = c._grudge; if (gr && world.time < gr.until && onTrack(gr.car) && gr.k > fk) { tgt = gr.car; fk = gr.k; }
+    ctx.feud = tgt; ctx.feudK = fk; this._feudD = null; this._feudCar = tgt;
+    if (tgt) {
+      const ds = this.planner.ds(c.s, tgt.s);
       if ((this._fT = (this._fT || 0) - 0.1) <= 0) { this._fT = 2 + rnd() * 2.5; this._fOn = rnd() < (0.35 + 0.55 * fk) * F.flare; }
-      if (this._fOn && ds > -9 && ds < 10 && Math.abs(me.d - c.d) < 4) this._feudD = me.d;
+      if (this._fOn && ds > -9 && ds < 10 && Math.abs(tgt.d - c.d) < 4) this._feudD = tgt.d;
     }
     this.decideDefence(world);
     ctx.racecraft = this._racecraft || (this._racecraft = (P) => this.racecraftCost(P));
@@ -232,7 +241,7 @@ export class AIDriver {
     let att = null;
     for (let r = 0; r < P.nOthers; r++) {
       const R = P.others[r], o = R.car;
-      if (R.s0 >= -2 || R.lapping || o.retired || o.spinning || o.rigid || o === c._owes) continue;   // (never against a car it owes a place)
+      if (R.s0 >= -2 || R.lapping || o.retired || o.spinning || o.rigid || o === c._owes || o === c._yieldTo) continue;   // (never against a car it owes a place, or has been told to let by)
       // close enough to try it: within half a second and closing, or right on the gearbox
       const gapT = -R.s0 / Math.max(10, o.speed);
       if ((gapT < T.defendGap && o.speed > c.speed + 1.5) || gapT < 0.25) { att = o; break; }
@@ -240,9 +249,10 @@ export class AIDriver {
     if (!att) return;
     let zone = null, dist = 0;
     for (let d = 40; d < 260; d += 10) { const z = tr.inCornerZone(tr.idxAtS(c.s + d)); if (z) { zone = z; dist = d; break; } }
-    if (!zone || isFast(zone) || dist < (att.isPlayer && c.feud > 0.4 ? 30 : 60)) return;   // (too late to move once in the braking zone - later still against someone it has a feud with)
+    const fe = att === this.ctx.feud ? this.ctx.feudK || 0 : 0;
+    if (!zone || isFast(zone) || dist < (fe > 0.4 ? 30 : 60)) return;   // (too late to move once in the braking zone - later still against someone it has a feud with)
     // (racecraft: a sharp driver covers the inside a little more often, FORM.defend; a feud: it always shuts the door on you)
-    if (rnd() > 0.32 + 0.4 * this.aggression + (c.form || NF).defend + (att.isPlayer ? 0.6 * (c.feud || 0) : 0)) { this.defendCool = 5; return; }
+    if (rnd() > 0.32 + 0.4 * this.aggression + (c.form || NF).defend + 0.6 * fe) { this.defendCool = 5; return; }
     this.defend = { side: zone.dir, untilS: zone.sA + 15, attacker: att };
     this.defences = (this.defences || 0) + 1;
   }
@@ -260,7 +270,7 @@ export class AIDriver {
     }
     // boxing: lined up on the pit side for the last 250 m before the lane's first metre
     if (this._pitD != null) for (let i = 0; i < n && i * DS < this._pitTo; i++) if (this._pitTo - i * DS < 250) cost += 0.02 * Math.abs(P.d[i] - this._pitD);
-    if (this._feudD != null) for (let i = 0; i < n && i * DS < 30; i++) cost += 0.035 * (this.car.feud || 0) * Math.abs(P.d[i] - this._feudD);   // (leaning on you)
+    if (this._feudD != null) for (let i = 0; i < n && i * DS < 30; i++) cost += 0.035 * (this.ctx.feudK || 0) * Math.abs(P.d[i] - this._feudD);   // (leaning on you)
     return cost;
   }
 
@@ -326,7 +336,7 @@ export class AIDriver {
     if (kiss) dT = kiss * (tr.wallAt(c.trackIdx, kiss) - 0.95);
     else if (this.error && this.error.type === 'scrape' && !this.error.wall && zone) dT = -zone.dir * (tr.edgeAt(iA, -zone.dir) + 0.6);
     // (a feud, alongside you: it squeezes you - steers onto your line and leans on you; the stewards may have a view)
-    if (this._feudD != null && this._me) { const me = this._me, ds = P.ds(c.s, me.s); if (ds > -8 && ds < 8) dT += (me.d - dT) * Math.min(1, 0.95 * (c.feud || 0)); }
+    if (this._feudD != null && this._feudCar) { const me = this._feudCar, ds = P.ds(c.s, me.s); if (ds > -8 && ds < 8) dT += (me.d - dT) * Math.min(1, 0.95 * (this.ctx.feudK || 0)); }
     const sc2 = this.error?.type === 'scrape' && !this.error.wall ? 2 : 0;
     const limL = kiss ? tr.wallAt(c.trackIdx, kiss) - 0.9 : tr.hwL[iA] - 0.9 + sc2, limR = kiss ? tr.wallAt(c.trackIdx, kiss) - 0.9 : tr.hwR[iA] - 0.9 + sc2;
     // (behind the safety car or under the VSC: on a straight, with its tyres short of their window and nobody alongside,

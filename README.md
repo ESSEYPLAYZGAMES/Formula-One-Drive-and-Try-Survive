@@ -34,6 +34,8 @@ it runs from `file://` because nothing is fetched. Rebuild after editing the sou
 | Space | Handbrake |
 | Shift | ERS deploy |
 | P | Request pit stop (opens the pit menu: 1-5 tyres, 7/8/9 repairs, Enter confirm) |
+| Y / N | Team order on the radio: copy (then let your team-mate by) / refuse |
+| G | Ask the pit wall to have your team-mate ahead let you through |
 | R | Reset to track (offered after 4 s stationary; damage is kept) |
 
 Volume: a slider in the pause menu and on the setup's Driving page (one master volume for everything, remembered).
@@ -569,6 +571,27 @@ it went for (or not - your own stop counts as one when you pitted within 2.5 s o
 four laps later), the late call and the wrong tyres and what they cost. The biggest go to the results (STRATEGY, YOUR
 STRATEGY), the paddock news, the press (`HL.strategy` in `career/PR.js`: the team's call, so the team's name is in it)
 and the post-race interview, where your story of the day is likely to be asked about.
+
+Team orders (`race/TeamOrders.js`): who has priority in a team is its contracted number one (career contracts: number-one
+status or the number two), else - any AI team, and every team outside a career - the clearly better-rated driver (0.02
+or more); your own career team on equal terms has none, and decides by the race and the title instead. A *swap*: the
+number two within 1.5 s ahead of the number one for 15 s is told to let it through (a team-mate 15 points or more ahead
+in the standings has the same claim after 18 s; on equal terms a car stuck 25 s behind that is half a second a lap
+quicker gets it one time in two). You hear it on the radio (Y copy, N refuse) and have about a lap; G asks for your
+team-mate ahead to be moved over, which the team does if you have priority, or the pace and the standings back you.
+A *hold*: late in the race (the last 30 %), both cars in the points within 2 s - no racing; passing anyway breaks it.
+An AI driver obeys by its standing (a number two more), the order's reason (less for "the other car is quicker"), the
+standings (told to give way to a team-mate it leads in the championship: much less - the contradiction), the stakes
+(the win, a podium), its temper and, toward you, Paddock Rapport and any feud. Obeying, it lifts as its team-mate
+closes and does not defend; holding, it queues behind (`Planner`: as under the safety car). Refusing, it holds its
+team-mate up on purpose for 75 s (`AIDriver`: a grudge, raced like a feud - every corner covered, less room, leant on
+alongside), and the one held up races it harder too; a team-mate at -35 Paddock Rapport or worse may hold you up
+without being told to. Contact between team-mates is watched (`TeamOrders.contact`: the stewards' culprit, what it did)
+and with a grudge in it, it is dirty. At the flag the stories (an order obeyed - above all against the standings -
+refused or ignored, a hold broken, a car held up 20 s or more, team-mates colliding) go to the results (TEAM ORDERS,
+YOUR TEAM), the paddock news, the press (`HL.orders`, from your seat: your defiance, your team-mate's, your sacrifice),
+Paddock Rapport and morale (your team-mate takes defiance worse with number-one status, and a dirty clash worse still)
+and the post-race interview, where defiance, blocking and contact are asked about straight after the result.
 
 ### Car: real dimensions, four wheels, suspension
 

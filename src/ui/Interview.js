@@ -148,7 +148,12 @@ function questions(ctx) {
 
   // ---- the rest: a pool for the day ----
   const pool = [], hurt = new Set((ctx.hurt || []).map((h) => h.d?.id));
+  // team orders (race/TeamOrders.js): what you or your team-mate did with the pit wall's order, a team-mate held up, the
+  // two cars colliding - defiance, blocking and contact are the story of the day, asked straight after the result
+  const TO = ctx.orders && tm ? orderQuestion(ctx.orders.sub, tm) : null;
+  if (TO) (TO.big && Q.length < 3 ? Q : pool).push(TO);
   for (const c of ctx.contacts.slice(0, 2)) {
+    if (TO && /Hit|clash/.test(ctx.orders.sub) && c.d.id === tm.id) continue;   // (the collision is asked about as a team story)
     // (the driver you touched is the one in hospital: about him, nothing for the press)
     const X = c.d, gr = hurt.has(X.id);
     if (c.crash) pool.push({ k: 'clash', grave: gr, w: 5, q: pick([`${first(X)} is out after your clash. Any regrets?`, `You and ${last(X)} collided and ${first(X)} retired. Your view?`]), answers: [
@@ -272,6 +277,74 @@ function questions(ctx) {
     picked.push(pool.splice(i, 1)[0]);
   }
   return [...Q, ...picked, ...(T ? [T] : [])].map((q) => ({ ...q, answers: shuffle(q.answers) }));
+}
+/** a team-order story of yours (race/TeamOrders.js orderSub) as a question: tm is your team-mate -> question | null */
+function orderQuestion(sub, tm) {
+  const F = first(tm), S = last(tm), id = tm.id;
+  const B = {
+    youRefused: [[`The team told you to let ${F} through and you didn't. Why?`, 'You ignored a team order today. Was that the right call?', `${S} was supposed to come past you. What happened?`], [
+      A("I was faster. I'm here to race, not to wave people through.", [[id, -8]], 'Defiant.', 'confident'),
+      A(`I got it wrong. I'll apologise to the team and to ${F}.`, [[id, 8]], 'Contrite.', 'humble'),
+      A("We'll talk about it inside the team. That's where it stays.", [], 'Giving nothing away.', 'diplomatic'),
+      A(`If ${F} wants to get past, they can overtake me.`, [[id, -14]], 'That will not calm things down.', 'cruel')]],
+    youBrokeHold: [[`The team asked you to hold position behind ${S}. You passed anyway. Why?`, `You overtook ${F} against orders. Will you apologise?`], [
+      A('I had the pace. Holding back would have been a waste.', [[id, -8]], 'Unrepentant.', 'confident'),
+      A(`It was wrong of me. I'll make it right with ${F}.`, [[id, 8]], 'Contrite.', 'humble'),
+      A('The radio was not very clear at that point.', [[id, -3]], 'Nobody in the pen believes that.', 'evasive'),
+      A(`${F} was in my way. Simple.`, [[id, -14]], 'That will run and run.', 'cruel')]],
+    youHeldUp: [[`${S} says you held them up on purpose. Did you?`, 'It looked like you were blocking your own team-mate. Fair?'], [
+      A('I was defending my position. That is what racing is.', [[id, -6]], null, 'confident'),
+      A("Maybe I made it harder than I needed to. I'll talk to them.", [[id, 6]], 'A rare admission.', 'humble'),
+      A('I race everyone the same, team-mate or not.', [[id, -3]], null, 'diplomatic'),
+      A(`${F} should try being quicker.`, [[id, -14]], 'Ouch.', 'cruel')]],
+    youHit: [['You collided with your own team-mate. What happened?', `Contact with ${F} - how do you explain that to the team?`, `${S} and you hit each other. Your fault?`], [
+      A(`My fault. I'll apologise to ${F} and to everyone in the garage.`, [[id, 12]], 'Owning it.', 'humble'),
+      A('A racing incident. These things happen when you race hard.', [[id, -4]], 'Not everyone will see it that way.', 'diplomatic'),
+      A(`${F} turned in on me. I had nowhere to go.`, [[id, -12]], 'This one will run.', 'confident'),
+      A("I'm not discussing it in public.", [[id, -2]], 'Evasive.', 'evasive')]],
+    youObeyed: [[`You let ${F} through on team orders. Happy to play the team game?`, `Giving the place to ${S} - did that hurt?`], [
+      A('The team comes first. It was the right thing to do.', [[id, 6]], 'A team player.', 'humble'),
+      A("It hurts, but I understand why. I'll get it back.", [[id, 2]], null, 'diplomatic'),
+      A('I did what I was asked. Next time it might be the other way round.', [], null, 'confident'),
+      A("I'm sure they'll buy me dinner.", [[id, 3]], 'Laughter in the pen.', 'funny')]],
+    youSacrificed: [[`You're ahead of ${F} in the championship and the team still made you move over. How do you feel?`, `The team put ${S} first, despite the standings. Is that fair?`], [
+      A('The team made a call. I accept it, even if I do not like it.', [[id, 4]], 'Loyal, through gritted teeth.', 'diplomatic'),
+      A("I'm ahead in the points. That should mean something in this team.", [[id, -6]], 'The team will hear that.', 'confident'),
+      A('For the team, I would do it again.', [[id, 8]], 'Selfless.', 'humble'),
+      A(`Let's just say ${F} owes me one.`, [[id, -2]], 'A pointed smile.', 'funny')]],
+    mateRefused: [[`${F} ignored the order to let you through. Your reaction?`, `${S} would not move over for you. Is there a problem in the team?`], [
+      A('It shows you what kind of team-mate they are.', [[id, -12]], 'The gloves are off.', 'cruel'),
+      A('The team will deal with it. I just want to race.', [[id, -2]], null, 'diplomatic'),
+      A("They were racing. I understand. I'd have done the same.", [[id, 8]], 'Generous.', 'humble'),
+      A("It changes nothing. I'll beat them on my own.", [[id, -5]], 'Fighting talk.', 'confident')]],
+    mateHeldUp: [[`It looked like ${F} held you up on purpose. Did they?`, 'Stuck behind your own team-mate for laps - what was going on?'], [
+      A('Ask them. It was obvious from where I was sitting.', [[id, -10]], 'A pointed reply.', 'confident'),
+      A('I need to be quick enough to pass. That is on me.', [[id, 4]], null, 'humble'),
+      A("We'll sort it out inside the team.", [], null, 'diplomatic'),
+      A('Maybe they forgot which team they drive for.', [[id, -14]], 'That will sting.', 'cruel')]],
+    mateHit: [[`${F} ran into you today. Your view?`, 'Your own team-mate hit you. Have you spoken to them?'], [
+      A(`${F} made a mistake. We all do.`, [[id, 8]], 'Gracious.', 'humble'),
+      A("Racing incident. Let's move on.", [[id, 2]], null, 'diplomatic'),
+      A('That was not acceptable. Not from a team-mate.', [[id, -10]], 'Strong words.', 'confident'),
+      A('They will be buying the mechanics a lot of pizza.', [[id, -2]], 'Laughter, of a kind.', 'funny')]],
+    mateBrokeHold: [[`${F} passed you despite the hold order. Were you surprised?`, `The team said hold position and ${S} went past anyway. Your view?`], [
+      A('Disappointed. We had an agreement.', [[id, -8]], null, 'confident'),
+      A('The team will deal with it.', [], null, 'diplomatic'),
+      A('I should have been quicker. Then there is no question.', [[id, 4]], null, 'humble'),
+      A('Rules are for other people, apparently.', [[id, -12]], 'A jab.', 'cruel')]],
+    mateObeyed: [[`${F} let you through on team orders. Do you owe them one?`, `The team swapped the cars for you today. Fair on ${S}?`], [
+      A(`Big thanks to ${F}. That was real teamwork.`, [[id, 8]], 'Gracious.', 'humble'),
+      A('It was the right call for the team.', [[id, 2]], null, 'diplomatic'),
+      A('I was quicker. It made sense.', [[id, -6]], 'They may not enjoy hearing that.', 'confident'),
+      A("I'll buy them a coffee. A small one.", [[id, 1]], 'A smile from the pen.', 'funny')]],
+    clash: [[`You and ${F} collided. Whose fault was it?`, 'Team-mates touching - what happened out there?'], [
+      A('A racing incident. Nobody meant it.', [[id, 4]], null, 'diplomatic'),
+      A(`Maybe I could have left more room. I'll talk to ${F}.`, [[id, 8]], null, 'humble'),
+      A(`${F} left me no room.`, [[id, -10]], 'That will run.', 'confident'),
+      A("Let's leave it in the garage.", [], null, 'evasive')]],
+  }[sub];
+  if (!B) return null;
+  return { k: 'orders', w: 5, big: !['youObeyed', 'mateObeyed', 'mateBrokeHold', 'clash'].includes(sub), q: pick(B[0]), answers: B[1] };
 }
 /**
  * 'How will you celebrate tonight?' - ctx.tonight: { team (the team's celebration is open to you), club (a club night is),

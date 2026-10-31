@@ -82,6 +82,7 @@ import * as Kit from './ui/Motion.js';
 import { TRACK_MAPS } from './ui/TrackMaps.js';
 import { BUILTIN_SHOTS } from './ui/LoadingShots.js';
 import { FAULT_P } from './race/Calls.js';
+import { orderSub } from './race/TeamOrders.js';
 
 const $ = (id) => document.getElementById(id);
 /** teams in roster order (pit garage k belongs to TEAMS[k]; the custom 23rd car gets the last garage) */
@@ -1406,7 +1407,11 @@ function careerField(C, lapsTotal, assists) {
     // (your tyres also wear by your focus: smooth inputs when your head is in it - baseWear kept for the walk's refresh)
     car.baseWear = fx.wear || 1; car.wearMul = e.isPlayer ? car.baseWear * (car.form.wear || 1) : car.baseWear; car.tyres.wearMul = car.wearMul;
     // (Paddock Rapport: a driver you have fallen out with races harder; one you get on with gives you a little more room)
-    if (!e.isPlayer) { const v = C.rapportOf(e.careerId); car.aggrMul = v < 0 ? 1 + Math.min(0.5, -v / 160) : 1 - Math.min(0.12, v / 600); car.aggrMul *= room.get(e.careerId) || 1; }
+    if (!e.isPlayer) { const v = C.rapportOf(e.careerId); car.aggrMul = v < 0 ? 1 + Math.min(0.5, -v / 160) : 1 - Math.min(0.12, v / 600); car.aggrMul *= room.get(e.careerId) || 1; car.rapport = v; }
+    // (team orders - race/TeamOrders.js: the contract's standing in the team, yours by your team-mate's, and the points)
+    const mateRec = e.isPlayer ? E.filter((x) => x.team === e.team && !x.isPlayer).map((x) => C.drivers[x.careerId])[0] : null, mr = mateRec?.contract?.role;
+    car.role = e.isPlayer ? (mr === 'lead' ? 'support' : mr === 'support' ? 'lead' : 'equal') : rec?.contract?.role || null;
+    car.champPts = Number.isFinite(rec?.points) ? rec.points : null;
     cars.push(car);
   }
   // (never a race without you in it: if your driver somehow has no car, watch your team's - never a frozen camera)
@@ -1869,14 +1874,15 @@ function beginRace() {
         //  anyone you only touched on track; Career keeps it for a live round only)
         // (the strategy stories - race/Calls.js - for the paddock news, the press and the interview: plain data, no cars)
         const strategy = (facts?.strat || []).slice(0, 4).map((x) => ({ kind: x.kind, good: x.good, text: x.text, mine: x.mine, team: x.team, did: x.car.careerId || null, pos: x.pos, n: x.n ?? null, rival: x.rival?.careerId || null, comp: x.comp || null }));
-        const extra = { strategy, dotd: !!facts?.dotd?.[0]?.me, overtakes: pc?.overtakes || 0, grave: !!(NEWS.abandoned || NEWS.cancelled || S.cars.some((c) => c.injured) || memorial), hurtIds: S.cars.filter((c) => c.injured && c.careerId).map((c) => c.careerId),
+        const orders = (facts?.orders || []).slice(0, 4).map((x) => ({ kind: x.kind, sub: orderSub(x), good: x.good, text: x.text, mine: x.mine, team: x.team, did: x.actor.careerId || null, other: x.other.careerId || null, contra: !!x.contra, dirty: !!x.dirty, n: x.n ?? null }));
+        const extra = { strategy, orders, dotd: !!facts?.dotd?.[0]?.me, overtakes: pc?.overtakes || 0, grave: !!(NEWS.abandoned || NEWS.cancelled || S.cars.some((c) => c.injured) || memorial), hurtIds: S.cars.filter((c) => c.injured && c.careerId).map((c) => c.careerId),
           fought: bw && !bw.aborted && !bw.walkedAway ? bw.did || bw.id || null : null,
           // (your car touched the Wall of Champions today - Montreal's last chicane: the season remembers it)
           woc: !!pc?.wocKiss && !pc.standInFor };
         // (who of yours was here this weekend, as the race leaves it - asked about in the pen; before the round moves on)
         let seen = []; if (!extra.grave) try { seen = Celebs.seeingAtRace(C); } catch (e) { console.warn('[career] celebs', e); }
         C.applyRace(rows, W.def.id, contacts, table, extra);
-        wk.interview = C.me?.alive && pc && !pc.injured && !pc.standInFor ? interviewCtx(C, rows, contacts, upgrade, { grave: extra.grave, seen, strat: strategy.find((x) => x.mine) || null }) : null;   // (standing in: the stand-in's media pen, not yours)   // (hurt: in the medical centre, not the media pen)
+        wk.interview = C.me?.alive && pc && !pc.injured && !pc.standInFor ? interviewCtx(C, rows, contacts, upgrade, { grave: extra.grave, seen, strat: strategy.find((x) => x.mine) || null, orders: orders.find((x) => x.mine && x.sub) || null }) : null;   // (standing in: the stand-in's media pen, not yours)   // (hurt: in the medical centre, not the media pen)
         wk.incident = S.cars.some((c) => c.injured);   // (the interview after it: under the strings)
       } else {
         rememberResult(rows, me);   // (for the loading screen's news)
@@ -1936,11 +1942,16 @@ function raceFacts(d, rows) {
   const st0 = strat[0], stMe = strat.find((x) => x.mine);
   if (st0) out.push(['STRATEGY', st0.text, st0.car.color]);
   if (stMe && stMe !== st0) out.push(['YOUR STRATEGY', stMe.text, stMe.car.color]);
+  // team orders (race/TeamOrders.js: an order obeyed, refused or ignored, a hold broken, a car held up, team-mates colliding)
+  let ords = []; try { ords = d.orders?.stories() || []; } catch (e) { console.warn('[orders] stories', e); }
+  const or0 = ords[0], orMe = ords.find((x) => x.mine);
+  if (or0) out.push(['TEAM ORDERS', or0.text, or0.actor.color]);
+  if (orMe && orMe !== or0) out.push(['YOUR TEAM', orMe.text, orMe.actor.color]);
   const n = d.sc?.count || { sc: 0, vsc: 0 }, red = d.sc?.redCount || 0;
   out.push(['NEUTRALISATIONS', [n.sc && `${n.sc} safety car${n.sc > 1 ? 's' : ''}`, n.vsc && `${n.vsc} VSC`, red && `${red} red flag${red > 1 ? 's' : ''}`].filter(Boolean).join(' · ') || 'none']);
   const dnf = rows.filter((r) => r.car.retired);
   out.push(['DID NOT FINISH', dnf.length ? dnf.map((r) => r.name.split(' ').pop()).join(', ') : 'everyone finished']);
-  return { dotd, facts: out, strat };
+  return { dotd, facts: out, strat, orders: ords };
 }
 
 // ---------------------------------------------------------------------------
@@ -2005,7 +2016,8 @@ function interviewCtx(C, rows, contacts, upgrade, o = {}) {
   const pts = activePoints(C, C.playerId), ban = banText(C, C.playerId), nextId = C.round <= C.rounds ? C.calendar?.[C.round - 1] : null;
   const off = {
     grave: !!o.grave,
-    strat: o.grave ? null : o.strat || null,   // (your strategy story today - race/Calls.js: a pit wall's mistake, a stop before the safety car, an undercut)
+    strat: o.grave ? null : o.strat || null,
+    orders: o.grave ? null : o.orders || null,   // (your team-order story today - race/TeamOrders.js: an order you or your team-mate obeyed or defied, a hold broken, held up, a collision)   // (your strategy story today - race/Calls.js: a pit wall's mistake, a stop before the safety car, an undercut)
     brawl: bd ? { d: bd, result: B.result || 'even', started: B.started !== false, escalated: !!B.escalated, walkedAway: !!B.walkedAway } : null,
     partner: pid && pb && !pb.grieving ? { id: pid, name: pn, first: pn.split(' ')[0], public: !!pb.public, secret: !!pb.secret } : null,
     points: ban || pts >= 8 ? { n: pts, ban: !!ban, next: nextId ? TRACKS[nextId]?.name.replace(/ (Strip )?Circuit$/, '') : null, max: LICENCE_MAX } : null,
@@ -3287,6 +3299,8 @@ function frame(now) {
     if (d && p && !S.paused && !d.done && !S.spectating) {
       if (hud.pit.open) { for (const k of ['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5', 'Digit7', 'Digit8', 'Digit9', 'Enter']) if (input.pressed(k)) hud.handlePitKey(k); }
       if (p.pitAuto && p._pull && !p._pull.done && (input.pressed('Space') || input.pressed('Enter') || input.padATap)) d.pullIn(p);   // (the pull-in into your box, timed)
+      // team orders (race/TeamOrders.js): Y copy / N refuse an order to let your team-mate by; G ask for your team-mate ahead to be moved over
+      if (d.mode === 'race' && d.orders && !p.autopilot) { if (d.orders.ask?.Y === p) { if (input.pressed('KeyY')) d.orders.reply(p, true); else if (input.pressed('KeyN')) d.orders.reply(p, false); } if (input.pressed('KeyG')) d.orders.request(p); }
       if (input.pressed('KeyP') && d.mode !== 'quali') {
         const on = d.requestPit(p);
         if (on) { hud.openPit(p, (plan) => { p.pitPlan = plan; engineer.say(`Copy, box this lap for ${plan.compound.toLowerCase()}s${plan.repair !== 'none' ? ' and repairs' : ''}. Follow the line into the pit entry, the limiter is automatic.`, 3); }); hud.msg('PIT REQUESTED · choose tyres & repairs', 'warn', 3); }   // the action pauses while the menu is open

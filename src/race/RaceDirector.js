@@ -15,6 +15,7 @@ import { Sectors, Passes } from './Sectors.js';
 import { neutralForm } from '../career/Morale.js';
 import { setTyreLap, lapLoss, outLapLoss, cliffLaps, RATE_NOM } from '../vehicle/Tyres.js';
 import { StrategyCalls } from './Calls.js';
+import { TeamOrders } from './TeamOrders.js';
 
 const SUB = 1 / 120;
 /** a driver's form when the car carries none (career/Morale.js FORM: every multiplier 1, every addition 0) */
@@ -99,6 +100,7 @@ export class RaceDirector {
     this.lapT = null;
     if (this.profile && this.track) { let t = 0; const n = this.track.n, ds = this.track.ds; for (let i = 0; i < n; i++) t += ds / Math.max(5, this.profile[i] || 5); this.lapT = t * 1.03; setTyreLap(this.lapT); }
     this.calls = new StrategyCalls(this);   // (every car's plan, its stops, the calls the pit walls got wrong: race/Calls.js)
+    this.orders = new TeamOrders(this);     // (the pit walls' orders between team-mates, obeyed or not: race/TeamOrders.js)
     this.sectors = new Sectors(this);   // (live sector times: purple / green / yellow)
     this.passes = new Passes(this);     // (on-track overtakes: c.overtakes)
     this.finishOrder = []; this.leaderFinished = false; this.leaderFinishTime = 0; this.endTimer = -1; this.done = false;
@@ -267,6 +269,7 @@ export class RaceDirector {
     this.stewards.update(dt);
     this.sc.update(dt);
     this.radio.update();
+    this.orders.update(dt);
     if (this.mode === 'race') this.drs.update();
     this.telemetry.update(this.time);
     this.marshals(dt);
@@ -370,6 +373,7 @@ export class RaceDirector {
         const hit = touch(zA, zB, -rvn, Math.abs(rvt), Math.abs(Math.sin(a.th - b.th)) > 0.6);
         a.hardest = Math.max(a.hardest || 0, -rvn); b.hardest = Math.max(b.hardest || 0, -rvn);
         this.stewards.contact(a, b, hit.kind, zA, zB, nx, nz, -rvn);
+        if (a.team && a.team === b.team) this.orders.contact(a, b, -rvn);   // (team-mates: after the stewards, who know who did it)
         const K = hit.K, e = hit.e, jn = -(1 + e) * rvn / (a.invMassAt(cpx, cpz, nx, nz, K) + b.invMassAt(cpx, cpz, nx, nz, K));
         const jt = Math.max(-hit.mu * jn, Math.min(hit.mu * jn, -rvt / (a.invMassAt(cpx, cpz, tx, tz, K) + b.invMassAt(cpx, cpz, tx, tz, K))));
         const jx = jn * nx + jt * tx, jz = jn * nz + jt * tz;
