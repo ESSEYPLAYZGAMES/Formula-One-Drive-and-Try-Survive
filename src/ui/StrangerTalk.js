@@ -300,7 +300,9 @@ export function strangerTalk(e, ctx = {}) {
   const R = rngOf(`${seed}|${P.night}|${memo ? `again${memo.n}` : 'first'}`), track = trackOf(c, ctx, P.place);
   const T = { me: firstOf(ctx.me?.first || ctx.me?.name || c?.drivers?.[c?.playerId]?.name) || 'you', first: e.first || firstOf(e.name), job: String(e.job || '').toLowerCase(),
     venue: WORD[P.vid] || (P.place === 'grid' ? 'the grid' : typeof ctx.venue === 'string' && !WORD[ctx.venue] ? ctx.venue.replace(/^The\b/, 'the') : 'here'), track: track || 'this race' };
-  const day = P.place === 'grid' && ctx.night !== true, fill0 = (s) => String(s || '').replace(/\{(\w+)\}/g, (m, k) => T[k] ?? '').replace(/ {2,}/g, ' '), fill = day ? (s) => dayOf(fill0(s)) : fill0;
+  // (no name for you - a test, a scene that passed none: your introductions just leave it out)
+  const noMe = /^you$/i.test(T.me), unme = (s) => (noMe ? String(s || '').replace(/ I'm \{me\}\./g, '').replace(/^I'm \{me\}\. /, '').replace(/I'm \{me\}, /g, "I'm ").replace(/^(Hi|Hey), (?=[A-Z])/, '$1. ') : s);
+  const day = P.place === 'grid' && ctx.night !== true, fill0 = (s) => String(unme(s) || '').replace(/\{(\w+)\}/g, (m, k) => T[k] ?? '').replace(/ {2,}/g, ' '), fill = day ? (s) => dayOf(fill0(s)) : fill0;
   const M = { e, c, ctx, seed, lid, cid, p, plan: P, track, where: whereOf(ctx, P.place, P.vid, track), scope: ctx.scope || (P.vid ? `${P.place}:${P.vid}` : P.place) };
   const tree = memo ? againTree(M, D, R, fill, memo) : firstTree(M, D, R, fill);
   tree.persona = p; tree.stranger = true; tree.seed = seed; tree.lid = lid; tree.cid = cid; tree.result = null;
@@ -368,7 +370,9 @@ function promote(M, res) {
   const { c, e, ctx, lid: lid0, cid, p, plan: P, where } = M;
   const lid = promoteExtra(c, M.seed, { scope: M.scope }) || lid0, C = Celebs.CELEB[lid]; if (!C) return;
   const b = Celebs.bondOf(c, lid), at = roundOf(c, P.place), f = firstOf(C.name), tones = res.tones;
-  if (b.stage === 'stranger') { b.stage = 'met'; b.metAt = at; if (Array.isArray(c.celebs?.met) && !c.celebs.met.includes(lid)) c.celebs.met.push(lid); }
+  if (b.stage === 'stranger') b.stage = 'met';
+  if (!b.met0) b.metAt = at;   /* (a scene that met her as you walked up stamped the career's round; this is the race's) */
+  if (Array.isArray(c.celebs?.met) && !c.celebs.met.includes(lid)) c.celebs.met.push(lid);
   // (where and when: the phone's 'met at', and the night's count of numbers)
   b.met0 = { k: P.night, at: where, place: P.place, s: at.season, r: at.round };
   const rk = `${c.season}|${c.round}`; if (b.talkRound !== rk) { b.talkRound = rk; b.talks = (b.talks || 0) + 1; }

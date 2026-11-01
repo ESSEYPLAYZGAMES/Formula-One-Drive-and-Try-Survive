@@ -108,6 +108,7 @@ import * as HT from './HangoutTalk.js';
 import { PARTY_BARK, PARTY_MOMENT, PARTY_PHONE, PARTY_SLIP, PARTY_DRAMA, PARTY_DRAMA_ALIAS } from './PartyTalk.js';
 import { zoneAt, inZone } from './PartyVenues.js';
 import { HeroFrames } from '../world/PartyCrowd.js';
+import { compilerFor } from '../world/NpcFigures.js';
 import { makePerson, makePersonSteps } from '../world/People.js';
 import { promoteExtra, isPromoted } from '../career/Extras.js';
 import { strangerTalk } from './StrangerTalk.js';
@@ -488,7 +489,7 @@ export class PartyPlay {
     const fd = flag('__partyDrunk'); if (fd && !this.underage) { const u = typeof fd === 'number' ? fd : 9; this.absDone = Math.max(this.absDone, u); if (u > this.peak) this.peak = u; }
     this._drinkTick(); this._glass();
     // (the crowd's full figures (world/NpcFigures.js) compiled off the frame before each is first shown, as the room was)
-    const N = ev.crowd?.npc; if (N && typeof ev.renderer?.compileAsync === 'function') N.compile = (o) => ev.renderer.compileAsync(o, ev.cam, ev.host ? ev.host.scene : ev.scene);
+    const N = ev.crowd?.npc; if (N && typeof ev.renderer?.compile === 'function') N.compile = compilerFor(ev.renderer, () => ev.cam, () => (ev.host ? ev.host.scene : ev.scene));
   }
   update(dt) {
     if (!this.on) return; const ev = this.ev;

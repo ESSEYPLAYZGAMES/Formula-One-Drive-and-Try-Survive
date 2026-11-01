@@ -30,8 +30,9 @@
 //   o.beat()   -> beats (the music's own clock, a running count) - else its own at o.bpm (default 124)
 //   o.look     false: heads never turn to the camera (default true)  o.keepKey  userData flag on what it adds ('hgKeep')
 //   o.farMaterial   'own' far: a material for the instanced bodies (default world/Crowd.js crowdMaterial())
-//   o.compile(object3d) -> Promise | undefined   a new figure's shaders compiled before it is first shown (e.g.
-//              (o) => renderer.compileAsync(o, camera, scene)); also settable later as .compile
+//   o.compile(object3d) -> Promise | undefined   a new figure's shaders compiled before it is first shown - use
+//              compilerFor(renderer, camera, scene) (below: renderer.compileAsync's way, safe for a figure given back
+//              meanwhile); also settable later as .compile
 // .group                         THREE.Group of the figures (and the own far bodies)
 // .people                        the person records P (below) - read them, change them through the methods
 // .update(camera, dt)            every frame: camera a THREE.Camera (world) or { x, y, z, fx?, fz? } in the group's frame
@@ -96,6 +97,26 @@ export function farSpecOf(o, ht = 1.46) {
 export function coloursOf(o) {
   const K = KIT_SHAPE[o?.kit] || {}, skin = o?.skin || '#e3b994', top = o?.color || '#2b2e35', bare = o?.figure === 'f' && !!K.hem && !o?.legs;
   return [skin, top, bare ? skin : o?.legs || '#1b1b1f', o?.hair || '#2b1d14', o?.accent || top, top];
+}
+
+/**
+ * NpcCrowd's o.compile for a renderer: a figure's materials compiled (renderer.compile) and waited for off the frame -
+ * renderer.compileAsync's way, but a material given back meanwhile (a figure disposed before it was ever shown) counts as
+ * done instead of failing the wait. camera, scene (the scene whose lights it is drawn under; a hosted venue's world's)
+ * may be functions, read at each call -> (object3d) => Promise
+ */
+export function compilerFor(renderer, camera, scene = null) {
+  return (o) => {
+    const cam = typeof camera === 'function' ? camera() : camera, sc = typeof scene === 'function' ? scene() : scene;
+    const mats = renderer.compile(o, cam, sc || null);
+    return new Promise((res) => {
+      const tick = () => {
+        for (const m of mats) { let pr = null; try { pr = renderer.properties.get(m)?.currentProgram; } catch (_) { pr = null; } if (!pr || typeof pr.isReady !== 'function' || pr.isReady()) mats.delete(m); }
+        if (!mats.size) res(o); else setTimeout(tick, 10);
+      };
+      tick();
+    });
+  };
 }
 
 const ATTR = ['iSkin', 'iTop', 'iLegs', 'iHair', 'iAcc', 'iTeam'];
@@ -200,7 +221,7 @@ export class NpcCrowd {
     // (the queue: the wanted with no figure (or one in an old pose), nearest first)
     this.queue = [...want].filter((P) => (!P.fig || P.stale) && P !== this.jobP).sort((a, b) => a.key - b.key);
     // (the figures built and not wanted: the nearest few kept for a turn back, the rest given back)
-    const idle = this.people.filter((P) => P.fig && !P.high && P !== this.jobP).sort((a, b) => a.key - b.key);
+    const idle = this.people.filter((P) => P.fig && !P.high && P !== this.jobP && P.ok !== false).sort((a, b) => a.key - b.key);
     for (const P of idle.slice(this.keepN)) { this._dispose(P.fig); P.fig = null; }
   }
   _raise(P) {

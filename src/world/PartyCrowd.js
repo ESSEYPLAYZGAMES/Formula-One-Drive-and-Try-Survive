@@ -238,7 +238,7 @@ export class PartyCrowd {
     // the instanced crowd alone, as it always was)
     // (a test switch, window.__npcOff: the crowd as it was, for a comparison)
     let off = false; try { off = !!globalThis.__npcOff; } catch (_) { off = false; }
-    this.npcOn = o.npc !== false && !off; this.npcNear = o.npcNear ?? 8; this.npcMax = o.npcMax ?? 18; this.npc = null;
+    this.npcOn = o.npc !== false && !off; this.npcNear = o.npcNear ?? 7; this.npcMax = o.npcMax ?? 16; this.npc = null;
   }
 
   // ---- the night's templates ------------------------------------------------------------------------------------------
@@ -426,7 +426,7 @@ export class PartyCrowd {
     put(0, e.look.skin); put(3, e.look.hair); if (bare) put(2, e.look.skin);
     // (a top never too near their own skin's tone in this light: farFromSkin's rule, against the skin that is theirs)
     const fem = t.fig === 'f', K = KIT[t.kit] || {};
-    if (!STAFF.has(p.role) && !t.swim) { const top = hex(1), f = farFromSkin(Math.random, fem ? COL.dress : COL.shirt, e.look.skin, top); if (f !== top) { put(1, f); if (!(p.role === 'staff' || p.role === 'mechanic')) put(5, f); } }
+    if (!STAFF.has(p.role) && p.role !== 'staff' && p.role !== 'mechanic' && !t.swim) { const top = hex(1), f = farFromSkin(rng(e.seed), fem ? COL.dress : COL.shirt, e.look.skin, top); if (f !== top) { put(1, f); put(5, f); } }
     const occ = this.kind === 'team' ? pools.occasion || 'night' : pools.pool || t.swim ? 'pool' : 'club';
     const o = extraLook(e, { occasion: occ, pose: t.pose, night: this.night, kit: t.kit, vary: 0, jitter: 0.01, detail: 0.6 });
     o.color = hex(1); o.accent = hex(4); o.legs = bare ? undefined : hex(2); o.skin = e.look.skin; o.hair = e.look.hair;

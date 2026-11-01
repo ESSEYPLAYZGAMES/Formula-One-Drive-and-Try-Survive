@@ -2744,7 +2744,8 @@ class Evening {
       const q = o.person.group.position, near = Math.hypot(q.x - g.person.group.position.x, q.z - g.person.group.position.z) < 10;
       if (!near) continue;
       const k = flirted ? (this.x.date ? 3 : 2) : this.x.date ? 1 : 0; if (!k) continue;
-      o.dm -= k; if (flirted) { this._toast(`${o.first} saw you flirting with ${g.first}`, 'down'); this.R.moments.push(`Flirted with ${g.first} in front of ${o.first}.`); o.glance = 2.2; o.glanceAt = g.person.group.position; }
+      const her = g.stranger ? 'someone new' : g.first;
+      o.dm -= k; if (flirted) { this._toast(`${o.first} saw you flirting with ${her}`, 'down'); this.R.moments.push(`Flirted with ${her} in front of ${o.first}.`); o.glance = 2.2; o.glanceAt = g.person.group.position; }
       else this._toast(`${o.first} was left on her own for a bit`, '');
     }
   }
@@ -3046,8 +3047,8 @@ class Evening {
   // ---- talking (the grid walk's way: typed lines, 1-4 to answer, a tag for the tone) ------------------------------------
   _open(g) {
     if (g.gone) return;
-    if (g.offended || g.shaken > 0) { this._toast(`${g.first} needs a minute.`, ''); return; }
-    if (g.talks >= 3) { this._toast(`${g.first} is happy just being here.`, ''); return; }
+    if (g.offended || g.shaken > 0) { this._toast(g.stranger ? 'She has turned back to her friends.' : `${g.first} needs a minute.`, ''); return; }
+    if (g.talks >= 3) { this._toast(g.stranger ? 'She is back with her friends.' : `${g.first} is happy just being here.`, ''); return; }
     const x = this.x, n = g.n, others = this._present().filter((o) => o !== g);
     n.talks = g.talks; n.other = others[0]?.name; x.other = others[0]?.name || null; x.others = this.gs.map((o) => o.name);
     // (party hook: a private word - the terrace, a quiet corner of the booths, nobody within earshot - has no one else in it)
