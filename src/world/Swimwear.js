@@ -282,7 +282,7 @@ export function swimLines(c) {
  * scoop between its straps, scooped behind), ssquare (straight across the upper bust), splunge (plunging to below the
  * bust - always well inside each round, the bust covered - its straps at the shoulders, low behind)
  */
-const TRI = { f0: 0.52, w: 0.016, aI: 0.07, aA: 0.44, fA: 0.775, aO: 1.12 };
+const TRI = { f0: 0.5, w: 0.016, aI: 0.07, aA: 0.44, fA: 0.775, aO: 1.12 };
 export const SWIM_NECKS = Object.freeze({
   tri: (a) => {
     const b = Math.abs(a), { f0, w, aI, aA, fA, aO } = TRI, base = f0 + w;
@@ -298,7 +298,7 @@ export const SWIM_NECKS = Object.freeze({
   splunge: (a) => { const b = Math.abs(a), u = Math.min(1, b / 0.56); return 0.44 + 0.4 * (1 - (1 - u) ** 1.8) - 0.1 * ss3(0.9, 1.45, b) - 0.12 * ss3(1.7, 2.5, b); },
 });
 /** the necklines that lift her bust as a structured top does (People's LIFT_NECKS, with the kit's own lift) */
-export const SWIM_LIFT = Object.freeze(['balc', 'splunge']);
+export const SWIM_LIFT = Object.freeze(['balc', 'splunge', 'tri']);
 /**
  * A monokini's cut-outs (merged into People's HOLES - each { f0, f1, c(u), w(u) }): mside - at the waist either side,
  * from the hip up under the bust's side and round toward the back; mfront - an oval at the centre front from the navel to
@@ -319,16 +319,22 @@ export const SWIM_HOLES = Object.freeze({
 export function triTies(T, neck, out, fS) {
   const G = [], { aA } = TRI, kh = kOf(T);
   for (const s of [-1, 1]) {
-    const pts = [], nr = [], P = [];
-    // (up from the cup's point, over the chest beside the neck - a little in from the shoulder - and round behind it)
-    const fP = neck(s * aA) - 0.006;
-    for (let i = 0; i <= 10; i++) { const u = i / 10, f = fP + (fS - 0.012 - fP) * ss3(0, 1, u) ** 0.8, a = s * (aA + (0.95 - aA) * ss3(0.2, 1, u)); P.push([f, a]); }
-    for (let i = 1; i <= 8; i++) { const u = i / 8, a = s * (0.95 + (Math.PI - 0.12 - 0.95) * u); P.push([fS - 0.012 + 0.004 * Math.sin(Math.PI * u), a]); }
-    for (const [f, a] of P) { const p = T.pt(f, a, out(f, a) + 0.0016); pts.push(p); nr.push(p.clone().sub(T.c(f)).normalize()); }
+    const pts = [], nr = [];
+    // (as a string tied round the neck lies: pulled taut from the cup's point up to the side of the neck - over the
+    // chest where it rounds out, across the hollow above the collarbone, never following the skin into it - meeting the
+    // neck's foot along its own way round (one curve, no corner), then round behind the neck to the knot)
+    const fP = neck(s * aA) - 0.006, fR = fS + 0.002, a0 = s * 1.3, aE = s * (Math.PI - 0.12), oR = (a) => out(fR, a) + 0.0022;
+    const P0 = T.pt(fP, s * aA, out(fP, s * aA) + 0.0016), R0 = T.pt(fR, a0, oR(a0)), tR = T.pt(fR, a0 + s * 0.02, oR(a0)).sub(R0).normalize();
+    const L = P0.distanceTo(R0), C1 = P0.clone().lerp(R0, 0.38), C2 = R0.clone().addScaledVector(tR, -0.22 * L), bz = (t) => { const v = 1 - t; return P0.clone().multiplyScalar(v * v * v).addScaledVector(C1, 3 * v * v * t).addScaledVector(C2, 3 * v * t * t).addScaledVector(R0, t * t * t); };
+    for (let i = 0; i <= 16; i++) {
+      const p = bz(i / 16), m = T.near(p, 0.0016); if (m.s < 0.0016) p.addScaledVector(m.n, 0.0016 - m.s);
+      pts.push(p); nr.push(m.n.clone());
+    }
+    for (let i = 1; i <= 14; i++) { const a = a0 + (aE - a0) * (i / 14), f = fR, p = T.pt(f, a, oR(a)); pts.push(p); nr.push(p.clone().sub(T.c(f)).normalize()); }
     G.push(strip(pts, nr, 0.007 * kh, 0.0018));
   }
   // (the knot at the nape, its tails hanging a little down the back)
-  const pk = T.pt(fS - 0.012, Math.PI, 0.003), nk = pk.clone().sub(T.c(fS - 0.012)).normalize(), up = V(0, 1, 0).applyQuaternion(T.q);
+  const pk = T.pt(fS + 0.002, Math.PI, out(fS + 0.002, Math.PI) + 0.003), nk = pk.clone().sub(T.c(fS + 0.002)).normalize(), up = V(0, 1, 0).applyQuaternion(T.q);
   G.push(...tieBow(pk, nk, up, 0.022 * kh, 0.06 * kh));
   const fb = TRI.f0 + TRI.w / 2, pb = T.pt(fb, Math.PI, out(fb, Math.PI) + 0.001), nb = pb.clone().sub(T.c(fb)).normalize();
   G.push(...tieBow(pb, nb, up, 0.026 * kh, 0.07 * kh));
@@ -716,14 +722,14 @@ const THONGB = BRIEF({ rise: 0.075, riseB: 0.1, side: 0.12, sideW: 0.014, leg: 0
 export const SWIM_OUTFITS = {
   // (bikinis: a triangle top on fine strings, tied at the sides; a ruched bandeau over full bottoms; an underwired
   // balconette over high-leg cheeky ones; a sporty scoop over high-leg full ones; a twist-front bandeau in lame on gold rings)
-  tribikini: { swim: 1, neck: 'tri', sleeve: 0, crop: TRI.f0, top: 'tri', fit: 0.0022, brief: TRIB, rise: TRIB.rise, shoe: 'sandal', fin: 'lycra', rough: 0.55 },
+  tribikini: { swim: 1, lift: 0.7, neck: 'tri', sleeve: 0, crop: TRI.f0, top: 'tri', fit: 0.0022, brief: TRIB, rise: TRIB.rise, shoe: 'sandal', fin: 'lycra', rough: 0.55 },
   bandeaubikini: { swim: 1, neck: 'straight', sleeve: 0, band: 1, crop: 0.54, fit: 0.0022, brief: BANDB, rise: BANDB.rise, shoe: 'slide', fin: 'crinkle', rough: 0.7 },
   balconette: { swim: 1, neck: 'balc', sleeve: 0, straps: 1, lift: 1, bra: 1, crop: 0.53, fit: 0.0022, brief: BALCB, rise: BALCB.rise, shoe: 'platform', fin: 'shine', rough: 0.35 },
   sportbikini: { swim: 1, neck: 'sport', sleeve: 0, straps: 1, strapW: 0.016, crop: 0.5, fit: 0.0022, brief: BRIEF({ rise: 0.1, riseB: 0.11, side: 0.17, sideW: 0.045, leg: 1, back: 'full' }), rise: 0.1, shoe: 'slide', fin: 'swimrib', rough: 0.75 },
   twistbikini: { swim: 1, neck: 'twist', sleeve: 0, band: 1, knot: 'twist', crop: 0.54, fit: 0.0022, brief: BRIEF({ rise: 0.075, riseB: 0.095, side: 0.13, sideW: 0.02, leg: 0.8, ring: 1, back: 'brazil' }), rise: 0.075, shoe: 'sandal', fin: 'foil', rough: 0.3 },
   // (and the backs as worn at a Vegas dayclub or on a Miami beach: a string triangle over a thong tied at the hips; an
   // underwired balconette over Brazilian bottoms)
-  stringbikini: { swim: 1, neck: 'tri', sleeve: 0, crop: TRI.f0, top: 'tri', fit: 0.0022, brief: THONGB, rise: THONGB.rise, shoe: 'platform', fin: 'shine', rough: 0.35 },
+  stringbikini: { swim: 1, lift: 0.8, neck: 'tri', sleeve: 0, crop: TRI.f0, top: 'tri', fit: 0.0022, brief: THONGB, rise: THONGB.rise, shoe: 'platform', fin: 'shine', rough: 0.35 },
   brazilbikini: { swim: 1, neck: 'balc', sleeve: 0, straps: 1, lift: 1, bra: 1, crop: 0.53, fit: 0.0022, brief: BRAZB, rise: BRAZB.rise, shoe: 'slide', fin: 'swimrib', rough: 0.75 },
   // (monokinis: a square-necked one-piece cut out at the centre front; a scoop one cut out at the waist either side; one
   // laced across a long front cut-out; one with a gold ring on a strap down the middle of its cut-out; a plunge carried
@@ -741,7 +747,7 @@ export const SWIM_OUTFITS = {
   // (and what goes over them - the cover-up in her colour, the swimwear beneath in the accent: a sheer chiffon pareo tied
   // at the hip over a triangle bikini; a crochet mini over a bandeau; a fine mesh mini over a high-cut one-piece; a sheer
   // kaftan to the floor over a one-piece; a man's linen shirt worn open over a balconette)
-  pareo: { swim: 1, cover: 'sheer', neck: 'tri', sleeve: 0, crop: TRI.f0, top: 'tri', fit: 0.0022, brief: TRIB, rise: TRIB.rise, skirt: { hem: 'midi', asym: 'thigh', slit: 1, wrap: 1, flare: 0.2, cling: 0.12, rise: 0.14, m: 50 }, shoe: 'slide', fin: 'chiffon', accFin: 'lycra', coverOp: 0.55, rough: 0.8 },
+  pareo: { swim: 1, lift: 0.7, cover: 'sheer', neck: 'tri', sleeve: 0, crop: TRI.f0, top: 'tri', fit: 0.0022, brief: TRIB, rise: TRIB.rise, skirt: { hem: 'midi', asym: 'thigh', slit: 1, wrap: 1, flare: 0.2, cling: 0.12, rise: 0.14, m: 50 }, shoe: 'slide', fin: 'chiffon', accFin: 'lycra', coverOp: 0.55, rough: 0.8 },
   crochetmini: { swim: 1, cover: 'net', neck: 'straight', sleeve: 0, band: 1, crop: 0.54, fit: 0.0022, brief: BANDB, rise: BANDB.rise, sheer: { neck: 'scoop', sleeve: 0.97, wide: 0.035, hem: 'mini', flare: 0.08, cling: 0.3, net: 3, lo: 0.27, ease: 0.004 }, shoe: 'slide', fin: 'crochet', accFin: 'lycra', rough: 0.9 },
   meshcover: { swim: 1, cover: 'net', neck: 'sscoop', sleeve: 0, straps: 1, strapW: 0.016, suit: HIGHCUT, hem: 0, fit: 0.0022, sheer: { neck: 'crew', sleeve: 0.97, hem: 'mini', flare: 0.04, cling: 0.5, net: 1, lo: 0.27 }, shoe: 'sandal', fin: 'lycra', accFin: 'shine', rough: 0.5 },
   kaftan: { swim: 1, cover: 'net', neck: 'sscoop', sleeve: 0, straps: 1, strapW: 0.016, suit: CLASSIC, hem: 0, fit: 0.0022, sheer: { neck: 'vd', sleeve: 0.72, wide: 0.07, hem: 'floor', flare: 0.3, cling: 0, slit: 1, net: 0, op: 0.45, lo: 0.27, ease: 0.012 }, shoe: 'slide', fin: 'chiffon', accFin: 'lycra', rough: 0.8 },

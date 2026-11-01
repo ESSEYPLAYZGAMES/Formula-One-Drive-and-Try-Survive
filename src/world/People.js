@@ -3594,7 +3594,7 @@ function* buildSteps(o) {
     }
     // (her spine's curve the more for heels: torsoOf; her bust lifted in a structured bodice - a kit built so (LIFT_KITS,
     // or one of its own: OF.lift), cut to its neckline: torsoOf, chestShade)
-    F.arch = HEELS.has(SHK) ? 1 : 0.75; F.lift = (LIFT_KITS.has(kit) || OF?.lift) && LIFT_NECKS.has(OF?.neck) ? 1 : 0;
+    F.arch = HEELS.has(SHK) ? 1 : 0.75; F.lift = (LIFT_KITS.has(kit) || OF?.lift) && LIFT_NECKS.has(OF?.neck) ? (typeof OF?.lift === 'number' ? OF.lift : 1) : 0;   // (a share of a structured bodice's lift: a triangle top's lighter push-up)
     if (IDLE_POSES.has(pose)) idleStance(J, F, pose, seedOf());
   }
   // ---- the head's shape, and the neck in proportion to it ----
@@ -3645,7 +3645,7 @@ function* buildSteps(o) {
       const row = ([z, h0]) => { const h = h0 + hW, s = clamp01((h - hA) / (hS + hW - hA)), b = clamp01(h / hA); return held(fJ + h / tH, z, h < hA ? d0 * (1.15 - 0.15 * b) : d0 + (nS.D - d0) * s, h < hA ? -0.002 - 0.004 * b : -0.006 + (nS.x + 0.006) * s, 1 - s); };
       // (the chest's own section there, as it is - not carried back to the joints: its back runs straight on up from the
       // shoulder blades' into the girdle's above, never a ridge across the upper back where the two meet)
-      const fU = fJ + (hW - 0.85 * dl) / tH, cU = spline(F.tor, fU);
+      const fU = fJ + (hW - 1.8 * dl) / tH, cU = spline(F.tor, fU);   // (far enough below the joint that the shoulder widens out of the chest over a long, soft rise - no shelf in front of the armpit, shadowed)
       rows = [[fU, Math.max(cU[0], sz - 0.1 * dl), cU[1], cU[2]], ...[...[-0.25, 0, 0.3, 0.6, 0.85, 1].map((u) => [zc + rd * Math.cos(te * u), rd * Math.sin(te * u)]), ...[0.3, 0.55, 0.75, 0.88, 0.96].map(bz)].map(row)];
     } else {
       // (his round on down below the joint too, curving in to the chest's own side under the arm (fU, a share of the
