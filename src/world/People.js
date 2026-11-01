@@ -907,6 +907,10 @@ function torsoOf(J, F) {
         const u = clamp01(1 - Math.sqrt(ang * ang + 0.000625) / c0), pr = aa < c0 ? 0.4 * (1 - 0.25 * bw) + (0.6 + 0.1 * bw) * Math.sqrt(1 - u * u) : Math.exp(-(((aa - c0) / so) ** 2.4));
         const wc = out > 0 && fb > -0.32 && fb < 0.3 ? clamp01(out / 0.006) * (F.edgeD ? ss3(0.004, 0.03, F.edgeD(f, ang)) : 1) * (F.crop ? ss3(F.crop, F.crop + 0.1, f) : 1) : 0;
         m += (orS(pr, 0.9 * (1 - 0.3 * bw) * wc * gau(ang, 0.3) * (fb < 0 ? 0.35 + 0.65 * ss3(-0.06, 0, fb) : 1)) - m) * L;
+        // (where her skin is bare, the cleavage itself: the two rounds' inner sides turning in steeply to meet in a narrow,
+        // deep crease - real depth for the light to fall into, not a line painted on a filled chest; wider and shallower set
+        // apart (bw); cloth bridging it (wc) only where it stands off, pressed into it along a neckline's edge)
+        m *= 1 - (1 - wc) * 0.6 * L * (1 - 0.35 * bw) * gau(ang, 0.04 * (1 + 1.3 * bw)) * ss3(-0.115, -0.07, fb) * (1 - ss3(0.07, 0.15, fb));   // (between the rounds only - none on down the breastbone below them)
         // (the fold firm under each round, fading toward the breastbone - the inner sides' foot easing down on to it, as
         // the fold does there: no shelf at the cleavage's foot)
         // (the cloth's line under a fuller bust no flatter than under a lighter one: its slope a share of her own bust's
@@ -3363,7 +3367,7 @@ function chestShade(T, F, edge, out, fTop, lum = 0.35) {
       // (lifted: where the pressed rounds meet, a narrow, dark line from the cleavage's foot up between them, opening and
       // fading over their tops (tc: from their fullest); below, on a deep plunge, only a faint line down the breastbone)
       const t = Math.max(0, f - fV), sg = 0.022 + 0.11 * Math.min(t, 0.2), tc = f - fA, env = ss3(-0.08, -0.04, tc) * (1 - ss3(0.03, 0.1, tc)), sc = 0.017 + 0.045 * clamp01(tc + 0.04);
-      sS = (1 - L) * cA * gau(t, cL) * (0.7 * gau(a, sg) + 0.3 * gau(a, 2.6 * sg)) * ss3(0.94, 0.84, f) + L * (1 - 0.15 * bw) * bk * (env * (0.46 * gau(a, sc) + 0.16 * gau(a, 3.2 * sc)) + 0.1 * gau(a, 0.045) * ss3(fV, fV + 0.05, f) * ss3(fA - 0.03, fA - 0.1, f));
+      sS = (1 - L) * cA * gau(t, cL) * (0.7 * gau(a, sg) + 0.3 * gau(a, 2.6 * sg)) * ss3(0.94, 0.84, f) + L * (1 - 0.15 * bw) * bk * (env * (0.2 * gau(a, sc) + 0.1 * gau(a, 3.2 * sc)) + 0.1 * gau(a, 0.045) * ss3(fV, fV + 0.05, f) * ss3(fA - 0.03, fA - 0.1, f));
       // (the light caught along each round's upper curve - lifted, drawn in toward the middle - its inner side and top,
       // where it turns up toward the light, either side of the crease; more faintly over the whole upper slope; none
       // below its fullest)
@@ -4450,7 +4454,7 @@ function* buildSteps(o) {
       // (and down the middle of the chest, from the cleavage up to the throat, by distance rather than by row: its columns
       // close together there, the passes above reach only millimetres - the breastbone and the tendons either side of it
       // left as fine bright lines; eased into one soft hollow)
-      if (fem && Q >= 0.6) { const cL = T.c(0.55), cH = T.c(fSeam - 0.005), cM = T.c(0.75); smoothNormals(g, (x, y, z) => y > cL.y && y < cH.y && Math.abs(z - cM.z) < 0.075 && x > cM.x, 0.02, 3); }
+      if (fem && Q >= 0.6) { const cL = T.c((F.bf ?? 0.655) + 0.02 * (F.lift || 0) + 0.08), cH = T.c(fSeam - 0.005), cM = T.c(0.75); smoothNormals(g, (x, y, z) => y > cL.y && y < cH.y && Math.abs(z - cM.z) < 0.075 && x > cM.x, 0.02, 3); }
     }
     // (by her shoulders, where her arms grow out of it (T.arms: a share of the deltoid round each joint), its light the
     // torso's own true round - as the arms' is, laid over it there: no patch of other light where they meet)
