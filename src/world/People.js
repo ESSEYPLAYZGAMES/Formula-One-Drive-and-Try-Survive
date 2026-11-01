@@ -4146,6 +4146,7 @@ function* buildSteps(o) {
       const A2 = kl.map((x) => x[0]); A2.ins = kl.map((x) => x[1]); return A2;
     })();
     const up = (i) => h1 * (i / K) ** 1.25;
+    yield;
     if (skinFoot) {
       // (the chest's rows, closer together toward the seam; then the neck's, level across at first - from the seam's own
       // ring - turning to the neck's own toward the chin)
@@ -4180,6 +4181,7 @@ function* buildSteps(o) {
     }
     R.push(Array(A.length).fill(nAt(h1 + 0.008)));
     globalThis.__JNR?.({ R, A, NK, NP, sChin, sPiv, fSeam, fAc, tH, nb, an, fwN, nSd, T, J, F });   // TEMP joins fixer hook - REMOVE
+    yield;
     // (its shading kept for her arms, where they grow out of it: T.arms; the cloth's columns up a steep neckline's side only
     // as far as the seam, the last of the chest's rows (FA))
     const g = gatherCols(loft(R), A, FA.length / (3 * A.length) - 1), P = g.attributes.position, C = new Float32Array(P.count * 3), p = V(0, 0, 0), sh = skinSh = dp ? chestShade(T, F, skinEdge.f, skinEdge.out, fSeam, 0.2126 * skinC.r + 0.7152 * skinC.g + 0.0722 * skinC.b) : null;
@@ -4192,6 +4194,7 @@ function* buildSteps(o) {
     g.setAttribute('color', new THREE.BufferAttribute(C, 3)); parts.skin.push(g);
     // (bare to a low neckline: the chest's normals eased into their neighbours' - its closely spaced rows by the cloth's
     // edge and its columns across the midline otherwise catch a dewy skin's light as thin lines over the chest)
+    yield;
     if (dp) {
       const Nm = g.attributes.normal.array, W = A.length, rows = Math.min(R.length - 2, FA.length / 3 / W + 2);
       for (let it = 0; it < 6; it++) {
@@ -4477,6 +4480,7 @@ function* buildSteps(o) {
   if (SWB?.side && legB) legB.side(SWB.side, 0);   // (and her hips' skin where her thighs grow out of it)
   if (SWB?.over) SWB.over(parts.legs, [parts.top, parts.accent, parts.bottom]);   // (her swimwear lifted out over her thighs' tops as built - world/Swimwear.js)
   // (and her bare skin there one light, whichever surface it is on: joinLight)
+  yield;
   if (armB && armSk.length && Q >= 0.6) joinLight([...sideG.filter((x) => !x[1]).map((x) => x[0]), ...armSk], [shR, shL], F.del);
   let chest = null;
   if (o.teamName && (kit === 'suit' || kit === 'polo' || kit === 'jacket')) {

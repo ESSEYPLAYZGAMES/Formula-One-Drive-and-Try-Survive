@@ -242,9 +242,10 @@ export class NpcCrowd {
       try { this.job = makePersonSteps(P.opts); } catch (e) { this.jobP = null; this.fails++; console.warn('NpcFigures: a figure could not be started', e); return; }
       this.job.t = 0;
     }
-    // (a slow frame already: one stage only; else stages until the budget is spent)
+    // (one stage a frame - and more only while the frame has spent less than half the budget on them, since the next
+    // stage may be one of the long ones: a slow frame already, one stage only)
     const t0 = performance.now();
-    try { this.job.step(dt > 0.05 ? 0 : this.budget); } catch (e) { this.fails++; console.warn('NpcFigures: a figure could not be built', e); this.job = null; this.jobP = null; return; }
+    try { do { if (this.job.step(0)) break; } while (dt <= 0.05 && performance.now() - t0 < this.budget * 0.5); } catch (e) { this.fails++; console.warn('NpcFigures: a figure could not be built', e); this.job = null; this.jobP = null; return; }
     this.job.t += performance.now() - t0;
     if (this.job.done) this._finishJob(false);
   }

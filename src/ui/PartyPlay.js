@@ -1469,7 +1469,7 @@ export class PartyPlay {
     for (const g of this.stTalks || []) if (T0?.g !== g) this._strangerDone(g);
     const S = this.stand;
     if (S && !ev.game && !ev.moment) {
-      try { if (S.J.step(dt > 0.05 ? 0 : 5)) { this.stand = null; this._standIn(S.g, S.J.person, S.o); } } catch (err) { this.stand = null; console.warn('PartyPlay: her standing figure', err); }
+      try { if (S.J.step(0)) { this.stand = null; this._standIn(S.g, S.J.person, S.o); } } catch (err) { this.stand = null; console.warn('PartyPlay: her standing figure', err); }
     }
   }
   /** the talk just opened with someone from the crowd: StrangerTalk's tree in place of the one Hangout picked */
