@@ -368,6 +368,11 @@ export class AIDriver {
       ff = wFF * (aF - aR * (1 - 2 * CAR.wheelbase / Ld - cs) - 2 * CAR.wheelbase * CAR.lr / Ld * kl);
     }
     let steer = (delta + ff) / dMax;
+    // (out on a paved run-off - Montreal's last-chicane infield, the big asphalt aprons - the way back is an arc the
+    //  surface can hold: the pursuit's lock from 15-20 m out, at 100 km/h on paint and dust, asked for half again the
+    //  grip there is and spun the car where it had run safely wide. Capped at the kinematic lock for the run-off's grip
+    //  at this speed (and a third over it), never under a quarter lock; the countersteer below is left as it is)
+    if (c.offTrack && c.surf === 2 && v > 12) { const cap = Math.max(0.25, (1.33 * 3.6 * 1.6 * G * c.surfGrip / (v * v)) / dMax); steer = Math.max(-cap, Math.min(cap, steer)); }
     const slipR = Math.atan2(c.vLat - c.r * CAR.lr, Math.max(3, Math.abs(c.vLong)));
     steer += slipR * T.csGain * (0.6 + 0.4 * c.rating);   // countersteer when the rear steps out
     if (this.error && this.error.type === 'snap' && this.error.t < 0.4) steer += this.error.sign * 0.4;
