@@ -689,7 +689,7 @@ export class Track {
     }
     // (a paved infield's line - buildPitLane, def.pitEscape.infield - stays out past the lane and its escape, whatever
     //  the bend inside it: no barrier stands on it, the line is where scenery may start)
-    if (this.pitInfieldWall) { const arr = this.pitSide > 0 ? this.wallL : this.wallR; for (let i = 0; i < n; i++) if (this.pitInfield[i]) arr[i] = Math.max(arr[i], this.pitInfieldWall[i]); }
+    if (this.pitInfieldWall) { const arr = this.pitSide > 0 ? this.wallL : this.wallR, bar = this.pitSide > 0 ? this.barL : this.barR; for (let i = 0; i < n; i++) if (this.pitInfield[i]) { arr[i] = this.pitInfieldWall[i]; bar[i] = BAR.TYRES; } }
     this.layoutSurfaces();
     this.openInfields();   // (a hairpin's open infield, def.openInfields: after everything else has laid the barriers out)
   }
@@ -1029,7 +1029,7 @@ export function buildCatchFences(track, pit) {
   const barAt = (i, side) => (pit && side === pitSide ? pitWall[i] : tr.wallAt(i, side));
   const geos = [1, -1].map((side) => {
     const f = side > 0 ? tr.fenceL : tr.fenceR;
-    const mask = (i) => f[i] && f[(i + 1) % tr.n] && !(pit && side === pitSide && pit.laneCovers?.[i]);
+    const mask = (i) => f[i] && f[(i + 1) % tr.n] && !(pit && side === pitSide && (pit.laneCovers?.[i] || tr.pitInfield?.[i]));
     return ribbon(tr, (i) => side * (barAt(i, side) + 0.25), (i) => side * (barAt(i, side) + 0.25), 0.4, { yB: FENCE_H, mask, uvFn: (i) => tr.s[i] / 3 });
   }).filter((g) => g.index.count);
   if (geos.length) group.add(spatialChunks(geos, fenceMaterial(), 'catchFences'));
@@ -1159,7 +1159,7 @@ export function buildTrackMeshes(track, pit, gridSlots) {
   const tr = track, hw = tr.halfWidth, kw = tr.kerbWidth, ro = tr.runoffWidth, bo = tr.barrierOffset;
   const pitSide = pit ? pit.sideSign : 0;
   /** is the barrier present on this side at sample i? (false = open: the pit lane branches off / rejoins here) */
-  const open = (i, side) => !(pit && side === pitSide && isNaN(pit.wallD[i]));
+  const open = (i, side) => !(pit && side === pitSide && (isNaN(pit.wallD[i]) || tr.pitInfield?.[i]));   // (a paved infield's barrier is the lane's escape wall: drawn with the lane)
   // barrier distance used for GEOMETRY (per sample: pushed back on the outside of corners for the run-offs, the pit
   // wall on the pit side). An open sample takes the nearest closed sample's value, because the segment before an
   // opening still emits a vertex at the opening sample (a NaN there would poison the whole mesh)
@@ -1641,8 +1641,8 @@ export function buildPitLane(track, rawPts, boxCount = 12) {
   }
   // the paved infield (def.pitEscape.infield, above): the ground between the circuit's edge and the lane's track-side
   // edge, from where the lane has opened out beside the road to the pit wall's nose, as one ring (infield.poly); on the
-  // circuit's side of it no barrier at all (the pit wall line open, wallD NaN; the barrier's line moved out past the lane
-  // and its escape, so nothing is set down out there) and the ground paved (Track.surface: pitInfield)
+  // circuit's side of it no wall: the barrier's line moves out past the lane to its escape's tyre wall (so nothing is set
+  // down out there, and a car is held in wherever the physics has it), and the ground is paved (Track.surface: pitInfield)
   let infield = null;
   if (infieldEnd >= 0) {
     const iB = wallStartI >= infieldEnd ? wallStartI : infieldEnd;
@@ -1661,12 +1661,16 @@ export function buildPitLane(track, rawPts, boxCount = 12) {
       return g > -laneEdge[bi] - 0.5 && g < garageW[bi] + 1.6;
     };
     track.pitInfield = new Uint8Array(N); track.pitInfieldWall = new Float32Array(N);
+    let prevFar = 40;
     for (let m = 0, k = kD; m < span(kD, kB); m++, k = (k + 1) % N) {
-      track.pitInfield[k] = 1; wallD[k] = NaN; sideBar[k] = BAR.NONE; if (track.pitWall) track.pitWall[k] = 0;
-      // the barrier's line: out across the infield, the lane and its escape (how far a car can go on this side)
+      track.pitInfield[k] = 1; if (track.pitWall) track.pitWall[k] = 0;
+      // the barrier's line: out across the infield, the lane and its escape - the escape's own tyre wall, seen from the
+      // circuit (a car the physics has on the circuit's side of the lane meets it there too, never the open park; nothing
+      // is drawn for it here: buildTrackMeshes / buildCatchFences leave the infield's samples alone, the lane draws the wall)
       let d = edgeOf(k) + 0.3, was = false;
       for (; d < 120; d += 1) { const x = track.px[k] + track.nx[k] * sideSign * d, z = track.pz[k] + track.nz[k] * sideSign * d; const on = inPoly(x, z) || onLane(x, z); if (on) was = true; else if (was) break; }
-      if (was) { sideArr[k] = Math.max(sideArr[k], d); track.pitInfieldWall[k] = sideArr[k]; }
+      const far = was ? Math.max(sideArr[k], d - 0.4) : prevFar; prevFar = far;
+      sideArr[k] = far; track.pitInfieldWall[k] = far; wallD[k] = far; sideBar[k] = BAR.TYRES;
     }
     infield = { poly, inside: inPoly, iA, iB, kA: kD, kB };
   }
