@@ -897,16 +897,16 @@ function torsoOf(J, F) {
     // back in on the breastbone between the cups (a corset's gore), its cloth under them running straight on down to the
     // ribs (LIFT_UC). Along its edge (F.edgeD: how far from the neckline) the cloth pressed to her, lying as her skin does)
     if (c > 0) {
-      const L = F.lift || 0, bw = F.bw || 0, fb = f - (F.bf ?? 0.655) - 0.02 * L, aa = Math.abs(ang), c0 = 0.5 - 0.08 * L * (1 - 0.85 * bw) + 0.11 * bw, so = 0.32 - 0.075 * ss3(0, 0.16, fb);
+      const L = F.lift || 0, bw = F.bw || 0, fb = f - (F.bf ?? 0.655) - 0.02 * L, aa = Math.abs(ang), c0 = 0.5 - 0.08 * L * (1 - 0.5 * bw) + 0.065 * bw, so = 0.32 - 0.075 * ss3(0, 0.16, fb);
       // (cloth over her natural shape draping a little under the rounds - not drawn in to their fold)
       // (its weight in its lower half: full below the fullest and rounding under to the fold - a teardrop's, not a
       // ball's; its upper slope long and gentle into the chest. The lower half's round as long as her projection asks -
       // seen in profile round at its fullest, never a point where the two halves meet)
       let m = orS(gau(aa - c0, so), (0.45 * (1 - 0.5 * bw) + 0.4 * clamp01(out / 0.012)) * gau(ang, 0.5)), vb = fb < 0 ? Math.exp(-((-fb / (0.095 + 0.02 * clamp01(out / 0.006))) ** 2.5)) : gau(fb, 0.13);
       if (L) {
-        const u = clamp01(1 - Math.sqrt(ang * ang + 0.000625) / c0), pr = aa < c0 ? 0.4 * (1 - 0.8 * bw) + (0.6 + 0.32 * bw) * Math.sqrt(1 - u * u) : Math.exp(-(((aa - c0) / so) ** 2.4));
+        const u = clamp01(1 - Math.sqrt(ang * ang + 0.000625) / c0), pr = aa < c0 ? 0.4 * (1 - 0.25 * bw) + (0.6 + 0.1 * bw) * Math.sqrt(1 - u * u) : Math.exp(-(((aa - c0) / so) ** 2.4));
         const wc = out > 0 && fb > -0.32 && fb < 0.3 ? clamp01(out / 0.006) * (F.edgeD ? ss3(0.004, 0.03, F.edgeD(f, ang)) : 1) * (F.crop ? ss3(F.crop, F.crop + 0.1, f) : 1) : 0;
-        m += (orS(pr, 0.9 * (1 - 0.9 * bw) * wc * gau(ang, 0.3) * (fb < 0 ? 0.35 + 0.65 * ss3(-0.06, 0, fb) : 1)) - m) * L;
+        m += (orS(pr, 0.9 * (1 - 0.3 * bw) * wc * gau(ang, 0.3) * (fb < 0 ? 0.35 + 0.65 * ss3(-0.06, 0, fb) : 1)) - m) * L;
         // (the fold firm under each round, fading toward the breastbone - the inner sides' foot easing down on to it, as
         // the fold does there: no shelf at the cleavage's foot)
         // (the cloth's line under a fuller bust no flatter than under a lighter one: its slope a share of her own bust's
@@ -3335,7 +3335,7 @@ function chestShade(T, F, edge, out, fTop, lum = 0.35) {
   // the crease between the rounds deepest at that point - the more so the nearer it lies to their fullest - fading up the
   // breastbone over cL, by the bust's upper slopes. Lifted in a structured bodice (L: F.lift) the rounds higher (fA: their
   // fullest) and drawn in (c0: their middles) - their crease wherever they meet, whatever the V)
-  const L = F.lift || 0, bw = F.bw || 0, fA = (F.bf ?? 0.655) + 0.02 * L, c0 = 0.5 - 0.08 * L * (1 - 0.85 * bw) + 0.11 * bw;
+  const L = F.lift || 0, bw = F.bw || 0, fA = (F.bf ?? 0.655) + 0.02 * L, c0 = 0.5 - 0.08 * L * (1 - 0.5 * bw) + 0.065 * bw;
   const fV = Math.min(edge(0), fTop), vn = ss3(0.035, 0.11, (edge(0.22) + edge(-0.22) - 2 * edge(0)) / 0.44), cA = bk * (0.26 + 0.4 * vn) * gau(fV - fA - 0.025, 0.15), cL = 0.03 + 0.35 * Math.max(0, 0.83 - fV);
   for (let k = 0; k <= N; k++) { const a = -Math.PI + (2 * Math.PI * k) / N, f = edge(a); E.push(f < fTop - 0.004 ? T.pt(f, a) : null); }
   // (how near the edge comes: to the line through its points; a point well beyond its shadow's reach not measured)
@@ -3363,7 +3363,7 @@ function chestShade(T, F, edge, out, fTop, lum = 0.35) {
       // (lifted: where the pressed rounds meet, a narrow, dark line from the cleavage's foot up between them, opening and
       // fading over their tops (tc: from their fullest); below, on a deep plunge, only a faint line down the breastbone)
       const t = Math.max(0, f - fV), sg = 0.022 + 0.11 * Math.min(t, 0.2), tc = f - fA, env = ss3(-0.08, -0.04, tc) * (1 - ss3(0.03, 0.1, tc)), sc = 0.017 + 0.045 * clamp01(tc + 0.04);
-      sS = (1 - L) * cA * gau(t, cL) * (0.7 * gau(a, sg) + 0.3 * gau(a, 2.6 * sg)) * ss3(0.94, 0.84, f) + L * (1 - 0.7 * bw) * bk * (env * (0.46 * gau(a, sc) + 0.16 * gau(a, 3.2 * sc)) + 0.1 * gau(a, 0.045) * ss3(fV, fV + 0.05, f) * ss3(fA - 0.03, fA - 0.1, f));
+      sS = (1 - L) * cA * gau(t, cL) * (0.7 * gau(a, sg) + 0.3 * gau(a, 2.6 * sg)) * ss3(0.94, 0.84, f) + L * (1 - 0.15 * bw) * bk * (env * (0.46 * gau(a, sc) + 0.16 * gau(a, 3.2 * sc)) + 0.1 * gau(a, 0.045) * ss3(fV, fV + 0.05, f) * ss3(fA - 0.03, fA - 0.1, f));
       // (the light caught along each round's upper curve - lifted, drawn in toward the middle - its inner side and top,
       // where it turns up toward the light, either side of the crease; more faintly over the whole upper slope; none
       // below its fullest)
