@@ -1450,7 +1450,12 @@ export function celebsAtRace(c, trackId) {
     for (const [id, b] of Object.entries(s.bonds)) if (CELEB[id] && b.invited && b.invited.season === c.season && b.invited.round === c.round && !b.grieving && !forced.includes(id)) forced.push(id);
   }
   const n = c ? Math.max(forced.length, R() < 0.5 ? 3 : 2) : 2, out = forced.slice(0, 3);
-  const pool = CELEBS.filter((C) => !out.includes(C.id) && !(s?.bonds[C.id]?.grieving && s.bonds[C.id].griefSeason === c.season)).map((C) => {
+  // (who can be there: someone you already know - one of the stars or a local you have met - and, for everyone else, fresh
+  //  faces made for this race (career/Locals.js: a name, a job, a look, a personality of her own); the twelve stars no
+  //  longer fill the grid on their own until you know them)
+  const knownOf = (C) => !!s?.bonds[C.id] && SI(s.bonds[C.id].stage) >= 1;
+  const fresh = []; for (let k = 0; k < 6; k++) { const L = registerLocal((R() * 4294967296) >>> 0); if (L && !out.includes(L.id) && !s?.bonds[L.id]) fresh.push(L); }
+  const pool = [...CELEBS.filter((C) => knownOf(C) && !out.includes(C.id) && !(s?.bonds[C.id]?.grieving && s.bonds[C.id].griefSeason === c.season)), ...fresh].map((C) => {
     // (the paddock's people work every race, but a guest slot on the grid is a star's first: someone you have met there is likelier)
     const b = s?.bonds[C.id]; let w = (C.paddock ? (b && SI(b.stage) >= 1 ? 0.8 : 0.3) : 1) + (C.often.includes(trackId) ? 2 : 0);
     if (b) w *= b.stage === 'ex' ? 0.4 : SI(b.stage) >= 1 && SI(b.stage) <= 4 ? 1.4 : 1;
