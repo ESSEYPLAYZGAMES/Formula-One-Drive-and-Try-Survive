@@ -324,7 +324,7 @@ export function triTies(T, neck, out, fS) {
     // chest where it rounds out, across the hollow above the collarbone, never following the skin into it - meeting the
     // neck's foot along its own way round (one curve, no corner), then round behind the neck to the knot)
     const fP = neck(s * aA) - 0.006, fR = fS + 0.002, a0 = s * 1.3, aE = s * (Math.PI - 0.12), oR = (a) => out(fR, a) + 0.0022;
-    const P0 = T.pt(fP, s * aA, out(fP, s * aA) + 0.0016), R0 = T.pt(fR, a0, oR(a0)), tR = T.pt(fR, a0 + s * 0.02, oR(a0)).sub(R0).normalize();
+    const fP0 = fP - 0.014, P0 = T.pt(fP0, s * aA, out(fP0, s * aA) + 0.0026), R0 = T.pt(fR, a0, oR(a0)), tR = T.pt(fR, a0 + s * 0.02, oR(a0)).sub(R0).normalize();
     const L = P0.distanceTo(R0), C1 = P0.clone().lerp(R0, 0.38), C2 = R0.clone().addScaledVector(tR, -0.22 * L), bz = (t) => { const v = 1 - t; return P0.clone().multiplyScalar(v * v * v).addScaledVector(C1, 3 * v * v * t).addScaledVector(C2, 3 * v * t * t).addScaledVector(R0, t * t * t); };
     for (let i = 0; i <= 16; i++) {
       const p = bz(i / 16), m = T.near(p, 0.0016); if (m.s < 0.0016) p.addScaledVector(m.n, 0.0016 - m.s);
@@ -332,6 +332,9 @@ export function triTies(T, neck, out, fS) {
     }
     for (let i = 1; i <= 14; i++) { const a = a0 + (aE - a0) * (i / 14), f = fR, p = T.pt(f, a, oR(a)); pts.push(p); nr.push(p.clone().sub(T.c(f)).normalize()); }
     G.push(strip(pts, nr, 0.007 * kh, 0.0018));
+    // (a small slider over the join at the cup's point - the string run in under it from inside the tip: one clean finish)
+    const pS = T.pt(fP - 0.002, s * aA, out(fP - 0.002, s * aA) + 0.0026), nS = pS.clone().sub(T.c(fP - 0.002)).normalize(), bd = new THREE.SphereGeometry(0.0052 * kh, 10, 8);
+    bd.scale(1, 1.35, 0.55); bd.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(V(0, 0, 1), nS)); bd.translate(pS.x, pS.y, pS.z); G.push(bd);
   }
   // (the knot at the nape, its tails hanging a little down the back)
   const pk = T.pt(fS + 0.002, Math.PI, out(fS + 0.002, Math.PI) + 0.003), nk = pk.clone().sub(T.c(fS + 0.002)).normalize(), up = V(0, 1, 0).applyQuaternion(T.q);
@@ -729,7 +732,7 @@ export const SWIM_OUTFITS = {
   twistbikini: { swim: 1, neck: 'twist', sleeve: 0, band: 1, knot: 'twist', crop: 0.54, fit: 0.0022, brief: BRIEF({ rise: 0.075, riseB: 0.095, side: 0.13, sideW: 0.02, leg: 0.8, ring: 1, back: 'brazil' }), rise: 0.075, shoe: 'sandal', fin: 'foil', rough: 0.3 },
   // (and the backs as worn at a Vegas dayclub or on a Miami beach: a string triangle over a thong tied at the hips; an
   // underwired balconette over Brazilian bottoms)
-  stringbikini: { swim: 1, lift: 0.8, neck: 'tri', sleeve: 0, crop: TRI.f0, top: 'tri', fit: 0.0022, brief: THONGB, rise: THONGB.rise, shoe: 'platform', fin: 'shine', rough: 0.35 },
+  stringbikini: { swim: 1, lift: 0.8, neck: 'tri', sleeve: 0, crop: TRI.f0, top: 'tri', fit: 0.0022, brief: THONGB, rise: THONGB.rise, shoe: 'platform', fin: 'lycra', rough: 0.6 },
   brazilbikini: { swim: 1, neck: 'balc', sleeve: 0, straps: 1, lift: 1, bra: 1, crop: 0.53, fit: 0.0022, brief: BRAZB, rise: BRAZB.rise, shoe: 'slide', fin: 'swimrib', rough: 0.75 },
   // (monokinis: a square-necked one-piece cut out at the centre front; a scoop one cut out at the waist either side; one
   // laced across a long front cut-out; one with a gold ring on a strap down the middle of its cut-out; a plunge carried

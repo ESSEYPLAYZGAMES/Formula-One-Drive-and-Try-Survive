@@ -1230,7 +1230,7 @@ function midJoint(a, b, L1, L2, dir) {
  */
 function armRad(R, tj, del, fem = false, pad = false) {
   const [ru, re, rf, rw] = R;
-  const rows = fem ? [[0, del * 0.72], [0.05 * tj, del * 0.78], [0.12 * tj, del], [0.22 * tj, del * 1.03], [0.45 * tj, ru * 1.02], [0.6 * tj, ru], [0.82 * tj, ru * 0.88], [tj, re], [tj + 0.22 * (1 - tj), rf], [tj + 0.55 * (1 - tj), rf * 0.82], [1, rw]]
+  const rows = fem ? [[0, del * 0.76], [0.05 * tj, del * 0.88], [0.12 * tj, del * 1.01], [0.22 * tj, del * 1.03], [0.45 * tj, ru * 1.02], [0.6 * tj, ru], [0.82 * tj, ru * 0.88], [tj, re], [tj + 0.22 * (1 - tj), rf], [tj + 0.55 * (1 - tj), rf * 0.82], [1, rw]]
     : [[0, del * (pad ? 1 : 0.8)], [0.06 * tj, del * (pad ? 0.98 : 0.95)], [0.12 * tj, del * 0.96], [0.32 * tj, ru * 1.04], [0.55 * tj, ru], [0.82 * tj, ru * 0.88], [tj, re], [tj + 0.22 * (1 - tj), rf], [tj + 0.55 * (1 - tj), rf * 0.82], [1, rw]];
   return (t) => spline(rows, t)[0];
 }
@@ -4097,7 +4097,7 @@ function* buildSteps(o) {
       if (low < 0.87) { turnedIn(bg, bg.userData.m || n(bm, 8), OF.band ? 0.82 : 0.62); skinEdge = { f: nE, out: OF.lapels ? tight + 0.0065 : tight, angs: nE === neck ? null : bg.userData.angs }; }
       const bgR = ribs(bg, bm); if (oneDress) bodiceG = bgR;
       // (her bust under it: the valley between the cups shaded softly, not as dark crumpled facets)
-      if (fem && F.bust > 0 && Q >= 0.6) { const cB = T.c(F.bf ?? 0.6), cH = T.c(0.8), cL = T.c(0.5); smoothNormals(bgR, (x, y, z) => y > cL.y && y < cH.y && Math.abs(z - cB.z) < 0.055 && x > cB.x, 0.022, 3); }
+      if (fem && F.bust > 0 && Q >= 0.6) { const cB = T.c(F.bf ?? 0.6), cH = T.c(0.8), cL = T.c(0.5); smoothNormals(bgR, (x, y, z) => y > cL.y && y < cH.y && Math.abs(z - cB.z) < 0.055 && x > cB.x, 0.022, 3); if (F.lift) smoothNormals(bgR, (x, y, z) => y > cL.y && y < cH.y && Math.abs(z - cB.z) < 0.17 && x > cB.x, 0.016, 2); }   /* (lifted: each cup one dome - no ridge down it where its inner round meets its outer) */
       // (and where each cup meets the chest at the front of the armpit: no bright pinch where the cloth turns there)
       if (fem && F.bust > 0 && Q >= 0.6) { const cA = T.c(0.7), cU = T.c(0.9); smoothNormals(bgR, (x, y, z) => y > cA.y && y < cU.y && Math.abs(z - cA.z) > 0.07 && x > cA.x - 0.02, 0.02, 2); } parts[mats.band && mat === 'top' ? 'band' : mat].push(bgR); skinFoot = (a) => Math.min(...[-0.07, -0.035, 0, 0.035, 0.07].map((d) => Math.min(neck(a + d), nE(a + d))), fSeam) - 0.3 * (fSeam - fAc); if (fem && !JK) sideG.push([bg, tight + 0.001, 1]);
       // (the neck's flare by how much of the trapezius' sweep shows above the neckline at her sides)
@@ -4447,6 +4447,10 @@ function* buildSteps(o) {
           const l = Math.hypot(x, y, z) || 1; Nm[i3] = x / l; Nm[i3 + 1] = y / l; Nm[i3 + 2] = z / l;
         }
       }
+      // (and down the middle of the chest, from the cleavage up to the throat, by distance rather than by row: its columns
+      // close together there, the passes above reach only millimetres - the breastbone and the tendons either side of it
+      // left as fine bright lines; eased into one soft hollow)
+      if (fem && Q >= 0.6) { const cL = T.c(0.55), cH = T.c(fSeam - 0.005), cM = T.c(0.75); smoothNormals(g, (x, y, z) => y > cL.y && y < cH.y && Math.abs(z - cM.z) < 0.075 && x > cM.x, 0.02, 3); }
     }
     // (by her shoulders, where her arms grow out of it (T.arms: a share of the deltoid round each joint), its light the
     // torso's own true round - as the arms' is, laid over it there: no patch of other light where they meet)
