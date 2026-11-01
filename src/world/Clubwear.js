@@ -239,7 +239,12 @@ export function bindHoles(T, H, out, o = {}, ctx = {}) {
       }
     }
     if (o.ring && Q >= 0.6) {
-      const fm = (h.f0 + h.f1) / 2, am = h.c(0.5), p = T.pt(fm, am, 0.004), nn = p.clone().sub(T.c(fm)).setY(0).normalize(), r = Math.min(0.016, 0.45 * (h.f1 - h.f0) * T.H);
+      // (facing as the surface there does - its own normal, from the two ways along it - not straight out from the torso's
+      //  middle: an oval torso, the hips tilted with her weight on one foot, turned that one a few degrees off and into the
+      //  hole's front edge)
+      const fm = (h.f0 + h.f1) / 2, am = h.c(0.5), p = T.pt(fm, am, 0.004), ta = T.pt(fm, am + 0.02, 0.004).sub(p), tf = T.pt(fm + 0.02, am, 0.004).sub(p);
+      let nn = ta.clone().cross(tf).normalize(); if (nn.dot(p.clone().sub(T.c(fm))) < 0) nn.negate();
+      const r = Math.min(0.016, 0.45 * (h.f1 - h.f0) * T.H);
       metal.push(oRing(p, nn, r, 0.0024));
       // (a short strap from each side's edge to the ring)
       for (const s of [-1, 1]) {
