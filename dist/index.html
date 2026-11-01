@@ -597,7 +597,7 @@ table.res tr.me td { color: var(--accent2); font-weight: 700; }
     <div class="brand-line"></div>
     <h1 id="brand-title">FORMULA 1<span id="brand-sub">SIMULATOR</span></h1>
     <!-- the build's version: +0.01 with every build handed out -->
-    <span id="app-ver" title="Version">V1.99</span>
+    <span id="app-ver" title="Version">V2.00</span>
     <div id="menu-sub">Real circuits built from OpenStreetMap</div>
   </div>
   <div id="loading" class="hidden"><div class="ld"><i></i></div><span>Building the circuit from OpenStreetMap…</span></div>
@@ -87913,7 +87913,7 @@ function skirt(J, F, T, sp, out0 = 0.005) {
     // (a diagonal hem's long side falling a little freer and fuller: a soft drape at its corner, not a point)
     let pts = R0.map((p, j) => {
       const a = angs[j], lg = sp.asym ? (hemAt(a) - hm0) / (hm1 - hm0 || 1) : 0, y = c0.y + (hemAt(a) - c0.y) * u, m = mid(y), c = V(c0.x + (m.x - c0.x) * 0.6 * u, y, c0.z + (m.z - c0.z) * u), d = V(p.x - c0.x, 0, p.z - c0.z), r0 = d.length() * (1 + 0.07 * lg * u * u), e = d.normalize(), w = clw(y) * (1 - 0.55 * lg);
-      let f = 1 + (1 - w) * (0.014 + 0.05 * fl) * (Math.sin(a * 7 + 1) + 0.5 * Math.sin(a * 11 + 2.3)) * u * u;
+      let f = 1 + (1 - w) * (0.014 + 0.05 * fl) * (1 - 0.55 * Math.min(1, cg / 0.5)) * (Math.sin(a * 7 + 1) + 0.5 * Math.sin(a * 11 + 2.3)) * u * u;   // (a fitted cut's fall softer: a few broad folds, not lumps behind the knees)
       if (pl) { const q = (((a + Math.PI) / (2 * Math.PI)) * pl) % 1; f += 0.035 * (Math.abs(q - 0.5) * 2 - 0.5) * ss3(0, 0.25, u); }
       // (slit too: the overlap's free edge from the knot at the waist curving down toward the slit, the front panel lying over
       // the one beneath - a clear step along it, the slit opening along that edge)
@@ -88050,8 +88050,8 @@ function chestShade(T, F, edge, out, fTop, lum = 0.35) {
       const bq = Math.PI - Math.abs(a);
       if (bq < 1.4) {
         const uB = ((bq - 0.55) / 0.3) ** 2 + ((f - 0.81) / 0.1) ** 2;
-        bS = 0.26 * gau(bq, 0.1) * ss3(fTop - 0.01, fTop - 0.1, f) * (0.65 + 0.35 * ss3(0.62, 0.42, f)) + 0.15 * gau(Math.sqrt(uB) - 1, 0.3) * clamp01(0.35 + 0.7 * (0.55 - bq) / 0.3 + 0.9 * (0.81 - f) / 0.1) + 0.05 * gau(bq, 0.4) * ss3(0.66, 0.46, f);   // (soft: the light does the rest - no pool of shadow under the blades)
-        bH = 0.15 * Math.exp(-1.5 * uB);
+        bS = 0.26 * gau(bq, 0.1) * ss3(fTop - 0.01, fTop - 0.1, f) * (0.65 + 0.35 * ss3(0.62, 0.42, f)) + 0.07 * gau(Math.sqrt(uB) - 1, 0.4) * clamp01(0.35 + 0.7 * (0.55 - bq) / 0.3 + 0.9 * (0.81 - f) / 0.1) + 0.05 * gau(bq, 0.4) * ss3(0.66, 0.46, f);   // (soft: the light does the rest - no pool of shadow under the blades)
+        bH = 0.08 * Math.exp(-1.5 * uB);
       }
     }
     // (the deepest of it a share of her own skin's colour, never near black - eased toward that floor, not cut at it: a
@@ -88588,8 +88588,9 @@ function* buildSteps(o) {
   const lapels = (ed, fV, fN, fT, W, out, back = true, rim = 0) => {
     // (a long lapel - down a plunge, over the bust - in more rows and columns: lying on her curves, never cut into by them)
     const pc = (f0, f1, w, R, C = 6) => { for (const s of [-1, 1]) { const a0 = (f) => s * (ed(f) - 0.012), a1 = (f) => s * (ed(f) + w(f)), pg = panel(T, f0, f1, a0, a1, out, { rows: R, cols: C }); parts.top.push(rim ? edgeIn(pg, n(C, 6), 0.93, rim) : tint(pg, 0.93), lining(panel(T, f0, f1, a0, a1, (f) => out(f) - 0.0025, { rows: R, cols: C, th: 0.0015 }))); } };
-    pc(fV, fN, (f) => W * (f - fV) / (fN - fV), rim ? Math.max(9, Math.round(30 * (fN - fV))) : 9, rim && fN - fV > 0.3 ? 8 : 6);
-    pc(fN + 0.008, fT, (f) => W * (0.55 - 0.45 * ss3(fN, fT, f)), 4);
+    // (in rows close enough that its edges run as clean lines down her - no facets stepping along them)
+    pc(fV, fN, (f) => W * (f - fV) / (fN - fV), Math.max(rim ? 9 : 16, Math.round((rim ? 30 : 40) * (fN - fV))), rim && fN - fV > 0.3 ? 8 : 6);
+    pc(fN + 0.008, fT, (f) => W * (0.55 - 0.45 * ss3(fN, fT, f)), 9);
     if (!back) return;
     // (lower toward its ends in front, where it comes down to the lapels' collar ends, and narrower there; its top edge
     // folded in to the neck - nothing to see down into behind it. Its foot on what it lies on: below the seam the
@@ -88758,7 +88759,7 @@ function* buildSteps(o) {
       // (silk draping (OF.drape): below the chest the cloth hangs from its fullness, not in to the waist - in front and at
       // the sides most, a little behind - in soft folds down to its hem)
       const c7 = T.sec(0.7), drp = OF.drape && Q >= 0.6 ? (f, a) => { const s = T.sec(f), ca = Math.cos(a), sa = Math.abs(Math.sin(a)), hang = ss3(0.72, 0.45, f); return ease(f) + hang * (0.6 * Math.max(0, c7[0] - s[0]) * sa + (ca > 0 ? 0.55 : 0.3) * Math.max(0, c7[1] - s[1]) * Math.abs(ca)) + 0.0032 * (Math.sin(7 * a + 1) + 0.5 * Math.sin(11 * a + 2.3)) * ss3(0.6, 0.15, f); } : null;
-      const bm = low < 0.87 ? 48 : 44, bg = BH(loB, neck, low < 0.87 ? (f, a) => ease(f) - (OF.band ? 0.7 : 0.5) * tight * ss3(neck(a) - 0.035, neck(a), f) - bE(f) + (OF.suit && SWL ? SWL.wrap(f, a, tight) : 0) : drp || ease, low < 0.87 ? { rows: Math.max(rows, Math.round(24 * (0.97 - lo)), SWL?.rows || 0), hem: oneDress ? 'hi' : 'both', th: OF.swim ? 0.0016 : OF.band ? 0.003 : tight + 0.009 * (1 - 0.6 * ckB), m: bm, dense: 0.6, follow: fem ? 1 : 0, level: fem ? (F.bf ?? 0.6) + 0.02 * (F.lift || 0) : true } : { rows, hem: 'both', th: OF.back ? 0.005 : tight + 0.009, curv: fem ? null : shD });
+      const bm = low < 0.87 ? (fem && Q >= 0.6 ? 72 : 48) : 44, bg = BH(loB, neck, low < 0.87 ? (f, a) => ease(f) - (OF.band ? 0.7 : 0.5) * tight * ss3(neck(a) - 0.035, neck(a), f) - bE(f) + (OF.suit && SWL ? SWL.wrap(f, a, tight) : 0) : drp || ease, low < 0.87 ? { rows: Math.max(rows, Math.round(24 * (0.97 - lo)), SWL?.rows || 0), hem: oneDress ? 'hi' : 'both', th: OF.swim ? 0.0016 : OF.band ? 0.003 : tight + 0.009 * (1 - 0.6 * ckB), m: bm, dense: 0.6, follow: fem ? 2 : 0, level: fem ? (F.bf ?? 0.6) + 0.02 * (F.lift || 0) : true } : { rows, hem: 'both', th: OF.back ? 0.005 : tight + 0.009, curv: fem ? null : shD });
       // (the skin above it from the cloth's edge as built (top: straight between its columns) - along a plunge's steep
       // sides the line it was cut to runs above that, and the skin's foot, laid for under the cloth, showed in torn slivers;
       // its foot (skinFoot) under the lowest of the edge either side of it (~0.1 rad): on a steep side the cloth is beside
@@ -89076,7 +89077,8 @@ function* buildSteps(o) {
         // never one long straight span across the hollow under the collarbones, standing out through the cloth - and sunk
         // under her skin toward the foot (sF: the cloth's own stand-off and a little): across the hollow between the bust's
         // rounds its straight spans stay under the cloth too)
-        if (dp && !i) R.push(wa.map((a, j) => { const f = 0.5 * (lo[j] + ed[j]); FA.push(f, a, ed[j]); return T.pt(f, a, -0.5 * sF); }));
+        // (in several rows, over the bust's round: a single straight span up its curve cut out through the cloth in spikes)
+        if (dp && !i) for (const q of [0.15, 0.3, 0.45, 0.6, 0.75, 0.88]) R.push(wa.map((a, j) => { const f = lo[j] + (ed[j] - lo[j]) * q; FA.push(f, a, ed[j]); return T.pt(f, a, -(1 - 0.5 * q) * sF); }));
       }
       const iS = R.length - 1;
       for (let i = 1; i <= K; i++) {
@@ -89092,7 +89094,6 @@ function* buildSteps(o) {
       R.unshift(Array(M).fill(inT(nAt(h0 - 0.008))));
     }
     R.push(Array(A.length).fill(nAt(h1 + 0.008)));
-    globalThis.__JNR?.({ R, A, NK, NP, sChin, sPiv, fSeam, fAc, tH, nb, an, fwN, nSd, T, J, F });   // TEMP joins fixer hook - REMOVE
     yield;
     // (its shading kept for her arms, where they grow out of it: T.arms; the cloth's columns up a steep neckline's side only
     // as far as the seam, the last of the chest's rows (FA))
