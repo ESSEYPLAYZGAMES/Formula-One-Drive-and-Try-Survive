@@ -1350,8 +1350,11 @@ function handAt(w, dir, pn, k, th, arm = {}, grip = 0.15) {
     return g;
   }
   // the wrist and the hand: from inside the forearm to the knuckles, closed in front of them round the fingers' roots
-  const US = [-0.035, -0.014, -0.004, 0.007, 0.02, 0.038, 0.06, 0.077, 0.089, 0.098], M = fem ? 30 : 20, rings = US.map((s) => body(s, M));
-  rings.push(body(0.104, M, fem ? 0.6 : 0.68), Array(M).fill(frame(0.108 * k)[0]));
+  // (hers ending just behind the knuckles, closed inside the fingers' roots - their four rounds side by side the knuckles
+  // themselves, the hand's back flowing on into them: no cap in front of them for the fingers to come out of)
+  const US = fem ? [-0.035, -0.014, -0.004, 0.007, 0.02, 0.038, 0.06, 0.074] : [-0.035, -0.014, -0.004, 0.007, 0.02, 0.038, 0.06, 0.077, 0.089, 0.098], M = fem ? 30 : 20, rings = US.map((s) => body(s, M));
+  if (fem) rings.push(body(0.079, M, 0.86), body(0.083, M, 0.55), Array(M).fill(frame(0.085 * k)[0]));
+  else rings.push(body(0.101, M, 0.86), body(0.104, M, 0.68), body(0.1065, M, 0.38), Array(M).fill(frame(0.108 * k)[0]));   // (closing over a few rings: a round dome in front of the knuckles, never a pinch)
   const gP = loft(rings);
   // (where it comes out of the forearm, lit as the forearm is - out square from its line, tilted by its taper - turning to
   // its own light by the wrist: the two one surface to the eye, no line where one leaves the other)
@@ -1408,7 +1411,7 @@ function handAt(w, dir, pn, k, th, arm = {}, grip = 0.15) {
     const dA = (a) => d0.clone().multiplyScalar(Math.cos(a)).addScaledVector(Pn, Math.sin(a)), d1 = dA(b1), d2 = dA(b1 + b2), d3 = dA(b1 + b2 + b3), r = FR[i] * k, [l1, l2, l3] = FL[i].map((v) => v * k * FLk);
     const J1 = H0.clone().addScaledVector(X, th * FX[i] * k).addScaledVector(D, FY[i] * k).addScaledVector(Pn, -FZ * k), J2 = J1.clone().addScaledVector(d1, l1), J3 = J2.clone().addScaledVector(d2, l2), J4 = J3.clone().addScaledVector(d3, l3 - 0.6 * r);
     const av = (a, b) => a.clone().add(b).normalize();
-    g.push(tube([[J1.clone().addScaledVector(d0, -0.02 * k), d0, 0], [J1, av(d0, d1), FT[0] * r], [J2, av(d1, d2), FT[1] * r, fem ? 0.025 : 0.06], [J3, av(d2, d3), FT[2] * r, fem ? 0.012 : 0.03], [J4, d3, FT[3] * r]], xa, Pn, fem ? 0.84 : 0.86, 7));
+    g.push(tube([...(fem ? [[J1.clone().addScaledVector(d0, -0.03 * k), d0, 0], [J1.clone().addScaledVector(d0, -0.019 * k), d0, 1.32 * r], [J1.clone().addScaledVector(d0, -0.009 * k), d0, 1.14 * r]] : [[J1.clone().addScaledVector(d0, -0.02 * k), d0, 0]]), [J1, av(d0, d1), FT[0] * r], [J2, av(d1, d2), FT[1] * r, fem ? 0.025 : 0.06], [J3, av(d2, d3), FT[2] * r, fem ? 0.012 : 0.03], [J4, d3, FT[3] * r]], xa, Pn, fem ? 0.84 : 0.86, fem ? 10 : 7));
     g.push(nail(J3, J4, FT[2] * r, FT[3] * r, xa, Pn, fem ? 0.84 : 0.86));
   }
   // the thumb: out of the heel of the hand on its side, its root (the ball of the thumb) full on the palm, out and
@@ -1432,6 +1435,9 @@ function handAt(w, dir, pn, k, th, arm = {}, grip = 0.15) {
     return ringOf(A.add(B).multiplyScalar(0.5), e1, e2, L + 0.002 * k, 0.004 * k, 8);
   });
   g.push(loft([...web, Array(8).fill(T1.clone().addScaledVector(t0, -0.004 * k))]));
+  // (where the fingers come out of the hand - the knuckles, the roots, the valleys between them: the hand's light and
+  // the fingers' one, across both, no seam of shade where one surface meets the other)
+  { const H1 = H0.clone(), Dn = D.clone(), a0 = Math.min(...FY) * k - (fem ? 0.022 : 0.003) * k, a1 = Math.max(...FY) * k + 0.02 * k; smoothAcross(g, (x, y, z) => { const t = (x - H1.x) * Dn.x + (y - H1.y) * Dn.y + (z - H1.z) * Dn.z; return t > a0 && t < a1; }, 0.006 * k, 2); }
   return g;
 }
 
@@ -3178,6 +3184,23 @@ function smoothNormals(G, inR, r, passes = 3) {
     I.forEach((i, k) => N.setXYZ(i, ...acc[k]));
   }
   N.needsUpdate = true;
+}
+/**
+ * Several surfaces meeting (a hand and its fingers): within inR, each point's normal eased toward the average of every
+ * surface's normals within r of it, a few passes - one light across where they join, whichever piece a point is on
+ */
+function smoothAcross(gs, inR, r, passes = 2) {
+  const pts = [];
+  for (const g of gs) { if (!g.attributes.normal) g.computeVertexNormals(); const P = g.attributes.position; for (let i = 0; i < P.count; i++) if (inR(P.getX(i), P.getY(i), P.getZ(i))) pts.push([g, i, P.getX(i), P.getY(i), P.getZ(i)]); }
+  if (pts.length < 3 || pts.length > 6000) return;
+  const r2 = r * r, cell = r, H = new Map(), key = (x, y, z) => `${Math.floor(x / cell)},${Math.floor(y / cell)},${Math.floor(z / cell)}`;
+  pts.forEach((p, k) => { const kk = key(p[2], p[3], p[4]); if (!H.has(kk)) H.set(kk, []); H.get(kk).push(k); });
+  const nb = pts.map((p) => { const out = [], cx = Math.floor(p[2] / cell), cy = Math.floor(p[3] / cell), cz = Math.floor(p[4] / cell); for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) for (let c = -1; c <= 1; c++) for (const q of H.get(`${cx + a},${cy + b},${cz + c}`) || []) { const o = pts[q]; if ((o[2] - p[2]) ** 2 + (o[3] - p[3]) ** 2 + (o[4] - p[4]) ** 2 < r2) out.push(q); } return out; });
+  for (let it = 0; it < passes; it++) {
+    const acc = pts.map((p, k) => { let x = 0, y = 0, z = 0; for (const q of nb[k]) { const [g, i] = pts[q], N = g.attributes.normal; x += N.getX(i); y += N.getY(i); z += N.getZ(i); } const l = Math.hypot(x, y, z) || 1; return [x / l, y / l, z / l]; });
+    pts.forEach(([g, i], k) => g.attributes.normal.setXYZ(i, ...acc[k]));
+  }
+  for (const g of gs) g.attributes.normal.needsUpdate = true;
 }
 /**
  * Two pieces of one cloth meeting along a ring at height y (A above, B below: a dress's bodice and skirt): across a band
