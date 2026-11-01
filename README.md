@@ -1222,17 +1222,19 @@ buttons and a slider - no drop-downs anywhere. Team colours too light to see on 
   clause paid and your old seat filled. An approach pays a little more than the market and lapses after the next race;
   signed, you move at the season's end - and the leverage it gave you with your own team becomes the -18 of having
   signed elsewhere.
-* **The season's end.** Each team decides on every driver whose contract runs out: kept (by his worth against the
-  team's ambition - a front-runner's bar is highest - and less likely with a clearly better driver free), or let go; a
-  veteran from 38 may retire instead; a driver far below his car with years left may be released early. The decisions
+* **The season's end.** Each team decides on every driver whose contract runs out - and renewing is what teams mostly
+  do: kept (0.6, by his worth against the team's ambition - a front-runner's bar is highest - and a little less likely
+  with a clearly better driver free; most renewals for two years), or let go; a veteran from 39 may retire instead; a
+  driver far below his car and badly off the pace with years left is now and then released early. The decisions
   are in the news, and the seats that open are where your agent's offers come from first.
 * **The winter.** Carried out: the kept re-signed, the rest released; your own seat (signed again, elsewhere - a buyout
   paying your old team - or none); your team-mate as the team and your say chose; every seat still open filled, the
   front-runners choosing first - the reserves step up, and the backmarkers blood F2 and junior drivers; then the silly
-  season's poaching (a clearly better driver, free or bought out of a smaller team). Last a check: every team exactly two
-  drivers, nobody in two cars, nobody dead, banned or retired signed. Simulated over ten seasons: about one new face and
-  one poaching move a winter, a veteran's retirement every two seasons, F2 and junior debuts from the third season on,
-  and a mid-season replacement once in ten seasons or so (more when a driver is hopeless).
+  season's poaching - rare: at most one contract broken a winter, for a driver off the pace, by one clearly better. Last
+  a check: every team exactly two drivers, nobody in two cars, nobody dead, banned or retired signed. Simulated: about
+  four contracts renewed for each one that lapses, and a grid that changes by one to three seats a winter (half a seat
+  after the first season), with F2 and junior debuts along the way and a mid-season replacement once in ten seasons or
+  so (more when a driver is hopeless).
 
 #### The showroom, in 3D
 

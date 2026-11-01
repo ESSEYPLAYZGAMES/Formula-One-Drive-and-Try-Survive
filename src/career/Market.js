@@ -83,7 +83,7 @@ export function poolFor(c, team, o = {}) {
 /** the best rating on the market now (free, fit, not retired) - a team with a weaker driver out of contract looks at him */
 const bestFree = (c) => Math.max(0, ...Object.values(c.drivers || {}).filter((d) => d && d.alive && !d.retired && !d.team && d.id !== c.playerId && !out(c, d)).map((d) => num(d.rating, 0)));
 /** the chance a veteran stops when his contract runs out: from 38, 0.1 and 0.13 more a year (a driver whose age is not known never) */
-export function retireChance(c, d) { const a = safe('age', () => ageOf(c, d, null, c.season), null); return a == null || a < 38 ? 0 : clamp(0.1 + (a - 38) * 0.13, 0, 0.9); }
+export function retireChance(c, d) { const a = safe('age', () => ageOf(c, d, null, c.season), null); return a == null || a < 39 ? 0 : clamp(0.05 + (a - 39) * 0.09, 0, 0.8); }
 /** where a newly signed driver comes from, for the news */
 const fromTxt = (d, team) => (d.reserveOf === team ? `${team}'s own reserve steps up` : d.from === 'F2' ? 'promoted from F2' : d.from === 'Junior' ? 'a junior given his chance' : d.from === 'Reserve' ? `from the reserve ranks${d.reserveOf ? ` (${d.reserveOf})` : ''}` : 'back on the grid');
 /** the standing a new signing gets beside the other driver (you: by your contract; another: number one over a clearly slower one) */
@@ -301,10 +301,11 @@ export function moveNow(c, of, prevName) {
 
 // ---- the season's end: the teams decide ---------------------------------------------------------------------------------------
 /**
- * keep a driver whose contract runs out? his value against the team's bar (KEEP_BAR): 0.42 + 0.065 a point either way,
- * 0.22 less with a clearly better driver (+0.025) free on the market (0.08..0.92)
+ * keep a driver whose contract runs out? Renewing is what teams mostly do (a grid changes by a few seats a winter, not
+ * half of it): 0.6, 0.045 a point of his value against the team's bar (KEEP_BAR) either way, 0.12 less with a clearly
+ * better driver (+0.04) free on the market (0.3..0.95)
  */
-const keepChance = (c, d, t, best = bestFree(c)) => clamp(0.42 + (valueOf(c, d) - KEEP_BAR[clamp(num(t.tier, 3), 0, 3)]) * 0.065 - (best >= num(d.rating, 0.8) + 0.025 ? 0.22 : 0), 0.08, 0.92);
+const keepChance = (c, d, t, best = bestFree(c)) => clamp(0.6 + (valueOf(c, d) - KEEP_BAR[clamp(num(t.tier, 3), 0, 3)]) * 0.045 - (best >= num(d.rating, 0.8) + 0.04 ? 0.12 : 0), 0.3, 0.95);
 /**
  * The last race run (c.round past the calendar), once a season: each team's decision on every AI driver whose contract
  * runs out - kept (the years: two for one clearly above its bar) or let go - and on one far below it with years left
@@ -321,9 +322,9 @@ export function marketSeasonEnd(c) {
         M.retire.push(d.id); M.drop.push(d.id); M.open.push({ team: t.name, out: d.id, why: 'retire' });
         c.addNews(`${d.name} announces he will retire from Formula 1 at the end of the season${num(d.wins) ? `, after ${d.wins} win${d.wins > 1 ? 's' : ''} in this career` : ''}.`);
       } else if (ending) {
-        if (Math.random() < keepChance(c, d, t, best)) M.resign[d.id] = valueOf(c, d) >= bar + 6 || young(c, d) ? 2 : Math.random() < 0.5 ? 1 : 2;
+        if (Math.random() < keepChance(c, d, t, best)) M.resign[d.id] = valueOf(c, d) >= bar + 3 || young(c, d) ? 2 : Math.random() < 0.35 ? 1 : 2;
         else { M.drop.push(d.id); M.open.push({ team: t.name, out: d.id, why: 'expire' }); }
-      } else if (valueOf(c, d) < bar - 6 && formOf(d, c.season) < -2 && Math.random() < 0.4) { M.drop.push(d.id); M.open.push({ team: t.name, out: d.id, why: 'early' }); }
+      } else if (valueOf(c, d) < bar - 8 && formOf(d, c.season) < -3 && Math.random() < 0.2) { M.drop.push(d.id); M.open.push({ team: t.name, out: d.id, why: 'early' }); }
     }
   }
   // (the paddock hears it first: the biggest decisions in the news)
@@ -380,12 +381,17 @@ export function marketNewSeason(c) {
 }
 /** the silly season's poaching: a team replaces its weakest driver (not you, not one kept or chosen this winter) with a clearly better one - a free agent, or bought out of a smaller team (half the time), which fills its own seat */
 function sillySeason(c, locked) {
+  // (a contract broken to make room is rare: one such move a winter at most, for a driver who has been off the pace, by
+  //  one clearly better - 0.05 - and under a third of the time; a driver bought out of a smaller team a third of those)
+  let moves = 0;
   for (const t of shuffle(Object.values(c.teams || {}))) {
+    if (moves >= 1) break;
     const seats = c.seatsOf(t.name); if (seats.length < 2) continue;
-    const weak = seats.filter((d) => d.id !== c.playerId && !locked.has(d.id)).sort((a, b) => a.rating - b.rating)[0]; if (!weak) continue;
-    const target = Object.values(c.drivers).filter((d) => d.alive && !d.retired && d.id !== c.playerId && d.team !== t.name && !locked.has(d.id) && !out(c, d) && d.rating > weak.rating + 0.025)
-      .filter((d) => !d.team || (c.teams[d.team] && c.teams[d.team].tier > t.tier && Math.random() < 0.5)).sort((a, b) => b.rating - a.rating)[0];
-    if (!target || Math.random() > 0.55) continue;
+    const weak = seats.filter((d) => d.id !== c.playerId && !locked.has(d.id) && formOf(d, c.season - 1) < -1).sort((a, b) => a.rating - b.rating)[0]; if (!weak) continue;
+    const target = Object.values(c.drivers).filter((d) => d.alive && !d.retired && d.id !== c.playerId && d.team !== t.name && !locked.has(d.id) && !out(c, d) && d.rating > weak.rating + 0.05)
+      .filter((d) => !d.team || (c.teams[d.team] && c.teams[d.team].tier > t.tier && Math.random() < 0.33)).sort((a, b) => b.rating - a.rating)[0];
+    if (!target || Math.random() > 0.3) continue;
+    moves++;
     const from = target.team;
     if (from) { c.teams[from].seats = c.teams[from].seats.filter((x) => x !== target.id); c.teams[from].budget = r1(num(c.teams[from].budget) + 4); }
     target.team = null;
