@@ -1326,7 +1326,7 @@ function handAt(w, dir, pn, k, th, arm = {}, grip = 0.15) {
   // there (the ring drawn in by sh))
   const kn = (u, b, sh) => (lo ? null : (x) => {
     const f = ss3(0.055, 0.086, u), xs = x / sh; if (f <= 0) return 0;
-    let t = 0.72 * b; for (let i = 0; i < 4; i++) { const R = 1.2 * FR[i] * k, dx = xs - th * FX[i] * k; t = Math.max(t, (FZ + 0.0012) * k + 0.86 * Math.sqrt(Math.max(0, R * R - dx * dx)) + 0.0016 * k * FW * gau(dx, 0.0065 * k * FW) * gau(u - FY[i], u < FY[i] ? 0.012 : 0.006)); }
+    let t = 0.72 * b; for (let i = 0; i < 4; i++) { const R = 1.2 * FR[i] * k, dx = xs - th * FX[i] * k; t = Math.max(t, (FZ + 0.0012) * k + 0.86 * Math.sqrt(Math.max(0, R * R - dx * dx)) + (fem ? 0.0009 : 0.0016) * k * FW * gau(dx, 0.0065 * k * FW) * gau(u - FY[i], u < FY[i] ? 0.012 : 0.006)); }
     return sh * f * (t - b);
   });
   // (u: along it in the hand's own measure - the forearm's part, u < 0, in the forearm's)
@@ -1381,7 +1381,7 @@ function handAt(w, dir, pn, k, th, arm = {}, grip = 0.15) {
   const nail = (A, B, rA, rB, xa, pal, sq) => {
     const T = B.clone().sub(A), L = T.length(); T.normalize();
     const sg = new THREE.Vector3().crossVectors(xa, T).dot(pal) < 0 ? -1 : 1, e2 = new THREE.Vector3().crossVectors(xa, T).normalize().multiplyScalar(sg), e1 = new THREE.Vector3().crossVectors(T, e2).normalize();
-    const NU = 9, NV = 7, s0 = 0.03 * L, s1 = L + 0.58 * rB, rOf = (sx) => (sx <= L ? rA + (rB - rA) * sx / L : sx <= L + 0.42 * rB ? rB - 0.1 * rB * (sx - L) / (0.42 * rB) : 0.9 * rB - 0.32 * rB * (sx - L - 0.42 * rB) / (0.34 * rB)), lift = 0.0006 * k, phi = 0.88, R = [];
+    const NU = 9, NV = 7, s0 = 0.03 * L, s1 = L + 0.58 * rB, rOf = (sx) => (sx <= L ? rA + (rB - rA) * sx / L : sx <= L + 0.42 * rB ? rB - 0.1 * rB * (sx - L) / (0.42 * rB) : 0.9 * rB - 0.32 * rB * (sx - L - 0.42 * rB) / (0.34 * rB)), lift = 0.0006 * k, phi = fem ? 0.76 : 0.88, R = [];
     for (let i = 0; i <= NU; i++) {
       const u = i / NU, sx = s0 + (s1 - s0) * u, r = rOf(sx), c = A.clone().addScaledVector(T, sx), w = 1 - 0.18 * (1 - u) ** 2;   // (narrower at its root, rounded there)
       R.push(Array.from({ length: NV + 1 }, (_, j) => { const v = (j / NV) * 2 - 1, a = -Math.PI / 2 + v * phi * w, tk = (1 - Math.abs(v) ** 8) * (1 - (1 - u) ** 10) * (1 - u ** 14); return c.clone().addScaledVector(e1, Math.cos(a) * (r + lift * tk)).addScaledVector(e2, Math.sin(a) * (r * sq + lift * tk)); }));
@@ -1403,12 +1403,12 @@ function handAt(w, dir, pn, k, th, arm = {}, grip = 0.15) {
   // hand closes, so their tips part
   const FL = [[0.038, 0.022, 0.018], [0.041, 0.025, 0.019], [0.039, 0.024, 0.018], [0.031, 0.018, 0.016]], FS = [0.07, 0.015, -0.035, -0.09];
   for (let i = 0; i < 4; i++) {
-    const ph = th * FS[i] * (1 - 0.6 * Math.max(0, gq)), d0 = D.clone().multiplyScalar(Math.cos(ph)).addScaledVector(X, Math.sin(ph)), xa = new THREE.Vector3().crossVectors(d0, Pn).normalize();
-    const [b1, b2, b3] = bendOf([0.18 + 0.05 * i, 0.28 + 0.07 * i, 0.16 + 0.04 * i], [0.85 + 0.06 * i, 1.15 + 0.05 * i, 0.55 + 0.03 * i], [-0.08, 0.04, 0.02]);
+    const ph = th * FS[i] * (fem ? 0.55 : 1) * (1 - 0.6 * Math.max(0, gq)), d0 = D.clone().multiplyScalar(Math.cos(ph)).addScaledVector(X, Math.sin(ph)), xa = new THREE.Vector3().crossVectors(d0, Pn).normalize();
+    const [b1, b2, b3] = bendOf([0.18 + 0.05 * i, 0.28 + 0.07 * i, 0.16 + 0.04 * i].map((v) => v * (fem ? 0.62 : 1)), [0.85 + 0.06 * i, 1.15 + 0.05 * i, 0.55 + 0.03 * i], [-0.08, 0.04, 0.02]);
     const dA = (a) => d0.clone().multiplyScalar(Math.cos(a)).addScaledVector(Pn, Math.sin(a)), d1 = dA(b1), d2 = dA(b1 + b2), d3 = dA(b1 + b2 + b3), r = FR[i] * k, [l1, l2, l3] = FL[i].map((v) => v * k * FLk);
     const J1 = H0.clone().addScaledVector(X, th * FX[i] * k).addScaledVector(D, FY[i] * k).addScaledVector(Pn, -FZ * k), J2 = J1.clone().addScaledVector(d1, l1), J3 = J2.clone().addScaledVector(d2, l2), J4 = J3.clone().addScaledVector(d3, l3 - 0.6 * r);
     const av = (a, b) => a.clone().add(b).normalize();
-    g.push(tube([[J1.clone().addScaledVector(d0, -0.02 * k), d0, 0], [J1, av(d0, d1), FT[0] * r], [J2, av(d1, d2), FT[1] * r, 0.06], [J3, av(d2, d3), FT[2] * r, 0.03], [J4, d3, FT[3] * r]], xa, Pn, fem ? 0.84 : 0.86, 7));
+    g.push(tube([[J1.clone().addScaledVector(d0, -0.02 * k), d0, 0], [J1, av(d0, d1), FT[0] * r], [J2, av(d1, d2), FT[1] * r, fem ? 0.025 : 0.06], [J3, av(d2, d3), FT[2] * r, fem ? 0.012 : 0.03], [J4, d3, FT[3] * r]], xa, Pn, fem ? 0.84 : 0.86, 7));
     g.push(nail(J3, J4, FT[2] * r, FT[3] * r, xa, Pn, fem ? 0.84 : 0.86));
   }
   // the thumb: out of the heel of the hand on its side, its root (the ball of the thumb) full on the palm, out and
