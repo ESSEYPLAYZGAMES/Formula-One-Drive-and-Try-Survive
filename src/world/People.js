@@ -974,7 +974,7 @@ function torsoOf(J, F) {
     // (a hem's rings - turned back in under its end, after its last (KH) - left out: each follows the ring it lies under)
     const K = nv / M, ax = (r) => { let t = 0; for (let c = 0; c < M; c++) { p.fromBufferAttribute(P, r * M + c); t += u.subVectors(p, a.S).dot(a.u); } return t / M; };
     let KH = K; for (let r = 1, t0 = ax(0); r < K; r++) { const t1 = ax(r); if (t1 <= t0 + 1e-6) { KH = r; break; } t0 = t1; }
-    for (let j = 0; j < KH * M; j++) { p.fromBufferAttribute(P, j); const kq = k * (1 - ss3(0.12 * a.L, 0.4 * a.L, u.subVectors(p, a.S).dot(a.u))); if (kq < 1e-4) continue; MM[j] = near(p, off); S[j] = MM[j].s; KQ[j] = kq; }
+    for (let j = 0; j < KH * M; j++) { p.fromBufferAttribute(P, j); const kq = k * (o.soft ? 1.6 : 1) * (1 - ss3(0.12 * a.L, 0.4 * a.L, u.subVectors(p, a.S).dot(a.u))); if (kq < 1e-4) continue; MM[j] = near(p, off); S[j] = MM[j].s; KQ[j] = kq; }
     // (where it goes in and out of the torso: each step up a column from a point outside to one inside or back - between the
     // two the crossing (x), in order up the column (i), and how steeply the arm leaves the torso there (tn, its slope: from
     // the next point out))
@@ -1018,7 +1018,7 @@ function torsoOf(J, F) {
       // cloths within a hair of each other, crossing in torn steps)
       const sn = o.sink || 0;
       if (s < 0 && xh >= kq) { p.addScaledVector(nt, Math.min(s, -3 * e - sn)); P.setXYZ(j, p.x, p.y, p.z); W[j] = 1; continue; }
-      const bw = o.bare ? o.bare(m.f, m.an) : 1, fl = xh < kq ? Math.max(tn, 0.35) * (kq - xh) ** 2 / (4 * kq) * bw : 0;
+      const bw = o.bare ? o.bare(m.f, m.an) : 1, fl = xh < kq ? Math.max(tn, o.soft ? 0.85 : 0.35) * (kq - xh) ** 2 / (4 * kq) * bw : 0;   // (bare skin (o.soft): broader and fuller where the arm meets the chest shallowly, in front of the armpit - a soft fold, never a pinched pocket)
       // (inside: its half laid on the surface, as high as the fillet there - under it by a hair where the fillet is thinner,
       // none at the crossing itself, so the two halves meet there; lit as the torso is until it rises clear of it. A
       // sleeve's going on under the bodice beneath it over the whole of the fillet's width - one smooth line where the
@@ -1043,6 +1043,8 @@ function torsoOf(J, F) {
       // (its own light there its own round's, as it was before it was laid on the torso)
       if (W[j] > 0) { const n2 = near(p, off).n, w = W[j], B0 = isNaN(S[j]) ? N.array : NA, x = B0[j * 3] * (1 - w) + n2.x * w, y = B0[j * 3 + 1] * (1 - w) + n2.y * w, z = B0[j * 3 + 2] * (1 - w) + n2.z * w, l = Math.hypot(x, y, z) || 1; N.setXYZ(j, x / l, y / l, z / l); if (C && !o.col) C.setXYZ(j, C.getX(j) + (1 - C.getX(j)) * w, C.getY(j) + (1 - C.getY(j)) * w, C.getZ(j) + (1 - C.getZ(j)) * w); }
       if (C && o.col) { const c3 = o.col(p.x, p.y, p.z); C.setXYZ(j, C.getX(j) * c3[0], C.getY(j) * c3[1], C.getZ(j) * c3[2]); }    }
+    // (bare skin: its light about the shoulder's joint eased smooth - no kink of shade left where its rows bunch in front of the armpit)
+    if (o.soft && Q >= 0.6) { const r2 = (0.07 + 0.6 * k) ** 2; smoothNormals(g, (x, y, z) => (x - a.S.x) ** 2 + (y - a.S.y) ** 2 + (z - a.S.z) ** 2 < r2, 0.011, 2); }
     return g;
   };
   /**
@@ -4492,7 +4494,7 @@ function* buildSteps(o) {
     const cloth = (t) => (jCap ? Math.max(0.7 * radC(t) + 0.3 * (F.del * (1 - t) + (F.arm[3] + 0.008) * t) + loose, radC(t) + jCap(t)) : 0.7 * radS(t) + 0.3 * (F.del * (1 - t) + (F.arm[3] + 0.008) * t) + loose) + (tS < 1 ? 0.005 * t / Math.max(0.05, tS) : 0), ao = crease([el], 0.8), rib = (g) => (OF?.ribs && !JK && Q >= 0.6 ? ribbed(g, n(14, 6)) : g);
     // (her arm grown out of her shoulder - its skin (shaded as the skin it grows from, no fillet onto the bodice: crossing
     // its edge cleanly), or the top's sleeve over the bodice; a jacket's its own)
-    const bA = (g, off = 0, oo = { col: skinSh ? (x, y, z) => skinSh(x, y, z, null, 0, 0) : null, bare: bod ? (f, a) => ss3(bod.nl(a) - 0.004, bod.nl(a) + 0.012, f) : null }) => { if (!(armB && !JK)) return armM && off ? armM(g, s === 'R' ? 0 : 1, offM, { sink: Math.min(0.6 * offM, 0.005) }) : g; armB(g, s === 'R' ? 0 : 1, off, oo); if (!off) armSk.push(g); return g; }, onBod = (bod?.off ?? 0) + 0.001;
+    const bA = (g, off = 0, oo = { soft: 1, col: skinSh ? (x, y, z) => skinSh(x, y, z, null, 0, 0) : null, bare: bod ? (f, a) => ss3(bod.nl(a) - 0.004, bod.nl(a) + 0.012, f) : null }) => { if (!(armB && !JK)) return armM && off ? armM(g, s === 'R' ? 0 : 1, offM, { sink: Math.min(0.6 * offM, 0.005) }) : g; armB(g, s === 'R' ? 0 : 1, off, oo); if (!off) armSk.push(g); return g; }, onBod = (bod?.off ?? 0) + 0.001;
     // (his sleeve laid on the cloth it is sewn to, as far off him as that is over the shoulder: a jacket's (its padding's
     // lift there), a shirt's standing off the trousers (topOver), a fitted top's, a one-piece's own)
     const offM = (JK ? JK.out + 0.005 * ss3(0.8, 0.93, fJ) : topOver ? topOver.out(fJ) : bod?.off ?? 0) + (fem && JK ? 0.0035 : 0.001);   // (hers set in over the jacket's body a few millimetres clear of it - a clean seam, never two surfaces fighting along it)
