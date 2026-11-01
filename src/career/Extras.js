@@ -17,6 +17,7 @@ import { CELEB, registerLocal, celebLook, celebEnsure, meet } from './Celebs.js'
 
 // ---- seeds ---------------------------------------------------------------------------------------------------------
 const hash = (s) => { let h = 2166136261; for (const ch of String(s)) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; };
+const mix = (h) => { h ^= h >>> 16; h = Math.imul(h, 0x85ebca6b); h ^= h >>> 13; h = Math.imul(h, 0xc2b2ae35); h ^= h >>> 16; return h >>> 0; };
 /** the share (percent) of a place's people who are its regulars, the same at that place every night */
 export const REGULARS = 35;
 /**
@@ -28,7 +29,9 @@ export const REGULARS = 35;
  */
 export function extraSeed(scope, index, o = {}) {
   const base = `${scope}|${index | 0}`, reg = o.night == null || hash(base + '|regular') % 100 < REGULARS;
-  let h = hash(reg ? base : `${base}|${o.night}`);
+  // (the hash finished off (murmur3's fmix32): neighbouring indices' hashes differ mostly in a few bits, and a local's
+  // first draws - her name - would then repeat round a room more often than chance)
+  let h = mix(hash(reg ? base : `${base}|${o.night}`));
   if (o.fem === true) h = (h | 1) >>> 0; else if (o.fem === false) h = (h & ~1) >>> 0;
   return h || 2;
 }
