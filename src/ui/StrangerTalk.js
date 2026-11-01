@@ -60,6 +60,24 @@ export const STRANGER_KINDS = ['keen', 'polite', 'rushed', 'busy', 'taken', 'ful
 // (who hears a risque line from someone they have only just met - Persona's own rule for the 'new' stage)
 const RISQUE_NEW = new Set(['flirtatious', 'dominant']);
 const TAKEN = 15, BUSY = { club: 22, party: 18, grid: 35, hangout: 20 }, FLING_BUSY = 12, NIGHT_CAP = 3, LAND = 2;
+// (after dark - a club's floor, the team's after-party - people are open to the small things: a line lands easier, a
+// drink or two helps rather than hurts, nobody counts how many numbers you have taken until it is a lot, and a flirt
+// that lands can turn straight into a dance, a kiss, leaving together. The life of a racing driver at the after-party:
+// nothing shown, plenty implied)
+const NIGHT = new Set(['club', 'party']), LAND_NIGHT = 1, CAP_NIGHT = 6;
+// (what a flirt that landed turns into, after dark: her last line, then this - touches, closeness, the cut-away)
+const CLOSE = {
+  dance: ["She takes your hand and pulls you onto the floor without another word.", "Her fingers lace through yours, and she leads you into the crowd.",
+    "She steps in close, one hand on your chest, and starts to move to the music.", "She hooks a finger in your collar and walks you backwards onto the dance floor.",
+    "Her hand finds the back of your neck. The next song, the two of you barely move apart.", "She turns her back to you and leans in, your hands settling on her hips as the beat drops."],
+  kiss: ["She looks at your mouth, then back up at you, and closes the gap.", "She pulls you in by your shirt and kisses you, slow, like the room isn't there.",
+    "Her hand slides along your jaw. The kiss lasts longer than either of you meant it to.", "She laughs against your lips, then kisses you again, properly this time.",
+    "A kiss at the edge of the dance floor, her arms around your neck, the bass in your chest."],
+  leave: ["'Get me out of here,' she says in your ear, her hand already in yours.", "She tucks her number into your pocket, her fingers lingering. 'Or we could skip the texting.'",
+    "Her lips brush your ear. 'Your hotel or mine?'", "She slips her arm through yours. 'I'm bored of this place. I'm not bored of you.'",
+    "'One more drink here,' she says, 'or somewhere quieter.' She doesn't mean the bar."],
+};
+const closeOf = (R, t, place) => { const u = R(); if (t === 'risque') return u < 0.6 ? 'leave' : 'kiss'; const L = place === 'club' ? 0.22 : 0.15, K = place === 'club' ? 0.62 : 0.5; return u < L ? 'leave' : u < K ? 'kiss' : 'dance'; };
 // (a chemistry of the two of you: mostly middling, now and then none at all, now and then a spark)
 const CHEM = [-2, -1, -1, 0, 0, 0, 1, 1, 1, 2, 2, 3];
 
@@ -252,7 +270,7 @@ function edgeOf(c, ctx, place, e) {
   if (night && S && S.season === c.season) v += S.won ? 1 + (likes.includes('winner') ? 0.5 : 0) : S.podium ? 0.5 : 0;
   if (likes.includes('confident') && fame >= 55) v += 0.5;
   if (likes.includes('humble') && fame >= 80) v -= 0.5;
-  const lv = levelOf(ctx); v -= lv >= 3 ? 1.5 : lv >= 2 ? 0.5 : 0;
+  const lv = levelOf(ctx); v -= lv >= 3 ? 1.5 : night ? (lv === 1 || lv === 2 ? -0.5 : 0) : lv >= 2 ? 0.5 : 0;   /* (after dark a drink or two loosens everyone up; drunk never helps) */
   const pid = c?.celebs?.partner, pub = !!pid && !!c.celebs.bonds?.[pid]?.public && pid !== e.lid;
   if (pub) v -= dislikes.includes('scandal') ? 1.5 : 0.75;
   return v;
@@ -264,21 +282,21 @@ function edgeOf(c, ctx, place, e) {
 export function strangerPlan(e, ctx = {}) {
   if (!e || !e.fem || !STRANGER[e.persona]) return null;
   const c = careerOf(ctx), vid = venueIdOf(ctx), place = placeOf(ctx, vid), night = nightKey(c, place, vid), p = e.persona, seed = e.seed >>> 0;
-  const me = c?.playerId || ctx.me?.name || 'you', chem = CHEM[hash(`chem|${seed}|${me}`) % CHEM.length], n = numbersTonight(c, night), full = n >= NIGHT_CAP;
-  const base = chem + edgeOf(c, ctx, place, e) - 0.75 * n, avail = availOf(p, seed, roundOf(c, place).season, night, place), kinds = {};
+  const me = c?.playerId || ctx.me?.name || 'you', chem = CHEM[hash(`chem|${seed}|${me}`) % CHEM.length], n = numbersTonight(c, night), dark = NIGHT.has(place), full = n >= (dark ? CAP_NIGHT : NIGHT_CAP);
+  const base = chem + edgeOf(c, ctx, place, e) - (dark ? 0.35 : 0.75) * n, avail = availOf(p, seed, roundOf(c, place).season, night, place), kinds = {};
   for (const t of tonesFor(p)) {
-    const landed = !full && base + toneWorth(p, 'new', t) >= LAND;
+    const landed = !full && base + toneWorth(p, 'new', t) >= (dark ? LAND_NIGHT : LAND);
     kinds[t] = full ? 'full' : avail === 'taken' ? 'taken' : avail === 'busy' ? (landed ? 'rushed' : 'busy') : landed ? 'keen' : 'polite';
   }
-  return { place, vid, night, avail, chem, base, full, n, kinds };
+  return { place, vid, night, avail, chem, base, full, n, kinds, dark, land: dark ? LAND_NIGHT : LAND };
 }
 const OUTCOME = { keen: 'interested', polite: 'polite', rushed: 'busy', busy: 'busy', taken: 'taken', full: 'full' };
 /** does your second answer get her number: always (yes only), never (no only), or with enough between you (both: need) */
-const swaps = (X, kind, base, worth) => kind !== 'full' && arr(X?.yes).length > 0 && (!arr(X?.no).length || base + worth >= LAND + (X.need ?? 0));
+const swaps = (X, kind, base, worth, land = LAND) => kind !== 'full' && arr(X?.yes).length > 0 && (!arr(X?.no).length || base + worth >= land + (X.need ?? 0));
 /** her last-word pool for a moment and a tone (a missing one: the polite one's) */
 const endOf = (D, kind, tone) => D.end?.[kind === 'full' ? 'polite' : kind]?.[tone] || D.end?.polite?.[tone] || { no: D.end?.polite?.passive?.no || [] };
 const turnOf = (D, kind, place) => { const T = D.turn?.[kind] || D.turn?.polite; return arr(T?.[place]).length ? T[place] : arr(T?.any).length ? T.any : arr(D.turn?.polite?.[place]); };
-const flirtFx = (t, swap) => { const o = {}; if (t === 'flirty' || t === 'risque') o.flirt = true; if (swap) o.number = true; return Object.keys(o).length ? o : undefined; };
+const flirtFx = (t, swap, close = null) => { const o = {}; if (t === 'flirty' || t === 'risque') o.flirt = true; if (swap) o.number = true; if (close === 'dance') o.dance = true; if (close === 'kiss') o.kiss = true; if (close === 'leave') { o.kiss = true; o.together = true; } return Object.keys(o).length ? o : undefined; };
 
 // ---- the talk ------------------------------------------------------------------------------------------------------------
 /**
@@ -314,13 +332,16 @@ export function strangerTalk(e, ctx = {}) {
 function firstTree(M, D, R, fill) {
   const { p, plan: P } = M, draw1 = drawer(R), draw2 = drawer(R), branch = {};
   const opts = tonesFor(p).map((t) => {
-    const kind = P.kinds[t], landed = kind === 'keen' || kind === 'rushed' || (kind === 'taken' && P.base + toneWorth(p, 'new', t) >= LAND);
+    const kind = P.kinds[t], landed = kind === 'keen' || kind === 'rushed' || (kind === 'taken' && P.base + toneWorth(p, 'new', t) >= P.land);
     const r = fill(pickR(R, D.react?.[t]?.[landed ? 'yes' : 'no'])), say = fill(draw1(turnOf(D, kind, P.place))), sub = {};
     const k2 = kind === 'full' ? 'polite' : kind;
     const then = tonesFor(p).map((t2) => {
-      const X = endOf(D, kind, t2), w = toneWorth(p, 'new', t2), swap = swaps(X, kind, P.base, w);
-      sub[t2] = { swap };
-      return { t: fill(draw2(YOU2[k2]?.[t2] || YOU2.polite[t2])), tone: t2, r: fill(pickR(R, swap ? X.yes : X.no)), m: w + (swap ? 1 : 0), fx: flirtFx(t2, swap) };
+      const X = endOf(D, kind, t2), w = toneWorth(p, 'new', t2), swap = swaps(X, kind, P.base, w, P.land);
+      // (after dark, a flirt that gets her number can turn straight into something: a dance, a kiss, leaving together)
+      const close = P.dark && swap && kind === 'keen' && (t2 === 'flirty' || t2 === 'risque') ? closeOf(R, t2, P.place) : null;
+      sub[t2] = { swap, close };
+      const r2 = fill(pickR(R, swap ? X.yes : X.no)) + (close ? ` ${pickR(R, CLOSE[close])}` : '');
+      return { t: fill(draw2(YOU2[k2]?.[t2] || YOU2.polite[t2])), tone: t2, r: r2, m: w + (swap ? 1 : 0) + (close ? 1 : 0), fx: flirtFx(t2, swap, close) };
     });
     branch[t] = { kind, sub };
     return { t: fill(draw1(YOU[P.place][t])), tone: t, r, m: toneWorth(p, 'new', t), fx: flirtFx(t, false), then: { say, opts: then } };
@@ -335,7 +356,7 @@ function firstTree(M, D, R, fill) {
 function againTree(M, D, R, fill, memo) {
   const { p, plan: P } = M, draw = drawer(R), sub = {};
   if (memo.outcome === 'interested' && !P.full) {
-    const opts = tonesFor(p).map((t) => { const X = endOf(D, 'keen', t), w = toneWorth(p, 'new', t), swap = swaps(X, 'keen', P.base, w); sub[t] = { swap }; return { t: fill(draw(YOU2.keen[t])), tone: t, r: fill(pickR(R, swap ? X.yes : X.no)), m: w + (swap ? 1 : 0), fx: flirtFx(t, swap) }; });
+    const opts = tonesFor(p).map((t) => { const X = endOf(D, 'keen', t), w = toneWorth(p, 'new', t), swap = swaps(X, 'keen', P.base, w, P.land); sub[t] = { swap }; return { t: fill(draw(YOU2.keen[t])), tone: t, r: fill(pickR(R, swap ? X.yes : X.no)), m: w + (swap ? 1 : 0), fx: flirtFx(t, swap) }; });
     M.again = { kind: 'keen', sub };
     return { id: `stranger:${p}:again`, say: fill(pickR(R, turnOf(D, 'keen', P.place))), opts };
   }
@@ -348,11 +369,11 @@ function againTree(M, D, R, fill, memo) {
 /** the talk closed (tones: your answers, in order) -> the result, applied to the career when there is one */
 function settle(M, tree, tones) {
   const { p, plan: P, lid, cid, e } = M, f = e.first || firstOf(e.name);
-  let kind, swap = false;
+  let kind, swap = false, close = null;
   if (M.again) { kind = M.again.kind; swap = !!M.again.sub[tones[0]]?.swap; }
-  else { const b = M.branch?.[tones[0]]; kind = b?.kind || 'polite'; swap = !!(b && tones[1] && b.sub[tones[1]]?.swap); }
+  else { const b = M.branch?.[tones[0]]; kind = b?.kind || 'polite'; swap = !!(b && tones[1] && b.sub[tones[1]]?.swap); close = (swap && b.sub[tones[1]]?.close) || null; }
   const outcome = swap ? 'number' : kind === 'again' ? 'again' : OUTCOME[kind] || 'polite';
-  const res = { outcome, promote: swap, lid, cid, kind, tones: tones.slice(0, 2), mood: moodAfter(tones) || 'passive', persona: p, stage: 'stranger', delta: 0, applied: false, where: M.where,
+  const res = { outcome, promote: swap, close, lid, cid, kind, tones: tones.slice(0, 2), mood: moodAfter(tones) || 'passive', persona: p, stage: 'stranger', delta: 0, applied: false, where: M.where,
     line: swap ? `Swapped numbers with ${f}` : outcome === 'interested' ? `${f} was interested. You left it there` : outcome === 'taken' ? `${f} is seeing someone` : outcome === 'busy' ? `${f} had to go`
       : outcome === 'full' ? `${f} saw you collecting numbers all night` : outcome === 'again' ? `${f} has not changed her mind` : `${f} wasn't interested` };
   if (!swap) { const k = `${P.night}|${M.seed}`, was = MEMO.get(k); remember(k, { outcome: outcome === 'again' ? was?.outcome || 'polite' : outcome, n: (was?.n || 0) + 1 }); }
@@ -381,6 +402,8 @@ function promote(M, res) {
   const w = tones.reduce((s, t, i) => s + toneWorth(p, 'new', t) * (i ? 0.5 : 1), 0);
   res.delta = Celebs.relateCeleb(c, lid, 5 + Math.max(0, Math.min(8, Math.round(w))), `Met ${C.name} (${String(C.job).toLowerCase()}) at ${where}. You swapped numbers`);
   const fl = tones.filter((t) => t === 'flirty' || t === 'risque').length; for (let i = 0; i < Math.min(2, fl); i++) Celebs.flirt(c, lid);
+  // (after dark it went further than a number - a dance, a kiss, leaving together: you are flirting already)
+  if (res.close && (b.stage === 'met' || b.stage === 'friendly')) b.stage = 'flirting';
   if (tones.includes('passive')) Celebs.trustCeleb(c, lid, 2);
   // (her personality: the story starts at its first slot, in the mood the meeting left her in)
   const s = psOf(c, cid); if (s) { s.mood = res.mood; s.last = { mood: res.mood, how: 'met', at: `${c.season}:${c.round}` }; }
@@ -389,7 +412,7 @@ function promote(M, res) {
   const txt = personaIncoming(c, cid, 'met', { name: C.name, job: C.job, work: '', track: next, last: M.track, me: firstOf(c.drivers?.[c.playerId]?.name) });
   if (txt) pushText(c, cid, txt, { kind: 'persona' });
   Object.assign(res, { lid, cid: `c:${lid}`, stage: b.stage, applied: true, met: metLine(c, lid) });
-  res.line = `${f} put her number in your phone`;
+  res.line = res.close === 'leave' ? `${f} wants to leave with you` : res.close === 'kiss' ? `${f} kissed you` : res.close === 'dance' ? `${f} pulled you onto the dance floor` : `${f} put her number in your phone`;
 }
 /** someone already known to the career (not just taken into tonight's scene): a bond past a stranger's with any history */
 function known(c, lid) {

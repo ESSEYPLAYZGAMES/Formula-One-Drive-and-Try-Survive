@@ -1765,7 +1765,7 @@ export const PARTY_BARK = {
   shoey: { chant: ["Shoey! Shoey! Shoey!", "Get it down you!", "Boot! Boot! Boot!"], after: ["LEGEND!", "That's disgusting. Again!", "Somebody get that on camera. ...Everyone got that on camera."] },
   parade: ["Make way! Make way!", "Table nine! Coming through!", "Sparklers! Mind your hair!"],
   // (dancing: the partner during the beat)
-  dance: { ask: ["Come on, then.", "One song.", "Show me what you've got."], good: ["Not bad!", "Ha! You can actually move!", "Okay, okay. I'm impressed."], great: ["Who taught you that?", "Ha! Again!", "You've been practising."], off: ["...We'll work on it.", "Ha. Two left feet.", "It's fine. It's charming. Mostly."] },
+  dance: { ask: ["Come on, then.", "One song.", "Show me what you've got.", "Dance with me. Closer than that."], good: ["Not bad!", "Ha! You can actually move!", "Okay, okay. I'm impressed.", "Keep your hands right there."], great: ["Who taught you that?", "Ha! Again!", "You've been practising.", "Don't stop. Seriously, don't stop.", "If you dance like that, I'm not letting you leave alone."], off: ["...We'll work on it.", "Ha. Two left feet.", "It's fine. It's charming. Mostly."] },
   // (drivers talking among themselves nearby: the race and the job only)
   group: ["Did you see the restart?", "That Safety Car was late. Again.", "What time's your flight?", "Their straight-line speed's ridiculous.", "Ha. Go on, tell him.", "Don't start about the stewards.", "Who's on the sim on Tuesday?", "My engineer's still talking about lap one."],
   // (to a drunk player)
@@ -1790,8 +1790,15 @@ export const PARTY_MOMENT = {
   speech: ["The boss taps a glass. The room goes quiet."],
   crew: ["The garage door is half down. The mechanics are taping crates for the trucks. You shake every hand.", "Freight boxes, tool chests, tired faces. You thank every one of them by name."],
   mechanics: ["A cheer from the door: the mechanics are in, still in team kit, the freight on the trucks."],
-  kiss: { private: ["Out here, away from all of it, {her} leans in. The city keeps its distance.", "The music is a long way off. {her} kisses you, and for a moment there is nobody else."], floor: ["On the dance floor, in front of everyone, {her} kisses you. Somewhere, a phone is already up.", "Under the lights, in the middle of the floor. A hundred people see it. So does at least one lens."] },
-  together: ["You leave together. A car to her hotel, a goodnight at the door, and the car takes you on to yours.", "Out of the side door, into a car, and a quiet ride to her hotel. Goodnight."],
+  kiss: { private: ["Out here, away from all of it, {her} leans in. The city keeps its distance.", "The music is a long way off. {her} kisses you, and for a moment there is nobody else.",
+    "{her} backs you against the terrace rail, her hands in your hair. Nobody out here is looking, and she knows it.", "Her fingers trace your jaw, then pull you down to her. The kiss is slow, and neither of you is in a hurry to end it.",
+    "In a dark corner, {her} tugs you close by your belt. 'Somewhere quieter,' she breathes, and doesn't wait for an answer.", "Her hand slips under your jacket, flat against your back. The kiss says the rest."],
+    floor: ["On the dance floor, in front of everyone, {her} kisses you. Somewhere, a phone is already up.", "Under the lights, in the middle of the floor, {her} pulls you in and kisses you like nobody's watching. Everybody is.",
+    "{her} winds her arms around your neck mid-song, and the kiss lasts the whole chorus.", "Bodies pressed close on a packed floor, {her} turns in your arms and kisses you, her hand on the back of your neck.",
+    "The bass drops, {her} grabs your collar, and the next thing you know the whole booth is cheering."] },
+  together: ["You leave together. A car to her hotel, and a goodnight at the door that never quite happens.", "Out of the side door, into a car, her legs across your lap on the back seat. Her hotel. The door clicks shut behind you both.",
+    "A car through the empty streets, her head on your shoulder and her hand on your thigh. At her door she doesn't say goodnight. She says 'come in'.", "The lift to her floor takes forever. Neither of you minds. The rest of the night is nobody's business.",
+    "Back to yours. Shoes kicked off in the hallway, the city lights through the window, and the morning a long way away."],
   carried: ["An arm round your shoulders, a car at the kerb, and a long night ending sooner than you planned.", "The cool air outside, somebody steering you by the elbow, and a car door held open."],
   ejected: ["Security walks you to the door. The night is over.", "Two doormen, a firm hand on each arm, and the street. That's the night done."],
   breakfast: { vegas: ["Four in the morning: pancakes in a diner off the Strip, still in your party clothes, laughing at nothing."], london: ["Three in the morning: a chicken shop on the way back, wings in a box, the best meal of the weekend."] },

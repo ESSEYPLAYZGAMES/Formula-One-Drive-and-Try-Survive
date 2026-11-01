@@ -103,6 +103,7 @@
 // =====================================================================================================================
 import * as THREE from 'three';
 import * as Celebs from '../career/Celebs.js';
+import { pushText } from '../career/Social.js';
 import { fameIndex, BRAND_BY_ID } from '../career/PR.js';
 import * as HT from './HangoutTalk.js';
 import { PARTY_BARK, PARTY_MOMENT, PARTY_PHONE, PARTY_SLIP, PARTY_DRAMA, PARTY_DRAMA_ALIAS } from './PartyTalk.js';
@@ -133,6 +134,10 @@ const inR = (r, x, z) => !!r && (Array.isArray(r) ? r.some((q) => inR(q, x, z)) 
 const mid = (r) => { const a = Array.isArray(r) ? r[0] : r; return a ? { x: (a.x0 + a.x1) / 2, z: (a.z0 + a.z1) / 2 } : null; };
 const GP = { lasvegas: 'Las Vegas Grand Prix', silverstone: 'British Grand Prix', montreal: 'Canadian Grand Prix', austin: 'United States Grand Prix' };
 const STAGE_I = { stranger: 0, met: 1, friendly: 2, flirting: 3, dating: 4, partner: 5, ex: -1 };
+// (her text the morning after a night that ended with the two of you leaving together)
+const MORNING = ["You left your watch on my nightstand. Come and get it. Or don't, and I'll keep it.", "Morning. My hotel room still smells like your aftershave.",
+  "I'm wearing your shirt. Just so you know.", "Last night was... a lot. In the best way. Coffee?", "Woke up smiling. Your fault.", "You snore. I didn't mind.",
+  "Thanks for the ride home. And everything after.", "Same time next race weekend?", "I don't normally do that. I'm glad I did.", "Do I get your number now, or was last night it? ;)"];
 
 // ---- the drinks: real pours (UK units: 10 ml of alcohol) --------------------------------------------------------------
 // a champagne flute 1.5, a cocktail 2, a shot 1 (London's 25 ml) or 1.7 (a Vegas pour), a beer 2, a 175 ml glass of
@@ -578,6 +583,9 @@ export class PartyPlay {
     if (fx.loose) this._looseSaid(o, g);
     if (fx.flirt && g.kind === 'celeb') { if (this.XP.private) g.ppPriv = (g.ppPriv || 0) + 1; if (!this.XP.flirted.includes(g.cid)) this.XP.flirted.push(g.cid); }
     // (talk: true - Hangout has counted the fx already)
+    // (a stranger met tonight whose flirt turned straight into something - StrangerTalk after dark: a dance, a kiss,
+    //  leaving together - is flirting with you from that moment, so the kiss and the car are hers to have)
+    if (g.crowd && fx.number && (fx.kiss || fx.dance || fx.together) && this._stage(g) < STAGE_I.flirting) { g.stage = 'flirting'; if (g.n) g.n.stage = 'flirting'; }
     if (fx.dance) this.pend.push({ kind: 'dance', g, talk: true });
     if (fx.kiss && g.kind === 'celeb') this.pend.push({ kind: 'kiss', g, talk: true });
     if (fx.together && g.kind === 'celeb') { g.together = true; ev._toast(`${g.first} would share a car later.`, 'up'); }
@@ -1354,6 +1362,8 @@ export class PartyPlay {
     if (this.card) this._cardDrop(); if (this.who) this._whoClose();
     const h = this._clock(), h24 = this._h24(), V = ev.V || {};
     Rp.exit = kind === 'together' && g ? 'together:' + g.cid : kind; Rp.early = (kind === 'hotel' || kind === 'teamcar') && h < this.late;
+    // (the morning after, in her own words: nothing said, plenty implied)
+    if (kind === 'together' && g && ev.c && g.kind === 'celeb') { try { pushText(ev.c, g.cid, pick(MORNING) || 'Last night was fun.', { kind: 'party' }); } catch (err) { console.warn('PartyPlay: the morning text', err); } }
     Rp.leftAt = +(h24 + (kind === 'breakfast' ? 1 : 0)).toFixed(2);
     const roll = this._exitRoll(kind); Rp.photographed = Rp.photographed || roll.photographed; Rp.stumble = Rp.stumble || (roll.stumble && kind !== 'moveon' && kind !== 'teamcar' && this.tier >= 2);
     this.XP.photographed = !!Rp.photographed;
@@ -1369,7 +1379,7 @@ export class PartyPlay {
       hotel: Rp.early ? 'Home before the night really starts. Tomorrow will thank you.' : M('hotel', 'A car to the hotel, and the quiet of the lift.'),
       side: 'Out through the side, into a car with the engine running.',
       front: (this.london ? 'Up the stairs and out onto the street. ' : 'Down in the lift and out under the porte-cochère lights. ') + (roll.photographed ? 'The photographers are waiting, and they get you.' : 'A few flashes, nothing much.') + (Rp.stumble ? ' Your foot misses the kerb - just for a second.' : ''),
-      together: M('together', g ? `${g.first} shares your car to her hotel. A goodnight at the door.` : 'A shared car into the night.'),
+      together: M('together', g ? `${g.first} shares your car to her hotel. The goodnight at the door turns into 'come up for a minute'. It is not a minute.` : 'A shared car into the night.'),
       breakfast: M(this.london ? 'breakfast.london' : 'breakfast.vegas', 'Breakfast with the others, and the race all over again.'),
       carried: `${helper ? helper + ' gets' : 'Security gets'} an arm round you. ${M('carried', 'A car door held open, and a long night ending.')}`,
       ejected: M('ejected', 'Security walks you out. The night is over.'),
