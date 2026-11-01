@@ -419,13 +419,16 @@ const newBond = () => ({ aff: 0, trust: 30, stage: 'stranger', since: null, last
 const publicPartner = (s) => Object.keys(s.bonds).find((id) => CELEB[id] && s.bonds[id].stage === 'partner' && s.bonds[id].public && !s.bonds[id].grieving) || null;
 /** a new career's c.celebs (exp: the evidence already counted this round) */
 export function celebState() { return { bonds: {}, partner: null, met: [], log: [], eyes: null, confront: null, exp: null, pv: 2 }; }
+/**
+ * Someone from a crowd the game only glimpsed - a local's bond still a stranger's (a name tag read it into being), nothing
+ * between you - is not kept: the save holds the people you met and nobody else (on load, and at every round's end)
+ */
+function pruneGlimpsed(s) { for (const [id, b] of Object.entries(s.bonds || {})) if (isLocalId(id) && b && b.stage === 'stranger' && !b.aff && !b.talks && !b.flirts && !b.dates && !b.accepted && !b.met0) delete s.bonds[id]; }
 /** an older save's c.celebs, filled in (unknown celebrities dropped; a partner from before secrets expects to be the only one, unless she is a free spirit) -> c.celebs */
 export function celebEnsure(c) {
   const s = c.celebs && typeof c.celebs === 'object' ? c.celebs : (c.celebs = celebState());
   s.bonds = s.bonds && typeof s.bonds === 'object' ? s.bonds : {};
-  // (someone from a crowd the game only glimpsed - a local's bond still a stranger's, nothing between you: not kept, so
-  //  the save holds the people you met and nobody else)
-  for (const [id, b] of Object.entries(s.bonds)) if (isLocalId(id) && b && b.stage === 'stranger' && !b.aff && !b.talks && !b.flirts && !b.dates && !b.accepted && !b.met0) delete s.bonds[id];
+  pruneGlimpsed(s);
   for (const id of Object.keys(s.bonds)) if (!CELEB[id] && isLocalId(id)) registerLocal(id);   // (someone met on a race night: rebuilt from her id's seed before anything checks for her)
   for (const id of Object.keys(s.bonds)) if (!CELEB[id] && isPaddockId(id)) registerPaddock(c, id);   // (one of the paddock's people: the same, from her id)
   if (c?.drivers && c.playerId) { try { paddockOf(c); } catch (e) { console.warn('Celebs: the paddock roster failed', e); } }
@@ -1505,6 +1508,7 @@ const giveaway = (c, W) => {
 export function celebRoundTick(c) {
   const lines = []; if (!c) return { lines };
   const s = c.celebs?.bonds ? c.celebs : celebEnsure(c), quiet = grave(c) || satOut(c), last = lastPos(c), good = [], strained = [];
+  pruneGlimpsed(s);
   // (a confrontation left unanswered: a round of silence is an answer of its own, and after two she is gone)
   const cf = s.confront;
   if (!quiet && cf && ago(c, cf) >= 1) {
