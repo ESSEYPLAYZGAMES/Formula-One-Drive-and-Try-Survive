@@ -71,7 +71,7 @@ const PERSONA_IDS = ['spark', 'ice', 'sunny', 'flirtatious', 'emotional', 'rude'
 const JOBS_M = ['Architect', 'Sommelier', 'Photographer', 'Software engineer', 'Chef', 'Barrister', 'Personal trainer', 'Music producer', 'Hotel manager', 'Aerospace engineer', 'Brewer', 'Radio DJ',
   'Stunt performer', 'Vet', 'Data scientist', 'Sailing instructor', 'Travel writer', 'Event planner', 'Physiotherapist', 'Tattoo artist'];
 /** what he wears for an occasion (world/People.js kits) */
-const KITS_M = { grid: ['polo', 'jacket', 'casual', 'blazer'], club: ['silkshirt', 'knitpolo', 'teeblazer', 'leather', 'bomber', 'pantsuit'], evening: ['pantsuit', 'blazer'], dinner: ['blazer', 'pantsuit', 'sweater'],
+const KITS_M = { grid: ['polo', 'silkshirt', 'knitpolo', 'casual', 'teeblazer'], club: ['silkshirt', 'knitpolo', 'teeblazer', 'leather', 'bomber', 'pantsuit'], evening: ['pantsuit', 'blazer'], dinner: ['blazer', 'pantsuit', 'sweater'],
   casual: ['casual', 'bomber', 'leather', 'sweater'], sporty: ['athleisure', 'casual'], home: ['sweater', 'casual'], night: ['blazer', 'silkshirt', 'pantsuit', 'jacket'] };
 function makeHim(seed) {
   const R = POOL(seed), name = `${pk(R, FIRST_M)} ${pk(R, LAST_M)}`, age = 24 + ((R() * 24) | 0), job = pk(R, JOBS_M);

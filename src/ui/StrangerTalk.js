@@ -64,7 +64,11 @@ const TAKEN = 15, BUSY = { club: 22, party: 18, grid: 35, hangout: 20 }, FLING_B
 // drink or two helps rather than hurts, nobody counts how many numbers you have taken until it is a lot, and a flirt
 // that lands can turn straight into a dance, a kiss, leaving together. The life of a racing driver at the after-party:
 // nothing shown, plenty implied)
-const NIGHT = new Set(['club', 'party']), LAND_NIGHT = 1, CAP_NIGHT = 6;
+const NIGHT = new Set(['club', 'party', 'hangout']), LAND_NIGHT = 1, CAP_NIGHT = 6;   /* (an evening out too: the rooftop, the pub, the sim lounge, the karting hall) */
+// (her text the morning after an evening out that ended with her leaving with you - the club's own is PartyPlay's, sent as you go)
+const MORNING = ["You left your watch on my nightstand. Come and get it. Or don't, and I'll keep it.", "I'm wearing your shirt. Just so you know.",
+  "Last night was... a lot. In the best way. Coffee?", "Woke up smiling. Your fault.", "Thanks for walking me home. And for not leaving straight away.",
+  "I don't normally do that on a weeknight. I'm glad I did.", "My flatmate wants to know who you are. I told her to mind her own business. ;)", "Same time next week?"];
 // (what a flirt that landed turns into, after dark: her last line, then this - touches, closeness, the cut-away)
 const CLOSE = {
   dance: ["She takes your hand and pulls you onto the floor without another word.", "Her fingers lace through yours, and she leads you into the crowd.",
@@ -411,8 +415,10 @@ function promote(M, res) {
   const L = c.calendar, next = L?.length ? trackName(L[(Math.max(1, c.round) - 1) % L.length]) : '';
   const txt = personaIncoming(c, cid, 'met', { name: C.name, job: C.job, work: '', track: next, last: M.track, me: firstOf(c.drivers?.[c.playerId]?.name) });
   if (txt) pushText(c, cid, txt, { kind: 'persona' });
+  // (an evening out that ended with her leaving with you - there is no car to share there: the next morning says the rest)
+  if (res.close === 'leave' && P.place === 'hangout') { const R = rngOf(`morning|${M.seed}|${P.night}`); pushText(c, `c:${lid}`, pickR(R, MORNING), { kind: 'party' }); res.together = true; }
   Object.assign(res, { lid, cid: `c:${lid}`, stage: b.stage, applied: true, met: metLine(c, lid) });
-  res.line = res.close === 'leave' ? `${f} wants to leave with you` : res.close === 'kiss' ? `${f} kissed you` : res.close === 'dance' ? `${f} pulled you onto the dance floor` : `${f} put her number in your phone`;
+  res.line = res.close === 'leave' ? (P.place === 'hangout' ? `${f} left with you` : `${f} wants to leave with you`) : res.close === 'kiss' ? `${f} kissed you` : res.close === 'dance' ? `${f} pulled you onto the dance floor` : `${f} put her number in your phone`;
 }
 /** someone already known to the career (not just taken into tonight's scene): a bond past a stranger's with any history */
 function known(c, lid) {

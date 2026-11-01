@@ -84,6 +84,9 @@ const PAL = [['#1f4d3a', '#d4af6a'], ['#6a1f2e', '#e8c25a'], ['#1e2a44', '#d9dde
   ['#c7522a', '#f6e7cb'], ['#264653', '#e9c46a'], ['#8d0801', '#f4d58d'], ['#e5e5e5', '#9e2a2b']];
 const LEGS = ['#1d1b20', '#2b2f3a', '#3a4a66', '#efe6d6', null];
 const DAY = ['trench', 'coord', 'jumpsuit', 'blazer', 'casual', 'knit', 'wrap', 'dress'];
+// (race day in the paddock, dressed to be seen: halters, slip minis, crop sets, backless and cut-out dresses - not the coats and
+//  blazers of a working day; a wet race has its own, below)
+const GRID_GLAM = ['halter', 'bardot', 'oneshoulder', 'slipmini', 'cutoutmini', 'sidecut', 'backless', 'keyhole', 'twistset', 'tieset', 'bandeauset', 'onecrop', 'lowrise', 'cropjeans', 'blazerbra', 'corsettop', 'bodycon'];
 const NIGHT = ['wrap', 'bardot', 'oneshoulder', 'bodycon', 'slip', 'halter', 'blazerdress'];
 const EVENING = ['gown', 'slitgown', 'halter', 'oneshoulder'];
 const DINNER = ['oneshoulder', 'corset', 'bardot', 'wrap', 'blazerdress', 'slip'];
@@ -110,7 +113,7 @@ export function makeLocal(idOrSeed) {
   const fav = pk(R, DATES); let meh = pk(R, DATES); if (meh === fav) meh = DATES[(DATES.indexOf(fav) + 3) % DATES.length];
   const jew = () => (R() < 0.5 ? ['earrings'] : ['earrings', 'clutch']);
   const wear = {
-    grid: fit(pk(R, DAY), col, acc, legs(), ['lanyard', R() < 0.5 ? 'shadesUp' : 'watch']),
+    grid: (() => { const k = pk(R, GRID_GLAM); legs(); return fit(k, col, acc, null, ['lanyard', R() < 0.5 ? 'shadesUp' : 'watch'], acc); })(),
     night: [fit(pk(R, NIGHT), col, acc, null, ['lanyard', 'clutch']), fit(pk(R, NIGHT), col2, acc2, null, ['lanyard', 'earrings'])],
     wet: fit('trench', pk(R, ['#2e3b33', '#2b2f3a', '#b8925e', '#151515']), acc, legs(), ['lanyard']),
     evening: [fit(pk(R, EVENING), col, acc, null, jew()), fit(pk(R, EVENING), col2, acc2, null, jew())],
