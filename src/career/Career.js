@@ -19,7 +19,8 @@ import { moraleInit, moodOf, shiftMorale, moraleFromRace, moraleFromQuali, moral
 import { LICENCE_MAX, pointsFor, licenceInit, activePoints, isBanned, banText, addPoints, licenceRoundTick } from './Licence.js';
 import { DEAL_SPLIT, prInit, prEnsure, prEvent, crisisFrom, postContext, prRoundTick, prSeasonEnd, sponsorMul, outletName } from './PR.js';
 import { celebState, celebEnsure, celebRoundTick, partnerAtRace, grieve, resetForNewDriver } from './Celebs.js';
-import { socialState, socialEnsure, socialResetForNewDriver, relateFriend, friendsRoundTick, inboxTick } from './Social.js';
+import { extrasEnsure } from './Extras.js';
+import { socialState, socialEnsure, socialResetForNewDriver, relateFriend, friendsRoundTick, inboxTick, strangersEnsure } from './Social.js';
 import { weekRoundTick, raceDayCheck } from './Agenda.js';
 import { partyEnsure, partyReset, snapAfterRace, partyTick, agentFor } from './Party.js';
 import { normLook, blankLook } from './Avatar.js';
@@ -234,7 +235,7 @@ export class Career {
     // (the tech tree with levels, every driver's morale and licence, the press desk, the personal life, the phone, your own money, the week)
     for (const t of Object.values(this.teams || {})) safe('migrating a team', () => migrateTeam(t));
     for (const d of Object.values(this.drivers || {})) safe('a driver\'s record', () => { moraleInit(d, d.id === this.playerId); licenceInit(d); });
-    safe('prEnsure', () => prEnsure(this)); safe('celebEnsure', () => celebEnsure(this)); safe('socialEnsure', () => socialEnsure(this)); safe('partyEnsure', () => partyEnsure(this));
+    safe('prEnsure', () => prEnsure(this)); safe('celebEnsure', () => celebEnsure(this)); safe('extrasEnsure', () => extrasEnsure(this)); safe('socialEnsure', () => socialEnsure(this)); safe('strangersEnsure', () => strangersEnsure(this)); safe('partyEnsure', () => partyEnsure(this));
     if (!(typeof this.wallet === 'number' && isFinite(this.wallet))) this.wallet = 3;
     if (!this.week || typeof this.week !== 'object' || Array.isArray(this.week)) this.week = null;
     if (!(typeof this.slump === 'number' && isFinite(this.slump))) this.slump = 0;

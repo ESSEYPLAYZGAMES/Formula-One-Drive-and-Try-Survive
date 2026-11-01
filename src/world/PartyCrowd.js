@@ -96,6 +96,8 @@
 import * as THREE from 'three';
 import { templateOf, hasTemplate, SKINS } from './Crowd.js';
 import { makePerson, CLUB_KITS, CLUB_KITS_M } from './People.js';
+import { NpcCrowd, KIT_SHAPE, HEM_Y } from './NpcFigures.js';
+import { extraSeed, extraFor, extraLook } from '../career/Extras.js';
 
 const NEAR = 7, MID = 14, HYST = 0.5;   // m: near detail within NEAR, mid to MID, the tube bodies beyond (a margin either way against flicker)
 const MAXP = 96;
@@ -106,32 +108,10 @@ const rng = (seed) => { let a = seed >>> 0; return () => { a = (a + 0x6d2b79f5) 
 const hashS = (s) => { let h = 2166136261; for (const ch of String(s)) h = Math.imul(h ^ ch.charCodeAt(0), 16777619); return h >>> 0; };
 const pickR = (R, a) => a[Math.floor(R() * a.length) % a.length];
 
-// ---- the clothes: what each kit shows at a distance (People.js OUTFITS) -------------------------------------------------
-// hem (a skirt's: People.js HEMS), sep (the skirt in the accent colour), arms ('skin' bare, 'short' sleeves, 'long'),
-// mid (a bare midriff), tr (trousers: their cut), jk (a jacket open over the top: the top beneath in the accent)
-const KIT = {
-  cutoutmini: { hem: 'mini', arms: 'skin' }, sidecut: { hem: 'mini', arms: 'skin' }, keyhole: { hem: 'thigh', arms: 'long' },
-  backless: { hem: 'mini', arms: 'long' }, diamond: { hem: 'midi', arms: 'skin' }, ribcut: { hem: 'midi', arms: 'long' }, hipcut: { hem: 'micro', arms: 'skin' },
-  haltermicro: { hem: 'micro', arms: 'skin', glitz: 1 }, camiskirt: { hem: 'thigh', arms: 'skin', sep: 1 },
-  corsettop: { arms: 'skin', tr: 'wide' }, corsetleather: { arms: 'skin', tr: 'leather' }, bandeauset: { hem: 'micro', arms: 'skin', mid: 1 },
-  twistset: { hem: 'midi', arms: 'skin', mid: 1 }, tieset: { hem: 'mini', arms: 'skin', mid: 1 }, onecrop: { arms: 'skin', mid: 1, tr: 'jeans' },
-  lowrise: { arms: 'short', mid: 1, tr: 'wide' }, cropjeans: { arms: 'skin', mid: 1, tr: 'jeans' }, blazerbra: { hem: 'micro', arms: 'long', mid: 1, jk: 1 },
-  blazerbtn: { hem: 'mini', arms: 'long', jk: 1 },
-  // (a sheer layer is left off in a crowd - the dress beneath is what shows: the mesh dress's bardot micro slip)
-  meshdress: { hem: 'micro', arms: 'skin' }, lacemini: { hem: 'mini', arms: 'skin' }, slipmini: { hem: 'mini', arms: 'skin' },
-  // (the lace (world/Lace.js): far off, the lined dress and its colour; sheer lace sleeves read as bare arms)
-  lacebustier: { hem: 'mini', arms: 'skin' }, lacecorset: { arms: 'skin', tr: 'leather' }, lacecorsetwide: { arms: 'skin', tr: 'wide' }, lacebody: { arms: 'long', tr: 'wide', jk: 1 },
-  laceset: { hem: 'mini', arms: 'skin', mid: 1 }, lacesleeve: { hem: 'mini', arms: 'skin' },
-  bodycon: { hem: 'mini', arms: 'skin' }, sequin: { hem: 'mini', arms: 'skin', glitz: 1 }, bardot: { hem: 'short', arms: 'skin' },
-  dress: { hem: 'knee', arms: 'short' }, jumpsuit: { arms: 'short', tr: 'wide' }, wrap: { hem: 'knee', arms: 'long' }, coord: { arms: 'short', tr: 'wide' },
-  slip: { hem: 'midi', arms: 'skin' }, oneshoulder: { hem: 'short', arms: 'skin' },
-  // his (and anyone's off duty)
-  silkshirt: { arms: 'long' }, knitpolo: { arms: 'short' }, teeblazer: { arms: 'long', jk: 1 }, leather: { arms: 'long', jk: 1 }, bomber: { arms: 'long', jk: 1 },
-  pantsuit: { arms: 'long', jk: 1 }, blazer: { arms: 'long', jk: 1 }, casual: { arms: 'short', tr: 'jeans' }, sweater: { arms: 'long', tr: 'jeans' },
-  polo: { arms: 'short' }, jacket: { arms: 'long' },
-};
-// (a hem's height on a man's frame, for the far bodies' skirt cone - world/Crowd.js scales it with the body)
-const HEM_Y = { micro: 0.8, mini: 0.74, thigh: 0.69, short: 0.64, knee: 0.5, midi: 0.34, floor: 0.08 };
+// ---- the clothes: what each kit shows at a distance (People.js OUTFITS) - world/NpcFigures.js's KIT_SHAPE (hem, sep,
+// arms, mid, tr, jk) and HEM_Y (a hem's height on a man's frame, for the far bodies' skirt cone), shared with the
+// full figures' own far bodies
+const KIT = KIT_SHAPE;
 // (her clubwear sorted: the bare midriff of a bandeau or a crop, the minis and micros, the rest (slit midis, corsets) -
 // a night's floor has all of them)
 const MIDRIFF = ['bandeauset', 'twistset', 'tieset', 'onecrop', 'cropjeans', 'lowrise', 'blazerbra', 'laceset'];
@@ -220,6 +200,24 @@ export function clubMaterial(patch, double = false) {
   m.customProgramCacheKey = () => 'crowd-club-v1' + (patch ? '-room' : '');
   MATS.set(k, m); return m;
 }
+// (what a full figure holds, as the templates do: a tumbler, a flute, a coupe, a champagne bottle - and the house
+// photographer's camera; the shapes made once, the materials once per lighting (the room's patch or none), each figure
+// carrying its own copy of the geometry so it is given back with the figure)
+const PROPS = new Map();
+function propKit(patch) {
+  const k = patch ? 'room' : 'own'; let D = PROPS.get(k); if (D) return D;
+  const L = (pts, n = 12) => new THREE.LatheGeometry(pts.map(([r, y]) => new THREE.Vector2(r, y)), n);
+  const flute = L([[0, 0], [0.032, 0], [0.032, 0.004], [0.004, 0.012], [0.004, 0.09], [0.02, 0.1], [0.026, 0.15], [0.028, 0.215], [0.026, 0.215], [0.024, 0.15], [0.018, 0.106], [0, 0.102]]), fluteL = L([[0, 0.106], [0.018, 0.108], [0.023, 0.15], [0.0245, 0.185], [0, 0.185]], 10);
+  const coupe = L([[0, 0], [0.034, 0], [0.004, 0.01], [0.004, 0.105], [0.05, 0.16], [0.048, 0.16], [0, 0.11]]), coupeL = L([[0, 0.112], [0.043, 0.152], [0, 0.152]], 10);
+  const glass = L([[0, 0], [0.037, 0], [0.039, 0.09], [0.036, 0.09], [0.033, 0.008], [0, 0.008]]), glassL = new THREE.CylinderGeometry(0.033, 0.032, 0.045, 12).translate(0, 0.031, 0);
+  const bottle = L([[0, 0], [0.042, 0], [0.044, 0.2], [0.03, 0.25], [0.015, 0.3], [0.014, 0.34], [0.017, 0.345], [0, 0.345]]), foil = L([[0.0165, 0.29], [0.0175, 0.29], [0.0175, 0.348], [0, 0.35]], 10);
+  const body = new THREE.BoxGeometry(0.13, 0.09, 0.08), lens = new THREE.CylinderGeometry(0.03, 0.033, 0.07, 14).rotateZ(Math.PI / 2).translate(0.09, 0, 0), flash = new THREE.BoxGeometry(0.04, 0.035, 0.05).translate(-0.01, 0.065, 0);
+  const M = (c, o = {}) => { const m = new THREE.MeshStandardMaterial({ color: c, roughness: 0.25, ...o }); if (patch) { m.onBeforeCompile = patch; m.userData.timeSkip = true; } return m; };
+  const mat = { glass: M('#e8f2f6', { roughness: 0.06, metalness: 0.1, transparent: true, opacity: 0.36, depthWrite: false }), champ: M('#e8d27a', { transparent: true, opacity: 0.85 }), cocktail: M('#e0607a'), whisky: M('#b8742a', { transparent: true, opacity: 0.85 }),
+    bottle: M('#14301e', { roughness: 0.15 }), foil: M('#d4af37', { roughness: 0.3, metalness: 0.8 }), cam: M('#141416', { roughness: 0.5 }), lens: M('#0a0a0c', { roughness: 0.1, metalness: 0.4 }) };
+  D = { mat, parts: { flute: [[flute, 'glass'], [fluteL, 'champ']], coupe: [[coupe, 'glass'], [coupeL, 'cocktail']], glass: [[glass, 'glass'], [glassL, 'whisky']], bottle: [[bottle, 'bottle'], [foil, 'foil']], camera: [[body, 'cam'], [lens, 'lens'], [flash, 'cam']] } };
+  PROPS.set(k, D); return D;
+}
 // (kits whose cut-outs or open backs would show through to nothing from some side: drawn double-sided - none found so far)
 const DOUBLE = new Set();
 
@@ -236,6 +234,9 @@ export class PartyCrowd {
     this._M = new THREE.Matrix4(); this._Q = new THREE.Quaternion(); this._P = new THREE.Vector3(); this._S = new THREE.Vector3(); this._Y = new THREE.Vector3(0, 1, 0);
     this._fl = []; this._flN = 0; this._flOut = []; this._flT = 0; this._baked = 0;
     this.mat = clubMaterial(this.patch, false);
+    // (everyone near drawn as themselves - world/NpcFigures.js: the nearest npcMax within npcNear m in full; o.npc false:
+    // the instanced crowd alone, as it always was)
+    this.npcOn = o.npc !== false; this.npcNear = o.npcNear ?? 8; this.npcMax = o.npcMax ?? 18; this.npc = null;
   }
 
   // ---- the night's templates ------------------------------------------------------------------------------------------
@@ -318,7 +319,10 @@ export class PartyCrowd {
     // (the night's kits and hair: the caller's seed, else one of a few sets in turn - the next party wears another, and
     // from the fourth on nothing new is baked)
     const set = pools.seed != null ? String(pools.seed) : 'party:' + kind + ':' + (NIGHTS[kind] = ((NIGHTS[kind] ?? -1) + 1) % SETS);
-    const R = rng(hashS(set)), Rp = rng(hashS(Math.random()));
+    // (who they are: each spot's person the place's own - career/Extras.js, by the room's scope (pools.scope: 'club:<venue>',
+    // 'party:teamparty:<team>') and the night (pools.night) - the same night always the same room, its regulars on every one)
+    const scope = this.scope = String(pools.scope || (kind === 'team' ? 'party:team' : pools.pool ? 'pool:poolclub' : 'club:' + (pools.venue || 'club'))), night = pools.night != null ? String(pools.night) : null;
+    const R = rng(hashS(set)), Rp = rng(hashS(night != null ? `${scope}|${night}|crowd` : Math.random()));
     this.set = set;
     this.kind = kind; this.pools = pools;
     const T = this.tpl = this._plan({ ...pools, kind }, R);
@@ -330,7 +334,7 @@ export class PartyCrowd {
     list.sort((a, b) => (STAFF.has(b.role) - STAFF.has(a.role)) || a.ord - b.ord);
     const women = pools.women ?? (kind === 'team' ? 0.3 : 0.55);
     const byRole = (role, fig) => T.filter((t) => t.role === role && t.fig === fig && t.w > 0);
-    for (const { s, role: r0, ord } of list.slice(0, MAXP)) {
+    for (const { s, i: si, role: r0, ord } of list.slice(0, MAXP)) {
       let role = r0, fig = role === 'security' || role === 'photographer' || role === 'mechanic' ? 'm' : role === 'performer' || role === 'promo' || role === 'server' ? (kind === 'team' && role === 'server' ? 'm' : 'f') : Rp() < women ? 'f' : 'm';
       // (a sofa's seat: a woman sitting back on it; a counter: a man's forearms on it, else a drink in his hand)
       let cand;
@@ -352,6 +356,7 @@ export class PartyCrowd {
       };
       p.want = p.yaw;
       this._colours(p, t, pools, Rp);
+      if (this.npcOn) { try { this._identity(p, t, pools, extraFor(extraSeed(scope, si, { night, fem }))); } catch (e) { console.warn('PartyCrowd: someone without a self', e); } }
       // (iMisc: x - the phase against the beat (most on it, some on the off-beat); y - how hard they dance; z - a nod;
       // w - how much the shoulders turn)
       const off = Rp() < 0.8 ? 0 : Math.PI;
@@ -377,6 +382,8 @@ export class PartyCrowd {
     }
     const last = cur;
     steps.push(() => { for (const f of last) f(); this._make(); });
+    // (the nearest few to where you come in built in full behind the cover too, one a step: the first look is sharp)
+    for (let k = 0; k < 8; k++) steps.push(() => this._warmOne());
     return steps;
   }
   /** each person's own colours, by what they wear */
@@ -401,6 +408,83 @@ export class PartyCrowd {
     // (bare legs: her skin, now and then sheer black tights over it)
     if (fem && bare && role !== 'server' && R() < 0.12) { c.set(skin).lerp(new THREE.Color('#141414'), 0.55); legs = '#' + c.getHexString(); }
     set(0, skin); set(1, top); set(2, legs); set(3, hair); set(4, acc); set(5, (role === 'staff' || role === 'mechanic') && team.color ? team.color : top);
+  }
+
+  /**
+   * Who a person is (career/Extras.js extraFor): their own skin and hair over the night's colours, and in full - the
+   * figure near the camera - their own face and figure in the template's kit and the colours the far body wears, so
+   * nothing changes but the detail as they come nearer (p.extra, p.opts: makePerson's options; p.hold, p.prop: the
+   * drink or the camera in their hand, which the full figure carries as a prop of its own)
+   */
+  _identity(p, t, pools, e) {
+    const C = new THREE.Color(), hex = (k) => '#' + C.setRGB(p.cols[k * 3], p.cols[k * 3 + 1], p.cols[k * 3 + 2]).getHexString();
+    const put = (k, v) => { C.set(v); p.cols[k * 3] = C.r; p.cols[k * 3 + 1] = C.g; p.cols[k * 3 + 2] = C.b; };
+    // (bare legs are the skin's colour: theirs now)
+    const bare = Math.abs(p.cols[6] - p.cols[0]) + Math.abs(p.cols[7] - p.cols[1]) + Math.abs(p.cols[8] - p.cols[2]) < 1e-4;
+    put(0, e.look.skin); put(3, e.look.hair); if (bare) put(2, e.look.skin);
+    // (a top never too near their own skin's tone in this light: farFromSkin's rule, against the skin that is theirs)
+    const fem = t.fig === 'f', K = KIT[t.kit] || {};
+    if (!STAFF.has(p.role) && !t.swim) { const top = hex(1), f = farFromSkin(Math.random, fem ? COL.dress : COL.shirt, e.look.skin, top); if (f !== top) { put(1, f); if (!(p.role === 'staff' || p.role === 'mechanic')) put(5, f); } }
+    const occ = this.kind === 'team' ? pools.occasion || 'night' : pools.pool || t.swim ? 'pool' : 'club';
+    const o = extraLook(e, { occasion: occ, pose: t.pose, night: this.night, kit: t.kit, vary: 0, jitter: 0.01, detail: 0.6 });
+    o.color = hex(1); o.accent = hex(4); o.legs = bare ? undefined : hex(2); o.skin = e.look.skin; o.hair = e.look.hair;
+    if (t.cap) o.cap = true;
+    if (fem) { o.acc = ['earrings', ...(t.acc || [])]; if (t.jewel) o.jewel = { ...t.jewel }; } else if (t.acc?.length) o.acc = t.acc.slice();
+    if (K.jk && !fem && !o.accent) o.accent = '#f1f0ec';
+    p.extra = e; p.opts = o; p.hold = t.hold || null; p.prop = t.prop || null;
+  }
+  /**
+   * A full figure's touches before it is shown: the room's light as the named guests have it (Hangout's _lift: a share
+   * of each colour as its glow, more for dark ones - by the skin for the face - and, hosted, the room's light chained in:
+   * o.patch, roomLit's own), and the drink (or the camera) the template had in its hand
+   */
+  _prep(person, p) {
+    const k = this.lift || 0, sk = person.mats?.skin?.color;
+    if (k) for (const [n, m] of Object.entries(person.mats || {})) if (m && m.emissive && m.color) {
+      const c = n === 'face' && sk ? sk : m.color, l = 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b, u = Math.min(1, Math.max(0, (l - 0.03) / 0.32));
+      m.emissive.copy(m.color).multiplyScalar(k * (1 + 1.4 * (1 - u * u * (3 - 2 * u))));
+    }
+    if (p.hold || p.prop === 'photo') { try { this._propOn(person, p); } catch (e) { console.warn('PartyCrowd: a prop', e); } }
+    if (this.patch) person.group.traverse((x) => { if (x.material) for (const m of [].concat(x.material)) if (m.isMeshStandardMaterial && m.onBeforeCompile === THREE.Material.prototype.onBeforeCompile) { m.onBeforeCompile = this.patch; m.userData.timeSkip = true; m.needsUpdate = true; } });
+  }
+  /** a glass, a bottle or the photographer's camera at the right hand (each figure its own geometry: given back with it) */
+  _propOn(person, p) {
+    const D = propKit(this.patch), w = person.wrR; if (!w) return;
+    const s = person.group.children[0]?.scale?.x || 1, at = w.clone().multiplyScalar(s), g = new THREE.Group();
+    const kind = p.prop === 'photo' ? 'camera' : p.hold === 'bottle' ? 'bottle' : p.hold === 'flute' ? 'flute' : p.hold === 'coupe' ? 'coupe' : 'glass';
+    for (const [geo, mat] of D.parts[kind]) { const m = new THREE.Mesh(geo.clone(), D.mat[mat]); m.userData[this.keepKey] = true; g.add(m); }
+    if (kind === 'camera') g.position.set(at.x + 0.06, at.y + 0.02, at.z + 0.02);
+    else g.position.set(at.x + 0.02, at.y - (kind === 'bottle' ? 0.16 : 0.11), at.z);
+    g.name = 'party-crowd:prop'; person.group.add(g);
+  }
+  /** one more of the nearest built in full now (behind the cover: build's last steps) */
+  _warmOne() { if (!this.npc || this.gone) return; try { const f = this.npc.warm(1, { x: this._cam.x, y: 1.6, z: this._cam.z })[0]; f?.(); } catch (e) { console.warn('PartyCrowd: a full figure', e); } }
+  /**
+   * The woman in the crowd you are facing, close enough to walk up to (x, z: where you stand; fx, fz: which way you look;
+   * reach m) - anyone who is somebody (p.extra), in the room, not taken out already -> the crowd's person | null
+   */
+  stranger(x, z, fx, fz, reach = 2.2) {
+    let best = null, bs = -9; if (!this.ready) return null;
+    for (const p of this.people) {
+      if (!p.on || p.taken || !p.extra?.fem) continue;
+      const dx = p.x - x, dz = p.z - z, d = Math.hypot(dx, dz); if (d > reach) continue;
+      const dot = d < 0.35 ? 1 : (dx * fx + dz * fz) / d; if (dot < 0.72) continue;
+      const sc = dot - d * 0.06; if (sc > bs) { bs = sc; best = p; }
+    }
+    return best;
+  }
+  /**
+   * She leaves the crowd for good - walked up to and talked to: her full figure handed over (built at once if it was not
+   * yet), standing where she stood -> { person, opts, extra, spot: { x, z, y, face, pose ('stand' | 'sit'), zone }, role,
+   * anim ('dance' | 'idle'), prop (the glass in her hand: a THREE.Group of the person's, or null) } | null
+   */
+  takeOut(p) {
+    if (!p || p.taken || !this.people.includes(p)) return null;
+    let got = null; try { got = p.P && this.npc ? this.npc.take(p.P, true) : null; } catch (e) { console.warn('PartyCrowd: her figure', e); }
+    if (!got) { try { const person = makePerson(p.opts); this._prep(person, p); person.group.position.set(p.x, p.y, p.z); person.group.rotation.y = p.yaw; got = { person, opts: p.opts }; } catch (e) { console.warn('PartyCrowd: her figure could not be built', e); return null; } }
+    p.taken = true; p.forced = false; p.wantOn = false; p.on = false; p.hi = false; p.P = null; this._dirty = true;
+    const prop = got.person.group.children.find((c) => c.name === 'party-crowd:prop') || null;
+    return { person: got.person, opts: got.opts, extra: p.extra, role: p.role, anim: p.role === 'dancer' || p.role === 'performer' ? 'dance' : 'idle', prop, spot: { x: p.x, z: p.z, y: p.y, face: p.yaw, pose: p.seat ? 'sit' : 'stand', zone: p.zone } };
   }
 
   /** the meshes: one per template and detail, as many places as can wear it */
@@ -438,6 +522,19 @@ export class PartyCrowd {
     this._cam.set(+P0.x || 0, 1.6, +P0.z || 0);
     this._occ(this.pools.occ ?? 0.5); for (const p of this.people) { p.on = p.wantOn; p.lod = this._lodOf(p, -1); }
     this.mat.userData.u.uLift.value = this.night ? this.lift : this.lift * 0.4;
+    // (the people near drawn as themselves: a full figure each for the nearest - world/NpcFigures.js - their instance
+    // left out of the meshes while it is shown (p.hi), the dance on the same beat)
+    if (this.npcOn) {
+      try {
+        const N = this.npc = new NpcCrowd({ scene: this.group, near: this.npcNear, maxHigh: this.npcMax, budget: 6, far: 'external', keepKey: this.keepKey, beat: () => this.B,
+          onLevel: (P, hi) => { const p = P.data; if (!p) return; p.hi = hi; if (hi) p.cur = 0; this._dirty = true; }, prep: (person, P) => this._prep(person, P.data) });
+        for (const p of this.people) {
+          if (!p.opts) continue;
+          const P = p.P = N.add({ seed: p.extra.seed, opts: p.opts, fem: p.fig === 'f', x: p.x, y: p.y, z: p.z, yaw: p.yaw, scale: p.scale, anim: 'dance', data: p, on: p.on });
+          P.ph = p.misc[0]; P.en = p.misc[1]; P.nod = p.misc[2]; P.tw = p.misc[3];
+        }
+      } catch (e) { console.warn('PartyCrowd: the full figures could not start', e); this.npc = null; }
+    }
     this._repack(); this.ready = true;
   }
   _mid() { let x = 0, z = 0; for (const p of this.people) { x += p.x; z += p.z; } const n = Math.max(1, this.people.length); return { x: x / n, z: z / n }; }
@@ -471,7 +568,7 @@ export class PartyCrowd {
     // and anyone within 5 m of you, by the door)
     const Z = this._zo || null;
     for (const p of ord) {
-      p.mesh = null; p.slot = -1; if (!p.on) continue;
+      p.mesh = null; p.slot = -1; if (!p.on || p.hi) continue;
       if (Z && p.zone !== Z && p._d2 > 25) continue;
       if (F && p._d2 > 2.56) { const d = Math.sqrt(p._d2); if ((p.x - cx) * F.x + (p.z - cz) * F.z < 0.34 * d) continue; }
       const t = this._tOf(p), rec = t?.M?.[p.lod] || t?.M?.[1] || t?.M?.[0] || t?.M?.[2]; if (!rec) continue;
@@ -524,7 +621,18 @@ export class PartyCrowd {
     if (this._bInt < 0) for (const p of this.people) p.swapAt += bi;   // (the music already playing: each still on their own count from now)
     if (bi !== this._bInt) {
       this._bInt = bi;
-      if (bi % 2 === 0) for (const p of this.people) if (p.swap && p.on && bi >= p.swapAt) { p.cur ^= 1; p.swapAt = bi + (p.cur ? 4 : 4 + 2 * Math.floor(Math.random() * 3)); this._dirty = true; }
+      if (bi % 2 === 0) for (const p of this.people) if (p.swap && p.on && !p.hi && bi >= p.swapAt) { p.cur ^= 1; p.swapAt = bi + (p.cur ? 4 : 4 + 2 * Math.floor(Math.random() * 3)); this._dirty = true; }
+    }
+    // (the full figures: where their people are now, how hard the room dances, who is near - those raised or lowered
+    // this frame leave or join the instanced meshes in the packing just below)
+    if (this.npc) {
+      const zo = this._zo || null, cx = this._cam.x, cz = this._cam.z, en = Math.max(0, Math.min(1, this.energy));
+      for (const p of this.people) {
+        const P = p.P; if (!P) continue;
+        const on = p.on && !(zo && p.zone !== zo && (p.x - cx) * (p.x - cx) + (p.z - cz) * (p.z - cz) > 25); if (P.on !== on) this.npc.setOn(P, on);
+        P.x = p.x; P.z = p.z; P.yaw = p.yaw; P.en = p.misc[1] * en;
+      }
+      try { this.npc.update({ x: cx, y: this._cam.y, z: cz, fx: this._fw?.x ?? 1, fz: this._fw?.z ?? 0 }, dt); } catch (e) { if (!this._npcErr) console.warn('PartyCrowd: the full figures', e); this._npcErr = (this._npcErr || 0) + 1; }
     }
     if (this._dirty) this._repack();
     // (turning a little now and then; drifting back to their places once out of your way)
@@ -583,17 +691,18 @@ export class PartyCrowd {
   }
   near(x, z, r) { let n = 0; for (const p of this.people) if (p.on && (p.x - x) ** 2 + (p.z - z) ** 2 < r * r) n++; return n; }
   flashes() { this._flOut.length = 0; for (let i = 0; i < this._flN; i++) this._flOut.push(this._fl[i]); this._flN = 0; return this._flOut; }
-  arrive(role) { for (const p of this.people) if (p.role === role) { p.forced = true; p.wantOn = true; if (!p.on) { p.on = true; p.x = p.hx; p.z = p.hz; this._dirty = true; } } }
+  arrive(role) { for (const p of this.people) if (p.role === role && !p.taken) { p.forced = true; p.wantOn = true; if (!p.on) { p.on = true; p.x = p.hx; p.z = p.hz; this._dirty = true; } } }
   leave(role) { for (const p of this.people) if (p.role === role) { p.forced = false; p.wantOn = false; if (p.on) { p.on = false; this._dirty = true; } } }
-  snap() { for (const p of this.people) if (p.on !== p.wantOn) { p.on = p.wantOn; p.x = p.hx; p.z = p.hz; this._dirty = true; } if (this._dirty && this.ready) this._repack(); }
+  snap() { for (const p of this.people) if (p.on !== p.wantOn && !p.taken) { p.on = p.wantOn; p.x = p.hx; p.z = p.hz; this._dirty = true; } if (this._dirty && this.ready) this._repack(); }
   stats() {
     let active = 0, calls = 0, tris = 0; for (const p of this.people) if (p.on) active++;
     for (const r of this.recs) if (r.mesh.visible && r.n) { calls++; tris += r.n * r.tris; }
-    return { people: this.people.length, active, meshes: this.recs.length, calls, tris: Math.round(tris), templates: this.tpl.filter((t) => t.used).length, baked: this.recs.length };
+    return { people: this.people.length, active, meshes: this.recs.length, calls, tris: Math.round(tris), templates: this.tpl.filter((t) => t.used).length, baked: this.recs.length, npc: this.npc ? this.npc.stats() : null };
   }
   dispose() {
     if (this.gone) return; this.gone = true; this.ready = false;
     this.group.parent?.remove(this.group);
+    try { this.npc?.dispose(); } catch (e) { console.warn('PartyCrowd: the full figures did not tidy up', e); } this.npc = null;
     for (const r of this.recs) { r.mesh.dispose?.(); r.mesh.geometry.dispose(); if (r.src.userData.users > 0) r.src.userData.users--; }
     if (this.flash) { this.flash.geometry.dispose(); this.flash.material.dispose(); this.flash = null; }
     this.recs = []; this.people = []; this.group.clear();

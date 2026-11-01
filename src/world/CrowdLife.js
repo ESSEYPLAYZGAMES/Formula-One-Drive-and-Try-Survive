@@ -47,7 +47,7 @@ export class CrowdLife {
   /** one queued template built (every other frame, never alongside one built on demand) */
   _prebake() {
     if (!this._queue?.length || (this._tick = (this._tick || 0) + 1) % 2) return;
-    while (this._queue.length) { const [p, pose, far] = this._queue.shift(); if (this.meshes.has(this._key(p, pose, far))) continue; this._mesh(p, pose, true, far); break; }
+    while (this._queue.length) { const [p, pose, far] = this._queue.shift(); if (this.meshes.has(this._key(p, pose, far)) || (p.away && !this.people.some((q) => !q.away && q.role === p.role && q.li === p.li))) continue; this._mesh(p, pose, true, far); break; }   /* (nobody left in that look here: never baked) */
   }
   _key(p, pose, far) { return `${p.role}:${p.li}:${pose}${far ? ':far' : ''}`; }
   // (far: the same person on far fewer triangles, for anyone more than FAR metres from the camera)
@@ -234,6 +234,10 @@ export class CrowdLife {
     for (const e of this.meshes.values()) e.n = 0;
     const { M, Q, P, S, Y } = this;
     for (const p of this.people) {
+      // (someone drawn elsewhere - p.away: a guest near enough on the grid walk to be drawn in full, as themselves
+      // (ui/GridWalk.js, world/NpcFigures.js) - still goes about their business here, and is drawn there where this
+      // leaves them)
+      if (p.away) continue;
       const far = !!this.cam && (p.x - this.cam.x) ** 2 + (p.z - this.cam.z) ** 2 > FAR * FAR;
       let pose = this._pose(p), e = (far && (this._mesh(p, pose, this.bakes < 2, true) || this._mesh(p, pose, false))) || this._mesh(p, pose, this.bakes < 2);
       if (!e) { pose = p.path ? 'talk' : p.idlePose; e = this._mesh(p, pose, true) || this._mesh(p, 'talk', true); }

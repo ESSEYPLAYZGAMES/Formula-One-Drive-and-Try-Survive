@@ -648,7 +648,8 @@ const unreadOf = (T) => arr(T).reduce((a, m) => a + (m.from === 'them' && !m.rea
 /**
  * Everyone you can text: the drivers you met on the grid walk or get on with (friendship or rapport 20+), your
  * team-mate always, the celebrities you have met, your team principal, your race engineer, your PR manager if you hired
- * one -> [{ cid, kind, name, sub, stage, unread, last ({ season, round } of the last message | null), secret }], unread first,
+ * one -> [{ cid, kind, name, sub, stage, unread, last ({ season, round } of the last message | null), secret, met (someone
+ * from a crowd: 'Met at the Halo Room, Las Vegas · R3') }], unread first,
  * then the latest chats, then the people closest to you
  */
 export function contactsOf(c) {
@@ -670,6 +671,7 @@ export function contactsOf(c) {
     if (!((b && b.stage !== 'stranger') || met.has(C.id) || TH[cid]?.length)) continue;
     const st = b?.stage && b.stage !== 'stranger' ? b.stage : 'met';
     add(cid, 'celeb', C.name, C.org ? `${C.job} · ${C.org}` : C.job, st, !!b?.secret, ROM.includes(st) ? 2 : st === 'flirting' ? 3 : 9);   // (one of the paddock's people: her job and who she works for)
+    if (C.local) { const ml = metLine(c, C.id); if (ml) out[out.length - 1].met = ml; }   /* (someone from a crowd: where you met her) */
   }
   const team = c.myTeam || meOf(c)?.team || 'Your team';
   add('x:boss', 'staff', STAFF.boss, team, null, false, 20); add('x:eng', 'staff', STAFF.eng, team, null, false, 21);
@@ -1267,7 +1269,70 @@ export function friendsRoundTick(c) {
     const loose = Object.entries(S.friends).some(([did, f]) => FS(f.stage) >= 3 && ago(c, f.last) <= 2 && live(c.drivers[did]) && driverPersona(c.drivers[did].name) === 'stirrer');
     if (loose) for (const id of seeingIds(c)) if (peek(c, id)?.secret && chance(0.04)) { const r = expose(c, 'friend', [id], 1); if (r?.text) lines.push(r.text); break; }
   }
+  // (a number from a crowd you never followed up - no reply to her text, no second talk, no plans: after a few rounds
+  //  she has moved on, and the phone forgets her; ui/StrangerTalk.js keeps the phone from filling up the other way)
+  if (!g) for (const id of strangersIdle(c)) { const C = CEL(id); if (forgetStranger(c, id)) lines.push(`You never texted ${first(C?.name) || 'her'} back. She has moved on.`); }
   return { lines };
+}
+
+// ---- strangers from a crowd: someone you swapped numbers with (ui/StrangerTalk.js), and letting one go ---------------------
+// (rounds a number from a crowd waits for you to do something with it)
+const STRANGER_FADE = 4;
+// (where you met her, as the phone has it, by career/Extras.js's scope when there is no note of the place itself)
+const MET_SCOPE = { vegasclub: 'the Halo Room, Las Vegas', londonclub: 'the Ormond Vault, London', poolclub: 'Tidewater, Las Vegas', teamparty: 'the team party', rooftop: 'the rooftop over the Strip',
+  pub: 'the village pub at Silverstone', simlounge: 'the sim-racing lounge', karting: 'the karting hall' };
+/** where you met someone from a crowd -> 'Met at the Halo Room, Las Vegas · R3' | '' (anyone else: nothing to say) */
+export function metLine(c, id) {
+  const b = c?.celebs?.bonds?.[id], m = b?.met0, X = c?.extras?.met?.[id];
+  const at = m?.at || (X?.scope ? (/^grid:(\w+)/.exec(X.scope) ? `the grid at ${trackName(/^grid:(\w+)/.exec(X.scope)[1])}` : MET_SCOPE[String(X.scope).split(':')[1]] || '') : '');
+  if (!at || !b || b.stage === 'stranger') return '';
+  const s = m ? m.s : X?.season, r = m ? m.r : X?.round;
+  return `Met at ${at}${r != null ? ` · ${s != null && s !== c.season ? `S${s} ` : ''}R${r}` : ''}`;
+}
+/** a save's notes of where you met someone from a crowd (career/Extras.js c.extras.met), kept only for the people you did meet */
+export function strangersEnsure(c) {
+  const M = c?.extras?.met; if (!M || typeof M !== 'object') return;
+  for (const id of Object.keys(M)) { const b = c.celebs?.bonds?.[id]; if (!b || b.stage === 'stranger') delete M[id]; }
+}
+/** the numbers from a crowd you have done nothing with for STRANGER_FADE rounds -> [ids] */
+function strangersIdle(c) {
+  const B = obj(c?.celebs?.bonds), TH = obj(c?.social?.phone?.threads), out = [];
+  for (const [id, b] of Object.entries(B)) {
+    const m = b?.met0; if (!m || b.stage !== 'met' || b.dates || b.accepted || b.grieving) continue;
+    const at = { season: m.s, round: m.r }, s = c.persona?.npcs?.[`c:${id}`];
+    if (ago(c, at) < STRANGER_FADE || arr(TH[`c:${id}`]).some((x) => x.from === 'me') || (s && s.talks > 0)) continue;
+    if (arr(c.social?.invites).some((v) => v.from === `c:${id}` || v.to === `c:${id}` || arr(v.guests).includes(`c:${id}`))) continue;
+    out.push(id);
+  }
+  return out;
+}
+/**
+ * Someone from a crowd, let go: her bond, her personality's state, the note of where you met, the chat and any plans -
+ * so the save keeps nobody you never really met. o.fresh: only when this meeting is all there is of her (a scene that
+ * took her into the game as you walked up, ui/StrangerTalk.js then deciding she did not give you her number): nothing
+ * from another round, no texts, no talks since, no dates. o.dry: only say whether she would be -> let go (or would be)
+ */
+export function forgetStranger(c, id, o = {}) {
+  if (!c || !/^l-[0-9a-z]+$/.test(String(id || ''))) return false;
+  const cid = `c:${id}`, b = c.celebs?.bonds?.[id], X = c.extras?.met?.[id], s = c.persona?.npcs?.[cid], T = arr(c.social?.phone?.threads?.[cid]);
+  if (o.fresh) {
+    const here = (at) => !at || (at.season === c.season && at.round === c.round);
+    if (T.length || (s && (s.talks || s.texts)) || (X && !here(X))) return false;
+    if (b && (b.met0 || b.dates || b.accepted || b.grieving || !['stranger', 'met'].includes(b.stage) || num(b.flirts, 0) > 1 || num(b.talks, 0) > 1 || !here(b.metAt))) return false;
+    if (!b && !X && !s) return false;
+  }
+  if (o.dry) return true;
+  if (c.celebs) {
+    const S = c.celebs; delete S.bonds?.[id];
+    if (Array.isArray(S.met)) S.met = S.met.filter((x) => x !== id);
+    if (Array.isArray(S.log)) S.log = S.log.filter((l) => l?.id !== id);
+  }
+  if (c.persona?.npcs) delete c.persona.npcs[cid];
+  if (c.extras?.met) delete c.extras.met[id];
+  const P = c.social?.phone;
+  if (P) { delete P.threads?.[cid]; delete P.trail?.[id]; delete P.keen?.[cid]; delete P.deleted?.[cid]; }
+  if (Array.isArray(c.social?.invites)) c.social.invites = c.social.invites.filter((v) => v.from !== cid && v.to !== cid && !arr(v.guests).includes(cid));
+  return true;
 }
 
 // ---- an evening out ---------------------------------------------------------------------------------------------------------

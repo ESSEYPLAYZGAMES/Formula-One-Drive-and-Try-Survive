@@ -682,10 +682,13 @@ export function partyResult(c, r) {
   const people = {}, texts = [], timeline = [], heads = [];
   const delta = (cid, name, role, k, v, text = '') => { if (!v && !text) return; const p = people[cid] || (people[cid] = { cid, name, role, delta: [] }); p.delta.push({ k, v: Math.round(num(v, 0) * 10) / 10, text }); };
   const say = (cid, text, o = {}) => { if (!text) return; safe('pushText', () => pushText(c, cid, text, o)); texts.push({ cid, name: o.name || nameOfCid(c, cid), text }); };
-  // (who you spent time with: the scene's per-guest record, its party contacts over it)
+  // (who you spent time with: the scene's per-guest record, its party contacts over it - never someone from the crowd you
+  // only said hello to (R.party.strangers: ui/StrangerTalk.js already did whatever that came to; a swapped number made
+  // her a met local, and the night after it counts as anyone's))
+  const strangers = arr(L.strangers).filter((x) => x && typeof x === 'object'), noTrace = new Set(strangers.filter((x) => !x.promote && !x.known).map((x) => String(x.cid || `c:${x.lid}`)));
   const C = {};
-  for (const [cid, x] of Object.entries(obj(r.per))) C[cid] = { role: roles[cid]?.role || null, score: num(x?.score, 0.5), dm: num(x?.mood, 0), talks: num(x?.talks, 0), fx: obj(x?.fx), gone: !!x?.gone, priv: 0 };
-  for (const [cid, x] of Object.entries(obj(L.contacts))) C[cid] = { ...(C[cid] || { role: roles[cid]?.role || null, score: 0.5, dm: 0, talks: 0, fx: {}, priv: 0 }), ...obj(x), fx: { ...obj(C[cid]?.fx), ...obj(x?.fx) } };
+  for (const [cid, x] of Object.entries(obj(r.per))) if (!noTrace.has(cid)) C[cid] = { role: roles[cid]?.role || null, score: num(x?.score, 0.5), dm: num(x?.mood, 0), talks: num(x?.talks, 0), fx: obj(x?.fx), gone: !!x?.gone, priv: 0 };
+  for (const [cid, x] of Object.entries(obj(L.contacts))) if (!noTrace.has(cid)) C[cid] = { ...(C[cid] || { role: roles[cid]?.role || null, score: 0.5, dm: 0, talks: 0, fx: {}, priv: 0 }), ...obj(x), fx: { ...obj(C[cid]?.fx), ...obj(x?.fx) } };
   const dancedWith = (cid) => danced.some((d) => d && d.cid === cid);
   const fxn = (cid, k) => num(C[cid]?.fx?.[k], 0);
   const R = Math.random;
@@ -876,6 +879,8 @@ export function partyResult(c, r) {
   const brief = arr(r.moments).filter((m) => typeof m === 'string').slice(0, 2), n = arr(L.drinks).length, tab = r6(num(L.spend, 0));   // (the tab: the helicopter is not on it)
   const drinksLine = n ? `${n} drink${n === 1 ? '' : 's'}${tab > 0 ? `, $${Math.round(tab * 1e6).toLocaleString('en-US')} on the tab` : L.comped ? ', the table comped' : ''}.` : '';
   timeline.unshift(cur.act === 2 ? `${c.myTeam} hospitality first, then ${PL.place} from ${hhmm(num(cur.start, T.start))}.` : `${club ? PL.place : `${c.myTeam} hospitality`}, ${hhmm(num(cur.start, T.start))}.`, ...brief, drinksLine);
+  // (strangers from the crowd who gave you their number: someone new in your phone - StrangerTalk sent her first text)
+  for (const x of strangers) if (x.promote && !x.known && CELEB[x.lid]) timeline.push(`Swapped numbers with ${first(CELEB[x.lid].name)}, a stranger ${x.role === 'dancer' ? 'on the dance floor' : x.role === 'staff' ? 'from the team' : 'at the bar'}.`);
   if (kissId && CELEB[kissId]) timeline.push(`A kiss with ${first(CELEB[kissId].name)}${L.kissSeen ? ', on the dance floor' : ', away from everyone'}.`);
   for (const D of drama) if (D?.outcome && D.outcome !== 'calm') timeline.push(D.outcome === 'row' ? 'Words exchanged, and not quietly.' : D.outcome === 'scuffle' ? 'A scuffle, broken up by security.' : D.outcome === 'cold' ? 'An awkward exchange that went nowhere.' : 'Someone walked away before it got worse.');
   // (the night's own beats, as the six lines allow - after what mattered more: the shoey, the photographers, the DJ, the

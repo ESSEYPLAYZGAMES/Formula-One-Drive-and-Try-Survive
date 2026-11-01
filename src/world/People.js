@@ -3225,6 +3225,31 @@ export function makePerson(o = {}) {
   Q = o.segQ || 1; DEWY = o.figure === 'f';
   try { return buildPerson(withLook(o)); } finally { Q = 1; DEWY = false; }
 }
+/** buildSteps run to the end at once -> the person */
+function buildPerson(o) { const it = buildSteps(o); for (;;) { const r = it.next(); if (r.done) return r.value; } }
+/**
+ * makePerson's person built a few stages at a time (world/NpcFigures.js: a crowd's figure over several frames, never
+ * one long frame) - the same person makePerson(o) makes, stage for stage. -> { step(ms) (the next stage, and more while
+ * less than ms have gone - 0: one stage) -> true once built, done, person (the result once built, else null), steps (how
+ * many have run) }. Let one run to the end (step it until it is done, then dispose what it made if it is no longer
+ * wanted): a build left half-way keeps a share of its face's painted cache. A step that throws ends it (done stays false,
+ * failed true) and throws on to the caller
+ */
+export function makePersonSteps(o = {}) {
+  const L = withLook(o), q = o.segQ || 1, dewy = o.figure === 'f';
+  let it = null, out = null, failed = false, n = 0;
+  return {
+    get done() { return !!out; }, get person() { return out; }, get failed() { return failed; }, get steps() { return n; },
+    step(ms = 0) {
+      if (out || failed) return !!out;
+      const t0 = performance.now(), q0 = Q, d0 = DEWY; Q = q; DEWY = dewy;
+      try {
+        if (!it) it = buildSteps(L);
+        for (;;) { const r = it.next(); n++; if (r.done) { out = r.value; return true; } if (!(ms > 0) || performance.now() - t0 >= ms) return false; }
+      } catch (e) { failed = true; it = null; throw e; } finally { Q = q0; DEWY = d0; }
+    },
+  };
+}
 /**
  * A person built again with new options, leak-free: the new one first (a face's paint they share never let go in
  * between), stood where the old one stood - its place, its turn, its scale, shown or not, in the same parent - then the
@@ -3338,7 +3363,13 @@ function idleStance(J, F, pose, seed) {
   const tA = J.torsoA, tB = J.torsoB, ys = (J.shR.y + J.shL.y) / 2, dz = (tA.z + (tB.z - tA.z) * (ys - tA.y) / (tB.y - tA.y)) / F.sh - (J.shR.z + J.shL.z) / 2;
   J.shR.z += dz; J.shL.z += dz;
 }
-function buildPerson(o) {
+/**
+ * The person built in steps (a generator: each yield a stage done - the torso's frame, the arms and the skirt, the
+ * materials, the clothes, the neck, the arms and hands, the lap, the accessories, the head, the hair, its locks, the face's
+ * paint): makePersonSteps runs them a few at a time, so a crowd's figure is built over frames instead of in one;
+ * buildPerson runs them all at once (makePerson). Q and DEWY are the caller's to set around every step
+ */
+function* buildSteps(o) {
   const pose = POSES[o.pose || 'mourn'] ? o.pose || 'mourn' : 'talk', J = POSES[pose](), jit = o.jitter ?? 0.02, r = () => (Math.random() - 0.5) * 2 * jit;
   for (const k of Object.keys(J)) if (J[k] instanceof THREE.Vector3 && !k.startsWith('ankle') && k !== 'pelvis' && !DIRS.has(k)) J[k].add(V(r(), r() * 0.5, r() * 0.5));
   // (the kit as she wears it: cut and made her own way - o.cut, o.fabric)
@@ -3438,6 +3469,7 @@ function buildPerson(o) {
     // (her girdle tilted with her shoulders: torsoOf)
     if (fem) F.shF = [fJ, NK.rS, sz, fJ - 1.25 * dl / tH, fAc];
   }
+  yield;
   const T = torsoOf(J, F);  // (a jacket in its cut - hers her own; the side a one-sided cut climbs to, the same for the same person)
   const JK = OF?.jacket ? { ...JACKETS[OF.jacket], ...(fem && JACKETS[OF.jacket].her) } : null, oSide = (seedOf() >>> 5) & 1 ? 1 : -1;
   // (her arms hanging easy, standing: each upper arm down from the shoulder just clear of the waist, the elbow softly bent
@@ -3476,6 +3508,7 @@ function buildPerson(o) {
   const cut = OF?.swim === 1 ? null : sk || lap ? OF.under || null : OF ? OF.trousers || OF.under || 'straight' : null, bare = OF?.swim === 1 || ((!!sk || lap) && !OF.under);   // (in swimwear her legs bare: world/Swimwear.js; his in swim shorts - CUTS.swim - bare below them)
   // (wide-legged trousers, standing: falling as one from the hips to the floor, the seams between the legs folded in)
   const pz = !sk && cut === 'wide' && DRESS_POSES.has(pose) ? skirt(J, F, T, { hem: 'floor', flare: 0.14, split: OF?.inseam ? 2 : 1, bare: !!OF?.crop, rise: OF?.rise }, 0.004) : null;
+  yield;
   const team = new THREE.Color(o.color || '#3a6fd8'), acc = new THREE.Color(o.accent || '#ffffff');
   // (the team jacket: dark, the team's colour across the shoulders)
   // (under a sheer layer of her colour, a dress of the accent's - lace over nude - if the kit has it so)
@@ -3730,6 +3763,7 @@ function buildPerson(o) {
       return !d0 && !d1 ? NF0 : (d0 || V(0, 0, 0)).multiplyScalar(1 - t).addScaledVector(d1 || NF0, t);
     };
   }
+  yield;
   if (OF) {
     // (the top: a bodice down to the waist over a skirt or a jumpsuit's trousers; else a top over trousers, to its hem.
     // Beneath a jacket, the top's in the accent colour; above its neckline the skin)
@@ -3866,6 +3900,7 @@ function buildPerson(o) {
       // (OF.cross), or a metal ring at its middle, strapped to its sides (OF.ring) - Clubwear.bindHoles; only holes cut)
       if (HP.length && Q >= 0.6) { const BB = bindHoles(T, HOLES[OF.holes](-oSide), onB, { cross: OF.cross, ring: OF.ring }, { Q }); parts[mat].push(...BB.cloth); if (BB.metal.length) { metalM(); parts.metal.push(...BB.metal); } }
     }
+    yield;
     // (an open back closed across the nape (OF.nape): a narrow band of the cloth from one side of the opening to the other
     // at the neck's seam, lying on her skin - over the bodice at its ends - following the slope of her shoulders)
     if (OF.nape && OF.back) { const fT = fSeam - 0.04 * (fSeam - fAc) - 0.004; parts[mat].push(panel(T, fT - 0.04, fT, () => Math.PI - 0.98, () => Math.PI + 0.98, (f, a) => 0.0022 + (tight - 0.0014) * ss3(-0.004, 0.01, neck(a) - f), { rows: 4, cols: 18, th: 0.002 })); if (OF.tie && Q >= 0.6) parts[mat].push(...napeBow(T, fT - 0.02, 0.0024)); }   // (tied in a bow at its middle (OF.tie))
@@ -3966,6 +4001,7 @@ function buildPerson(o) {
         }
       }
     } }
+    yield;
     if (JK) {
       // the jacket: open at the front, its lapels laid back either side (a blazer's button at the waist; a bomber's ribbed hem, cuffs and collar)
       // (closed with one button at the waist (OF.jkBtn: its height): its fronts meeting there, opening in a V above it to its
@@ -4061,6 +4097,7 @@ function buildPerson(o) {
     if (kit === 'suit' && Q >= 0.6) for (const s of [shR, shL]) { const e = new THREE.BoxGeometry(0.075, 0.007, 0.024); e.rotateY(Math.PI / 2); e.rotateX(Math.sign(s.z) * 0.3); const p = s.clone().lerp(nb, 0.42); e.translate(p.x - 0.004, p.y + F.del * 0.55, p.z); parts.top.push(tint(e, 0.8)); }   // (the epaulettes a marshal lifts a driver out by)
     tS = kit === 'polo' ? 0.31 : 1; loose = kit === 'suit' ? 0.003 : kit === 'jacket' || kit === 'marshal' ? 0.008 : 0.004;
   }
+  yield;
   // the neck: up from the seam - flared there into the collarbones and the trapezius - slimming, past the chin into the
   // head: one smooth surface (no seam round it, its normals smooth all along), in the jaw's shadow under the chin. Under
   // clothes up to it, its foot sunk deep in the chest, below the collarbones, filling the torso's top there; over a bare
@@ -4188,6 +4225,7 @@ function buildPerson(o) {
       }
     }
   }
+  yield;
   // ---- arms and hands ----
   // (handOn: the hands laid on the body - on a hip - which hold nothing: a clutch goes in a hand left free)
   // (sitting - each thigh near level, each shin hanging near upright: a skirt past the knee falls from the knees (laps))
@@ -4195,6 +4233,7 @@ function buildPerson(o) {
   // (lapsS: a sheer layer's own over the dress's, sitting - over the thighs, across the lap, falling from the knees)
   const hk = F.hk, laps = {}, lapsS = {}, tS0 = tS, handOn = {}, armSk = [];
   for (const s of ['R', 'L']) {
+    if (s === 'L') yield;
     const sh = s === 'R' ? shR : shL, el = J['el' + s], wr = J['wr' + s], P = [sh, el, wr], L1 = sh.distanceTo(el), tj = L1 / (L1 + el.distanceTo(wr)), rad = armRad(F.arm, tj, F.del, fem, (!!JK && !JK.soft) || kit === 'jacket');   // (a shirt's soft shoulder: no padding)
     // (a one-shoulder's covered side: the dress's own cap over the top of that arm, wrapping the deltoid - the other bare)
     const tS = OF?.neck === 'one' ? (s === (oSide > 0 ? 'L' : 'R') ? 0.1 : 0) : tS0;
@@ -4385,6 +4424,7 @@ function buildPerson(o) {
     // (an anklet (acc 'anklet'): a fine chain round her left leg just above the ankle, on the bare skin)
     if (s === 'L' && bare && Q >= 0.6 && [].concat(o.acc || []).includes('anklet')) { metalM(); parts.metal.push(SW.anklet(lp, lr(0.965))); }
   }
+  yield;
   // (the skirt across the lap: from over one thigh to over the other, a little slack between them - sitting, over the
   // tops of them; standing in a scuffle, down the front) - the dress's, and a sheer layer's own over it (lapsS: no lining,
   // the net alone)
@@ -4457,6 +4497,7 @@ function buildPerson(o) {
     lg.computeVertexNormals();
     chest = new THREE.Mesh(lg, new THREE.MeshStandardMaterial({ map: tex, transparent: true, roughness: 0.6 })); chest.userData.tex = tex;
   }
+  yield;
   // ---- accessories ----
   const ACC = new Set([].concat(o.acc || [])), accCol = (c) => { const k = new THREE.Color(c); return [k.r / 0.25, k.g / 0.25, k.b / 0.25]; };
   // (all of them one material, their colours each vertex's own: a pass, a clutch, sunglasses; the metal ones - a watch,
@@ -4550,6 +4591,7 @@ function buildPerson(o) {
     const L = SWB?.lines, cov = !OF.swim || !L ? () => true : OF.suit ? (f, a) => f >= L.lo(a) - 0.004 : (f, a) => f <= L.hi(a) + 0.004 || f >= (OF.crop ?? 9) - 0.004 || (OF.mono ? Math.abs(Math.atan2(Math.sin(a), Math.cos(a))) < OF.mono.w0 + 0.15 : false);
     metalM(); parts.metal.push(...SW.bodyChain(T, cov, (OF.fit ?? 0.006) + (OF.sheer && !OF.swim ? 0.01 : 0)));
   }
+  yield;
   const body = new THREE.Group(); if (chest) body.add(chest);
   // (a figure's height: the body scaled, so whatever is fixed to it - a head, a prop at the wrist - goes with it)
   body.scale.setScalar(F.ht);
@@ -4860,6 +4902,7 @@ function buildPerson(o) {
   const rootTone = (fn) => (!HT?.root ? fn : (nx, ny, nz, w) => { const v = fn(nx, ny, nz, w), a = DOWN || hs === 'pixie' || !(hs === 'ponytail' || hs === 'bun' || SLEEK.has(hs) || CURLBUN.has(hs)) ? 0.75 * ss3(0.1, 0.85, ny) : 0.55 * (1 - ss3(-0.2, 0.95, nx * tieDir.x + ny * tieDir.y)); return HT.root.map((r) => v * (r + (1 - r) * (1 - a))); });
   // (the nape's hair in the shell's own tone; its head part with the shell, its body part with the locks on the body)
   const hTone = rootTone((nx, ny, nz, w) => (0.84 + 0.16 * hairW(nx, ny, nz)) * (0.86 + 0.18 * clamp01(ny + 0.2)) * (CURLBUN.has(hs) ? 1 + (hs === 'curlybun' ? 0.06 : 0.05) * ridge(nx, ny, nz) : 1)), napeH = NAPE ? NAPE.strip(hTone) : null;
+  yield;
   const hair = shell(hairOut, false, hairWe, hTone, LONG_HS.has(hs) || CURLBUN.has(hs) ? 0.8 : 1, hEdge), hairExtra = napeH ? [napeH.head] : [];
   // (the skin under the hair - more than a share of the head's height inside its edge - never seen: the scalp's shell lies
   // over it, its own size out from it, and turns with it whatever the head does. Left out: some two to three thousand
@@ -4907,6 +4950,7 @@ function buildPerson(o) {
     if (!hi) { band2 = new THREE.TorusGeometry(0.02, 0.0065, n(8), n(18)); band2.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(V(0, 0, 1), tieD)); band2.translate(tieP.x + tieD.x * 0.012, tieP.y + tieD.y * 0.012, tieP.z); }
     else { cuff = new THREE.LatheGeometry([[0.0166, -0.0135], [0.0184, -0.0124], [0.0191, -0.0095], [0.0191, 0.0095], [0.0184, 0.0124], [0.0166, 0.0135]].map(([x, y]) => new THREE.Vector2(x, y)), n(24, 8)); cuff.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(UP, tieD)); cuff.translate(tieP.x + tieD.x * 0.014, tieP.y + tieD.y * 0.014, tieP.z); }
   }
+  yield;
   // (worn long, a bob, a pixie, pulled back: its locks - those that fall on to the body nod and turn with the head where
   // they leave it and lie still where they rest: a skinned mesh, its two bones the body and the head)
   if (DOWN || hs === 'pixie' || hs === 'ponytail' || hs === 'bun' || SLEEK.has(hs) || CURLBUN.has(hs)) {
@@ -4952,6 +4996,7 @@ function buildPerson(o) {
     e.computeVertexNormals(); e.rotateY(s * 0.3); e.rotateZ(eTilt); e.translate(hc.x - 0.014, eCy, hc.z + s * 0.08 * fWid);
     const uv = e.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, 0.002, 0.5); const g = tint(e, 0.84), C = g.attributes.color; if (C) for (let i = 0; i < C.count; i++) C.setXYZ(i, SH[i], SH[i], SH[i]); return g;
   });
+  yield;
   if (painted) {
     // the face's paint: her eyes lined and her lids shaded, her lips coloured; his a shaving shadow, or stubble
     const fair = skinC.r + skinC.g + skinC.b > 1.2, IRIS = fair ? ['#4a3020', '#5a4028', '#6a5a32', '#4e6a3c', '#4a6f96', '#6c8094'] : ['#3a2416', '#2e1c12', '#4e3420'];
@@ -4998,6 +5043,7 @@ function buildPerson(o) {
     mats.lip = new THREE.MeshStandardMaterial({ color: skinC.clone().multiplyScalar(0.62), roughness: 0.6 });
     head.add(M([face, ...ears], mats.skin), M(feat, mats.feat), M(white, mats.white), M(iris, mats.iris), M(mouth, mats.lip));
   }
+  yield;
   head.add(M([hair, ...hairExtra], mats.hair));
   // (a straw sun hat (acc 'sunhat'): wide-brimmed, its crown over her hair as she wears it - none over hair pinned up high
   // or too full for one - world/Swimwear.js)

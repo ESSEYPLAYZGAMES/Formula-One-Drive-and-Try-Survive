@@ -13,6 +13,16 @@
 // (pushed far enough) squares up to: handbags, played as quick prompts until people pull you apart (ui/Brawl.js has
 // the camera while it plays). What any of it costs - penalty points, rapport, morale, a star's view of you, the papers
 // - is worked out in ui/WalkFx.js. Never on a memorial weekend.
+// Everyone else milling about the grid - the guests and VIPs in their knots round the cars, the presenters by the TV
+// crews - is somebody too (career/Extras.js: the grid's own seed for each, 'grid:<track>', its regulars and the day's
+// own: a name, a face, a wardrobe), still going about their business (world/CrowdLife.js: the chats, the phones up, the
+// selfies, the walks down the grid) but each drawn as a person of their own (world/NpcFigures.js NpcCrowd: the nearest
+// in full detail, the rest the crowd's). E at any of them says hello: a man has a word for you and goes back to his
+// friends; a woman steps out of the crowd to talk as the stars do - how you meet a stranger (ui/StrangerTalk.js) - and
+// if it goes well enough for her number she is someone you know from then on (career/Extras.js promoteExtra: a local,
+// like anyone met at a party - her texts, a flirt, a date); if not, she leaves no trace. On a memorial weekend a quiet
+// word, nothing more. The crews round the cars, the photographers and the camera operators are at work, and stay the
+// crowd's.
 // Built on the pre-race show's grid (ui/PreRace.js), which it hands back to be disposed when done. You walk on the flat
 // plan, your eye 1.7 m over the ground (pos); on a circuit that is not flat everyone stands on the ground under them
 // (world/Terrain.js) and main.js lifts the eye by the ground you stand on (this.look: the eye itself, on the flat).
@@ -26,6 +36,11 @@ import { TOPICS4, FAREWELL4 } from './GridTalk4.js';
 import { Jab, Brawl } from './Brawl.js';
 import * as WalkFx from './WalkFx.js';
 import { personaTalk, TONE_TAG } from '../career/Persona.js';
+// (everyone else on the grid: somebody each - career/Extras.js - and a woman among them someone to meet)
+import { extraSeed, extraFor, extraLook, promoteExtra } from '../career/Extras.js';
+import { CELEB, celebLook } from '../career/Celebs.js';
+import { NpcCrowd } from '../world/NpcFigures.js';
+import { strangerTalk } from './StrangerTalk.js';
 
 const CSS = `
 #gridwalk { position: fixed; inset: 0; z-index: 44; pointer-events: none; font-family: 'Segoe UI', Roboto, Arial, sans-serif; color: #fff; }
@@ -89,6 +104,12 @@ const wfx = (k, ...a) => { try { return typeof WalkFx[k] === 'function' ? WalkFx
 // (made-up crew)
 const MECHS = ['Dan', 'Marco', 'Jules', 'Sam', 'Ravi', 'Tomasz', 'Kenji', 'Ollie'];
 const ENGINEERS = ['Gemma', 'Luca', 'Ben', 'Aisha', 'Pete', 'Ines'];
+// (a guest's hello back: a man's, on the way back to his friends; anyone's on a memorial weekend)
+const HELLO_M = [`Good luck out there today!`, `Big fan. Bring it home, yeah?`, `My kids are never going to believe this. Good luck!`, `First time on a grid. It's louder than I thought! Good luck.`,
+  `Go well. We'll be cheering from the hospitality suite.`, `Don't mind us. Go and get them!`, `Ha - hello! Have a good race.`, `Fair play, you look calm. I'd be shaking. Good luck.`];
+const HELLO_QUIET = [`A sad day. Take care out there.`, `Thinking of everyone today. Go safely.`, `It's very quiet, isn't it. Look after yourself out there.`];
+// (how a guest stands as you look at them, before you know them: who they came with)
+const GUEST_OF = (p) => (p?.home?.team ? `Guest of ${p.home.team}` : 'A guest');
 
 // =====================================================================================================================
 // The talk. Each topic builds a little tree for one person: { say, opts: [{ t, tone, r, m?, fx?, then?: { say, opts } }] }
@@ -410,6 +431,8 @@ export class GridWalk {
     this.life = pre.life || null; this.cars = pre.grid;
     this.cars = cars;
     this.camera.fov = 62; this.camera.updateProjectionMatrix();
+    // (everyone else on the grid: somebody each, drawn as themselves - a fault there leaves them the crowd's, as they were)
+    try { this._extras(); } catch (e) { console.warn('GridWalk: the guests stay the crowd\'s', e); this._extrasOff(); }
     // (what the career says about the people here - a star's bond with you, a friend's warm hello, your partner, the
     // week's stories - set on them and on x by ui/WalkFx.js; a friend's warmer start is where their mood starts from)
     wfx('walkSetup', this);
@@ -487,8 +510,10 @@ export class GridWalk {
   /** what you are looking at, close enough to use: a person, the memorial, your car */
   _target() {
     const p = this.pos, fx = Math.cos(this.yaw), fz = Math.sin(this.yaw); let best = null, bs = -1;
-    const consider = (o, at, reach) => { const dx = at.x - p.x, dz = at.z - p.z, d = Math.hypot(dx, dz); if (d > reach) return; const dot = (dx * fx + dz * fz) / Math.max(1e-3, d); if (dot < 0.72) return; const s = dot - d * 0.05; if (s > bs) { bs = s; best = o; } };
+    const consider = (o, at, reach, bias = 0) => { const dx = at.x - p.x, dz = at.z - p.z, d = Math.hypot(dx, dz); if (d > reach) return; const dot = (dx * fx + dz * fz) / Math.max(1e-3, d); if (dot < 0.72) return; const s = dot - d * 0.05 + bias; if (s > bs) { bs = s; best = o; } };
     for (const n of this.npcs) consider({ npc: n }, n.person.group.position, 2.6);
+    // (the guests about the grid: a little further down the list than the people you came to see)
+    const X = this.ex; if (X) for (const x of X.list) { if (x.gone) continue; const q = x.p, dx = q.x - p.x, dz = q.z - p.z; if (dx * dx + dz * dz < 5.3) consider({ ex: x }, q, 2.3, -0.06); }
     if (this.pre.mem && !this.respected) consider({ memorial: true }, this.pre.mem.c0, 3.2);
     consider({ car: true }, new THREE.Vector3(this.player.x, 0, this.player.z), 3.4);
     return best;
@@ -497,7 +522,154 @@ export class GridWalk {
     const t = this._target(); if (!t) return;
     if (t.car) { this.end(); return; }
     if (t.memorial) { this._payRespects(); return; }
-    if (t.npc) { if (t.npc.talked) { this._toast(`${t.npc.name} has said all they want to say.`, ''); return; } this._open(t.npc); }
+    if (t.ex) { this._hello(t.ex); return; }
+    if (t.npc) { if (t.npc.talked) { this._toast(t.npc.stranger ? 'She has gone back to her friends.' : `${t.npc.name} has said all they want to say.`, ''); return; } this._open(t.npc); }
+  }
+
+  // ---- everyone else: the guests about the grid ---------------------------------------------------------------------
+  /**
+   * The grid's guests (CrowdLife's role 'guest': the knots of VIPs round the cars, the presenters by the TV crews, the
+   * groups out by the walls), each made somebody: the k-th guest at this circuit is extraSeed('grid:<track>', k) - the
+   * circuit's regulars always the same people, the rest the race's own (the career's season and round) - dressed for
+   * the day as the stars are (Extras.extraLook: race day, a night race's dressier look, a wet one's coat) and drawn by
+   * the NpcCrowd as themselves, while CrowdLife keeps them going (p.away: it draws them no more). -> this.ex { list:
+   * [{ p (CrowdLife's person), k, seed, e (the extra), look (makePerson options), gone (met: out of the crowd) }], scope,
+   * dress, crowd }
+   */
+  _extras() {
+    const L = this.life; if (!L?.people?.length) return;
+    try { if (window.__walkNoExtras) return; } catch (_) { /* (window.__walkNoExtras: the grid as it was, for tests) */ }
+    const C = this.career, tid = this.track.def?.id || this.pre.trackId || 'grid', scope = `grid:${tid}`;
+    const night = C ? `${C.season || 0}.${C.round || 0}` : `q${Math.floor(Date.now() / 864e5)}`;
+    const dress = { occasion: 'grid', night: !!this.night, wet: !!this.weather && this.weather !== 'dry', track: tid, vary: night };
+    const list = L.people.filter((p) => p.role === 'guest').map((p, k) => {
+      const seed = extraSeed(scope, k, { night }), e = extraFor(seed);
+      return { p, k, seed, e, look: extraLook(e, { ...dress, pose: p.idlePose || 'talk' }), gone: false, said: false };
+    });
+    if (!list.length) return;
+    this.ex = { list, scope, dress, crowd: null };
+    this._extrasDraw();
+  }
+  /**
+   * The guests as people of their own (world/NpcFigures.js NpcCrowd): the nearest dozen, within 7.5 m, in full detail -
+   * built a little a frame, the crowd's body shown until each is ready - the rest the crowd's bodies as before
+   * ('external': CrowdLife draws whoever is not shown in full, p.away while they are). Lit as the grid lights everyone
+   * (a night's lift; a woman as the stars are, in the TV crews' key light, so she looks the same once she is met).
+   */
+  _extrasDraw() {
+    const X = this.ex; if (!X) return;
+    const night = !!this.night, pre = this.pre;
+    X.crowd = new NpcCrowd({ scene: pre.group, near: 7.5, maxHigh: 12, keep: 6, budget: 5, far: 'external',
+      people: X.list.map((x) => ({ seed: x.seed, opts: x.look, fem: x.e.fem, x: x.p.x, y: TERRAIN.at(x.p.x, x.p.z), z: x.p.z, yaw: x.p.yaw, anim: 'talk', data: x, on: !x.p.path })),
+      onLevel: (P, high) => { const x = P.data; if (x && !x.gone) x.p.away = high; },
+      prep: (person, P) => {
+        if (night) for (const k in person.mats) { const m = person.mats[k]; if (m.emissive && m.color) m.emissive.copy(m.color).multiplyScalar(0.2); }
+        if (P.fem) { try { pre._keyLit?.(person); } catch (_) { /* (the crowd's lift is enough) */ } }
+      } });
+    X.byX = new Map(X.crowd.people.map((P) => [P.data, P]));
+    // (the few nearest where you start, built now - the moment the walk takes over from the show - so the first look
+    // round is already sharp; the rest come in a little a frame)
+    for (const f of X.crowd.warm(4, { x: this.pos.x, y: 1.7, z: this.pos.z, fx: Math.cos(this.yaw), fz: Math.sin(this.yaw) })) { try { f(); } catch (e) { console.warn('GridWalk: a guest', e); } }
+  }
+  /**
+   * A frame of the guests: each where CrowdLife has them now (on the ground there, turned as they are), in full detail
+   * when near - standing about in the pose they stand in, a phone up while they film or take a selfie; anyone walking
+   * goes back to the crowd's walking body until they stop
+   */
+  _extrasFrame(dt) {
+    const X = this.ex; if (!X?.crowd) return;
+    try {
+      const C = X.crowd;
+      for (const x of X.list) {
+        if (x.gone) continue; const P = X.byX.get(x), p = x.p; if (!P) continue;
+        const walking = !!p.path; if (P.on === walking) C.setOn(P, !walking);
+        if (walking) continue;
+        if (P.x !== p.x || P.z !== p.z) C.move(P, p.x, p.z, p.yaw, TERRAIN.at(p.x, p.z)); else if (P.yaw !== p.yaw) P.yaw = p.yaw;   /* (the ground looked up again only once they have moved) */
+        const pose = p.act === 'phone' || p.act === 'selfie' ? 'phone' : p.idlePose || 'talk'; if (pose !== P.pose) C.setPose(P, pose);
+        const anim = p.act === 'chat' ? 'talk' : 'idle'; if (anim !== P.anim) C.setAnim(P, anim);
+      }
+      C.update(this.camera, dt);
+    } catch (e) { if (!X.err) { X.err = true; console.warn('GridWalk: the guests', e); } }
+  }
+  /** the guests' own drawing, for tests and the frame counts -> NpcCrowd stats | null */
+  get extras() { const X = this.ex; return X ? { list: X.list, crowd: X.crowd, stats: () => X.crowd?.stats?.() || null } : null; }
+  /** the guests back to the crowd's drawing (a fault in the people of their own), and their own gone */
+  _extrasOff() {
+    const X = this.ex; if (!X) return;
+    for (const x of X.list) if (!x.gone) x.p.away = false;
+    try { X.crowd?.dispose?.(); } catch (_) { /* */ } X.crowd = null;
+  }
+  /** a guest said hello to: a man's word back; on a memorial weekend anyone's quiet word; a woman met (_meetExtra) */
+  _hello(x) {
+    const p = x.p, e = x.e, mem = !!(this.x.L || this.pre.mem);
+    // (they stop for you - CrowdLife lets them go back to it after)
+    p.t = Math.max(p.t, 3.5); if (p.path) { p.path = null; p.act = 'chat'; }
+    if (x.said && (mem || !e.fem)) { this._toast(mem ? 'They have gone back to their own thoughts.' : 'He has gone back to his friends.', ''); return; }
+    if (mem || !e.fem) { x.said = true; this._toast(`"${pick(mem ? HELLO_QUIET : HELLO_M)}" - ${GUEST_OF(p).replace(/^(Guest|A guest)/, (m) => m.toLowerCase())}`, ''); return; }
+    this._meetExtra(x);
+  }
+  /**
+   * A woman from the crowd, walked up to: taken into the game for the walk as the local her seed already is
+   * (Extras.promoteExtra with no career: her name, her personality - nothing saved), out of the crowd (CrowdLife lets
+   * her go, the NpcCrowd hands over the very figure it drew her in) and stood where she was, one of the walk's people
+   * (kind 'star'), and the first talk opened: how you meet a stranger (StrangerTalk). Whether she becomes someone you
+   * know is that talk's to decide (its done(): her number swapped - promoted, met, in your phone - or no trace at all);
+   * someone you met before is simply someone you know, and talks as the stars do. -> the npc | null
+   */
+  _meetExtra(x) {
+    const C = this.career, me = this.player, real = !!C && (me.careerId || C.playerId) === C.playerId;
+    let lid = null; try { lid = promoteExtra(null, x.seed); } catch (e) { console.warn('GridWalk: she could not be taken in', e); }
+    const K = lid ? CELEB[lid] : null; if (!K) return null;
+    const p = x.p, L = this.life, i = L.people.indexOf(p); if (i >= 0) L.people.splice(i, 1);
+    x.gone = true; p.away = true;
+    // (her figure from the crowd, the very one it drew her in - built now if it had not been - else one of her own in the same look)
+    let person = null, P = this.ex.byX?.get(x) || null;
+    try { const T = P ? this.ex.crowd.take(P, true) : null; person = T?.person || null; } catch (e) { console.warn('GridWalk: her figure from the crowd', e); }
+    if (!person) {
+      try { person = makePerson(x.look || celebLook(K, { ...this.ex.dress, pose: 'talk' })); } catch (e) { console.warn('GridWalk: her own figure', e); return null; }
+      if (this.night) for (const k in person.mats) { const m = person.mats[k]; if (m.emissive && m.color) m.emissive.copy(m.color).multiplyScalar(0.2); }
+      try { this.pre._keyLit?.(person); } catch (_) { /* (lit as the crowd is) */ }
+    }
+    const face = facing(this.pos.x - p.x, this.pos.z - p.z);
+    person.group.position.set(p.x, TERRAIN.at(p.x, p.z), p.z); person.group.rotation.set(0, p.yaw, 0); person.group.scale.setScalar(1);
+    this.pre.group.add(person.group); this.pre.people.push(person); this.hq.push(person.group.position);
+    const b = real ? C.celebs?.bonds?.[lid] : null, known = !!b && b.stage !== 'stranger';
+    // (a stranger is a guest to you until she says who she is: her name on the tag once you have her number)
+    const n = { kind: 'star', celebId: lid, name: K.name, job: K.job, work: K.work, role: known ? `${K.job} · ${b.stage === 'ex' ? 'your ex' : 'guest'}` : GUEST_OF(p), person, persona: 'decent', mood: 0, mood0: 0, face0: face,
+      stage: b?.stage || 'stranger', grieving: !!b?.grieving, accepted: !!b?.accepted, partner: false, stranger: !known, extra: x.e, real };
+    this.npcs.push(n); this._addTag(n);
+    this._open(n);
+    return n;
+  }
+  /**
+   * The first talk with a woman from the crowd: StrangerTalk's opener (ui/StrangerTalk.js strangerTalk(extra, ctx): her
+   * own personality meeting you on the grid) -> a talk tree | null (none of its own: the walk's usual talk with
+   * someone she is - a stranger, met just now - runs instead: the stars' first hellos, her personality's first talk)
+   */
+  _strangerTree(n) {
+    const e = n.extra, x = this.x, C = n.real ? this.career : null, me = this.player || {};
+    const ctx = { c: C, x, n, where: 'grid', venue: this.track.def?.id || 'grid', scope: this.ex?.scope || null, occasion: 'grid', night: !!this.night, anim: n.anim || 'talk', zone: 'grid', level: 0,
+      me: { name: me.name || '', first: first(me.name), fame: C?.drivers?.[C.playerId]?.fame ?? null }, memorial: !!x.L, track: x.trackName };
+    try { const t = strangerTalk(e, ctx); if (t?.say && t.opts?.length) { if (!t.id) t.id = 'stranger'; t.stranger = true; return t; } } catch (err) { console.warn('GridWalk: the stranger talk failed', err); }
+    // (none: a talk with her all the same, but one that leaves nothing in the career - only StrangerTalk makes a meeting)
+    n.noFx = true; return null;
+  }
+  /**
+   * A talk with someone from the crowd over: what StrangerTalk's done() made of it (tree.result: { outcome, promote,
+   * lid, cid, stage, line }) - her number swapped, she is someone you know now (her name on the tag, her stage, its
+   * line); otherwise she stays a guest you talked to, and nothing is kept
+   */
+  _strangerDone(n, T0) {
+    const R = T0.tree?.stranger ? T0.tree.result || null : null; T0.strangerFx = true;
+    if (R?.line) this._toast(R.line, R.promote ? 'up' : '');
+    if (!R?.promote) return;
+    n.stranger = false; n.stage = R.stage || 'met'; n.role = `${n.job ? n.job + ' · ' : ''}${n.stage === 'met' ? 'just met' : 'guest'}`;
+    const d = this.tags[this.npcs.indexOf(n)]; if (d) d.innerHTML = `${esc(n.name)}<small>${esc(n.role)}</small>`;
+  }
+  /** a name tag for someone who joined the walk's people after it began */
+  _addTag(n) {
+    const d = document.createElement('div'); d.className = 'tag'; d.innerHTML = n.stranger ? `${esc(n.role)}` : `${esc(n.name)}<small>${esc(n.role)}</small>`;
+    this.el.querySelector('.tags').appendChild(d); this.tags[this.npcs.indexOf(n)] = d; return d;
   }
 
   // ---- the memorial ------------------------------------------------------------------------------------------------
@@ -580,6 +752,8 @@ export class GridWalk {
 
   // ---- talking -----------------------------------------------------------------------------------------------------
   _topics(n) {
+    // (someone from the crowd, the first time: how you meet a stranger)
+    if (n.stranger && n.extra && !n.talked) { const t = this._strangerTree(n); if (t) return t; }
     const x = this.x, others = this.cars.filter((c) => c !== this.player && c !== n.car);
     x.X = others.length ? pick(others.filter((c) => Math.abs((c.gridPos || 0) - (this.player.gridPos || 0)) <= 4).concat(others.slice(0, 3))) : null;
     const W = [], star = n.kind === 'star', quiet = star && (!!x.L || !!n.grieving);
@@ -605,7 +779,7 @@ export class GridWalk {
     // (a star talks as who she is (career/Persona.js): her personality's conversations, opening in the mood you left her
     //  in - except on a quiet day, as an ex, or now and then when there is something to do: ask her out, your partner's
     //  good luck before the start)
-    if (star && !quiet && n.stage !== 'ex' && n.celebId) {
+    if (star && !quiet && n.stage !== 'ex' && n.celebId && !n.noFx) {   /* (never for a talk that must leave nothing behind: her personality's story is the career's) */
       const does = W.filter((w) => w[2] && TOPICS4.some((d) => d.id === w[2] && JSON.stringify(d.opts || []).match(/askout|partner/)));
       if (!(does.length && Math.random() < 0.3)) {
         try { const t = personaTalk(this.career || (this._pc || (this._pc = {})), 'c:' + n.celebId,   /* (a quick race: her moods for this walk only) */ { where: 'grid', T: { name: n.name, job: n.job, venue: 'the grid', track: x.trackName } }); if (t) return t; } catch (e) { console.warn('GridWalk: the personality talk failed', e); }
@@ -624,7 +798,7 @@ export class GridWalk {
     const greet = n.kind === 'driver' && n.mood <= -2 ? pick([`Oh. You.`, `Make it quick.`, `What do you want?`]) : n.kind === 'driver' && n.mood >= 2 ? pick([`Hey!`, `There you are.`, `${first(this.player.name)}!`]) : '';
     this.talk = { n, step: 0, queue: [], opts: null, typed: 0, line: null, hold: 0, dm: 0, fx: [], topic: tree.id || null, mourn: tree.id === 'mourn', tree, ptones: [] };
     this._queue([greet ? `${greet} ${tree.say}` : tree.say], tree.opts);
-    const P = this.el.querySelector('.talk'); P.querySelector('.who').innerHTML = `${esc(n.name)}<small>${esc(n.role)}</small>`; P.classList.add('in');
+    const P = this.el.querySelector('.talk'); P.querySelector('.who').innerHTML = n.stranger ? `A guest<small>${esc(n.role)}</small>` : `${esc(n.name)}<small>${esc(n.role)}</small>`; P.classList.add('in');
     this.el.querySelector('.prompt').classList.remove('in');
   }
   _queue(lines, opts) { const T0 = this.talk; T0.queue = lines.filter((l) => l != null && l !== ''); T0.after = opts; T0.opts = null; this.el.querySelector('.opts').innerHTML = ''; this._nextLine(); }
@@ -714,6 +888,7 @@ export class GridWalk {
     const T0 = this.talk; if (!T0) return; const n = T0.n; this.talk = null; n.talked = true;
     this.el.querySelector('.talk').classList.remove('in');
     if (T0.tree?.done && T0.ptones?.length) { try { T0.tree.done(T0.ptones); } catch (e) { console.warn('GridWalk: the mood could not be kept', e); } }   // (where you steered it: how she opens next time - here, at a party, on the phone)
+    if (n.stranger) this._strangerDone(n, T0);
     this._consequences(n, T0);
     if (n.offended) n.turn = n.face0 + Math.PI;   // (their back to you)
     const i = this.npcs.indexOf(n); this.tags[i]?.classList.add('done');
@@ -734,8 +909,8 @@ export class GridWalk {
       const delta = Math.max(-10, Math.min(10, Math.round(dm < 0 ? dm * 1.2 : dm * 2.5)));
       if (C && n.did && delta) C.relate(n.did, delta, dead ? `appalled by what you said about ${this.x.L?.name} on the grid` : delta < 0 ? 'fell out with you on the grid before the start' : 'got on well with you on the grid');
       if (delta) this._toast(`${n.name} · ${delta > 0 ? 'rapport +' + delta : 'rapport ' + delta}`, delta > 0 ? 'up' : 'down');
-    } else if (dm >= 3 && !hers) this._toast(`${n.name} warmed to you`, 'up');
-    else if (dm <= -3 && !hers) this._toast(`${n.name} won't forget that`, 'down');
+    } else if (dm >= 3 && !hers && !T0.strangerFx && !n.noFx) this._toast(`${n.name} warmed to you`, 'up');
+    else if (dm <= -3 && !hers && !T0.strangerFx && !n.noFx) this._toast(`${n.name} won't forget that`, 'down');
     for (const f of T0.fx) {
       if (f.press && f.line && !f.line.startsWith('[')) {
         if (C) C.addNews?.(`${OUTLET}: "${f.line}" - ${me.name}, on the grid.`);
@@ -755,8 +930,9 @@ export class GridWalk {
     }
     this._onCamera(n, T0);
     // (and what else it comes to - a star's view of you, the papers, morale, a friendship: ui/WalkFx.js, which keeps
-    // to the memorial's rules)
-    wfx('talkFx', this, n, T0);
+    // to the memorial's rules; never for a talk with someone from the crowd - StrangerTalk's done() made the meeting, or
+    // left no trace)
+    if (!T0.tree?.stranger && !n.noFx && !T0.strangerFx) wfx('talkFx', this, n, T0);
     if (C) C.save?.();
   }
   /** the TV crews following you heard it: the news has it (a career's news tab), a note on screen either way */
@@ -787,6 +963,8 @@ export class GridWalk {
   update(dt) {
     if (this.done) return;
     this.t += dt; const cam = this.camera;
+    // (the guests in full detail where the crowd had them - first, so the crowd draws this frame whoever is not)
+    this._extrasFrame(dt);
     this.pre.idle?.(dt, (this.pre.t || 0) + this.t);   // (the grid carries on round you)
     this.life?.follow?.(this.pos, 3, 32);   // (a few of the TV crews and photographers turn to follow you about)
     // the clock to the formation lap (it waits while you talk, at the memorial, and in a scuffle)
@@ -837,7 +1015,7 @@ export class GridWalk {
       const tg = this._target(), pr = this.el.querySelector('.prompt');
       if (tg) {
         const sh = tg.npc && this._shoveable(tg.npc) ? `<span class="alt"><kbd>F</kbd>Shove</span>` : '';
-        pr.innerHTML = tg.car ? `<kbd>E</kbd>Get in the car<small>Start the race</small>` : tg.memorial ? `<kbd>E</kbd>Pay your respects<small>${esc((this.pre.memorial || []).map((m) => m.name).join(' · '))}</small>` : tg.npc.talked ? `${esc(tg.npc.name)}${sh}<small>${tg.npc.offended ? 'Has turned their back on you' : 'Has moved on'}</small>` : `<kbd>E</kbd>Talk to ${esc(tg.npc.name)}${sh}<small>${esc(tg.npc.role)}</small>`;
+        pr.innerHTML = tg.ex ? (tg.ex.said ? `${esc(GUEST_OF(tg.ex.p))}<small>${this.x.L || this.pre.mem ? 'You have said hello' : 'Back with his friends'}</small>` : `<kbd>E</kbd>Say hello<small>${esc(GUEST_OF(tg.ex.p))}</small>`) : tg.car ? `<kbd>E</kbd>Get in the car<small>Start the race</small>` : tg.memorial ? `<kbd>E</kbd>Pay your respects<small>${esc((this.pre.memorial || []).map((m) => m.name).join(' · '))}</small>` : tg.npc.talked ? `${esc(tg.npc.stranger ? tg.npc.role : tg.npc.name)}${sh}<small>${tg.npc.offended ? 'Has turned their back on you' : 'Has moved on'}</small>` : `<kbd>E</kbd>Talk to ${esc(tg.npc.stranger ? 'her' : tg.npc.name)}${sh}<small>${esc(tg.npc.role)}</small>`;
         pr.classList.add('in');
       } else pr.classList.remove('in');
       // (now and then a driver with a score to settle comes over to settle it - who, and whether, is ui/WalkFx.js's
@@ -894,6 +1072,8 @@ export class GridWalk {
     if (this.killed) return; this.killed = true;
     // (a shove or a scuffle cut short: everyone put back, the arms and its overlay gone - no consequences)
     const a = this.brawl; this.brawl = null; try { a?.dispose(); } catch (e) { console.warn('GridWalk: dispose', e); }
+    // (the guests' own people gone; the crowd's are the show's, disposed with it)
+    try { this.ex?.crowd?.dispose?.(); } catch (e) { console.warn('GridWalk: the guests', e); } if (this.ex) this.ex.crowd = null;
     window.removeEventListener('keydown', this._kd, true); window.removeEventListener('keyup', this._ku, true);
     this.canvas.removeEventListener('mousedown', this._md); window.removeEventListener('mouseup', this._mu); window.removeEventListener('mousemove', this._mm);
     try { if (document.pointerLockElement) document.exitPointerLock(); } catch (_) { /* */ }

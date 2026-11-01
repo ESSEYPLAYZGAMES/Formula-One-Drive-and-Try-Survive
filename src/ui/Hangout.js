@@ -26,6 +26,16 @@
 // race in, with the real Sphere and its shows across the road - drawn by the game's renderer and camera. The place is one
 // group standing at the anchor the game picks, its glass and windows turned to the view, a tower under it when it is
 // high up; the painted skylines are left out. Unhosted, it opens its own renderer over a painted night (the fallback).
+// Everyone else in the room is somebody (career/Extras.js: the place's own seed for each - 'hangout:<venue>', its regulars
+// and the night's own - a name, a face, a wardrobe for the evening): the roof's, the pub's, the sim lounge's and the
+// karting hall's other people out tonight, in twos and threes about the floor (never in your flat, the private dining
+// room or a quiet coffee), drawn as people of their own (world/NpcFigures.js NpcCrowd: the nearest in full detail); a
+// party's crowd is its own (world/PartyCrowd.js). E at any of them says hello: a man has a word and goes back to his
+// friends; a woman turns to you and talks - how you meet a stranger (ui/StrangerTalk.js, whose done() decides: her
+// number, and she is a local you know from then on - Extras.promoteExtra, like anyone met at a party: her texts, a
+// flirt, a date - or no trace at all) - and stays to talk again later. That meeting, and the talks after it with someone
+// you know, are the one thing here the career hears of at once (as on the grid: StrangerTalk, then Celebs.talkTo); the
+// evening's result lists them too (met). Whoever you came with notices you talking to someone new, and minds a flirt.
 // Built for an Intel UHD laptop: no shadows, glow from emissive materials and soft decals, every venue's static geometry
 // merged into one mesh per look (the plain ones sharing a mesh, their colour in the vertices), and the people built one a
 // frame behind the opening cover. Its own renderer has one hemisphere and one directional light; hosted, it adds no light
@@ -38,12 +48,16 @@ import { CLUB_KITS_M } from '../world/People.js';
 import { FLOOD } from '../world/Lighting.js';
 import * as Celebs from '../career/Celebs.js';
 import * as HT from './HangoutTalk.js';
+// (everyone else out tonight: somebody each - career/Extras.js - and a woman among them someone to meet)
+import { extraSeed, extraFor, extraLook, extraOf, promoteExtra } from '../career/Extras.js';
+import { strangerTalk } from './StrangerTalk.js';
 // (her look, planned in the room - L, on the roof and at dinner: ui/HubStyle.js's sheet)
 import { sheetFor, openStyleSheet } from './HubStyle.js';
 // party hook: the after-party's rooms (ui/PartyVenues.js), its play layer (ui/PartyPlay.js) and its crowd (world/PartyCrowd.js)
 import { PARTY_PLACES, PARTY_ALIAS, PARTY_HOSTED, PARTY_FOOTPRINT, PARTY_ORDERS, partyClock, partyOccasion, brandLook, zoneAt, spotFor, isPartyVenue } from './PartyVenues.js';
 import { PartyPlay } from './PartyPlay.js';
 import { PartyCrowd } from '../world/PartyCrowd.js';
+import { NpcCrowd } from '../world/NpcFigures.js';
 // pool hook: the pool club - by night, or (dayclub) by day - built by ui/PartyPool.js
 import { POOL_PLACES, POOL_ALIAS, POOL_HOSTED, POOL_FOOTPRINT, POOL_ORDERS, poolOccasion, poolDriverLook } from './PartyPool.js';
 // affection hook: hugs, holding, a slow dance, a kiss - and the drink - at any evening (ui/Affection.js)
@@ -178,7 +192,7 @@ const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
 const gauss = () => (Math.random() + Math.random() + Math.random() - 1.5) / 1.5;
 // (a player who has asked the system for less motion: no head bob, no shake, softer flashes)
 const REDUCED = (() => { try { return !!window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches; } catch (_) { return false; } })();
-/** a test switch on window (window.__hangoutBuzz, __hangoutPaps, __hangoutFast) -> its value or null */
+/** a test switch on window (window.__hangoutBuzz, __hangoutPaps, __hangoutFast, __hangoutNoPatrons) -> its value or null */
 const flag = (k) => { try { return window[k] ?? null; } catch (_) { return null; } };
 /** hours as a clock ('21:05') */
 const hhmm = (h) => { const m = Math.floor(((h % 24) + 24) % 24 * 60); return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`; };
@@ -205,6 +219,15 @@ const OCCASION = { rooftop: 'evening', restaurant: 'dinner', pub: 'casual', siml
 // (and the roof some nights is a club night - late, the DJ playing, the lounge turned purple (its 'Late night'): what a
 // club or an after-party calls for, career/Celebs.js wear.club - by the evening's own seed, never on a quiet one)
 const NIGHTLIFE = new Set(['rooftop']);
+// (the room's other people tonight, by place: the public ones only)
+const PATRONS = { rooftop: 9, pub: 7, simlounge: 6, karting: 8 };
+// (a man's word back when you say hello; anyone's on a quiet night)
+const PATRON_HELLO = ['Evening. Enjoy your night.', "Oh - hi! Big fan. I'll leave you to it.", 'Hey. Have a good one.', "Don't mind us. Good to see you out.", 'Alright? Good place, this.', 'Evening! Good luck at the next one.'];
+const PATRON_QUIET = ['A nod, and they go back to their conversation.', 'A polite smile, and they leave you to your evening.'];
+// (the persona's tones as the career's talk reads them - career/Celebs.js talkEffect - for someone met here)
+const AS_TALK = { passive: 'kind', flirty: 'flirt', risque: 'flirt' };
+/** her job as she says it, with its article: 'an architect', 'an A&E doctor', 'a radio DJ' */
+const anJob = (j) => { const s = String(j || 'something in an office'), w = /^[A-Z&]{2,}/.test(s) ? s : s.charAt(0).toLowerCase() + s.slice(1); return (/^[aeiou]/i.test(w) ? 'an ' : 'a ') + w; };
 /**
  * A man's clothes out at a club (kit: People's CLUB_KITS_M; h: his own number): dark, each his own way - an open silk
  * shirt with a chain, a fine knitted polo, a T-shirt under a blazer or a leather jacket, a bomber, a blazer over an open
@@ -2156,6 +2179,8 @@ class Evening {
     this.talk = null; this.menu = null; this.game = null; this.moment = null; this.ask = null; this.buzzE = null; this.subT = 0; this.bigT = 0; this.photoT = 0; this.helpT = 14; this.chatT = 8 + Math.random() * 6; this.papT = -1; this.lastG = null;
     // party hook: the after-party's play layer (ui/PartyPlay.js), made before the page (it sets x.party and R.party)
     this.party = null; this.cast = {}; this.crowd = null; this.zone = ''; this.zoneMix = 0;
+    // (the room's other people - the public places' own patrons, a party's crowd - and the ones you have met tonight)
+    this.patrons = null; this.met = []; this.metTags = [];
     if (this.isParty && o.key === 'party') { try { this.party = new PartyPlay(this, o); } catch (e) { console.warn('Hangout: the party could not start', e); this.party = null; } }
     // affection hook: getting close, and the drink (ui/Affection.js) - after PartyPlay, whose night it reads
     this.aff = null; if (AFFECTION_ON) try { this.aff = new Affection(this, o); } catch (e) { console.warn('Hangout: affection could not start', e); this.aff = null; }
@@ -2466,6 +2491,8 @@ class Evening {
     else { const S = this.gs.length === 1 ? [pick(V.date)] : V.group; this.gs.forEach((g, i) => { g.spot = S[i] || V.group[i % V.group.length]; }); }
     for (const g of this.gs) this.queue.push(this.isParty ? () => { this._makeGuest(g); this._partyDrink(g); } : () => this._makeGuest(g));
     if (V.staff) this.queue.push(() => this._makeStaff(V.staff));
+    // (the room's other people tonight: the public places' own - never on a quiet night - behind the cover too)
+    if (!this.isParty && !this.quiet && PATRONS[this.vid] && !flag('__hangoutNoPatrons')) this.queue.push(() => this._patronsBuild());   // (window.__hangoutNoPatrons: the room as it was, for tests)
     if (!this.quiet && (this.isParty || K.hots.some((h) => h.kind === 'photo'))) this.queue.push(() => this._makeMe());
     if (this.isParty) this._partyBuild(V);   // party hook: its cast, its crowd and PartyPlay's own steps, all behind the cover
     try { for (const f of this.aff?.steps?.() || []) this.queue.push(f); } catch (e) { console.warn('Hangout: affection could not queue its steps', e); }   // affection hook: you (when missing), six pair frames, the drink
@@ -2519,6 +2546,241 @@ class Evening {
   _makeStaff(s) {
     const p = makePerson({ jitter: 0.01, detail: 0.6, ...s.look }); this._lift(p); p.group.position.set(s.x, 0, s.z); p.group.rotation.y = s.face; this.scene.add(p.group); this._hostLit(p.group);
     this.staff = { ...s, person: p, face0: s.face, hy: 0, nod: 0 }; this.K.discs.push({ x: s.x, z: s.z, r: 0.3, pp: 3 });
+  }
+  /**
+   * Where the room's other people stand tonight (n of them, in twos and threes round a point, facing it): open floor -
+   * inside the room, clear of the furniture, the solid bits and anyone already placed - well away from the way in, the
+   * guests' places, the seats, the staff and everything there is to use, so nobody stands in the way of the evening.
+   * Seeded by the place and the night (the same room the same way all evening) -> [{ x, z, face, pose, group }]
+   */
+  _patronSpots(n) {
+    const K = this.K, V = this.V, out = []; if (!K?.areas?.length || n <= 0) return out;
+    const R = rng(hash(`${this.vid}|patrons|${this.c?.season || 0}.${this.c?.round || 0}`));
+    const keep = [{ x: V.start.x, z: V.start.z, r: 1.9 }];
+    for (const s of [...(V.date || []), ...(V.group || []), ...this.gs.map((g) => g.spot)]) if (s) keep.push({ x: s.x, z: s.z, r: 1.35 });
+    for (const s of V.seats || []) keep.push({ x: s.x, z: s.z, r: 1.0 });
+    for (const h of K.hots) if (h.kind !== 'seat') keep.push({ x: h.p.x, z: h.p.z, r: h.kind === 'game' ? 1.8 : 1.15 });
+    if (V.staff) keep.push({ x: V.staff.x, z: V.staff.z, r: 1.1 });
+    const clear = (x, z, r) => this._free(x, z, r) && keep.every((k) => (x - k.x) ** 2 + (z - k.z) ** 2 >= k.r * k.r) && out.every((o) => (x - o.x) ** 2 + (z - o.z) ** 2 >= 0.62 * 0.62);
+    // (a point on the floor: each of the room's areas by its size)
+    const A = K.areas, tot = A.reduce((s, a) => s + (a.x1 - a.x0) * (a.z1 - a.z0), 0);
+    const floor = () => { let r = R() * tot; for (const a of A) { const w = (a.x1 - a.x0) * (a.z1 - a.z0); if ((r -= w) <= 0) return [a.x0 + R() * (a.x1 - a.x0), a.z0 + R() * (a.z1 - a.z0)]; } const a = A[0]; return [(a.x0 + a.x1) / 2, (a.z0 + a.z1) / 2]; };
+    const POSE = ['talk', 'talk', 'cross', 'hips', 'gesture', 'phone'];
+    for (let t = 0, g = 0; t < 160 && out.length < n; t++) {
+      const [cx, cz] = floor(); if (!clear(cx, cz, 0.55)) continue;
+      const m = Math.min(n - out.length, 2 + (R() < 0.35 ? 1 : 0)), a0 = R() * Math.PI * 2, got = [];
+      for (let i = 0; i < m; i++) {
+        const a = a0 + (i / m) * Math.PI * 2 + (R() - 0.5) * 0.5, r = 0.42 + R() * 0.16, x = cx + Math.cos(a) * r, z = cz + Math.sin(a) * r;
+        if (!clear(x, z, 0.3) || got.some((o) => (x - o.x) ** 2 + (z - o.z) ** 2 < 0.62 * 0.62)) continue;
+        got.push({ x, z, face: facing(cx - x, cz - z) + (R() - 0.5) * 0.3, pose: POSE[(R() * POSE.length) | 0], group: g });
+      }
+      // (on their own only when there is no room for two: nobody stands about alone in a pair's place)
+      if (got.length >= 2 || (got.length === 1 && n - out.length === 1)) { out.push(...got); g++; }
+    }
+    return out;
+  }
+
+  // ---- everyone else out tonight: the room's other people, and the ones you meet ---------------------------------------
+  /**
+   * The public places' other people (PATRONS): somebody each - the k-th here is extraSeed('hangout:<venue>', k), its
+   * regulars always the same people, the rest the night's own (the career's season and round) - dressed for the
+   * evening as the guests are (Extras.extraLook, the evening's occasion), stood about the floor (_patronSpots) and drawn
+   * as themselves; soft to walk through, as the guests are -> this.patrons { list: [{ spot, k, seed, e, look, gone, said,
+   * disc, person }], scope, night, crowd }
+   */
+  _patronsBuild() {
+    const n = PATRONS[this.vid] || 0, spots = this._patronSpots(n); if (!spots.length) return;
+    const scope = `hangout:${this.vid}`, night = this.c ? `${this.c.season || 0}.${this.c.round || 0}` : `q${Math.floor(Date.now() / 864e5)}`, occ = this.occ || OCCASION[this.vid] || 'casual';
+    const list = spots.map((s, k) => {
+      const seed = extraSeed(scope, k, { night }), e = extraFor(seed);
+      const look = extraLook(e, { occasion: occ, pose: s.pose, night: this.night, track: this.trackId, vary: night, detail: 0.6 });
+      const disc = { x: s.x, z: s.z, r: 0.28, pp: 4 }; this.K.discs.push(disc);
+      return { spot: s, k, seed, e, look, gone: false, said: false, disc, person: null, hy: 0, hz: 0, ph: Math.random() * 10 };
+    });
+    this.patrons = { list, scope, night, occ, crowd: null };
+    this._patronsDraw();
+  }
+  /**
+   * The patrons drawn (world/NpcFigures.js NpcCrowd): a room is small enough for all of them in full detail, each lit as
+   * the guests are (the room's lift, hosted the room's own light) - built behind the cover, one a frame, before the room
+   * is shown; heads that turn to you as you come close, a nod as they talk among themselves. Should it fail, each a
+   * person of their own, the same way.
+   */
+  _patronsDraw() {
+    const X = this.patrons; if (!X) return;
+    try {
+      X.crowd = new NpcCrowd({ scene: this.scene, near: 40, maxHigh: X.list.length, keep: 0, budget: 6, far: 'none',
+        people: X.list.map((x) => ({ seed: x.seed, opts: x.look, fem: x.e.fem, x: x.spot.x, y: 0, z: x.spot.z, yaw: x.spot.face, anim: 'talk', data: x })),
+        prep: (person) => { this._lift(person); this._hostLit(person.group); } });
+      X.byX = new Map(X.crowd.people.map((P) => [P.data, P]));
+      for (const f of X.crowd.warm(X.list.length, { x: this.V.start.x, y: 1.66, z: this.V.start.z })) this.queue.push(f);
+    } catch (e) {
+      console.warn('Hangout: the room\'s people, one by one', e); try { X.crowd?.dispose?.(); } catch (_) { /* */ } X.crowd = null;
+      for (const x of X.list) { const s = x.spot, p = makePerson(x.look); this._lift(p); p.group.position.set(s.x, 0, s.z); p.group.rotation.y = s.face; this.scene.add(p.group); this._hostLit(p.group); x.person = p; }
+    }
+  }
+  /** a frame of the room's other people: heads that turn to you as you come near, a look at each other */
+  _patronsFrame(dt) {
+    const X = this.patrons; if (!X) return;
+    if (X.crowd) { try { X.crowd.update(this.cam, dt); } catch (e) { if (!X.err) { X.err = true; console.warn('Hangout: the room\'s people', e); } } return; }
+    const P = this.pos, t = this.t;
+    for (const x of X.list) {
+      const h = x.person?.head; if (x.gone || !h) continue; const gp = x.person.group, dx = P.x - gp.position.x, dz = P.z - gp.position.z, d = Math.hypot(dx, dz);
+      let ty = 0.25 * Math.sin(t * 0.29 + x.ph) + 0.1 * Math.sin(t * 0.71 + x.ph * 2), tz = 0.02 * Math.sin(t * 0.5 + x.ph);
+      if (d < 2.6) { ty = clamp(wrap(facing(dx, dz) - gp.rotation.y), -0.9, 0.9); tz = clamp(Math.atan2(P.y - 1.55, Math.max(0.4, d)), -0.3, 0.4) * 0.6; }
+      x.hy += (ty - x.hy) * Math.min(1, dt * 3); x.hz += (tz - x.hz) * Math.min(1, dt * 3);
+      h.rotation.y = x.hy; h.rotation.z = x.person.bow + x.hz;
+    }
+  }
+  /** the room's people you could be looking at - and a party's crowd's woman you face - into _target's reckoning (consider: its own) */
+  _patronAt(consider) {
+    const X = this.patrons; if (X) for (const x of X.list) if (!x.gone) consider({ px: x }, x.spot.x, x.spot.z, 2.2, -0.08);
+    // (a party's crowd, or the pool club's: the woman you face, close enough to walk up to - world/PartyCrowd.js stranger)
+    const C = this.crowd; if (!this.quiet && typeof C?.stranger === 'function') { try { const q = C.stranger(this.pos.x, this.pos.z, Math.cos(this.yaw), Math.sin(this.yaw), 2.2); if (q) consider({ cx: q }, q.x, q.z, 2.2, -0.08); } catch (_) { /* (no one to walk up to) */ } }
+  }
+  /** what someone in a party's crowd is doing, under the prompt */
+  _crowdWord(q) { return q.role === 'dancer' || q.role === 'performer' ? 'Dancing' : q.role === 'bar' ? 'At the bar' : q.role === 'booth' || q.seat ? 'At a table' : q.zone === 'quiet' ? 'Out on the terrace' : 'In the room'; }
+  /**
+   * E at a woman in a party's crowd (or the pool club's): at a party PartyPlay's own walk-up first (meetStranger: its
+   * guest, with the night's drinks, dances and contacts); else she leaves the crowd (PartyCrowd.takeOut: the very figure
+   * it drew her in), taken into the game with no career (Extras.promoteExtra - StrangerTalk decides the rest) and made a
+   * guest of the night (role 'stranger') - or, on an ordinary evening at the pool club, someone from the room like the
+   * patrons -> her guest record | null
+   */
+  _meetCrowd(q) {
+    if (this.party && typeof this.party.meetStranger === 'function') { try { return this.party.meetStranger(q) || null; } catch (e) { console.warn('Hangout: the party\'s walk-up', e); return null; } }
+    let got = null; try { got = this.crowd.takeOut?.(q) || null; } catch (e) { console.warn('Hangout: her figure from the crowd', e); }
+    if (!got?.person || !got.extra) return null;
+    let lid = null; try { lid = promoteExtra(null, got.extra.seed); } catch (e) { console.warn('Hangout: she could not be taken in', e); }
+    const K = lid ? Celebs.CELEB?.[lid] : null; if (!K) { try { got.person.group.parent?.remove(got.person.group); got.person.dispose(); } catch (_) { /* */ } return null; }
+    if (!got.person.group.parent) this.scene.add(got.person.group);
+    const sp = { x: got.spot.x, z: got.spot.z, face: got.spot.face, pose: got.spot.pose === 'sit' ? 'sit' : 'stand', y: got.spot.y || 0 };
+    if (!this.isParty) return this._metGuest(K, { e: got.extra, look: got.opts }, got.person, sp, null);
+    const g = this._partyFill(this._guest({ kind: 'celeb', id: K.id, name: K.name, cid: 'c:' + K.id }, this.gs.length), { role: 'stranger', talk: 3, fictional: true });
+    Object.assign(g, { extra: got.extra, person: got.person, spot: sp, face0: sp.face, pose: got.opts?.pose || 'talk', opts: got.opts, disc: { x: sp.x, z: sp.z, r: 0.3, pp: 1 } });
+    this.K.discs.push(g.disc);
+    let n = null; try { if (typeof HT.hangoutGuest === 'function') n = HT.hangoutGuest(this.c, { kind: 'celeb', id: K.id, name: K.name, cid: g.cid, role: 'stranger' }, this.x); } catch (e) { console.warn('Hangout: could not read her', e); }
+    g.n = n || { kind: 'celeb', id: K.id, name: K.name, first: g.first, celebId: K.id, job: K.job }; g.n.talks = 0;
+    this.gs.push(g);
+    const d = document.createElement('div'); d.className = 'hg-tag'; d.innerHTML = `${esc(g.name)}<small>${esc(this._sub(g))}</small>`; this.$('.hg-tags').appendChild(d); this.tagEls.push(d);
+    this._open(g);
+    return g;
+  }
+  /** tests: stood 1.2 m from one of the room's people, on open floor, looking at them - where nobody else is nearer the eye -> done */
+  _standBy(x) {
+    const s = x.spot;
+    for (let k = 0; k < 16; k++) { const a = s.face + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * 0.4, px = s.x + Math.cos(a) * 1.2, pz = s.z - Math.sin(a) * 1.2; if (!this._free(px, pz, 0.24, null, true)) continue; this.pos.x = px; this.pos.z = pz; this.yaw = Math.atan2(s.z - pz, s.x - px); if (this._target()?.px === x) return true; }
+    return false;
+  }
+  /** the prompt for one of the room's people: say hello (a nod on a quiet night) */
+  _patronPrompt(x) { return this.quiet ? `<span>Out for the evening</span>` : `<span><kbd>E</kbd>Say hello</span><small>${esc(x.said && !x.e.fem ? 'Back with his friends' : 'Out for the evening')}</small>`; }
+  /** E at one of the room's people: a man's word back, a woman met (_meetPatron); a quiet night, a nod */
+  _helloPatron(x) {
+    if (this.quiet) { this._toast(pick(PATRON_QUIET), ''); return; }
+    if (!x.e.fem) {
+      if (x.said) { this._toast('He has gone back to his friends.', ''); return; }
+      x.said = true; this._toast(`"${pick(PATRON_HELLO)}"`, ''); return;
+    }
+    this._meetPatron(x);
+  }
+  /**
+   * A woman from the room, walked up to: taken into the game for the evening as the local her seed already is
+   * (Extras.promoteExtra with no career - her name, her personality, nothing saved), out of the crowd and into the very
+   * figure the room drew her in, where she stood - and from now on someone here on her own account: talks (StrangerTalk's
+   * until she is someone you know, her personality's after), a head that turns, a tag; never in the games, the photos or
+   * the evening's own score (_present is the people you came with). Whether she becomes someone you know is her talk's
+   * to say (StrangerTalk's done(): her number - met, in your phone - or no trace); someone you met before is simply
+   * someone you know -> the room's guest | null
+   */
+  _meetPatron(x) {
+    let lid = null; try { lid = promoteExtra(null, x.seed); } catch (e) { console.warn('Hangout: she could not be taken in', e); }
+    const K = lid ? Celebs.CELEB?.[lid] : null; if (!K) return null;
+    const s = x.spot; x.gone = true;
+    let p = x.person; x.person = null;
+    // (the very figure the room drew her in, handed over - built now if it was not yet)
+    const P = this.patrons.byX?.get(x); if (!p && P) { try { const T = this.patrons.crowd.take(P, true); p = T?.person || null; if (p) this.scene.add(p.group); } catch (e) { console.warn('Hangout: her figure from the room', e); } }
+    if (!p) { p = makePerson(x.look); this._lift(p); p.group.position.set(s.x, 0, s.z); p.group.rotation.y = s.face; this.scene.add(p.group); this._hostLit(p.group); }
+    return this._metGuest(K, x, p, { x: s.x, z: s.z, face: s.face, pose: 'stand', y: 0 }, x.disc);
+  }
+  /** someone from the room, made a guest-shaped record of her own (this.met: the talk, the head, the tag work as a guest's) -> g */
+  _metGuest(K, x, person, spot, disc) {
+    const g = this._guest({ kind: 'celeb', id: K.id, name: K.name }, -1), b = this.c?.celebs?.bonds?.[K.id], known = !!b && b.stage !== 'stranger';
+    Object.assign(g, { room: true, stranger: !known, known, extra: x.e, person, spot, face0: spot.face, pose: x.look?.pose || 'talk', opts: x.look, disc: disc || { x: spot.x, z: spot.z, r: 0.28, pp: 1 }, metAt: this.t });
+    if (g.disc) g.disc.pp = 1; if (!this.K.discs.includes(g.disc)) this.K.discs.push(g.disc);
+    let n = null; try { if (typeof HT.hangoutGuest === 'function') n = HT.hangoutGuest(this.c, { kind: 'celeb', id: K.id, name: K.name }, this.x); } catch (e) { console.warn('Hangout: could not read her', e); }
+    g.n = n || { kind: 'celeb', id: K.id, name: K.name, first: g.first, celebId: K.id, job: K.job, work: K.work }; g.n.talks = 0; g.n.celebId = g.n.celebId || K.id; g.n.job = g.n.job || K.job; g.n.work = g.n.work || K.work;
+    this.met.push(g);
+    const d = document.createElement('div'); d.className = 'hg-tag'; this.$('.hg-tags').appendChild(d); this.metTags.push(d); this._retag(g);
+    this._open(g);
+    return g;
+  }
+  /**
+   * After a talk with someone from the room: a stranger's is StrangerTalk's to decide (its done() already did what was
+   * due - her number, or no trace); with someone you know the career hears of it at once, as on the grid - each answer's
+   * tone as she takes it (Celebs.talkTo: affection, a flirt in it), a charm. Either way whoever you came with saw it: a
+   * word with someone new costs a little with a date, a flirt more (her evening, the score's)
+   */
+  _metFx(g, T0) {
+    const tones = (T0.tones || []).map((t) => AS_TALK[t] || t), flirted = tones.includes('flirt') || !!T0.flirt;
+    // (a stranger's talk: what StrangerTalk's done() made of it - tree.result - and nothing of the evening's own: her
+    // number swapped, she is someone you know (her name on the tag, her stage, its line); else she stays a stranger)
+    if (T0.tree?.stranger) {
+      const R = T0.tree.result || null; if (R?.line) this._toast(R.line, R.promote ? 'up' : '');
+      if (R?.promote) { g.stranger = false; g.promoted = true; if (g.n) g.n.stage = R.stage || 'met'; this.R.moments.push(`Swapped numbers with ${g.name}.`); }
+      this._retag(g);
+    } else if (this.c && !T0.noFx && !g.stranger && g.id && Celebs.CELEB?.[g.id]) {
+      try {
+        const r = typeof Celebs.talkTo === 'function' ? Celebs.talkTo(this.c, g.id, tones) : null;
+        if (T0.flirt && !tones.includes('flirt') && typeof Celebs.flirt === 'function') Celebs.flirt(this.c, g.id);
+        if (T0.charm && typeof Celebs.charm === 'function') Celebs.charm(this.c, g.id);
+        const b = this.c.celebs?.bonds?.[g.id];
+        if (r?.met) this._toast(`Met ${g.name} · she's in your phone`, 'up'); else if (r?.delta) this._toast(`${g.first} · affection ${r.delta > 0 ? '+' : ''}${r.delta}`, r.delta > 0 ? 'up' : 'down');
+        if (b) { g.n.stage = b.stage; this._retag(g); }
+      } catch (e) { console.warn('Hangout: meeting her', e); }
+    }
+    // (whoever you came with, close enough to see: a date minds most)
+    for (const o of this._present()) {
+      if (o.kind !== 'celeb' || o === g) continue;
+      const q = o.person.group.position, near = Math.hypot(q.x - g.person.group.position.x, q.z - g.person.group.position.z) < 10;
+      if (!near) continue;
+      const k = flirted ? (this.x.date ? 3 : 2) : this.x.date ? 1 : 0; if (!k) continue;
+      o.dm -= k; if (flirted) { this._toast(`${o.first} saw you flirting with ${g.first}`, 'down'); this.R.moments.push(`Flirted with ${g.first} in front of ${o.first}.`); o.glance = 2.2; o.glanceAt = g.person.group.position; }
+      else this._toast(`${o.first} was left on her own for a bit`, '');
+    }
+  }
+  /** a room's guest's tag again: a stranger has none to speak of, someone you know her name and how you stand */
+  _retag(g) { const i = this.met.indexOf(g), d = this.metTags[i]; if (d) d.innerHTML = g.stranger ? 'Out for the evening' : `${esc(g.name)}<small>${esc(this._sub(g))}</small>`; }
+  /**
+   * A talk with a stranger: StrangerTalk's (ui/StrangerTalk.js strangerTalk(extra, ctx): her own personality meeting you
+   * here - a second the same night, her 'again') -> a talk tree (persona-shaped, its done() deciding what it comes to) |
+   * null (none: the usual talk, which leaves nothing in the career)
+   */
+  _strangerTree(g) {
+    const e = g.extra || extraOf(g.id); if (!e) return null;
+    const me = this.c?.drivers?.[this.c?.playerId], party = !!this.isParty;
+    let level = 0; try { level = party ? +(this.party?.level ?? 0) || 0 : 0; } catch (_) { level = 0; }
+    const ctx = { c: this.c || null, x: this.x, n: g.n, where: party ? 'party' : 'hangout', venueId: this.vid, scope: this.patrons?.scope || (party ? null : `hangout:${this.vid}`), venue: this.P.name, track: this.trackId,
+      occasion: this.occ, night: !!this.night, anim: 'talk', zone: this.zone || '', level, quiet: !!this.quiet, me: { name: this.meName, first: firstOf(this.meName), fame: me?.fame ?? null } };
+    try { const t = strangerTalk(e, ctx); if (t?.say && t.opts?.length) { if (!t.id) t.id = 'stranger'; t.stranger = true; return t; } } catch (err) { console.warn('Hangout: the stranger talk failed', err); }
+    return null;
+  }
+  /** the evening's own few lines for a stranger StrangerTalk has no talk for: a hello that leaves nothing in the career (nor her personality's story) -> a talk tree */
+  _strangerFallback(g) {
+    const F = g.first, job = anJob(g.n?.job || g.C?.job);
+    const who = { say: pick([`I'm ${F}, by the way. I'm here with a couple of friends - they're around somewhere.`, `${F}. Hi. My friends dragged me out tonight, and now I'm glad they did.`]),
+      opts: [
+        { tone: 'kind', t: pick([`Good to meet you, ${F}. What do you do?`, `Nice to meet you. What do you do when you're not out?`]), r: pick([`I'm ${job}. Nothing nearly as fast as you.`, `I'm ${job}. Long week. This helps.`]) },
+        { tone: 'light', t: pick([`If your friends don't come back, you can stay with me.`, `Your friends have excellent taste in places.`]), r: pick([`Ha. I'll tell them you said so.`, `They'll be unbearable about it.`]) },
+        { tone: 'flirt', fx: { flirt: true }, t: pick([`I'm glad they did too.`, `Then I owe your friends one.`]), r: pick([`...Okay. That was smooth.`, `Careful. I might start believing you.`]) },
+        { tone: 'cold', t: `Enjoy your night.`, r: pick([`Oh - right. You too.`, `...Sure. You too.`]) },
+      ] };
+    return { id: 'stranger', say: pick([`Oh - hi. Sorry, I was miles away.`, `Hello. Do I know you from somewhere? You look really familiar.`, `Hi. Are you looking for someone, or just escaping your friends too?`]),
+      opts: [
+        { tone: 'kind', t: pick([`Just saying hello. How's your evening going?`, `I'm not looking for anyone. Just saying hello.`]), r: pick([`Better now. Hi.`, `Quiet. Nice, actually.`]), then: who },
+        { tone: 'light', t: pick([`Escaping, definitely. Don't tell anyone where I am.`, `I get that a lot. I have one of those faces.`]), r: pick([`Ha. Your secret's safe.`, `Ha. Sure you do.`]), then: who },
+        { tone: 'flirt', fx: { flirt: true }, t: pick([`I saw you from across the room and thought I'd come and say hi.`, `Not looking for anyone. I think I've found someone, though.`]), r: pick([`...Oh. Well. Hello, then.`, `Ha. That's a line. It's working, a bit.`]), then: who },
+        { tone: 'cold', t: `Sorry - wrong person.`, r: pick([`Oh. Okay.`, `No worries.`]) },
+      ] };
   }
   /** you, for the photos only (hidden otherwise): your driver in their own clothes - for a club night, a club's (clubOf) */
   _makeMe() {
@@ -2582,7 +2844,7 @@ class Evening {
   }
   update(dt) {
     this.t += dt; this.tl += dt * (flag('__hangoutFast') ? 20 : 1); this.clock = this.P.start + (this.tl * (this.P.rate || RATE)) / 3600;
-    this._cues(dt); this._events(dt); this._people(dt); this._moodLerp(dt);
+    this._cues(dt); this._events(dt); this._people(dt); this._patronsFrame(dt); this._moodLerp(dt);
     if (this.isParty) this._partyUpdate(dt);   // party hook: where you stand (zone, the deck's height), then PartyPlay's own frame
     if (this.aff) { try { this.aff.update(dt); } catch (e) { if (!this.affErr) { this.affErr = true; console.warn('Hangout: affection', e); } } }   // affection hook: links, heads, her moves, the drink
     if (this.game) { this.game.update(dt); if (this.game.done) this._gameOver(); }
@@ -2636,7 +2898,7 @@ class Evening {
     }
     return hard;
   }
-  _discOwner(d) { const G = this.gs; for (let i = 0; i < G.length; i++) if (G[i].disc === d) return G[i]; return null; }
+  _discOwner(d) { const G = this.gs; for (let i = 0; i < G.length; i++) if (G[i].disc === d) return G[i]; for (const g of this.met) if (g.disc === d) return g; return null; }
   _walk(dt) {
     const k = this.keys;
     if (k.has('ArrowLeft')) this.yaw -= dt * 1.8; if (k.has('ArrowRight')) this.yaw += dt * 1.8;
@@ -2665,6 +2927,9 @@ class Evening {
     for (const g of this.gs) if (g.person && !g.gone) consider({ g }, g.person.group.position.x, g.person.group.position.z, this.seat ? 2.9 : 2.5, this.isParty && g.talks >= 3 ? -0.3 : 0);
     for (const h of this.hots) { if ((h.kind === 'seat' && this.seat) || (this.quiet && (h.kind === 'game' || h.kind === 'photo'))) continue; consider({ h }, h.p.x, h.p.z, h.reach, this.isParty && h.kind === 'bar' ? 0.12 : 0); }
     if (this.staff?.person && !this.staff.hot) consider({ s: this.staff }, this.staff.x, this.staff.z, 2.4);
+    // (the people you have met tonight, as guests; the room's other people a little further down the list)
+    for (const g of this.met) if (g.person && !g.gone) consider({ m: g }, g.person.group.position.x, g.person.group.position.z, this.seat ? 2.9 : 2.5, g.talks >= 3 ? -0.3 : 0);
+    this._patronAt(consider);
     return best;
   }
   _prompt() {
@@ -2673,8 +2938,11 @@ class Evening {
     if (t?.g) { const g = t.g, look = this._styleOk(g) ? '<span><kbd>L</kbd>Her look</span>' : ''; html = g.offended || g.shaken > 0 ? `${esc(g.first)}<small>Needs a minute</small>` : g.talks >= 3 ? `${look ? `${look} ` : ''}${esc(g.first)}<small>Happy just being here</small>` : `<span><kbd>E</kbd>Talk to ${esc(g.first)}</span>${this._canCheers(g) ? '<span><kbd>F</kbd>Cheers</span>' : ''}${look}<small>${esc(this._sub(g))}</small>`; }
     else if (t?.h) html = `<span><kbd>E</kbd>${O(t.h.label)}</span>${t.h.sub ? `<small>${O(t.h.sub)}</small>` : ''}`;
     else if (t?.s) html = `<span><kbd>E</kbd>Say hello to ${esc(t.s.name)}</span><small>${esc(t.s.role)}</small>`;
+    else if (t?.m) { const g = t.m, who = g.stranger ? 'her' : g.first; html = g.offended ? `${esc(g.stranger ? 'She' : g.first)}<small>Has had enough of you for now</small>` : g.talks >= 3 ? `${esc(g.stranger ? 'She' : g.first)}<small>Back with her friends</small>` : `<span><kbd>E</kbd>Talk to ${esc(who)}</span><small>${esc(g.stranger ? 'Out for the evening' : this._sub(g))}</small>`; }
+    else if (t?.px) html = this._patronPrompt(t.px);
+    else if (t?.cx) html = `<span><kbd>E</kbd>Talk to her</span><small>${esc(this._crowdWord(t.cx))}</small>`;
     if (this.seat) html = `<span><kbd>W</kbd>Stand up</span>${html ? ' ' + html : ''}`;
-    try { if (this.aff) html = this.aff.prompt(t, html); } catch (e) { console.warn('Hangout: the affection prompt', e); }   // affection hook: G, and who you are with
+    try { if (this.aff) html = this.aff.prompt(t?.m || t?.px || t?.cx ? null : t, html); } catch (e) { console.warn('Hangout: the affection prompt', e); }   // affection hook: G, and who you are with (never someone just met)
     try { html = papsPrompt(this, html); } catch (_) { /* */ }   // paps hook (ui/PapsConfront.js): P, the photographers
     if (html !== this.prHtml) { this.prHtml = html; pr.innerHTML = html; pr.classList.toggle('in', !!html); }
     this.tgt = t;
@@ -2693,6 +2961,7 @@ class Evening {
   _interact() {
     const t = this._target(); if (!t) return; this.helpT = Math.min(this.helpT, 3);
     if (t.g) this._open(t.g); else if (t.h) this._use(t.h);
+    else if (t.m) this._open(t.m); else if (t.px) this._helloPatron(t.px); else if (t.cx) this._meetCrowd(t.cx);
     else if (t.s) this._bark({ first: t.s.name }, pick(['Evening. Enjoy yourselves.', 'Shout if you need anything.', "Track's yours whenever you're ready.", 'Good to see you.']));
   }
   _use(h) {
@@ -2740,7 +3009,7 @@ class Evening {
   // ---- the people: heads that follow you, bodies that turn to talk, a glance at each other -----------------------------
   _people(dt) {
     const P = this.pos, t = this.t, T0 = this.talk;
-    for (const g of this._present()) {
+    for (const g of this.met.length ? [...this._present(), ...this.met.filter((m) => m.person && !m.gone)] : this._present()) {
       const p = g.person, gp = p.group, sit = g.spot.pose === 'sit', talking = T0?.g === g;
       if (g.shaken > 0) g.shaken -= dt;
       let want = g.face0; if (talking && !sit) want = facing(P.x - gp.position.x, P.z - gp.position.z); else if ((g.offended || g.shaken > 0) && !sit) want = g.face0 + 0.9;
@@ -2765,6 +3034,13 @@ class Evening {
       const show = v.z < 1 && d < 6.5 && Math.abs(v.x) < 1.1 && Math.abs(v.y) < 1.1; el.style.opacity = show ? Math.min(1, (6.5 - d) / 2.5) * (g.talks >= 3 ? 0.6 : 1) : 0;
       if (show) el.style.transform = `translate(${((v.x * 0.5 + 0.5) * W).toFixed(1)}px, ${((-v.y * 0.5 + 0.5) * H).toFixed(1)}px) translate(-50%, -100%)`;
     });
+    // (and the people met tonight)
+    this.met.forEach((g, i) => {
+      const el = this.metTags[i]; if (!el) return; if (!g.person || g.gone || busy) { el.style.opacity = 0; return; }
+      (g.person.head || g.person.group).getWorldPosition(v); v.y += 0.34; const d = v.distanceTo(this.cam.position); v.project(this.cam);
+      const show = v.z < 1 && d < 5.5 && Math.abs(v.x) < 1.1 && Math.abs(v.y) < 1.1; el.style.opacity = show ? Math.min(1, (5.5 - d) / 2.5) * (g.talks >= 3 ? 0.6 : 1) : 0;
+      if (show) el.style.transform = `translate(${((v.x * 0.5 + 0.5) * W).toFixed(1)}px, ${((-v.y * 0.5 + 0.5) * H).toFixed(1)}px) translate(-50%, -100%)`;
+    });
   }
 
   // ---- talking (the grid walk's way: typed lines, 1-4 to answer, a tag for the tone) ------------------------------------
@@ -2776,13 +3052,18 @@ class Evening {
     n.talks = g.talks; n.other = others[0]?.name; x.other = others[0]?.name || null; x.others = this.gs.map((o) => o.name);
     // (party hook: a private word - the terrace, a quiet corner of the booths, nobody within earshot - has no one else in it)
     let priv = false; try { priv = !!this.party?.isPrivate?.(g); } catch (_) { priv = false; }
-    if (priv) { n.other = null; x.other = null; x.others = []; }
-    let tree = talkFor(x, n, this.usedAll.concat(g.used)); if (!tree) tree = talkFor(x, n, g.used);
+    if (priv || g.room) { n.other = null; x.other = null; x.others = []; }   /* (someone from the room is here on her own account) */
+    // (a stranger - one from the room you do not know yet, or a party's walk-up stranger the first time: how you meet
+    // someone; a talk with her that StrangerTalk has no tree for leaves nothing in the career)
+    let tree = g.stranger || (g.role === 'stranger' && !g.talks) ? this._strangerTree(g) : null, noFx = !tree && !!g.stranger;
+    if (!tree && noFx) tree = this._strangerFallback(g);
+    if (!tree) tree = talkFor(x, n, this.usedAll.concat(g.used)); if (!tree) tree = talkFor(x, n, g.used);
     if (!tree) { this._toast(`${g.first} has run out of things to say. For now.`, ''); g.talks = 3; return; }
     this.usedAll.push(tree.id); g.used.push(tree.id); this.lastG = g;
     this._unlock(); this.keys.clear(); if (this.buzzE?.open) this._buzzPick(0); this.$('.hg-sub').classList.remove('in'); this.subT = 0;
-    this.talk = { g, step: 0, queue: [], after: null, opts: null, typed: 0, line: null, hold: 0, dm: 0, closing: false, tree, ptones: [] };   // (ptones: a personality talk's answers, in order - its mood, career/Persona.js)
-    const P = this.$('.hg-talk'); P.querySelector('.who').innerHTML = `${esc(g.name)}<small>${esc(this._sub(g))}</small>`; P.classList.add('in');
+    this.talk = { g, step: 0, queue: [], after: null, opts: null, typed: 0, line: null, hold: 0, dm: 0, closing: false, tree, ptones: [], noFx };   // (ptones: a personality talk's answers, in order - its mood, career/Persona.js)
+    if (tree.stranger) g.strangerTree = tree;   /* (a party's walk-up stranger: PartyPlay reads what it came to, tree.result) */
+    const P = this.$('.hg-talk'); P.querySelector('.who').innerHTML = g.stranger ? `A stranger<small>Out for the evening</small>` : `${esc(g.name)}<small>${esc(this._sub(g))}</small>`; P.classList.add('in');
     this._queue([tree.say], tree.opts);
   }
   _queue(lines, opts) { const T0 = this.talk; T0.queue = lines.filter((l) => l != null && l !== ''); T0.after = opts; T0.opts = null; this.$('.hg-talk .opts').innerHTML = ''; this._nextLine(); }
@@ -2794,7 +3075,7 @@ class Evening {
   }
   _showOpts(opts) {
     // (party hook: the drink talking - a loose line in place of one answer, the options swimming when drunk)
-    if (this.party && this.talk?.g) { try { opts = this.party.opts?.(opts, this.talk.g) || opts; } catch (e) { console.warn('Hangout: the party options', e); } }
+    if (this.party && this.talk?.g && !this.talk.g.room) { try { opts = this.party.opts?.(opts, this.talk.g) || opts; } catch (e) { console.warn('Hangout: the party options', e); } }
     const T0 = this.talk, box = this.$('.hg-talk .opts'); T0.opts = opts; box.innerHTML = '';
     opts.forEach((o, i) => {
       const b = document.createElement('button'); b.type = 'button'; b.dataset.tone = o.tone; b.style.setProperty('--i', i);
@@ -2810,13 +3091,24 @@ class Evening {
     const T0 = this.talk; if (!T0 || T0.closing) return; T0.closing = true;
     const box = this.$('.hg-talk .opts'); box.innerHTML = ''; const b = document.createElement('button'); b.type = 'button'; b.dataset.tone = 'leave'; b.innerHTML = '<b>▸</b><span>Carry on</span><i>CLICK · E · ESC</i>';
     b.addEventListener('click', () => this._leaveTalk()); box.appendChild(b); requestAnimationFrame(() => b.classList.add('in'));
-    try { this.aff?.closer?.(box, T0); } catch (e) { console.warn('Hangout: the affection closer', e); }   // affection hook: [Hug her] / [Kiss her] after a warm talk
+    try { if (!T0.g?.room) this.aff?.closer?.(box, T0); } catch (e) { console.warn('Hangout: the affection closer', e); }   // affection hook: [Hug her] / [Kiss her] after a warm talk (never with someone just met)
   }
   _leaveTalk() { if (!this.talk) return; this._closeTalk(); this._lock(); }
   _choose(i) {
     const T0 = this.talk; if (!T0 || !T0.opts) return; const o = T0.opts[i]; if (!o) return; const g = T0.g, R = this.R;
     T0.opts = null; this.$('.hg-talk .opts').innerHTML = '';
     const dm = typeof HT.hangoutMood === 'function' ? HT.hangoutMood(o) : o.m ?? TONE[o.tone] ?? 0; g.dm += dm; T0.dm += dm;
+    // (someone met tonight: her talk is her own - kept with the talk for the career (_metFx), never the evening's tones,
+    // its flirts or its cover stories, which are about the people you came with)
+    if (g.room) {
+      if (o.tone) (T0.tones || (T0.tones = [])).push(o.tone); if (o.fx?.flirt) T0.flirt = true; if (o.fx?.charm) T0.charm = true;
+      if (T0.tree?.persona && o.tone) T0.ptones.push(o.tone);
+      if (o.fx) for (const k of Object.keys(o.fx)) g.fx[k] = (g.fx[k] || 0) + 1;
+      const L0 = o.t.startsWith('[') ? [] : [`› ${o.t}`]; if (o.r) L0.push(o.r);
+      if (o.end) { g.offended = true; T0.step = 2; this._queue(L0, null); return; }
+      if (T0.step === 0 && o.then) { T0.step = 1; L0.push(o.then.say); this._queue(L0, o.then.opts); return; }
+      T0.step = 2; if (!T0.tree?.persona && !T0.tree?.bye) L0.push(this._bye(g, T0.dm)); else if (T0.tree?.bye) L0.push(T0.tree.bye(T0.dm)); this._queue(L0, null); return;
+    }
     if (o.tone) R.tones[o.tone] = (R.tones[o.tone] || 0) + 1;
     if (T0.tree?.persona && o.tone) T0.ptones.push(o.tone);
     if (o.fx) for (const k of Object.keys(o.fx)) { g.fx[k] = (g.fx[k] || 0) + 1; R.fx[k] = (R.fx[k] || 0) + 1; }
@@ -2835,6 +3127,8 @@ class Evening {
     const T0 = this.talk; if (!T0) return; const g = T0.g; this.talk = null; g.talks++; if (g.n) g.n.talks = g.talks;
     if (T0.tree?.done && T0.ptones?.length) { try { T0.tree.done(T0.ptones); } catch (e) { console.warn('Hangout: the mood could not be kept', e); } }   // (where you steered it: how the next one opens)
     this.$('.hg-talk').classList.remove('in'); this.$('.hg-talk .opts').innerHTML = '';
+    // (someone met tonight: what it comes to - the career, whoever you came with - and, pushed too far, she is done with you)
+    if (g.room) { this._metFx(g, T0); if (g.dm <= -6) g.offended = true; return; }
     if (T0.dm >= 3) this._toast(`${g.first} enjoyed that`, 'up'); else if (T0.dm <= -3) this._toast(`${g.first} didn't like that`, 'down');
     // (she has a mind of her own: pushed far enough, she goes home)
     if (g.kind === 'celeb' && (g.dm <= -8 || (g.offended && g.dm <= -5))) this._walkOut(g);
@@ -3228,7 +3522,11 @@ class Evening {
       date: !!this.x.date, secret: !!this.x.secret, quiet: this.quiet,
       // (her look as the two of you planned it here, L: { id, rec } - the career keeps it, Social.hangoutResult)
       style: R.style || null,
-      per: Object.fromEntries(this.gs.map((g) => [g.cid, { name: g.name, kind: g.kind, score: Math.round(this._gscore(g) * 100) / 100, mood: g.dm, talks: g.talks, fx: { ...g.fx }, won: g.wins, lost: g.losses, cheers: g.cheers, gone: g.gone }])) };
+      per: Object.fromEntries(this.gs.map((g) => [g.cid, { name: g.name, kind: g.kind, score: Math.round(this._gscore(g) * 100) / 100, mood: g.dm, talks: g.talks, fx: { ...g.fx }, won: g.wins, lost: g.losses, cheers: g.cheers, gone: g.gone }])),
+      // (the people from the room you talked to tonight, for whoever reads the night: whether she gave you her number
+      // tonight (promoted - StrangerTalk has already met her in the career) or was someone you knew already (known); the
+      // career has had all of it at the time - nothing here is for it to apply again)
+      met: this.met.map((g) => ({ cid: g.cid, id: g.id, name: g.name, scope: this.patrons?.scope || null, promoted: !!g.promoted, known: !!g.known, mood: g.dm, talks: g.talks, fx: { ...g.fx }, offended: !!g.offended })) };
   }
   get state() {
     const info = this.renderer?.info?.render;
@@ -3236,14 +3534,16 @@ class Evening {
       pos: { x: +this.pos.x.toFixed(2), y: +this.pos.y.toFixed(2), z: +this.pos.z.toFixed(2) }, yaw: +this.yaw.toFixed(3), seated: !!this.seat,
       talk: this.talk ? { with: this.talk.g.name, line: this.talk.line, opts: this.talk.opts ? this.talk.opts.map((o) => o.t) : null } : null, menu: this.menu ? this.menu.items.slice() : null,
       game: this.game ? { name: this.game.name, ...this.game.info() } : null, moment: !!this.moment, asking: !!this.ask, buzz: this.buzzE ? { open: !!this.buzzE.open, from: this.buzzE.name } : null,
-      target: this.tgt ? (this.tgt.g ? 'guest:' + this.tgt.g.name : this.tgt.h ? this.tgt.h.id : 'staff') : null,
+      target: this.tgt ? (this.tgt.g ? 'guest:' + this.tgt.g.name : this.tgt.h ? this.tgt.h.id : this.tgt.m ? 'met:' + this.tgt.m.name : this.tgt.px ? 'patron:' + this.tgt.px.k : this.tgt.cx ? 'crowd' : 'staff') : null,
+      // (everyone else out tonight: how many, and the people met here)
+      patrons: this.patrons ? this.patrons.list.length : 0, met: this.met.map((g) => ({ cid: g.cid, name: g.name, talks: g.talks, mood: g.dm, stage: g.n?.stage || null })),
       guests: this.gs.map((g) => ({ cid: g.cid, name: g.name, built: !!g.person, talks: g.talks, mood: g.dm, gone: g.gone, spot: g.spot ? { x: +g.spot.x.toFixed(2), z: +g.spot.z.toFixed(2), pose: g.spot.pose } : null })),
       hots: (this.hots || []).map((h) => h.id), score: this._score('normal'), seen: this.R.seen, render: info ? { calls: info.calls, tris: info.triangles } : null,
       hosted: this.host ? { anchor: this.anchor ? { x: this.anchor.x, y: this.anchor.y, z: this.anchor.z, yaw: +this.anchor.yaw.toFixed(3) } : null, wet: !!this.hx?.wet, sphere: !!this.hx?.sphere, world: ROOM.hgWorld.value, glow: ROOM.hgSph.value, meshes: this._count() } : null };
   }
   /** hosted: how many meshes (draw calls at most) the place has in the world's scene, and how many of them are people */
   _count() {
-    let n = 0, p = 0; const P = new Set([...this.gs.map((g) => g.person?.group), this.staff?.person?.group, this.me?.group].filter(Boolean));
+    let n = 0, p = 0; const P = new Set([...this.gs.map((g) => g.person?.group), this.staff?.person?.group, this.me?.group, ...this.met.map((g) => g.person?.group), this.patrons?.crowd?.group, ...(this.patrons?.list || []).map((x) => x.person?.group)].filter(Boolean));
     const walk = (o, person) => { if (!o.visible) return; const q = person || P.has(o); if (o.isMesh || o.isPoints || o.isLine || o.isSprite) { n++; if (q) p++; } for (const k of o.children) walk(k, q); };
     if (this.scene) walk(this.scene, false);
     return { all: n, people: p, place: n - p };
@@ -3267,6 +3567,10 @@ class Evening {
       go: (x, z, yaw) => { ev.pos.x = x; ev.pos.z = z; if (yaw != null) ev.yaw = yaw; }, result: () => ev.result('normal'),
       // (her look's sheet, L: open (true) or closed (false) -> open now; the guest as she now stands, for tests)
       style: (open = true) => { if (open) ev._styleOpen(); else ev._styleClose(); return !!ev.sty; }, guest: (i = 0) => ev.gs[i] || null,
+      // (everyone else out tonight, for tests: the room's people, the ones met, the evening itself; hello(i): E at the i-th
+      // of the room's people - or the first woman (i: 'her') - standing in front of her first)
+      get patrons() { return ev.patrons; }, get met() { return ev.met; }, get ev() { return ev; },
+      hello: (i = 'her') => { const L = ev.patrons?.list || [], x = i === 'her' ? L.find((q) => q.e.fem && !q.gone) : L[i]; if (!x || !ev.ready || ev.talk) return null; if (!ev._standBy(x)) return null; ev._helloPatron(x); ev._skipToOpts(); return ev.talk ? ev.talk.opts?.map((o) => o.t) || [] : x.said ? 'said' : null; },
       // (frames by hand, for a test page in the background where requestAnimationFrame never fires)
       step: (n = 1, dt = 1 / 60, quick = false) => { ev.quick = quick; try { for (let i = 0; i < n && ev.on; i++) ev.frame(dt); } finally { ev.quick = false; } return ev.on ? ev.state : null; },
       // (hosted: the game's loop calls update(dt) every frame and renders the world itself; done turns true once the evening
@@ -3347,7 +3651,8 @@ class Evening {
     try { this.game?.dispose(); } catch (_) { /* */ } this.game = null;
     try { this.sty?.destroy(); } catch (_) { /* */ } this.sty = null;
     try { this.mus?.stop?.(1.2); } catch (_) { /* */ } try { this.crowdBed?.stop?.(1.2); } catch (_) { /* */ } this.snd.stop();
-    for (const p of [...this.gs.map((g) => g.person), this.staff?.person, this.me]) { if (!p) continue; this.scene.remove(p.group); try { p.dispose(); } catch (_) { /* */ } }
+    for (const p of [...this.gs.map((g) => g.person), this.staff?.person, this.me, ...this.met.map((g) => g.person), ...(this.patrons?.list || []).map((x) => x.person)]) { if (!p) continue; this.scene.remove(p.group); try { p.dispose(); } catch (_) { /* */ } }
+    try { this.patrons?.crowd?.dispose?.(); } catch (e) { console.warn('Hangout: the room\'s people did not tidy up', e); } if (this.patrons) this.patrons.crowd = null;
     // (hosted: the group out of the world's scene, then freed - all but the city's facade material, which it only borrowed)
     if (this.host && this.scene) this.host.scene.remove(this.scene);
     this.scene?.traverse((o) => { if (o.isInstancedMesh) o.dispose(); if ((o.isMesh || o.isPoints || o.isLine) && o.geometry) o.geometry.dispose(); if (o.material && !o.userData.hgKeep) for (const m of [].concat(o.material)) { m.map?.dispose?.(); m.dispose?.(); } });

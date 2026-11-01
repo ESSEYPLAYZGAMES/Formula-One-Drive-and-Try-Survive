@@ -183,6 +183,11 @@ export function brandLook(b, vid = 'vegasclub') {
 }
 // (the order a point is matched to the zones: the booth on the deck before the floor under it)
 const ZONE_ORDER = ['dj', 'vip', 'floor', 'bar', 'garage', 'quiet', 'vestibule', 'door', 'casino'];
+/**
+ * Who the crowd is (world/PartyCrowd.js build's pools - career/Extras.js): the room's scope (the place, its regulars),
+ * the night (season.round: the same night always the same room) and, at the team party, what the guests wore -> pools
+ */
+function crowdWho(E, scope, occasion) { const c = E?.c; return { scope, night: c ? `${c.season ?? 0}.${c.round ?? 0}` : null, ...(occasion ? { occasion } : {}) }; }
 export function zoneAt(V, x, z) {
   const Z = V?.zones; if (!Z) return 'room';
   for (const k of ZONE_ORDER) for (const r of Z[k] || []) if (inRect(r, x, z)) return k;
@@ -748,7 +753,7 @@ function vegasclub(K, E) {
     moment: ['Out on the terrace the music is a dull thud behind the glass. Across the road the Sphere cycles through its colours, and the Strip runs gold to the horizon.', 'Cold desert air, eighteen floors up - late November on the Strip, and it bites. Below, the circuit is being put to bed: the grandstands empty, the barriers still lining the Strip.'],
     where: 'out on the terrace', photoBack: 'the Halo Room wall',
     zones: { floor: ZL(RC(-8.9, -4.2, 0.6, 4.2)), dj: ZL(RC(-12, -3.6, -8.9, 3.6)), bar: ZL(RC(-0.5, 4.6, 11.6, 9)), vip: ZL(RC(-8.6, -9, 12, -5.4), RC(8.2, -5.4, 12, 4.2)), quiet: ZL(RC(-2, -17.4, 12, -11.8)), vestibule: ZL(RC(2.6, -11.8, 8.6, -9.0)), door: ZL(RC(-8, 9.0, 2.0, 14.2), RC(-8.4, 7.4, -4.8, 9.0)), casino: ZL(RC(2.0, 9.4, 12, 14.2)) },
-    spots, crowdSpots: C.L, beat: { bpm: 124 }, club: true, bartop: { x: 5.5, y: 1.11, z: 6.6 },
+    spots, crowdSpots: C.L, crowdPools: crowdWho(E, 'club:vegasclub'), beat: { bpm: 124 }, club: true, bartop: { x: 5.5, y: 1.11, z: 6.6 },
     exits: { front: { x: 11.0, z: 11.8, yaw: 0 }, side: { x: 11.5, z: 5.95, yaw: 0 }, street: null },
     wall: { x: -2.2, y: 1.45, z: 14.12, w: 5.6, h: 2.9, face: facing(0, -1), yaw: -Math.PI / 2, stand: { x: -2.2, z: 13.3, yaw: -Math.PI / 2, face: facing(0, -1) }, cams: [V3(-4.2, 1.6, 10.75), V3(-2.85, 1.6, 10.75), V3(-1.5, 1.6, 10.75), V3(-0.15, 1.6, 10.75)] },
     terrace: { zone: RC(-2, -17.4, 12, -11.8), vestibule: RC(2.6, -11.8, 8.6, -9.0), look: sph },
@@ -914,7 +919,7 @@ function teamparty(K, E) {
     moment: [E.night !== false ? `Out on the apron the paddock is half packed already: forklifts, flight cases, the floodlights still on over the garages.` : `Out on the apron the paddock is half packed already: forklifts, flight cases, the evening sun low over the motorhomes.`, `The air outside smells of rubber and generator diesel. Somewhere a team is singing.`],
     where: 'out on the apron', photoBack: podium ? 'the trophy' : 'the team wall',
     zones: { floor: ZL(RC(-0.4, -3.8, 5.0, 5.4), RC(-8, 2.2, -0.4, 5.4)), bar: ZL(RC(4.8, -5.5, 8, -1.6)), vip: ZL(RC(-6, -2.2, 0.4, 2.4)), dj: ZL(), quiet: ZL(RC(-8, 5.7, 8, 9.2)), door: ZL(RC(3.8, 4.6, 5.6, 6.4)), garage: ZL(RC(3.0, 5.2, 6.4, 7.0)) },
-    spots, crowdSpots: C.L, beat: { bpm: 118 }, club: false, bartop: { x: 5.3, y: 1.1, z: -3.6 },
+    spots, crowdSpots: C.L, crowdPools: crowdWho(E, `party:teamparty:${E.c?.myTeam || 'team'}`, partyOccasion('teamparty', E.P?.night !== false && E.night !== false)), beat: { bpm: 118 }, club: false, bartop: { x: 5.3, y: 1.1, z: -3.6 },
     exits: { front: { x: 0, z: 8.8, yaw: Math.PI / 2 }, side: { x: -7.0, z: 8.8, yaw: Math.PI / 2 }, street: null },
     wall: null, terrace: null, zoneLight: null, heightAt: null,
     booths: [], service: { x: 5.4, z: -2.0 }, props: { trophy: podium, won, screen: scr },
@@ -1089,7 +1094,7 @@ function londonclub(K, E) {
     moment: ['The courtyard smells of rain on old brick and somebody\'s cigar. Up past the walls the London sky glows orange; a taxi idles somewhere in the mews.', 'Heaters ticking, a burst of laughter from a table in the corner, the bass a muffled pulse through the door.'],
     where: 'out in the courtyard', photoBack: 'the vault',
     zones: { floor: ZL(RC(-6.4, -3.4, -0.8, 3.4)), dj: ZL(RC(-8, -1.8, -6.3, 1.8)), bar: ZL(RC(0, -6, 6.8, -3.2)), vip: ZL(RC(-0.4, 3.6, 6.2, 6), RC(5.6, -3.6, 8, 3.0)), quiet: ZL(RC(8.2, -4.6, 14.2, 5.2)), door: ZL(RC(-8, 3.6, -4.2, 6)) },
-    spots, crowdSpots: C.L, beat: { bpm: 128 }, club: true, bartop: { x: 3.3, y: 1.1, z: -4.5 },
+    spots, crowdSpots: C.L, crowdPools: crowdWho(E, 'club:londonclub'), beat: { bpm: 128 }, club: true, bartop: { x: 3.3, y: 1.1, z: -4.5 },
     exits: { front: { x: -6.6, z: 5.4, yaw: Math.PI / 2 }, side: { x: 8.6, z: 4.0, yaw: 0 }, street: { x: -1.75, y: SY, z: -2.2, yaw: Math.PI / 2, cam: { x: 0.8, y: SY + 1.6, z: 4.6 }, look: { x: -1.75, y: SY + 1.2, z: -2.4 }, paps: [{ x: -4.4, y: SY + 1.65, z: 0.8 }, { x: -3.3, y: SY + 1.7, z: 0.9 }, { x: 0.0, y: SY + 1.65, z: 0.8 }, { x: 1.1, y: SY + 1.7, z: 0.9 }] } },
     wall: null, terrace: null,
     zoneLight: { quiet: { sky: '#4a4450', ground: '#3a2418', hemi: 0.62, key: '#ffb070', keyI: 0.6, keyDir: [2.5, 5, -1], world: 0 } },

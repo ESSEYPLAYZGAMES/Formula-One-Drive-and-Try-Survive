@@ -108,7 +108,9 @@ import * as HT from './HangoutTalk.js';
 import { PARTY_BARK, PARTY_MOMENT, PARTY_PHONE, PARTY_SLIP, PARTY_DRAMA, PARTY_DRAMA_ALIAS } from './PartyTalk.js';
 import { zoneAt, inZone } from './PartyVenues.js';
 import { HeroFrames } from '../world/PartyCrowd.js';
-import { makePerson } from '../world/People.js';
+import { makePerson, makePersonSteps } from '../world/People.js';
+import { promoteExtra, isPromoted } from '../career/Extras.js';
+import { strangerTalk } from './StrangerTalk.js';
 import { PartyBrawl, partyBrawlFx } from './PartyBrawl.js';
 import { papsSeen, papsExit, papsDoor, papsNote } from './PapsConfront.js';
 
@@ -422,14 +424,14 @@ export class PartyPlay {
     const R = ev.R || (ev.R = {});
     const Rp = this.Rp = R.party = { act: this.act, venue: this.vid, brand: this.brand, drinks: [], units: 0, peak: 0, level: 0, pending: 0, clock: this.start, water: 0, leftAt: null, early: false, exit: null, stumble: false, photographed: false, flashes: 0,
       kiss: null, kissSeen: false, kissPrivate: false, kissSeenBy: [], spend: 0, table: false, comped: false, bottle: 0, parade: false, posed: false, sideIn: false, stickers: false, shout: false, danced: [], selfies: 0, contacts: {}, drama: [], brawl: null,
-      loose: [], seenDrunkBy: [], textedEx: null, shoey: false, crewThanked: false, toast: false, speech: false, champagne: false, mechanics: false, rounds: { took: 0, declined: 0, sent: 0 }, blackjack: null, fans: false, breakfast: null, invited: [], underage: this.underage, next: null };
+      loose: [], seenDrunkBy: [], textedEx: null, shoey: false, crewThanked: false, toast: false, speech: false, champagne: false, mechanics: false, rounds: { took: 0, declined: 0, sent: 0 }, blackjack: null, fans: false, breakfast: null, invited: [], underage: this.underage, next: null, strangers: [] };
     // (act 2: the night so far carries on - act 1's R.party: what is in the blood and still to come through, the money, the people, the flags)
     const C = this.o.carry && typeof this.o.carry === 'object' ? this.o.carry : null;
     if (C) {
       this.absDone = Math.max(0, num(+C.level, 0)); this.peak = Math.max(0, num(+C.peak, 0)); if (num(+C.pending, 0) > 0) this.serves.push({ units: +C.pending, at: this.start, ab: 0.75 });
       Rp.units = num(+C.units, 0); Rp.drinks = Array.isArray(C.drinks) ? C.drinks.slice() : []; Rp.spend = num(+C.spend, 0); Rp.water = num(+C.water, 0); Rp.flashes = num(+C.flashes, 0); Rp.selfies = num(+C.selfies, 0);
       for (const k of ['shoey', 'crewThanked', 'toast', 'speech', 'champagne', 'mechanics', 'posed', 'shout', 'textedEx', 'kiss', 'kissSeen', 'kissPrivate', 'photographed', 'stumble']) if (C[k]) Rp[k] = C[k];
-      for (const k of ['danced', 'drama', 'loose', 'kissSeenBy', 'invited']) if (Array.isArray(C[k])) Rp[k] = C[k].slice();
+      for (const k of ['danced', 'drama', 'loose', 'kissSeenBy', 'invited', 'strangers']) if (Array.isArray(C[k])) Rp[k] = C[k].map((x) => (x && typeof x === 'object' ? { ...x } : x));
       if (C.rounds) Rp.rounds = { ...Rp.rounds, ...C.rounds };
       if (typeof C.photoUrl === 'string') { Rp.photoUrl = C.photoUrl; this.photoRank = num(+C.photoRank, 1); Rp.photoRank = this.photoRank; }
       for (const id of Array.isArray(C.seenDrunkBy) ? C.seenDrunkBy : []) this.seenDrunk.add(id);
@@ -491,6 +493,7 @@ export class PartyPlay {
     // (an action deferred until a pseudo-game has ended runs the frame after it)
     if (this.after.length && !ev.game) { const f = this.after.shift(); try { f(); } catch (e) { console.warn('PartyPlay: a step failed', e); } }
     this._beat(dt);
+    this._strangers(dt);
     this.acc += dt; if (this.acc >= 0.1) { const d = this.acc; this.acc = 0; this._tick(d); }
     // (a card's clock waits while you are busy with something else - a talk, a menu, a moment)
     if (this.card && !(ev.talk || ev.menu || ev.game || ev.ask || ev.moment || this.who)) this._cardTick(dt);
@@ -546,6 +549,7 @@ export class PartyPlay {
   }
   opts(opts, g) {
     if (!Array.isArray(opts) || !opts.length || !g || !this.on) return opts;
+    if (this.ev.talk?._st) return opts;   // (a stranger's first words are her own: StrangerTalk's tones, never a loose line in them)
     const panel = this.ev.$?.('.hg-talk'), drunk = this.tier >= 3 && !this.drama;
     panel?.classList.toggle('pp-isdrunk', drunk); panel?.classList.toggle('pp-swim', drunk && !REDUCED);
     if (this.tier < 2 || this.drama || this._ant(g)) return opts;
@@ -558,6 +562,7 @@ export class PartyPlay {
   }
   chosen(o, g) {
     if (!o || !g || !this.on) return; const ev = this.ev, Rp = this.Rp, D = this.drama;
+    if (ev.talk?._st) return;   // (walking up to a stranger: StrangerTalk decides what it comes to - nothing of the party's own)
     if (g.kind === 'celeb') this._metNow(g);
     // merry: the easy tones land better
     if (this.tier >= 1 && (o.tone === 'light' || o.tone === 'show' || o.tone === 'flirt')) { g.dm += 1; if (ev.talk) ev.talk.dm += 1; }
@@ -691,6 +696,7 @@ export class PartyPlay {
     if (ev.game && (ev.game instanceof Moment || ev.game instanceof Dance || ev.game instanceof PartyBrawl)) { try { ev.game.dispose(); } catch (_) { /* */ } ev.game = null; }
     this.music?.stop();
     for (const H of this.hf.values()) { try { H.dispose(); } catch (_) { /* */ } } this.hf.clear();
+    this._strangerOff();
     const PR = this.parade; if (PR) { for (const p of PR.people) { p.group.parent?.remove(p.group); try { p.dispose(); } catch (_) { /* */ } } PR.group.parent?.remove(PR.group); PR.group.traverse((o) => { if (o.isMesh || o.isSprite) { o.geometry?.dispose?.(); o.material?.map?.dispose?.(); o.material?.dispose?.(); } }); PR.tex?.dispose(); this.parade = null; }
     for (const el of this.dom ? Object.values(this.dom) : []) el?.remove?.();
     ev.$?.('.hg-talk')?.classList.remove('pp-isdrunk', 'pp-swim', 'pp-drama');
@@ -1396,9 +1402,117 @@ export class PartyPlay {
       const w0 = Math.max(0, was.talks || 0), w1 = Math.max(1, now.talks);
       C[g.cid] = { role: now.role || was.role, score: Math.round(((was.score ?? sc) * w0 + sc * w1) / (w0 + w1) * 100) / 100, dm: +((+was.dm || 0) + now.dm).toFixed(1), talks: w0 + now.talks, fx, gone: now.gone, priv: (was.priv || 0) + now.priv };
     };
-    for (const g of ev.gs || []) add(g);
+    for (const g of ev.gs || []) {
+      // (someone from the crowd: nothing unless she swapped numbers with you - StrangerTalk counted that talk itself)
+      if (g.crowd && !g.crowd.promoted) continue;
+      if (g.crowd?.talks0 && !g.crowd.known) { const t0 = g.talks; g.talks = Math.max(0, t0 - g.crowd.talks0); try { add(g); } finally { g.talks = t0; } continue; }
+      add(g);
+    }
     if (this.ant && !(ev.gs || []).includes(this.ant) && (this.ant.talked || this._talked(this.ant) > 0)) add(this.ant, 'antagonist');
     return C;
+  }
+
+  // ---- the crowd's own people: walking up to a stranger ------------------------------------------------------------------
+  // Every woman in the crowd (world/PartyCrowd.js: a dancer, someone at the bar or in a booth, a server, a guest at the
+  // team's party) is somebody (career/Extras.js) and can be walked up to: E while you face her within reach. She steps out of the crowd as a guest of the night where she stood, in the very
+  // figure it drew her in (PartyCrowd.takeOut), taken into the game for the scene only (Extras.promoteExtra with no
+  // career: a name, a tag, a talk - nothing saved), and the first words are hers (ui/StrangerTalk.js strangerTalk: her
+  // personality, whether she is free, how your line lands). Hangout (its _target and _interact) finds her - the woman in
+  // the crowd you face, close enough (PartyCrowd.stranger) - and hands her to meetStranger on E. StrangerTalk alone
+  // decides what it comes to (tree.done at
+  // the talk's close - tree.result): a swapped number makes her a met local (in the career by then - her bond, her text),
+  // and from then on she is a guest like any local met here - talks, a drink, a dance, leaving together - whose night
+  // counts as theirs (R.party.contacts); anything else leaves no trace (R.party.strangers keeps the outcome, and
+  // career/Party.js partyResult passes over her). A regular you met on an earlier night is simply herself again.
+  _strangerOff() {
+    const S = this.stand; this.stand = null; if (S?.J?.done) { try { S.J.person.dispose(); } catch (_) { /* */ } }
+  }
+  /**
+   * E at her (Hangout's _target asks ev.crowd.stranger(...) for whom you face and calls this on E): out of the crowd into a
+   * guest of the night where she stood, and the talk opened (StrangerTalk's first words) -> the guest | null
+   */
+  meetStranger(p) {
+    const ev = this.ev, C = ev.crowd, e = p?.extra; if (!e?.fem || !C?.takeOut || !this._free()) return null;
+    const known = !!(ev.c && isPromoted(ev.c, e.seed));
+    // (taken into the game for the scene only: never the career's - StrangerTalk decides that)
+    let lid = null; try { lid = promoteExtra(null, e.seed); } catch (err) { console.warn('PartyPlay: a stranger', err); }
+    const K = lid ? Celebs.CELEB?.[lid] : null; if (!K) return null;
+    const T = C.takeOut(p); if (!T?.person) return null;
+    const sp = T.spot, sit = sp.pose === 'sit', person = T.person; ev.scene.add(person.group);
+    let st = known ? 'met' : 'stranger'; if (known) { try { st = Celebs.bondOf(ev.c, lid)?.stage || 'met'; } catch (_) { /* */ } }
+    const doing = T.role === 'dancer' || T.role === 'performer' ? 'on the dance floor' : sit ? 'with friends' : T.role === 'server' ? 'working tonight' : T.role === 'staff' ? 'with the team' : 'at the bar';
+    const g = ev._partyFill(ev._guest({ kind: 'celeb', id: lid, name: K.name }, (ev.gs || []).length), { role: 'celeb', tier: 'principal', talk: 3, stage: st, why: known ? `${K.job} · ${Celebs.stageLabel?.(st) || 'met before'}` : `${K.job} · ${doing}` });
+    let n = null; try { if (typeof HT.hangoutGuest === 'function') n = HT.hangoutGuest(ev.c, { kind: 'celeb', id: lid, name: K.name, cid: g.cid, role: 'celeb' }, ev.x); } catch (err) { console.warn('PartyPlay: could not read her', err); }
+    g.n = n || { kind: 'celeb', id: lid, name: K.name, first: g.first }; g.n.talks = 0; g.n.celebId = g.n.celebId || lid; g.n.job = g.n.job || K.job; g.n.work = g.n.work || K.work; g.n.stage = st;
+    Object.assign(g, { person, opts: T.opts, spot: { x: sp.x, z: sp.z, face: sp.face, pose: sit ? 'sit' : 'stand', y: sp.y || 0, zone: sp.zone }, face0: sp.face, pose: T.opts?.pose || 'talk', extra: e,
+      drink: T.prop || null, crowd: { seed: e.seed, scope: C.scope || null, extra: e, role: T.role, anim: T.anim, zone: sp.zone || this.zoneK || null, known, promoted: known, outcome: known ? 'known' : null, talks0: 0, tree: null } });
+    g.disc = { x: sp.x, z: sp.z, r: sit ? 0.28 : 0.3, pp: sit ? 2 : 1 }; ev.K?.discs?.push(g.disc);
+    // (a name tag of her own, at her place in the list)
+    const gs = ev.gs || (ev.gs = []), els = ev.tagEls || (ev.tagEls = []), box = ev.$?.('.hg-tags');
+    while (els.length < gs.length) { const d = document.createElement('div'); d.className = 'hg-tag'; d.style.opacity = 0; box?.appendChild(d); els.push(d); }
+    const d = document.createElement('div'); d.className = 'hg-tag'; d.style.opacity = 0; d.innerHTML = `${esc(g.name)}<small>${esc(ev._sub ? ev._sub(g) : g.why)}</small>`; box?.appendChild(d);
+    gs.push(g); els.push(d);
+    // (stood up out of her dance for the talk: built again a stage a frame, swapped in when ready)
+    if (/^dance/.test(g.pose) && !sit) { try { const o = { ...T.opts, pose: g.drink ? 'drink' : 'talk' }; this.stand = { g, o, J: makePersonSteps(o) }; } catch (err) { this.stand = null; } }
+    try { ev._open(g); } catch (err) { console.warn('PartyPlay: the talk with her', err); }
+    this._strangerSwap();
+    return g;
+  }
+  /** each frame: a stranger's first talk given her own words, the end of it read, her standing figure swapped in */
+  _strangers(dt) {
+    this._strangerSwap();
+    const ev = this.ev, T0 = ev.talk;
+    for (const g of this.stTalks || []) if (T0?.g !== g) this._strangerDone(g);
+    const S = this.stand;
+    if (S && !ev.game && !ev.moment) {
+      try { if (S.J.step(dt > 0.05 ? 0 : 5)) { this.stand = null; this._standIn(S.g, S.J.person, S.o); } } catch (err) { this.stand = null; console.warn('PartyPlay: her standing figure', err); }
+    }
+  }
+  /** the talk just opened with someone from the crowd: StrangerTalk's tree in place of the one Hangout picked */
+  _strangerSwap() {
+    const ev = this.ev, T0 = ev.talk; if (!T0 || T0._st !== undefined) return;
+    const g = T0.g, X = g?.crowd; T0._st = false; if (!X || X.promoted) return;
+    const me = ev.c?.drivers?.[ev.c?.playerId], ctx = { c: ev.c || null, where: 'party', place: this.team ? 'party' : 'club', scope: X.scope, venueId: this.vid, venue: ev.P?.name || this.vid, track: this.track, level: this.tier, tier: TIER_KEY[this.tier], quiet: !!ev.quiet,
+      night: ev.night !== false, anim: X.anim, zone: X.zone, role: X.role, me: { name: ev.meName || me?.name || 'You', first: firstOf(ev.meName || me?.name || 'You'), fame: this.fame } };
+    let tree = null; try { tree = strangerTalk(X.extra, ctx); } catch (err) { console.warn('PartyPlay: the stranger talk', err); tree = null; }
+    if (!tree?.say || !tree.opts?.length) return;
+    // (Hangout's own choice given back: never heard)
+    const id0 = T0.tree?.id; if (id0 != null) { const a = ev.usedAll?.lastIndexOf(id0); if (a >= 0) ev.usedAll.splice(a, 1); const b = g.used?.lastIndexOf(id0); if (b >= 0) g.used.splice(b, 1); }
+    T0.tree = tree; T0._st = true; T0.ptones = []; if (tree.id != null) { ev.usedAll?.push(tree.id); g.used?.push(tree.id); }
+    X.tree = tree; X.fx0 = { ...(g.fx || {}) }; X.dm0 = g.dm || 0; X.talks0++;
+    (this.stTalks || (this.stTalks = [])).includes(g) || this.stTalks.push(g);
+    try { ev._queue([tree.say], tree.opts); } catch (err) { console.warn('PartyPlay: her first words', err); }
+  }
+  /** a stranger's talk over: what StrangerTalk made of it (tree.result) - a met local, or no trace */
+  _strangerDone(g) {
+    this.stTalks = (this.stTalks || []).filter((q) => q !== g);
+    const ev = this.ev, X = g.crowd, tree = X?.tree; if (!X || !tree) return; X.tree = null;
+    const r = tree.result || null, promote = !!r?.promote;
+    // (what that talk did is StrangerTalk's to count: the guest's own record as it was before it)
+    g.fx = { ...(X.fx0 || {}) }; g.dm = X.dm0 || 0;
+    X.outcome = r?.outcome || 'polite';
+    if (promote) {
+      X.promoted = true; const st = r.stage || 'met'; g.stage = st; if (g.n) g.n.stage = st;
+      g.why = `${g.C?.job || g.n?.job || 'Met tonight'} · met tonight`;
+      const i = (ev.gs || []).indexOf(g), el = i >= 0 ? ev.tagEls?.[i]?.querySelector?.('small') : null; if (el) { try { el.textContent = ev._sub ? ev._sub(g) : g.why; } catch (_) { /* */ } }
+      if (!this.XP.flirted.includes(g.cid) && (r.tones || []).some((t) => t === 'flirty' || t === 'risque')) this.XP.flirted.push(g.cid);
+    }
+    if (r?.line) { try { ev._toast(r.line, promote ? 'up' : ''); } catch (_) { /* */ } }
+    // (kept for the career: who she was, where, and what came of it - partyResult passes over all of it but a swapped number's)
+    const L = this.Rp.strangers || (this.Rp.strangers = []), lid = g.id, rec = L.find((s) => s.lid === lid);
+    const now = { lid, cid: g.cid, seed: X.seed, scope: X.scope, role: X.role, zone: X.zone, outcome: X.outcome, promote: !!X.promoted, known: !!X.known, talks0: X.talks0, name: g.name };
+    if (rec) Object.assign(rec, now); else L.push(now);
+  }
+  /** her figure standing for the talk (built in steps), swapped in where the dancing one stood: the room's light on it, her glass moved over */
+  _standIn(g, p, o) {
+    const ev = this.ev, old = g.person; if (!old || g.gone || !this.on) { try { p.dispose(); } catch (_) { /* */ } return; }
+    try { ev._lift?.(p); ev._hostLit?.(p.group); } catch (_) { /* (unlit: still her) */ }
+    p.group.position.copy(old.group.position); p.group.rotation.set(0, old.group.rotation.y, 0); p.group.scale.copy(old.group.scale); p.group.visible = old.group.visible;
+    if (g.drink) { old.group.remove(g.drink); const s = p.group.children[0]?.scale?.x || 1, w = p.wrR?.clone().multiplyScalar(s); if (w) g.drink.position.set(w.x + 0.02, w.y - 0.11, w.z); p.group.add(g.drink); }
+    if (p.head && old.head) p.head.rotation.y = old.head.rotation.y;
+    old.group.parent?.add(p.group); old.group.parent?.remove(old.group);
+    g.person = p; g.opts = o; g.pose = o.pose;
+    try { old.dispose(); } catch (_) { /* */ }
   }
 
   // ---- small helpers ----------------------------------------------------------------------------------------------------

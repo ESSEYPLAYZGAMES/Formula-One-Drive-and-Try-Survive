@@ -423,6 +423,9 @@ export function celebState() { return { bonds: {}, partner: null, met: [], log: 
 export function celebEnsure(c) {
   const s = c.celebs && typeof c.celebs === 'object' ? c.celebs : (c.celebs = celebState());
   s.bonds = s.bonds && typeof s.bonds === 'object' ? s.bonds : {};
+  // (someone from a crowd the game only glimpsed - a local's bond still a stranger's, nothing between you: not kept, so
+  //  the save holds the people you met and nobody else)
+  for (const [id, b] of Object.entries(s.bonds)) if (isLocalId(id) && b && b.stage === 'stranger' && !b.aff && !b.talks && !b.flirts && !b.dates && !b.accepted && !b.met0) delete s.bonds[id];
   for (const id of Object.keys(s.bonds)) if (!CELEB[id] && isLocalId(id)) registerLocal(id);   // (someone met on a race night: rebuilt from her id's seed before anything checks for her)
   for (const id of Object.keys(s.bonds)) if (!CELEB[id] && isPaddockId(id)) registerPaddock(c, id);   // (one of the paddock's people: the same, from her id)
   if (c?.drivers && c.playerId) { try { paddockOf(c); } catch (e) { console.warn('Celebs: the paddock roster failed', e); } }

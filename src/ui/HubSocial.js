@@ -17,7 +17,7 @@ import { OUTLETS, OUTLET_BY_ID, MANAGERS, DEAL_SPLIT, outletName, fameText, imag
 import { CELEBS, CELEB, bondLabel, oftenText, seeing, seeingAtRace, riskOf, askOutWhy, askOut, message, invite, uninvite, makeOfficial, officialWhy, breakUp, setSecret, resolveConfront, trustCeleb, canDate, photoRisk, canStyle, styledColor } from '../career/Celebs.js';
 import { STYLE_CSS, styleHTML, styleClick } from './HubStyle.js';
 import { ACTIVITIES, weekOf, activitiesFor, activityState, mediaOutlets, dateTargets, dateChoices, hangoutsReady, doActivity, energyLabel, energyBand, investInTeam, donate } from '../career/Agenda.js';
-import { VENUE_BY_ID, FRIEND_STAGES, friendStage, stageName, tastesOf, tasteText, contactsOf, unreadCount, inviteOut, respondInvite, venuesFor, autoHangout, hangoutResult, friendFavours } from '../career/Social.js';
+import { VENUE_BY_ID, FRIEND_STAGES, friendStage, stageName, tastesOf, tasteText, contactsOf, unreadCount, inviteOut, respondInvite, venuesFor, autoHangout, hangoutResult, friendFavours, metLine } from '../career/Social.js';
 // (the night after a race - career/Party.js: its hangover on the week, its offers and contacts in the alerts)
 import * as Party from '../career/Party.js';
 
@@ -843,7 +843,7 @@ function personCard(c, C, K, inv) {
     }
   }
   const line = g ? '<span>Has asked for privacy</span>' : `${stageChip(lab, CSTAGE[st] || '#6b7480')}${rap(b?.aff || 0)}`;
-  return `<div class="hs-card hs-pc${g ? ' grief' : ''}" title="${esc(`${C.vibe || ''}. ${C.bio || ''}`)}"><div class="hs-pc-h">${celebAva(C.id, '', c)}<div><b>${esc(C.name)}</b><small>${esc(C.job)} · ${esc(oftenText(C))}</small></div></div><div class="hs-pc-s">${line}</div>
+  return `<div class="hs-card hs-pc${g ? ' grief' : ''}" title="${esc(`${C.vibe || ''}. ${C.bio || ''}`)}"><div class="hs-pc-h">${celebAva(C.id, '', c)}<div><b>${esc(C.name)}</b><small>${esc(C.job)} · ${esc(safe(() => metLine(c, C.id), '') || oftenText(C))}</small></div></div><div class="hs-pc-s">${line}</div>
     <div class="hs-pc-a">${prim}${K.calm && !g ? '<button class="hs-btn" data-phone="c:' + esc(C.id) + '" title="A quiet week: only kind words on the phone">TEXT</button>'
     : `<button class="hs-btn" data-cmsg="${esc(C.id)}"${msgd ? ' disabled title="One message a week"' : ''}>${msgd ? 'MESSAGED' : g ? 'A KIND WORD' : 'MESSAGE'}</button><button class="hs-btn ph" data-phone="c:${esc(C.id)}" title="Open the chat on your phone">✆</button>`}</div></div>`;
 }
