@@ -109,12 +109,14 @@ export function compilerFor(renderer, camera, scene = null) {
   return (o) => {
     const cam = typeof camera === 'function' ? camera() : camera, sc = typeof scene === 'function' ? scene() : scene;
     const mats = renderer.compile(o, cam, sc || null);
+    // (asked after at most every 50 ms and for 3 s at most: every question is a round trip to the GPU's process)
     return new Promise((res) => {
+      let n = 0;
       const tick = () => {
         for (const m of mats) { let pr = null; try { pr = renderer.properties.get(m)?.currentProgram; } catch (_) { pr = null; } if (!pr || typeof pr.isReady !== 'function' || pr.isReady()) mats.delete(m); }
-        if (!mats.size) res(o); else setTimeout(tick, 10);
+        if (!mats.size || ++n > 60) res(o); else setTimeout(tick, 50);
       };
-      tick();
+      setTimeout(tick, 0);
     });
   };
 }
