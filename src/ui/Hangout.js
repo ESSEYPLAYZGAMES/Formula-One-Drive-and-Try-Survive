@@ -2559,12 +2559,14 @@ class Evening {
     const keep = [{ x: V.start.x, z: V.start.z, r: 1.9 }];
     for (const s of [...(V.date || []), ...(V.group || []), ...this.gs.map((g) => g.spot)]) if (s) keep.push({ x: s.x, z: s.z, r: 1.35 });
     for (const s of V.seats || []) keep.push({ x: s.x, z: s.z, r: 1.0 });
-    for (const h of K.hots) if (h.kind !== 'seat') keep.push({ x: h.p.x, z: h.p.z, r: h.kind === 'game' ? 1.8 : 1.15 });
+    for (const h of K.hots) if (h.kind !== 'seat') keep.push({ x: h.p.x, z: h.p.z, r: h.kind === 'game' ? Math.max(2.3, h.reach || 0) : 1.15 });   /* (a game's whole reach: the pool table's cue room, the darts' throwing line) */
     if (V.staff) keep.push({ x: V.staff.x, z: V.staff.z, r: 1.1 });
-    const clear = (x, z, r) => this._free(x, z, r) && keep.every((k) => (x - k.x) ** 2 + (z - k.z) ** 2 >= k.r * k.r) && out.every((o) => (x - o.x) ** 2 + (z - o.z) ** 2 >= 0.62 * 0.62);
-    // (a point on the floor: each of the room's areas by its size)
-    const A = K.areas, tot = A.reduce((s, a) => s + (a.x1 - a.x0) * (a.z1 - a.z0), 0);
-    const floor = () => { let r = R() * tot; for (const a of A) { const w = (a.x1 - a.x0) * (a.z1 - a.z0); if ((r -= w) <= 0) return [a.x0 + R() * (a.x1 - a.x0), a.z0 + R() * (a.z1 - a.z0)]; } const a = A[0]; return [(a.x0 + a.x1) / 2, (a.z0 + a.z1) / 2]; };
+    // (a point on the floor of the part of the place you walk in to - the smallest of its areas round the way in: the
+    // karting hall's walk-in side, never its track - each by its size)
+    const sz = (a) => (a.x1 - a.x0) * (a.z1 - a.z0), at = K.areas.filter((a) => V.start.x > a.x0 && V.start.x < a.x1 && V.start.z > a.z0 && V.start.z < a.z1).sort((a, b) => sz(a) - sz(b));
+    const A = at.length ? [at[0]] : K.areas, tot = A.reduce((s, a) => s + sz(a), 0);
+    const clear = (x, z, r) => A.some((a) => x > a.x0 + r && x < a.x1 - r && z > a.z0 + r && z < a.z1 - r) && this._free(x, z, r) && keep.every((k) => (x - k.x) ** 2 + (z - k.z) ** 2 >= k.r * k.r) && out.every((o) => (x - o.x) ** 2 + (z - o.z) ** 2 >= 0.62 * 0.62);
+    const floor = () => { let r = R() * tot; for (const a of A) { const w = sz(a); if ((r -= w) <= 0) return [a.x0 + R() * (a.x1 - a.x0), a.z0 + R() * (a.z1 - a.z0)]; } const a = A[0]; return [(a.x0 + a.x1) / 2, (a.z0 + a.z1) / 2]; };
     const POSE = ['talk', 'talk', 'cross', 'hips', 'gesture', 'phone'];
     for (let t = 0, g = 0; t < 160 && out.length < n; t++) {
       const [cx, cz] = floor(); if (!clear(cx, cz, 0.55)) continue;

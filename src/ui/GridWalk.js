@@ -567,9 +567,9 @@ export class GridWalk {
         if (P.fem) { try { pre._keyLit?.(person); } catch (_) { /* (the crowd's lift is enough) */ } }
       } });
     X.byX = new Map(X.crowd.people.map((P) => [P.data, P]));
-    // (the few nearest where you start, built now - the moment the walk takes over from the show - so the first look
+    // (the two nearest where you start, built now - the moment the walk takes over from the show - so the first look
     // round is already sharp; the rest come in a little a frame)
-    for (const f of X.crowd.warm(4, { x: this.pos.x, y: 1.7, z: this.pos.z, fx: Math.cos(this.yaw), fz: Math.sin(this.yaw) })) { try { f(); } catch (e) { console.warn('GridWalk: a guest', e); } }
+    for (const f of X.crowd.warm(2, { x: this.pos.x, y: 1.7, z: this.pos.z, fx: Math.cos(this.yaw), fz: Math.sin(this.yaw) })) { try { f(); } catch (e) { console.warn('GridWalk: a guest', e); } }
   }
   /**
    * A frame of the guests: each where CrowdLife has them now (on the ground there, turned as they are), in full detail
