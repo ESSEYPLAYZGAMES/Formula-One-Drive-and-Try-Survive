@@ -1417,13 +1417,13 @@ export class PartyPlay {
 
   // ---- the crowd's own people: walking up to a stranger ------------------------------------------------------------------
   // Every woman in the crowd (world/PartyCrowd.js: a dancer, someone at the bar or in a booth, a server, a guest at the
-  // team's party) is somebody (career/Extras.js) and can be walked up to: E while you face her within reach. She steps out of the crowd as a guest of the night where she stood, in the very
-  // figure it drew her in (PartyCrowd.takeOut), taken into the game for the scene only (Extras.promoteExtra with no
-  // career: a name, a tag, a talk - nothing saved), and the first words are hers (ui/StrangerTalk.js strangerTalk: her
-  // personality, whether she is free, how your line lands). Hangout (its _target and _interact) finds her - the woman in
-  // the crowd you face, close enough (PartyCrowd.stranger) - and hands her to meetStranger on E. StrangerTalk alone
-  // decides what it comes to (tree.done at
-  // the talk's close - tree.result): a swapped number makes her a met local (in the career by then - her bond, her text),
+  // team's party) is somebody (career/Extras.js) and can be walked up to: E while you face her within reach - Hangout
+  // (its _target and _interact) finds her (PartyCrowd.stranger) and hands her to meetStranger. She steps out of the
+  // crowd as a guest of the night where she stood, in the very figure it drew her in (PartyCrowd.takeOut), taken into
+  // the game for the scene only (Extras.promoteExtra with no career: a name, a tag, a talk - nothing saved), and the
+  // first words are hers (ui/StrangerTalk.js strangerTalk: her personality, whether she is free, how your line lands).
+  // StrangerTalk alone decides what it comes to (tree.done at the talk's close - tree.result): a swapped number makes
+  // her a met local (in the career by then - her bond, her text),
   // and from then on she is a guest like any local met here - talks, a drink, a dance, leaving together - whose night
   // counts as theirs (R.party.contacts); anything else leaves no trace (R.party.strangers keeps the outcome, and
   // career/Party.js partyResult passes over her). A regular you met on an earlier night is simply herself again.
