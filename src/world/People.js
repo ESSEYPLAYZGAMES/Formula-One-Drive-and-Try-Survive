@@ -1323,7 +1323,11 @@ function handAt(w, dir, pn, k, th, arm = {}, grip = 0.15) {
   // (the palm's pads: the ball of the thumb on its side, the heel of the hand on the little finger's - the thumb's side
   // the wider for it, the thumb's root inside it)
   const pads = (u) => (lo ? null : (x) => k * (0.0042 * gau(x - th * 0.019 * k, 0.013 * k) * gau(u - 0.032, 0.026) + 0.0024 * gau(x + th * 0.025 * k, 0.011 * k) * gau(u - 0.025, 0.028)));
-  const body = (u, m, sh = 1) => { const s = u < 0 ? u : u * k, [wd, bk, pm] = spline(HP, u).map((v) => v * k), e = env(s), f = ss3(-0.01, 0.03, u), b = smax(e, bk); return sect(s, smax(e, wd) * sh, b * sh, smax(e, pm) * sh, 1 - 0.28 * f, 1 - 0.15 * f, m, 0, (x) => 0.1 * th * x * ss3(0.06, 0.1, u), kn(u, b, sh), lo ? 0.5 : 0.7, pads(u), lo ? 0 : 0.14 * gau(u - 0.035, 0.028)); };
+  // (a wrist bent hard: each point near it kept out over the forearm's domed end (its round rw, 0.85 rw long - limbAlong's
+  // cap - a hair beyond), drawn out from its ring's middle, so the end never shows through the outside of the bend)
+  const outside = (p, c) => { const q = new THREE.Vector3().subVectors(p, wr), a = q.dot(fa), rr = q.addScaledVector(fa, -a).length(), R = rw * 1.03 + 0.0003; return a <= 0 ? rr >= R : (a / (0.85 * R)) ** 2 + (rr / R) ** 2 >= 1; };
+  const clear = (R, c) => R.map((p) => { if (outside(p, c)) return p; let lo2 = 1, hi = 1.6; const d = p.clone().sub(c); if (!outside(c.clone().addScaledVector(d, hi), c)) return c.clone().addScaledVector(d, hi); for (let it = 0; it < 12; it++) { const mid = (lo2 + hi) / 2; if (outside(c.clone().addScaledVector(d, mid), c)) hi = mid; else lo2 = mid; } return c.clone().addScaledVector(d, hi); });
+  const body = (u, m, sh = 1) => { const s = u < 0 ? u : u * k, [wd, bk, pm] = spline(HP, u).map((v) => v * k), e = env(s), f = ss3(-0.01, 0.03, u), b = smax(e, bk), R = sect(s, smax(e, wd) * sh, b * sh, smax(e, pm) * sh, 1 - 0.28 * f, 1 - 0.15 * f, m, 0, (x) => 0.1 * th * x * ss3(0.06, 0.1, u), kn(u, b, sh), lo ? 0.5 : 0.7, pads(u), lo ? 0 : 0.14 * gau(u - 0.035, 0.028)); return !lo && arm.wr && s > -0.008 && s < 0.03 ? clear(R, frame(s)[0]) : R; };
   const g = [];
   if (lo) {
     // (a crowd's: wrist, palm and fingers in one, curled a little - the more round something held - and a stub of a thumb)
@@ -1368,11 +1372,11 @@ function handAt(w, dir, pn, k, th, arm = {}, grip = 0.15) {
   // forward at its own angle, bending toward the fingers and the palm - across the palm round something held, out
   // flat with the fingers open; its nail facing across the hand, square to the palm's plane
   const TE = [[0.24, 0.94, 0.2], [0.12, 0.94, 0.24], [-0.12, 0.95, 0.18]], [t0, t1, t2] = TE.map((v, j) => loc(lerp3(v, (gq >= 0 ? [[0.36, 0.68, 0.62], [0, 0.62, 0.78], [-0.3, 0.5, 0.8]] : [[0.4, 0.88, 0.18], [0.3, 0.93, 0.12], [0.22, 0.96, 0.08]])[j], Math.abs(gq))));
-  const C0 = H0.clone().addScaledVector(X, th * 0.019 * k).addScaledVector(D, 0.016 * k).addScaledVector(Pn, 0.003 * k), T1 = C0.clone().addScaledVector(t0, 0.039 * k), T2 = T1.clone().addScaledVector(t1, 0.025 * k), T3 = T2.clone().addScaledVector(t2, 0.023 * k - 0.0055 * k);
+  const C0 = H0.clone().addScaledVector(X, th * 0.019 * k).addScaledVector(D, 0.016 * k).addScaledVector(Pn, 0.0055 * k), T1 = C0.clone().addScaledVector(t0, 0.039 * k), T2 = T1.clone().addScaledVector(t1, 0.025 * k), T3 = T2.clone().addScaledVector(t2, 0.023 * k - 0.0055 * k);
   let xt = new THREE.Vector3().crossVectors(t0, t2); if (xt.lengthSq() < 0.01) xt = new THREE.Vector3().crossVectors(t1, Pn); xt.normalize();
   // (its palm's side: the way it bends - toward the palm when it hardly bends)
   const pal = t2.clone().sub(t0); if (pal.lengthSq() < 0.01) pal.copy(Pn);
-  g.push(tube([[C0.clone().addScaledVector(t0, -0.014 * k), t0, 0], [C0.clone().addScaledVector(t0, 0.01 * k), t0, 0.0158 * k], [C0.clone().addScaledVector(t0, 0.026 * k), t0, 0.0132 * k], [T1, t0.clone().add(t1).normalize(), 0.011 * k, 0.08], [T2, t1.clone().add(t2).normalize(), 0.0099 * k, 0.05], [T3, t2, 0.0092 * k]], xt, pal, 0.84, 8));
+  g.push(tube([[C0.clone().addScaledVector(t0, -0.014 * k), t0, 0], [C0.clone().addScaledVector(t0, 0.01 * k), t0, 0.0146 * k], [C0.clone().addScaledVector(t0, 0.026 * k), t0, 0.0128 * k], [T1, t0.clone().add(t1).normalize(), 0.011 * k, 0.08], [T2, t1.clone().add(t2).normalize(), 0.0099 * k, 0.05], [T3, t2, 0.0092 * k]], xt, pal, 0.84, 8));
   // (the web between the thumb and the index finger: a thin fold from the thumb's root to the palm's side, its free
   // edge running from the thumb's first knuckle back to the palm - no gap down to the wrist)
   const web = [0, 0.4, 0.7, 0.86].map((v) => {
@@ -3112,6 +3116,22 @@ const SWH = { band, panel, limbAlong, loft, spline, courtShoe, n: (k, min) => n(
  * within r of a vertex of the other, within band of the height y - set to the two averaged, so the light runs on across
  * the join instead of snapping at a seam (the pieces stay two meshes: their materials may differ)
  */
+/**
+ * Soften a cloth's normals over a region (inR(x, y, z)): each averaged with its neighbours within r, a few passes - the
+ * valley where a bodice's cups meet, whose own normals pointed into the hollow and shaded it as dark crumpled facets
+ * (the light's job there is a soft shadow, not a smudge)
+ */
+function smoothNormals(G, inR, r, passes = 3) {
+  if (!G.attributes.normal) G.computeVertexNormals();
+  const P = G.attributes.position, N = G.attributes.normal, I = []; for (let i = 0; i < P.count; i++) if (inR(P.getX(i), P.getY(i), P.getZ(i))) I.push(i);
+  if (I.length < 3 || I.length > 4000) return;
+  const r2 = r * r, nb = I.map((i) => I.filter((j) => (P.getX(i) - P.getX(j)) ** 2 + (P.getY(i) - P.getY(j)) ** 2 + (P.getZ(i) - P.getZ(j)) ** 2 < r2));
+  for (let it = 0; it < passes; it++) {
+    const acc = I.map((i, k) => { let x = 0, y = 0, z = 0; for (const j of nb[k]) { x += N.getX(j); y += N.getY(j); z += N.getZ(j); } const l = Math.hypot(x, y, z) || 1; return [x / l, y / l, z / l]; });
+    I.forEach((i, k) => N.setXYZ(i, ...acc[k]));
+  }
+  N.needsUpdate = true;
+}
 function weldNormals(A, B, y, band, r) {
   if (!A.attributes.normal) A.computeVertexNormals(); if (!B.attributes.normal) B.computeVertexNormals();
   const pa = A.attributes.position, na = A.attributes.normal, pb = B.attributes.position, nb = B.attributes.normal; if (!pa || !pb || !na || !nb) return;
@@ -4036,7 +4056,9 @@ function* buildSteps(o) {
       // it, not above it, and a foot only a little lower left a gap between the two to see through)
       const nE = low < 0.87 && bg.userData.top ? bg.userData.top : neck;
       if (low < 0.87) { turnedIn(bg, bg.userData.m || n(bm, 8), OF.band ? 0.82 : 0.62); skinEdge = { f: nE, out: OF.lapels ? tight + 0.0065 : tight, angs: nE === neck ? null : bg.userData.angs }; }
-      const bgR = ribs(bg, bm); if (oneDress) bodiceG = bgR; parts[mats.band && mat === 'top' ? 'band' : mat].push(bgR); skinFoot = (a) => Math.min(...[-0.07, -0.035, 0, 0.035, 0.07].map((d) => Math.min(neck(a + d), nE(a + d))), fSeam) - 0.3 * (fSeam - fAc); if (fem && !JK) sideG.push([bg, tight + 0.001, 1]);
+      const bgR = ribs(bg, bm); if (oneDress) bodiceG = bgR;
+      // (her bust under it: the valley between the cups shaded softly, not as dark crumpled facets)
+      if (fem && F.bust > 0 && Q >= 0.6) { const cB = T.c(F.bf ?? 0.6), cH = T.c(0.8), cL = T.c(0.5); smoothNormals(bgR, (x, y, z) => y > cL.y && y < cH.y && Math.abs(z - cB.z) < 0.055 && x > cB.x, 0.022, 3); } parts[mats.band && mat === 'top' ? 'band' : mat].push(bgR); skinFoot = (a) => Math.min(...[-0.07, -0.035, 0, 0.035, 0.07].map((d) => Math.min(neck(a + d), nE(a + d))), fSeam) - 0.3 * (fSeam - fAc); if (fem && !JK) sideG.push([bg, tight + 0.001, 1]);
       // (the neck's flare by how much of the trapezius' sweep shows above the neckline at her sides)
       NP.bare(0.5 * [-1, 1].reduce((s, k) => s + ss3(0.05, 0.25, (fSeam - skinFoot(k * Math.PI / 2)) / (fSeam - fAc) - 0.3), 0));
       // (where it comes up near the neck's foot - a one-shoulder's over her shoulder, a halter's sides - on the curve her
