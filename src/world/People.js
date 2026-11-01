@@ -1307,7 +1307,7 @@ function handAt(w, dir, pn, k, th, arm = {}, grip = 0.15) {
   const env = (s) => dome(s) * (0.965 + (lo ? 0.2 : 0.065) * ss3(-0.035, 0, s)), smax = (a, b) => 0.5 * (a + b + Math.hypot(a - b, 0.003));
   // (the hand's own half-width, depth behind and depth in front along it, from the wrist's joint: the wrist, the heel of
   // the hand (the palm's pads), across the palm, the knuckles, closing in where the fingers take over)
-  const HP = [[-0.04, 0.008, 0.004, 0.004], [-0.02, 0.019, 0.0095, 0.0095], [0, 0.0255, 0.0115, 0.0125], [0.02, 0.031, 0.0125, 0.0165], [0.045, 0.036, 0.012, 0.015], [0.07, 0.038, 0.0105, 0.0125], [0.086, 0.0385, 0.0082, 0.0104], [0.097, 0.036, 0.0062, 0.0088]];
+  const HP = [[-0.04, 0.008, 0.004, 0.004], [-0.02, 0.019, 0.0095, 0.0095], [0, 0.0255, 0.0115, 0.0125], [0.02, 0.031, 0.0125, 0.0165], [0.045, 0.036, 0.012, 0.015], [0.07, 0.0385, 0.0105, 0.0125], [0.086, 0.0395, 0.0082, 0.0104], [0.097, 0.0385, 0.0062, 0.0088]];
   // (the fingers' knuckles across it (index to little, the index on the thumb's side) and how far along: the knuckles'
   // line arched, the little finger's furthest back)
   const FX = [0.027, 0.009, -0.009, -0.026], FY = [0.091, 0.094, 0.0915, 0.0855], FR = [0.0095, 0.0099, 0.0093, 0.0083], FZ = 0.0015;
@@ -1318,7 +1318,7 @@ function handAt(w, dir, pn, k, th, arm = {}, grip = 0.15) {
   // there (the ring drawn in by sh))
   const kn = (u, b, sh) => (lo ? null : (x) => {
     const f = ss3(0.055, 0.086, u), xs = x / sh; if (f <= 0) return 0;
-    let t = 0.72 * b; for (let i = 0; i < 4; i++) { const R = FR[i] * k, dx = xs - th * FX[i] * k; t = Math.max(t, (FZ + 0.0015) * k + 0.86 * Math.sqrt(Math.max(0, R * R - dx * dx)) + 0.0016 * k * gau(dx, 0.0065 * k) * gau(u - FY[i], u < FY[i] ? 0.012 : 0.006)); }
+    let t = 0.72 * b; for (let i = 0; i < 4; i++) { const R = 1.2 * FR[i] * k, dx = xs - th * FX[i] * k; t = Math.max(t, (FZ + 0.0012) * k + 0.86 * Math.sqrt(Math.max(0, R * R - dx * dx)) + 0.0016 * k * gau(dx, 0.0065 * k) * gau(u - FY[i], u < FY[i] ? 0.012 : 0.006)); }
     return sh * f * (t - b);
   });
   // (u: along it in the hand's own measure - the forearm's part, u < 0, in the forearm's)
@@ -1334,10 +1334,11 @@ function handAt(w, dir, pn, k, th, arm = {}, grip = 0.15) {
   if (lo) {
     // (a crowd's: wrist, palm and fingers in one, curled a little - the more round something held - and a stub of a thumb)
     const M = 6, cu = (0.012 + 0.03 * Math.max(0, grip)) * k, rings = [-0.03, 0, 0.045, 0.092].map((s) => body(s, M));
-    rings.push(sect(0.14 * k, 0.033 * k, 0.0085 * k, 0.0085 * k, 0.8, 0.9, M, cu * 0.45), Array(M).fill(frame(0.172 * k)[0].addScaledVector(Pn, cu)));
+    rings.push(sect(0.135 * k, 0.034 * k, 0.0088 * k, 0.0088 * k, 0.8, 0.9, M, cu * 0.4), sect(0.16 * k, 0.027 * k, 0.0072 * k, 0.0072 * k, 0.8, 0.9, M, cu * 0.75), Array(M).fill(frame(0.174 * k)[0].addScaledVector(Pn, cu)));
     g.push(loft(rings));
-    const c0 = H0.clone().addScaledVector(X, th * 0.016 * k).addScaledVector(D, 0.01 * k).addScaledVector(Pn, 0.004 * k), td = D.clone().multiplyScalar(0.7).addScaledVector(X, th * 0.5).addScaledVector(Pn, 0.5).normalize(), Xt = new THREE.Vector3().crossVectors(td, Pn).normalize(), Zt = new THREE.Vector3().crossVectors(Xt, td);
-    g.push(loft([ringOf(c0, Xt, Zt, 0.011 * k, 0.009 * k, 4), ringOf(c0.clone().addScaledVector(td, 0.035 * k), Xt, Zt, 0.009 * k, 0.0075 * k, 4), Array(4).fill(c0.clone().addScaledVector(td, 0.065 * k))]));
+    // (the thumb along the hand's side and a little in front of it, closing across the palm round something held; its end blunt)
+    const gc = Math.max(0, grip), c0 = frame(0.02 * k)[0].addScaledVector(X, th * 0.019 * k).addScaledVector(Pn, 0.005 * k), td = D.clone().multiplyScalar(0.92 - 0.25 * gc).addScaledVector(X, th * (0.24 - 0.2 * gc)).addScaledVector(Pn, 0.22 + 0.5 * gc).normalize(), Xt = new THREE.Vector3().crossVectors(td, Pn).normalize(), Zt = new THREE.Vector3().crossVectors(Xt, td);
+    g.push(loft([ringOf(c0, Xt, Zt, 0.011 * k, 0.009 * k, 4), ringOf(c0.clone().addScaledVector(td, 0.04 * k), Xt, Zt, 0.0095 * k, 0.008 * k, 4), ringOf(c0.clone().addScaledVector(td, 0.068 * k), Xt, Zt, 0.007 * k, 0.006 * k, 4), Array(4).fill(c0.clone().addScaledVector(td, 0.075 * k))]));
     return g;
   }
   // the wrist and the hand: from inside the forearm to the knuckles, closed in front of them round the fingers' roots
@@ -1397,7 +1398,6 @@ function handAt(w, dir, pn, k, th, arm = {}, grip = 0.15) {
     return ringOf(A.add(B).multiplyScalar(0.5), e1, e2, L + 0.002 * k, 0.004 * k, 8);
   });
   g.push(loft([...web, Array(8).fill(T1.clone().addScaledVector(t0, -0.004 * k))]));
-  if (globalThis.__HANDDBG) g.forEach((q, i) => tint(q, [[1, 0.3, 0.3], [0.3, 1, 0.3], [0.3, 0.3, 1], [1, 1, 0.3], [1, 0.3, 1], [0.3, 1, 1], [1, 1, 1]][i % 7]));
   return g;
 }
 
@@ -3098,7 +3098,7 @@ function bootVamp(ankle) {
  */
 const JACKETS = {
   blazer: { hem: -0.09, open: (f) => 0.06 + 0.5 * ss3(0.48, 0.97, f) + 0.26 * ss3(0.12, -0.09, f), lapel: 0.24, lapV: 0.47, out: 0.013, flare: 0.012, loose: 0.008, button: 1,
-    her: { hem: -0.035, open: (f) => 0.05 + 0.48 * ss3(0.42, 0.97, f) + 0.2 * ss3(0.1, -0.035, f), lapel: 0.22, lapV: 0.44, out: 0.0105, flare: 0.003, loose: 0.006, top: 0.004, tuck: 1 } },
+    her: { hem: -0.13, open: (f) => 0.05 + 0.48 * ss3(0.42, 0.97, f) + 0.2 * ss3(0.1, -0.13, f), lapel: 0.22, lapV: 0.44, out: 0.0105, flare: 0.003, loose: 0.006, top: 0.004, tuck: 1, fall: 1, drape: 0.55 } },   /* (fall: its back hanging straight from her seat's fullest, no stiff point over it; drape: in front, a share of the way from her bust's fullest, not painted into its underside) */
   leather: { hem: 0.0, open: (f) => 0.16 + 0.3 * ss3(0.62, 0.97, f), lapel: 0.15, lapV: 0.6, out: 0.015, flare: 0.012, loose: 0.01, her: { hem: 0.05, out: 0.0115, flare: 0.004, loose: 0.007, top: 0.004 } },
   bomber: { hem: 0.12, open: (f) => 0.2 + 0.12 * ss3(0.75, 0.97, f), out: 0.02, flare: 0.012, loose: 0.016, rib: 1, her: { out: 0.016, loose: 0.012 } },
   trench: { hem: -0.08, open: (f) => 0.03 + 0.44 * ss3(0.6, 0.97, f), lapel: 0.28, lapV: 0.5, out: 0.013, flare: 0.012, loose: 0.012, coat: 1 },
@@ -3218,7 +3218,7 @@ function skirt(J, F, T, sp, out0 = 0.005) {
   const fwd = J.kneeL.x - J.hipL.x > J.kneeR.x - J.hipR.x ? 'L' : 'R', slitAt = sp.wrap && sp.slit && sp.side ? -sp.side * 0.42 : Math.sign(J['knee' + fwd].z - hip.z || (fwd === 'L' ? 1 : -1)) * 0.42, slitTop = sp.slit > 0 && sp.slit < 1 ? Math.min(hm0 + sp.slit * Lt, kn.y + 0.64 * Lt) : kn.y + 0.52 * Lt;   // (a mini's slit (sp.slit < 1): that share of the thigh up from its hem, never up past the seat's fold)
   // (a fitted cut (cling) closer to the legs below the seat, from a share of the thigh down: toward their outline taken
   // together - the cloth bridging between them, never in between them - a flared one's only as far as the knee)
-  const cg = sp.cling || 0, rm = 0.6 * room, clw = (y) => cg * ss3(0, (0.3 - 0.15 * ck) * Lt, c0.y - y) * (1 - Math.min(1, 3 * fl) * ss3(kn.y + 0.2 * Lt, kn.y - 0.3 * Ls, y));
+  const cg = sp.cling || 0, rm = 0.6 * room, clw = (y) => cg * ss3(0, 0.36 * Lt, c0.y - y) * (1 - Math.min(1, 3 * fl) * ss3(kn.y + 0.2 * Lt, kn.y - 0.3 * Ls, y));
   const hull = (c, y, e) => { const [[q1, r1], [q2, r2]] = [legAt('R', y), legAt('L', y)]; let r = 9; for (let k = 0; k < 36; k++) { const nx = Math.cos(k * Math.PI / 18), nz = Math.sin(k * Math.PI / 18), en = e.x * nx + e.z * nz; if (en > 0.2) r = Math.min(r, (Math.max(q1.x * nx + q1.z * nz + r1, q2.x * nx + q2.z * nz + r2) + rm - c.x * nx - c.z * nz) / en); } return r; };
   for (let i = 1; i <= K; i++) {
     const u = i / K, k = 1 - 0.11 * u * (1 - Math.min(1, fl * 4)) + fl * u ** 1.4 - (sp.taper || 0) * u;   // (taper: a pencil cut's, narrowing on to the legs toward its hem)
@@ -3711,6 +3711,9 @@ function* buildSteps(o) {
   const top = kit === 'marshal' ? new THREE.Color('#f2661b') : kit === 'jacket' ? new THREE.Color('#202329') : OF?.sheer?.base === 'accent' || (OF?.lace?.on === 'top' && OF.lace.lining === 'accent') ? acc : team;
   // (her skirt's legs bare or in sheer tights; trousers worn in place of a skirt dark, unless she has her own)
   const legs = kit === 'suit' ? team.clone().multiplyScalar(0.82) : kit === 'marshal' ? new THREE.Color('#e05a14') : OF && o.legs && (!OF.skirt || sk || OF.under) ? new THREE.Color(o.legs) : OF?.skirt && !sk && !OF.under ? new THREE.Color('#1e2027') : OF?.swim === 'm' ? (OF.jacket ? acc : team).clone() : kit === 'casual' || cut === 'jeans' ? new THREE.Color('#3d5172') : new THREE.Color('#24272d');   // (his swim shorts, unless given: his colour - the accent under a shirt of his colour)
+  // (trousers and tights in black: never a black so deep it swallows the light - a very dark charcoal at the least, so the
+  //  legs' round and their folds still read; the cloth's own sheen does the rest)
+  { const lum = 0.2126 * legs.r + 0.7152 * legs.g + 0.0722 * legs.b, floor = 0.06; if (lum < floor) legs.lerp(new THREE.Color(0.055, 0.057, 0.063), 1 - lum / floor); }
   const skinC = new THREE.Color(o.skin || DL?.skin || SKIN[(Math.random() * SKIN.length) | 0]), hairC = new THREE.Color(o.hair || DL?.hair || HAIR[(Math.random() * HAIR.length) | 0]);
   const shoeKind = OF ? (HEELS.has(SHK) && !fem ? 'shoe' : SHK) : kit === 'suit' ? 'boot' : kit === 'polo' || kit === 'marshal' ? 'work' : 'shoe';
   const shoeC = new THREE.Color(o.shoes || (kit === 'suit' ? '#111214' : shoeKind === 'trainer' ? '#e6e3dc' : shoeKind === 'boot' && OF ? '#17171a' : shoeKind === 'shoe' && OF && fem ? '#2a2420' : '#1b1b1b'));
@@ -3755,7 +3758,7 @@ function* buildSteps(o) {
     top: OF ? finishMat(kit, topC, OF, fabric) : pplMat('cloth', top, kit === 'suit' ? 0.5 : kit === 'jacket' ? 0.55 : 0.86),
     // (bare legs under a skirt; sheer tights only by choice - o.tights (a colour, or true: o.legs') - or, outside a club
     // kit, o.legs as ever: a club mini's legs bare, never a day look's trouser colour carried over as tights)
-    legs: bare ? ((tc) => pplMat('skin', skinC.clone().lerp(tc || skinC, tc ? 0.45 : 0), tc ? 0.5 : 0.66))(o.tights ? new THREE.Color(typeof o.tights === 'string' ? o.tights : o.legs || '#1b1b1f') : o.legs && !CLUB_KITS.includes(kit) && !OF?.swim ? new THREE.Color(o.legs) : null) : OF?.legFab ? finishMat(null, OF.swim === 'm' && nearSkin(legs) ? new THREE.Color('#1b2440') : legs, OF, OF.legFab) : pplMat('cloth', legs, cut === 'jeans' ? 0.92 : cut === 'skinny' && kit === 'athleisure' ? 0.5 : 0.72),
+    legs: bare ? ((tc) => pplMat('skin', skinC.clone().lerp(tc || skinC, tc ? 0.45 : 0), tc ? 0.5 : 0.66))(o.tights ? new THREE.Color(typeof o.tights === 'string' ? o.tights : o.legs || '#1b1b1f') : o.legs && !CLUB_KITS.includes(kit) && !OF?.swim ? new THREE.Color(o.legs) : null) : OF?.legFab ? finishMat(null, OF.swim === 'm' && nearSkin(legs) ? new THREE.Color('#1b2440') : legs, OF, OF.legFab) : pplMat('cloth', legs, cut === 'jeans' ? 0.92 : cut === 'skinny' && kit === 'athleisure' ? 0.5 : 0.62),
     accent: pplMat('cloth', kit === 'marshal' ? new THREE.Color('#e8e8e8') : acc, kit === 'marshal' ? 0.35 : 0.5),
     skin: pplMat('skin', skinC, fem ? 0.66 : 0.72),   // (hers dewy - a soft broad sheen, PPL_DEWY - as her face's: not a doll's plastic)
     hair: pplMat('cloth', hairC, typeof ST.shine === 'number' && isFinite(ST.shine) ? 0.62 - 0.28 * clamp01(ST.shine) : !fem ? 0.5 : SLEEK.has(ST.hs) ? 0.4 : 0.47),
@@ -4071,7 +4074,9 @@ function* buildSteps(o) {
       if (low < 0.87) { turnedIn(bg, bg.userData.m || n(bm, 8), OF.band ? 0.82 : 0.62); skinEdge = { f: nE, out: OF.lapels ? tight + 0.0065 : tight, angs: nE === neck ? null : bg.userData.angs }; }
       const bgR = ribs(bg, bm); if (oneDress) bodiceG = bgR;
       // (her bust under it: the valley between the cups shaded softly, not as dark crumpled facets)
-      if (fem && F.bust > 0 && Q >= 0.6) { const cB = T.c(F.bf ?? 0.6), cH = T.c(0.8), cL = T.c(0.5); smoothNormals(bgR, (x, y, z) => y > cL.y && y < cH.y && Math.abs(z - cB.z) < 0.055 && x > cB.x, 0.022, 3); } parts[mats.band && mat === 'top' ? 'band' : mat].push(bgR); skinFoot = (a) => Math.min(...[-0.07, -0.035, 0, 0.035, 0.07].map((d) => Math.min(neck(a + d), nE(a + d))), fSeam) - 0.3 * (fSeam - fAc); if (fem && !JK) sideG.push([bg, tight + 0.001, 1]);
+      if (fem && F.bust > 0 && Q >= 0.6) { const cB = T.c(F.bf ?? 0.6), cH = T.c(0.8), cL = T.c(0.5); smoothNormals(bgR, (x, y, z) => y > cL.y && y < cH.y && Math.abs(z - cB.z) < 0.055 && x > cB.x, 0.022, 3); }
+      // (and where each cup meets the chest at the front of the armpit: no bright pinch where the cloth turns there)
+      if (fem && F.bust > 0 && Q >= 0.6) { const cA = T.c(0.7), cU = T.c(0.9); smoothNormals(bgR, (x, y, z) => y > cA.y && y < cU.y && Math.abs(z - cA.z) > 0.07 && x > cA.x - 0.02, 0.02, 2); } parts[mats.band && mat === 'top' ? 'band' : mat].push(bgR); skinFoot = (a) => Math.min(...[-0.07, -0.035, 0, 0.035, 0.07].map((d) => Math.min(neck(a + d), nE(a + d))), fSeam) - 0.3 * (fSeam - fAc); if (fem && !JK) sideG.push([bg, tight + 0.001, 1]);
       // (the neck's flare by how much of the trapezius' sweep shows above the neckline at her sides)
       NP.bare(0.5 * [-1, 1].reduce((s, k) => s + ss3(0.05, 0.25, (fSeam - skinFoot(k * Math.PI / 2)) / (fSeam - fAc) - 0.3), 0));
       // (where it comes up near the neck's foot - a one-shoulder's over her shoulder, a halter's sides - on the curve her
@@ -4224,8 +4229,11 @@ function* buildSteps(o) {
       // (a loose shirt over her swimwear (JK.fall) hanging straight down behind from the fullest round of her seat - never
       // drawn in under it, where the swimwear beneath would come through it: the most her torso stands out at that angle
       // anywhere from there up)
-      const fallR = (f, a) => T.pt(f, a, 0).sub(T.c(f)).setY(0).length(), jFall = JK.fall && fem ? (f, a) => { const b = Math.abs(Math.atan2(Math.sin(a), Math.cos(a))), w = ss3(1.5, 2.3, b); if (w <= 0 || f > 0.06) return 0; let r = 0; for (let g = 0.06; g > f; g -= 0.012) r = Math.max(r, fallR(g, a)); return w * Math.max(0, r - fallR(f, a)); } : null;
-      const jOut = (f, a = 0) => JK.out + 0.005 * ss3(0.8, 0.93, f) + (JK.nOut != null ? (JK.nOut - JK.out - 0.005) * ss3(0.94, 0.99, f) : 0) + JK.flare * ss3(0.16, -0.09, f) + (jFall ? jFall(f, a) : 0) + (fem ? 0.2 * F.leg[0] * ss3(0.14, jh, f) * (1 - ss3(1.7, 2.3, Math.abs(Math.atan2(Math.sin(a), Math.cos(a))))) : 0)
+      const fallR = (f, a) => T.pt(f, a, 0).sub(T.c(f)).setY(0).length(), jFall = JK.fall && fem ? (f, a) => { const b = Math.abs(Math.atan2(Math.sin(a), Math.cos(a))), w = ss3(1.5, 2.3, b); if (w <= 0 || f > 0.06) return 0; let r = 0; for (let g = 0.06; g > f; g -= 0.012) r = Math.max(r, fallR(g, a)); return w * Math.max(0, r - fallR(f, a)) * (1 - 0.55 * ss3(jh + 0.035, jh, f)); } : null;   /* (its last few centimetres curling back in toward her: a soft hem, not a square corner) */
+      // (a structured jacket over her bust (JK.drape, a share): below its fullest the cloth bridges toward the waist with some
+      //  tension, never tucked into the underside of the bust like paint - in front only, easing out to the sides)
+      const fb0 = F.bf ?? 0.6, jDrape = JK.drape && fem && F.bust > 0 ? (f, a) => { const b = Math.abs(Math.atan2(Math.sin(a), Math.cos(a))), w = ss3(1.2, 0.5, b); if (w <= 0 || f >= fb0 || f < 0.2) return 0; let r = 0; for (let g = fb0; g > f; g -= 0.015) r = Math.max(r, fallR(g, a)); return JK.drape * w * ss3(0.2, 0.34, f) * Math.max(0, r - fallR(f, a)); } : null;
+      const jOut = (f, a = 0) => JK.out + 0.005 * ss3(0.8, 0.93, f) + (jDrape ? jDrape(f, a) : 0) + (JK.nOut != null ? (JK.nOut - JK.out - 0.005) * ss3(0.94, 0.99, f) : 0) + JK.flare * ss3(0.16, -0.09, f) + (jFall ? jFall(f, a) : 0) + (fem ? 0.2 * F.leg[0] * ss3(0.14, jh, f) * (1 - ss3(1.7, 2.3, Math.abs(Math.atan2(Math.sin(a), Math.cos(a))))) : 0)
         + (JK.sh ? JK.sh * ss3(0.84, 0.94, f) * ss3(0.995, 0.965, f) * gau(Math.abs(Math.atan2(Math.sin(a), Math.cos(a))) - Math.PI / 2, 0.5) : 0);   // (a padded shoulder: squared out over the arm)
       parts.top.push(panel(T, jh, 0.99, hw, (f) => 2 * Math.PI - hw(f), jOut, { rows: JK.rows || (JK.coat && sk ? 13 : fem ? 24 : 19), cols: JK.cols || 32, curv: fem ? null : shD }), lining(panel(T, jh, 0.99, hw, (f) => 2 * Math.PI - hw(f), (f, a) => jOut(f, a) - 0.0025, { rows: fem ? 12 : 10, cols: 20, th: 0 })));
       // (notched lapels from the top button, their collar round the back of the neck)
@@ -4451,7 +4459,10 @@ function* buildSteps(o) {
     // showing under the arm, the shoulder's round taken in beside it: torsoOf)
     const cA = fem ? 0.5 + 0.8 * ss3(-0.8, -0.2, el.clone().sub(sh).normalize().y) : 0.5;
     // (cloth over an arm: smoother than the arm, a little looser, a crease's shade in the crook of the elbow)
-    const cloth = (t) => 0.7 * rad(t) + 0.3 * (F.del * (1 - t) + (F.arm[3] + 0.008) * t) + loose + (tS < 1 ? 0.005 * t / Math.max(0.05, tS) : 0), ao = crease([el], 0.8), rib = (g) => (OF?.ribs && !JK && Q >= 0.6 ? ribbed(g, n(14, 6)) : g);
+    // (hers: hanging from the deltoid's fullest and easing in to the elbow, not following the muscle's round in and out -
+    //  a sleeve, not a pauldron capping the shoulder)
+    const dPk = fem ? rad(0.22 * tj) : 0, radS = fem ? (t) => Math.max(rad(t), dPk - (dPk - rad(tj)) * ss3(0.22 * tj, tj, t)) : rad;
+    const cloth = (t) => 0.7 * radS(t) + 0.3 * (F.del * (1 - t) + (F.arm[3] + 0.008) * t) + loose + (tS < 1 ? 0.005 * t / Math.max(0.05, tS) : 0), ao = crease([el], 0.8), rib = (g) => (OF?.ribs && !JK && Q >= 0.6 ? ribbed(g, n(14, 6)) : g);
     // (her arm grown out of her shoulder - its skin (shaded as the skin it grows from, no fillet onto the bodice: crossing
     // its edge cleanly), or the top's sleeve over the bodice; a jacket's its own)
     const bA = (g, off = 0, oo = { col: skinSh ? (x, y, z) => skinSh(x, y, z, null, 0, 0) : null, bare: bod ? (f, a) => ss3(bod.nl(a) - 0.004, bod.nl(a) + 0.012, f) : null }) => { if (!(armB && !JK)) return armM && off ? armM(g, s === 'R' ? 0 : 1, offM, { sink: Math.min(0.6 * offM, 0.005) }) : g; armB(g, s === 'R' ? 0 : 1, off, oo); if (!off) armSk.push(g); return g; }, onBod = (bod?.off ?? 0) + 0.001;
