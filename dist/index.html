@@ -78160,8 +78160,10 @@ class Track {
     const ad = Math.abs(d), hw = d > 0 ? this.hwL[i] : this.hwR[i];
     if (ad <= hw) return 0;
     if (!this.circuit) return ad <= hw + this.kerbWidth ? 1 : 2;
-    if (this.pitInfield && this.pitInfield[i] && d * this.pitSide > 0) return ad <= hw + this.kerbWidth && this.inCorner[i] ? 1 : 2;   // the paved infield (buildPitLane)
     if (this.pitCovers && this.pitCovers[i] && d * this.pitSide > 0) return 2;
+    // the paved infield (buildPitLane): the kerb, then paving - after the lane's own asphalt above, which has the strip
+    // beside the road flat where the lane is near it (as it always had: the AI's line rides that edge out of T14)
+    if (this.pitInfield && this.pitInfield[i] && d * this.pitSide > 0) return ad <= hw + this.kerbWidth && this.inCorner[i] ? 1 : 2;
     const t = d > 0 ? this.surfL[i] : this.surfR[i], wall = d > 0 ? this.wallL[i] : this.wallR[i];
     if (ad <= hw + this.kerbWidth) return this.inCorner[i] ? 1 : t === 1 ? 2 : 3;
     if (this.inCorner[i] && ad <= hw + this.kerbWidth + GREEN_W) return 2;   // the painted green strip behind the kerb
@@ -79458,6 +79460,7 @@ function buildPitLane(track, rawPts, boxCount = 12) {
   // (a paved infield: the wall's nose where the lane is back beside the road, not before. Its line is still the one
   //  continuous wall below - along the pit straight a lane that hugs the road has no wall of its own, wallIn's test,
   //  only the one carried on from here)
+  const wallStart0 = wallStartI;   // (where it would start without the infield: the boxes are spaced about the middle of that)
   if (infieldEnd >= 0 && wallStartI >= 0 && wallStartI < infieldEnd) wallStartI = Math.min(infieldEnd, wallEndI);
   for (let i = 0; i < n; i++) wallIn[i] = i >= wallStartI && i <= wallEndI && wallStartI >= 0 ? Math.max(0.6, wallPos[i]) : Infinity;   // one continuous wall, no islands
   // how far the lane's own asphalt reaches toward the road: to the wall base where the wall exists, else exactly to the
@@ -79496,7 +79499,7 @@ function buildPitLane(track, rawPts, boxCount = 12) {
   const isGapS = (s) => inRangeS(s, gapEntry[0], gapEntry[1]) || inRangeS(s, gapExit[0], gapExit[1]);
   // boxes: one garage per team, adjacent (16 m pitch) and centred on the walled part of the lane, like a real pit building
   const boxes = []; const pitch = Math.round(16 / samples.ds);
-  const midI = wallStartI >= 0 ? (wallStartI + wallEndI) / 2 : n / 2;
+  const midI = wallStart0 >= 0 ? (wallStart0 + wallEndI) / 2 : n / 2;   // (an infield's later nose does not move the garages)
   for (let k = 0; k < boxCount; k++) boxes.push({ i: Math.round(midI + (k - (boxCount - 1) / 2) * pitch), k, team: null });
   // the speed-limit zone: from the pit-entry speed line to the pit-exit line. Real circuits have them bracketing the
   // garages, with the entry and exit roads (driven at speed) outside: track.def.pitLimit = { before, after } metres
