@@ -597,7 +597,7 @@ table.res tr.me td { color: var(--accent2); font-weight: 700; }
     <div class="brand-line"></div>
     <h1 id="brand-title">FORMULA 1<span id="brand-sub">SIMULATOR</span></h1>
     <!-- the build's version: +0.01 with every build handed out -->
-    <span id="app-ver" title="Version">V1.90</span>
+    <span id="app-ver" title="Version">V1.91</span>
     <div id="menu-sub">Real circuits built from OpenStreetMap</div>
   </div>
   <div id="loading" class="hidden"><div class="ld"><i></i></div><span>Building the circuit from OpenStreetMap…</span></div>
@@ -610,11 +610,15 @@ table.res tr.me td { color: var(--accent2); font-weight: 700; }
       <button class="card" data-v="tt"><span class="ci"></span><em>02</em><b>Time Trial</b><i>Empty track, chase the perfect lap</i><small class="live"></small></button>
       <button class="card" data-v="champ"><span class="ci"></span><em>03</em><b>Career</b><i>Your driver, your team, season after season</i><small class="live"></small></button>
     </div>
-    <button id="race-again" class="ghost hidden"><b>↻ RACE AGAIN</b><span></span></button>
+    <!-- the last race again, and STATS: everything you have played, every mode (ui/StatsScreen.js) -->
+    <div class="home-acts">
+      <button id="race-again" class="ghost hidden"><b>↻ RACE AGAIN</b><span></span></button>
+      <button id="stats-open" class="ghost" title="Stats (S)"><b>∑ STATS</b><span>Every mode, every lap</span></button>
+    </div>
     <footer class="home-foot">
       <div id="memoriam-home" class="memoriam hidden"></div>
       <span class="credit">Real circuits built from OpenStreetMap · Car model: “2026 Redbull RB22” by Dave Love, <a href="http://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a> (livery removed)</span>
-      <span class="keys"><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> choose<span id="keys-r" class="hidden">&nbsp;· <kbd>R</kbd> race again</span></span>
+      <span class="keys"><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> choose<span id="keys-r" class="hidden">&nbsp;· <kbd>R</kbd> race again</span>&nbsp;· <kbd>S</kbd> stats</span>
       <button id="dl-offline" class="ghost small hidden">⬇ Download the offline version (one HTML file, 4 MB)</button>
       <div id="dl-msg" class="small hidden"></div>
     </footer>
@@ -145944,7 +145948,7 @@ function poolFor(c, team, o = {}) {
 /** the best rating on the market now (free, fit, not retired) - a team with a weaker driver out of contract looks at him */
 const bestFree = (c) => Math.max(0, ...Object.values(c.drivers || {}).filter((d) => d && d.alive && !d.retired && !d.team && d.id !== c.playerId && !out(c, d)).map((d) => num(d.rating, 0)));
 /** the chance a veteran stops when his contract runs out: from 38, 0.1 and 0.13 more a year (a driver whose age is not known never) */
-function retireChance(c, d) { const a = safe('age', () => ageOf(c, d, null, c.season), null); return a == null || a < 38 ? 0 : clamp(0.1 + (a - 38) * 0.13, 0, 0.9); }
+function retireChance(c, d) { const a = safe('age', () => ageOf(c, d, null, c.season), null); return a == null || a < 39 ? 0 : clamp(0.05 + (a - 39) * 0.09, 0, 0.8); }
 /** where a newly signed driver comes from, for the news */
 const fromTxt = (d, team) => (d.reserveOf === team ? `${team}'s own reserve steps up` : d.from === 'F2' ? 'promoted from F2' : d.from === 'Junior' ? 'a junior given his chance' : d.from === 'Reserve' ? `from the reserve ranks${d.reserveOf ? ` (${d.reserveOf})` : ''}` : 'back on the grid');
 /** the standing a new signing gets beside the other driver (you: by your contract; another: number one over a clearly slower one) */
@@ -146162,10 +146166,11 @@ function moveNow(c, of, prevName) {
 
 // ---- the season's end: the teams decide ---------------------------------------------------------------------------------------
 /**
- * keep a driver whose contract runs out? his value against the team's bar (KEEP_BAR): 0.42 + 0.065 a point either way,
- * 0.22 less with a clearly better driver (+0.025) free on the market (0.08..0.92)
+ * keep a driver whose contract runs out? Renewing is what teams mostly do (a grid changes by a few seats a winter, not
+ * half of it): 0.6, 0.045 a point of his value against the team's bar (KEEP_BAR) either way, 0.12 less with a clearly
+ * better driver (+0.04) free on the market (0.3..0.95)
  */
-const keepChance = (c, d, t, best = bestFree(c)) => clamp(0.42 + (valueOf(c, d) - KEEP_BAR[clamp(num(t.tier, 3), 0, 3)]) * 0.065 - (best >= num(d.rating, 0.8) + 0.025 ? 0.22 : 0), 0.08, 0.92);
+const keepChance = (c, d, t, best = bestFree(c)) => clamp(0.6 + (valueOf(c, d) - KEEP_BAR[clamp(num(t.tier, 3), 0, 3)]) * 0.045 - (best >= num(d.rating, 0.8) + 0.04 ? 0.12 : 0), 0.3, 0.95);
 /**
  * The last race run (c.round past the calendar), once a season: each team's decision on every AI driver whose contract
  * runs out - kept (the years: two for one clearly above its bar) or let go - and on one far below it with years left
@@ -146182,9 +146187,9 @@ function marketSeasonEnd(c) {
         M.retire.push(d.id); M.drop.push(d.id); M.open.push({ team: t.name, out: d.id, why: 'retire' });
         c.addNews(`${d.name} announces he will retire from Formula 1 at the end of the season${num(d.wins) ? `, after ${d.wins} win${d.wins > 1 ? 's' : ''} in this career` : ''}.`);
       } else if (ending) {
-        if (Math.random() < keepChance(c, d, t, best)) M.resign[d.id] = valueOf(c, d) >= bar + 6 || young(c, d) ? 2 : Math.random() < 0.5 ? 1 : 2;
+        if (Math.random() < keepChance(c, d, t, best)) M.resign[d.id] = valueOf(c, d) >= bar + 3 || young(c, d) ? 2 : Math.random() < 0.35 ? 1 : 2;
         else { M.drop.push(d.id); M.open.push({ team: t.name, out: d.id, why: 'expire' }); }
-      } else if (valueOf(c, d) < bar - 6 && formOf(d, c.season) < -2 && Math.random() < 0.4) { M.drop.push(d.id); M.open.push({ team: t.name, out: d.id, why: 'early' }); }
+      } else if (valueOf(c, d) < bar - 8 && formOf(d, c.season) < -3 && Math.random() < 0.2) { M.drop.push(d.id); M.open.push({ team: t.name, out: d.id, why: 'early' }); }
     }
   }
   // (the paddock hears it first: the biggest decisions in the news)
@@ -146241,12 +146246,17 @@ function marketNewSeason(c) {
 }
 /** the silly season's poaching: a team replaces its weakest driver (not you, not one kept or chosen this winter) with a clearly better one - a free agent, or bought out of a smaller team (half the time), which fills its own seat */
 function sillySeason(c, locked) {
+  // (a contract broken to make room is rare: one such move a winter at most, for a driver who has been off the pace, by
+  //  one clearly better - 0.05 - and under a third of the time; a driver bought out of a smaller team a third of those)
+  let moves = 0;
   for (const t of shuffle(Object.values(c.teams || {}))) {
+    if (moves >= 1) break;
     const seats = c.seatsOf(t.name); if (seats.length < 2) continue;
-    const weak = seats.filter((d) => d.id !== c.playerId && !locked.has(d.id)).sort((a, b) => a.rating - b.rating)[0]; if (!weak) continue;
-    const target = Object.values(c.drivers).filter((d) => d.alive && !d.retired && d.id !== c.playerId && d.team !== t.name && !locked.has(d.id) && !out(c, d) && d.rating > weak.rating + 0.025)
-      .filter((d) => !d.team || (c.teams[d.team] && c.teams[d.team].tier > t.tier && Math.random() < 0.5)).sort((a, b) => b.rating - a.rating)[0];
-    if (!target || Math.random() > 0.55) continue;
+    const weak = seats.filter((d) => d.id !== c.playerId && !locked.has(d.id) && formOf(d, c.season - 1) < -1).sort((a, b) => a.rating - b.rating)[0]; if (!weak) continue;
+    const target = Object.values(c.drivers).filter((d) => d.alive && !d.retired && d.id !== c.playerId && d.team !== t.name && !locked.has(d.id) && !out(c, d) && d.rating > weak.rating + 0.05)
+      .filter((d) => !d.team || (c.teams[d.team] && c.teams[d.team].tier > t.tier && Math.random() < 0.33)).sort((a, b) => b.rating - a.rating)[0];
+    if (!target || Math.random() > 0.3) continue;
+    moves++;
     const from = target.team;
     if (from) { c.teams[from].seats = c.teams[from].seats.filter((x) => x !== target.id); c.teams[from].budget = r1(num(c.teams[from].budget) + 4); }
     target.team = null;
@@ -146284,6 +146294,424 @@ const tierWord = (t) => ({ front: 'a front-runner', mid: 'a midfield team', back
 return { KEEP_BAR, MID_CUT, marketEnsure, marketRace, formOf, valueOf, poolFor, retireChance, marketRoundTick, openMateSay, seasonSay, precontractSigned, leakNow, APPROACH, approachChance, approachTick, moveNow, marketSeasonEnd, marketNewSeason, marketSanity, openSeats, tierWord };
 })();
 
+// ---- src/career/Stats.js
+__m['src/career/Stats.js'] = (() => {
+
+// The stats book: your driver's figures, race by race, for each season and over the whole career - the starts and the
+// results, the grid against the finish, the laps completed and led, the distance and the time at the wheel (the race,
+// and qualifying and practice where you drove them), the overtakes, the stewards, the crashes, the team-mate, the pit
+// wall's orders, the stops, the money and the contracts, and every circuit's bests - with a lighter tally for every
+// driver in the paddock (starts, wins, podiums, points, poles, fastest laps, retirements, laps led) for the comparisons
+// and the records. The career keeps it as plain JSON (c.stats) and feeds it after every race (Career.applyRace ->
+// statsRace) with what the classification says and what main.js measured on the cars (raceStatsOf, handed over as
+// extra.stats); main.js adds qualifying and practice as each ends (statsSession). A save from before the book starts
+// counting from the round it is first loaded in, with what the career's own records can give back (statsEnsure: the
+// driver's record, the season's log, the archive of seasons, the head-to-head, the seat's history). Nothing here
+// throws: a figure that cannot be worked out is left out, and the round turns over all the same.
+
+const STATS_V = 1;
+/** the lighter tally kept for every driver, a season at a time: [starts, wins, podiums, points, poles, fastest laps, retirements, laps led] */
+const AI_KEYS = ['starts', 'wins', 'podiums', 'pts', 'poles', 'fl', 'dnf', 'led'];
+const AI_N = AI_KEYS.length, MAX_SEASONS = 30, MAX_PAST = 3;
+/**
+ * The circuits' lengths (km), for a race simulated from the hub: a race driven measures the circuit the cars ran on
+ * (main.js passes W.track.length). These are the game's own circuits as built (W.track.length), a little under the
+ * real ones' 5.891, 6.201, 4.361 and 5.513 km.
+ */
+const TRACK_KM = { silverstone: 5.863, lasvegas: 6.148, montreal: 4.356, austin: 5.484 };
+
+const num = (v, d = 0) => (typeof v === 'number' && isFinite(v) ? v : d);
+const r1 = (v) => Math.round(v * 10) / 10;
+const r2 = (v) => Math.round(v * 100) / 100;
+const r3 = (v) => Math.round(v * 1000) / 1000;
+const warn = (what, e) => console.warn(`Stats: ${what} failed`, e);
+// (a retirement as the book counts it: an accident or a car that broke - the morale engine's reading, Career.js ACCIDENT)
+const ACCIDENT = /accident|collision|crash|suspension damage|beached|stuck|gravel|stopped on track/i;
+const MECH = /mechanical|engine|gearbox|hydraulic|brake|power|puncture|electr|failure|overheat|fuel|leak/i;
+/** why a car retired -> 'acc' (an accident, off the road) | 'mech' (the car broke) | 'other' */
+const dnfCause = (car) => (car?.wreck || car?.injured || ACCIDENT.test(car?.retireReason || '') ? 'acc' : MECH.test(car?.retireReason || '') ? 'mech' : 'other');
+// (the pit wall's orders, yours: race/TeamOrders.js orderSub - done as asked, or not)
+const OBEYED = new Set(['youObeyed', 'youSacrificed']);
+const DEFIED = new Set(['youRefused', 'youBrokeHold', 'youHeldUp', 'youHit']);
+
+// ---- the books -------------------------------------------------------------------------------------------------------
+/**
+ * An empty book: what a season (or the whole career) adds up to. best / bestGrid: 0 until there is one; sec: seconds
+ * at the wheel; earn: $M into your own account; mates: the head-to-head with each team-mate { name, q, r, n, pts }.
+ */
+function newBook() {
+  return { starts: 0, wins: 0, podiums: 0, poles: 0, fronts: 0, fl: 0, pts: 0, ptsFin: 0, fin: 0, sumFin: 0, best: 0, nGrid: 0, sumGrid: 0, bestGrid: 0, gain: 0, nGain: 0,
+    dnf: { acc: 0, mech: 0, other: 0 }, laps: 0, led: 0, ledRaces: 0, km: 0, sec: { race: 0, quali: 0, prac: 0 }, sess: { quali: 0, prac: 0 }, ovt: 0, dotd: 0,
+    pens: 0, penS: 0, pp: 0, crashes: 0, h2h: { q: [0, 0], r: [0, 0] }, orders: { ok: 0, no: 0 }, stops: 0, hat: 0, earn: { salary: 0, bonus: 0, deals: 0 }, mates: {} };
+}
+/** a book brought to the current shape: every missing or broken figure back at its start (the old ones kept) */
+const fill = (o, d) => {
+  for (const [k, v] of Object.entries(d)) {
+    const x = o[k];
+    if (Array.isArray(v)) o[k] = Array.isArray(x) && x.length === v.length ? x.map((e) => num(e)) : [...v];
+    else if (v && typeof v === 'object') { if (!x || typeof x !== 'object' || Array.isArray(x)) o[k] = JSON.parse(JSON.stringify(v)); else fill(x, v); }
+    else if (typeof v === 'number' && !(typeof x === 'number' && isFinite(x))) o[k] = v;
+  }
+  return o;
+};
+// (since: the first race the book counts - a season already over counts from the next one's first)
+const blank = (c) => ({ v: STATS_V, pid: c.playerId || null, name: c.me?.name || '', since: c.round > (c.rounds || Infinity) ? { season: c.season + 1, round: 1 } : { season: c.season, round: c.round }, back: null,
+  career: newBook(), seasons: {}, tracks: {}, teams: {}, rec: {}, streak: { win: [0, 0], pod: [0, 0], pts: [0, 0], fin: [0, 0] }, k: null, contracts: 0, ai: {}, aiPart: null, past: [] });
+/** a season's book (made when first needed): a book, and the race-by-race log { r, t, tm, g, q, p, d, pts, o, l, n, f, v, c, s } */
+function seasonBook(S, season) {
+  const k = String(season); let b = S.seasons[k];
+  if (!b || typeof b !== 'object' || Array.isArray(b)) b = S.seasons[k] = { ...newBook(), races: [] };
+  if (!Array.isArray(b.races)) b.races = [];
+  return b;
+}
+const trackBook = (S, tid) => {
+  const T = S.tracks[tid];
+  if (T && typeof T === 'object') return T;
+  return (S.tracks[tid] = { starts: 0, wins: 0, podiums: 0, poles: 0, best: 0, fin: 0, sumFin: 0, dnf: 0, laps: 0, bestGrid: 0, lap: null, lapAt: null, q: null, qAt: null });
+};
+const teamBook = (S, name, from = null) => {
+  const t = S.teams[name];
+  if (t && typeof t === 'object') return t;
+  return (S.teams[name] = { starts: 0, wins: 0, podiums: 0, pts: 0, from: from || null, to: null });
+};
+const mateBook = (B, id, c) => {
+  B.mates = B.mates && typeof B.mates === 'object' ? B.mates : {};
+  const m = B.mates[id];
+  if (m && typeof m === 'object') return m;
+  return (B.mates[id] = { name: c.drivers?.[id]?.name || id, q: [0, 0], r: [0, 0], n: 0, pts: [0, 0] });
+};
+/** the paddock's tallies for a season (the oldest dropped past MAX_SEASONS) -> { [driverId]: [AI_KEYS] } */
+const aiSeason = (S, season) => {
+  S.ai = S.ai && typeof S.ai === 'object' ? S.ai : {};
+  const k = String(season);
+  if (!S.ai[k] || typeof S.ai[k] !== 'object') {
+    S.ai[k] = {};
+    const ks = Object.keys(S.ai).sort((a, b) => +a - +b);
+    while (ks.length > MAX_SEASONS) delete S.ai[ks.shift()];
+  }
+  return S.ai[k];
+};
+const aiRow = (A, id) => {
+  const a = A[id];
+  if (Array.isArray(a) && a.length === AI_N) return a;
+  const out = new Array(AI_N).fill(0);
+  if (Array.isArray(a)) a.slice(0, AI_N).forEach((v, i) => { out[i] = num(v); });
+  return (A[id] = out);
+};
+/** a driver's tally for a season as an object ({ starts, wins, ... }), or null */
+function aiOf(c, season, id) {
+  const a = c?.stats?.ai?.[String(season)]?.[id];
+  return Array.isArray(a) ? Object.fromEntries(AI_KEYS.map((k, i) => [k, num(a[i])])) : null;
+}
+// (your contract as a signature: a new one - signed, renewed, renegotiated, a reserve's - is one more contract signed)
+const sigOf = (c) => { const me = c.me, k = me?.contract, t = me?.team || me?.reserveOf || null; return me && me.alive !== false && k && t ? `${t}|${k.salary}|${k.until}|${k.role}` : ''; };
+
+// ---- keeping it --------------------------------------------------------------------------------------------------------
+/**
+ * The career's stats book, made or brought up to date (Career.upgrade on every load; every call below first): a save
+ * without one gets one now, filled from what the career already holds; a different driver at the wheel (yours was
+ * killed, or you took over your team-mate) puts the old book away and opens theirs; a new contract is counted. -> c.stats
+ */
+function statsEnsure(c) {
+  try {
+    if (!c || !c.drivers) return null;
+    let S = c.stats;
+    if (!S || typeof S !== 'object' || Array.isArray(S)) { S = c.stats = blank(c); backfill(c, S, true); }
+    else repair(S);
+    if (c.playerId && S.pid !== c.playerId) switchDriver(c, S);
+    const k = sigOf(c);
+    if (k !== S.k) { if (k && S.k != null) S.contracts = num(S.contracts) + 1; S.k = k; }
+    return S;
+  } catch (e) { warn('statsEnsure', e); return c?.stats && typeof c.stats === 'object' ? c.stats : null; }
+}
+function repair(S) {
+  const B = blank({ season: 0, round: 0 });
+  for (const k of ['seasons', 'tracks', 'teams', 'rec', 'ai']) if (!S[k] || typeof S[k] !== 'object' || Array.isArray(S[k])) S[k] = {};
+  if (!Array.isArray(S.past)) S.past = [];
+  S.career = fill(S.career && typeof S.career === 'object' ? S.career : {}, newBook());
+  for (const k of Object.keys(S.seasons)) { const b = S.seasons[k]; if (!b || typeof b !== 'object') { delete S.seasons[k]; continue; } fill(b, newBook()); if (!Array.isArray(b.races)) b.races = []; }
+  S.streak = fill(S.streak && typeof S.streak === 'object' ? S.streak : {}, B.streak);
+  if (!S.since || typeof S.since !== 'object') S.since = { season: 0, round: 0 };
+  S.contracts = num(S.contracts); S.v = STATS_V;
+}
+/**
+ * What the career's own records can give back, for a book opened late. initial (a save from before the stats): the
+ * driver's record for the career's starts, wins, podiums, points, poles and fastest laps; the archive for each past
+ * season's points and wins; this season's log for its starts, wins, podiums, best result and the circuits; the
+ * head-to-head with this season's team-mate; the seat's history for the teams and the contracts; the paddock's points
+ * and wins this season. Otherwise (a driver you have taken over): their record, and this season from the paddock's
+ * tally. Everything else counts from now (S.since); S.back names the figures that reach back further.
+ */
+function backfill(c, S, initial) {
+  const me = c.me; S.k = sigOf(c);
+  if (!me) return;
+  const log = Array.isArray(c.log) ? c.log : [], seasons = Array.isArray(c.seasons) ? c.seasons : [];
+  const hist = Array.isArray(c.seat?.history) ? c.seat.history : [];
+  // (a career with nothing behind it yet - a new one, a rookie who has only just signed: nothing to reach back for)
+  if (!(num(me.starts) > 0 || log.length || seasons.length)) {
+    if (initial) for (const x of hist) if (x && x.team) teamBook(S, x.team, x.from ? { s: x.from.season, r: x.from.round } : null);
+    S.contracts = Math.max(initial ? hist.length : 0, S.k ? 1 : 0);
+    return;
+  }
+  const C = S.career;
+  C.starts = num(me.starts); C.wins = num(me.wins); C.podiums = num(me.podiums); C.poles = num(me.poles); C.fl = num(me.fl); C.pts = num(me.careerPts, num(me.points));
+  S.back = ['starts', 'wins', 'podiums', 'pts', 'poles', 'fl'];
+  if (!initial) {
+    const a = aiOf(c, c.season, me.id);
+    if (a) { const b = seasonBook(S, c.season); Object.assign(b, { starts: a.starts, wins: a.wins, podiums: a.podiums, pts: a.pts, poles: a.poles, fl: a.fl, led: a.led }); b.part = true; }
+    if (me.team) teamBook(S, me.team, { s: c.season, r: c.round });
+    S.contracts = S.k ? 1 : 0;
+    return;
+  }
+  // (the seasons before this one, as the archive kept them: your points and your wins)
+  for (const s of seasons) { if (!s || s.season == null || s.season === c.season) continue; const b = seasonBook(S, s.season); b.pts = num(s.youPts); b.wins = num(s.wins); b.part = true; }
+  // (this season so far, from its log: every round you were classified in)
+  const L = log.filter((l) => l && typeof l.you === 'number' && l.you > 0), B = seasonBook(S, c.season);
+  if (L.length || num(me.points)) {
+    B.starts = L.length; B.wins = L.filter((l) => l.you === 1).length; B.podiums = L.filter((l) => l.you <= 3).length; B.pts = num(me.points);
+    B.best = L.length ? Math.min(...L.map((l) => l.you)) : 0; B.part = true;
+    B.races = L.map((l) => ({ r: l.round, t: l.track, p: l.you, b: 1 }));
+  }
+  for (const l of L) { const T = trackBook(S, l.track); T.starts++; if (l.you === 1) T.wins++; if (l.you <= 3) T.podiums++; T.best = T.best ? Math.min(T.best, l.you) : l.you; T.part = true; }
+  // (the head-to-head with this season's team-mate, as far as it has gone)
+  const h = c.h2h;
+  if (h && h.mate && c.drivers[h.mate] && Array.isArray(h.q) && Array.isArray(h.r)) {
+    for (const b of [B, C]) { b.h2h.q = [num(h.q[0]), num(h.q[1])]; b.h2h.r = [num(h.r[0]), num(h.r[1])]; const m = mateBook(b, h.mate, c); m.q = [...b.h2h.q]; m.r = [...b.h2h.r]; m.n = m.r[0] + m.r[1]; }
+  }
+  // (the teams you have been with - the seat's history - and a contract behind each stint)
+  for (const x of hist) if (x && x.team) { const t = teamBook(S, x.team, x.from ? { s: x.from.season, r: x.from.round } : null); if (x.to) t.to = { s: x.to.season, r: x.to.round }; }
+  if (me.team && !S.teams[me.team]) teamBook(S, me.team, c.seat?.since ? { s: c.seat.since.season, r: c.seat.since.round } : null);
+  S.contracts = Math.max(hist.length, S.k ? 1 : 0);
+  // (the paddock this season: the points each driver holds, the wins the log names, the starts the rounds give)
+  const A = aiSeason(S, c.season), byName = new Map(Object.values(c.drivers).map((d) => [d?.name, d]));
+  for (const d of Object.values(c.drivers)) { if (!d || !(num(d.points) > 0 || d.team)) continue; const a = aiRow(A, d.id); a[3] = num(d.points); if (d.team) a[0] = log.length; }
+  for (const l of log) { const w = byName.get(l?.winner); if (w) aiRow(A, w.id)[1]++; }
+  S.aiPart = c.season;
+}
+/** a different driver at the wheel: the old book put away (the last few kept), a new one opened from their record */
+function switchDriver(c, S) {
+  const past = (Array.isArray(S.past) ? S.past : []).slice(-(MAX_PAST - 1)), ai = S.ai;
+  if (S.pid) past.push({ pid: S.pid, name: S.name, until: { season: c.season, round: c.round }, career: S.career, seasons: S.seasons, tracks: S.tracks, teams: S.teams, rec: S.rec, contracts: S.contracts });
+  for (const k of Object.keys(S)) delete S[k];
+  Object.assign(S, blank(c), { ai: ai && typeof ai === 'object' ? ai : {}, past });
+  backfill(c, S, false);
+}
+
+// ---- after a race ------------------------------------------------------------------------------------------------------
+/**
+ * A race done (Career.applyRace, before the round's snapshot): x = { rows, trackId, X (applyRace's extra: X.stats from
+ * main.js raceStatsOf, X.dotd, X.overtakes, X.orders), S0, R0 (the race's season and round), POINTS (the table used),
+ * meRow, mateRow, mate, flRow (the fastest lap's row), mine (your own driver raced it), earn: { salary, bonus, deals }
+ * (what reached your account this round) }. Everyone's tally first; the money; your time at the wheel (a stand-in's
+ * race is still your driving); then, for a race of your own driver's, every figure of the book. -> c.stats
+ */
+function statsRace(c, x) {
+  const S = statsEnsure(c); if (!S || !x || !Array.isArray(x.rows)) return S;
+  const { rows, trackId = null, S0 = c.season, R0 = c.round - 1, meRow = null, mateRow = null, mate = null, flRow = null, mine = false } = x;
+  const X = x.X || {}, POINTS = Array.isArray(x.POINTS) ? x.POINTS : [25, 18, 15, 12, 10, 8, 6, 4, 2, 1];
+  const RS = X.stats && typeof X.stats === 'object' ? X.stats : null, M = RS?.me && typeof RS.me === 'object' ? RS.me : null;
+  const q = c._quali || {}, at = { s: S0, r: R0, t: trackId }, ptsOf = (r) => (r?.car?.retired ? 0 : num(POINTS[r.pos - 1]));
+  // the paddock's tally: every driver in the race
+  const A = aiSeason(S, S0);
+  for (const r of rows) {
+    const id = r?.car?.careerId; if (!id || !c.drivers[id]) continue;
+    const a = aiRow(A, id), fin = !r.car.retired;
+    a[0]++; a[3] += ptsOf(r); a[7] += num(RS?.led?.[id]);
+    if (fin && r.pos === 1) a[1]++;
+    if (fin && r.pos <= 3) a[2]++;
+    if (q[id] === 1) a[4]++;
+    if (r === flRow) a[5]++;
+    if (!fin) a[6]++;
+  }
+  const B = seasonBook(S, S0), C = S.career, both = [B, C], E = x.earn || {};
+  // (the money into your own account this round - a free agent's personal deals too)
+  for (const b of both) { b.earn.salary = r2(b.earn.salary + num(E.salary)); b.earn.bonus = r2(b.earn.bonus + num(E.bonus)); b.earn.deals = r2(b.earn.deals + num(E.deals)); }
+  // (your time at the wheel, whoever's car it was)
+  if (M && num(M.sec) > 0) for (const b of both) b.sec.race = r1(b.sec.race + num(M.sec));
+  if (!meRow || !mine) return S;
+  const car = meRow.car || {}, fin = !car.retired, pos = num(meRow.pos), pts = ptsOf(meRow), team = car.team || null;
+  const grid = num(M?.grid, num(car.gridPos)) || 0, qp = num(q[c.playerId]) || 0, start = qp || grid;
+  const laps = M ? num(M.laps) : num(car.lap), led = M ? num(M.led) : 0;
+  const km = M && M.km != null ? num(M.km) : r3(laps * num(TRACK_KM[trackId], 5));
+  const ovt = M ? num(M.ovt) : num(X.overtakes, num(car.overtakes)), stops = M ? num(M.stops) : num(car.pitStops, num(meRow.stops));
+  const cause = fin ? null : dnfCause(car), crash = !!M?.crash || cause === 'acc', fastest = !!flRow && flRow === meRow, pole = start === 1;
+  const ppl = Array.isArray(car.ppLog) && car.ppLog.length ? car.ppLog : Array.isArray(meRow.ppLog) ? meRow.ppLog : [];
+  const pp = ppl.length ? ppl.reduce((a, e) => a + Math.max(0, Math.round(num(e?.pts))), 0) : Math.max(0, Math.round(num(car.penPts, num(meRow.penPts))));
+  const pens = Math.max(num(car.penaltyCount), ppl.length), penS = M ? num(M.penS) : num(car.penalties) + num(car.penaltyServed);
+  const mo = (Array.isArray(X.orders) ? X.orders : []).find((o) => o && o.mine && (OBEYED.has(o.sub) || DEFIED.has(o.sub)));
+  // (the head-to-head: the race when either of you finished it, qualifying when you both set a place - 0 you, 1 them)
+  const mid = mate?.id || null, qm = mid ? num(q[mid]) : 0;
+  const rH = mateRow && !(car.retired && mateRow.car?.retired) ? (fin && (mateRow.car?.retired || pos < mateRow.pos) ? 0 : 1) : null;
+  const qH = mid && qp && qm ? (qp < qm ? 0 : 1) : null;
+  for (const b of both) {
+    b.starts++; b.pts += pts; b.laps += laps; b.led += led; b.km = r3(b.km + km); b.ovt += ovt; b.stops += stops;
+    b.pens += pens; b.penS = r1(b.penS + penS); b.pp += pp;
+    if (fin && pos === 1) b.wins++;
+    if (fin && pos <= 3) b.podiums++;
+    if (pole) b.poles++;
+    if (start && start <= 2) b.fronts++;
+    if (fastest) b.fl++;
+    if (pts > 0) b.ptsFin++;
+    if (led > 0) b.ledRaces++;
+    if (X.dotd) b.dotd++;
+    if (crash) b.crashes++;
+    if (pole && fin && pos === 1 && fastest) b.hat++;
+    if (fin) { b.fin++; b.sumFin += pos; b.best = b.best ? Math.min(b.best, pos) : pos; if (grid) { b.gain += grid - pos; b.nGain++; } } else b.dnf[cause]++;
+    if (grid) { b.nGrid++; b.sumGrid += grid; b.bestGrid = b.bestGrid ? Math.min(b.bestGrid, grid) : grid; }
+    if (mo) b.orders[OBEYED.has(mo.sub) ? 'ok' : 'no']++;
+    if (qH != null) b.h2h.q[qH]++;
+    if (rH != null) b.h2h.r[rH]++;
+    if (mid) {
+      const m = mateBook(b, mid, c);
+      if (qH != null) m.q[qH]++;
+      if (rH != null) m.r[rH]++;
+      if (mateRow) { m.n++; m.pts[0] += pts; m.pts[1] += ptsOf(mateRow); }
+    }
+  }
+  B.races.push({ r: R0, t: trackId, tm: team, g: grid || null, q: qp || null, p: pos, d: cause, pts, o: ovt, l: led, n: laps, f: fastest ? 1 : 0, v: X.dotd ? 1 : 0, c: crash ? 1 : 0, s: r1(num(M?.sec)) });
+  // the circuit: its starts and results, the best finish, the best race lap you drove there
+  if (trackId) {
+    const T = trackBook(S, trackId);
+    T.starts++; T.laps += laps;
+    if (fin && pos === 1) T.wins++;
+    if (fin && pos <= 3) T.podiums++;
+    if (pole) T.poles++;
+    if (fin) { T.fin++; T.sumFin += pos; T.best = T.best ? Math.min(T.best, pos) : pos; } else T.dnf++;
+    if (grid) T.bestGrid = T.bestGrid ? Math.min(T.bestGrid, grid) : grid;
+    if (num(M?.best) > 20 && (!T.lap || M.best < T.lap)) { T.lap = M.best; T.lapAt = at; }
+  }
+  // the team you drove it for
+  if (team) {
+    const t = teamBook(S, team, at);
+    t.starts++; t.pts += pts; t.to = at; if (!t.from) t.from = at;
+    if (fin && pos === 1) t.wins++;
+    if (fin && pos <= 3) t.podiums++;
+  }
+  // personal records (the most in a race; the quickest clean stop) and the streaks [now, best]
+  const R = S.rec, more = (k, n, o = {}) => { if (n > 0 && n > num(R[k]?.n)) R[k] = { n, ...o, at }; };
+  if (fin && grid) more('gain', grid - pos, { from: grid, to: pos });
+  more('ovt', ovt); more('led', led);
+  if (num(M?.stop) > 0 && (!R.stop || M.stop < num(R.stop.n, Infinity))) R.stop = { n: M.stop, at };
+  const run = (k, yes) => { const s = S.streak[k]; s[0] = yes ? s[0] + 1 : 0; if (s[0] > s[1]) s[1] = s[0]; };
+  run('win', fin && pos === 1); run('pod', fin && pos <= 3); run('pts', pts > 0); run('fin', fin);
+  return S;
+}
+
+// ---- the sessions (main.js) --------------------------------------------------------------------------------------------
+/**
+ * The race as main.js saw it, from the director's cars (d: RaceDirector, after the flag), as plain data for the career
+ * (extra.stats): every driver's laps led (the first across the line at the end of each lap, from the lap times since
+ * lights out), and yours - the laps (to the flag: a cool-down lap that crossed the line again is not one), laps led,
+ * the distance, the time at the wheel (lights out to the moment the car stopped being yours: the hand-over after the
+ * flag or a retirement, main.js watchSession's c.handAt), the grid, your best lap driven, the stops and the quickest
+ * clean one, the overtakes, a crash (a hit the crash camera would take - o.crashG - a launch, a wreck, an accident),
+ * the stewards' time. o: { len (the circuit, m), crashG }. -> { v, len, laps, me, led } | null
+ */
+function raceStatsOf(d, rows = null, o = {}) {
+  try {
+    if (!d || d.mode !== 'race') return null;
+    const cars = (d.cars || []).filter((c) => c && !c.isSC), L = num(o.len, num(d.track?.length)), t0 = num(d.world?.raceStart, NaN), N = num(d.lapsTotal);
+    const lf = d.leaderFinished ? num(d.leaderFinishTime, Infinity) : Infinity;
+    // (each car's crossings, seconds after lights out: the sum of its lap times)
+    const X = new Map(cars.map((c) => { let t = 0; return [c, (Array.isArray(c.lapTimes) ? c.lapTimes : []).map((v) => (t += num(v)))]; }));
+    // (its laps: run to the flag, to its finishing lap; a car whose race was simulated keeps the count the simulation gave it)
+    const lapsOf = new Map(cars.map((c) => {
+      const x = X.get(c), n = num(c.lap);
+      if (!c.finished || x.length < n || !isFinite(t0)) return [c, n];
+      for (let k = 0; k < x.length; k++) if (k + 1 >= N || t0 + x[k] >= lf - 0.05) return [c, k + 1];
+      return [c, n];
+    }));
+    const led = {}, K = Math.max(0, ...cars.map((c) => lapsOf.get(c)));
+    for (let k = 0; k < K; k++) {
+      let who = null, bt = Infinity;
+      for (const c of cars) { const tk = X.get(c)[k]; if (lapsOf.get(c) > k && tk != null && tk < bt) { bt = tk; who = c; } }
+      if (who?.careerId) led[who.careerId] = (led[who.careerId] || 0) + 1;
+    }
+    // (your car: the director's player - or, while photo mode drives it, the car that is yours)
+    const p = (d.player && cars.includes(d.player) ? d.player : null) || cars.find((c) => c.isPlayer) || null;
+    let me = null;
+    if (p) {
+      const x = X.get(p), hand = num(p.handAt, NaN), end = isFinite(hand) ? hand : num(d.time), n = lapsOf.get(p);
+      const driven = Math.min(n, x.length, isFinite(hand) ? num(p.handLaps, x.length) : x.length);
+      let best = Infinity; for (let k = 0; k < driven; k++) { const t = num(p.lapTimes[k], Infinity); if (t > 20 && t < best) best = t; }
+      const part = p.retired ? Math.max(0, Math.min(L, num(p.lapDist))) : 0;
+      const st = (Array.isArray(d.stops) ? d.stops : []).filter((s) => s && s.c === p && s.clean && num(s.t) > 0).map((s) => s.t);
+      const crash = num(p.peakG) >= num(o.crashG, 30) || !!p._flew || !!p.wreck || (!!p.retired && dnfCause(p) === 'acc');
+      me = { id: p.careerId || null, laps: n, led: num(led[p.careerId]), km: r3((n * L + part) / 1000), sec: isFinite(t0) ? r1(Math.max(0, end - t0)) : 0, grid: num(p.gridPos) || null,
+        best: isFinite(best) ? r3(best) : null, stops: num(p.pitStops), stop: st.length ? r2(Math.min(...st)) : null, ovt: num(p.overtakes), crash,
+        pens: num(p.penaltyCount), penS: r1(num(p.penalties) + num(p.penaltyServed)) };
+    }
+    return { v: 1, len: r1(L), laps: N, me, led };
+  } catch (e) { warn('raceStatsOf', e); return null; }
+}
+/**
+ * Practice or qualifying over (main.js, in the session's onFinish, the director still up): your time at the wheel
+ * (from the start of the session to the hand-over - your laps done, a crash, the rest simulated - else its end) and,
+ * in qualifying, your best lap driven there (laps the simulation added after the hand-over are not yours). Saved.
+ * kind: 'quali' | 'practice'. -> { sec, best } | null
+ */
+function statsSession(c, d, kind, trackId = null) {
+  try {
+    const S = statsEnsure(c), p = d?.player || (Array.isArray(d?.cars) ? d.cars.find((x) => x && x.isPlayer) : null); if (!S || !p) return null;
+    const k = kind === 'quali' ? 'quali' : 'prac', hand = num(p.handAt, NaN), sec = r1(Math.max(0, isFinite(hand) ? hand : num(d.time)));
+    for (const b of [seasonBook(S, c.season), S.career]) { b.sec[k] = r1(b.sec[k] + sec); if (sec >= 1) b.sess[k]++; }
+    let best = null;
+    if (k === 'quali') {
+      const T0 = Array.isArray(p.lapTimes) ? p.lapTimes : [], T = isFinite(hand) ? T0.slice(0, num(p.handLaps, T0.length)) : T0, ok = T.filter((t) => isFinite(t) && t > 20);
+      if (ok.length) best = r3(Math.min(...ok));
+      if (best && trackId) { const B = trackBook(S, trackId); if (!B.q || best < B.q) { B.q = best; B.qAt = { s: c.season, r: c.round, t: trackId }; } }
+    }
+    c.save?.();
+    return { sec, best };
+  } catch (e) { warn('statsSession', e); return null; }
+}
+
+// ---- reading it ----------------------------------------------------------------------------------------------------------
+/** seconds at the wheel in a book (race + qualifying + practice) */
+const secOf = (b) => num(b?.sec?.race) + num(b?.sec?.quali) + num(b?.sec?.prac);
+/** the figures a book gives once worked out: averages and rates (null where there is nothing to divide by) */
+function figures(b) {
+  const B = b || newBook(), dnf = num(B.dnf?.acc) + num(B.dnf?.mech) + num(B.dnf?.other), per = (v, n) => (n > 0 ? v / n : null);
+  return { dnf, avgFin: per(B.sumFin, B.fin), avgGrid: per(B.sumGrid, B.nGrid), avgGain: per(B.gain, B.nGain), winRate: per(B.wins, B.starts), podRate: per(B.podiums, B.starts),
+    finRate: per(B.fin, B.fin + dnf), ptsPer: per(B.pts, B.starts), ovtPer: per(B.ovt, B.starts), sec: secOf(B), earn: r2(num(B.earn?.salary) + num(B.earn?.bonus) + num(B.earn?.deals)) };
+}
+/** the seasons the book or the career knows of, oldest first */
+function seasonsOf(c) {
+  const S = c?.stats || {}, set = new Set([c.season, ...Object.keys(S.seasons || {}).map(Number), ...(c.seasons || []).map((s) => s?.season)].filter((v) => Number.isFinite(v)));
+  return [...set].sort((a, b) => a - b);
+}
+/**
+ * The paddock's records since the career began - the most wins, podiums, points, poles, fastest laps and starts of any
+ * driver, alive or not (their records: Career's driver entries), and the most points and wins in one season (the
+ * book's tallies, the archive's champions) - with your own place in each. -> [{ key, label, who, n, you, rank }]
+ */
+function paddockRecords(c) {
+  const ds = Object.values(c?.drivers || {}).filter((d) => d && d.name), me = c?.me;
+  const row = (key, label, val) => {
+    const L = ds.map((d) => [d, num(val(d))]).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
+    const top = L[0], you = me ? num(val(me)) : 0, rank = me && you > 0 ? 1 + L.filter(([, v]) => v > you).length : null;
+    return { key, label, who: top ? top[0].name : null, id: top ? top[0].id : null, n: top ? top[1] : 0, you, rank };
+  };
+  const out = [row('wins', 'Most wins', (d) => d.wins), row('podiums', 'Most podiums', (d) => d.podiums), row('pts', 'Most points', (d) => num(d.careerPts, d.points)),
+    row('poles', 'Most poles', (d) => d.poles), row('fl', 'Most fastest laps', (d) => d.fl), row('starts', 'Most starts', (d) => d.starts)];
+  // (one season: the book's tallies; the archive's champions for the seasons before it, with their points)
+  let bestPts = null, bestWins = null;
+  for (const [s, A] of Object.entries(c?.stats?.ai || {})) {
+    for (const [id, a] of Object.entries(A || {})) {
+      const d = c.drivers?.[id]; if (!d || !Array.isArray(a)) continue;
+      if (!bestPts || num(a[3]) > bestPts.n) bestPts = { n: num(a[3]), who: d.name, id, season: +s };
+      if (!bestWins || num(a[1]) > bestWins.n) bestWins = { n: num(a[1]), who: d.name, id, season: +s };
+    }
+  }
+  const mine = (k) => Math.max(0, ...Object.entries(c?.stats?.seasons || {}).map(([, b]) => num(b?.[k])));
+  out.push({ key: 'seasonPts', label: 'Most points in a season', who: bestPts?.who || null, id: bestPts?.id || null, n: bestPts?.n || 0, season: bestPts?.season ?? null, you: mine('pts'), rank: null });
+  out.push({ key: 'seasonWins', label: 'Most wins in a season', who: bestWins?.who || null, id: bestWins?.id || null, n: bestWins?.n || 0, season: bestWins?.season ?? null, you: mine('wins'), rank: null });
+  return out;
+}
+
+return { STATS_V, AI_KEYS, TRACK_KM, dnfCause, newBook, seasonBook, aiOf, statsEnsure, statsRace, raceStatsOf, statsSession, secOf, figures, seasonsOf, paddockRecords };
+})();
+
 // ---- src/career/Career.js
 __m['src/career/Career.js'] = (() => {
 const { ROSTER, RESERVES, F2, PERF_GAIN, dayPerf } = __m['src/race/Roster.js'];
@@ -146299,6 +146727,7 @@ const { normLook, blankLook } = __m['src/career/Avatar.js'];
 const { ACADEMY_BY_ID, SEAT_RULES, kindOf, newSeat, seatEnsure, seatRace, seatBeat, seatRoundTick, seatSeasonEnd, rookieOffers, seatCtx, agentText, confLabel, clauseFor, leverageParts } = __m['src/career/Seat.js'];
 const { requestOdds, requestUpgrade, requestTick, mateSay, talkAgree, talkWalk, mateRoleFor } = __m['src/career/Say.js'];
 const { marketEnsure, marketRace, marketRoundTick, marketSeasonEnd, marketNewSeason, seasonSay, precontractSigned, moveNow } = __m['src/career/Market.js'];
+const { statsEnsure, statsRace } = __m['src/career/Stats.js'];
 // The championship career: you are a driver - never the owner. You begin as a rookie of your own making in one of the
 // real junior academies, take one of the seats it can open for you, and from then on hold a contract (a salary, the
 // years it runs, your standing in the garage) with a team that is not yours: its budget, its car and its development
@@ -146314,6 +146743,7 @@ const { marketEnsure, marketRace, marketRoundTick, marketSeasonEnd, marketNewSea
 // right order, and the engines do the rest. You race as your driver until they die - a death is final. An AI driver
 // hurt in an accident misses the next round or two, and a driver who reaches twelve penalty points misses the next
 // one: a stand-in in their seat either way.
+
 
 
 
@@ -146545,6 +146975,8 @@ class Career {
     safe('seatEnsure', () => seatEnsure(this));
     // (the driver market - career/Market.js: a save from before it has no plan yet; the winter decides on the spot)
     safe('marketEnsure', () => marketEnsure(this));
+    // (the stats book - career/Stats.js: a save from before it starts one now, filled from the career's own records)
+    safe('statsEnsure', () => statsEnsure(this));
     this.v = 5;
     try {
       this.forecast = this.forecast || this.calendar.map(drawForecast); this.trophies = this.trophies || []; this.seasons = this.seasons || [];
@@ -147003,11 +147435,14 @@ class Career {
    * rows: the classification ({ car, pos, ... }; a car may carry ppLog [{ pts, reason }] or penPts - the stewards'
    * penalty points); contacts: [{ id, sev, crash }] with your car; table: a shortened race's reduced points; extra:
    * { dotd (you were Driver of the Day), overtakes (yours), grave (the race abandoned or cancelled after an accident),
-   * hurtIds (the drivers hurt in it), fought (the driver you clashed with) }. The round moves on.
+   * hurtIds (the drivers hurt in it), fought (the driver you clashed with), stats (the race in numbers - main.js,
+   * career/Stats.js raceStatsOf - for the stats book) }. The round moves on.
    */
   applyRace(rows, trackId, contacts = [], table = null, extra = {}) {
     const POINTS = table || [25, 18, 15, 12, 10, 8, 6, 4, 2, 1], byTeam = {};   // (table: a shortened race's reduced points)
     const X = extra || {}, S0 = this.season, R0 = this.round;
+    // (the stats book open before anything of this race reaches the records it would be filled from - career/Stats.js)
+    safe('statsEnsure', () => statsEnsure(this));
     // (before anything moves: your morale and your standing with the press, for the report)
     const me0 = this.me, m0 = me0 ? moodOf(me0).morale : null, why0 = me0?.moodWhy?.[0] || null, P0 = this.pr ? { image: this.pr.image, fame: this.pr.fame, top: this.pr.feed?.[0] || null } : null;
     // (a grave round - anyone hurt or killed in it, a race stopped by an accident, a life lost this round: nothing in it becomes a story)
@@ -147223,6 +147658,8 @@ class Career {
       report.points = points; report.life = life.slice(0, 14); report.salary = salary;
       report.ban = safe('banText', () => banText(this, this.playerId)) || null; report.grave = grave;
     }
+    // the stats book (career/Stats.js): your figures for the season and the career, the circuit, the records, everyone's tallies
+    safe('statsRace', () => statsRace(this, { rows, trackId, X, S0, R0, POINTS, meRow, mateRow, mate, flRow, mine, earn: { salary, bonus: r2((report.bonusYou || 0) + (report.bonusWin || 0)), deals: toYou } }));
     this.snapshot(); delete this._quali; delete this.savedGrid;   // (the round's grid is used up)
     if (this.seasonOver) { const c = this.driverStandings()[0]; this.addNews(`${this.season} champion: ${c.name}, ${c.points} points.`); this.objectives = []; }
     else this.objectivesFor();
@@ -149921,6 +150358,384 @@ function techClick(c, ds, S = {}) {
 }
 
 return { TECH_CSS, techHTML, techSide, techView, techClick };
+})();
+
+// ---- src/ui/HubStats.js
+__m['src/ui/HubStats.js'] = (() => {
+const { statsEnsure, newBook, figures, seasonsOf, aiOf, paddockRecords } = __m['src/career/Stats.js'];
+// The STATS section of the career hub (ui/CareerHub.js draws the frame and routes here; career/Stats.js keeps the book):
+// your driver's figures for one season or the whole career, a page at a time. OVERVIEW: the big numbers - wins,
+// podiums, points, overtakes, the time at the wheel - the next six, and a chart (the grid against the finish race by
+// race; the career's points season by season). DETAILS: every figure in five tables - results, on track, incidents
+// and orders, the money, the contracts. RACES: race by race (the career: season by season). TEAM-MATE: the
+// head-to-head, the tale of the tape (the career: every team-mate you have had). CIRCUITS: each circuit's bests - the
+// best finish, the best race and qualifying laps you drove there. RECORDS: yours and the paddock's. A switch in the
+// head picks the season (‹ 2026 ›: the arrow keys step through them) or the career; on a phone it sits at the top of
+// the page. In the hub's own look: white tiles and cards, the team's colour, the hub's line charts.
+
+const CSS = `
+#career .hst { display: flex; flex-direction: column; gap: var(--gap); height: 100%; min-height: 0; font-variant-numeric: tabular-nums; }
+#career .hst-sw { display: flex; align-items: center; justify-content: space-between; gap: 6px 12px; flex: none; flex-wrap: wrap; min-height: 34px; }
+#career .hst-ttl { min-width: 0; display: flex; align-items: baseline; gap: 10px; }
+#career .hst-ttl b { font: 800 16px/1.2 var(--k-font, 'Segoe UI', Arial, sans-serif); letter-spacing: .04em; white-space: nowrap; }
+#career .hst-ttl small { font-size: 12px; color: #6b7480; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+#career .hst-ctl { display: flex; align-items: center; gap: 8px; flex: none; margin-left: auto; }
+#career .hst-ctl .k-seg > button { min-width: 72px; }
+#career .hst-ctl .k-pager > span { font-weight: 800; color: #151a22; }
+#career .hst-note { flex: none; margin: 0; font-size: 11.5px; line-height: 1.35; color: #6b7480; }
+#career .hst-note b { color: #3a4350; }
+#career .hst-big { flex: none; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) minmax(0, 1.3fr); gap: 8px; }
+#career .hst-t { position: relative; background: #fff; border: 1px solid rgba(21,26,34,.06); border-radius: 16px; padding: 12px 12px 11px 15px; min-width: 0; box-shadow: 0 2px 10px rgba(25,35,60,.05); overflow: hidden; }
+#career .hst-t::before { content: ''; position: absolute; left: 0; top: 12px; bottom: 12px; width: 4px; border-radius: 2px; background: var(--tc); }
+#career .hst-t small { display: block; font: 700 10px/1.1 var(--k-font, 'Segoe UI', Arial, sans-serif); letter-spacing: .14em; text-transform: uppercase; color: #6b7480; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#career .hst-t b { display: block; font: 800 30px/1.1 var(--k-font, 'Segoe UI', Arial, sans-serif); margin: 6px 0 3px; color: #151a22; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: -.01em; }
+#career .hst-t span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; font-size: 11.5px; line-height: 1.3; min-height: 2.6em; color: #5d6675; overflow: hidden; }
+#career .hst-sm { flex: none; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
+#career .hst-sm > div { background: #fff; border: 1px solid rgba(21,26,34,.06); border-radius: 13px; padding: 8px 10px; min-width: 0; box-shadow: 0 2px 10px rgba(25,35,60,.04); }
+#career .hst-sm small { display: block; font: 700 9.5px/1.1 var(--k-font, 'Segoe UI', Arial, sans-serif); letter-spacing: .12em; text-transform: uppercase; color: #6b7480; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#career .hst-sm b { display: block; font: 800 18px/1.2 var(--k-font, 'Segoe UI', Arial, sans-serif); margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#career .hst-sm span { display: block; font-size: 10.5px; color: #6b7480; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#career .hst-ch { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+#career .hst-ch .chart { margin-top: 0; }
+#career .hst-ch .chart[style] { flex: 1; display: grid; place-items: center; max-height: 320px; }
+#career .hst-ch .lbl { margin: 0 0 6px; flex: none; }
+#career .hst-cols { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--gap); align-content: start; overflow-y: auto; overscroll-behavior: contain; }
+#career .hst-col { display: flex; flex-direction: column; gap: var(--gap); min-width: 0; }
+#career .hst-card { background: #fff; border: 1px solid rgba(21,26,34,.06); border-radius: 16px; padding: 10px 12px 8px; min-width: 0; box-shadow: 0 2px 10px rgba(25,35,60,.05); }
+#career .hst-card > h3 { margin: 0 0 4px; font: 800 10.5px/1.2 var(--k-font, 'Segoe UI', Arial, sans-serif); letter-spacing: .16em; text-transform: uppercase; color: #6b7480; display: flex; align-items: center; gap: 6px; }
+#career .hst-card > h3::before { content: ''; width: 8px; height: 8px; border-radius: 2px; background: var(--tc); flex: none; }
+#career .hst-r { display: flex; align-items: baseline; gap: 8px; min-height: 22px; padding: 2px 0; border-bottom: 1px solid #f0f2f5; font-size: 12.5px; min-width: 0; overflow: hidden; }
+#career .hst-r:last-child { border-bottom: 0; }
+#career .hst-r > span { flex: 1 0 auto; max-width: 100%; color: #3a4350; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#career .hst-r > em { flex: 0 1 auto; min-width: 0; font-style: normal; font-size: 11px; color: #8a93a0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#career .hst-r > b { flex: none; font-weight: 800; color: #151a22; white-space: nowrap; }
+#career .hst-r.sub > span { padding-left: 12px; color: #6b7480; }
+#career .hst-r.sub > b { font-weight: 700; color: #3a4350; }
+#career .hst-tbw { flex: 1; min-height: 0; display: flex; flex-direction: column; background: #fff; border: 1px solid rgba(21,26,34,.06); border-radius: 16px; padding: 4px 10px; box-shadow: 0 2px 10px rgba(25,35,60,.05); }
+#career .hst-tb { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+#career .hst-tr { display: grid; grid-template-columns: var(--cols); gap: 8px; align-items: center; height: 34px; padding: 0 4px; border-bottom: 1px solid #f0f2f5; font-size: 12.5px; }
+#career .hst-tr > * { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#career .hst-tr.hd { height: 30px; font: 700 9.5px/1 var(--k-font, 'Segoe UI', Arial, sans-serif); letter-spacing: .12em; text-transform: uppercase; color: #6b7480; position: sticky; top: 0; background: #fff; z-index: 1; }
+#career .hst-tr .n { color: #6b7480; font-weight: 800; }
+#career .hst-tr .rt, #career .hst-tr.hd .rt { text-align: right; }
+#career .hst-tr b { font-weight: 800; }
+#career .hst-tr .p1 { color: #a07a14; } #career .hst-tr .pd { color: color-mix(in srgb, var(--tc) 70%, #151a22); }
+#career .hst-tr .dnf { color: #d6202e; font-weight: 700; }
+#career .hst-tr .mk { color: #8a93a0; font-size: 11px; }
+#career .hst-tr .mk i { font-style: normal; display: inline-block; padding: 1px 5px; border-radius: 999px; background: #eef1f5; color: #3a4350; font-weight: 800; font-size: 9.5px; letter-spacing: .06em; margin-right: 3px; }
+#career .hst-tr .mk i.fl { background: #f1e4ff; color: #7a2bd1; } #career .hst-tr .mk i.dd { background: #fff1d6; color: #9a6400; }
+#career .hst-tf { flex: none; display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 2px 2px; font-size: 11.5px; color: #6b7480; }
+#career .hst-vs { flex: none; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 12px; align-items: center; background: #fff; border: 1px solid rgba(21,26,34,.06); border-radius: 16px; padding: 12px 16px; box-shadow: 0 2px 10px rgba(25,35,60,.05); }
+#career .hst-who { display: flex; align-items: center; gap: 12px; min-width: 0; }
+#career .hst-who.r { flex-direction: row-reverse; text-align: right; }
+#career .hst-who .face { position: static; flex: none; width: 54px; height: 54px; border-radius: 50%; object-fit: cover; box-shadow: 0 0 0 2px #fff, 0 0 0 3px var(--c, #ccc); font-size: 15px; }
+#career .hst-who b { display: block; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#career .hst-who small { display: block; color: #6b7480; font-size: 11.5px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#career .hst-who > div { min-width: 0; }
+#career .hst-vsn { font: 800 13px/1 var(--k-font, 'Segoe UI', Arial, sans-serif); color: #8a93a0; letter-spacing: .12em; }
+#career .hst-tape { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; background: #fff; border: 1px solid rgba(21,26,34,.06); border-radius: 16px; padding: 6px 16px; box-shadow: 0 2px 10px rgba(25,35,60,.05); }
+#career .hst-tp { display: grid; grid-template-columns: 64px minmax(0, 1fr) minmax(90px, 150px) minmax(0, 1fr) 64px; gap: 10px; align-items: center; min-height: 34px; border-bottom: 1px solid #f0f2f5; font-size: 12.5px; }
+#career .hst-tp:last-child { border-bottom: 0; }
+#career .hst-tp > b { font: 800 16px/1 var(--k-font, 'Segoe UI', Arial, sans-serif); color: #5d6675; }
+#career .hst-tp > b.r { text-align: right; }
+#career .hst-tp > b.win { color: color-mix(in srgb, var(--tc) 75%, #151a22); } #career .hst-tp > b.win2 { color: #151a22; }
+#career .hst-tp > span { text-align: center; font: 700 10px/1.2 var(--k-font, 'Segoe UI', Arial, sans-serif); letter-spacing: .12em; text-transform: uppercase; color: #6b7480; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#career .hst-tp > i { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: #eef1f5; }
+#career .hst-tp > i.l { justify-content: flex-end; }
+#career .hst-tp > i > u { display: block; height: 100%; border-radius: 4px; }
+#career .hst-mates { flex: none; }
+#career .hst-cc { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--gap); align-content: start; overflow-y: auto; overscroll-behavior: contain; }
+#career .hst-cir { position: relative; background: #fff; border: 1px solid rgba(21,26,34,.06); border-radius: 16px; padding: 12px 14px 10px 18px; min-width: 0; box-shadow: 0 2px 10px rgba(25,35,60,.05); }
+#career .hst-cir::before { content: ''; position: absolute; left: 0; top: 12px; bottom: 12px; width: 4px; border-radius: 2px; background: var(--tc); }
+#career .hst-cir.none { opacity: .62; } #career .hst-cir.none::before { background: #c9cfd8; }
+#career .hst-cir header { display: flex; align-items: baseline; gap: 10px; margin-bottom: 6px; }
+#career .hst-cir header b { font-size: 15px; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#career .hst-cir header strong { font: 800 22px/1 var(--k-font, 'Segoe UI', Arial, sans-serif); }
+#career .hst-cir header strong.p1 { color: #a07a14; }
+#career .hst-cir header small { font: 700 9.5px/1 var(--k-font, 'Segoe UI', Arial, sans-serif); letter-spacing: .12em; text-transform: uppercase; color: #6b7480; }
+#career .hst-cir .hst-r { min-height: 20px; font-size: 12px; }
+#career .hst-rec { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--gap); align-content: start; overflow-y: auto; overscroll-behavior: contain; }
+#career .hst-rc { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1px 10px; align-items: baseline; padding: 6px 0; border-bottom: 1px solid #f0f2f5; min-width: 0; }
+#career .hst-rc:last-child { border-bottom: 0; }
+#career .hst-rc > span { font-size: 12.5px; color: #3a4350; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#career .hst-rc > b { font: 800 15px/1.1 var(--k-font, 'Segoe UI', Arial, sans-serif); text-align: right; white-space: nowrap; }
+#career .hst-rc > small { grid-column: 1 / -1; font-size: 11px; color: #6b7480; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#career .hst-rc > small em { font-style: normal; font-weight: 700; color: color-mix(in srgb, var(--tc) 70%, #151a22); }
+#career .hst-empty { margin: auto; text-align: center; max-width: 420px; color: #5d6675; font-size: 13px; line-height: 1.45; }
+@media (max-width: 1199px) { #career .hst-cols { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* (eight sections on the rail since STATS joined it: a short window keeps them all in view) */
+@media (min-width: 1200px) and (max-height: 720px) { #career nav.ch-rail > button { height: 54px; gap: 3px; } }
+@media (max-width: 899px) {
+  #career .hst { height: auto; }
+  #career .hst-big { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #career .hst-big > .hst-t:last-child { grid-column: 1 / -1; }
+  #career .hst-t b { font-size: 26px; }
+  #career .hst-sm { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  #career .hst-cols, #career .hst-cc, #career .hst-rec { grid-template-columns: minmax(0, 1fr); overflow: visible; }
+  #career .hst-tb, #career .hst-tape { overflow: visible; }
+  #career .hst-tr .ph { display: none; }
+  #career .hst-tr { grid-template-columns: var(--colsm, var(--cols)); }
+  #career .hst-tp { grid-template-columns: 30px minmax(0, 1fr) minmax(104px, 1.7fr) minmax(0, 1fr) 30px; gap: 6px; }
+  #career .hst-tp > span { font-size: 9px; letter-spacing: .06em; }
+  #career .hst-tp > b { font-size: 14px; }
+  #career .hst-vs { padding: 10px 12px; gap: 8px; }
+  #career .hst-who { gap: 8px; } #career .hst-who .face { width: 42px; height: 42px; } #career .hst-who small { display: none; }
+  #career .hst-who b { white-space: normal; font-size: 13.5px; line-height: 1.2; }
+}
+`;
+const css = () => {
+  if (typeof document === 'undefined' || document.getElementById('hub-stats-css')) return;
+  const st = document.createElement('style'); st.id = 'hub-stats-css'; st.textContent = CSS; document.head.appendChild(st);
+};
+// (in at once: the rail's rule above matters before the first stats page is drawn)
+css();
+
+// ---- the page's state: season or career, which season, the list's page (kept while the hub is open) ----------------
+const VIEW = { scope: 'season', season: null, page: {} };
+/**
+ * A click on the stats pages (CareerHub's router, after the tech tree's and the social pages'): the switch
+ * (data-stats-scope), the season (data-stats-season), a list's page (data-stats-page) -> { S, region } | null
+ */
+function statsClick(c, d, S = {}) {
+  if (!d) return null;
+  if (d.statsScope) { VIEW.scope = d.statsScope === 'career' ? 'career' : 'season'; VIEW.page = {}; return { S: { ...S }, region: ['stats'] }; }
+  if (d.statsSeason) { VIEW.scope = 'season'; VIEW.season = +d.statsSeason; VIEW.page = {}; return { S: { ...S }, region: ['stats'] }; }
+  if (d.statsPage != null) { const [k, p] = String(d.statsPage).split(':'); VIEW.page[k] = Math.max(0, +p || 0); return { S: { ...S }, region: ['stats'] }; }
+  return null;
+}
+
+// ---- small helpers ---------------------------------------------------------------------------------------------------
+const esc0 = (s) => String(s ?? '').replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+const num = (v, d = 0) => (typeof v === 'number' && isFinite(v) ? v : d);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const TRACK = { silverstone: 'Silverstone', lasvegas: 'Las Vegas', montreal: 'Montreal', austin: 'Austin' };
+const TN = (id) => TRACK[id] || String(id || '');
+const T3 = (id) => ({ silverstone: 'SIL', lasvegas: 'LVG', montreal: 'MTL', austin: 'COTA' }[id] || String(id || '').slice(0, 3).toUpperCase());
+const pct = (v) => (v == null ? '–' : `${Math.round(v * 100)}%`);
+const dec = (v, d = 1) => (v == null ? '–' : v.toFixed(d));
+const P = (p) => (p ? `P${p}` : '–');
+const sgn = (v) => (v > 0 ? `+${v}` : String(v));
+/** seconds -> '1h 24m', '38 min', '0 min' */
+const dur = (s) => { const m = Math.round(num(s) / 60); return m >= 60 ? `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m` : `${m} min`; };
+/** a lap time, seconds -> '1:28.512' */
+const lapT = (s) => { if (!(num(s) > 0)) return '–'; const m = Math.floor(s / 60), r = s - m * 60; return `${m}:${r.toFixed(3).padStart(6, '0')}`; };
+/** where a record was set: { s, r, t } -> 'Las Vegas · R2 2026' */
+const atTxt = (a) => (a ? [a.t ? TN(a.t) : '', a.r ? `R${a.r}${a.s ? ` ${a.s}` : ''}` : a.s ? String(a.s) : ''].filter(Boolean).join(' · ') : '');
+const kn = (v) => (num(v) >= 1000 ? `${(num(v) / 1000).toFixed(1)}k` : num(v) >= 100 ? String(Math.round(num(v))) : num(v).toFixed(1));
+
+/** the STATS page (S.sub: '' overview | details | races | mate | circuits | records), from the hub's H kit */
+function statsHTML(c, S = {}, H = {}) {
+  css();
+  const esc = typeof H.esc === 'function' ? H.esc : esc0;
+  try {
+    const st = statsEnsure(c), me = c?.me;
+    if (!st || !me) return `<div class="hst"><div class="hst-empty"><b>No driver just now.</b><br>Choose who you are on the briefing first: the stats follow your driver.</div></div>`;
+    const seasons = seasonsOf(c), season = seasons.includes(VIEW.season) ? VIEW.season : c.season, scope = VIEW.scope === 'career' ? 'career' : 'season';
+    const B = scope === 'career' ? st.career : st.seasons[String(season)] || { ...newBook(), races: [] };
+    const sub = String(H.sub ?? S.sub ?? ''), fit = H.fit || { w: 680, h: 600 };
+    const X = { c, st, me, B, F: figures(B), scope, season, seasons, sub, fit, H, esc, ink: typeof H.ink === 'function' ? H.ink : (x) => x, money: typeof H.money === 'function' ? H.money : (m) => `$${(Math.round(num(m) * 10) / 10).toFixed(1)}M` };
+    const body = sub === 'details' ? detailsHTML(X) : sub === 'races' ? racesHTML(X) : sub === 'mate' ? mateHTML(X) : sub === 'circuits' ? circuitsHTML(X) : sub === 'records' ? recordsHTML(X) : overviewHTML(X);
+    return `<div class="hst hst-p-${esc(sub || 'ov')}" data-region="stats">${switchHTML(X)}${body}</div>`;
+  } catch (e) {
+    console.warn('HubStats: the page could not be drawn', e);
+    return '<div class="hst"><div class="hst-empty"><b>The stats could not be drawn just now.</b><br>The career itself is safe: the other pages work as before.</div></div>';
+  }
+}
+/**
+ * The page's top row: what it shows (the season and how far it has gone, the team; the career and its seasons) and the
+ * switch - ‹ season › (with more than one) and SEASON | CAREER. In the page, not the head: six sub-tabs leave the head
+ * no room for it. The hub's arrow keys find its pager (CareerHub pageStep).
+ */
+function switchHTML(X) {
+  const { c, st, me, scope, season, seasons, esc } = X, i = seasons.indexOf(season), prev = seasons[i - 1], next = seasons[i + 1];
+  const pager = scope === 'season' && seasons.length > 1 ? `<span class="k-pager"><button data-stats-season="${prev ?? ''}" ${prev == null ? 'disabled' : ''} aria-label="Previous season">‹</button><span>${season}</span><button data-stats-season="${next ?? ''}" ${next == null ? 'disabled' : ''} aria-label="Next season">›</button></span>` : '';
+  const seg = `<div class="k-seg" style="--n:2;--k:${scope === 'career' ? 1 : 0}"><button data-stats-scope="season" class="${scope === 'season' ? 'on' : ''}">Season</button><button data-stats-scope="career" class="${scope === 'career' ? 'on' : ''}">Career</button></div>`;
+  let title, sub;
+  if (scope === 'career') { const ss = seasons.filter((s) => num(st.seasons[String(s)]?.starts) > 0 || s === c.season); title = 'Career'; sub = `${me.name} · ${ss.length} season${ss.length === 1 ? '' : 's'}${ss.length ? ` since ${ss[0]}` : ''}`; }
+  else {
+    const teams = [...new Set((X.B.races || []).map((r) => r.tm).filter(Boolean))], live = season === c.season && !c.seasonOver, done = live ? Math.max(0, c.round - 1) : null;
+    title = `${season} season`; sub = `${live ? `${done} of ${c.rounds} rounds run` : 'complete'}${teams.length ? ` · ${teams.join(', ')}` : me.team && season === c.season ? ` · ${me.team}` : ''}`;
+  }
+  return `<div class="hst-sw"><div class="hst-ttl"><b>${esc(title)}</b><small>${esc(sub)}</small></div><span class="hst-ctl">${pager}${seg}</span></div>`;
+}
+/** what the figures cover, when the book started late (a save from before it) or a season was filled from its log */
+function noteHTML(X) {
+  const { st, B, scope, esc } = X, s = st.since || {};
+  if (B.part && scope === 'season') return `<p class="hst-note">The stats book began at round ${s.round || 1}${s.season ? ` of ${s.season}` : ''}: before it, only what the career's records kept is here - <b>points and wins</b>, and in the season it began, <b>starts and podiums</b> too.</p>`;
+  if (st.back && scope === 'career') return `<p class="hst-note">Counted race by race from round ${s.round || 1}, ${esc(s.season)}. <b>Starts, wins, podiums, points, poles and fastest laps</b> reach back to the start of your career.</p>`;
+  return '';
+}
+
+// ---- OVERVIEW ------------------------------------------------------------------------------------------------------------
+function overviewHTML(X) {
+  const { B, F, c, st, scope, season, esc, fit } = X, N = (k, v) => `data-n="st-${k}" data-v="${Math.round(num(v))}"`;
+  const big = [
+    ['Wins', B.wins, B.starts ? `${pct(F.winRate)} of ${B.starts} start${B.starts === 1 ? '' : 's'}` : 'no starts yet', 'w'],
+    ['Podiums', B.podiums, B.starts ? `${pct(F.podRate)} of starts` : '–', 'p'],
+    ['Points', B.pts, B.starts ? `${dec(F.ptsPer)} a start · ${B.ptsFin} in the points` : '–', 'pts'],
+    ['Overtakes', B.ovt, B.starts ? `${dec(F.ovtPer)} a race, on track` : 'on track', 'o'],
+  ].map(([n, v, s, k]) => `<div class="hst-t"><small>${n}</small><b ${N(k, v)}>${Math.round(num(v))}</b><span>${esc(s)}</span></div>`).join('');
+  const time = `<div class="hst-t"><small>Time at the wheel</small><b>${dur(F.sec)}</b><span>racing ${dur(B.sec.race)} · qualifying ${dur(B.sec.quali)} · practice ${dur(B.sec.prac)}</span></div>`;
+  const small = [
+    ['Starts', B.starts, `${B.fin} finished`], ['Poles', B.poles, `${B.fronts} front row${B.fronts === 1 ? '' : 's'}`], ['Fastest laps', B.fl, B.hat ? `${B.hat} hat-trick${B.hat === 1 ? '' : 's'}` : 'purple'],
+    ['Laps led', B.led, `${B.laps} completed`], ['Avg finish', dec(F.avgFin), `grid ${dec(F.avgGrid)} · best ${P(B.best)}`], ['Retirements', F.dnf, F.dnf ? [[B.dnf.acc, 'accident'], [B.dnf.mech, 'mech.'], [B.dnf.other, 'other']].filter(([n]) => n).map(([n, w]) => `${n} ${w}`).join(' · ') : 'none'],
+  ].map(([n, v, s]) => `<div><small>${n}</small><b>${esc(v)}</b><span>${esc(s)}</span></div>`).join('');
+  // (the chart: the season's grid and finish race by race; the career's points season by season, once there are two)
+  const note = noteHTML(X), room = clamp(fit.h - 40 - 116 - 70 - (note ? 30 : 0) - 4 * 10 - 76, 150, 420), w = Math.max(420, fit.w - 18);
+  const mine = X.ink(c.teams?.[X.me.team]?.color || c.team?.color || '#e10600');
+  let chart = '', title = '';
+  const sns = Object.keys(st.seasons).map(Number).filter((s) => st.seasons[s]?.starts > 0).sort((a, b) => a - b);
+  if (scope === 'career' && sns.length >= 2) {
+    title = 'Points, season by season';
+    chart = X.H.chartHTML ? X.H.chartHTML('hst-car', [{ key: 'pts', name: 'Points', short: 'PTS', color: mine, bold: true, pts: sns.map((s) => num(st.seasons[s].pts)) }], sns.map(String), { int: true, fmt: (v) => String(Math.round(v)), w, h: room }) : '';
+  } else {
+    const R = scope === 'career' ? sns.flatMap((s) => (st.seasons[s].races || []).map((r) => ({ ...r, s }))) : B.races || [];
+    title = scope === 'career' ? 'Grid and finish, every race of the career' : `Grid and finish, race by race · ${season}`;
+    const xs = R.map((r) => (scope === 'career' && sns.length > 1 ? `${String(r.s).slice(2)} R${r.r}` : `R${r.r} ${T3(r.t)}`));
+    chart = X.H.chartHTML ? X.H.chartHTML(`hst-gf-${scope}`, [{ key: 'fin', name: 'Finish', short: 'FIN', color: mine, bold: true, pts: R.map((r) => (r.d ? null : num(r.p) || null)) },
+      { key: 'grid', name: 'Grid', short: 'GRID', color: '#9aa3ae', bold: false, pts: R.map((r) => num(r.g) || null) }], xs, { invert: true, int: true, fmt: (v) => `P${Math.round(v)}`, w, h: room }) : '';
+  }
+  return `<div class="hst-big">${big}${time}</div><div class="hst-sm">${small}</div>${note}<div class="hst-ch"><span class="lbl">${esc(title)}</span>${chart}</div>`;
+}
+
+// ---- DETAILS -------------------------------------------------------------------------------------------------------------
+/** a figure on a card: the label, a note in grey (a rate, where it was set), the value; cls 'sub' indents it under the one above */
+const row = (label, val, sub = '', cls = '') => `<div class="hst-r${cls ? ` ${cls}` : ''}"><span>${label}</span>${sub ? `<em>${sub}</em>` : ''}<b>${val}</b></div>`;
+const card = (title, rows) => `<div class="hst-card"><h3>${title}</h3>${rows.join('')}</div>`;
+const wl = (a) => `${num(a?.[0])}–${num(a?.[1])}`;
+function detailsHTML(X) {
+  const { B, F, st, me, scope, esc, money } = X, k = me.contract;
+  const results = card('Results', [
+    row('Starts', B.starts), row('Wins', B.wins, pct(F.winRate)), row('Podiums', B.podiums, pct(F.podRate)), row('Pole positions', B.poles), row('Front-row starts', B.fronts),
+    row('Fastest laps', B.fl), row('Hat-tricks', B.hat, 'pole, win, fastest lap'), row('Points', B.pts, F.ptsPer == null ? '' : `${dec(F.ptsPer)} a start`), row('Points finishes', B.ptsFin),
+    row('Best finish', P(B.best)), row('Average finish', dec(F.avgFin)), row('Average grid', dec(F.avgGrid), B.bestGrid ? `best ${P(B.bestGrid)}` : ''),
+    row('Places gained', B.nGain ? sgn(B.gain) : '–', F.avgGain == null ? '' : `${F.avgGain >= 0 ? '+' : ''}${dec(F.avgGain)} a finish`), row('Driver of the Day', B.dotd)]);
+  const track = card('On track', [
+    row('Laps completed', B.laps), row('Laps led', B.led, B.ledRaces ? `in ${B.ledRaces} race${B.ledRaces === 1 ? '' : 's'}` : ''), row('Distance', `${kn(B.km)} km`),
+    row('Time at the wheel', dur(F.sec)), row('Racing', dur(B.sec.race), '', 'sub'), row('Qualifying', dur(B.sec.quali), B.sess.quali ? `${B.sess.quali} session${B.sess.quali === 1 ? '' : 's'}` : '', 'sub'),
+    row('Practice', dur(B.sec.prac), B.sess.prac ? `${B.sess.prac} session${B.sess.prac === 1 ? '' : 's'}` : '', 'sub'), row('On-track overtakes', B.ovt, F.ovtPer == null ? '' : `${dec(F.ovtPer)} a race`), row('Pit stops', B.stops)]);
+  const inc = card('Incidents & orders', [
+    row('Retirements', F.dnf, F.finRate == null ? '' : `${pct(F.finRate)} finished`), row('Accident', B.dnf.acc, '', 'sub'), row('Mechanical', B.dnf.mech, '', 'sub'), row('Other', B.dnf.other, '', 'sub'),
+    row('Crashes', B.crashes), row('Penalties', B.pens, B.penS ? `${Math.round(B.penS)} s added` : ''), row('Penalty points', B.pp),
+    row('Team orders obeyed', B.orders.ok), row('Team orders defied', B.orders.no), row('Team-mate · qualifying', wl(B.h2h.q)), row('Team-mate · races', wl(B.h2h.r))]);
+  const money0 = card('Money', [row('Earned', money(F.earn)), row('Salary', money(B.earn.salary), '', 'sub'), row('Bonuses', money(B.earn.bonus), '', 'sub'), row('Personal deals', money(B.earn.deals), '', 'sub')]);
+  // (the contracts and the teams are the career's: the season shows the team or teams it was driven for)
+  const teams = scope === 'career' ? Object.entries(st.teams || {}) : [...new Set((B.races || []).map((r) => r.tm).filter(Boolean))].map((t) => [t, st.teams?.[t] || {}]);
+  const held = k && (me.team || me.reserveOf) ? [row('Contract', esc(me.team || me.reserveOf), me.team ? '' : 'reserve'), row('Salary · to', `${money(k.salary)} · ${esc(k.until)}`, '', 'sub')] : [row('Contract', 'none')];
+  const con = card('Contracts & teams', [row('Contracts signed', num(st.contracts)), ...held, row(scope === 'career' ? 'Teams driven for' : 'Driven for', teams.length || '–'),
+    ...teams.slice(0, 5).map(([t, x]) => row(esc(t), x.starts ? `${x.starts} start${x.starts === 1 ? '' : 's'}` : '–', x.wins ? `${x.wins} win${x.wins === 1 ? '' : 's'}` : '', 'sub'))]);
+  return `${noteHTML(X)}<div class="hst-cols" data-scroll-ok><div class="hst-col">${results}</div><div class="hst-col">${track}${money0}</div><div class="hst-col">${inc}${con}</div></div>`;
+}
+
+// ---- RACES ---------------------------------------------------------------------------------------------------------------
+/** a list's page from the room it has (rows of h px, chrome px), its pager -> { L, pager } */
+function paged(X, key, list, h, chrome) {
+  const per = Math.max(4, Math.floor((X.fit.h - chrome) / h)), pages = Math.max(1, Math.ceil(list.length / per)), p = clamp(VIEW.page[key] || 0, 0, pages - 1);
+  const pager = pages > 1 ? `<span class="k-pager"><button data-stats-page="${key}:${p - 1}" ${p <= 0 ? 'disabled' : ''} aria-label="Previous page">‹</button><span>${p + 1} / ${pages}</span><button data-stats-page="${key}:${p + 1}" ${p >= pages - 1 ? 'disabled' : ''} aria-label="Next page">›</button></span>` : '';
+  return { L: list.slice(p * per, p * per + per), pager };
+}
+const resTxt = (r) => (r.d ? `<span class="dnf">DNF${r.d === 'acc' ? ' · accident' : r.d === 'mech' ? ' · mech.' : ''}</span>` : `<b class="${r.p === 1 ? 'p1' : r.p <= 3 ? 'pd' : ''}">${P(r.p)}</b>`);
+function racesHTML(X) {
+  const { B, st, c, scope, season, esc } = X;
+  if (scope === 'career') {
+    const champ = (s) => { const a = (c.seasons || []).find((x) => x && x.season === s); if (a) return a.youPos ? `P${a.youPos}` : '–'; if (s === c.season) { const i = c.driverStandings().indexOf(X.me); return i >= 0 ? `P${i + 1}${c.seasonOver ? '' : ' now'}` : '–'; } return '–'; };
+    const L0 = X.seasons.map((s) => [s, st.seasons[String(s)]]).filter(([, b]) => b).reverse();
+    const { L, pager } = paged(X, 'seasons', L0, 34, 134);
+    const cols = '54px minmax(0, 1.5fr) 64px repeat(4, minmax(34px, .5fr)) 52px 50px 40px', colsm = '44px minmax(0, 1fr) 54px 34px 34px 46px';
+    const teamOf = (s, b) => [...new Set((b.races || []).map((r) => r.tm).filter(Boolean))].join(', ') || (c.seasons || []).find((x) => x?.season === s)?.team || (s === c.season ? X.me.team || '' : '');
+    const rows = L.map(([s, b]) => { const dnf = num(b.dnf?.acc) + num(b.dnf?.mech) + num(b.dnf?.other);
+      return `<div class="hst-tr"><span class="n">${s}</span><span>${esc(teamOf(s, b)) || '<span class="mk">–</span>'}</span><b>${esc(champ(s))}</b><span class="rt">${b.starts}</span><span class="rt">${b.wins}</span><span class="rt ph">${b.podiums}</span><span class="rt ph">${b.poles}</span><b class="rt">${b.pts}</b><span class="rt ph">${P(b.best)}</span><span class="rt ph">${b.part ? '–' : dnf}</span></div>`; }).join('');
+    return `<div class="hst-tbw" style="--cols:${cols};--colsm:${colsm}"><div class="hst-tb" data-scroll-ok><div class="hst-tr hd"><span>Season</span><span>Team</span><span>Champ.</span><span class="rt">Starts</span><span class="rt">Wins</span><span class="rt ph">Pod.</span><span class="rt ph">Poles</span><span class="rt">Points</span><span class="rt ph">Best</span><span class="rt ph">DNF</span></div>${rows || '<div class="hst-empty" style="padding:18px">No seasons yet.</div>'}</div>
+      <div class="hst-tf"><span>${L0.length} season${L0.length === 1 ? '' : 's'} · ${st.career.starts} starts · ${st.career.pts} points</span>${pager}</div></div>`;
+  }
+  const R0 = [...(B.races || [])].reverse(), { L, pager } = paged(X, `r${season}`, R0, 34, 134);
+  const cols = '40px minmax(0, 1.3fr) 46px minmax(64px, 1fr) 40px 44px 40px 40px minmax(60px, .9fr)', colsm = '34px minmax(0, 1fr) 40px minmax(56px, 1fr) 34px 40px';
+  const rows = L.map((r) => `<div class="hst-tr"><span class="n">R${r.r}</span><span>${esc(TN(r.t))}</span><span>${r.g ? P(r.g) : '<span class="mk">–</span>'}</span>${resTxt(r)}<span class="rt">${r.b ? '–' : num(r.pts)}</span><span class="rt">${r.b ? '–' : num(r.o)}</span><span class="rt ph">${r.b ? '–' : num(r.l)}</span><span class="rt ph">${r.b ? '–' : num(r.n)}</span><span class="mk ph">${r.f ? '<i class="fl">FL</i>' : ''}${r.v ? '<i class="dd">DOTD</i>' : ''}${r.c ? '<i>CRASH</i>' : ''}</span></div>`).join('');
+  return `${noteHTML(X)}<div class="hst-tbw" style="--cols:${cols};--colsm:${colsm}"><div class="hst-tb" data-scroll-ok><div class="hst-tr hd"><span>Rnd</span><span>Circuit</span><span>Grid</span><span>Result</span><span class="rt">Pts</span><span class="rt">Ovt</span><span class="rt ph">Led</span><span class="rt ph">Laps</span><span class="ph"></span></div>${rows || `<div class="hst-empty" style="padding:18px">No races yet in ${season}.</div>`}</div>
+    <div class="hst-tf"><span>${B.starts} start${B.starts === 1 ? '' : 's'} · ${B.pts} points · ${B.ovt} overtakes · ${B.led} laps led</span>${pager}</div></div>`;
+}
+
+// ---- TEAM-MATE -----------------------------------------------------------------------------------------------------------
+/** one line of the tale of the tape: you on the left, them on the right, each bar your share of the two (o.lo: fewer is better) */
+const tape = (label, a, b, o = {}) => {
+  const A = num(a), Bv = num(b), tot = A + Bv, mine = o.lo ? A < Bv : A > Bv, theirs = o.lo ? Bv < A : Bv > A, fa = o.fmt || ((v) => String(Math.round(v)));
+  const wa = tot > 0 ? (A / tot) * 100 : 0, wb = tot > 0 ? (Bv / tot) * 100 : 0;
+  return `<div class="hst-tp"><b class="${mine ? 'win' : ''}">${fa(A)}</b><i class="l"><u style="width:${wa.toFixed(1)}%;background:var(--tc)"></u></i><span>${label}</span><i><u style="width:${wb.toFixed(1)}%;background:#9aa3ae"></u></i><b class="r${theirs ? ' win2' : ''}">${fa(Bv)}</b></div>`;
+};
+function mateHTML(X) {
+  const { c, st, B, scope, season, esc, me } = X;
+  const faceOf = (d) => { const t = c.teams?.[d?.team] || c.team, f = typeof X.H.face === 'function' && d ? X.H.face(d, t?.color, t?.color2) : ''; return f || `<span class="face k-ava" style="--c:${esc(X.ink(t?.color || '#8a93a0'))}"><b>${esc(String(d?.name || '?').split(/\s+/).map((w) => w[0]).slice(0, 2).join(''))}</b></span>`; };
+  const who = (d, sub, r = false) => `<div class="hst-who${r ? ' r' : ''}" style="--c:${esc(X.ink(c.teams?.[d?.team]?.color || c.team?.color || '#8a93a0'))}">${faceOf(d)}<div><b>${esc(d?.name || '—')}</b><small>${esc(sub)}</small></div></div>`;
+  const mates = Object.entries(B.mates || {}).filter(([, m]) => m && (m.n || m.q?.[0] + m.q?.[1]));
+  if (scope === 'career') {
+    const L = mates.sort((a, b) => num(b[1].n) - num(a[1].n));
+    const head = `<div class="hst-vs">${who(me, `${st.career.starts} starts`)}<span class="hst-vsn">VS</span><div class="hst-who r"><div><b>${L.length} team-mate${L.length === 1 ? '' : 's'}</b><small>the whole career</small></div></div></div>`;
+    const tot = `<div class="hst-tape" data-scroll-ok>${tape('Qualifying', B.h2h.q[0], B.h2h.q[1])}${tape('Races', B.h2h.r[0], B.h2h.r[1])}${tape('Points together', L.reduce((a, [, m]) => a + num(m.pts?.[0]), 0), L.reduce((a, [, m]) => a + num(m.pts?.[1]), 0))}
+      ${L.length ? L.map(([id, m]) => `<div class="hst-r"><span><b style="color:#151a22">${esc(m.name || c.drivers?.[id]?.name || id)}</b> · ${num(m.n)} race${num(m.n) === 1 ? '' : 's'} together</span><em>quali ${wl(m.q)} · races ${wl(m.r)}</em><b>${num(m.pts?.[0])}–${num(m.pts?.[1])} pts</b></div>`).join('') : '<p class="hst-note" style="margin:10px 0">No team-mate yet: the head-to-head starts with your first race in a team.</p>'}</div>`;
+    return `${noteHTML(X)}${head}${tot}`;
+  }
+  // (the season: this season's team-mate - the current one, else the one you raced most - and both of your full seasons)
+  const cur = season === c.season ? c.teammate?.() : null;
+  const mid = cur?.id || mates.sort((a, b) => num(b[1].n) - num(a[1].n))[0]?.[0] || null, md = mid ? c.drivers?.[mid] : null;
+  if (!md) return `<div class="hst-empty"><b>No team-mate ${season === c.season ? 'this season' : `in ${season}`}.</b><br>The head-to-head starts with your first race in a team.</div>`;
+  const m = B.mates?.[mid] || { q: [0, 0], r: [0, 0], n: 0, pts: [0, 0] }, a = aiOf(c, season, c.playerId) || {}, b = aiOf(c, season, mid) || {};
+  const head = `<div class="hst-vs">${who(me, `${num(a.starts)} starts · ${num(a.pts)} pts`)}<span class="hst-vsn">VS</span>${who(md, `${num(b.starts)} starts · ${num(b.pts)} pts`, true)}</div>`;
+  const rows = [tape('Qualifying', m.q[0], m.q[1]), tape('Races', m.r[0], m.r[1]), tape('Points', a.pts, b.pts), tape('Wins', a.wins, b.wins), tape('Podiums', a.podiums, b.podiums), tape('Poles', a.poles, b.poles),
+    tape('Fastest laps', a.fl, b.fl), tape('Laps led', a.led, b.led), tape('Retirements', a.dnf, b.dnf, { lo: true }), tape('Points together', m.pts[0], m.pts[1])].join('');
+  const note = c.stats?.aiPart === season ? '<p class="hst-note">Their figures before the stats book began come from the season\'s records: points and wins.</p>' : '';
+  return `${head}<div class="hst-tape" data-scroll-ok>${rows}</div>${note}<p class="hst-note">${num(m.n)} race${num(m.n) === 1 ? '' : 's'} together in ${season}. The full season's figures for each of you; the head-to-head counts the races you both started.</p>`;
+}
+
+// ---- CIRCUITS ------------------------------------------------------------------------------------------------------------
+function circuitsHTML(X) {
+  const { c, st, B, scope, season, esc } = X, ids = [...new Set([...(c.calendar || []), ...Object.keys(st.tracks || {})])];
+  const cards = ids.map((id) => {
+    const T = st.tracks?.[id] || {}, mine = (B.races || []).filter((r) => r.t === id), none = !num(T.starts) && !T.q;
+    const avg = num(T.fin) ? (T.sumFin / T.fin).toFixed(1) : '–';
+    const yr = scope === 'season' ? row(`In ${season}`, mine.length ? mine.map((r) => (r.d ? 'DNF' : P(r.p))).join(', ') : 'not yet') : '';
+    return `<div class="hst-cir${none ? ' none' : ''}"><header><b>${esc(TN(id))}</b><small>best finish</small><strong class="${T.best === 1 ? 'p1' : ''}">${P(T.best)}</strong></header>
+      ${yr}${row('Starts · wins · podiums', `${num(T.starts)} · ${num(T.wins)} · ${num(T.podiums)}`)}${row('Poles · best grid', `${num(T.poles)} · ${P(T.bestGrid)}`)}${row('Average finish', avg, T.dnf ? `${T.dnf} DNF` : '')}
+      ${row('Best race lap', lapT(T.lap), esc(atTxt(T.lapAt).replace(/^[^·]+· /, '')))}${row('Best qualifying lap', lapT(T.q), esc(atTxt(T.qAt).replace(/^[^·]+· /, '')))}${row('Laps', num(T.laps))}</div>`;
+  }).join('');
+  return `<p class="hst-note">Each circuit's bests over the whole career${scope === 'season' ? `, with your results there in ${season}` : ''}. The laps are the ones you drove yourself: a lap the simulation ran for you is not counted.</p><div class="hst-cc" data-scroll-ok>${cards}</div>`;
+}
+
+// ---- RECORDS -------------------------------------------------------------------------------------------------------------
+/** a record: what it is, the figure, and who or where on the line under */
+const rc = (label, val, sub = '') => `<div class="hst-rc"><span>${label}</span><b>${val}</b>${sub ? `<small>${sub}</small>` : ''}</div>`;
+function recordsHTML(X) {
+  const { c, st, B, scope, season, esc, me } = X, R = st.rec || {}, S = st.streak || {};
+  const nm = (id, who) => (id === c.playerId ? '<em>you</em>' : esc(who || c.drivers?.[id]?.name || ''));
+  let mine = '', pad = '';
+  if (scope === 'season') {
+    const L = (B.races || []).filter((r) => !r.b), best = (f) => L.reduce((a, r) => (f(r) > (a ? f(a) : 0) ? r : a), null), w = (r) => (r ? `${TN(r.t)} · R${r.r}` : '');
+    const g = best((r) => (!r.d && r.g ? r.g - r.p : 0)), o = best((r) => num(r.o)), l = best((r) => num(r.l)), h = best((r) => num(r.pts));
+    mine = [rc('Best finish', P(B.best)), rc('Most places gained', g ? `+${g.g - g.p}` : '–', g ? `${esc(w(g))}: P${g.g} → P${g.p}` : ''), rc('Most overtakes in a race', o ? num(o.o) : '–', esc(w(o))),
+      rc('Most laps led in a race', l ? num(l.l) : '–', esc(w(l))), rc('Biggest haul', h ? `${num(h.pts)} pts` : '–', esc(w(h))), rc('Points finishes', `${B.ptsFin} of ${B.starts}`)].join('');
+    // (the paddock this season: the leaders in the tallies)
+    const A = st.ai?.[String(season)] || {}, lead = (i, label, unit = '') => { const e = Object.entries(A).filter(([, a]) => Array.isArray(a) && num(a[i]) > 0).sort((x, y) => num(y[1][i]) - num(x[1][i])); const you = num(A[c.playerId]?.[i]), rank = you > 0 ? 1 + e.filter(([, a]) => num(a[i]) > you).length : null;
+      return rc(label, e.length ? `${num(e[0][1][i])}${unit}` : '–', e.length ? `${nm(e[0][0])}${e[0][0] !== c.playerId ? ` · you ${you}${rank ? ` (${ordinal(rank)})` : ''}` : ''}` : ''); };
+    pad = [lead(3, 'Most points'), lead(1, 'Most wins'), lead(2, 'Most podiums'), lead(4, 'Most poles'), lead(5, 'Most fastest laps'), lead(7, 'Most laps led'), lead(6, 'Most retirements')].join('');
+    return `<div class="hst-rec" data-scroll-ok>${card(`Your ${season}`, [mine])}${card(`The paddock in ${season}`, [pad])}</div>`;
+  }
+  const S0 = (c.seasons || []).filter((s) => s && s.youPos), champ = S0.length ? S0.reduce((a, s) => (s.youPos < a.youPos ? s : a)) : null;
+  const sb = (k) => { let out = null; for (const [s, b] of Object.entries(st.seasons || {})) if (num(b?.[k]) > num(out?.n)) out = { n: num(b[k]), s }; return out; };
+  const sp = sb('pts'), sw = sb('wins'), tro = (id) => c.trophies?.find((t) => t.id === id), ms = (id, label) => { const t = tro(id); return t ? rc(label, `${t.round ? `R${t.round} ` : ''}${t.season}`) : rc(label, '<span style="color:#9aa3ae">not yet</span>'); };
+  mine = [rc('Best championship', champ ? `P${champ.youPos}` : '–', champ ? `${champ.season}${champ.team ? ` · ${esc(champ.team)}` : ''}` : 'no season finished yet'),
+    rc('Most points in a season', sp ? sp.n : '–', sp ? sp.s : ''), rc('Most wins in a season', sw && sw.n ? sw.n : '–', sw && sw.n ? sw.s : ''),
+    rc('Most places gained in a race', R.gain ? `+${R.gain.n}` : '–', R.gain ? `${esc(atTxt(R.gain.at))}: P${R.gain.from} → P${R.gain.to}` : ''),
+    rc('Most overtakes in a race', R.ovt ? R.ovt.n : '–', esc(atTxt(R.ovt?.at))), rc('Most laps led in a race', R.led ? R.led.n : '–', esc(atTxt(R.led?.at))),
+    rc('Quickest pit stop', R.stop ? `${num(R.stop.n).toFixed(2)} s` : '–', R.stop ? `${esc(atTxt(R.stop.at))} · standing still` : ''),
+    rc('Longest run of wins', num(S.win?.[1]), S.win?.[0] ? `${S.win[0]} now` : ''), rc('Longest run of podiums', num(S.pod?.[1]), S.pod?.[0] ? `${S.pod[0]} now` : ''),
+    rc('Longest run in the points', num(S.pts?.[1]), S.pts?.[0] ? `${S.pts[0]} now` : ''), rc('Longest run of finishes', num(S.fin?.[1]), S.fin?.[0] ? `${S.fin[0]} now` : '')].join('');
+  const miles = [ms('start', 'First start'), ms('points', 'First points'), ms('podium', 'First podium'), ms('win', 'First win'), ms('pole', 'First pole'), ms('fl', 'First fastest lap')].join('');
+  pad = paddockRecords(c).map((x) => rc(esc(x.label), x.n ? `${Math.round(x.n)}` : '–', x.who ? `${nm(x.id, x.who)}${x.season ? ` · ${x.season}` : ''}${x.id !== c.playerId ? ` · you ${Math.round(num(x.you))}${x.rank ? ` (${ordinal(x.rank)})` : ''}` : ''}` : '')).join('');
+  const past = (st.past || []).length ? card('Before', st.past.map((p) => rc(esc(p.name), `${num(p.career?.wins)} wins`, `${num(p.career?.starts)} starts · ${num(p.career?.podiums)} podiums · ${num(p.career?.pts)} pts · to ${p.until?.season ?? ''}`))) : '';
+  return `${noteHTML(X)}<div class="hst-rec" data-scroll-ok><div class="hst-col">${card('Your records', [mine])}</div><div class="hst-col">${card('Milestones', [miles])}${card('The paddock since the career began', [pad])}${past}</div></div>`;
+}
+const ordinal = (n) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th'}`;
+
+return { statsClick, statsHTML };
 })();
 
 // ---- src/ui/StylePreview.js
@@ -169206,6 +170021,7 @@ const { PATTERNS } = __m['src/vehicle/Livery.js'];
 const { makePerson, makeHelmet, bloodPool } = __m['src/world/People.js'];
 const { mourning3D } = __m['src/ui/Mourning3D.js'];
 const { TECH_CSS, techHTML, techSide, techClick, techView } = __m['src/ui/HubTech.js'];
+const { statsHTML, statsClick } = __m['src/ui/HubStats.js'];
 const HS = __m['src/ui/HubSocial.js'];
 const { showPhone, phoneBadge } = __m['src/ui/Phone.js'];
 const { showHangout } = __m['src/ui/Hangout.js'];
@@ -169224,8 +170040,8 @@ const { papsFallout } = __m['src/ui/PapsConfront.js'];
 // white studio (its own small WebGL view: the team's livery, the driver's helmet, the team's name on the wall), the
 // camera moving to what each screen is about - the front wing for aerodynamics, the brakes, the cockpit for your
 // drivers. Over it, one frame that stays put between races: a bar along the top (who you are, the points, what the
-// team thinks of you, your own money, your phone, the race), a rail of seven sections down the left - the race week, the team, your driver, your life, the
-// media, the season, In Memoriam - and a panel whose sub-tabs pick the page; only the page itself changes, sliding in
+// team thinks of you, your own money, your phone, the race), a rail of eight sections down the left - the race week, the team, your driver, your life, the
+// media, the season, your stats (ui/HubStats.js), In Memoriam - and a panel whose sub-tabs pick the page; only the page itself changes, sliding in
 // the way you went (up and down between sections, sideways between sub-pages and steps), sized to the window so nothing
 // has to scroll. The pages: the weekend's briefing and the calendar, the week between races, the tech tree and the
 // factory (the team's own: you drive what it builds), your team and your seat (your contract, management confidence and
@@ -169242,6 +170058,7 @@ const { papsFallout } = __m['src/ui/PapsConfront.js'];
 
 
 // (the contract table and the dismissal as cutscenes: registered with ui/Offers.js as the module loads)
+
 
 
 
@@ -170622,6 +171439,7 @@ const SECTIONS = [
   ['life', '♥', 'LIFE', [['life', '', 'Partners'], ['life', 'style', 'Style'], ['life', 'people', 'People'], ['social', '', 'Paddock'], ['social', 'hangout', 'Hang out'], ['social', 'invites', 'Invites']]],
   ['media', '✉', 'MEDIA', [['pr', '', 'Pulse'], ['pr', 'posts', 'Social'], ['pr', 'deals', 'Deals'], ['pr', 'press', 'Press'], ['pr', 'news', 'News']]],
   ['season', '≡', 'SEASON', [['standings', '', 'Drivers'], ['standings', 'teams', 'Constructors'], ['standings', 'results', 'Results'], ['charts', '', 'Charts'], ['trophies', '', 'Trophies'], ['trophies', 'seasons', 'History']]],
+  ['stats', '∑', 'STATS', [['stats', '', 'Overview'], ['stats', 'details', 'Details'], ['stats', 'races', 'Races'], ['stats', 'mate', 'Team-mate'], ['stats', 'circuits', 'Circuits'], ['stats', 'records', 'Records']]],
   ['lost', '✝', 'IN MEMORIAM', [['lost', '', 'In Memoriam']]],
 ];
 // (the old flat tabs, still asked for by name: the news lives in MEDIA now, the rapport in LIFE's paddock)
@@ -170790,6 +171608,7 @@ function pageHTML(c, o, tab, S, H) {
     case 'pr': return hs('prHTML', c, S, H) ?? wait('PR & media');
     case 'standings': return S.sub === 'teams' ? teamsHTML(c, S, H) : S.sub === 'results' ? resultsHTML(c, S, H) : standingsHTML(c, S, H);
     case 'charts': return chartsHTML(c, S, H);
+    case 'stats': return statsHTML(c, S, H);
     case 'trophies': return S.sub === 'seasons' ? historyHTML(c, S, H) : trophiesHTML(c, S, H);
     case 'lost': return lostHTML(c, o, S, H);
     default: return briefingHTML(c, S, H);
@@ -170830,6 +171649,7 @@ function viewFor(c, tab, S) {
     case 'pr': return 'pr';
     case 'standings': return sub === 'results' ? 'charts' : 'standings';
     case 'charts': return 'charts';
+    case 'stats': return 'charts';
     case 'trophies': return 'trophies';
     case 'lost': return 'lost';
     default: return 'overview';
@@ -171009,6 +171829,8 @@ function click(e) {
   if (r && d.tup != null && X.tab === 'dev' && X.sub === 'factory' && r.S) r.S.sub = '';
   else if (r && !r.region && X.tab === 'dev' && !X.sub && r.tab === 'dev') r.region = techRegionsFor(d);
   if (!r && typeof HS.socialClick === 'function') { try { r = HS.socialClick(c, d, S); } catch (err) { console.warn('CareerHub: the social click failed', err); } }
+  // (STATS: the season or the career, the season shown, a list's page - ui/HubStats.js)
+  if (!r) { try { r = statsClick(c, d, S); } catch (err) { console.warn('CareerHub: the stats click failed', err); } }
   if (r) { result(r); return; }
   if (d.chartk) { segTo(b); go('charts', { ...S, chart: d.chartk }, { region: ['chart'] }); }
   // (an offer for you - career/Seat.js: chosen through ui/Offers.js (the contract table, else the plain cards), talked
@@ -172616,6 +173438,267 @@ function showPodium(top, o, done) {
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 return { showPodium };
+})();
+
+// ---- src/core/PlayStats.js
+__m['src/core/PlayStats.js'] = (() => {
+const { raceStatsOf, dnfCause } = __m['src/career/Stats.js'];
+// The lifetime stats book: everything you have played on this device, every mode - a quick race, a time trial, free
+// practice, qualifying, a career's races - apart from any career (its own localStorage key: abandoning or erasing a
+// career leaves it as it is). Each session is counted once, as it ends (main.js endSession -> playSession: every
+// session of every mode ends there, a quit or a restart too): its mode's sessions, your time at the wheel, the laps and
+// the distance you drove, your overtakes and crashes, and for a race run to the flag the start and the result; the best
+// laps you drove at each circuit, a time trial's above all. And the time the game has been open in front of you (the
+// page visible), counted while it runs. A career keeps its own, deeper book of its own races (career/Stats.js); this
+// one is the whole of your play. Nothing here throws: a session that cannot be read is left out.
+
+const PLAY_KEY = 'f1sim-stats-v1';
+/** the modes the book keeps apart, in the order the screen shows them: [key, name] */
+const PLAY_MODES = [['career', 'Career'], ['quick', 'Quick race'], ['tt', 'Time trial'], ['practice', 'Practice']];
+const num = (v, d = 0) => (typeof v === 'number' && isFinite(v) ? v : d);
+const r1 = (v) => Math.round(v * 10) / 10;
+const r3 = (v) => Math.round(v * 1000) / 1000;
+/** one mode's figures: sessions (quali: the qualifying sessions among them), seconds at the wheel, races run to the flag and their results, laps, km */
+const playBook = () => ({ sessions: 0, quali: 0, sec: 0, races: 0, wins: 0, podiums: 0, fin: 0, dnf: 0, laps: 0, km: 0, ovt: 0, led: 0, crashes: 0 });
+const blank = () => ({ v: 1, since: new Date().toISOString().slice(0, 10), game: 0, modes: Object.fromEntries(PLAY_MODES.map(([k]) => [k, playBook()])), tracks: {}, last: null });
+
+/** the book as stored (a missing or broken one: a fresh one, its figures brought to the current shape) */
+function playLoad() {
+  let S = null;
+  try { const s = localStorage.getItem(PLAY_KEY); S = s ? JSON.parse(s) : null; } catch (e) { S = null; }
+  if (!S || typeof S !== 'object' || Array.isArray(S)) S = blank();
+  if (!S.modes || typeof S.modes !== 'object') S.modes = {};
+  for (const [k] of PLAY_MODES) { const b = S.modes[k] && typeof S.modes[k] === 'object' ? S.modes[k] : {}; const d = playBook(); for (const f of Object.keys(d)) b[f] = num(b[f]); S.modes[k] = b; }
+  if (!S.tracks || typeof S.tracks !== 'object') S.tracks = {};
+  S.game = num(S.game); if (typeof S.since !== 'string') S.since = blank().since;
+  return S;
+}
+const playSave = (S) => { try { localStorage.setItem(PLAY_KEY, JSON.stringify(S)); } catch (e) { /* (a private window, a full storage: the book lasts the session) */ } };
+/** every mode added up -> a book */
+function playTotal(S) {
+  const t = playBook();
+  for (const [k] of PLAY_MODES) for (const f of Object.keys(t)) t[f] += num(S.modes?.[k]?.[f]);
+  t.km = r3(t.km); t.sec = r1(t.sec);
+  return t;
+}
+
+/**
+ * A session over (main.js endSession, the director still up): counted once (d._played). o: { career (a career
+ * weekend), mode (the weekend's: 'quick' | 'champ' | 'tt'), track, len (the circuit, m), crashG (the crash camera's
+ * threshold) }. The mode it goes to: free practice is Practice whatever the weekend; a time trial is Time trial; a
+ * career weekend's qualifying and race are Career; anything else Quick race. Your time at the wheel runs to the
+ * hand-over (main.js watchSession's c.handAt: your laps done, the flag, a retirement) or the session's end; the laps
+ * are the ones you drove. Nothing driven (a session simulated, a race watched): nothing counted. -> what was added | null
+ */
+function playSession(d, o = {}) {
+  try {
+    if (!d || d._played) return null;
+    const cars = Array.isArray(d.cars) ? d.cars : [], p = (d.player && cars.includes(d.player) ? d.player : null) || cars.find((c) => c && c.isPlayer) || null;
+    if (!p) return null;
+    d._played = true;
+    const mode = d.practice ? 'practice' : d.mode === 'tt' || o.mode === 'tt' ? 'tt' : o.career ? 'career' : 'quick';
+    const L = num(o.len, num(d.track?.length)), hand = num(p.handAt, NaN), end = isFinite(hand) ? hand : num(d.time), T = Array.isArray(p.lapTimes) ? p.lapTimes : [];
+    const crash = num(p.peakG) >= num(o.crashG, 30) || !!p._flew || !!p.wreck || (!!p.retired && dnfCause(p) === 'acc');
+    const add = { mode, sec: 0, laps: 0, km: 0, ovt: 0, led: 0, crash, race: false, pos: null, dnf: false, best: null };
+    let kind = 'tt';
+    if (d.mode === 'race') {
+      kind = 'race';
+      const t0 = num(d.world?.raceStart, NaN), RS = isFinite(t0) ? raceStatsOf(d, null, { len: L, crashG: o.crashG }) : null, M = RS?.me || null;
+      add.sec = isFinite(t0) ? Math.max(0, end - t0) : 0; add.laps = M ? num(M.laps) : num(p.lap); add.km = M ? num(M.km) : (add.laps * L) / 1000;
+      add.ovt = num(p.overtakes); add.led = num(M?.led); add.best = num(M?.best) > 20 ? M.best : null;
+      // (a race run to the flag - or stopped and classified: a start, and where you were)
+      if (d.done && isFinite(t0)) { const rows = d.classification?.() || [], row = rows.find((r) => r.car === p); if (row) { add.race = true; add.pos = row.pos; add.dnf = !!p.retired; } }
+    } else {
+      // (qualifying, practice, a time trial: your timed laps - the ones before the hand-over; the simulation's are not yours)
+      kind = d.practice ? 'practice' : d.mode === 'quali' ? 'quali' : 'tt';
+      const mine = (isFinite(hand) ? T.slice(0, num(p.handLaps, T.length)) : T).filter((t) => isFinite(t) && t > 20);
+      add.sec = Math.max(0, end); add.laps = mine.length; add.km = (mine.length * L) / 1000; add.best = mine.length ? r3(Math.min(...mine)) : null;
+    }
+    if (add.sec < 1 && !add.laps) return null;
+    // (read again just before writing: another tab may have counted something since)
+    const S = playLoad(), B = S.modes[mode];
+    B.sessions++; B.sec = r1(B.sec + add.sec); B.laps += add.laps; B.km = r3(B.km + add.km); B.ovt += add.ovt; B.led += add.led;
+    if (kind === 'quali') B.quali++;
+    if (crash) B.crashes++;
+    if (add.race) { B.races++; if (add.dnf) B.dnf++; else { B.fin++; if (add.pos === 1) B.wins++; if (add.pos <= 3) B.podiums++; } }
+    // (the circuit: the best lap you drove there in each kind of session, the laps and the distance)
+    const tid = o.track || d.track?.def?.id || null;
+    if (tid) {
+      const C = S.tracks[tid] && typeof S.tracks[tid] === 'object' ? S.tracks[tid] : (S.tracks[tid] = { laps: 0, km: 0, races: 0, wins: 0 });
+      C.laps = num(C.laps) + add.laps; C.km = r3(num(C.km) + add.km);
+      if (add.race) { C.races = num(C.races) + 1; if (!add.dnf && add.pos === 1) C.wins = num(C.wins) + 1; if (!add.dnf && (!C.bestPos || add.pos < C.bestPos)) C.bestPos = add.pos; }
+      if (add.best && (!C[kind] || add.best < C[kind])) { C[kind] = add.best; C[`${kind}At`] = new Date().toISOString().slice(0, 10); }
+    }
+    S.last = { mode, kind, track: tid, at: new Date().toISOString() };
+    playSave(S); label();
+    return add;
+  } catch (e) { console.warn('PlayStats: a session could not be counted', e); return null; }
+}
+
+// ---- the time in the game: counted while the page is open and in front of you -----------------------------------------
+/** seconds -> '12h 05m', '38 min' */
+const playDur = (s) => { const m = Math.round(num(s) / 60); return m >= 60 ? `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m` : `${m} min`; };
+const clock = { last: 0, on: false };
+/**
+ * The time since the last tick into the book (a gap over a minute - a sleep, a frozen tab - is not counted, nor a
+ * tick while the page is hidden). leaving: the page is being hidden or closed just now - it was in front of you up to here.
+ */
+function playTick(leaving = false) {
+  if (typeof performance === 'undefined') return;
+  const now = performance.now(), dt = (now - clock.last) / 1000; clock.last = now;
+  if (!(dt > 0 && dt <= 60) || (!leaving && typeof document !== 'undefined' && document.visibilityState === 'hidden')) return;
+  const S = playLoad(); S.game = r1(S.game + dt); playSave(S); label();
+}
+/** the menu's STATS button: its line under the name (your time at the wheel, every mode) */
+function label() {
+  if (typeof document === 'undefined') return;
+  const el = document.querySelector('#stats-open span'); if (!el) return;
+  const t = playTotal(playLoad());
+  el.textContent = t.sec >= 60 ? `${playDur(t.sec)} at the wheel` : 'Every mode, every lap';
+}
+if (typeof window !== 'undefined' && typeof document !== 'undefined' && !clock.on) {
+  clock.on = true; clock.last = performance.now();
+  setInterval(() => playTick(), 15000);
+  // (leaving or hiding the page: the time up to now, before the ticks stop; coming back: the clock starts again from here)
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') playTick(true); else clock.last = performance.now(); });
+  addEventListener('pagehide', () => playTick(true));
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', label); else label();
+}
+
+return { PLAY_KEY, PLAY_MODES, playBook, playLoad, playTotal, playSession, playDur, playTick };
+})();
+
+// ---- src/ui/StatsScreen.js
+__m['src/ui/StatsScreen.js'] = (() => {
+const { playLoad, playTotal, playDur, playTick, PLAY_MODES } = __m['src/core/PlayStats.js'];
+// STATS from the title menu (the ∑ STATS button beside RACE AGAIN): the lifetime book of everything played on this
+// device (core/PlayStats.js) - kept apart from any career, so it is there with no career at all, and stays when one is
+// abandoned. The big numbers (your time at the wheel and the time the game has been open, races, wins and podiums,
+// laps and distance, overtakes and crashes), then every mode on its own line - Career, Quick race, Time trial,
+// Practice: its sessions, its share of your time, its results - and each circuit's best laps, a time trial's first.
+// A career's own, deeper figures are in its hub (STATS). In the menu's look: dark glass, the cyan accent; on a phone
+// the tiles go two by two and the table drops its minor columns. Esc or ← closes it.
+
+const CSS = `
+.home-acts { display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; }
+#stats-open { display: flex; align-items: center; gap: 12px; height: 44px; padding: 0 22px; font-size: 12px; font-weight: 600; letter-spacing: .06em; color: var(--dim); min-width: 0; }
+#stats-open b { color: var(--fg); letter-spacing: .14em; white-space: nowrap; }
+#stats-open span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#playstats { position: fixed; inset: 0; z-index: 60; overflow-y: auto; overscroll-behavior: contain; color: var(--fg, #eef1f7); font-variant-numeric: tabular-nums;
+  background: radial-gradient(1200px 700px at 75% 30%, rgba(225,6,0,.14), transparent 60%), radial-gradient(900px 600px at 15% 95%, rgba(45,140,255,.12), transparent 60%), #05060c; animation: ps-in .22s ease both; }
+@keyframes ps-in { from { opacity: 0; } }
+#playstats .ps-in { width: min(1180px, 100%); margin: 0 auto; padding: 28px 40px 32px; display: flex; flex-direction: column; gap: 18px; }
+#playstats .ps-head { display: flex; align-items: center; gap: 14px; }
+#playstats .ps-head .crumb { flex: 1; }
+#playstats .ps-since { font-size: 12px; color: var(--dim, #8d95a8); text-align: right; }
+#playstats .ps-lbl { font-size: 10px; letter-spacing: .2em; color: var(--dim, #8d95a8); text-transform: uppercase; margin: 0 0 8px; display: block; font-weight: 700; }
+#playstats .ps-hero { display: grid; grid-template-columns: 1.5fr repeat(4, minmax(0, 1fr)); gap: 12px; }
+#playstats .ps-t { position: relative; background: rgba(255,255,255,.04); border: 1px solid var(--line, rgba(255,255,255,.09)); border-radius: 14px; padding: 16px 18px; min-width: 0; overflow: hidden; }
+#playstats .ps-t::before { content: ''; position: absolute; left: 0; top: 14px; bottom: 14px; width: 3px; border-radius: 2px; background: var(--accent2, #00d4ff); }
+#playstats .ps-t.big::before { background: var(--accent, #e10600); }
+#playstats .ps-t small { display: block; font-size: 10px; letter-spacing: .18em; text-transform: uppercase; color: var(--dim, #8d95a8); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#playstats .ps-t b { display: block; font-size: 32px; font-weight: 800; letter-spacing: -.01em; margin: 8px 0 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#playstats .ps-t.big b { font-size: 40px; }
+#playstats .ps-t span { display: block; font-size: 12px; color: var(--dim, #8d95a8); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#playstats .ps-tb { background: rgba(255,255,255,.03); border: 1px solid var(--line, rgba(255,255,255,.09)); border-radius: 14px; padding: 4px 16px; }
+#playstats .ps-tr { display: grid; grid-template-columns: minmax(110px, 1.4fr) 70px minmax(120px, 1.6fr) repeat(7, minmax(44px, .6fr)); gap: 10px; align-items: center; min-height: 44px; border-bottom: 1px solid var(--line, rgba(255,255,255,.09)); font-size: 13.5px; }
+#playstats .ps-tr:last-child { border-bottom: 0; }
+#playstats .ps-tr > * { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#playstats .ps-tr.hd i { font-style: normal; } #playstats .ps-tr.hd .ps-s { display: none; }
+#playstats .ps-tr.hd { min-height: 34px; font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--dim, #8d95a8); font-weight: 700; }
+#playstats .ps-tr .r { text-align: right; }
+#playstats .ps-tr.tot { font-weight: 800; }
+#playstats .ps-tr.tot > :first-child { color: var(--accent2, #00d4ff); letter-spacing: .14em; font-size: 11px; }
+#playstats .ps-tr .m { font-weight: 700; display: flex; align-items: center; gap: 8px; }
+#playstats .ps-tr .m i { width: 8px; height: 8px; border-radius: 2px; flex: none; background: var(--c); }
+#playstats .ps-share { display: flex; align-items: center; gap: 8px; }
+#playstats .ps-share u { flex: 1; height: 6px; border-radius: 3px; background: rgba(255,255,255,.07); overflow: hidden; display: block; text-decoration: none; }
+#playstats .ps-share u i { display: block; height: 100%; border-radius: 3px; background: var(--c); }
+#playstats .ps-share em { font-style: normal; width: 64px; text-align: right; flex: none; }
+#playstats .ps-dim { color: var(--dim, #8d95a8); }
+#playstats .ps-cc { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+#playstats .ps-c { background: rgba(255,255,255,.03); border: 1px solid var(--line, rgba(255,255,255,.09)); border-radius: 14px; padding: 14px 16px; min-width: 0; }
+#playstats .ps-c.none { opacity: .55; }
+#playstats .ps-c header { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+#playstats .ps-c header b { font-size: 15px; letter-spacing: .04em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#playstats .ps-c header small { font-size: 11px; color: var(--dim, #8d95a8); white-space: nowrap; }
+#playstats .ps-tt { font-size: 10px; letter-spacing: .18em; color: var(--accent2, #00d4ff); font-weight: 700; text-transform: uppercase; }
+#playstats .ps-ttv { font-size: 26px; font-weight: 800; margin: 4px 0 10px; }
+#playstats .ps-r { display: flex; justify-content: space-between; gap: 8px; font-size: 12.5px; padding: 4px 0; border-top: 1px solid var(--line, rgba(255,255,255,.09)); }
+#playstats .ps-r span { color: var(--dim, #8d95a8); white-space: nowrap; } #playstats .ps-r b { font-weight: 700; white-space: nowrap; }
+#playstats .ps-foot { font-size: 12px; color: var(--dim, #8d95a8); line-height: 1.5; margin: 0; }
+@media (max-width: 1000px) { #playstats .ps-cc { grid-template-columns: repeat(2, minmax(0, 1fr)); } #playstats .ps-tr .ph2 { display: none; } #playstats .ps-tr { grid-template-columns: minmax(100px, 1.3fr) 60px minmax(100px, 1.4fr) repeat(4, minmax(40px, .6fr)); } }
+@media (max-width: 700px) {
+  #playstats .ps-in { padding: 14px 16px 24px; gap: 14px; }
+  #playstats .ps-since { display: none; }
+  #playstats .ps-hero { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  #playstats .ps-hero .ps-t.big { grid-column: 1 / -1; }
+  #playstats .ps-t { padding: 12px 14px; } #playstats .ps-t b { font-size: 26px; } #playstats .ps-t.big b { font-size: 32px; }
+  #playstats .ps-tb { padding: 2px 10px; }
+  #playstats .ps-tr { grid-template-columns: minmax(84px, 1.2fr) 44px minmax(64px, 1fr) 46px 40px; gap: 6px; font-size: 12.5px; }
+  #playstats .ps-tr.hd .ps-l { display: none; } #playstats .ps-tr.hd .ps-s { display: inline; }
+  #playstats .ps-tr .ph { display: none; }
+  #playstats .ps-share u { display: none; } #playstats .ps-share em { width: auto; text-align: left; }
+  #playstats .ps-cc { grid-template-columns: minmax(0, 1fr); }
+}
+`;
+const css = () => {
+  if (typeof document === 'undefined' || document.getElementById('playstats-css')) return;
+  const st = document.createElement('style'); st.id = 'playstats-css'; st.textContent = CSS; document.head.appendChild(st);
+};
+// (in at once: the menu's button is styled before the screen is ever opened)
+css();
+
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+const num = (v, d = 0) => (typeof v === 'number' && isFinite(v) ? v : d);
+const TRACK = { silverstone: 'Silverstone', lasvegas: 'Las Vegas', montreal: 'Montreal', austin: 'Austin' };
+const MODE_COL = { career: '#e10600', quick: '#00d4ff', tt: '#ffb020', practice: '#33d17a' };
+/** a lap time, seconds -> '1:28.512' */
+const lapT = (s) => { if (!(num(s) > 0)) return '–'; const m = Math.floor(s / 60), r = s - m * 60; return `${m}:${r.toFixed(3).padStart(6, '0')}`; };
+const km = (v) => (num(v) >= 100 ? Math.round(num(v)).toLocaleString('en-GB') : num(v).toFixed(1));
+
+/** the screen's html from the book */
+function playStatsHTML(S = playLoad()) {
+  const T = playTotal(S), M = PLAY_MODES.map(([k, n]) => [k, n, S.modes[k]]), top = Math.max(1, ...M.map(([, , b]) => num(b.sec)));
+  const tile = (label, val, sub, big = false) => `<div class="ps-t${big ? ' big' : ''}"><small>${label}</small><b>${val}</b><span>${sub}</span></div>`;
+  const hero = [tile('At the wheel', playDur(T.sec), `${playDur(S.game)} with the game open`, true),
+    tile('Races', T.races, `${T.fin} to the flag · ${T.dnf} out`), tile('Wins', T.wins, `${T.podiums} podium${T.podiums === 1 ? '' : 's'}`),
+    tile('Laps', T.laps.toLocaleString('en-GB'), `${km(T.km)} km driven`), tile('Overtakes', T.ovt, `${T.crashes} crash${T.crashes === 1 ? '' : 'es'}`)].join('');
+  const row = (name, b, col, cls = '') => `<div class="ps-tr${cls ? ` ${cls}` : ''}">${cls === 'tot' ? `<span>${name}</span>` : `<span class="m" style="--c:${col}"><i></i>${name}</span>`}<span class="r">${b.sessions}</span>
+    <span class="ps-share" style="--c:${col}"><u><i style="width:${cls === 'tot' ? 100 : ((num(b.sec) / top) * 100).toFixed(1)}%"></i></u><em>${playDur(b.sec)}</em></span><span class="r">${b.races}</span><span class="r">${b.wins}</span>
+    <span class="r ph">${b.podiums}</span><span class="r ph ph2">${num(b.laps).toLocaleString('en-GB')}</span><span class="r ph ph2">${km(b.km)}</span><span class="r ph">${b.ovt}</span><span class="r ph ph2">${b.crashes}</span></div>`;
+  const table = `<div class="ps-tb"><div class="ps-tr hd"><span>Mode</span><span class="r"><i class="ps-l">Sessions</i><i class="ps-s">Sess.</i></span><span><i class="ps-l">At the wheel</i><i class="ps-s">Time</i></span><span class="r">Races</span><span class="r">Wins</span><span class="r ph">Podiums</span><span class="r ph ph2">Laps</span><span class="r ph ph2">Km</span><span class="r ph">Overtakes</span><span class="r ph ph2">Crashes</span></div>
+    ${M.map(([k, n, b]) => row(n, b, MODE_COL[k] || '#8d95a8')).join('')}${row('ALL', T, '#eef1f7', 'tot')}</div>`;
+  const ids = [...new Set([...Object.keys(TRACK), ...Object.keys(S.tracks || {})])];
+  const cards = ids.map((id) => {
+    const C = S.tracks?.[id] || {}, none = !num(C.laps) && !C.tt && !C.race && !C.quali && !C.practice;
+    return `<div class="ps-c${none ? ' none' : ''}"><header><b>${esc(TRACK[id] || id)}</b><small>${num(C.laps)} laps · ${km(C.km)} km</small></header><div class="ps-tt">Time trial best</div><div class="ps-ttv">${lapT(C.tt)}</div>
+      <div class="ps-r"><span>Race lap</span><b>${lapT(C.race)}</b></div><div class="ps-r"><span>Qualifying lap</span><b>${lapT(C.quali)}</b></div><div class="ps-r"><span>Practice lap</span><b>${lapT(C.practice)}</b></div>
+      <div class="ps-r"><span>Races · wins · best</span><b>${num(C.races)} · ${num(C.wins)} · ${C.bestPos ? `P${C.bestPos}` : '–'}</b></div></div>`;
+  }).join('');
+  return `<div class="ps-in"><header class="ps-head"><button class="back ps-x" title="Back (Esc)" aria-label="Back">←</button><div class="crumb"><small>FORMULA 1 SIMULATOR</small><b>STATS</b></div><span class="ps-since">Everything you have played on this device since ${esc(S.since)} · every mode</span></header>
+    <section class="ps-hero">${hero}</section>
+    <section><span class="ps-lbl">Every mode</span>${table}</section>
+    <section><span class="ps-lbl">Each circuit · the best laps you drove</span><div class="ps-cc">${cards}</div></section>
+    <p class="ps-foot">Time trials, quick races, practice and qualifying, and your career's races: all of it, kept on this device apart from any career - abandoning one leaves this as it is. A career's own figures, season by season, are in its hub under STATS. Time at the wheel runs from the start of a session (lights out in a race) until the car is no longer yours; the time with the game open counts while it is in front of you.</p></div>`;
+}
+/** open the screen over whatever is showing (the menu); Esc or ← closes it. -> its element */
+function showPlayStats() {
+  css(); playTick();
+  document.getElementById('playstats')?.remove();
+  const el = document.createElement('div'); el.id = 'playstats'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', 'Stats');
+  el.innerHTML = playStatsHTML(playLoad());
+  const close = () => { removeEventListener('keydown', onKey, true); el.remove(); };
+  // (the keys are the screen's while it is up: Esc closes it, and nothing reaches the menu under it - 1/2/3 would start a mode)
+  const onKey = (e) => { if (e.key === 'Tab') return; e.stopPropagation(); if (e.key === 'Escape') { e.preventDefault(); close(); } };
+  el.addEventListener('click', (e) => { if (e.target.closest('.ps-x')) close(); });
+  addEventListener('keydown', onKey, true);
+  document.body.appendChild(el);
+  el.querySelector('.ps-x')?.focus({ preventScroll: true });
+  return el;
+}
+
+return { playStatsHTML, showPlayStats };
 })();
 
 // ---- src/race/Calls.js
@@ -178684,6 +179767,9 @@ const Licence = __m['src/career/Licence.js'];
 const Agenda = __m['src/career/Agenda.js'];
 const TechTree = __m['src/career/TechTree.js'];
 const Social = __m['src/career/Social.js'];
+const Stats = __m['src/career/Stats.js'];
+const { playSession } = __m['src/core/PlayStats.js'];
+const { showPlayStats } = __m['src/ui/StatsScreen.js'];
 const People = __m['src/world/People.js'];
 const BrawlMod = __m['src/ui/Brawl.js'];
 const { makeHelmet, bloodPool } = __m['src/world/People.js'];
@@ -178698,6 +179784,9 @@ const { BUILTIN_SHOTS } = __m['src/ui/LoadingShots.js'];
 const { FAULT_P } = __m['src/race/Calls.js'];
 const { orderSub } = __m['src/race/TeamOrders.js'];
 // Bootstrap: renderer, world construction from GeoJSON, menus, race weekend flow, frame loop.
+
+
+
 
 
 
@@ -179567,6 +180656,7 @@ $('step-mode').addEventListener('click', (e) => {
   openSetup(c.dataset.v);
 });
 $('race-again').addEventListener('click', raceAgain);
+$('stats-open')?.addEventListener('click', () => showPlayStats());   // (STATS: everything you have played, every mode - ui/StatsScreen.js)
 $('btn-back').addEventListener('click', setupBack);
 $('btn-start').addEventListener('click', startQuick);
 $('su-next').addEventListener('click', () => stepPage(1));
@@ -179575,6 +180665,7 @@ $('su-sum').addEventListener('click', (e) => { const b = e.target.closest('[data
 Kit.keys($('step-mode'), {
   1: () => { $('step-mode').querySelectorAll('.card')[0].click(); }, 2: () => { $('step-mode').querySelectorAll('.card')[1].click(); }, 3: () => { $('step-mode').querySelectorAll('.card')[2].click(); },
   r: () => { if ($('race-again').classList.contains('hidden')) return 'pass'; raceAgain(); return undefined; },
+  s: () => { if (document.getElementById('playstats')) return 'pass'; showPlayStats(); return undefined; },
 }, { when: menuFree });
 Kit.keys($('step-setup'), {
   ArrowLeft: () => { stepPage(-1); }, ArrowRight: () => { stepPage(1); },
@@ -180279,6 +181370,8 @@ function syncSafetyCar(d, dt) {
   if (c) scMesh.update(c, dt, d.sc.phase === 'scIn' ? 'off' : 'amber');
 }
 function endSession() {
+  // (every session of every mode ends here - finished, quit or restarted: the lifetime stats book, apart from any career - core/PlayStats.js)
+  playSession(S.director, { career: !!S.weekend?.career, mode: S.weekend?.mode, track: W.def?.id, len: W.track?.length, crashG: CRASH_G });
   killPre();   // (quit during the build-up)
   if (S.director) S.lastTelemetry = S.director.telemetry;
   S.crews?.dispose(); S.crews = null; pitTiming.hide(); S.flags?.dispose(); S.flags = null; S.fireworks?.dispose(); S.fireworks = null;   // the report stays available after the session (results, qualifying sheet)
@@ -180478,6 +181571,8 @@ function runPractice() {
   for (const c of wk.cars) if (!c.isPlayer) c.fitTyres(wet > 0.5 ? 'WET' : wet > 0.2 ? 'INTER' : Math.random() < 0.5 ? 'SOFT' : 'MEDIUM');
   makeDirector('quali', wk.cars, wk.player, { practice: true,
     onFinish: () => {
+      // (your time at the wheel in practice, for the career's stats book - career/Stats.js; the director is still up)
+      if (wk.career) Stats.statsSession(wk.career, S.director, 'practice', W.def.id);
       const all = wk.cars.filter((c) => isFinite(c.bestLap)).sort((a, b) => a.bestLap - b.bestLap);
       wk.cars = buildField(wk.lapsTotal); wk.player = wk.cars.find((c) => c.isPlayer) || null; wk.practiced = true;
       let html = '<table class="res"><tr><th>#</th><th>Driver</th><th>Best lap</th><th>Gap</th></tr>';
@@ -180499,6 +181594,8 @@ function runQuali() {
       const pt = wk.player.bestLap, names = all.map((e) => e.car.name);
       if (wk.career) {
         wk.qTrophies = wk.career.recordQuali(all.map((e) => e.car.careerId));   // (poles, the head-to-head, the qualifying objective)
+        // (your time at the wheel and your best lap driven, for the stats book - career/Stats.js; saved with the grid below)
+        Stats.statsSession(wk.career, S.director, 'quali', W.def.id);
         // (kept with the career: leave now, and RACE goes straight to this grid)
         const C = wk.career; C.savedGrid = { season: C.season, round: C.round, ids: all.map((e) => e.car.careerId), times: all.map((e) => (isFinite(e.time) ? +e.time.toFixed(3) : null)) }; C.save();
       }
@@ -180587,6 +181684,8 @@ function beginRace() {
         const orders = (facts?.orders || []).slice(0, 4).map((x) => ({ kind: x.kind, sub: orderSub(x), good: x.good, text: x.text, mine: x.mine, team: x.team, did: x.actor.careerId || null, other: x.other.careerId || null, contra: !!x.contra, dirty: !!x.dirty, n: x.n ?? null }));
         const extra = { strategy, orders, dotd: !!facts?.dotd?.[0]?.me, overtakes: pc?.overtakes || 0, grave: !!(NEWS.abandoned || NEWS.cancelled || S.cars.some((c) => c.injured) || memorial), hurtIds: S.cars.filter((c) => c.injured && c.careerId).map((c) => c.careerId),
           fought: bw && !bw.aborted && !bw.walkedAway ? bw.did || bw.id || null : null,
+          // (the race in numbers for the stats book - career/Stats.js: laps, laps led, distance, time at the wheel, the grid)
+          stats: Stats.raceStatsOf(S.director, rows, { len: W.track.length, crashG: CRASH_G }),
           // (your car touched the Wall of Champions today - Montreal's last chicane: the season remembers it)
           woc: !!pc?.wocKiss && !pc.standInFor };
         // (who of yours was here this weekend, as the race leaves it - asked about in the pen; before the round moves on)
@@ -180677,6 +181776,8 @@ function noteContact(a, b, v) {
 }
 function watchSession(c) {
   const d = S.director; if (!d || d.done) return;
+  // (the moment your car stopped being yours, and the laps you had driven by then: the stats book's time at the wheel - career/Stats.js)
+  if (c?.isPlayer && c.handAt == null) { c.handAt = d.time; c.handLaps = (c.lapTimes || []).length; }
   if (NEWS.cancel?.hurt.includes(c)) return;   // (you were the one lost: the camera stays at the scene)
   endCrash(); S.spectating = true; S.ff = false;
   S.player = c.retired ? (d.positions.find((x) => !x.retired && x !== c) || c) : c;
