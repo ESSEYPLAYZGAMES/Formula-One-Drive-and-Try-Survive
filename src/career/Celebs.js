@@ -19,7 +19,7 @@
 // those close to him are left in peace. Two more kinds of people share the stars' shape and everything above: the
 // strangers out on a race night (career/Locals.js) and the paddock's own - your agent, your team's chief executive,
 // a sponsor's ambassador, someone on a rival team's pit wall, a journalist (career/Paddock.js). Seeing your own agent
-// or the chief executive of the team you own is a conflict of interest the papers make a story of once they know;
+// or the chief executive of the team you drive for is a conflict of interest the papers make a story of once they know;
 // ending it badly with a sponsor's ambassador or brand manager cools that brand on you. And whoever has the Fling's
 // personality (career/Persona.js: fun, late, allergic to serious - Jade Okafor among the stars) dates you happily and
 // never becomes your partner: ask, and she dodges, and asked once too often she reminds you what this was. The state
@@ -324,7 +324,7 @@ export function registerPaddock(c, id) {
  * for each sponsor you have a deal with or an offer from, its ambassador -> the roster ({ ids, ceo, staff, myagent, agents, rivals, press, infl, amb: { bid: id } })
  */
 export function paddockOf(c) {
-  const R = paddockRoster({ playerId: c?.playerId, myTeam: c?.myTeam, teams: Object.keys(c?.teams || {}) });
+  const R = paddockRoster({ playerId: c?.playerId, myTeam: c?.myTeam, home: c?.paddockHome || null, teams: Object.keys(c?.teams || {}) });
   for (const id of R.ids) registerPaddock(c, id);
   R.amb = {};
   for (const bid of [...(c?.pr?.deals || []), ...(c?.pr?.offers || [])].map((d) => d?.bid).filter((b) => BRAND_BY_ID[b])) { R.amb[bid] = ambassadorId(bid); registerPaddock(c, R.amb[bid]); }
@@ -338,7 +338,7 @@ export function brandPerson(c, bid, bm = false) { if (!BRAND_BY_ID[bid]) return 
  * this module never imports Persona.js (it imports this one)
  */
 export function flingOf(c, id) { return (c?.persona?.npcs?.[`c:${id}`]?.p || CELEB[id]?.persona) === 'fling'; }
-/** seeing her is a conflict of interest: 'agent' (your own) | 'ceo' (of the team you own) | null */
+/** seeing her is a conflict of interest: 'agent' (your own) | 'ceo' (of the team you drive for) | null */
 export function conflictOf(c, id) { return CELEB[id] ? conflictKind(CELEB[id], c?.myTeam) : null; }
 export const STAGES = ['stranger', 'met', 'friendly', 'flirting', 'dating', 'partner', 'ex'];
 const STAGE_LABEL = { stranger: 'Not met', met: 'Just met', friendly: 'Friendly', flirting: 'Flirting', dating: 'Dating', partner: 'Partner', ex: 'Ex' };
@@ -769,7 +769,7 @@ const startDating = (c, id, b) => {
   b.stage = 'dating'; b.since = now(c); b.accepted = null; b.secret = others.length > 0;
   note(c, id, b.secret ? `You and ${f} are seeing each other - quietly, for now.` : `You and ${f} are seeing each other.`, 1);
   if (flingOf(c, id)) { b.exclusive = false; note(c, id, `${f} calls it nothing serious. Very much nothing serious.`, 0); }
-  const k = conflictOf(c, id); if (k) note(c, id, k === 'agent' ? `${f} is your agent. If the papers find out, it is a story.` : `${f} runs the team you own. If the papers find out, it is a story.`, -1);
+  const k = conflictOf(c, id); if (k) note(c, id, k === 'agent' ? `${f} is your agent. If the papers find out, it is a story.` : `${f} runs the team you drive for. If the papers find out, it is a story.`, -1);
 };
 /** the closing words when a first date makes you a couple: quietly or not - and, with the Fling, only casually */
 const seeingNow = (c, id, b) => ` You and ${first(CELEB[id].name)} are seeing each other${b.secret ? ' - quietly, for now' : ''}${flingOf(c, id) ? '. Casually, she insists' : ''}.`;
@@ -994,7 +994,7 @@ const dodge = (c, id, b) => {
 };
 // (a conflict of interest, as the papers put it to you)
 const COI_LINE = { agent: 'The Paddock Post has found out you are seeing {her} - your own agent - and calls it a conflict of interest.',
-  ceo: 'The Paddock Post has found out you are seeing {her}, the chief executive of the team you own, and calls it a conflict of interest.' };
+  ceo: 'The Paddock Post has found out you are seeing {her}, the chief executive of the team you drive for, and calls it a conflict of interest.' };
 /** seeing someone it is a conflict to see, out in the open: once a relationship, a PR 'conflict' story, composure -3, the line -> text | '' */
 const conflictStory = (c, id, b) => {
   const k = conflictOf(c, id); if (!k || b.coi || !b.public || grave(c)) return '';

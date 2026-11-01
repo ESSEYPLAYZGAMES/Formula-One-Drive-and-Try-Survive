@@ -1104,7 +1104,7 @@ export const PARTY_TOPICS = [
       { tone: 'cold', t: ["I'm happy with my drivers.", "Not interested."], r: ["...For now.", "...Everyone says that."], m: -1 },
     ] },
   { id: 'agtYou', who: ['person'], role: 'agent', where: ALL, w: 3, when: (x) => ok(x), open: [
-    "Who looks after you these days? Just asking.", "If you ever want representation, I'm told I'm very annoying on a client's behalf.", "Driver and owner. Brave. Who negotiates with you? You?" ],
+    "Who looks after you these days? Just asking.", "If you ever want representation, I'm told I'm very annoying on a client's behalf.", "Who negotiates your contract? Whoever it is, I'd have asked for more." ],
     opts: [
       { tone: 'light', t: ["I do. I'm a nightmare. I keep saying no to myself.", "Myself. I'm very tough on me."], r: ["Ha. Classic.", "Ha. You need me."] },
       { tone: 'kind', fx: 'network', t: ["Good to know. Keep my number.", "I might take you up on that one day."], r: ["Always.", "I'll be here."] },
@@ -1720,7 +1720,7 @@ export const PARTY_BARK = {
     ex: ["Oh. Hi.", "...Hi.", "Well. Hello."],
     celeb: ["Hi. You must be the driver everyone's talking about.", "There you are. I was hoping I'd find you.", "Hey. Good race tonight."],
     rep: ["There he is. Have you got five minutes?", "Ah - just the man I wanted to see.", "Good evening. Lovely to meet you properly."],
-    agent: ["There he is. My favourite team owner.", "Got a minute? I've always got a minute.", "Evening. Busy night."],
+    agent: ["There he is. My favourite driver on the market.", "Got a minute? I've always got a minute.", "Evening. Busy night."],
     press: ["Evening. Don't worry, I'm off duty. Mostly.", "Lovely party. Lovely, lovely party.", "Ah. The man of the moment."],
     infl: ["Oh my god, hi! Hi! Can I film this?", "Hiii! Okay, act natural.", "No way. Hi!"],
     dj: ["Big night! Enjoying it?", "Alright, champ!", "Good to see you up here."],

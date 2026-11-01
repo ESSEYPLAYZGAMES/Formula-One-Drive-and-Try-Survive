@@ -174,8 +174,8 @@ export const ACTIVITIES = [
   { key: 'rest', name: 'Rest', icon: '☾', energy: -30, desc: 'A day off: sleep, a walk, nothing on the calendar. Energy +30, and morale +2 when you were running low.' },
   { key: 'sim', name: 'Simulator session', icon: '▶', energy: 15, desc: 'Laps of the next circuit in the team\'s simulator: focus +6, confidence +3.' },
   { key: 'fitness', name: 'Fitness', icon: '▲', energy: 20, desc: 'Neck, core and reaction work with your trainer: composure +5.' },
-  { key: 'factory', name: 'Factory visit', icon: '⚙', energy: 10, desc: 'A day with the engineers: your team-mate\'s rapport +4, and now and then a part arrives a race early.', needs: (c) => !!c.team },
-  { key: 'sponsor', name: 'Sponsor day', icon: '$', energy: 20, desc: 'One a week is in your contract: $0.4-1.4M to the team by your appeal, appeal +3. Skip it and appeal drops 6.', needs: (c) => !hurt(c) && !weekOf(c).sponsorDone },
+  { key: 'factory', name: 'Factory visit', icon: '⚙', energy: 10, desc: 'A day with the engineers: your team-mate\'s rapport +4, and now and then a part arrives a race early.', needs: (c) => !!c.team && !c.team.none },
+  { key: 'sponsor', name: 'Sponsor day', icon: '$', energy: 20, desc: 'One a week is in your contract: $0.4-1.4M to the team by your appeal, appeal +3. Skip it and appeal drops 6.', needs: (c) => !hurt(c) && !weekOf(c).sponsorDone && !!c.team && !c.team.none },
   { key: 'media', name: 'Media day', icon: '✎', energy: 15, desc: 'An afternoon with one outlet: their opinion of you +12 (less once they already like you), image +2. One day per outlet.', needs: (c) => !hurt(c) && mediaOutlets(c).some((o) => !o.used) },
   { key: 'fans', name: 'Fan meet', icon: '☺', energy: 15, desc: 'Selfies, signatures and a Q&A: image +3, more followers.', needs: (c) => !hurt(c) },
   { key: 'charity', name: 'Charity visit', icon: '❀', energy: 10, desc: 'A day for a cause you care about: image +4, morale +2.', needs: (c) => !hurt(c) },
@@ -185,7 +185,7 @@ export const ACTIVITIES = [
   { key: 'hangout', name: 'Evening out', icon: '☕', energy: 0, desc: 'An evening with friends who said yes on your phone, at the place you chose: friendship, morale - played out in 3D.', needs: (c) => hangoutsReady(c).some((h) => !h.why) },
 ];
 const ACT = Object.fromEntries(ACTIVITIES.map((a) => [a.key, a]));
-const WHY = { factory: 'No team to visit', sponsor: 'Done this week', media: 'Every outlet has had its day this week', teambond: 'No team-mate to spend it with', nightout: 'Not this week', date: 'Nobody to take out yet',
+const WHY = { factory: 'No team to visit', sponsor: 'Done this week - or no team to do it for', media: 'Every outlet has had its day this week', teambond: 'No team-mate to spend it with', nightout: 'Not this week', date: 'Nobody to take out yet',
   hangout: 'Nobody has said yes yet: make plans on your phone' };
 
 // ---- the week (c.week) -----------------------------------------------------------------------------------------------
@@ -449,7 +449,8 @@ export function weekRoundTick(c) {
   const lines = [], w = c.week, me = meOf(c);
   if (w && me && me.alive && ago(c, w) <= 1) {
     const wasHurt = w.injured || (me.outUntil != null && me.outUntil >= w.round) || me.returnRound === c.round;
-    if (!w.sponsorDone && !wasHurt && c.pr) { c.pr.appeal = clamp((c.pr.appeal ?? 50) - 6, 0, 100); lines.push('You skipped the contractual sponsor day: sponsor appeal -6.'); }
+    // (the sponsor day is a contract's: a free agent has none to skip)
+    if (!w.sponsorDone && !wasHurt && c.pr && (me.team || me.reserveOf)) { c.pr.appeal = clamp((c.pr.appeal ?? 50) - 6, 0, 100); lines.push('You skipped the contractual sponsor day: sponsor appeal -6.'); }
     // (running on empty is checked on race day itself - raceDayCheck - so it shapes the race it was meant for; a race
     // started without that check still pays here, as it always did)
     if (w.emptyLine) lines.push(w.emptyLine);
@@ -464,14 +465,9 @@ export function energyLabel(e) { return e <= 20 ? 'Exhausted' : e < 45 ? 'Tired'
 export function energyBand(e) { return e < 30 ? 'low' : e < 65 ? 'mid' : 'high'; }
 
 // ---- your own money (c.wallet) ---------------------------------------------------------------------------------------
-/** $1M of your own money into the team's budget ($3M a round at most) -> { ok, text } */
+/** (once: $1M of your own money into the team's budget - an owner's privilege; a driver's money is his own, the team's is the team's) -> { ok: false, text } */
 export function investInTeam(c) {
-  const w = weekOf(c), t = c.team, cash = c.wallet ?? 0;
-  if (!t) return { ok: false, text: 'No team to invest in.' };
-  if ((w.invested || 0) >= 3) return { ok: false, text: 'You have put $3M in this round already: that is the limit.' };
-  if (cash < 1) return { ok: false, text: `Not enough in your own account (${money(cash)}).` };
-  c.wallet = r2(cash - 1); t.budget = r1(t.budget + 1); w.invested = (w.invested || 0) + 1;
-  return { ok: true, text: `$1M of your own money goes into ${t.name}: the budget is now ${money(t.budget)}.` };
+  return { ok: false, text: 'The team\'s budget is the team\'s: you are its driver, not its owner. Your own money is yours to spend.' };
 }
 /** $0.5M of your own money to a good cause, once a round: image +2 (given quietly, with no story, in a grave week) -> { ok, text } */
 export function donate(c) {

@@ -1,13 +1,18 @@
-// The championship career: you are a driver and the owner of your team. One profile (saved in the browser) holds the
-// season - a calendar cycling the circuits, standings, history for the charts, money - every team's development (a
-// tech tree of upgrades with levels, career/TechTree.js, paid for by what it earns on track), Paddock Rapport (your
-// standing with every driver), and every driver in the paddock: the F1 grid, the reserves, F2 and a few juniors, each
-// with a contract or free, a morale (career/Morale.js) and a superlicence (career/Licence.js). Around the racing sit
-// your press desk (career/PR.js), your personal life (career/Celebs.js), your phone and your friends in the paddock
-// (career/Social.js), the week between rounds (career/Agenda.js) and your own money (the wallet): the career holds
-// them as plain JSON and turns the round over in the right order, and the engines do the rest. You choose your driver
-// once: you race as them until they die - a death is final. An AI driver hurt in an accident misses the next round or
-// two, and a driver who reaches twelve penalty points misses the next one: a stand-in in their seat either way.
+// The championship career: you are a driver - never the owner. You begin as a rookie of your own making in one of the
+// real junior academies, take one of the seats it can open for you, and from then on hold a contract (a salary, the
+// years it runs, your standing in the garage) with a team that is not yours: its budget, its car and its development
+// are its own, and so is its patience - management confidence, career/Seat.js, the warnings that come before a team
+// replaces its driver, a free agent's search for a way back in. One profile (saved in the browser) holds the season -
+// a calendar cycling the circuits, standings, history for the charts, money - every team's development (a tech tree
+// of upgrades with levels, career/TechTree.js, paid for by what it earns on track and chosen by the team), Paddock
+// Rapport (your standing with every driver), and every driver in the paddock: the F1 grid, the reserves, F2 and a few
+// juniors, each with a contract or free, a morale (career/Morale.js) and a superlicence (career/Licence.js). Around
+// the racing sit your press desk (career/PR.js), your personal life (career/Celebs.js), your phone and your friends in
+// the paddock (career/Social.js), the week between rounds (career/Agenda.js) and your own money (the wallet: your
+// salary, your bonuses, your personal sponsors): the career holds them as plain JSON and turns the round over in the
+// right order, and the engines do the rest. You race as your driver until they die - a death is final. An AI driver
+// hurt in an accident misses the next round or two, and a driver who reaches twelve penalty points misses the next
+// one: a stand-in in their seat either way.
 import { ROSTER, RESERVES, F2, PERF_GAIN, dayPerf } from '../race/Roster.js';
 import { BRANCHES, UP, startLevels, techEffects, upgradeState, develop, devTick, aiDevelop, migrateTeam, upgradeName, branchMaxed } from './TechTree.js';
 import { moraleInit, moodOf, shiftMorale, moraleFromRace, moraleFromQuali, moraleRoundTick, moraleNewSeason, formOf, moraleSimBonus } from './Morale.js';
@@ -18,6 +23,7 @@ import { socialState, socialEnsure, socialResetForNewDriver, relateFriend, frien
 import { weekRoundTick, raceDayCheck } from './Agenda.js';
 import { partyEnsure, partyReset, snapAfterRace, partyTick, agentFor } from './Party.js';
 import { normLook, blankLook } from './Avatar.js';
+import { ACADEMY_BY_ID, SEAT_RULES, kindOf, newSeat, seatEnsure, seatRace, seatBeat, seatRoundTick, seatSeasonEnd, rookieOffers, seatCtx, agentText, confLabel } from './Seat.js';
 
 const KEY = 'f1sim-career-v2';
 // (a save from before the v67 update, as it was stored, kept once when it is first brought up to date)
@@ -74,6 +80,10 @@ const pick = (a) => a[(Math.random() * a.length) | 0];
 const r1 = (v) => Math.round(v * 10) / 10;
 const r2 = (v) => Math.round(v * 100) / 100;
 const TIER_BUDGET = [60, 50, 42, 36];     // $M to start a season with, by the team's tier
+/** a rookie's rating: an F2 graduate's (Bortoleto and Bearman were about this), learning race by race (isYoung) */
+const ROOKIE_RATING = 0.84;
+/** the sponsors' targets met pay the team; your contract gives you this share as your bonus */
+export const OBJ_SHARE = 0.25;
 export const DISTANCES = [[3, '3 laps'], [5, '5 laps'], [8, '8 laps'], [13, '25 %'], [25, '50 %']];
 
 // ---- the engines around the racing ----------------------------------------------------------------------------------
@@ -119,38 +129,41 @@ export class Career {
 
   // ---- making one --------------------------------------------------------------------------------------------------
   /**
-   * o: { driver: a ROSTER index (you become them, and own their team) | 'custom', custom: { name, teamName, color,
-   * color2, look (your own look: career/Avatar.js - kept on your driver's record) }, rounds, laps, diff, tracks:
-   * [circuit ids], firstTrack }
+   * o: { driver: 'rookie' (the career: your own rookie - also 'custom', as old menus call it) | a ROSTER index (you
+   * become that driver, under his contract: the tests' and the old menus' way in), custom: { name, color, color2,
+   * look (your own look: career/Avatar.js - kept on your driver's record) }, academy (career/Seat.js ACADEMIES: the
+   * rookie's junior programme - its offers wait in c.seat.offers until one is taken, acceptOffer), rounds, laps, diff,
+   * tracks: [circuit ids], firstTrack }. Nobody owns a team: every team develops its own car and signs its own drivers.
    */
   static create(o) {
     const teams = {}, drivers = {};
     for (const r of ROSTER) {
       if (!teams[r.team]) teams[r.team] = { name: r.team, color: r.color, color2: r.color2, tier: r.tier, budget: TIER_BUDGET[r.tier], levels: startLevels(r.tier), quality: {}, dev: [], seats: [], points: 0, garage: Object.keys(teams).length };
-      drivers[id(r.name)] = newDriver([r.name, r.short, r.rating, r.number, r.helmet], { from: 'F1', team: r.team, contract: { salary: askOf(r), until: 2027 + (r.rating > 0.9 ? 1 : 0) } });
+      drivers[id(r.name)] = newDriver([r.name, r.short, r.rating, r.number, r.helmet], { from: 'F1', team: r.team, contract: { salary: askOf(r), until: 2027 + (r.rating > 0.9 ? 1 : 0), role: 'equal' } });
       teams[r.team].seats.push(id(r.name));
     }
     for (const [team, r] of Object.entries(RESERVES)) drivers[id(r[0])] = newDriver(r, { from: r[5] === 'F2' ? 'F2' : 'Reserve', team: null, reserveOf: team, contract: null });
     for (const r of [...F2, ...JUNIORS]) if (!drivers[id(r[0])]) drivers[id(r[0])] = newDriver(r, { from: JUNIORS.includes(r) ? 'Junior' : 'F2', team: null, contract: null });
-    let playerId;
-    if (o.driver === 'custom') {
-      const c = o.custom || {}, tn = (c.teamName || 'Independent').slice(0, 22);
-      teams[tn] = { name: tn, color: c.color || '#00d4ff', color2: c.color2 || '#ffffff', livery: c.livery || null, tier: 3, budget: TIER_BUDGET[3], levels: startLevels(3), quality: {}, dev: [], seats: [], points: 0, garage: 'own', own: true };
+    // (the drivers' standing in their garages, as the grid has it: the quicker of two clearly apart is the number one)
+    for (const t of Object.values(teams)) { const [a, b] = t.seats.map((x) => drivers[x]); if (a && b && Math.abs(a.rating - b.rating) >= 0.04) { (a.rating > b.rating ? a : b).contract.role = 'lead'; (a.rating > b.rating ? b : a).contract.role = 'support'; } }
+    let playerId, rookie = false;
+    if (o.driver == null || o.driver === 'rookie' || o.driver === 'custom') {
+      // (your rookie: your name and look, an F2 graduate's rating, no team yet - the academy's offers decide where)
+      const c = o.custom || {}; rookie = true;
       playerId = 'you-' + id(c.name || 'driver');
-      // (your look on your own record - the game's own pick where you chose nothing; the helmet's base colour as the plain one)
       const look = normLook(c.look) || blankLook();
-      drivers[playerId] = newDriver([c.name || 'Custom Driver', (c.name || 'YOU').replace(/[^A-Za-z]/g, '').slice(-3).toUpperCase().padEnd(3, 'X'), 0.88, 99, look.helmet?.c?.[0] || c.color2 || '#ffffff'], { id: playerId, from: 'Custom', team: tn, contract: { salary: 0, until: 2099 }, look });   // (its id is its key: 'you-...', not the name's)
-      teams[tn].seats.push(playerId);
-      const mate = Object.values(drivers).filter((d) => !d.team && d.alive).sort((a, b) => b.rating - a.rating)[0];
-      if (mate) { mate.team = tn; mate.contract = { salary: askOf(mate), until: 2027 }; teams[tn].seats.push(mate.id); }
+      drivers[playerId] = newDriver([c.name || 'Custom Driver', (c.name || 'YOU').replace(/[^A-Za-z]/g, '').slice(-3).toUpperCase().padEnd(3, 'X'), ROOKIE_RATING, 99, look.helmet?.c?.[0] || c.color2 || '#ffffff'], { id: playerId, from: 'Custom', team: null, contract: null, look, academy: ACADEMY_BY_ID[o.academy] ? o.academy : 'redbull' });   // (its id is its key: 'you-...', not the name's)
     } else playerId = id(ROSTER[+o.driver].name);
-    const me = drivers[playerId], myTeam = teams[me.team]; myTeam.own = true;
+    const me = drivers[playerId], myTeam = me.team ? teams[me.team] : null;
     const tracks = o.tracks || ['silverstone', 'lasvegas'], first = Math.max(0, tracks.indexOf(o.firstTrack));
     const calendar = Array.from({ length: o.rounds || 6 }, (_, i) => tracks[(first + i) % tracks.length]);
     const rapport = Object.fromEntries(Object.keys(drivers).filter((k) => k !== playerId).map((k) => [k, 0]));
-    const c = new Career({ v: 4, season: 2026, round: 1, rounds: calendar.length, calendar, laps: o.laps || 5, diff: o.diff ?? 75, teams, drivers, playerId, myTeam: myTeam.name, rapport,
-      news: [{ round: 0, text: `${me.name} takes charge of ${myTeam.name}: driver and owner.` }], lost: [], log: [], history: [],
-      forecast: calendar.map(drawForecast), trophies: [], seasons: [], h2h: { mate: null, q: [0, 0], r: [0, 0] }, wallet: 3, week: null, slump: 0 });
+    const c = new Career({ v: 5, season: 2026, round: 1, rounds: calendar.length, calendar, laps: o.laps || 5, diff: o.diff ?? 75, teams, drivers, playerId, myTeam: myTeam ? myTeam.name : null, rapport,
+      news: [{ round: 0, text: rookie ? `${me.name} leaves the ${ACADEMY_BY_ID[me.academy]?.name || 'academy'} for Formula 1: the offers are in.` : `${me.name} starts the season with ${myTeam.name}.` }], lost: [], log: [], history: [],
+      forecast: calendar.map(drawForecast), trophies: [], seasons: [], h2h: { mate: null, q: [0, 0], r: [0, 0] }, wallet: 3, week: null, slump: 0, paddockHome: myTeam ? myTeam.name : null });
+    // (your seat: a rookie's offers from the academy, or the roster driver's contract as it stands)
+    c.seat = rookie ? newSeat({ status: 'rookie', academy: me.academy }) : newSeat({ status: 'driver', team: myTeam.name, tier: myTeam.tier, conf: SEAT_RULES[kindOf(myTeam.tier)].start, since: { season: 2026, round: 1 } });
+    if (rookie) c.seat.offers = rookieOffers(c, me.academy);
     // (the life around the racing: every driver's morale and licence, then your press desk, your personal life and your phone)
     for (const d of Object.values(drivers)) { moraleInit(d, d.id === playerId); licenceInit(d); }
     c.pr = safe('prInit', () => prInit(c)); if (!c.pr) delete c.pr;
@@ -165,14 +178,25 @@ export class Career {
 
   // ---- reading -----------------------------------------------------------------------------------------------------
   get me() { return this.drivers[this.playerId]; }
-  get team() { return this.teams[this.myTeam]; }
-  get needsDriver() { return !this.me || !this.me.alive || this.me.team !== this.myTeam; }
+  /**
+   * the team you drive for (a reserve: the team you are reserve for). Without one - a free agent, a rookie still
+   * choosing - a stand-in for the screens: grey, no seats, no money, nothing that is saved (none: true)
+   */
+  get team() { return this.teams[this.myTeam] || { name: 'No team', color: '#8a93a0', color2: '#ffffff', tier: 3, budget: 0, levels: {}, quality: {}, dev: [], seats: [], points: 0, garage: 0, none: true }; }
+  /** your driver is gone (killed): choose who you are now (becomeDriver) - a driver without a seat is a free agent, not this */
+  get needsDriver() { return !this.me || !this.me.alive; }
+  /** your standing: 'rookie' (offers waiting, no car yet) | 'driver' | 'reserve' | 'free' (career/Seat.js) */
+  get status() { return this.seat?.status || (this.me?.team ? 'driver' : 'free'); }
+  /** no race seat this round: a free agent, a rookie still choosing, a reserve the team does not need */
+  get noSeat() { return this.status !== 'driver'; }
   get seasonOver() { return this.round > this.rounds; }
-  seatsOf(team) { return this.teams[team].seats.map((i) => this.drivers[i]).filter((d) => d && d.alive); }
-  freeAgents() { return Object.values(this.drivers).filter((d) => d.alive && !d.team); }
+  seatsOf(team) { return (this.teams[team]?.seats || []).map((i) => this.drivers[i]).filter((d) => d && d.alive); }
+  /** everyone without a race seat - never you: the AI teams fill their seats and stand-ins from here, your seat is your agent's business */
+  freeAgents() { return Object.values(this.drivers).filter((d) => d.alive && !d.team && d.id !== this.playerId); }
   driverStandings() { return Object.values(this.drivers).filter((d) => d.points > 0 || (d.team && d.alive)).sort((a, b) => b.points - a.points || b.wins - a.wins); }
   teamStandings() { return Object.values(this.teams).sort((a, b) => b.points - a.points); }
-  teammate() { return this.seatsOf(this.myTeam).find((d) => d.id !== this.playerId) || null; }
+  /** the other driver in your team's garage (none for a reserve or a free agent) */
+  teammate() { const me = this.me; if (!me || !me.team || me.team !== this.myTeam) return null; return this.seatsOf(this.myTeam).find((d) => d.id !== this.playerId) || null; }
   addNews(text) { this.news.unshift({ round: this.round, text }); this.news.length = Math.min(this.news.length, 80); }
   /** a name already in the paddock (the grid, the reserves, F2, the juniors - case and spacing aside): a new driver can't take it */
   static nameTaken(name) {
@@ -210,7 +234,10 @@ export class Career {
     // (v4: your own look on a custom driver's record - one saved without it gets the empty look: every choice the game's
     // own pick, so he looks just as he always did; any look cleaned, every load)
     safe('looks', () => { for (const d of Object.values(this.drivers || {})) { if (d && d.look != null) d.look = normLook(d.look) || blankLook(); else if (d && d.from === 'Custom') d.look = blankLook(); } });
-    this.v = 4;
+    // (v5: the driver career - nobody owns a team any more: an owner-driver's save becomes a contract at the same team)
+    if (!(this.v >= 5) || Object.values(this.teams || {}).some((t) => t && t.own)) safe('the driver career', () => this._toDriver());
+    safe('seatEnsure', () => seatEnsure(this));
+    this.v = 5;
     try {
       this.forecast = this.forecast || this.calendar.map(drawForecast); this.trophies = this.trophies || []; this.seasons = this.seasons || [];
       this.h2h = this.h2h || { mate: null, q: [0, 0], r: [0, 0] };
@@ -219,9 +246,35 @@ export class Career {
       // (a custom driver saved before the fix: its id was its name's, not its key - so it was never the player's car)
       if (this.me && this.me.id !== this.playerId) this.me.id = this.playerId;
       const me = this.me;
-      if (me && me.alive && me.team === this.myTeam) { const t = this.team; if (t && !t.seats.includes(me.id)) t.seats.unshift(me.id); }
+      if (me && me.alive && me.team && me.team === this.myTeam) { const t = this.team; if (t && !t.seats.includes(me.id)) t.seats.unshift(me.id); }
     } catch (e) { console.warn('Career: repairing an older save', e); }
     return this;
+  }
+  /**
+   * An owner-driver's save (from before v5) brought into the driver career: every team's own flag gone and its budget
+   * left as the team's; your driver, alive and in a car, a contracted driver at the same team - a salary by the market
+   * (the team's tier and your rating), to this season's end (the next one's once past halfway, or with the season
+   * over), the standing in the garage by how you compare with your team-mate - and a line in the news saying so. A
+   * save whose driver is gone is left to choose who you are now, as before (becomeDriver signs them on).
+   */
+  _toDriver() {
+    for (const t of Object.values(this.teams || {})) if (t) delete t.own;
+    const me = this.me;
+    if (!this.paddockHome) this.paddockHome = this.myTeam || null;
+    if (!me || !me.alive) { this.seat = newSeat({ status: 'free' }); return; }
+    const t = me.team ? this.teams[me.team] : null;
+    if (!t) { this.myTeam = null; this.seat = newSeat({ status: 'free' }); this.addNews('The team is no longer yours: you are a free agent now, and your agent is looking for a seat.'); return; }
+    const mate = this.seatsOf(t.name).find((d) => d.id !== me.id), g = me.rating - (mate?.rating ?? me.rating), tier = Math.max(0, Math.min(3, t.tier ?? 3));
+    const role = g > 0.015 ? 'lead' : g < -0.015 ? 'support' : 'equal';
+    const salary = Math.max(1, Math.round(askOf(me) * [1, 0.75, 0.6, 0.5][tier] * 2) / 2);
+    const until = this.seasonOver ? this.season + 1 : this.season + (this.round > this.rounds / 2 ? 1 : 0);
+    me.contract = { salary, until, role, winBonus: 0 };
+    this.myTeam = t.name;
+    this.seat = newSeat({ status: 'driver', team: t.name, tier, conf: SEAT_RULES[kindOf(tier)].start + 4, since: { season: this.season, round: this.round } });
+    this.seat.migrated = true;
+    // (a relationship that was in the papers before the team changed hands is old news to its new owners)
+    for (const [id, b] of Object.entries(this.celebs?.bonds || {})) if (b?.coi) this.seat.coiSeen[id] = true;
+    this.addNews(`${t.name} has been sold, and you are no longer its owner: you stay on as its driver, under contract - $${salary}M a year to the end of ${until}, ${role === 'lead' ? 'with number-one status' : role === 'support' ? 'as the number two' : 'on equal terms'}. The budget and the car's development are the team's from now on.`);
   }
   /** race day at round n (1-based): { weather, time } */
   forecastAt(n = this.round) { return this.forecast?.[n - 1] || { weather: 'dry', time: this.calendar[n - 1] === 'lasvegas' ? 'night' : 'day' }; }
@@ -249,6 +302,8 @@ export class Career {
    */
   objectivesFor() {
     const me = this.me; if (!me || !me.alive || this.seasonOver) { this.objectives = []; return this.objectives; }
+    // (no car of yours this round - a free agent, a reserve the team does not need: no targets)
+    if (this.noSeat && !this.entries().some((e) => e.isPlayer)) { this.objectives = []; return this.objectives; }
     const exp = this.expectedPos(this.playerId) || this.expectedPos(this.entries().find((e) => e.isPlayer)?.careerId) || 12, tgt = Math.max(1, Math.min(18, exp)), mate = this.teammate();
     const money = (v) => Math.round(v * 2) / 2;
     const first = { id: 'finish', pos: tgt, text: tgt === 1 ? 'Win the race' : `Finish P${tgt} or better`, reward: money(1.5 + (21 - tgt) * 0.12) };
@@ -350,9 +405,10 @@ export class Career {
         let d = d0, standInFor = null;
         const outWhy = this.outWhy(d0);
         if (outWhy) {   // (hurt or banned - you too: a stand-in races, and if it is your driver's seat, you drive it as them)
-          // (the team's reserve if free, else the best free driver not already standing in)
-          const pool = this.freeAgents().filter((x) => !taken.has(x.id) && !this.isOut(x));
-          d = pool.find((x) => x.reserveOf === t.name) || pool.sort((a, b) => b.rating - a.rating)[0];
+          // (the team's reserve if free - you first, when you are its reserve - else the best free driver not already standing in)
+          const pool = this.freeAgents().filter((x) => !taken.has(x.id) && !this.isOut(x)), me = this.me;
+          const mine = me && me.alive && !me.team && me.reserveOf === t.name && this.status === 'reserve' && !taken.has(me.id) && !this.isOut(me) ? me : null;
+          d = mine || pool.find((x) => x.reserveOf === t.name) || pool.sort((a, b) => b.rating - a.rating)[0];
           if (!d) continue;
           taken.add(d.id); standInFor = d0.name;
         }
@@ -383,7 +439,21 @@ export class Career {
 
   // ---- the life around the racing: doors into the engines for callers that hold only the career ---------------------
   /** a story for the press desk (career/PR.js prEvent: kinds and data there) -> { headlines, d } */
-  prEvent(kind, data = {}) { return safe(`PR ${kind}`, () => prEvent(this, kind, data)) || { headlines: [], d: { image: 0, fame: 0, heat: 0, appeal: 0 } }; }
+  prEvent(kind, data = {}) {
+    // (what you said about your seat in the media pen: the team reads the papers too)
+    if (kind === 'interview' && ['seat', 'future', 'dropped'].includes(data?.topic)) safe('seat answer', () => this._seatAnswer(data.tone));
+    return safe(`PR ${kind}`, () => prEvent(this, kind, data)) || { headlines: [], d: { image: 0, fame: 0, heat: 0, appeal: 0 } };
+  }
+  /** the seat as the media pen and the hub read it (career/Seat.js seatCtx) -> { status, team, conf, label, beat, ... } | null */
+  seatCtx() { return safe('seatCtx', () => seatCtx(this)); }
+  /** an answer about your seat (its tone): humble and diplomatic words help a little, a cruel one about the team costs */
+  _seatAnswer(tone) {
+    const S = this.seat; if (!S || S.status !== 'driver') return 0;
+    const d = { humble: 2, diplomatic: 1, confident: 0, evasive: -1, funny: -1, cruel: -4 }[tone] || 0; if (!d) return 0;
+    S.conf = r1(Math.max(0, Math.min(100, S.conf + d)));
+    const L = S.log?.[0]; if (L && L.season === this.season && L.round === this.round - 1) { L.f.push(['interview', d, d > 0 ? 'What you said about the team in the media pen' : 'What you said in the media pen']); L.d = r1(L.d + d); L.conf = S.conf; }
+    return d;
+  }
   /**
    * penalty points on a driver's licence (career/Licence.js addPoints: the offence why, where - a circuit's id or
    * name, banRound - the race a ban would fall on; o.grave: no press) -> { total, banned }
@@ -399,8 +469,7 @@ export class Career {
   /** your friendship with a driver moved (career/Social.js relateFriend: rapport follows at half the size) -> the change */
   relateFriend(did, delta, why = '') { return safe('relateFriend', () => relateFriend(this, did, delta, why)) || 0; }
 
-  // ---- the market: offers, buyouts, signing ------------------------------------------------------------------------
-  // ---- negotiation at the table (ui/Negotiation.js) -------------------------------------------------------------
+  // ---- negotiation at the table (ui/Negotiation.js: kept for phase 2 - a say over your own contract's terms) -------
   /**
    * What a driver wants from a deal, fixed for the round you talk in: the salary they hope for (ask) and the floor
    * they will not go under, what matters to them (weights: money, status, security, ambition - the last is the car,
@@ -415,7 +484,7 @@ export class Career {
     const ag = safe('agentFor', () => agentFor(d.id)), met = !!ag && this.party?.met?.[ag.id]?.season === this.season;
     const ask = Math.round(askOf(d) * (d.team && !mine ? 1.15 : 1) * (1 - r / 400) * (mine ? 0.95 : 1) * (met ? 0.97 : 1) * 2) / 2;
     const w = star ? { money: 0.3, status: 0.3, security: 0.15, ambition: 0.25 } : young ? { money: 0.2, status: 0.1, security: 0.25, ambition: 0.45 } : { money: 0.35, status: 0.15, security: 0.3, ambition: 0.2 };
-    const tops = Object.values(this.teams).filter((x) => x.tier <= 1 && x.name !== t.name && !x.own);
+    const tops = Object.values(this.teams).filter((x) => x.tier <= 1 && x.name !== t.name);
     const rival = star && tops.length && Math.random() < 0.6 ? { team: tops[(Math.random() * tops.length) | 0].name, salary: Math.round(ask * (1.05 + Math.random() * 0.12) * 2) / 2 } : null;
     const P = { ask, floor: Math.round(ask * (star ? 0.86 : 0.74) * 2) / 2, w, years: star ? 2 : young ? 2 : 3, role: star ? 'lead' : 'equal', patience: Math.max(1, 3 + (r > 20 ? 1 : 0) - (r < -25 ? 1 : 0) + (met ? 1 : 0)), rival, star, young, agent: ag ? ag.name : null, agentMet: met };
     this._nego[k] = P; return P;
@@ -454,22 +523,115 @@ export class Career {
   }
 
   buyout(d) { return d.team && d.team !== this.myTeam && d.contract ? Math.round(d.contract.salary * Math.max(1, d.contract.until - this.season) * 0.6 * 2) / 2 : 0; }
+  /**
+   * A team signs a driver (the AI teams' market: the off-season, a seat to fill, a stand-in kept on): the driver it
+   * replaces in a full team (seat: their index, else the last) is released - never you, whose seat is decided by
+   * management confidence. terms: { role, winBonus, signOn, buyout (a fee to the team he leaves) }. -> done?
+   */
   sign(team, driverId, salary, years, seat = null, terms = {}) {
     const t = this.teams[team], d = this.drivers[driverId]; if (!t || !d || !d.alive) return false;
-    const fee = team === this.myTeam ? this.buyout(d) : 0;
+    const fee = terms.buyout ? this.buyout(d) : 0;
     if (terms.signOn) t.budget = Math.round((t.budget - terms.signOn) * 10) / 10;
     if (fee) { t.budget -= fee; const from = this.teams[d.team]; if (from) from.budget += fee; }
-    if (d.team) { const from = this.teams[d.team]; from.seats = from.seats.filter((x) => x !== d.id); }
+    if (d.team) { const from = this.teams[d.team]; if (from) from.seats = from.seats.filter((x) => x !== d.id); }
     const alive = t.seats.filter((x) => this.drivers[x]?.alive);
     if (alive.length >= 2) {
       const out = seat != null ? alive[seat] : alive[alive.length - 1];
-      if (out && out !== this.playerId) { const o = this.drivers[out]; o.team = null; o.contract = null; t.seats = t.seats.filter((x) => x !== out); this.addNews(`${o.name} released by ${t.name}.`); if (t.own) this.relate(out, -20, 'released by you'); }
+      if (out && out !== this.playerId) { const o = this.drivers[out]; o.team = null; o.contract = null; t.seats = t.seats.filter((x) => x !== out); this.addNews(`${o.name} released by ${t.name}.`); }
     }
     t.seats = t.seats.filter((x) => this.drivers[x]?.alive); t.seats.push(d.id);
     d.team = team; d.contract = { salary, until: (this.seasonOver ? this.season + 1 : this.season) + years - 1, role: terms.role || 'equal', winBonus: terms.winBonus || 0 }; delete d.refused;   // (signed after the season's end: from next season)
-    if (t.own) this.relate(d.id, 10);
     this.addNews(`${d.name} signs for ${t.name}: ${years} season${years > 1 ? 's' : ''}, $${salary}M a year${terms.role === 'lead' ? ', number-one status' : terms.role === 'support' ? ' as the number two' : ''}${terms.signOn ? `, a $${terms.signOn}M sign-on fee` : ''}${terms.winBonus ? `, $${terms.winBonus}M a win` : ''}${fee ? ` ($${fee}M buyout)` : ''}.`);
     return true;
+  }
+
+  // ---- your contract: offers taken, the seat lost (career/Seat.js) ----------------------------------------------------
+  /** an offer waiting for you (c.seat.offers) by id -> offer | null */
+  offerById(oid) { return (this.seat?.offers || []).find((o) => o.id === oid) || null; }
+  /**
+   * You take an offer. For now (a rookie's first seat, a free agent's way back, a reserve role): signed at once - you
+   * drive from the next round. With the season over: kept for NEXT SEASON (c.seat.next), the other offers turned
+   * down. -> { ok, text }
+   */
+  acceptOffer(oid) {
+    const S = seatEnsure(this), of = this.offerById(oid), me = this.me;
+    if (!of || !me || !me.alive || !this.teams[of.team]) return { ok: false, text: 'That offer is no longer on the table.' };
+    if (this.seasonOver || of.next) {
+      S.next = of; S.offers = [of];
+      this.addNews(of.kind === 'renew' ? `${me.name} agrees a new contract with ${of.team}.` : `${me.name} will drive for ${of.team} next season.`);
+      this.save(); return { ok: true, text: of.kind === 'renew' ? `You stay at ${of.team}: the new contract starts next season.` : `Signed: you drive for ${of.team} from next season.` };
+    }
+    const r = this.signPlayer(of); this.save(); return r;
+  }
+  /** you turn an offer down (it is gone) -> { ok, text } */
+  declineOffer(oid) {
+    const S = seatEnsure(this), of = this.offerById(oid); if (!of) return { ok: false, text: 'That offer is no longer on the table.' };
+    S.offers = S.offers.filter((o) => o !== of); if (S.next === of) S.next = null;
+    this.save(); return { ok: true, text: `You turn down ${of.team}.` };
+  }
+  /**
+   * You take a seat at a team (offer: career/Seat.js makeOffer): the driver it is for steps aside - kept on as the
+   * team's reserve, or a free agent - and the news says so; you leave a reserve role or a team you were at; your
+   * contract, your standing, a fresh seat (confidence where that kind of team starts, no warnings), the head-to-head
+   * from zero. A reserve role is a contract without a race seat. -> { ok, text }
+   */
+  signPlayer(of) {
+    const me = this.me, t = this.teams[of?.team]; if (!me || !me.alive || !t) return { ok: false, text: 'That seat is gone.' };
+    const S = seatEnsure(this), prev = me.team ? this.teams[me.team] : null, start = this.seasonOver ? this.season + 1 : this.season;
+    if (prev && prev !== t) prev.seats = prev.seats.filter((x) => x !== me.id);
+    delete me.reserveOf;
+    const done = (text) => { S.offers = S.offers.filter((o) => o.next && o.id !== of.id); S.next = null; S.notice = { kind: 'signed', text, season: this.season, round: this.round - 1, seen: false }; this.h2h = { mate: null, q: [0, 0], r: [0, 0] }; this.objectivesFor(); return { ok: true, text }; };
+    if (of.kind === 'reserve') {
+      me.team = null; me.reserveOf = t.name; me.contract = { salary: of.salary, until: start, role: 'reserve', winBonus: 0 };
+      this.myTeam = t.name; Object.assign(S, { status: 'reserve', team: t.name, tier: t.tier, conf: 60, warn: 0, races: 0, since: { season: this.season, round: this.round }, praised: false });
+      this.addNews(`${me.name} joins ${t.name} as reserve driver: $${of.salary}M, and the car whenever a race driver can't.`);
+      return done(`You are ${t.name}'s reserve driver: ready for the weekends a race driver can't make.`);
+    }
+    // (the driver whose seat it is: the one the offer named if still there, else the lower-rated)
+    const others = this.seatsOf(t.name).filter((d) => d.id !== me.id), out = others.length >= 2 ? others.find((d) => d.id === of.seatOf) || [...others].sort((a, b) => a.rating - b.rating)[0] : null;
+    if (out) {
+      t.seats = t.seats.filter((x) => x !== out.id); out.team = null; out.contract = null;
+      const keep = out.rating < 0.86; if (keep) out.reserveOf = t.name;
+      this.addNews(`${out.name} loses the ${t.name} seat to ${me.name}${keep ? ' and stays on as the team\'s reserve' : ' and is a free agent'}.`);
+      this.relate(out.id, -12, 'you took their seat');
+    }
+    if (!t.seats.includes(me.id)) t.seats.push(me.id);
+    me.team = t.name; me.contract = { salary: of.salary, until: start + Math.max(1, of.years || 1) - 1, role: of.role || 'equal', winBonus: of.winBonus || 0, podiumBonus: of.podiumBonus || 0 };
+    if (prev !== t || this.status !== 'driver') S.history.push({ team: t.name, from: { season: this.season, round: this.round }, to: null, how: of.kind === 'renew' ? 'renewed' : 'signed' });
+    const K = SEAT_RULES[kindOf(t.tier)];
+    this.myTeam = t.name; if (!this.paddockHome) this.paddockHome = t.name;
+    Object.assign(S, { status: 'driver', team: t.name, tier: t.tier, conf: K.start, warn: 0, races: 0, since: { season: start, round: this.seasonOver ? 1 : this.round }, praised: false, firedFrom: S.firedFrom && S.firedFrom !== t.name ? S.firedFrom : null });
+    this.addNews(`${me.name} signs for ${t.name}: ${of.years} season${of.years > 1 ? 's' : ''}, $${of.salary}M a year${of.role === 'lead' ? ', number-one status' : of.role === 'support' ? ' as the number two' : ''}.`);
+    safe('PR signing', () => prEvent(this, 'signing', { team: t.name }));
+    safe('agent', () => agentText(this, pick([`Done. You're a ${t.name} driver. Now make me look clever.`, `Signed, sealed. ${t.name}. Don't make me regret this one.`])));
+    return done(`You are a ${t.name} driver: ${K.expect.toLowerCase()}`);
+  }
+  /**
+   * The team replaces you (management confidence through the floor after the final warning): your contract ends, the
+   * reserve (or the best young driver free) takes the seat for the rest of the season, the news says it plainly, the
+   * hub says it plainly (c.seat.notice), tonight's team party is off, and you are a free agent - your own money still
+   * yours, your agent already on the phone.
+   */
+  fire(why = '') {
+    const me = this.me, S = seatEnsure(this), t = this.teams[S.team || me?.team]; if (!me || !t) return null;
+    // (the papers have it first, while you are still the team's driver)
+    safe('PR dropped', () => prEvent(this, 'seat', { sub: 'dropped' }));
+    t.seats = t.seats.filter((x) => x !== me.id); me.team = null; me.contract = null; delete me.reserveOf;
+    const pool = this.freeAgents().filter((x) => !this.isOut(x)), by = (a, b) => b.rating - a.rating;
+    const r = pool.find((x) => x.reserveOf === t.name) || pool.filter((x) => isYoung(x)).sort(by)[0] || pool.sort(by)[0];
+    if (r) this.sign(t.name, r.id, Math.max(0.5, Math.round(askOf(r) * 0.6 * 2) / 2), 1, null, { role: 'support' });
+    const n = S.races, from = this.seasonOver ? 'next season' : `round ${this.round}`;
+    this.addNews(`${t.name} drop ${me.name} after ${n} race${n === 1 ? '' : 's'}${why ? `: ${why}` : ''}. ${r ? `${r.name} takes the seat from ${from}.` : 'The seat will be filled.'}`);
+    const h = [...S.history].reverse().find((x) => x.team === t.name && !x.to); if (h) { h.to = { season: this.season, round: this.round - 1 }; h.how = 'fired'; } else S.history.push({ team: t.name, from: S.since, to: { season: this.season, round: this.round - 1 }, how: 'fired' });
+    Object.assign(S, { status: 'free', team: null, warn: 0, firedFrom: t.name, firedAt: { season: this.season, round: this.round - 1 } });
+    S.offers = S.offers.filter((o) => o.team !== t.name);
+    S.notice = { kind: 'fired', text: `${t.name} have dropped you. ${r ? `${r.name} has your seat from ${from}.` : ''} You are a free agent: your contract is gone, your own money is still yours, and your agent is looking for a way back in.`, season: this.season, round: this.round - 1, seen: false };
+    this.myTeam = null; this.h2h = { mate: null, q: [0, 0], r: [0, 0] };
+    // (no team party for a driver the team has just let go)
+    if (this.party?.race) this.party.race.live = false;
+    safe('agent', () => agentText(this, pick([`I've heard. I'm sorry. Give me a few days - I'm already calling round.`, `${t.name} called me first. It's done. Don't post anything tonight. I'm on it.`])));
+    this.objectivesFor();
+    return r ? { name: r.name } : {};
   }
   /**
    * You race as another of your team's drivers from now on. The press desk starts again for them (the old deals end
@@ -490,6 +652,10 @@ export class Career {
       // (nobody is their own friend: your new driver out of your phone)
       const S = this.social; if (S?.friends) delete S.friends[driverId]; if (S?.phone?.threads) delete S.phone.threads[`d:${driverId}`];
       safe('moraleInit', () => moraleInit(d, true));
+      // (their contract is yours: a seat at their team, where that kind of team starts with a driver)
+      const t = this.teams[d.team], St = seatEnsure(this);
+      Object.assign(St, { status: 'driver', team: t.name, tier: t.tier, conf: SEAT_RULES[kindOf(t.tier)].start, warn: 0, races: 0, since: { season: this.season, round: this.round }, praised: false, offers: [], next: null, notice: null, log: [] });
+      if (!d.contract) d.contract = { salary: askOf(d), until: this.season, role: 'equal', winBonus: 0 };
     }
     this.addNews(`You will race as ${d.name}.`); this.objectivesFor(); return true;
   }
@@ -543,13 +709,17 @@ export class Career {
     for (const k of contacts) this.relate(k.id, -(4 + Math.min(30, 22 * k.sev)) - (k.crash ? 22 : 0), k.crash ? 'blames you for the crash' : null);
     const st = this.driverStandings(), mi = st.findIndex((d) => d.id === this.playerId);
     if (mi >= 0) for (const j of [mi - 1, mi + 1]) { const o = st[j]; if (o && Math.abs(o.points - st[mi].points) <= 15 && st[mi].points > 0) this.relate(o.id, -3); }
-    // money: prize money by the points scored (a backmarker's few points matter), the salaries for the round
+    // money: prize money by the points scored (a backmarker's few points matter), the salaries for the round - yours
+    // too: the team pays it, your own account receives it (a reserve's retainer the same way)
     for (const t of Object.values(this.teams)) {
       const pay = this.seatsOf(t.name).reduce((a, d) => a + (d.contract?.salary || 0), 0) / this.rounds;
       t.budget = Math.round((t.budget + 3 + (byTeam[t.name] || 0) * 0.9 - pay) * 10) / 10;
     }
-    // development (career/TechTree.js): every factory's round - what reached the cars (news for yours), then the AI teams' new work
-    for (const x of safe('devTick', () => devTick(this)) || []) if (this.teams[x.team]?.own) this.addNews(devNews(x));
+    const myK = me0?.alive && (me0.team || me0.reserveOf) ? me0.contract : null, salary = myK?.salary ? r2(myK.salary / this.rounds) : 0;
+    if (salary) { this.wallet = r2((+this.wallet || 0) + salary); if (!me0.team && this.teams[me0.reserveOf]) this.teams[me0.reserveOf].budget = r1(this.teams[me0.reserveOf].budget - salary); }
+    // development (career/TechTree.js): every factory's round - what reached the cars (news for your team's), then every
+    // team's new work: each team chooses its own (phase 2: a driver with bargaining power asks for a part, c.seat.requests)
+    for (const x of safe('devTick', () => devTick(this)) || []) if (x.team === this.myTeam) this.addNews(devNews(x));
     safe('aiDevelop', () => aiDevelop(this));
     // the sponsors: each objective met pays out (what they think of you scales it: your own driver's races, never a grave one)
     const report = { round: this.round, track: trackId, pos: meRow ? meRow.pos : null, dnf: meRow ? !!meRow.car.retired : false, grid: meRow?.car.gridPos || null, objectives: [], bonus: 0, trophies: [], seen: false };
@@ -561,17 +731,22 @@ export class Career {
         report.objectives.push({ text: ob.text, reward: ob.reward, ok }); if (ok) report.bonus += ob.reward;
       }
       report.sponsorMul = mul;
+      // (the team's sponsors pay the team; your contract's share of it is your bonus - OBJ_SHARE, to your own account)
       if (report.bonus) {
-        report.bonus = r1(report.bonus * mul); this.team.budget = Math.round((this.team.budget + report.bonus) * 10) / 10;
-        this.addNews(`Sponsors pay out $${report.bonus}M: ${report.objectives.filter((o) => o.ok).length} of ${report.objectives.length} objectives met${mul !== 1 ? ` (x${mul}, your standing with sponsors)` : ''}.`);
+        report.bonus = r1(report.bonus * mul); report.bonusYou = r2(report.bonus * OBJ_SHARE);
+        const t = this.teams[meRow.car.team] || this.team; t.budget = Math.round((t.budget + report.bonus - report.bonusYou) * 10) / 10; this.wallet = r2((+this.wallet || 0) + report.bonusYou);
+        this.addNews(`Sponsors pay out $${report.bonus}M: ${report.objectives.filter((o) => o.ok).length} of ${report.objectives.length} objectives met${mul !== 1 ? ` (x${mul}, your standing with sponsors)` : ''} - $${report.bonusYou}M of it is your bonus.`);
       }
       // the head-to-head with your team-mate
       if (mateRow && meRow.car.careerId === this.playerId && !(meRow.car.retired && mateRow.car.retired)) { if (this.h2h.mate !== mate.id) this.h2h = { mate: mate.id, q: [0, 0], r: [0, 0] }; this.h2h.r[!meRow.car.retired && (mateRow.car.retired || meRow.pos < mateRow.pos) ? 0 : 1]++; }
     }
-    // contracts: win bonuses due; a number two who beat you is not happy about it
+    // contracts: your win and podium bonuses (the team pays, your own account receives); a number two who beat you is not happy about it
+    if (mine && myK && !meRow.car.retired && meRow.pos <= 3) {
+      const b = meRow.pos === 1 ? +myK.winBonus || 0 : +myK.podiumBonus || 0, t = this.teams[meRow.car.team];
+      if (b > 0 && t) { t.budget = r1(t.budget - b); this.wallet = r2((+this.wallet || 0) + b); report.bonusWin = b; this.addNews(`Your ${meRow.pos === 1 ? 'win' : 'podium'} bonus: $${b}M.`); }
+    }
     for (const r of rows) {
       const d = this.drivers[r.car.careerId], k = d?.contract; if (!d || !k || d.team !== this.myTeam || d.id === this.playerId) continue;
-      if (k.winBonus && r.pos === 1 && !r.car.retired) { this.team.budget = Math.round((this.team.budget - k.winBonus) * 10) / 10; this.addNews(`${d.name}'s win bonus: $${k.winBonus}M.`); }
       if (k.role === 'support' && meRow && !r.car.retired && (meRow.car.retired || r.pos < meRow.pos)) this.relate(d.id, -2);
     }
     // the drivers develop: form against what the car promised, the young ones learning race by race
@@ -636,6 +811,21 @@ export class Career {
         if (mo.sub === 'youSacrificed' || mo.sub === 'mateRefused' || mo.sub === 'mateHeldUp') shiftMorale(this, this.playerId, -4, 'team orders');
       }
     }
+    // your seat (career/Seat.js): the team reads the race you drove - the result against what it wanted, your team-mate,
+    // the stewards, the pit wall's orders, the papers - and management confidence moves; a warning, the final warning,
+    // or the end (the firing itself once the round has moved on). A grave round is no time for it; nor a stand-in's race.
+    let seatR = null;
+    if (mine && this.status === 'driver') {
+      const mp = ppOf(meRow), crash = !fin && (!!meRow.car.wreck || ACCIDENT.test(meRow.car.retireReason || ''));
+      const mc = mate ? (contacts || []).find((k) => k.id === mate.id) : null, so = ords.find((x) => x.mine && x.sub);
+      const R = { pos: meRow.pos, fin, crash, blame: crash && (mp.some((e) => /collision/i.test(e.reason)) || !!meRow.car.blamed), exp: exp[this.playerId],
+        mate: mateRow ? { pos: mateRow.pos, fin: !mateRow.car.retired, exp: exp[mate.id] } : null, pts: mp.reduce((a, e) => a + e.pts, 0), banned: !!banned[this.playerId], licence: lic1,
+        orders: so?.sub || null, mateContact: mc ? { sev: mc.sev, crash: !!mc.crash } : null, dotd: !!X.dotd, fastest: flRow === meRow, pole: this._quali?.[this.playerId] === 1,
+        overtakes: +X.overtakes || 0, points: fin && (POINTS[meRow.pos - 1] || 0) > 0 };
+      seatR = grave ? null : safe('seatRace', () => seatRace(this, R));
+      if (seatR) { report.seat = { before: r1(seatR.conf - seatR.d), after: seatR.conf, d: seatR.d, target: seatR.target, f: seatR.f.slice(0, 6), beat: seatR.beat };
+        safe('seatBeat', () => seatBeat(this, seatR.beat === 'fired' ? null : seatR.beat, { track: trackId, next: this.calendar[this.round] || null, grave })); }
+    }
     if (win) this.addNews(`Round ${this.round} (${{ lasvegas: 'Las Vegas', montreal: 'Montreal', austin: 'Austin' }[trackId] || 'Silverstone'}): ${win.car.name} wins.`);
     // (each team's best race lap this round: the measured race pace, for the charts)
     this._laps = {}; for (const r of rows) { const t = r.car.team, b = r.car.bestLap; if (this.teams[t] && isFinite(b) && b > 20) this._laps[t] = Math.min(this._laps[t] ?? Infinity, +b.toFixed(3)); }
@@ -647,9 +837,15 @@ export class Career {
     safe('snapAfterRace', () => snapAfterRace(this, { trackId, rows, X, meRow, mateRow, contacts, grave, live }));
     this.round++;
     for (const d of Object.values(this.drivers)) if (d.outUntil != null && d.outUntil < this.round) { delete d.outUntil; if (d.alive && d.team) { d.returnRound = this.round; this.addNews(`${d.name} is back in the ${d.team} car${d.id === this.playerId ? ' - your comeback' : ''} after the accident${d.hurtAt ? ` at ${d.hurtAt}` : ''}.`); } }
+    // (your seat, the round turned over: dropped after the final warning; a free agent's agent at work; the season's
+    // end - your team's decision on your contract, and the market's offers)
+    if (seatR?.beat === 'fired') { const f = this.fire('the results were not good enough'); if (report.seat) report.seat.fired = f?.name || true; }
+    else if (this.noSeat) safe('seatRoundTick', () => seatRoundTick(this));
+    if (this.seasonOver) safe('seatSeasonEnd', () => seatSeasonEnd(this));
     // the round turns over, each engine on its own (one that fails leaves the rest): morale settles, licences age and
     // served bans end, the personal life and the friendships move on, the press desk counts the round and the deals pay
-    // (70% to your own account, 30% to the team), a fresh week - and the texts about the race just run
+    // (your personal sponsors: your own account, less your agent's cut - PR.js DEAL_SPLIT), a fresh week - and the
+    // texts about the race just run
     const life = [], add = (r) => { for (const l of r?.lines || []) if (l && !life.includes(l)) life.push(l); };
     safe('moraleRoundTick', () => moraleRoundTick(this));
     add(safe('licenceRoundTick', () => licenceRoundTick(this, { grave })));
@@ -673,7 +869,7 @@ export class Career {
       for (const h of P?.feed || []) { if (h === P0?.top || more.length >= 3) break; if (!seen.has(h.text)) more.push(h); }
       report.pr = { image: P && P0 ? r1(P.image - P0.image) : 0, fame: P && P0 ? r2(P.fame - P0.fame) : 0,
         headlines: [...heads, ...more].slice(0, 3).map((h) => ({ outlet: h.outlet, name: outletName(h.outlet), text: h.text, tone: h.tone })), money: { gross: +pt?.gross || 0, net: cash, wallet: toYou, team: toTeam } };
-      report.points = points; report.life = life.slice(0, 14);
+      report.points = points; report.life = life.slice(0, 14); report.salary = salary;
       report.ban = safe('banText', () => banText(this, this.playerId)) || null; report.grave = grave;
     }
     this.snapshot(); delete this._quali; delete this.savedGrid;   // (the round's grid is used up)
@@ -687,7 +883,8 @@ export class Career {
     const ds = Object.values(this.drivers).filter((d) => d.points > 0 || d.team);
     this.history.push({ round: this.round - 1, perf: Object.fromEntries(Object.values(this.teams).map((t) => [t.name, +techEffects(t).perf.toFixed(5)])),
       pts: Object.fromEntries(ds.map((d) => [d.id, d.points])), morale: Object.fromEntries(ds.filter((d) => d.alive).map((d) => [d.id, moodOf(d).morale])),
-      pr: this.pr ? { fame: this.pr.fame, image: this.pr.image } : null, lap: this._laps || null, track: this.log[this.log.length - 1]?.track || null });
+      pr: this.pr ? { fame: this.pr.fame, image: this.pr.image } : null, lap: this._laps || null, track: this.log[this.log.length - 1]?.track || null,
+      seat: this.seat?.status === 'driver' ? this.seat.conf : null });
     delete this._laps;
   }
   /** a driver hurt in an accident (you too): out for the next `rounds` rounds (a stand-in drives). -> the stand-in, or null */
@@ -698,7 +895,9 @@ export class Career {
     const t = d.team ? this.teams[d.team] : null;
     this.addNews(`${d.name} (${d.team || 'free agent'}) will miss the next ${rounds === 1 ? 'round' : `${rounds} rounds`} after a heavy accident${where ? ` at ${where}` : ''}.`);
     safe('shiftMorale', () => shiftMorale(this, driverId, -10, `Hurt in an accident${where ? ` at ${where}` : ''}`, 'confidence'));
-    const si = this.freeAgents().find((x) => x.reserveOf === d.team) || this.freeAgents().sort((a, b) => b.rating - a.rating)[0];
+    // (the team's reserve stands in - you, when you are it)
+    const me = this.me, mine = me && me.alive && !me.team && me.reserveOf === d.team && d.id !== me.id && this.status === 'reserve' ? me : null;
+    const si = mine || this.freeAgents().find((x) => x.reserveOf === d.team) || this.freeAgents().sort((a, b) => b.rating - a.rating)[0];
     return si ? { name: si.name, from: si.from, team: t?.name } : null;
   }
   /** a driver killed (yours always; an AI driver rarely): gone from the career for good. -> the replacement, or null */
@@ -714,8 +913,8 @@ export class Career {
     if (driverId === this.playerId) this._grief(d);
     if (t) t.seats = t.seats.filter((x) => x !== d.id);
     d.team = null; d.contract = null;
-    // (an AI team fills the seat with the best free driver; your own team's seat waits for you)
-    if (t && !t.own) { const r = this.freeAgents().filter((x) => !this.isOut(x)).sort((a, b) => (b.reserveOf === t.name) - (a.reserveOf === t.name) || b.rating - a.rating)[0]; if (r) { this.sign(t.name, r.id, askOf(r), 2); return { name: r.name, from: r.from }; } }
+    // (the team fills the seat with the best free driver, its reserve first)
+    if (t) { const r = this.freeAgents().filter((x) => !this.isOut(x)).sort((a, b) => (b.reserveOf === t.name) - (a.reserveOf === t.name) || b.rating - a.rating)[0]; if (r) { this.sign(t.name, r.id, askOf(r), 2); return { name: r.name, from: r.from }; } }
     return null;
   }
   /**
@@ -730,24 +929,33 @@ export class Career {
     safe('partyReset', () => partyReset(this));
     this.week = null; d.griefDone = true;
   }
-  /** the season as it ended: the champions, where you and your team finished against the board's target, the prize */
+  /**
+   * the season as it ended: the champions; where you and the team you drove for (the one that let you go, if one did)
+   * finished against its board's target; your seat (career/Seat.js seatSeasonEnd: the team's decision on your
+   * contract, the offers waiting)
+   */
   seasonReview() {
-    const ds = this.driverStandings(), ts = this.teamStandings(), me = this.me, team = this.team;
-    const teamPos = ts.indexOf(team) + 1, target = BOARD_TARGET[team.tier] ?? 9;
-    return { season: this.season, champion: ds[0] || null, constructor: ts[0] || null, youPos: me ? ds.indexOf(me) + 1 : null, youPts: me?.points ?? 0,
-      teamPos, target, prize: PRIZE[teamPos - 1] ?? 1, verdict: teamPos < target ? 'delighted' : teamPos === target ? 'satisfied' : teamPos <= target + 2 ? 'concerned' : 'unhappy',
-      bonus: teamPos < target ? 5 : teamPos === target ? 2 : 0, expiring: this.seatsOf(this.myTeam).filter((d) => d.id !== this.playerId && d.contract && d.contract.until <= this.season) };
+    const ds = this.driverStandings(), ts = this.teamStandings(), me = this.me, S = this.seat || {};
+    const team = this.teams[this.myTeam] || this.teams[S.firedFrom] || null, teamPos = team ? ts.indexOf(team) + 1 : 0, target = team ? BOARD_TARGET[team.tier] ?? 9 : 0;
+    return { season: this.season, champion: ds[0] || null, constructor: ts[0] || null, youPos: me ? ds.indexOf(me) + 1 : null, youPts: me?.points ?? 0, team: team?.name || null,
+      teamPos, target, prize: team ? PRIZE[teamPos - 1] ?? 1 : 0, verdict: !team ? null : teamPos < target ? 'delighted' : teamPos === target ? 'satisfied' : teamPos <= target + 2 ? 'concerned' : 'unhappy',
+      bonus: team ? (teamPos < target ? 5 : teamPos === target ? 2 : 0) : 0, expiring: [],
+      seat: { status: S.status || 'free', verdict: S.verdict || null, conf: S.status === 'driver' ? Math.round(S.conf) : null, next: S.next || null, offers: (S.offers || []).length, label: S.status === 'driver' ? confLabel(S.conf, S.warn, S.tier).text : null } };
   }
-  /** the next season: the standings reset, money for the new season, contracts that ran out end, morale over the winter */
+  /**
+   * the next season: the standings reset, prize money and the new season's money for every team, contracts that ran
+   * out end - yours too, unless you signed again or for someone else (c.seat.next) - morale over the winter, the seats
+   * filled from the market and the silly season (never your seat: that is your contract's business)
+   */
   nextSeason() {
     // (the season that ended: into the archive, its trophies, the press's verdict on it, the prize money and the board's verdict)
     const rv = this.seasonReview();
-    this.seasons.push({ season: rv.season, champion: rv.champion?.name || '-', championTeam: rv.champion?.team || '', constructor: rv.constructor?.name || '-', youPos: rv.youPos, youPts: rv.youPts, teamPos: rv.teamPos, target: rv.target, wins: this.log.filter((l) => l.you === 1).length });
+    this.seasons.push({ season: rv.season, champion: rv.champion?.name || '-', championTeam: rv.champion?.team || '', constructor: rv.constructor?.name || '-', youPos: rv.youPos, youPts: rv.youPts, team: rv.team, teamPos: rv.teamPos, target: rv.target, wins: this.log.filter((l) => l.you === 1).length });
     this.award({ season: rv });
     safe('prSeasonEnd', () => prSeasonEnd(this, rv));
-    this.team.budget = Math.round((this.team.budget + rv.prize + rv.bonus) * 10) / 10;
-    this.addNews(`${this.myTeam} finished P${rv.teamPos} (the board wanted P${rv.target}): $${rv.prize}M in prize money${rv.bonus ? `, $${rv.bonus}M bonus from a ${rv.verdict} board` : `, the board ${rv.verdict}`}.`);
-    for (const t of Object.values(this.teams)) if (!t.own) t.budget = Math.round((t.budget + (PRIZE[this.teamStandings().indexOf(t)] ?? 1)) * 10) / 10;
+    const order = this.teamStandings();
+    for (const t of Object.values(this.teams)) { const i = order.indexOf(t), tg = BOARD_TARGET[t.tier] ?? 9; t.budget = Math.round((t.budget + (PRIZE[i] ?? 1) + (i + 1 < tg ? 5 : i + 1 === tg ? 2 : 0)) * 10) / 10; }
+    if (rv.team) this.addNews(`${rv.team} finished P${rv.teamPos} (the board wanted P${rv.target}): $${rv.prize}M in prize money${rv.bonus ? `, $${rv.bonus}M bonus from a ${rv.verdict} board` : `, the board ${rv.verdict}`}.`);
     // (the drivers over the winter: the young ones step up, everyone else a little either way; morale halfway back to normal)
     for (const d of Object.values(this.drivers)) if (d.alive) {
       const young = isYoung(d), dv = young ? 0.008 + Math.random() * 0.02 : (Math.random() - 0.55) * 0.016;
@@ -760,16 +968,19 @@ export class Career {
     for (const d of Object.values(this.drivers)) { d.points = 0; delete d.outUntil; }
     for (const t of Object.values(this.teams)) { t.points = 0; t.budget = Math.round((t.budget + TIER_BUDGET[t.tier] * 0.8) * 10) / 10; }
     for (const d of Object.values(this.drivers)) if (d.alive && d.contract && d.contract.until < this.season && d.id !== this.playerId) {
-      const t = this.teams[d.team]; this.addNews(`${d.name}'s contract with ${d.team} has ended.`);
+      const t = this.teams[d.team]; if (!t) { d.contract = null; continue; }
+      this.addNews(`${d.name}'s contract with ${d.team} has ended.`);
       t.seats = t.seats.filter((x) => x !== d.id); d.team = null; d.contract = null;
     }
-    for (const t of Object.values(this.teams)) if (!t.own) while (this.seatsOf(t.name).length < 2 && this.freeAgents().length) { const r = this.freeAgents().sort((a, b) => b.rating - a.rating)[0]; this.sign(t.name, r.id, askOf(r), 2); }
-    // silly season: an AI team swaps its weakest driver for a clearly better one on the market (bought out if needed)
-    const teams = Object.values(this.teams).filter((t) => !t.own).sort(() => Math.random() - 0.5);
+    safe('seatNewSeason', () => this._seatNewSeason());
+    for (const t of Object.values(this.teams)) while (this.seatsOf(t.name).length < 2 && this.freeAgents().length) { const r = this.freeAgents().sort((a, b) => b.rating - a.rating)[0]; this.sign(t.name, r.id, askOf(r), 2); }
+    // silly season: a team swaps its weakest driver for a clearly better one on the market (bought out if needed) -
+    // never you: your seat is your contract's
+    const teams = Object.values(this.teams).sort(() => Math.random() - 0.5);
     for (const t of teams) {
       const seats = this.seatsOf(t.name); if (seats.length < 2) continue;
-      const weak = [...seats].sort((a, b) => a.rating - b.rating)[0];
-      const target = Object.values(this.drivers).filter((d) => d.alive && d.id !== this.playerId && d.team !== this.myTeam && d.team !== t.name && !this.isOut(d) && d.rating > weak.rating + 0.025)
+      const weak = seats.filter((d) => d.id !== this.playerId).sort((a, b) => a.rating - b.rating)[0]; if (!weak) continue;
+      const target = Object.values(this.drivers).filter((d) => d.alive && d.id !== this.playerId && d.team !== t.name && !this.isOut(d) && d.rating > weak.rating + 0.025)
         .filter((d) => !d.team || (this.teams[d.team].tier > t.tier && Math.random() < 0.5)).sort((a, b) => b.rating - a.rating)[0];
       if (!target || Math.random() > 0.55) continue;
       const from = target.team;
@@ -781,4 +992,32 @@ export class Career {
     }
     this.snapshot(); this.objectivesFor(); this.addNews(`The ${this.season} season begins.`); this.save();
   }
+  /**
+   * Your seat over the winter (the season has just turned): an offer you took is signed (a new team, or a new contract
+   * at yours - the team's confidence carried halfway back to where it starts); a contract that ran out, or that the team
+   * ended, leaves you a free agent; one that runs on carries on, the warnings forgotten and confidence halfway back.
+   */
+  _seatNewSeason() {
+    const S = seatEnsure(this), me = this.me; if (!me || !me.alive) return;
+    const next = S.next, was = { conf: S.conf, team: S.team };
+    S.next = null; S.offers = S.offers.filter((o) => !o.next && o !== next); S.verdict = null;
+    if (next && this.teams[next.team]) {
+      this.signPlayer({ ...next, next: false });
+      if (next.kind === 'renew' && was.team === next.team) { const K = SEAT_RULES[kindOf(S.tier)]; S.conf = r1(K.start + (was.conf - K.start) * 0.5); }
+      return;
+    }
+    const k = me.contract, gone = !k || k.until < this.season || (S.status === 'driver' && was.conf < SEAT_RULES[kindOf(S.tier)].cut);
+    if ((S.status === 'driver' || S.status === 'reserve') && gone) {
+      const t = this.teams[me.team || me.reserveOf];
+      if (t) t.seats = t.seats.filter((x) => x !== me.id);
+      const h = [...S.history].reverse().find((x) => x.team === (me.team || S.team) && !x.to); if (h) { h.to = { season: this.season - 1, round: this.rounds }; h.how = 'left'; }
+      this.addNews(`${me.name} leaves ${t?.name || 'the team'}: a free agent for ${this.season}.`);
+      me.team = null; me.contract = null; delete me.reserveOf; this.myTeam = null;
+      Object.assign(S, { status: 'free', team: null, warn: 0, races: 0 });
+      S.notice = { kind: 'free', text: `Your contract has ended. You start ${this.season} without a seat - your agent is still looking.`, season: this.season, round: 0, seen: false };
+      return;
+    }
+    if (S.status === 'driver') { const K = SEAT_RULES[kindOf(S.tier)]; S.conf = r1(K.start + (S.conf - K.start) * 0.5); S.warn = 0; S.praised = false; }
+  }
 }
+

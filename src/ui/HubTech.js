@@ -1,4 +1,6 @@
-// The TECH TREE screen of the career hub: your team's development laid out a branch at a time. Nine branch chips
+// The TECH TREE screen of the career hub: the development of the team you drive for, laid out a branch at a time - its
+// own: the team chooses and pays for every part (career/TechTree.js, as every team does), and this screen only shows
+// what it is doing. Phase 2 will let a driver with bargaining power ask for a part (the greyed REQUEST). Nine branch chips
 // along the top, each with a ring for how much of the branch is on the car; under them the factory's queue - every
 // slot it has, what is being built in each, how far along it is and the round it reaches the car - and what the branch
 // has given the car so far against what it could. Then the branch's upgrades as cards, a pip for every level: solid
@@ -232,7 +234,8 @@ const races = (n) => `${n} race${n === 1 ? '' : 's'}`;
 const lin = (x) => (x <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4);
 /** a team colour that shows on the white panels (the hub's ink() without three.js: a near-white livery drawn in grey) */
 const ink0 = (hex) => { const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || '')); if (!m) return '#8a93a0'; const n = parseInt(m[1], 16); return 0.2126 * lin((n >> 16) / 255) + 0.7152 * lin(((n >> 8) & 255) / 255) + 0.0722 * lin((n & 255) / 255) > 0.62 ? '#8a93a0' : `#${m[1]}`; };
-const teamOf = (c) => c?.team || c?.teams?.[c?.myTeam] || null;
+/** the team you drive for (a free agent has none: c.team's stand-in is marked none) */
+const teamOf = (c) => { const t = c?.team || c?.teams?.[c?.myTeam] || null; return t && !t.none ? t : null; };
 /** every team's development up to date before it is drawn (an old save the career has not migrated yet) */
 const ready = (c) => { for (const t of Object.values(c?.teams || {})) if (!t.levels || t.nodes) migrateTeam(t); };
 /** when a part due in `left` races reaches the car: 'from round 5' (or next season) */
@@ -266,7 +269,7 @@ function meters(team, br) {
  * hub's helpers ({ esc, money, ink, ... }: only ink is used, a local copy stands in without it)
  */
 export function techHTML(c, S = {}, H = {}) {
-  const team = teamOf(c); if (!team) return '<div class="tt"><h2>Tech tree</h2><p class="lead">There is no team to develop.</p></div>';
+  const team = teamOf(c); if (!team) return '<div class="tt"><h2>Tech tree</h2><p class="lead">You have no team: a free agent watches the others develop. Find a seat and this is your car\'s.</p></div>';
   ready(c);
   const ink = H?.ink || ink0, br = UP[S.up]?.branch || (BRANCHES[S.branch] ? S.branch : 'power'), B = BRANCHES[br], dev = Array.isArray(team.dev) ? team.dev : [];
   const state = Object.fromEntries(UPGRADES.map((u) => [u.id, upgradeState(c, team.name, u.id)])), ups = UPGRADES.filter((u) => u.branch === br);
@@ -278,8 +281,8 @@ export function techHTML(c, S = {}, H = {}) {
   const soon = dev.length ? Math.min(...dev.map((x) => x.left)) : 0;
 
   // the header: what you have to spend, where the car is, how busy the factory is
-  const head = `<div class="tt-head"><div class="tt-hl"><h2>Tech tree</h2><p class="lead">Thirty-eight upgrades in nine branches, each built a level at a time: every level costs more than the last and gives a little less, and many need work in another branch first. A part is <b>correlated</b> when it reaches the car - it can land anywhere from 70% to 110% of what the tunnel promised. Every team is developing.</p></div>
-    <div class="tt-kpis"><div class="tt-kpi"><small>Budget</small><b>${money(team.budget)}</b></div><div class="tt-kpi"><small>Pace</small><b>${gapTxt(gapOf(c, team))}</b></div><div class="tt-kpi"><small>Parts</small><b>${P.have}<i> / ${P.total}</i></b></div></div></div>`;
+  const head = `<div class="tt-head"><div class="tt-hl"><h2>Tech tree</h2><p class="lead">Thirty-eight upgrades in nine branches, each built a level at a time: every level costs more than the last and gives a little less, and many need work in another branch first. A part is <b>correlated</b> when it reaches the car - it can land anywhere from 70% to 110% of what the tunnel promised. ${esc(team.name)} decide${/s$/.test(team.name) ? '' : 's'} what to build and pay for it; you drive what comes.</p></div>
+    <div class="tt-kpis"><div class="tt-kpi"><small>Team budget</small><b>${money(team.budget)}</b></div><div class="tt-kpi"><small>Pace</small><b>${gapTxt(gapOf(c, team))}</b></div><div class="tt-kpi"><small>Parts</small><b>${P.have}<i> / ${P.total}</i></b></div></div></div>`;
   const msg = S.tmsg ? `<div class="tt-msg ${S.tok ? 'ok' : 'no'}"><b>${S.tok ? '✓' : '!'}</b><span>${esc(S.tmsg)}</span></div>` : '';
 
   // the nine branches
@@ -296,7 +299,7 @@ export function techHTML(c, S = {}, H = {}) {
   }).join('');
   const locked = UPGRADES.filter((u) => u.branch === 'facilities').flatMap((u) => u.levels.map((L, i) => ({ u, lv: i + 1, s: L.fx.slots || 0 }))).filter((x) => x.s && levelOf(team, x.u.id) < x.lv);
   const queue = `<div class="tt-q"><div class="tt-qh"><span class="lbl">Development</span><span class="muted">${dev.length} of ${slots} slot${slots === 1 ? '' : 's'} in use${dev.length ? ` · the next part reaches the car ${when(c, soon)}` : ' · the factory is waiting for work'}</span></div>
-    <div class="tt-slots">${filled}${'<div class="tt-slot free"><b>Free slot</b><small>Pick an upgrade below and develop it</small></div>'.repeat(Math.max(0, slots - dev.length))}${locked.map((x) => `<div class="tt-slot lock"><b>+1 slot</b><small>${esc(x.u.name)} · level ${x.lv}</small></div>`).join('')}</div></div>`;
+    <div class="tt-slots">${filled}${'<div class="tt-slot free"><b>Free slot</b><small>The team will fill it</small></div>'.repeat(Math.max(0, slots - dev.length))}${locked.map((x) => `<div class="tt-slot lock"><b>+1 slot</b><small>${esc(x.u.name)} · level ${x.lv}</small></div>`).join('')}</div></div>`;
 
   // the branch: what it has given the car, and its upgrades as cards
   const card = (u) => {
@@ -356,11 +359,12 @@ function detail(c, team, u, st, A, others, soon, S) {
     <div class="tt-hist">${hist.map((ts, j) => `<div class="${j === lv ? 'me' : ''}" title="${esc(ts.map((t) => t.name).join(', ') || 'No rival team')}"><b>${ts.length}</b><i style="height:${Math.round((ts.length / top) * 100)}%"></i><small>${j === lv ? 'YOU · ' : ''}L${j}</small></div>`).join('')}</div>`;
   // (the button, or why there is none - under it, always in view)
   const cost = nx ? levelCost(c, team.name, u.id, nx) : 0, rn = nx ? levelRounds(c, team.name, u.id, nx) : 0;
-  const why = st === 'open' ? `${u.levels[nx - 1].n}: on the car ${when(c, rn)}${fac ? '' : `, ${pct(ff.speed * at)} chance of a race sooner`}.`
+  const why = st === 'open' ? `${u.levels[nx - 1].n}: if the team starts it now, on the car ${when(c, rn)}${fac ? '' : `, ${pct(ff.speed * at)} chance of a race sooner`}.`
     : st === 'max' ? 'Every level is on the car.' : st === 'dev' ? `${d.re ? `Re-tuning level ${d.level}` : `Level ${d.level} is being built`}: on the car ${when(c, d.left)}.`
     : st === 'locked' ? `Level ${nx} needs ${needTxt(missingReq(team, u.id, nx))} first.` : st === 'busy' ? `Every development slot is in use - the first frees up ${after(c, soon)}.`
-    : st === 'poor' ? `Not enough money: ${money(cost)} needed, ${money(team.budget)} in the budget.` : '';
-  const act = `<div class="tt-act">${st === 'open' ? `<button class="go" data-tdev="${u.id}">DEVELOP LEVEL ${nx} · ${money(cost)} · ${races(rn).toUpperCase()} →</button>` : ''}<span class="tt-why" title="${esc(why)}">${esc(why)}</span></div>`;
+    : st === 'poor' ? `The team can't afford it yet: ${money(cost)} needed, ${money(team.budget)} in its budget.` : '';
+  // (the team builds what it chooses: no button to develop - only phase 2's request, greyed until a driver has the leverage to ask)
+  const act = `<div class="tt-act">${st === 'open' ? `<button data-treq="${u.id}" disabled title="Coming later: ask the team for this part - it will take bargaining power (management confidence, your results, your name).">REQUEST LEVEL ${nx} · SOON</button>` : ''}<span class="tt-why" title="${esc(why)}">${esc(why)}</span></div>`;
   const tabs = `<div class="k-seg tt-dt" style="--n:${DPAGES.length}">${DPAGES.map((v, i) => `<button data-tdp="${v}">${DPAGE_NAMES[i]}</button>`).join('')}</div>`;
   return `<div class="tt-det" style="--c:${B.color}"><div class="tt-dh"><span class="tt-mono">${B.mono}</span><div><h3 title="${esc(u.name)}">${esc(u.name)}</h3><div class="tt-dm"><span>${esc(B.name)} · level ${lv} of ${mx}</span><span class="tt-st ${st}">${esc(stTxt)}</span></div></div></div>
     <div class="tt-dw">${tabs}<div class="tt-db" data-region="tdp" data-p="${p}"><section class="tt-pg pg-lv"><div class="tt-steps" style="--n:${mx}">${steps}</div><div class="tt-lpw" data-region="tlp" data-k="${k}">${levelPanel(c, team, u, k, others)}</div></section>
@@ -387,7 +391,7 @@ function levelPanel(c, team, u, k, others) {
   else if (reDev) more = `<p class="tt-ln">Back at ${esc(retuneWhere(u.id))}: re-correlated ${esc(when(c, d.left))}, the better result kept.</p>`;
   else if (own && !fac && q < RETUNE_BELOW) {
     const rs = retuneState(c, team.name, u.id, k), why = { busy: 'Every development slot is in use.', poor: 'Not enough money for it.', dev: 'This upgrade is already in the factory.' }[rs] || `A race back at ${retuneWhere(u.id)}: a fresh roll, the better result kept.`;
-    more = `<div class="tt-rt"><button class="tt-re" data-tre="${u.id}|${k}" title="${esc(why)}"${rs === 'ok' ? '' : ' disabled'}>RE-TUNE · ${money(retuneCost(c, team.name, u.id, k))}</button><span>${esc(why)}</span></div>`;
+    more = `<div class="tt-rt"><span>${esc(rs === 'ok' ? `It came out under its promise: the team may send it back to ${retuneWhere(u.id)} (${money(retuneCost(c, team.name, u.id, k))}) when it has a slot.` : why)}</span></div>`;
   }
   return `<div class="tt-lp ${cls}"><div class="tt-lh"><span class="n">L${k}</span><b>${esc(L.n)}</b><em>${tag}</em></div><p class="e">${eff}</p><div class="tt-lf">${facts}</div>${req}${more}</div>`;
 }
@@ -423,6 +427,8 @@ export function techSide(c, H = {}) {
 }
 /** the studio camera for the tab: the selected branch's part of the car (the facilities: the whole car) -> a VIEWS key */
 export function techView(S = {}) { const b = UP[S?.up]?.branch || (BRANCHES[S?.branch] ? S.branch : 'power'); return b === 'facilities' ? 'overview' : b; }
+/** a driver can't start or re-tune a part: the team develops its own car (phase 2 may open requests; true only for tests) */
+const ALLOW_DEV = false;
 /** why a level could not be started, in words */
 const whyNot = (c, team, u, st, lv, cost) => (st === 'max' ? `${u.name} is fully developed.` : st === 'dev' ? `${u.name} is already in the factory.` : st === 'locked' ? `${upgradeName(u.id, lv)} needs ${needTxt(missingReq(team, u.id, lv))} first.`
   : st === 'busy' ? 'Every development slot is in use.' : st === 'poor' ? `Not enough money: ${money(cost)} needed, ${money(team.budget)} in the budget.` : `${u.name} can't be developed right now.`);
@@ -448,7 +454,9 @@ export function techClick(c, ds, S = {}) {
     const k = Math.max(1, Math.min(u.levels.length, Math.floor(+l) || 1)), was = shownLevel(team, u, S);
     return { tab: 'dev', S: { ...base, branch: u.branch, up: u.id, tlv: `${u.id}|${k}` }, region: ['tlp'], dir: Math.sign(k - was) };
   }
-  if (ds.tdev == null && ds.tre == null) return null;
+  if (ds.tdev == null && ds.tre == null && ds.treq == null) return null;
+  // (the team's car, the team's choice: nothing here builds or re-tunes - phase 2's request is not open yet)
+  if (!ALLOW_DEV) return { tab: 'dev', S: { ...base, tmsg: 'The team decides what it builds. Asking for a part comes later, with bargaining power.', tok: false } };
   const team = teamOf(c); if (!team) return { tab: 'dev', S: base };
   ready(c);
   if (ds.tdev != null) {

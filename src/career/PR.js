@@ -153,8 +153,8 @@ export const BRANDS = [
   B('velane', 'Velane Parfums', 'fragrance', 0.4, 20, 47, 70, false, 'romance', `A fragrance house. The campaign is black and white, slow motion and very serious.`),
 ];
 export const BRAND_BY_ID = Object.fromEntries(BRANDS.map((b) => [b.id, b]));
-/** where endorsement money goes (Career pays it: the share to your own account, the rest to the team's budget) */
-export const DEAL_SPLIT = { wallet: 0.7, team: 0.3 };
+/** where endorsement money goes (Career pays it): your personal sponsors pay you - your own account, less your agent's ten per cent; none of it is the team's */
+export const DEAL_SPLIT = { wallet: 0.9, team: 0 };
 /**
  * PR managers (invented): skill softens bad press and sharpens good (crisis answers, image losses, offers), fee is $M a
  * round from your endorsements (your own account when they do not cover it). style: fixer (an ignored crisis hurts half
@@ -609,7 +609,7 @@ const HL = {
     feed: [`Chequered is in meltdown over photos of {celeb} and {sur}`, `Fans can't get over photos of {celeb} with {sur}`, `Fans spot {celeb} and {sur} {where}`],
     tv: [`Off-track: {sur} and {celeb} pictured together`],
   },
-  // (seeing someone it is a conflict to see (career/Celebs.js): your own agent, the chief executive of the team you own -
+  // (seeing someone it is a conflict to see (career/Celebs.js): your own agent, the chief executive of the team you drive for -
   // nobody is named: she is invented, and the papers call her by her job)
   conflict: {
     agent: { tab: [`Ten per cent of everything? {sur} is dating their own agent`, `Contract talks get cosy: {sur} and the agent who negotiates them`],
@@ -722,6 +722,14 @@ const HL = {
     radio: [`{sur} live on GRID FM: your calls, your questions`],
     tab: [`Our day with {sur}: tea, biscuits and very careful answers`],
   },
+  // (your seat - career/Seat.js: the pressure, the final warning, the team letting you go, a team delighted with you)
+  seat: {
+    warn: { weekly: [`Pressure mounts on {sur} at {team}`, `Is {team} losing patience with {sur}?`], tab: [`Hot seat! {team} running out of patience with {sur}`], feed: [`Fans debate whether {sur} deserves more time at {team}`] },
+    final: { serious: [`{team} give {sur} a final warning, the paddock hears`, `One more race: {sur}'s future at {team} on the line`], tab: [`Last chance saloon for {sur}`], feed: [`#Save{hash}: fans rally behind {sur} before a make-or-break race`] },
+    dropped: { serious: [`{team} drop {sur}`, `{sur} out at {team}`, `{team} replace {sur} with immediate effect`], tv: [`Brutal! {team} axe {sur}`], tab: [`Axed! {team} show {sur} the door`],
+      feed: [`Fans react as {team} drop {sur}: "brutal"`, `"Give them a chance": fans split over {team} dropping {sur}`] },
+    praised: { serious: [`{team} delighted with {sur}`], weekly: [`{sur} is exactly what {team} needed`], feed: [`{sur}'s fans are loving this season`] },
+  },
   signing: {
     serious: [`{sur} joins {newTeam}`, `Confirmed: {sur} signs for {newTeam}`],
     tv: [`Big move! {sur} signs for {newTeam}`],
@@ -743,6 +751,7 @@ const HL = {
   },
   crisis: {
     slump: { weekly: [`Analysis: is {team} losing patience with {sur}?`, `Three races, three disappointments: questions mount for {sur}`], tab: [`Crisis? What crisis? {sur}'s slump goes on`] },
+    seat: { weekly: [`Pressure mounts on {sur} at {team}`, `Is {team} running out of patience with {sur}?`], tab: [`Hot seat! {team} losing patience with {sur}`] },
     reckless: { apex: [`A pattern? {sur} and the stewards`, `Too many penalties: the {sur} question`], weekly: [`The stewards' notebook is filling up: {sur} under scrutiny`] },
     clash: { weekly: [`{sur}'s clash with {whoSur}: lunge or racing incident?`, `{sur}'s collision at {track}: lunge or racing incident?`], tab: [`Bad blood? {sur} and {whoSur} after the collision`] },
     feud: { tv: [`War of words: {sur} v {whoSur}`], tab: [`Handbags at ten paces: {sur} and {whoSur} trade barbs`] },
@@ -1076,6 +1085,11 @@ const EV = {
     const m = clamp(num(x.mul, 1), 0, 1), v0 = num(P.media[o.id], 0);
     return { tone: 1, theme: { candour: 0.5 }, fx: { image: 2 }, cover: [o.id], force: o.id, size: m ? 1 : 0, media: { [o.id]: 12 * m * (v0 > 60 ? 0.5 : 1) } };
   },
+  // (your seat: the warning, the final warning, dropped, the team delighted - career/Seat.js)
+  seat: (c, x) => {
+    const k = String(x.sub || ''), F = { warn: [-1, -1, 3, 1], final: [-1, -2, 5, 2], dropped: [-1, -3, 6, 3], praised: [1, 1.5, -1, 1] }[k]; if (!F || !HL.seat[k]) return null;
+    return { tone: F[0], theme: { results: F[0] * 0.5, drama: k === 'dropped' ? 0.8 : 0.3 }, fx: { image: F[1], heat: F[2] }, cover: k === 'dropped' ? ['f1news', 'gptv', 'weekly', 'race24', 'post', 'feed'] : ['weekly', 'f1news', 'post', 'feed'], size: F[3], sub: k };
+  },
   signing: (c, x, X) => (X.newTeam ? { tone: 1, theme: { results: 0.3 }, fx: { image: 1, appeal: 3, fame: [0.05, 0.05] }, cover: ['f1news', 'gptv', 'weekly', 'race24', 'post', 'feed'], size: 2 } : null),
   trophy: (c, x, X) => (X.trophy ? { tone: 1, theme: { results: 0.4 }, fx: { image: 1, fame: [0.01, 0.01] }, cover: ['f1news', 'feed'], size: 1 } : null),
   season: (c, x, X) => {
@@ -1104,7 +1118,7 @@ export function prEvent(c, kind, data = {}) {
 
 // ---- crises -----------------------------------------------------------------------------------------------------------
 // (the order of severity: a new story more serious than the pending one takes its place; a lesser one folds in)
-const SEV = ['nightout', 'slump', 'feud', 'cruel', 'reckless', 'paps', 'clash', 'scandal', 'brawl', 'ban'];
+const SEV = ['nightout', 'slump', 'seat', 'feud', 'cruel', 'reckless', 'paps', 'clash', 'scandal', 'brawl', 'ban'];
 /** each: sev (how hard its answers land), the outlet that runs it, the answers on offer, title / story / text, alt (the same without names) */
 const CRISES = {
   ban: { sev: 1.3, outlet: 'f1news', opts: ['apologise', 'explain', 'silence', 'defiant'], title: `A one-race ban`, story: `the ban`,
@@ -1143,6 +1157,12 @@ const CRISES = {
   feud: { sev: 0.9, outlet: 'race24', opts: ['apologise', 'explain', 'silence', 'defiant', 'joke'], title: `War of words with {whoSur}`, story: `the war of words with {whoSur}`,
     text: `You and {who} have been trading barbs in public. RACE 24 is running it as a feud, and everyone wants your next line.`,
     alt: [`A war of words`, `the war of words`, `You have been trading barbs with a rival in public. RACE 24 is running it as a feud, and everyone wants your next line.`] },
+  // (your seat under threat - career/Seat.js: the team's warning; source 'final' for the final warning, one more race)
+  seat: { sev: 0.9, outlet: 'weekly', opts: ['explain', 'apologise', 'silence', 'defiant'], title: `Your seat is in danger`, story: `the questions over your seat`,
+    text: `{team} are said to be losing patience. Paddock Weekly wants to know whether you can turn it round.`,
+    alt: [`Your seat is in danger`, `the questions over your seat`, `The team is said to be losing patience. Paddock Weekly wants to know whether you can turn it round.`],
+    by: { final: [`One more race`, `the final warning`, `{team} have given you one more race, the paddock hears. Paddock Weekly asks whether you can save your seat.`,
+      `The team has given you one more race, the paddock hears. Paddock Weekly asks whether you can save your seat.`] } },
   slump: { sev: 0.8, outlet: 'weekly', opts: ['explain', 'silence', 'defiant', 'joke', 'apologise'], title: `Questions over your seat`, story: `the slump`,
     text: `Three races below what the car should manage. Paddock Weekly asks whether {team} is losing patience.`,
     alt: [`Questions over your seat`, `the slump`, `Three races below what the car should manage. Paddock Weekly asks whether the team is losing patience.`] },

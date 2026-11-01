@@ -1,5 +1,5 @@
 // The paddock's own people you can get to know - not famous, not strangers out on a race night, but the women whose
-// work is the sport around you: your own agent, the chief executive of the team you own, a sponsor's brand ambassador
+// work is the sport around you: your own agent, the chief executive of the team you drive for, a sponsor's brand ambassador
 // or brand manager, a rival team's race strategist or partnerships manager, a journalist on the beat, a creator who
 // films the paddock - and three of the driver managers you sit across from in contract talks (the same women career/
 // Party.js AGENTS seats at the table). Each is made from her id (the same person every time, rebuilt after a reload),
@@ -10,8 +10,8 @@
 // registers her like a local - bonds, the phone, plans, dates - and says when seeing her is a conflict of interest (your
 // own agent; the chief executive of your own team) and when a break-up cools her brand on you. Everyone is invented
 // and an adult; no real team's principal or chief executive is ever depicted - at a rival team the people here work
-// below the top jobs, and at your own team, which you own (the career's premise), the chief executive is your own
-// invented appointee, as the team principal is a generic one. Nothing here touches the career: pure functions.
+// below the top jobs, and at the team you drive for the chief executive is an invented one, as the team principal is a
+// generic one. Nothing here touches the career: pure functions.
 import { makeLocal, VIBE } from './Locals.js';
 
 const hash = (s) => { let h = 2166136261; for (const ch of String(s)) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; };
@@ -33,7 +33,7 @@ const titleCase = (s) => String(s || '').replace(/\b\w/g, (x) => x.toUpperCase()
 const ROLE = {
   ceo: { title: 'Chief executive', where: 'team', age: [38, 49], fame: [30, 42], privacy: 0.7, kits: ['pantsuit', 'blazer', 'blazerdress'],
     work: ['the board meeting on Thursday', 'next season\'s budget', 'a title sponsor she is close to signing', 'the new factory wing'],
-    bio: (o) => `Runs ${o} as a business: the budget, the board, the sponsors and the cost cap. Reports to its owner - you - and has opinions about your expense claims.` },
+    bio: (o) => `Runs ${o} as a business: the budget, the board, the sponsors and the cost cap. Signs off every driver's contract - yours included - and has opinions about your expense claims.` },
   // (at a rival team - a real one, as often as not - never the one at the top: the pit wall and the commercial side)
   dtp: { title: 'Race strategist', where: 'team', age: [29, 42], fame: [12, 22], privacy: 0.55, kits: ['pantsuit', 'blazer', 'coord'],
     work: ['the tyre plan for the next race', 'a simulation that will not converge', 'the undercut she is sure will work', 'a wind-tunnel programme that is running late'],
@@ -115,22 +115,23 @@ export function makePaddock(id, orgName = null) {
 
 // ---- who is in this career's paddock ----------------------------------------------------------------------------------
 /**
- * The standing roster of a career (o: { playerId, myTeam, teams (every team's name) }): your agent, your team's chief
+ * The standing roster of a career (o: { playerId, myTeam, teams (every team's name), home (the team your career began
+ * at: your agent, the journalist and the creator stay yours when you change teams) }): your agent, your team's chief
  * executive and its head of hospitality, the three contract-talk agents, two people at rival teams (a race strategist
- * and a partnerships manager), a journalist and a creator. Seeded by who you are and the team you own: the same people
- * however often it is asked. -> { ids: [id], ceo, staff, myagent, agents: [id], rivals: [id], press, infl }
+ * and a partnerships manager), a journalist and a creator. Seeded by who you are and the team you drive for: the same
+ * people however often it is asked. -> { ids: [id], ceo, staff, myagent, agents: [id], rivals: [id], press, infl }
  */
 export function paddockRoster(o = {}) {
-  const me = String(o.playerId || 'you'), team = String(o.myTeam || 'Independent'), h = (k) => hash(`${me}|${team}|${k}`);
+  const me = String(o.playerId || 'you'), team = String(o.myTeam || o.home || 'Independent'), h = (k) => hash(`${me}|${team}|${k}`), hh = (k) => hash(`${me}|${String(o.home || team)}|${k}`);
   const rivalTeams = (Array.isArray(o.teams) ? o.teams : []).filter((t) => t && t !== team).sort((a, b) => hash(`${me}|r|${a}`) - hash(`${me}|r|${b}`));
-  const out = { ceo: paddockId('ceo', team, h('ceo')), staff: paddockId('staff', team, h('staff')), myagent: paddockId('myagent', 'x', h('agent')),
-    agents: Object.keys(PADDOCK_AGENTS).map(agentPaddockId), rivals: [], press: paddockId('press', ['weekly', 'race24', 'apex', 'post'][h('press') % 4], h('press|p')), infl: paddockId('infl', 'x', h('infl')) };
+  const out = { ceo: paddockId('ceo', team, h('ceo')), staff: paddockId('staff', team, h('staff')), myagent: paddockId('myagent', 'x', hh('agent')),
+    agents: Object.keys(PADDOCK_AGENTS).map(agentPaddockId), rivals: [], press: paddockId('press', ['weekly', 'race24', 'apex', 'post'][hh('press') % 4], hh('press|p')), infl: paddockId('infl', 'x', hh('infl')) };
   if (rivalTeams[0]) out.rivals.push(paddockId('dtp', rivalTeams[0], h(`dtp|${rivalTeams[0]}`)));
   if (rivalTeams[1]) out.rivals.push(paddockId('com', rivalTeams[1], h(`com|${rivalTeams[1]}`)));
   out.ids = [out.ceo, out.staff, out.myagent, ...out.agents, ...out.rivals, out.press, out.infl];
   return out;
 }
-/** seeing her is a conflict of interest for you (myTeam: the team you own) -> 'agent' (your own agent) | 'ceo' (your team's chief executive) | null */
+/** seeing her is a conflict of interest for you (myTeam: the team you drive for) -> 'agent' (your own agent) | 'ceo' (your team's chief executive) | null */
 export function conflictKind(def, myTeam) {
   const K = def?.paddock; if (!K) return null;
   if (K.role === 'myagent') return 'agent';

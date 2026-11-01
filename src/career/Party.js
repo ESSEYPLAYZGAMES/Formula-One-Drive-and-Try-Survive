@@ -533,7 +533,7 @@ function guestsFor(c, S, O) {
     //  of hospitality running the night, your sponsor's ambassador - each someone you could get to know)
     const K = safe('paddock', () => paddockOf(c), null);
     if (K) {
-      if (R() < 0.7) put(72, paddockG(c, S, K.ceo, `${team} · chief executive · runs the business you own`));
+      if (R() < 0.7) put(72, paddockG(c, S, K.ceo, `${team} · chief executive · signs off your contract`));
       if (R() < 0.5) put(68, paddockG(c, S, K.myagent, `Your agent · ${CELEB[K.myagent]?.org || 'driver management'}`));
       if (R() < 0.4) put(62, paddockG(c, S, K.staff, `${team} · head of hospitality · tonight is hers`));
       if (deal && R() < 0.45) put(60, paddockG(c, S, safe('ambassador', () => brandPerson(c, deal.bid), null), `${deal.brand} · brand ambassador · your sponsor's face`));

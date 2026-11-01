@@ -1001,22 +1001,27 @@ name written huge and faint on it all in the team's colour, under soft boxes and
 shadow (its own small WebGL view, `Showroom`). The camera moves to what each screen is about - the front wing for
 aerodynamics, the rear wing for DRS, a front wheel for the brakes, the cockpit for your drivers - with the turntable
 brought round to face it; In Memoriam dims the studio to grey. Over it, glass panels that fit the screen rather than
-scroll: a navigation column, the panel, a card on the car. A new career is two steps (who you are - the car on the
-turntable changes as you choose - then the season). The tech tree shows one branch at a time, with a detail card and
+scroll: a navigation column, the panel, a card on the car. A new career is five steps: your driver, your look, your
+junior academy, the season - and the offers (the car on the turntable is the academy's team, then the offer you pick). The tech tree shows one branch at a time, with a detail card and
 DEVELOP. The charts are line charts with points per round, end labels, hover values and a legend to pick lines out:
 car pace (from development), race pace (each team's best race lap against the fastest that day), points, and
 championship position. The market is filtered (F1, reserves, F2, juniors), sorted, and paged; an offer is a dialog of
 buttons and a slider - no drop-downs anywhere. Team colours too light to see on white are drawn in grey.
 
-* **Who you are.** You are a driver and the owner of your team: one of the 22 on the grid (you take over their team,
-  their team-mate stays) or your own new team (your name, its name and colours, a backmarker's car and budget, the best
-  junior on the market as your team-mate). You race as that driver for as long as they live.
+* **Who you are.** A driver - never the owner. You create your own rookie (your name, your colours, your look), pick
+  the junior academy you come from (the real ones: Red Bull Junior Team, Ferrari Driver Academy, Mercedes Junior
+  Programme, McLaren Driver Development, Alpine Academy, Williams Driver Academy, Aston Martin Driver Development, Audi's
+  - the Sauber Academy), and take one of about three offers. You hold a contract - a salary, the years it runs, your
+  standing in the garage (number one, equal, number two), win and podium bonuses - with a team that is not yours: its
+  budget, its car, its development and its other driver are its own. See **Your seat** below. You race as your driver
+  for as long as they live.
 * **The season.** 4, 6, 8 or 10 rounds, the calendar cycling through the circuits. RACE WEEKEND in the hub goes
   straight to the weekend: the weather (dry, damp or wet) and the time of day (Las Vegas mostly at night, Silverstone
   mostly by day) are drawn for each round and are not yours to choose. The career's race distance (set when it starts)
   and its difficulty are the only settings; the difficulty slider is on the hub's overview and can be changed at any
   time. Your own quick-race settings are put aside for the weekend and come back afterwards.
-* **The tech tree - every team develops.** 35 parts in eight branches (power unit, aerodynamics, DRS, chassis, brakes,
+* **The tech tree - every team develops its own car.** The team you drive for chooses and pays for its parts as every
+  team does; the TECH TREE screen shows what it is building (a greyed REQUEST waits for phase 2's bargaining power). 35 parts in eight branches (power unit, aerodynamics, DRS, chassis, brakes,
   tyres, reliability, pit crew), each unlocking the next, some needing parts from two branches (the stalling rear wing
   needs the DRS flap and the ground-effect floor). Deeper parts cost more ($4M-18M) and take one or two rounds to reach
   the car. What they do is real physics: car pace (`perf`), a DRS that cuts more drag (`car.drsGain`), more ERS power
@@ -1024,8 +1029,11 @@ buttons and a slider - no drop-downs anywhere. Team colours too light to see on 
   fewer failures (`relMul`), faster stops (`pitMul`). The grid is tight - the slowest car is ~0.7 s a lap off the
   fastest at the start - so a few points' prize money and a better DRS can decide races. The AI teams buy what gives
   them the most pace for the money, keeping a reserve.
-* **Money.** Each team's budget by its tier; prize money each round ($3M plus $0.9M a point: a backmarker's first
-  points matter); salaries paid round by round; development paid up front.
+* **Money.** Each team's budget by its tier, the team's own; prize money each round ($3M plus $0.9M a point: a
+  backmarker's first points matter); salaries paid round by round - yours from the team's budget into your own account,
+  the wallet - development paid up front. Your wallet also gets your win and podium bonuses, a quarter of what the
+  sponsors' targets pay the team (`OBJ_SHARE`), and your personal sponsors' money less your agent's ten per cent
+  (`DEAL_SPLIT`). It is yours to spend on your life (style, evenings, a good cause); none of it goes into the team.
 * **Charts.** The CHARTS tab: every team's car pace over the season (the gap to the fastest car, seconds a lap, yours
   in bold) and the championship points of the leaders and you, round by round, with a table of every car now.
 * **Paddock Rapport** - your standing with every driver (-100 to 100: bitter rival, hostile, cold, neutral, friendly,
@@ -1036,7 +1044,9 @@ buttons and a slider - no drop-downs anywhere. Team colours too light to see on 
 * **The post-race interview.** After every race, three questions from a reporter, picked for your day - the result
   first (a crash, a retirement, a win, a podium, points or none), then two from a pool (the contact you had with
   someone, your team-mate, "if you could replace your team-mate, who?", the best driver on the grid, your toughest
-  rival, the young talent, who you trust, the dirtiest racer, the title fight, a new part, the owner's spending). Four
+  rival, the young talent, who you trust, the dirtiest racer, the title fight, a new part, your seat and the team's
+  faith in you - asked straight after the result once the warnings have started, and first of all the day you are
+  dropped). Four
   answers each, eight words at most; what you say about a driver moves your rapport with them (praise helps, blame
   hurts, naming a replacement for your team-mate costs you with them), and a strong answer about someone can bring a
   follow-up question about them. When a driver was hurt or killed in the race you are asked about them - a death
@@ -1048,11 +1058,8 @@ buttons and a slider - no drop-downs anywhere. Team colours too light to see on 
   a TV camera and its light; the camera cuts like a crew's - over your shoulder onto the journalist asking, in close
   on you as you answer (your head moving with the words), wide between questions - under a bright lower third. You
   carry your own helmet; a photographer's flash goes off in the pack now and then.
-* **Drivers and contracts.** The market is everyone: the F1 grid (with a buyout fee to their team for the years left
-  on their contract), the teams' reserves, F2, and a few juniors. Each asks a salary by their rating (less if they like
-  you); you offer a salary and 1-3 years, and they accept, counter with a higher ask, or refuse (and won't talk again
-  that round). Prestige - your team's tier, its points and your rapport - helps. Signing someone into a full team
-  releases the driver they replace.
+* **Drivers and contracts.** The teams sign their own drivers: the off-season market, a stand-in kept on, a seat to
+  fill. You never sign or release anyone; your own contract is your agent's and the team's business (Your seat, below).
 * **Injuries and perma-death.** Every driver, yours included, is judged on the same curve (see Injuries and stand-ins):
   nearly always only hurt - out for one to three rounds, the team's reserve (or the best free driver) standing in, and
   you driving the stand-in if it is your driver. Rarely - more likely the harder the impact (`decideFate` in main.js) -
@@ -1060,10 +1067,10 @@ buttons and a slider - no drop-downs anywhere. Team colours too light to see on 
   there are no timing sheets and no telemetry: the screen goes to the helmet in black and white on a dark floor, lit
   only by a candle beside it (`ui/Mourning3D.js`), blood run down the shell and pooled on the floor beneath it, the
   name, the number, the career's starts (wins and podiums if any) - then back to the hub, where the weekend cannot be resumed and
-  no round can be run until you choose who you are now: one of your team's drivers, or someone you sign first. The
-  lost are listed in the hub's IN MEMORIAM.
-* **The next season.** At the end, NEXT SEASON: the standings reset, budgets topped up, contracts that ran out end, the
-  AI teams fill their seats from the market.
+  no round can be run until you choose who you are now: one of your late driver's team's drivers, under their
+  contract (or abandon the career and start a new rookie). The lost are listed in the hub's IN MEMORIAM.
+* **The next season.** At the end, NEXT SEASON: the standings reset, budgets topped up, contracts that ran out end
+  (yours too, unless you signed again or elsewhere), the teams fill their seats from the market.
 
 #### Every round has a point, every season an end
 
@@ -1092,14 +1099,63 @@ buttons and a slider - no drop-downs anywhere. Team colours too light to see on 
   totals and every season's archive.
 * **The season review.** At the end of a season the overview shows the drivers' and constructors' champions and
   where your team finished against the board's target for its tier (P2, P4, P6 or P9). The board's verdict
-  (delighted, satisfied, concerned or unhappy) comes with a bonus, alongside prize money by constructors' position
-  ($14M for the champions down to $2M). Contracts ending at your team are listed with a RENEW button. A contract
-  signed after the season's end starts with the next one.
-* **The off-season.** The AI teams go after better drivers: a team may replace its weakest driver with a clearly
+  (delighted, satisfied, concerned or unhappy) comes with a bonus to the team, alongside prize money by constructors'
+  position ($14M for the champions down to $2M). Then your seat: the team renews you, lets your contract run out or
+  ends it early, and the market's offers wait beside it. A contract signed after the season's end starts with the next one.
+* **The off-season.** The teams go after better drivers (never your seat - that is your contract's): a team may replace its weakest driver with a clearly
   better free agent, or buy one out of a smaller team, which then fills its own seat from the market. Every move is
   in the news.
 
-#### Contract talks, at the table
+#### Your seat: management confidence (`career/Seat.js`)
+
+* **The academy and the offers.** Each academy lists the teams it can place you with - its own, its sister team, the
+  teams running its power unit (`ACADEMIES`, plain data). About three offers come in: mostly midfield and backmarker
+  seats linked to the academy, and by the academy's own draw now and then its front-running team's race seat (Red Bull
+  about one career in three, Mercedes and McLaren one in four or five, Ferrari one in six, the others only by a rare
+  call from outside: the Verstappen 2016 and Antonelli 2025 route). Each card shows the team, its tier, the salary,
+  the years, your status (a rookie is usually the number two), the driver you replace, and plainly what the team
+  expects and how patient it is. Pick one and that driver makes way - kept on as the team's reserve, or a free agent -
+  and the news says so.
+* **What the team thinks of you.** One number, 0-100, on the hub's top bar, the briefing's tiles and TEAM › Your seat,
+  with its words: the team is delighted (75+), happy, getting impatient (below 55), your seat is in danger (below the
+  team's danger line), final warning. Every race you drive moves it (`CONF_W`, one table, so phase 2's bargaining power
+  can read the same signals): the result against the team's target - halfway between where the car and your rating
+  put you (the career's expected place) and the tier's ambition for a front-runner (P3), a third of the way for the
+  midfield, a quarter for a backmarker - with a place gained earning less than a place missed costs; wins, podiums and
+  (in the midfield and at the back) points; the head-to-head with your team-mate (beating a quicker one is worth more,
+  losing to a quicker one costs less) and a season of being beaten by them; crashes you cause (more if you are blamed),
+  penalty points, a ban, a licence near one; team orders ignored or broken, a team-mate held up or hit, contact
+  between the team's cars - and obeying them; the press heat around you, a scandal in the papers, a relationship with
+  the team's chief executive made public; Driver of the Day, pole, the fastest lap, a charge through the field; and
+  what you say about the team in the media pen. It settles a little back toward where the team started with you, a race.
+* **The cruelty is real.** A front-runner starts you at 60 with a danger line at 46 and a cut at 32, and can drop you
+  after two races (Red Bull and Liam Lawson, 2025): its first warning can be the final one. The midfield starts at 62
+  (danger 38, cut 25, five races at least); a backmarker at 66 (danger 32, cut 20, six races) and only cuts a driver its
+  other driver keeps beating, unless it is far worse than that. The warnings come first: your agent texts you, the
+  paddock news has it, the press makes a story of it that wants an answer (the 'seat' crisis), the media pen asks; then
+  the final warning - one more race - from your agent and the team principal. Simulated, a rookie finishing well below
+  what the team wanted is dropped after race 3 at a front-runner, race 5 in the midfield, race 9 at a backmarker; a
+  strong one never.
+* **Dropped.** The reserve (or the best young driver free) takes the seat from the next round; the news, the press,
+  the round report and the hub say it plainly; your contract is gone, your own money stays yours. You are a free
+  agent: the rounds go on without you - watch the race (the circuit loads and you follow the field) or simulate the
+  weekend - while your agent looks: a backmarker that wants a driver now (rare), a reserve role (in the car when one of
+  its race drivers is hurt or banned), and at the season's end one to three offers by your reputation (your rating,
+  results, image and following). Take one and you race again.
+* **The season's end.** A team happy with you (50 or more) offers a new contract when yours is ending; below that it
+  lets it run out, and below its cut line it ends it early. The market's offers sit beside it; take one for next season.
+* **An owner's save from before.** It loads and plays on: the team is sold, every team's own flag goes, its budget
+  stays the team's, and you stay on as its contracted driver - a salary by the market, to this season's end (the next
+  one's once past halfway), your status by how you compare with your team-mate - with a line in the news saying so.
+* **Phase 2 (not yet).** Bargaining power - management confidence, your reputation and recent form (`leverage`) - to
+  spend on a say over upgrades, your team-mate and your contract's terms, and a full driver market. The hooks: the
+  greyed REQUEST on the tech tree, `c.seat.requests`, `leverage()`, and ui/Negotiation.js (the table, kept for talks
+  about your own contract).
+
+#### Contract talks, at the table (phase 2)
+
+Not used in phase 1 (offers are taken or turned down as they are). The motorhome table below is kept for phase 2's
+talks about your own contract.
 
 Negotiating with a driver (signing from the market, buying one out, or renewing a contract) happens in your team's
 motorhome, in 3D (`ui/Negotiation.js`). The driver sits across the table from you with their agent, with coffee,

@@ -743,13 +743,15 @@ function describeQuick(s) {
   const who = s.driver === 'custom' ? (s.custom?.name || 'your own car') : surname((d || r)?.name);
   return [shortTrack(s.track), s.mode === 'tt' ? 'time trial' : `${s.len} laps`, who].join(' · ');
 }
-/** the career's save at a glance (the hub reads it properly): 'Ferrari · Season 2026 · Round 3 of 6 · next: Silverstone', or null */
+/** the career's save at a glance (the hub reads it properly): 'Ferrari · Season 2026 · Round 3 of 6 · next: Silverstone', or null (a driver without a seat: 'Free agent ·', a rookie choosing: 'The offers are waiting') */
 function careerPeek() {
   try {
-    const c = JSON.parse(localStorage.getItem('f1sim-career-v2') || 'null'); if (!c || !c.myTeam) return null;
-    if (c.round > c.rounds) return `${c.myTeam} · Season ${c.season} is over: the next one is waiting`;
+    const c = JSON.parse(localStorage.getItem('f1sim-career-v2') || 'null'); if (!c || !c.playerId) return null;
+    if (c.seat?.status === 'rookie') return 'A rookie · the offers are waiting';
+    const who = c.myTeam ? (c.seat?.status === 'reserve' ? `Reserve · ${c.myTeam}` : c.myTeam) : 'Free agent';
+    if (c.round > c.rounds) return `${who} · Season ${c.season} is over: the next one is waiting`;
     const next = Array.isArray(c.calendar) ? c.calendar[c.round - 1] : null;
-    return `${c.myTeam} · Season ${c.season} · Round ${c.round} of ${c.rounds}${next && TRACKS[next] ? ` · next: ${shortTrack(next)}` : ''}`;
+    return `${who} · Season ${c.season} · Round ${c.round} of ${c.rounds}${next && TRACKS[next] ? ` · next: ${shortTrack(next)}` : ''}`;
   } catch (e) { return null; }
 }
 
@@ -1415,9 +1417,10 @@ function careerField(C, lapsTotal, assists) {
     car.baseWear = fx.wear || 1; car.wearMul = e.isPlayer ? car.baseWear * (car.form.wear || 1) : car.baseWear; car.tyres.wearMul = car.wearMul;
     // (Paddock Rapport: a driver you have fallen out with races harder; one you get on with gives you a little more room)
     if (!e.isPlayer) { const v = C.rapportOf(e.careerId); car.aggrMul = v < 0 ? 1 + Math.min(0.5, -v / 160) : 1 - Math.min(0.12, v / 600); car.aggrMul *= room.get(e.careerId) || 1; car.rapport = v; }
-    // (team orders - race/TeamOrders.js: the contract's standing in the team, yours by your team-mate's, and the points)
-    const mateRec = e.isPlayer ? E.filter((x) => x.team === e.team && !x.isPlayer).map((x) => C.drivers[x.careerId])[0] : null, mr = mateRec?.contract?.role;
-    car.role = e.isPlayer ? (mr === 'lead' ? 'support' : mr === 'support' ? 'lead' : 'equal') : rec?.contract?.role || null;
+    // (team orders - race/TeamOrders.js: the contract's standing in the team - yours as your own contract says it, else
+    //  by your team-mate's - and the points)
+    const mateRec = e.isPlayer ? E.filter((x) => x.team === e.team && !x.isPlayer).map((x) => C.drivers[x.careerId])[0] : null, mr = mateRec?.contract?.role, myR = e.isPlayer ? rec?.contract?.role : null;
+    car.role = e.isPlayer ? (['lead', 'equal', 'support'].includes(myR) ? myR : mr === 'lead' ? 'support' : mr === 'support' ? 'lead' : 'equal') : rec?.contract?.role || null;
     car.champPts = Number.isFinite(rec?.points) ? rec.points : null;
     cars.push(car);
   }
@@ -1705,7 +1708,7 @@ function makeDirector(mode, cars, player, extra = {}) {
   });
   hud.initMinimap(W.track, W.pit); hud.show(); camCtl.mode = 'tcam';   // every session starts on the broadcast T-cam
   if (player && W.pitBoxes) W.pitBoxes.setPlayer(player.boxIdx ?? 0, player.name);   // your garage: cyan box + marker
-  if (S.spectating) hud.msg(`STOOD DOWN · WATCHING ${S.player.name.toUpperCase()}\nEnter: fast-forward`, 'warn', 6);
+  if (S.spectating) hud.msg(`${wk?.career?.noSeat ? 'NO SEAT THIS WEEKEND' : 'STOOD DOWN'} · WATCHING ${S.player.name.toUpperCase()}\nEnter: fast-forward · Tab: next car`, 'warn', 6);
   else if (player?.standInFor) hud.msg(standInBanner(player), 'warn', 6);   // (your driver hurt, or banned: you race their stand-in)
   ensureRacingLine(); RL.group.visible = RL.on;
   S.crews?.dispose(); S.crews = W.pit ? new PitCrews(scene, 5, S.meshes, W.time === 'night') : null;   // (the crews: a whole stop, choreographed - world/PitCrew.js)
@@ -2050,7 +2053,10 @@ function interviewCtx(C, rows, contacts, upgrade, o = {}) {
       const mate = rows.map((r) => r.car).find((o) => o !== c && o.team === c.team && o.careerId && o.careerId !== C.playerId);
       return { d: D(c.careerId), dead: decideFate(c) === 'killed', contact: contacts.some((k) => k.id === c.careerId), mate: mate ? D(mate.careerId) : null };
     }).filter((h) => h.d),
-    look: { team: C.team.name, color: C.team.color, color2: C.team.color2, driver: C.me?.name, helmet: C.me?.helmet, number: C.me?.number },
+    // (the kit of the team you drove for today - the team that has just let you go, too)
+    look: (() => { const T = C.teams?.[pc?.team] || C.team; return { team: T.name, color: T.color, color2: T.color2, driver: C.me?.name, helmet: C.me?.helmet, number: C.me?.number }; })(),
+    // (your seat - career/Seat.js: the team's faith in you, a warning, the final warning, dropped)
+    seat: typeof C.seatCtx === 'function' ? C.seatCtx() : null,
     ...off,
   };
 }

@@ -484,7 +484,7 @@ const guardPage = (fn, what) => {
     return '<div class="hs"><div class="hs-card hs-empty"><b>This page could not be drawn.</b><p>Something in the save did not add up here. The career itself is safe: the other pages work as before.</p></div></div>';
   }
 };
-const noDriver = () => '<div class="hs-card hs-empty"><b>You have no driver of your own just now.</b><p>Choose who you are on the briefing first: one of your drivers, or someone signed from the market.</p></div>';
+const noDriver = () => '<div class="hs-card hs-empty"><b>You have no driver just now.</b><p>Choose who you are on the briefing first: one of your late driver\'s team-mates, under their contract.</p></div>';
 /** a small line chart without the hub (H.chartHTML absent): an inline SVG, values on hover through each point's title */
 function mini(series, xs, o = {}) {
   const W = Math.max(320, Math.round(o.w || 720)), Hh = Math.max(120, Math.round(o.h || 200)), P = { l: 38, r: 14, t: 12, b: 22 };
@@ -582,7 +582,7 @@ const HURT_OK = ['rest', 'sim', 'factory', 'date'];
 const HARD = /slots|driver|recover|tired|account/i;
 function weekStrip(c, w) {
   const left = Math.max(0, w.slots - w.used.length), en = clamp(Math.round(num(w.energy, 80)), 0, 100), hurt = hurtOf(c), tr = c.round > c.rounds ? 'the new season' : trackName(trackOf(c)) || 'the race';
-  const due = !w.sponsorDone && !hurt && c.round <= c.rounds;
+  const due = !w.sponsorDone && !hurt && c.round <= c.rounds && !c.team?.none;
   const sp = due ? '<span class="hs-chip a" title="One sponsor day a week is in your contract: skip it and sponsor appeal drops by 6.">Sponsor day due · −6 appeal if skipped</span>' : hurt ? '<span class="hs-chip b">Recovering: the sponsors wait</span>' : w.sponsorDone ? '<span class="hs-chip g">Sponsor day done</span>' : '';
   // (the night after the race, still felt: what it took off the week, in the chip's tooltip)
   const hg = hangOf(c), hgT = hg ? [hg.text || (num(hg.energy) ? `Energy ${sgn(-Math.abs(num(hg.energy)))} this week.` : ''), hg.slot === 'iv' ? 'Slot 1: an IV-hydration clinic.' : hg.slot === 'recovery' ? 'Slot 1: recovery, locked.' : '', hg.rough ? 'A rough morning for the first sponsor or media day.' : ''].filter(Boolean).join(' ') : '';
@@ -740,7 +740,7 @@ function dealsPage(c, S, K) {
     body = `<div class="hs-lblrow" style="margin:0"><span class="hs-lbl">Offers on the table</span>${pager('off', pg)}</div>${cards ? `<div class="hs-offers">${cards}</div>` : '<div class="hs-card hs-empty"><b>No offers just now.</b><p>Brands come calling as your following grows and your image holds up. A PR manager who hustles turns up the odd extra one.</p></div>'}`;
   }
   const mg = `<div class="hs-card hs-mgrc"><span class="hs-ico" style="--c:#3d7bd9">✉</span><div><b>${esc(M ? `${M.name} handles your PR` : 'No PR manager')}</b><small>${M ? `Skill ${Math.round(num(M.skill) * 100)}% · ${cash(M.fee)} a round, from your endorsements first` : 'A manager softens image losses, words your answers and finds better deals.'}</small></div><button class="hs-btn" data-hmgr="1">${M ? 'CHANGE ›' : 'HIRE ›'}</button></div>`;
-  return `${strip('Media · deals', `${cash(inc)} a round from ${plural(D.length, 'deal')}`, `<span class="hs-chip">${Math.round(num(DEAL_SPLIT.wallet, 0.7) * 100)}% to you · ${Math.round(num(DEAL_SPLIT.team, 0.3) * 100)}% to the team</span><span class="hs-chip">Appeal <b>${Math.round(num(P.appeal, 50))}</b> ${esc(appealLabel(P.appeal))}</span>`)}${deals}${body}${S.mgrs ? '' : mg}`;
+  return `${strip('Media · deals', `${cash(inc)} a round from ${plural(D.length, 'deal')}`, `<span class="hs-chip">${Math.round(num(DEAL_SPLIT.wallet, 0.9) * 100)}% to you · ${Math.round((1 - num(DEAL_SPLIT.wallet, 0.9) - num(DEAL_SPLIT.team, 0)) * 100)}% to your agent</span><span class="hs-chip">Appeal <b>${Math.round(num(P.appeal, 50))}</b> ${esc(appealLabel(P.appeal))}</span>`)}${deals}${body}${S.mgrs ? '' : mg}`;
 }
 const LIKE_N = { results: 'results', humility: 'humility', drama: 'drama', romance: 'romance', charity: 'charity', candour: 'candour' };
 function pressPage(c, S, K) {
@@ -818,8 +818,9 @@ const confCard = (c, cf) => {
 function partnersPage(c, S, K) {
   const cs = c.celebs || {}, ids = romIds(c), cf = cs.confront && CELEB[cs.confront.id] ? cs.confront : null, R = safe(() => riskOf(c), { v: 0, label: 'None' }), w = weekOf(c), me = meOf(c), wal = num(c.wallet);
   const X = { many: ids.filter((k) => ['dating', 'partner'].includes(cs.bonds[k].stage)).length > 1, invited: Object.keys(cs.bonds || {}).filter((k) => CELEB[k] && cs.bonds[k].invited && cs.bonds[k].invited.season === c.season && cs.bonds[k].invited.round === c.round), hurt: hurtOf(c), banned: !!me && isBanned(c, me) };
-  const invWhy = num(w.invested) >= 3 ? 'You have put $3M in this round already' : wal < 1 ? 'Needs $1M of your own' : '', donWhy = w.donated ? 'You have given this round already' : wal < 0.5 ? 'Needs $0.5M of your own' : '';
-  const head = strip('Life · partners', `Own money ${cash(wal)}`, `<button class="hs-btn" data-winv="1"${invWhy ? ` disabled title="${esc(invWhy)}"` : ' title="$1M of your own money into the team\'s budget ($3M a round at most)"'}>INVEST $1M</button><button class="hs-btn" data-wdon="1"${donWhy ? ` disabled title="${esc(donWhy)}"` : ' title="$0.5M to a good cause, once a round"'}>DONATE $0.5M</button><span class="hs-grow"></span><span class="hs-chip">Seeing <b>${seeing(c).length}</b></span>${R.v ? `<span class="hs-chip${R.label === 'High' ? ' r' : R.label === 'Medium' ? ' a' : ''}" title="How likely you are to be found out">Risk of being found out: <b>${esc(R.label)}</b></span>` : ''}<button class="hs-btn" data-hlog="1">${S.log ? '‹ PARTNERS' : 'LOG ›'}</button>`);
+  // (your own money: a good cause, a night out - never the team's budget, which is the team's)
+  const donWhy = w.donated ? 'You have given this round already' : wal < 0.5 ? 'Needs $0.5M of your own' : '';
+  const head = strip('Life · partners', `Own money ${cash(wal)}`, `<button class="hs-btn" data-wdon="1"${donWhy ? ` disabled title="${esc(donWhy)}"` : ' title="$0.5M to a good cause, once a round"'}>DONATE $0.5M</button><span class="hs-grow"></span><span class="hs-chip">Seeing <b>${seeing(c).length}</b></span>${R.v ? `<span class="hs-chip${R.label === 'High' ? ' r' : R.label === 'Medium' ? ' a' : ''}" title="How likely you are to be found out">Risk of being found out: <b>${esc(R.label)}</b></span>` : ''}<button class="hs-btn" data-hlog="1">${S.log ? '‹ PARTNERS' : 'LOG ›'}</button>`);
   if (S.log) {
     const L = (cs.log || []).filter((x) => x && x.text), per = K.per(38, 120, 1, 4, 10), pg = pageOf(S, 'plog', L.length, per);
     return `${head}<div class="hs-card hs-plog"><div class="hs-lblrow" style="margin-top:0"><span class="hs-lbl">Your personal log</span>${pager('plog', pg)}</div>${L.slice(pg.from, pg.from + per).map((x) => `<div><small>R${x.round}</small>${CELEB[x.id] ? celebAva(x.id, 'sm') : '<span></span>'}<span class="${x.tone < 0 ? 'n' : x.tone > 0 ? 'p' : ''}" title="${esc(x.text)}">${esc(x.text)}</span></div>`).join('') || '<p class="hs-none">Nothing yet.</p>'}</div>`;
@@ -1016,7 +1017,7 @@ export function overviewAlerts(c, H = {}) {
     }
     const hg = hangOf(c);
     if (w && hg && (hg.slot || num(hg.H) >= 0.6)) out.push({ level: 'warn', icon: '☾', key: 'hangover', text: `Hangover: ${hg.slot === 'iv' ? 'slot 1 is the IV clinic' : 'slot 1 recovery'}${num(hg.energy) ? `, energy ${sgn(-Math.abs(num(hg.energy)))}` : ''}.`, act: go('THE WEEK', 'week') });
-    if (w && !hurt && !w.sponsorDone) out.push({ level: 'warn', icon: '$', key: 'sponsor', text: 'Contractual sponsor day not done (appeal −6 if skipped).', act: go('THE WEEK', 'week') });
+    if (w && !hurt && !w.sponsorDone && !c.team?.none) out.push({ level: 'warn', icon: '$', key: 'sponsor', text: 'Contractual sponsor day not done (appeal −6 if skipped).', act: go('THE WEEK', 'week') });
     if (!calm) {
       const inv = (c.social?.invites || []).filter((v) => v && v.to === 'me' && v.status === 'pending' && ago(c, v) <= 0);
       if (inv.length) out.push({ level: 'info', icon: '✆', key: 'invites', text: inv.length > 1 ? `${plural(inv.length, 'invitation')} waiting for an answer.` : `${nameOfCid(c, inv[0].from)} has asked you out: ${(VENUE_BY_ID[inv[0].venue]?.name || 'an evening out').toLowerCase()}.`, act: go('ANSWER', 'social', 'invites') });

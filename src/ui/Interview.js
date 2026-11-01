@@ -1,5 +1,6 @@
 // The post-race interview (a career): three questions from a reporter, picked for the day you had - the result, the
-// contact you had with someone, your team-mate, the championship, a new part on the car, the paddock - each with four
+// contact you had with someone, your team-mate, the championship, a new part on the car, your seat (the team's faith in
+// you and your future; a warning is a story of the day, and dropped is the first question), the paddock - each with four
 // short answers. What you say about a driver changes your Paddock Rapport with them (career/Career.js): praise helps,
 // blame and digs hurt, and some questions make you choose a name. When someone was hurt or killed in the race, you are
 // asked about them first - and what you say about them (support, or a cruel joke) is heard by their team-mate and the
@@ -59,7 +60,8 @@ const L = (a, life) => ({ ...a, life });
  * hurt someone: no press, nothing off the track), brawl: { d, result, started, escalated, walkedAway } | null (a
  * scuffle on the grid), partner: { id, name, first, public, secret } | null (a woman you are seeing, at the race),
  * points: { n, ban, next, max } | null (8+ penalty points, or a ban to come), tonight: { team, club, city, lean } | null
- * (the night's invitations, career/Party.js: a winner is asked how he will celebrate, and the answer sets lean) }.
+ * (the night's invitations, career/Party.js: a winner is asked how he will celebrate, and the answer sets lean), seat:
+ * Career.seatCtx() | null (your contract and what the team thinks of you: seatQuestion) }.
  * Drivers are { id, name }.
  * -> [{ k (the topic), q, grave?, about?, answers: [{ t, fx: [[id, delta]], react, tone, life? }] }] (three of them)
  */
@@ -240,8 +242,10 @@ function questions(ctx) {
   // the car, the team
   if (ctx.upgrade) pool.push({ k: 'upgrade', w: 2, q: pick([`The new ${ctx.upgrade} - did it make a difference?`, `How much did the ${ctx.upgrade} bring?`]), answers: [
     A('Massive step. The factory delivered.', [], null, 'humble'), A("Small gain, but we're learning.", [], null, 'diplomatic'), A('Too early to tell, honestly.', [], null, 'evasive'), A('We need more, and faster.', [], null, 'confident')] });
-  pool.push({ k: 'owner', w: 1, q: pick(['As the owner, are you spending enough on the car?', 'Driver and owner - how do you balance it?']), answers: [
-    A('Every penny goes into speed.', [], null, 'confident'), A("We're building for the long term.", [], null, 'diplomatic'), A("The budget's tight. We'll be smart.", [], null, 'humble'), A('Ask the accountants, not me.', [], 'Ha.', 'funny')] });
+  // your seat (career/Seat.js): the team's faith in you and your future - when the warnings have started, the story
+  // of the day (a crisis question: asked straight after the result); dropped, it is the first question of all
+  const ST = calm ? seatQuestion(ctx) : null;
+  if (ST) { if (ST.k === 'dropped') Q.unshift(ST); else if (ST.big && Q.length < 3) Q.push(ST); else pool.push(ST); }
   // the woman you were seen with (what you say, she hears too; a new story is more of one than a known couple)
   if (P) pool.push({ k: 'partner', w: P.public ? 3 : 5, q: P.public ? pick([`${P.first} was in the garage for you today. How much does that support mean?`, `We saw ${P.name} cheering you on. Is she good for your racing?`])
     : pick([`You were seen with ${P.name} this weekend - anything to tell us?`, `${P.name} was here today, and not for the first time. Are you two together?`, `The photographers spotted you with ${P.name}. Is there something you want to share?`]), answers: P.public ? [
@@ -277,6 +281,40 @@ function questions(ctx) {
     picked.push(pool.splice(i, 1)[0]);
   }
   return [...Q, ...picked, ...(T ? [T] : [])].map((q) => ({ ...q, answers: shuffle(q.answers) }));
+}
+/**
+ * Your seat as a question (ctx.seat: Career.seatCtx - status, team, conf, k (the label's key), beat (the race just
+ * run's: 'fired' | 'warn' | 'final' | 'eased' | 'praised' | null)): dropped - how you take it; a warning or the final
+ * one - the crisis question (big: asked straight after the result); otherwise now and then the team's faith in you and
+ * your future, by how the team rates you. The answers' tones reach the team as well as the press. -> question | null
+ */
+function seatQuestion(ctx) {
+  const S = ctx.seat; if (!S || !S.team) return null;
+  const T = S.team, F = first(ctx.me);
+  if (S.beat === 'fired') return { k: 'dropped', q: pick([`${T} have told you they are replacing you. How do you take it?`, `${F}, that was your last race for ${T}. What happened?`, `Dropped by ${T} after today. Your reaction?`]), answers: [
+    A('They gave me the chance. I did not take it. That is on me.', [], 'Dignified.', 'humble'),
+    A('I am better than these results. Somebody will see that.', [], 'He believes it.', 'confident'),
+    A('I thank everyone in the garage. They worked so hard for me.', [], 'Gracious, under the circumstances.', 'diplomatic'),
+    A('Not enough time, not enough car. Ask them why.', [], 'That will not help him find a seat.', 'cruel')] };
+  if (S.status !== 'driver') return null;
+  if (S.beat === 'final' || S.k === 'final') return { k: 'seat', big: true, w: 9, q: pick([`They say ${T} have given you one more race. Is that true?`, `One more race to save your seat, ${F}. How do you handle that?`, `Is this your last chance at ${T}?`]), answers: [
+    A('Every race is a chance. I will take this one.', [], 'Calm, at least on the outside.', 'confident'),
+    A('I know I have to deliver. I will.', [], 'No excuses.', 'humble'),
+    A('I am not thinking about that. Only the next race.', [], 'He would rather not.', 'evasive'),
+    A('If they want someone else, that is their mistake.', [], 'A dangerous thing to say out loud.', 'cruel')] };
+  if (S.beat === 'warn' || S.k === 'danger') return { k: 'seat', big: S.beat === 'warn', w: 7, q: pick([`There are reports ${T} are losing patience with you. Is your seat in danger?`, `Is the pressure from ${T} getting to you?`, `${F}, does the team still have faith in you?`]), answers: [
+    A('I know what I have to do. The results will come.', [], 'Determined.', 'confident'),
+    A('The team has my back. We are working on it together.', [], 'Diplomatic.', 'diplomatic'),
+    A('I have to be better. Simple as that.', [], 'Honest.', 'humble'),
+    A('Ask them. I just drive the car.', [], 'The garage will hear that.', 'cruel')] };
+  if (S.k === 'delighted' || S.beat === 'praised') return { k: 'future', w: 2, q: pick([`${T} seem delighted with you. Is a new contract coming?`, `There is talk of a long-term deal at ${T}. Anything to tell us?`]), answers: [
+    A('I am happy here. My agent can do the talking.', [], 'A smile.', 'diplomatic'),
+    A('I want to win with this team. That is all I am thinking about.', [], 'The garage will like that.', 'humble'),
+    A('Let us say a few people have called.', [], 'Cheeky.', 'funny'),
+    A('I deserve it. We will see who pays.', [], 'Confidence in spades.', 'confident')] };
+  return { k: 'future', w: 1, q: pick([`How secure do you feel at ${T}?`, `Where do you see your future, ${F}?`, `Does ${T} still believe in you?`]), answers: [
+    A('Very. We are building something.', [], null, 'confident'), A('Day by day. I just want to keep improving.', [], null, 'humble'),
+    A('My future is the next race.', [], null, 'diplomatic'), A('Ask me again after the summer.', [], 'Ha.', 'funny')] };
 }
 /** a team-order story of yours (race/TeamOrders.js orderSub) as a question: tm is your team-mate -> question | null */
 function orderQuestion(sub, tm) {

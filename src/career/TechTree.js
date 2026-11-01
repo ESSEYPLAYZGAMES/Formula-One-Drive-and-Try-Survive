@@ -305,14 +305,14 @@ export function retuneState(c, teamName, id, lvl) {
 // ---- developing ------------------------------------------------------------------------------------------------------------
 const spend = (t, u, cost) => { const s = isObj(t.devSpend) ? t.devSpend : (t.devSpend = { all: 0, fac: 0 }); s.all = r1((+s.all || 0) + cost); if (u.branch === 'facilities') s.fac = r1((+s.fac || 0) + cost); };
 const prep = (t) => { if (!isObj(t.levels) || Array.isArray(t.nodes)) migrateTeam(t); if (!Array.isArray(t.dev)) t.dev = []; };
-/** start the next level of an upgrade: paid now, in the factory for its rounds (news for your own team) -> done? */
+/** start the next level of an upgrade: paid now, in the factory for its rounds (news for the team you drive for) -> done? */
 export function develop(c, teamName, id) {
   const t = c?.teams?.[teamName]; if (!t) return false;
   prep(t);
   if (upgradeState(c, teamName, id) !== 'open') return false;
   const u = UP[id], lv = nextLevel(t, id), cost = levelCost(c, teamName, id, lv), n = levelRounds(c, teamName, id, lv);
   t.budget = r1((+t.budget || 0) - cost); t.dev.push({ id, level: lv, left: n, n, cost }); spend(t, u, cost);
-  if (t.own) c.addNews?.(`${t.name} start work on ${upgradeName(id, lv)} (${BRANCHES[u.branch].name}).`);
+  if (t.name === c?.myTeam) c.addNews?.(`${t.name} start work on ${upgradeName(id, lv)} (${BRANCHES[u.branch].name}).`);
   return true;
 }
 /** send a poorly correlated level back to be re-tuned: one race, 35 % of its price, a fresh roll with what the first taught (the better of the two is kept) -> done? */
@@ -322,7 +322,7 @@ export function retune(c, teamName, id, lvl) {
   const k = Math.floor(+lvl); if (retuneState(c, teamName, id, k) !== 'ok') return false;
   const cost = retuneCost(c, teamName, id, k), q = +t.quality?.[id]?.[k - 1] || 1;
   t.budget = r1((+t.budget || 0) - cost); t.dev.push({ id, level: k, left: 1, n: 1, cost, re: true }); spend(t, UP[id], cost);
-  if (t.own) c.addNews?.(`${t.name} send ${upgradeName(id, k)} back to ${retuneWhere(id)}: it came out at ${Math.round(q * 100)}% of what was promised.`);
+  if (t.name === c?.myTeam) c.addNews?.(`${t.name} send ${upgradeName(id, k)} back to ${retuneWhere(id)}: it came out at ${Math.round(q * 100)}% of what was promised.`);
   return true;
 }
 
@@ -367,7 +367,7 @@ export function devTickTeam(c, t) {
 /** every team's factory for the round (once, before the round moves on: lastNew carries the race just run) -> the levels finished [{ team, id, level, q, re, early }] */
 export function devTick(c) { const out = []; for (const t of Object.values(c?.teams || {})) out.push(...devTickTeam(c, t)); return out; }
 
-// ---- the AI teams ----------------------------------------------------------------------------------------------------------
+// ---- the teams' own choices (every team: nobody owns one in a career - the drivers race what their team builds) ----------------
 // (what a level is worth in lap time, roughly, to weigh unlike things: the AI's yardstick and the hub's best-value tag.
 // A facility level is worth what it does for the rest over a season or two: a slot most, CFD and the tunnel next)
 const WORTH = { perf: 1, drs: 0.025, ers: 0.008, erc: 0.006, brake: 0.016, wear: -0.012, rel: 0.0025, pit: 0.004 };
@@ -385,12 +385,12 @@ export function levelWorth(team, id, lvl, relMax = null) {
   return Math.max(0, w);
 }
 /**
- * An AI team's round in the factory -> levels started: the most lap time per $M it can start, up to its free slots,
+ * A team's round in the factory -> levels started: the most lap time per $M it can start, up to its free slots,
  * $6M kept back; about a fifth of the money into the factory itself; and a level it cannot start yet lends half its
  * worth to the open levels it is waiting for (a team after the B-spec floor builds the wind tunnel it needs)
  */
 export function aiDevelopTeam(c, t) {
-  if (!t || t.own) return 0;
+  if (!t) return 0;
   prep(t);
   let n = 0;
   for (let guard = 0; guard < MAX_SLOTS && t.dev.length < devSlots(t); guard++) {
@@ -426,8 +426,8 @@ export function aiDevelopTeam(c, t) {
   }
   return n;
 }
-/** every AI team's development for the round (your own team is yours) */
-export function aiDevelop(c) { for (const t of Object.values(c?.teams || {})) if (!t.own) aiDevelopTeam(c, t); }
+/** every team's development for the round: each chooses its own (phase 2: a driver's request, c.seat.requests, weighed in) */
+export function aiDevelop(c) { for (const t of Object.values(c?.teams || {})) aiDevelopTeam(c, t); }
 
 // ---- old saves: the flat tree of 35 parts, mapped onto the levels -------------------------------------------------------------
 // (each old part -> the levels it becomes, [[upgrade, level], ...], the closest first. Calibrated two ways: every tier's
