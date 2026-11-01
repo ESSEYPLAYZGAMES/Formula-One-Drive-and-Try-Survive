@@ -14,8 +14,15 @@
 // mourning screen when your driver is killed: black and white, the helmet, the name, the starts.
 import * as THREE from 'three';
 import { Career, rapportLabel, RAPPORT_NAME, DISTANCES, TROPHIES } from '../career/Career.js';
-import { ACADEMIES, ACADEMY_BY_ID, KIND_NAME, SEAT_RULES, kindOf, confLabel, repOf, leverage } from '../career/Seat.js';
-import { techEffects } from '../career/TechTree.js';
+import { ACADEMIES, ACADEMY_BY_ID, KIND_NAME, SEAT_RULES, kindOf, confLabel, repOf, leverage, leverageParts } from '../career/Seat.js';
+// (your say - career/Say.js: the parts you asked for, the seat beside you; the one way an offer is chosen and being
+// dropped is shown - ui/Offers.js; contract talks at the table - ui/Negotiation.js)
+import { mateOptions, liveRequest, termsText } from '../career/Say.js';
+import { chooseOffer, showDropped } from './Offers.js';
+// (the contract table and the dismissal as cutscenes: registered with ui/Offers.js as the module loads)
+import { CONTRACT_SCENES } from './ContractScene.js';
+import { showNegotiation } from './Negotiation.js';
+import { techEffects, upgradeName } from '../career/TechTree.js';
 import { moodOf, moraleLabel, moraleBand, formOf } from '../career/Morale.js';
 import { isBanned, activePoints } from '../career/Licence.js';
 import { imageLabel, heatLabel, fameText } from '../career/PR.js';
@@ -525,7 +532,27 @@ const SEAT_CSS = `
 #career .wk.fa { grid-template-rows: auto minmax(0, 1fr) 60px; }
 #career .fa-off { grid-column: 1 / -1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; } #career .fa-off .lbl { margin: 0 0 7px; }
 #career .so-seat { overflow-y: auto; } #career .so-seat .of-cards { grid-template-columns: minmax(0, 1fr); }
-@media (max-width: 899px) { #career .ac-grid, #career .cf-grid { grid-template-columns: 1fr; } #career .cf-page { height: auto; } }
+#career .cf-grid.cf-3 { grid-template-columns: 1.15fr 1fr 1fr; }
+#career .lv-card .cf-bar u.base { background: #b9c0ca; width: 1px; }
+#career .lv-ps { display: flex; flex-direction: column; gap: 3px; margin-top: 4px; }
+#career .lv-p { display: flex; gap: 8px; align-items: baseline; font-size: 11.5px; color: #3a4350; min-width: 0; } #career .lv-p span { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#career .lv-p em { flex: none; font-style: normal; font-weight: 800; font-variant-numeric: tabular-nums; }
+#career .cf-say { flex: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--gap); }
+#career .say-i { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto auto; column-gap: 8px; align-items: center; background: #fff; border: 1px solid rgba(21,26,34,.07); border-radius: 14px; padding: 9px 11px; box-shadow: 0 2px 10px rgba(25,35,60,.05); min-width: 0; }
+#career .say-i small { grid-column: 1; font: 700 9.5px/1.2 var(--k-font, 'Segoe UI', Arial, sans-serif); letter-spacing: .14em; color: #6b7480; }
+#career .say-i b { grid-column: 1; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } #career .say-i span { grid-column: 1; font-size: 11.5px; line-height: 1.35; color: #3a4350; }
+#career .say-i button { grid-column: 2; grid-row: 1 / span 3; padding: 7px 9px; font-size: 10.5px; }
+#career .say-i.hot { border-color: #f0c27a; background: linear-gradient(160deg, #fffaf0, #fff 60%); } #career .say-i.warn { border-color: #f2c4bd; background: #fff8f6; }
+#career .say-i.dim span { color: #6b7480; } #career .say-i.s-paid, #career .say-i.s-building, #career .say-i.s-onCar { border-color: #bfe8cf; } #career .say-i.s-flop, #career .say-i.s-refused { border-color: #f2c4bd; }
+#career .of-go { display: flex; align-items: center; gap: 10px; margin: 0 0 8px; font-size: 12.5px; color: #3a4350; } #career .of-go .go { padding: 8px 12px; font-size: 11px; }
+#career .of-neg { font-size: 11px; font-weight: 700; color: #1f7a4a; }
+#career .of-tier.k-precontract, #career .of-tier.k-buyout, #career .of-tier.k-midseason { background: #fff1d6; color: #9a6400; } #career .of-tier.k-renewal { background: #e5f6ec; color: #1f7a4a; }
+#career .of-modal .box { width: min(980px, calc(100vw - 32px)); gap: 10px; } #career .of-modal .of-cards { overflow-y: auto; min-height: 0; overscroll-behavior: contain; }
+#career .of-mh { display: flex; align-items: flex-end; gap: 10px; } #career .of-mh h2 { margin: 2px 0 0; } #career .of-mf { flex: none; }
+#career .ms-d p { margin: 0 0 8px; font-size: 13px; line-height: 1.45; } #career .ms-row { display: flex; align-items: center; gap: 6px; padding: 8px 10px; border: 1px solid #edf0f4; border-radius: 12px; margin-bottom: 6px; background: #fff; }
+#career .ms-row.pick { border-color: #9ec5ff; background: #f5f9ff; } #career .ms-row small { display: block; font-size: 11px; color: #6b7480; margin-top: 2px; } #career .ms-row button { padding: 7px 9px; font-size: 10.5px; flex: none; }
+#career .ms-tag { font-style: normal; font: 800 9px/1 var(--k-font, 'Segoe UI', Arial, sans-serif); letter-spacing: .1em; padding: 3px 6px; border-radius: 999px; background: #e3edff; color: #2b5cc4; margin-left: 4px; } #career .ms-tag.out { background: #eef1f5; color: #3a4350; }
+@media (max-width: 899px) { #career .ac-grid, #career .cf-grid, #career .cf-grid.cf-3 { grid-template-columns: 1fr; } #career .cf-page { height: auto; } }
 `;
 /** the hub's CSS with the tech tree's and the social pages' own (each written for #career), injected once */
 const cssText = () => CSS + TECH_CSS + SEAT_CSS + (typeof HS.SOCIAL_CSS === 'string' ? HS.SOCIAL_CSS : '') + LOOK_CSS;
@@ -1086,19 +1113,35 @@ let WIZ = null, wizKeys = false;
 const STEP_NAME = { who: 'YOUR DRIVER', look: 'YOUR LOOK', academy: 'ACADEMY', season: 'YOUR SEASON', offers: 'THE OFFERS' };
 // (the look step's camera: your face, all of you, your helmet)
 const CC_VIEW = { face: 'ccFace', full: 'cc', helmet: 'ccHelmet' };
-/** an offer as a card (career/Seat.js makeOffer): the team, its tier, the money, the years, your standing, what it expects and how patient it is */
+/** an offer's kind on its card's chip (career/Seat.js: 'first' | 'seat' | 'renewal' | 'precontract' | 'buyout' | 'midseason' | 'reserve'; a save's old 'renew') */
+const OFFER_CHIP = { reserve: 'Reserve role', renewal: 'New contract', renew: 'New contract', precontract: 'Pre-contract', buyout: 'Clause bought', midseason: 'A seat now' };
+/**
+ * an offer as a card (career/Seat.js makeOffer): the team, its tier or the kind of deal, the money, the years, your
+ * standing, the driver you replace, the bonuses, the release clause, what it expects and how patient it is. o: { sel
+ * (the id picked out), act: false (no buttons) | true (DECLINE and the choice: data-ofpick, its index i - the plain
+ * offer screen, ui/Offers.js's fallback) }
+ */
 function offerCardHTML(c, of, o = {}) {
   const t = c.teams[of.team] || {}, kind = kindOf(of.tier), role = { lead: 'Number one', equal: 'Equal status', support: 'Number two', reserve: 'Reserve driver' }[of.role] || 'Equal status';
-  const tier = of.kind === 'reserve' ? 'Reserve role' : of.kind === 'renew' ? 'New contract' : KIND_NAME[kind];
-  const sel = o.sel === of.id, act = o.act !== false;
-  return `<div class="of-card${sel ? ' sel' : ''}${of.front && of.kind !== 'renew' ? ' front' : ''}" style="--c:${esc(ink(t.color))}" data-ofsel="${esc(of.id)}">
-    <div class="of-hd"><span class="sw" style="background:${esc(ink(t.color))}"></span><b>${esc(of.team)}</b><em class="of-tier k-${of.kind === 'seat' ? kind : of.kind}">${esc(tier)}</em></div>
-    <div class="of-terms"><div><small>Salary</small><b>${money(of.salary)}</b><span>a year</span></div><div><small>Length</small><b>${of.kind === 'reserve' ? 'This season' : `${of.years} season${of.years > 1 ? 's' : ''}`}</b><span>${of.next ? 'from next season' : 'from the next race'}</span></div></div>
-    <div class="of-seat"><b>${esc(role)}</b>${of.seatName ? ` · replaces ${esc(of.seatName)}` : of.kind === 'renew' ? ' · you stay' : ' · no race seat'}</div>
-    ${of.winBonus ? `<div class="of-bon">Bonuses: ${money(of.winBonus)} a win, ${money(of.podiumBonus || 0)} a podium</div>` : ''}
+  const renew = of.kind === 'renewal' || of.kind === 'renew', tier = OFFER_CHIP[of.kind] || KIND_NAME[kind];
+  const sel = o.sel === of.id, act = o.act === true;
+  const when = of.kind === 'midseason' ? 'from the next race' : of.next ? 'from next season' : 'from the next race';
+  return `<div class="of-card${sel ? ' sel' : ''}${of.front && !renew ? ' front' : ''}" style="--c:${esc(ink(t.color))}" data-ofsel="${esc(of.id)}">
+    <div class="of-hd"><span class="sw" style="background:${esc(ink(t.color))}"></span><b>${esc(of.team)}</b><em class="of-tier k-${OFFER_CHIP[of.kind] ? of.kind : kind}">${esc(tier)}</em></div>
+    <div class="of-terms"><div><small>Salary</small><b>${money(of.salary)}</b><span>a year</span></div><div><small>Length</small><b>${of.kind === 'reserve' ? 'This season' : `${of.years} season${of.years > 1 ? 's' : ''}`}</b><span>${when}</span></div></div>
+    <div class="of-seat"><b>${esc(role)}</b>${of.seatName ? ` · replaces ${esc(of.seatName)}` : renew ? ' · you stay' : of.kind === 'reserve' ? ' · no race seat' : ' · an open seat'}</div>
+    ${of.winBonus ? `<div class="of-bon">Bonuses: ${money(of.winBonus)} a win, ${money(of.podiumBonus || 0)} a podium${of.releaseClause ? ` · release clause ${money(of.releaseClause)}` : ''}</div>` : ''}
+    ${of.buyoutFee ? `<div class="of-bon">${esc(of.team)} pay your current team's ${money(of.buyoutFee)} release clause</div>` : ''}
     <div class="of-exp"><small>What they expect</small><p>${esc(of.expect)}</p><small>Patience</small><p>${esc(of.patience)}</p></div>
-    ${of.note ? `<div class="of-note">${esc(of.note)}</div>` : ''}
-    ${act ? `<div class="of-act"><button data-ofno="${esc(of.id)}">DECLINE</button><button class="go" data-ofyes="${esc(of.id)}">${of.kind === 'renew' ? 'SIGN AGAIN' : of.kind === 'reserve' ? 'TAKE THE ROLE' : 'SIGN'} →</button></div>` : ''}</div>`;
+    ${of.note ? `<div class="of-note">${esc(of.note)}</div>` : ''}${of.negotiable ? '<div class="of-neg">Terms negotiable: you talk them over at the table after you choose</div>' : ''}
+    ${act ? `<div class="of-act"><button data-ofno="${esc(of.id)}">DECLINE</button><button class="go" data-ofpick="${o.i ?? 0}">${of.negotiable ? 'TALK TERMS' : renew ? 'SIGN AGAIN' : of.kind === 'reserve' ? 'TAKE THE ROLE' : 'SIGN'} →</button></div>` : ''}</div>`;
+}
+/** the moment an offer is chosen in, for ui/Offers.js (kind): 'first' | 'renewal' | 'precontract' (and a buyout) | 'midseason' | 'reserve' | 'free' (a free agent's, or the season's mixed market) */
+function choiceKind(L) {
+  const ks = new Set(L.map((o) => o.kind === 'renew' ? 'renewal' : o.kind));
+  if (ks.size === 1 && (ks.has('first') || ks.has('reserve') || ks.has('renewal') || ks.has('midseason'))) return [...ks][0];
+  if ([...ks].every((k) => k === 'precontract' || k === 'buyout')) return 'precontract';
+  return 'free';
 }
 /**
  * A new career, a step at a time: your driver (a rookie of your own - your name and colours), your look (the face,
@@ -1213,14 +1256,36 @@ function newCareer(el, o, career = null) {
       preview('now');
     }
   };
+  // (the offers are chosen through ui/Offers.js - the contract table when it is there, else this step's plain cards (its
+  // fallback). choose() opens it; the step's SIGN answers it with the card picked, BACK - or any other step - with none)
+  const sign = (of) => { const c = st.c, r = c.acceptOffer(of.id); if (!r.ok) { draw(); return; } c.save(); leave(); syncLooks(c); hub(el, c, o, 'overview', { msg: r.text, mkind: 'up' }); };
+  const choose = () => {
+    if (!st.c || st.choosing) return;
+    st.choosing = true; const L = offers();
+    chooseOffer(L, { career: st.c, kind: 'first', start: Math.max(0, L.findIndex((x) => x.id === st.sel)), renderer: room?.renderer || null,
+      fallback: () => new Promise((res) => { st.answer = res; st.at = 'offers'; draw(1); }) })
+      .then((i) => {
+        st.choosing = false; st.answer = null; if (WIZ?.st !== st) return;
+        const of = i == null ? null : L[i]; if (of) { sign(of); return; }
+        const k = st.leaving || 'season'; st.leaving = null; st.at = k; draw(-1);
+      })
+      .catch((e) => { console.warn('CareerHub: choosing an offer failed', e); st.choosing = false; st.answer = null; st.at = 'offers'; draw(); });
+  };
   draw();
+  if (career && st.at === 'offers') choose();
   el.onmouseover = null;
   el.onclick = (e) => {
     if (LE?.click(e)) return;
     const card = e.target.closest('[data-ofsel]');
     if (card && !e.target.closest('button') && st.at === 'offers') { st.sel = card.dataset.ofsel; draw(); return; }
     const b = e.target.closest('button'); if (!b || b.disabled) return;
-    const d = b.dataset, S = steps(), to = (k) => { const dir = Math.sign(S.indexOf(k) - S.indexOf(st.at)); if (!dir || !ready(k)) return; st.at = k; draw(dir); };
+    const d = b.dataset, S = steps(), to = (k) => {
+      const dir = Math.sign(S.indexOf(k) - S.indexOf(st.at)); if (!dir || !ready(k)) return;
+      if (k === 'offers') { choose(); return; }
+      // (leaving the offers with the choice still open: it is answered 'none', and you go where you asked)
+      if (st.answer) { st.leaving = k; st.answer(null); return; }
+      st.at = k; draw(dir);
+    };
     if (d.lk === 'random') { if (!LE) return; const L = Avatar.randomLook(Math.random, st.look); LE.set(L); lookChanged(L, 'random'); return; }
     if (d.acad) { st.academy = d.acad; draw(); }
     else if (d.step) to(d.step);
@@ -1236,12 +1301,12 @@ function newCareer(el, o, career = null) {
         const c = Career.create({ driver: 'rookie', custom: { ...st.custom, name: nm(), look: st.look || draft() }, academy: st.academy, rounds: st.rounds, laps: st.laps, diff: st.diff, tracks: o.tracks, firstTrack: o.currentTrack });
         c.save(); st.c = c; st.key = keyOf(); st.sel = c.seat.offers[0]?.id || null;
       }
-      st.c.diff = st.diff; st.c.save(); st.at = 'offers'; draw(1);
+      st.c.diff = st.diff; st.c.save(); choose();
     }
     else if (d.a === 'sign' && st.c) {
-      const of = offers().find((x) => x.id === st.sel) || offers()[0]; if (!of) return;
-      const c = st.c, r = c.acceptOffer(of.id); if (!r.ok) { draw(); return; }
-      c.save(); leave(); syncLooks(c); hub(el, c, o, 'overview', { msg: r.text, mkind: 'up' });
+      // (the plain screen's answer to ui/Offers.js: the card picked - or, with no choice open (a reload), the choice opened)
+      const L = offers(), i = Math.max(0, L.findIndex((x) => x.id === st.sel)); if (!L[i]) return;
+      if (st.answer) st.answer(i); else choose();
     }
   };
   el.oninput = (e) => {
@@ -1326,7 +1391,7 @@ function wireChart(root0) {
 
 // ---- the hub: sections, sub-tabs, memory ------------------------------------------------------------------------------
 /**
- * The rail's seven sections, each with its sub-tabs [page, sub, label]. The page is the screen's key (what a click
+ * The rail's eight sections, each with its sub-tabs [page, sub, label]. The page is the screen's key (what a click
  * hands back: { tab: 'week' }); the sub picks a page inside it ('' = its first). IN MEMORIAM has one quiet page.
  */
 const SECTIONS = [
@@ -1393,7 +1458,7 @@ function shell(el, c, o) {
   el.onmouseover = (e) => { const t = e.target.closest?.('[data-tdesc]'); if (!t) return; const L = el.querySelector('.tro-line'); if (L && L.textContent !== t.dataset.tdesc) L.textContent = t.dataset.tdesc; };
   bindKeys(HUB);
 }
-/** the hub's keys: 1-7 the sections, Q/E the sub-tabs, the arrows the pages of a list, Esc back out of a step, R the race menu, P the phone */
+/** the hub's keys: 1-8 the sections, Q/E the sub-tabs, the arrows the pages of a list, Esc back out of a step, R the race menu, P the phone */
 function bindKeys(X) {
   X.unkeys?.();
   const map = {};
@@ -1632,7 +1697,8 @@ function badges(c) {
   const hurt = !!me && outWhy(c, me) === 'injury', slots = w ? Math.max(0, (w.slots || 5) - (w.used?.length || 0)) : 5;
   const sponsorDue = !c.seasonOver && !c.needsDriver && !hurt && !c.team.none && !(w && w.sponsorDone);
   const race = c.seasonOver || c.needsDriver ? '' : sponsorDue ? '!' : slots ? String(slots) : '';
-  const St = c.seat || {}, team = (St.status === 'driver' && St.warn) || (St.status !== 'driver' && (St.offers || []).length) || (c.seasonOver && (St.offers || []).length && !St.next) ? '!' : '';
+  const St = c.seat || {}, team = (St.status === 'driver' && St.warn) || (St.status !== 'driver' && (St.offers || []).length) || (c.seasonOver && (St.offers || []).length && !St.next)
+    || St.mateSay?.state === 'open' || (!St.next && (St.offers || []).some((o) => ['precontract', 'buyout', 'midseason'].includes(o.kind))) ? '!' : '';
   const pts = me ? pointsOf(c, me) : 0, driver = pts >= 6 ? String(pts) : '';
   const B = c.celebs?.bonds || {}, upset = Object.values(B).some((b) => b && ['partner', 'dating'].includes(b.stage) && (b.upset || 0) > 0), conf = !!c.celebs?.confront;
   const inv = (c.social?.invites || []).filter((v) => v && v.to === 'me' && (!v.status || ['pending', 'open', 'sent', 'waiting'].includes(v.status))).length;
@@ -1724,9 +1790,12 @@ function click(e) {
   if (!r && typeof HS.socialClick === 'function') { try { r = HS.socialClick(c, d, S); } catch (err) { console.warn('CareerHub: the social click failed', err); } }
   if (r) { result(r); return; }
   if (d.chartk) { segTo(b); go('charts', { ...S, chart: d.chartk }, { region: ['chart'] }); }
-  // (an offer for you - career/Seat.js: signed, or turned down; signed now, the hub shows the new team)
-  else if (d.ofyes) { const r = c.acceptOffer(d.ofyes); go(X.tab, { ...S, msg: r.text, mkind: r.ok ? 'up' : 'down' }, { fresh: true }); }
+  // (an offer for you - career/Seat.js: chosen through ui/Offers.js (the contract table, else the plain cards), talked
+  // over at the table when it can be, or turned down)
+  else if (d.ofyes) { const i = (c.seat?.offers || []).findIndex((o) => o.id === d.ofyes); decide(null, Math.max(0, i)); }
   else if (d.ofno) { const r = c.declineOffer(d.ofno); go(X.tab, { ...S, msg: r.text, mkind: 'info' }, { how: 'same' }); }
+  // (your say over the seat beside you - career/Say.js: back a candidate, or veto the team's choice)
+  else if (d.msback || d.msveto) { X.drawer?.close(); X.drawer = null; const r = c.mateSay(d.msback ? 'back' : 'veto', d.msback || d.msveto); go(X.tab, { ...S, msg: r.text, mkind: r.ok ? 'info' : 'down' }, { how: 'same' }); }
   else if (d.page != null) { const p = +d.page; go(X.tab, { ...S, page: p }, { region: ['list'], dir: Math.sign(p - (+S.page || 0)) }); }
   else if (d.cr != null) go('overview', { ...S, sub: 'cal', cr: +d.cr }, { region: ['cards', 'detail'] });
   else if (d.tfv) { segTo(b); go('dev', { ...S, fv: d.tfv }); }
@@ -1774,10 +1843,100 @@ function action(a, b, d) {
     case 'more': go('pr', { ...(MEM['pr/news'] || {}), sub: 'news', more: true }); return;
     case 'alerts': alertsDrawer(X); return;
     case 'crisis': crisisDrawer(X); return;
+    // (your offers: the choice - ui/Offers.js - of all of them, or of the kinds named: data-okind="precontract,buyout")
+    case 'offers': decide(d.okind ? String(d.okind).split(',') : null); return;
+    // (the seat beside you: the shortlist and your say, in a drawer)
+    case 'matesay': mateDrawer(X); return;
     default:
   }
 }
 const closePop = () => { const X = HUB; if (X?.pop) { X.pop.close(); X.pop = null; } };
+
+// ---- your offers: one way to choose (ui/Offers.js), contract talks at the table (ui/Negotiation.js) -------------------
+/**
+ * Choose between the offers waiting for you (only: the kinds to choose between, else all; start: the one shown first)
+ * through ui/Offers.js - the contract table when it is there, else the plain cards (offerModal). A negotiable offer
+ * chosen goes to the table first (negotiate); any other is signed at once.
+ */
+function decide(only = null, start = 0) {
+  const X = HUB; if (!X || X.mode !== 'hub' || X.scene || X.choosing) return;
+  const c = X.c, L = (c.seat?.offers || []).filter((o) => !only || only.includes(o.kind)); if (!L.length) return;
+  X.choosing = true; closePop(); X.drawer?.close(); X.drawer = null;
+  chooseOffer(L, { career: c, kind: choiceKind(L), start: clamp(start, 0, L.length - 1), decline: false, renderer: room?.renderer || null, fallback: offerModal })
+    .then((i) => { X.choosing = false; if (HUB !== X) return; const of = i == null ? null : L[i]; if (of && c.offerById(of.id)) take(of); else go(X.tab, { ...X.S }, { how: 'same' }); })
+    .catch((e) => { console.warn('CareerHub: choosing an offer failed', e); X.choosing = false; if (HUB === X) go(X.tab, { ...X.S }, { how: 'same' }); });
+}
+/** an offer chosen: to the table if its terms can be talked over, else signed */
+function take(of) {
+  const X = HUB; if (!X) return;
+  if (of.negotiable) { negotiate(of); return; }
+  const r = X.c.acceptOffer(of.id); go(X.tab, { ...X.S, msg: r.text, mkind: r.ok ? 'up' : 'down' }, { fresh: true });
+}
+/**
+ * The plain offer screen (ui/Offers.js chooseOffer's fallback): the cards over the hub, each with DECLINE and its
+ * choice; NOT NOW closes it -> Promise<index into L | null>
+ */
+function offerModal(L) {
+  const X = HUB, host = X?.el.querySelector('.ch-modal-host'); if (!host) return Promise.resolve(null);
+  return new Promise((res) => {
+    const m = document.createElement('div'); m.className = 'modal of-modal'; host.appendChild(m);
+    let left = [...L];
+    const draw = () => {
+      const c = X.c, n = left.length;
+      m.innerHTML = `<div class="box glass"><div class="of-mh"><div><small class="muted">${esc(c.seasonOver ? 'FOR NEXT SEASON' : 'YOUR AGENT HAS')}</small><h2>${n === 1 ? 'One offer' : `${n} offers`}</h2></div><span class="grow"></span><span class="muted">Bargaining power <b>${safe(() => leverage(c), 0)}</b></span></div>
+        <div class="of-cards">${left.map((of) => offerCardHTML(c, of, { act: true, i: L.indexOf(of) })).join('')}</div>
+        <div class="row of-mf"><span class="grow muted">${left.some((o) => o.negotiable) ? 'A negotiable offer goes to the table first: you talk terms, or walk away.' : 'Sign one, or decide later.'}</span><button data-ofclose>NOT NOW</button></div></div>`;
+    };
+    const done = (v) => { m.onclick = null; mClose(m, () => m.remove()); res(v); };
+    m.onclick = (e) => {
+      e.stopPropagation();
+      const b = e.target.closest('button'); if (!b) return;
+      if (b.dataset.ofpick != null) done(+b.dataset.ofpick);
+      else if (b.dataset.ofno) { const of = left.find((o) => o.id === b.dataset.ofno); X.c.declineOffer(b.dataset.ofno); left = left.filter((o) => o !== of); if (left.length) draw(); else done(null); }
+      else if (b.dataset.ofclose != null) done(null);
+    };
+    draw(); mOpen(m, 'fade');
+  });
+}
+/**
+ * Contract talks at the table (ui/Negotiation.js) over an offer chosen: the hub fades out behind them and back in
+ * after. Agreed: signed on those terms (Career.acceptOffer); walked out: the offer stands, or the team calls back
+ * (Career.walkAway); the team ended it: its offer stands as first made, take it or leave it on the card.
+ */
+function negotiate(of) {
+  const X = HUB; if (!X || X.scene) return;
+  const { el, c } = X, t = c.teams[of.team] || c.team;
+  closePop(); el.classList.add('away'); X.scene = true;
+  setTimeout(() => {
+    room?.stop();
+    const back = (msg, kind) => { c.save(); el.classList.remove('away'); X.scene = false; if (innerWidth >= 700) room?.start(); if (HUB === X) go(X.tab, { ...X.S, msg, mkind: kind }, { fresh: true }); };
+    try {
+      showNegotiation({ c, offer: of, look: { team: t.name, color: t.color, color2: t.color2, night: c.forecastAt().time === 'night' }, renderer: room?.renderer || null, done: (r) => {
+        // (agreed: the contract signed on the agreed terms - ui/Offers.js, straight to the pen: the signature, the
+        // headlines, the shirt, the handshake - then the deal done as before, whatever that scene did)
+        if (r.signed) {
+          const sign = () => { const a = c.acceptOffer(of.id, r.terms); back(a.ok ? `${a.text} (${termsText(c.seat?.next?.id === of.id ? c.seat.next : of)})` : a.text, a.ok ? 'up' : 'down'); };
+          chooseOffer([{ ...of, ...(r.terms || {}), negotiable: false }], { career: c, kind: choiceKind([of]), direct: true, renderer: room?.renderer || null, fallback: () => Promise.resolve(0) }).catch(() => 0).then(sign);
+          return;
+        }
+        if (r.walked) { const w = c.walkAway(of.id); back(w.text, w.called ? 'up' : 'info'); return; }
+        of.negotiable = false; back(`${of.team} ended the talks: their offer stands as it was - take it or leave it.`, 'down');
+      } });
+    } catch (e) { console.warn('CareerHub: the talks failed to open', e); back('The talks could not be opened.', 'down'); }
+  }, 220);
+}
+/** the seat beside you (career/Say.js, career/Market.js): who leaves, the team's shortlist and its choice, what your say needs and what you have */
+function mateDrawer(X) {
+  const c = X.c, M = c.seat?.mateSay; X.drawer?.close(); X.drawer = null;
+  if (!M) { go(X.tab, { ...X.S }, { how: 'same' }); return; }
+  const lev = safe(() => leverage(c), 0), O = safe(() => mateOptions(c), []), open = M.state === 'open', D = c.drivers;
+  const row = (x) => `<div class="ms-row${x.pick ? ' pick' : ''}"><div class="grow"><b>${esc(x.name)}</b>${x.pick ? ' <em class="ms-tag">THE TEAM\'S CHOICE</em>' : ''}${x.out ? ' <em class="ms-tag out">YOUR TEAM-MATE</em>' : ''}<small>rating ${(x.rating * 100).toFixed(1)} · ${esc(x.team ? `${x.team} (leaving)` : x.reserveOf ? `reserve, ${x.reserveOf}` : x.from === 'F1' ? 'free' : x.from)} · ${esc(rapportLabel(c.rapportOf(x.id)))}</small></div>
+    ${open ? `${x.pick ? '' : `<button data-msback="${esc(x.id)}" ${lev >= x.back ? 'class="go"' : ''} title="Needs bargaining power ${x.back} (you have ${lev})">BACK · ${x.back}</button>`}${x.veto ? `<button data-msveto="${esc(x.id)}" title="Needs bargaining power ${x.veto} (you have ${lev})">VETO · ${x.veto}</button>` : ''}` : ''}</div>`;
+  const head = M.why === 'cut' ? `${c.myTeam} are about to replace ${D[M.out]?.name || 'your team-mate'} - after the next race.` : M.out ? `${D[M.out]?.name}'s contract runs out: ${M.teamKeeps ? `${c.myTeam} want to keep him` : `${c.myTeam} are looking elsewhere`}.` : `The seat beside you is open for next season.`;
+  const res = !open && M.acted ? `<div class="al ${M.result === 'lost' ? 'warn' : 'info'}"><i>${M.result === 'lost' ? '!' : '✓'}</i><span>${esc(M.result === 'lost' ? `You had your say and lost: ${D[M.pick]?.name} it is.` : `You had your say: ${D[M.pick]?.name} is the team's choice.`)}</span></div>` : '';
+  X.drawer = drawer(X.el.querySelector('.ch-pages'), `<div class="ms-d"><p>${esc(head)}</p><p class="muted">Back a driver (he becomes the team's choice) or veto the team's choice (the next on the list takes his place) - once. Each needs bargaining power: you have <b>${lev}</b>. It works or it doesn't; either way the drivers remember, and so does the team.</p>${res}${O.map(row).join('')}</div>`,
+    { title: 'The seat beside you', width: 420, onClose: () => { if (HUB === X) X.drawer = null; } });
+}
 const motionTxt = () => (document.documentElement.classList.contains('m-off') ? 'On · screens change without sliding' : 'Off · screens slide and fade');
 /** the caret's menu: the other ways into the weekend (or, with qualifying done, the grid slot you start from) */
 function openRaceMenu(anchor) {
@@ -1955,7 +2114,18 @@ function reportUp(X, H) {
   const { el, c } = X, host = el.querySelector('.ch-modal-host'); if (!host) return;
   const up = host.querySelector('.rp-modal:not(.m-closing)');
   if (!c.report || c.report.seen) { if (up) reportDown(X); return; }
-  if (up) return;
+  if (up || X.dropping) return;
+  // (dropped - mid-season, or released at the season's end: the moment itself first, through ui/Offers.js (the
+  // dismissal cutscene when it is there); its plain screen is this report's own first step, 'Your seat: dropped')
+  const R = c.report;
+  if ((R.seat?.fired || R.seat?.released) && !R.droppedShown) {
+    R.droppedShown = true; c.save(); X.dropping = true;
+    const team = c.teams[c.seat?.firedFrom || c.myTeam] || null, who = typeof R.seat.fired === 'string' ? R.seat.fired : null;
+    showDropped({ career: c, team: team ? { name: team.name, color: team.color, color2: team.color2 } : c.seat?.firedFrom || null, reason: R.seat.fired ? 'the results were not good enough' : 'the team has ended your contract early: a new driver next season', who, renderer: room?.renderer || null, fallback: () => Promise.resolve() })
+      .catch((e) => console.warn('CareerHub: the dismissal failed', e))
+      .then(() => { X.dropping = false; if (HUB === X && X.mode === 'hub') reportUp(X, H); });
+    return;
+  }
   const m = document.createElement('div'); m.className = 'modal rp-modal'; m.innerHTML = reportModal(c, H); host.appendChild(m);
   X.rstep = 0; X.rsteps = m.querySelectorAll('.rp-steps > .m-pg').length;
   wireChart(m); mOpen(m, 'fade'); reportStep(X, 0);
@@ -2223,14 +2393,44 @@ function confGauge(c) {
   const St = c.seat || {}, K = SEAT_RULES[kindOf(St.tier)], L = confLabel(St.conf, St.warn, St.tier), v = clamp(St.conf, 0, 100);
   return `<div class="cf"><div class="cf-top"><b style="color:${L.color}">${Math.round(v)}</b><span><em>MANAGEMENT CONFIDENCE</em>${esc(L.text)}</span></div>
     <div class="cf-bar"><i style="width:${v}%;background:${L.color}"></i><u style="left:${K.danger}%" title="Below ${K.danger}: the warnings"></u><u class="cut" style="left:${K.cut}%" title="Below ${K.cut} after the final warning: the seat goes"></u></div>
-    <div class="cf-key"><span>0</span><span style="left:${K.cut}%">cut</span><span style="left:${K.danger}%">danger</span><span style="left:100%">100</span></div></div>`;
+    <div class="cf-key"><span>0</span>${K.danger - K.cut >= 16 ? `<span style="left:${K.cut}%">cut</span>` : ''}<span style="left:${K.danger}%" title="Below ${K.danger}: the warnings. Below ${K.cut} after the final warning: the seat goes">${K.danger - K.cut >= 16 ? 'danger' : `cut ${K.cut} · danger`}</span><span style="left:100%">100</span></div></div>`;
 }
-/** the offers waiting for you, as cards with SIGN and DECLINE (none: a line saying so) */
+/** the offers waiting for you: DECIDE (ui/Offers.js - the contract table, else the plain cards) and the cards to read (none: a line saying so) */
 function offersHTML(c, none = 'No offers on the table.') {
   const L = c.seat?.offers || [], nx = c.seat?.next;
-  if (nx) return `<div class="of-cards">${offerCardHTML(c, nx, { act: false })}</div><div class="al-none">Signed for next season: ${esc(nx.team)}.</div>`;
-  return L.length ? `<div class="of-cards">${L.map((of) => offerCardHTML(c, of)).join('')}</div>` : `<div class="al-none">${esc(none)}</div>`;
+  if (nx) return `<div class="of-cards">${offerCardHTML(c, nx)}</div><div class="al-none">Signed for next season: ${esc(nx.team)}${nx.talked ? ' - on the terms you talked over' : ''}.</div>`;
+  if (!L.length) return `<div class="al-none">${esc(none)}</div>`;
+  return `<div class="of-go"><span class="grow">${L.length === 1 ? 'One offer' : `${L.length} offers`}${L.some((o) => o.negotiable) ? ' · the terms can be talked over at the table' : ''}</span><button class="go" data-a="offers">DECIDE →</button></div>
+    <div class="of-cards">${L.map((of) => offerCardHTML(c, of)).join('')}</div>`;
 }
+/**
+ * your bargaining power as a meter (career/Seat.js leverageParts) - the number, its words, and what is driving it,
+ * the biggest first (every part and what it buys in the card's tooltip)
+ */
+function leverageCard(c) {
+  const L = safe(() => leverageParts(c), { v: 0, label: '', parts: [] }), v = clamp(L.v, 0, 100), col = v >= 55 ? '#1fae64' : v >= 35 ? '#3d7bd9' : v >= 15 ? '#e39a1b' : '#e5484d';
+  const all = L.parts.map((p) => `${p.d > 0 ? '+' : ''}${p.d}  ${p.text}`).join('\n');
+  const parts = L.parts.slice(0, 4).map((p) => `<div class="lv-p"><span title="${esc(p.text)}">${esc(p.text)}</span><em class="${p.d >= 0 ? 'up' : 'down'}">${p.d > 0 ? '+' : ''}${p.d}</em></div>`).join('');
+  return `<div class="cf-card lv-card" title="${esc(`Bargaining power ${v}: everyone starts at 20.\n${all}\nIt buys a say: a part on the tech tree (REQUEST), your team-mate, your contract's terms at the table.`)}"><div class="cf"><div class="cf-top"><b style="color:${col}" data-n="lev" data-v="${v}">${v}</b><span><em>BARGAINING POWER</em>${esc(L.label)}</span></div>
+    <div class="cf-bar"><i style="width:${v}%;background:${col}"></i><u class="base" style="left:20%" title="20: where everyone starts"></u></div></div>
+    <div class="lv-ps">${parts || '<span class="muted">Nothing yet. Results above what the team expects, a name, a rival\'s interest.</span>'}</div></div>`;
+}
+/** what your say is doing (career/Say.js, career/Market.js): your upgrade request, the seat beside you, a rival's approach, a pre-contract signed */
+function sayHTML(c) {
+  const St = c.seat || {}, D = c.drivers, items = [], drv = St.status === 'driver';
+  const RQ = { building: 'agreed: in the factory', queued: 'on the team\'s list', onCar: 'on the car: the team is watching your results', paid: 'it paid off', flop: 'it did not pay off', refused: 'the team said no', lapsed: 'never built' };
+  const R = safe(() => liveRequest(c), null) || (St.requests || []).filter((r) => r.team === St.team && r.season === c.season).pop();
+  if (drv) items.push(R ? `<div class="say-i s-${esc(R.state)}"><small>YOUR UPGRADE REQUEST</small><b>${esc(safe(() => techName(R), R.up))}</b><span>${esc(R.state === 'queued' && R.answer === 'yes' ? 'agreed: first in the queue' : RQ[R.state] || R.state)}</span><button data-tab="dev" data-sub="">TECH TREE →</button></div>`
+    : `<div class="say-i dim"><small>UPGRADE REQUESTS</small><span>Ask the team to build a part next - REQUEST on the tech tree. It costs goodwill; a part that pays off earns it back.</span><button data-tab="dev" data-sub="">TECH TREE →</button></div>`);
+  const M = St.mateSay;
+  if (M) items.push(`<div class="say-i${M.state === 'open' ? ' hot' : ''}"><small>THE SEAT BESIDE YOU</small><b>${esc(M.why === 'cut' ? `${D[M.out]?.name || 'Your team-mate'} may be replaced` : M.out ? `${D[M.out]?.name}'s contract is up` : 'An open seat')}</b><span>${esc(M.state === 'open' ? `The team's choice: ${D[M.pick]?.name}. Back someone, or veto it.` : `Your say: ${M.result === 'lost' ? 'the team went its own way' : 'it worked'} - ${D[M.pick]?.name}.`)}</span><button data-a="matesay">${M.state === 'open' ? 'HAVE YOUR SAY →' : 'SEE →'}</button></div>`);
+  const ap = (St.offers || []).filter((o) => ['precontract', 'buyout', 'midseason'].includes(o.kind));
+  if (ap.length && !St.next) items.push(`<div class="say-i hot"><small>A RIVAL WANTS TO TALK</small><b>${esc(ap.map((o) => o.team).join(', '))}</b><span>${esc(ap[0].kind === 'midseason' ? 'A seat from the next race, your clause paid.' : ap[0].kind === 'buyout' ? 'Next season - your release clause paid.' : 'A seat for next season, signed now.')}</span><button data-a="offers" data-okind="precontract,buyout,midseason">SEE →</button></div>`);
+  if (St.next && St.next.team !== St.team && drv) items.push(`<div class="say-i${St.leak?.out ? ' warn' : ''}"><small>SIGNED FOR NEXT SEASON</small><b>${esc(St.next.team)}</b><span>${esc(St.leak?.out ? `It leaked: ${St.team} know.` : 'Quiet, for now. The paddock may hear of it.')}</span></div>`);
+  return items.length ? `<div class="cf-say">${items.slice(0, 3).join('')}</div>` : '';
+}
+/** an upgrade request's part in a few words: 'Floor · Level 3' */
+const techName = (R) => upgradeName(R.up, R.level) || `${R.up} L${R.level}`;
 /** your seat in plain words: where you stand, for the hub's headings */
 function seatLine(c) {
   const St = c.seat || {}, me = c.me;
@@ -2240,21 +2440,22 @@ function seatLine(c) {
   return `${c.myTeam} driver${me?.contract?.role === 'lead' ? ' · number one' : me?.contract?.role === 'support' ? ' · number two' : ''}`;
 }
 /**
- * TEAM › Your seat: your contract, what the team expects of you and how patient it is, management confidence and the
- * races that moved it (each race's signals - career/Seat.js CONF_W), and the offers waiting; bargaining power greyed
- * (phase 2)
+ * TEAM › Your seat: your contract, what the team expects of you and how patient it is, management confidence, your
+ * bargaining power and what is driving it (career/Seat.js leverageParts), what your say is doing (a request, the seat
+ * beside you, a rival's approach), the races that moved the team's confidence (each race's signals - CONF_W), and the
+ * offers waiting
  */
 function seatPageHTML(c, S, H) {
   const St = c.seat || {}, me = c.me, k = me?.contract, team = c.team, K = SEAT_RULES[kindOf(St.tier)], rep = safe(() => repOf(c), 0);
-  const log = (St.log || []).slice(0, H.compact ? 3 : 5);
+  const say = safe(() => sayHTML(c), ''), log = (St.log || []).slice(0, H.compact || say ? (H.compact && say ? 2 : 3) : 5);
   const races = log.length ? log.map((x) => `<div class="cf-race"><b>${x.season === c.season ? `R${x.round}` : `${x.season} R${x.round}`}</b><em class="${x.d >= 0 ? 'up' : 'down'}">${x.d >= 0 ? '+' : ''}${x.d}</em><span>${(x.f || []).filter((f) => f[0] !== 'drift').sort((a, b) => Math.abs(b[1]) - Math.abs(a[1])).slice(0, 3).map((f) => `${esc(f[2])} <i class="${f[1] >= 0 ? 'up' : 'down'}">${f[1] > 0 ? '+' : ''}${f[1]}</i>`).join(' · ') || 'Nothing to say'}</span></div>`).join('') : '<div class="al-none">No races yet at this team.</div>';
-  const mine = St.status === 'driver' ? `<div class="cf-grid"><div class="cf-card" style="--c:${esc(ink(team.color))}"><small>YOUR CONTRACT</small><b>${esc(team.name)}</b><span>${esc(contractTxt(k))}${k?.winBonus ? ` · ${money(k.winBonus)} a win, ${money(k.podiumBonus || 0)} a podium` : ''}</span>
+  const mine = St.status === 'driver' ? `<div class="cf-grid cf-3"><div class="cf-card" style="--c:${esc(ink(team.color))}"><small>YOUR CONTRACT</small><b>${esc(team.name)}</b><span>${esc(contractTxt(k))}${k?.winBonus ? ` · ${money(k.winBonus)} a win, ${money(k.podiumBonus || 0)} a podium` : ''}${k?.releaseClause ? ` · release clause ${money(k.releaseClause)}` : ''}</span>
         <small>WHAT THEY EXPECT · ${esc(KIND_NAME[kindOf(St.tier)].toUpperCase())}</small><span>${esc(K.expect)}</span><small>PATIENCE</small><span>${esc(K.patience)}</span></div>
-      <div class="cf-card">${confGauge(c)}<div class="cf-side"><span>Reputation <b>${rep}</b></span><span class="ph2" title="Phase 2: what you can ask of the team - a say over upgrades, your team-mate, your contract">Bargaining power <b>${safe(() => leverage(c), 0)}</b> · soon</span></div></div></div>`
-    : `<div class="cf-grid"><div class="cf-card"><small>${St.status === 'reserve' ? 'RESERVE DRIVER' : 'NO SEAT'}</small><b>${esc(St.status === 'reserve' ? team.name : 'Free agent')}</b><span>${esc(St.status === 'reserve' ? contractTxt(k) : St.firedFrom ? `${St.firedFrom} let you go. Your contract is gone; your own money (${money(+c.wallet || 0)}) is still yours.` : 'No contract. Your own money is still yours.')}</span>
+      <div class="cf-card">${confGauge(c)}<div class="cf-side"><span>Reputation <b>${rep}</b></span><span>Goodwill <b>${St.goodwill > 0 ? '+' : ''}${Math.round(St.goodwill || 0)}</b></span></div></div>${leverageCard(c)}</div>`
+    : `<div class="cf-grid cf-3"><div class="cf-card"><small>${St.status === 'reserve' ? 'RESERVE DRIVER' : 'NO SEAT'}</small><b>${esc(St.status === 'reserve' ? team.name : 'Free agent')}</b><span>${esc(St.status === 'reserve' ? contractTxt(k) : St.firedFrom ? `${St.firedFrom} let you go. Your contract is gone; your own money (${money(+c.wallet || 0)}) is still yours.` : 'No contract. Your own money is still yours.')}</span>
         <small>THE ROUNDS GO ON</small><span>Watch the race or simulate the weekend from RACE WEEK. Your agent brings what comes up: a backmarker that needs a driver now (rare), a reserve role, offers for next season.</span></div>
-      <div class="cf-card"><small>YOUR NAME IN THE PADDOCK</small><div class="cf"><div class="cf-top"><b>${rep}</b><span><em>REPUTATION</em>${rep >= 65 ? 'Teams are calling' : rep >= 40 ? 'Some interest' : 'Hard to place'}</span></div><div class="cf-bar"><i style="width:${rep}%;background:#3d7bd9"></i></div></div><span>Your rating, your results, your image and following - and the seat you lost, this season.</span></div></div>`;
-  return `<div class="cf-page">${mine}
+      <div class="cf-card"><small>YOUR NAME IN THE PADDOCK</small><div class="cf"><div class="cf-top"><b>${rep}</b><span><em>REPUTATION</em>${rep >= 65 ? 'Teams are calling' : rep >= 40 ? 'Some interest' : 'Hard to place'}</span></div><div class="cf-bar"><i style="width:${rep}%;background:#3d7bd9"></i></div></div><span>Your rating, your results, your image and following - and the seat you lost, this season.</span></div>${leverageCard(c)}</div>`;
+  return `<div class="cf-page">${mine}${say}
     ${St.status === 'driver' ? `<div class="cf-log"><span class="lbl">The last races, as the team saw them</span>${races}</div>` : ''}
     <div class="cf-offers"><span class="lbl">Offers${c.seasonOver ? ' · for next season' : ''}</span>${offersHTML(c, St.status === 'driver' ? 'None: you are under contract.' : 'Nothing yet - your agent is making calls.')}</div></div>`;
 }
@@ -2265,7 +2466,12 @@ function seatAlerts(c) {
   else if (k === 'driver' && (St.warn >= 1 || St.conf < SEAT_RULES[kindOf(St.tier)].danger)) L.push({ level: 'warn', key: 'seat', icon: '!', text: `Your seat is in danger: ${c.myTeam} are losing patience (confidence ${Math.round(St.conf)}).`, act });
   else if (k === 'free') L.push({ level: 'warn', key: 'seat', icon: '○', text: `You have no seat.${(St.offers || []).length ? ` ${St.offers.length} offer${St.offers.length > 1 ? 's' : ''} waiting.` : ' Your agent is looking.'} The round goes on without you.`, act: { ...act, label: 'OFFERS' } });
   else if (k === 'reserve') L.push({ level: 'info', key: 'seat', icon: 'R', text: `${c.myTeam}'s reserve driver: ${safe(() => c.entries().some((e) => e.isPlayer), false) ? 'a race driver is out - the car is yours this weekend.' : 'not needed this weekend.'}`, act });
-  if (n && !n.seen && ['fired', 'eased', 'praised', 'free'].includes(n.kind)) L.push({ level: n.kind === 'fired' ? 'crisis' : 'info', key: 'seatnote', icon: n.kind === 'fired' ? '✕' : '✓', text: n.text, act });
+  // (your say - career/Say.js, career/Market.js: the seat beside you opening, a rival's approach)
+  const M = St.mateSay;
+  if (k === 'driver' && M && M.state === 'open') L.push({ level: 'warn', key: 'matesay', icon: '⇄', text: M.why === 'cut' ? `${c.myTeam} are replacing your team-mate: have your say before the next race.` : `A seat opens beside you next season: have your say over your team-mate.`, act: { data: { a: 'matesay' }, label: 'HAVE YOUR SAY' } });
+  const ap = (St.offers || []).filter((o) => ['precontract', 'buyout', 'midseason'].includes(o.kind));
+  if (k === 'driver' && ap.length && !St.next) L.push({ level: 'info', key: 'approach', icon: '✆', text: `${ap[0].team} want to talk: ${ap[0].kind === 'midseason' ? 'a seat from the next race' : ap[0].kind === 'buyout' ? 'next season, your release clause paid' : 'a seat for next season, signed now'}. Your agent has the offer.`, act: { data: { a: 'offers', okind: 'precontract,buyout,midseason' }, label: 'SEE THE OFFER' } });
+  if (n && !n.seen && ['fired', 'eased', 'praised', 'free', 'request', 'leak', 'signed'].includes(n.kind)) L.push({ level: n.kind === 'fired' ? 'crisis' : n.kind === 'leak' ? 'warn' : 'info', key: 'seatnote', icon: n.kind === 'fired' ? '✕' : n.kind === 'leak' ? '!' : '✓', text: n.text, act });
   return L;
 }
 /** the briefing when you have no race seat this round (a free agent, a reserve the team does not need): the plain words, the offers, the round going on */
@@ -2283,7 +2489,7 @@ function freeHTML(c, S, H) {
 function seasonSeatHTML(c) {
   const St = c.seat || {}, v = St.verdict, nx = St.next;
   const why = nx ? `You have signed for ${nx.team} for next season.` : { continue: `You are under contract at ${c.myTeam} for next season${St.offers?.length ? ' - but other teams have asked about you' : ''}.`, renew: `${c.myTeam} want to keep you: a new contract is on the table.`,
-    expire: `${c.myTeam} will not renew your contract. Take an offer, or start next season as a free agent.`, release: `${c.myTeam} have ended your contract early. Take an offer, or start next season as a free agent.`, free: 'You are a free agent. These are the offers for next season.' }[v] || 'Your seat for next season.';
+    expire: `${c.myTeam} will not renew your contract. Take an offer, or start next season as a free agent.`, release: `${c.myTeam} have ended your contract early. Take an offer, or start next season as a free agent.`, free: 'You are a free agent. These are the offers for next season.', leaving: `You leave ${c.myTeam}: your pre-contract with ${nx?.team || 'your new team'} starts next season.` }[v] || 'Your seat for next season.';
   return `<div class="wk-al so-seat"><span class="lbl">Your seat next season</span><div class="al ${v === 'expire' || v === 'release' ? 'warn' : 'info'}"><i>${v === 'expire' || v === 'release' ? '!' : 'i'}</i><span>${esc(why)}</span></div>${offersHTML(c, v === 'continue' ? 'No offers: you stay where you are.' : 'No offers yet. Your agent will keep looking.')}</div>`;
 }
 /** the round report's step on your seat: how confidence moved and why - or, dropped, the plain words */

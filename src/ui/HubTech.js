@@ -1,6 +1,6 @@
 // The TECH TREE screen of the career hub: the development of the team you drive for, laid out a branch at a time - its
 // own: the team chooses and pays for every part (career/TechTree.js, as every team does), and this screen only shows
-// what it is doing. Phase 2 will let a driver with bargaining power ask for a part (the greyed REQUEST). Nine branch chips
+// what it is doing - and lets its driver ask for a part (REQUEST: career/Say.js, paid for in bargaining power). Nine branch chips
 // along the top, each with a ring for how much of the branch is on the car; under them the factory's queue - every
 // slot it has, what is being built in each, how far along it is and the round it reaches the car - and what the branch
 // has given the car so far against what it could. Then the branch's upgrades as cards, a pip for every level: solid
@@ -12,6 +12,7 @@
 // view. At the foot the factory itself: the development slots, what the facilities save, and the wind-tunnel time the
 // FIA's sliding scale allows you from where you sit in the constructors' championship.
 import { BRANCHES, UPGRADES, UP, CAR_BRANCHES, MAX_SLOTS, RETUNE_BELOW, levelOf, nextLevel, missingReq, upgradeState, levelCost, levelRounds, retuneCost, retuneState, retuneWhere, develop, retune, techEffects, atrInfo, facilityFx, expectedQ, devSlots, upgradeName, fxText, levelWorth, branchProgress, partsCount, migrateTeam } from '../career/TechTree.js';
+import { requestOdds, requestUpgrade, requestFor, liveRequest, ANSWER_TXT } from '../career/Say.js';
 
 export const TECH_CSS = `
 #career .ch-panel:has(> .in > .tt) { width: min(max(640px, min(780px, calc(100vw - 600px))), calc(100vw - 286px)); }
@@ -171,6 +172,10 @@ ${Array.from({ length: 6 }, (_, i) => `#career .pg-lv:has(> .tt-lpw[data-k="${i 
 #career .tt-act { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 14px; }
 #career .tt-det > .tt-act { margin: 0; }
 #career .tt-why { font-size: 12.5px; color: #5d6675; line-height: 1.4; }
+#career .tt-req { display: inline-block; padding: 8px 10px; border-radius: 10px; font: 800 10.5px/1.2 'Segoe UI', Arial, sans-serif; letter-spacing: .06em; background: #eef1f5; color: #3a4350; }
+#career .tt-req.s-building, #career .tt-req.s-onCar, #career .tt-req.s-paid { background: #e5f6ec; color: #1f7a4a; } #career .tt-req.s-queued { background: #fff6e0; color: #8a5a00; }
+#career .tt-req.s-flop, #career .tt-req.s-refused { background: #fff0ec; color: #c2412f; }
+#career button.tt-rqb.a-half { border-color: #f0c27a; background: #fffaf0; color: #8a5a00; } #career button.tt-rqb.a-no { border-color: #f2c4bd; color: #a8392c; }
 #career .tt-fac { margin-top: 12px; display: grid; grid-template-columns: 1.2fr 1fr; gap: 10px; }
 #career .tt-atr, #career .tt-fx, #career .tt-mxw { background: #fff; border: 1px solid rgba(21,26,34,.07); border-radius: 16px; padding: 12px 14px; box-shadow: 0 2px 10px rgba(25,35,60,.05); }
 #career .tt-atr .lbl, #career .tt-fx .lbl, #career .tt-mxw .lbl { margin: 0 0 8px; }
@@ -298,7 +303,8 @@ export function techHTML(c, S = {}, H = {}) {
     return `<button class="tt-slot" data-tup="${u.id}" style="--c:${BRANCHES[u.branch].color}" title="${esc(upgradeName(u.id, x.level))}"><b>${esc(u.short)}</b><small>${x.re ? `Re-tune · level ${x.level}` : `Level ${x.level} · ${esc(u.levels[x.level - 1].n)}`}</small><span class="tt-prog"><i style="width:${Math.max(8, done * 100).toFixed(0)}%"></i></span><em>${races(x.left)} to go · ${when(c, x.left)}${x.early ? ' · early' : ''}</em></button>`;
   }).join('');
   const locked = UPGRADES.filter((u) => u.branch === 'facilities').flatMap((u) => u.levels.map((L, i) => ({ u, lv: i + 1, s: L.fx.slots || 0 }))).filter((x) => x.s && levelOf(team, x.u.id) < x.lv);
-  const queue = `<div class="tt-q"><div class="tt-qh"><span class="lbl">Development</span><span class="muted">${dev.length} of ${slots} slot${slots === 1 ? '' : 's'} in use${dev.length ? ` · the next part reaches the car ${when(c, soon)}` : ' · the factory is waiting for work'}</span></div>
+  const LR = safe0(() => liveRequest(c), null), lrTxt = LR ? ` · your request: ${esc(UP[LR.up]?.short || LR.up)} L${LR.level}, ${esc(reqState(LR))}` : '';
+  const queue = `<div class="tt-q"><div class="tt-qh"><span class="lbl">Development</span><span class="muted">${dev.length} of ${slots} slot${slots === 1 ? '' : 's'} in use${dev.length ? ` · the next part reaches the car ${when(c, soon)}` : ' · the factory is waiting for work'}${lrTxt}</span></div>
     <div class="tt-slots">${filled}${'<div class="tt-slot free"><b>Free slot</b><small>The team will fill it</small></div>'.repeat(Math.max(0, slots - dev.length))}${locked.map((x) => `<div class="tt-slot lock"><b>+1 slot</b><small>${esc(x.u.name)} · level ${x.lv}</small></div>`).join('')}</div></div>`;
 
   // the branch: what it has given the car, and its upgrades as cards
@@ -363,14 +369,29 @@ function detail(c, team, u, st, A, others, soon, S) {
     : st === 'max' ? 'Every level is on the car.' : st === 'dev' ? `${d.re ? `Re-tuning level ${d.level}` : `Level ${d.level} is being built`}: on the car ${when(c, d.left)}.`
     : st === 'locked' ? `Level ${nx} needs ${needTxt(missingReq(team, u.id, nx))} first.` : st === 'busy' ? `Every development slot is in use - the first frees up ${after(c, soon)}.`
     : st === 'poor' ? `The team can't afford it yet: ${money(cost)} needed, ${money(team.budget)} in its budget.` : '';
-  // (the team builds what it chooses: no button to develop - only phase 2's request, greyed until a driver has the leverage to ask)
-  const act = `<div class="tt-act">${st === 'open' ? `<button data-treq="${u.id}" disabled title="Coming later: ask the team for this part - it will take bargaining power (management confidence, your results, your name).">REQUEST LEVEL ${nx} · SOON</button>` : ''}<span class="tt-why" title="${esc(why)}">${esc(why)}</span></div>`;
+  // (the team builds what it chooses: no button to develop - only your request, career/Say.js: what the team is likely to
+  // say, by your bargaining power, its plans and its money; or what became of the one you made)
+  const act = `<div class="tt-act">${reqHTML(c, u, st, nx)}<span class="tt-why" title="${esc(why)}">${esc(why)}</span></div>`;
   const tabs = `<div class="k-seg tt-dt" style="--n:${DPAGES.length}">${DPAGES.map((v, i) => `<button data-tdp="${v}">${DPAGE_NAMES[i]}</button>`).join('')}</div>`;
   return `<div class="tt-det" style="--c:${B.color}"><div class="tt-dh"><span class="tt-mono">${B.mono}</span><div><h3 title="${esc(u.name)}">${esc(u.name)}</h3><div class="tt-dm"><span>${esc(B.name)} · level ${lv} of ${mx}</span><span class="tt-st ${st}">${esc(stTxt)}</span></div></div></div>
     <div class="tt-dw">${tabs}<div class="tt-db" data-region="tdp" data-p="${p}"><section class="tt-pg pg-lv"><div class="tt-steps" style="--n:${mx}">${steps}</div><div class="tt-lpw" data-region="tlp" data-k="${k}">${levelPanel(c, team, u, k, others)}</div></section>
     <section class="tt-pg pg-ab"><span class="lbl tt-ph">${DPAGE_NAMES[1]}</span><p class="tt-dsc">${esc(u.desc)}</p><div class="tt-sup">${sup.join('')}</div></section><section class="tt-pg pg-gr"><span class="lbl tt-ph">${DPAGE_NAMES[2]}</span><div class="tt-grd">${grid}</div></section></div></div>${act}</div>`;
 }
 
+/** the request on the detail card: REQUEST LEVEL n with what the team is likely to say (and why), or what became of the one you made for it */
+const REQ_STATE = { building: 'the team agreed: it is in the factory', queued: 'on the team\'s list', onCar: 'on the car - the team is watching your results', paid: 'it paid off', flop: 'it did not pay off', refused: 'the team said no', lapsed: 'the team never got to it' };
+/** a request's state in words (a yes waiting for a free slot is first in the queue, a half is on the list) */
+const reqState = (R) => (R.state === 'queued' && R.answer === 'yes' ? 'agreed: first in the queue' : REQ_STATE[R.state] || R.state);
+function reqHTML(c, u, st, nx) {
+  const R = requestFor(c, u.id), live = R && ['building', 'queued', 'onCar'].includes(R.state);
+  if (live || (R && R.level === nx && R.season === c.season)) return `<span class="tt-req s-${esc(R.state)}" title="${esc(`You asked for ${upgradeName(R.up, R.level)} in round ${R.round}.`)}">YOUR REQUEST · L${R.level} · ${esc(reqState(R))}</span>`;
+  if (!['open', 'busy', 'poor'].includes(st) || !nx) return '';
+  const O = safe0(() => requestOdds(c, u.id), { ok: false, why: '' });
+  if (!O.ok) return O.why && c?.seat?.status === 'driver' ? `<button data-treq="${u.id}" disabled title="${esc(O.why)}">REQUEST LEVEL ${nx}</button>` : '';
+  const tip = `Ask ${c.team?.name || 'the team'} to build it next. Your bargaining power ${O.lev}; ${O.plan.rank <= 2 ? 'it is near the top of the team\'s own plans' : O.plan.rank <= 7 ? 'it is in the team\'s plans' : 'it is not high in the team\'s plans'}; the money: ${O.money === 'yes' ? 'there' : O.money === 'tight' ? 'tight' : 'not there'}${O.slots === 'full' ? '; every slot is in use (yes would put it first in the queue)' : ''}. Asking costs goodwill (${O.goodwill}); a part that pays off on track earns it back.`;
+  return `<button class="${O.answer === 'yes' ? 'go ' : ''}tt-rqb a-${O.answer}" data-treq="${u.id}" title="${esc(tip)}">REQUEST LEVEL ${nx} · ${esc(ANSWER_TXT[O.answer].toUpperCase())}</button>`;
+}
+const safe0 = (f, fb) => { try { return f() ?? fb; } catch (e) { return fb; } };
 /** one level in full: what it does (on the car: what it gave against its promise), its price and build time or how long it has to go, how many rivals have it, what it needs first, and a re-tune for one that came out poorly */
 function levelPanel(c, team, u, k, others) {
   const L = u.levels[k - 1], lv = levelOf(team, u.id), d = (Array.isArray(team.dev) ? team.dev : []).find((x) => x.id === u.id), nx = nextLevel(team, u.id), fac = u.branch === 'facilities';
@@ -427,7 +448,7 @@ export function techSide(c, H = {}) {
 }
 /** the studio camera for the tab: the selected branch's part of the car (the facilities: the whole car) -> a VIEWS key */
 export function techView(S = {}) { const b = UP[S?.up]?.branch || (BRANCHES[S?.branch] ? S.branch : 'power'); return b === 'facilities' ? 'overview' : b; }
-/** a driver can't start or re-tune a part: the team develops its own car (phase 2 may open requests; true only for tests) */
+/** a driver can't start or re-tune a part: the team develops its own car - he may only ask (data-treq, career/Say.js); true only for tests */
 const ALLOW_DEV = false;
 /** why a level could not be started, in words */
 const whyNot = (c, team, u, st, lv, cost) => (st === 'max' ? `${u.name} is fully developed.` : st === 'dev' ? `${u.name} is already in the factory.` : st === 'locked' ? `${upgradeName(u.id, lv)} needs ${needTxt(missingReq(team, u.id, lv))} first.`
@@ -455,8 +476,15 @@ export function techClick(c, ds, S = {}) {
     return { tab: 'dev', S: { ...base, branch: u.branch, up: u.id, tlv: `${u.id}|${k}` }, region: ['tlp'], dir: Math.sign(k - was) };
   }
   if (ds.tdev == null && ds.tre == null && ds.treq == null) return null;
-  // (the team's car, the team's choice: nothing here builds or re-tunes - phase 2's request is not open yet)
-  if (!ALLOW_DEV) return { tab: 'dev', S: { ...base, tmsg: 'The team decides what it builds. Asking for a part comes later, with bargaining power.', tok: false } };
+  // (your request: the team answers - yes, half, no - by your bargaining power, its plans and its money)
+  if (ds.treq != null) {
+    const u = UP[ds.treq]; if (!u) return { tab: 'dev', S: base };
+    const r = typeof c.requestUpgrade === 'function' ? c.requestUpgrade(u.id) : requestUpgrade(c, u.id, develop);
+    if (r.ok && typeof c.requestUpgrade !== 'function') c.save?.();
+    return { tab: 'dev', S: { ...base, branch: u.branch, up: u.id, tmsg: r.text, tok: !!r.ok && r.answer !== 'no' } };
+  }
+  // (the team's car, the team's choice: nothing here builds or re-tunes - you may only ask)
+  if (!ALLOW_DEV) return { tab: 'dev', S: { ...base, tmsg: 'The team decides what it builds. You can ask for a part - REQUEST - with your bargaining power.', tok: false } };
   const team = teamOf(c); if (!team) return { tab: 'dev', S: base };
   ready(c);
   if (ds.tdev != null) {

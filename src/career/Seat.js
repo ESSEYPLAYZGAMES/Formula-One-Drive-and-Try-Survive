@@ -14,12 +14,15 @@
 // The career starts here too: your own rookie, a junior academy (the real ones, below - easy to edit) and about three
 // offers, mostly midfield and backmarker seats linked to the academy, now and then a front-runner's (Verstappen in
 // 2016, Antonelli in 2025): big money, brutal patience. Plain data and functions on the career's plain JSON (c.seat);
-// career/Career.js signs the contracts and runs the races. Phase 2 (not built): bargaining power, spent on a say over
-// upgrades, the team-mate and the contract's terms - leverage() below reads the same signals, and c.seat.requests is
-// kept for it.
+// career/Career.js signs the contracts and runs the races. Bargaining power (leverage, below) is what you have to
+// spend: your results against what the team expected and your place in the championship, your name and image, the
+// teams that want you (an approach or an offer in hand: the strongest lever of all), your personal sponsors, your
+// standing in the garage and what the team thinks of you - and what you have already asked of it (goodwill). It buys a
+// say over the car's development, your team-mate and your contract's terms (career/Say.js); the market around you -
+// contracts running out, the seats that open, the rival teams that approach you - is career/Market.js.
 import { pushText } from './Social.js';
 import { paddockOf, conflictOf, CELEB } from './Celebs.js';
-import { prEvent, crisisFrom } from './PR.js';
+import { prEvent, crisisFrom, fameIndex } from './PR.js';
 
 // ---- small helpers ----------------------------------------------------------------------------------------------------
 const num = (v, d = 0) => (typeof v === 'number' && isFinite(v) ? v : d);
@@ -138,13 +141,20 @@ export function confLabel(conf, warn = 0, tier = 3) {
  * c.seat: { status: 'rookie' (offers on the table, no car yet) | 'driver' | 'reserve' | 'free', academy, team, tier,
  * conf, warn (0, 1 warned, 2 the final warning), races (driven at this team), since: { season, round }, praised,
  * log: [{ season, round, d, conf, f: [[key, delta, words]] }] (the last races, for the hub), offers: [offer],
- * next (an offer accepted for next season), notice ({ kind, text, season, round, seen }: the hub's plain words on
- * the latest beat), history: [{ team, from, to, how }], firedFrom, coiSeen, scandalSeen, requests (phase 2) }
+ * next (an offer accepted for next season: a renewal, a market seat, a rival's pre-contract), notice ({ kind, text,
+ * season, round, seen }: the hub's plain words on the latest beat), history: [{ team, from, to, how }], firedFrom,
+ * coiSeen, scandalSeen, and the say you have (career/Say.js, career/Market.js): goodwill (-40..25: favours asked of
+ * the team, and the ones it owes you), requests ([request]: the parts you asked for, and how they turned out),
+ * interest ({ team: { season, round, kind } }: the rival teams that approached you), mateSay (a seat opening beside
+ * you: the shortlist and your say), leak (a pre-contract signed elsewhere, and whether the paddock knows) }
  */
 export function newSeat(o = {}) {
   return { status: o.status || 'free', academy: o.academy || null, team: o.team || null, tier: num(o.tier, 3), conf: num(o.conf, 60), warn: 0, races: 0,
-    since: o.since || null, praised: false, log: [], offers: arr(o.offers), next: null, notice: null, history: arr(o.history), firedFrom: null, coiSeen: {}, scandalSeen: null, requests: [] };
+    since: o.since || null, praised: false, log: [], offers: arr(o.offers), next: null, notice: null, history: arr(o.history), firedFrom: null, coiSeen: {}, scandalSeen: null, requests: [],
+    goodwill: 0, interest: {}, mateSay: null, leak: null };
 }
+/** an offer's kind as phase 2 names them (a save from before: 'renew' was a renewal, 'seat' a market seat) */
+export const offerKind = (k) => (k === 'renew' ? 'renewal' : ['first', 'seat', 'renewal', 'precontract', 'buyout', 'midseason', 'reserve'].includes(k) ? k : 'seat');
 /** an older or damaged seat filled in (never throws) -> c.seat */
 export function seatEnsure(c) {
   if (!c) return null;
@@ -155,8 +165,30 @@ export function seatEnsure(c) {
   for (const k of ['log', 'offers', 'history', 'requests']) S[k] = arr(S[k]);
   if (!S.coiSeen || typeof S.coiSeen !== 'object') S.coiSeen = {};
   S.offers = S.offers.filter((o) => o && typeof o === 'object' && c.teams?.[o.team]);
+  // (phase 2: every offer's kind by its new name, a release clause and whether it can be talked over; the say's state)
+  for (const o of [...S.offers, S.next].filter((x) => x && typeof x === 'object')) {
+    o.kind = offerKind(o.kind);
+    if (o.kind !== 'reserve' && !(num(o.releaseClause, 0) > 0)) o.releaseClause = clauseFor(o.salary, o.years, o.tier);
+    if (typeof o.negotiable !== 'boolean') o.negotiable = !['first', 'reserve'].includes(o.kind);
+  }
+  if (S.next && !c.teams?.[S.next.team]) S.next = null;
+  S.goodwill = clamp(num(S.goodwill, 0), -40, 25);
+  if (!S.interest || typeof S.interest !== 'object' || Array.isArray(S.interest)) S.interest = {};
+  if (S.mateSay && (typeof S.mateSay !== 'object' || !Array.isArray(S.mateSay.cands))) S.mateSay = null;
+  if (S.leak && typeof S.leak !== 'object') S.leak = null;
+  const k = c.drivers?.[c.playerId]?.contract; if (k && k.role !== 'reserve' && !(num(k.releaseClause, 0) > 0)) k.releaseClause = clauseFor(k.salary, Math.max(1, num(k.until, c.season) - num(c.season, 2026) + 1), S.tier);
   return S;
 }
+/**
+ * A contract's release clause ($M): what another team must pay to take you while it runs - by the money, the years left
+ * and the team's tier (a front-runner prices its driver highest). Your agent wants it low (freedom), the team high.
+ */
+export function clauseFor(salary, years = 1, tier = 3) {
+  const t = clamp(Math.round(num(tier, 3)), 0, 3);
+  return half(num(salary, 1) * Math.max(1, num(years, 1)) * [2.2, 1.8, 1.5, 1.2][t] + [6, 4, 3, 2][t]);
+}
+/** an offer still on the table (not lapsed: its expiry, { season, round }, not passed) */
+export const liveOffer = (c, o) => !!o && (!o.expires || o.expires.season > c.season || (o.expires.season === c.season && o.expires.round >= c.round));
 /** what the team expects of you, as an offer card and the hub say it */
 export function expectText(tier) { const K = SEAT_RULES[kindOf(tier)]; return { expect: K.expect, patience: K.patience }; }
 
@@ -195,21 +227,26 @@ const roleAt = (c, team, rookie = false) => {
   return g > 0.03 ? 'lead' : g < -0.03 ? 'support' : 'equal';
 };
 /**
- * One offer: { id, kind ('seat' | 'reserve' | 'renew'), team, tier, front (a front-runner's), salary, years,
- * role, winBonus, podiumBonus, seatOf (the driver it replaces) and seatName, expect / patience (the team's words),
- * from ('academy' | 'agent' | 'team'), next (it starts next season), expires ({ season, round } it lapses after, or
- * null), note (one line on how it came about) }
+ * One offer: { id, kind, team, tier, front (a front-runner's), salary, years, role, winBonus, podiumBonus, seatOf (the
+ * driver it replaces) and seatName, expect / patience (the team's words), from ('academy' | 'agent' | 'team'), next (it
+ * starts next season), expires ({ season, round } it lapses after, or null), note (one line on how it came about),
+ * releaseClause (what another team would have to pay to take you while it runs, $M), negotiable (its terms can be
+ * talked over at the table: ui/Negotiation.js), buyoutFee (a rival paying your current team's release clause) }.
+ * kind: 'first' (a rookie's academy offer) | 'seat' (a race seat from the market) | 'renewal' (your team's new
+ * contract) | 'precontract' (a rival's seat for next season, signed now) | 'buyout' (the same, your release clause
+ * paid) | 'midseason' (a rival wants you now) | 'reserve' (a reserve role)
  */
 export function makeOffer(c, team, o = {}) {
   const t = c.teams?.[team]; if (!t) return null;
-  const kind = o.kind || 'seat', tier = t.tier, rep = num(o.rep, repOf(c)), out = kind === 'reserve' ? null : seatOf(c, team), T = expectText(tier);
-  const years = kind === 'reserve' ? 1 : num(o.years, kindOf(tier) === 'front' ? 1 : 2);
+  const kind = offerKind(o.kind || (o.rookie ? 'first' : 'seat')), tier = t.tier, rep = num(o.rep, repOf(c)), out = kind === 'reserve' || kind === 'renewal' ? null : o.seatOf !== undefined ? (c.drivers[o.seatOf] || null) : seatOf(c, team), T = expectText(tier);
+  const years = kind === 'reserve' ? 1 : num(o.years, kindOf(tier) === 'front' ? 1 : 2), salary = num(o.salary, payFor(c, tier, o.rookie ? 'rookie' : kind, rep));
   return {
-    id: offerId(c, kind, team), kind, team, tier, front: kindOf(tier) === 'front' && kind !== 'reserve', salary: num(o.salary, payFor(c, tier, o.rookie ? 'rookie' : kind, rep)), years,
+    id: offerId(c, kind, team), kind, team, tier, front: kindOf(tier) === 'front' && kind !== 'reserve', salary, years,
     role: kind === 'reserve' ? 'reserve' : o.role || roleAt(c, team, !!o.rookie), winBonus: kind === 'reserve' ? 0 : [0.5, 0.75, 1, 1][clamp(tier, 0, 3)], podiumBonus: kind === 'reserve' ? 0 : [0.15, 0.3, 0.5, 0.5][clamp(tier, 0, 3)],
     seatOf: out?.id || null, seatName: out?.name || null, expect: kind === 'reserve' ? 'Be ready: if one of its race drivers is hurt or banned, the car is yours for the weekend.' : T.expect,
     patience: kind === 'reserve' ? 'A reserve is judged on the weekends he gets - and is first in line when a seat opens.' : T.patience,
     from: o.from || 'agent', next: !!o.next, expires: o.expires || null, note: o.note || '',
+    releaseClause: kind === 'reserve' ? 0 : num(o.releaseClause, clauseFor(salary, years, tier)), negotiable: typeof o.negotiable === 'boolean' ? o.negotiable : !['first', 'reserve'].includes(kind), buyoutFee: num(o.buyoutFee, 0),
   };
 }
 /**
@@ -235,13 +272,20 @@ export function rookieOffers(c, academyId, n = 3) {
 }
 /**
  * Offers from the market by your reputation (excluding o.not, the team you drive for): how many (1-3) and how high
- * up the grid they come from. kind: 'season' (for next season) | 'mid' (now). -> [offer]
+ * up the grid they come from - for next season, the seats that open first (the market's plan at the season's end,
+ * career/Market.js c.market.open: a driver whose contract runs out and is not kept), then a team that would make room
+ * for you. kind: 'season' (for next season) | 'mid' (now). -> [offer]
  */
 export function marketOffers(c, o = {}) {
-  const rep = repOf(c), T = Object.values(c.teams || {}).filter((t) => t.name !== o.not && seatOf(c, t.name)), n = num(o.n, rep >= 65 ? 3 : rep >= 40 ? 2 : 1);
-  const best = rep >= 78 ? 0 : rep >= 58 ? 1 : rep >= 40 ? 2 : 3;
-  const L = T.filter((t) => t.tier >= best).sort((a, b) => a.tier - b.tier + (Math.random() - 0.5) * 2.2), out = [];
-  for (const t of L) { if (out.length >= n) break; const of = makeOffer(c, t.name, { rep, from: 'agent', next: o.kind === 'season', expires: o.expires || null, note: o.note || '' }); if (of) out.push(of); }
+  const rep = repOf(c), n = num(o.n, rep >= 65 ? 3 : rep >= 40 ? 2 : 1), best = rep >= 78 ? 0 : rep >= 58 ? 1 : rep >= 40 ? 2 : 3;
+  const open = o.kind === 'season' && c.market?.season === c.season ? arr(c.market.open) : [], openAt = new Map(open.filter((x) => x && c.teams?.[x.team]).map((x) => [x.team, x.out || null]));
+  const T = Object.values(c.teams || {}).filter((t) => t.name !== o.not && (openAt.has(t.name) || seatOf(c, t.name)));
+  const L = T.filter((t) => t.tier >= best).sort((a, b) => (openAt.has(b.name) - openAt.has(a.name)) * 2 + a.tier - b.tier + (Math.random() - 0.5) * 2.2), out = [];
+  for (const t of L) {
+    if (out.length >= n) break;
+    const of = makeOffer(c, t.name, { rep, from: 'agent', next: o.kind === 'season', expires: o.expires || null, note: o.note || '', ...(openAt.has(t.name) ? { seatOf: openAt.get(t.name) } : {}) });
+    if (of) { if (openAt.has(t.name) && of.seatName) of.note = `${of.seatName}'s seat: the contract runs out and ${t.name} are not keeping him.`; out.push(of); }
+  }
   return out;
 }
 
@@ -375,7 +419,7 @@ export function seatBeat(c, beat, o = {}) {
  */
 export function seatRoundTick(c) {
   const S = seatEnsure(c); if (!S || c.round > c.rounds) return [];
-  S.offers = S.offers.filter((o) => !o.expires || o.expires.season > c.season || (o.expires.season === c.season && o.expires.round >= c.round));
+  S.offers = S.offers.filter((o) => liveOffer(c, o));
   if (S.status !== 'free' && S.status !== 'reserve') return [];
   const rep = repOf(c), exp = { season: c.season, round: Math.min(c.rounds, c.round + 1) }, have = new Set(S.offers.map((o) => o.team)), out = [];
   const backs = Object.values(c.teams).filter((t) => t.tier >= 2 && !have.has(t.name) && t.name !== S.firedFrom && seatOf(c, t.name));
@@ -401,14 +445,25 @@ export function seatRoundTick(c) {
 /**
  * The last race run (c.round past the calendar): your team decides - renew a contract that is ending if it is happy
  * (an offer on the table), let it run out if not, release you with years left if it has given up on you - and your
- * agent brings what the market offers, by your reputation. Everything waits for NEXT SEASON (Career.nextSeason).
- * -> { verdict: 'continue' | 'renew' | 'expire' | 'release' | 'free', offers }
+ * agent brings what the market offers, by your reputation (the seats that open first). Everything waits for NEXT
+ * SEASON (Career.nextSeason); a renewal and a market seat can be talked over first (negotiable). A pre-contract signed
+ * during the season stands: you are leaving ('leaving'), and the paddock is told.
+ * -> { verdict: 'continue' | 'renew' | 'expire' | 'release' | 'free' | 'leaving', offers }
  */
 export function seatSeasonEnd(c) {
   const S = seatEnsure(c), me = c.drivers[c.playerId]; if (!S || !me || !me.alive) return null;
   if (S.endDone === c.season) return { verdict: S.verdict, offers: S.offers };
-  S.endDone = c.season; S.next = null;
-  S.offers = S.offers.filter((o) => o.next);
+  S.endDone = c.season;
+  const pre = S.next && ['precontract', 'buyout'].includes(S.next.kind) && c.teams[S.next.team] && S.next.team !== S.team ? S.next : null;
+  if (pre) {
+    S.offers = [pre]; S.verdict = 'leaving';
+    c.addNews(`It's official: ${me.name} leaves ${S.team || 'the team'} for ${pre.team} next season${S.leak?.out ? ' - as the paddock had heard' : ''}.`);
+    if (S.leak) S.leak.out = true;
+    agentText(c, `${pre.team} next season. It's announced. Enjoy the winter - you've earned it.`);
+    return { verdict: 'leaving', offers: S.offers };
+  }
+  S.next = null;
+  S.offers = S.offers.filter((o) => o.next && liveOffer(c, o));
   let verdict = 'free';
   if (S.status === 'driver') {
     const K = SEAT_RULES[kindOf(S.tier)], k = me.contract, ending = !k || num(k.until, c.season) <= c.season;
@@ -416,8 +471,8 @@ export function seatSeasonEnd(c) {
     else if (ending) verdict = S.conf >= 50 ? 'renew' : 'expire';
     else verdict = 'continue';
     if (verdict === 'renew') {
-      const of = makeOffer(c, S.team, { kind: 'renew', from: 'team', next: true, salary: half(num(k?.salary, 1) * (1 + (S.conf - 50) / 100) + 0.5), years: S.conf >= 75 ? 2 : 1, role: k?.role === 'support' && S.conf >= 70 ? 'equal' : k?.role || 'equal', note: `${S.team} want to keep you.` });
-      if (of) { of.kind = 'renew'; of.seatOf = null; of.seatName = null; S.offers.unshift(of); }
+      const of = makeOffer(c, S.team, { kind: 'renewal', from: 'team', next: true, salary: half(num(k?.salary, 1) * (1 + (S.conf - 50) / 100) + 0.5), years: S.conf >= 75 ? 2 : 1, role: k?.role === 'support' && S.conf >= 70 ? 'equal' : k?.role || 'equal', note: `${S.team} want to keep you.`, negotiable: true });
+      if (of) S.offers.unshift(of);
       c.addNews(`${S.team} offer ${me.name} a new contract.`);
     } else if (verdict === 'expire') c.addNews(`${S.team} will not renew ${me.name}'s contract.`);
     else if (verdict === 'release') c.addNews(`${S.team} end ${me.name}'s contract early: a new driver next season.`);
@@ -432,17 +487,79 @@ export function seatSeasonEnd(c) {
   return { verdict, offers: S.offers };
 }
 
-// ---- phase 2's door: bargaining power -------------------------------------------------------------------------------------------
+// ---- bargaining power -------------------------------------------------------------------------------------------------------------
+/** the signals of a race that are about the result (career/Seat.js CONF_W): against the target, a win, a podium, points, the team-mate, a season of defeats to him */
+const RESULT_KEYS = new Set(['result', 'win', 'podium', 'points', 'mate', 'h2h']);
+const nameList = (a) => (a.length < 2 ? a.join('') : `${a.slice(0, -1).join(', ')} and ${a[a.length - 1]}`);
+/** the window an approach without an offer still counts for (rounds) */
+export const INTEREST_ROUNDS = 4;
 /**
- * What you could ask for (phase 2, not built): confidence, your reputation and the last races' signals, 0-100. Read
- * by nothing yet - the hub only shows it greyed; the requests it will pay for (an upgrade's priority, a say over your
- * team-mate, a contract's terms) will go in c.seat.requests.
+ * The teams that want you, other than `not` and your own: an offer in hand (a race seat, not a reserve role, not
+ * lapsed), or an approach this season in the last INTEREST_ROUNDS rounds -> [{ team, tier, offer }]
  */
-export function leverage(c) {
-  const S = c?.seat; if (!S || S.status !== 'driver') return 0;
-  const recent = arr(S.log).slice(0, 3).reduce((a, x) => a + num(x.d), 0);
-  return Math.round(clamp(S.conf * 0.6 + repOf(c) * 0.4 + recent, 0, 100));
+export function rivalInterest(c, not = null) {
+  const S = c?.seat; if (!S) return [];
+  const out = new Map(), live = (o) => !o.expires || o.expires.season > c.season || (o.expires.season === c.season && o.expires.round >= c.round);
+  for (const o of arr(S.offers)) if (o && o !== S.next && o.id !== S.next?.id && o.team !== not && o.team !== S.team && o.kind !== 'reserve' && live(o) && c.teams?.[o.team]) out.set(o.team, { team: o.team, tier: c.teams[o.team].tier, offer: true });
+  for (const [team, x] of Object.entries(S.interest || {})) {
+    if (team === not || team === S.team || out.has(team) || !c.teams?.[team] || !x || x.season !== c.season || c.round - num(x.round, 0) > INTEREST_ROUNDS) continue;
+    out.set(team, { team, tier: c.teams[team].tier, offer: false });
+  }
+  return [...out.values()];
 }
+/** bargaining power in words */
+export const leverageLabel = (v) => (v >= 75 ? 'Commanding' : v >= 55 ? 'Strong' : v >= 35 ? 'Some' : v >= 15 ? 'Little' : 'Next to none');
+/**
+ * Your bargaining power, 0-100, and what makes it -> { v, label, parts: [{ k, d, text }] } (the biggest first). team:
+ * the team you would bargain with (default: your own). Base 20. With your own team: management confidence ((conf - 50)
+ * x 0.4), your results against what it wanted over the last five races (their result signals x 0.35, at most ±14),
+ * your standing in the garage (number one +8, equal +2, number two -4). With another team (an offer, a free agent):
+ * your reputation ((rep - 40) x 0.35) and your results (x 0.25, ±10). Either way: the championship (P1-3 +10, P4-6
+ * +6, P7-10 +3; ahead of your team-mate on points +2), your following (fame index - 45) / 5 (0..8) and image / 12
+ * (±5), rival interest - an offer in hand from a team as high up the grid as this one +12, from a lower one +6, an
+ * approach without an offer +4, at most 26: the strongest lever - your personal sponsors (+3 each, at most 9), goodwill
+ * (favours asked of the team and the ones it owes you, -40..25) and a contract signed elsewhere for next season (-18).
+ */
+export function leverageParts(c, team = null) {
+  const S = c?.seat, me = c?.drivers?.[c?.playerId]; if (!S || !me || me.alive === false) return { v: 0, label: leverageLabel(0), parts: [] };
+  const at = team || S.team, own = S.status === 'driver' && !!at && at === S.team, T = c.teams?.[at], tier = num(T?.tier, 3), parts = [];
+  const add = (k, d, text) => { d = r1(d); if (Math.abs(d) >= 0.5) parts.push({ k, d, text }); };
+  const recent = arr(S.log).filter((x) => x && (x.season === c.season || x.season === c.season - 1)).slice(0, 5), nr = recent.length;
+  const res = recent.reduce((a, x) => a + arr(x.f).filter((f) => RESULT_KEYS.has(f[0])).reduce((s, f) => s + num(f[1]), 0), 0);
+  const races = nr === 1 ? 'Last race' : `Last ${nr} races`;
+  if (own) {
+    add('conf', (num(S.conf, 60) - 50) * 0.4, `Team confidence ${Math.round(S.conf)}`);
+    if (nr) add('results', clamp(res * 0.35, -14, 14), res >= 0 ? `${races}: above target` : `${races}: below target`);
+    const role = me.contract?.role; add('role', role === 'lead' ? 8 : role === 'support' ? -4 : role === 'equal' ? 2 : 0, role === 'lead' ? 'Number one' : role === 'support' ? 'Number two' : 'Equal status');
+  } else {
+    const rep = repOf(c); add('rep', (rep - 40) * 0.35, `Reputation ${rep}`);
+    if (nr) add('results', clamp(res * 0.25, -10, 10), res >= 0 ? `${races}: above target` : `${races}: below target`);
+  }
+  // (the championship: where you are, and ahead of your team-mate)
+  const st = Object.values(c.drivers || {}).filter((d) => d.points > 0 || (d.team && d.alive)).sort((a, b) => b.points - a.points || b.wins - a.wins), pos = st.indexOf(me) + 1;
+  if (me.points > 0 && pos) add('champ', pos <= 3 ? 10 : pos <= 6 ? 6 : pos <= 10 ? 3 : 0, `P${pos} in the championship`);
+  const mate = own ? arr(T?.seats).map((i) => c.drivers[i]).find((d) => d && d.alive && d.id !== me.id) : null;
+  if (mate && num(me.points) > num(mate.points)) add('matePts', 2, `Ahead of ${last(mate.name)} on points`);
+  // (the public: your following and your image)
+  const P = c.pr || {}, img = num(P.image, 0);
+  add('fame', clamp((fameIndex(num(P.fame, 0)) - 45) / 5, 0, 8), 'Your following');
+  add('image', clamp(img / 12, -5, 5), 'Public image');
+  // (the teams that want you - the strongest lever)
+  const RI = rivalInterest(c, at); let ri = 0;
+  for (const x of RI) ri += x.offer ? (x.tier <= tier ? 12 : 6) : 4;
+  if (ri) add('rivals', Math.min(26, ri), `${nameList(RI.map((x) => x.team))}: ${RI.some((x) => x.offer) ? (RI.length > 1 ? 'offers in hand' : 'offer in hand') : 'asked about you'}`);
+  // (your personal sponsors: a driver who brings his own backers is worth keeping happy)
+  const deals = arr(P.deals).length; if (deals) add('sponsors', Math.min(9, deals * 3), `${deals} personal sponsor${deals > 1 ? 's' : ''}`);
+  // (what you have asked of the team, and what it owes you)
+  const gw = num(S.goodwill, 0); add('goodwill', gw, gw > 0 ? 'Favours owed to you' : 'Favours asked');
+  // (signed elsewhere for next season: the team knows where your future is)
+  if (own && S.next && S.next.team !== at && S.next.kind !== 'reserve') add('leaving', -18, `Signed for ${S.next.team} next year`);
+  const v = Math.round(clamp(20 + parts.reduce((a, p) => a + p.d, 0), 0, 100));
+  parts.sort((a, b) => Math.abs(b.d) - Math.abs(a.d));
+  return { v, label: leverageLabel(v), parts };
+}
+/** your bargaining power with a team (default: your own), 0-100 (leverageParts for what makes it) */
+export function leverage(c, team = null) { return leverageParts(c, team).v; }
 
 // ---- for the interview and the hub ---------------------------------------------------------------------------------------------
 /**

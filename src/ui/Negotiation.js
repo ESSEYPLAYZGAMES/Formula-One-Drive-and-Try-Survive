@@ -1,10 +1,14 @@
-// Contract talks, at the table (a career): the team's motorhome in 3D - the driver across the table from you with
-// their agent, coffee, the contract between you, your team's colours on the wall - and the offer sheet beside it.
-// An offer is the whole deal: salary, years, status (number one, equal, number two), a sign-on fee and a win bonus.
-// What they make of it is the career's (Career.respond): every driver weighs money, status, security and the car
-// differently; a poor offer costs patience, an insulting one twice over, and at the end of it they walk. Their agent
-// does most of the talking, the camera cutting to whoever speaks; the driver nods, or shakes their head. A deal is
-// signed on the table.
+// Contract talks, at the table (a career): you are the driver, talking terms for your own contract. The team's
+// motorhome in 3D - its team principal across the table from you with its sporting director, coffee, the contract
+// between you, the team's colours on the wall - your agent at your side (heard, not seen: the camera is your eyes), and
+// the sheet beside it: your terms. A contract is the whole deal: salary, years, your standing in the garage (number
+// one, equal, number two), a win bonus and a release clause (what another team would have to pay to take you while it
+// runs - the team wants it high, your agent low). It starts at the team's own offer; you ask, the team answers - the
+// career's rules (career/Say.js talkProfile, talkEval, talkRespond): how far it will move is your bargaining power with
+// it (career/Seat.js leverage), and a counter names the term most in the way; ask too much and its patience goes,
+// twice as fast for an insult, until it ends the talks (its offer stands as it was). WALK AWAY leaves the table - a team
+// that wants you badly enough may call your agent back. The camera cuts to whoever speaks; the principal nods, or
+// shakes his head. A deal is signed on the table.
 // The sheet fits the screen: the controls in the middle, their read, the cost and the two actions pinned at its foot.
 // Talk lines can be hurried (a click on the line or Space finishes it, a second goes on), and the sheet stays usable
 // while the agent talks - only MAKE OFFER waits. No frosted glass over the 3D (the laptop's GPU). Given the hub's
@@ -12,7 +16,8 @@
 import * as THREE from 'three';
 import { makePerson } from '../world/People.js';
 import { ensureMotion, reduced, keys, seg } from './Motion.js';
-import { agentFor } from '../career/Party.js';
+import { talkProfile, talkEval, talkRespond, termsText } from '../career/Say.js';
+import { leverageParts, agentOf } from '../career/Seat.js';
 
 const CSS = `
 #nego { position: fixed; inset: 0; z-index: 46; background: #15161a; color: #151a22; font-family: var(--k-font); opacity: 0; transition: opacity var(--m-slow) ease; --tc: #e10600; }
@@ -80,10 +85,10 @@ html.m-off #nego .ng-3d { transition: opacity 1ms; transform: none; }
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const pick = (a) => a[(Math.random() * a.length) | 0];
 const money = (m) => `$${(Math.round(m * 10) / 10).toFixed(1)}M`;
-// (the agents are invented and each driver has his own, the same one every talk - and the one you may meet at a party:
-// career/Party.js agentFor)
+// (your agent is the paddock's own - career/Seat.js agentOf, the one who texts you; the team principal and the sporting
+// director across the table are generic and unnamed: no real team's people are ever depicted)
 
-/** the motorhome's meeting room, in 3D: the driver and the agent across the table, the camera cutting between them */
+/** the motorhome's meeting room, in 3D: two people across the table (o.seatA, o.seatB), the camera cutting between them */
 class MeetingRoom {
   constructor(host, o) {
     const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
@@ -123,10 +128,11 @@ class MeetingRoom {
     const seatM = new THREE.MeshStandardMaterial({ color: '#1d1f24', roughness: 0.7 });
     const chair = (cx, cz, face) => { const g2 = new THREE.Group(); const s = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.07, 0.5), seatM); s.position.y = 0.46; const b = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.55, 0.48), seatM); b.position.set(-0.24, 0.78, 0); const p = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.44, 8), steel); p.position.y = 0.22; g2.add(s, b, p); g2.position.set(cx, 0, cz); g2.rotation.y = face; S.add(g2); };
     chair(-1.0, -0.35, 0); chair(-1.0, 0.6, 0); chair(1.0, -0.35, Math.PI); chair(1.0, 0.6, Math.PI);
-    // the driver (in their current team's polo, or their own jacket) and the agent beside them
-    this.driver = makePerson({ pose: 'sit', kit: o.dColor ? 'polo' : 'jacket', color: o.dColor || '#2d3340', accent: o.dColor2 || '#ffffff', driver: o.driver, jitter: 0.01, teamName: o.dTeam || null });
+    // the two across the table (seatA, seatB: their makePerson looks - the team principal and its sporting director in
+    // your own talks; else, as the owner's talks had it, a driver in their team's polo and their agent beside them)
+    this.driver = makePerson({ pose: 'sit', ...(o.seatA || { kit: o.dColor ? 'polo' : 'jacket', color: o.dColor || '#2d3340', accent: o.dColor2 || '#ffffff', driver: o.driver, jitter: 0.01, teamName: o.dTeam || null }) });
     this.driver.group.position.set(-1.0, 0, -0.35); S.add(this.driver.group); this.people.push(this.driver);
-    this.agent = makePerson({ pose: 'sit', kit: 'jacket', color: '#1c2a44', jitter: 0.015, ...(o.agentLook || {}) });
+    this.agent = makePerson({ pose: 'sit', ...(o.seatB || { kit: 'jacket', color: '#1c2a44', jitter: 0.015, ...(o.agentLook || {}) }) });
     this.agent.group.position.set(-1.0, 0, 0.6); S.add(this.agent.group); this.people.push(this.agent);
     // on the table: the contract and a pen, coffee, a folder on your side
     const pcv = document.createElement('canvas'); pcv.width = 256; pcv.height = 360; const px = pcv.getContext('2d');
@@ -159,7 +165,7 @@ class MeetingRoom {
   /** cut (a new shot at once) or glide to a shot */
   cut(name, glide = false) { this.shot = name; if (!glide) { const s = this.shots[name]; this.cur.p.copy(s.p); this.cur.l.copy(s.l); } }
   say(who, secs) { this.talking = who; this.talkT = secs; }
-  /** the driver's reaction: 'nod', 'shake', 'lean' (back in the chair) */
+  /** the reaction of the one in seat A (a driver, or the team principal): 'nod', 'shake', 'lean' (back in the chair) */
   reaction(kind) { this.react = kind; this.reactT = 1.4; }
   sign() { this.signT = 0; }
   frame(dt) {
@@ -208,64 +214,68 @@ class MeetingRoom {
   }
 }
 
-/** what they said, by what it is about */
-function lines(F, P, r, offer) {
+
+// ---- what is said: the team principal ('boss', seat A), its sporting director ('exec', seat B), your agent ('agent', heard) ----
+const ROLE_TXT = { lead: 'number-one status', equal: 'equal status', support: 'the number-two seat' };
+/** the team's answer in words, by what it is about (r: career/Say.js talkRespond) */
+function lines(F, team, r) {
   const w = r.want || {};
-  const rivalTxt = P.rival && offer.salary < P.rival.salary * 0.95 ? ` And for the record, ${P.rival.team} are offering ${money(P.rival.salary)} a year.` : '';
-  if (r.result === 'accept') return [['agent', pick([`${F} is in. Let's put it in writing.`, 'That works for us. Where do we sign?', `We have a deal. ${F} is looking forward to it.`])], ['driver', pick(["Let's go racing.", "I won't let you down.", "Can't wait to get in the car."])]];
-  if (r.result === 'walk') {
-    if (r.focus === 'rapport') return [['driver', pick(["I'm not driving for you. Not after everything.", 'No. You know why.'])]];
-    return [['agent', pick([`We're done here. ${F} has other options.`, "Thank you for your time. We'll go elsewhere.", `I think we've heard enough. ${F} won't be signing.`])]];
-  }
-  if (r.insult) return [['agent', pick(['Is this a joke? We came here in good faith.', "I'm going to pretend I didn't see that number.", "With respect, that's not an offer. Try again."]) + rivalTxt]];
+  if (r.result === 'accept') return [['boss', pick([`Done. Welcome${r.renew ? ' back' : ''}, ${F}.`, 'We can live with that. Let\'s put it in writing.', `That works for ${team}. Where do you sign?`])], ['agent', pick(['Pleasure doing business.', 'Good. That\'s a fair deal.'])]];
+  if (r.result === 'walk') return [['boss', pick(['I think we\'ve gone as far as we can. Our offer stands as it was - take it or leave it.', 'We\'re not moving again. The original offer is on the table. That\'s it.', 'Enough. You know what we offered. It\'s still there, until it isn\'t.'])]];
+  if (r.insult) return [['exec', pick(['With respect, that isn\'t a serious number.', 'Are we in the same negotiation?', 'I\'m going to pretend I didn\'t read that.'])], ['boss', 'Try again. Something we can actually say yes to.']];
   switch (r.focus) {
-    case 'money': return [['agent', pick([`We're not there on the money. ${F} is worth ${money(w.salary)} a year.`, `${money(w.salary)} a year and we can talk about the rest.`, `Close, but not close enough. ${money(w.salary)}.`]) + rivalTxt]];
-    case 'status': return w.role === 'lead' ? [['driver', pick(["I'm not coming here to be anyone's number two.", 'I want to be the one you build the team around.'])], ['agent', 'Number-one status, in writing. That one is not negotiable.']]
-      : [['agent', pick(['Equal treatment. Same parts, same strategy calls.', `${F} needs to know they'll get the same car as everyone else.`])]];
-    case 'security': return [['agent', w.years >= 3 ? pick([`${F} wants to build something here. Three years.`, "Give us three years and we'll commit to you."]) : w.years === 1 ? 'One year. We want to see where the car goes first.' : pick(['Two years, not three. We want to see where the car goes.', 'Two years. That works for everyone.'])]];
-    default: return [['driver', pick(['Honestly? It\'s the car. Show me it can win.', "I want to fight at the front. I'm not sure I can do that here."])], ['agent', `A sign-on fee of ${money(w.signOn)} would help ${F} believe in the project.`]];
+    case 'salary': return [['boss', pick([`The money is the problem. ${money(w.salary)} a year is as far as we go right now.`, `We can do ${money(w.salary)} a year. Not more.`, `${money(w.salary)}. Everything else, we can talk about.`])]];
+    case 'role': return w.role === 'lead' ? [['boss', 'Number one... we can live with that, if the rest is reasonable.']]
+      : [['boss', pick([`${ROLE_TXT[w.role] ? `${ROLE_TXT[w.role][0].toUpperCase()}${ROLE_TXT[w.role].slice(1)}` : 'Equal status'} - that's what we can give you.`, 'Number one? Not here, not yet. Earn it on track.'])], ['exec', 'The car gets developed for whoever is quicker. That is the deal.']];
+    case 'years': return [['exec', w.years >= 3 ? 'We want you for the long term. Three years.' : w.years === 1 ? 'One year. Let\'s see how it goes.' : pick(['Two years works for us. Not more, not less.', 'Two years. That\'s our plan.'])]];
+    case 'winBonus': return [['exec', `We can go to ${money(w.winBonus)} a win. Win races and you'll be paid for them.`]];
+    default: return [['boss', pick([`The release clause stays at ${money(w.releaseClause)} at least. We don't train drivers for other teams.`, `${money(w.releaseClause)} on the clause. If someone wants you, they pay.`])], ['agent', 'He wants to know he isn\'t trapped.']];
   }
 }
 
 /**
- * The talks. o: { c (the career), d (the driver), seat (whose seat they would take: an index, or null), look: { team,
- * color, color2, night }, renderer (optional: the hub's, lent for the room and handed back), done(result) } -> result:
- * { signed, offer } (the caller signs: Career.sign with the terms)
+ * The talks over an offer to you. o: { c (the career), offer (career/Seat.js makeOffer: negotiable), look: { team,
+ * color, color2, night }, renderer (optional: the hub's, lent and handed back), done(result) } -> result: { signed
+ * (the team agreed your terms), terms ({ salary, years, role, winBonus, releaseClause }: signed with Career.acceptOffer),
+ * walked (you left the table: Career.walkAway), ended (the team ended the talks: its offer stands as made) }
  */
 export function showNegotiation(o) {
   ensureMotion();
   if (!document.getElementById('nego-css')) { const st = document.createElement('style'); st.id = 'nego-css'; st.textContent = CSS; document.head.appendChild(st); }
-  const { c, d } = o, team = c.team, P = c.negoProfile(d), F = d.name.split(' ')[0], AG = agentFor(d.id), agentName = AG.name, fee = c.buyout(d);
-  const now = d.team ? c.teams[d.team] : null;
-  const el = document.createElement('div'); el.id = 'nego'; el.className = 'k-light'; el.style.setProperty('--tc', o.look.color || '#e10600'); document.body.appendChild(el);
-  let room = null; try { room = new MeetingRoom(el, { ...o.look, renderer: o.renderer || null, driver: d.name, dColor: now?.color, dColor2: now?.color2, dTeam: now?.name, agentLook: AG.look }); } catch (e) { room = null; }
+  const { c, offer: of } = o, T = c.teams[of.team] || { name: of.team, color: o.look?.color, color2: o.look?.color2 }, P = talkProfile(c, of), B = P.base;
+  const me = c.drivers[c.playerId], F = String(me?.name || 'You').split(' ')[0], A = agentOf(c), agentName = A?.name || 'Your agent', renew = of.kind === 'renewal';
+  const LP = leverageParts(c, of.team);
+  const el = document.createElement('div'); el.id = 'nego'; el.className = 'k-light'; el.style.setProperty('--tc', o.look?.color || T.color || '#e10600'); document.body.appendChild(el);
+  // (across the table: the team principal in the team's polo, its sporting director in a jacket - generic, unnamed)
+  const seatA = { kit: 'polo', color: T.color || '#1c1f26', accent: T.color2 || '#ffffff', teamName: T.name, hair: '#8f8f8f', style: { hs: 'side', fh: 'stubble' }, seed: `boss|${T.name}`, jitter: 0.01 };
+  const seatB = { kit: 'jacket', color: '#23262d', accent: T.color || '#ffffff', seed: `director|${T.name}`, hair: '#3a2c22', jitter: 0.015 };
+  let room = null; try { room = new MeetingRoom(el, { ...(o.look || {}), team: T.name, renderer: o.renderer || null, seatA, seatB }); } catch (e) { room = null; }
   window.__negoRoom = room;   // (for the test console)
   const ui = document.createElement('div'); el.appendChild(ui);
-  const offer = { salary: Math.max(0.5, Math.round(P.ask * 0.85 * 2) / 2), years: 2, role: 'equal', signOn: 0, winBonus: 0 };
-  // (busy: an offer is out and they are answering - MAKE OFFER waits; ending: the talks are over - nothing more)
+  const ask = { salary: B.salary, years: B.years, role: B.role === 'reserve' ? 'equal' : B.role, winBonus: B.winBonus, releaseClause: B.releaseClause };
+  // (busy: your ask is out and they are answering - PUT IT TO THEM waits; ending: the talks are over - nothing more)
   const total = P.patience; let busy = false, ending = false, want = null, jitter = (Math.random() - 0.5) * 0.06, pend = 0;
-  const wtxt = { money: 'Money', status: 'Status', security: 'Security', ambition: 'A winning car' };
-  const dots = (v) => '●'.repeat(Math.max(1, Math.round(v * 10)));
-  const isMine = d.team === c.myTeam;
   const YEARS = [1, 2, 3], ROLES = [['lead', 'Number one'], ['equal', 'Equal'], ['support', 'Number two']];
-  ui.innerHTML = `<div class="tag"><b>MOTORHOME</b><span>${isMine ? 'CONTRACT RENEWAL' : 'CONTRACT TALKS'} · ${esc(c.myTeam.toUpperCase())}</span></div>
+  const salMax = Math.max(4, Math.ceil(Math.max(B.salary * 2, P.salaryMax * 1.4))), wbMax = Math.max(2, Math.ceil(Math.max(B.winBonus * 3, P.winBonusMax * 1.5) * 4) / 4), rcMax = Math.max(10, Math.ceil(B.releaseClause * 1.5));
+  const same = () => ask.salary === B.salary && ask.years === B.years && ask.role === B.role && ask.winBonus === B.winBonus && ask.releaseClause === B.releaseClause;
+  ui.innerHTML = `<div class="tag"><b>MOTORHOME</b><span>${renew ? 'CONTRACT RENEWAL' : 'CONTRACT TALKS'} · ${esc(T.name.toUpperCase())}</span></div>
     <div class="talk glass" role="button" tabindex="-1" aria-label="Next line"><small><span class="who"></span><kbd class="k-kbd">Space</kbd></small><p></p></div>
-    <div class="sheet glass" role="dialog" aria-label="Offer">
-      <h2>${esc(d.name)}</h2><div class="sub">Rating ${(d.rating * 100).toFixed(1)} · ${esc(now ? now.name : d.from)}${d.reserveOf ? ` · reserve, ${esc(d.reserveOf)}` : ''} · agent ${esc(agentName)}</div>
+    <div class="sheet glass" role="dialog" aria-label="Your terms">
+      <h2>${esc(T.name)}</h2><div class="sub">Their offer: ${esc(termsText(B))}</div>
       <div class="body">
-        <div class="wants" title="What matters to them">${Object.entries(P.w).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<span>${wtxt[k]}<i>${dots(v)}</i></span>`).join('')}</div>
-        <div class="lbl"><span>Salary a year</span><button class="mt" data-meet="salary"></button><b data-v="salary"></b></div><input type="range" data-k="salary" min="0.5" max="${Math.max(4, Math.round(P.ask * 1.7))}" step="0.5" aria-label="Salary a year">
+        <div class="wants" title="Your bargaining power with ${esc(T.name)}: what makes it">${[`<span>Bargaining power <b>${LP.v}</b> · ${esc(LP.label)}</span>`, ...LP.parts.slice(0, 3).map((x) => `<span title="${esc(x.text)}">${esc(x.text)} <i style="letter-spacing:0;font-size:10px">${x.d > 0 ? '+' : ''}${x.d}</i></span>`)].join('')}</div>
+        <div class="lbl"><span>Salary a year</span><button class="mt" data-meet="salary"></button><b data-v="salary"></b></div><input type="range" data-k="salary" min="0.5" max="${salMax}" step="0.5" aria-label="Salary a year">
         <div class="line"><span>Length<button class="mt" data-meet="years"></button></span><div class="k-seg" data-seg="years">${YEARS.map((y) => `<button data-y="${y}">${y} season${y > 1 ? 's' : ''}</button>`).join('')}</div></div>
         <div class="line"><span>Status<button class="mt" data-meet="role"></button></span><div class="k-seg" data-seg="role">${ROLES.map(([k, n]) => `<button data-r="${k}">${n}</button>`).join('')}</div></div>
         <div class="two">
-          <div><div class="lbl"><span>Sign-on</span><button class="mt" data-meet="signOn"></button><b data-v="signOn"></b></div><input type="range" data-k="signOn" min="0" max="${Math.max(4, Math.round(P.ask * 2))}" step="0.5" aria-label="Sign-on fee"></div>
-          <div><div class="lbl"><span>Win bonus</span><button class="mt" data-meet="winBonus"></button><b data-v="winBonus"></b></div><input type="range" data-k="winBonus" min="0" max="2" step="0.25" aria-label="Win bonus"></div>
+          <div><div class="lbl" title="Paid for every race you win"><span>Win bonus</span><button class="mt" data-meet="winBonus"></button><b data-v="winBonus"></b></div><input type="range" data-k="winBonus" min="0" max="${wbMax}" step="0.25" aria-label="Win bonus"></div>
+          <div><div class="lbl" title="Release clause: what another team must pay to take you while the contract runs - the team wants it high, your agent low"><span>Clause</span><button class="mt" data-meet="releaseClause"></button><b data-v="releaseClause"></b></div><input type="range" data-k="releaseClause" min="0.5" max="${rcMax}" step="0.5" aria-label="Release clause"></div>
         </div>
       </div>
       <div class="foot">
-        <div class="readrow"><div class="meter" title="Their read of the offer"><i></i></div><span class="read" data-read></span><span class="pips" title="Their patience">${Array.from({ length: Math.ceil(total) }, () => '<i></i>').join('')}</span></div>
+        <div class="readrow"><div class="meter" title="How your terms look to them"><i></i></div><span class="read" data-read></span><span class="pips" title="Their patience">${Array.from({ length: Math.ceil(total) }, () => '<i></i>').join('')}</span></div>
         <div class="cost"></div>
-        <div class="acts"><button data-a="walk">WALK AWAY</button><button class="go" data-a="offer">MAKE OFFER</button></div>
+        <div class="acts"><button data-a="walk">WALK AWAY</button><button class="go" data-a="offer">PUT IT TO THEM</button></div>
       </div>
     </div>`;
   const $ = (s) => ui.querySelector(s);
@@ -274,21 +284,20 @@ export function showNegotiation(o) {
   const mq = window.matchMedia?.('(max-height: 699px)'), fit = () => body.toggleAttribute('data-scroll-ok', !!mq?.matches);
   fit(); mq?.addEventListener?.('change', fit);
   const paint = () => {
-    for (const k of ['salary', 'signOn', 'winBonus']) { $(`[data-k="${k}"]`).value = offer[k]; $(`[data-v="${k}"]`).textContent = k === 'winBonus' ? (offer[k] ? `${money(offer[k])} a win` : 'none') : money(offer[k]); }
-    seg($('[data-seg="years"]'), YEARS.indexOf(offer.years)); seg($('[data-seg="role"]'), ROLES.findIndex(([k]) => k === offer.role));
-    // their read of it: where it sits between cold and keen (a read, not a number: a little off either way)
-    const E = c.evaluate(d, offer), v = Math.max(0, Math.min(1, (E.u - 0.45) / 0.45 + jitter));
+    for (const k of ['salary', 'winBonus', 'releaseClause']) { $(`[data-k="${k}"]`).value = ask[k]; $(`[data-v="${k}"]`).textContent = k === 'winBonus' && !ask[k] ? 'none' : money(ask[k]); }
+    seg($('[data-seg="years"]'), YEARS.indexOf(ask.years)); seg($('[data-seg="role"]'), ROLES.findIndex(([k]) => k === ask.role));
+    // how your terms look to them: their own offer at the right, the edge of what they would give in the middle (a read, not a number: a little off either way)
+    const E = talkEval(c, of, ask), v = Math.max(0, Math.min(1, 0.5 + E.u * 0.5 + jitter));
     $('.meter i').style.setProperty('--v', v.toFixed(3));
-    $('[data-read]').textContent = !E.floorOk ? 'Below their floor' : v > 0.82 ? 'Keen' : v > 0.6 ? 'Interested' : v > 0.35 ? 'Lukewarm' : 'Cold';
-    $('[data-read]').title = !E.floorOk ? 'Below what they will consider' : '';
+    $('[data-read]').textContent = same() ? 'Their offer' : E.over ? 'Past their limit' : E.ok ? (E.u > 0.5 ? 'They\'d sign' : 'Just about') : E.u > -0.5 ? 'A stretch' : 'No chance';
+    $('[data-read]').title = E.over ? `Further than ${T.name} will go on ${{ salary: 'the money', role: 'your status', years: 'the length', winBonus: 'the win bonus', clause: 'the release clause' }[E.over]}` : '';
     ui.querySelectorAll('.pips i').forEach((p, i) => p.classList.toggle('gone', i >= Math.ceil(P.patience)));
-    const spend = offer.signOn + fee, left = team.budget - spend;
-    $('.cost').innerHTML = `<div><small>A year</small><b>${money(offer.salary)}${offer.winBonus ? ` + ${money(offer.winBonus)}/win` : ''}</b></div><div><small>Up front</small><b>${money(spend)}</b></div><div><small>Budget after</small><b class="${left < 0 ? 'bad' : ''}">${money(left)}</b></div>`
-      + (fee ? `<div class="bo">Includes a ${money(fee)} buyout from ${esc(now?.name || 'their team')}</div>` : '');
-    const go = $('[data-a="offer"]'); go.disabled = busy || ending || left < 0; go.textContent = busy || ending ? '…' : 'MAKE OFFER';
+    $('.cost').innerHTML = `<div><small>A year</small><b>${money(ask.salary)}</b></div><div><small>Over the deal</small><b>${money(ask.salary * ask.years)}</b></div><div><small>A win</small><b>${ask.winBonus ? `+${money(ask.winBonus)}` : '-'}</b></div>`
+      + `<div class="bo">${esc(renew ? 'Your new contract would start next season.' : of.kind === 'midseason' ? `From the next race${of.buyoutFee ? `: ${T.name} pay your ${money(of.buyoutFee)} release clause` : ''}.` : of.next ? `From next season${of.buyoutFee ? `: ${T.name} pay your ${money(of.buyoutFee)} release clause` : ''}.` : 'From the next race.')}</div>`;
+    const go = $('[data-a="offer"]'); go.disabled = busy || ending; go.textContent = busy || ending ? '…' : same() ? 'SIGN AS OFFERED' : 'PUT IT TO THEM';
     $('[data-a="walk"]').disabled = ending;
   };
-  /** what they asked for, picked out on the sheet with a chip that meets it (null: none) */
+  /** what they would do, picked out on the sheet with a chip that meets it (null: none) */
   const showWant = (w) => {
     want = w; ui.querySelectorAll('.want').forEach((x) => x.classList.remove('want'));
     ui.querySelectorAll('.mt').forEach((m) => { m.classList.remove('on'); m.textContent = ''; });
@@ -296,13 +305,14 @@ export function showNegotiation(o) {
     const k = Object.keys(w)[0], m = ui.querySelector(`.mt[data-meet="${k}"]`); if (!m) return;
     if (k === 'years') ui.querySelector(`[data-y="${w.years}"]`)?.classList.add('want');
     else if (k === 'role') ui.querySelector(`[data-r="${w.role}"]`)?.classList.add('want');
-    m.textContent = `MEET: ${k === 'salary' || k === 'signOn' || k === 'winBonus' ? money(w[k]) : k === 'years' ? `${w.years}y` : w.role === 'lead' ? 'No. 1' : 'Equal'}`;
-    m.title = `Meet them: ${k === 'salary' ? money(w.salary) + ' a year' : k === 'years' ? w.years + ' seasons' : k === 'role' ? (w.role === 'lead' ? 'number-one status' : 'equal status') : k === 'signOn' ? money(w.signOn) + ' sign-on' : money(w.winBonus) + ' a win'}`;
+    m.textContent = `TAKE: ${k === 'salary' || k === 'winBonus' || k === 'releaseClause' ? money(w[k]) : k === 'years' ? `${w.years}y` : w.role === 'lead' ? 'No. 1' : w.role === 'support' ? 'No. 2' : 'Equal'}`;
+    m.title = `Their counter: ${k === 'salary' ? money(w.salary) + ' a year' : k === 'years' ? w.years + ' seasons' : k === 'role' ? ROLE_TXT[w.role] || 'equal status' : k === 'winBonus' ? money(w.winBonus) + ' a win' : `a ${money(w.releaseClause)} release clause`}`;
     m.classList.add('on');
   };
-  // the conversation: lines one after another, typed out, the camera on whoever speaks; a click on the line or Space
-  // finishes it, a second goes on to the next
+  // the conversation: lines one after another, typed out, the camera on whoever speaks (your agent: the table); a
+  // click on the line or Space finishes it, a second goes on to the next
   const talk = $('.talk'), who = talk.querySelector('.who'), txt = talk.querySelector('p');
+  const SHOT = { boss: 'driver', exec: 'agent', agent: 'wide' }, NAME = { boss: `${T.name} · team principal`, exec: `${T.name} · sporting director`, agent: `${agentName} · your agent` };
   let speech = null;
   const hush = () => { const s = speech; if (!s) return; clearInterval(s.iv); clearTimeout(s.hold); speech = null; };
   const speak = (seq, then) => {
@@ -313,8 +323,8 @@ export function showNegotiation(o) {
       clearInterval(s.iv); clearTimeout(s.hold);
       if (i >= seq.length) { speech = null; then?.(); return; }
       const [w, line] = seq[i++];
-      who.textContent = w === 'agent' ? `${agentName} · agent` : d.name;
-      room?.cut(w); room?.say(w, Math.min(4, 0.6 + line.length * 0.035));
+      who.textContent = NAME[w] || w;
+      room?.cut(SHOT[w] || 'wide'); if (w !== 'agent') room?.say(w === 'boss' ? 'driver' : 'agent', Math.min(4, 0.6 + line.length * 0.035));
       talk.classList.add('on'); txt.textContent = ''; s.line = line; s.typing = true;
       let n = 0; s.iv = setInterval(() => { n += 2; txt.textContent = line.slice(0, n); if (n >= line.length) s.held(); }, 22);
     };
@@ -323,25 +333,25 @@ export function showNegotiation(o) {
   };
   const advance = () => { const s = speech; if (!s) return false; if (s.typing) s.held(); else s.next(); return true; };
   let gone = false;
-  const finish = (signed) => {
+  const finish = (res) => {
     if (gone) return; gone = true;
     window.removeEventListener('keydown', onKey, true); unkeys(); mq?.removeEventListener?.('change', fit); hush(); clearTimeout(pend);
     el.classList.remove('show');
-    setTimeout(() => { room?.dispose(); el.remove(); o.done?.({ signed, offer: { ...offer } }); }, reduced() ? 0 : 280);
+    setTimeout(() => { room?.dispose(); el.remove(); o.done?.({ signed: false, walked: false, ended: false, terms: null, ...res }); }, reduced() ? 0 : 280);
   };
   const send = () => {
     if (busy || ending || gone) return;
     if ($('[data-a="offer"]').disabled) return;
     busy = true; showWant(null);
-    const r = c.respond(d, offer); jitter = (Math.random() - 0.5) * 0.06;
+    const r = talkRespond(c, of, ask); r.renew = renew; jitter = (Math.random() - 0.5) * 0.06;
     if (r.result === 'accept' || r.result === 'walk') ending = true;
     paint();
     room?.reaction(r.result === 'accept' ? 'nod' : r.result === 'counter' ? 'lean' : 'shake');
     room?.cut('wide', true);
-    pend = setTimeout(() => speak(lines(F, P, r, offer), () => {
-      if (r.result === 'accept') { room?.cut('table'); room?.sign(); setTimeout(() => finish(true), 3000); return; }
-      if (r.result === 'walk') { setTimeout(() => finish(false), 900); return; }
-      busy = false; c.save();
+    pend = setTimeout(() => speak(lines(F, T.name, r), () => {
+      if (r.result === 'accept') { room?.cut('table'); room?.sign(); setTimeout(() => finish({ signed: true, terms: { ...ask } }), 3000); return; }
+      if (r.result === 'walk') { setTimeout(() => finish({ ended: true }), 900); return; }
+      busy = false;
       showWant(r.want || null);
       room?.cut('wide', true); paint();
     }), 250);
@@ -349,35 +359,33 @@ export function showNegotiation(o) {
   const walk = () => {
     if (ending || gone) return;
     ending = true; busy = true; clearTimeout(pend); showWant(null); paint();
-    speak([['agent', pick(['Your loss.', "Shame. Let us know if anything changes.", 'Fine. We have other calls to make.'])]], () => finish(false));
+    speak([['agent', pick(['We\'re going. Thank you for your time.', `Come on, ${F}. We have other calls to make.`, 'We\'ll think about it. Don\'t wait by the phone.'])], ['boss', pick(['Your call.', 'The door is open. For now.', 'Fine. You know where we are.'])]], () => finish({ walked: true }));
   };
-  ui.addEventListener('input', (e) => { const k = e.target.dataset.k; if (k && !ending) { offer[k] = +e.target.value; paint(); } });
+  ui.addEventListener('input', (e) => { const k = e.target.dataset.k; if (k && !ending) { ask[k] = +e.target.value; paint(); } });
   ui.addEventListener('click', (e) => {
     if (e.target.closest('.talk')) { advance(); return; }
     const b = e.target.closest('button'); if (!b || b.disabled || ending) return;
-    if (b.dataset.y) offer.years = +b.dataset.y; else if (b.dataset.r) offer.role = b.dataset.r;
+    if (b.dataset.y) ask.years = +b.dataset.y; else if (b.dataset.r) ask.role = b.dataset.r;
     else if (b.dataset.a === 'offer') { send(); return; }
     else if (b.dataset.a === 'walk') { walk(); return; }
-    else if (b.dataset.meet && want) { Object.assign(offer, want); showWant(null); }
+    else if (b.dataset.meet && want) { Object.assign(ask, want); showWant(null); }
     paint();
   });
-  // keys: Enter offers, Esc leaves (not mid-answer), Space moves the talk on; and nothing under this screen (the hub)
-  // hears a key while it is up
+  // keys: Enter puts your terms to them, Esc walks away (not mid-answer), Space moves the talk on; and nothing under this
+  // screen (the hub) hears a key while it is up
   const onKey = (e) => {
     if (e.key === 'Enter') { e.preventDefault(); send(); }
-    else if (e.key === 'Escape') { e.preventDefault(); if (!busy && !ending) finish(false); }
+    else if (e.key === 'Escape') { e.preventDefault(); if (!busy && !ending) walk(); }
     else if (e.key === ' ' && !/^(INPUT|BUTTON|TEXTAREA|SELECT)$/.test(e.target?.tagName || '') && speech) { e.preventDefault(); advance(); }
   };
   window.addEventListener('keydown', onKey, true);
   const unkeys = keys(el, {});
   paint();
   requestAnimationFrame(() => el.classList.add('show')); setTimeout(() => el.classList.add('show'), 40);
-  // the opening: the room, then the agent sets out their stall
+  // the opening: the room, then the team sets out its offer - and your agent, what you have in hand
   setTimeout(() => { room?.cut('wide', true); }, 200);
-  const open = isMine ? [['agent', pick([`${F} has enjoyed it here. Let's talk about what comes next.`, `We're happy to stay, on the right terms.`])]]
-    : [['agent', pick([`${F} is listening. Make it worth our while.`, `Thanks for having us. ${F} is open to the right project.`, "Let's hear it. What are you offering?"])]];
-  // (you met at a party this season: the same face, a little warmer)
-  if (P.agentMet) open.unshift(['agent', pick(['Good to see you again. Quieter in here than last time.', 'We meet again. Somewhere I can hear myself think, this time.'])]);
-  if (P.rival) open.push(['agent', `You should know ${P.rival.team} have already offered ${money(P.rival.salary)} a year.`]);
+  const riv = LP.parts.find((x) => x.k === 'rivals');
+  const open = [['boss', renew ? pick([`${F}. We want to keep you. Here's what we have in mind.`, `Let's talk about next year, ${F}. You know our offer.`]) : pick([`${F}, thanks for coming. We want you in our car - here's the offer.`, `We've followed you closely, ${F}. Here's what we can do.`])]];
+  open.push(['agent', riv ? `Before we start: ${riv.text.replace(/: offers? in hand| want you| has asked about you| have asked about you/g, '')} ${/offer/.test(riv.text) ? 'have made an offer too' : 'have been on the phone'}. Just so we all know where we are.` : P.lev >= 60 ? 'You know what he\'s worth. Let\'s not waste each other\'s time.' : 'Let\'s see what we can do.']);
   pend = setTimeout(() => { if (!busy && !ending) speak(open); }, 700);
 }

@@ -410,7 +410,9 @@ export function aiDevelopTeam(c, t) {
     if (!opts.length) break;
     const sp = isObj(t.devSpend) ? t.devSpend : { all: 0, fac: 0 }, facs = opts.filter((o) => o.fac), parts = opts.filter((o) => !o.fac);
     const wantFac = facs.length && (!parts.length || ((+sp.fac || 0) < 0.2 * Math.max(1, +sp.all || 0) && Math.random() < 0.65));
-    const pick = (wantFac ? facs : parts).sort((a, b) => b.v - a.v)[0];
+    // (a part its driver asked for - career/Say.js t.asked: promised, it goes first; half-promised, more often than not)
+    const ask = isObj(t.asked) ? opts.find((o) => o.u.id === t.asked.id) : null;
+    const pick = ask && (t.asked.strong || Math.random() < 0.6) ? ask : (wantFac ? facs : parts).sort((a, b) => b.v - a.v)[0];
     if (!pick || !develop(c, t.name, pick.u.id)) break;
     n++;
   }
@@ -426,7 +428,7 @@ export function aiDevelopTeam(c, t) {
   }
   return n;
 }
-/** every team's development for the round: each chooses its own (phase 2: a driver's request, c.seat.requests, weighed in) */
+/** every team's development for the round: each chooses its own (a part its driver asked for first: t.asked, career/Say.js) */
 export function aiDevelop(c) { for (const t of Object.values(c?.teams || {})) aiDevelopTeam(c, t); }
 
 // ---- old saves: the flat tree of 35 parts, mapped onto the levels -------------------------------------------------------------

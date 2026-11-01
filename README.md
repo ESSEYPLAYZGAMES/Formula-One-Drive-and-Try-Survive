@@ -1021,7 +1021,7 @@ buttons and a slider - no drop-downs anywhere. Team colours too light to see on 
   and its difficulty are the only settings; the difficulty slider is on the hub's overview and can be changed at any
   time. Your own quick-race settings are put aside for the weekend and come back afterwards.
 * **The tech tree - every team develops its own car.** The team you drive for chooses and pays for its parts as every
-  team does; the TECH TREE screen shows what it is building (a greyed REQUEST waits for phase 2's bargaining power). 35 parts in eight branches (power unit, aerodynamics, DRS, chassis, brakes,
+  team does; the TECH TREE screen shows what it is building, and REQUEST asks the team to build a part next (see **Your say** below). 35 parts in eight branches (power unit, aerodynamics, DRS, chassis, brakes,
   tyres, reliability, pit crew), each unlocking the next, some needing parts from two branches (the stalling rear wing
   needs the DRS flap and the ground-effect floor). Deeper parts cost more ($4M-18M) and take one or two rounds to reach
   the car. What they do is real physics: car pace (`perf`), a DRS that cuts more drag (`car.drsGain`), more ERS power
@@ -1058,8 +1058,9 @@ buttons and a slider - no drop-downs anywhere. Team colours too light to see on 
   a TV camera and its light; the camera cuts like a crew's - over your shoulder onto the journalist asking, in close
   on you as you answer (your head moving with the words), wide between questions - under a bright lower third. You
   carry your own helmet; a photographer's flash goes off in the pack now and then.
-* **Drivers and contracts.** The teams sign their own drivers: the off-season market, a stand-in kept on, a seat to
-  fill. You never sign or release anyone; your own contract is your agent's and the team's business (Your seat, below).
+* **Drivers and contracts.** The teams sign their own drivers - the driver market below: contracts that run out, the
+  seats that open, F2 and the juniors promoted, a mid-season replacement now and then. You never sign or release anyone,
+  but you may have a say over your team-mate, and your own contract's terms are yours to negotiate (Your say, below).
 * **Injuries and perma-death.** Every driver, yours included, is judged on the same curve (see Injuries and stand-ins):
   nearly always only hurt - out for one to three rounds, the team's reserve (or the best free driver) standing in, and
   you driving the stand-in if it is your driver. Rarely - more likely the harder the impact (`decideFate` in main.js) -
@@ -1069,8 +1070,8 @@ buttons and a slider - no drop-downs anywhere. Team colours too light to see on 
   name, the number, the career's starts (wins and podiums if any) - then back to the hub, where the weekend cannot be resumed and
   no round can be run until you choose who you are now: one of your late driver's team's drivers, under their
   contract (or abandon the career and start a new rookie). The lost are listed in the hub's IN MEMORIAM.
-* **The next season.** At the end, NEXT SEASON: the standings reset, budgets topped up, contracts that ran out end
-  (yours too, unless you signed again or elsewhere), the teams fill their seats from the market.
+* **The next season.** At the end, NEXT SEASON: the standings reset, budgets topped up, the driver market's winter
+  (contracts kept or ended as each team decided, yours too unless you signed again or elsewhere, every seat filled).
 
 #### Every round has a point, every season an end
 
@@ -1102,9 +1103,9 @@ buttons and a slider - no drop-downs anywhere. Team colours too light to see on 
   (delighted, satisfied, concerned or unhappy) comes with a bonus to the team, alongside prize money by constructors'
   position ($14M for the champions down to $2M). Then your seat: the team renews you, lets your contract run out or
   ends it early, and the market's offers wait beside it. A contract signed after the season's end starts with the next one.
-* **The off-season.** The teams go after better drivers (never your seat - that is your contract's): a team may replace its weakest driver with a clearly
-  better free agent, or buy one out of a smaller team, which then fills its own seat from the market. Every move is
-  in the news.
+* **The off-season.** The driver market's winter (`career/Market.js`): every team's decisions on its drivers carried
+  out, your own seat settled, every open seat filled, and the silly season's poaching - each move in the news. See
+  **The driver market** below.
 
 #### Your seat: management confidence (`career/Seat.js`)
 
@@ -1118,7 +1119,7 @@ buttons and a slider - no drop-downs anywhere. Team colours too light to see on 
   and the news says so.
 * **What the team thinks of you.** One number, 0-100, on the hub's top bar, the briefing's tiles and TEAM › Your seat,
   with its words: the team is delighted (75+), happy, getting impatient (below 55), your seat is in danger (below the
-  team's danger line), final warning. Every race you drive moves it (`CONF_W`, one table, so phase 2's bargaining power
+  team's danger line), final warning. Every race you drive moves it (`CONF_W`, one table, so bargaining power
   can read the same signals): the result against the team's target - halfway between where the car and your rating
   put you (the career's expected place) and the tier's ambition for a front-runner (P3), a third of the way for the
   midfield, a quarter for a backmarker - with a place gained earning less than a place missed costs; wins, podiums and
@@ -1142,39 +1143,96 @@ buttons and a slider - no drop-downs anywhere. Team colours too light to see on 
   weekend - while your agent looks: a backmarker that wants a driver now (rare), a reserve role (in the car when one of
   its race drivers is hurt or banned), and at the season's end one to three offers by your reputation (your rating,
   results, image and following). Take one and you race again.
-* **The season's end.** A team happy with you (50 or more) offers a new contract when yours is ending; below that it
-  lets it run out, and below its cut line it ends it early. The market's offers sit beside it; take one for next season.
+* **The season's end.** A team happy with you (50 or more) offers a new contract when yours is ending - negotiable, at
+  the table; below that it lets it run out, and below its cut line it ends it early (shown as being dropped:
+  `ui/Offers.js showDropped`). The market's offers sit beside it, the seats that open first (a driver whose contract runs
+  out and is not kept): more than one at once is normal. A pre-contract signed during the season stands: you are
+  leaving, and it is announced.
 * **An owner's save from before.** It loads and plays on: the team is sold, every team's own flag goes, its budget
   stays the team's, and you stay on as its contracted driver - a salary by the market, to this season's end (the next
   one's once past halfway), your status by how you compare with your team-mate - with a line in the news saying so.
-* **Phase 2 (not yet).** Bargaining power - management confidence, your reputation and recent form (`leverage`) - to
-  spend on a say over upgrades, your team-mate and your contract's terms, and a full driver market. The hooks: the
-  greyed REQUEST on the tech tree, `c.seat.requests`, `leverage()`, and ui/Negotiation.js (the table, kept for talks
-  about your own contract).
+* **A phase-1 save.** It loads into everything below: each offer gets its new kind, a release clause and whether it can
+  be negotiated, the say starts empty, and the market decides its first winter on the spot.
+* **One way to choose.** Every choice between contract offers - the first after the academy, a renewal, a rival's
+  approach, a pre-contract, a free agent's offers, a reserve role - goes through `chooseOffer` in `ui/Offers.js`: the
+  contract-table cutscene when it is registered, else the plain offer cards (the wizard's offers step; over the hub, the
+  cards with DECLINE and SIGN or TALK TERMS). A negotiable offer chosen goes to the table first; any other is signed.
 
-#### Contract talks, at the table (phase 2)
+#### Your say: bargaining power, spent (`career/Say.js`)
 
-Not used in phase 1 (offers are taken or turned down as they are). The motorhome table below is kept for phase 2's
-talks about your own contract.
+* **Bargaining power** (`career/Seat.js leverageParts`). 0-100, on TEAM › Your seat as a meter with what is driving it,
+  the biggest first (all of it in the tooltip). Everyone starts at 20. With your own team: management confidence
+  ((confidence - 50) x 0.4), your results against what it wanted over the last five races (their result signals x 0.35,
+  at most ±14), your standing in the garage (number one +8, equal +2, number two -4). With another team (an offer, or as
+  a free agent): your reputation ((rep - 40) x 0.35) and your results (x 0.25). Either way: the championship (P1-3 +10,
+  P4-6 +6, P7-10 +3; ahead of your team-mate on points +2), your following (up to +8) and image (±5), rival interest -
+  an offer in hand from a team as high up the grid +12, from a lower one +6, an approach without one +4, at most 26: the
+  strongest lever - personal sponsors (+3 each, at most 9), goodwill (favours asked of the team and the ones it owes
+  you, -40 to 25) and a contract signed elsewhere for next season (-18). Good results raise it, bad ones and asking for
+  things lower it; simulated, a rookie's 22 becomes 60-70 after four strong races and under 10 after four bad ones.
+* **Upgrade requests.** REQUEST on the tech tree asks the team to build an upgrade's next level next, and shows what
+  the team is likely to say before you ask. The team scores it: your bargaining power x 0.55, how well the part fits its
+  own plans (its top three by lap time per $M 0.25, its top eight 0.15, else 0.06), whether it can pay (within the
+  budget past the $6M it keeps back 0.2, half of it 0.1), less 0.08 for each request this season and 0.1 for each that
+  did not pay off. From 0.6 (with the money there) it says yes - the factory starts it, or with every slot in use it is
+  first in the queue; from 0.4, half - it goes on the list, built when a slot and the money allow, the team's own
+  development giving it priority (`t.asked`); below that, no. Asking costs goodwill (yes 6, half 4, no 3). Then the team
+  watches: once the part is on the car and you have raced it three times, results better than before by a place's worth
+  - or no worse with a part that correlated at 100% or more - and it paid off (goodwill +8, confidence +3, your agent and
+  the news say so); otherwise it did not (goodwill -6, confidence -3). A half-promise not started within four rounds
+  lapses (a little goodwill back). Everything else on the car is still the team's own choice.
+* **Your team-mate.** When the seat beside you opens - his contract runs out (kept or not, the team has decided), he is
+  retiring, or the team is about to replace him mid-season - you hear of it (the hub, your agent) and TEAM › Your seat
+  opens the shortlist: him, and the three drivers the team could sign (the drivers other teams are letting go among
+  them), with the team's choice marked. You may back one (he becomes the team's choice) or veto the team's choice (the
+  next on the list takes his place), once. Backing needs bargaining power 38, plus 4 for every rating point he is below
+  the team's choice, plus 6 to keep a team-mate the team wants gone; a veto 48, plus 4 a point the next one is below the
+  vetoed (both 25-95, shown on the buttons). It works or it does not: backing that works costs goodwill 5 (he is
+  grateful, Paddock Rapport +18; the driver the team had chosen is not, -8); in vain, goodwill 6 and confidence 2 (he
+  still appreciates it, +8). A veto that works costs goodwill 7, and the driver blocked remembers (-25; -30 for your own
+  team-mate); one that fails costs goodwill 8 and confidence 3, and he knows (-20). The new team-mate's standing is set
+  beside yours, which team orders read (`race/TeamOrders.js`). A mid-season change happens the round after the say
+  opens; a team-mate kept gets three races' grace.
+* **Contract talks, at the table** (`ui/Negotiation.js`, the motorhome from the owner's days, re-pointed). A renewal, a
+  market seat and a rival's approach are negotiable (a rookie's first offers and a reserve role are not). The team
+  principal and the sporting director sit across the table (generic, unnamed), your agent at your side; the sheet starts
+  at the team's offer: salary, years, your standing, the win bonus and the release clause (what another team must pay to
+  take you while the contract runs - the team wants it high). How far the team moves is your bargaining power with it
+  (`career/Say.js talkProfile`): the salary up to 8% plus 0.7 x leverage % more, number one from leverage 62 (85 when the
+  other driver has it, and never over a clearly quicker team-mate), equal from 35, a year either way, the win bonus up to
+  1.5 x leverage % more, the clause down by up to 0.7 x leverage % - and a budget of give, 0.2 + 1.2 x leverage / 100,
+  spent across the terms. Ask within it and they sign (your own team remembers the hard bargaining: goodwill); past it
+  and the counter names the term most in the way, with a chip to take it; patience is 2 + leverage / 30 asks, and an
+  insult costs two. When it runs out the team ends the talks: its offer stands as first made. WALK AWAY leaves the table:
+  a team that wants you badly enough (leverage 55 and up, by chance) calls your agent back with a final, better offer;
+  else the offer stands, take it or leave it.
 
-Negotiating with a driver (signing from the market, buying one out, or renewing a contract) happens in your team's
-motorhome, in 3D (`ui/Negotiation.js`). The driver sits across the table from you with their agent, with coffee,
-the contract and your team's colours on the wall. The camera cuts to whoever is speaking: the agent does most of
-the talking, the driver nods or shakes their head, and a deal is signed on the table.
+#### The driver market: silly season (`career/Market.js`)
 
-An offer is a whole contract: salary, length (1-3 seasons), status (number one, equal or number two), a sign-on
-fee and a win bonus. Every driver weighs four things differently (`Career.negoProfile`): money, status, security
-and the car (the one thing an offer can't change, though a sign-on fee softens it). Stars want number-one status,
-the young want a car that can win, and the experienced want years. Each driver has a floor below which they won't
-go. A star may have a rival team's offer in their pocket, and the agent will tell you about it. The sheet shows what
-matters to them and their read of your offer as you move the sliders, from cold to keen. That read is a read, not a
-number: it is a little off either way.
-
-A poor offer costs patience and an insulting one costs it twice. When patience runs out they walk out and won't talk
-to you again until after the next race. Each counter-offer names the term in the way, which is highlighted on the
-sheet with a button to meet it. The sheet also shows what the deal costs: per year, up front (sign-on and any
-buyout) and the budget it leaves you. The terms stick: win bonuses are paid out, and a number two who beats you
-isn't happy about it.
+* **The yardstick.** Every race, each driver's season is measured against what his car and rating promised (`d.mk`):
+  places a race better or worse. What a driver is worth to a team: his rating, that form, a little more for the young.
+* **Between races.** A driver far below his car (3.2 places a race after four races) and well beaten by his team-mate
+  may be replaced at once - rarely, one a season at most - the reserve or the best young driver free taking the car. A
+  pre-contract you signed may leak (0.3 at once, 0.18 a round after, more under press heat): your team reads it in the
+  papers - confidence -12, goodwill -8 - and the press has the story. And when you drive well, a rival team approaches you
+  through your agent ("Ferrari want to talk"): from the third race, at most three a season, the chance by your form, your
+  name, a delighted team and the championship; a team as high up the grid as yours or higher, with a seat it would open.
+  A pre-contract for next season when your contract runs out; a buyout of your release clause when it does not (if the
+  team can pay it - else it only asks, and the asking still counts as interest); now and then a seat at once, the
+  clause paid and your old seat filled. An approach pays a little more than the market and lapses after the next race;
+  signed, you move at the season's end - and the leverage it gave you with your own team becomes the -18 of having
+  signed elsewhere.
+* **The season's end.** Each team decides on every driver whose contract runs out: kept (by his worth against the
+  team's ambition - a front-runner's bar is highest - and less likely with a clearly better driver free), or let go; a
+  veteran from 38 may retire instead; a driver far below his car with years left may be released early. The decisions
+  are in the news, and the seats that open are where your agent's offers come from first.
+* **The winter.** Carried out: the kept re-signed, the rest released; your own seat (signed again, elsewhere - a buyout
+  paying your old team - or none); your team-mate as the team and your say chose; every seat still open filled, the
+  front-runners choosing first - the reserves step up, and the backmarkers blood F2 and junior drivers; then the silly
+  season's poaching (a clearly better driver, free or bought out of a smaller team). Last a check: every team exactly two
+  drivers, nobody in two cars, nobody dead, banned or retired signed. Simulated over ten seasons: about one new face and
+  one poaching move a winter, a veteran's retirement every two seasons, F2 and junior debuts from the third season on,
+  and a mid-season replacement once in ten seasons or so (more when a driver is hopeless).
 
 #### The showroom, in 3D
 

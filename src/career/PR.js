@@ -729,12 +729,22 @@ const HL = {
     dropped: { serious: [`{team} drop {sur}`, `{sur} out at {team}`, `{team} replace {sur} with immediate effect`], tv: [`Brutal! {team} axe {sur}`], tab: [`Axed! {team} show {sur} the door`],
       feed: [`Fans react as {team} drop {sur}: "brutal"`, `"Give them a chance": fans split over {team} dropping {sur}`] },
     praised: { serious: [`{team} delighted with {sur}`], weekly: [`{sur} is exactly what {team} needed`], feed: [`{sur}'s fans are loving this season`] },
+    // (a pre-contract with a rival, in the papers before the team was told - career/Market.js)
+    leak: { serious: [`{sur} has signed for {newTeam}, the paddock hears`, `Revealed: {sur}'s pre-contract with {newTeam}`], tab: [`Two-timer! {sur}'s secret deal with {newTeam}`, `{team} fume as {sur} signs for {newTeam}`],
+      feed: [`Fans react: {sur} to {newTeam} next season?`] },
   },
   signing: {
     serious: [`{sur} joins {newTeam}`, `Confirmed: {sur} signs for {newTeam}`],
     tv: [`Big move! {sur} signs for {newTeam}`],
     tab: [`New colours for {sur}: {newTeam} it is`],
     feed: [`Fans react to {sur}'s move to {newTeam}`],
+  },
+  // (the contract table's montage - ui/ContractScene.js storyHeadlines: a new contract where you are, a reserve role,
+  // next season's seat agreed early; a first seat or a move now is the signing bank's)
+  contract: {
+    renew: { serious: [`{sur} commits to {newTeam}`, `{newTeam} keep {sur} on a new contract`], tab: [`{sur} stays put: {newTeam} it is, again`], feed: [`Fans react as {sur} signs on again at {newTeam}`] },
+    reserve: { serious: [`{sur} joins {newTeam} as reserve driver`], tab: [`Waiting in the wings: {sur} is the {newTeam} reserve`], feed: [`{sur} is {newTeam}'s new reserve driver`] },
+    next: { serious: [`{sur} to join {newTeam} next season`, `Confirmed for next year: {sur} signs for {newTeam}`], tab: [`Done deal! {sur} off to {newTeam}`], feed: [`Fans react: {sur} to {newTeam} next season`] },
   },
   trophy: { serious: [`Milestone for {sur}: {trophy}`], feed: [`"{trophy}": fans celebrate a milestone for {sur}`] },
   season: {
@@ -793,6 +803,16 @@ const headline = (bank, sub, o, tone, evTone, X) => {
   }
   return null;
 };
+/**
+ * One story's headlines for a cutscene's montage (ui/ContractScene.js: a signing, a seat lost): the bank (its sub-bank
+ * where it has one) in each outlet's own voice, its tokens from X ({ sur, team, newTeam, ... }) - nothing written to
+ * the career -> [{ id, name, color, kind, text }] (an outlet with no line of its own for it left out)
+ */
+export function storyHeadlines(bank, sub, X = {}, ids = ['f1news', 'post', 'feed']) {
+  const out = [];
+  for (const id of ids) { const o = OUTLET_BY_ID[id]; if (!o) continue; const t = headline(bank, sub, o, 1, 1, X); if (t) out.push({ id, name: o.name, color: o.color, kind: o.kind, text: t }); }
+  return out;
+}
 // (the personal side of life: a real driver in these stories is only ever 'the <team> driver')
 const PERSONAL = new Set(['date', 'official', 'breakup', 'rumour', 'scandal', 'nightout', 'hangout', 'party', 'conflict']);
 /** the driver a story names: { did, name } in data, or target / about / who / rival as an id, a name or such an object - drivers only, never you -> { did, name } | null */
@@ -844,7 +864,7 @@ const tokens = (c, kind, x = {}, anon = PERSONAL.has(kind)) => {
     p, pos: p ? `P${p}` : undefined, posn: p ? ORD[p] : undefined, ptsTxt: pts > 0 ? `${pts} penalty point${pts === 1 ? '' : 's'}` : undefined,
     reason: typeof x.reason === 'string' && x.reason ? x.reason : undefined, n: num(x.n, null) ?? undefined,
     celeb: cn || undefined, her: cn ? first(cn) : undefined, job: cn ? jobText(x.job) || undefined : undefined, other: otherOf(c, x) || undefined,
-    brand: x.brand ? String(x.brand) : undefined, trophy: kind === 'trophy' && x.name ? x.name : undefined, newTeam: kind === 'signing' && x.team ? x.team : undefined,
+    brand: x.brand ? String(x.brand) : undefined, trophy: kind === 'trophy' && x.name ? x.name : undefined, newTeam: (kind === 'signing' || kind === 'seat') && (x.team || x.newTeam) ? x.team || x.newTeam : undefined,
     sub: kind === 'standin' && x.name ? x.name : undefined, line: clip(x.line), season: num(x.season, num(c?.season, 2026)), title: titleRace(c), story: x.story || undefined,
     where: WHERE[x.venue], racy: RACY[x.venue], place: typeof x.place === 'string' && x.place ? x.place : undefined,
     comp: typeof x.comp === 'string' && /^(SOFT|MEDIUM|HARD|INTER|WET)$/i.test(x.comp) ? ({ INTER: 'intermediate', WET: 'wet' }[x.comp.toUpperCase()] || x.comp.toLowerCase()) : undefined,
@@ -1087,7 +1107,7 @@ const EV = {
   },
   // (your seat: the warning, the final warning, dropped, the team delighted - career/Seat.js)
   seat: (c, x) => {
-    const k = String(x.sub || ''), F = { warn: [-1, -1, 3, 1], final: [-1, -2, 5, 2], dropped: [-1, -3, 6, 3], praised: [1, 1.5, -1, 1] }[k]; if (!F || !HL.seat[k]) return null;
+    const k = String(x.sub || ''), F = { warn: [-1, -1, 3, 1], final: [-1, -2, 5, 2], dropped: [-1, -3, 6, 3], praised: [1, 1.5, -1, 1], leak: [-1, -2, 6, 2] }[k]; if (!F || !HL.seat[k]) return null;
     return { tone: F[0], theme: { results: F[0] * 0.5, drama: k === 'dropped' ? 0.8 : 0.3 }, fx: { image: F[1], heat: F[2] }, cover: k === 'dropped' ? ['f1news', 'gptv', 'weekly', 'race24', 'post', 'feed'] : ['weekly', 'f1news', 'post', 'feed'], size: F[3], sub: k };
   },
   signing: (c, x, X) => (X.newTeam ? { tone: 1, theme: { results: 0.3 }, fx: { image: 1, appeal: 3, fame: [0.05, 0.05] }, cover: ['f1news', 'gptv', 'weekly', 'race24', 'post', 'feed'], size: 2 } : null),
