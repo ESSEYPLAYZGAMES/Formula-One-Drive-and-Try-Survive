@@ -489,7 +489,7 @@ export class PartyPlay {
     const fd = flag('__partyDrunk'); if (fd && !this.underage) { const u = typeof fd === 'number' ? fd : 9; this.absDone = Math.max(this.absDone, u); if (u > this.peak) this.peak = u; }
     this._drinkTick(); this._glass();
     // (the crowd's full figures (world/NpcFigures.js) compiled off the frame before each is first shown, as the room was)
-    const N = ev.crowd?.npc; if (N && typeof ev.renderer?.compile === 'function') N.compile = compilerFor(ev.renderer, () => ev.cam, () => (ev.host ? ev.host.scene : ev.scene));
+    const N = ev.crowd?.npc; if (N && typeof ev.renderer?.compile === 'function' && !flag('__npcNoCompile')) N.compile = compilerFor(ev.renderer, () => ev.cam, () => (ev.host ? ev.host.scene : ev.scene));
   }
   update(dt) {
     if (!this.on) return; const ev = this.ev;
