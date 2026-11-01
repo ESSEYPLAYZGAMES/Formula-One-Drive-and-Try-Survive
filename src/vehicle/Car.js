@@ -853,7 +853,12 @@ export class Car {
     const q = P.nearest(this.x, this.z, this._pq || (this._pq = {}));
     // inside the lane: between the garage wall and the lane's track-side edge (which is clipped to the kerb until the pit wall starts)
     const g = -P.trackSide * q.lat;   // + toward the garages
-    const inLane = g > -P.laneEdge[q.i] && g < (P.garageW ? P.garageW[q.i] + 0.5 : P.halfWidth + 1.2) && q.u > P.divergeU - 4 && q.u < P.mergeU + 4 && !P.overlapsTrack[q.i];
+    // (a car already in the lane stays in it while an escape road's tyre wall closes in at the escape's end - Montreal's
+    //  last chicane: the wall's line sweeps in across a car running down the escape, and the barrier is what pushes it
+    //  back. Let out of the lane the moment the line passed it, it was "on the circuit" beyond the pit wall - held out
+    //  there, free to run on into the park)
+    const gOut = P.garageW ? P.garageW[q.i] + (this.pitLane && P.escape?.[q.i] ? 3 : 0.5) : P.halfWidth + 1.2;
+    const inLane = g > -P.laneEdge[q.i] && g < gOut && q.u > P.divergeU - 4 && q.u < P.mergeU + 4 && !P.overlapsTrack[q.i];
     if (inLane && !this.pitLane) this.pitEntered = true;          // edge: entered the lane this step
     if (!inLane && this.pitLane) this.pitExited = true;
     this.pitLane = inLane; this.pitU = q.u; this.pitLat = q.lat; this.pitI = q.i;
@@ -878,8 +883,10 @@ export class Car {
       if (this.pit) { const w = this.pit.wallD[i], bar = this.pit.sideSign > 0 ? tr.barL[i] : tr.barR[i]; const v = isNaN(w) || !bar ? Infinity : w; if (this.pit.sideSign > 0) boL = v; else boR = v; }
     }
     const c = Math.cos(this.th), s = Math.sin(this.th);
-    // a car whose centre is already beyond a barrier (it went over it) stays on that side: the barrier holds it out
-    const dc0 = (this.x - px) * nx + (this.z - pz) * nz, out0 = Math.abs(dc0) > (dc0 > 0 ? boL : boR);
+    // a car whose centre is already beyond a barrier (it went over it) stays on that side: the barrier holds it out.
+    // (Not in the pit lane: a car the lane test has inside it is inside - beyond the garage-side line it was swept by an
+    //  escape road's tyre wall closing in faster than half a car's width a step, and the wall pushes it back in)
+    const dc0 = (this.x - px) * nx + (this.z - pz) * nz, out0 = !this.pitLane && Math.abs(dc0) > (dc0 > 0 ? boL : boR);
     let maxPen = 0, hitBx = 0, hitBy = 0, hitSide = 0;
     for (let k = 0; k < CORNERS.length; k++) {
       const bx = CORNERS[k][0], by = CORNERS[k][1];

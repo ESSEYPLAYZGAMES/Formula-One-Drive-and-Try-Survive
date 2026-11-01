@@ -1633,9 +1633,11 @@ export function buildPitLane(track, rawPts, boxCount = 12) {
   // speed line, a tyre wall at its edge (escape: 1 where it is)
   const garageW = new Float32Array(n).fill(halfWidth + 0.7), escape = new Uint8Array(n), PE = track.def.pitEscape;
   if (PE) {
-    const u0 = samples.s[divergeI] + (PE.from ?? 6), u1 = limitFrom - (PE.before ?? 25), E = 50;   // (eased over 50 m: the tyre wall closes in at a shallow angle)
+    // (opened over 50 m, closed over 80: the tyre wall comes back in at under 20 degrees - a car run down the escape
+    //  flat out glances off it, where the old 50 m, 30 degrees at its steepest, met it nearly head on)
+    const u0 = samples.s[divergeI] + (PE.from ?? 6), u1 = limitFrom - (PE.before ?? 25), E = 50, E1 = PE.close ?? 50;
     for (let i = 0; i < n; i++) {
-      const u = samples.s[i], t = u < u0 ? (u - (u0 - E)) / E : u > u1 ? ((u1 + E) - u) / E : 1, w = Math.max(0, Math.min(1, t));
+      const u = samples.s[i], t = u < u0 ? (u - (u0 - E)) / E : u > u1 ? ((u1 + E1) - u) / E1 : 1, w = Math.max(0, Math.min(1, t));
       if (w > 0) { garageW[i] = halfWidth + 0.7 + (PE.width - halfWidth - 0.7) * w * w * (3 - 2 * w); escape[i] = 1; }
     }
   }

@@ -187,11 +187,12 @@ export const TRACKS = {
     // (the export draws the lane from the racing line's own nodes: led in and out along the left edge of the road)
     pitLeads: { side: 1, d: 5.2, in: 110, out: 90 }, pitWallClear: 9.6,
     // the last chicane's straight-on escape is the pit entry road (missed at 300 km/h, a car went down the lane into its
-    // garage wall): from its branching to short of the speed line it is a wide paved area with a tyre wall at the edge.
+    // garage wall): from its branching to short of the speed line it is a wide paved area with a tyre wall at the edge
+    // (closing back in over 80 m, at under 20 degrees, from 45 m short of the line).
     // And the whole of the ground between the chicane and the lane is paved (infield: until the lane is back within 16 m
     // of the centreline): one open run-off, no wall down either side of it, the pit wall's nose and its tyre wall where
     // the two come back together - as the real T13-T14 is now
-    pitEscape: { width: 26, from: 6, before: 25, infield: 16 },
+    pitEscape: { width: 26, from: 6, before: 45, close: 80, infield: 16 },
     // the 80 km/h zone brackets the garages; calibrated to the real stop: about 18.5 s lost against staying out
     pitLimit: { before: 85, after: 70 },
     // DRS: three zones (the real ones): T7 -> T8, the Casino straight after the hairpin, the pit straight

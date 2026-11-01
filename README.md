@@ -385,8 +385,9 @@ middle of the grass, so a car pulled off or a wreck set down is out on the islan
 m of green paint behind the kerb, the yellow "BIENVENUE AU QUÉBEC" wall, "WALL OF CHAMPIONS" painted on the strip. The
 pit lane is led in and out along the left edge of the road (`pitLeads`: the export draws it from the racing line's own
 nodes) and its wall starts clear of the T13 kerb (`pitWallClear`). Past the last chicane the pit-entry road widens
-into the paved escape road the real circuit has (`pitEscape`: 26 m wide from 6 m past the lane's branching to 25 m
-short of the speed line, eased over 50 m; the lane's `garageW` / `escape` arrays in `TrackBuilder.buildPitLane`),
+into the paved escape road the real circuit has (`pitEscape`: 26 m wide from 6 m past the lane's branching to 45 m
+short of the speed line, opened over 50 m and closed over 80 m, so its wall comes back in at under 20 degrees; the
+lane's `garageW` / `escape` arrays in `TrackBuilder.buildPitLane`),
 backed by a red and white tyre wall: a car that misses the chicane runs straight on instead of into the concrete (flat
 out with no braking, about 22 g into the tyres). The whole infield between the chicane and that road is paved too, as
 the real T13-T14 is now (`pitEscape.infield: 16`): from where the lane opens out beside the road until it is back within
