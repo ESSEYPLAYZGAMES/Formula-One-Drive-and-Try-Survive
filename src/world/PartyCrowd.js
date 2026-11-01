@@ -236,7 +236,9 @@ export class PartyCrowd {
     this.mat = clubMaterial(this.patch, false);
     // (everyone near drawn as themselves - world/NpcFigures.js: the nearest npcMax within npcNear m in full; o.npc false:
     // the instanced crowd alone, as it always was)
-    this.npcOn = o.npc !== false; this.npcNear = o.npcNear ?? 8; this.npcMax = o.npcMax ?? 18; this.npc = null;
+    // (a test switch, window.__npcOff: the crowd as it was, for a comparison)
+    let off = false; try { off = !!globalThis.__npcOff; } catch (_) { off = false; }
+    this.npcOn = o.npc !== false && !off; this.npcNear = o.npcNear ?? 8; this.npcMax = o.npcMax ?? 18; this.npc = null;
   }
 
   // ---- the night's templates ------------------------------------------------------------------------------------------

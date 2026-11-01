@@ -487,6 +487,8 @@ export class PartyPlay {
     // (tests: window.__partyDrunk starts the night that far gone - true: drunk (9 units in), a number: that many units in)
     const fd = flag('__partyDrunk'); if (fd && !this.underage) { const u = typeof fd === 'number' ? fd : 9; this.absDone = Math.max(this.absDone, u); if (u > this.peak) this.peak = u; }
     this._drinkTick(); this._glass();
+    // (the crowd's full figures (world/NpcFigures.js) compiled off the frame before each is first shown, as the room was)
+    const N = ev.crowd?.npc; if (N && typeof ev.renderer?.compileAsync === 'function') N.compile = (o) => ev.renderer.compileAsync(o, ev.cam, ev.host ? ev.host.scene : ev.scene);
   }
   update(dt) {
     if (!this.on) return; const ev = this.ev;
@@ -1490,7 +1492,7 @@ export class PartyPlay {
     const r = tree.result || null, promote = !!r?.promote;
     // (what that talk did is StrangerTalk's to count: the guest's own record as it was before it)
     g.fx = { ...(X.fx0 || {}) }; g.dm = X.dm0 || 0;
-    X.outcome = r?.outcome || 'polite';
+    X.outcome = r?.outcome || 'polite'; X.result = r;
     if (promote) {
       X.promoted = true; const st = r.stage || 'met'; g.stage = st; if (g.n) g.n.stage = st;
       g.why = `${g.C?.job || g.n?.job || 'Met tonight'} · met tonight`;

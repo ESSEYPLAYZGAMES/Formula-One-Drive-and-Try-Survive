@@ -30,6 +30,8 @@
 //   o.beat()   -> beats (the music's own clock, a running count) - else its own at o.bpm (default 124)
 //   o.look     false: heads never turn to the camera (default true)  o.keepKey  userData flag on what it adds ('hgKeep')
 //   o.farMaterial   'own' far: a material for the instanced bodies (default world/Crowd.js crowdMaterial())
+//   o.compile(object3d) -> Promise | undefined   a new figure's shaders compiled before it is first shown (e.g.
+//              (o) => renderer.compileAsync(o, camera, scene)); also settable later as .compile
 // .group                         THREE.Group of the figures (and the own far bodies)
 // .people                        the person records P (below) - read them, change them through the methods
 // .update(camera, dt)            every frame: camera a THREE.Camera (world) or { x, y, z, fx?, fz? } in the group's frame
@@ -106,6 +108,7 @@ export class NpcCrowd {
     if (o.scene) o.scene.add(this.group);
     this.near = o.near ?? 8; this.maxHigh = o.maxHigh ?? 20; this.hyst = o.hyst ?? 0.75; this.keepN = o.keep ?? 8; this.budget = o.budget ?? 6;
     this.far = o.far || (o.onLevel ? 'external' : 'own'); this.onLevel = o.onLevel || null; this.prep = o.prep || null;
+    this.compile = typeof o.compile === 'function' ? o.compile : null;
     this.beatFn = typeof o.beat === 'function' ? o.beat : null; this.bpm = o.bpm || 124; this.looks = o.look !== false; this.farMat = o.farMaterial || null;
     this.people = []; this.gone = false; this.B = 0; this.t = 0;
     this._rankT = 0; this._cam = new THREE.Vector3(1e9, 1.6, 0); this._camR = new THREE.Vector3(1e9, 0, 0); this._fw = { x: 1, z: 0 }; this._inv = new THREE.Matrix4();
@@ -148,7 +151,7 @@ export class NpcCrowd {
   take(P, build = true) {
     if (!P || !this.people.includes(P)) return null;
     if (this.jobP === P) this._finishJob(false);
-    if (!P.fig && build) { const J = makePersonSteps(P.opts); try { while (!J.step(1e9)); P.fig = J.person; this._ready(P); } catch (e) { console.warn('NpcFigures: a figure could not be built', e); } }
+    if (!P.fig && build) { const J = makePersonSteps(P.opts); try { while (!J.step(1e9)); P.fig = J.person; this._ready(P, false); } catch (e) { console.warn('NpcFigures: a figure could not be built', e); } }
     const fig = P.fig, opts = P.opts; P.fig = null;
     if (fig) { fig.group.parent?.remove(fig.group); fig.group.visible = true; fig.group.position.set(P.x, P.y, P.z); fig.group.rotation.set(0, P.yaw, 0); fig.group.scale.setScalar(P.scale); if (fig.head) fig.head.rotation.set(0, 0, fig.bow0 ?? fig.bow ?? 0); }
     this._lower(P); this.people.splice(this.people.indexOf(P), 1); this.queue = this.queue.filter((q) => q !== P); this._farDirty = true;
@@ -191,7 +194,7 @@ export class NpcCrowd {
     const want = new Set(cand.slice(0, this.maxHigh));
     for (const P of this.people) {
       P.want = want.has(P);
-      if (P.want && P.fig && !P.high && !P.stale) this._raise(P);
+      if (P.want && P.fig && !P.high && !P.stale && P.ok !== false) this._raise(P);
       else if (!P.want && P.high) this._lower(P);
     }
     // (the queue: the wanted with no figure (or one in an old pose), nearest first)
@@ -201,7 +204,7 @@ export class NpcCrowd {
     for (const P of idle.slice(this.keepN)) { this._dispose(P.fig); P.fig = null; }
   }
   _raise(P) {
-    if (P.high || !P.fig) return; P.high = true; P.fig.group.visible = true; this._pose(P.fig, P, true);
+    if (P.high || !P.fig || P.ok === false) return; P.high = true; P.fig.group.visible = true; this._pose(P.fig, P, true);
     if (this.far === 'external') { try { this.onLevel?.(P, true); } catch (e) { console.warn('NpcFigures: onLevel', e); } } else this._farDirty = true;
   }
   _lower(P) {
@@ -234,12 +237,19 @@ export class NpcCrowd {
     if (wasHigh) { P.fig.group.visible = true; this._pose(P.fig, P, true); } else if (P.want && P.on) this._raise(P);
   }
   /** a new figure: the caller's touches, placed, hidden until raised */
-  _ready(P) {
+  _ready(P, compile = true) {
     const p = P.fig; p.group.visible = false;
     p.group.traverse((m) => { if (m.isMesh) { m.frustumCulled = true; m.castShadow = false; m.receiveShadow = false; } });
     try { this.prep?.(p, P); } catch (e) { console.warn('NpcFigures: prep', e); }
     p.group.rotation.order = 'YXZ'; p.bow0 = p.head ? p.head.rotation.z : p.bow || 0;
     this.group.add(p.group); this._pose(p, P, true);
+    // (its shaders compiled off the frame first where the renderer can (o.compile: renderer.compileAsync) - a look new
+    // to the room, a sequin or a lace, would otherwise stall the frame it is first drawn in; the cheap body stays shown
+    // until then, three seconds at most)
+    if (!compile || typeof this.compile !== 'function') return;
+    P.ok = false; let pr = null, k = false; const done = () => { if (k) return; k = true; if (P.fig !== p) return; P.ok = true; if (P.want && P.on && !P.high && !this.gone) this._raise(P); };
+    p.group.visible = true; try { pr = this.compile(p.group); } catch (e) { pr = null; } p.group.visible = false;
+    if (pr?.then) { pr.then(done, done); setTimeout(done, 3000); } else done();
   }
   _dispose(p) { try { p.group.parent?.remove(p.group); p.dispose(); } catch (e) { /* (gone already) */ } if (++this._disposed % 12 === 0) { try { faceCacheTrim(); } catch (_) { /* */ } } }
   /** a figure where its person stands, moving as they do: the dance on the beat, the idle's weight, the head */

@@ -2942,7 +2942,7 @@ class Evening {
     else if (t?.px) html = this._patronPrompt(t.px);
     else if (t?.cx) html = `<span><kbd>E</kbd>Talk to her</span><small>${esc(this._crowdWord(t.cx))}</small>`;
     if (this.seat) html = `<span><kbd>W</kbd>Stand up</span>${html ? ' ' + html : ''}`;
-    try { if (this.aff) html = this.aff.prompt(t?.m || t?.px || t?.cx ? null : t, html); } catch (e) { console.warn('Hangout: the affection prompt', e); }   // affection hook: G, and who you are with (never someone just met)
+    try { if (this.aff) html = this.aff.prompt(t?.m || t?.px || t?.cx ? null : t, html); } catch (e) { console.warn('Hangout: the affection prompt', e); }   /* affection hook: G, and who you are with (never someone just met) */
     try { html = papsPrompt(this, html); } catch (_) { /* */ }   // paps hook (ui/PapsConfront.js): P, the photographers
     if (html !== this.prHtml) { this.prHtml = html; pr.innerHTML = html; pr.classList.toggle('in', !!html); }
     this.tgt = t;
@@ -3091,7 +3091,7 @@ class Evening {
     const T0 = this.talk; if (!T0 || T0.closing) return; T0.closing = true;
     const box = this.$('.hg-talk .opts'); box.innerHTML = ''; const b = document.createElement('button'); b.type = 'button'; b.dataset.tone = 'leave'; b.innerHTML = '<b>▸</b><span>Carry on</span><i>CLICK · E · ESC</i>';
     b.addEventListener('click', () => this._leaveTalk()); box.appendChild(b); requestAnimationFrame(() => b.classList.add('in'));
-    try { if (!T0.g?.room) this.aff?.closer?.(box, T0); } catch (e) { console.warn('Hangout: the affection closer', e); }   // affection hook: [Hug her] / [Kiss her] after a warm talk (never with someone just met)
+    try { if (!T0.g?.room) this.aff?.closer?.(box, T0); } catch (e) { console.warn('Hangout: the affection closer', e); }   /* affection hook: [Hug her] / [Kiss her] after a warm talk (never with someone just met) */
   }
   _leaveTalk() { if (!this.talk) return; this._closeTalk(); this._lock(); }
   _choose(i) {
