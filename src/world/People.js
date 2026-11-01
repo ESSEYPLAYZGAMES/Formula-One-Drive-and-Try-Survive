@@ -21,8 +21,9 @@ import { fabricOn } from './Fabric.js';
 import { midriff, waistband, shellOut, bralette, bindHoles, hemY as clubHemY, BAND_NECKS, frontKnot, napeBow } from './Clubwear.js';
 import * as SW from './Swimwear.js';
 import { laceSheer, laceEdgeMat, laceOn, liningOf, lacePiece, laceHem, laceTrim, laceOf, laceWaist as laceWaistLit, LACE_OUTFITS, LACE_FINISHES } from './Lace.js';
+import { SKIN_ALL } from '../core/Skin.js';
 
-const SKIN = ['#f1d2b6', '#e3b994', '#cf9a72', '#a8714b', '#7a4e33', '#563522'];
+const SKIN = SKIN_ALL;   // (core/Skin.js)
 const HAIR = ['#17110d', '#2b1d14', '#4a3222', '#6b4a2b', '#141414', '#8a6a44'];
 /**
  * The F1 drivers as they look: skin tone, hair colour, and the shape of it all - hs: hair style (short, buzz, quiff,

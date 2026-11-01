@@ -7,6 +7,7 @@
 // her: bonds, the phone, plans and dates work the same), with no fame to speak of and no circuit of her own. Everyone
 // is invented and an adult (23-36). Nothing here touches the career: a pure function of the seed.
 
+import { SKIN_LIGHT, SKIN_DEEP } from '../core/Skin.js';
 const POOL = (seed) => { let s = seed >>> 0 || 1; return () => { s = (Math.imul(s ^ (s >>> 15), 0x2c1b3c6d) + 0x6d2b79f5) >>> 0; s ^= s >>> 12; return (s >>> 0) / 4294967296; }; };
 const pk = (R, a) => a[(R() * a.length) | 0];
 const fit = (kit, outfit, accent, legs, acc = [], shoes = null) => ({ kit, outfit, accent, legs, acc, shoes });
@@ -73,7 +74,6 @@ export const VIBE = { spark: 'Bubbly, playful and impulsive; a dare in everythin
   dominant: 'Commanding, assertive and competitive; takes charge of every room', shy: 'Quiet, gentle and nervous; braver over text than in person',
   fling: 'Fun, flirty and allergic to anything serious; all in tonight, unreachable by Tuesday' };
 // (looks: skin tones light to deep; hair colours as people have them; the styles World/People builds)
-const SKIN = ['#f6dcc8', '#f2d3bd', '#eac4a8', '#e0b08c', '#d29c74', '#c08660', '#a8704a', '#8d5a3a', '#6e4329', '#57341f', '#45291a'];
 const HAIR_LIGHT = ['#e8d3a6', '#d9b77a', '#c9a066', '#b2824d', '#8a5a33', '#6a4428', '#4a2f1c', '#2b1d14', '#161012', '#8a3b1c', '#a64b24'];
 const HAIR_DEEP = ['#161012', '#1d1410', '#2b1d14', '#3a2618', '#4a2f1c'];
 const HS = ['long', 'waves', 'blowout', 'curlyLong', 'bob', 'ponytail', 'highpony', 'bun', 'topknot', 'curlybun', 'messybun', 'pixie'];
@@ -104,7 +104,7 @@ export function makeLocal(idOrSeed) {
   const seed = typeof idOrSeed === 'number' ? idOrSeed >>> 0 : seedOf(idOrSeed), id = localId(seed), R = POOL(seed);
   const name = `${pk(R, FIRST)} ${pk(R, LAST)}`, [job, work] = pk(R, JOBS), from = pk(R, FROM), home = pk(R, HOME), age = 23 + ((R() * 14) | 0), hobby = pk(R, HOBBY);
   const persona0 = PERSONA_IDS[(R() * PERSONA_IDS.length) | 0], persona = hash(`fling|${seed}`) % 100 < FLING_IN ? 'fling' : persona0;
-  const deep = R() < 0.35, skin = deep ? pk(R, SKIN.slice(6)) : pk(R, SKIN.slice(0, 8)), hair = deep ? pk(R, HAIR_DEEP) : pk(R, HAIR_LIGHT), hs = deep && R() < 0.6 ? pk(R, HS_CURLY) : pk(R, HS);
+  const deep = R() < 0.35, skin = deep ? pk(R, SKIN_DEEP) : pk(R, SKIN_LIGHT), hair = deep ? pk(R, HAIR_DEEP) : pk(R, HAIR_LIGHT), hs = deep && R() < 0.6 ? pk(R, HS_CURLY) : pk(R, HS);
   const [col, acc] = pk(R, PAL), [col2, acc2] = pk(R, PAL), legs = () => pk(R, LEGS);
   const likes = [...new Set([pk(R, LIKES), pk(R, LIKES), pk(R, LIKES)])], dislikes = [...new Set([pk(R, DISLIKES), pk(R, DISLIKES)])].filter((d) => !(d === 'arrogant' && likes.includes('confident') && R() < 0.5));
   const fav = pk(R, DATES); let meh = pk(R, DATES); if (meh === fav) meh = DATES[(DATES.indexOf(fav) + 3) % DATES.length];

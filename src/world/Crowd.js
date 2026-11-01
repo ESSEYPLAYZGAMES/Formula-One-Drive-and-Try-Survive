@@ -11,10 +11,11 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { makePerson, jointsOf } from './People.js';
+import { SKIN_ALL } from '../core/Skin.js';
 
 // (metal: earrings, a chain, a bottle's foil; lipF: her lips, coloured; glass: a glass and its drink; flame: a sparkler's)
 const PART = { skin: 0, top: 1, legs: 2, hair: 3, feat: 3, beard: 3, shoe: 4, accent: 5, bottom: 5, acc: 5, team: 6, white: 7, iris: 8, lip: 9, visor: 10, prop: 11, metal: 12, metal2: 12, lipF: 13, glass: 14, flame: 15 };
-export const SKINS = ['#f1d3bd', '#e7bf9f', '#d8a47f', '#c18a63', '#a4704c', '#8a5a3b', '#6b442c', '#4f3122', '#f5dccb', '#cf9e7c'];
+export const SKINS = SKIN_ALL;   // (core/Skin.js: 48 tones, porcelain to the deepest, every undertone)
 export const HAIRS = ['#1b1512', '#2a1e17', '#3b2a1e', '#5a3d27', '#7a5434', '#a77d4c', '#c9a46c', '#8f8f8f', '#d8d3c8', '#121212', '#4a2a1a'];
 const HS = ['short', 'short', 'buzz', 'side', 'quiff', 'swept', 'curly', 'wavy', 'mullet', 'locs'];
 const FH = [null, null, null, 'stubble', 'beard', 'mustache'];

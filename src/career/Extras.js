@@ -13,6 +13,7 @@
 // Pure and deterministic (nothing here touches the career but promoteExtra, which only registers her and notes where you
 // met), cached by seed. Never imports THREE: node-testable (scratchpad npc2/test-extras.mjs).
 import { makeLocal, localId, isLocalId } from './Locals.js';
+import { SKIN_LIGHT, SKIN_DEEP } from '../core/Skin.js';
 import { CELEB, registerLocal, celebLook, celebEnsure, meet } from './Celebs.js';
 
 // ---- seeds ---------------------------------------------------------------------------------------------------------
@@ -59,7 +60,6 @@ const LAST_M = ['Abbott', 'Beaumont', 'Carrick', 'Dalton', 'Everett', 'Fairbairn
   'Quinlan', 'Romano', 'Sheridan', 'Tanaka', 'Ueda', 'Vance', 'Wilder', 'Yeats', 'Zamora', 'Asante', 'Brandt', 'Calloway', 'Duval', 'Eriksen', 'Ferrante', 'Gallagher', 'Hayashi', 'Ilunga',
   'Kowalski', 'Laurent', 'Mendes', 'Nakashima', 'Okafor', 'Pires', 'Rinaldi', 'Strand', 'Toussaint', 'Varela', 'Webb', 'Achebe', 'Bergman', 'Cruz', 'Devereux', 'Faulkner', 'Haas', 'Moretti'];
 // (skin light to deep, hair as men have it, the styles and the facial hair world/People.js builds)
-const SKIN_M = ['#f1d2b6', '#ead0b8', '#e3b994', '#d8a47f', '#cf9a72', '#c18a63', '#a8714b', '#8a5a3b', '#7a4e33', '#6b442c', '#563522', '#4f3122'];
 const HAIR_M = ['#17110d', '#2b1d14', '#4a3222', '#6b4a2b', '#141414', '#8a6a44', '#3b2a1e', '#8f8f8f', '#a77d4c', '#1b1512'];
 const HS_M = ['short', 'short', 'buzz', 'side', 'quiff', 'swept', 'curly', 'wavy', 'locs', 'mullet'];
 const FH_M = [null, null, null, 'stubble', 'stubble', 'beard', 'mustache'];
@@ -76,7 +76,7 @@ const KITS_M = { grid: ['polo', 'jacket', 'casual', 'blazer'], club: ['silkshirt
 function makeHim(seed) {
   const R = POOL(seed), name = `${pk(R, FIRST_M)} ${pk(R, LAST_M)}`, age = 24 + ((R() * 24) | 0), job = pk(R, JOBS_M);
   const persona0 = PERSONA_IDS[(R() * PERSONA_IDS.length) | 0], persona = hash(`fling|${seed}`) % 100 < 15 ? 'fling' : persona0;
-  const deep = R() < 0.3, skin = deep ? pk(R, SKIN_M.slice(7)) : pk(R, SKIN_M.slice(0, 9)), hair = R() < 0.1 ? '#8f8f8f' : pk(R, HAIR_M.slice(0, 9));
+  const deep = R() < 0.3, skin = deep ? pk(R, SKIN_DEEP) : pk(R, SKIN_LIGHT), hair = R() < 0.1 ? '#8f8f8f' : pk(R, HAIR_M.slice(0, 9));
   const look = { skin, hair, hs: pk(R, HS_M), fh: pk(R, FH_M), outfit: pk(R, TOP_M), accent: pk(R, ACC_M), legs: pk(R, LEGS_M), build: R() < 0.5 ? 'average' : 'athletic', len: 0.95 + R() * 0.1, wid: 0.92 + R() * 0.12, jaw: 0.35 + R() * 0.3, pick: (R() * 1e9) | 0 };
   return { name, age, job, persona, persona0, look };
 }
