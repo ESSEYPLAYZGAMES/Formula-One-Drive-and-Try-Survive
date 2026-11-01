@@ -238,7 +238,7 @@ export class PartyCrowd {
     // the instanced crowd alone, as it always was)
     // (a test switch, window.__npcOff: the crowd as it was, for a comparison)
     let off = false; try { off = !!globalThis.__npcOff; } catch (_) { off = false; }
-    this.npcOn = o.npc !== false && !off; this.npcNear = o.npcNear ?? 7; this.npcMax = o.npcMax ?? 16; this.npc = null;
+    this.npcOn = o.npc !== false && !off; this.npcNear = o.npcNear ?? 7; this.npcMax = o.npcMax ?? 12; this.npc = null;
   }
 
   // ---- the night's templates ------------------------------------------------------------------------------------------

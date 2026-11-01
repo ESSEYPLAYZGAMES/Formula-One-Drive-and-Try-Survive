@@ -1435,7 +1435,8 @@ export class PartyPlay {
    * guest of the night where she stood, and the talk opened (StrangerTalk's first words) -> the guest | null
    */
   meetStranger(p) {
-    const ev = this.ev, C = ev.crowd, e = p?.extra; if (!e?.fem || !C?.takeOut || !this._free()) return null;
+    const ev = this.ev, C = ev.crowd, e = p?.extra; if (!e?.fem || !C?.takeOut || !this.on) return null;
+    if (!ev.ready || ev.closing || ev.talk || ev.menu || ev.game || ev.ask || ev.moment || ev.sty || this.exiting) return null;
     const known = !!(ev.c && isPromoted(ev.c, e.seed));
     // (taken into the game for the scene only: never the career's - StrangerTalk decides that)
     let lid = null; try { lid = promoteExtra(null, e.seed); } catch (err) { console.warn('PartyPlay: a stranger', err); }
