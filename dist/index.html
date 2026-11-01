@@ -597,7 +597,7 @@ table.res tr.me td { color: var(--accent2); font-weight: 700; }
     <div class="brand-line"></div>
     <h1 id="brand-title">FORMULA 1<span id="brand-sub">SIMULATOR</span></h1>
     <!-- the build's version: +0.01 with every build handed out -->
-    <span id="app-ver" title="Version">V2.04</span>
+    <span id="app-ver" title="Version">V2.05</span>
     <div id="menu-sub">Real circuits built from OpenStreetMap</div>
   </div>
   <div id="loading" class="hidden"><div class="ld"><i></i></div><span>Building the circuit from OpenStreetMap…</span></div>
@@ -86054,6 +86054,27 @@ function handAt(w, dir, pn, k, th, arm = {}, grip = 0.15) {
     const NA = gt.attributes.normal; for (let j = NA.count - m; j < NA.count; j++) NA.setXYZ(j, T.x, T.y, T.z);
     return gt;
   };
+  /** a nail on the back of a finger's last joint (A its middle joint, B where its tip's dome begins, rA, rB the finger's
+   *  radius there, as tube's rings - xa, pal, sq the same): a thin plate a hair proud of the skin, curved round the
+   *  finger over its back (a little less than half its round), from a little past the joint to over the tip's dome, its
+   *  edges tucked in to the skin; pink over its bed, a pale half-moon at its root, its free edge paler still -> geometry */
+  const nail = (A, B, rA, rB, xa, pal, sq) => {
+    const T = B.clone().sub(A), L = T.length(); T.normalize();
+    const sg = new THREE.Vector3().crossVectors(xa, T).dot(pal) < 0 ? -1 : 1, e2 = new THREE.Vector3().crossVectors(xa, T).normalize().multiplyScalar(sg), e1 = new THREE.Vector3().crossVectors(T, e2).normalize();
+    const NU = 9, NV = 7, s0 = 0.03 * L, s1 = L + 0.58 * rB, rOf = (sx) => (sx <= L ? rA + (rB - rA) * sx / L : sx <= L + 0.42 * rB ? rB - 0.1 * rB * (sx - L) / (0.42 * rB) : 0.9 * rB - 0.32 * rB * (sx - L - 0.42 * rB) / (0.34 * rB)), lift = 0.0006 * k, phi = 0.88, R = [];
+    for (let i = 0; i <= NU; i++) {
+      const u = i / NU, sx = s0 + (s1 - s0) * u, r = rOf(sx), c = A.clone().addScaledVector(T, sx), w = 1 - 0.18 * (1 - u) ** 2;   // (narrower at its root, rounded there)
+      R.push(Array.from({ length: NV + 1 }, (_, j) => { const v = (j / NV) * 2 - 1, a = -Math.PI / 2 + v * phi * w, tk = (1 - Math.abs(v) ** 8) * (1 - (1 - u) ** 10) * (1 - u ** 14); return c.clone().addScaledVector(e1, Math.cos(a) * (r + lift * tk)).addScaledVector(e2, Math.sin(a) * (r * sq + lift * tk)); }));
+    }
+    const P = [], I = [], C = [];
+    R.forEach((row, i) => row.forEach((p, j) => { P.push(p.x, p.y, p.z); const u = i / NU, v = Math.abs((j / NV) * 2 - 1), moon = gau(u - 0.06, 0.09) * (1 - v ** 2), tip = ss3(0.84, 0.97, u); C.push(1.15 + 0.1 * moon + 0.2 * tip, 0.93 + 0.14 * moon + 0.34 * tip, 0.95 + 0.14 * moon + 0.33 * tip); }));
+    for (let i = 0; i < NU; i++) for (let j = 0; j < NV; j++) { const a = i * (NV + 1) + j, b = a + NV + 1; I.push(a, b, a + 1, a + 1, b, b + 1); }
+    const gn = new THREE.BufferGeometry(); gn.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); gn.setIndex(I); gn.computeVertexNormals();
+    // (facing out of the finger: the winding however the frame fell)
+    const nm = gn.attributes.normal, mid = Math.floor(NU / 2) * (NV + 1) + Math.floor(NV / 2), pm = R[Math.floor(NU / 2)][Math.floor(NV / 2)], cm = A.clone().addScaledVector(T, s0 + (s1 - s0) * Math.floor(NU / 2) / NU);
+    if (nm.getX(mid) * (pm.x - cm.x) + nm.getY(mid) * (pm.y - cm.y) + nm.getZ(mid) * (pm.z - cm.z) < 0) { for (let q = 0; q < I.length; q += 3) { const t = I[q + 1]; I[q + 1] = I[q + 2]; I[q + 2] = t; } gn.setIndex(I); gn.computeVertexNormals(); }
+    gn.setAttribute('color', new THREE.Float32BufferAttribute(C, 3)); return gn;
+  };
   const lerp3 = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t), gq = Math.max(-1, Math.min(1, grip));
   const bendOf = (rel, cl, fl) => (gq >= 0 ? lerp3(rel, cl, gq) : lerp3(rel, fl, -gq));
   const loc = (v) => X.clone().multiplyScalar(th * v[0]).addScaledVector(D, v[1]).addScaledVector(Pn, v[2]).normalize();
@@ -86068,6 +86089,7 @@ function handAt(w, dir, pn, k, th, arm = {}, grip = 0.15) {
     const J1 = H0.clone().addScaledVector(X, th * FX[i] * k).addScaledVector(D, FY[i] * k).addScaledVector(Pn, -FZ * k), J2 = J1.clone().addScaledVector(d1, l1), J3 = J2.clone().addScaledVector(d2, l2), J4 = J3.clone().addScaledVector(d3, l3 - 0.6 * r);
     const av = (a, b) => a.clone().add(b).normalize();
     g.push(tube([[J1.clone().addScaledVector(d0, -0.02 * k), d0, 0], [J1, av(d0, d1), r], [J2, av(d1, d2), 0.88 * r, 0.06], [J3, av(d2, d3), 0.79 * r, 0.03], [J4, d3, 0.74 * r]], xa, Pn, 0.86, 7));
+    g.push(nail(J3, J4, 0.79 * r, 0.74 * r, xa, Pn, 0.86));
   }
   // the thumb: out of the heel of the hand on its side, its root (the ball of the thumb) full on the palm, out and
   // forward at its own angle, bending toward the fingers and the palm - across the palm round something held, out
@@ -86081,6 +86103,7 @@ function handAt(w, dir, pn, k, th, arm = {}, grip = 0.15) {
   // (its palm's side: the way it bends - toward the palm when it hardly bends)
   const pal = t2.clone().sub(t0); if (pal.lengthSq() < 0.01) pal.copy(Pn);
   g.push(tube([[C0.clone().addScaledVector(t0, -0.014 * k), t0, 0], [C0.clone().addScaledVector(t0, 0.01 * k), t0, 0.0146 * k], [C0.clone().addScaledVector(t0, 0.026 * k), t0, 0.0128 * k], [T1, t0.clone().add(t1).normalize(), 0.011 * k, 0.08], [T2, t1.clone().add(t2).normalize(), 0.0099 * k, 0.05], [T3, t2, 0.0092 * k]], xt, pal, 0.84, 8));
+  g.push(nail(T2, T3, 0.0099 * k, 0.0092 * k, xt, pal, 0.84));
   // (the web between the thumb and the index finger: a thin fold from the thumb's root to the palm's side, its free
   // edge running from the thumb's first knuckle back to the palm - no gap down to the wrist)
   const web = [0, 0.4, 0.7, 0.86].map((v) => {
