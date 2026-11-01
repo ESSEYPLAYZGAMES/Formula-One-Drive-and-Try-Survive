@@ -2,8 +2,8 @@
 // white studio (its own small WebGL view: the team's livery, the driver's helmet, the team's name on the wall), the
 // camera moving to what each screen is about - the front wing for aerodynamics, the brakes, the cockpit for your
 // drivers. Over it, one frame that stays put between races: a bar along the top (who you are, the points, what the
-// team thinks of you, your own money, your phone, the race), a rail of seven sections down the left - the race week, the team, your driver, your life, the
-// media, the season, In Memoriam - and a panel whose sub-tabs pick the page; only the page itself changes, sliding in
+// team thinks of you, your own money, your phone, the race), a rail of eight sections down the left - the race week, the team, your driver, your life, the
+// media, the season, your stats (ui/HubStats.js), In Memoriam - and a panel whose sub-tabs pick the page; only the page itself changes, sliding in
 // the way you went (up and down between sections, sideways between sub-pages and steps), sized to the window so nothing
 // has to scroll. The pages: the weekend's briefing and the calendar, the week between races, the tech tree and the
 // factory (the team's own: you drive what it builds), your team and your seat (your contract, management confidence and
@@ -33,6 +33,7 @@ import { PATTERNS } from '../vehicle/Livery.js';
 import { makePerson, makeHelmet, bloodPool } from '../world/People.js';
 import { mourning3D } from './Mourning3D.js';
 import { TECH_CSS, techHTML, techSide, techClick, techView } from './HubTech.js';
+import { statsHTML, statsClick } from './HubStats.js';
 import * as HS from './HubSocial.js';
 import { showPhone, phoneBadge } from './Phone.js';
 import { showHangout } from './Hangout.js';
@@ -1401,6 +1402,7 @@ const SECTIONS = [
   ['life', '♥', 'LIFE', [['life', '', 'Partners'], ['life', 'style', 'Style'], ['life', 'people', 'People'], ['social', '', 'Paddock'], ['social', 'hangout', 'Hang out'], ['social', 'invites', 'Invites']]],
   ['media', '✉', 'MEDIA', [['pr', '', 'Pulse'], ['pr', 'posts', 'Social'], ['pr', 'deals', 'Deals'], ['pr', 'press', 'Press'], ['pr', 'news', 'News']]],
   ['season', '≡', 'SEASON', [['standings', '', 'Drivers'], ['standings', 'teams', 'Constructors'], ['standings', 'results', 'Results'], ['charts', '', 'Charts'], ['trophies', '', 'Trophies'], ['trophies', 'seasons', 'History']]],
+  ['stats', '∑', 'STATS', [['stats', '', 'Overview'], ['stats', 'details', 'Details'], ['stats', 'races', 'Races'], ['stats', 'mate', 'Team-mate'], ['stats', 'circuits', 'Circuits'], ['stats', 'records', 'Records']]],
   ['lost', '✝', 'IN MEMORIAM', [['lost', '', 'In Memoriam']]],
 ];
 // (the old flat tabs, still asked for by name: the news lives in MEDIA now, the rapport in LIFE's paddock)
@@ -1569,6 +1571,7 @@ function pageHTML(c, o, tab, S, H) {
     case 'pr': return hs('prHTML', c, S, H) ?? wait('PR & media');
     case 'standings': return S.sub === 'teams' ? teamsHTML(c, S, H) : S.sub === 'results' ? resultsHTML(c, S, H) : standingsHTML(c, S, H);
     case 'charts': return chartsHTML(c, S, H);
+    case 'stats': return statsHTML(c, S, H);
     case 'trophies': return S.sub === 'seasons' ? historyHTML(c, S, H) : trophiesHTML(c, S, H);
     case 'lost': return lostHTML(c, o, S, H);
     default: return briefingHTML(c, S, H);
@@ -1609,6 +1612,7 @@ function viewFor(c, tab, S) {
     case 'pr': return 'pr';
     case 'standings': return sub === 'results' ? 'charts' : 'standings';
     case 'charts': return 'charts';
+    case 'stats': return 'charts';
     case 'trophies': return 'trophies';
     case 'lost': return 'lost';
     default: return 'overview';
@@ -1788,6 +1792,8 @@ function click(e) {
   if (r && d.tup != null && X.tab === 'dev' && X.sub === 'factory' && r.S) r.S.sub = '';
   else if (r && !r.region && X.tab === 'dev' && !X.sub && r.tab === 'dev') r.region = techRegionsFor(d);
   if (!r && typeof HS.socialClick === 'function') { try { r = HS.socialClick(c, d, S); } catch (err) { console.warn('CareerHub: the social click failed', err); } }
+  // (STATS: the season or the career, the season shown, a list's page - ui/HubStats.js)
+  if (!r) { try { r = statsClick(c, d, S); } catch (err) { console.warn('CareerHub: the stats click failed', err); } }
   if (r) { result(r); return; }
   if (d.chartk) { segTo(b); go('charts', { ...S, chart: d.chartk }, { region: ['chart'] }); }
   // (an offer for you - career/Seat.js: chosen through ui/Offers.js (the contract table, else the plain cards), talked

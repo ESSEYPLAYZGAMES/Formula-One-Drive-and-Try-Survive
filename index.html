@@ -110,11 +110,15 @@
       <button class="card" data-v="tt"><span class="ci"></span><em>02</em><b>Time Trial</b><i>Empty track, chase the perfect lap</i><small class="live"></small></button>
       <button class="card" data-v="champ"><span class="ci"></span><em>03</em><b>Career</b><i>Your driver, your team, season after season</i><small class="live"></small></button>
     </div>
-    <button id="race-again" class="ghost hidden"><b>↻ RACE AGAIN</b><span></span></button>
+    <!-- the last race again, and STATS: everything you have played, every mode (ui/StatsScreen.js) -->
+    <div class="home-acts">
+      <button id="race-again" class="ghost hidden"><b>↻ RACE AGAIN</b><span></span></button>
+      <button id="stats-open" class="ghost" title="Stats (S)"><b>∑ STATS</b><span>Every mode, every lap</span></button>
+    </div>
     <footer class="home-foot">
       <div id="memoriam-home" class="memoriam hidden"></div>
       <span class="credit">Real circuits built from OpenStreetMap · Car model: “2026 Redbull RB22” by Dave Love, <a href="http://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a> (livery removed)</span>
-      <span class="keys"><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> choose<span id="keys-r" class="hidden">&nbsp;· <kbd>R</kbd> race again</span></span>
+      <span class="keys"><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> choose<span id="keys-r" class="hidden">&nbsp;· <kbd>R</kbd> race again</span>&nbsp;· <kbd>S</kbd> stats</span>
       <button id="dl-offline" class="ghost small hidden">⬇ Download the offline version (one HTML file, 4 MB)</button>
       <div id="dl-msg" class="small hidden"></div>
     </footer>

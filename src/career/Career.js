@@ -26,6 +26,7 @@ import { normLook, blankLook } from './Avatar.js';
 import { ACADEMY_BY_ID, SEAT_RULES, kindOf, newSeat, seatEnsure, seatRace, seatBeat, seatRoundTick, seatSeasonEnd, rookieOffers, seatCtx, agentText, confLabel, clauseFor, leverageParts } from './Seat.js';
 import { requestOdds, requestUpgrade, requestTick, mateSay, talkAgree, talkWalk, mateRoleFor } from './Say.js';
 import { marketEnsure, marketRace, marketRoundTick, marketSeasonEnd, marketNewSeason, seasonSay, precontractSigned, moveNow } from './Market.js';
+import { statsEnsure, statsRace } from './Stats.js';
 
 const KEY = 'f1sim-career-v2';
 // (a save from before the v67 update, as it was stored, kept once when it is first brought up to date)
@@ -245,6 +246,8 @@ export class Career {
     safe('seatEnsure', () => seatEnsure(this));
     // (the driver market - career/Market.js: a save from before it has no plan yet; the winter decides on the spot)
     safe('marketEnsure', () => marketEnsure(this));
+    // (the stats book - career/Stats.js: a save from before it starts one now, filled from the career's own records)
+    safe('statsEnsure', () => statsEnsure(this));
     this.v = 5;
     try {
       this.forecast = this.forecast || this.calendar.map(drawForecast); this.trophies = this.trophies || []; this.seasons = this.seasons || [];
@@ -703,11 +706,14 @@ export class Career {
    * rows: the classification ({ car, pos, ... }; a car may carry ppLog [{ pts, reason }] or penPts - the stewards'
    * penalty points); contacts: [{ id, sev, crash }] with your car; table: a shortened race's reduced points; extra:
    * { dotd (you were Driver of the Day), overtakes (yours), grave (the race abandoned or cancelled after an accident),
-   * hurtIds (the drivers hurt in it), fought (the driver you clashed with) }. The round moves on.
+   * hurtIds (the drivers hurt in it), fought (the driver you clashed with), stats (the race in numbers - main.js,
+   * career/Stats.js raceStatsOf - for the stats book) }. The round moves on.
    */
   applyRace(rows, trackId, contacts = [], table = null, extra = {}) {
     const POINTS = table || [25, 18, 15, 12, 10, 8, 6, 4, 2, 1], byTeam = {};   // (table: a shortened race's reduced points)
     const X = extra || {}, S0 = this.season, R0 = this.round;
+    // (the stats book open before anything of this race reaches the records it would be filled from - career/Stats.js)
+    safe('statsEnsure', () => statsEnsure(this));
     // (before anything moves: your morale and your standing with the press, for the report)
     const me0 = this.me, m0 = me0 ? moodOf(me0).morale : null, why0 = me0?.moodWhy?.[0] || null, P0 = this.pr ? { image: this.pr.image, fame: this.pr.fame, top: this.pr.feed?.[0] || null } : null;
     // (a grave round - anyone hurt or killed in it, a race stopped by an accident, a life lost this round: nothing in it becomes a story)
@@ -923,6 +929,8 @@ export class Career {
       report.points = points; report.life = life.slice(0, 14); report.salary = salary;
       report.ban = safe('banText', () => banText(this, this.playerId)) || null; report.grave = grave;
     }
+    // the stats book (career/Stats.js): your figures for the season and the career, the circuit, the records, everyone's tallies
+    safe('statsRace', () => statsRace(this, { rows, trackId, X, S0, R0, POINTS, meRow, mateRow, mate, flRow, mine, earn: { salary, bonus: r2((report.bonusYou || 0) + (report.bonusWin || 0)), deals: toYou } }));
     this.snapshot(); delete this._quali; delete this.savedGrid;   // (the round's grid is used up)
     if (this.seasonOver) { const c = this.driverStandings()[0]; this.addNews(`${this.season} champion: ${c.name}, ${c.points} points.`); this.objectives = []; }
     else this.objectivesFor();

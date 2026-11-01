@@ -71,6 +71,9 @@ import * as Licence from './career/Licence.js';
 import * as Agenda from './career/Agenda.js';
 import * as TechTree from './career/TechTree.js';
 import * as Social from './career/Social.js';
+import * as Stats from './career/Stats.js';
+import { playSession } from './core/PlayStats.js';
+import { showPlayStats } from './ui/StatsScreen.js';
 import * as People from './world/People.js';
 import * as BrawlMod from './ui/Brawl.js';
 import { makeHelmet, bloodPool } from './world/People.js';
@@ -869,6 +872,7 @@ $('step-mode').addEventListener('click', (e) => {
   openSetup(c.dataset.v);
 });
 $('race-again').addEventListener('click', raceAgain);
+$('stats-open')?.addEventListener('click', () => showPlayStats());   // (STATS: everything you have played, every mode - ui/StatsScreen.js)
 $('btn-back').addEventListener('click', setupBack);
 $('btn-start').addEventListener('click', startQuick);
 $('su-next').addEventListener('click', () => stepPage(1));
@@ -877,6 +881,7 @@ $('su-sum').addEventListener('click', (e) => { const b = e.target.closest('[data
 Kit.keys($('step-mode'), {
   1: () => { $('step-mode').querySelectorAll('.card')[0].click(); }, 2: () => { $('step-mode').querySelectorAll('.card')[1].click(); }, 3: () => { $('step-mode').querySelectorAll('.card')[2].click(); },
   r: () => { if ($('race-again').classList.contains('hidden')) return 'pass'; raceAgain(); return undefined; },
+  s: () => { if (document.getElementById('playstats')) return 'pass'; showPlayStats(); return undefined; },
 }, { when: menuFree });
 Kit.keys($('step-setup'), {
   ArrowLeft: () => { stepPage(-1); }, ArrowRight: () => { stepPage(1); },
@@ -1581,6 +1586,8 @@ function syncSafetyCar(d, dt) {
   if (c) scMesh.update(c, dt, d.sc.phase === 'scIn' ? 'off' : 'amber');
 }
 function endSession() {
+  // (every session of every mode ends here - finished, quit or restarted: the lifetime stats book, apart from any career - core/PlayStats.js)
+  playSession(S.director, { career: !!S.weekend?.career, mode: S.weekend?.mode, track: W.def?.id, len: W.track?.length, crashG: CRASH_G });
   killPre();   // (quit during the build-up)
   if (S.director) S.lastTelemetry = S.director.telemetry;
   S.crews?.dispose(); S.crews = null; pitTiming.hide(); S.flags?.dispose(); S.flags = null; S.fireworks?.dispose(); S.fireworks = null;   // the report stays available after the session (results, qualifying sheet)
@@ -1780,6 +1787,8 @@ function runPractice() {
   for (const c of wk.cars) if (!c.isPlayer) c.fitTyres(wet > 0.5 ? 'WET' : wet > 0.2 ? 'INTER' : Math.random() < 0.5 ? 'SOFT' : 'MEDIUM');
   makeDirector('quali', wk.cars, wk.player, { practice: true,
     onFinish: () => {
+      // (your time at the wheel in practice, for the career's stats book - career/Stats.js; the director is still up)
+      if (wk.career) Stats.statsSession(wk.career, S.director, 'practice', W.def.id);
       const all = wk.cars.filter((c) => isFinite(c.bestLap)).sort((a, b) => a.bestLap - b.bestLap);
       wk.cars = buildField(wk.lapsTotal); wk.player = wk.cars.find((c) => c.isPlayer) || null; wk.practiced = true;
       let html = '<table class="res"><tr><th>#</th><th>Driver</th><th>Best lap</th><th>Gap</th></tr>';
@@ -1801,6 +1810,8 @@ function runQuali() {
       const pt = wk.player.bestLap, names = all.map((e) => e.car.name);
       if (wk.career) {
         wk.qTrophies = wk.career.recordQuali(all.map((e) => e.car.careerId));   // (poles, the head-to-head, the qualifying objective)
+        // (your time at the wheel and your best lap driven, for the stats book - career/Stats.js; saved with the grid below)
+        Stats.statsSession(wk.career, S.director, 'quali', W.def.id);
         // (kept with the career: leave now, and RACE goes straight to this grid)
         const C = wk.career; C.savedGrid = { season: C.season, round: C.round, ids: all.map((e) => e.car.careerId), times: all.map((e) => (isFinite(e.time) ? +e.time.toFixed(3) : null)) }; C.save();
       }
@@ -1889,6 +1900,8 @@ function beginRace() {
         const orders = (facts?.orders || []).slice(0, 4).map((x) => ({ kind: x.kind, sub: orderSub(x), good: x.good, text: x.text, mine: x.mine, team: x.team, did: x.actor.careerId || null, other: x.other.careerId || null, contra: !!x.contra, dirty: !!x.dirty, n: x.n ?? null }));
         const extra = { strategy, orders, dotd: !!facts?.dotd?.[0]?.me, overtakes: pc?.overtakes || 0, grave: !!(NEWS.abandoned || NEWS.cancelled || S.cars.some((c) => c.injured) || memorial), hurtIds: S.cars.filter((c) => c.injured && c.careerId).map((c) => c.careerId),
           fought: bw && !bw.aborted && !bw.walkedAway ? bw.did || bw.id || null : null,
+          // (the race in numbers for the stats book - career/Stats.js: laps, laps led, distance, time at the wheel, the grid)
+          stats: Stats.raceStatsOf(S.director, rows, { len: W.track.length, crashG: CRASH_G }),
           // (your car touched the Wall of Champions today - Montreal's last chicane: the season remembers it)
           woc: !!pc?.wocKiss && !pc.standInFor };
         // (who of yours was here this weekend, as the race leaves it - asked about in the pen; before the round moves on)
@@ -1979,6 +1992,8 @@ function noteContact(a, b, v) {
 }
 function watchSession(c) {
   const d = S.director; if (!d || d.done) return;
+  // (the moment your car stopped being yours, and the laps you had driven by then: the stats book's time at the wheel - career/Stats.js)
+  if (c?.isPlayer && c.handAt == null) { c.handAt = d.time; c.handLaps = (c.lapTimes || []).length; }
   if (NEWS.cancel?.hurt.includes(c)) return;   // (you were the one lost: the camera stays at the scene)
   endCrash(); S.spectating = true; S.ff = false;
   S.player = c.retired ? (d.positions.find((x) => !x.retired && x !== c) || c) : c;
