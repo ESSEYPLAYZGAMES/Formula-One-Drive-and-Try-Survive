@@ -811,10 +811,17 @@ function teamparty(K, E) {
       // (a few old sealed cracks: long, meandering, faint)
       for (let i = 0; i < 3; i++) { x.strokeStyle = `rgba(24,24,26,${0.07 + RX() * 0.07})`; x.lineWidth = 1 + RX(); x.beginPath(); let px = RX() * w, py = RX() * h, a = RX() * 6.28; x.moveTo(px, py); for (let k = 0; k < 9; k++) { a += (RX() - 0.5) * 0.7; px += Math.cos(a) * 36; py += Math.sin(a) * 36; x.lineTo(px, py); } x.stroke(); }
     }, [1, 1]));
-    K.floor(K.mt(tarT, 0.94), -30, -14, 30, 18, 6, -0.02);
-    const kerb = K.m('#b4b2ac', 0.9); for (const [x0, z0, x1, z1] of [[-30.25, -14.25, 30.25, -14], [-30.25, -14, -30, 18], [30, -14, 30.25, 18], [-30.25, 18, 30.25, 18.25]]) K.box(kerb, (x0 + x1) / 2, -0.05, (z0 + z1) / 2, x1 - x0, 0.15, z1 - z0);
-    // (the walkway line in front of the team buildings, and the bays' white lines between them)
-    K.plane(K.m('#d9c23a', 0.8), 0, -0.014, 10.4, 60, 0.12, 0, true); for (const x of [-10.2, 10.2]) K.plane(K.m('#d8d8d4', 0.85), x, -0.014, -1.8, 0.1, 24.4, 0, true);
+    // (a paddock the circuit's own scenery has paved already - Austin's, on ground that is not level: the anchor's paved,
+    //  main.js paddockAnchor - gets no tarmac of its own, which as one flat sheet 60 m across could only float over that
+    //  paving or sink under it; the unit and its apron stand on a plinth instead, down into the ground, its edge a low
+    //  step up from the paddock's paving)
+    const paved = !!E.host?.anchor?.paved;
+    if (!paved) {
+      K.floor(K.mt(tarT, 0.94), -30, -14, 30, 18, 6, -0.02);
+      const kerb = K.m('#b4b2ac', 0.9); for (const [x0, z0, x1, z1] of [[-30.25, -14.25, 30.25, -14], [-30.25, -14, -30, 18], [30, -14, 30.25, 18], [-30.25, 18, 30.25, 18.25]]) K.box(kerb, (x0 + x1) / 2, -0.05, (z0 + z1) / 2, x1 - x0, 0.15, z1 - z0);
+      // (the walkway line in front of the team buildings, and the bays' white lines between them)
+      K.plane(K.m('#d9c23a', 0.8), 0, -0.014, 10.4, 60, 0.12, 0, true); for (const x of [-10.2, 10.2]) K.plane(K.m('#d8d8d4', 0.85), x, -0.014, -1.8, 0.1, 24.4, 0, true);
+    } else K.box(K.m('#58595c', 0.9), 0, -0.8, 1.85, 16.3, 0.79, 15.0);
     // (the roof over the room - clear of its ceiling, so the two never fight - and the offices upstairs, set back for the terrace)
     K.box(K.m('#2a2b2e', 0.8), 0, top, 0.1, 16.4, 0.28, 11.4);
     const up = top + 0.28, uh = 2.9, tint = K.m(night ? '#1a222c' : '#3a4856', 0.12, 0.5);
@@ -838,9 +845,10 @@ function teamparty(K, E) {
     // (the terrace over the glass front: a glass balustrade with its rail)
     K.plane(glass, 0, up + 0.5, 5.7, 16.2, 1.0); for (const s of [-1, 1]) K.plane(glass, s * 8.1, up + 0.5, 4.6, 2.2, 1.0, s * Math.PI / 2);
     K.box(steel, 0, up + 1.0, 5.7, 16.2, 0.05, 0.06); for (const s of [-1, 1]) K.box(steel, s * 8.1, up + 1.0, 4.6, 0.06, 0.05, 2.2);
-    // (the light masts; by night their pools on the tarmac)
+    // (the light masts - on the paddock's own paving their feet down into it, where the ground falls away - and by night
+    //  their pools on the tarmac)
     for (const s of [-1, 1]) {
-      const x = s * 11.2, z = 12.6; K.cyl(steel, x, 0, z, 0.09, 0.13, 9.0, 10); K.box(black, x, 8.75, z - 0.2, 1.3, 0.12, 0.5);
+      const x = s * 11.2, z = 12.6, y0 = paved ? -1 : 0; K.cyl(steel, x, y0, z, 0.09, 0.13, 9.0 - y0, 10); K.box(black, x, 8.75, z - 0.2, 1.3, 0.12, 0.5);
       K.box(night ? K.e('#fff4e2', { fixed: true }) : K.m('#c8ccd0', 0.4, 0.3), x, 8.6, z - 0.2, 1.2, 0.14, 0.4);
       if (night) { K.pool('#fff1d8', x * 0.7, z - 3.5, 7.5, 0.16, -0.008); K.pool('#fff1d8', x * 0.8, z + 1.5, 5.0, 0.12, -0.008); }
     }

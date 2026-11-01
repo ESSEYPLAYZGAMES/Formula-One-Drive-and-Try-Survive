@@ -290,6 +290,9 @@ export function buildAustin(geo, track, def, pit) {
   //      edge, and over it all the white roof's deep overhang, the plant on top. Along the straight part of the lane
   //      (the lane's curve in from Turn 20 keeps just its garages); the red block at its Turn 20 end
   const paddockFans = [];
+  // (the paddock's row of motorhomes, one per team: back - the pit building's back wall, metres out from the lane;
+  //  units - each motorhome's run of vertices in mesh and where it stands. An evening's venue may stand in for one)
+  const paddock = { mesh: null, back: 0, units: [] };
   if (pit) {
     const ps = pit.samples, gs = -pit.trackSide, hw = pit.halfWidth;
     const mid = pit.boxes[Math.floor(pit.boxes.length / 2)].i, h0 = Math.atan2(ps.tz[mid], ps.tx[mid]);
@@ -359,21 +362,28 @@ export function buildAustin(geo, track, def, pit) {
       const PD = BK + 96, pave = R(BK + 0.6, PD, 0.045);
       if (pave.index?.count) { for (const k of Object.keys(pave.attributes)) if (k !== 'position' && k !== 'normal') pave.deleteAttribute(k); group.add(new THREE.Mesh(pave, new THREE.MeshStandardMaterial({ color: 0xa9a8a3, roughness: 0.9, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, side: THREE.DoubleSide }))); }
       const TEAMC = [0xe8002d, 0x1e41ff, 0x27f4d2, 0xff8000, 0x229971, 0x0093cc, 0x64c4ff, 0xb6babd, 0x52e252, 0x6692ff];
-      const parts = [], box2 = (w, h, d, i, off, y, hex, along = 0) => { const g = new THREE.BoxGeometry(w, h, d); g.translate(0, y, along); g.rotateY(Math.atan2(ps.tx[i], ps.tz[i])); g.translate(ps.px[i] + ps.nx[i] * gs * off, 0, ps.pz[i] + ps.nz[i] * gs * off); parts.push(vcolor(keepPN(nonIdx(g)), hex)); };
+      // (nv: the vertices merged so far - each motorhome's run of them is kept, so the night's team party can stand in its
+      //  slot with the motorhome folded away: paddockSpot, makeRoom)
+      let nv = 0;
+      const parts = [], put = (g) => { parts.push(g); nv += g.attributes.position.count; };
+      const box2 = (w, h, d, i, off, y, hex, along = 0) => { const g = new THREE.BoxGeometry(w, h, d); g.translate(0, y, along); g.rotateY(Math.atan2(ps.tx[i], ps.tz[i])); g.translate(ps.px[i] + ps.nx[i] * gs * off, 0, ps.pz[i] + ps.nz[i] * gs * off); put(vcolor(keepPN(nonIdx(g)), hex)); };
       const N = TEAMC.length, span = i1 - i0;
       for (let k = 0; k < N; k++) {
-        const i = Math.round(i0 + (k + 0.5) * span / N), tc = TEAMC[k];
+        const i = Math.round(i0 + (k + 0.5) * span / N), tc = TEAMC[k], v0 = nv;
         box2(12, 9.6, 20, i, BK + 17, 4.8, 0x2a3540);                     // (the glass box)
         box2(12.6, 0.6, 20.6, i, BK + 17, 3.3, 0xf4f4f2); box2(12.6, 0.6, 20.6, i, BK + 17, 6.5, 0xf4f4f2); box2(13, 1.3, 21, i, BK + 17, 9.9, tc);
         box2(11, 1.0, 19, i, BK + 17, 0.5, 0xf4f4f2);
+        // (the unit: its vertices, its middle, along the lane (a) and out across the paddock away from the garages (n))
+        paddock.units.push({ i, v0, v1: nv, x: ps.px[i] + ps.nx[i] * gs * (BK + 17), z: ps.pz[i] + ps.nz[i] * gs * (BK + 17), ax: ps.tx[i], az: ps.tz[i], nx: ps.nx[i] * gs, nz: ps.nz[i] * gs });
         for (const o of [-1, 1]) { box2(2.6, 4.0, 16.5, i, BK + 40 + o * 3.6, 2.35, tc, 1.5); box2(2.5, 3.2, 2.6, i, BK + 40 + o * 3.6, 1.9, 0xf2f2f2, -8.6); }   // (the trucks: trailer, cab)
       }
       for (let k = 0; k < 14; k++) {
         const i = Math.round(i0 + (k + 0.5) * span / 14), off = BK + 66 + (k % 2) * 12;
         box2(2.5, 3.8, 13, i, off, 2.2, k % 3 ? 0xf2f2f2 : 0xd9dde2);
-        const dish = new THREE.CylinderGeometry(1.4, 1.4, 0.15, 14); dish.rotateX(1.0); dish.translate(0, 5.2, -3); dish.rotateY(Math.atan2(ps.tx[i], ps.tz[i])); dish.translate(ps.px[i] + ps.nx[i] * gs * off, 0, ps.pz[i] + ps.nz[i] * gs * off); parts.push(vcolor(keepPN(nonIdx(dish)), 0xeeeeee));
+        const dish = new THREE.CylinderGeometry(1.4, 1.4, 0.15, 14); dish.rotateX(1.0); dish.translate(0, 5.2, -3); dish.rotateY(Math.atan2(ps.tx[i], ps.tz[i])); dish.translate(ps.px[i] + ps.nx[i] * gs * off, 0, ps.pz[i] + ps.nz[i] * gs * off); put(vcolor(keepPN(nonIdx(dish)), 0xeeeeee));
       }
       const m = new THREE.Mesh(mergeGeometries(parts), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.45, metalness: 0.2 })); m.name = 'austin:paddock'; group.add(m);
+      paddock.mesh = m; paddock.back = BK;
       for (let i = i0; i <= i1; i += Math.max(1, Math.round(30 / ps.ds))) solid.push([ps.px[i] + ps.nx[i] * gs * (BK + 48), ps.pz[i] + ps.nz[i] * gs * (BK + 48), 52]);
     }
   }
@@ -1083,10 +1093,50 @@ export function buildAustin(geo, track, def, pit) {
   }
   // the tower's glass: the rainbow by night, pale by day
   const glow = []; group.traverse((o) => { if (o.material?.userData?.towerGlow) glow.push(o.material); });
+  // (a crowd's bank behind its fence at (x, z): from the barrier out over the mound to the top of it and a couple of
+  //  metres on - tr.crowdZones, as the banks were laid; the walkway behind them is life.nearPath's)
+  const onBank = (x, z) => {
+    const q = tr.nearest(x, z), side = q.d > 0 ? 1 : -1, s = q.s;
+    const zn = (tr.crowdZones || []).find((b) => b.side === side && (b.s0 <= b.s1 ? s >= b.s0 && s <= b.s1 : s >= b.s0 || s <= b.s1));
+    return !!zn && Math.abs(q.d) < tr.wallAt(q.i, side) + 3 + zn.depth + zn.rise * 3 + 2;
+  };
+  // (the distance from (x, z) to a paddock unit's ground: its 20 m along the lane, 12 m across, and its overhangs)
+  const unitGap = (u, x, z) => { const dx = x - u.x, dz = z - u.z, a = Math.abs(dx * u.ax + dz * u.az) - 10.5, n = Math.abs(dx * u.nx + dz * u.nz) - 6.5; return Math.hypot(Math.max(0, a), Math.max(0, n)); };
   return {
     group, claimed, stands,
-    /** something of the scenery standing at (x, z) (where an evening's venue cannot go: main.js footClear) */
-    blocked: (x, z) => standBoxes.some(([sx, sz, r]) => (sx - x) ** 2 + (sz - z) ** 2 < r * r) || solid.some(([sx, sz, r]) => (sx - x) ** 2 + (sz - z) ** 2 < r * r),
+    /** something of the scenery standing at (x, z) (where an evening's venue cannot go: main.js footClear) - its
+     *  buildings, stands and tents, and the general-admission banks and the walkways behind them, where the crowds are */
+    blocked: (x, z) => standBoxes.some(([sx, sz, r]) => (sx - x) ** 2 + (sz - z) ** 2 < r * r) || solid.some(([sx, sz, r]) => (sx - x) ** 2 + (sz - z) ** 2 < r * r) || life.nearPath(x, z, 7) || onBank(x, z),
+    /**
+     * Where a team's hospitality stands behind the garage at pit sample i (main.js paddockAnchor: the night's team
+     * party): in the slot of the paddock's row of motorhomes k-th nearest along the lane (0: the nearest) - that
+     * motorhome folded away while the evening runs (makeRoom) - its front (front m from its middle, toward the garages)
+     * just short of the row's own front, its back (back m) clear of the team's trucks parked behind -> { x, z, tx, tz
+     * (the pit building's back there: what it faces) } | null (no k-th slot)
+     */
+    paddockSpot(i, front = 9, back = 6, k = 0) {
+      const ps = pit?.samples, u = ps ? [...paddock.units].sort((p, q) => Math.abs(p.i - i) - Math.abs(q.i - i))[k] : null; if (!u) return null;
+      const BK = paddock.back, lx = ps.px[u.i], lz = ps.pz[u.i];
+      let off = BK + 10.5 + front; if (off + back > BK + 34) off = Math.max(BK + 4 + front, BK + 34 - back);
+      return { x: lx + u.nx * off, z: lz + u.nz * off, tx: lx + u.nx * BK, tz: lz + u.nz * BK };
+    },
+    /**
+     * An evening's venue standing at (x, z) for a while, its ground r m about it: whatever of the scenery's own stands
+     * there folded away - the paddock's motorhome the team party stands in for (all its vertices onto one point: no
+     * triangles left to draw) - until the undo puts it back -> undo | null (nothing there)
+     */
+    makeRoom(x, z, r) {
+      const m = paddock.mesh, P = m?.geometry.attributes.position; if (!P) return null;
+      const kept = [];
+      for (const u of paddock.units) {
+        if (unitGap(u, x, z) >= r) continue;
+        kept.push([u.v0, P.array.slice(u.v0 * 3, u.v1 * 3)]);
+        for (let k = u.v0 + 1; k < u.v1; k++) P.setXYZ(k, P.getX(u.v0), P.getY(u.v0), P.getZ(u.v0));
+      }
+      if (!kept.length) return null;
+      P.needsUpdate = true;
+      return () => { for (const [v0, a] of kept) P.array.set(a, v0 * 3); P.needsUpdate = true; };
+    },
     update(t, cam, focus) {
       life.update(t, cam, focus);
       for (const m of [flagMat, fest.sheetMat, fest.flagMat, fest.usFlag]) { const sh = m?.userData.shader; if (sh) sh.uniforms.uTime.value = t; }

@@ -1187,7 +1187,9 @@ function camSubject() {
   const car = (c) => { if ((c.air || c.wreck) && c.p) s.p.set(c.p[0], c.p[1], c.p[2]); else s.p.set(c.x, 0.55 + (c.hv || 0), c.z); s.car = c; return s; };
   if (POV.on) return 'world';   // (inside the helmet: placed off the car model, the replay's ones lifted as it is drawn - povReplay)
   if (NEWS.on) { const n = NEWS.cut, k = n?.seg?.k; if (!at(n?.look)) return null; s.ride = k === 'tcam' || k === 'tcam2'; return s; }   // (ui/NewsBroadcast.js: its shots placed on the flat, aimed at look)
-  if (HANG.on || FINALE.on) return null;
+  // (an evening out: the venue's own camera, placed in the world as it stands - the venue is on the ground there: hangoutAnchor)
+  if (HANG.on) return 'world';
+  if (FINALE.on) return null;
   // (on foot on the grid the camera is your eyes: on the ground you stand on, turned to keep what you look at in view)
   if (PRE.walk) { if (!at(PRE.walk.look)) return null; s.own = true; return s; }
   if (PRE.on && PRE.show) return at(PRE.show.look) || (S.player ? car(S.player) : null);
@@ -2555,8 +2557,9 @@ function newsFrame(dt) {
 // (launch: the evening's descriptor - a night after a race (key 'party') may go on to a second venue; party: it is one;
 //  pre: the scene's children before the venue was added (the venue's own group is what is new); sealed / hidden: a
 //  windowless venue's world put out of sight, exactly what was hidden; amb: the ambient cars put away for the night;
-//  prev: act 1's result while act 2 opens; curtain: the black between the two acts)
-const HANG = { on: false, busy: false, api: null, result: null, end: false, wait: 0, cb: null, saved: null, venue: null, guests: null, c: null, token: null, launch: null, party: false, pre: null, sealed: false, hidden: null, amb: null, prev: null, curtain: null };
+//  prev: act 1's result while act 2 opens; curtain: the black between the two acts; cleared: the undo of clearGround -
+//  the scenery's people kept out of the venue, and whatever of the scenery it stands in)
+const HANG = { on: false, busy: false, api: null, result: null, end: false, wait: 0, cb: null, saved: null, venue: null, guests: null, c: null, token: null, launch: null, party: false, pre: null, sealed: false, hidden: null, amb: null, prev: null, curtain: null, cleared: null };
 /**
  * An evening that could not be played, settled as the hub's SKIP settles it (Social.autoHangout) -> result. A night after
  * a race (launch.key 'party') is not Social's: a neutral failed result, which the hub sums up with Party.autoParty.
@@ -2636,6 +2639,9 @@ function stageHosted(L0, c, id, mode) {
   const token = {};   // (this evening's: a late word from an earlier one changes nothing)
   Object.assign(HANG, { api: null, result: null, end: false, wait: 0, venue: vid, guests: L0.guests || [], launch: L0, party, token, pre: new Set(scene.children), sealed: false, hidden: null });
   if (party && S.ambient && !HANG.amb) { HANG.amb = []; for (const m of S.ambient.meshes) if (m.group.visible) { m.group.visible = false; HANG.amb.push(m.group); } }
+  // (the venue's ground cleared for the evening - an act 2 clears its own, act 1's put back first: clearGround)
+  if (HANG.cleared) { try { HANG.cleared(); } catch (e) { console.warn('[hangout] ground back', e); } HANG.cleared = null; }
+  try { HANG.cleared = clearGround(vid, anchor); } catch (e) { console.warn('[hangout] clear ground', e); }
   let api = null;
   try { api = showHangout({ ...L0, c, audio, night: mode === 'night', track: id, host: { scene, camera, renderer, anchor, trackId: id, night: mode === 'night' }, onDone: (r) => { if (HANG.token !== token || !HANG.on) return; HANG.result = r || HANG.result; HANG.end = true; } }); }
   catch (e) { console.error('[hangout]', e); }
@@ -2730,8 +2736,10 @@ function endHangout() {
   }
   if (HANG.amb) for (const g of HANG.amb) g.visible = true;   // (the ambient cars back for the title screen)
   if (HANG.standsOff) { try { HANG.standsOff(); } catch (_) { /* */ } HANG.standsOff = null; }   // (the grandstands' fans back)
+  // (the scenery's people, and whatever of it the venue stood in, back)
+  if (HANG.cleared) { try { HANG.cleared(); } catch (e) { console.warn('[hangout] ground back', e); } }
   if (HANG.curtain) { HANG.curtain.reveal(260); }
-  Object.assign(HANG, { on: false, api: null, result: null, end: false, wait: 0, cb: null, saved: null, venue: null, guests: null, c: null, token: null, launch: null, party: false, pre: null, sealed: false, hidden: null, amb: null, prev: null, curtain: null });
+  Object.assign(HANG, { on: false, api: null, result: null, end: false, wait: 0, cb: null, saved: null, venue: null, guests: null, c: null, token: null, launch: null, party: false, pre: null, sealed: false, hidden: null, amb: null, prev: null, curtain: null, cleared: null });
   try { api?.dispose?.(); } catch (e) { console.warn('[hangout] dispose', e); }
   if (document.pointerLockElement) document.exitPointerLock();
   canvas.style.cursor = '';
@@ -2778,6 +2786,9 @@ const anchorAt = (x, y, z, lx, ly, lz) => ({ x, y, z, yaw: Math.atan2(lx - x, lz
  * paddock behind its own garage (paddockAnchor; o.team: the team's name); everything else stands on the ground beside a
  * long straight (groundAnchor). Never in the track corridor or the pit lane, never on a footprint, a grandstand or a
  * landmark. Kept per world and venue (and team).
+ * On a circuit that is not flat (Austin: world/Terrain.js) everything round it was raised onto the ground, and so is the
+ * venue: y is its floor's height in the world, ground the ground's own height under it (the street a raised venue's
+ * building goes down to - ui/Hangout.js reads E.ay as the height over it); raised: up off the ground.
  */
 function hangoutAnchor(venueId, o = {}) {
   const tr = W.track; if (!tr) return { ...anchorAt(0, 0, 0, 0, 0, -50), trackId: W.def?.id || null, venue: venueId };
@@ -2788,9 +2799,71 @@ function hangoutAnchor(venueId, o = {}) {
   // (the pool club: the roof of the resort's podium, 7 m up - at street level the world's ground covered its sunken basin)
   if (!a) { try { a = groundAnchor(venueId, venueId === 'rooftop' ? 70 : venueId === 'apartment' ? 9 : venueId === 'vegasclub' ? 60 : venueId === 'poolclub' || venueId === 'dayclub' ? 7 : 0); } catch (e) { console.warn('[hangout] anchor', e); } }
   if (!a) { const f = tr.sample(0, tr.wallAt(0, 1) + 40); a = anchorAt(f.x, 0, f.z, tr.px[0], 0, tr.pz[0]); }
+  a.ground = footGround(venueId, a); a.y += a.ground;
   a.trackId = W.def.id; a.venue = venueId; ANCHORS.set(key, a);
   return { ...a, look: { ...a.look } };
 }
+/** the lowest and the highest of the ground under a venue's footprint (anchor a, its view toward a.look), a point every
+ *  4 m or less -> [lo, hi] ([0, 0] on a flat circuit: world/Terrain.js) */
+function footHeights(vid, a) {
+  if (!TERRAIN.on) return [0, 0];
+  const [f, b, w] = footOf(vid), L = Math.hypot(a.look.x - a.x, a.look.z - a.z) || 1, fx = (a.look.x - a.x) / L, fz = (a.look.z - a.z) / L;
+  const nu = Math.ceil((2 * w) / 4), nv = Math.ceil((f + b) / 4);
+  let lo = Infinity, hi = -Infinity;
+  for (let i = 0; i <= nu; i++) for (let j = 0; j <= nv; j++) { const u = -w + (2 * w * i) / nu, v = -b + ((f + b) * j) / nv, h = TERRAIN.at(a.x + fx * v - fz * u, a.z + fz * v + fx * u); lo = Math.min(lo, h); hi = Math.max(hi, h); }
+  return [lo, hi];
+}
+/**
+ * The height a venue's floor stands at on a circuit that is not flat: the highest of the ground under its footprint, so
+ * no corner of the room is under the grass, and 12 cm over it - its own paving (2 cm under its floor) well over the
+ * paving the scenery lays on the ground (Austin's paddock, 4.5 cm up), never in a fight with it for the same pixels.
+ * 0 on a flat circuit.
+ */
+function footGround(vid, a) { return TERRAIN.on ? footHeights(vid, a)[1] + 0.12 : 0; }
+/**
+ * An evening's venue's ground cleared for as long as it runs (stageHosted; endHangout puts it all back): whatever of the
+ * scenery's own it stands in, folded away by the scenery itself (its makeRoom: Austin's motorhome in the paddock, where
+ * the team's party stands instead), and the scenery's people out of sight round it - the walkers whose way passes within
+ * r (world/FanCutouts.js walkerMesh: each walks to and fro between its two ends aA and aB, sunk out of sight here) and
+ * the cut-outs standing about within r (fanMesh: their instance squashed to nothing) - so nobody strolls through the
+ * party or stands in the room. r: the venue's footprint and 25 m round it -> undo
+ */
+function clearGround(vid, a) {
+  const [f, b, w] = footOf(vid), inner = Math.hypot(Math.max(f, b), w), r = inner + 25, undo = [];
+  let room = false, nW = 0, nS = 0;
+  try { const u = W.scenery?.makeRoom?.(a.x, a.z, inner); if (u) { undo.push(u); room = true; } } catch (e) { console.warn('[hangout] make room', e); }
+  W.scenery?.group?.updateMatrixWorld(true);
+  W.scenery?.group?.traverse((m) => {
+    // (people only: walkers and cut-outs carry their trousers' colour)
+    const G = m.isInstancedMesh ? m.geometry.attributes : null; if (!G?.aPants) return;
+    // (the venue in the mesh's own frame - a crowd on a tower's deck is laid out in the tower's)
+    const p = _clrP.set(a.x, 0, a.z).applyMatrix4(_clrM.copy(m.matrixWorld).invert()), x = p.x, z = p.z;
+    const bs = m.boundingSphere; if (bs && Math.hypot(bs.center.x - x, bs.center.z - z) > bs.radius + r) return;
+    if (G.aA && G.aB) {
+      const A = G.aA, B = G.aB, kept = [];
+      for (let k = 0; k < A.count; k++) {
+        const ax = A.getX(k), az = A.getZ(k), dx = B.getX(k) - ax, dz = B.getZ(k) - az, t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz || 1)));
+        if (Math.hypot(ax + dx * t - x, az + dz * t - z) >= r) continue;
+        kept.push([k, A.getY(k), B.getY(k)]); A.setY(k, -1e4); B.setY(k, -1e4);
+      }
+      if (!kept.length) return;
+      nW += kept.length; A.needsUpdate = B.needsUpdate = true;
+      undo.push(() => { for (const [k, ya, yb] of kept) { A.setY(k, ya); B.setY(k, yb); } A.needsUpdate = B.needsUpdate = true; });
+    } else {
+      const M = m.instanceMatrix, E = M.array, kept = [];
+      for (let k = 0; k < m.count; k++) {
+        if (Math.hypot(E[k * 16 + 12] - x, E[k * 16 + 14] - z) >= r) continue;
+        kept.push([k, E.slice(k * 16, k * 16 + 16)]); E.fill(0, k * 16, k * 16 + 16);
+      }
+      if (!kept.length) return;
+      nS += kept.length; M.needsUpdate = true;
+      undo.push(() => { for (const [k, e] of kept) E.set(e, k * 16); M.needsUpdate = true; });
+    }
+  });
+  if (nW || nS || room) console.info(`[hangout] ${vid}'s ground cleared: ${nW} walking and ${nS} standing out of sight within ${Math.round(r)} m${room ? ', and what of the scenery it stands in folded away' : ''}`);
+  return () => { for (const u of undo.reverse()) u(); };
+}
+const _clrP = new THREE.Vector3(), _clrM = new THREE.Matrix4();
 /**
  * A venue's footprint, standing at (x, z) with its view toward (tx, tz), is clear - margin off the circuit and the pit
  * lane, on no building, grandstand or landmark: its middle and corners first, then a point every 5 m or less, a metre of
@@ -2879,12 +2952,20 @@ function groundAnchor(vid, y = 0) {
   }
   cand.sort((p, q) => q.score - p.score);
   const picks = [];
-  for (const k of cand) {
-    const wall = tr.wallAt(k.i, k.side), f = tr.sample(tr.s[k.i], k.side * (wall + off)), e = tr.sample(tr.s[k.i], k.side * wall);
-    if (picks.some((q) => Math.hypot(q.x - f.x, q.z - f.z) <= 250)) continue;
-    if (nearPit(f.x, f.z, 70) || !footClear(vid, f.x, f.z, e.x, e.z, y > 0 ? 10 : 5) || !groundView(f.x, f.z, e.x, e.z, f0 + 1)) continue;
-    picks.push({ x: f.x, z: f.z, tx: e.x, tz: e.z });
-    if (picks.length >= 6) break;
+  // (where the ground just behind the barrier is taken all round - Austin's general-admission banks behind their fences
+  //  and the walkway behind them, the scenery's blocked - the same straights again from further back, behind the crowds)
+  for (const backs of [[0], [15, 30, 45, 60, 80]]) {
+    for (const k of cand) {
+      const wall = tr.wallAt(k.i, k.side), e = tr.sample(tr.s[k.i], k.side * wall);
+      for (const bk of backs) {
+        const f = tr.sample(tr.s[k.i], k.side * (wall + off + bk));
+        if (picks.some((q) => Math.hypot(q.x - f.x, q.z - f.z) <= 250)) break;
+        if (nearPit(f.x, f.z, 70) || !footClear(vid, f.x, f.z, e.x, e.z, y > 0 ? 10 : 5) || !groundView(f.x, f.z, e.x, e.z, f0 + 1)) continue;
+        picks.push({ x: f.x, z: f.z, tx: e.x, tz: e.z }); break;
+      }
+      if (picks.length >= 6) break;
+    }
+    if (picks.length) break;
   }
   if (!picks.length) {
     // (nowhere ideal: any clear ground just beyond a barrier)
@@ -2901,12 +2982,31 @@ function groundAnchor(vid, y = 0) {
  * the pit lane by your team's garage, out past the building's back wall (world/PitLane.js: its front at the lane's half
  * width + 1.2 m, 6 m deep) by 15 m or more and the venue's own front, looking back at the garages' back doors, on clear
  * ground (footClear). Your garage first, then its neighbours along the building -> anchor | null (then groundAnchor)
+ * A circuit whose scenery lays out a paddock of its own says where a team's hospitality stands (its paddockSpot): at
+ * Austin, behind a pit building 23 m deep, the paddock is a row of motorhomes - one per team, all of it scenery the
+ * footprint test above would refuse - and the party stands in the slot of the one nearest your garage (on level ground),
+ * that motorhome folded away while it runs (clearGround).
  */
 function paddockAnchor(vid, team) {
   const pit = W.pit, ps = pit?.samples; if (!ps || !pit.boxes?.length) return null;
-  const gs = -pit.trackSide, back = pit.halfWidth + 1.2 + 6.0, f = footOf(vid)[0];
+  const gs = -pit.trackSide, back = pit.halfWidth + 1.2 + 6.0, F0 = footOf(vid), f = F0[0];
   // (a team of your own making has the last garage, the 'Independent' one)
   const kt = pit.boxes.findIndex((b) => b.team?.name === team), k0 = kt >= 0 ? kt : Math.max(0, pit.boxes.findIndex((b) => b.team?.name === 'Independent'));
+  // (the scenery's slot nearest your garage on level ground: one on the seam where the land climbs from the pit straight
+  //  to the next part of the lap would leave the room's front on stilts - the next nearest instead, else the most level
+  //  of the four nearest. paved: the scenery's paddock is paved round it - the party lays no paving of its own there,
+  //  which could not follow the slope: ui/PartyVenues.js)
+  if (W.scenery?.paddockSpot) {
+    let best = null;
+    for (let k = 0; k < 4; k++) {
+      const sp = W.scenery.paddockSpot(pit.boxes[k0].i, f, F0[1], k); if (!sp) break;
+      if (corridorSigned(W.track, W.pit, sp.x, sp.z, 3) < 0) continue;
+      const a = anchorAt(sp.x, 0, sp.z, sp.tx, 0, sp.tz), [lo, hi] = footHeights(vid, a); a.paved = true;
+      if (hi - lo <= 0.25) return a;
+      if (!best || hi - lo < best.d) best = { a, d: hi - lo };
+    }
+    if (best) return best.a;
+  }
   const order = pit.boxes.map((_, k) => k).sort((a, b) => Math.abs(a - k0) - Math.abs(b - k0)).slice(0, 10);
   for (const k of order) {
     const i = pit.boxes[k].i, nx = ps.nx[i] * gs, nz = ps.nz[i] * gs, tx = ps.px[i] + nx * back, tz = ps.pz[i] + nz * back;

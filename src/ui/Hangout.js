@@ -2398,7 +2398,9 @@ class Evening {
     cam.up.set(0, 1, 0); cam.fov = 64; cam.near = T.near; cam.zoom = 1; cam.updateProjectionMatrix();
     this.hx = this._survey(); const A = this._place(T);
     const G = this.scene = new THREE.Group(); G.name = 'hangout'; G.position.set(A.x, A.y, A.z); G.rotation.y = A.rot; H.scene.add(G); G.updateMatrixWorld(true);
-    this.M = G.matrixWorld.clone(); this.Mi = this.M.clone().invert(); this.ay = A.y; this.anchor = A;
+    // (ay: the floor's height over the street below - a raised place's building goes down to it; on a circuit that is
+    //  not flat the anchor's y is the world's, and A.ground the ground's own height under it)
+    this.M = G.matrixWorld.clone(); this.Mi = this.M.clone().invert(); this.ay = A.y - A.ground; this.anchor = A;
     if (this.hx.sphereW) this.hx.sphere = this.hx.sphereW.clone().applyMatrix4(this.Mi);
     // (the talk's evening learns the real weather too: x.wet, for lines about the rain on the windows)
     this.x.wet = !!this.hx.wet;
@@ -2417,13 +2419,14 @@ class Evening {
    * Hosted: where the place stands and which way it looks. anchor { x, y, z, yaw }: its view faces world (sin yaw, 0, cos
    * yaw), i.e. yaw = atan2(tx - x, tz - z) for a point t to look at; anchor.look { x, z }, if given, is faced instead. The
    * roof is there for the Sphere: a yaw that would leave it well out of view is taken for a slip and the deck faces it.
-   * -> { x, y, z, yaw, rot (the group's turn: the view side of its frame onto yaw) }
+   * anchor.ground: the ground's height under it, where the world is not flat (y is the floor's in the world, the ground
+   * included). -> { x, y, z, yaw, rot (the group's turn: the view side of its frame onto yaw), ground }
    */
   _place(T) {
     const A = this.host.anchor || {}, n = (v) => (v != null && Number.isFinite(+v) ? +v : 0), x = n(A.x), y = n(A.y), z = n(A.z);
     let yaw = n(A.yaw); if (A.look && A.look.x != null && A.look.z != null && Number.isFinite(+A.look.x) && Number.isFinite(+A.look.z)) yaw = Math.atan2(A.look.x - x, A.look.z - z);
     const S = this.hx.sphereW; if (S && T.face) { const want = Math.atan2(S.x - x, S.z - z); if (Math.abs(wrap(want - yaw)) > T.face) yaw = want; }
-    return { x, y, z, yaw, rot: yaw + (T.view < 0 ? Math.PI : 0) };
+    return { x, y, z, yaw, rot: yaw + (T.view < 0 ? Math.PI : 0), ground: n(A.ground) };
   }
   /** a point of the place's frame into the world's (in place; unhosted they are the same) -> v */
   _toW(v) { return this.host ? v.applyMatrix4(this.M) : v; }
