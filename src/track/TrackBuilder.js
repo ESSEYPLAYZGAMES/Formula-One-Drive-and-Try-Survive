@@ -283,6 +283,7 @@ export class Track {
     const ad = Math.abs(d), hw = d > 0 ? this.hwL[i] : this.hwR[i];
     if (ad <= hw) return 0;
     if (!this.circuit) return ad <= hw + this.kerbWidth ? 1 : 2;
+    if (this.pitInfield && this.pitInfield[i] && d * this.pitSide > 0) return ad <= hw + this.kerbWidth && this.inCorner[i] ? 1 : 2;   // the paved infield (buildPitLane)
     if (this.pitCovers && this.pitCovers[i] && d * this.pitSide > 0) return 2;
     const t = d > 0 ? this.surfL[i] : this.surfR[i], wall = d > 0 ? this.wallL[i] : this.wallR[i];
     if (ad <= hw + this.kerbWidth) return this.inCorner[i] ? 1 : t === 1 ? 2 : 3;
@@ -686,6 +687,9 @@ export class Track {
       }
       this.crowdZones = out;
     }
+    // (a paved infield's line - buildPitLane, def.pitEscape.infield - stays out past the lane and its escape, whatever
+    //  the bend inside it: no barrier stands on it, the line is where scenery may start)
+    if (this.pitInfieldWall) { const arr = this.pitSide > 0 ? this.wallL : this.wallR; for (let i = 0; i < n; i++) if (this.pitInfield[i]) arr[i] = Math.max(arr[i], this.pitInfieldWall[i]); }
     this.layoutSurfaces();
     this.openInfields();   // (a hairpin's open infield, def.openInfields: after everything else has laid the barriers out)
   }
@@ -965,6 +969,53 @@ let _fenceMat = null;
 function fenceMaterial() {
   if (!_fenceMat) _fenceMat = new THREE.MeshStandardMaterial({ map: fenceTexture(), alphaTest: 0.35, side: THREE.DoubleSide, roughness: 0.55, metalness: 0.4, emissive: 0x15171a });
   return _fenceMat;
+}
+/**
+ * The paved infield of a last chicane (pit.infield, buildPitLane - Montreal's T13-T14 as it is now): one sheet of asphalt
+ * from the circuit's edge to the lane's, sharing their edge points (no overlap to fight over); the green paint round the
+ * inside of the second apex, fanning out from its kerb; and the red and white tyre wall capping the pit wall's nose,
+ * where a car crossing the infield would meet it.
+ */
+function buildInfield(tr, pit, roadMat, kw, side) {
+  const grp = new THREE.Group(); grp.name = 'pit-infield';
+  const { poly, kA, kB } = pit.infield, N = tr.n;
+  // ---- the asphalt: the ring cut into triangles, each turned to face up, mapped in world space
+  const tris = THREE.ShapeUtils.triangulateShape(poly.map(([x, z]) => new THREE.Vector2(x, z)), []);
+  const pos = new Float32Array(tris.length * 9), uv = new Float32Array(tris.length * 6), col = new Float32Array(tris.length * 9);
+  tris.forEach((t, f) => {
+    let [a, b, c] = t; const A = poly[a], B = poly[b], C = poly[c];
+    if ((B[0] - A[0]) * (C[1] - A[1]) - (B[1] - A[1]) * (C[0] - A[0]) > 0) { const q = b; b = c; c = q; }   // (counter-clockwise in x/z faces down)
+    [a, b, c].forEach((v, k) => { const [x, z] = poly[v], o = f * 9 + k * 3; pos[o] = x; pos[o + 1] = 0; pos[o + 2] = z; uv[f * 6 + k * 2] = x / 9; uv[f * 6 + k * 2 + 1] = z / 9; col[o] = 0.8; col[o + 1] = 0.8; col[o + 2] = 0.83; });
+  });
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  g.computeVertexNormals();
+  const night = asphaltTexture(), day = asphaltTexture(true), mat = roadMat.clone(); mat.map = night;
+  grp.userData.setTime = (isDay) => { mat.map = isDay ? day : night; mat.emissiveIntensity = isDay ? 0 : 0.6; mat.needsUpdate = true; };   // (the road's day / night sets: buildTrackMeshes' setTime)
+  const sheet = new THREE.Mesh(g, mat); sheet.name = 'pit-infield:asphalt'; sheet.userData.keep = true; grp.add(sheet);
+  // ---- the green round the inside of the second apex: from its kerb out to 7 m at the apex, fading to the kerb either way
+  const span = (kB - kA + N) % N, inside = new Float32Array(N);
+  for (let m = 0, k = kA; m <= span; m++, k = (k + 1) % N) if (tr.inCorner[k] && tr.curv[k] * side > 0.006) inside[k] = Math.min(1, (tr.curv[k] * side - 0.006) / 0.03);
+  // (blurred along the kerb - 6 samples either way, Gaussian - and eased, so its edge is one smooth curve, not a step per sample)
+  const W = new Float32Array(N), R = 14, sig = 6;
+  for (let m = 0, k = kA; m <= span; m++, k = (k + 1) % N) {
+    let a = 0, b = 0; for (let j = -R; j <= R; j++) { const g = Math.exp(-(j * j) / (2 * sig * sig)); a += g * inside[(k + j + N) % N]; b += g; }
+    const t = Math.min(1, (a / b) * 1.5); W[k] = 7 * t * t * (3 - 2 * t);
+  }
+  const e0 = (i) => tr.edgeAt(i, side) + kw + 0.05;
+  const green = ribbon(tr, (i) => side * e0(i), (i) => side * (e0(i) + W[i]), 0.01, { mask: (i) => W[i] > 0.3 && W[(i + 1) % N] > 0.3, closed: tr.closed });
+  if (green.index.count) grp.add(new THREE.Mesh(green, new THREE.MeshStandardMaterial({ color: 0x2f8a4c, roughness: 0.85, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 })));
+  // ---- the tyre wall on the pit wall's nose: blocks of red and white along its first 14 m, a little proud of it all round
+  const tyres = [];
+  for (let m = 0; m < 7; m++) {
+    const k = (kB + m) % N, d = pit.wallD[k]; if (!isFinite(d)) continue;
+    const b = new THREE.BoxGeometry(1.7, 1.25, tr.ds * 0.96); b.rotateY(Math.atan2(tr.tx[k], tr.tz[k]));
+    const c = side * (d + 0.15); b.translate(tr.px[k] + tr.nx[k] * c + tr.tx[k] * tr.ds * 0.5, 0.625, tr.pz[k] + tr.nz[k] * c + tr.tz[k] * tr.ds * 0.5);
+    const rgb = m % 2 ? [0.93, 0.93, 0.93] : [0.82, 0.08, 0.08], cc = new Float32Array(b.attributes.position.count * 3); for (let q = 0; q < cc.length; q += 3) cc.set(rgb, q);
+    b.setAttribute('color', new THREE.BufferAttribute(cc, 3)); tyres.push(b);
+  }
+  if (tyres.length) { const m = new THREE.Mesh(mergeGeometries(tyres), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.75 })); m.name = 'pit-infield:tyres'; m.castShadow = true; grp.add(m); }
+  return grp;
 }
 /** the catch fences in front of the grandstands (Track.markFences), built once the stands are placed */
 export function buildCatchFences(track, pit) {
@@ -1381,8 +1432,9 @@ export function buildTrackMeshes(track, pit, gridSlots) {
       const g = ribbon(pl, (i) => ws * (wp(i) - w(i) - 0.15), (i) => ws * (wp(i) + 0.25), 0.012, { closed: false, mask: (i) => i >= i0 && i < i1 && !pit.overlapsTrack[i], colorFn: (i) => ((i >> 1) % 2 ? [0.9, 0.12, 0.12] : [0.95, 0.95, 0.95]) });
       if (g.index.count) noses.push(g);
     };
-    if (pit.wallStartI >= 0) { nose(pit.wallStartI - 9, pit.wallStartI, true); nose(pit.wallEndI, pit.wallEndI + 9, false); }
+    if (pit.wallStartI >= 0) { nose(pit.wallStartI - (pit.infield ? 0 : 9), pit.wallStartI, true); nose(pit.wallEndI, pit.wallEndI + 9, false); }
     if (noses.length) group.add(new THREE.Mesh(mergeGeometries(noses), noseMat));
+    if (pit.infield) group.add(buildInfield(tr, pit, roadMat, kw, pitSide));
     // speed-limit line across the lane at both ends of the limiter zone
     const limitGeos = [];
     for (const i of [Math.round(pit.limitFrom / pl.ds), Math.round(pit.limitTo / pl.ds)].map((i) => Math.max(0, Math.min(pl.n - 1, i)))) {
@@ -1431,6 +1483,7 @@ export function buildTrackMeshes(track, pit, gridSlots) {
   group.userData.setTime = (mode) => {
     const day = mode === 'day';
     roadMat.map = day ? asphaltDay : asphalt; roadMat.emissiveIntensity = day ? 0 : 0.6; roadMat.needsUpdate = true;
+    group.getObjectByName('pit-infield')?.userData.setTime?.(day);
     for (const m of runMats) { m.map = day ? grainDay : grain; m.emissiveIntensity = day ? 0 : 1; m.needsUpdate = true; }
     kerbMat.emissiveIntensity = day ? 0 : 0.18;
     panelMat.emissiveIntensity = day ? 0 : 0.55;
@@ -1445,17 +1498,18 @@ export function buildTrackMeshes(track, pit, gridSlots) {
   return group;
 }
 
-/** Signed distance from the racing corridor (track barriers + pit lane): negative = inside the corridor by that much. */
+/** Signed distance from the racing corridor (track barriers + pit lane, its escape and a paved infield): negative = inside the corridor by that much. */
 export function corridorSigned(track, pit, x, z, margin = 1.5) {
   const q = track.nearest(x, z);
   let c = Math.abs(q.d) - (track.wallAt(q.i, q.d > 0 ? 1 : -1) + margin);
+  if (pit?.infield?.inside(x, z)) return Math.min(c, -margin);
   if (pit) {
     const ps = pit.samples; let bd = Infinity, bi = 0;
     for (let i = 0; i < ps.n; i += 2) { const dd = (ps.px[i] - x) ** 2 + (ps.pz[i] - z) ** 2; if (dd < bd) { bd = dd; bi = i; } }
     const dx = x - ps.px[bi], dz = z - ps.pz[bi];
     const along = dx * ps.tx[bi] + dz * ps.tz[bi], lat = dx * ps.nx[bi] + dz * ps.nz[bi];
     const inEnds = (bi <= 1 && along < -margin) || (bi >= ps.n - 2 && along > margin);
-    if (!inEnds) c = Math.min(c, Math.abs(lat) - (pit.halfWidth + 3 + margin));
+    if (!inEnds) c = Math.min(c, Math.abs(lat) - (Math.max(pit.halfWidth, (pit.garageW?.[bi] ?? 0) - 0.7) + 3 + margin));   // (the escape road's width too)
   }
   return c;
 }
@@ -1500,6 +1554,19 @@ export function buildPitLane(track, rawPts, boxCount = 12) {
   }
   let divergeI = 0; while (divergeI < n - 1 && overlapsTrack[divergeI]) divergeI++;
   let mergeI = n - 1; while (mergeI > 0 && overlapsTrack[mergeI]) mergeI--;
+  // def.pitEscape.infield (m): where the circuit bends away from a straight entry road and comes back to it (Montreal's
+  // last chicane), the whole of the ground between them is one paved run-off - no pit wall down the lane's track side
+  // until the lane is back within `infield` m of the centreline, where the wall's nose stands (wallStartI, below).
+  // (infieldEnd: that lane sample; the lane's farthest point from the road is looked for within 250 m of its branching)
+  const PEI = track.def.pitEscape?.infield;
+  let infieldEnd = -1;
+  if (PEI && divergeI < n - 1) {
+    let far = divergeI; for (let i = divergeI; i < n && samples.s[i] < samples.s[divergeI] + 250; i++) if (trackD[i] > trackD[far]) far = i;
+    if (trackD[far] > PEI + 4) {
+      let e = far; while (e < n - 1 && trackD[e] > PEI) e++;
+      infieldEnd = e;
+    }
+  }
   let wallStartI = -1, wallEndI = -1;
   for (let i = 0; i < n; i++) if (isFinite(wallIn[i])) { if (wallStartI < 0) wallStartI = i; wallEndI = i; }
   // (and its nose no sooner than where the lane has opened out to its full width beside it - up to 5 m between the lane's
@@ -1511,6 +1578,10 @@ export function buildPitLane(track, rawPts, boxCount = 12) {
     while (wallStartI < wallEndI && wallPos[wallStartI] < full) wallStartI++;
     while (wallEndI > wallStartI && wallPos[wallEndI] < full) wallEndI--;
   }
+  // (a paved infield: the wall's nose where the lane is back beside the road, not before. Its line is still the one
+  //  continuous wall below - along the pit straight a lane that hugs the road has no wall of its own, wallIn's test,
+  //  only the one carried on from here)
+  if (infieldEnd >= 0 && wallStartI >= 0 && wallStartI < infieldEnd) wallStartI = Math.min(infieldEnd, wallEndI);
   for (let i = 0; i < n; i++) wallIn[i] = i >= wallStartI && i <= wallEndI && wallStartI >= 0 ? Math.max(0.6, wallPos[i]) : Infinity;   // one continuous wall, no islands
   // how far the lane's own asphalt reaches toward the road: to the wall base where the wall exists, else exactly to the
   // road's kerb / edge line (negative = that line lies on the garage side of the lane centre: the lane is merging and its
@@ -1568,8 +1639,39 @@ export function buildPitLane(track, rawPts, boxCount = 12) {
       if (w > 0) { garageW[i] = halfWidth + 0.7 + (PE.width - halfWidth - 0.7) * w * w * (3 - 2 * w); escape[i] = 1; }
     }
   }
+  // the paved infield (def.pitEscape.infield, above): the ground between the circuit's edge and the lane's track-side
+  // edge, from where the lane has opened out beside the road to the pit wall's nose, as one ring (infield.poly); on the
+  // circuit's side of it no barrier at all (the pit wall line open, wallD NaN; the barrier's line moved out past the lane
+  // and its escape, so nothing is set down out there) and the ground paved (Track.surface: pitInfield)
+  let infield = null;
+  if (infieldEnd >= 0) {
+    const iB = wallStartI >= infieldEnd ? wallStartI : infieldEnd;
+    let iA = divergeI; while (iA < iB && laneEdge[iA] < halfWidth + 0.69) iA++;
+    const edgeOf = (k) => track.edgeAt(k, sideSign) + (track.inCorner[k] ? kwT : 0);
+    const kD = trackI[divergeI], kA = trackI[iA], kB = trackI[iB], N = track.n, span = (a, b) => (b - a + N) % N;
+    const poly = [];
+    for (let m = 0, k = kA; m <= span(kA, kB); m++, k = (k + 1) % N) { const dd = sideSign * edgeOf(k); poly.push([track.px[k] + track.nx[k] * dd, track.pz[k] + track.nz[k] * dd]); }
+    for (let i = iB; i >= iA; i--) { const dd = trackSide * laneEdge[i]; poly.push([samples.px[i] + samples.nx[i] * dd, samples.pz[i] + samples.nz[i] * dd]); }
+    const inPoly = insideRings([poly]);
+    // (on the lane or its escape: between its track-side edge and the escape's tyre wall)
+    const onLane = (x, z) => {
+      let bi = 0, bd = Infinity; for (let i = 0; i < n; i++) { const q = (samples.px[i] - x) ** 2 + (samples.pz[i] - z) ** 2; if (q < bd) { bd = q; bi = i; } }
+      if (bi === 0 || bi === n - 1) return false;
+      const g = -trackSide * ((x - samples.px[bi]) * samples.nx[bi] + (z - samples.pz[bi]) * samples.nz[bi]);
+      return g > -laneEdge[bi] - 0.5 && g < garageW[bi] + 1.6;
+    };
+    track.pitInfield = new Uint8Array(N); track.pitInfieldWall = new Float32Array(N);
+    for (let m = 0, k = kD; m < span(kD, kB); m++, k = (k + 1) % N) {
+      track.pitInfield[k] = 1; wallD[k] = NaN; sideBar[k] = BAR.NONE; if (track.pitWall) track.pitWall[k] = 0;
+      // the barrier's line: out across the infield, the lane and its escape (how far a car can go on this side)
+      let d = edgeOf(k) + 0.3, was = false;
+      for (; d < 120; d += 1) { const x = track.px[k] + track.nx[k] * sideSign * d, z = track.pz[k] + track.nz[k] * sideSign * d; const on = inPoly(x, z) || onLane(x, z); if (on) was = true; else if (was) break; }
+      if (was) { sideArr[k] = Math.max(sideArr[k], d); track.pitInfieldWall[k] = sideArr[k]; }
+    }
+    infield = { poly, inside: inPoly, iA, iB, kA: kD, kB };
+  }
   const pit = {
-    limitFrom, limitTo, garageW, escape,
+    limitFrom, limitTo, garageW, escape, infield,
     samples, curve, halfWidth, wallOff, entryS: first.s, exitS: last.s, trackSide, sideSign, boxes, boxPitch: pitch * samples.ds, length: samples.length, limiter: 80 / 3.6,
     overlapsTrack, trackD, trackI, laneEdge, laneCovers, wallIn, wallPos, wallStartI, wallEndI, wallD, divergeU: samples.s[divergeI], mergeU: samples.s[mergeI], gapEntry, gapExit, isGapS,
     /** nearest pit-lane sample -> { i, u (distance along), lat (left +), along } */

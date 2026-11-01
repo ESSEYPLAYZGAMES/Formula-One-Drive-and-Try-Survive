@@ -73,9 +73,14 @@ export class Stewards {
   update(dt) {
     if (this.off || !this.d.world.racing) return;
     const d = this.d, t = d.time, hw = d.track.halfWidth;
+    const inf = d.pit?.infield;
     for (const c of d.cars) {
-      if (c.pitLane || c.inPit) c._pitT = t;
-      if (c.retired || c.finished || c.pitLane || c.inPit || c.air || c.wreck || c.ghost > 0) { c._ex = null; c._paceS = null; continue; }
+      // (a paved infield beside a last chicane - Montreal's: the lane's escape stretch short of the pit wall's nose is off
+      //  the road, not the pit lane. A car that cuts across it and back onto the circuit has that trip timed like any
+      //  other; one that carries on past the nose into the lane is pitting, and the trip is dropped)
+      const viaInfield = !!inf && c.pitLane && !c.inPit && c.pitI < inf.iB;
+      if ((c.pitLane && !viaInfield) || c.inPit) c._pitT = t;
+      if (c.retired || c.finished || (c.pitLane && !viaInfield) || c.inPit || c.air || c.wreck || c.ghost > 0) { c._ex = null; c._paceS = null; continue; }
       if (c.spinning) c._lastSpin = t;
       // the car's current pace against the speed profile (a ~20 s window of running on the road): what a stretch
       // "should" take this car
@@ -89,7 +94,7 @@ export class Stewards {
       // ---- a trip off the road: timed (and who was just ahead, for an overtake made out there)
       if (allOut && !c._ex) {
         // (not one: forced off by a contact or a spin, crawling, or merging from the pit lane's exit road)
-        const forced = t - (c._lastHit ?? -9) < 2 || t - (c._lastSpin ?? -9) < 3 || c.speed < 15 || c.spinning || t - (c._pitT ?? -99) < 8 || !!d.pit?.isGapS(c.s);
+        const forced = t - (c._lastHit ?? -9) < 2 || t - (c._lastSpin ?? -9) < 3 || c.speed < 15 || c.spinning || t - (c._pitT ?? -99) < 8 || (!!d.pit?.isGapS(c.s) && !d.track.pitInfield?.[c.trackIdx]);
         const k = c._actT > 3 ? Math.max(0.55, Math.min(1.15, c._refT / c._actT)) : 0.9;
         const ahead = d.cars.filter((o) => o !== c && !o.retired && !o.pitLane && !o.inPit && d.planDs(c.s, o.s) > 0 && d.planDs(c.s, o.s) < 60 && Math.abs(d.progress(o) - d.progress(c)) < 300);
         c._ex = { s0: c.s, t0: t, side: sg, forced, k, refT: 0, dist: 0, lastS: c.s, back: null, ahead };

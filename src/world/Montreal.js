@@ -83,8 +83,7 @@ const ADS = [
   { logo: 'rolex', turn: 8, along: -18, side: -1, lateral: 3, w: 16, l: 30 },     // inside T8, the Biosphère behind it
   // (the hairpin's own paint - the Rolex green round the tip of its infield, "bonjour Montréal" across its escape area -
   //  follows the corner's curve: L'Epingle, below)
-  { logo: 'shell', turn: 13, along: 8, side: 1, lateral: 4, w: 16, l: 18 },       // the last chicane's escape road
-  { logo: 'shell', turn: 13, along: -55, side: -1, lateral: 2.5, w: 12, l: 13 },  // ... and the grass before it
+  { logo: 'shell', turn: 13, along: -55, side: -1, lateral: 2.5, w: 12, l: 13 },  // the grass before the last chicane (its infield is plain asphalt now: def.pitEscape.infield)
   { logo: 'canada', turn: 5, along: 0, side: 1, lateral: 3, w: 9, l: 34 },
   { logo: 'rolex', turn: 6, along: 10, side: 1, lateral: 3, w: 11, l: 22 },
   { logo: 'maple', turn: 3, along: 10, side: -1, lateral: 4, w: 14, l: 16 },

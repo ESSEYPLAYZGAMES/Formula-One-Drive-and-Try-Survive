@@ -772,7 +772,9 @@ export class RaceDirector {
   pitUpdate(p, dt) {
     const P = this.pit, me = p.isPlayer, E = me ? this.engineer : null, hud = me ? this.hud : null; if (!P) return;
     const box = P.boxFor(p.boxIdx ?? p.number + p.id);
-    if (p.pitEntered) {
+    // (in a paved infield's stretch of the lane - Montreal's last chicane, pit.infield - a car is only crossing the
+    //  run-off until it passes the pit wall's nose: no "pit entry" for one that cuts across and rejoins)
+    if (p.pitEntered && !(P.infield && p.pitLane && p.pitI < P.infield.iB)) {
       p.pitEntered = false; p.pitLaneState = 'in'; p.boxWarned = false; p.missedBox = false;
       if (me) p.pitRequested = false;   // (the AI keeps its request until it has stopped: it is what it drives to)
       else if (p.pitRequested) this.radio?.pitCall(p);   // (a rival near you boxing: the engineer says what it means)
@@ -786,7 +788,7 @@ export class RaceDirector {
       else if (!p.pitLimiter && p.pitLane && p.pitU >= P.limitTo) { hud?.msg('LIMITER OFF · PIT EXIT', 'good', 1.5); E?.say('Limiter off, push to the blend line, watch for traffic.', 2); }
       p._limWas = p.pitLimiter;
     }
-    if (p.pitExited) { p.pitExited = false; if (p.pitLaneState) { p.pitLaneState = null; hud?.msg('REJOIN', 'good', 1.2); } }
+    if (p.pitExited) { p.pitExited = false; p.pitEntered = false; if (p.pitLaneState) { p.pitLaneState = null; hud?.msg('REJOIN', 'good', 1.2); } }
     if (!p.pitLane) { if (p.pitAuto) { p.pitAuto = null; p._pull = null; } return; }
     // (driven in for you and missed anyway - stopped beside the box, pushed off it: the car is yours again at once, on
     //  down the lane - never an AI driving you on toward the exit with the stop given up)

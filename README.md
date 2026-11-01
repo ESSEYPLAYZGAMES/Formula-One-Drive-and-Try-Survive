@@ -388,7 +388,14 @@ nodes) and its wall starts clear of the T13 kerb (`pitWallClear`). Past the last
 into the paved escape road the real circuit has (`pitEscape`: 26 m wide from 6 m past the lane's branching to 25 m
 short of the speed line, eased over 50 m; the lane's `garageW` / `escape` arrays in `TrackBuilder.buildPitLane`),
 backed by a red and white tyre wall: a car that misses the chicane runs straight on instead of into the concrete (flat
-out with no braking, about 22 g into the tyres).
+out with no braking, about 22 g into the tyres). The whole infield between the chicane and that road is paved too, as
+the real T13-T14 is now (`pitEscape.infield: 16`): from where the lane opens out beside the road until it is back within
+16 m of the centreline there is no wall down either side, only one sheet of asphalt (`pit.infield`: its ring, built by
+`buildInfield`; `Track.surface` reads it as paved run-off through `track.pitInfield`), the green paint fanning out from
+the T14 kerb, and the pit wall's nose capped with red and white tyres where the two come back together. The barrier's
+line on that side moves out past the lane and its escape, and `corridorSigned` counts the ring as circuit, so no tree,
+marquee or logo is set down on it. The stewards time a cut across it like any trip off the road (the lane's stretch
+before the nose counts as run-off, not as the pit lane), and nobody is called into the pits until they pass the nose.
 
 `src/world/Montreal.js` is everything the export does not carry, drawn by hand against the buildings it does: the
 Olympic rowing basin parallel to the pit building, the Seaway, the lake and its beach inside the Senna end, the Chenal
