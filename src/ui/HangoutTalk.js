@@ -1590,6 +1590,9 @@ export function hangoutTalk(x = {}, n = {}, used = []) {
     const plot = (n.talks || 0) >= 2 ? hangoutTopics(x, n, used).filter((d) => plotOf(d.opts)) : [];
     if (plot.length) return buildHangout(pickW(plot), x, n);
     try { const t = n.persona.talk(x); if (t) return t; } catch (e) { console.warn('HangoutTalk: the personality talk failed', e); }
+    // (never the old chatter for someone with a personality: only a move the romance needs, or nothing fresh tonight)
+    const moves = hangoutTopics(x, n, used).filter((d) => plotOf(d.opts));
+    return moves.length ? buildHangout(pickW(moves), x, n) : null;
   }
   const L = hangoutTopics(x, n, used);
   if (!L.length) return null;

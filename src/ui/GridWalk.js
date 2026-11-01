@@ -759,7 +759,9 @@ export class GridWalk {
     const W = [], star = n.kind === 'star', quiet = star && (!!x.L || !!n.grieving);
     // (a star you have only just met, or barely know, also asks what any guest asks - less often than her own; never on
     // a quiet day, nor once there is more between you)
-    const casual = star && !quiet && ['stranger', 'met', 'friendly'].includes(n.stage || 'stranger');
+    // (no longer: someone you could date only ever talks as who she is - her personality's conversations, below - and
+    //  the old guest chatter is never hers)
+    const casual = false;
     if (x.L) W.push([T.mourn, n.kind === 'eng' ? 1 : 4, 'mourn']);
     switch (n.kind) {
       case 'driver': W.push([T.race, 2]); if (n.mate) W.push([T.mate, 3]); if (n.car && Math.abs((n.car.gridPos || 0) - (this.player.gridPos || 0)) <= 2) W.push([T.rival, 2]); if (x.gapTo && n.did) W.push([T.title, 1]); if (x.X) W.push([T.gossip, 1.5]); break;
@@ -774,14 +776,17 @@ export class GridWalk {
     if (as) for (const def of [...Object.values(TOPICS), ...Object.values(TOPICS2), ...Object.values(TOPICS3)]) if (def.who.includes(as) && (!def.when || def.when(x, n)) && !(def === TOPICS.mateTalk && n.mate)) W.push([(xx, nn) => buildTopic(def, xx, nn), def.w * k]);
     // (and the driver-life update's, GridTalk4.js: the stars' own - only her quiet ones on a quiet day - the drivers
     // with a score to settle, the crew and the press on the week's stories)
-    for (const def of TOPICS4) if (def.who.includes(n.kind) && (!def.when || def.when(x, n))) W.push([(xx, nn) => buildTopic(def, xx, nn), def.w, def.id]);
+    // (for a star only the ones that do something her personality's talks cannot - ask her out, your partner's good
+    //  luck before the start - and her quiet ones on a quiet day, or as an ex: never the old chatter)
+    const moves = (d) => JSON.stringify(d.opts || []).match(/askout|partner/);
+    for (const def of TOPICS4) if (def.who.includes(n.kind) && (!def.when || def.when(x, n)) && (!star || quiet || n.stage === 'ex' || !n.celebId || n.noFx || moves(def))) W.push([(xx, nn) => buildTopic(def, xx, nn), def.w, def.id]);
     if (!W.length) W.push([quiet ? T.quiet : T.celeb, 1, quiet ? 'quiet' : null]);
     // (a star talks as who she is (career/Persona.js): her personality's conversations, opening in the mood you left her
     //  in - except on a quiet day, as an ex, or now and then when there is something to do: ask her out, your partner's
     //  good luck before the start)
     if (star && !quiet && n.stage !== 'ex' && n.celebId && !n.noFx) {   /* (never for a talk that must leave nothing behind: her personality's story is the career's) */
       const does = W.filter((w) => w[2] && TOPICS4.some((d) => d.id === w[2] && JSON.stringify(d.opts || []).match(/askout|partner/)));
-      if (!(does.length && Math.random() < 0.3)) {
+      if (!(does.length && Math.random() < 0.15)) {
         try { const t = personaTalk(this.career || (this._pc || (this._pc = {})), 'c:' + n.celebId,   /* (a quick race: her moods for this walk only) */ { where: 'grid', T: { name: n.name, job: n.job, venue: 'the grid', track: x.trackName } }); if (t) return t; } catch (e) { console.warn('GridWalk: the personality talk failed', e); }
       } else W.splice(0, W.length, ...does);
     }
