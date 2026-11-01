@@ -597,7 +597,7 @@ table.res tr.me td { color: var(--accent2); font-weight: 700; }
     <div class="brand-line"></div>
     <h1 id="brand-title">FORMULA 1<span id="brand-sub">SIMULATOR</span></h1>
     <!-- the build's version: +0.01 with every build handed out -->
-    <span id="app-ver" title="Version">V2.02</span>
+    <span id="app-ver" title="Version">V2.03</span>
     <div id="menu-sub">Real circuits built from OpenStreetMap</div>
   </div>
   <div id="loading" class="hidden"><div class="ld"><i></i></div><span>Building the circuit from OpenStreetMap…</span></div>
@@ -83648,7 +83648,7 @@ function triTies(T, neck, out, fS) {
     // chest where it rounds out, across the hollow above the collarbone, never following the skin into it - meeting the
     // neck's foot along its own way round (one curve, no corner), then round behind the neck to the knot)
     const fP = neck(s * aA) - 0.006, fR = fS + 0.002, a0 = s * 1.3, aE = s * (Math.PI - 0.12), oR = (a) => out(fR, a) + 0.0022;
-    const P0 = T.pt(fP, s * aA, out(fP, s * aA) + 0.0016), R0 = T.pt(fR, a0, oR(a0)), tR = T.pt(fR, a0 + s * 0.02, oR(a0)).sub(R0).normalize();
+    const fP0 = fP - 0.014, P0 = T.pt(fP0, s * aA, out(fP0, s * aA) + 0.0026), R0 = T.pt(fR, a0, oR(a0)), tR = T.pt(fR, a0 + s * 0.02, oR(a0)).sub(R0).normalize();
     const L = P0.distanceTo(R0), C1 = P0.clone().lerp(R0, 0.38), C2 = R0.clone().addScaledVector(tR, -0.22 * L), bz = (t) => { const v = 1 - t; return P0.clone().multiplyScalar(v * v * v).addScaledVector(C1, 3 * v * v * t).addScaledVector(C2, 3 * v * t * t).addScaledVector(R0, t * t * t); };
     for (let i = 0; i <= 16; i++) {
       const p = bz(i / 16), m = T.near(p, 0.0016); if (m.s < 0.0016) p.addScaledVector(m.n, 0.0016 - m.s);
@@ -83656,6 +83656,9 @@ function triTies(T, neck, out, fS) {
     }
     for (let i = 1; i <= 14; i++) { const a = a0 + (aE - a0) * (i / 14), f = fR, p = T.pt(f, a, oR(a)); pts.push(p); nr.push(p.clone().sub(T.c(f)).normalize()); }
     G.push(strip(pts, nr, 0.007 * kh, 0.0018));
+    // (a small slider over the join at the cup's point - the string run in under it from inside the tip: one clean finish)
+    const pS = T.pt(fP - 0.002, s * aA, out(fP - 0.002, s * aA) + 0.0026), nS = pS.clone().sub(T.c(fP - 0.002)).normalize(), bd = new THREE.SphereGeometry(0.0052 * kh, 10, 8);
+    bd.scale(1, 1.35, 0.55); bd.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(V(0, 0, 1), nS)); bd.translate(pS.x, pS.y, pS.z); G.push(bd);
   }
   // (the knot at the nape, its tails hanging a little down the back)
   const pk = T.pt(fS + 0.002, Math.PI, out(fS + 0.002, Math.PI) + 0.003), nk = pk.clone().sub(T.c(fS + 0.002)).normalize(), up = V(0, 1, 0).applyQuaternion(T.q);
@@ -84053,7 +84056,7 @@ const SWIM_OUTFITS = {
   twistbikini: { swim: 1, neck: 'twist', sleeve: 0, band: 1, knot: 'twist', crop: 0.54, fit: 0.0022, brief: BRIEF({ rise: 0.075, riseB: 0.095, side: 0.13, sideW: 0.02, leg: 0.8, ring: 1, back: 'brazil' }), rise: 0.075, shoe: 'sandal', fin: 'foil', rough: 0.3 },
   // (and the backs as worn at a Vegas dayclub or on a Miami beach: a string triangle over a thong tied at the hips; an
   // underwired balconette over Brazilian bottoms)
-  stringbikini: { swim: 1, lift: 0.8, neck: 'tri', sleeve: 0, crop: TRI.f0, top: 'tri', fit: 0.0022, brief: THONGB, rise: THONGB.rise, shoe: 'platform', fin: 'shine', rough: 0.35 },
+  stringbikini: { swim: 1, lift: 0.8, neck: 'tri', sleeve: 0, crop: TRI.f0, top: 'tri', fit: 0.0022, brief: THONGB, rise: THONGB.rise, shoe: 'platform', fin: 'lycra', rough: 0.6 },
   brazilbikini: { swim: 1, neck: 'balc', sleeve: 0, straps: 1, lift: 1, bra: 1, crop: 0.53, fit: 0.0022, brief: BRAZB, rise: BRAZB.rise, shoe: 'slide', fin: 'swimrib', rough: 0.75 },
   // (monokinis: a square-necked one-piece cut out at the centre front; a scoop one cut out at the waist either side; one
   // laced across a long front cut-out; one with a gold ring on a strap down the middle of its cut-out; a plunge carried
@@ -85912,7 +85915,7 @@ function midJoint(a, b, L1, L2, dir) {
  */
 function armRad(R, tj, del, fem = false, pad = false) {
   const [ru, re, rf, rw] = R;
-  const rows = fem ? [[0, del * 0.72], [0.05 * tj, del * 0.78], [0.12 * tj, del], [0.22 * tj, del * 1.03], [0.45 * tj, ru * 1.02], [0.6 * tj, ru], [0.82 * tj, ru * 0.88], [tj, re], [tj + 0.22 * (1 - tj), rf], [tj + 0.55 * (1 - tj), rf * 0.82], [1, rw]]
+  const rows = fem ? [[0, del * 0.76], [0.05 * tj, del * 0.88], [0.12 * tj, del * 1.01], [0.22 * tj, del * 1.03], [0.45 * tj, ru * 1.02], [0.6 * tj, ru], [0.82 * tj, ru * 0.88], [tj, re], [tj + 0.22 * (1 - tj), rf], [tj + 0.55 * (1 - tj), rf * 0.82], [1, rw]]
     : [[0, del * (pad ? 1 : 0.8)], [0.06 * tj, del * (pad ? 0.98 : 0.95)], [0.12 * tj, del * 0.96], [0.32 * tj, ru * 1.04], [0.55 * tj, ru], [0.82 * tj, ru * 0.88], [tj, re], [tj + 0.22 * (1 - tj), rf], [tj + 0.55 * (1 - tj), rf * 0.82], [1, rw]];
   return (t) => spline(rows, t)[0];
 }
@@ -88779,7 +88782,7 @@ function* buildSteps(o) {
       if (low < 0.87) { turnedIn(bg, bg.userData.m || n(bm, 8), OF.band ? 0.82 : 0.62); skinEdge = { f: nE, out: OF.lapels ? tight + 0.0065 : tight, angs: nE === neck ? null : bg.userData.angs }; }
       const bgR = ribs(bg, bm); if (oneDress) bodiceG = bgR;
       // (her bust under it: the valley between the cups shaded softly, not as dark crumpled facets)
-      if (fem && F.bust > 0 && Q >= 0.6) { const cB = T.c(F.bf ?? 0.6), cH = T.c(0.8), cL = T.c(0.5); smoothNormals(bgR, (x, y, z) => y > cL.y && y < cH.y && Math.abs(z - cB.z) < 0.055 && x > cB.x, 0.022, 3); }
+      if (fem && F.bust > 0 && Q >= 0.6) { const cB = T.c(F.bf ?? 0.6), cH = T.c(0.8), cL = T.c(0.5); smoothNormals(bgR, (x, y, z) => y > cL.y && y < cH.y && Math.abs(z - cB.z) < 0.055 && x > cB.x, 0.022, 3); if (F.lift) smoothNormals(bgR, (x, y, z) => y > cL.y && y < cH.y && Math.abs(z - cB.z) < 0.17 && x > cB.x, 0.016, 2); }   /* (lifted: each cup one dome - no ridge down it where its inner round meets its outer) */
       // (and where each cup meets the chest at the front of the armpit: no bright pinch where the cloth turns there)
       if (fem && F.bust > 0 && Q >= 0.6) { const cA = T.c(0.7), cU = T.c(0.9); smoothNormals(bgR, (x, y, z) => y > cA.y && y < cU.y && Math.abs(z - cA.z) > 0.07 && x > cA.x - 0.02, 0.02, 2); } parts[mats.band && mat === 'top' ? 'band' : mat].push(bgR); skinFoot = (a) => Math.min(...[-0.07, -0.035, 0, 0.035, 0.07].map((d) => Math.min(neck(a + d), nE(a + d))), fSeam) - 0.3 * (fSeam - fAc); if (fem && !JK) sideG.push([bg, tight + 0.001, 1]);
       // (the neck's flare by how much of the trapezius' sweep shows above the neckline at her sides)
@@ -89129,6 +89132,10 @@ function* buildSteps(o) {
           const l = Math.hypot(x, y, z) || 1; Nm[i3] = x / l; Nm[i3 + 1] = y / l; Nm[i3 + 2] = z / l;
         }
       }
+      // (and down the middle of the chest, from the cleavage up to the throat, by distance rather than by row: its columns
+      // close together there, the passes above reach only millimetres - the breastbone and the tendons either side of it
+      // left as fine bright lines; eased into one soft hollow)
+      if (fem && Q >= 0.6) { const cL = T.c(0.55), cH = T.c(fSeam - 0.005), cM = T.c(0.75); smoothNormals(g, (x, y, z) => y > cL.y && y < cH.y && Math.abs(z - cM.z) < 0.075 && x > cM.x, 0.02, 3); }
     }
     // (by her shoulders, where her arms grow out of it (T.arms: a share of the deltoid round each joint), its light the
     // torso's own true round - as the arms' is, laid over it there: no patch of other light where they meet)
