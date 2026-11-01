@@ -597,7 +597,7 @@ table.res tr.me td { color: var(--accent2); font-weight: 700; }
     <div class="brand-line"></div>
     <h1 id="brand-title">FORMULA 1<span id="brand-sub">SIMULATOR</span></h1>
     <!-- the build's version: +0.01 with every build handed out -->
-    <span id="app-ver" title="Version">V1.97</span>
+    <span id="app-ver" title="Version">V1.98</span>
     <div id="menu-sub">Real circuits built from OpenStreetMap</div>
   </div>
   <div id="loading" class="hidden"><div class="ld"><i></i></div><span>Building the circuit from OpenStreetMap…</span></div>
@@ -87774,7 +87774,7 @@ function bootVamp(ankle) {
  */
 const JACKETS = {
   blazer: { hem: -0.09, open: (f) => 0.06 + 0.5 * ss3(0.48, 0.97, f) + 0.26 * ss3(0.12, -0.09, f), lapel: 0.24, lapV: 0.47, out: 0.013, flare: 0.012, loose: 0.008, button: 1,
-    her: { hem: -0.13, open: (f) => 0.05 + 0.48 * ss3(0.42, 0.97, f) + 0.2 * ss3(0.1, -0.13, f), lapel: 0.22, lapV: 0.44, out: 0.0105, flare: 0.003, loose: 0.006, top: 0.004, tuck: 1, fall: 1, drape: 0.55 } },   /* (fall: its back hanging straight from her seat's fullest, no stiff point over it; drape: in front, a share of the way from her bust's fullest, not painted into its underside) */
+    her: { hem: -0.13, open: (f) => 0.05 + 0.48 * ss3(0.42, 0.97, f) + 0.2 * ss3(0.1, -0.13, f), lapel: 0.22, lapV: 0.44, out: 0.0105, flare: 0.003, loose: 0.006, top: 0.004, tuck: 1, fall: 0.12, drape: 0.9 } },   /* (fall: its back hanging straight from her seat's fullest, no stiff point over it; drape: in front, a share of the way from her bust's fullest, not painted into its underside) */
   leather: { hem: 0.0, open: (f) => 0.16 + 0.3 * ss3(0.62, 0.97, f), lapel: 0.15, lapV: 0.6, out: 0.015, flare: 0.012, loose: 0.01, her: { hem: 0.05, out: 0.0115, flare: 0.004, loose: 0.007, top: 0.004 } },
   bomber: { hem: 0.12, open: (f) => 0.2 + 0.12 * ss3(0.75, 0.97, f), out: 0.02, flare: 0.012, loose: 0.016, rib: 1, her: { out: 0.016, loose: 0.012 } },
   trench: { hem: -0.08, open: (f) => 0.03 + 0.44 * ss3(0.6, 0.97, f), lapel: 0.28, lapV: 0.5, out: 0.013, flare: 0.012, loose: 0.012, coat: 1 },
@@ -87913,7 +87913,10 @@ function skirt(J, F, T, sp, out0 = 0.005) {
     // (a slit up to mid-thigh over the leg further forward: the cloth parted either side of it, the leg through it)
     // (to a point at its top, opening wider toward the hem)
     // (its top one soft rounded apex - eased in over a good few centimetres, never a notch between two rings)
-    if (sp.slit) pts = pts.map(([e, r, c, y], j) => { const wy = ss3(slitTop + 0.02, slitTop - 0.12, y), sw = 0.1 + 0.14 * ss3(slitTop, slitTop - 0.32, y); return [e, r * (1 - 0.55 * wy * gau(angs[j] - slitAt, sw)), c, y]; });
+    // (parted only to just under the leg's own surface where the leg is behind it: the leg seen through the slit, never
+    // standing out past the cloth either side of it - seen from the side no sliver of it in front of the skirt's line)
+    const legIn = (c, y, e) => { let r = -9; for (const s of ['R', 'L']) { const k = J['knee' + s], a = J['ankle' + s], [h, tk, lr] = LR[s], u2 = (y - k.y) / ((a.y - k.y) || -1), [q, rr] = u2 > 0 ? [k.clone().lerp(a, Math.min(1, u2)), lr(tk + Math.min(1, u2) * (1 - tk))] : legAt(s, y), v = V(q.x - c.x, 0, q.z - c.z), pr = v.dot(e), pd = Math.hypot(v.x - pr * e.x, v.z - pr * e.z); if (pd < rr) r = Math.max(r, pr + Math.sqrt(rr * rr - pd * pd)); } return r; };
+    if (sp.slit) pts = pts.map(([e, r, c, y], j) => { const wy = ss3(slitTop + 0.02, slitTop - 0.12, y), sw = 0.1 + 0.14 * ss3(slitTop, slitTop - 0.32, y), rs = r * (1 - 0.55 * wy * gau(angs[j] - slitAt, sw)), lg = legIn(c, y, e); return [e, lg > 0 ? Math.min(r, Math.max(rs, lg - 0.01)) : rs, c, y]; });
     // (wide trousers, standing: one fall of cloth, folded in along the seams between the legs, in front and behind)
     // (deeper toward the hem, where the two legs part)
     // (split 2: two legs read from the crotch down - its inseams folded in deeper, from higher up)
@@ -88302,8 +88305,10 @@ function* buildSteps(o) {
       const C1 = [E[0] - 0.35 * L * Math.cos(al), E[1] + 0.35 * L * Math.sin(al)], C2 = [SN[0] + 0.1 * L * Math.cos(be), SN[1] - 0.1 * L * Math.sin(be)];
       const bz = (u) => { const v = 1 - u; return [0, 1].map((k) => v * v * v * E[k] + 3 * v * v * u * C1[k] + 3 * v * u * u * C2[k] + u * u * u * SN[k]); };
       const row = ([z, h0]) => { const h = h0 + hW, s = clamp01((h - hA) / (hS + hW - hA)), b = clamp01(h / hA); return held(fJ + h / tH, z, h < hA ? d0 * (1.15 - 0.15 * b) : d0 + (nS.D - d0) * s, h < hA ? -0.002 - 0.004 * b : -0.006 + (nS.x + 0.006) * s, 1 - s); };
+      // (the chest's own section there, as it is - not carried back to the joints: its back runs straight on up from the
+      // shoulder blades' into the girdle's above, never a ridge across the upper back where the two meet)
       const fU = fJ + (hW - 0.85 * dl) / tH, cU = spline(F.tor, fU);
-      rows = [held(fU, Math.max(cU[0], sz - 0.1 * dl), cU[1], cU[2]), ...[...[-0.25, 0, 0.3, 0.6, 0.85, 1].map((u) => [zc + rd * Math.cos(te * u), rd * Math.sin(te * u)]), ...[0.3, 0.55, 0.75, 0.88, 0.96].map(bz)].map(row)];
+      rows = [[fU, Math.max(cU[0], sz - 0.1 * dl), cU[1], cU[2]], ...[...[-0.25, 0, 0.3, 0.6, 0.85, 1].map((u) => [zc + rd * Math.cos(te * u), rd * Math.sin(te * u)]), ...[0.3, 0.55, 0.75, 0.88, 0.96].map(bz)].map(row)];
     } else {
       // (his round on down below the joint too, curving in to the chest's own side under the arm (fU, a share of the
       // deltoid below it) - inside the arm there: no corner of the shoulder jutting out past the sleeve's top)
@@ -88905,10 +88910,13 @@ function* buildSteps(o) {
       // (a loose shirt over her swimwear (JK.fall) hanging straight down behind from the fullest round of her seat - never
       // drawn in under it, where the swimwear beneath would come through it: the most her torso stands out at that angle
       // anywhere from there up)
-      const fallR = (f, a) => T.pt(f, a, 0).sub(T.c(f)).setY(0).length(), jFall = JK.fall && fem ? (f, a) => { const b = Math.abs(Math.atan2(Math.sin(a), Math.cos(a))), w = ss3(1.5, 2.3, b); if (w <= 0 || f > 0.06) return 0; let r = 0; for (let g = 0.06; g > f; g -= 0.012) r = Math.max(r, fallR(g, a)); return w * Math.max(0, r - fallR(f, a)) * (1 - 0.55 * ss3(jh + 0.035, jh, f)); } : null;   /* (its last few centimetres curling back in toward her: a soft hem, not a square corner) */
+      const fallR = (f, a) => T.pt(f, a, 0).sub(T.c(f)).setY(0).length(), jFall = JK.fall && fem ? (f, a) => { const b = Math.abs(Math.atan2(Math.sin(a), Math.cos(a))), w = ss3(1.5, 2.3, b); if (w <= 0 || f > 0.06) return 0; let r = 0; for (let g = 0.06; g > f; g -= 0.012) r = Math.max(r, fallR(g, a)); return w * JK.fall * Math.max(0, r - fallR(f, a)) * (1 - 0.8 * ss3(jh + 0.05, jh, f)); } : null;   /* (a share of the way (JK.fall): a fitted jacket's tail skimming the top of her seat; its last few centimetres curling back in toward her - a soft hem, not a square corner, never a bustle) */
       // (a structured jacket over her bust (JK.drape, a share): below its fullest the cloth bridges toward the waist with some
       //  tension, never tucked into the underside of the bust like paint - in front only, easing out to the sides)
-      const fb0 = F.bf ?? 0.6, jDrape = JK.drape && fem && F.bust > 0 ? (f, a) => { const b = Math.abs(Math.atan2(Math.sin(a), Math.cos(a))), w = ss3(1.2, 0.5, b); if (w <= 0 || f >= fb0 || f < 0.2) return 0; let r = 0; for (let g = fb0; g > f; g -= 0.015) r = Math.max(r, fallR(g, a)); return JK.drape * w * ss3(0.2, 0.34, f) * Math.max(0, r - fallR(f, a)); } : null;
+      // (one clean taper, seen from the side: the cloth's line from the bust's fullest straight down to the waist (fw) - the
+      //  tightest line from the waist that still clears every point of her between, as cloth pulled from the two would lie -
+      //  never a second round over the ribs on its way down)
+      const fb0 = F.bf ?? 0.6, fw = 0.275, jDrape = JK.drape && fem && F.bust > 0 ? (f, a) => { const b = Math.abs(Math.atan2(Math.sin(a), Math.cos(a))), w = ss3(1.2, 0.5, b); if (w <= 0 || f >= fb0 || f <= fw) return 0; const rW = fallR(fw, a); let r = 0; for (let g = fb0; g > f; g -= 0.015) r = Math.max(r, rW + (fallR(g, a) - rW) * (f - fw) / (g - fw)); return JK.drape * w * Math.max(0, r - fallR(f, a)); } : null;
       const jOut = (f, a = 0) => JK.out + 0.005 * ss3(0.8, 0.93, f) + (jDrape ? jDrape(f, a) : 0) + (JK.nOut != null ? (JK.nOut - JK.out - 0.005) * ss3(0.94, 0.99, f) : 0) + JK.flare * ss3(0.16, -0.09, f) + (jFall ? jFall(f, a) : 0) + (fem ? 0.2 * F.leg[0] * ss3(0.14, jh, f) * (1 - ss3(1.7, 2.3, Math.abs(Math.atan2(Math.sin(a), Math.cos(a))))) : 0)
         + (JK.sh ? JK.sh * ss3(0.84, 0.94, f) * ss3(0.995, 0.965, f) * gau(Math.abs(Math.atan2(Math.sin(a), Math.cos(a))) - Math.PI / 2, 0.5) : 0);   // (a padded shoulder: squared out over the arm)
       parts.top.push(panel(T, jh, 0.99, hw, (f) => 2 * Math.PI - hw(f), jOut, { rows: JK.rows || (JK.coat && sk ? 13 : fem ? 24 : 19), cols: JK.cols || 32, curv: fem ? null : shD }), lining(panel(T, jh, 0.99, hw, (f) => 2 * Math.PI - hw(f), (f, a) => jOut(f, a) - 0.0025, { rows: fem ? 12 : 10, cols: 20, th: 0 })));
@@ -89137,7 +89145,7 @@ function* buildSteps(o) {
     // (cloth over an arm: smoother than the arm, a little looser, a crease's shade in the crook of the elbow)
     // (hers: hanging from the deltoid's fullest and easing in to the elbow, not following the muscle's round in and out -
     //  a sleeve, not a pauldron capping the shoulder)
-    const dPk = fem ? rad(0.22 * tj) : 0, radS = fem ? (t) => Math.max(rad(t), dPk - (dPk - rad(tj)) * ss3(0.22 * tj, tj, t)) : rad;
+    const dPk = fem ? rad(0.22 * tj) : 0, radS = fem ? (t) => (t <= 0.22 * tj ? rad(t) : Math.max(rad(t), dPk - (dPk - rad(tj)) * ss3(0.22 * tj, tj, t))) : rad;   // (above the fullest its cap the shoulder's own round, closing in over it - no rim standing out past the shoulder)
     const cloth = (t) => 0.7 * radS(t) + 0.3 * (F.del * (1 - t) + (F.arm[3] + 0.008) * t) + loose + (tS < 1 ? 0.005 * t / Math.max(0.05, tS) : 0), ao = crease([el], 0.8), rib = (g) => (OF?.ribs && !JK && Q >= 0.6 ? ribbed(g, n(14, 6)) : g);
     // (her arm grown out of her shoulder - its skin (shaded as the skin it grows from, no fillet onto the bodice: crossing
     // its edge cleanly), or the top's sleeve over the bodice; a jacket's its own)
