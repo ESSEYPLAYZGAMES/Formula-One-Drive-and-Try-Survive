@@ -61,6 +61,14 @@ vec2 pplWeave( vec2 q, float px ) {
 	float s = abs( fract( q.y * 26.0 ) - 0.5 ) * 2.0, aa = min( 1.0, px * 52.0 );
 	float m = smoothstep( 0.5 - 0.5 * aa - 0.03, 0.5 + 0.5 * aa + 0.03, s );
 	c = 1.0 - mix( m, 0.5, smoothstep( 0.3, 0.6, px * 26.0 ) );
+	#elif PPL_WEAVE == 10
+	// (jersey: a fine knit - its stitch columns a millimetre and a bit apart, each a soft V, the loops' rows across them -
+	// and a little unevenness through it: matt cloth with a weave you can read up close, not clay or plastic)
+	float cx = q.x * 820.0, cy = q.y * 1150.0 + 0.35 * abs( fract( cx ) - 0.5 ) * 2.0;
+	float col = 0.5 + 0.5 * cos( 6.2832 * cx ), row = 0.5 + 0.5 * cos( 6.2832 * cy ), w = 1.0 - smoothstep( 0.3, 0.6, px * 1150.0 );
+	float sl = pplNoise( q * 55.0 + 3.3 );
+	h = ( 0.00006 * col + 0.00004 * row ) * w + 0.00012 * sl;
+	c = 1.0 - 0.06 * ( 1.0 - col * row ) * w - 0.04 * ( sl - 0.5 );
 	#elif PPL_WEAVE == 9
 	// (a palm print: fronds a hand long, scattered and turned every way, each frond's leaflets parted - a tropical print's;
 	// at a distance their average)
@@ -194,7 +202,7 @@ if (!SC.lights_fragment_end.includes('PPL_SATIN')) SC.lights_fragment_end += `
 `;
 
 /** the weaves (PPL_WEAVE's kinds): denim, leather, sequin, lame (metallic), rib (a rib knit), ruche, crinkle; prints: stripe, palm */
-export const WEAVES = Object.freeze({ denim: 1, leather: 2, sequin: 3, lame: 4, rib: 5, ruche: 6, crinkle: 7, stripe: 8, palm: 9 });
+export const WEAVES = Object.freeze({ denim: 1, leather: 2, sequin: 3, lame: 4, rib: 5, ruche: 6, crinkle: 7, stripe: 8, palm: 9, knit: 10 });
 /**
  * A person's cloth material made to answer the light as its cloth does (o: { weave (WEAVES' key), satin (its sheen's
  * strength, ~0.1..0.5), net (1 a mesh, 2 a lace: the material transparent) }) -> m (its defines added: one program for

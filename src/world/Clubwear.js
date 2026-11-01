@@ -206,6 +206,14 @@ export function bralette(T, neck, lo, out, ctx = {}) {
  * cloth all round each hole, lying on it (out(f, a)); cross: straps criss-crossing the hole (that many), lying across the
  * skin; ring: a metal O-ring at the hole's middle with the straps to it -> { cloth: [geometry], metal: [geometry] }
  */
+/** a closed band of quads between two loops of points (top: the cloth's face, bot: down at the skin), facing into the hole */
+function holeWall(top, bot) {
+  const n = top.length, pos = [];
+  for (let i = 0; i < n; i++) { pos.push(top[i].x, top[i].y, top[i].z, bot[i].x, bot[i].y, bot[i].z); }
+  // (both faces: whichever way round the hole's loop runs, the wall is seen from inside the hole)
+  const side = (flip) => { const idx2 = []; for (let i = 0; i < n; i++) { const j = (i + 1) % n, a = 2 * i, b = 2 * i + 1, c = 2 * j, d = 2 * j + 1; idx2.push(...(flip ? [a, c, b, c, d, b] : [a, b, c, c, b, d])); } const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx2); g.computeVertexNormals(); return g; };
+  return [side(false), side(true)];
+}
 export function bindHoles(T, H, out, o = {}, ctx = {}) {
   const Q = ctx.Q ?? 1, O = typeof out === 'function' ? out : () => out, cloth = [], metal = [];
   for (const h of H) {
@@ -216,8 +224,11 @@ export function bindHoles(T, H, out, o = {}, ctx = {}) {
     const E = []; const K = Q >= 0.6 ? 14 : 8, uu = (i) => 0.5 - 0.5 * Math.cos(Math.PI * i / K);
     for (let i = 0; i <= K; i++) E.push(at(uu(i), 1));
     for (let i = K - 1; i >= 1; i--) E.push(at(uu(i), -1));
-    const pts = E.filter((e, i) => i === 0 || Math.hypot(e[0] - E[i - 1][0], e[1] - E[i - 1][1]) > 1e-4).map(([f, a]) => T.pt(f, a, O(f, a) + 0.0012));
+    const EF = E.filter((e, i) => i === 0 || Math.hypot(e[0] - E[i - 1][0], e[1] - E[i - 1][1]) > 1e-4), pts = EF.map(([f, a]) => T.pt(f, a, O(f, a) + 0.0012));
     if (pts.length > 4) cloth.push(cord(pts, 0.0019, Q >= 0.6 ? 5 : 3, true));
+    // (and its depth: the cloth's own thickness turned in all round the hole, from its face down to her skin - a cut edge
+    // you can see into, not a hole printed flat on the dress)
+    if (EF.length > 4 && Q >= 0.6) cloth.push(...holeWall(EF.map(([f, a]) => T.pt(f, a, O(f, a) + 0.0006)), EF.map(([f, a]) => T.pt(f, a, 0.0002))));
     if (o.cross && Q >= 0.6) {
       // (straps across it: from one side's edge to the other's, criss-crossed - lying on the skin between)
       const k = o.cross;
