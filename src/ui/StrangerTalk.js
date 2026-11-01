@@ -211,6 +211,7 @@ function roundOf(c, place) {
 }
 /** where you met, in words for the phone: 'the Halo Room, Las Vegas' / 'the grid at Austin' / 'the team party at Silverstone' */
 function whereOf(ctx, place, vid, track) {
+  track = String(track || '').replace(/ Circuit$/, '');   /* ('Silverstone Circuit': the grid at Silverstone) */
   if (place === 'grid') return track ? `the grid at ${track}` : 'the grid';
   if (place === 'party') return track ? `the team party at ${track}` : 'the team party';
   if (vid && MET_AT[vid]) return MET_AT[vid];
