@@ -67,7 +67,9 @@ export function writeCal(track, cal) {
   const rows = (a, dp) => Array.from({ length: Math.ceil(a.length / 16) }, (_, k) => '      ' + a.slice(k * 16, k * 16 + 16).map((x) => +x.toFixed(dp)).join(', ') + ',').join('\n');
   const lineTxt = (cal.line ? `    line: { every: ${cal.line.every}, d: [\n${rows(cal.line.d, 2)}\n    ] },\n` : '') +
     (cal.show ? `    show: { every: ${cal.show.every}, d: [\n${rows(cal.show.d, 2)}\n    ], kmh: [\n${rows(cal.show.kmh, 1)}\n    ] },\n` : '');
-  const block = `  // <cal:${track}>\n  ${track}: {\n    source: ${JSON.stringify(cal.source || '')},\n${cal.fitted ? `    fitted: ${JSON.stringify(cal.fitted)},\n` : ''}${cal.pack ? '    pack: true,\n' : ''}${cal.lineFrom ? `    lineFrom: ${JSON.stringify(cal.lineFrom)},   // (stretches on the driver's line: main.js makeRacingLine)\n` : ''}${lineTxt}    corners: {\n${corners}\n    },\n  },\n  // </cal:${track}>`;
+  // (the wet calibration - tools/ai_fit_wet.mjs: kept through any other fit that rewrites the block)
+  const wetTxt = cal.wet ? `    wet: {\n      at: ${cal.wet.at},\n      source: ${JSON.stringify(cal.wet.source || '')},\n      corners: {\n${Object.keys(cal.wet.corners).sort((a, b) => a - b).map((n) => `        ${n}: ${fmt(cal.wet.corners[n])},`).join('\n')}\n      },\n    },\n` : '';
+  const block = `  // <cal:${track}>\n  ${track}: {\n    source: ${JSON.stringify(cal.source || '')},\n${cal.fitted ? `    fitted: ${JSON.stringify(cal.fitted)},\n` : ''}${cal.pack ? '    pack: true,\n' : ''}${cal.lineFrom ? `    lineFrom: ${JSON.stringify(cal.lineFrom)},   // (stretches on the driver's line: main.js makeRacingLine)\n` : ''}${lineTxt}    corners: {\n${corners}\n    },\n${wetTxt}  },\n  // </cal:${track}>`;
   const re = new RegExp(`  // <cal:${track}>[\\s\\S]*?// </cal:${track}>`);
   if (re.test(src)) src = src.replace(re, block);
   else src = src.replace('export const AI_CAL = {\n', `export const AI_CAL = {\n${block}\n`);

@@ -1063,8 +1063,8 @@ export function checkerTexture(n = 8) {
  * mask(i) may skip segments. colorFn(i, d) -> [r,g,b] for vertex colors. y may be a function of i.
  * uv: u = 0 at offA, 1 at offB; v = uvFn(i) if given, else s / uvV.
  */
-export function ribbon(tr, offA, offB, y, { mask = null, colorFn = null, uvV = 8, closed = tr.closed, yB = null, uvFn = null } = {}) {
-  const pos = [], uv = [], idx = [], col = [];
+export function ribbon(tr, offA, offB, y, { mask = null, colorFn = null, uvV = 8, closed = tr.closed, yB = null, uvFn = null, wx = false } = {}) {
+  const pos = [], uv = [], idx = [], col = [], wxa = [];   // (wx: each vertex's lap distance and lateral offset, for the road's wetness - race/Weather.js, main.js wetRoad)
   const n = tr.n, segs = closed ? n : n - 1;
   let vcount = 0; let prevEmitted = false;
   const yAt = (i) => (typeof y === 'function' ? y(i) : y);
@@ -1078,6 +1078,7 @@ export function ribbon(tr, offA, offB, y, { mask = null, colorFn = null, uvV = 8
     pos.push(tr.px[i] + tr.nx[i] * a, yAt(i), tr.pz[i] + tr.nz[i] * a, tr.px[i] + tr.nx[i] * b, yBAt(i), tr.pz[i] + tr.nz[i] * b);
     const v = vOver ?? vAt(i);
     uv.push(0, v, 1, v);
+    if (wx) { const sv = vOver != null ? vOver * uvV : tr.s[i]; wxa.push(sv, a, sv, b); }
     if (colorFn) { col.push(...colorFn(i, a), ...colorFn(i, b)); }
     return vcount++;
   };
@@ -1097,6 +1098,7 @@ export function ribbon(tr, offA, offB, y, { mask = null, colorFn = null, uvV = 8
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
   if (colorFn) g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  if (wx) g.setAttribute('aWx', new THREE.Float32BufferAttribute(wxa, 2));
   g.setIndex(idx); g.computeVertexNormals();
   return g;
 }
@@ -1174,7 +1176,7 @@ export function buildTrackMeshes(track, pit, gridSlots) {
   const asphalt = asphaltTexture(); asphalt.repeat.set(2, 1);
   const roadMat = new THREE.MeshStandardMaterial({ map: asphalt, roughness: 0.62, metalness: 0.06, envMapIntensity: 0.55, vertexColors: true, emissive: 0x0c0d12, emissiveIntensity: 0.6 });   // slick: floodlights / Sphere glow smear across it
   const HW = tr.hw, HL = tr.hwL, HR = tr.hwR, EG = (i, side) => (side > 0 ? HL[i] : HR[i]);
-  const roadGeo = ribbon(tr, (i) => -HR[i], (i) => HL[i], 0, { colorFn: (i, d) => { const r = 1 - 0.28 * Math.exp(-(d * d) / 18); return [r, r, r]; }, uvV: 10 });
+  const roadGeo = ribbon(tr, (i) => -HR[i], (i) => HL[i], 0, { colorFn: (i, d) => { const r = 1 - 0.28 * Math.exp(-(d * d) / 18); return [r, r, r]; }, uvV: 10, wx: true });
   group.add(spatialChunks([roadGeo], roadMat, 'road')); group.userData.roadMat = roadMat;   // lap-long ribbons are cut into map cells so off-camera parts cull
 
   // --- white edge lines (polygon offset: painted overlays never z-fight with the road at distance)

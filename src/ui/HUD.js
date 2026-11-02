@@ -119,6 +119,25 @@ const HUD_CSS = `
 #pit-menu #pit-confirm { display: inline-flex; align-items: center; gap: 10px; }
 #pit-menu #pit-confirm kbd { color: rgba(255,255,255,.8); border-color: rgba(255,255,255,.4); }
 #pit-menu .hint { display: none; }
+/* the weather (race/Weather.js): what is falling, the water under you, on the line and off it, by sector, the forecast */
+#hud-wx { position: absolute; right: 16px; top: 14px; width: 214px; background: var(--glass); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px 9px; backdrop-filter: blur(10px); font-size: 11px; }
+#hud-wx.hidden { display: none; }
+#hud-wx .wx-top { display: grid; grid-template-columns: 22px minmax(0,1fr) auto; align-items: center; gap: 6px; }
+#hud-wx .wx-ic { font-size: 17px; line-height: 1; text-align: center; }
+#hud-wx .wx-lbl { font-weight: 800; letter-spacing: .1em; font-size: 12px; white-space: nowrap; }
+#hud-wx .wx-me { color: rgba(255,255,255,.6); font-weight: 700; font-variant-numeric: tabular-nums; }
+#hud-wx .wx-bars { display: grid; grid-template-columns: 34px minmax(0,1fr) 30px; gap: 3px 6px; align-items: center; margin-top: 6px; color: rgba(255,255,255,.55); font-weight: 700; letter-spacing: .06em; font-size: 9.5px; }
+#hud-wx .wx-bars u { display: block; height: 6px; border-radius: 3px; background: rgba(255,255,255,.08); overflow: hidden; }
+#hud-wx .wx-bars u i { display: block; height: 100%; width: 100%; border-radius: 3px; background: linear-gradient(90deg, #4aa3ff, #2f6dff); transform-origin: left center; transform: scaleX(var(--v, 0)); transition: transform .5s; }
+#hud-wx .wx-bars em { font-style: normal; text-align: right; font-variant-numeric: tabular-nums; }
+#hud-wx .wx-sec { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-top: 6px; }
+#hud-wx .wx-sec i { font-style: normal; text-align: center; font-weight: 800; font-size: 9.5px; letter-spacing: .06em; padding: 2px 0; border-radius: 3px; background: rgba(255,255,255,.07); border-bottom: 3px solid var(--c, #3a3f4a); }
+#hud-wx .wx-fc { display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px; margin-top: 7px; align-items: end; }
+#hud-wx .wx-fc div { display: grid; grid-template-rows: 22px auto auto; gap: 2px; text-align: center; }
+#hud-wx .wx-fc s { align-self: end; justify-self: center; width: 70%; height: calc(2px + var(--p, 0) * 20px); border-radius: 2px 2px 0 0; background: var(--c, #4aa3ff); text-decoration: none; transition: height .6s; }
+#hud-wx .wx-fc b { font-size: 9.5px; font-variant-numeric: tabular-nums; } #hud-wx .wx-fc small { font-size: 8.5px; color: rgba(255,255,255,.45); }
+#hud-wx .wx-tip { margin-top: 6px; font-size: 10px; font-weight: 700; color: #ffc65a; letter-spacing: .04em; min-height: 0; }
+#hud-wx .wx-tip:empty { display: none; }
 `;
 /** the menus' CSS, once (after the kit's, so it wins over it) */
 function hudCSS() {
@@ -150,6 +169,31 @@ export class HUD {
     document.querySelectorAll('#pit-tyres button').forEach((b, i) => kb(b, i + 1));
     document.querySelectorAll('#pit-repairs button').forEach((b, i) => kb(b, i + 7));
     kb($('pit-confirm'), 'Enter'); $('pit-eta')?.parentElement?.classList.add('pit-foot');
+    // (the weather panel: made here, filled by wxPanel)
+    if (!$('hud-wx')) { const w = document.createElement('div'); w.id = 'hud-wx'; w.className = 'hidden'; w.innerHTML = '<div class="wx-top"><span class="wx-ic"></span><b class="wx-lbl"></b><span class="wx-me"></span></div><div class="wx-bars"><span>LINE</span><u><i class="wx-l"></i></u><em class="wx-lv"></em><span>OFF</span><u><i class="wx-o"></i></u><em class="wx-ov"></em></div><div class="wx-sec"><i>S1</i><i>S2</i><i>S3</i></div><div class="wx-fc"></div><div class="wx-tip"></div>'; this.root.appendChild(w); }
+    this.wx = null;
+  }
+  /**
+   * The weather panel (twice a second): the sky and the track in a word, the water under your car, the lap's water on
+   * the dry line and off it, each sector's line coloured dry / damp / wet, and the forecast as the pit wall has it -
+   * the chance of rain in each of the next five two-minute windows (the bar's height; its colour how hard)
+   */
+  wxPanel(p) {
+    const wx = this.wx, el = $('hud-wx'); if (!el) return;
+    if (!wx || (wx.fixed && wx.avgOff < 0.02)) { el.classList.add('hidden'); return; }
+    el.classList.remove('hidden');
+    const q = (c) => el.querySelector(c), pct = (x) => `${Math.round(x * 100)}%`, r = wx.rainNow;
+    q('.wx-ic').textContent = r > 0.45 ? '⛈' : r > 0.05 ? '🌧' : wx.cloudAt?.(wx._g.cx, wx._g.cz) > 0.35 ? '☁' : wx.night ? '☾' : '☀';
+    q('.wx-lbl').textContent = wx.label(); q('.wx-me').textContent = p ? `YOU ${pct(p.wetness || 0)}` : '';
+    q('.wx-l').style.setProperty('--v', wx.avgLine.toFixed(3)); q('.wx-o').style.setProperty('--v', wx.avgOff.toFixed(3));
+    q('.wx-lv').textContent = pct(wx.avgLine); q('.wx-ov').textContent = pct(wx.avgOff);
+    const col = (w) => (w > 0.62 ? '#2f6dff' : w > 0.27 ? '#2fbf4f' : w > 0.1 ? '#e8c64a' : '#3a3f4a');
+    el.querySelectorAll('.wx-sec i').forEach((x, k) => x.style.setProperty('--c', col(wx.sec[k])));
+    const st = wx.fixed ? [] : wx.strip(5, 120);
+    q('.wx-fc').innerHTML = st.map((b, k) => `<div><s style="--p:${b.p.toFixed(2)};--c:${b.peak > 0.6 ? '#2f6dff' : b.peak > 0.3 ? '#4aa3ff' : '#9cc9ff'}"></s><b>${b.p < 0.05 ? '–' : pct(b.p)}</b><small>${k ? `+${k * 2}m` : 'NOW'}</small></div>`).join('');
+    // (the tyre the track wants against the one on your car)
+    const want = wx.idealTyre(), tc = p?.tyres.compound, rainT = tc === 'INTER' || tc === 'WET';
+    q('.wx-tip').textContent = !p ? '' : !rainT && want !== 'SLICK' ? `TRACK WANTS ${want === 'WET' ? 'FULL WETS' : 'INTERS'}` : rainT && want === 'SLICK' ? 'SLICKS ARE QUICKER NOW' : tc === 'INTER' && want === 'WET' ? 'STANDING WATER · WETS' : tc === 'WET' && want === 'INTER' ? 'INTER CONDITIONS' : '';
   }
   show() { this.root.classList.remove('hidden'); }
   hide() { this.root.classList.add('hidden'); this.showLights(false); this.showReset(false); }
@@ -179,6 +223,7 @@ export class HUD {
   update(p, race, dt) {
     if (this.msgTimer > 0) { this.msgTimer -= dt; if (this.msgTimer <= 0) this.msgEl.textContent = ''; }
     const mode = race.mode;
+    if ((this._wxT = (this._wxT || 0) + dt) > 0.5) { this._wxT = 0; this.wxPanel(p); }
     // fast telemetry every frame (only changed values touch the DOM)
     this._t('lap-time', fmtTime(race.time - p.lapStart));
     // the live delta to your best lap, 20 times a second (the bar spans a second either way)
@@ -269,6 +314,18 @@ export class HUD {
     c.clearRect(0, 0, this.mm.width, this.mm.height);
     c.lineWidth = 4; c.strokeStyle = '#3a4152'; c.stroke(this.mmPath);
     if (this.mmPit) { c.lineWidth = 2; c.strokeStyle = '#6a5a2a'; c.stroke(this.mmPit); }
+    // (the water on the racing line: the wet stretches in blue - a shower crossing the map shows as it comes)
+    const wx = this.wx;
+    if (wx && wx.avgOff > 0.03) {
+      const g = wx._g, n = wx.n, step = 2; c.lineWidth = 4; c.lineCap = 'round';
+      for (let i = 0; i < n; i += step) {
+        const w = Math.max(wx.lineW[i], 0.6 * wx.water[i]); if (w < 0.06) continue; const j = (i + step) % n;
+        c.strokeStyle = `rgba(${w > 0.62 ? '60,110,255' : '90,170,255'},${Math.min(1, 0.25 + w).toFixed(2)})`;
+        const [x0, y0] = this.mmXY(g.x[i], g.z[i]), [x1, y1] = this.mmXY(g.x[j], g.z[j]); c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.stroke();
+      }
+      // (rain falling: a soft wash over the map where it is)
+      if (wx.rainNow > 0.01) for (let i = 0; i < n; i += 4) { const r = wx.rainB[i]; if (r < 0.05) continue; const [x, y] = this.mmXY(g.x[i], g.z[i]); c.fillStyle = `rgba(150,200,255,${(0.12 + 0.3 * r).toFixed(2)})`; c.beginPath(); c.arc(x, y, 7, 0, 6.283); c.fill(); }
+    }
     c.fillStyle = '#fff'; c.fillRect(this.mmSF[0] - 3, this.mmSF[1] - 3, 6, 6);
     for (const car of cars) {
       if (car === player) continue; const [x, y] = this.mmXY(car.x, car.z);

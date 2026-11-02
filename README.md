@@ -229,11 +229,51 @@ src/audio/Audio.js         synthesised engine/wind/impact audio
   from what each vertex carries: kind, part, storey height, its place along the facade) and one mesh per 400 m cell.
   Las Vegas has little brick (`buildingStyle.brick`). The landmarks' glass reflects the sky the same way by day.
 * Damp/Wet weather adds GPU rain (a camera-following point cloud), heavier greyer fog, dimmed sun and wet,
-  reflective asphalt; it previews live in the menu.
+  reflective asphalt; it previews live in the menu. In a session the weather is dynamic (see Weather below).
 * Driver selection is team-first: a 4×3 grid of team tiles (plus the Independent 23rd car); picking a team reveals
   its two drivers.
 * Grand Prix Plaza is extruded from its real parcel outline and fitted outside the corridor (shifted away from
   the track, then shrunk toward its centroid) so the F1 HQ stays without ever crossing the circuit.
+
+### Weather: forecast, showers, the dry line
+
+`src/race/Weather.js`, one per session (the race director's, rewound with flashbacks). The menu's weather is Dry, Damp,
+Wet or **Changeable**; a career's race day is drawn from the calendar's forecast and is not always what was forecast
+(`weatherPlan`: a dry forecast turns changeable now and then, a damp one can dry out or go wet).
+
+* **The sky** is rain cells: soft discs of rain born, growing over a minute or two and dying away, drifting across the
+  map on the wind (5-13 m/s). Where a cell's path crosses the circuit decides what gets wet - one off to the side
+  clips a corner or two, or misses the track entirely; a big one covers it all. A wet day is one cell over the whole
+  map that eases at a time of its own (before the end, or not at all), sometimes with a downpour on top. A damp day
+  starts damp and dries, or a drizzle hangs on, or a shower comes later. A changeable day has one to three showers.
+* **The track** is held every ~10 m of the lap as two water levels: off the line and on the racing line. Rain raises
+  both toward the level its strength holds, gradually (a drizzle takes minutes to make a track damp, a downpour about
+  a minute to soak it - never an instant monsoon); sun and wind dry both (slower at night), and every car through a
+  stretch on the line clears water off it: the **dry line**, a ribbon of grip ~3 m wide with wet asphalt either side.
+  Stretches that drain badly stay wet longest. `wetAt(s, d)` is the water under any point; each car's `wetness`
+  (its physics, tyres and spray) is the water under it, so a move off the dry line in a drying race is a gamble.
+* **The forecast** is what the pit walls believe: each real shower with its timing a few minutes out and its chance of
+  hitting not quite right; some showers (about one in three in a changeable day) unseen until the radar has them a
+  minute or two out; and false alarms that break up before they arrive. The radar firms a shower up inside ~7
+  minutes. The HUD's weather panel shows the condition, the water under you, the lap's water on the line and off it,
+  each sector, and the chance of rain in each of the next five two-minute windows; the minimap shows wet stretches and
+  where it is raining; the strategy screen gives the race's forecast.
+* **The engineer** says the forecast at the start, showers coming on the radar (how hard, how far, from where, which
+  corner first, the chance), surprise ones, ones that break up, the first drops and where, sectors going wet, the rain
+  stopping, the tyre the track wants against yours, your team-mate boxing for the weather (stack behind him if you
+  want), double stacks and rivals' gambles near you.
+* **The AI's calls** (`AIDriver.weatherCall`): on the track's tyre wetness (the lap's line water pulled toward its
+  wettest stretches: `tyreWet`) and the forecast, each car with its own nerve - `wxStay` (left out on the wrong tyre
+  hoping a shower passes) and `wxEarly` (in early for the tyre the sky is heading to: inters before the rain comes,
+  slicks the moment a dry line shows; the back of the grid gambles more). Crossovers about 0.27 (slick/inter) and 0.62
+  (inter/wet). A team calling one car in for the weather stacks its team-mate behind it when it is within ~9 s
+  (`stackMate`; the second car waits in the lane: `boxBusy`). The two-compound rule lapses once a race has been wet.
+  The AI plans on the water ahead on its line, and its planner weighs the water under every path it considers (off
+  the dry line: less grip, a longer stop), and a damp corner on slicks is where its mistakes happen.
+* **On screen**: the road's shader reads the weather's texture (off-line water, line water, line offset per cell) -
+  wet asphalt dark and glassy, puddles near-mirrors, the dry line lighter through it, broken up by noise; the drops
+  fall where the camera is; the sky darkens under the clouds; cars throw spray by the water under them (`world/Spray.js`).
+* **Telemetry** records `wet` (the water under the car) on every sample.
 
 ### Time of day
 
@@ -555,6 +595,11 @@ sample (`track.aiV`, `track.aiB`).
   in hand on the brakes at speed in the wet (from 160 km/h, all of it by 290: 15 % of the stop and a rear that
   trail-brakes inside 0.8 - 0.3 x wetness of its grip - Planner.brakeA). In 8-lap wet races at Silverstone that took
   the spins from 15-65 to 11-16 at the same pace.
+* A wet calibration (`wet: { at, corners }`), fitted by `tools/ai_fit_wet.mjs` from the game's own telemetry of a race
+  on a wet track: each corner's second-best clean pass (on the road, not rewound) - minimum speed and braking point -
+  against the AI alone in the same water on inters; then driven, a corner that goes off pulled back toward 1. It fades
+  in as the line gets wet (`calWet`: full at the wetness it was fitted at), while the dry one fades out.
+  `node tools/ai_fit_wet.mjs silverstone wet-race.json [--blend 0.7] [--dry]`.
 
 Both need Playwright and a Chromium (the scripts find `/opt/pw-browsers`, or set `CHROME`). After a fit, rebuild the
 game (`tools/bundle.py`, or `tools/splice_artifact.py <commit>` for the published Artifact, which carries changes of

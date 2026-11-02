@@ -101,7 +101,9 @@ export class AIDriver {
    */
   gripState() {
     const c = this.car, P = this.line.grip, T = AI_TUNE;
-    const muR = (c.tyres.grip(c.wetness) / COMPOUNDS.SOFT.grip) * (1 - 0.25 * c.tyres.instability()) * (c.offTrack ? c.surfGrip : 1) * (1 - 0.1 * c.wetness) * (1 - 0.22 * c.dmg.susp) * (1 - 0.06 * (c.dmg.fwL + c.dmg.fwR)) * (c.aiGrip || 1);
+    // (the wetness it plans on: the water ahead on its line as well as under it - Weather.js; replan)
+    const wp = this.wPlan ?? c.wetness;
+    const muR = (c.tyres.grip(wp) / COMPOUNDS.SOFT.grip) * (1 - 0.25 * c.tyres.instability()) * (c.offTrack ? c.surfGrip : 1) * (1 - 0.1 * wp) * (1 - 0.22 * c.dmg.susp) * (1 - 0.06 * (c.dmg.fwL + c.dmg.fwR)) * (c.aiGrip || 1);
     const rearLtd = c.aeroRear() < c.aeroFront() - 0.05;   // a damaged rear wing makes the car rear-limited: drive it well inside
     const dfR = c.perf * (1 - 0.22 * c.slipstream) * Math.min(c.aeroFront(), c.aeroRear()) * (rearLtd ? 0.65 : 1);
     const g = this.g;
@@ -110,7 +112,7 @@ export class AIDriver {
     // (in the wet, at speed: the stop planned short of the limit and the rear trail-braked well inside its grip - turning
     //  in on the brakes at 300 km/h is where they spun, Maggotts above all; below ~160 km/h nothing kept back - Planner
     //  .brakeA ramps it in with the speed)
-    g.wetB = 0.15 * c.wetness; g.wetM = 0.3 * c.wetness;
+    g.wetB = 0.15 * wp; g.wetM = 0.3 * wp;
     g.power = c.enginePower(); g.ers = c.ersEnergy > 0.05;
     this._muPhys = CAR.muBase * muR; this._dfm = P.dfm * dfR;   // the car's real limit (the plan keeps a margin under it)
   }
@@ -122,9 +124,10 @@ export class AIDriver {
   }
   gripFactor() {
     const c = this.car;
-    const g = c.tyres.grip(c.wetness) / COMPOUNDS.SOFT.grip * (1 - 0.25 * c.tyres.instability());   // (a set past the cliff, or cold and twitchy: well inside it - it slid off at the old margin)
+    const wp = this.wPlan ?? c.wetness;
+    const g = c.tyres.grip(wp) / COMPOUNDS.SOFT.grip * (1 - 0.25 * c.tyres.instability());   // (a set past the cliff, or cold and twitchy: well inside it - it slid off at the old margin)
     const dmg = 1 - 0.18 * (c.dmg.fwL + c.dmg.fwR) * 0.5 - 0.3 * c.dmg.rw - 0.15 * c.dmg.susp;
-    return Math.sqrt(Math.max(0.2, g * dmg * (c.offTrack ? Math.min(0.75, c.surfGrip) : 1) * (1 - 0.13 * c.slipstream) * (1 - 0.12 * c.wetness)));
+    return Math.sqrt(Math.max(0.2, g * dmg * (c.offTrack ? Math.min(0.75, c.surfGrip) : 1) * (1 - 0.13 * c.slipstream) * (1 - 0.12 * wp)));
   }
   nextCorner(within) {
     const tr = this.track; const s0 = this.car.s;
@@ -135,6 +138,12 @@ export class AIDriver {
   // ---- planning -------------------------------------------------------------------------------------------------
   replan(world) {
     const c = this.car, tr = this.track, line = this.line, T = AI_TUNE, ctx = this.ctx, v = c.speed, F = c.form || NF;
+    // the water it will drive on: under the car and on its line over the next 150 m (a wet corner ahead is braked for
+    // before the car is in it); the planner reads the water under every node of every path it weighs (Planner.speeds:
+    // off the dry line, less grip - a move round the outside in a drying race is a gamble)
+    const wxs = world.weather; this._wx = wxs || null;
+    if (wxs) { let w = c.wetness; for (const a of [35, 80, 150]) { const s = c.s + a; w = Math.max(w, wxs.wetAt(s, line.offsetAt(s))); } this.wPlan = w; } else this.wPlan = c.wetness;
+    ctx.wx = wxs && wxs.avgOff > 0.02 && !c.offTrack ? wxs : null; ctx.wPlan = this.wPlan; ctx.tyres = c.tyres;
     this.gripState();
     // race control (yellow flags, VSC, safety car): a slower pace, a speed cap, no overtaking, a longer gap
     const rule = world.sc?.rules(c) || null; this.rule = rule;
@@ -189,7 +198,10 @@ export class AIDriver {
       if (ds > -8 && ds < 100) near = Math.min(near, ds < 6 ? 0 : ds);
     }
     ctx.calW = !pack ? 1 : c.lap >= 1 ? Math.max(0, Math.min(1, (near - 25) / 75)) : 0;
-    ctx.calW *= Math.max(0, 1 - c.wetness / 0.45);   // (a calibration is from dry laps: on a wet track the physics alone - at Maggotts the fitted pace spun them)
+    ctx.calW *= Math.max(0, 1 - this.wPlan / 0.45);   // (a calibration is from dry laps: on a wet track the physics alone - at Maggotts the fitted pace spun them)
+    // (... unless the circuit has one from wet laps too - ai/Calibration.js `wet`, tools/ai_fit_wet.mjs: then that one,
+    //  by how wet it is against the wetness it was fitted at, in the pack as well - it was fitted on the physics' wet pace)
+    const wc = tr.aiCal?.wet; ctx.calWet = wc && tr.aiVw ? Math.min(1, Math.max(0, (this.wPlan - 0.08) / Math.max(0.1, (wc.at ?? 0.35) - 0.08))) : 0;
     this._hold = sinceStart < T.laneHoldT && c.gridSlot ? Math.max(-ctx.m, Math.min(ctx.m, c.gridSlot.d)) : null;
     ctx.forceLane = this._hold != null || !!this.defend;
     // boxing this lap: braking for the pit entry like any corner - to the speed the entry road allows at its first
@@ -629,7 +641,11 @@ export class AIDriver {
     //  FORM.pressure; the cap stays the cap)
     const F = c.form || NF;
     const zc = zoneCal(this.track, zone);   // (the circuit's calibration: some corners invite more mistakes, ai/Calibration.js)
-    const p = Math.min(0.08, AI_TUNE.errBase * (1 - c.rating) * 4 * worn * (1 + 1.6 * this.pressure * F.pressure) * cold * (0.6 + 0.4 * this.aggression) * (1 + 0.6 * ((zone.runoff || 0) / 16)) * F.err * (zc?.err ?? 1));   // braking mistakes happen where the run-off invites them
+    // (the water in the corner against the tyre: a damp patch on slicks is where a car goes off; a rain tyre on a dry
+    //  line overheats and slides; a wet corner is harder on anything)
+    const wx = world?.weather, sz = zone.sA ?? c.s, wz = wx ? wx.wetAt(sz, this.line.offsetAt(sz)) : c.wetness, rainT = c.tyres.compound === 'INTER' || c.tyres.compound === 'WET';
+    const wetErr = (1 + 0.8 * wz) * (rainT ? (wz < 0.1 ? 1.3 : 1) : 1 + 5 * Math.max(0, wz - 0.12));
+    const p = Math.min(0.08 * (wetErr > 1.5 ? 1.6 : 1), wetErr * AI_TUNE.errBase * (1 - c.rating) * 4 * worn * (1 + 1.6 * this.pressure * F.pressure) * cold * (0.6 + 0.4 * this.aggression) * (1 + 0.6 * ((zone.runoff || 0) / 16)) * F.err * (zc?.err ?? 1));   // braking mistakes happen where the run-off invites them
     if (rnd() > p) return;
     const tight = zone.maxCurv > 1 / 45, r = rnd();
     // mostly lock-ups (they run wide into the run-off, no spin); the bigger the run-off, the more of them; snaps are
@@ -657,6 +673,10 @@ export class AIDriver {
     const c = this.car, back = gridPos > n * 0.6;
     const pick = (opts) => { let x = rnd() * opts.reduce((a, o) => a + o[1], 0); for (const o of opts) { x -= o[1]; if (x <= 0) return o[0]; } return opts[0][0]; };
     this.setStrat(back ? pick([['gamble', 0.4], ['long', 0.2], ['early', 0.2], ['standard', 0.2]]) : pick([['standard', 0.45], ['early', 0.3], ['long', 0.25]]));
+    // (the weather: how long the pit wall leaves a car out on the wrong tyre hoping the rain passes or the track comes
+    //  back - stay - and how soon it jumps to the tyre the sky is heading for - early; the back of the grid gambles,
+    //  it has nothing to lose)
+    this.wxStay = Math.min(1, rnd() * 0.85 + 0.15 * this.aggression); this.wxEarly = Math.min(1, rnd() * 0.75 + (back ? 0.3 : 0));
     if (c.wetness >= 0.2 || world.lapsTotal < 3) return false;
     // (the start tyre from the strategy screen's sums - ui/Strategy.js planRace: each compound's pace, life and cliff for
     //  this race - the quickest plan's, now and then the next one's, for a standard race; the softest start among the
@@ -691,7 +711,8 @@ export class AIDriver {
   /** the set for the rest of the race: the softest that reaches the flag (else a hard: another stop to come); rain tyres */
   nextCompound(lapsLeft) {
     const c = this.car;
-    if (c.wetness > 0.6) return 'WET'; if (c.wetness > 0.3) return 'INTER';
+    const W = this._wx ? this._wx.tyreWet : c.wetness;
+    if (W > 0.62) return 'WET'; if (W > 0.27) return 'INTER';
     for (const comp of ['SOFT', 'MEDIUM', 'HARD']) if (cliffLaps(comp, c.raceLaps) >= lapsLeft - 0.3) return comp;
     return 'HARD';
   }
@@ -799,7 +820,7 @@ export class AIDriver {
     this._rivalT = (this._rivalT || 0) - 1 / 60;
     let cover = false, under = null;
     if (this._rivalT <= 0) { this._rivalT = 0.5; cover = lapsLeft >= 2 && this.watchRivals(world, lapsLeft); if (!cover) under = this.undercutOn(world, lapsLeft); }
-    const wetMismatch = (c.wetness > 0.45 && (t.compound !== 'INTER' && t.compound !== 'WET')) || (c.wetness < 0.15 && (t.compound === 'INTER' || t.compound === 'WET'));
+    const wxCall = this.weatherCall(world, lapsLeft), wetMismatch = !!wxCall, W = world.weather ? world.weather.tyreWet : c.wetness;
     // the pit entry comes once a lap: if the tyres would go over the cliff (70 % wear) before the one after this,
     // box at this one - a lap on worn-out tyres costs far more than the stop. The wear of the last full lap says how
     // fast this set is going (a team watches exactly that)
@@ -812,7 +833,8 @@ export class AIDriver {
     const damaged = (c.dmg.fwL + c.dmg.fwR) > 0.45 || c.dmg.rw > 0.35 || c.dmg.susp > 0.55;
     // (8 laps or more: one stop is mandatory - in a short race it is made whatever the wear, and never left too late; a
     //  gambler holds out for a safety car to the last lap, and makes it there)
-    const mustStop = world.lapsTotal >= 8 && c.pitStops === 0 && lapsLeft >= 0.6 && (S.type === 'gamble' ? lapsLeft <= 2.05
+    // (and none in a wet race: the rule is for dry ones - a car that has run a rain tyre, or a track that has been wet)
+    const mustStop = world.lapsTotal >= 8 && c.pitStops === 0 && lapsLeft >= 0.6 && !c.usedRain && !world.weather?.everWet && (S.type === 'gamble' ? lapsLeft <= 2.05
       : lapsLeft <= Math.ceil(world.lapsTotal * 0.45) && (t.wear > 0.45 || world.lapsTotal < 13 || lapsLeft <= 2.5));
     // (the pit wall gets it wrong now and then - the more often the smaller the team: race/Calls.js FAULT_P. A stop for
     //  worn tyres alone left a lap too late, once a stint; it stays out to the next lap's entry, on the cliff's edge)
@@ -825,11 +847,72 @@ export class AIDriver {
       // (the set for the rest of the race: the softest that reaches the flag - a different one from the first stint's,
       //  where it can be, as the rules want two in a dry race)
       let comp = this.nextCompound(lapsLeft);
-      if (c.pitStops === 0 && comp === t.compound && c.wetness < 0.3) comp = comp === 'HARD' ? 'MEDIUM' : comp === 'MEDIUM' ? 'HARD' : 'MEDIUM';
+      if (wxCall) comp = wxCall === 'SLICK' ? this.slickFor(lapsLeft) : wxCall;
+      if (c.pitStops === 0 && comp === t.compound && W < 0.3 && !wxCall) comp = comp === 'HARD' ? 'MEDIUM' : comp === 'MEDIUM' ? 'HARD' : 'MEDIUM';
       // (... and now and then a set that will not last: one softer than the race wants, it falls away before the flag)
       const softer = { HARD: 'MEDIUM', MEDIUM: 'SOFT' }[comp];
-      if (softer && c.wetness < 0.3 && lapsLeft > cliffLaps(softer, c.raceLaps) * 1.15 && rnd() < fp * 0.6) { comp = softer; world.calls?.fault(c, 'tyre', { comp }); }
+      if (softer && W < 0.3 && !wxCall && lapsLeft > cliffLaps(softer, c.raceLaps) * 1.15 && rnd() < fp * 0.6) { comp = softer; world.calls?.fault(c, 'tyre', { comp }); }
       this.pitPlan = { compound: comp, repair: damaged ? ((c.dmg.rw > 0.35 || c.dmg.susp > 0.55) ? 'full' : 'wing') : 'none' };
+      if (wxCall) { this._wxCalled = world.time; this.stackMate(world, wxCall); world.onWeatherCall?.(c, comp); }
+    }
+  }
+  /** the softest dry tyre that reaches the flag (a dry line come back: no rule about two compounds after a wet race) */
+  slickFor(lapsLeft) {
+    for (const comp of ['SOFT', 'MEDIUM', 'HARD']) if (cliffLaps(comp, this.car.raceLaps) >= lapsLeft - 0.3) return comp;
+    return 'MEDIUM';
+  }
+  /**
+   * The weather call (race/Weather.js): the tyre to change to now, or null to stay out. On the track's wetness for
+   * the tyres (the lap pulled toward its wettest stretches) and the forecast as the pit wall has it - each car's own
+   * nerve deciding where between the cautious call and the gamble: a stayer stays out on slicks in a shower it thinks
+   * will pass, an early mover boxes for inters before the rain arrives, or for slicks the moment a dry line shows.
+   */
+  weatherCall(world, lapsLeft) {
+    const c = this.car, wx = world.weather, tc = c.tyres.compound, rain = tc === 'INTER' || tc === 'WET';
+    if (!wx) { const w = c.wetness; return (w > 0.45 && !rain) ? (w > 0.6 ? 'WET' : 'INTER') : (w < 0.15 && rain) ? 'SLICK' : null; }
+    if (world.time < (this._wxT ?? -1)) return this._wxLast ?? null;
+    this._wxT = world.time + 0.75;
+    const W = wx.tyreWet, lapT = world.lapT || 90, o = wx.outlook(lapT * 1.3), stay = this.wxStay ?? 0.5, early = this.wxEarly ?? 0.4;
+    const soon = o.eta != null && o.eta < lapT * 0.8 && o.p > 0.75 - 0.3 * early && o.peak > 0.45;
+    let call = null, severe = false;
+    if (!rain) {
+      if (W > 0.48 + 0.12 * stay) { call = W > 0.68 ? 'WET' : 'INTER'; severe = true; }
+      else if (W > 0.29 + 0.11 * stay - (wx.rainNow > 0.2 ? 0.06 : 0)) {
+        // (the shower passing and the track not too far gone: a stayer stays out, betting it dries)
+        const passing = wx.rainNow < 0.15 && wx.rainLeft() < lapT * 0.7;
+        call = passing && stay > 0.55 ? null : 'INTER';
+      } else if (soon && W > 0.06 + 0.1 * (1 - early) && lapsLeft > 1.5) call = 'INTER';   // (the early gamble: in before it comes)
+    } else if (tc === 'INTER') {
+      if (W > 0.66 + 0.1 * stay && wx.rainNow > 0.4) call = 'WET';
+      else if (W < 0.14 + 0.09 * early && wx.rainNow < 0.04 && !(o.p > 0.55 && o.eta != null && o.eta < lapT * 1.2) && lapsLeft > 0.8) { call = 'SLICK'; severe = W < 0.06; }
+    } else {
+      if (W < 0.48 - 0.08 * (1 - early) && wx.rainNow < 0.5) call = W < 0.14 ? 'SLICK' : 'INTER';
+      severe = W < 0.3;
+    }
+    // (a stop just made is not undone a few corners later unless the call is clear; two laps from the flag only a tyre
+    //  that is truly wrong is worth one)
+    if (call && !severe && world.time - (c._pitDoneT ?? -1e9) < lapT * 0.9) call = null;
+    if (call && lapsLeft < 2 && !severe) call = null;
+    this._wxLast = call;
+    return call;
+  }
+  /**
+   * A double stack: the team calls both cars in on the same lap when the weather turns - the team-mate a few seconds
+   * behind (it waits in the lane behind this car while the crew turns it round: RaceDirector.boxBusy, pitDrive), or
+   * just ahead and not yet past the pit entry (this car waits). Only a team-mate on the same kind of tyre.
+   */
+  stackMate(world, call) {
+    const c = this.car, rainCall = call !== 'SLICK';
+    for (const m of world.cars) {
+      if (m === c || m.team !== c.team || m.isPlayer || !m.ai || m.retired || m.finished || m.pitRequested || m.inPit || m.pitLane) continue;
+      const mRain = m.tyres.compound === 'INTER' || m.tyres.compound === 'WET'; if (mRain === rainCall && !(call === 'WET' && m.tyres.compound === 'INTER')) continue;
+      const g = world.gap?.(c, m); if (g == null) continue;   // (> 0: the team-mate is ahead)
+      const toEntry = world.pit ? this.planner.ds(m.s, world.pit.entryS) : 999;
+      if ((g < 0 && g > -9) || (g > 0 && g < 4 && toEntry > 180)) {
+        const a = m.ai; m.pitRequested = true; a.pitReason = 'stack'; a._wxCalled = world.time;
+        a.pitPlan = { compound: call === 'SLICK' ? a.slickFor(world.lapsTotal - m.lap) : call, repair: 'none' };
+        world.onStack?.(c, m, a.pitPlan.compound);
+      }
     }
   }
 }

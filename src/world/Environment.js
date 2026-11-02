@@ -68,19 +68,22 @@ export function createEnvironment(scene, renderer) {
   const skyGeo = new THREE.SphereGeometry(5200, 32, 16);   // inside the camera's 6000 m far plane; it follows the camera
   const skyMat = new THREE.ShaderMaterial({
     side: THREE.BackSide, depthWrite: false, fog: false,
-    uniforms: { top: { value: new THREE.Color(0x03040a) }, horizon: { value: new THREE.Color(0x2a1e3a) }, glow: { value: new THREE.Color(0x6a3a5a) }, uSun: { value: 0 }, uStars: { value: 1 }, sunDir: { value: new THREE.Vector3(0.4, 0.7, -0.3).normalize() } },
+    uniforms: { uCloud: { value: 0 }, uOver: { value: new THREE.Color(0x7d858f) }, top: { value: new THREE.Color(0x03040a) }, horizon: { value: new THREE.Color(0x2a1e3a) }, glow: { value: new THREE.Color(0x6a3a5a) }, uSun: { value: 0 }, uStars: { value: 1 }, sunDir: { value: new THREE.Vector3(0.4, 0.7, -0.3).normalize() } },
     vertexShader: `varying vec3 vDir; void main(){ vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
-    fragmentShader: `uniform vec3 top, horizon, glow, sunDir; uniform float uSun, uStars; varying vec3 vDir;
+    fragmentShader: `uniform vec3 top, horizon, glow, sunDir, uOver; uniform float uSun, uStars, uCloud; varying vec3 vDir;
       float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453); }
       void main(){
         float h = clamp(vDir.y, 0.0, 1.0);
         vec3 c = mix(horizon, top, pow(h, 0.45));
         c += glow * exp(-h * 14.0) * 0.9;
         vec2 g = floor(vDir.xz / max(vDir.y, 0.05) * 90.0);
-        float st = step(0.995, hash(g)) * smoothstep(0.1, 0.5, h) * uStars;
+        float st = step(0.995, hash(g)) * smoothstep(0.1, 0.5, h) * uStars * (1.0 - uCloud);
         c += vec3(st) * 0.7;
         float sd = max(dot(normalize(vDir), sunDir), 0.0);
-        c += uSun * (vec3(1.0, 0.95, 0.85) * pow(sd, 900.0) * 6.0 + vec3(1.0, 0.9, 0.7) * pow(sd, 12.0) * 0.35);
+        c += uSun * (1.0 - uCloud) * (vec3(1.0, 0.95, 0.85) * pow(sd, 900.0) * 6.0 + vec3(1.0, 0.9, 0.7) * pow(sd, 12.0) * 0.35);
+        // (rain cloud: an overcast sky - race/Weather.js cloudAt, main.js wxFrame - lighter at the horizon, lumpy)
+        float cl = hash(floor(vDir.xz / max(vDir.y, 0.08) * 3.0)) * 0.08;
+        c = mix(c, uOver * (0.78 + 0.3 * (1.0 - h) + cl), uCloud);
         gl_FragColor = vec4(c, 1.0);
       }`,
   });

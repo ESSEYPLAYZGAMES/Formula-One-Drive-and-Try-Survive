@@ -4,7 +4,7 @@
 
 /** player channels, in export order */
 export const CHANNELS = ['t', 'd', 'x', 'z', 'lat', 'v', 'thr', 'brk', 'steer', 'gear', 'rpm', 'gLong', 'gLat', 'surf', 'ers', 'ersE', 'slipF', 'slipR', 'tyreT', 'tyreW',
-  'kerb', 'pitch', 'roll', 'ride', 'fzFL', 'fzFR', 'fzRL', 'fzRR'];   // chassis: wheels on a kerb (bitmask FL 1 FR 2 RL 4 RR 8), body pitch / roll (deg), heave (mm), wheel loads (kN)
+  'kerb', 'pitch', 'roll', 'ride', 'fzFL', 'fzFR', 'fzRL', 'fzRR', 'wet'];   // (wet: the water under the car, 0 dry .. 1 flooded - race/Weather.js)   // chassis: wheels on a kerb (bitmask FL 1 FR 2 RL 4 RR 8), body pitch / roll (deg), heave (mm), wheel loads (kN)
 const AI_CHANNELS = ['t', 'd', 'v', 'thr', 'brk', 'lat'];
 const G = 9.81;
 
@@ -71,7 +71,7 @@ export class Telemetry {
     s.t.push(time - c.lapStart); s.d.push(c.lapDist); s.x.push(c.x); s.z.push(c.z); s.lat.push(c.d - this.line.offsetAt(c.s));
     s.v.push(c.speed * 3.6); s.thr.push(c.throttle); s.brk.push(c.brake); s.steer.push(c.steer); s.gear.push(c.gear); s.rpm.push(c.rpm);
     s.gLong.push(c.ax / G); s.gLat.push(c.ay / G); s.surf.push(c.surf || 0); s.ers.push(c.ers > 0 ? 1 : 0); s.ersE.push(c.ersEnergy);
-    s.slipF.push(c.slipF || 0); s.slipR.push(c.slipR || 0); s.tyreT.push(c.tyres.temp); s.tyreW.push(c.tyres.wear);
+    s.slipF.push(c.slipF || 0); s.slipR.push(c.slipR || 0); s.tyreT.push(c.tyres.temp); s.tyreW.push(c.tyres.wear); s.wet.push(c.wetness || 0);
     const W = c.wh; let kerb = 0; for (let k = 0; k < 4; k++) if (W.surf[k] === 1) kerb |= 1 << k;
     s.kerb.push(kerb); s.pitch.push(c.pt * 57.3); s.roll.push(c.rl * 57.3); s.ride.push(c.hv * 1000);
     s.fzFL.push(W.fz[0] / 1000); s.fzFR.push(W.fz[1] / 1000); s.fzRL.push(W.fz[2] / 1000); s.fzRR.push(W.fz[3] / 1000);

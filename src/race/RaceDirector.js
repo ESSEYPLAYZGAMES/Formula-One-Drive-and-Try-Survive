@@ -16,6 +16,7 @@ import { neutralForm } from '../career/Morale.js';
 import { setTyreLap, lapLoss, outLapLoss, cliffLaps, RATE_NOM } from '../vehicle/Tyres.js';
 import { StrategyCalls } from './Calls.js';
 import { TeamOrders } from './TeamOrders.js';
+import { Weather, weatherPlan } from './Weather.js';
 
 const SUB = 1 / 120;
 /** a driver's form when the car carries none (career/Morale.js FORM: every multiplier 1, every addition 0) */
@@ -120,6 +121,17 @@ export class RaceDirector {
       lapT: this.lapT, pitLoss: this.pit && this.lapT ? Math.max(12, this.pit.samples.length / this.pit.limiter - this.pit.samples.length / (this.track.length / this.lapT) + 2.4 + 2.2) : 22,
       obstacles: o.obstacles || null,   // buildings and grandstands the cars can hit (world/Obstacles.js)
     };
+    // the weather (race/Weather.js): rain that comes and goes, the track wet and drying stretch by stretch, the dry line,
+    // the forecast. settings.weather: the weekend's plan (weatherPlan); without one, the start's wetness held all session
+    const lapT0 = this.lapT || 90;
+    this.weather = new Weather({ track: this.track, line: this.line, plan: s.weather || weatherPlan('dry'), session: this.practice ? 'practice' : this.mode,
+      duration: this.mode === 'race' ? this.lapsTotal * lapT0 * (1 + 0.15 * (s.wetness || 0)) : this.practice ? 1500 : lapT0 * 4.5, fixed: !s.weather || this.mode === 'tt' || !!s.weatherFixed });
+    if (!s.weather) { const w = s.wetness || 0; this.weather.water.fill(w); this.weather.lineW.fill(w); this.weather.summary(); this.weather.fillTex(); }
+    this.world.weather = this.weather;
+    for (const c of this.cars) c.wetness = this.weather.wetAt(c.s, c.d);
+    // (the weather's pit calls, for your engineer: your team-mate boxing for the weather, a double stack)
+    this.world.onWeatherCall = (c, comp) => this.weatherStop(c, comp, false);
+    this.world.onStack = (a, b, comp) => this.weatherStop(b, comp, true, a);
     this.ai = this.cars.filter((c) => !c.isPlayer).map((c) => new AIDriver(c, this.line, this.profile, this.track, { aggression: s.aggression * (c.aggrMul || 1), skill: s.skill ?? 1 }));
     // pit lane: distance at which the pit lane passes the start/finish line
     if (this.pit) {
@@ -238,6 +250,13 @@ export class RaceDirector {
         else p.revHold = 0;
       }
       if (p.held) { p.brake = 1; }
+    }
+    // the weather: the sky on, the track wetting and drying, and the water under every car
+    const wx = this.weather;
+    if (wx) {
+      wx.update(dt, this.cars);
+      for (const c of this.cars) c.wetness = c.inPit || c.pitLane ? wx.avgOff * 0.8 : wx.wetAt(c.s, c.d);
+      if (this.mode === 'race' && this.world.racing && p && !p.autopilot) wx.radio(this.engineer, p, this.lapT || 90);
     }
     // fixed-step simulation
     this.acc = Math.min(this.acc + dt, 0.12);
@@ -612,7 +631,7 @@ export class RaceDirector {
       c.repair('full'); c.drs = false; c.drsAvail = null; c.ersEnergy = 1; c.ghost = 0; c._owes = null; c._unlap = false; c._scGreen = true; c.engTemp = 0.3;
       if (a) {
         a.reaction = Infinity; a.rj = null; a.spun = false; a.defend = null; a.error = null; a.pitPlan = null; a.planner.best.n = 0; a.planner.best.spec = null;
-        const left = this.lapsTotal - c.lap, soft = left <= 4, comp = this.settings.wetness > 0.6 ? 'WET' : this.settings.wetness > 0.3 ? 'INTER' : soft ? 'SOFT' : left <= 9 ? 'MEDIUM' : 'HARD';
+        const left = this.lapsTotal - c.lap, soft = left <= 4, wR = this.weather ? this.weather.tyreWet : this.settings.wetness, comp = wR > 0.62 ? 'WET' : wR > 0.27 ? 'INTER' : soft ? 'SOFT' : left <= 9 ? 'MEDIUM' : 'HARD';
         c.fitTyres(comp); c.tyres.temp = c.tyres.spec.start ?? 0.7; this.onPitDone?.(c);
       }
     });
@@ -893,6 +912,22 @@ export class RaceDirector {
     return (2.0 + Math.random() * Math.random() * 0.6) * (c.pitMul || 1) + rep + (c._slowStop ? 2.5 + Math.random() * 3.5 : 0);   // (pitMul: the team's crew, career/Career.js)
   }
 
+  /**
+   * A stop called for the weather (AIDriver.weatherCall), or a team-mate stacked behind it (stackMate): your
+   * engineer tells you when it is your own team-mate - you may want to stack too - or a rival near you gambling.
+   */
+  weatherStop(c, comp, stacked, lead = null) {
+    const E = this.engineer, p = this.player; if (!E || !p || p.retired || p.finished || this.mode !== 'race') return;
+    const nm = (o) => o.name.split(' ').pop(), tyre = comp === 'WET' ? 'full wets' : comp === 'INTER' ? 'inters' : 'slicks';
+    if (c.team === p.team && c !== p) {
+      const mine = p.tyres.compound, same = (comp === 'INTER' || comp === 'WET') === (mine === 'INTER' || mine === 'WET');
+      E.say(`We're bringing ${nm(c)} in for ${tyre} this lap.${same ? '' : ` If you want ${tyre} too, box and we'll double stack you behind him.`}`, 3);
+      return;
+    }
+    if (stacked && lead) { const k = this.positions.indexOf(c), me = this.positions.indexOf(p); if (Math.abs(k - me) <= 6) E.say(`${lead.team} are double stacking, ${nm(lead)} and ${nm(c)} both in for ${tyre}.`, 2); return; }
+    const k = this.positions.indexOf(c), me = this.positions.indexOf(p);
+    if (Math.abs(k - me) <= 3 || k === 0) E.say(`${nm(c)} is pitting for ${tyre}${(comp === 'INTER' || comp === 'WET') && (this.weather?.tyreWet ?? 0) < 0.27 ? ', a gamble on the rain' : comp !== 'INTER' && comp !== 'WET' && (this.weather?.tyreWet ?? 0) > 0.12 ? ', a gamble on the dry line' : ''}.`, 2);
+  }
   /** real race events for the engineer: position changes (held for 2 s to ignore side-by-side flicker), retirements near you */
   events(dt) {
     const E = this.engineer, p = this.player; if (!E || !p || this.mode !== 'race' || !this.world.racing) return;
@@ -1006,7 +1041,7 @@ export class RaceDirector {
   simulateRest() {
     if (this.done) return;
     if (this.practice) { this.finish(); return; }   // (practice: nothing to simulate - the times are what they are)
-    const L = this.track.length, wet = this.settings.wetness || 0, rnd = Math.random;
+    const L = this.track.length, wet = this.weather ? this.weather.lapWet() : this.settings.wetness || 0, rnd = Math.random;
     const gauss = () => (rnd() + rnd() + rnd() - 1.5) * 1.63;
     const model = this.estimateLap() / (0.4 + 0.6 * (this.settings.skill ?? 1));
     const modelOf = (c) => model * (1 + (1 - c.rating) * 0.012 + (1 - c.perf) * 0.45) + wet * 8;

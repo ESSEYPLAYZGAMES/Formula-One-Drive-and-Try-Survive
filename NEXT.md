@@ -1,3 +1,15 @@
+# V2.18 (2026-11-02): dynamic weather
+
+- New: `src/race/Weather.js` (rain cells on the wind, track water every ~10 m on the line and off it, the dry line,
+  a forecast that can be wrong, radar, engineer calls), `src/world/Spray.js`, the road's wet shader (main.js
+  `wetRoad`/`wxFrame`), the HUD weather panel and wet minimap, AI weather calls with per-driver nerve and team double
+  stacks (`AIDriver.weatherCall`/`stackMate`), the planner reading the water off the dry line, Changeable in the menu
+  and in career forecasts, `wet` telemetry channel.
+- AI wet calibration: `tools/ai_fit_wet.mjs` from the driver's wet laps (Silverstone and Las Vegas at wetness 0.35,
+  2026-11-01/02 exports). Montreal's export was a dry race (wetness 0): not used for the wet fit.
+- To check in play: how often the AI gambles (wxStay / wxEarly spread), the drying rate at night, spray density
+  on slow GPUs (Spray pool 2600 points, only cars within 330 m of the camera).
+
 # F1 sim: work left after v72 preview (2026-10-09, 12:47)
 
 **STOPPED 2026-10-10 ~09:35 (usage limit).** Resume each with `resumeFromRunId`; agents read their `progress\*.md` logs.

@@ -15,6 +15,32 @@
 // car on its own, and are used only in clean air after the opening lap (AIDriver: in the pack they spun the field).
 
 export const AI_CAL = {
+  // <cal:lasvegas>
+  lasvegas: {
+    source: "no dry calibration: the physics alone in the dry",
+    corners: {},
+    wet: {
+      at: 0.35,
+      source: "the driver's wet laps (tools/ai_fit_wet.mjs): 31cde445-telemetry-lasvegas-2026-11-01-20-53.json (wetness 0.35, 8 laps); inters, the AI alone at wetness 0.35: 98.15 s -> 97.15 s (2026-11-02, blend 0.7)",
+      corners: {
+        1: { v: 0.892, b: 1.2 },
+        2: { v: 0.892, b: 1.2 },
+        3: { v: 1.004, b: 1 },
+        4: { v: 1.042, b: 1 },
+        5: { v: 1.018, b: 1.2 },
+        6: { v: 1.151, b: 1.151 },
+        7: { v: 1.25, b: 1 },
+        8: { v: 1.25, b: 1 },
+        9: { v: 1.159, b: 1.2 },
+        11: { v: 1.006, b: 1 },
+        12: { v: 1.09, b: 1.2 },
+        14: { v: 1.25, b: 1 },
+        15: { v: 1.003, b: 1 },
+        17: { v: 1.068, b: 1 },
+      },
+    },
+  },
+  // </cal:lasvegas>
   // <cal:silverstone>
   silverstone: {
     source: "the driver's own laps (tools/ai_fit.mjs, lap mode): the racing line shown is the composite of 8 laps (88.25 s); the AI on its own line, its corners fitted to that lap's speeds and braking points at difficulty 100 (2026-10-31, blend 0.7)",
@@ -410,6 +436,30 @@ export const AI_CAL = {
       16: { v: 1.095, b: 1.025, race: { v: 1.04, b: 1.15 } },   // (Vale: the AI braked 20-30 m before the driver did, in traffic too - braked later always)
       17: { v: 1.095, b: 1.025 },
       18: { v: 1.095, b: 1.025 },
+    },
+    wet: {
+      at: 0.35,
+      source: "the driver's wet laps (tools/ai_fit_wet.mjs): 7ed9010b-telemetry-silverstone-2026-11-02-12-12.json (wetness 0.35, 8 laps); inters, the AI alone at wetness 0.35: 99.15 s -> 99.53 s (2026-11-02, blend 0.7)",
+      corners: {
+        1: { v: 1.138, b: 1 },
+        2: { v: 0.922, b: 1 },
+        3: { v: 1.027, b: 1.148 },
+        4: { v: 1.147, b: 1.111 },
+        5: { v: 1.031, b: 1 },
+        6: { v: 1.027, b: 1 },
+        7: { v: 1.031, b: 1.144 },
+        8: { v: 0.988, b: 1 },
+        9: { v: 0.894, b: 0.985 },
+        10: { v: 1.2, b: 1 },
+        11: { v: 1.07, b: 1.2 },
+        12: { v: 0.981, b: 1 },
+        13: { v: 0.898, b: 1 },
+        14: { v: 0.928, b: 1 },
+        15: { v: 1.033, b: 1.2 },
+        16: { v: 1.138, b: 1.2 },
+        17: { v: 1.164, b: 1 },
+        18: { v: 1.065, b: 1 },
+      },
     },
   },
   // </cal:silverstone>
@@ -966,6 +1016,25 @@ export function applyCalibration(track, cal = AI_CAL[track.def.id]) {
   //  calibration is not; for a corner the field gets wrong in a race and not alone - Austin's Turn 11, run wide on the exit)
   const VR = new Float32Array(n).fill(1), BR = new Float32Array(n).fill(1);
   track.aiCal = cal || null; track.aiV = V; track.aiB = B; track.aiVr = VR; track.aiBr = BR;
+  // (the wet calibration - `wet: { at, corners }`, fitted to laps driven on a wet track at wetness `at`: what the AI
+  //  dares in each corner against the physics' own wet pace; Planner blends it in by how wet the track is)
+  track.aiVw = null; track.aiBw = null;
+  if (cal?.wet?.corners) {
+    const VW = new Float32Array(n).fill(1), BW = new Float32Array(n).fill(1), DW = new Float32Array(n).fill(Infinity);
+    for (const c of track.def.corners || []) {
+      const k = cal.wet.corners[c.n]; if (!k || c.s == null) continue;
+      const put = (arr, win, val) => {
+        if (val == null || val === 1) return;
+        for (let x = win[0] - EASE; x <= win[1] + EASE; x += track.ds) {
+          const i = track.idxAtS(c.s + x), t = x < win[0] ? (x - win[0] + EASE) / EASE : x > win[1] ? (win[1] + EASE - x) / EASE : 1, w = t * t * (3 - 2 * t);
+          const d = Math.abs(x); if (arr === VW && d > DW[i] && VW[i] !== 1) continue;
+          arr[i] = 1 + (val - 1) * w; if (arr === VW) DW[i] = d;
+        }
+      };
+      put(VW, V_WIN, k.v); put(BW, B_WIN, k.b);
+    }
+    track.aiVw = VW; track.aiBw = BW;
+  }
   if (!cal || !cal.corners) return track;
   for (const c of track.def.corners || []) {
     const k = cal.corners[c.n]; if (!k || c.s == null) continue;
