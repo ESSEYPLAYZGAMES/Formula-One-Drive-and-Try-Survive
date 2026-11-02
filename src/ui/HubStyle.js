@@ -10,7 +10,7 @@
 import { CELEB, celebLook, seeing, datingWith, canStyle } from '../career/Celebs.js';
 import * as St from '../career/Style.js';
 import { StylePreview, previewKey, previewCheap, pointerHeld, tintHair } from './StylePreview.js';
-import { makePerson, faceCacheTrim } from '../world/People.js';
+import { makePerson, faceCacheTrim, nailsOf, nailLenShare, NAIL_LOOKS as NAIL_BOOK } from '../world/People.js';
 import { reduced, arm } from './Motion.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
@@ -89,6 +89,8 @@ const STYLE_BASE = `
 #career .sty-tiles { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; }
 #career button.sty-tile { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; height: 74px; padding: 4px 4px 5px; border-radius: 11px; background: #fbfbfc; border: 1px solid rgba(21,26,34,.08); letter-spacing: 0; min-width: 0; }
 #career .sty-tiles.k button.sty-tile { height: 86px; }
+#career .sty-body[data-pg="hair:nails"] { overflow-y: auto; }
+#career .sty-tiles.n { grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 5px; } #career .sty-tiles.n button.sty-tile { height: 50px; position: relative; } #career .sty-tiles.n button.sty-tile svg { width: 16px; height: 24px; } #career .sty-tiles.n button.sty-tile b { font-size: 9px; } #career .sty-tiles.n button.sty-tile.own:not(.on)::after { content: ''; top: 4px; right: 4px; width: 6px; height: 6px; border-radius: 50%; background: #6b7480; }
 #career button.sty-tile svg { width: 34px; height: 42px; color: #3a4350; flex: none; }
 #career button.sty-tile b { font-size: 10.5px; font-weight: 700; color: #151a22; text-align: center; line-height: 1.15; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #career button.sty-tile small { font-size: 9px; font-weight: 500; color: #6b7480; text-align: center; line-height: 1.15; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -264,10 +266,13 @@ function kitGlyph(kit) {
 }
 const eyeGlyph = (ink = '#151a22') => svg(`<path d="M4 20c4-5 10-6.6 15.4-4.6 2.6 1 5 1.8 7.4.8-1.8 2.6-4.6 3.4-6.8 3.2C16 24.6 8.8 24.4 4 20z" fill="${ink}" fill-opacity=".12"/><path d="M4 20c4-5 10-6.6 15.4-4.6 2.6 1 5 1.8 7.4.8" stroke="${ink}" stroke-width="2"/><circle cx="14.6" cy="20.2" r="3" fill="${ink}" fill-opacity=".55" stroke="none"/>`);
 const lipGlyph = (c = '#b0122a') => svg(`<path d="M4 20c3.4-3.6 6.6-5 8.6-3.6 1.4-.8 3.4-.8 4.8 0 2-1.4 5.2 0 8.6 3.6-3.6 4.6-7.6 6.4-11 6.4S7.6 24.6 4 20z" fill="${c}" stroke="${c}"/><path d="M4 20c4 .8 7.4 1 11 1s7-.2 11-1" stroke="#fff" stroke-opacity=".5" stroke-width="1"/>`);
+// (a nail look's glyph: a long almond nail in its base colour, its tip in the tip's - a French's, a deep one's; natural bare)
+const nailGlyph = (key) => { const L = NAIL_BOOK[key], d = L?.d?.[0], b = d ? d.base : '#e9c9b8', t = d && d.p !== 'whole' ? d.tip : b; return svg(`<path d="M9 36V15C9 3 21 3 21 15v21z" fill="${b}" stroke="#3a4350" stroke-width="1.1"/>${t !== b ? `<path d="M9.2 ${d.p === 'deep' ? 20 : 15}C9.6 4 20.4 4 20.8 ${d.p === 'deep' ? 20 : 15}C18 ${d.p === 'deep' ? 11 : 12} 12 ${d.p === 'deep' ? 11 : 12} 9.2 ${d.p === 'deep' ? 20 : 15}z" fill="${t}" stroke="none"/>` : ''}`); };
+const NAIL_PAL = [['#f2c3c0', 'Sheer pink'], ['#ecc4b0', 'Sheer nude'], ['#fbf9f5', 'White'], ['#141417', 'Black'], ['#ff2b8c', 'Hot pink'], ['#f7b5ca', 'Baby pink'], ['#b10f1c', 'Red'], ['#1b3dd8', 'Royal blue'], ['#55b6ee', 'Sky blue'], ['#3d5e4b', 'Sage']];
 const metalDot = (k) => (St.METALS.find(([m]) => m === k) || [])[2] || '#c9ccd2';
 
 // ---- the page's own state (kept for the session: coming back finds it as you left it) ------------------------------------
-const SUBPG = { face: [['eyes', 'Eyes'], ['lips', 'Lips'], ['sculpt', 'Sculpt']], hair: [['shape', 'Shape'], ['colour', 'Colour'], ['jewel', 'Jewellery']], wear: [['cut', 'Cut'], ['fabric', 'Colour & fabric'], ['shoes', 'Shoes & clutch']] };
+const SUBPG = { face: [['eyes', 'Eyes'], ['lips', 'Lips'], ['sculpt', 'Sculpt']], hair: [['shape', 'Shape'], ['colour', 'Colour'], ['jewel', 'Jewellery'], ['nails', 'Nails']], wear: [['cut', 'Cut'], ['fabric', 'Colour & fabric'], ['shoes', 'Shoes & clutch']] };
 const TABS = [['face', 'Face'], ['hair', 'Hair'], ['wear', 'Wardrobe']];
 const ZOOMS = [['close', 'Close'], ['face', 'Face'], ['head', 'Head'], ['full', 'Full']];
 const YAWS = [['front', 'Front', 0], ['three', '¾', -0.7], ['side', 'Side', -Math.PI / 2], ['back', 'Back', Math.PI]];
@@ -384,7 +389,7 @@ function presetsHTML(c, u, X) {
   return `<div class="sty-pre" data-region="sty-pre">${card('own', 'Her own', [], ownG, own)}${cards.join('')}</div>`;
 }
 function footHTML(c, u, X, o = {}) {
-  const where = u.tab === 'hair' && u.pg.hair === 'colour' ? '<b>Hair colour</b> · hers on every occasion' : u.tab === 'face' ? `<b>${X.moment === 'day' ? 'Race-day make-up' : 'Evening make-up'}</b> · ${X.moment === 'day' ? 'race days, and the casual evenings' : 'shared by a night race, a gala and dinner'}` : `<b>${esc(St.SLOT_NAME[u.occ])}</b> · worn ${esc(St.SLOT_WHERE[u.occ])}`;
+  const where = u.tab === 'hair' && u.pg.hair === 'colour' ? '<b>Hair colour</b> · hers on every occasion' : u.tab === 'hair' && u.pg.hair === 'nails' ? '<b>Nails</b> · hers on every occasion' : u.tab === 'face' ? `<b>${X.moment === 'day' ? 'Race-day make-up' : 'Evening make-up'}</b> · ${X.moment === 'day' ? 'race days, and the casual evenings' : 'shared by a night race, a gala and dinner'}` : `<b>${esc(St.SLOT_NAME[u.occ])}</b> · worn ${esc(St.SLOT_WHERE[u.occ])}`;
   const pin = X.rec.occ?.[u.occ]?.pin === false && u.tab === 'wear' ? ' · mixed into her rotation' : '';
   return `<div class="sty-foot" data-region="sty-foot"><span>${where}${pin}</span><span class="hs-grow"></span><span>${o.sheet ? 'Live in the room' : 'A studio view: under the lights she will shine a little less'}</span></div>`;
 }
@@ -453,6 +458,22 @@ function bodyHTML(c, u, X) {
       ${slider(X, 'Strand contrast', `${H}.strands`, 0, 2, 0.1, o.style?.tone?.strands ?? 1, 'x', { sub: 'lock to lock' })}
       ${slider(X, 'Shine', `${H}.shine`, 0, 1, 0.05, o.style?.shine ?? 0.5, 'pct')}
     </div></div><p class="sty-note">Her colour is hers on every occasion. Roots melt down from the parting; ends lighten the lengths, like a balayage.</p>`;
+  } else if (u.tab === 'hair' && pg === 'nails') {
+    // (her nails: a look from the book, then its shape, length, design, colours and finish, and which nails wear the accent -
+    // hers on every occasion; what she has now marked as her own)
+    const NL = nailsOf(o), d0 = NL?.slots[0], N = 'nails', nat = !NL;
+    html = `${tiles(X, `${N}.look`, [['natural', 'Natural', '', svg('<path d="M9 36V15C9 3 21 3 21 15v21z" fill="#e9c9b8" stroke="#3a4350" stroke-width="1.1"/>'), ''], ...St.NAIL_LOOKS.map(([k, n]) => [k, n, '', nailGlyph(k), ''])], nat ? 'natural' : NL.look, 'n')}
+      ${choice(X, 'Design', `${N}.design`, St.NAIL_DESIGNS, d0?.p, { w: true })}
+      <div class="sty-grid"><div class="sty-col">
+      ${choice(X, 'Shape', `${N}.shape`, St.NAIL_SHAPES, NL?.shape)}
+      ${slider(X, 'Length', `${N}.len`, 0, 1, 0.05, NL ? Math.round(nailLenShare(NL) * 20) / 20 : 0.5, 'pct', { sub: 'past the fingertip' })}
+      ${choice(X, 'Finish', `${N}.finish`, St.NAIL_FINISHES, d0?.fb)}
+    </div><div class="sty-col">
+      ${swatches(X, 'Base', `${N}.base`, NAIL_PAL, d0?.base, { sub: 'sheer: the nail shows' })}
+      ${swatches(X, 'Tip', `${N}.tip`, NAIL_PAL, d0?.tip, { sub: 'a French\'s, petals' })}
+    </div></div>
+      ${choice(X, 'Accent nails', `${N}.mix`, St.NAIL_MIXES, NL?.mix, { w: true })}
+      ${choice(X, 'Accent design', `${N}.accent.design`, St.NAIL_DESIGNS, NL?.slots[1]?.p, { w: true })}<p class="sty-note">${nat ? 'Natural: her own nails, short and bare.' : `<b>${esc(NL.name)}</b>, ${esc(NL.shape)}.`} Her nails are hers on every occasion; a look from the book sets them all, and the rest fine-tunes it.</p>`;
   } else if (u.tab === 'hair') {
     const hs = o.style?.hs || X.baseHs, down = !St.UPDOS.has(hs), mt = St.getAt(X.rec, `${W}.metal`);
     html = `${choice(X, 'Metal', `${W}.metal`, [['', 'Auto'], ...St.METALS], sv(J.metal), { w: true, sub: 'all of it' })}
@@ -506,6 +527,8 @@ function goalOf(zoom) {
   // (close: the eyes - or, on the Lips page, the mouth - near enough to judge a liner's angle and a gloss)
   if (zoom === 'close') return { az: AZ, el: 0.02, dist: 0.62, t: [h[0], h[1] + (U?.tab === 'face' && U.pg.face === 'lips' ? -0.05 : 0.025), h[2]], world: true };
   if (zoom === 'face') return { az: AZ, el: 0.03, dist: 1.0, t: [h[0], h[1] + 0.02, h[2]], world: true };
+  // (her hands, for her nails: the right one, where her pose holds it)
+  if (zoom === 'hands') { const p = PV?.person, b = p?.group?.children?.[0]; if (!b || !p.wrR) return goalOf('head'); p.group.updateMatrixWorld(true); const w = b.localToWorld(p.wrR.clone()); return { az: AZ, el: 0.1, dist: 0.8, t: [w.x, w.y - 0.07, w.z], world: true }; }
   if (zoom === 'head') return { az: AZ, el: 0.05, dist: 2.3, t: [h[0], h[1] - 0.22, h[2]], world: true };
   return { az: AZ, el: 0.06, dist: 4.5, t: [x, 0.97, z], world: true };
 }
@@ -515,7 +538,7 @@ function camTo(zoom) {
   if (typeof ROOM.viewTo === 'function') ROOM.viewTo(key, G); VKEY = key;
 }
 // (the eyes and the lips pages close in on them; the sculpt page the whole face)
-const zoomNow = (u) => u.zoom || (u.tab === 'face' && u.pg.face !== 'sculpt' ? 'close' : ZOOM_OF[u.tab]) || 'full';
+const zoomNow = (u) => u.zoom || (u.tab === 'face' && u.pg.face !== 'sculpt' ? 'close' : u.tab === 'hair' && u.pg.hair === 'nails' ? 'hands' : ZOOM_OF[u.tab]) || 'full';
 /** turn her to a named angle, or by an amount (drag) */
 function yawTo(u, k, ms = 240) { const Y = YAWS.find((y) => y[0] === k); if (!Y) return; u.yawK = k; u.yaw = Y[2]; PV?.turn(FRONT + u.yaw, ms); barSync(u); }
 let busyT = 0;

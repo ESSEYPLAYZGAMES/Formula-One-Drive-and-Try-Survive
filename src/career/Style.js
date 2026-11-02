@@ -6,6 +6,8 @@
 //   hair:  { color, root ('none' | hex: darker roots), ends ('none' | hex: lighter lengths), melt (how far the root shade
 //            reaches, m), strands (lock-to-lock contrast), shine } - physical, so it is hers on every occasion
 //   face:  { day: MK, night: MK } - the two make-up moments (race day; a night race, a gala, a dinner)
+//   nails: { look ('natural' | a look: NAIL_LOOKS), shape, len, design, base, tip, aux, finish, tipFinish, sheer, gem, mix,
+//            accent: { design, base, tip, aux, finish, gem } } - People.js makePerson style.nails; physical, hers on every occasion
 //   occ:   { grid, night, evening, dinner, club, pool } - per occasion: { hs, tendrils, fringe, pin, wear }
 // MK is People.js's MakeupSpec (world/People.js makePerson style.makeup): { look, liner: { thickness, wing, angle, color },
 // lashes: { volume }, shadow: { intensity, color, under }, lips: { fill, liner, ombre, gloss }, sculpt: { contour,
@@ -180,6 +182,13 @@ export const SHOE_TYPES = [['heel', 'Heels'], ['sandal', 'Sandals'], ['kneeboot'
 export const FABRIC_NAME = Object.fromEntries(FABRICS);
 export const METALS = [['gold', 'Polished gold', '#d9ab4f'], ['silver', 'Bright silver', '#d5d8de'], ['rose', 'Rose gold', '#e0a08c']];
 export const METAL_NAME = Object.fromEntries(METALS.map(([k, n]) => [k, n]));
+// (her nails: the looks, shapes, designs, finishes and mixes world/People.js draws - NAIL_LOOKS and its kin, by the same keys)
+export const NAIL_LOOKS = [['french', 'Classic French'], ['micro', 'Micro French'], ['doubleLine', 'Double-line V'], ['sage', 'Sage & swirl'], ['royal', 'Royal V'], ['skyMix', 'Sky & lilac'], ['glazed', 'Glazed donut'], ['pinkChrome', 'Pink chrome'], ['blueChrome', 'Blue chrome'],
+  ['babyPink', 'Baby pink'], ['hotPinkFrench', 'Hot pink French'], ['matteFrench', 'Matte & gloss'], ['daisies', 'Little daisies'], ['yellow', 'Butter yellow'], ['red', 'Siren red'], ['ombre', 'Ombre'], ['lilac', 'Lilac French'], ['emerald', 'Emerald']];
+export const NAIL_SHAPES = [['coffin', 'Coffin'], ['almond', 'Almond'], ['stiletto', 'Stiletto'], ['oval', 'Oval']];
+export const NAIL_DESIGNS = [['whole', 'Whole'], ['french', 'French'], ['deep', 'Deep French'], ['micro', 'Micro'], ['double', 'Double line'], ['swirl', 'Swirl'], ['flowers', 'Flowers'], ['ombre', 'Ombre']];
+export const NAIL_FINISHES = [['gloss', 'Glossy'], ['matte', 'Matte'], ['pearl', 'Pearl chrome'], ['chrome', 'Chrome']];
+export const NAIL_MIXES = [['all', 'All alike'], ['accent', 'Accent ring'], ['pair', 'Thumb & ring'], ['alt', 'Alternating'], ['hands', 'Each hand']];
 export const SHOE_FINISHES = [['patent', 'Patent'], ['matte', 'Matte'], ['satin', 'Satin'], ['suede', 'Suede'], ['metallic', 'Metallic']];
 export const EARRINGS = [['none', 'None'], ['stud', 'Studs'], ['drop', 'Drops'], ['hoop', 'Hoops'], ['long', 'Long drops']];
 export const CHOKERS = [['none', 'None'], ['metal', 'Metal'], ['ribbon', 'Ribbon']];
@@ -320,7 +329,11 @@ const WEAR_SPEC = {
 };
 const SLOT_SPEC = { hs: E(...HS_KEYS), tendrils: N(0, 2, 1), fringe: B, pin: B, wear: WEAR_SPEC };
 const HAIR_SPEC = { color: HX, root: { t: 'hexn' }, ends: { t: 'hexn' }, melt: N(0.02, 0.2, 0.01), strands: N(0, 2, 0.1), shine: N(0, 1, 0.05) };
-const REC_SPEC = { at: { season: N(0, 9999, 1), round: N(0, 99, 1) }, hair: HAIR_SPEC, face: { day: MK_SPEC, night: MK_SPEC }, occ: Object.fromEntries(SLOTS.map((s) => [s, SLOT_SPEC])) };
+// (her nails - world/People.js's nail looks, shapes, designs and finishes, named here as well: this file imports nothing)
+const NAIL_DES = E(...NAIL_DESIGNS.map(([k]) => k)), NAIL_FN = E(...NAIL_FINISHES.map(([k]) => k));
+const NAIL_SPEC = { look: E('natural', ...NAIL_LOOKS.map(([k]) => k)), shape: E(...NAIL_SHAPES.map(([k]) => k)), len: N(0, 1, 0.05), design: NAIL_DES, base: HX, tip: HX, aux: HX, finish: NAIL_FN, tipFinish: NAIL_FN, sheer: N(0, 1, 0.05), gem: B, mix: E(...NAIL_MIXES.map(([k]) => k)),
+  accent: { design: NAIL_DES, base: HX, tip: HX, aux: HX, finish: NAIL_FN, gem: B } };
+const REC_SPEC = { at: { season: N(0, 9999, 1), round: N(0, 99, 1) }, hair: HAIR_SPEC, face: { day: MK_SPEC, night: MK_SPEC }, nails: NAIL_SPEC, occ: Object.fromEntries(SLOTS.map((s) => [s, SLOT_SPEC])) };
 const r2 = (v) => Math.round(v * 100) / 100;
 /** one value against its spec -> the clean value, or undefined (dropped) */
 function clean1(v, sp) {
@@ -448,8 +461,8 @@ export function styleHash(rec) {
 export function resolveRec(rec, ctx = {}) {
   if (!rec || typeof rec !== 'object') return null;
   const slot = slotOf(ctx.occ || 'grid', !!ctx.night, !!ctx.wet), S = slot ? rec.occ?.[slot] : null, moment = slot ? MOMENT[slot] : 'day';
-  const ov = { slot, hair: rec.hair || null, face: rec.face?.[moment] || null, hs: S?.hs || null, tendrils: S?.tendrils ?? null, fringe: S?.fringe ?? null, wear: S?.wear || null, pin: S?.pin !== false };
-  return ov.hair || ov.face || ov.hs || ov.tendrils != null || ov.fringe != null || ov.wear ? ov : null;
+  const ov = { slot, hair: rec.hair || null, face: rec.face?.[moment] || null, nails: rec.nails || null, hs: S?.hs || null, tendrils: S?.tendrils ?? null, fringe: S?.fringe ?? null, wear: S?.wear || null, pin: S?.pin !== false };
+  return ov.hair || ov.face || ov.nails || ov.hs || ov.tendrils != null || ov.fringe != null || ov.wear ? ov : null;
 }
 /**
  * celebLook's makePerson options with her style over them (ov: resolveRec's; baseHs: the hair she has, for hairFits) -> a
@@ -476,6 +489,8 @@ export function applyStyle(o, ov, ctx = {}) {
   if (ov.hs && (!ctx.baseHs || hairFits(ctx.baseHs, ov.hs))) { st.hs = ov.hs; delete st.braid; delete st.slick; }
   if (ov.tendrils != null) st.tendrils = ov.tendrils;
   if (ov.fringe != null) st.fringe = ov.fringe;
+  // her nails (hers on every occasion): natural, or her look with yours over it
+  if (ov.nails) st.nails = ov.nails.look === 'natural' ? 'natural' : JSON.parse(JSON.stringify(ov.nails));
   const W = ov.wear; if (!W) return out;
   // the clothes
   const kit0 = out.kit, kit = W.kit && KIT_INFO[W.kit] ? W.kit : kit0, KI = KIT_INFO[kit] || {}, newCut = kit !== kit0;
