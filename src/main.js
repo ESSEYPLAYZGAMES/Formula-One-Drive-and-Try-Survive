@@ -1577,13 +1577,16 @@ function endFlashback(resume) {
     hud.msg(`FLASHBACK${fb.uses === Infinity ? '' : ` · ${fb.uses} LEFT`}`, 'good', 1.6);
   } else fb.restore(F.now);
 }
-/** the safety car's model: there while the car is on the track (lights flashing, off once it is coming in) */
+/**
+ * the safety car's model: there all race - parked at the pit exit (lights off), out on the circuit (amber flashing,
+ * green while it waves a car by), coming in (off): SafetyCar.lights. (A circuit with no pit lane: only while it is out.)
+ */
 let scMesh = null;
 function syncSafetyCar(d, dt) {
-  const c = d?.sc?.car || null;
+  const c = d?.sc ? d.sc.car || d.sc.body : null;
   if (c && !scMesh) { scMesh = new SafetyCarMesh(); scene.add(scMesh.group); }
   if (!c && scMesh) { scene.remove(scMesh.group); scMesh.dispose(); scMesh = null; }
-  if (c) scMesh.update(c, dt, d.sc.phase === 'scIn' ? 'off' : 'amber');
+  if (c) scMesh.update(c, dt, d.sc.car ? d.sc.lights || 'amber' : 'off');
 }
 function endSession() {
   // (every session of every mode ends here - finished, quit or restarted: the lifetime stats book, apart from any career - core/PlayStats.js)
@@ -3536,6 +3539,8 @@ function frame(now) {
     crashFrame() { const n0 = renderer.info.programs.length; ensureCrashComposer(); crashPass.uniforms.uBlur.value = 0.6; crashPass.uniforms.uSat.value = 1.5; crashComposer.render(); return renderer.info.programs.length - n0; },
     /** (tests: the crash director, and the camera as drawn - terrainLift() lifts it for the frame and returns the undo; renderView() draws a frame through it) */
     crashCam, terrainLift, renderView,
+    /** (tests: the safety car's model brought up to date with the race - main loop: frame) */
+    syncSafetyCar(dt = 1 / 60) { syncSafetyCar(S.director, dt); },
     /** (tools: a calibration applied, the racing line and the speed profile rebuilt from it - the next session's AI drives them) */
     rebuildLine(cal) { applyCalibration(W.track, cal === undefined ? AI_CAL[W.def.id] : cal); const r = makeRacingLine(W.track, W.def); W.line = r.line; W.profile = r.profile; W.lineSpeed = r.shown; W.showLine = r.showLine; if (RL.group) { scene.remove(RL.group); RL.group = null; } return { fixed: !!r.line.fixed }; }, camCtl, setTimeOfDay, corridorSigned, CINE, cinematic, get feed() { return feed; }, get show() { return show; }, frame, ensureAmbient, PHOTO, TRACKS, switchTrack, NEWS, playNews, nextAfterResults, crashNews, helmetURL, openCareerHub, simToEnd, strings, get audio() { return audio; },
     restart() { if (settings.driver == null) settings.driver = 0; /* test hook: the field needs a player */ S.noStrategy = !window.__keepStrategy; endSession(); $('results').classList.add('hidden'); $('quali-panel').classList.add('hidden'); $('pause').classList.add('hidden'); S.paused = false; startWeekend(); if (PRE.show && !window.__keepPre) PRE.show.finish(); },   // (tests: no pre-race show unless asked for)

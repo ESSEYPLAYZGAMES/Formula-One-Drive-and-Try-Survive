@@ -37,7 +37,7 @@ export class Flashback {
   /** every live anchor of the race right now */
   anchors() {
     const d = this.d, A = new Set([d, d.world, d.stewards, d.sc, d.radio, d.drs, d.failures]);
-    const cars = new Set([...d.cars, ...(d.simCars || [])]); if (d.sc?.car) cars.add(d.sc.car);
+    const cars = new Set([...d.cars, ...(d.simCars || [])]); if (d.sc?.car) cars.add(d.sc.car); if (d.sc?.body) cars.add(d.sc.body);
     for (const c of cars) { A.add(c); A.add(c.tyres); A.add(c.wh); }
     for (const a of d.ai) A.add(a); if (d.sc?.driver) A.add(d.sc.driver);
     A.delete(undefined); A.delete(null);

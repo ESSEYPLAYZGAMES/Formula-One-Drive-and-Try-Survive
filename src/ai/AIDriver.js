@@ -31,7 +31,7 @@ const NF = Object.freeze(neutralForm());
  * braking to the 80 km/h speed line (vIn), on the exit road from the line onward only the bends (vOut). Lateral 2 g,
  * braking 2 g: well inside the car, there are walls on both sides.
  */
-function laneSpeeds(P) {
+export function laneSpeeds(P) {
   if (P._speeds) return P._speeds;
   const ps = P.samples, n = ps.n, LAT = 20, BRK = 20, lim = P.limiter;
   const vc = new Float32Array(n), vIn = new Float32Array(n), vOut = new Float32Array(n);

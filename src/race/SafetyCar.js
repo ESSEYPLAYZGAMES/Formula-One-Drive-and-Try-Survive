@@ -5,48 +5,62 @@
 //    last seconds of racing before the field is neutralised are still racing.
 //  * Then race control decides: a car beside the track is a Virtual Safety Car (everyone holds a delta speed, no
 //    overtaking), a car on the racing surface (or more than one) is a Safety Car.
-//  * The Safety Car is a real car on the track, driven by its own AIDriver. It leaves from the pit exit, released by
-//    race control as the leader comes up to it (about 14 s away), so it slots in just ahead; with the leader only just
-//    past the exit it goes at once and chases it down at speed, passing whatever is in between - until the leader is
-//    the first car behind it. Until then the field runs to the delta. Only the
-//    leader queues behind it: anyone else that finds itself behind it is waved by. The field closes up at the delta
-//    speed and follows in a line, no overtaking (a place taken has to be given back); a car far off the back of the
-//    queue (250 m+) runs a faster catch-up pace to rejoin it. Once the leader is picked up: "LAPPED CARS MAY NOW
-//    OVERTAKE" - lapped cars in the queue go by it and the safety car and round to the back. Under the safety car a
-//    stop costs far less: the AI takes the cheap stop when its tyres want it (and the gamblers were waiting for it).
-//  * Once the wreck is recovered and the field is bunched: "SAFETY CAR IN THIS LAP". The lights go out, the car peels
-//    into the pit lane at the end of the lap, the leader sets the pace and picks the moment to go - and nobody may
+//  * The Safety Car is a real car, there all race: parked at the end of the pit lane (in the working lane past the
+//    last garage, facing the exit, lights off), out of the way of anyone leaving the pits. On the call it pulls away at
+//    once, orange lights flashing, and joins the circuit wherever the leader is - it never waits for it. It holds a
+//    steady, slow pace ahead of whatever comes up behind it: a car that is not the leader gets the green lights and is
+//    waved by (it goes past and on at speed to catch the back of the pack); that repeats until the leader is the first
+//    car behind it - then orange again, and nobody passes it.
+//  * From the call every car runs the Safety Car delta (about a third slower than a racing lap; a car far off the back
+//    of the queue a little quicker) until it has caught the queue, then it simply follows the car ahead: the delta is
+//    quicker than the queue, so the field closes up into one line behind the safety car. No overtaking (a place taken
+//    has to be given back). Under the safety car a stop costs far less: the AI takes the cheap stop when its tyres want
+//    it (and the gamblers were waiting for it).
+//  * Once the leader is picked up and the track is clear: "LAPPED CARS MAY NOW OVERTAKE" - lapped cars in the queue go
+//    by it and the safety car and on, at speed, round to the back of the queue.
+//  * Once the wreck is recovered, the lapped cars are back and the field is one queue (or it has been out long enough):
+//    "SAFETY CAR IN THIS LAP". The lights go out, the car peels into the pit lane at the end of the lap and parks at
+//    the exit again, ready for the next one; the leader sets the pace and picks the moment to go - and nobody may
 //    overtake until they have crossed the control line.
-// The player gets the same rules (delta on the dash, no overtaking) and the same penalties.
-import { Car } from '../vehicle/Car.js';
-import { AIDriver } from '../ai/AIDriver.js';
+// The player gets the same rules (delta on the dash, no overtaking, waved by / lapped cars excepted) and the same
+// penalties. (A circuit with no pit lane: the safety car joins just ahead of the leader and leaves at the line.)
+import { Car, CAR } from '../vehicle/Car.js';
+import { AIDriver, AI_TUNE, laneSpeeds } from '../ai/AIDriver.js';
 
 const YELLOW_T = [5, 9];          // seconds of yellow flags before race control neutralises the race (random in range)
-const SC_MIN = 50, SC_MAX = 170;  // the safety car stays out at least / at most this long (s) once the incident is clear
+const SC_MIN = 45;                // the safety car stays out at least this long (s from the call) ...
+const SC_MAX = 150;               // ... and once it has the leader, at most this long waiting for the queue to form ...
+const SC_ABS = 330;               // ... and never longer than this from the call, whatever happens (once the track is clear)
+const QUEUE_GAP = 60;             // (m) one queue: each car within this of the one ahead (about a car's gap at the pace, with room)
 const VSC_MIN = 22, VSC_END = 8;
 const CLEAR_T = 3;                // seconds an incident must stay clear before it counts as clear (a stopped car shunted by the next one moves for a moment)
 const RAMP = 8;                   // seconds over which the delta speed comes in after the call
 const RED_T = 4;                  // seconds after the red flag (the board, the radio) before the race is suspended and every car is on the grid - no lap round at a crawl in which some cars stopped and others raced on
 const RED = { scale: 0.5, vCap: 38 };
-const SC_PACE = { scale: 0.7, vCap: 52, brake: 0.5 };   // the safety car itself (~185 km/h on the straights, braking gently: no accordion behind it)
-const DELTA = { scale: 0.76, vCap: 62 };       // the field catching up under the safety car
+// the paces: scale = of the cornering speeds, vCap = top speed (m/s). The queue is slower than the delta, the delta
+// slower than the catch-up pace: a car on its own always closes on the line ahead of it.
+const SC_PACE = { scale: 0.55, vCap: 44, brake: 0.5 };  // the safety car with the leader behind it (~160 km/h on the straights, braking gently: no accordion behind it)
+const HOLD = { scale: 0.52, vCap: 40, brake: 0.5 };     // ... and before that: a steady pace the cars it waves by can pass at, and the leader catch
+const DELTA = { scale: 0.7, vCap: 58 };        // the safety car delta (about a third slower than a racing lap)
+const CATCHUP = { scale: 0.84, vCap: 68 };     // a car far (CATCH_GAP) off the back of the queue
+const CATCH_GAP = 300;
+const WAVED = { scale: 0.9, vCap: 78 };        // waved by, or a lapped car let go: at speed (safely) round to the back of the queue
 const VSC = { scale: 0.68, vCap: 55 };         // the virtual safety car delta, for everyone
-const CHASE = { scale: 1.0, vCap: 85, brake: 1 };   // the safety car catching the leader from behind
-const HOLD = { scale: 0.6, vCap: 45, brake: 0.5 };     // ... or waiting for it to come round
-const CATCHUP = { scale: 0.88, vCap: 72 };      // a car far off the back of the queue
-const UNLAP = { scale: 0.86, vCap: 70 };        // a lapped car going round the queue
 
 export class SafetyCar {
   constructor(director, enabled = true) {
     this.d = director; this.enabled = enabled && director.mode === 'race';
     this.phase = 'green'; this.t = 0;
     this.incident = null;             // { s, cars: Set, onRoad }
-    this.car = null; this.driver = null;
+    // body: the safety car itself, there all race (parked at the pit exit, or out on the circuit); car: the same car
+    // while it is out - driven, simulated with the field, in world.cars - else null
+    this.body = null; this.car = null; this.driver = null; this.parked = false; this.laneMode = null; this.lights = 'off';
     this.scanT = 0; this.passT = 0; this.order = new Map();
     this.count = { sc: 0, vsc: 0 };
     this.playerDelta = 0; this.deltaWarned = false;
     this.log = [];
   }
+  note(text) { this.log.push([+this.d.time.toFixed(1), text]); }
   get active() { return this.phase !== 'green'; }
   /** what the scorebug and HUD show */
   hudState() {
@@ -62,7 +76,9 @@ export class SafetyCar {
 
   // ---- every frame ------------------------------------------------------------------------------------------------
   update(dt) {
-    const d = this.d; if (!this.enabled || !d.world.racing || d.done) return;
+    const d = this.d; if (!this.enabled) return;
+    if (!this.body && d.pit) this.makeBody();   // (parked at the pit exit from the start)
+    if (!d.world.racing || d.done) { this.lights = this.car ? this.lightState() : 'off'; return; }
     this.t += dt;
     this.scanT -= dt; if (this.scanT <= 0) { this.scanT = 0.5; this.scan(); }
     this.clearT = this.incidentLive() ? 0 : (this.clearT || 0) + dt;
@@ -85,13 +101,17 @@ export class SafetyCar {
         if (this.t > VSC_END) { this.phase = 'green'; this.t = 0; this.say('GREEN FLAG', 'good', 2.5, 'Green, green, green. Push now.'); }
         break;
       case 'sc': {
-        if (this.waiting) this.release();
         const leader = this.leader(), finalLap = leader && leader.lap + 1 >= d.lapsTotal;
-        const toPit = this.car ? this.ds(this.car.s, d.pit ? d.pit.entryS : 0) : 0;
+        const onRoad = this.car && !this.laneMode && !this.car.pitLane;
+        const toPit = onRoad ? this.ds(this.car.s, d.pit ? d.pit.entryS : 0) : 0;
         const clear = this.clear();
-        const unlapping = d.cars.some((c) => c._unlap);
-        if (finalLap || (clear && this.picked && !unlapping && this.t > SC_MIN && (this.bunched() || this.t > SC_MAX) && toPit > 700 && toPit < 0.6 * L)) {
+        // (the lapped cars let go are past the safety car and back at the end of the queue - "a safe distance away")
+        const unlapping = d.cars.some((c) => !c.retired && (c._unlap || (c._waved && c._lappedRun)));
+        const tPicked = this.picked ? d.time - this.pickedT : 0;
+        const ready = this.picked && this.unlapCalled && !unlapping && this.t > SC_MIN && (this.bunched() || tPicked > SC_MAX);
+        if (onRoad && (finalLap || (clear && (ready || this.t > SC_ABS) && toPit > 700 && toPit < 0.6 * L))) {
           this.phase = 'scIn'; this.t = 0;
+          const q = this.queueStats(); this.note(`SC in this lap: queue ${q.n}/${q.run} over ${Math.round(q.spread)} m${finalLap ? ' (final lap)' : ''}`);
           this.say('SAFETY CAR IN THIS LAP', 'warn', 4, finalLap ? 'Safety car in this lap, we finish behind it. Hold position to the line.' : 'Safety car in this lap. Get the tyres warm, the leader controls the restart.');
         }
         break;
@@ -102,7 +122,7 @@ export class SafetyCar {
         // into the pit lane at the end of the lap (on a circuit with no pit lane: off at the line)
         const P = d.pit, to = P ? this.ds(c.s, P.entryS) : this.ds(c.s, 0);
         if (P && to < 450) c.pitRequested = true;
-        if (c.pitLane || (!P && to < 30)) this.startRestart();
+        if (c.pitLane || (P && this.laneMode === 'in') || (!P && to < 30)) this.startRestart();
         break;
       }
       case 'restart': {
@@ -112,44 +132,97 @@ export class SafetyCar {
       }
     }
     if (this.car) this.driveCar(dt);
+    this.lights = this.car ? this.lightState() : 'off';
     if (this.restricted()) { this.passT -= dt; if (this.passT <= 0) { this.passT = 0.25; this.checkPasses(); } } else this.order.clear();
     this.playerRules(dt);
   }
 
+  /**
+   * The light bar, for the renderer: 'amber' (flashing: leading the field, or on its way out to it), 'green' (waving
+   * the car behind it by - that car is not the leader), 'off' (parked, "in this lap", on its way back in)
+   */
+  lightState() {
+    if (!this.car || this.parked || this.phase !== 'sc') return 'off';
+    if (!this.picked && !this.laneMode && !this.car.pitLane && this.behind && this.behindX < 300 && this.behind !== this.leader()) return 'green';
+    return 'amber';
+  }
+
   /** the safety car's own driving: its AIDriver at 60 Hz (the race director steps its physics with everyone else) */
   driveCar(dt) {
-    const c = this.car, d = this.d;
+    const c = this.car, d = this.d, P = d.pit;
     c.dmg.fwL = c.dmg.fwR = c.dmg.rw = c.dmg.susp = c.dmg.eng = 0;   // (bodywork rubs off it, nothing breaks)
     c.retired = false; c.engTemp = 0.3;
     if (c._wasLane && !c.pitLane) c.pitLaneState = null;   // (out of the pit lane: on the circuit now)
     c._wasLane = c.pitLane;
-    // the leader picked up: the first running car behind the safety car (within 400 m) is the leader. Until then it
-    // chases a leader that is ahead of it, and waits (slowly) for one that is behind
-    if (!this.picked && !c.pitLane && this.phase === 'sc') {
-      const lead = this.leader(); let first = null, fx = Infinity;
-      if (lead) { const x = d.planDs(c.s, lead.s); this.mode = x > 0 && x < 0.6 * d.track.length ? 'chase' : 'hold'; }
-      for (const o of d.cars) { if (o.retired || o.pitLane || o.inPit || o.speed < 5) continue; const x = this.ds(o.s, c.s); if (x > 0 && x < fx) { fx = x; first = o; } }
-      if (lead && first === lead && fx < 400) {
+    const onRoad = !c.pitLane && !this.laneMode;
+    // the first running car behind it (the one it is holding up - or waving by)
+    let first = null, fx = Infinity;
+    if (onRoad) for (const o of d.cars) { if (o.retired || o.pitLane || o.inPit || o.finished || o.speed < 5) continue; const x = this.ds(o.s, c.s); if (x > 0 && x < fx) { fx = x; first = o; } }
+    this.behind = first; this.behindX = fx;
+    if (onRoad && !this._outSaid && this.phase === 'sc') {
+      this._outSaid = true; const lead = this.leader();
+      this.note(`SC on track ahead of ${first ? first.short : '-'} (${Math.round(fx)} m back), leader ${lead ? lead.short : '-'} ${lead ? Math.round(this.ds(lead.s, c.s)) : '-'} m behind it`);
+    }
+    // the leader picked up: the first running car behind the safety car (within 400 m) is the leader. Until then the
+    // ones in between get the green lights
+    if (!this.picked && onRoad && this.phase === 'sc') {
+      const lead = this.leader();
+      // (a car told to go by that will not - the player sitting behind it - is not allowed to hold up the pickup for ever)
+      const stuck = first && first.isPlayer && first !== lead && (this._waveT = (this._waveT || 0) + dt) > 25;
+      if (lead && fx < 400 && (first === lead || (stuck && this.ds(lead.s, c.s) < 600))) {
         this.picked = true; this.pickedT = d.time;
-        this.log.push([+d.time.toFixed(1), `picked up ${lead.short}`]);
+        this.note(`picked up ${lead.short} (${Math.round(d.time - this.deployT)} s after the call)`);
         if (lead.isPlayer) d.engineer?.say('Safety car is right ahead of you now. Hold station behind it.', 2);
+      } else if (first && first !== lead && fx < 120 && first.isPlayer && !this._toldWave) {
+        this._toldWave = true; d.engineer?.say('Safety car is showing green for us, we are not the leader. Overtake it and catch the back of the pack.', 2);
       }
     }
-    // lapped cars may overtake (once, a while after the pickup): the lapped cars in the queue go round it
-    if (this.picked && !this.unlapCalled && this.phase === 'sc' && d.time - this.pickedT > 20) {
-      this.unlapCalled = true;
-      const lead = this.leader(), L = d.track.length; let n = 0;
-      if (lead) for (const o of d.cars) {
-        if (o.retired || o.pitLane || o.inPit || o.finished) continue;
-        const behindSC = this.ds(o.s, c.s);
-        if (d.progress(lead) - d.progress(o) > L - 500 && behindSC < 2500) { o._unlap = true; n++; }
+    // going by it: waved by (before the pickup), or a lapped car let go - both on at speed to the back of the queue
+    for (const o of d.cars) {
+      if (o.retired || o.pitLane || o.inPit || o.finished || !onRoad) { o._scX = null; continue; }
+      const x = d.planDs(c.s, o.s), prev = o._scX; o._scX = x;
+      if (prev == null || !(prev < 0 && x >= 0 && prev > -80 && x < 80)) continue;
+      if (o._unlap) { o._unlap = false; o._waved = true; o._lappedRun = true; this.note(`${o.short} unlapped itself past the SC`); }
+      else if (this.phase === 'sc' && !this.picked) {
+        o._waved = true; this.note(`waved by ${o.short}`);
+        if (o.isPlayer) d.engineer?.say('Good, now go and catch the back of the pack. Safely, and no overtaking anyone else.', 2);
       }
+    }
+    // with the pack again: within 120 m of a car ahead that is itself in the queue (or the end of the neutralisation)
+    for (const o of d.cars) if (o._waved) {
+      const a = this.nextAhead(o);
+      if (o.retired || o.pitLane || !this.restricted() || this.phase === 'restart' || (a && a.x < 120 && !a.o._waved && !a.o._unlap)) {
+        if (!o.retired && this.restricted()) this.note(`${o.short} back with the pack`);
+        o._waved = false; o._lappedRun = false;
+      }
+    }
+    // lapped cars may overtake (once, a while after the pickup, with the track clear): the lapped cars in the queue
+    // go round it
+    if (this.picked && !this.unlapCalled && this.phase === 'sc' && d.time - this.pickedT > 10 && this.clear()) {
+      this.unlapCalled = true;
+      const lead = this.leader(); let n = 0;
+      if (lead) {
+        const bl = this.ds(lead.s, c.s);
+        for (const o of d.cars) {
+          if (o === lead || o.retired || o.pitLane || o.inPit || o.finished || o._waved) continue;
+          const behindSC = this.ds(o.s, c.s);
+          // (lapped: a lap more behind the leader in the race than it is on the road)
+          if (behindSC < 2500 && d.progress(lead) - d.progress(o) > behindSC - bl + d.track.length / 2) { o._unlap = true; n++; }
+        }
+      }
+      this.note(`lapped cars may overtake: ${n}`);
       if (n) this.say('LAPPED CARS MAY NOW OVERTAKE', 'warn', 3, d.player?._unlap ? 'Lapped cars may overtake, that includes us. Go past the queue and the safety car and round to the back.' : null, 2);
     }
-    // a lapped car is done once it is past the safety car; the catch-up pace brings it round to the back
-    for (const o of d.cars) if (o._unlap) { const x = d.planDs(c.s, o.s); if ((x > 40 && x < 1500) || o.retired || o.pitLane) o._unlap = false; }
-    // gone (into the pit lane, or recovered somewhere off the road after a spin): off the circuit
-    if (this.phase === 'restart' || (c.pitLane && this.phase !== 'sc')) this.removeCar();
+    for (const o of d.cars) if (o._unlap && (o.retired || o.pitLane || o.inPit)) o._unlap = false;
+    if (!P) { if (this.phase === 'restart' || this.phase === 'green') this.removeCar(); return; }
+    // (somehow out on the circuit with nothing to do - it missed the pit entry: in next time round)
+    if (this.phase !== 'sc' && this.phase !== 'scIn' && !this.laneMode) c.pitRequested = true;
+  }
+  /** the nearest running car ahead of c on the road: { o, x } or null */
+  nextAhead(c) {
+    const d = this.d; let best = null, bx = Infinity;
+    for (const o of d.cars) { if (o === c || o.retired || o.pitLane || o.inPit || o.cleared || o.finished) continue; const x = this.ds(c.s, o.s); if (x > 0 && x < bx) { bx = x; best = o; } }
+    return best ? { o: best, x: bx } : null;
   }
 
   // ---- incidents --------------------------------------------------------------------------------------------------
@@ -199,13 +272,21 @@ export class SafetyCar {
       }
     }
   }
-  /** the field has closed up: the line of cars behind the safety car (each within 150 m of the one ahead) holds 85 % of them */
-  bunched() {
-    const sc = this.car; if (!sc) return true;
-    const run = this.d.cars.filter((c) => !c.retired && !c.finished && !c.pitLane && !c.inPit && c.speed > 5);
+  /**
+   * The line behind the safety car: { n: cars in it (each within QUEUE_GAP m of the one ahead), run: running cars,
+   * spread: m from the safety car to the last car in it }
+   */
+  queueStats(gap = QUEUE_GAP) {
+    const sc = this.car, run = this.d.cars.filter((c) => !c.retired && !c.finished && !c.pitLane && !c.inPit && c.speed > 5);
+    if (!sc || sc.pitLane) return { n: 0, run: run.length, spread: 0 };
     const behind = run.map((c) => this.ds(c.s, sc.s)).sort((a, b) => a - b);
-    let n = 0, prev = 0; for (const x of behind) { if (x - prev > 150) break; n++; prev = x; }
-    return n >= Math.ceil(0.85 * run.length);
+    let n = 0, prev = 0; for (const x of behind) { if (x - prev > gap) break; n++; prev = x; }
+    return { n, run: run.length, spread: prev };
+  }
+  /** the field has closed up: the line of cars behind the safety car holds 85 % of them */
+  bunched() {
+    if (!this.car) return true;
+    const q = this.queueStats(); return q.n >= Math.ceil(0.85 * q.run);
   }
   /** the race leader on the road (not in the pit lane) */
   leader() { return this.d.positions.find((c) => !c.retired && !c.finished && !c.pitLane && !c.inPit && c.speed > 5) || null; }
@@ -217,15 +298,19 @@ export class SafetyCar {
   }
   deploySC() {
     const d = this.d; if (this.phase !== 'vsc') this.neutralT = d.time;   // (a VSC upgraded to the safety car is already slowed)
-    this.phase = 'sc'; this.t = 0; this.count.sc++; this.playerDelta = 0; this.deltaWarned = false;
+    this.phase = 'sc'; this.t = 0; this.count.sc++; this.playerDelta = 0; this.deltaWarned = false; this.deployT = d.time;
     this.say('SAFETY CAR DEPLOYED', 'warn', 4, 'Safety car, safety car. Stay above the delta, no overtaking. We will look at boxing.');
-    this.picked = false; this.unlapCalled = false; this.waiting = false;
-    if (this.car) return;
-    // at once (no pit lane, or the leader just went by the pit exit: chase it), or held at the exit until it comes round
-    const lead = this.leader(), ex = this.exitS();
-    if (ex == null || !lead) { this.spawnCar(); return; }
-    const past = d.planDs(ex, lead.s);
-    if (past > 0 && past < 500) this.spawnCar(); else { this.waiting = true; this.log.push([+d.time.toFixed(1), 'SC waiting at the pit exit']); }
+    this.picked = false; this.unlapCalled = false; this._outSaid = false; this._toldWave = false; this._waveT = 0;
+    for (const c of d.cars) { c._waved = false; c._lappedRun = false; c._unlap = false; c._scX = null; }
+    if (this.car) {
+      // (still rolling back down the pit lane from the last one: straight back out)
+      this.car.pitRequested = false;
+      if (this.laneMode === 'in') { this.laneMode = 'out'; this.note('SC back out of the pit lane'); }
+      else this._outSaid = !this.car.pitLane && !this.laneMode;
+      return;
+    }
+    // it leaves at once, from where it is parked at the end of the pit lane - wherever the leader is
+    if (this.body) this.launch(); else this.spawnCar();
   }
   /** where the pit lane meets the circuit again (track s) */
   exitS() {
@@ -233,55 +318,130 @@ export class SafetyCar {
     if (this._exitS == null) { const ps = P.samples, iM = Math.min(ps.n - 1, Math.round(P.mergeU / ps.ds)); this._exitS = this.d.track.nearest(ps.px[iM], ps.pz[iM]).s; }
     return this._exitS;
   }
-  /** held at the pit exit: released when the leader is ~14 s from it (or after 2.5 min, whatever happens) */
-  release() {
-    const d = this.d, lead = this.leader(), ex = this.exitS(); if (!lead || ex == null) return;
-    const to = this.ds(lead.s, ex);
-    if (to / Math.max(20, lead.speed) < 14 || this.t > 150) { this.waiting = false; this.spawnCar(); }
-  }
-  /**
-   * The safety car leaves from the pit exit (just past the exit speed line). Where the leader is decides its pace
-   * until it has picked it up: already past the pit exit (within 60 % of a lap) - CHASE it; still to come - HOLD.
-   */
-  spawnCar() {
-    const d = this.d, tr = d.track, lead = this.leader(); if (!lead) return;
-    const c = new Car(tr, { name: 'Safety Car', short: 'SC', team: 'FIA', color: '#c9ccd2', perf: 1, rating: 1, number: 0, compound: 'MEDIUM', raceLaps: d.lapsTotal, assists: { tc: true, abs: true } });
+  newCar() {
+    const d = this.d;
+    const c = new Car(d.track, { name: 'Safety Car', short: 'SC', team: 'FIA', color: '#c9ccd2', perf: 1, rating: 1, number: 0, compound: 'MEDIUM', raceLaps: d.lapsTotal, assists: { tc: true, abs: true } });
     c.isSC = true; c.lap = -100; c.lapDist = 0;
     c.launch = () => {}; c.applyImpact = () => 0;   // (a tank: it is nudged, never wrecked)
-    const P = d.pit;
-    if (P) {
-      // on the pit lane's exit road, pointing down it, from a standstill
-      const ps = P.samples, i = Math.max(0, Math.min(ps.n - 2, Math.round((P.limitTo + 12) / ps.ds)));
-      c.x = ps.px[i]; c.z = ps.pz[i]; c.th = Math.atan2(ps.tz[i], ps.tx[i]); c.vLong = 0; c.vLat = 0; c.r = 0;
-      const q = tr.nearest(c.x, c.z); c.trackIdx = q.i; c.s = q.s; c.prevS = q.s; c.d = q.d;
-      c.pit = P; c.manualPit = true; c.pitLaneState = 'out'; c.pitLane = true; c._wasLane = true;
-      const past = d.planDs(this.exitS(), lead.s);   // + : the leader has gone by the pit exit
-      this.mode = past > 0 && past < 0.6 * tr.length ? 'chase' : 'hold';
-    } else {
-      // (no pit lane: it joins 170 m ahead of the leader)
-      let s = lead.s + 170;
-      for (let k = 0; k < 12; k++) { if (d.cars.some((o) => !o.retired && Math.abs(d.planDs(s, o.s)) < 18)) s += 25; else break; }
-      c.placeOnTrack(tr.wrapS(s), d.line.offsetAt(s), Math.min(lead.speed, SC_PACE.vCap));
-      this.mode = 'hold';
-    }
+    return c;
+  }
+  /**
+   * Its bay: the end of the pit lane, in the working lane on the garage side past the last garage (clear of the car
+   * pulling out of that box) and short of the exit line - beside the fast lane, not in it.
+   */
+  parkSpot() {
+    if (this.spot) return this.spot;
+    const P = this.d.pit, ps = P.samples;
+    let b1 = -Infinity; for (const b of P.boxes) b1 = Math.max(b1, ps.s[b.i]);
+    let u = Math.max(b1 + 30, Math.min(P.limitTo - 12, P.mergeU - 30));
+    u = Math.min(u, P.mergeU - 20, ps.length - 2);
+    const i = Math.max(0, Math.min(ps.n - 1, Math.round(u / ps.ds))), gs = -P.trackSide;
+    const lat = gs * Math.max(2.4, Math.min(3.4, (P.garageW ? P.garageW[i] : P.halfWidth + 0.7) - 2.1));
+    return (this.spot = { u: ps.s[i], i, lat, x: ps.px[i] + ps.nx[i] * lat, z: ps.pz[i] + ps.nz[i] * lat, th: Math.atan2(ps.tz[i], ps.tx[i]) });
+  }
+  makeBody() { this.body = this.newCar(); this.parkBody(); this.note(`SC parked at the pit exit (lane ${Math.round(this.spot.u)} m of ${Math.round(this.d.pit.length)})`); }
+  /** set down in its bay: stopped, lights off, out of the simulation (nothing drives through it there) */
+  parkBody() {
+    const c = this.body, d = this.d, P = d.pit, K = this.parkSpot(), tr = d.track;
+    c.x = K.x; c.z = K.z; c.th = K.th; c.vLong = c.vLat = c.r = 0; c.steer = 0; c.throttle = 0; c.brake = 1; c.ers = 0; c.gear = 1;
+    c.hv = c.hvd = c.pt = c.ptd = c.rl = c.rld = 0; c.wh.u.fill(0);
+    const q = tr.nearest(c.x, c.z); c.trackIdx = q.i; c.s = q.s; c.prevS = q.s; c.d = q.d;
+    c.pit = P; c.manualPit = true; c.pitLaneState = 'out'; c.pitLane = true; c._wasLane = true; c.pitRequested = false; c.pitU = K.u;
+    for (const k in c.dmg) if (typeof c.dmg[k] === 'number') c.dmg[k] = 0;
+    c.retired = false; c.removed = false;
+    this.parked = true; this.laneMode = null; this.lights = 'off';
+  }
+  /** away from its bay with the lights on: into the simulation, driven */
+  launch() {
+    const d = this.d, c = this.body; this.parkBody();
+    this.parked = false; this.laneMode = 'out'; c.brake = 0;
     c.lapDist = 0; c.lapStart = d.time; c.ghost = 0;
-    this.log.push([+d.time.toFixed(1), `SC out (${this.mode})`]);
-    this.car = c;
-    this.driver = new AIDriver(c, d.line, d.profile, tr, { aggression: 0.3, skill: 1 });
+    this.car = c; this.makeDriver();
+    this.note('SC leaves the pit lane');
+  }
+  makeDriver() {
+    const d = this.d, c = this.car;
+    this.driver = new AIDriver(c, d.line, d.profile, d.track, { aggression: 0.3, skill: 1 });
     this.driver.reaction = 0; this.driver.isSC = true;
+    this.driver.pitDrive = (dt, world) => this.laneDrive(dt, world);   // (its own way down the pit lane: from its bay and back to it)
     d.simCars = [...d.cars, c]; d.world.cars = d.simCars;
   }
+  /** (no pit lane) it joins 170 m ahead of the leader */
+  spawnCar() {
+    const d = this.d, tr = d.track, lead = this.leader(); if (!lead) return;
+    const c = this.newCar();
+    let s = lead.s + 170;
+    for (let k = 0; k < 12; k++) { if (d.cars.some((o) => !o.retired && Math.abs(d.planDs(s, o.s)) < 18)) s += 25; else break; }
+    c.placeOnTrack(tr.wrapS(s), d.line.offsetAt(s), Math.min(lead.speed, SC_PACE.vCap));
+    c.lapDist = 0; c.lapStart = d.time; c.ghost = 0;
+    this.note('SC out (no pit lane: ahead of the leader)');
+    this.car = c; this.makeDriver();
+  }
+  /** off the circuit: back in its bay at the pit exit (or, with no pit lane, gone) */
   removeCar() {
     if (!this.car) return;
-    this.car.removed = true; this.car = null; this.driver = null;
+    const c = this.car; this.car = null; this.driver = null;
     this.d.simCars = null; this.d.world.cars = this.d.cars;
+    if (c === this.body) this.parkBody(); else c.removed = true;
+  }
+  /**
+   * Down the pit lane (the SC's AIDriver.pitDrive): out of its bay, across into the lane and away to the exit line on
+   * the limiter - waiting for a car coming down the lane right behind it - or, coming in, down the lane and into its
+   * bay. False when it is not in the lane business (the planner drives).
+   */
+  laneDrive(dt, world) {
+    const c = this.car, d = this.d, P = d.pit, drv = this.driver; if (!c || !P || !drv) return false;
+    if (!this.laneMode && c.pitRequested) { const to = drv.planner.ds(c.s, P.entryS); if (to < 2 && to > -(P.divergeU + 30)) { this.laneMode = 'in'; this.note('SC into the pit lane'); } }
+    if (!this.laneMode) { drv.inPitMode = false; return false; }
+    const q = P.nearest(c.x, c.z, this._lq || (this._lq = {})), u = Math.max(0, q.u), v = c.speed, K = this.parkSpot(), ps = P.samples, T = AI_TUNE;
+    if (this.laneMode === 'out' && !c.pitLane && u > P.mergeU - 2) { this.laneMode = null; drv.inPitMode = false; drv.planT = 0; c.pitLaneState = null; return false; }   // (on the circuit: the planner drives)
+    drv.inPitMode = true;
+    const sm = (t) => { t = Math.max(0, Math.min(1, t)); return t * t * (3 - 2 * t); };
+    const out = this.laneMode === 'out';
+    const latAt = (uu) => out ? (uu <= K.u ? K.lat : K.lat * (1 - sm((uu - K.u) / 32))) : (uu >= K.u - 4 ? K.lat : K.lat * sm((uu - (K.u - 38)) / 32));
+    const look = Math.max(6, Math.min(22, 0.35 * v + 5)), uA = Math.min(ps.length - 1, u + look), j = Math.min(ps.n - 1, Math.round(uA / ps.ds)), latT = latAt(uA);
+    const tx = ps.px[j] + ps.nx[j] * latT, tz = ps.pz[j] + ps.nz[j] * latT;
+    const dx = tx - c.x, dz = tz - c.z, cth = Math.cos(c.th), sth = Math.sin(c.th);
+    const fwd = dx * cth + dz * sth, lft = dx * sth - dz * cth, Ld = Math.hypot(dx, dz) || 1;
+    const dMax = Math.max(0.055, 0.38 * (1 - v / 118));
+    let steer = Math.atan(2 * 3.6 * Math.sin(Math.atan2(lft, fwd)) / Ld) / dMax;
+    steer += Math.atan2(c.vLat - c.r * CAR.lr, Math.max(3, Math.abs(c.vLong))) * T.csGain * 0.8;
+    c.steer += (Math.max(-1, Math.min(1, steer)) - c.steer) * Math.min(1, dt * T.steerRate);
+    const iu = Math.max(0, Math.min(ps.n - 1, Math.round(u / ps.ds))), S = laneSpeeds(P);
+    let vT = u < P.limitFrom ? S.vIn[iu] : u <= P.limitTo ? P.limiter : S.vOut[iu];
+    if (out && u < K.u + 25) {
+      vT = Math.min(vT, 8 + Math.max(0, u - K.u) * 0.8);   // (out of the bay gently, then up to the limiter)
+      // (a car coming down the lane right behind it: let it by first)
+      if (v < 4 && u < K.u + 6) for (const o of world.cars) {
+        if (o === c || !o.pitLane || o.held || o.speed < 4) continue;
+        const qo = P.nearest(o.x, o.z, this._lo || (this._lo = {})); if (qo.u < u && qo.u > u - 45) { vT = 0; break; }
+      }
+    }
+    if (!out) {
+      vT = Math.min(vT, Math.sqrt(Math.max(0, 2 * 3 * (K.u - u - 0.3))));
+      if ((K.u - u < 1 && v < 0.8) || u > K.u + 4) { this.removeCar(); this.note('SC parked at the pit exit'); c.throttle = 0; c.brake = 1; return true; }
+    }
+    // a car ahead in the lane: follow it
+    for (const o of world.cars) {
+      if (o === c || o.cleared || !(o.pitLane || o.ai?.inPitMode)) continue;
+      const qo = P.nearest(o.x, o.z, this._lo || (this._lo = {})), gap = qo.u - u;
+      if (gap <= 0 || gap > 150 || ((o.held || gap < 30) && Math.abs(qo.lat - latAt(qo.u)) > 2.6)) continue;
+      vT = Math.min(vT, Math.sqrt(Math.max(0, o.speed * o.speed + 2 * 8 * (gap - 9))));
+    }
+    const err = vT - v;
+    if (err > 0.3) { c.throttle = Math.min(1, 0.2 + err / 4); c.brake = 0; }
+    else if (err < -0.3) { c.throttle = 0; c.brake = Math.min(1, -err / 4 + 0.15); }
+    else { c.throttle = v > 1 ? 0.25 : 0; c.brake = vT < 0.3 ? 1 : 0; }
+    c.ers = 0;
+    return true;
   }
   startRestart() {
-    const d = this.d; this.removeCar();
+    const d = this.d; if (!d.pit) this.removeCar();   // (with a pit lane it carries on down it to its bay)
     this.phase = 'restart'; this.t = 0;
     this._greenSaid = false;
     this.goDist = 120 + Math.random() * 380;   // where the leader goes: somewhere in the last few hundred metres
-    for (const c of d.cars) c._scGreen = false;
+    for (const c of d.cars) { c._scGreen = false; c._waved = false; c._lappedRun = false; c._unlap = false; }
+    this.note('SC in: restart');
     this.say('SAFETY CAR IN\nNO OVERTAKING UNTIL THE LINE', 'warn', 3);
   }
   /** the car leading the restart: the first on the road that has not crossed the line and is not heading into the pits */
@@ -309,8 +469,9 @@ export class SafetyCar {
    */
   rules(c) {
     const ph = this.phase;
-    if (c.isSC) { const P = !this.picked && this.phase === 'sc' ? (this.mode === 'chase' ? CHASE : HOLD) : SC_PACE; return { scale: P.scale, vCap: P.vCap, brake: P.brake, noPass: false, gap: 0, sc: true }; }
-    if (c._unlap) return { scale: UNLAP.scale, vCap: UNLAP.vCap, brake: 0.9, noPass: false, gap: 0 };   // (lapped cars may overtake)
+    // (the safety car: steady before the pickup - the cars it waves by pass it, the leader catches it - then the queue's pace)
+    if (c.isSC) { const P = !this.picked && this.phase === 'sc' ? HOLD : SC_PACE; return { scale: P.scale, vCap: P.vCap, brake: P.brake, noPass: false, gap: 0, sc: true }; }
+    if (c._unlap) return { scale: WAVED.scale, vCap: WAVED.vCap, brake: 0.9, noPass: false, gap: 0 };   // (lapped cars may overtake)
     switch (ph) {
       case 'red': return { scale: RED.scale, vCap: RED.vCap, brake: 0.6, noPass: true, gap: 14 };
       case 'yellow': return this.inYellowZone(c) ? { scale: 0.85, vCap: null, noPass: true, gap: 0 } : null;
@@ -320,8 +481,9 @@ export class SafetyCar {
       // pile-up, not a neutralisation).
       case 'vsc': case 'vscEnd': { const k = this.ramp(); return { scale: 1 - (1 - VSC.scale) * k, vCap: 96 - (96 - VSC.vCap) * k, brake: 1 - 0.4 * k, noPass: true, gap: 14 * k }; }
       case 'sc': case 'scIn': {
-        // the delta - or, far off the back of the queue, the catch-up pace; only the leader queues behind the safety car
-        const k = this.ramp(), R = this.gapAhead(c) > 250 ? CATCHUP : DELTA, queueSC = c === this.leader();
+        // the delta - or, far off the back of the queue, the catch-up pace; waved by (or a lapped car let go): at speed to
+        // the back of the queue. Only the leader queues behind the safety car: anyone else is waved by it
+        const k = this.ramp(), R = c._waved ? WAVED : this.gapAhead(c) > CATCH_GAP ? CATCHUP : DELTA, queueSC = c === this.leader();
         return { scale: 1 - (1 - R.scale) * k, vCap: 96 - (96 - R.vCap) * k, brake: 1 - 0.4 * k, noPass: true, gap: (15 + (ph === 'scIn' ? 4 : 0)) * k, queueSC };
       }
       case 'restart': {
@@ -378,7 +540,7 @@ export class SafetyCar {
    */
   playerRules(dt) {
     const d = this.d, p = d.player; this.deltaShown = false;
-    if (!p || p.retired || p.finished || p.pitLane || p.inPit || p._unlap) return;
+    if (!p || p.retired || p.finished || p.pitLane || p.inPit || p._unlap || p._waved) return;   // (lapped cars let go, cars waved by: on at speed to the back of the queue)
     const ph = this.phase, vsc = ph === 'vsc' || ph === 'vscEnd', sc = ph === 'sc' || ph === 'scIn';
     if (ph === 'red') return;   // (a red flag: just bring it round slowly)
     if (!vsc && !sc) return;
@@ -388,7 +550,7 @@ export class SafetyCar {
       if (!near) for (const o of d.cars) { if (o === p || o.retired || o.pitLane) continue; const x = d.planDs(p.s, o.s); if (x > 0 && x < 120) { near = true; break; } }
       if (near) { this.playerDelta = Math.min(1, this.playerDelta + dt * 0.5); this.deltaShown = true; return; }
     }
-    const R = vsc ? VSC : this.gapAhead(p) > 250 ? CATCHUP : DELTA, tr = d.track;   // (far off the back of the queue: the catch-up pace)
+    const R = vsc ? VSC : this.gapAhead(p) > CATCH_GAP ? CATCHUP : DELTA;   // (far off the back of the queue: the catch-up pace)
     const k = this.ramp(), vRef = Math.max(15, Math.min(96 - (96 - R.vCap) * k, d.profile[p.trackIdx] * (1 - (1 - R.scale) * k)));
     // delta (s): + is slower than the reference (fine), - faster
     this.playerDelta += dt * (1 - p.speed / vRef);
