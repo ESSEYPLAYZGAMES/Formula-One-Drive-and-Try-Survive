@@ -14,7 +14,7 @@
 //  * From the call every car runs the Safety Car delta (about a third slower than a racing lap; a car far off the back
 //    of the queue a little quicker) until it has caught the queue, then it simply follows the car ahead: the delta is
 //    quicker than the queue, so the field closes up into one line behind the safety car. No overtaking (a place taken
-//    has to be given back). Under the safety car a stop costs far less: the AI takes the cheap stop when its tyres want
+//    has to be given back) - except a car in trouble (damaged, a puncture, off the road), which may be passed. Under the safety car a stop costs far less: the AI takes the cheap stop when its tyres want
 //    it (and the gamblers were waiting for it).
 //  * Once the leader is picked up and the track is clear: "LAPPED CARS MAY NOW OVERTAKE" - lapped cars in the queue go
 //    by it and the safety car and on, at speed, round to the back of the queue.
@@ -29,8 +29,8 @@ import { AIDriver, AI_TUNE, laneSpeeds } from '../ai/AIDriver.js';
 
 const YELLOW_T = [5, 9];          // seconds of yellow flags before race control neutralises the race (random in range)
 const SC_MIN = 45;                // the safety car stays out at least this long (s from the call) ...
-const SC_MAX = 150;               // ... and once it has the leader, at most this long waiting for the queue to form ...
-const SC_ABS = 330;               // ... and never longer than this from the call, whatever happens (once the track is clear)
+const SC_MAX = 240;               // ... and once it has the leader, at most this long waiting for the queue to form ...
+const SC_ABS = 420;               // ... and never longer than this from the call, whatever happens (once the track is clear)
 const QUEUE_GAP = 60;             // (m) one queue: each car within this of the one ahead (about a car's gap at the pace, with room)
 const VSC_MIN = 22, VSC_END = 8;
 const CLEAR_T = 3;                // seconds an incident must stay clear before it counts as clear (a stopped car shunted by the next one moves for a moment)
@@ -39,12 +39,13 @@ const RED_T = 4;                  // seconds after the red flag (the board, the 
 const RED = { scale: 0.5, vCap: 38 };
 // the paces: scale = of the cornering speeds, vCap = top speed (m/s). The queue is slower than the delta, the delta
 // slower than the catch-up pace: a car on its own always closes on the line ahead of it.
-const SC_PACE = { scale: 0.55, vCap: 44, brake: 0.5 };  // the safety car with the leader behind it (~160 km/h on the straights, braking gently: no accordion behind it)
-const HOLD = { scale: 0.52, vCap: 40, brake: 0.5 };     // ... and before that: a steady pace the cars it waves by can pass at, and the leader catch
-const DELTA = { scale: 0.7, vCap: 58 };        // the safety car delta (about a third slower than a racing lap)
-const CATCHUP = { scale: 0.84, vCap: 68 };     // a car far (CATCH_GAP) off the back of the queue
-const CATCH_GAP = 300;
-const WAVED = { scale: 0.9, vCap: 78 };        // waved by, or a lapped car let go: at speed (safely) round to the back of the queue
+const SC_PACE = { scale: 0.5, vCap: 39, brake: 0.5 };   // the safety car with the leader behind it (~140 km/h on the straights, braking gently: no accordion behind it)
+const HOLD = { scale: 0.46, vCap: 35, brake: 0.5 };     // ... and before that: a steady pace the cars it waves by can pass at, and the leader catch
+const WAIT = { scale: 0.38, vCap: 28, brake: 0.5 };     // ... with nobody close behind it yet: slower still, the field closes on it
+const DELTA = { scale: 0.75, vCap: 64 };       // the safety car delta (about a third slower than a racing lap)
+const CATCHUP = { scale: 0.88, vCap: 74 };     // a car far (CATCH_GAP m) off the back of the car ahead
+const CATCH_GAP = 150;
+const WAVED = { scale: 0.92, vCap: 80 };        // waved by, or a lapped car let go: at speed (safely) round to the back of the queue
 const VSC = { scale: 0.68, vCap: 55 };         // the virtual safety car delta, for everyone
 
 export class SafetyCar {
@@ -62,6 +63,8 @@ export class SafetyCar {
   }
   note(text) { this.log.push([+this.d.time.toFixed(1), text]); }
   get active() { return this.phase !== 'green'; }
+  /** (tests, balancing: the paces) */
+  get paces() { return { sc: SC_PACE, hold: HOLD, wait: WAIT, delta: DELTA, catchup: CATCHUP, waved: WAVED, vsc: VSC }; }
   /** what the scorebug and HUD show */
   hudState() {
     if (this.phase === 'green') return null;
@@ -183,7 +186,7 @@ export class SafetyCar {
       const x = d.planDs(c.s, o.s), prev = o._scX; o._scX = x;
       if (prev == null || !(prev < 0 && x >= 0 && prev > -80 && x < 80)) continue;
       if (o._unlap) { o._unlap = false; o._waved = true; o._lappedRun = true; this.note(`${o.short} unlapped itself past the SC`); }
-      else if (this.phase === 'sc' && !this.picked) {
+      else if (this.phase === 'sc' && !this.picked && !o._waved) {
         o._waved = true; this.note(`waved by ${o.short}`);
         if (o.isPlayer) d.engineer?.say('Good, now go and catch the back of the pack. Safely, and no overtaking anyone else.', 2);
       }
@@ -204,7 +207,7 @@ export class SafetyCar {
       if (lead) {
         const bl = this.ds(lead.s, c.s);
         for (const o of d.cars) {
-          if (o === lead || o.retired || o.pitLane || o.inPit || o.finished || o._waved) continue;
+          if (o === lead || o.retired || o.pitLane || o.inPit || o.finished || o._waved || o.speed < 5) continue;
           const behindSC = this.ds(o.s, c.s);
           // (lapped: a lap more behind the leader in the race than it is on the road)
           if (behindSC < 2500 && d.progress(lead) - d.progress(o) > behindSC - bl + d.track.length / 2) { o._unlap = true; n++; }
@@ -221,7 +224,7 @@ export class SafetyCar {
   /** the nearest running car ahead of c on the road: { o, x } or null */
   nextAhead(c) {
     const d = this.d; let best = null, bx = Infinity;
-    for (const o of d.cars) { if (o === c || o.retired || o.pitLane || o.inPit || o.cleared || o.finished) continue; const x = this.ds(c.s, o.s); if (x > 0 && x < bx) { bx = x; best = o; } }
+    for (const o of d.cars) { if (o === c || o.retired || o.pitLane || o.inPit || o.cleared || o.finished || o.speed < 5) continue; const x = this.ds(c.s, o.s); if (x > 0 && x < bx) { bx = x; best = o; } }
     return best ? { o: best, x: bx } : null;
   }
 
@@ -273,11 +276,12 @@ export class SafetyCar {
     }
   }
   /**
-   * The line behind the safety car: { n: cars in it (each within QUEUE_GAP m of the one ahead), run: running cars,
+   * The line behind the safety car: { n: cars in it (each within QUEUE_GAP m of the one ahead), run: cars staying out,
    * spread: m from the safety car to the last car in it }
    */
   queueStats(gap = QUEUE_GAP) {
-    const sc = this.car, run = this.d.cars.filter((c) => !c.retired && !c.finished && !c.pitLane && !c.inPit && c.speed > 5);
+    // (the cars staying out: not those in the pit lane or on their way into it)
+    const sc = this.car, run = this.d.cars.filter((c) => !c.retired && !c.finished && !c.pitLane && !c.inPit && !c.pitRequested && c.speed > 5);
     if (!sc || sc.pitLane) return { n: 0, run: run.length, spread: 0 };
     const behind = run.map((c) => this.ds(c.s, sc.s)).sort((a, b) => a - b);
     let n = 0, prev = 0; for (const x of behind) { if (x - prev > gap) break; n++; prev = x; }
@@ -300,7 +304,7 @@ export class SafetyCar {
     const d = this.d; if (this.phase !== 'vsc') this.neutralT = d.time;   // (a VSC upgraded to the safety car is already slowed)
     this.phase = 'sc'; this.t = 0; this.count.sc++; this.playerDelta = 0; this.deltaWarned = false; this.deployT = d.time;
     this.say('SAFETY CAR DEPLOYED', 'warn', 4, 'Safety car, safety car. Stay above the delta, no overtaking. We will look at boxing.');
-    this.picked = false; this.unlapCalled = false; this._outSaid = false; this._toldWave = false; this._waveT = 0;
+    this.picked = false; this.unlapCalled = false; this._outSaid = false; this._toldWave = false; this._waveT = 0; this.behind = null; this.behindX = Infinity;
     for (const c of d.cars) { c._waved = false; c._lappedRun = false; c._unlap = false; c._scX = null; }
     if (this.car) {
       // (still rolling back down the pit lane from the last one: straight back out)
@@ -470,7 +474,7 @@ export class SafetyCar {
   rules(c) {
     const ph = this.phase;
     // (the safety car: steady before the pickup - the cars it waves by pass it, the leader catches it - then the queue's pace)
-    if (c.isSC) { const P = !this.picked && this.phase === 'sc' ? HOLD : SC_PACE; return { scale: P.scale, vCap: P.vCap, brake: P.brake, noPass: false, gap: 0, sc: true }; }
+    if (c.isSC) { const P = !this.picked && this.phase === 'sc' ? (this.behindX < 300 ? HOLD : WAIT) : SC_PACE; return { scale: P.scale, vCap: P.vCap, brake: P.brake, noPass: true, gap: 0, sc: true }; }   // (it never overtakes anyone)
     if (c._unlap) return { scale: WAVED.scale, vCap: WAVED.vCap, brake: 0.9, noPass: false, gap: 0 };   // (lapped cars may overtake)
     switch (ph) {
       case 'red': return { scale: RED.scale, vCap: RED.vCap, brake: 0.6, noPass: true, gap: 14 };
@@ -483,8 +487,11 @@ export class SafetyCar {
       case 'sc': case 'scIn': {
         // the delta - or, far off the back of the queue, the catch-up pace; waved by (or a lapped car let go): at speed to
         // the back of the queue. Only the leader queues behind the safety car: anyone else is waved by it
+        // (a car in trouble just ahead - damaged, a puncture, off the road - may be passed: a line stuck behind a car
+        //  limping round at half the pace is no queue)
         const k = this.ramp(), R = c._waved ? WAVED : this.gapAhead(c) > CATCH_GAP ? CATCHUP : DELTA, queueSC = c === this.leader();
-        return { scale: 1 - (1 - R.scale) * k, vCap: 96 - (96 - R.vCap) * k, brake: 1 - 0.4 * k, noPass: true, gap: (15 + (ph === 'scIn' ? 4 : 0)) * k, queueSC };
+        const a = this.nextAhead(c), noPass = !(a && a.x < 120 && this.trouble(a.o));
+        return { scale: 1 - (1 - R.scale) * k, vCap: 96 - (96 - R.vCap) * k, brake: 1 - 0.4 * k, noPass, gap: (15 + (ph === 'scIn' ? 4 : 0)) * k, queueSC };
       }
       case 'restart': {
         if (c._scGreen) return null;
@@ -495,10 +502,15 @@ export class SafetyCar {
     }
     return null;
   }
+  /** a car in trouble (it may be passed under the safety car): damaged, a puncture, off the road, spinning, stopped */
+  trouble(o) {
+    const m = o.dmg, slow = 0.09 * ((m.fwL || 0) + (m.fwR || 0)) + 0.3 * (m.rw || 0) + 0.15 * (m.susp || 0);
+    return slow > 0.1 || o.punct != null || o.offTrack || o.spinning || o.engineDead || !!o.ai?.rj || o.speed < 3;
+  }
   /** distance (m) to the next running car ahead on the road (or the safety car) */
   gapAhead(c) {
     const d = this.d; let best = Infinity;
-    for (const o of d.simCars || d.cars) { if (o === c || o.retired || o.pitLane || o.inPit || o.cleared) continue; const x = d.planDs(c.s, o.s); if (x > 0 && x < best) best = x; }
+    for (const o of d.simCars || d.cars) { if (o === c || o.retired || o.pitLane || o.inPit || o.cleared || o.speed < 5) continue; const x = d.planDs(c.s, o.s); if (x > 0 && x < best) best = x; }
     return best;
   }
   /** a stop now is a cheap one (the field is running slowly) */
@@ -526,6 +538,7 @@ export class SafetyCar {
     for (const k of this.order.keys()) if (!seen.has(k)) this.order.delete(k);
   }
   passBanned(passer, passed) {
+    if (passer._waved || this.trouble(passed)) return false;   // (waved by, going round to the queue; a car in trouble)
     switch (this.phase) {
       case 'yellow': return this.inYellowZone(passer) && this.inYellowZone(passed);
       case 'restart': return !passer._scGreen && !passed._scGreen;
