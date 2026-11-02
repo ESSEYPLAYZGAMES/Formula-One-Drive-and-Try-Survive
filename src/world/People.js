@@ -1540,7 +1540,7 @@ function handAt(w, dir, pn, k, th, arm = {}, grip = 0.15) {
    *  it. Pink over its bed, a pale half-moon at its root, its free edge paler still; the folds the skin's own colour -> geometry */
   const nail = (F, d, wd) => {
     const RR = F.R.slice(d), bp = RR.map((o) => F.at(o, -Math.PI / 2)), S = [0]; for (let i = 1; i < bp.length; i++) S.push(S[i - 1] + bp[i].distanceTo(bp[i - 1]));
-    const s0 = 0.3 * S[2], s1 = S[S.length - 1] - 0.18 * (S[S.length - 1] - S[S.length - 2]);
+    const s0 = 0.3 * S[2], s1 = S[S.length - 1] - 0.18 * (S[S.length - 1] - S[S.length - 2]); if (globalThis.__dbgHand) globalThis.__dbgHand.push(S.map((v) => +(v * 1000).toFixed(1)));
     const ringAt = (s) => { let i = 1; while (i < S.length - 1 && S[i] < s) i++; const t = clamp01((s - S[i - 1]) / Math.max(1e-9, S[i] - S[i - 1])), a = RR[i - 1], b = RR[i]; return { c: a.c.clone().lerp(b.c, t), T: a.T.clone().lerp(b.T, t).normalize(), r: a.r + (b.r - a.r) * t, w: a.w + (b.w - a.w) * t, q: a.q + (b.q - a.q) * t, pd: (a.pd || 0) + ((b.pd || 0) - (a.pd || 0)) * t, kb: (a.kb || 0) + ((b.kb || 0) - (a.kb || 0)) * t }; };
     const UU = [-0.24, -0.1, 0, 0.12, 0.3, 0.5, 0.7, 0.85, 0.95, 1], VV = [-1.32, -1.13, -1, -0.62, -0.22, 0.22, 0.62, 1, 1.13, 1.32], NV = VV.length, P = [], C = [], I = [], edge = [];
     UU.forEach((u, i) => {
