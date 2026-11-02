@@ -1478,6 +1478,27 @@ function handAt(w, dir, pn, k, th, arm = {}, grip = 0.15) {
     const NP = gP.attributes.normal, PP = gP.attributes.position, sl = (rw - rA(0.03)) / 0.03, q = new THREE.Vector3(), nA = new THREE.Vector3(), nO = new THREE.Vector3();
     US.forEach((u, i) => { const wt = 1 - ss3(-0.006, 0.014, u); if (wt <= 0) return; for (let j = 0; j < M; j++) { const v = i * M + j; q.fromBufferAttribute(PP, v).sub(wr); const a = q.dot(fa); nA.copy(q).addScaledVector(fa, -a).normalize().addScaledVector(fa, -sl).normalize(); nO.fromBufferAttribute(NP, v).lerp(nA, wt).normalize(); NP.setXYZ(v, nO.x, nO.y, nO.z); } });
   }
+  // (the back of the hand's own skin, in its colour alone (shares of the skin's): a faint flush over each knuckle, a
+  // shade softer in the dips between them; the tendons from each knuckle toward the wrist a breath lighter, fanning in;
+  // its tone never quite even - a slow warm variation, warmer toward its sides and over the knuckles, as real skin is)
+  if (Q >= 0.6) {
+    const PP = gP.attributes.position, C = new Float32Array(PP.count * 3), q = new THREE.Vector3(), fx = FX.map((v) => th * v);
+    for (let i = 0; i < PP.count; i++) {
+      q.fromBufferAttribute(PP, i).sub(H0); const u = q.dot(D) / k, x = q.dot(X) / k, z = q.dot(Pn) / k, bk = ss3(0.001, -0.004, z);   // (bk: on its back)
+      let fl = 0, dip = 0, td = 0;
+      for (let f = 0; f < 4; f++) {
+        const dx = x - fx[f], du = u - FY[f]; fl = Math.max(fl, Math.exp(-((dx / 0.0085) ** 2 + (du / 0.011) ** 2)));
+        if (f < 3) { const mx = (fx[f] + fx[f + 1]) / 2, my = (FY[f] + FY[f + 1]) / 2 - 0.004; dip = Math.max(dip, Math.exp(-(((x - mx) / 0.0045) ** 2 + ((u - my) / 0.009) ** 2))); }
+        // (its tendon: from the knuckle back toward the middle of the wrist, fading out before it)
+        const ax = fx[f], ay = FY[f] - 0.008, bx = fx[f] * 0.35, by = 0.012, lx = bx - ax, ly = by - ay, t = clamp01(((x - ax) * lx + (u - ay) * ly) / (lx * lx + ly * ly)), ex = x - (ax + lx * t), ey = u - (ay + ly * t);
+        td = Math.max(td, Math.exp(-((ex * ex + ey * ey) / (0.0024 ** 2))) * ss3(1, 0.55, t) * ss3(0, 0.15, t));
+      }
+      const mot = 0.022 * Math.sin(u * 410 + 1.3) * Math.sin(x * 360 + 0.7) + 0.012 * Math.sin(u * 900 + x * 700), side = ss3(0.022, 0.034, Math.abs(x));
+      const r = 1 + bk * (0.055 * td - 0.07 * dip + mot) - 0.015 * bk * fl + 0.015 * side, gC = r - bk * (0.085 * fl + 0.018 * side), bC = r - bk * (0.075 * fl + 0.02 * side);
+      C[3 * i] = r; C[3 * i + 1] = gC; C[3 * i + 2] = bC;
+    }
+    gP.setAttribute('color', new THREE.BufferAttribute(C, 3));
+  }
   g.push(gP);
   /** where a ray from o along d first leaves a surface (G: its geometry) -> { t, n (its light there) } or null */
   const hitMesh = (G, o, d) => {
