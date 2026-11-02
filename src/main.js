@@ -100,6 +100,7 @@ const canvas = $('gl');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
 renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;   // (the cars' shadows: from the sun, world/Environment.js)
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(74, 16 / 9, 0.3, 6000);   // tighter depth range: less z-fighting on painted surfaces
 /** how much the lens magnifies against the default 74 degrees (the cars' detail by distance scales with it: CarMesh.detail) */
@@ -216,7 +217,7 @@ async function loadWorld(def) {
   const { line, profile, shown, showLine } = makeRacingLine(track, def);
   await set('Laying the track, kerbs and barriers…', 40);
   const trackMesh = buildTrackMeshes(track, pit, gridLayout(track, 23, 1));
-  scene.add(trackMesh);
+  scene.add(trackMesh); receiveShadows(trackMesh);
   await set('Building the landmarks…', 54);
   const lm = buildLandmarks(geo, track, def, pit);
   const moved = clearLandmarksFromTrack(lm.group, track, pit);
@@ -237,7 +238,8 @@ async function loadWorld(def) {
   if (venue) scene.add(venue.group);
   // a circuit's own scenery (Montreal: the islands' water and trees, the Biosphere, the casino, the stands, the paint on the grass)
   const scenery = def.scenery === 'montreal' ? buildMontreal(geo, track, def, pit) : def.scenery === 'austin' ? buildAustin(geo, track, def, pit) : def.scenery === 'silverstone' ? buildSilverstone(geo, track, def, pit) : null;
-  if (scenery) scene.add(scenery.group);
+  if (scenery) { scene.add(scenery.group); receiveShadows(scenery.group); }
+  if (venue) receiveShadows(venue.group);
   await set('Raising the city…', 68);
   const buildings = buildGenericBuildings(geo, track, new Set([...lm.claimed, ...(venue ? venue.claimed : []), ...(scenery ? scenery.claimed : [])]), pit);
   scene.add(buildings);
@@ -1246,7 +1248,10 @@ function renderView() {
   const undo = terrainLift();
   try { renderFrame(); } finally { undo?.(); }
 }
+/** what the cars' shadows fall on: every lit surface of a group (the road, kerbs, run-off, walls, the scenery) */
+function receiveShadows(g) { g.traverse((m) => { if (m.isMesh && m.material && !m.material.isShaderMaterial && !m.material.isMeshBasicMaterial) m.receiveShadow = true; }); }
 function renderFrame() {
+  env.followShadow(camera, TERRAIN.on ? TERRAIN.at(camera.position.x, camera.position.z) : 0);
   if (!PHOTO.on && crashCam.on && (crashCam.blur > 0.01 || crashCam.sat > 1.01)) {
     ensureCrashComposer(); crashPass.uniforms.uBlur.value = crashCam.blur; crashPass.uniforms.uSat.value = crashCam.sat;
     crashComposer.render(); return;

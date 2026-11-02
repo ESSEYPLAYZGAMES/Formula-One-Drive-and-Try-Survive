@@ -54,8 +54,10 @@ function groundTexture(day, style = 'city') {
   return gt;
 }
 
+const SHADOW_MAP = 4096, SHADOW_R = 120;   // (the shadow map's size in texels; the half-width of its box near the ground, metres)
 const PRESETS = {
-  night: { top: 0x03040a, horizon: 0x2a1e3a, glow: 0x6a3a5a, sun: 0, stars: 1, sunColor: 0xbfc8ff, sunI: 0.7, sunPos: [-600, 900, 400], hemiSky: 0x9aa0cc, hemiGround: 0x1a1410, hemiI: 0.75, amb: 0x3a3c46, ambI: 0.75, fog: 0x0a0c18, fogD: 0.00035, bg: 0x070812, exposure: 1.1, envI: 0.6 },   // race-night lift: the real event is floodlit bright
+  night: { top: 0x03040a, horizon: 0x2a1e3a, glow: 0x6a3a5a, sun: 0, stars: 1, sunColor: 0xd4dcff, sunI: 1.25, sunPos: [-280, 1100, 190], hemiSky: 0x9aa0cc, hemiGround: 0x1a1410, hemiI: 0.62, amb: 0x3a3c46, ambI: 0.5, fog: 0x0a0c18, fogD: 0.00035, bg: 0x070812, exposure: 1.1, envI: 0.6 },   // race-night lift: the real event is floodlit bright (the key high overhead, as the
+  //  floodlight banks are: the cars' shadows short and under them)
   day: { top: 0x2f6fd8, horizon: 0xcfe0f2, glow: 0xfff2d0, sun: 1, stars: 0, sunColor: 0xfff1dc, sunI: 2.6, sunPos: [500, 1100, -300], hemiSky: 0xbfd8ff, hemiGround: 0x9a8a6a, hemiI: 0.9, amb: 0x8fa3c0, ambI: 0.35, fog: 0xc9d6e6, fogD: 0.00016, bg: 0x9ec3ee, exposure: 0.95, envI: 1.0 },
 };
 
@@ -88,7 +90,13 @@ export function createEnvironment(scene, renderer) {
   const sky = new THREE.Mesh(skyGeo, skyMat); sky.name = 'sky'; sky.renderOrder = 2; scene.add(sky);
 
   const hemi = new THREE.HemisphereLight(0x8a90c0, 0x1a1410, 0.55); scene.add(hemi);
-  const sun = new THREE.DirectionalLight(0xbfc8ff, 0.7); sun.position.set(-600, 900, 400); scene.add(sun);
+  const sun = new THREE.DirectionalLight(0xbfc8ff, 0.7); sun.position.set(-600, 900, 400); scene.add(sun); scene.add(sun.target);
+  // Real shadows: the sun (the moon at night) casts them - the cars' and the safety car's on the track, the run-off and
+  // the scenery, and on each other - into one shadow map over a box that follows the camera (followShadow, every frame)
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(SHADOW_MAP, SHADOW_MAP); sun.shadow.bias = -0.0003; sun.shadow.normalBias = 0.035;
+  Object.assign(sun.shadow.camera, { left: -SHADOW_R, right: SHADOW_R, top: SHADOW_R, bottom: -SHADOW_R, near: 20, far: 1500 });
+  sun.shadow.camera.updateProjectionMatrix();
   const amb = new THREE.AmbientLight(0x30323a, 0.6); scene.add(amb);
 
   const groundSets = { city: { night: groundTexture(false), day: groundTexture(true) } };
@@ -110,13 +118,30 @@ export function createEnvironment(scene, renderer) {
   const envNight = makeEnv(PRESETS.night), envDay = makeEnv(PRESETS.day);
   pmrem.dispose();
 
-  const env = { sky, sun, hemi, amb, ground, mode: 'night' };
+  ground.receiveShadow = true;
+  const env = { sky, sun, hemi, amb, ground, mode: 'night', sunDir: new THREE.Vector3(-600, 900, 400).normalize() };
+  /** the shadow box over what the camera sees: ahead of it, wider the higher it is; moved in whole shadow-map texels (no shimmer) */
+  const _f = new THREE.Vector3(), _d = new THREE.Vector3(), _r = new THREE.Vector3(), _u = new THREE.Vector3(), _up = new THREE.Vector3(0, 1, 0);
+  let R0 = SHADOW_R;
+  env.followShadow = (cam, groundY = 0) => {
+    const hgt = Math.max(0, cam.position.y - groundY), R = Math.min(320, Math.max(SHADOW_R, SHADOW_R + 1.1 * (hgt - 6)));
+    if (Math.abs(R - R0) > R0 * 0.08) { R0 = R; Object.assign(sun.shadow.camera, { left: -R, right: R, top: R, bottom: -R }); sun.shadow.camera.updateProjectionMatrix(); }
+    cam.getWorldDirection(_d); _d.y = 0; if (_d.lengthSq() < 1e-6) _d.set(1, 0, 0); _d.normalize();
+    _f.copy(cam.position).addScaledVector(_d, R0 * 0.55); _f.y = groundY;
+    // (snapped in the light's own frame)
+    _r.crossVectors(_up, env.sunDir); if (_r.lengthSq() < 1e-6) _r.set(1, 0, 0); _r.normalize(); _u.crossVectors(env.sunDir, _r).normalize();
+    const tx = (2 * R0) / SHADOW_MAP, a = _f.dot(_r), b = _f.dot(_u);
+    _f.addScaledVector(_r, Math.round(a / tx) * tx - a).addScaledVector(_u, Math.round(b / tx) * tx - b);
+    sun.target.position.copy(_f); sun.position.copy(_f).addScaledVector(env.sunDir, 700);
+    sun.target.updateMatrixWorld();
+  };
   env.setTime = (mode) => {
     const p = PRESETS[mode] || PRESETS.night; env.mode = mode;
     skyMat.uniforms.top.value.set(p.top); skyMat.uniforms.horizon.value.set(p.horizon); skyMat.uniforms.glow.value.set(p.glow);
     skyMat.uniforms.uSun.value = p.sun; skyMat.uniforms.uStars.value = p.stars;
-    sun.color.set(p.sunColor); sun.intensity = p.sunI; sun.position.set(...p.sunPos);
-    skyMat.uniforms.sunDir.value.copy(sun.position).normalize();
+    sun.color.set(p.sunColor); sun.intensity = p.sunI; env.sunDir.set(...p.sunPos).normalize();
+    sun.position.copy(sun.target.position).addScaledVector(env.sunDir, 700);
+    skyMat.uniforms.sunDir.value.copy(env.sunDir);
     hemi.color.set(p.hemiSky); hemi.groundColor.set(p.hemiGround); hemi.intensity = p.hemiI;
     amb.color.set(p.amb); amb.intensity = p.ambI;
     scene.fog.color.set(p.fog); scene.fog.density = p.fogD; scene.background.set(p.bg);

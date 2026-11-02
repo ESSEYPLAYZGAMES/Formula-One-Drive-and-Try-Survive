@@ -26,7 +26,7 @@ const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _s = new THREE.Vect
 
 class Pool {
   constructor(spec, mat) {
-    this.spec = spec; this.mesh = new THREE.InstancedMesh(spec.geo(), mat, spec.max);
+    this.spec = spec; this.mesh = new THREE.InstancedMesh(spec.geo(), mat, spec.max); this.mesh.castShadow = true;   // (the sun casts their shadows: world/Environment.js)
     this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); this.mesh.frustumCulled = false; this.mesh.count = spec.max;
     for (let i = 0; i < spec.max; i++) { this.mesh.setColorAt(i, _c.set(0x111111)); _m.compose(_hide, _q.identity(), _hide); this.mesh.setMatrixAt(i, _m); }
     this.items = []; for (let i = 0; i < spec.max; i++) this.items.push({ on: false, sleep: true, age: 0, p: new THREE.Vector3(), v: new THREE.Vector3(), q: new THREE.Quaternion(), w: new THREE.Vector3() });

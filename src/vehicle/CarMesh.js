@@ -13,8 +13,7 @@
 //                    driver's arms and gloves
 //   HIGH   (< 38 m)  the model at ~47k triangles, textured
 //   MED    (< 95 m)  ~16k, its colours in the vertices (the paint still the livery's own)
-//   FAR    (< 260 m) ONE mesh (~7k, vertex-coloured, the livery painted where the paint is) and its blob shadow (2 draw
-//                    calls); its geometry is shared - the car whole, or without the wings or wheels it has lost
+//   FAR    (< 260 m) ONE mesh (~7k, vertex-coloured, the livery painted where the paint is); its geometry is shared - the car whole, or without the wings or wheels it has lost
 //   MIN    (beyond)  the same at ~5k
 // A car only has its own paint (the livery's uniforms), number, T-cam colour and lights.
 import * as THREE from 'three';
@@ -63,7 +62,7 @@ function posePiece(o, rec, t) {
   if (S && S.length > 1 && t > S[0]) { const v = Math.min(1, (t - S[0]) / SWEEP_T), e = v * v * (3 - 2 * v); o.position.x = S[1] + (S[3] - S[1]) * e; o.position.z = S[2] + (S[4] - S[2]) * e; }
 }
 
-// ---- shared parts: the punctured tyre's (the wrecked tyre and the bare rim), the helmet, the blob shadow
+// ---- shared parts: the punctured tyre's (the wrecked tyre and the bare rim), the helmet
 const TYRE_WF = 0.346, TYRE_WR = 0.402, R_RIM = 0.2286;
 const rimF = new THREE.CylinderGeometry(R_RIM, R_RIM, TYRE_WF - 0.02, 20); rimF.rotateX(Math.PI / 2);
 const rimR = new THREE.CylinderGeometry(R_RIM, R_RIM, TYRE_WR - 0.02, 20); rimR.rotateX(Math.PI / 2);
@@ -90,24 +89,17 @@ const shouldersGeo = (() => {
 })();
 const hansGeo = (() => { const g = new THREE.TorusGeometry(0.1, 0.022, 8, 24, Math.PI * 1.25); g.rotateX(Math.PI / 2); g.rotateY(-Math.PI * 0.375); g.scale(1, 1, 1.15); g.translate(-0.045, -0.012, 0); return g; })();   // (on the shoulders, round the back of the neck)   // (a collar round the back of the neck, open at the front, its arms down onto the shoulders)
 const hansMat = new THREE.MeshStandardMaterial({ color: 0x15161a, roughness: 0.55, metalness: 0.2 });
-const shadowGeo = new THREE.PlaneGeometry(5.5, 2.15); shadowGeo.rotateX(-Math.PI / 2); shadowGeo.translate(0, 0.01, 0);
 const flangeGeo = new THREE.TorusGeometry(0.232, 0.014, 6, 28);
 const carcassGeo = new THREE.TorusGeometry(0.243, 0.028, 6, 24, Math.PI * 1.3);
 const tatterGeo = new THREE.BoxGeometry(0.42, 0.02, 1); tatterGeo.translate(0.21, 0, 0);
 const cordGeo = new THREE.TorusGeometry(0.345, 0.02, 4, 24, Math.PI * 0.8);
 const rubber = new THREE.MeshStandardMaterial({ color: 0x141414, roughness: 0.95 });
-const shadowMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.6, depthWrite: false }); shadowMat.userData.glow = false;
-if (typeof document !== 'undefined') {
-  const c = document.createElement('canvas'); c.width = 256; c.height = 128; const x = c.getContext('2d');
-  x.fillStyle = '#000'; x.fillRect(0, 0, 256, 128); x.filter = 'blur(10px)'; x.fillStyle = '#fff'; x.beginPath(); x.roundRect(30, 26, 196, 76, 30); x.fill();
-  shadowMat.alphaMap = new THREE.CanvasTexture(c);
-}
 const visorMat = new THREE.MeshStandardMaterial({ color: 0x0a0a10, roughness: 0.12, metalness: 0.9 });
 // a wheel with its tyre gone: bare machined metal (a touch of its own light so it reads silver at night too)
 const bareRimMat = new THREE.MeshStandardMaterial({ color: 0xe4e7ec, roughness: 0.3, metalness: 0.45, emissive: 0x50545b, emissiveIntensity: 0.55 });
 const cordMat = new THREE.MeshStandardMaterial({ color: 0x8a8074, roughness: 0.95 });
-const SHARED_GEO = new Set([rimF, rimR, helmetGeo, helmetFar, visorBandGeo, spoilerGeo, neckGeo, shouldersGeo, hansGeo, shadowGeo, flangeGeo, carcassGeo, tatterGeo, cordGeo]);
-const SHARED_MAT = new Set([rubber, shadowMat, visorMat, bareRimMat, cordMat, hansMat]);
+const SHARED_GEO = new Set([rimF, rimR, helmetGeo, helmetFar, visorBandGeo, spoilerGeo, neckGeo, shouldersGeo, hansGeo, flangeGeo, carcassGeo, tatterGeo, cordGeo]);
+const SHARED_MAT = new Set([rubber, visorMat, bareRimMat, cordMat, hansMat]);
 
 // ---- the model's shared materials (built once it is loaded): textured for the near states; the tyres one per compound
 let MAT = null;
@@ -321,19 +313,20 @@ export class CarMesh {
       this.wheels.push({ hub, camber, spin, mesh: tyre, face, decals: [], front, side: s, state: 0, y0: H.c[1], dy: 0 });
     }
     for (let l = 1; l < 3; l++) for (const o of this.lv[l]) o.visible = false;
-    this.shadow = new THREE.Mesh(shadowGeo, shadowMat); body.add(this.shadow);   // blob shadow
     this.spin = 0; this.mangled = false;
     // (the damage as drawn: the parts gone, the regions' mask, the half of a torn car, the dents uploaded, the pieces)
     this._gone = {}; this._mask = 0; this._half = 0; this._dentRef = null; this._dentVer = -1; this._pieces = new Map(); this._piecesRef = null;
 
-    // ---- the far states: one mesh each (shared geometry), their own blob shadows
-    this.far = new THREE.Group(); this.farMesh = new THREE.Mesh(farGeometry(3, () => true), farMat([0, 0, 0])); this.farMesh.position.x = CG_X; this.shadowFar = new THREE.Mesh(shadowGeo, shadowMat); this.shadowFar.position.x = CG_X; this.far.add(this.farMesh, this.shadowFar);
-    this.min = new THREE.Group(); this.minMesh = new THREE.Mesh(farGeometry(4, () => true), farMat([0, 0, 0])); this.minMesh.position.x = CG_X; this.shadowMin = new THREE.Mesh(shadowGeo, shadowMat); this.shadowMin.position.x = CG_X; this.min.add(this.minMesh, this.shadowMin);
+    // ---- the far states: one mesh each (shared geometry)
+    this.far = new THREE.Group(); this.farMesh = new THREE.Mesh(farGeometry(3, () => true), farMat([0, 0, 0])); this.farMesh.position.x = CG_X; this.far.add(this.farMesh);
+    this.min = new THREE.Group(); this.minMesh = new THREE.Mesh(farGeometry(4, () => true), farMat([0, 0, 0])); this.minMesh.position.x = CG_X; this.min.add(this.minMesh);
     this.group.addLevel(body, 0); this.group.addLevel(this.far, LOD_FAR); this.group.addLevel(this.min, LOD_MIN);
     this._sig = this._signature();
     // (lit as a car is in a session - the floodlights, the Sphere's glow: world/Lighting.js - from the start, so a car
     //  made mid-session, a flashback's or a replay's, draws with the programs compiled at its start)
     this.group.traverse((o) => { if (o.material) floodlit(o.material, true); });
+    // (its shadow is the sun's: cast on the track and the other cars, and on itself - world/Environment.js; no decal)
+    this.group.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
   }
 
   /**
@@ -714,7 +707,6 @@ export class CarMesh {
       const q = car.q; this.group.quaternion.set(q[0], q[1], q[2], q[3]);
       _wp.set(0, 0.48, 0).applyQuaternion(this.group.quaternion);   // the body turns about its centre, 0.48 m above the mesh origin
       this._gy = TERRAIN.at(car.p[0], car.p[2]); this.group.position.set(car.p[0] - _wp.x, car.p[1] - _wp.y + this._gy, car.p[2] - _wp.z);
-      this.shadow.visible = false; if (this.shadowFar) this.shadowFar.visible = false; if (this.shadowMin) this.shadowMin.visible = false;   // the blob shadow is a ground decal: not on a tumbling body
     } else {
       // the sprung body: heave, pitch (nose up = +z rotation in the mesh frame) and roll (left side up = +x)
       // (on a circuit that is not flat: on the ground under it, nose up the slope it is climbing and leaning with the

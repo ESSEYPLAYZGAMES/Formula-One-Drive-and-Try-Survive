@@ -22,9 +22,8 @@ export class SafetyCarMesh {
     this.own.push(this.amber, this.amberB, this.greenLamp);
     const M = scModel();
     if (M) this.buildModel(M); else this.buildBoxes();
-    // blob shadow
-    const sh = new THREE.Mesh(new THREE.PlaneGeometry(5.0, 2.3), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.42, depthWrite: false }));
-    sh.rotation.x = -Math.PI / 2; sh.position.y = 0.02; g.add(sh); this.own.push(sh.geometry, sh.material);
+    // (its shadow is the sun's - world/Environment.js: cast on the track and the cars, and on itself; no decal)
+    g.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
     this.spin = 0; this.t = 0; this.steer = 0; this.roll = 0; this.pitch = 0; this.brake = 0;
     this.prev = null;
   }
@@ -83,6 +82,7 @@ export class SafetyCarMesh {
       for (const o of this.boxOwn) o.dispose();
       this.group.remove(this.boxes); this.boxes = null; this.boxOwn = [];
       this.buildModel(scModel());
+      this.group.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
     }
     let gy = 0, gp = 0;   // (on a circuit that is not flat: world/Terrain.js)
     if (TERRAIN.on) { const g = TERRAIN.grad(car.x, car.z); gy = TERRAIN.at(car.x, car.z); gp = Math.atan(g[0] * Math.cos(car.th) + g[1] * Math.sin(car.th)); }
