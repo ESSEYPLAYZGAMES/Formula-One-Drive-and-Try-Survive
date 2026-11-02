@@ -1274,17 +1274,19 @@ function legForm(R, tj, s, glK = 1) {
 // (a woman's long nails, done: each its own shell past the fingertip - its shape and length - in a material of its own, the
 // design drawn in its shader from the nail's own measures (mm along it from the cuticle, across it from its middle), so a
 // French line is crisp however near; a man's, and a crowd's, the hand's own natural nails)
-/** the shapes (style.nails.shape) and each one's free edge, at a hand's scale (m: len 0 .. 1 across it): long coffin -
- *  tapered sides to a flat squared tip -, almond - tapering to a soft rounded point -, stiletto - a sharp point -, oval -
- *  short and rounded */
-const NAIL_SHAPE = Object.freeze({ coffin: [0.0085, 0.0175], almond: [0.0055, 0.0115], stiletto: [0.0105, 0.0185], oval: [0.0032, 0.0062] });
+/** the shapes (style.nails.shape) and how far each reaches past the fingertip, at a hand's scale (m: len 0 .. 1 across
+ *  it) - every one keeping its full width, its sides straight, until it is clear of the fingertip, and only then shaped:
+ *  long coffin - tapered sides to a flat squared tip, its corners eased -, almond - tapering to a soft rounded tip -,
+ *  stiletto - pointed, never a needle -, oval - short and rounded */
+const NAIL_SHAPE = Object.freeze({ coffin: [0.006, 0.014], almond: [0.0035, 0.0085], stiletto: [0.0075, 0.0145], oval: [0.0015, 0.0038] });
 export const NAIL_SHAPES = Object.freeze(Object.keys(NAIL_SHAPE));
-/** the free edge's half-width along it (t: 0 where it leaves the finger .. 1 its end), a share of its width there */
+/** the free edge's half-width past the fingertip (t: 0 clear of the fingertip .. 1 its end), a share of its full width -
+ *  the round-ended ones closing with an infinite slope: a soft tip, never a spike */
 function nailTaper(shape, t) {
-  if (shape === 'coffin') return 1 - 0.4 * t ** 1.4;
-  if (shape === 'stiletto') return Math.max(0, 1 - t ** 1.22) * (1 + 0.1 * Math.sin(Math.PI * t));
-  if (shape === 'oval') return Math.sqrt(Math.max(0, 1 - t ** 2.3));
-  return Math.max(0, 1 - t ** 1.8) ** 0.6;
+  if (shape === 'coffin') return 1 - 0.4 * t ** 1.25;
+  if (shape === 'stiletto') return Math.max(0, 1 - t ** 1.45) ** 0.72 * (1 + 0.08 * Math.sin(Math.PI * t));
+  if (shape === 'oval') return Math.sqrt(Math.max(0, 1 - t ** 2.4));
+  return Math.sqrt(Math.max(0, 1 - t ** 1.9));
 }
 /** the designs (each nail's): whole colour; a French (a white tip on a smile line); a deep French (the tip's colour down its
  *  sides - d how far, e its line: 1 a V, 2 a curve); a micro French (a fine line round the free edge); a double line (two
@@ -1300,7 +1302,7 @@ export const NAIL_FINISHES = Object.freeze(Object.keys(NAIL_FIN));
  *  ring finger, every other one, or each hand its own pair (the right slots 0/1, the left 2/3) */
 const NAIL_MIX = Object.freeze({ all: [0, 0, 0, 0, 0], accent: [0, 0, 0, 1, 0], pair: [1, 0, 0, 1, 0], alt: [0, 1, 0, 1, 0], hands: [0, 0, 1, 1, 0] });
 export const NAIL_MIXES = Object.freeze(Object.keys(NAIL_MIX));
-const NC = Object.freeze({ white: '#fbf9f5', sheerPink: '#f2c3c0', sheerNude: '#ecc4b0', sheerRose: '#dfab9f', milky: '#f3e5df', nude: '#d6a58f', hotPink: '#ff2b8c', babyPink: '#f7b5ca', black: '#141417', royal: '#1b3dd8', sky: '#55b6ee', lilac: '#b7a1ee', forest: '#3d5e4b', emerald: '#0d6a48', red: '#b10f1c', yellow: '#f8d548', chromePink: '#ff74bd', chromeBlue: '#5d9cff', petal: '#fffdf8', gold: '#f2c14a' });
+const NC = Object.freeze({ white: '#fbf9f5', sheerPink: '#f2c3c0', sheerNude: '#ecc4b0', sheerRose: '#dfab9f', milky: '#f3e5df', glaze: '#f5ddd3', nude: '#d6a58f', hotPink: '#ff2b8c', babyPink: '#f7b5ca', black: '#141417', royal: '#1b3dd8', sky: '#55b6ee', lilac: '#b7a1ee', forest: '#3d5e4b', emerald: '#0d6a48', red: '#b10f1c', yellow: '#f8d548', chromePink: '#ff68b8', chromeBlue: '#5d9cff', petal: '#fffdf8', gold: '#f2c14a' });
 const ND = (p, base, tip, o = {}) => ({ p, base, tip, ...o });
 /**
  * Her nail looks, as a salon's book has them: { name, shape, shapes (others she might file them to), len (0..1 of the
@@ -1311,12 +1313,12 @@ const ND = (p, base, tip, o = {}) => ({ p, base, tip, ...o });
  */
 export const NAIL_LOOKS = Object.freeze({
   french: { name: 'Classic French', shape: 'almond', shapes: ['almond', 'coffin', 'oval'], len: 0.75, d: [ND('french', NC.sheerPink, NC.white, { sheer: 1 })] },
-  micro: { name: 'Micro French', shape: 'coffin', shapes: ['coffin', 'almond'], len: 0.6, d: [ND('micro', NC.sheerNude, NC.white, { sheer: 1 })] },
+  micro: { name: 'Micro French', shape: 'coffin', shapes: ['coffin', 'almond'], len: 0.6, d: [ND('micro', NC.sheerRose, NC.white, { sheer: 1 })] },
   doubleLine: { name: 'Double-line V French', shape: 'coffin', len: 1, d: [ND('double', NC.sheerRose, NC.white, { sheer: 1 }), ND('double', NC.sheerRose, NC.white, { sheer: 1, gem: 1 })], mix: 'accent' },
   sage: { name: 'Sage French & swirl', shape: 'almond', len: 0.62, d: [ND('deep', NC.sheerPink, NC.forest, { sheer: 1, d: 0.55, e: 2 }), ND('swirl', NC.sheerPink, NC.white, { sheer: 1 })], mix: 'accent', m: 'tip' },
   royal: { name: 'Royal V French', shape: 'stiletto', shapes: ['stiletto', 'almond'], len: 0.85, d: [ND('deep', NC.sheerNude, NC.royal, { sheer: 1, fb: 'pearl', d: 1, e: 1.35 })], m: 'tip' },
   skyMix: { name: 'Sky & lilac mix', shape: 'almond', len: 0.5, d: [ND('whole', NC.sky, NC.sky), ND('deep', NC.sheerNude, NC.sky, { sheer: 1, d: 0.4, e: 2 }), ND('whole', NC.lilac, NC.lilac), ND('deep', NC.sheerNude, NC.lilac, { sheer: 1, d: 0.4, e: 2 })], mix: 'hands' },
-  glazed: { name: 'Glazed donut chrome', shape: 'almond', shapes: ['almond', 'oval', 'coffin'], len: 0.5, d: [ND('whole', NC.milky, NC.milky, { fb: 'pearl', sheer: 0.5 })] },
+  glazed: { name: 'Glazed donut chrome', shape: 'almond', shapes: ['almond', 'oval', 'coffin'], len: 0.5, d: [ND('whole', NC.glaze, NC.glaze, { fb: 'pearl', sheer: 0.6 })] },
   pinkChrome: { name: 'Hot pink chrome', shape: 'coffin', shapes: ['coffin', 'almond'], len: 0.7, d: [ND('whole', NC.chromePink, NC.chromePink, { fb: 'chrome' })] },
   blueChrome: { name: 'Blue chrome', shape: 'almond', shapes: ['almond', 'stiletto'], len: 0.6, d: [ND('whole', NC.chromeBlue, NC.chromeBlue, { fb: 'chrome' })] },
   babyPink: { name: 'Baby pink gloss', shape: 'almond', shapes: ['almond', 'oval', 'coffin'], len: 0.45, d: [ND('whole', NC.babyPink, NC.babyPink)], m: 'base' },
@@ -1388,6 +1390,15 @@ export function nailLookOf(o = {}, sd = 0, kit = null, col = null, acc = null) {
   const [a, b] = NAIL_SHAPE[shape];
   return { look: key, name: L.name, shape, len: a + (b - a) * len, mix, slots: D.slice(0, 4), fingers: fl };
 }
+/** her nails as makePerson(o) draws them (o.seed's own - the same hash as the build's; none: chance) -> nailLookOf's, or null
+ *  for a man's or natural nails (a style editor's: what she has now) */
+export function nailsOf(o = {}) {
+  if (o.figure !== 'f') return null;
+  let h = 11; for (const ch of String(o.seed ?? (o.driver || Math.random()))) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return nailLookOf(o, h, o.kit || 'suit', o.color, o.accent);
+}
+/** a nail look's length as a share of its shape's range (0..1) */
+export const nailLenShare = (NL) => { const [a, b] = NAIL_SHAPE[NL.shape]; return Math.max(0, Math.min(1, (NL.len - a) / (b - a))); };
 /** her nails' style made safe to keep (a save's, an editor's) -> the same shape, every value checked, or undefined */
 export function sanitizeNails(s) {
   if (s === false || s === 'natural') return 'natural';
@@ -1428,12 +1439,12 @@ vec2 nDaisy( vec2 q, float R, float a ) {
 		vec2 l = vec2( dot( r, dr ), dot( r, vec2( - dr.y, dr.x ) ) ) / vec2( 0.47 * R, 0.29 * R );
 		p = min( p, ( length( l ) - 1.0 ) * 0.29 * R );
 	}
-	return vec2( nCov( p ), nCov( length( q ) - 0.27 * R ) );
+	return vec2( nCov( p ), nCov( length( q ) - 0.3 * R ) );
 }
 // (a finish's roughness, metalness, clearcoat, iridescence: gloss a gel's hard coat over its colour; matte soft and dry;
 // pearl a glazed chrome - iridescent, a little metallic; chrome a mirror in its colour)
 vec4 nFin( float f ) {
-	return f < 0.5 ? vec4( 0.3, 0.0, 1.0, 0.0 ) : f < 1.5 ? vec4( 0.72, 0.0, 0.0, 0.0 ) : f < 2.5 ? vec4( 0.2, 0.12, 1.0, 1.0 ) : vec4( 0.13, 0.62, 1.0, 0.3 );
+	return f < 0.5 ? vec4( 0.3, 0.0, 1.0, 0.0 ) : f < 1.5 ? vec4( 0.72, 0.0, 0.0, 0.0 ) : f < 2.5 ? vec4( 0.18, 0.06, 1.0, 1.0 ) : vec4( 0.1, 0.62, 1.0, 0.3 );
 }
 `;
 const NAIL_FRAG_MAIN = /* glsl */`
@@ -1468,8 +1479,8 @@ vec3 nSpark = vec3( 0.0 ); float nGlow = 0.0, nRough = 0.3, nMetal = 0.0, nCoat 
 		tipM = nCov( sl - s );
 	} else if ( pat < 3.5 ) {
 		// (micro: a fine line round the free edge, thinning to nothing down its sides)
-		float w = ( 0.85 + 0.4 * A.w ) * sc * smoothstep( sE - 0.3 * fr, sE + 0.75 * fr, s );
-		tipM = nCov( dEdge - w );
+		float w = ( 1.0 + 0.4 * A.w ) * sc * smoothstep( sE - 0.2 * fr, sE + 0.7 * fr, s );
+		tipM = nCov( min( dSide, 0.5 * dTip ) - w );
 	} else if ( pat < 4.5 ) {
 		// (double line: a fine line down each side and a second within it, both growing from nothing toward the tip and
 		// meeting there - a V outline)
@@ -1486,8 +1497,8 @@ vec3 nSpark = vec3( 0.0 ); float nGlow = 0.0, nRough = 0.3, nMetal = 0.0, nCoat 
 		vec2 q = vec2( s, x );
 		for ( int k = 0; k < 3; k ++ ) {
 			float fk = float( k ), hh = nH( fid * 3.17 + fk * 5.71 ), sg = mod( fk + fid, 2.0 ) < 0.5 ? 1.0 : - 1.0;
-			vec2 cc = vec2( ( 0.64 - 0.22 * fk + 0.08 * ( hh - 0.5 ) ) * sT, sg * ( 0.3 + 0.25 * hh ) * hw0 * ( fk < 1.5 ? 1.0 : 0.6 ) );
-			vec2 dd = nDaisy( q - cc, ( 2.0 - 0.55 * fk ) * sc, hh * 6.283 );
+			vec2 cc = vec2( ( 0.7 - 0.23 * fk + 0.05 * ( hh - 0.5 ) ) * sT, sg * ( 0.22 + 0.2 * hh ) * hw0 );
+			vec2 dd = nDaisy( q - cc, ( 2.6 - 0.45 * fk ) * sc, hh * 6.283 );
 			tipM = max( tipM, dd.x ); cM = max( cM, dd.y );
 		}
 	} else {
@@ -1498,7 +1509,7 @@ vec3 nSpark = vec3( 0.0 ); float nGlow = 0.0, nRough = 0.3, nMetal = 0.0, nCoat 
 	vec4 FB = nFin( A.y ), FT = nFin( A.z ), F = mix( FB, FT, smoothstep( 0.3, 0.7, tipM ) );
 	float pearl = step( 1.5, mix( A.y, A.z, step( 0.5, tipM ) ) ) * step( mix( A.y, A.z, step( 0.5, tipM ) ), 2.5 );
 	// (pearl: a glazed sheen over the colour, its film's thickness shifting along the nail - pink, gold, a cool blue in it)
-	col = mix( col, vec3( 0.97, 0.95, 0.96 ), 0.32 * pearl );
+	col = mix( col, vec3( 0.98, 0.95, 0.94 ), 0.38 * pearl );
 	nIriT = mix( 260.0, 560.0, 0.5 + 0.5 * sin( 0.42 * s / sc + 0.9 * x / sc + 6.0 * nH( fid ) ) );
 	// (a chrome: its colour a little lifted - its mirror the room's light in that colour)
 	float chrome = step( 2.5, mix( A.y, A.z, step( 0.5, tipM ) ) ); col = mix( col, min( col * 1.25 + 0.04, vec3( 1.0 ) ), chrome );
@@ -1519,7 +1530,7 @@ vec3 nSpark = vec3( 0.0 ); float nGlow = 0.0, nRough = 0.3, nMetal = 0.0, nCoat 
 	// (beneath: its colour seen through it, dull; its edge the colour at the edge, softly glossed)
 	if ( face > 0.5 && face < 1.5 ) { col *= 0.8; F = vec4( 0.45, 0.0, 0.0, 0.0 ); }
 	else if ( face > 1.5 ) { F = vec4( max( F.x, 0.3 ), F.y, 0.5 * F.z, 0.0 ); }
-	nRough = F.x; nMetal = F.y; nCoat = F.z; nIri = F.w * pearl; nGlow = ( 1.0 - nGem ) * ( 0.42 * chrome + 0.08 * pearl ) * ( face < 0.5 ? 1.0 : 0.4 );
+	nRough = F.x; nMetal = F.y; nCoat = F.z; nIri = F.w * pearl; nGlow = ( 1.0 - nGem ) * ( 0.55 * chrome + 0.16 * pearl ) * ( face < 0.5 ? 1.0 : 0.4 );
 	diffuseColor.rgb = col;
 }
 `;
@@ -1885,7 +1896,7 @@ function handAt(w, dir, pn, k, th, arm = {}, grip = 0.15) {
     // (its outer edge lit as the finger's own skin there: out from the finger's line)
     for (const [vi, o] of edge) { const n = new THREE.Vector3(P[vi * 3], P[vi * 3 + 1], P[vi * 3 + 2]).sub(o.c); n.addScaledVector(o.T, -n.dot(o.T)).normalize(); nm.setXYZ(vi, n.x, n.y, n.z); }
     gn.setAttribute('color', new THREE.Float32BufferAttribute(C, 3));
-    if (NL) nails.push(nailShell(F, ringAt, s1, wdOf, sOf, lift0, fi));
+    if (NL) { const RL = RR[RR.length - 1]; nails.push(nailShell(F, ringAt, s1, wdOf, sOf, lift0, fi, RL.c.clone().addScaledVector(RL.T, 0.3 * RL.r))); }
     return gn;
   };
   /**
@@ -1898,24 +1909,32 @@ function handAt(w, dir, pn, k, th, arm = {}, grip = 0.15) {
    * design (nailA: mm along it, across it, where it leaves the finger, its end; nailB: its half-width there, at the free
    * edge's start, which design and face and nail) -> geometry
    */
-  const nailShell = (F, ringAt, s1, wdOf, sOf, lift0, fi) => {
-    const SU = [0, 0.03, 0.08, 0.16, 0.28, 0.42, 0.56, 0.7, 0.82, 0.92, 1], SV = [-1, -0.92, -0.76, -0.52, -0.26, 0, 0.26, 0.52, 0.76, 0.92, 1], NV = SV.length, jc = (NV - 1) / 2;
+  const nailShell = (F, ringAt, s1, wdOf, sOf, lift0, fi, tipP) => {
+    const SU = [0, 0.03, 0.08, 0.16, 0.28, 0.42, 0.56, 0.7, 0.82, 0.92, 1], SV = [-1, -0.9, -0.68, -0.36, 0, 0.36, 0.68, 0.9, 1], NV = SV.length, jc = (NV - 1) / 2;
     const rows = SU.map((u) => { const wdu = wdOf(u); return SV.map((v) => F.at(ringAt(sOf(u, v)), -Math.PI / 2 + v * wdu, lift0(u, v) - 0.00003 * k + 0.00034 * k * ss3(0, 0.24, u) * (1 - v * v) ** 0.6)); });
     const refN = SU.map((u, i) => { const o = ringAt(sOf(u, 0)), n = rows[i][jc].clone().sub(o.c); return n.addScaledVector(o.T, -n.dot(o.T)).normalize(); });
     const nOn = rows.length, E = rows[nOn - 1], CE = E[jc].clone(), oE = ringAt(s1);
     const tE = CE.clone().sub(rows[nOn - 2][jc]).normalize().add(oE.T).normalize(), nE = refN[nOn - 1].clone().addScaledVector(tE, -refN[nOn - 1].dot(tE)).normalize(), bE = new THREE.Vector3().crossVectors(tE, nE).normalize();
     tE.addScaledVector(nE, -0.05).normalize(); nE.addScaledVector(tE, -nE.dot(tE)).normalize();
-    // (its free edge: the shape's length for this nail, closing up in a grip - the fingers' tips curl in toward the palm)
+    // (its free edge: straight on at its full width until clear of the fingertip (dP), then the shape's own length for this
+    // nail (Ls) - a little shorter in a grip, where the fingers' tips curl in toward the palm)
     const sh = NL.shape, pointed = sh === 'almond' || sh === 'stiletto', gq = Math.max(0, grip);
-    const Lf = NL.len * k * [0.84, 0.95, 1, 0.96, 0.8][fi] * (fi === 0 ? 1 - 0.45 * ss3(0.45, 0.9, gq) : 1 - 0.62 * ss3(0.3, 0.85, gq)), aK = 0.34, NF = pointed ? 14 : 10;
+    const dP = Math.max(0.0015 * k, tipP.clone().sub(CE).dot(tE) + 0.0012 * k), aK = 0.3, NF = pointed ? 11 : 8;
+    let Ls = NL.len * k * [0.84, 0.95, 1, 0.96, 0.8][fi] * (fi === 0 ? 1 - 0.35 * ss3(0.5, 0.95, gq) : 1 - 0.5 * ss3(0.4, 0.95, gq));
+    // (and never into her own body (arm.avoid(p): inside her head, her torso, a thigh, an arm - a hand at the brow, on the
+    // hip, in her lap, round the other arm): its shape's length cut back while its tip, or its middle, would be inside)
+    { const L0 = Ls, end = (L) => CE.clone().addScaledVector(tE, L * Math.sin(aK) / aK).addScaledVector(nE, -L * (1 - Math.cos(aK)) / aK);
+      if (arm.avoid) for (let q = 0; q < 10 && Ls > 0.15 * L0 && (arm.avoid(end(dP + Ls)) || arm.avoid(end(dP + 0.5 * Ls))); q++) Ls *= 0.8; }
+    const Lf = dP + Ls;
     const off = E.map((p) => { const q = p.clone().sub(CE); return [q.dot(bE), q.dot(nE)]; });
     const at = (t) => { const ph = aK * t; return [CE.clone().addScaledVector(tE, Lf * Math.sin(ph) / aK).addScaledVector(nE, -Lf * (1 - Math.cos(ph)) / aK), nE.clone().multiplyScalar(Math.cos(ph)).addScaledVector(tE, Math.sin(ph)), tE.clone().multiplyScalar(Math.cos(ph)).addScaledVector(nE, -Math.sin(ph))]; };
     const TT = [], WS = [];
-    for (let i = 1; i <= NF; i++) {
-      const t = pointed ? 1 - (1 - i / NF) ** 1.45 : i / NF, tr = [], wr = [];
+    const DS = [0.34, 0.67, 1].map((f) => f * dP); for (let i = 1; i <= NF; i++) DS.push(dP + Ls * (pointed ? 1 - (1 - i / NF) ** 1.4 : i / NF));
+    for (const ds of DS) {
+      const t = ds / Lf, tr = [], wr = [];
       rows.push(SV.map((v, j) => {
-        // (a coffin's corners just softened - the outer lines a breath shorter)
-        const tc = sh === 'coffin' ? Math.max(0, t - (0.0005 * k / Lf) * Math.abs(v) ** 5 * ss3(0.7, 1, t)) : t, [C, Nt] = at(tc), ws = nailTaper(sh, tc), [a, h] = off[j];
+        // (a coffin's corners eased - the outer lines a breath shorter)
+        const u = Math.max(0, ds - dP) / Ls, dc = sh === 'coffin' ? Math.max(0, ds - 0.0009 * k * Math.abs(v) ** 5 * ss3(0.75, 1, u)) : ds, tc = dc / Lf, [C, Nt] = at(tc), ws = nailTaper(sh, Math.max(0, dc - dP) / Ls), [a, h] = off[j];
         tr.push(tc); wr.push(ws); return C.addScaledVector(bE, a * ws * (1 + 0.06 * ss3(0, 0.35, tc))).addScaledVector(Nt, h * ws ** 0.7 * (1 + 0.35 * tc) - 0.00012 * k * tc);
       }));
       refN.push(at(t)[1]); TT.push(tr); WS.push(wr);
@@ -4064,7 +4083,7 @@ const HAIR_STYLES_M = ['short', 'buzz', 'side', 'quiff', 'swept', 'curly', 'wavy
  * (the step it is painted at: what is stored is what is seen), anything unknown dropped, never a throw -> { makeup, hair:
  * { hs, color, tone: { root, ends, melt, strands }, tendrils, fringe, shine }, wear: { kit, color, accent, legs (null:
  * bare), shoes, fabric, shoeFinish, cut }, jewel: { metal, earrings, chain, choker, cuffs, clutchColor, clutchMetal }, acc:
- * { earrings, clutch } } (empty parts left out). Its top-level fabric, shoeFinish and cut are taken as the wear's
+ * { earrings, clutch }, nails (sanitizeNails) } (empty parts left out). Its top-level fabric, shoeFinish and cut are taken as the wear's
  */
 export function sanitizeStyle(s) {
   try {
@@ -4115,6 +4134,8 @@ export function sanitizeStyle(s) {
       put(J, 'cuffs', num(j.cuffs, 0, 2, 1)); put(J, 'clutchColor', qHex(j.clutchColor) || undefined); put(J, 'clutchMetal', en(j.clutchMetal, METAL_FINISHES));
       if (some(J)) out.jewel = J;
     }
+    // her nails: a look's name, natural, or a look of her own (sanitizeNails)
+    { const nl = sanitizeNails(s.nails); if (nl !== undefined) out.nails = nl; }
     // what she carries and wears beyond them: earrings, a clutch - on or off
     const a = s.acc;
     if (a && typeof a === 'object' && !Array.isArray(a)) { const A = {}; put(A, 'earrings', bool(a.earrings)); put(A, 'clutch', bool(a.clutch)); if (some(A)) out.acc = A; }
@@ -4432,6 +4453,7 @@ function* buildSteps(o) {
   // material; a crowd's, and a man's, the hand's natural nails)
   const NL = fem && Q >= 0.6 ? nailLookOf({ style: ST }, seedOf(), kit, o.color, o.accent) : null;
   if (NL) mats.nails = nailMat(NL);
+  let nailKeep = null;
   const parts = { top: [], legs: [], accent: [], skin: [], hair: [], shoe: [], team: [], acc: [], metal: [], metal2: [], bottom: [], sheer: [], band: [], laceEdge: [], nails: [] }, skP = OF?.sep ? 'bottom' : 'top';
   /** the jewellery's metal, f (none: hers); a second finish (a clutch's own hardware) its own material */
   const metalM = (f = jm) => {
@@ -5166,6 +5188,18 @@ function* buildSteps(o) {
       }
       parts.sheer.push(lacey(sg, OF.sheer.lace));
     }
+    // (where her long nails may not go: her head, her torso (its own section at each height, her clothes over it), her
+    // thighs and her arms - each a little generously)
+    nailKeep = nailKeep || (NL && (() => {
+      const hc = J.head.clone().sub(J.neck).add(V(0.012, -0.008, 0)).applyAxisAngle(V(0, 0, 1), rotZ).multiplyScalar(F.hd).add(J.neck), hr = 0.112 * F.hd, caps = [], ab = V(0, 0, 0), ap = V(0, 0, 0);
+      for (const q of ['R', 'L']) caps.push([J['sh' + q].clone().setZ(J['sh' + q].z * F.sh), J['el' + q], F.arm[0] + 0.004, F.arm[1] + 0.004], [J['el' + q], J['wr' + q], F.arm[2] + 0.004, F.arm[3] + 0.004], [J['hip' + q], J['knee' + q], F.leg[0] + 0.01, F.leg[2] + 0.01]);
+      return (p) => {
+        if (p.distanceTo(hc) < hr) return true;
+        for (const [a, b, r0, r1] of caps) { ab.subVectors(b, a); ap.subVectors(p, a); const t = clamp01(ap.dot(ab) / Math.max(1e-9, ab.lengthSq())); if (ap.addScaledVector(ab, -t).length() < r0 + (r1 - r0) * t) return true; }
+        const f = (p.y - T.A.y + 0.11) / T.H; if (f < -0.25 || f > 1) return false;
+        const sc = T.sec(f), c = T.c(f); return ((p.z - c.z) / (sc[0] + 0.007)) ** 2 + ((p.x - c.x) / (sc[1] + 0.007)) ** 2 < 1;
+      };
+    })());
     const fg = J['fing' + s], pm = J['palm' + s], dirH = (fg ? fg.clone() : new THREE.Vector3().subVectors(wr, el)).normalize(), hw = wr.clone().addScaledVector(dirH, -0.008);
     // (the palm as the pose has it, or toward the body's middle; a hand that would go into the body - on the hip - lies
     // along it instead, its palm on it; hands clasped out in front of it are left as they are)
@@ -5179,7 +5213,7 @@ function* buildSteps(o) {
     // (the hand carried on from the forearm's end - round its dome, no seam at the wrist - its fingers closed as far as
     // the pose holds something: HAND_GRIP)
     const aL = L1 + el.distanceTo(wr), gp = HAND_GRIP[pose];
-    const HG = handAt(hw, dirH, Pn, hk, th, { wr, fa: new THREE.Vector3().subVectors(wr, el).normalize(), rad: (h) => rad(1 - h / aL), fem, nail: NL ? { shape: NL.shape, len: NL.len, slot: NL.fingers[s], side: s === 'R' ? 0 : 1 } : null }, gp ? gp[s === 'R' ? 0 : 1] : 0.15);
+    const HG = handAt(hw, dirH, Pn, hk, th, { wr, fa: new THREE.Vector3().subVectors(wr, el).normalize(), rad: (h) => rad(1 - h / aL), fem, nail: NL ? { shape: NL.shape, len: NL.len, slot: NL.fingers[s], side: s === 'R' ? 0 : 1 } : null, avoid: nailKeep }, gp ? gp[s === 'R' ? 0 : 1] : 0.15);
     parts.skin.push(...HG); if (HG.nails) parts.nails.push(...HG.nails);
     // ---- legs and shoes ----
     // (the thigh from just inside the hip's joint: its top within the hips, not standing out beside them)
@@ -5471,8 +5505,12 @@ function* buildSteps(o) {
    */
   const restyle = (pt = {}) => {
     const has = (f) => pt[f] !== undefined, mt = (k) => METALS[k] ? k : null;
-    for (const f in pt) if (!['makeup', 'draft', 'color', 'accent', 'shoes', 'hair', 'metal', 'clutchMetal', 'shine'].includes(f)) return false;
+    for (const f in pt) if (!['makeup', 'draft', 'color', 'accent', 'shoes', 'hair', 'metal', 'clutchMetal', 'shine', 'nails'].includes(f)) return false;
     if (has('shine') && !mats.hair) return false;
+    // (her nails' designs and colours in place - their uniforms; a new shape, length or mix of nails, or long nails where
+    // she had none, built again)
+    const NL2 = has('nails') ? nailLookOf({ style: { ...ST, nails: pt.nails } }, seedOf(), kit, o.color, o.accent) : null;
+    if (has('nails') && (!NL || !NL2 || NL2.shape !== NL.shape || Math.abs(NL2.len - NL.len) > 1e-6 || NL2.mix !== NL.mix)) return false;
     if (has('makeup') && !paintFace) return false;
     if (has('color') && !(OF || kit === 'suit')) return false;
     if (has('accent') && (chest || ((ACC.has('clutch') || ACC.has('bag')) && !JW.clutchColor))) return false;
@@ -5493,6 +5531,7 @@ function* buildSteps(o) {
     if (has('clutchMetal') && clutchHW) remetal(mats.metal2 || mats.metal, mt(pt.clutchMetal) || jm);
     // (her hair's shine: its roughness, as built - style.shine 0..1, none: the style's own)
     if (has('shine')) mats.hair.roughness = typeof pt.shine === 'number' && isFinite(pt.shine) ? 0.62 - 0.28 * clamp01(pt.shine) : !fem ? 0.5 : SLEEK.has(ST.hs) ? 0.4 : 0.47;
+    if (NL2) { nailUniforms(NL2, mats.nails.userData.nailU); recol(mats.nails, new THREE.Color(NL2.slots[0].base)); Object.assign(NL, NL2); }
     if (has('hair')) { recol(mats.hair, new THREE.Color(pt.hair)); paintFace(has('makeup') ? pt.makeup : undefined, false, pt.hair); }
     else if (has('makeup')) paintFace(pt.makeup, !!pt.draft);
     return true;
