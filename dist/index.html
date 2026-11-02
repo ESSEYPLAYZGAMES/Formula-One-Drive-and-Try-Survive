@@ -597,7 +597,7 @@ table.res tr.me td { color: var(--accent2); font-weight: 700; }
     <div class="brand-line"></div>
     <h1 id="brand-title">FORMULA 1<span id="brand-sub">SIMULATOR</span></h1>
     <!-- the build's version: +0.01 with every build handed out -->
-    <span id="app-ver" title="Version">V2.13</span>
+    <span id="app-ver" title="Version">V2.14</span>
     <div id="menu-sub">Real circuits built from OpenStreetMap</div>
   </div>
   <div id="loading" class="hidden"><div class="ld"><i></i></div><span>Building the circuit from OpenStreetMap…</span></div>
@@ -85968,7 +85968,7 @@ const NAIL_SHAPES = Object.freeze(Object.keys(NAIL_SHAPE));
 /** the free edge's half-width past the fingertip (t: 0 clear of the fingertip .. 1 its end), a share of its full width -
  *  the round-ended ones closing with an infinite slope: a soft tip, never a spike */
 function nailTaper(shape, t) {
-  if (shape === 'coffin') return 1 - 0.4 * t ** 1.25;
+  if (shape === 'coffin') return 1;   // (a coffin's narrowing its straight sides' own: nailShell)
   if (shape === 'stiletto') return Math.max(0, 1 - t ** 1.45) ** 0.72;
   if (shape === 'oval') return Math.sqrt(Math.max(0, 1 - t ** 2.4));
   return Math.sqrt(Math.max(0, 1 - t ** 1.9));
@@ -86608,6 +86608,12 @@ function handAt(w, dir, pn, k, th, arm = {}, grip = 0.15) {
     const Lf = dP + Ls;
     const off = E.map((p) => { const q = p.clone().sub(CE); return [q.dot(bE), q.dot(nE)]; });
     const at = (t) => { const ph = aK * t; return [CE.clone().addScaledVector(tE, Lf * Math.sin(ph) / aK).addScaledVector(nE, -Lf * (1 - Math.cos(ph)) / aK), nE.clone().multiplyScalar(Math.cos(ph)).addScaledVector(tE, Math.sin(ph)), tE.clone().multiplyScalar(Math.cos(ph)).addScaledVector(nE, -Math.sin(ph))]; };
+    // (its sides carried straight on past the finger at the angle the bed's own sides run at there - never turned to run
+    // parallel along the finger, no corner where it leaves it: gS, the share of its width it loses per metre on; never wider)
+    const hwB = (i) => rows[i][0].distanceTo(rows[i][NV - 1]) * 0.5, dB = rows[nOn - 1][jc].distanceTo(rows[nOn - 3][jc]) + rows[nOn - 3][jc].distanceTo(rows[nOn - 2][jc]) * 0, gS = Math.max(-45, Math.min(0, (hwB(nOn - 1) - hwB(nOn - 3)) / Math.max(1e-6, dB) / Math.max(1e-6, hwB(nOn - 1))));
+    // (a coffin: its sides straight on at that angle - at least as much as brings it to three-fifths of its width at its
+    // flat end; the round-ended shapes: that angle eased out over a third of the free edge, their own taper then taking over)
+    const gC = Math.min(gS, -0.4 / Math.max(1e-6, Lf)), gM = 0.35 * Lf;
     const TT = [], WS = [];
     const DS = [0.34, 0.67, 1].map((f) => f * dP); for (let i = 1; i <= NF; i++) DS.push(dP + Ls * (pointed ? 1 - (1 - i / NF) ** 1.4 : i / NF));
     for (const ds of DS) {
@@ -86615,7 +86621,7 @@ function handAt(w, dir, pn, k, th, arm = {}, grip = 0.15) {
       rows.push(SV.map((v, j) => {
         // (a coffin's corners eased - the outer lines a breath shorter)
         const u = Math.max(0, ds - dP) / Ls, dc = sh === 'coffin' ? Math.max(0, ds - 0.0009 * k * Math.abs(v) ** 5 * ss3(0.75, 1, u)) : ds, tc = dc / Lf, [C, Nt] = at(tc), ws = nailTaper(sh, Math.max(0, dc - dP) / Ls), [a, h] = off[j];
-        tr.push(tc); wr.push(ws); return C.addScaledVector(bE, a * ws).addScaledVector(Nt, h * ws ** 0.7 * (1 + 0.35 * tc) - 0.00012 * k * tc);   // (never wider than where it leaves the finger: its width held, then only narrowing)
+        tr.push(tc); wr.push(ws); return C.addScaledVector(bE, a * ws * (sh === 'coffin' ? Math.max(0.56, 1 + gC * dc) : 1 + gS * gM * Math.tanh(dc / gM))).addScaledVector(Nt, h * ws ** 0.7 * (1 + 0.35 * tc) - 0.00012 * k * tc);   // (never wider than where it leaves the finger: its width held, then only narrowing)
       }));
       refN.push(at(t)[1]); TT.push(tr); WS.push(wr);
     }
