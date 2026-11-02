@@ -1302,12 +1302,12 @@ export const NAIL_FINISHES = Object.freeze(Object.keys(NAIL_FIN));
  *  ring finger, every other one, or each hand its own pair (the right slots 0/1, the left 2/3) */
 const NAIL_MIX = Object.freeze({ all: [0, 0, 0, 0, 0], accent: [0, 0, 0, 1, 0], pair: [1, 0, 0, 1, 0], alt: [0, 1, 0, 1, 0], hands: [0, 0, 1, 1, 0] });
 export const NAIL_MIXES = Object.freeze(Object.keys(NAIL_MIX));
-const NC = Object.freeze({ white: '#fbf9f5', sheerPink: '#f2c3c0', sheerNude: '#ecc4b0', sheerRose: '#dfab9f', milky: '#f3e5df', glaze: '#f5ddd3', nude: '#d6a58f', hotPink: '#ff2b8c', babyPink: '#f7b5ca', black: '#141417', royal: '#1b3dd8', sky: '#55b6ee', lilac: '#b7a1ee', forest: '#3d5e4b', emerald: '#0d6a48', red: '#b10f1c', yellow: '#f8d548', chromePink: '#ff68b8', chromeBlue: '#5d9cff', petal: '#fffdf8', gold: '#f2c14a' });
+const NC = Object.freeze({ white: '#fbf9f5', sheerPink: '#e6a2a8', sheerNude: '#dca48f', sheerRose: '#d4948a', milky: '#f3e5df', glaze: '#f3e2dc', nude: '#d6a58f', hotPink: '#ff2b8c', babyPink: '#f7b5ca', black: '#141417', royal: '#1b3dd8', sky: '#55b6ee', lilac: '#b7a1ee', forest: '#3d5e4b', emerald: '#0d6a48', red: '#b10f1c', yellow: '#f8d548', chromePink: '#ff68b8', chromeBlue: '#5d9cff', petal: '#fffdf8', gold: '#f2c14a' });
 const ND = (p, base, tip, o = {}) => ({ p, base, tip, ...o });
 /**
  * Her nail looks, as a salon's book has them: { name, shape, shapes (others she might file them to), len (0..1 of the
- * shape's range), d (up to four designs: { p (NAIL_DESIGNS), base, tip, aux (colours), sheer (0..1: the base a sheer
- * polish, the nail beneath it - pink over the bed, a pale half-moon, milky past the finger), fb, ft (the base's and the
+ * shape's range), d (up to four designs: { p (NAIL_DESIGNS), base, tip, aux (colours), sheer (0..1: a milky
+ * shade - kept, and drawn as the opaque polish it is: the whole bed one colour), fb, ft (the base's and the
  * tip's finish), d, e (a deep French's depth and line), gem (a few rhinestones) }), mix (NAIL_MIX), m (the colour matched
  * to her outfit: 'tip' or 'base') }
  */
@@ -1316,7 +1316,7 @@ export const NAIL_LOOKS = Object.freeze({
   micro: { name: 'Micro French', shape: 'coffin', shapes: ['coffin', 'almond'], len: 0.6, d: [ND('micro', NC.sheerRose, NC.white, { sheer: 1 })] },
   doubleLine: { name: 'Double-line V French', shape: 'coffin', len: 1, d: [ND('double', NC.sheerRose, NC.white, { sheer: 1 }), ND('double', NC.sheerRose, NC.white, { sheer: 1, gem: 1 })], mix: 'accent' },
   sage: { name: 'Sage French & swirl', shape: 'almond', len: 0.62, d: [ND('deep', NC.sheerPink, NC.forest, { sheer: 1, d: 0.55, e: 2 }), ND('swirl', NC.sheerPink, NC.white, { sheer: 1 })], mix: 'accent', m: 'tip' },
-  royal: { name: 'Royal V French', shape: 'stiletto', shapes: ['stiletto', 'almond'], len: 0.85, d: [ND('deep', NC.sheerNude, NC.royal, { sheer: 1, fb: 'pearl', d: 1, e: 1.35 })], m: 'tip' },
+  royal: { name: 'Royal V French', shape: 'stiletto', shapes: ['stiletto', 'almond'], len: 0.85, d: [ND('deep', NC.sheerPink, NC.royal, { sheer: 1, fb: 'pearl', d: 1, e: 1.35 })], m: 'tip' },
   skyMix: { name: 'Sky & lilac mix', shape: 'almond', len: 0.5, d: [ND('whole', NC.sky, NC.sky), ND('deep', NC.sheerNude, NC.sky, { sheer: 1, d: 0.4, e: 2 }), ND('whole', NC.lilac, NC.lilac), ND('deep', NC.sheerNude, NC.lilac, { sheer: 1, d: 0.4, e: 2 })], mix: 'hands' },
   glazed: { name: 'Glazed donut chrome', shape: 'almond', shapes: ['almond', 'oval', 'coffin'], len: 0.5, d: [ND('whole', NC.glaze, NC.glaze, { fb: 'pearl', sheer: 0.6 })] },
   pinkChrome: { name: 'Hot pink chrome', shape: 'coffin', shapes: ['coffin', 'almond'], len: 0.7, d: [ND('whole', NC.chromePink, NC.chromePink, { fb: 'chrome' })] },
@@ -1454,46 +1454,41 @@ vec3 nSpark = vec3( 0.0 ); float nGlow = 0.0, nRough = 0.3, nMetal = 0.0, nCoat 
 	int si = int( clamp( slot, 0.0, 3.0 ) + 0.5 );
 	vec4 A = uN0[ si ], B = uN1[ si ], C = uN2[ si ], E = uN3[ si ];
 	float s = vNA.x, x = vNA.y, sE = vNA.z, sT = vNA.w, hw = max( vNB.x, 0.03 ), hw0 = max( vNB.y, 0.5 ), sc = hw0 / 3.6;
-	float fr = max( sT - sE, 0.6 ), v = clamp( x / hw, - 1.0, 1.0 ), av = abs( v ), pat = A.x;
+	float v = clamp( x / hw, - 1.0, 1.0 ), av = abs( v ), pat = A.x;
 	nUV = vec2( s, x );
-	// (a sheer base: the nail beneath it - pink over the bed, a pale half-moon at the root, the line where it leaves the
-	// finger, milky and paler past it)
+	// (the base: one opaque polish over the whole bed, cuticle to fingertip, and on under the design - no paler bed, no
+	// half-moon, no line where the nail leaves the finger; the designs' French work starting at the fingertip (sF), on the
+	// free edge past it - fr its length)
 	vec3 base = B.rgb;
-	if ( B.w > 0.0 ) {
-		float bed = 1.0 - smoothstep( sE - 0.5 * sc, sE + 0.3 * sc, s ), moon = ( 1.0 - smoothstep( 0.04 * sE, 0.2 * sE, s ) ) * ( 1.0 - av * av );
-		vec3 nb = base * mix( vec3( 0.98, 0.96, 0.96 ), vec3( 1.0, 0.84, 0.85 ), bed );
-		nb = mix( nb, base * 1.1 + 0.05, 0.45 * moon );
-		nb = mix( nb, min( nb * 1.08 + 0.04, vec3( 1.0 ) ), smoothstep( sE - 0.6 * sc, sE, s ) * ( 1.0 - smoothstep( sE, sE + 0.8 * sc, s ) ) );
-		base = mix( base, nb, B.w );
-	}
+	float sF = max( vNB.w, sE ), fr = max( sT - sF, 0.6 );
 	float dSide = hw - abs( x ), dTip = sT - s, dEdge = min( dSide, 1.3 * dTip );
 	float tipM = 0.0, cM = 0.0;
 	if ( pat < 0.5 ) { tipM = 0.0; }
 	else if ( pat < 1.5 ) {
-		// (French: the tip on a smile line - its middle a breath past where the nail leaves the finger, its sides swept back)
-		float sm = clamp( 0.24 * fr, 1.1 * sc, 3.0 * sc ) * ( 0.55 + 0.55 * A.w ), sl = sE + 0.35 * sc - sm * v * v;
+		// (French: the free edge on a shallow smile line - its middle just past the fingertip, its sides dipping a little)
+		float sm = clamp( 0.16 * fr, 0.5 * sc, 1.5 * sc ) * ( 0.7 + 0.3 * A.w ), sl = sF + 0.3 * sc - sm * v * v;
 		tipM = nCov( sl - s );
 	} else if ( pat < 2.5 ) {
-		// (deep: its sides far down toward the cuticle - a curve, or a V)
-		float D = A.w * 0.5 * sE + 0.5 * sc, sl = sE + 0.1 * fr - D * pow( av, C.w );
+		// (deep: a fuller tip - its sides dipping only a little below the fingertip, a curve or a shallow V)
+		float D = ( 0.7 + 0.9 * min( A.w, 1.2 ) ) * sc, sl = sF + 0.08 * fr - D * pow( av, C.w );
 		tipM = nCov( sl - s );
 	} else if ( pat < 3.5 ) {
-		// (micro: a fine line round the free edge, thinning to nothing down its sides)
-		float w = ( 1.0 + 0.4 * A.w ) * sc * smoothstep( sE - 0.2 * fr, sE + 0.7 * fr, s );
-		tipM = nCov( min( dSide, 0.34 * dTip ) - w );
+		// (micro: a thin line at the very tip, fading out down the free edge's sides)
+		float w = ( 0.95 + 0.3 * A.w ) * sc * smoothstep( sF, sT - 0.2 * fr, s );
+		tipM = nCov( min( dSide, 0.4 * dTip ) - w );
 	} else if ( pat < 4.5 ) {
-		// (double line: a fine line down each side and a second within it, both growing from nothing toward the tip and
-		// meeting there - a V outline)
-		float ta = smoothstep( 0.35 * sE, sE + 0.4 * fr, s ), w1 = 0.62 * sc * ta, g = 1.6 * sc * ta, w2 = 0.26 * sc * ta;
+		// (double line: a fine line down each side of the free edge and a second within it, growing from nothing at the
+		// fingertip and meeting at the tip - a V outline)
+		float ta = smoothstep( sF - 0.4 * sc, sF + 0.45 * fr, s ), w1 = 0.62 * sc * ta, g = 1.6 * sc * ta, w2 = 0.26 * sc * ta;
 		tipM = max( nCov( dEdge - w1 ), nCov( abs( dEdge - g ) - w2 ) );
 		tipM = max( tipM, nCov( dTip - 0.35 * sc ) );
 	} else if ( pat < 5.5 ) {
-		// (swirl: a wave of the tip's colour sweeping down one side, a fine line following it beneath)
-		float sl = sE + 0.4 * sc + 1.1 * sc * v + 0.5 * sc * sin( 2.6 * v + 0.4 ) - 1.3 * sc * v * v;
-		float sl2 = sl - 1.25 * sc - 0.3 * sc * sin( 3.2 * v + 1.0 ), w2 = 0.2 * sc * smoothstep( - 1.0, 0.7, v );
+		// (swirl: a wave of the tip's colour across the free edge, a fine line following it just below)
+		float sl = sF + 0.25 * fr + 0.7 * sc * v + 0.4 * sc * sin( 2.6 * v + 0.4 ) - 0.6 * sc * v * v;
+		float sl2 = sl - 1.1 * sc - 0.25 * sc * sin( 3.2 * v + 1.0 ), w2 = 0.2 * sc * smoothstep( - 1.0, 0.7, v );
 		tipM = max( nCov( sl - s ), nCov( abs( s - sl2 ) - w2 ) );
 	} else if ( pat < 6.5 ) {
-		// (little flowers: a daisy or two of its own on each nail, one perhaps half off the edge)
+		// (little flowers: a few daisies of their own on each nail, one perhaps half off the edge)
 		vec2 q = vec2( s, x );
 		for ( int k = 0; k < 3; k ++ ) {
 			float fk = float( k ), hh = nH( fid * 3.17 + fk * 5.71 ), sg = mod( fk + fid, 2.0 ) < 0.5 ? 1.0 : - 1.0;
@@ -1502,14 +1497,14 @@ vec3 nSpark = vec3( 0.0 ); float nGlow = 0.0, nRough = 0.3, nMetal = 0.0, nCoat 
 			tipM = max( tipM, dd.x ); cM = max( cM, dd.y );
 		}
 	} else {
-		// (ombre: a soft fade to the tip's colour)
-		tipM = smoothstep( 0.3 * sE, sT - 0.2 * fr, s );
+		// (ombre: the base over the bed, fading to the tip's colour along the free edge)
+		tipM = smoothstep( sF - 1.5 * sc, sT - 0.12 * fr, s );
 	}
 	vec3 col = mix( mix( base, C.rgb, tipM ), E.rgb, cM );
 	vec4 FB = nFin( A.y ), FT = nFin( A.z ), F = mix( FB, FT, smoothstep( 0.3, 0.7, tipM ) );
 	float pearl = step( 1.5, mix( A.y, A.z, step( 0.5, tipM ) ) ) * step( mix( A.y, A.z, step( 0.5, tipM ) ), 2.5 );
 	// (pearl: a glazed sheen over the colour, its film's thickness shifting along the nail - pink, gold, a cool blue in it)
-	col = mix( col, vec3( 0.98, 0.95, 0.94 ), 0.38 * pearl );
+	col = mix( col, vec3( 0.98, 0.95, 0.94 ), 0.14 * pearl );
 	nIriT = mix( 260.0, 560.0, 0.5 + 0.5 * sin( 0.42 * s / sc + 0.9 * x / sc + 6.0 * nH( fid ) ) );
 	// (a chrome: its colour a little lifted - its mirror the room's light in that colour)
 	float chrome = step( 2.5, mix( A.y, A.z, step( 0.5, tipM ) ) ); col = mix( col, min( col * 1.25 + 0.04, vec3( 1.0 ) ), chrome );
@@ -1948,7 +1943,7 @@ function handAt(w, dir, pn, k, th, arm = {}, grip = 0.15) {
     // (its thickness: a gel's - thinning a little to its free edge, to nothing at a point)
     const thk = (i, j) => k * 0.00048 * (i < nOn ? 1 : (1 - 0.3 * TT[i - nOn][j]) * (pointed ? Math.min(1, 2.5 * WS[i - nOn][j]) : 1));
     const pos = [], nor = [], A = [], B = [], idx = [], side = NL.side || 0, slot = NL.slot[fi] || 0, fid = fi + 5 * side;
-    const put = (p, n, i, j, face) => { pos.push(p.x, p.y, p.z); nor.push(n.x, n.y, n.z); const hw = hwOf(i); A.push(sAt(i, j), SV[j] * hw, sE, sT); B.push(hw, hw0, slot + 4 * face + 16 * fid, 0); return pos.length / 3 - 1; };
+    const put = (p, n, i, j, face) => { pos.push(p.x, p.y, p.z); nor.push(n.x, n.y, n.z); const hw = hwOf(i); A.push(sAt(i, j), SV[j] * hw, sE, sT); B.push(hw, hw0, slot + 4 * face + 16 * fid, sE + dP * mm); return pos.length / 3 - 1; };
     const quad = (a, b, c, d, n) => { const p = (q) => new THREE.Vector3(pos[q * 3], pos[q * 3 + 1], pos[q * 3 + 2]), x = new THREE.Vector3().crossVectors(p(b).sub(p(a)), p(c).sub(p(a))); if (x.dot(n) >= 0) idx.push(a, b, c, c, b, d); else idx.push(a, c, b, c, d, b); };
     // the top, and beneath it - from where the bed begins to round toward the tip, on (inside the finger before that)
     const iB = SU.indexOf(0.7), T0 = rows.map((r, i) => r.map((p, j) => put(p, N[i][j], i, j, 0)));
