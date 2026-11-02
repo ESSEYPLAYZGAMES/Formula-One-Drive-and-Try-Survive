@@ -1868,7 +1868,7 @@ function handAt(w, dir, pn, k, th, arm = {}, grip = 0.15) {
     const ringAt = (s) => { let i = 1; while (i < S.length - 1 && S[i] < s) i++; const t = Math.max(0, Math.min(i === S.length - 1 ? 1.4 : 1, (s - S[i - 1]) / Math.max(1e-9, S[i] - S[i - 1]))), a = RR[i - 1], b = RR[i]; return { c: a.c.clone().lerp(b.c, t), T: a.T.clone().lerp(b.T, t).normalize(), r: a.r + (b.r - a.r) * t, w: a.w + (b.w - a.w) * t, q: a.q + (b.q - a.q) * t, pd: (a.pd || 0) + ((b.pd || 0) - (a.pd || 0)) * t, kb: (a.kb || 0) + ((b.kb || 0) - (a.kb || 0)) * t }; };
     // (narrow at its root, an almond at its free edge - a long nail's bed keeping its width to where it leaves the finger;
     // its root a soft curve, not a square)
-    const wdOf = (uc) => wd * (0.8 + 0.2 * ss3(0, 0.16, uc)) * (NL ? 1 + 0.12 * ss3(0.15, 0.6, uc) : 1 - 0.42 * ss3(0.7, 1, uc) ** 1.4);
+    const wdOf = (uc) => wd * (0.8 + 0.2 * ss3(0, 0.16, uc)) * (NL ? 0.86 * (1 + 0.12 * ss3(0.15, 0.6, uc)) : 1 - 0.42 * ss3(0.7, 1, uc) ** 1.4);
     const sOf = (u, v) => s0 + (s1 - s0) * (Math.max(-0.3, u) + 0.12 * Math.min(1, Math.abs(v)) ** 2 * (1 - ss3(0, 0.35, u)));
     const lift0 = (u, v) => k * (0.00012 + 0.00026 * (1 - v * v)) * (0.6 + 0.4 * ss3(0, 0.3, u));
     const UU = [-0.24, -0.1, 0, 0.12, 0.3, 0.5, 0.7, 0.85, 0.95, 1], VV = [-1.32, -1.13, -1, -0.62, -0.22, 0.22, 0.62, 1, 1.13, 1.32], NV = VV.length, P = [], C = [], I = [], edge = [], FO = [];
@@ -1928,7 +1928,7 @@ function handAt(w, dir, pn, k, th, arm = {}, grip = 0.15) {
     const hwB = (i) => rows[i][0].distanceTo(rows[i][NV - 1]) * 0.5, dB = rows[nOn - 1][jc].distanceTo(rows[nOn - 3][jc]) + rows[nOn - 3][jc].distanceTo(rows[nOn - 2][jc]) * 0, gS = Math.max(-45, Math.min(0, (hwB(nOn - 1) - hwB(nOn - 3)) / Math.max(1e-6, dB) / Math.max(1e-6, hwB(nOn - 1))));
     // (a coffin: its sides straight on at that angle - at least as much as brings it to three-fifths of its width at its
     // flat end; the round-ended shapes: that angle eased out over a third of the free edge, their own taper then taking over)
-    const gC = Math.min(gS, -0.4 / Math.max(1e-6, Lf)), gM = 0.35 * Lf;
+    const gC = Math.min(gS, -0.46 / Math.max(1e-6, Lf)), gM = 0.35 * Lf;
     const TT = [], WS = [];
     const DS = [0.34, 0.67, 1].map((f) => f * dP); for (let i = 1; i <= NF; i++) DS.push(dP + Ls * (pointed ? 1 - (1 - i / NF) ** 1.4 : i / NF));
     for (const ds of DS) {
@@ -1936,7 +1936,7 @@ function handAt(w, dir, pn, k, th, arm = {}, grip = 0.15) {
       rows.push(SV.map((v, j) => {
         // (a coffin's corners eased - the outer lines a breath shorter)
         const u = Math.max(0, ds - dP) / Ls, dc = sh === 'coffin' ? Math.max(0, ds - 0.0009 * k * Math.abs(v) ** 5 * ss3(0.75, 1, u)) : ds, tc = dc / Lf, [C, Nt] = at(tc), ws = nailTaper(sh, Math.max(0, dc - dP) / Ls), [a, h] = off[j];
-        tr.push(tc); wr.push(ws); return C.addScaledVector(bE, a * ws * (sh === 'coffin' ? Math.max(0.56, 1 + gC * dc) : 1 + gS * gM * Math.tanh(dc / gM))).addScaledVector(Nt, h * ws ** 0.7 * (1 + 0.35 * tc) - 0.00012 * k * tc);   // (never wider than where it leaves the finger: its width held, then only narrowing)
+        tr.push(tc); wr.push(ws); return C.addScaledVector(bE, a * ws * (sh === 'coffin' ? Math.max(0.5, 1 + gC * dc) : 1 + gS * gM * Math.tanh(dc / gM))).addScaledVector(Nt, h * ws ** 0.7 * (1 + 0.35 * tc) - 0.00012 * k * tc);   // (never wider than where it leaves the finger: its width held, then only narrowing)
       }));
       refN.push(at(t)[1]); TT.push(tr); WS.push(wr);
     }
