@@ -163,6 +163,13 @@ def main():
         tdir = os.path.join(cdir, 'tex')
         geo += '\n' + '\n'.join(f'<script id="car-tex-{os.path.splitext(fn)[0]}" type="text/plain">' + base64.b64encode(open(os.path.join(tdir, fn), 'rb').read()).decode('ascii') + '</script>'
                                 for fn in sorted(os.listdir(tdir)) if fn.endswith('.webp'))
+    # the safety car's model (assets/sc: vehicle/SafetyCarModel.js loadSCModel) as <script id="sc-json|sc-bin|sc-tex-<name>">
+    sdir = os.path.join(ROOT, 'assets', 'sc')
+    if os.path.isdir(sdir):
+        geo += '\n<script id="sc-json" type="application/json">' + read(os.path.join(sdir, 'sc.json')).replace('</', '<\\/') + '</script>'
+        geo += '\n<script id="sc-bin" type="text/plain">' + base64.b64encode(open(os.path.join(sdir, 'sc.bin.gz'), 'rb').read()).decode('ascii') + '</script>'
+        geo += '\n' + '\n'.join(f'<script id="sc-tex-{os.path.splitext(fn)[0]}" type="text/plain">' + base64.b64encode(open(os.path.join(sdir, 'tex', fn), 'rb').read()).decode('ascii') + '</script>'
+                                for fn in sorted(os.listdir(os.path.join(sdir, 'tex'))) if fn.endswith('.webp'))
     html = re.sub(r'<link rel="stylesheet" href="src/ui/style.css">', lambda _: f'<style>\n{css}\n</style>', html)
     html = re.sub(r'<script type="importmap">.*?</script>', lambda _: '<script type="importmap">\n' + json.dumps(importmap) + '\n</script>', html, flags=re.S)
     html = html.replace('<script type="module" src="src/main.js"></script>',

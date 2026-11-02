@@ -1,0 +1,6 @@
+The safety car is based on "2021 | Aston Martin Vantage F1 Safety Car" (https://sketchfab.com/3d-models/2021-aston-martin-vantage-f1-safety-car-7536711b006a425ba1125931c3fde75d)
+by kevin (ケビン) (https://sketchfab.com/sohyalebret), licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/).
+
+Changes: converted with tools/sc_model.mjs - the engine bay and hidden parts removed, cut into parts (four wheels about
+their hubs, the light bar's lamps, the tail lights), simplified to three levels of detail, quantized; materials retuned;
+textures downsized to webp.

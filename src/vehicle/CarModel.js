@@ -10,11 +10,11 @@ let MODEL = null, LOADING = null;
 export function carModel() { return MODEL; }
 
 const embedded = (id) => (typeof document !== 'undefined' ? document.getElementById(id) : null);
-async function gunzip(bytes) {
+export async function gunzip(bytes) {
   const s = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
   return new Uint8Array(await new Response(s).arrayBuffer());
 }
-const b64 = (s) => { const t = atob(s.trim()), a = new Uint8Array(t.length); for (let i = 0; i < t.length; i++) a[i] = t.charCodeAt(i); return a; };
+export const b64 = (s) => { const t = atob(s.trim()), a = new Uint8Array(t.length); for (let i = 0; i < t.length; i++) a[i] = t.charCodeAt(i); return a; };
 
 /** load the model (once): geometry and textures */
 export function loadCarModel(base = 'assets/car/') {
@@ -33,7 +33,7 @@ export function loadCarModel(base = 'assets/car/') {
 }
 
 /** a chunk of car.bin -> a BufferGeometry (positions about the part's pivot) */
-function decode(bin, c) {
+export function decode(bin, c) {
   const g = new THREE.BufferGeometry(), n = c.n, [mn, mx] = c.box;
   const q = new Uint16Array(bin.buffer, bin.byteOffset + c.pos, n * 3), pos = new Float32Array(n * 3);
   for (let i = 0; i < n * 3; i++) { const j = i % 3; pos[i] = mn[j] + (q[i] / 65535) * (mx[j] - mn[j]); }
