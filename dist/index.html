@@ -597,7 +597,7 @@ table.res tr.me td { color: var(--accent2); font-weight: 700; }
     <div class="brand-line"></div>
     <h1 id="brand-title">FORMULA 1<span id="brand-sub">SIMULATOR</span></h1>
     <!-- the build's version: +0.01 with every build handed out -->
-    <span id="app-ver" title="Version">V2.17</span>
+    <span id="app-ver" title="Version">V2.18</span>
     <div id="menu-sub">Real circuits built from OpenStreetMap</div>
   </div>
   <div id="loading" class="hidden"><div class="ld"><i></i></div><span>Building the circuit from OpenStreetMap…</span></div>
@@ -661,7 +661,7 @@ table.res tr.me td { color: var(--accent2); font-weight: 700; }
             <div class="opt race-only"><div class="lbl">Distance</div><div class="seg k-seg" id="opt-len"><button data-v="3">3 laps</button><button data-v="5" class="sel">5 laps</button><button data-v="8">8 laps</button><button data-v="13">25%</button><button data-v="25">50%</button><button data-v="50">Full</button></div></div>
             <div class="grid2">
               <div class="opt"><div class="lbl">Time</div><div class="seg k-seg" id="opt-time"><button data-v="night" class="sel">Midnight</button><button data-v="day">Midday</button></div><small id="time-note" class="su-note"></small></div>
-              <div class="opt"><div class="lbl">Weather</div><div class="seg k-seg" id="opt-weather"><button data-v="dry" class="sel">Dry</button><button data-v="damp">Damp</button><button data-v="wet">Wet</button></div></div>
+              <div class="opt"><div class="lbl">Weather</div><div class="seg k-seg" id="opt-weather"><button data-v="dry" class="sel">Dry</button><button data-v="damp">Damp</button><button data-v="wet">Wet</button><button data-v="changeable" title="Showers that come and go: forecast, not promised">Changeable</button></div></div>
             </div>
           </section>
           <section class="m-pg race-only" data-p="rivals">
@@ -78957,8 +78957,8 @@ function checkerTexture(n = 8) {
  * mask(i) may skip segments. colorFn(i, d) -> [r,g,b] for vertex colors. y may be a function of i.
  * uv: u = 0 at offA, 1 at offB; v = uvFn(i) if given, else s / uvV.
  */
-function ribbon(tr, offA, offB, y, { mask = null, colorFn = null, uvV = 8, closed = tr.closed, yB = null, uvFn = null } = {}) {
-  const pos = [], uv = [], idx = [], col = [];
+function ribbon(tr, offA, offB, y, { mask = null, colorFn = null, uvV = 8, closed = tr.closed, yB = null, uvFn = null, wx = false } = {}) {
+  const pos = [], uv = [], idx = [], col = [], wxa = [];   // (wx: each vertex's lap distance and lateral offset, for the road's wetness - race/Weather.js, main.js wetRoad)
   const n = tr.n, segs = closed ? n : n - 1;
   let vcount = 0; let prevEmitted = false;
   const yAt = (i) => (typeof y === 'function' ? y(i) : y);
@@ -78972,6 +78972,7 @@ function ribbon(tr, offA, offB, y, { mask = null, colorFn = null, uvV = 8, close
     pos.push(tr.px[i] + tr.nx[i] * a, yAt(i), tr.pz[i] + tr.nz[i] * a, tr.px[i] + tr.nx[i] * b, yBAt(i), tr.pz[i] + tr.nz[i] * b);
     const v = vOver ?? vAt(i);
     uv.push(0, v, 1, v);
+    if (wx) { const sv = vOver != null ? vOver * uvV : tr.s[i]; wxa.push(sv, a, sv, b); }
     if (colorFn) { col.push(...colorFn(i, a), ...colorFn(i, b)); }
     return vcount++;
   };
@@ -78991,6 +78992,7 @@ function ribbon(tr, offA, offB, y, { mask = null, colorFn = null, uvV = 8, close
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
   if (colorFn) g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  if (wx) g.setAttribute('aWx', new THREE.Float32BufferAttribute(wxa, 2));
   g.setIndex(idx); g.computeVertexNormals();
   return g;
 }
@@ -79068,7 +79070,7 @@ function buildTrackMeshes(track, pit, gridSlots) {
   const asphalt = asphaltTexture(); asphalt.repeat.set(2, 1);
   const roadMat = new THREE.MeshStandardMaterial({ map: asphalt, roughness: 0.62, metalness: 0.06, envMapIntensity: 0.55, vertexColors: true, emissive: 0x0c0d12, emissiveIntensity: 0.6 });   // slick: floodlights / Sphere glow smear across it
   const HW = tr.hw, HL = tr.hwL, HR = tr.hwR, EG = (i, side) => (side > 0 ? HL[i] : HR[i]);
-  const roadGeo = ribbon(tr, (i) => -HR[i], (i) => HL[i], 0, { colorFn: (i, d) => { const r = 1 - 0.28 * Math.exp(-(d * d) / 18); return [r, r, r]; }, uvV: 10 });
+  const roadGeo = ribbon(tr, (i) => -HR[i], (i) => HL[i], 0, { colorFn: (i, d) => { const r = 1 - 0.28 * Math.exp(-(d * d) / 18); return [r, r, r]; }, uvV: 10, wx: true });
   group.add(spatialChunks([roadGeo], roadMat, 'road')); group.userData.roadMat = roadMat;   // lap-long ribbons are cut into map cells so off-camera parts cull
 
   // --- white edge lines (polygon offset: painted overlays never z-fight with the road at distance)
@@ -79877,19 +79879,22 @@ function createEnvironment(scene, renderer) {
   const skyGeo = new THREE.SphereGeometry(5200, 32, 16);   // inside the camera's 6000 m far plane; it follows the camera
   const skyMat = new THREE.ShaderMaterial({
     side: THREE.BackSide, depthWrite: false, fog: false,
-    uniforms: { top: { value: new THREE.Color(0x03040a) }, horizon: { value: new THREE.Color(0x2a1e3a) }, glow: { value: new THREE.Color(0x6a3a5a) }, uSun: { value: 0 }, uStars: { value: 1 }, sunDir: { value: new THREE.Vector3(0.4, 0.7, -0.3).normalize() } },
+    uniforms: { uCloud: { value: 0 }, uOver: { value: new THREE.Color(0x7d858f) }, top: { value: new THREE.Color(0x03040a) }, horizon: { value: new THREE.Color(0x2a1e3a) }, glow: { value: new THREE.Color(0x6a3a5a) }, uSun: { value: 0 }, uStars: { value: 1 }, sunDir: { value: new THREE.Vector3(0.4, 0.7, -0.3).normalize() } },
     vertexShader: `varying vec3 vDir; void main(){ vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
-    fragmentShader: `uniform vec3 top, horizon, glow, sunDir; uniform float uSun, uStars; varying vec3 vDir;
+    fragmentShader: `uniform vec3 top, horizon, glow, sunDir, uOver; uniform float uSun, uStars, uCloud; varying vec3 vDir;
       float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453); }
       void main(){
         float h = clamp(vDir.y, 0.0, 1.0);
         vec3 c = mix(horizon, top, pow(h, 0.45));
         c += glow * exp(-h * 14.0) * 0.9;
         vec2 g = floor(vDir.xz / max(vDir.y, 0.05) * 90.0);
-        float st = step(0.995, hash(g)) * smoothstep(0.1, 0.5, h) * uStars;
+        float st = step(0.995, hash(g)) * smoothstep(0.1, 0.5, h) * uStars * (1.0 - uCloud);
         c += vec3(st) * 0.7;
         float sd = max(dot(normalize(vDir), sunDir), 0.0);
-        c += uSun * (vec3(1.0, 0.95, 0.85) * pow(sd, 900.0) * 6.0 + vec3(1.0, 0.9, 0.7) * pow(sd, 12.0) * 0.35);
+        c += uSun * (1.0 - uCloud) * (vec3(1.0, 0.95, 0.85) * pow(sd, 900.0) * 6.0 + vec3(1.0, 0.9, 0.7) * pow(sd, 12.0) * 0.35);
+        // (rain cloud: an overcast sky - race/Weather.js cloudAt, main.js wxFrame - lighter at the horizon, lumpy)
+        float cl = hash(floor(vDir.xz / max(vDir.y, 0.08) * 3.0)) * 0.08;
+        c = mix(c, uOver * (0.78 + 0.3 * (1.0 - h) + cl), uCloud);
         gl_FragColor = vec4(c, 1.0);
       }`,
   });
@@ -141072,6 +141077,8 @@ function showStrategy(o) {
   const A = plans[0], softLife = Math.round(R.life(o.wet > 0.2 ? (o.wet > 0.5 ? 'WET' : 'INTER') : 'SOFT'));
   const advice = o.laps < 6 ? `It's a sprint. The tyres will just about last it - nobody should be stopping. Start on what gives you the best first lap.`
     : `We like Plan A: ${A.label.toLowerCase()}${A.stops ? `, boxing on lap ${A.stints[0].end}` : ''}. The ${o.wet > 0.2 ? 'inters' : 'softs'} are good for about ${softLife} laps before they fall away${R.two ? ', and the rules say two different dry compounds' : ''}. The stop costs us about ${o.pitLoss.toFixed(0)} seconds here.`;
+  // (the weather's forecast as the pit wall has it - race/Weather.js, main.js runRace: o.forecast, a sentence)
+  const advice2 = o.forecast ? `${advice} ${o.forecast}` : advice;
   // (each card once: the bars, the box-lap labels, the window; sync() changes them in place after that)
   const card = (p, i) => {
     const w = pitWindow(R, p), L = p.laps;
@@ -142825,7 +142832,7 @@ class Car {
     const L = this.lost, h = (k) => (L[k] ? 1 : 0), floor = 1 - 0.05 * (h('floorL') + h('floorR'));
     this.lostK = Object.keys(L).length ? [(1 - 0.12 * h('nose')) * floor, (1 - 0.07 * (h('rwL') + h('rwR'))) * floor, 1 + 0.04 * h('nose') + 0.03 * (h('podL') + h('podR')) + 0.02 * h('cover')] : null;
   }
-  fitTyres(compound) { this.tyres = new TyreSet(compound, this.raceLaps, this.track.length); this.tyres.wearMul = this.wearMul || 1; this.tyres.temp = BLANKET; this.punct = null; this.punctP = 0; this.punctShred = false; }
+  fitTyres(compound) { if (compound === 'INTER' || compound === 'WET') this.usedRain = true; this.tyres = new TyreSet(compound, this.raceLaps, this.track.length); this.tyres.wearMul = this.wearMul || 1; this.tyres.temp = BLANKET; this.punct = null; this.punctP = 0; this.punctShred = false; }
 
   // --------------------------------------------------------------------------
   /** Fixed-step physics. */
@@ -144688,7 +144695,7 @@ __m['src/race/Flashback.js'] = (() => {
 const KEEP = 15, RATE = 4;
 /** fields never copied: static data, renderers, callbacks owned elsewhere, scratch objects */
 const SKIP = new Set(['track', 'line', 'profile', 'pit', 'hud', 'audio', 'engineer', 'telemetry', 'obstacles', 'planner', 'flashback', 'replay', 'injuryClip', '_halfTrack',
-  'onFinish', 'onPitDone', 'onRedFlag', 'events', 'sectors', 'passes', 'gLog', '_f', '_fr', '_fp', '_q', '_pq', '_po', '_oh', '_t2', '_v2', '_sa', '_sb', '_v3a', '_v3b', '_va', '_vb']);
+  'onFinish', 'onPitDone', 'onRedFlag', 'events', 'sectors', 'passes', 'gLog', '_f', '_fr', '_fp', '_q', '_pq', '_po', '_oh', '_t2', '_v2', '_sa', '_sb', '_v3a', '_v3b', '_va', '_vb', '_g', '_texData', '_sorted', 'weather']);
 
 class Ref { constructor(o) { this.o = o; } }
 
@@ -150494,7 +150501,7 @@ const PRIZE = [14, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2];
 /** race day, drawn when the calendar is made (the forecast): Las Vegas is a night race, Silverstone a day one, mostly */
 function drawForecast(track) {
   const r = Math.random(), night = track === 'lasvegas' ? Math.random() < 0.85 : Math.random() < 0.15;
-  return { weather: r < 0.62 ? 'dry' : r < 0.84 ? 'damp' : 'wet', time: night ? 'night' : 'day' };
+  return { weather: r < 0.5 ? 'dry' : r < 0.7 ? 'changeable' : r < 0.87 ? 'damp' : 'wet', time: night ? 'night' : 'day' };   // (the forecast: race day itself can differ - race/Weather.js weatherPlan)
 }
 /**
  * Trophies: the milestones of a career, each earned once (the round and season it came in kept). check(x): x is the
@@ -150807,7 +150814,7 @@ class Career {
    */
   simQuali() {
     const tid = this.calendar[this.round - 1], wet = this.forecastAt().weather, base = SIM_LAP[tid] || 90, es = this.entries();
-    const sc = (e) => carPace(e, tid) + (e.rating + moraleSimBonus(e.morale)) * 0.02, best = Math.max(...es.map(sc)), luck = wet === 'wet' ? 0.004 : wet === 'damp' ? 0.0028 : 0.0015;
+    const sc = (e) => carPace(e, tid) + (e.rating + moraleSimBonus(e.morale)) * 0.02, best = Math.max(...es.map(sc)), luck = wet === 'wet' ? 0.004 : wet === 'damp' || wet === 'changeable' ? 0.0028 : 0.0015;
     const laps = es.map((e) => ({ e, t: base * (wet === 'wet' ? 1.12 : wet === 'damp' ? 1.05 : 1) * (1 + (best - sc(e)) * 1.4 + gauss() * luck + (Math.random() < 0.03 ? 0.01 + Math.random() * 0.02 : 0)) }));   // (now and then a lap spoiled: traffic, a mistake, a red flag)
     laps.sort((a, b) => a.t - b.t);
     const ids = laps.map((x) => x.e.careerId);
@@ -150831,7 +150838,7 @@ class Career {
     const tid = this.calendar[this.round - 1], wet = this.forecastAt().weather, base = SIM_LAP[tid] || 90, laps = this.laps || 10;
     const es = this.entries(), by = Object.fromEntries(es.map((e) => [e.careerId, e])), grid = this.savedGrid.ids.filter((id) => by[id]);
     for (const e of es) if (!grid.includes(e.careerId)) grid.push(e.careerId);
-    const sc = (e) => carPace(e, tid) + (e.rating + moraleSimBonus(e.morale)) * 0.02, best = Math.max(...es.map(sc)), rain = wet === 'wet' ? 2.2 : wet === 'damp' ? 1.5 : 1;
+    const sc = (e) => carPace(e, tid) + (e.rating + moraleSimBonus(e.morale)) * 0.02, best = Math.max(...es.map(sc)), rain = wet === 'wet' ? 2.2 : wet === 'damp' ? 1.5 : wet === 'changeable' ? 1.7 : 1;
     const rows = grid.map((id, gi) => {
       const e = by[id], lap = base * 1.035 * (wet === 'wet' ? 1.12 : wet === 'damp' ? 1.05 : 1) * (1 + (best - sc(e)) * 1.4);
       // (the start and the traffic: a place on the grid is worth a little over the distance; the pace varies lap to lap)
@@ -176608,7 +176615,7 @@ function briefBoxes(c) {
   const lab = (e) => e?.form?.label || safe(() => formOf(moodOf(c.drivers[e.careerId])).label, 'STEADY');
   const near = mine ? es.filter((e) => e !== mine).sort((a, b) => Math.abs(sc(a) - sc(mine)) - Math.abs(sc(b) - sc(mine))).slice(0, 2) : [];
   const note = near.map((e) => `${last(e.name)} ${lab(e).toLowerCase()}`).join(' · ');
-  return `<div><small>Race day</small><b>${fcTxt(fc)}</b><span>${fc.weather === 'wet' ? 'full wets likely' : fc.weather === 'damp' ? 'intermediates to start' : 'slicks'}</span></div>
+  return `<div><small>Race day</small><b>${fcTxt(fc)}</b><span>${fc.weather === 'wet' ? 'full wets likely' : fc.weather === 'damp' ? 'intermediates to start' : fc.weather === 'changeable' ? 'showers about: pit-wall gambles' : 'slicks'}</span></div>
     <div><small>Expected</small><b>${exp ? 'P' + exp : '-'}</b><span>on the car's pace and yours</span></div>
     <div><small>vs ${mate ? esc(last(mate.name)) : 'team-mate'}</small><b>${same ? `Q ${h.q[0]}–${h.q[1]} · R ${h.r[0]}–${h.r[1]}` : '–'}</b><span>qualifying · races this season</span></div>
     <div class="fm"><small>Form</small><b>${esc(mine ? lab(mine) : '-')}</b><span title="${esc(note)}">${note ? esc(note) : 'the field around you'}</span></div>`;
@@ -176695,7 +176702,7 @@ function roundDetail(c, n) {
   }
   const names = Object.entries(c.celebs?.bonds || {}).filter(([, b]) => b?.invited && b.invited.season === c.season && b.invited.round === n).map(([id]) => id.split('-').map((w) => w[0].toUpperCase() + w.slice(1)).join(' '));
   return `<h3>Round ${n} · ${esc(TN(tid))}</h3><span class="muted">${c.seasonOver ? 'Not raced this season.' : n === c.round ? 'The next race.' : `${n - c.round} race${n - c.round === 1 ? '' : 's'} away.`}</span>
-    <span class="lbl">Race day</span><div>${fcTxt(f)} · ${f.weather === 'wet' ? 'full wets likely' : f.weather === 'damp' ? 'intermediates to start' : 'slicks'}</div>
+    <span class="lbl">Race day</span><div>${fcTxt(f)} · ${f.weather === 'wet' ? 'full wets likely' : f.weather === 'damp' ? 'intermediates to start' : f.weather === 'changeable' ? 'showers about: pit-wall gambles' : 'slicks'}</div>
     ${names.length ? `<span class="lbl">Invited</span><div>${esc(nameList(names))}${names.length > 1 ? ' <span class="down">- both at the same race</span>' : ''}</div>` : ''}`;
 }
 
@@ -178233,11 +178240,15 @@ class Planner {
     this.lineK = this.lineK || new Float32Array(NMAX);
     // the circuit's calibration under each node (ai/Calibration.js: corner speed and braking commitment, 1 = physics)
     const cV = this.calV || (this.calV = new Float32Array(NMAX)), cB = this.calB || (this.calB = new Float32Array(NMAX)), aV = tr.aiV, aB = tr.aiB;
+    // (the water under each node, on the dry line and off it - race/Weather.js; Planner.speeds)
+    const wL = this.wL || (this.wL = new Float32Array(NMAX)), wO = this.wO || (this.wO = new Float32Array(NMAX)), wx = ctx.wx, ww = ctx.calWet || 0;
     for (let i = 0; i < n; i++) {
       const s = ctx.s0 + i * DS; tr.sample(s, 0, f);
       const ci = tr.idxAtS(s), w = ctx.calW ?? 1;   // (calW: AIDriver - a calibration fitted solo, eased off in the pack)
       cV[i] = !aV ? 1 : w === 1 ? aV[ci] : 1 + (aV[ci] - 1) * w; cB[i] = !aB ? 1 : w === 1 ? aB[ci] : 1 + (aB[ci] - 1) * w;
       if (tr.aiVr) { cV[i] *= tr.aiVr[ci]; cB[i] *= tr.aiBr[ci]; }   // (a corner's race factors: always - ai/Calibration.js)
+      if (ww > 0) { cV[i] *= 1 + (tr.aiVw[ci] - 1) * ww; cB[i] *= 1 + (tr.aiBw[ci] - 1) * ww; }   // (the wet calibration: ai/Calibration.js `wet`)
+      if (wx) { const lv = wx.levelsAt(s); wL[i] = lv.line; wO[i] = lv.off; }
       N.cx[i] = f.x; N.cz[i] = f.z; const idx = tr.idxAtS(s); N.nx[i] = f.nx; N.nz[i] = f.nz;
       N.dl[i] = line.offsetAt(s); N.lk[i] = line.lineCurv[idx]; N.wd[i] = tr.hwL ? tr.hwL[idx] - tr.halfWidth : 0; N.wdR[i] = tr.hwR ? tr.hwR[idx] - tr.halfWidth : 0;   // (how much wider the road is there, left and right)
       X[i] = f.x + N.nx[i] * N.dl[i]; Z[i] = f.z + N.nz[i] * N.dl[i];
@@ -178283,9 +178294,16 @@ class Planner {
     const n = P.n, g = ctx.grip, v = P.v, vb = P.vm;
     // the most it may do at every node: the corner, any cap, and braking in time for what comes after
     const cV = this.calV, cB = this.calB;
-    for (let i = 0; i < n; i++) vb[i] = Math.min(P.cap[i], this.cornerV(P.k[i], g) * g.scale * cV[i]);
+    // (a wet track: each node's grip against the grip planned on - off the dry line it is wetter: a slower corner and a
+    //  longer stop there; on a slick in a damp race a dive down the inside is where it goes wrong)
+    const wx = ctx.wx, mu = this.muW || (this.muW = new Float32Array(NMAX));
+    if (wx) {
+      const T = ctx.tyres, gp = Math.max(0.05, T.grip(ctx.wPlan) * (1 - 0.1 * ctx.wPlan));
+      for (let i = 0; i < n; i++) { const e = P.e[i] / 1.5, w = this.wO[i] + (this.wL[i] - this.wO[i]) * Math.exp(-0.5 * e * e); mu[i] = Math.min(1.08, Math.max(0.55, T.grip(w) * (1 - 0.1 * w) / gp)); }
+    } else for (let i = 0; i < n; i++) mu[i] = 1;
+    for (let i = 0; i < n; i++) vb[i] = Math.min(P.cap[i], this.cornerV(P.k[i], g) * g.scale * cV[i] * (mu[i] === 1 ? 1 : Math.sqrt(mu[i])));
     vb[n - 1] = Math.min(vb[n - 1], ctx.vEnd);
-    for (let i = n - 2; i >= 0; i--) { const b = Math.sqrt(vb[i + 1] * vb[i + 1] + 2 * this.brakeA(vb[i + 1], P.k[i + 1], g, cB[i + 1]) * DS); if (b < vb[i]) vb[i] = b; }
+    for (let i = n - 2; i >= 0; i--) { const b = Math.sqrt(vb[i + 1] * vb[i + 1] + 2 * this.brakeA(vb[i + 1], P.k[i + 1], g, cB[i + 1] * mu[i + 1]) * DS); if (b < vb[i]) vb[i] = b; }
     // ... and out of a corner no faster than the tyres can put the power down while still cornering (the throttle is
     // fed in, not floored at the apex); on a straight that limit is far above the engine's, so it stays flat out there
     for (let i = 0; i < n - 1; i++) { const a = this.tractionA(vb[i], P.k[i], g), u = Math.sqrt(vb[i] * vb[i] + 2 * a * DS); if (u < vb[i + 1]) vb[i + 1] = u; }
@@ -178293,7 +178311,7 @@ class Planner {
     v[0] = Math.max(0.5, ctx.v);
     for (let i = 0; i < n - 1; i++) {
       const up = Math.sqrt(v[i] * v[i] + 2 * Math.max(0, this.accelA(v[i], P.k[i], g)) * DS);
-      const down = Math.sqrt(Math.max(0.25, v[i] * v[i] - 2 * this.brakeA(v[i], P.k[i], g, cB[i]) * DS));
+      const down = Math.sqrt(Math.max(0.25, v[i] * v[i] - 2 * this.brakeA(v[i], P.k[i], g, cB[i] * mu[i]) * DS));
       v[i + 1] = Math.min(up, Math.max(down, vb[i + 1]));
     }
     P.t[0] = 0; for (let i = 1; i < n; i++) P.t[i] = P.t[i - 1] + DS / Math.max(0.5, (v[i - 1] + v[i]) / 2);
@@ -178615,6 +178633,32 @@ __m['src/ai/Calibration.js'] = (() => {
 // car on its own, and are used only in clean air after the opening lap (AIDriver: in the pack they spun the field).
 
 const AI_CAL = {
+  // <cal:lasvegas>
+  lasvegas: {
+    source: "no dry calibration: the physics alone in the dry",
+    corners: {},
+    wet: {
+      at: 0.35,
+      source: "the driver's wet laps (tools/ai_fit_wet.mjs): 31cde445-telemetry-lasvegas-2026-11-01-20-53.json (wetness 0.35, 8 laps); inters, the AI alone at wetness 0.35: 98.15 s -> 97.15 s (2026-11-02, blend 0.7)",
+      corners: {
+        1: { v: 0.892, b: 1.2 },
+        2: { v: 0.892, b: 1.2 },
+        3: { v: 1.004, b: 1 },
+        4: { v: 1.042, b: 1 },
+        5: { v: 1.018, b: 1.2 },
+        6: { v: 1.151, b: 1.151 },
+        7: { v: 1.25, b: 1 },
+        8: { v: 1.25, b: 1 },
+        9: { v: 1.159, b: 1.2 },
+        11: { v: 1.006, b: 1 },
+        12: { v: 1.09, b: 1.2 },
+        14: { v: 1.25, b: 1 },
+        15: { v: 1.003, b: 1 },
+        17: { v: 1.068, b: 1 },
+      },
+    },
+  },
+  // </cal:lasvegas>
   // <cal:silverstone>
   silverstone: {
     source: "the driver's own laps (tools/ai_fit.mjs, lap mode): the racing line shown is the composite of 8 laps (88.25 s); the AI on its own line, its corners fitted to that lap's speeds and braking points at difficulty 100 (2026-10-31, blend 0.7)",
@@ -179010,6 +179054,30 @@ const AI_CAL = {
       16: { v: 1.095, b: 1.025, race: { v: 1.04, b: 1.15 } },   // (Vale: the AI braked 20-30 m before the driver did, in traffic too - braked later always)
       17: { v: 1.095, b: 1.025 },
       18: { v: 1.095, b: 1.025 },
+    },
+    wet: {
+      at: 0.35,
+      source: "the driver's wet laps (tools/ai_fit_wet.mjs): 7ed9010b-telemetry-silverstone-2026-11-02-12-12.json (wetness 0.35, 8 laps); inters, the AI alone at wetness 0.35: 99.15 s -> 99.53 s (2026-11-02, blend 0.7)",
+      corners: {
+        1: { v: 1.138, b: 1 },
+        2: { v: 0.922, b: 1 },
+        3: { v: 1.027, b: 1.148 },
+        4: { v: 1.147, b: 1.111 },
+        5: { v: 1.031, b: 1 },
+        6: { v: 1.027, b: 1 },
+        7: { v: 1.031, b: 1.144 },
+        8: { v: 0.988, b: 1 },
+        9: { v: 0.894, b: 0.985 },
+        10: { v: 1.2, b: 1 },
+        11: { v: 1.07, b: 1.2 },
+        12: { v: 0.981, b: 1 },
+        13: { v: 0.898, b: 1 },
+        14: { v: 0.928, b: 1 },
+        15: { v: 1.033, b: 1.2 },
+        16: { v: 1.138, b: 1.2 },
+        17: { v: 1.164, b: 1 },
+        18: { v: 1.065, b: 1 },
+      },
     },
   },
   // </cal:silverstone>
@@ -179566,6 +179634,25 @@ function applyCalibration(track, cal = AI_CAL[track.def.id]) {
   //  calibration is not; for a corner the field gets wrong in a race and not alone - Austin's Turn 11, run wide on the exit)
   const VR = new Float32Array(n).fill(1), BR = new Float32Array(n).fill(1);
   track.aiCal = cal || null; track.aiV = V; track.aiB = B; track.aiVr = VR; track.aiBr = BR;
+  // (the wet calibration - `wet: { at, corners }`, fitted to laps driven on a wet track at wetness `at`: what the AI
+  //  dares in each corner against the physics' own wet pace; Planner blends it in by how wet the track is)
+  track.aiVw = null; track.aiBw = null;
+  if (cal?.wet?.corners) {
+    const VW = new Float32Array(n).fill(1), BW = new Float32Array(n).fill(1), DW = new Float32Array(n).fill(Infinity);
+    for (const c of track.def.corners || []) {
+      const k = cal.wet.corners[c.n]; if (!k || c.s == null) continue;
+      const put = (arr, win, val) => {
+        if (val == null || val === 1) return;
+        for (let x = win[0] - EASE; x <= win[1] + EASE; x += track.ds) {
+          const i = track.idxAtS(c.s + x), t = x < win[0] ? (x - win[0] + EASE) / EASE : x > win[1] ? (win[1] + EASE - x) / EASE : 1, w = t * t * (3 - 2 * t);
+          const d = Math.abs(x); if (arr === VW && d > DW[i] && VW[i] !== 1) continue;
+          arr[i] = 1 + (val - 1) * w; if (arr === VW) DW[i] = d;
+        }
+      };
+      put(VW, V_WIN, k.v); put(BW, B_WIN, k.b);
+    }
+    track.aiVw = VW; track.aiBw = BW;
+  }
   if (!cal || !cal.corners) return track;
   for (const c of track.def.corners || []) {
     const k = cal.corners[c.n]; if (!k || c.s == null) continue;
@@ -179705,7 +179792,9 @@ class AIDriver {
    */
   gripState() {
     const c = this.car, P = this.line.grip, T = AI_TUNE;
-    const muR = (c.tyres.grip(c.wetness) / COMPOUNDS.SOFT.grip) * (1 - 0.25 * c.tyres.instability()) * (c.offTrack ? c.surfGrip : 1) * (1 - 0.1 * c.wetness) * (1 - 0.22 * c.dmg.susp) * (1 - 0.06 * (c.dmg.fwL + c.dmg.fwR)) * (c.aiGrip || 1);
+    // (the wetness it plans on: the water ahead on its line as well as under it - Weather.js; replan)
+    const wp = this.wPlan ?? c.wetness;
+    const muR = (c.tyres.grip(wp) / COMPOUNDS.SOFT.grip) * (1 - 0.25 * c.tyres.instability()) * (c.offTrack ? c.surfGrip : 1) * (1 - 0.1 * wp) * (1 - 0.22 * c.dmg.susp) * (1 - 0.06 * (c.dmg.fwL + c.dmg.fwR)) * (c.aiGrip || 1);
     const rearLtd = c.aeroRear() < c.aeroFront() - 0.05;   // a damaged rear wing makes the car rear-limited: drive it well inside
     const dfR = c.perf * (1 - 0.22 * c.slipstream) * Math.min(c.aeroFront(), c.aeroRear()) * (rearLtd ? 0.65 : 1);
     const g = this.g;
@@ -179714,7 +179803,7 @@ class AIDriver {
     // (in the wet, at speed: the stop planned short of the limit and the rear trail-braked well inside its grip - turning
     //  in on the brakes at 300 km/h is where they spun, Maggotts above all; below ~160 km/h nothing kept back - Planner
     //  .brakeA ramps it in with the speed)
-    g.wetB = 0.15 * c.wetness; g.wetM = 0.3 * c.wetness;
+    g.wetB = 0.15 * wp; g.wetM = 0.3 * wp;
     g.power = c.enginePower(); g.ers = c.ersEnergy > 0.05;
     this._muPhys = CAR.muBase * muR; this._dfm = P.dfm * dfR;   // the car's real limit (the plan keeps a margin under it)
   }
@@ -179726,9 +179815,10 @@ class AIDriver {
   }
   gripFactor() {
     const c = this.car;
-    const g = c.tyres.grip(c.wetness) / COMPOUNDS.SOFT.grip * (1 - 0.25 * c.tyres.instability());   // (a set past the cliff, or cold and twitchy: well inside it - it slid off at the old margin)
+    const wp = this.wPlan ?? c.wetness;
+    const g = c.tyres.grip(wp) / COMPOUNDS.SOFT.grip * (1 - 0.25 * c.tyres.instability());   // (a set past the cliff, or cold and twitchy: well inside it - it slid off at the old margin)
     const dmg = 1 - 0.18 * (c.dmg.fwL + c.dmg.fwR) * 0.5 - 0.3 * c.dmg.rw - 0.15 * c.dmg.susp;
-    return Math.sqrt(Math.max(0.2, g * dmg * (c.offTrack ? Math.min(0.75, c.surfGrip) : 1) * (1 - 0.13 * c.slipstream) * (1 - 0.12 * c.wetness)));
+    return Math.sqrt(Math.max(0.2, g * dmg * (c.offTrack ? Math.min(0.75, c.surfGrip) : 1) * (1 - 0.13 * c.slipstream) * (1 - 0.12 * wp)));
   }
   nextCorner(within) {
     const tr = this.track; const s0 = this.car.s;
@@ -179739,6 +179829,12 @@ class AIDriver {
   // ---- planning -------------------------------------------------------------------------------------------------
   replan(world) {
     const c = this.car, tr = this.track, line = this.line, T = AI_TUNE, ctx = this.ctx, v = c.speed, F = c.form || NF;
+    // the water it will drive on: under the car and on its line over the next 150 m (a wet corner ahead is braked for
+    // before the car is in it); the planner reads the water under every node of every path it weighs (Planner.speeds:
+    // off the dry line, less grip - a move round the outside in a drying race is a gamble)
+    const wxs = world.weather; this._wx = wxs || null;
+    if (wxs) { let w = c.wetness; for (const a of [35, 80, 150]) { const s = c.s + a; w = Math.max(w, wxs.wetAt(s, line.offsetAt(s))); } this.wPlan = w; } else this.wPlan = c.wetness;
+    ctx.wx = wxs && wxs.avgOff > 0.02 && !c.offTrack ? wxs : null; ctx.wPlan = this.wPlan; ctx.tyres = c.tyres;
     this.gripState();
     // race control (yellow flags, VSC, safety car): a slower pace, a speed cap, no overtaking, a longer gap
     const rule = world.sc?.rules(c) || null; this.rule = rule;
@@ -179793,7 +179889,10 @@ class AIDriver {
       if (ds > -8 && ds < 100) near = Math.min(near, ds < 6 ? 0 : ds);
     }
     ctx.calW = !pack ? 1 : c.lap >= 1 ? Math.max(0, Math.min(1, (near - 25) / 75)) : 0;
-    ctx.calW *= Math.max(0, 1 - c.wetness / 0.45);   // (a calibration is from dry laps: on a wet track the physics alone - at Maggotts the fitted pace spun them)
+    ctx.calW *= Math.max(0, 1 - this.wPlan / 0.45);   // (a calibration is from dry laps: on a wet track the physics alone - at Maggotts the fitted pace spun them)
+    // (... unless the circuit has one from wet laps too - ai/Calibration.js `wet`, tools/ai_fit_wet.mjs: then that one,
+    //  by how wet it is against the wetness it was fitted at, in the pack as well - it was fitted on the physics' wet pace)
+    const wc = tr.aiCal?.wet; ctx.calWet = wc && tr.aiVw ? Math.min(1, Math.max(0, (this.wPlan - 0.08) / Math.max(0.1, (wc.at ?? 0.35) - 0.08))) : 0;
     this._hold = sinceStart < T.laneHoldT && c.gridSlot ? Math.max(-ctx.m, Math.min(ctx.m, c.gridSlot.d)) : null;
     ctx.forceLane = this._hold != null || !!this.defend;
     // boxing this lap: braking for the pit entry like any corner - to the speed the entry road allows at its first
@@ -180233,7 +180332,11 @@ class AIDriver {
     //  FORM.pressure; the cap stays the cap)
     const F = c.form || NF;
     const zc = zoneCal(this.track, zone);   // (the circuit's calibration: some corners invite more mistakes, ai/Calibration.js)
-    const p = Math.min(0.08, AI_TUNE.errBase * (1 - c.rating) * 4 * worn * (1 + 1.6 * this.pressure * F.pressure) * cold * (0.6 + 0.4 * this.aggression) * (1 + 0.6 * ((zone.runoff || 0) / 16)) * F.err * (zc?.err ?? 1));   // braking mistakes happen where the run-off invites them
+    // (the water in the corner against the tyre: a damp patch on slicks is where a car goes off; a rain tyre on a dry
+    //  line overheats and slides; a wet corner is harder on anything)
+    const wx = world?.weather, sz = zone.sA ?? c.s, wz = wx ? wx.wetAt(sz, this.line.offsetAt(sz)) : c.wetness, rainT = c.tyres.compound === 'INTER' || c.tyres.compound === 'WET';
+    const wetErr = (1 + 0.8 * wz) * (rainT ? (wz < 0.1 ? 1.3 : 1) : 1 + 5 * Math.max(0, wz - 0.12));
+    const p = Math.min(0.08 * (wetErr > 1.5 ? 1.6 : 1), wetErr * AI_TUNE.errBase * (1 - c.rating) * 4 * worn * (1 + 1.6 * this.pressure * F.pressure) * cold * (0.6 + 0.4 * this.aggression) * (1 + 0.6 * ((zone.runoff || 0) / 16)) * F.err * (zc?.err ?? 1));   // braking mistakes happen where the run-off invites them
     if (rnd() > p) return;
     const tight = zone.maxCurv > 1 / 45, r = rnd();
     // mostly lock-ups (they run wide into the run-off, no spin); the bigger the run-off, the more of them; snaps are
@@ -180261,6 +180364,10 @@ class AIDriver {
     const c = this.car, back = gridPos > n * 0.6;
     const pick = (opts) => { let x = rnd() * opts.reduce((a, o) => a + o[1], 0); for (const o of opts) { x -= o[1]; if (x <= 0) return o[0]; } return opts[0][0]; };
     this.setStrat(back ? pick([['gamble', 0.4], ['long', 0.2], ['early', 0.2], ['standard', 0.2]]) : pick([['standard', 0.45], ['early', 0.3], ['long', 0.25]]));
+    // (the weather: how long the pit wall leaves a car out on the wrong tyre hoping the rain passes or the track comes
+    //  back - stay - and how soon it jumps to the tyre the sky is heading for - early; the back of the grid gambles,
+    //  it has nothing to lose)
+    this.wxStay = Math.min(1, rnd() * 0.85 + 0.15 * this.aggression); this.wxEarly = Math.min(1, rnd() * 0.75 + (back ? 0.3 : 0));
     if (c.wetness >= 0.2 || world.lapsTotal < 3) return false;
     // (the start tyre from the strategy screen's sums - ui/Strategy.js planRace: each compound's pace, life and cliff for
     //  this race - the quickest plan's, now and then the next one's, for a standard race; the softest start among the
@@ -180295,7 +180402,8 @@ class AIDriver {
   /** the set for the rest of the race: the softest that reaches the flag (else a hard: another stop to come); rain tyres */
   nextCompound(lapsLeft) {
     const c = this.car;
-    if (c.wetness > 0.6) return 'WET'; if (c.wetness > 0.3) return 'INTER';
+    const W = this._wx ? this._wx.tyreWet : c.wetness;
+    if (W > 0.62) return 'WET'; if (W > 0.27) return 'INTER';
     for (const comp of ['SOFT', 'MEDIUM', 'HARD']) if (cliffLaps(comp, c.raceLaps) >= lapsLeft - 0.3) return comp;
     return 'HARD';
   }
@@ -180403,7 +180511,7 @@ class AIDriver {
     this._rivalT = (this._rivalT || 0) - 1 / 60;
     let cover = false, under = null;
     if (this._rivalT <= 0) { this._rivalT = 0.5; cover = lapsLeft >= 2 && this.watchRivals(world, lapsLeft); if (!cover) under = this.undercutOn(world, lapsLeft); }
-    const wetMismatch = (c.wetness > 0.45 && (t.compound !== 'INTER' && t.compound !== 'WET')) || (c.wetness < 0.15 && (t.compound === 'INTER' || t.compound === 'WET'));
+    const wxCall = this.weatherCall(world, lapsLeft), wetMismatch = !!wxCall, W = world.weather ? world.weather.tyreWet : c.wetness;
     // the pit entry comes once a lap: if the tyres would go over the cliff (70 % wear) before the one after this,
     // box at this one - a lap on worn-out tyres costs far more than the stop. The wear of the last full lap says how
     // fast this set is going (a team watches exactly that)
@@ -180416,7 +180524,8 @@ class AIDriver {
     const damaged = (c.dmg.fwL + c.dmg.fwR) > 0.45 || c.dmg.rw > 0.35 || c.dmg.susp > 0.55;
     // (8 laps or more: one stop is mandatory - in a short race it is made whatever the wear, and never left too late; a
     //  gambler holds out for a safety car to the last lap, and makes it there)
-    const mustStop = world.lapsTotal >= 8 && c.pitStops === 0 && lapsLeft >= 0.6 && (S.type === 'gamble' ? lapsLeft <= 2.05
+    // (and none in a wet race: the rule is for dry ones - a car that has run a rain tyre, or a track that has been wet)
+    const mustStop = world.lapsTotal >= 8 && c.pitStops === 0 && lapsLeft >= 0.6 && !c.usedRain && !world.weather?.everWet && (S.type === 'gamble' ? lapsLeft <= 2.05
       : lapsLeft <= Math.ceil(world.lapsTotal * 0.45) && (t.wear > 0.45 || world.lapsTotal < 13 || lapsLeft <= 2.5));
     // (the pit wall gets it wrong now and then - the more often the smaller the team: race/Calls.js FAULT_P. A stop for
     //  worn tyres alone left a lap too late, once a stint; it stays out to the next lap's entry, on the cliff's edge)
@@ -180429,11 +180538,72 @@ class AIDriver {
       // (the set for the rest of the race: the softest that reaches the flag - a different one from the first stint's,
       //  where it can be, as the rules want two in a dry race)
       let comp = this.nextCompound(lapsLeft);
-      if (c.pitStops === 0 && comp === t.compound && c.wetness < 0.3) comp = comp === 'HARD' ? 'MEDIUM' : comp === 'MEDIUM' ? 'HARD' : 'MEDIUM';
+      if (wxCall) comp = wxCall === 'SLICK' ? this.slickFor(lapsLeft) : wxCall;
+      if (c.pitStops === 0 && comp === t.compound && W < 0.3 && !wxCall) comp = comp === 'HARD' ? 'MEDIUM' : comp === 'MEDIUM' ? 'HARD' : 'MEDIUM';
       // (... and now and then a set that will not last: one softer than the race wants, it falls away before the flag)
       const softer = { HARD: 'MEDIUM', MEDIUM: 'SOFT' }[comp];
-      if (softer && c.wetness < 0.3 && lapsLeft > cliffLaps(softer, c.raceLaps) * 1.15 && rnd() < fp * 0.6) { comp = softer; world.calls?.fault(c, 'tyre', { comp }); }
+      if (softer && W < 0.3 && !wxCall && lapsLeft > cliffLaps(softer, c.raceLaps) * 1.15 && rnd() < fp * 0.6) { comp = softer; world.calls?.fault(c, 'tyre', { comp }); }
       this.pitPlan = { compound: comp, repair: damaged ? ((c.dmg.rw > 0.35 || c.dmg.susp > 0.55) ? 'full' : 'wing') : 'none' };
+      if (wxCall) { this._wxCalled = world.time; this.stackMate(world, wxCall); world.onWeatherCall?.(c, comp); }
+    }
+  }
+  /** the softest dry tyre that reaches the flag (a dry line come back: no rule about two compounds after a wet race) */
+  slickFor(lapsLeft) {
+    for (const comp of ['SOFT', 'MEDIUM', 'HARD']) if (cliffLaps(comp, this.car.raceLaps) >= lapsLeft - 0.3) return comp;
+    return 'MEDIUM';
+  }
+  /**
+   * The weather call (race/Weather.js): the tyre to change to now, or null to stay out. On the track's wetness for
+   * the tyres (the lap pulled toward its wettest stretches) and the forecast as the pit wall has it - each car's own
+   * nerve deciding where between the cautious call and the gamble: a stayer stays out on slicks in a shower it thinks
+   * will pass, an early mover boxes for inters before the rain arrives, or for slicks the moment a dry line shows.
+   */
+  weatherCall(world, lapsLeft) {
+    const c = this.car, wx = world.weather, tc = c.tyres.compound, rain = tc === 'INTER' || tc === 'WET';
+    if (!wx) { const w = c.wetness; return (w > 0.45 && !rain) ? (w > 0.6 ? 'WET' : 'INTER') : (w < 0.15 && rain) ? 'SLICK' : null; }
+    if (world.time < (this._wxT ?? -1)) return this._wxLast ?? null;
+    this._wxT = world.time + 0.75;
+    const W = wx.tyreWet, lapT = world.lapT || 90, o = wx.outlook(lapT * 1.3), stay = this.wxStay ?? 0.5, early = this.wxEarly ?? 0.4;
+    const soon = o.eta != null && o.eta < lapT * 0.8 && o.p > 0.75 - 0.3 * early && o.peak > 0.45;
+    let call = null, severe = false;
+    if (!rain) {
+      if (W > 0.48 + 0.12 * stay) { call = W > 0.68 ? 'WET' : 'INTER'; severe = true; }
+      else if (W > 0.29 + 0.11 * stay - (wx.rainNow > 0.2 ? 0.06 : 0)) {
+        // (the shower passing and the track not too far gone: a stayer stays out, betting it dries)
+        const passing = wx.rainNow < 0.15 && wx.rainLeft() < lapT * 0.7;
+        call = passing && stay > 0.55 ? null : 'INTER';
+      } else if (soon && W > 0.06 + 0.1 * (1 - early) && lapsLeft > 1.5) call = 'INTER';   // (the early gamble: in before it comes)
+    } else if (tc === 'INTER') {
+      if (W > 0.66 + 0.1 * stay && wx.rainNow > 0.4) call = 'WET';
+      else if (W < 0.14 + 0.09 * early && wx.rainNow < 0.04 && !(o.p > 0.55 && o.eta != null && o.eta < lapT * 1.2) && lapsLeft > 0.8) { call = 'SLICK'; severe = W < 0.06; }
+    } else {
+      if (W < 0.48 - 0.08 * (1 - early) && wx.rainNow < 0.5) call = W < 0.14 ? 'SLICK' : 'INTER';
+      severe = W < 0.3;
+    }
+    // (a stop just made is not undone a few corners later unless the call is clear; two laps from the flag only a tyre
+    //  that is truly wrong is worth one)
+    if (call && !severe && world.time - (c._pitDoneT ?? -1e9) < lapT * 0.9) call = null;
+    if (call && lapsLeft < 2 && !severe) call = null;
+    this._wxLast = call;
+    return call;
+  }
+  /**
+   * A double stack: the team calls both cars in on the same lap when the weather turns - the team-mate a few seconds
+   * behind (it waits in the lane behind this car while the crew turns it round: RaceDirector.boxBusy, pitDrive), or
+   * just ahead and not yet past the pit entry (this car waits). Only a team-mate on the same kind of tyre.
+   */
+  stackMate(world, call) {
+    const c = this.car, rainCall = call !== 'SLICK';
+    for (const m of world.cars) {
+      if (m === c || m.team !== c.team || m.isPlayer || !m.ai || m.retired || m.finished || m.pitRequested || m.inPit || m.pitLane) continue;
+      const mRain = m.tyres.compound === 'INTER' || m.tyres.compound === 'WET'; if (mRain === rainCall && !(call === 'WET' && m.tyres.compound === 'INTER')) continue;
+      const g = world.gap?.(c, m); if (g == null) continue;   // (> 0: the team-mate is ahead)
+      const toEntry = world.pit ? this.planner.ds(m.s, world.pit.entryS) : 999;
+      if ((g < 0 && g > -9) || (g > 0 && g < 4 && toEntry > 180)) {
+        const a = m.ai; m.pitRequested = true; a.pitReason = 'stack'; a._wxCalled = world.time;
+        a.pitPlan = { compound: call === 'SLICK' ? a.slickFor(world.lapsTotal - m.lap) : call, repair: 'none' };
+        world.onStack?.(c, m, a.pitPlan.compound);
+      }
     }
   }
 }
@@ -180450,7 +180620,7 @@ __m['src/race/Telemetry.js'] = (() => {
 
 /** player channels, in export order */
 const CHANNELS = ['t', 'd', 'x', 'z', 'lat', 'v', 'thr', 'brk', 'steer', 'gear', 'rpm', 'gLong', 'gLat', 'surf', 'ers', 'ersE', 'slipF', 'slipR', 'tyreT', 'tyreW',
-  'kerb', 'pitch', 'roll', 'ride', 'fzFL', 'fzFR', 'fzRL', 'fzRR'];   // chassis: wheels on a kerb (bitmask FL 1 FR 2 RL 4 RR 8), body pitch / roll (deg), heave (mm), wheel loads (kN)
+  'kerb', 'pitch', 'roll', 'ride', 'fzFL', 'fzFR', 'fzRL', 'fzRR', 'wet'];   // (wet: the water under the car, 0 dry .. 1 flooded - race/Weather.js)   // chassis: wheels on a kerb (bitmask FL 1 FR 2 RL 4 RR 8), body pitch / roll (deg), heave (mm), wheel loads (kN)
 const AI_CHANNELS = ['t', 'd', 'v', 'thr', 'brk', 'lat'];
 const G = 9.81;
 
@@ -180517,7 +180687,7 @@ class Telemetry {
     s.t.push(time - c.lapStart); s.d.push(c.lapDist); s.x.push(c.x); s.z.push(c.z); s.lat.push(c.d - this.line.offsetAt(c.s));
     s.v.push(c.speed * 3.6); s.thr.push(c.throttle); s.brk.push(c.brake); s.steer.push(c.steer); s.gear.push(c.gear); s.rpm.push(c.rpm);
     s.gLong.push(c.ax / G); s.gLat.push(c.ay / G); s.surf.push(c.surf || 0); s.ers.push(c.ers > 0 ? 1 : 0); s.ersE.push(c.ersEnergy);
-    s.slipF.push(c.slipF || 0); s.slipR.push(c.slipR || 0); s.tyreT.push(c.tyres.temp); s.tyreW.push(c.tyres.wear);
+    s.slipF.push(c.slipF || 0); s.slipR.push(c.slipR || 0); s.tyreT.push(c.tyres.temp); s.tyreW.push(c.tyres.wear); s.wet.push(c.wetness || 0);
     const W = c.wh; let kerb = 0; for (let k = 0; k < 4; k++) if (W.surf[k] === 1) kerb |= 1 << k;
     s.kerb.push(kerb); s.pitch.push(c.pt * 57.3); s.roll.push(c.rl * 57.3); s.ride.push(c.hv * 1000);
     s.fzFL.push(W.fz[0] / 1000); s.fzFR.push(W.fz[1] / 1000); s.fzRL.push(W.fz[2] / 1000); s.fzRR.push(W.fz[3] / 1000);
@@ -181644,6 +181814,7 @@ class RaceRadio {
     const d = this.d, p = d.player, E = d.engineer; if (!E || !p || p.retired || p.finished || o === p) return;
     const pos = d.positions, me = pos.indexOf(p), k = pos.indexOf(o); if (Math.abs(k - me) > 3) return;
     const g = this.gap(p, o), last = o.name.split(' ').pop(), w = p.tyres.wear, why = o.ai?.pitReason;
+    if (why === 'weather' || why === 'stack') return;   // (the weather's calls have their own words: RaceDirector.weatherStop)
     let txt = `${last} is boxing from P${k + 1}`;
     if (why === 'cheap') txt += ', a cheap stop under the safety car.';
     else if (g != null && Math.abs(g) < 3 && !p.pitRequested) txt += `${why === 'cover' ? ', covering' : ''}${g < 0 ? `, ${Math.abs(g).toFixed(1)} behind, that's the undercut` : ''}. ${w > 0.45 ? 'We can respond: box this lap, press P.' : 'Our tyres are good, we stay out.'}`;
@@ -182256,6 +182427,418 @@ class TeamOrders {
 return { orderSub, TeamOrders };
 })();
 
+// ---- src/race/Weather.js
+__m['src/race/Weather.js'] = (() => {
+
+// Dynamic weather: rain that comes and goes during a session, a track that gets wet corner by corner and dries again,
+// a dry line that the cars clear, and a forecast that is sometimes wrong.
+//
+//  * The sky is a set of rain CELLS, each a soft disc of rain drifting across the circuit on the wind. A cell is born,
+//    grows over a minute or two, rains and dies away. Where its path crosses the circuit decides what gets wet: one
+//    that passes off to the side clips a corner or two, or misses entirely; a big slow one covers everything. A wet race
+//    is one huge cell over the whole map that eases off at a time of its own.
+//  * The TRACK is held every 10 m of the lap as two water levels: off the line, and on the racing line. Rain raises
+//    both toward a level its strength allows - gradually: a drizzle takes minutes to make a track damp, a downpour a
+//    minute or so to soak it. The sun and the wind dry both, slower at night; and every car through a stretch on the
+//    line pushes water off it - the dry line, a ribbon of grip a car's width wide with wet asphalt either side of it.
+//    Some stretches drain worse than others (the dips, the kerbs' edges): they stay wet longest.
+//  * The FORECAST is what the teams believe: the real cells, each with its timing a few minutes out, some never seen
+//    until the radar picks them up (little notice), and showers that only exist in the forecast and break up before
+//    they arrive. The radar firms a cell up as it comes within a few minutes.
+//
+// Everything here is the race director's (it is a flashback anchor: rewound with the race). Read by the cars' physics
+// (wetAt: the water under a car), the AI (its strategy and its plan), the HUD, the engineer and the road's shader.
+
+const BIN = 10;                 // m of lap per track cell
+const LINE_W = 1.5;             // the dry line's half width (m, a gaussian's sigma)
+const TICK = 0.25;              // s between track updates
+const WX_LABEL = { dry: 'Dry', damp: 'Damp', wet: 'Wet', changeable: 'Changeable' };
+
+/** a small seeded random (mulberry32): the weather of a session is the same however often it is rewound */
+function rng(seed) {
+  let a = (seed >>> 0) || 1;
+  return () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+const clamp01 = (x) => (x < 0 ? 0 : x > 1 ? 1 : x);
+const smooth = (a, b, x) => { const t = clamp01((x - a) / (b - a)); return t * t * (3 - 2 * t); };
+
+/**
+ * The weekend's weather, drawn once: what race day really brings (kind) and what was forecast for it. A career's
+ * forecast was drawn with the calendar and is not always right; a chosen quick race is the weather chosen.
+ *   kind: 'dry' | 'damp' | 'wet' | 'changeable'   seed: the sky of each session is drawn from it
+ *   start: the track's wetness at the start (0 dry .. 1 flooded) - the starting tyres are chosen on it
+ */
+function weatherPlan(kind, { forecast = null, night = false } = {}) {
+  kind = WX_LABEL[kind] ? kind : 'dry';
+  let truth = kind;
+  if (forecast) {   // (race day against its forecast: mostly as said, now and then not)
+    const r = Math.random();
+    truth = kind === 'dry' ? (r < 0.84 ? 'dry' : r < 0.97 ? 'changeable' : 'damp')
+      : kind === 'changeable' ? (r < 0.62 ? 'changeable' : r < 0.84 ? 'dry' : 'damp')
+      : kind === 'damp' ? (r < 0.58 ? 'damp' : r < 0.8 ? 'changeable' : r < 0.9 ? 'dry' : 'wet')
+      : (r < 0.7 ? 'wet' : r < 0.88 ? 'damp' : 'changeable');
+  }
+  const seed = (Math.random() * 2 ** 31) | 0, R = rng(seed);
+  const start = truth === 'wet' ? 0.72 + 0.1 * R() : truth === 'damp' ? 0.3 + 0.1 * R() : truth === 'changeable' && R() < 0.3 ? 0.12 + 0.1 * R() : 0;
+  return { kind: truth, said: kind, seed, start: +start.toFixed(2), night };
+}
+
+/** the start's wetness a weather name means, before any plan is drawn (the menus' preview, the title screen) */
+const nameWetness = (w) => (w === 'wet' ? 0.75 : w === 'damp' ? 0.35 : 0);
+
+class Weather {
+  /**
+   * @param o { track, line, plan (weatherPlan), duration (s the session should take), session: 'race'|'quali'|'practice'|'tt',
+   *            fixed: true - the start's wetness held all session (time trial, the calibration runs) }
+   */
+  constructor(o) {
+    this.track = o.track; this.line = o.line;
+    const plan = o.plan || weatherPlan('dry'), tr = o.track, L = tr.length;
+    this.kind = plan.kind; this.said = plan.said || plan.kind; this.fixed = !!o.fixed; this.night = !!plan.night;
+    this.dur = Math.max(240, o.duration || 900); this.session = o.session || 'race';
+    this.time = 0; this.acc = 0; this.n = Math.max(8, Math.ceil(L / BIN)); this.bl = L / this.n;   // (a track cell's length: the lap in n equal cells)
+    const n = this.n, R = rng(plan.seed + ({ race: 0, quali: 7919, practice: 104729, tt: 1299709 }[this.session] || 0));
+    // ---- the circuit's geometry under the cells (static: never part of a flashback - Flashback SKIP '_g')
+    const g = this._g = { x: new Float32Array(n), z: new Float32Array(n), off: new Float32Array(n), drain: new Float32Array(n), corner: new Array(n), L, D: 1, cx: 0, cz: 0 };
+    let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+    const f = {}, corners = (tr.def.corners || []).filter((c) => c.s != null);
+    const ph = [R() * 6.28, R() * 6.28, R() * 6.28];
+    for (let i = 0; i < n; i++) {
+      const s = (i + 0.5) * L / n; tr.sample(s, 0, f); g.x[i] = f.x; g.z[i] = f.z; g.off[i] = this.line ? this.line.offsetAt(s) : 0;
+      x0 = Math.min(x0, f.x); x1 = Math.max(x1, f.x); z0 = Math.min(z0, f.z); z1 = Math.max(z1, f.z);
+      // (how well a stretch drains: low spots and flat ones hold water - a smooth noise round the lap, 0.55 .. 1.35)
+      const u = s / L * 6.283;
+      g.drain[i] = 0.95 + 0.22 * Math.sin(u * 3 + ph[0]) + 0.13 * Math.sin(u * 7 + ph[1]) + 0.06 * Math.sin(u * 17 + ph[2]);
+      let best = null, bd = 260; for (const c of corners) { let dd = Math.abs(c.s - s); dd = Math.min(dd, L - dd); if (dd < bd) { bd = dd; best = c; } }
+      g.corner[i] = best ? (best.name || `Turn ${best.n}`) : null;
+    }
+    g.cx = (x0 + x1) / 2; g.cz = (z0 + z1) / 2; g.D = Math.max(400, Math.hypot(x1 - x0, z1 - z0));
+    // ---- the track's water: off the line and on it, every BIN m
+    this.water = new Float32Array(n); this.lineW = new Float32Array(n); this.rainB = new Float32Array(n);
+    const w0 = plan.start || 0;
+    for (let i = 0; i < n; i++) {
+      const pud = clamp01(w0 * (0.75 + 0.35 * (g.drain[i] - 0.4)));
+      this.water[i] = pud; this.lineW[i] = clamp01(pud * (w0 > 0.5 ? 0.9 : 0.78));
+    }
+    // ---- the sky
+    this.cells = this.fixed ? [] : this._sky(R, plan);
+    for (const c of this.cells) this._path(c);
+    // ---- the forecast: the real cells as believed (timing off, some unseen) and showers that never come
+    this.believed = [];
+    this._forecast(R);
+    // ---- what has happened (for the engineer and the AI): the wettest it has been, the radio's memory
+    this.everWet = w0 > 0.25; this.peakRain = 0; this.said0 = false; this.saidAt = -100; this.news = []; this.secWas = [w0, w0, w0];
+    this.rainNow = 0; this.avgLine = 0; this.avgOff = 0; this.summary();
+    // ---- the road's shader texture: per track cell [off-line water, line water, line offset, rain]
+    const data = new Uint8Array(n * 4);
+    this.tex = new THREE.DataTexture(data, n, 1, THREE.RGBAFormat); this.tex.magFilter = THREE.LinearFilter; this.tex.minFilter = THREE.LinearFilter;
+    this.tex.wrapS = THREE.RepeatWrapping; this.tex.needsUpdate = true; this._texData = data; this.fillTex();
+  }
+
+  // ---- the sky -----------------------------------------------------------------------------------------------------
+  /** the session's cells, by what the day is (times in s from the session's start, T its length) */
+  _sky(R, plan) {
+    const T = this.dur, D = this._g.D, out = [], wind = () => { const a = R() * 6.283, v = 5 + R() * 8; return [Math.cos(a) * v, Math.sin(a) * v]; };
+    const cell = (o) => { const [vx, vz] = o.wind || wind(); out.push({ tC: o.tC, R: o.R, peak: o.peak, vx, vz, miss: o.miss ?? 0, life: o.life, grow: o.grow ?? 90 + R() * 90, fade: o.fade ?? 80 + R() * 80, wob: R() * 6.28, sneaky: !!o.sneaky, phantom: false }); };
+    const k = plan.kind;
+    if (k === 'damp') {
+      const r = R();
+      if (r < 0.28) cell({ tC: -60, R: D * 3, peak: 0.12 + 0.12 * R(), miss: 0, life: 260 + R() * T * 0.5, wind: [1 + R(), 1 + R()] });   // (a drizzle hanging on at the start)
+      else if (r < 0.5) cell({ tC: T * (0.3 + 0.45 * R()), R: D * (0.5 + 0.6 * R()), peak: 0.45 + 0.45 * R(), miss: D * (R() - 0.5) * 0.8, life: 0, sneaky: R() < 0.3 });
+    } else if (k === 'wet') {
+      // (the rain over the whole map: steady, easing at its own time - before the end, or not at all)
+      const r = R(), ease = r < 0.42 ? T * (0.25 + 0.35 * R()) : r < 0.85 ? T * (1.05 + 0.6 * R()) : T * (0.55 + 0.3 * R());
+      cell({ tC: 0, R: D * 4, peak: 0.55 + 0.25 * R(), miss: 0, life: 2 * ease + 240, grow: 30, fade: 150 + R() * 150, wind: [0.6 * (R() - 0.5), 0.6 * (R() - 0.5)] });
+      out[out.length - 1].t0 = -300; out[out.length - 1].t1 = ease;
+      if (r >= 0.85) cell({ tC: T * (0.3 + 0.3 * R()), R: D * (0.6 + 0.5 * R()), peak: 0.9 + 0.1 * R(), miss: D * (R() - 0.5) * 0.4, life: 0 });   // (and a downpour on top of it)
+    } else if (k === 'changeable') {
+      const m = 1 + (R() < 0.55 ? 1 : 0) + (R() < 0.25 ? 1 : 0);
+      for (let j = 0; j < m; j++) {
+        const Rr = D * (0.45 + 0.9 * R());
+        cell({ tC: T * (0.12 + 0.75 * R()), R: Rr, peak: 0.35 + 0.65 * R(), miss: (R() < 0.5 ? -1 : 1) * Rr * Math.pow(R(), 0.8) * 1.6, life: 0, sneaky: R() < 0.3 });
+      }
+    }
+    return out;
+  }
+  /**
+   * A cell's path over the circuit: its start and end (the times it lives), where its centre is at time t, and from
+   * a sweep of its life: when the first drop reaches the track (tArrive), when the last leaves it, how much of the lap
+   * it covers, and the corner it reaches first
+   */
+  _path(c) {
+    const g = this._g, v = Math.hypot(c.vx, c.vz) || 1, ux = c.vx / v, uz = c.vz / v;
+    // (the centre crosses the line through the circuit's middle at tC, `miss` m to the side of it)
+    c.ax = g.cx - uz * c.miss; c.az = g.cz + ux * c.miss;
+    if (c.t0 == null) {
+      const cross = (2 * c.R + g.D) / v;   // (from first touching the map to leaving it)
+      c.life = c.life || cross + c.grow + c.fade;
+      c.t0 = c.tC - c.life / 2; c.t1 = c.tC + c.life / 2;
+    }
+    let first = null, last = null, firstBin = -1, hit = 0;
+    const seen = new Uint8Array(this.n);
+    for (let t = c.t0; t <= c.t1; t += 5) {
+      for (let i = 0; i < this.n; i += 2) {
+        if (this.cellAt(c, g.x[i], g.z[i], t) > 0.05) { if (first == null) { first = t; firstBin = i; } last = t; if (!seen[i]) { seen[i] = 1; hit++; } }
+      }
+    }
+    c.tArrive = first; c.tLeave = last; c.cover = hit / Math.ceil(this.n / 2); c.firstAt = firstBin >= 0 ? g.corner[firstBin] : null;
+    c.from = this.compass(-c.vx, -c.vz);
+  }
+  /** a cell's rain at (x, z) at time t: 0 .. its peak */
+  cellAt(c, x, z, t) {
+    if (t < c.t0 || t > c.t1) return 0;
+    const env = smooth(c.t0, c.t0 + c.grow, t) * (1 - smooth(c.t1 - c.fade, c.t1, t));
+    if (env <= 0) return 0;
+    const cx = c.ax + c.vx * (t - c.tC), cz = c.az + c.vz * (t - c.tC), d = Math.hypot(x - cx, z - cz) / c.R;
+    if (d >= 1) return 0;
+    // (soft edges, and heavier and lighter bands inside it that move with it)
+    const core = 1 - smooth(0.45, 1, d), band = 0.78 + 0.22 * Math.sin((x - cx) * 0.004 + (z - cz) * 0.003 + c.wob + t * 0.01);
+    return c.peak * env * core * band;
+  }
+  /** the rain at a point now (the camera's: the drops on screen and the light) */
+  rainAt(x, z, t = this.time) { let r = 0; for (const c of this.cells) r = Math.max(r, this.cellAt(c, x, z, t)); return r; }
+  /** cloud: how dark the sky is at a point - rain nearby darkens it before it arrives */
+  cloudAt(x, z, t = this.time) {
+    let k = 0;
+    for (const c of this.cells) {
+      if (t < c.t0 - 60 || t > c.t1 + 60) continue;
+      const env = smooth(c.t0 - 60, c.t0 + c.grow, t) * (1 - smooth(c.t1 - c.fade, c.t1 + 60, t));
+      const cx = c.ax + c.vx * (t - c.tC), cz = c.az + c.vz * (t - c.tC), d = Math.hypot(x - cx, z - cz) / c.R;
+      k = Math.max(k, env * (1 - smooth(0.6, 1.9, d)) * Math.min(1, 0.45 + c.peak));
+    }
+    return k;
+  }
+  compass(x, z) { const a = Math.atan2(x, -z) * 180 / Math.PI, k = Math.round(((a + 360) % 360) / 45) % 8; return ['north', 'north-east', 'east', 'south-east', 'south', 'south-west', 'west', 'north-west'][k]; }
+
+  // ---- the forecast ------------------------------------------------------------------------------------------------
+  /**
+   * What the pit walls believe: each real cell with its timing off by a few minutes and its chance of hitting not quite
+   * right (or, sneaky, unseen until the radar has it a minute or two out); and a shower or two that never comes
+   */
+  _forecast(R) {
+    const T = this.dur;
+    for (const c of this.cells) {
+      if (c.tArrive == null && !(c.t0 < 0)) { /* (a cell that never reaches the track: believed anyway, a near miss) */ }
+      const hits = c.tArrive != null;
+      this.believed.push({ c, sneaky: c.sneaky, seen: !c.sneaky, shift: (R() - 0.5) * 2 * (90 + 150 * R()), p: hits ? 0.45 + 0.35 * R() : 0.25 + 0.35 * R(), peak: c.peak * (0.7 + 0.6 * R()), gone: false });
+    }
+    // (a false alarm: in a changeable or damp day, now and then on a dry one)
+    const pFalse = this.kind === 'changeable' ? 0.55 : this.kind === 'damp' ? 0.35 : this.kind === 'dry' && !this.fixed ? 0.22 : this.kind === 'wet' ? 0.15 : 0;
+    if (!this.fixed && R() < pFalse) {
+      const tC = T * (0.2 + 0.7 * R());
+      this.believed.push({ c: null, phantom: true, tA: tC - 120, tL: tC + 240, shift: 0, p: 0.35 + 0.4 * R(), peak: 0.4 + 0.5 * R(), seen: true, gone: false, from: this.compass(R() - 0.5, R() - 0.5), firstAt: this._g.corner[(R() * this.n) | 0] });
+    }
+  }
+  /** a believed cell's arrival and departure as the pit wall has them now */
+  _bel(b) {
+    if (b.phantom) return { a: b.tA, l: b.tL };
+    const c = b.c; if (c.tArrive == null) return { a: c.tC - 120 + b.shift, l: c.tC + 120 + b.shift };
+    return { a: c.tArrive + b.shift, l: c.tLeave + b.shift };
+  }
+  /** the radar: a cell within a few minutes is seen as it really is; a shower that is not there breaks up */
+  _radar(dt) {
+    const t = this.time;
+    for (const b of this.believed) {
+      if (b.gone) continue;
+      const { a } = this._bel(b), eta = a - t;
+      if (b.phantom) {
+        if (eta < 200) { b.p = Math.max(0, b.p - dt / 90); if (b.p <= 0.02) { b.gone = true; this.note('broke', b); } }
+        continue;
+      }
+      const c = b.c, range = b.sneaky ? 110 : 420;
+      if (!b.seen && eta < range && c.tArrive != null) { b.seen = true; this.note('popup', b); }
+      if (b.seen && eta < range) {
+        const k = Math.min(1, dt / 40);
+        b.shift += (0 - b.shift) * k; b.p += ((c.tArrive != null ? 0.92 : 0.05) - b.p) * k; b.peak += (c.peak - b.peak) * k;
+        if (!b.radar && eta < range * 0.8) { b.radar = true; this.note('radar', b); }
+      }
+      if (c.tLeave != null && t > c.tLeave + 30) b.gone = true;
+      if (c.tArrive == null && t > c.tC + 60) { b.gone = true; if (b.seen) this.note('missed', b); }
+    }
+  }
+  /**
+   * The outlook as the pit wall has it: { p (chance of rain at the track within `ahead` s), eta (s, the likeliest
+   * shower's), peak (how hard), lasts (s), from, at (the corner it reaches first) } - the strongest believed shower in the
+   * window. Raining now counts as p 1, eta 0.
+   */
+  outlook(ahead = 240) {
+    const t = this.time; let best = { p: 0, eta: null, peak: 0, lasts: 0, from: null, at: null };
+    if (this.rainNow > 0.05) best = { p: 1, eta: 0, peak: this.rainNow, lasts: this.rainLeft(), from: null, at: null };
+    for (const b of this.believed) {
+      if (b.gone || (!b.seen && !b.phantom && b.sneaky)) continue;
+      const { a, l } = this._bel(b); if (l < t || a > t + ahead) continue;
+      const p = b.p * (a > t ? 1 : 0.9);
+      if (p > best.p || (best.eta === 0 && p > 0.3 && b.peak > best.peak && a > t)) {
+        if (best.eta === 0 && a > t) { best.next = { p, eta: Math.max(0, a - t), peak: b.peak }; continue; }
+        best = { p, eta: Math.max(0, a - t), peak: b.peak, lasts: Math.max(0, l - Math.max(a, t)), from: b.phantom ? b.from : b.c.from, at: b.phantom ? b.firstAt : b.c.firstAt };
+      }
+    }
+    return best;
+  }
+  /** s until the rain falling on the track now stops, as far as the pit wall can tell */
+  rainLeft() {
+    const t = this.time; let l = 0;
+    for (const b of this.believed) { if (b.gone || b.phantom) continue; const c = b.c; if (c.tArrive == null || t < c.tArrive || t > c.tLeave) continue; l = Math.max(l, c.tLeave + b.shift * 0.3 - t); }
+    return Math.max(0, l);
+  }
+  /** the forecast strip: the chance of rain in each of `k` windows of `step` s from now (the HUD) */
+  strip(k = 5, step = 120) {
+    const t = this.time, out = [];
+    for (let j = 0; j < k; j++) {
+      const a0 = t + j * step, a1 = a0 + step; let q = 1, peak = 0;
+      if (j === 0 && this.rainNow > 0.05) { q = 0; peak = this.rainNow; }
+      for (const b of this.believed) {
+        if (b.gone || (!b.seen && !b.phantom && b.sneaky)) continue;
+        const { a, l } = this._bel(b); if (l < a0 || a > a1) continue;
+        q *= 1 - b.p; peak = Math.max(peak, b.peak * b.p);
+      }
+      out.push({ p: 1 - q, peak });
+    }
+    return out;
+  }
+
+  // ---- the track ---------------------------------------------------------------------------------------------------
+  /** a step of the session: the sky moves on, the track wets and dries, the cars clear the line */
+  update(dt, cars) {
+    this.time += dt; this.acc += dt;
+    for (const c of cars || []) this._clear(c);
+    if (this.acc < TICK) return;
+    const h = this.acc; this.acc = 0;
+    if (this.fixed) { this.summary(); return; }
+    const g = this._g, t = this.time, dryK = (this.night ? 0.00075 : 0.0013);
+    let rainSum = 0;
+    for (let i = 0; i < this.n; i++) {
+      const r = this.cells.length ? this.rainAt(g.x[i], g.z[i], t) : 0; this.rainB[i] = r; rainSum += r;
+      const drain = g.drain[i];
+      // (rain: toward the level its strength holds - a drizzle a damp track, a downpour standing water - at a pace by
+      //  its strength; the sun and the wind: drying, none of it while it rains, slower where it drains badly)
+      const eq = r > 0.02 ? Math.min(1, 0.22 + 0.85 * r) * (0.85 + 0.15 * (2 - drain)) : 0;
+      const wet = r > 0.02 ? 0.018 * (0.2 + 0.8 * r) : 0, dry = dryK * drain * Math.max(0, 1 - 6 * r);
+      let w = this.water[i], l = this.lineW[i];
+      if (w < eq) w += (eq - w) * wet * h; w -= dry * h * (w > 0.85 ? 0.6 : 1);
+      if (l < eq) l += (eq - l) * wet * h; l -= dry * h * 1.15;
+      this.water[i] = clamp01(w); this.lineW[i] = Math.min(clamp01(l), this.water[i]);
+    }
+    this.rainNow = rainSum / this.n;
+    this._radar(h);
+    this.summary(); this.fillTex();
+  }
+  /** a car through a stretch on the line clears water off it (a car's tyres throw it aside): the dry line */
+  _clear(c) {
+    if (c.isSC || c.inPit || c.pitLane || c.retired || c.held) { c._wxS = null; return; }
+    const s = c.s, ps = c._wxS; c._wxS = s;
+    if (ps == null || c.speed < 15 || this.fixed) return;
+    const L = this._g.L, bl = this.bl; let ds = s - ps; if (ds < -L / 2) ds += L; if (ds <= 0 || ds > 200) return;
+    const k = 0.012 * Math.min(1.4, c.speed / 55);
+    const i0 = Math.floor(ps / bl), i1 = Math.floor(s / bl) + (s < ps ? this.n : 0);
+    for (let j = i0 + 1; j <= i1; j++) {
+      const i = ((j % this.n) + this.n) % this.n, off = Math.abs(c.d - this._g.off[i]);
+      if (off < 2.2) this.lineW[i] *= 1 - k * (1 - off / 2.6);
+      else if (off < 5) this.water[i] *= 1 - 0.0025;   // (a line of its own off the dry one: a little, never a second dry line)
+    }
+  }
+  /** the track's wetness under a point (lap distance s, lateral offset d): on the line, off it, or between */
+  wetAt(s, d) {
+    const n = this.n, L = this._g.L, u = (((s % L) + L) % L) / this.bl - 0.5, i0 = ((Math.floor(u) % n) + n) % n, i1 = (i0 + 1) % n, f = u - Math.floor(u);
+    const off = this._g.off[i0] + (this._g.off[i1] - this._g.off[i0]) * f;
+    const w = this.water[i0] + (this.water[i1] - this.water[i0]) * f, l = this.lineW[i0] + (this.lineW[i1] - this.lineW[i0]) * f;
+    const e = (d - off) / LINE_W, gk = Math.exp(-0.5 * e * e);
+    return w + (l - w) * gk;
+  }
+  /** the two water levels at s: { line, off } */
+  levelsAt(s) { const L = this._g.L, i = Math.floor(((((s % L) + L) % L) / this.bl)) % this.n; return { line: this.lineW[i], off: this.water[i] }; }
+  /** the wetness a car meets on the line over the lap, and its sectors (what the tyres are chosen on) */
+  summary() {
+    const n = this.n; let a = 0, b = 0, hi = 0; const sec = [0, 0, 0], k3 = n / 3;
+    const sorted = this._sorted || (this._sorted = new Float32Array(n));
+    for (let i = 0; i < n; i++) { const l = this.lineW[i]; a += l; b += this.water[i]; sec[Math.min(2, Math.floor(i / k3))] += l; sorted[i] = l; }
+    this.avgLine = a / n; this.avgOff = b / n;
+    sorted.sort(); hi = sorted[Math.floor(n * 0.8)];
+    this.p80 = hi; this.sec = sec.map((x) => x / k3);
+    // (the wetness the tyre choice is made on: the lap's average, pulled toward its wet stretches - two damp corners
+    //  on slicks are where the race is lost)
+    this.tyreWet = 0.6 * this.avgLine + 0.4 * hi;
+    if (this.tyreWet > 0.25) this.everWet = true;
+    this.peakRain = Math.max(this.peakRain, this.rainNow);
+    return this.tyreWet;
+  }
+  /** the lap's wetness the race model uses (RaceDirector.simulateRest) */
+  lapWet() { return this.tyreWet; }
+  /** the condition in words */
+  label() {
+    const w = this.tyreWet, r = this.rainNow;
+    if (r > 0.6) return 'HEAVY RAIN'; if (r > 0.25) return 'RAIN'; if (r > 0.05) return 'LIGHT RAIN';
+    if (w > 0.6) return 'WET'; if (w > 0.3) return 'DAMP'; if (this.avgOff - this.avgLine > 0.12 && this.avgLine < 0.2) return 'DRY LINE'; if (w > 0.08) return 'DRYING';
+    return 'DRY';
+  }
+  /** the tyre the track wants now: slicks, inters or full wets */
+  idealTyre(w = this.tyreWet) { return w > 0.62 ? 'WET' : w > 0.27 ? 'INTER' : 'SLICK'; }
+  fillTex() {
+    const D = this._texData, g = this._g;
+    for (let i = 0; i < this.n; i++) {
+      D[i * 4] = Math.round(this.water[i] * 255); D[i * 4 + 1] = Math.round(this.lineW[i] * 255);
+      D[i * 4 + 2] = Math.round(clamp01((g.off[i] + 20) / 40) * 255); D[i * 4 + 3] = Math.round(clamp01(this.rainB[i]) * 255);
+    }
+    this.tex.needsUpdate = true;
+  }
+
+  // ---- the engineer ------------------------------------------------------------------------------------------------
+  note(kind, b) { this.news.push({ kind, b, t: this.time }); if (this.news.length > 12) this.news.shift(); }
+  /** the corner that is wettest on the line now, and the sector */
+  wettest() { let k = 0; for (let i = 1; i < this.n; i++) if (this.lineW[i] > this.lineW[k]) k = i; return { at: this._g.corner[k], w: this.lineW[k], sec: Math.min(2, Math.floor(k / (this.n / 3))) }; }
+  firstRainAt() { let k = 0; for (let i = 1; i < this.n; i++) if (this.rainB[i] > this.rainB[k]) k = i; return this._g.corner[k]; }
+  /**
+   * The weather on the radio for player `p` (RaceDirector.update): the forecast at the start, the radar as showers come
+   * and go, the first drops and where, the track going and the dry line coming, the tyres the track wants against
+   * the ones on the car. Spoken through `E` (race/Engineer.js), each kind of call rate-limited.
+   */
+  radio(E, p, lapT) {
+    if (!E || !p || p.retired || p.finished || this.fixed) return;
+    const t = this.time, mins = (s) => { const m = Math.max(1, Math.round(s / 60)); return m === 1 ? 'a minute' : `${m} minutes`; };
+    const pc = (x) => `${Math.round(Math.min(0.95, x) * 10) * 10} percent`;
+    const heavy = (x) => (x > 0.75 ? 'heavy' : x > 0.45 ? 'moderate' : 'light');
+    const tyre = p.tyres.compound, rainT = tyre === 'INTER' || tyre === 'WET';
+    if (!this.said0 && t > 4) {
+      this.said0 = true;
+      const o = this.outlook(this.dur);
+      if (this.rainNow > 0.05) E.say(`Weather: it's raining${this.rainLeft() > 0 && this.rainLeft() < this.dur ? `, radar has it easing in about ${mins(this.rainLeft())}` : ', and it is set in for a while'}. Track is ${this.label().toLowerCase()}.`, 1, 3);
+      else if (o.p > 0.15) E.say(`Weather: ${pc(o.p)} chance of rain, in about ${mins(o.eta)}. We'll keep you posted.`, 1, 3);
+      else if (this.tyreWet > 0.15) E.say(`Track is ${this.label().toLowerCase()}, no more rain forecast. It will dry, the line first.`, 1, 3);
+      else E.say('Weather looks settled, dry for the whole race.', 1, 6);
+    }
+    for (const ev of this.news.splice(0)) {
+      const b = ev.b, at = b.phantom ? b.firstAt : b.c.firstAt, from = b.phantom ? b.from : b.c.from, { a } = this._bel(b), eta = a - t;
+      if (ev.kind === 'radar' && eta > 30) E.say(`Rain on the radar, ${heavy(b.peak)}, about ${mins(eta)} out, coming from the ${from}.${at ? ` Should hit ${at} first.` : ''} ${pc(b.p)} it reaches us.`, 2);
+      else if (ev.kind === 'popup') E.say(`Heads up, a shower has popped up on the radar, ${eta > 20 ? `${mins(eta)} away` : 'right on top of us'}${at ? `, around ${at}` : ''}. Didn't see that one coming.`, 3);
+      else if (ev.kind === 'broke') E.say('That shower on the radar has broken up. It will not reach us.', 2);
+      else if (ev.kind === 'missed') E.say('The rain has gone past to the side of us. Track stays as it is.', 1);
+    }
+    // (the first drops, and where)
+    if (this.rainNow > 0.04 && !this._raining && t - (this._rainOffT ?? -100) > 60) { this._raining = true; const at = this.firstRainAt(); E.say(`Rain is starting${at ? ` at ${at}` : ''}. ${this.rainNow > 0.3 ? 'It is coming down properly.' : 'Light for now.'}`, 3); }
+    else if (this.rainNow < 0.01 && this._raining) { this._raining = false; this._rainOffT = t; if (this.tyreWet > 0.15) E.say('Rain has stopped. The track will come back to us, line first.', 2); }
+    // (a sector going wet)
+    for (let k = 0; k < 3; k++) {
+      const w = this.sec[k], was = this.secWas[k];
+      if (w > 0.28 && was <= 0.28 && t > 20) { const W = this.wettest(); E.say(`Sector ${k + 1} is getting wet${W.sec === k && W.at ? `, ${W.at} especially` : ''}. Careful off the line.`, 2); }
+      this.secWas[k] = w;
+    }
+    // (the tyre the track wants against yours: once a call, again a lap later if nothing changed)
+    if (t - this.saidAt > Math.max(45, lapT || 90) && !p.pitRequested && !p.pitLane) {
+      const want = this.idealTyre(), o = this.outlook(lapT * 1.5 || 120);
+      let msg = null;
+      if (!rainT && want !== 'SLICK') msg = `Track is ${want === 'WET' ? 'flooded' : 'wet enough for inters'} now. ${want === 'WET' ? 'Full wets' : 'Inters'} are the tyre. Box when you're ready.`;
+      else if (!rainT && o.p > 0.65 && o.eta < (lapT || 90) && o.peak > 0.5) msg = `Big rain coming, ${mins(o.eta)}. Your call: box early for inters and gamble, or stay out and see.`;
+      else if (rainT && want === 'SLICK' && this.rainNow < 0.03 && o.p < 0.45) msg = `Dry line is there. Slicks are quicker now, the off-line is still wet though. Box when you want them.`;
+      else if (tyre === 'INTER' && want === 'WET') msg = 'Standing water now, the inters are aquaplaning. Full wets would be safer.';
+      else if (tyre === 'WET' && want === 'INTER') msg = 'Track is coming to the inters. The wets will overheat soon.';
+      if (msg) { this.saidAt = t; E.say(msg, 3); }
+    }
+  }
+}
+
+return { WX_LABEL, weatherPlan, nameWetness, Weather };
+})();
+
 // ---- src/race/RaceDirector.js
 __m['src/race/RaceDirector.js'] = (() => {
 const { AIDriver } = __m['src/ai/AIDriver.js'];
@@ -182274,8 +182857,10 @@ const { neutralForm } = __m['src/career/Morale.js'];
 const { setTyreLap, lapLoss, outLapLoss, cliffLaps, RATE_NOM } = __m['src/vehicle/Tyres.js'];
 const { StrategyCalls } = __m['src/race/Calls.js'];
 const { TeamOrders } = __m['src/race/TeamOrders.js'];
+const { Weather, weatherPlan } = __m['src/race/Weather.js'];
 // Race director: grid/lights/start protocol, fixed-step world simulation, car-car
 // collisions, slipstream, pit lane autopilot + stops, laps/penalties/classification.
+
 
 
 
@@ -182395,6 +182980,17 @@ class RaceDirector {
       lapT: this.lapT, pitLoss: this.pit && this.lapT ? Math.max(12, this.pit.samples.length / this.pit.limiter - this.pit.samples.length / (this.track.length / this.lapT) + 2.4 + 2.2) : 22,
       obstacles: o.obstacles || null,   // buildings and grandstands the cars can hit (world/Obstacles.js)
     };
+    // the weather (race/Weather.js): rain that comes and goes, the track wet and drying stretch by stretch, the dry line,
+    // the forecast. settings.weather: the weekend's plan (weatherPlan); without one, the start's wetness held all session
+    const lapT0 = this.lapT || 90;
+    this.weather = new Weather({ track: this.track, line: this.line, plan: s.weather || weatherPlan('dry'), session: this.practice ? 'practice' : this.mode,
+      duration: this.mode === 'race' ? this.lapsTotal * lapT0 * (1 + 0.15 * (s.wetness || 0)) : this.practice ? 1500 : lapT0 * 4.5, fixed: !s.weather || this.mode === 'tt' || !!s.weatherFixed });
+    if (!s.weather) { const w = s.wetness || 0; this.weather.water.fill(w); this.weather.lineW.fill(w); this.weather.summary(); this.weather.fillTex(); }
+    this.world.weather = this.weather;
+    for (const c of this.cars) c.wetness = this.weather.wetAt(c.s, c.d);
+    // (the weather's pit calls, for your engineer: your team-mate boxing for the weather, a double stack)
+    this.world.onWeatherCall = (c, comp) => this.weatherStop(c, comp, false);
+    this.world.onStack = (a, b, comp) => this.weatherStop(b, comp, true, a);
     this.ai = this.cars.filter((c) => !c.isPlayer).map((c) => new AIDriver(c, this.line, this.profile, this.track, { aggression: s.aggression * (c.aggrMul || 1), skill: s.skill ?? 1 }));
     // pit lane: distance at which the pit lane passes the start/finish line
     if (this.pit) {
@@ -182513,6 +183109,13 @@ class RaceDirector {
         else p.revHold = 0;
       }
       if (p.held) { p.brake = 1; }
+    }
+    // the weather: the sky on, the track wetting and drying, and the water under every car
+    const wx = this.weather;
+    if (wx) {
+      wx.update(dt, this.cars);
+      for (const c of this.cars) c.wetness = c.inPit || c.pitLane ? wx.avgOff * 0.8 : wx.wetAt(c.s, c.d);
+      if (this.mode === 'race' && this.world.racing && p && !p.autopilot) wx.radio(this.engineer, p, this.lapT || 90);
     }
     // fixed-step simulation
     this.acc = Math.min(this.acc + dt, 0.12);
@@ -182887,7 +183490,7 @@ class RaceDirector {
       c.repair('full'); c.drs = false; c.drsAvail = null; c.ersEnergy = 1; c.ghost = 0; c._owes = null; c._unlap = false; c._scGreen = true; c.engTemp = 0.3;
       if (a) {
         a.reaction = Infinity; a.rj = null; a.spun = false; a.defend = null; a.error = null; a.pitPlan = null; a.planner.best.n = 0; a.planner.best.spec = null;
-        const left = this.lapsTotal - c.lap, soft = left <= 4, comp = this.settings.wetness > 0.6 ? 'WET' : this.settings.wetness > 0.3 ? 'INTER' : soft ? 'SOFT' : left <= 9 ? 'MEDIUM' : 'HARD';
+        const left = this.lapsTotal - c.lap, soft = left <= 4, wR = this.weather ? this.weather.tyreWet : this.settings.wetness, comp = wR > 0.62 ? 'WET' : wR > 0.27 ? 'INTER' : soft ? 'SOFT' : left <= 9 ? 'MEDIUM' : 'HARD';
         c.fitTyres(comp); c.tyres.temp = c.tyres.spec.start ?? 0.7; this.onPitDone?.(c);
       }
     });
@@ -183168,6 +183771,22 @@ class RaceDirector {
     return (2.0 + Math.random() * Math.random() * 0.6) * (c.pitMul || 1) + rep + (c._slowStop ? 2.5 + Math.random() * 3.5 : 0);   // (pitMul: the team's crew, career/Career.js)
   }
 
+  /**
+   * A stop called for the weather (AIDriver.weatherCall), or a team-mate stacked behind it (stackMate): your
+   * engineer tells you when it is your own team-mate - you may want to stack too - or a rival near you gambling.
+   */
+  weatherStop(c, comp, stacked, lead = null) {
+    const E = this.engineer, p = this.player; if (!E || !p || p.retired || p.finished || this.mode !== 'race') return;
+    const nm = (o) => o.name.split(' ').pop(), tyre = comp === 'WET' ? 'full wets' : comp === 'INTER' ? 'inters' : 'slicks';
+    if (c.team === p.team && c !== p) {
+      const mine = p.tyres.compound, same = (comp === 'INTER' || comp === 'WET') === (mine === 'INTER' || mine === 'WET');
+      E.say(`We're bringing ${nm(c)} in for ${tyre} this lap.${same ? '' : ` If you want ${tyre} too, box and we'll double stack you behind him.`}`, 3);
+      return;
+    }
+    if (stacked && lead) { const k = this.positions.indexOf(c), me = this.positions.indexOf(p); if (Math.abs(k - me) <= 6) E.say(`${lead.team} are double stacking, ${nm(lead)} and ${nm(c)} both in for ${tyre}.`, 2); return; }
+    const k = this.positions.indexOf(c), me = this.positions.indexOf(p);
+    if (Math.abs(k - me) <= 3 || k === 0) E.say(`${nm(c)} is pitting for ${tyre}${(comp === 'INTER' || comp === 'WET') && (this.weather?.tyreWet ?? 0) < 0.27 ? ', a gamble on the rain' : comp !== 'INTER' && comp !== 'WET' && (this.weather?.tyreWet ?? 0) > 0.12 ? ', a gamble on the dry line' : ''}.`, 2);
+  }
   /** real race events for the engineer: position changes (held for 2 s to ignore side-by-side flicker), retirements near you */
   events(dt) {
     const E = this.engineer, p = this.player; if (!E || !p || this.mode !== 'race' || !this.world.racing) return;
@@ -183281,7 +183900,7 @@ class RaceDirector {
   simulateRest() {
     if (this.done) return;
     if (this.practice) { this.finish(); return; }   // (practice: nothing to simulate - the times are what they are)
-    const L = this.track.length, wet = this.settings.wetness || 0, rnd = Math.random;
+    const L = this.track.length, wet = this.weather ? this.weather.lapWet() : this.settings.wetness || 0, rnd = Math.random;
     const gauss = () => (rnd() + rnd() + rnd() - 1.5) * 1.63;
     const model = this.estimateLap() / (0.4 + 0.6 * (this.settings.skill ?? 1));
     const modelOf = (c) => model * (1 + (1 - c.rating) * 0.012 + (1 - c.perf) * 0.45) + wet * 8;
@@ -183534,6 +184153,25 @@ const HUD_CSS = `
 #pit-menu #pit-confirm { display: inline-flex; align-items: center; gap: 10px; }
 #pit-menu #pit-confirm kbd { color: rgba(255,255,255,.8); border-color: rgba(255,255,255,.4); }
 #pit-menu .hint { display: none; }
+/* the weather (race/Weather.js): what is falling, the water under you, on the line and off it, by sector, the forecast */
+#hud-wx { position: absolute; right: 16px; top: 14px; width: 214px; background: var(--glass); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px 9px; backdrop-filter: blur(10px); font-size: 11px; }
+#hud-wx.hidden { display: none; }
+#hud-wx .wx-top { display: grid; grid-template-columns: 22px minmax(0,1fr) auto; align-items: center; gap: 6px; }
+#hud-wx .wx-ic { font-size: 17px; line-height: 1; text-align: center; }
+#hud-wx .wx-lbl { font-weight: 800; letter-spacing: .1em; font-size: 12px; white-space: nowrap; }
+#hud-wx .wx-me { color: rgba(255,255,255,.6); font-weight: 700; font-variant-numeric: tabular-nums; }
+#hud-wx .wx-bars { display: grid; grid-template-columns: 34px minmax(0,1fr) 30px; gap: 3px 6px; align-items: center; margin-top: 6px; color: rgba(255,255,255,.55); font-weight: 700; letter-spacing: .06em; font-size: 9.5px; }
+#hud-wx .wx-bars u { display: block; height: 6px; border-radius: 3px; background: rgba(255,255,255,.08); overflow: hidden; }
+#hud-wx .wx-bars u i { display: block; height: 100%; width: 100%; border-radius: 3px; background: linear-gradient(90deg, #4aa3ff, #2f6dff); transform-origin: left center; transform: scaleX(var(--v, 0)); transition: transform .5s; }
+#hud-wx .wx-bars em { font-style: normal; text-align: right; font-variant-numeric: tabular-nums; }
+#hud-wx .wx-sec { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-top: 6px; }
+#hud-wx .wx-sec i { font-style: normal; text-align: center; font-weight: 800; font-size: 9.5px; letter-spacing: .06em; padding: 2px 0; border-radius: 3px; background: rgba(255,255,255,.07); border-bottom: 3px solid var(--c, #3a3f4a); }
+#hud-wx .wx-fc { display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px; margin-top: 7px; align-items: end; }
+#hud-wx .wx-fc div { display: grid; grid-template-rows: 22px auto auto; gap: 2px; text-align: center; }
+#hud-wx .wx-fc s { align-self: end; justify-self: center; width: 70%; height: calc(2px + var(--p, 0) * 20px); border-radius: 2px 2px 0 0; background: var(--c, #4aa3ff); text-decoration: none; transition: height .6s; }
+#hud-wx .wx-fc b { font-size: 9.5px; font-variant-numeric: tabular-nums; } #hud-wx .wx-fc small { font-size: 8.5px; color: rgba(255,255,255,.45); }
+#hud-wx .wx-tip { margin-top: 6px; font-size: 10px; font-weight: 700; color: #ffc65a; letter-spacing: .04em; min-height: 0; }
+#hud-wx .wx-tip:empty { display: none; }
 `;
 /** the menus' CSS, once (after the kit's, so it wins over it) */
 function hudCSS() {
@@ -183565,6 +184203,31 @@ class HUD {
     document.querySelectorAll('#pit-tyres button').forEach((b, i) => kb(b, i + 1));
     document.querySelectorAll('#pit-repairs button').forEach((b, i) => kb(b, i + 7));
     kb($('pit-confirm'), 'Enter'); $('pit-eta')?.parentElement?.classList.add('pit-foot');
+    // (the weather panel: made here, filled by wxPanel)
+    if (!$('hud-wx')) { const w = document.createElement('div'); w.id = 'hud-wx'; w.className = 'hidden'; w.innerHTML = '<div class="wx-top"><span class="wx-ic"></span><b class="wx-lbl"></b><span class="wx-me"></span></div><div class="wx-bars"><span>LINE</span><u><i class="wx-l"></i></u><em class="wx-lv"></em><span>OFF</span><u><i class="wx-o"></i></u><em class="wx-ov"></em></div><div class="wx-sec"><i>S1</i><i>S2</i><i>S3</i></div><div class="wx-fc"></div><div class="wx-tip"></div>'; this.root.appendChild(w); }
+    this.wx = null;
+  }
+  /**
+   * The weather panel (twice a second): the sky and the track in a word, the water under your car, the lap's water on
+   * the dry line and off it, each sector's line coloured dry / damp / wet, and the forecast as the pit wall has it -
+   * the chance of rain in each of the next five two-minute windows (the bar's height; its colour how hard)
+   */
+  wxPanel(p) {
+    const wx = this.wx, el = $('hud-wx'); if (!el) return;
+    if (!wx || (wx.fixed && wx.avgOff < 0.02)) { el.classList.add('hidden'); return; }
+    el.classList.remove('hidden');
+    const q = (c) => el.querySelector(c), pct = (x) => `${Math.round(x * 100)}%`, r = wx.rainNow;
+    q('.wx-ic').textContent = r > 0.45 ? '⛈' : r > 0.05 ? '🌧' : wx.cloudAt?.(wx._g.cx, wx._g.cz) > 0.35 ? '☁' : wx.night ? '☾' : '☀';
+    q('.wx-lbl').textContent = wx.label(); q('.wx-me').textContent = p ? `YOU ${pct(p.wetness || 0)}` : '';
+    q('.wx-l').style.setProperty('--v', wx.avgLine.toFixed(3)); q('.wx-o').style.setProperty('--v', wx.avgOff.toFixed(3));
+    q('.wx-lv').textContent = pct(wx.avgLine); q('.wx-ov').textContent = pct(wx.avgOff);
+    const col = (w) => (w > 0.62 ? '#2f6dff' : w > 0.27 ? '#2fbf4f' : w > 0.1 ? '#e8c64a' : '#3a3f4a');
+    el.querySelectorAll('.wx-sec i').forEach((x, k) => x.style.setProperty('--c', col(wx.sec[k])));
+    const st = wx.fixed ? [] : wx.strip(5, 120);
+    q('.wx-fc').innerHTML = st.map((b, k) => `<div><s style="--p:${b.p.toFixed(2)};--c:${b.peak > 0.6 ? '#2f6dff' : b.peak > 0.3 ? '#4aa3ff' : '#9cc9ff'}"></s><b>${b.p < 0.05 ? '–' : pct(b.p)}</b><small>${k ? `+${k * 2}m` : 'NOW'}</small></div>`).join('');
+    // (the tyre the track wants against the one on your car)
+    const want = wx.idealTyre(), tc = p?.tyres.compound, rainT = tc === 'INTER' || tc === 'WET';
+    q('.wx-tip').textContent = !p ? '' : !rainT && want !== 'SLICK' ? `TRACK WANTS ${want === 'WET' ? 'FULL WETS' : 'INTERS'}` : rainT && want === 'SLICK' ? 'SLICKS ARE QUICKER NOW' : tc === 'INTER' && want === 'WET' ? 'STANDING WATER · WETS' : tc === 'WET' && want === 'INTER' ? 'INTER CONDITIONS' : '';
   }
   show() { this.root.classList.remove('hidden'); }
   hide() { this.root.classList.add('hidden'); this.showLights(false); this.showReset(false); }
@@ -183594,6 +184257,7 @@ class HUD {
   update(p, race, dt) {
     if (this.msgTimer > 0) { this.msgTimer -= dt; if (this.msgTimer <= 0) this.msgEl.textContent = ''; }
     const mode = race.mode;
+    if ((this._wxT = (this._wxT || 0) + dt) > 0.5) { this._wxT = 0; this.wxPanel(p); }
     // fast telemetry every frame (only changed values touch the DOM)
     this._t('lap-time', fmtTime(race.time - p.lapStart));
     // the live delta to your best lap, 20 times a second (the bar spans a second either way)
@@ -183684,6 +184348,18 @@ class HUD {
     c.clearRect(0, 0, this.mm.width, this.mm.height);
     c.lineWidth = 4; c.strokeStyle = '#3a4152'; c.stroke(this.mmPath);
     if (this.mmPit) { c.lineWidth = 2; c.strokeStyle = '#6a5a2a'; c.stroke(this.mmPit); }
+    // (the water on the racing line: the wet stretches in blue - a shower crossing the map shows as it comes)
+    const wx = this.wx;
+    if (wx && wx.avgOff > 0.03) {
+      const g = wx._g, n = wx.n, step = 2; c.lineWidth = 4; c.lineCap = 'round';
+      for (let i = 0; i < n; i += step) {
+        const w = Math.max(wx.lineW[i], 0.6 * wx.water[i]); if (w < 0.06) continue; const j = (i + step) % n;
+        c.strokeStyle = `rgba(${w > 0.62 ? '60,110,255' : '90,170,255'},${Math.min(1, 0.25 + w).toFixed(2)})`;
+        const [x0, y0] = this.mmXY(g.x[i], g.z[i]), [x1, y1] = this.mmXY(g.x[j], g.z[j]); c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.stroke();
+      }
+      // (rain falling: a soft wash over the map where it is)
+      if (wx.rainNow > 0.01) for (let i = 0; i < n; i += 4) { const r = wx.rainB[i]; if (r < 0.05) continue; const [x, y] = this.mmXY(g.x[i], g.z[i]); c.fillStyle = `rgba(150,200,255,${(0.12 + 0.3 * r).toFixed(2)})`; c.beginPath(); c.arc(x, y, 7, 0, 6.283); c.fill(); }
+    }
     c.fillStyle = '#fff'; c.fillRect(this.mmSF[0] - 3, this.mmSF[1] - 3, 6, 6);
     for (const car of cars) {
       if (car === player) continue; const [x, y] = this.mmXY(car.x, car.z);
@@ -184204,6 +184880,73 @@ function line(ctx, X, Y, f, len, color, w, dash) {
 return { TelemetryView };
 })();
 
+// ---- src/world/Spray.js
+__m['src/world/Spray.js'] = (() => {
+
+// Spray: the plume of water a car throws up behind it on a wet track - the thicker the water and the faster the car,
+// the bigger the cloud. One pool of soft points (one draw call) for the whole field; only the cars near the camera
+// throw any. The water under each car is its own (race/Weather.js wetAt): a car on the drying line throws a wisp, one
+// off it through the wet a wall of it - which is the view a car following through a wet patch gets.
+
+const VS = `attribute float size; attribute float alpha; uniform float uScale; varying float vA;
+void main() { vA = alpha; vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_PointSize = min(380.0, size * uScale / max(0.1, -mv.z)); gl_Position = projectionMatrix * mv; }`;
+const FS = `uniform vec3 uColor; varying float vA;
+void main() { vec2 d = gl_PointCoord - 0.5; float r = length(d); if (r > 0.5) discard; gl_FragColor = vec4(uColor, vA * smoothstep(0.5, 0.0, r)); }`;
+
+class Spray {
+  constructor(scene, n = 2600) {
+    this.n = n; this.next = 0;
+    const g = new THREE.BufferGeometry();
+    this.pos = new Float32Array(n * 3); this.size = new Float32Array(n); this.alpha = new Float32Array(n);
+    this.v = new Float32Array(n * 3); this.age = new Float32Array(n).fill(9); this.life = new Float32Array(n).fill(1); this.a0 = new Float32Array(n); this.s1 = new Float32Array(n);
+    g.setAttribute('position', new THREE.BufferAttribute(this.pos, 3).setUsage(THREE.DynamicDrawUsage));
+    g.setAttribute('size', new THREE.BufferAttribute(this.size, 1).setUsage(THREE.DynamicDrawUsage));
+    g.setAttribute('alpha', new THREE.BufferAttribute(this.alpha, 1).setUsage(THREE.DynamicDrawUsage));
+    this.g = g; this.u = { uScale: { value: 600 }, uColor: { value: new THREE.Color(0.78, 0.8, 0.84) } };
+    this.points = new THREE.Points(g, new THREE.ShaderMaterial({ uniforms: this.u, vertexShader: VS, fragmentShader: FS, transparent: true, depthWrite: false }));
+    this.points.frustumCulled = false; this.points.visible = false; this.points.renderOrder = 4; this.points.name = 'spray';
+    scene.add(this.points); this.acc = new Map();
+  }
+  setNight(night) { this.u.uColor.value.setRGB(night ? 0.5 : 0.8, night ? 0.52 : 0.82, night ? 0.58 : 0.86); }
+  /** the spray behind every car near `cam` for this frame (dt s); heightPx: the canvas's height (point sizes) */
+  update(dt, cars, cam, heightPx) {
+    this.u.uScale.value = heightPx * 0.9;
+    if (dt > 0 && cars) for (const c of cars) {
+      if (c.retired || c.inPit || c.parked) continue;
+      const w = c.wetness || 0, v = c.speed || 0; if (w < 0.12 || v < 18) continue;
+      const dx = c.x - cam.x, dz = c.z - cam.z; if (dx * dx + dz * dz > 330 * 330) continue;
+      const rate = 95 * Math.min(1, (w - 0.08) * 1.6) * Math.min(1.4, v / 70);
+      let k = (this.acc.get(c) || 0) + rate * dt; const fx = Math.cos(c.th), fz = Math.sin(c.th);
+      for (; k >= 1; k--) {
+        const side = Math.random() < 0.5 ? -1 : 1, back = 2.0 + Math.random() * 0.6, lat = side * (0.7 + Math.random() * 0.25);
+        const x = c.x - fx * back - fz * lat, z = c.z - fz * back + fx * lat;
+        this.spawn(x, 0.35 + Math.random() * 0.2, z, fx * v * 0.35 + (Math.random() - 0.5) * 3 - fz * side * 1.5, 1.2 + Math.random() * 1.6, fz * v * 0.35 + (Math.random() - 0.5) * 3 + fx * side * 1.5,
+          0.7 + Math.random() * 0.5, 2.6 + 2.6 * w + Math.random() * 1.5, (0.16 + 0.22 * Math.min(1, w)) * (0.7 + 0.3 * Math.random()));
+      }
+      this.acc.set(c, k);
+    }
+    let live = 0;
+    for (let i = 0; i < this.n; i++) {
+      if (this.age[i] >= this.life[i]) { if (this.alpha[i] !== 0) { this.alpha[i] = 0; this.size[i] = 0; } continue; }
+      live++; this.age[i] += dt; const t = Math.min(1, this.age[i] / this.life[i]), j = i * 3, dr = Math.max(0, 1 - 2.2 * dt);
+      this.v[j] *= dr; this.v[j + 2] *= dr; this.v[j + 1] -= 1.2 * dt;
+      this.pos[j] += this.v[j] * dt; this.pos[j + 1] = Math.max(0.2, this.pos[j + 1] + this.v[j + 1] * dt); this.pos[j + 2] += this.v[j + 2] * dt;
+      this.size[i] = 0.7 + (this.s1[i] - 0.7) * Math.sqrt(t); this.alpha[i] = this.a0[i] * (t < 0.12 ? t / 0.12 : 1 - (t - 0.12) / 0.88);
+    }
+    this.points.visible = live > 0;
+    if (live || this._dirty) { for (const a of ['position', 'size', 'alpha']) this.g.attributes[a].needsUpdate = true; this._dirty = live > 0; }
+  }
+  spawn(x, y, z, vx, vy, vz, life, s1, a0) {
+    const i = this.next, j = i * 3; this.next = (this.next + 1) % this.n;
+    this.pos[j] = x; this.pos[j + 1] = y; this.pos[j + 2] = z; this.v[j] = vx; this.v[j + 1] = vy; this.v[j + 2] = vz;
+    this.age[i] = 0; this.life[i] = life; this.s1[i] = s1; this.a0[i] = a0;
+  }
+  clear() { this.age.fill(9); this.alpha.fill(0); this.size.fill(0); this._dirty = true; this.points.visible = false; this.acc.clear(); }
+}
+
+return { Spray };
+})();
+
 // ---- src/main.js
 __m['src/main.js'] = (() => {
 const { TRACKS } = __m['src/track/tracks.js'];
@@ -184288,7 +185031,11 @@ const { TRACK_MAPS } = __m['src/ui/TrackMaps.js'];
 const { BUILTIN_SHOTS } = __m['src/ui/LoadingShots.js'];
 const { FAULT_P } = __m['src/race/Calls.js'];
 const { orderSub } = __m['src/race/TeamOrders.js'];
+const { Weather, weatherPlan, WX_LABEL } = __m['src/race/Weather.js'];
+const { Spray } = __m['src/world/Spray.js'];
 // Bootstrap: renderer, world construction from GeoJSON, menus, race weekend flow, frame loop.
+
+
 
 
 
@@ -184410,6 +185157,7 @@ fitViewport();
 window.addEventListener('resize', fitViewport);
 const env = createEnvironment(scene, renderer);
 const rain = createRain(scene);
+const spray = new Spray(scene);   // (the water thrown up behind the cars on a wet track: world/Spray.js)
 const debris = new Debris(scene); setDebris(debris);
 const fire = new Fire(scene); setFire(fire);              // fires, smoke, extinguishers: two draw calls
 const chunks = new Chunks(scene); setChunks(chunks);      // the free halves of cars torn in two   // crash debris: pooled instanced pieces, five draw calls in all
@@ -184507,6 +185255,7 @@ async function loadWorld(def) {
   await set('Laying the track, kerbs and barriers…', 40);
   const trackMesh = buildTrackMeshes(track, pit, gridLayout(track, 23, 1));
   scene.add(trackMesh); receiveShadows(trackMesh);
+  wetRoad(trackMesh.userData.roadMat, track.length);   // (the road's water, stretch by stretch: race/Weather.js)
   await set('Building the landmarks…', 54);
   const lm = buildLandmarks(geo, track, def, pit);
   const moved = clearLandmarksFromTrack(lm.group, track, pit);
@@ -185671,15 +186420,93 @@ function updateFinale(dt) {
 const S = { director: null, cars: [], meshes: new Map(), player: null, paused: false, weekend: null, halo: true };
 window.addEventListener('keydown', (e) => { if (e.code === 'Tab' && S.director && !S.director.done) e.preventDefault(); });   // (Tab: the next car to watch, not the browser's focus)
 
+/**
+ * The race's forecast in a sentence, for the strategy screen: the race's sky drawn now as it will be in the race (the
+ * same plan and seed - race/Weather.js), and what the pit wall believes of it (not always what will happen)
+ */
+function forecastLine(wk, pace) {
+  if (!wk?.wx || !W.track) return '';
+  let wx = null;
+  try {
+    const dur = wk.lapsTotal * pace; wx = new Weather({ track: W.track, line: W.line, plan: wk.wx, duration: dur, session: 'race' });
+    const lapOf = (t) => Math.max(1, Math.min(wk.lapsTotal, Math.ceil(t / pace))), o = wx.outlook(dur);
+    if (wx.rainNow > 0.05) { const l = wx.rainLeft(); return `Forecast: raining at the start${l > 0 && l < dur ? `, the radar has it easing around lap ${lapOf(l)}` : ', and set in for the race'}.`; }
+    if (o.p > 0.15) return `Forecast: ${Math.round(o.p * 10) * 10}% chance of ${o.peak > 0.7 ? 'heavy ' : ''}rain from around lap ${lapOf(o.eta)}. Forecasts move - the radar will firm it up in the race.`;
+    if (wx.tyreWet > 0.15) return 'Forecast: no more rain. The track will dry through the race, the racing line first.';
+    return 'Forecast: dry.';
+  } catch (e) { return ''; } finally { wx?.tex.dispose(); }
+}
+/** the weather as the build-up shows it: the track as it is at the start (a career's forecast may have been wrong) */
+function wxName() { const w = S.weekend?.wet; return w == null ? settings.weather : w > 0.5 ? 'wet' : w > 0.2 ? 'damp' : 'dry'; }
 function weatherWetness(w) { return w === 'wet' ? 0.75 : w === 'damp' ? 0.35 : 0; }
+/**
+ * The road's water (race/Weather.js): a shader on the asphalt reading the weather's texture - each 10 m of the lap,
+ * the water off the line, on it, where the line is - so the wet stretches are dark and glassy, the dry line a
+ * lighter ribbon through them, puddles near-mirrors; broken up by a noise so it never reads as stripes. Without a
+ * session's weather (the menus, the venues) one wetness for the whole road (uWxStatic).
+ */
+const WXU = { uWx: { value: null }, uWxLen: { value: 1000 }, uWxOn: { value: 0 }, uWxStatic: { value: 0 } };
+const WXV = { r: 0, c: 0 };
+function wetRoad(mat, L) {
+  if (!WXU.uWx.value) { WXU.uWx.value = new THREE.DataTexture(new Uint8Array(4), 1, 1, THREE.RGBAFormat); WXU.uWx.value.needsUpdate = true; }
+  WXU.uWxLen.value = L;
+  mat.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, WXU);
+    sh.vertexShader = 'attribute vec2 aWx;\nvarying vec2 vWx;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  vWx = aWx;');
+    sh.fragmentShader = `uniform sampler2D uWx; uniform float uWxLen, uWxOn, uWxStatic; varying vec2 vWx;
+float wxH(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float wxN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(wxH(i), wxH(i + vec2(1.0, 0.0)), f.x), mix(wxH(i + vec2(0.0, 1.0)), wxH(i + vec2(1.0, 1.0)), f.x), f.y); }
+` + sh.fragmentShader
+      .replace('#include <map_fragment>', `#include <map_fragment>
+  float wxW = uWxStatic;
+  if (uWxOn > 0.5) { vec4 wT = texture2D(uWx, vec2(fract(vWx.x / uWxLen), 0.5)); float wO = wT.b * 40.0 - 20.0; float wE = (vWx.y - wO) / 1.5; wxW = mix(wT.r, wT.g, exp(-0.5 * wE * wE)); }
+  float wxNz = wxN(vWx * vec2(0.09, 0.45)) * 0.6 + wxN(vWx * vec2(0.45, 1.4)) * 0.4;
+  float wxWet = clamp(wxW * (0.72 + 0.56 * wxNz) + (wxW > 0.55 ? (wxNz - 0.45) * 0.4 : 0.0), 0.0, 1.0);
+  float wxVis = smoothstep(0.03, 0.55, wxWet);
+  diffuseColor.rgb *= 1.0 - 0.45 * wxVis;`)
+      .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
+  roughnessFactor = mix(roughnessFactor, 0.08, wxVis); roughnessFactor = mix(roughnessFactor, 0.02, smoothstep(0.72, 0.92, wxWet));`)
+      .replace('#include <metalnessmap_fragment>', `#include <metalnessmap_fragment>
+  metalnessFactor = mix(metalnessFactor, 0.3, wxVis);`);
+  };
+  mat.customProgramCacheKey = () => 'wetroad';
+  mat.needsUpdate = true;
+}
+/**
+ * The weather on screen in a session (every frame): the road reading the session's water, the drops falling where
+ * the camera is (a shower in one corner, dry in the next), the sky darker under the clouds, the spray off the cars
+ */
+function wxFrame(dt) {
+  const wx = S.director?.weather;
+  if (!wx) { if (WXU.uWxOn.value) WXU.uWxOn.value = 0; spray.update(dt, null, camera.position, renderer.domElement.height); return; }
+  WXU.uWx.value = wx.tex; WXU.uWxOn.value = 1;
+  const x = camera.position.x, z = camera.position.z;
+  let r = wx.rainAt(x, z), cl = Math.max(r, wx.cloudAt(x, z));
+  if (wx.fixed) { r = wx.avgOff > 0.5 ? 0.85 : wx.avgOff > 0.2 ? 0.35 : 0; cl = r ? 0.9 : 0; }
+  WXV.r += (r - WXV.r) * Math.min(1, dt * 0.9); WXV.c += (cl - WXV.c) * Math.min(1, dt * 0.4);
+  rain.setIntensity(Math.min(1, WXV.r * 1.3));
+  const B = W.sky0;
+  if (B && B.time === W.time) {
+    scene.fog.density = B.fog + WXV.c * 0.0008; scene.fog.color.copy(B.col).lerp(W.time === 'day' ? WX_GREY_DAY : WX_GREY_NIGHT, 0.65 * WXV.c);
+    env.sun.intensity = B.sun * (1 - 0.45 * WXV.c); env.hemi.intensity = B.hemi * (1 - 0.2 * WXV.c);
+  }
+  skyCloud(WXV.c);
+  const rm = W.trackMesh?.userData.roadMat; if (rm) { rm.roughness = 0.62; rm.metalness = 0.06; rm.envMapIntensity = 0.55 + 1.4 * Math.max(wx.avgOff, WXV.r); }
+  spray.setNight(W.time !== 'day'); spray.update(dt, S.cars, camera.position, renderer.domElement.height);
+}
+const WX_GREY_DAY = new THREE.Color(0x8a929c), WX_GREY_NIGHT = new THREE.Color(0x0d0f16);
+/** the sky dome overcast by `k` (0 clear .. 1 a grey rain sky; at night a near-black one, no stars) */
+function skyCloud(k) { const u = env.sky?.material?.uniforms; if (!u?.uCloud) return; u.uCloud.value = Math.min(0.92, k); u.uOver.value.setHex(W.time === 'day' ? 0x7d858f : 0x0b0d13); }
 /** Visual weather: rain density, heavier fog, greyer sky, wet reflective asphalt. */
 function applyWeather(wet) {
+  W.sky0 = { time: W.time, fog: W.time === 'day' ? 0.00016 : 0.00035, col: scene.fog.color.clone(), sun: env.sun.intensity, hemi: env.hemi.intensity };   // (the dry sky: wxFrame darkens it from here)
+  WXU.uWxOn.value = 0; WXU.uWxStatic.value = wet; WXV.r = wet > 0.5 ? 0.8 : wet > 0.2 ? 0.35 : 0; WXV.c = wet > 0.2 ? 0.9 : 0; skyCloud(WXV.c);
   const base = W.time === 'day' ? 0.00016 : 0.00035;
   scene.fog.density = base + wet * 0.0007;
   rain.setIntensity(wet > 0.5 ? 1 : wet > 0.2 ? 0.45 : 0);
   if (wet > 0.2) { scene.fog.color.lerp(new THREE.Color(W.time === 'day' ? 0x8a929c : 0x0d0f16), 0.6); env.sun.intensity *= 0.6; env.hemi.intensity *= 0.8; }
   // slick night asphalt: enough gloss for the floodlights and the Sphere to smear across it, glassy when wet
-  const rm = W.trackMesh.userData.roadMat; rm.roughness = 0.62 - 0.4 * wet; rm.metalness = 0.06 + wet * 0.25; rm.envMapIntensity = 0.55 + wet * 1.4;
+  const rm = W.trackMesh.userData.roadMat; rm.roughness = 0.62; rm.metalness = 0.06; rm.envMapIntensity = 0.55 + wet * 1.4;   // (the water itself: the road's shader, wetRoad)
 }
 
 /** a team's car on the day (Roster dayPerf: the circuit's fit and the weekend's form) - drawn once a weekend and kept
@@ -185693,7 +186520,7 @@ function onTheDay(team) {
 }
 /** an AI car's starting tyre: wet weather, or by the race length and the car's pace */
 function aiCompound(e, lapsTotal) {
-  const wet = weatherWetness(settings.weather);
+  const wet = S.weekend?.wet ?? weatherWetness(settings.weather);
   return wet > 0.5 ? 'WET' : wet > 0.2 ? 'INTER' : lapsTotal >= 13 ? (e.tier <= 1 ? (Math.random() < 0.5 ? 'MEDIUM' : 'SOFT') : (Math.random() < 0.6 ? 'SOFT' : 'MEDIUM')) : (Math.random() < 0.85 ? 'SOFT' : 'MEDIUM');
 }
 /** why the seat-holder a stand-in replaces is out (an entry without outWhy: from the driver's record) -> 'ban' | 'injury' */
@@ -185777,7 +186604,7 @@ function buildField(lapsTotal) {
     const out = wk?.out?.get(e0.name) || deceased().find((x) => x.name === e0.name);
     if (out && (out.forever || (wk && wk.round >= out.round && wk.round <= (out.until ?? out.round)))) { e = { ...e0, name: out.standIn.name, short: out.standIn.short, rating: out.standIn.rating, number: out.standIn.number, helmet: out.standIn.helmet, standInFor: out.forever ? null : e0.name }; }   // (gone for good: the seat is the stand-in's now - and yours, if it was your team's)
     if (isPlayer && banned) { const si = standIn(e.team, taken); taken.add(si.name); e = { ...e, name: si.name, short: si.short, rating: si.rating, number: si.number, helmet: si.helmet, standInFor: e.standInFor || e.name, outWhy: 'ban' }; }   // (suspended: the reserve races - and you drive it as them)
-    const wet = weatherWetness(settings.weather);
+    const wet = wk?.wet ?? weatherWetness(settings.weather);
     let compound = settings.tyre;
     if (!isPlayer) compound = wet > 0.5 ? 'WET' : wet > 0.2 ? 'INTER' : lapsTotal >= 13 ? (e.tier <= 1 ? (Math.random() < 0.5 ? 'MEDIUM' : 'SOFT') : (Math.random() < 0.6 ? 'SOFT' : 'MEDIUM')) : (Math.random() < 0.85 ? 'SOFT' : 'MEDIUM');
     const car = new Car(W.track, { name: e.name, short: e.short, team: e.team, color: e.color, isPlayer, perf: e.perf + onTheDay(e.team), rating: e.rating, number: e.number, compound, raceLaps: lapsTotal, assists });
@@ -185952,9 +186779,12 @@ function startWeekend() {
   S.choosing = false;
   resetTransient();
   $('menu').classList.add('hidden'); $('shot-label').classList.add('hidden'); $('fade').style.opacity = '0'; CINE.i = -1; clearAmbient();
-  const lapsTotal = settings.len; const wet = weatherWetness(settings.weather);
+  const lapsTotal = settings.len;
+  // (the weekend's weather - race/Weather.js: a career's day is its forecast, not always right; a quick race the
+  //  weather chosen. The start's wetness picks the starting tyres; the race itself changes as the sky does)
+  const wx = weatherPlan(settings.weather, { forecast: settings.mode === 'champ' && !!S.career, night: settings.time === 'night' }), wet = wx.start;
   setTimeOfDay(settings.time); applyWeather(wet);
-  S.weekend = { mode: settings.mode, lapsTotal, wet, round: 1, rounds: settings.mode === 'champ' ? settings.rounds : 1, points: new Map(), out: new Map() };
+  S.weekend = { mode: settings.mode, lapsTotal, wet, wx, round: 1, rounds: settings.mode === 'champ' ? settings.rounds : 1, points: new Map(), out: new Map() };
   if (settings.mode === 'champ' && S.career) {
     // (a career round: its number, the season's standings so far)
     const C = S.career, wk = S.weekend; wk.career = C; wk.round = C.round; wk.rounds = C.rounds;
@@ -185966,7 +186796,7 @@ function startWeekend() {
 function startRound() {
   const wk = S.weekend; strings(false); NEWS.cancelled = false;
   if (wk.mode === 'champ' && !wk.career && wk.round > 1) { // vary the weather round to round
-    const r = Math.random(); wk.wet = r < 0.6 ? 0 : r < 0.85 ? 0.35 : 0.75; setTimeOfDay(settings.time); applyWeather(wk.wet);
+    const r = Math.random(); wk.wx = weatherPlan(r < 0.45 ? 'dry' : r < 0.7 ? 'changeable' : r < 0.87 ? 'damp' : 'wet', { night: settings.time === 'night' }); wk.wet = wk.wx.start; setTimeOfDay(settings.time); applyWeather(wk.wet);
   }
   wk.cars = buildField(wk.lapsTotal); wk.player = wk.cars.find((c) => c.isPlayer) || null;
   const C = wk.career, sg = C?.savedGrid;
@@ -185979,7 +186809,7 @@ function startRound() {
     $('quali-panel').classList.remove('hidden');
   } else if (settings.grid === 'quali' && wk.player) {
     $('btn-practice').classList.remove('hidden'); $('btn-quali-sim').classList.remove('hidden');
-    const cond = `${{ dry: 'Dry', damp: 'Damp', wet: 'Wet' }[settings.weather] || 'Dry'}, ${settings.time === 'night' ? 'night' : 'day'}`;
+    const cond = `${WX_LABEL[settings.weather] || 'Dry'}${wk.career ? ' forecast' : ''}, ${settings.time === 'night' ? 'night' : 'day'}`;
     $('quali-info').textContent = `Round ${wk.round}/${wk.rounds} · ${W.track.def.name} · ${cond}. Qualifying: the whole field is out with you on flying laps, two timed laps each, the best counts. You start on a straight. When your laps are done, watch the rest (Tab: next car, Enter: ×6) or press F to simulate it. Expected pace: ${fmtTime(estimatePace())}`;
     if (wk.career?.objectives?.length) $('quali-info').textContent += ` · Sponsor targets this weekend: ${wk.career.objectives.map((ob) => `${ob.text} ($${ob.reward}M)`).join('; ')}.`;
     $('quali-results').innerHTML = ''; $('btn-quali-go').classList.remove('hidden'); $('btn-quali-done').classList.add('hidden');
@@ -186007,12 +186837,12 @@ function makeDirector(mode, cars, player, extra = {}) {
   engineer.reset();
   S.director = new RaceDirector({
     track: W.track, line: W.line, profile: W.profile, pit: W.pit, obstacles: W.obstacles, cars, player, hud, audio, engineer: mode === 'race' ? engineer : null,
-    settings: { mode, practice: !!extra.practice, lapsTotal: wk.lapsTotal, aggression: settings.aggr, skill: skillOf(settings.diff), wetness: wk.wet, gridOrder: extra.gridOrder, stewards: settings.stewards, safetyCar: settings.sc !== 'off', failures: settings.fail !== 'off', flashbacks: settings.fb, champNext: wk.mode === 'champ' && wk.round < wk.rounds },
+    settings: { mode, practice: !!extra.practice, lapsTotal: wk.lapsTotal, aggression: settings.aggr, skill: skillOf(settings.diff), wetness: wk.wet, weather: wk.wx || null, weatherFixed: !!settings.weatherFixed, gridOrder: extra.gridOrder, stewards: settings.stewards, safetyCar: settings.sc !== 'off', failures: settings.fail !== 'off', flashbacks: settings.fb, champNext: wk.mode === 'champ' && wk.round < wk.rounds },
     onFinish: extra.onFinish, onPitDone: (c) => S.meshes.get(c)?.setCompound(c.tyres.compound),
     onContact: (a, b, v) => noteContact(a, b, v), onPlayerDone: (c) => watchSession(c),
     onRedFlag: () => { debris.clear(); fire.clear(); chunks.clear(); },
   });
-  hud.initMinimap(W.track, W.pit); hud.show(); camCtl.mode = 'tcam';   // every session starts on the broadcast T-cam
+  hud.initMinimap(W.track, W.pit); hud.wx = S.director.weather || null; hud.show(); camCtl.mode = 'tcam'; spray.clear();   // every session starts on the broadcast T-cam
   if (player && W.pitBoxes) W.pitBoxes.setPlayer(player.boxIdx ?? 0, player.name);   // your garage: cyan box + marker
   if (S.spectating) hud.msg(`${wk?.career?.noSeat ? 'NO SEAT THIS WEEKEND' : 'STOOD DOWN'} · WATCHING ${S.player.name.toUpperCase()}\nEnter: fast-forward · Tab: next car`, 'warn', 6);
   else if (player?.standInFor) hud.msg(standInBanner(player), 'warn', 6);   // (your driver hurt, or banned: you race their stand-in)
@@ -186140,7 +186970,7 @@ function runRace() {
   const P = W.pit, pace = estimatePace(), L = W.track.length;
   const laneLen = P ? P.samples.length : 400, pitLoss = P ? Math.max(12, laneLen / P.limiter - laneLen / (L / pace) + 2.4 + 2.2) : 22;
   const gi = wk.gridOrder ? wk.gridOrder.indexOf(p) + 1 : 0;
-  showStrategy({ laps: wk.lapsTotal, trackName: W.track.def.name, trackLength: L, pace, pitLoss, wet: wk.wet, night: W.time === 'night', field: wk.cars.filter((c) => c !== p).map((c) => c.tyres.compound), gridPos: gi > 0 ? gi : null,
+  showStrategy({ laps: wk.lapsTotal, trackName: W.track.def.name, trackLength: L, pace, pitLoss, wet: wk.wet, forecast: forecastLine(wk, pace), night: W.time === 'night', field: wk.cars.filter((c) => c !== p).map((c) => c.tyres.compound), gridPos: gi > 0 ? gi : null,
     onDone: (plan) => {
       S.choosing = false;
       if (plan) { p.fitTyres(plan.stints[0].compound); p.strategy = { name: plan.name, label: plan.label, stints: plan.stints.map((s) => ({ ...s })), laps: plan.laps }; }
@@ -186787,14 +187617,14 @@ function startPreRace() {
   let pen = !!myComeback;
   const toRace = () => { if (!pen) { toRaceNow(); return; } pen = false; comebackInterview(myComeback, toRaceNow); };
   const night = W.time === 'night', str = (on) => strings(on, { gain: 0.4, fade: 2 });
-  PRE.show = new PreRace({ scene, camera, track: W.track, stands: W.stands, pit: W.pit, cars: d.cars, player: d.player, trackName: W.track.def.name, night, weather: settings.weather, memorial: mem, returning: back, audio, strings: str,
+  PRE.show = new PreRace({ scene, camera, track: W.track, stands: W.stands, pit: W.pit, cars: d.cars, player: d.player, trackName: W.track.def.name, night, weather: wxName(), memorial: mem, returning: back, audio, strings: str,
     walk: !!d.player, career: C || null, trackId: W.def.id,
     onDone: (walk) => {
       if (!walk) { toRace(); return; }
       // on foot on the grid first (ui/GridWalk.js), on the show's own grid; that taken away when you get in
       // (a scuffle on the walk - what it came to, walk.brawled - is kept with the weekend for the interview)
       const pre = PRE.show;
-      PRE.walk = new GridWalk({ pre, scene, camera, canvas: renderer.domElement, track: W.track, cars: d.cars, player: d.player, career: C || null, trackName: W.track.def.name, night, weather: settings.weather, audio, strings: str,
+      PRE.walk = new GridWalk({ pre, scene, camera, canvas: renderer.domElement, track: W.track, cars: d.cars, player: d.player, career: C || null, trackName: W.track.def.name, night, weather: wxName(), audio, strings: str,
         onDone: () => { if (S.weekend) S.weekend.brawl = PRE.walk?.brawled || PRE.walk?.x?.brawled || null; pre.dispose(); toRace(); } });
     } });
   PRE.on = true;
@@ -187808,6 +188638,7 @@ function frame(now) {
   if (d && S.ambient) clearAmbient();
   standsHD(FINALE.on || (!d && !W.home), dt, simTime);   // (the finale's shots, the title shots behind the menus: the stands full of people)
   if (W.home || !W.track) { input.endFrame(); return; }   // home screen / building: no 3D scene to draw
+  wxFrame(halted ? 0 : dt);
   rain.update(camera, halted ? 0 : dt);
   if (W.lights) W.lights.update(camera.position, simTime);
   for (const m of S.meshes.values()) m.detail(camera.position, carZoom());
@@ -187828,7 +188659,7 @@ function frame(now) {
 // ---------------------------------------------------------------------------
 {
   document.body.classList.add('home');   // (also in index.html; an Artifact host supplies its own <body>)
-  window.__F1 = { PRE, W, S, settings, scene, camera, renderer, input, hud, AIDriver, AI_TUNE, AI_CAL, applyCalibration, chunks, debris, fire, respawnMesh,
+  window.__F1 = { PRE, W, S, settings, scene, camera, renderer, input, hud, camCtl, spray, AIDriver, AI_TUNE, AI_CAL, applyCalibration, chunks, debris, fire, respawnMesh,
     /** (tests: one frame drawn as the crash camera draws it - through its composer - and the programs that compiled) */
     crashFrame() { const n0 = renderer.info.programs.length; ensureCrashComposer(); crashPass.uniforms.uBlur.value = 0.6; crashPass.uniforms.uSat.value = 1.5; crashComposer.render(); return renderer.info.programs.length - n0; },
     /** (tests: the crash director, and the camera as drawn - terrainLift() lifts it for the frame and returns the undo; renderView() draws a frame through it) */
