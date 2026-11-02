@@ -1461,7 +1461,7 @@ vec3 nSpark = vec3( 0.0 ); float nGlow = 0.0, nRough = 0.3, nMetal = 0.0, nCoat 
 	vec3 base = B.rgb;
 	if ( B.w > 0.0 ) {
 		float bed = 1.0 - smoothstep( sE - 0.5 * sc, sE + 0.3 * sc, s ), moon = ( 1.0 - smoothstep( 0.04 * sE, 0.2 * sE, s ) ) * ( 1.0 - av * av );
-		vec3 nb = base * mix( vec3( 1.04, 1.03, 1.02 ), vec3( 1.0, 0.84, 0.85 ), bed );
+		vec3 nb = base * mix( vec3( 0.98, 0.96, 0.96 ), vec3( 1.0, 0.84, 0.85 ), bed );
 		nb = mix( nb, base * 1.1 + 0.05, 0.45 * moon );
 		nb = mix( nb, min( nb * 1.08 + 0.04, vec3( 1.0 ) ), smoothstep( sE - 0.6 * sc, sE, s ) * ( 1.0 - smoothstep( sE, sE + 0.8 * sc, s ) ) );
 		base = mix( base, nb, B.w );
@@ -1480,7 +1480,7 @@ vec3 nSpark = vec3( 0.0 ); float nGlow = 0.0, nRough = 0.3, nMetal = 0.0, nCoat 
 	} else if ( pat < 3.5 ) {
 		// (micro: a fine line round the free edge, thinning to nothing down its sides)
 		float w = ( 1.0 + 0.4 * A.w ) * sc * smoothstep( sE - 0.2 * fr, sE + 0.7 * fr, s );
-		tipM = nCov( min( dSide, 0.5 * dTip ) - w );
+		tipM = nCov( min( dSide, 0.34 * dTip ) - w );
 	} else if ( pat < 4.5 ) {
 		// (double line: a fine line down each side and a second within it, both growing from nothing toward the tip and
 		// meeting there - a V outline)
