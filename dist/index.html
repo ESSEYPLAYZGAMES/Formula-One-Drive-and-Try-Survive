@@ -597,7 +597,7 @@ table.res tr.me td { color: var(--accent2); font-weight: 700; }
     <div class="brand-line"></div>
     <h1 id="brand-title">FORMULA 1<span id="brand-sub">SIMULATOR</span></h1>
     <!-- the build's version: +0.01 with every build handed out -->
-    <span id="app-ver" title="Version">V2.16</span>
+    <span id="app-ver" title="Version">V2.17</span>
     <div id="menu-sub">Real circuits built from OpenStreetMap</div>
   </div>
   <div id="loading" class="hidden"><div class="ld"><i></i></div><span>Building the circuit from OpenStreetMap…</span></div>
@@ -79863,8 +79863,10 @@ function groundTexture(day, style = 'city') {
   return gt;
 }
 
+const SHADOW_MAP = 4096, SHADOW_R = 120;   // (the shadow map's size in texels; the half-width of its box near the ground, metres)
 const PRESETS = {
-  night: { top: 0x03040a, horizon: 0x2a1e3a, glow: 0x6a3a5a, sun: 0, stars: 1, sunColor: 0xbfc8ff, sunI: 0.7, sunPos: [-600, 900, 400], hemiSky: 0x9aa0cc, hemiGround: 0x1a1410, hemiI: 0.75, amb: 0x3a3c46, ambI: 0.75, fog: 0x0a0c18, fogD: 0.00035, bg: 0x070812, exposure: 1.1, envI: 0.6 },   // race-night lift: the real event is floodlit bright
+  night: { top: 0x03040a, horizon: 0x2a1e3a, glow: 0x6a3a5a, sun: 0, stars: 1, sunColor: 0xd4dcff, sunI: 1.25, sunPos: [-280, 1100, 190], hemiSky: 0x9aa0cc, hemiGround: 0x1a1410, hemiI: 0.62, amb: 0x3a3c46, ambI: 0.5, fog: 0x0a0c18, fogD: 0.00035, bg: 0x070812, exposure: 1.1, envI: 0.6 },   // race-night lift: the real event is floodlit bright (the key high overhead, as the
+  //  floodlight banks are: the cars' shadows short and under them)
   day: { top: 0x2f6fd8, horizon: 0xcfe0f2, glow: 0xfff2d0, sun: 1, stars: 0, sunColor: 0xfff1dc, sunI: 2.6, sunPos: [500, 1100, -300], hemiSky: 0xbfd8ff, hemiGround: 0x9a8a6a, hemiI: 0.9, amb: 0x8fa3c0, ambI: 0.35, fog: 0xc9d6e6, fogD: 0.00016, bg: 0x9ec3ee, exposure: 0.95, envI: 1.0 },
 };
 
@@ -79897,7 +79899,13 @@ function createEnvironment(scene, renderer) {
   const sky = new THREE.Mesh(skyGeo, skyMat); sky.name = 'sky'; sky.renderOrder = 2; scene.add(sky);
 
   const hemi = new THREE.HemisphereLight(0x8a90c0, 0x1a1410, 0.55); scene.add(hemi);
-  const sun = new THREE.DirectionalLight(0xbfc8ff, 0.7); sun.position.set(-600, 900, 400); scene.add(sun);
+  const sun = new THREE.DirectionalLight(0xbfc8ff, 0.7); sun.position.set(-600, 900, 400); scene.add(sun); scene.add(sun.target);
+  // Real shadows: the sun (the moon at night) casts them - the cars' and the safety car's on the track, the run-off and
+  // the scenery, and on each other - into one shadow map over a box that follows the camera (followShadow, every frame)
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(SHADOW_MAP, SHADOW_MAP); sun.shadow.bias = -0.0003; sun.shadow.normalBias = 0.035;
+  Object.assign(sun.shadow.camera, { left: -SHADOW_R, right: SHADOW_R, top: SHADOW_R, bottom: -SHADOW_R, near: 20, far: 1500 });
+  sun.shadow.camera.updateProjectionMatrix();
   const amb = new THREE.AmbientLight(0x30323a, 0.6); scene.add(amb);
 
   const groundSets = { city: { night: groundTexture(false), day: groundTexture(true) } };
@@ -79919,13 +79927,30 @@ function createEnvironment(scene, renderer) {
   const envNight = makeEnv(PRESETS.night), envDay = makeEnv(PRESETS.day);
   pmrem.dispose();
 
-  const env = { sky, sun, hemi, amb, ground, mode: 'night' };
+  ground.receiveShadow = true;
+  const env = { sky, sun, hemi, amb, ground, mode: 'night', sunDir: new THREE.Vector3(-600, 900, 400).normalize() };
+  /** the shadow box over what the camera sees: ahead of it, wider the higher it is; moved in whole shadow-map texels (no shimmer) */
+  const _f = new THREE.Vector3(), _d = new THREE.Vector3(), _r = new THREE.Vector3(), _u = new THREE.Vector3(), _up = new THREE.Vector3(0, 1, 0);
+  let R0 = SHADOW_R;
+  env.followShadow = (cam, groundY = 0) => {
+    const hgt = Math.max(0, cam.position.y - groundY), R = Math.min(320, Math.max(SHADOW_R, SHADOW_R + 1.1 * (hgt - 6)));
+    if (Math.abs(R - R0) > R0 * 0.08) { R0 = R; Object.assign(sun.shadow.camera, { left: -R, right: R, top: R, bottom: -R }); sun.shadow.camera.updateProjectionMatrix(); }
+    cam.getWorldDirection(_d); _d.y = 0; if (_d.lengthSq() < 1e-6) _d.set(1, 0, 0); _d.normalize();
+    _f.copy(cam.position).addScaledVector(_d, R0 * 0.55); _f.y = groundY;
+    // (snapped in the light's own frame)
+    _r.crossVectors(_up, env.sunDir); if (_r.lengthSq() < 1e-6) _r.set(1, 0, 0); _r.normalize(); _u.crossVectors(env.sunDir, _r).normalize();
+    const tx = (2 * R0) / SHADOW_MAP, a = _f.dot(_r), b = _f.dot(_u);
+    _f.addScaledVector(_r, Math.round(a / tx) * tx - a).addScaledVector(_u, Math.round(b / tx) * tx - b);
+    sun.target.position.copy(_f); sun.position.copy(_f).addScaledVector(env.sunDir, 700);
+    sun.target.updateMatrixWorld();
+  };
   env.setTime = (mode) => {
     const p = PRESETS[mode] || PRESETS.night; env.mode = mode;
     skyMat.uniforms.top.value.set(p.top); skyMat.uniforms.horizon.value.set(p.horizon); skyMat.uniforms.glow.value.set(p.glow);
     skyMat.uniforms.uSun.value = p.sun; skyMat.uniforms.uStars.value = p.stars;
-    sun.color.set(p.sunColor); sun.intensity = p.sunI; sun.position.set(...p.sunPos);
-    skyMat.uniforms.sunDir.value.copy(sun.position).normalize();
+    sun.color.set(p.sunColor); sun.intensity = p.sunI; env.sunDir.set(...p.sunPos).normalize();
+    sun.position.copy(sun.target.position).addScaledVector(env.sunDir, 700);
+    skyMat.uniforms.sunDir.value.copy(env.sunDir);
     hemi.color.set(p.hemiSky); hemi.groundColor.set(p.hemiGround); hemi.intensity = p.hemiI;
     amb.color.set(p.amb); amb.intensity = p.ambI;
     scene.fog.color.set(p.fog); scene.fog.density = p.fogD; scene.background.set(p.bg);
@@ -143565,8 +143590,7 @@ const { REGIONS, REGION_BIT, partGeo, hasRegions, regionGeo, fragGeo, centreOf, 
 //                    driver's arms and gloves
 //   HIGH   (< 38 m)  the model at ~47k triangles, textured
 //   MED    (< 95 m)  ~16k, its colours in the vertices (the paint still the livery's own)
-//   FAR    (< 260 m) ONE mesh (~7k, vertex-coloured, the livery painted where the paint is) and its blob shadow (2 draw
-//                    calls); its geometry is shared - the car whole, or without the wings or wheels it has lost
+//   FAR    (< 260 m) ONE mesh (~7k, vertex-coloured, the livery painted where the paint is); its geometry is shared - the car whole, or without the wings or wheels it has lost
 //   MIN    (beyond)  the same at ~5k
 // A car only has its own paint (the livery's uniforms), number, T-cam colour and lights.
 
@@ -143614,7 +143638,7 @@ function posePiece(o, rec, t) {
   if (S && S.length > 1 && t > S[0]) { const v = Math.min(1, (t - S[0]) / SWEEP_T), e = v * v * (3 - 2 * v); o.position.x = S[1] + (S[3] - S[1]) * e; o.position.z = S[2] + (S[4] - S[2]) * e; }
 }
 
-// ---- shared parts: the punctured tyre's (the wrecked tyre and the bare rim), the helmet, the blob shadow
+// ---- shared parts: the punctured tyre's (the wrecked tyre and the bare rim), the helmet
 const TYRE_WF = 0.346, TYRE_WR = 0.402, R_RIM = 0.2286;
 const rimF = new THREE.CylinderGeometry(R_RIM, R_RIM, TYRE_WF - 0.02, 20); rimF.rotateX(Math.PI / 2);
 const rimR = new THREE.CylinderGeometry(R_RIM, R_RIM, TYRE_WR - 0.02, 20); rimR.rotateX(Math.PI / 2);
@@ -143641,24 +143665,17 @@ const shouldersGeo = (() => {
 })();
 const hansGeo = (() => { const g = new THREE.TorusGeometry(0.1, 0.022, 8, 24, Math.PI * 1.25); g.rotateX(Math.PI / 2); g.rotateY(-Math.PI * 0.375); g.scale(1, 1, 1.15); g.translate(-0.045, -0.012, 0); return g; })();   // (on the shoulders, round the back of the neck)   // (a collar round the back of the neck, open at the front, its arms down onto the shoulders)
 const hansMat = new THREE.MeshStandardMaterial({ color: 0x15161a, roughness: 0.55, metalness: 0.2 });
-const shadowGeo = new THREE.PlaneGeometry(5.5, 2.15); shadowGeo.rotateX(-Math.PI / 2); shadowGeo.translate(0, 0.01, 0);
 const flangeGeo = new THREE.TorusGeometry(0.232, 0.014, 6, 28);
 const carcassGeo = new THREE.TorusGeometry(0.243, 0.028, 6, 24, Math.PI * 1.3);
 const tatterGeo = new THREE.BoxGeometry(0.42, 0.02, 1); tatterGeo.translate(0.21, 0, 0);
 const cordGeo = new THREE.TorusGeometry(0.345, 0.02, 4, 24, Math.PI * 0.8);
 const rubber = new THREE.MeshStandardMaterial({ color: 0x141414, roughness: 0.95 });
-const shadowMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.6, depthWrite: false }); shadowMat.userData.glow = false;
-if (typeof document !== 'undefined') {
-  const c = document.createElement('canvas'); c.width = 256; c.height = 128; const x = c.getContext('2d');
-  x.fillStyle = '#000'; x.fillRect(0, 0, 256, 128); x.filter = 'blur(10px)'; x.fillStyle = '#fff'; x.beginPath(); x.roundRect(30, 26, 196, 76, 30); x.fill();
-  shadowMat.alphaMap = new THREE.CanvasTexture(c);
-}
 const visorMat = new THREE.MeshStandardMaterial({ color: 0x0a0a10, roughness: 0.12, metalness: 0.9 });
 // a wheel with its tyre gone: bare machined metal (a touch of its own light so it reads silver at night too)
 const bareRimMat = new THREE.MeshStandardMaterial({ color: 0xe4e7ec, roughness: 0.3, metalness: 0.45, emissive: 0x50545b, emissiveIntensity: 0.55 });
 const cordMat = new THREE.MeshStandardMaterial({ color: 0x8a8074, roughness: 0.95 });
-const SHARED_GEO = new Set([rimF, rimR, helmetGeo, helmetFar, visorBandGeo, spoilerGeo, neckGeo, shouldersGeo, hansGeo, shadowGeo, flangeGeo, carcassGeo, tatterGeo, cordGeo]);
-const SHARED_MAT = new Set([rubber, shadowMat, visorMat, bareRimMat, cordMat, hansMat]);
+const SHARED_GEO = new Set([rimF, rimR, helmetGeo, helmetFar, visorBandGeo, spoilerGeo, neckGeo, shouldersGeo, hansGeo, flangeGeo, carcassGeo, tatterGeo, cordGeo]);
+const SHARED_MAT = new Set([rubber, visorMat, bareRimMat, cordMat, hansMat]);
 
 // ---- the model's shared materials (built once it is loaded): textured for the near states; the tyres one per compound
 let MAT = null;
@@ -143872,19 +143889,20 @@ class CarMesh {
       this.wheels.push({ hub, camber, spin, mesh: tyre, face, decals: [], front, side: s, state: 0, y0: H.c[1], dy: 0 });
     }
     for (let l = 1; l < 3; l++) for (const o of this.lv[l]) o.visible = false;
-    this.shadow = new THREE.Mesh(shadowGeo, shadowMat); body.add(this.shadow);   // blob shadow
     this.spin = 0; this.mangled = false;
     // (the damage as drawn: the parts gone, the regions' mask, the half of a torn car, the dents uploaded, the pieces)
     this._gone = {}; this._mask = 0; this._half = 0; this._dentRef = null; this._dentVer = -1; this._pieces = new Map(); this._piecesRef = null;
 
-    // ---- the far states: one mesh each (shared geometry), their own blob shadows
-    this.far = new THREE.Group(); this.farMesh = new THREE.Mesh(farGeometry(3, () => true), farMat([0, 0, 0])); this.farMesh.position.x = CG_X; this.shadowFar = new THREE.Mesh(shadowGeo, shadowMat); this.shadowFar.position.x = CG_X; this.far.add(this.farMesh, this.shadowFar);
-    this.min = new THREE.Group(); this.minMesh = new THREE.Mesh(farGeometry(4, () => true), farMat([0, 0, 0])); this.minMesh.position.x = CG_X; this.shadowMin = new THREE.Mesh(shadowGeo, shadowMat); this.shadowMin.position.x = CG_X; this.min.add(this.minMesh, this.shadowMin);
+    // ---- the far states: one mesh each (shared geometry)
+    this.far = new THREE.Group(); this.farMesh = new THREE.Mesh(farGeometry(3, () => true), farMat([0, 0, 0])); this.farMesh.position.x = CG_X; this.far.add(this.farMesh);
+    this.min = new THREE.Group(); this.minMesh = new THREE.Mesh(farGeometry(4, () => true), farMat([0, 0, 0])); this.minMesh.position.x = CG_X; this.min.add(this.minMesh);
     this.group.addLevel(body, 0); this.group.addLevel(this.far, LOD_FAR); this.group.addLevel(this.min, LOD_MIN);
     this._sig = this._signature();
     // (lit as a car is in a session - the floodlights, the Sphere's glow: world/Lighting.js - from the start, so a car
     //  made mid-session, a flashback's or a replay's, draws with the programs compiled at its start)
     this.group.traverse((o) => { if (o.material) floodlit(o.material, true); });
+    // (its shadow is the sun's: cast on the track and the other cars, and on itself - world/Environment.js; no decal)
+    this.group.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
   }
 
   /**
@@ -144265,7 +144283,6 @@ class CarMesh {
       const q = car.q; this.group.quaternion.set(q[0], q[1], q[2], q[3]);
       _wp.set(0, 0.48, 0).applyQuaternion(this.group.quaternion);   // the body turns about its centre, 0.48 m above the mesh origin
       this._gy = TERRAIN.at(car.p[0], car.p[2]); this.group.position.set(car.p[0] - _wp.x, car.p[1] - _wp.y + this._gy, car.p[2] - _wp.z);
-      this.shadow.visible = false; if (this.shadowFar) this.shadowFar.visible = false; if (this.shadowMin) this.shadowMin.visible = false;   // the blob shadow is a ground decal: not on a tumbling body
     } else {
       // the sprung body: heave, pitch (nose up = +z rotation in the mesh frame) and roll (left side up = +x)
       // (on a circuit that is not flat: on the ground under it, nose up the slope it is climbing and leaning with the
@@ -144943,9 +144960,8 @@ class SafetyCarMesh {
     this.own.push(this.amber, this.amberB, this.greenLamp);
     const M = scModel();
     if (M) this.buildModel(M); else this.buildBoxes();
-    // blob shadow
-    const sh = new THREE.Mesh(new THREE.PlaneGeometry(5.0, 2.3), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.42, depthWrite: false }));
-    sh.rotation.x = -Math.PI / 2; sh.position.y = 0.02; g.add(sh); this.own.push(sh.geometry, sh.material);
+    // (its shadow is the sun's - world/Environment.js: cast on the track and the cars, and on itself; no decal)
+    g.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
     this.spin = 0; this.t = 0; this.steer = 0; this.roll = 0; this.pitch = 0; this.brake = 0;
     this.prev = null;
   }
@@ -145004,6 +145020,7 @@ class SafetyCarMesh {
       for (const o of this.boxOwn) o.dispose();
       this.group.remove(this.boxes); this.boxes = null; this.boxOwn = [];
       this.buildModel(scModel());
+      this.group.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
     }
     let gy = 0, gp = 0;   // (on a circuit that is not flat: world/Terrain.js)
     if (TERRAIN.on) { const g = TERRAIN.grad(car.x, car.z); gy = TERRAIN.at(car.x, car.z); gp = Math.atan(g[0] * Math.cos(car.th) + g[1] * Math.sin(car.th)); }
@@ -145078,7 +145095,7 @@ const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _s = new THREE.Vect
 
 class Pool {
   constructor(spec, mat) {
-    this.spec = spec; this.mesh = new THREE.InstancedMesh(spec.geo(), mat, spec.max);
+    this.spec = spec; this.mesh = new THREE.InstancedMesh(spec.geo(), mat, spec.max); this.mesh.castShadow = true;   // (the sun casts their shadows: world/Environment.js)
     this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); this.mesh.frustumCulled = false; this.mesh.count = spec.max;
     for (let i = 0; i < spec.max; i++) { this.mesh.setColorAt(i, _c.set(0x111111)); _m.compose(_hide, _q.identity(), _hide); this.mesh.setMatrixAt(i, _m); }
     this.items = []; for (let i = 0; i < spec.max; i++) this.items.push({ on: false, sleep: true, age: 0, p: new THREE.Vector3(), v: new THREE.Vector3(), q: new THREE.Quaternion(), w: new THREE.Vector3() });
@@ -184372,6 +184389,7 @@ const canvas = $('gl');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
 renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;   // (the cars' shadows: from the sun, world/Environment.js)
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(74, 16 / 9, 0.3, 6000);   // tighter depth range: less z-fighting on painted surfaces
 /** how much the lens magnifies against the default 74 degrees (the cars' detail by distance scales with it: CarMesh.detail) */
@@ -184488,7 +184506,7 @@ async function loadWorld(def) {
   const { line, profile, shown, showLine } = makeRacingLine(track, def);
   await set('Laying the track, kerbs and barriers…', 40);
   const trackMesh = buildTrackMeshes(track, pit, gridLayout(track, 23, 1));
-  scene.add(trackMesh);
+  scene.add(trackMesh); receiveShadows(trackMesh);
   await set('Building the landmarks…', 54);
   const lm = buildLandmarks(geo, track, def, pit);
   const moved = clearLandmarksFromTrack(lm.group, track, pit);
@@ -184509,7 +184527,8 @@ async function loadWorld(def) {
   if (venue) scene.add(venue.group);
   // a circuit's own scenery (Montreal: the islands' water and trees, the Biosphere, the casino, the stands, the paint on the grass)
   const scenery = def.scenery === 'montreal' ? buildMontreal(geo, track, def, pit) : def.scenery === 'austin' ? buildAustin(geo, track, def, pit) : def.scenery === 'silverstone' ? buildSilverstone(geo, track, def, pit) : null;
-  if (scenery) scene.add(scenery.group);
+  if (scenery) { scene.add(scenery.group); receiveShadows(scenery.group); }
+  if (venue) receiveShadows(venue.group);
   await set('Raising the city…', 68);
   const buildings = buildGenericBuildings(geo, track, new Set([...lm.claimed, ...(venue ? venue.claimed : []), ...(scenery ? scenery.claimed : [])]), pit);
   scene.add(buildings);
@@ -185518,7 +185537,10 @@ function renderView() {
   const undo = terrainLift();
   try { renderFrame(); } finally { undo?.(); }
 }
+/** what the cars' shadows fall on: every lit surface of a group (the road, kerbs, run-off, walls, the scenery) */
+function receiveShadows(g) { g.traverse((m) => { if (m.isMesh && m.material && !m.material.isShaderMaterial && !m.material.isMeshBasicMaterial) m.receiveShadow = true; }); }
 function renderFrame() {
+  env.followShadow(camera, TERRAIN.on ? TERRAIN.at(camera.position.x, camera.position.z) : 0);
   if (!PHOTO.on && crashCam.on && (crashCam.blur > 0.01 || crashCam.sat > 1.01)) {
     ensureCrashComposer(); crashPass.uniforms.uBlur.value = crashCam.blur; crashPass.uniforms.uSat.value = crashCam.sat;
     crashComposer.render(); return;
