@@ -1314,11 +1314,12 @@ function handAt(w, dir, pn, k, th, arm = {}, grip = 0.15) {
   // (the hand's own half-width, depth behind and depth in front along it, from the wrist's joint: the wrist, the heel of
   // the hand (the palm's pads), across the palm, the knuckles, closing in where the fingers take over)
   // (hers: a slimmer hand across the knuckles, long slim fingers tapering to narrow tips - FW, FT, FLk: their width, taper, length)
-  const fem = !!arm.fem, FW = fem ? 0.79 : 1, FT = fem ? [1, 0.84, 0.72, 0.64] : [1, 0.88, 0.79, 0.74], FLk = fem ? 1.06 : 1, HW = fem ? 0.87 : 1;
+  // (hers: even along the first two joints, tapering only over the last to an almond tip - slender, never a sausage)
+  const fem = !!arm.fem, FW = fem ? 0.75 : 1, FT = fem ? [1, 0.95, 0.87, 0.7] : [1, 0.88, 0.79, 0.74], FLk = fem ? 1.06 : 1, HW = fem ? 0.87 : 1;
   const HP = [[-0.04, 0.008, 0.004, 0.004], [-0.02, 0.019, 0.0095, 0.0095], [0, 0.0255, 0.0115, 0.0125], [0.02, 0.031, 0.0125, 0.0165], [0.045, 0.036, 0.012, 0.015], [0.07, 0.0385, 0.0105, 0.0125], [0.086, 0.0395, 0.0082, 0.0104], [0.097, 0.0385, 0.0062, 0.0088]];
   // (the fingers' knuckles across it (index to little, the index on the thumb's side) and how far along: the knuckles'
   // line arched, the little finger's furthest back)
-  const FX = [0.027, 0.009, -0.009, -0.026].map((v) => v * (fem ? 0.9 : 1)), FY = [0.091, 0.094, 0.0915, 0.0855], FR = [0.0095, 0.0099, 0.0093, 0.0083].map((v) => v * FW), FZ = 0.0015;
+  const FX = [0.027, 0.009, -0.009, -0.026].map((v) => v * (fem ? 0.95 : 1)), FY = [0.091, 0.094, 0.0915, 0.0855], FR = [0.0095, 0.0099, 0.0093, 0.0083].map((v) => v * FW), FZ = 0.0015;
   // (toward the knuckles the back of the hand gathers into the four fingers' own rounds (each FZ behind the hand's middle,
   // flattened as they are), a hair over them - each finger coming out of its front, under its knuckle, never through
   // its back - each knuckle a round bump a little higher, falling away sharply in front of it, softly behind it; the
@@ -1383,7 +1384,10 @@ function handAt(w, dir, pn, k, th, arm = {}, grip = 0.15) {
     const pa = half(Array.from({ length: nP + 1 }, (_, i) => i), np), bk2 = half(Array.from({ length: n - nP + 1 }, (_, i) => nP + i), m - np);
     return [...pa, ...bk2.slice(1, -1)];
   };
-  const body = (u, m, sh = 1) => { const s = u < 0 ? u : u * k, [wd0, bk, pm] = spline(HP, u).map((v) => v * k), wd = wd0 * (1 - (1 - HW) * ss3(0.0, 0.08, u)) * (fem ? 1 - 0.08 * ss3(0.08, 0.104, u) : 1), e = env(s), f = ss3(-0.01, 0.03, u), b = smax(e, bk); let R = sect(s, smax(e, wd) * sh, b * sh, smax(e, pm) * sh, 1 - (lo ? 0.28 : 0.2) * f, 1 - 0.15 * f, lo ? m : 4 * m, 0, (x) => 0.04 * th * x * ss3(0.06, 0.1, u), kn(u, b, sh), lo ? 0.5 : 6 / 11, pads(u), lo ? 0 : 0.06 * gau(u - 0.035, 0.028)); if (!lo) { const L = lobe(u); if (L && L.b > 1e-4) R = swell(R, s, L); R = reseat(R, m, 4 * NP); } return !lo && arm.wr && s > -0.008 && s < 0.03 ? clear(R, frame(s)[0]) : R; };
+  // (the hand's half-width along it: hers slim at the wrist, widening evenly to her knuckles - a gentle fan, not a box)
+  const FWP = [[-0.04, 0.008], [-0.02, 0.019], [0, 0.0232], [0.02, 0.0262], [0.045, 0.0293], [0.07, 0.0313], [0.086, 0.0318], [0.097, 0.0308]];
+  const hwAt = (u, wd0) => (fem ? spline(FWP, u)[0] * k * (1 - 0.08 * ss3(0.08, 0.104, u)) : wd0 * (1 - (1 - HW) * ss3(0.0, 0.08, u)));
+  const body = (u, m, sh = 1) => { const s = u < 0 ? u : u * k, [wd0, bk, pm] = spline(HP, u).map((v) => v * k), wd = hwAt(u, wd0), e = env(s), f = ss3(-0.01, 0.03, u), b = smax(e, bk * (fem ? 1 + 0.32 * ss3(0.05, 0.0, u) * ss3(-0.03, 0, u) : 1)); let R = sect(s, smax(e, wd) * sh, b * sh, smax(e, pm) * sh, 1 - (lo ? 0.28 : 0.2) * f, 1 - 0.15 * f, lo ? m : 4 * m, 0, (x) => 0.04 * th * x * ss3(0.06, 0.1, u), kn(u, b, sh), lo ? 0.5 : 6 / 11, pads(u), lo ? 0 : 0.06 * gau(u - 0.035, 0.028)); if (!lo) { const L = lobe(u); if (L && L.b > 1e-4) R = swell(R, s, L); R = reseat(R, m, 4 * NP); } return !lo && arm.wr && s > -0.008 && s < 0.03 ? clear(R, frame(s)[0]) : R; };
   const g = [];
   if (lo) {
     // (a crowd's: wrist, palm and fingers in one, curled a little - the more round something held - and a stub of a thumb)
@@ -1396,7 +1400,8 @@ function handAt(w, dir, pn, k, th, arm = {}, grip = 0.15) {
     return g;
   }
   const lerp3 = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t), gq = Math.max(-1, Math.min(1, grip));
-  const bendOf = (rel, cl, fl) => (gq >= 0 ? lerp3(rel, cl, gq) : lerp3(rel, fl, -gq));
+  // (hers at ease the straighter - long and elegant, only a soft curl - closing as far round something held)
+  const bendOf = (rel, cl, fl) => (gq >= 0 ? lerp3(rel, cl, fem ? gq ** 1.4 : gq) : lerp3(rel, fl, -gq));
   // ---- the bones first (the fingers' lines, the thumb's): the hand's own surface is built round them ----
   // (hand-local measures: x across (+ toward the thumb), y along, z toward the palm - at(x, y, z) the point there, in
   // metres, turning with the wrist where it bends; dirAt(y, v) a direction in those measures there; loc(p) back again)
@@ -1412,15 +1417,15 @@ function handAt(w, dir, pn, k, th, arm = {}, grip = 0.15) {
   const FL = [[0.038, 0.022, 0.018], [0.041, 0.025, 0.019], [0.039, 0.024, 0.018], [0.031, 0.018, 0.016]], FS = [0.07, 0.015, -0.035, -0.09], fq = fem ? 0.84 : 0.86, FM = fem ? 12 : 10;
   const fing = [], ext = 0.42 * (1 - 0.6 * Math.max(0, gq));
   for (let i = 0; i < 4; i++) {
-    const ph = th * FS[i] * (fem ? 0.55 : 1) * (1 - 0.6 * Math.max(0, gq)), d0 = D.clone().multiplyScalar(Math.cos(ph)).addScaledVector(X, Math.sin(ph)), xa = new THREE.Vector3().crossVectors(d0, Pn).normalize();
+    const ph = th * FS[i] * (fem ? 0.55 + 2.4 * Math.max(0, -gq) : 1) * (1 - 0.6 * Math.max(0, gq)), d0 = D.clone().multiplyScalar(Math.cos(ph)).addScaledVector(X, Math.sin(ph)), xa = new THREE.Vector3().crossVectors(d0, Pn).normalize();
     const [b1, b2, b3] = bendOf([0.18 + 0.05 * i, 0.28 + 0.07 * i, 0.16 + 0.04 * i].map((v) => v * (fem ? 0.62 : 1)), [0.85 + 0.06 * i, 1.15 + 0.05 * i, 0.55 + 0.03 * i], [-0.08, 0.04, 0.02]);
     const dA = (a) => d0.clone().multiplyScalar(Math.cos(a)).addScaledVector(Pn, Math.sin(a)), d1 = dA(b1), d2 = dA(b1 + b2), d3 = dA(b1 + b2 + b3), r = FR[i] * k, [l1, l2, l3] = FL[i].map((v) => v * k * FLk);
-    const J1 = H0.clone().addScaledVector(X, th * FX[i] * k).addScaledVector(D, FY[i] * k).addScaledVector(Pn, -FZ * k), J2 = J1.clone().addScaledVector(d1, l1), J3 = J2.clone().addScaledVector(d2, l2), J4 = J3.clone().addScaledVector(d3, l3 - 0.6 * r);
+    const J1 = H0.clone().addScaledVector(X, th * FX[i] * k).addScaledVector(D, FY[i] * k).addScaledVector(Pn, -FZ * k), J2 = J1.clone().addScaledVector(d1, l1), J3 = J2.clone().addScaledVector(d2, l2), J4 = J3.clone().addScaledVector(d3, l3 - 0.82 * r);
     const A = (c, T, f, o = {}) => ({ c, T, r: f * r, w: 1, q: fq, ...o }), mid = (a, b) => a.clone().add(b).multiplyScalar(0.5);
     // (its line, from well back of its knuckle to its middle joint, where the hand's end is built round it - its round
     // there as the hand's section cuts it, the deeper the more it bends away from the hand's own line)
     const ax = [[J1.clone().addScaledVector(d0, -0.04 * k), d0], [J1, av(d0, d1)], [mid(J1, J2), d1], [J2, d1]].map(([c, T], j) => { const p = loc(c), f = j < 2 ? FT[0] : j < 3 ? (FT[0] + FT[1]) / 2 : FT[1]; return [p[0], p[1], p[2], f * r, f * r * fq / Math.max(0.45, T.dot(D))]; });
-    const R = [A(mid(J2, J3), d2, 0.98 * (FT[1] + FT[2]) / 2, { pd: 0.1 }), A(J3, av(d2, d3), FT[2], { kb: fem ? 0.012 : 0.03, pd: -0.05, id: 'J3' }), A(mid(J3, J4), d3, (FT[2] + FT[3]) / 2, { pd: 0.15 }), A(J4, d3, FT[3], { pd: 0.18 })];
+    const R = [A(mid(J2, J3), d2, 0.98 * (FT[1] + FT[2]) / 2, { pd: 0.1 }), A(J3, av(d2, d3), FT[2], { kb: fem ? 0.012 : 0.03, pd: -0.05, id: 'J3', cr: 0.07 }), A(mid(J3, J4), d3, (FT[2] + FT[3]) / 2, { pd: 0.15 }), A(J4, d3, FT[3], { pd: 0.18 })];
     fing.push({ R, xa, ax, y1: loc(J1)[1], yw: (FY[i] + ext * FL[i][0] * FLk) * k, J1, J2, d1, d2, r, l1 });
   }
   // (where each finger is at y along the hand: [x, y, z, its half-width, its half-depth])
@@ -1437,7 +1442,7 @@ function handAt(w, dir, pn, k, th, arm = {}, grip = 0.15) {
     const yf = fing.map((F) => yK0 + (F.yw - yK0) * t), A = fing.map((F, i) => axisAt(F, yf[i]));
     const across = (x, q) => { if (x >= A[0][0]) return q < 0 ? yf[0] : A[0][q]; if (x <= A[3][0]) return q < 0 ? yf[3] : A[3][q]; let i = 0; while (i < 2 && x < A[i + 1][0]) i++; const s = (x - A[i + 1][0]) / (A[i][0] - A[i + 1][0]); return q < 0 ? yf[i + 1] + (yf[i] - yf[i + 1]) * s : A[i + 1][q] + (A[i][q] - A[i + 1][q]) * s; };
     // (the hand's own sides carried on round the outer fingers' knuckles, narrowing to their rounds by the webs)
-    const yo = (yf[0] + yf[3]) / 2, wdo = spline(HP, yo / k)[0] * k * (1 - (1 - HW) * ss3(0.0, 0.08, yo / k)) * (fem ? 1 - 0.08 * ss3(0.08, 0.104, yo / k) : 1), fo = 1 - ss3(0.2, 0.75, t);
+    const yo = (yf[0] + yf[3]) / 2, wdo = hwAt(yo / k, spline(HP, yo / k)[0] * k), fo = 1 - ss3(0.2, 0.75, t);
     const eHi = Math.max(0, wdo - A[0][0] - A[0][3]) * fo, eLo = Math.max(0, wdo + A[3][0] - A[3][3]) * fo, rxo = (i, dx) => A[i][3] + (i === 0 && dx > 0 ? eHi : i === 3 && dx < 0 ? eLo : 0);
     const xHi = A[0][0] + A[0][3] + eHi, xLo = A[3][0] - A[3][3] - eLo;
     const zW = (x) => across(x, 2) + 0.2 * across(x, 4), eB = ss3(0.25, 1, t) ** 0.9, eP = ss3(0.1, 1, t), KH = (fem ? 0.0009 : 0.0016) * k * FW, wq = 0.0016 * k;
@@ -1495,8 +1500,8 @@ function handAt(w, dir, pn, k, th, arm = {}, grip = 0.15) {
     const sg = new THREE.Vector3().crossVectors(xa, R[0].T).dot(pal) < 0 ? -1 : 1;
     const e = (o) => { const e2 = new THREE.Vector3().crossVectors(xa, o.T).normalize().multiplyScalar(sg); return [new THREE.Vector3().crossVectors(o.T, e2).normalize(), e2]; };
     const sAt = (o, a, lift = 0) => { const [e1, e2] = e(o), s = Math.sin(a), c = Math.cos(a), zz = s > 0 ? s * (1 + (o.pd || 0) * s * s) : s * (1 + (o.kb || 0) * (-s) ** 1.5), x = c * o.r * o.w, z = zz * o.r * o.q, nx = c / Math.max(1e-6, o.w), nz = s / Math.max(1e-6, o.q), nl = Math.hypot(nx, nz) || 1; return o.c.clone().addScaledVector(e1, x + lift * nx / nl).addScaledVector(e2, z + lift * nz / nl); };
-    const L = R[R.length - 1], [, eL] = e(L), dome = [[0.4, 0.93, 0.12], [0.72, 0.74, 0.3], [0.92, 0.45, 0.46]].map(([a, f, b]) => ({ ...L, c: L.c.clone().addScaledVector(L.T, a * L.r).addScaledVector(eL, -b * L.r * L.q), r: f * L.r, pd: L.pd * f, kb: 0, id: null }));
-    const RR = [...R, ...dome], tip = L.c.clone().addScaledVector(L.T, 1.0 * L.r).addScaledVector(eL, -0.55 * L.r * L.q);
+    const L = R[R.length - 1], [, eL] = e(L), dome = [[0.45, 0.92, 0.12], [0.85, 0.72, 0.3], [1.12, 0.42, 0.45]].map(([a, f, b]) => ({ ...L, c: L.c.clone().addScaledVector(L.T, a * L.r).addScaledVector(eL, -b * L.r * L.q), r: f * L.r, pd: L.pd * f, kb: 0, id: null }));
+    const RR = [...R, ...dome], tip = L.c.clone().addScaledVector(L.T, 1.24 * L.r).addScaledVector(eL, -0.52 * L.r * L.q);
     // (carried on from the hand's own ring round it (st: its points, the finger's line there): each point's angle round
     // the finger kept for its first ring, eased to even spacing by the next - no twist, no seam)
     let ang = Array.from({ length: m }, (_, j) => (j / m) * Math.PI * 2), a0 = null;
@@ -1528,6 +1533,9 @@ function handAt(w, dir, pn, k, th, arm = {}, grip = 0.15) {
     }
     const rows = RR.slice(i0).map((o, i) => (i === 0 && a0 ? a0 : ang).map((a) => sAt(o, a)));
     const gt = loft([...pre, ...rows, Array(m).fill(tip)]);
+    // (the faintest creases over its joints - across the back, and the palm's side under them: a shade in the skin's own
+    // colour, never a groove)
+    { const C = [], A0 = RR.slice(i0); pre.forEach(() => { for (let j = 0; j < m; j++) C.push(1, 1, 1); }); A0.forEach((o, i) => (i === 0 && a0 ? a0 : ang).forEach((a) => { const sn = Math.sin(a), d = 1 - (o.cr || 0) * (sn < 0 ? sn * sn : 0.6 * sn * sn); C.push(d, 0.985 * d + 0.015, 0.985 * d + 0.015); })); for (let j = 0; j < m; j++) C.push(1, 1, 1); gt.setAttribute('color', new THREE.Float32BufferAttribute(C, 3)); }
     if (NS) { const NA0 = gt.attributes.normal; NS.forEach((n, j) => { if (n) NA0.setXYZ(j, n.x, n.y, n.z); }); }
     // (its tip lit as the round end it is: the end point's normals out along it, turned a little to the nail's side)
     const NA = gt.attributes.normal, tn = L.T.clone().addScaledVector(eL, -0.4).normalize(); for (let j = NA.count - m; j < NA.count; j++) NA.setXYZ(j, tn.x, tn.y, tn.z);
@@ -1540,14 +1548,15 @@ function handAt(w, dir, pn, k, th, arm = {}, grip = 0.15) {
    *  it. Pink over its bed, a pale half-moon at its root, its free edge paler still; the folds the skin's own colour -> geometry */
   const nail = (F, d, wd) => {
     const RR = F.R.slice(d), bp = RR.map((o) => F.at(o, -Math.PI / 2)), S = [0]; for (let i = 1; i < bp.length; i++) S.push(S[i - 1] + bp[i].distanceTo(bp[i - 1]));
-    const s0 = 0.3 * S[2], s1 = S[S.length - 1] - 0.18 * (S[S.length - 1] - S[S.length - 2]); if (globalThis.__dbgHand) globalThis.__dbgHand.push(S.map((v) => +(v * 1000).toFixed(1)));
-    const ringAt = (s) => { let i = 1; while (i < S.length - 1 && S[i] < s) i++; const t = clamp01((s - S[i - 1]) / Math.max(1e-9, S[i] - S[i - 1])), a = RR[i - 1], b = RR[i]; return { c: a.c.clone().lerp(b.c, t), T: a.T.clone().lerp(b.T, t).normalize(), r: a.r + (b.r - a.r) * t, w: a.w + (b.w - a.w) * t, q: a.q + (b.q - a.q) * t, pd: (a.pd || 0) + ((b.pd || 0) - (a.pd || 0)) * t, kb: (a.kb || 0) + ((b.kb || 0) - (a.kb || 0)) * t }; };
+    const s0 = 0.3 * S[2], s1 = S[S.length - 1] + 0.25 * (S[S.length - 1] - S[S.length - 2]);   // (a hair past the tip)
+    const ringAt = (s) => { let i = 1; while (i < S.length - 1 && S[i] < s) i++; const t = Math.max(0, Math.min(i === S.length - 1 ? 1.4 : 1, (s - S[i - 1]) / Math.max(1e-9, S[i] - S[i - 1]))), a = RR[i - 1], b = RR[i]; return { c: a.c.clone().lerp(b.c, t), T: a.T.clone().lerp(b.T, t).normalize(), r: a.r + (b.r - a.r) * t, w: a.w + (b.w - a.w) * t, q: a.q + (b.q - a.q) * t, pd: (a.pd || 0) + ((b.pd || 0) - (a.pd || 0)) * t, kb: (a.kb || 0) + ((b.kb || 0) - (a.kb || 0)) * t }; };
     const UU = [-0.24, -0.1, 0, 0.12, 0.3, 0.5, 0.7, 0.85, 0.95, 1], VV = [-1.32, -1.13, -1, -0.62, -0.22, 0.22, 0.62, 1, 1.13, 1.32], NV = VV.length, P = [], C = [], I = [], edge = [];
     UU.forEach((u, i) => {
-      const o = ringAt(s0 + (s1 - s0) * Math.max(-0.3, u)), uc = Math.max(0, u), wdu = wd * (0.8 + 0.2 * ss3(0, 0.16, uc)) * (1 - 0.3 * ss3(0.72, 1, uc) ** 1.5);
+      const uc = Math.max(0, u), wdu = wd * (0.8 + 0.2 * ss3(0, 0.16, uc)) * (1 - 0.42 * ss3(0.7, 1, uc) ** 1.4);   // (narrow at its root, an almond at its free edge)
       VV.forEach((v, j) => {
+        const o = ringAt(s0 + (s1 - s0) * (Math.max(-0.3, u) + 0.12 * Math.min(1, Math.abs(v)) ** 2 * (1 - ss3(0, 0.35, u))));   // (its root a soft curve, not a square)
         const av = Math.abs(v), fold = u < 0 || av > 1, outer = u <= -0.2 || av > 1.2;
-        const lift = k * (outer ? -0.00004 : fold ? 0.00034 * (1 - ss3(0.72, 0.96, u)) : (0.00012 + 0.00026 * (1 - v * v)) * (0.6 + 0.4 * ss3(0, 0.3, u)));
+        const lift = k * (outer ? -0.00004 : fold ? 0.00024 * (1 - ss3(0.72, 0.96, u)) : (0.00012 + 0.00026 * (1 - v * v)) * (0.6 + 0.4 * ss3(0, 0.3, u)));
         const p = F.at(o, -Math.PI / 2 + v * wdu, lift); P.push(p.x, p.y, p.z); if (outer) edge.push([i * NV + j, o]);
         const moon = gau(u - 0.06, 0.09) * (1 - Math.min(1, av) ** 2), tip = ss3(0.84, 0.97, u), groove = gau(av - 1, 0.12) * (fold ? 0 : 1) + gau(u, 0.06) * (fold ? 0 : 1);
         C.push(...(fold ? [1, 1, 1] : [1.07 + 0.08 * moon + 0.16 * tip - 0.08 * groove, 0.99 + 0.12 * moon + 0.28 * tip - 0.1 * groove, 1.1 + 0.12 * moon + 0.3 * tip - 0.1 * groove]));
@@ -1569,7 +1578,7 @@ function handAt(w, dir, pn, k, th, arm = {}, grip = 0.15) {
     const F = fing[i], q = 3 - p, ids = []; for (let j = NP * p; j <= NP * p + NP; j++) ids.push(j % M); for (let j = 4 * NP + NB * q; j <= 4 * NP + NB * q + NB; j++) ids.push(j % M);
     const loop = ids.filter((v, j) => j === 0 || (v !== ids[j - 1] && !(j === ids.length - 1 && v === ids[0]))).map((v) => KE.pts[v]);
     const a = KE.A[i], c = at(a[0], KE.yf[i], a[2]), s0 = c.clone().sub(F.J1).dot(F.d1), r1 = (s) => F.r * (FT[0] + (FT[1] - FT[0]) * clamp01(s / F.l1)), c1 = c.clone().addScaledVector(F.d1, 0.0035 * k), s1 = s0 + 0.0035 * k;
-    const R = [{ c: c1, T: F.d1, r: r1(s1), w: 1, q: fq }, { c: c1.clone().lerp(F.J2, 0.5), T: F.d1, r: 0.99 * r1((s1 + F.l1) / 2), w: 1, q: fq, pd: 0.08 }, { c: F.J2, T: av(F.d1, F.d2), r: FT[1] * F.r, w: 1, q: fq, kb: fem ? 0.025 : 0.06, pd: -0.05 }, ...F.R];
+    const R = [{ c: c1, T: F.d1, r: r1(s1), w: 1, q: fq }, { c: c1.clone().lerp(F.J2, 0.5), T: F.d1, r: 0.99 * r1((s1 + F.l1) / 2), w: 1, q: fq, pd: 0.08 }, { c: F.J2, T: av(F.d1, F.d2), r: FT[1] * F.r, w: 1, q: fq, kb: fem ? 0.025 : 0.06, pd: -0.05, cr: 0.09 }, ...F.R];
     const T = ftube(R, F.xa, Pn, loop.length, { pts: loop, c, T: F.d1 }); tubes.push(T.g); g.push(T.g, nail(T, T.R.findIndex((o) => o.id === 'J3'), fem ? 0.78 : 0.88));
   });
   // the thumb: from its knuckle (MC) - inside the ball of the thumb, where the hand's side gives it up - its two joints
@@ -1580,7 +1589,7 @@ function handAt(w, dir, pn, k, th, arm = {}, grip = 0.15) {
   // (hers slim: its knuckle the widest of it, a slight waist along its first joint, the last joint broad and flat over
   // the nail, its pad full, rounding to the tip)
   const TR = [At(MCw.clone().addScaledVector(mDw, -0.024 * k), mDw, 0.0068, 0.9), At(MCw.clone().addScaledVector(mDw, -0.012 * k), mDw, 0.0082, 0.9), At(MCw, av(mDw, t1w), 0.0102, 0.88, { kb: fem ? 0.03 : 0.06 }), At(MCw.clone().addScaledVector(t1w, 0.5 * LP * k), t1w, 0.0082, 0.86, { pd: 0.06 }),
-    At(IPw, av(t1w, t2w), 0.0085, 0.82, { kb: fem ? 0.025 : 0.05, pd: -0.05, id: 'J3' }), At(IPw.clone().lerp(J4t, 0.45), t2w, 0.0083, 0.76, { w: 1.07, pd: 0.2 }), { c: J4t, T: t2w, r: rT, w: 1.06, q: 0.76, pd: 0.22 }];
+    At(IPw, av(t1w, t2w), 0.0085, 0.82, { kb: fem ? 0.025 : 0.05, pd: -0.05, id: 'J3', cr: 0.07 }), At(IPw.clone().lerp(J4t, 0.45), t2w, 0.0083, 0.76, { w: 1.07, pd: 0.2 }), { c: J4t, T: t2w, r: rT, w: 1.06, q: 0.76, pd: 0.22 }];
   const TT = ftube(TR, xt, Bt.clone().negate(), FM, { body: gP, nb: 2 }); tubes.push(TT.g); g.push(TT.g, nail(TT, TT.R.findIndex((o) => o.id === 'J3'), fem ? 0.84 : 0.92));
   // (where the fingers and the thumb come out of the hand - the knuckles, the roots, the webs between them: the hand's
   // light and theirs, across both, no seam of shade where one surface meets the other)
