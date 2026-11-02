@@ -182705,7 +182705,7 @@ class Weather {
     if (this.acc < TICK) return;
     const h = this.acc; this.acc = 0;
     if (this.fixed) { this.summary(); return; }
-    const g = this._g, t = this.time, dryK = (this.night ? 0.00075 : 0.0013);
+    const g = this._g, t = this.time, dryK = (this.night ? 0.0006 : 0.0011);
     let rainSum = 0;
     for (let i = 0; i < this.n; i++) {
       const r = this.cells.length ? this.rainAt(g.x[i], g.z[i], t) : 0; this.rainB[i] = r; rainSum += r;
@@ -182729,7 +182729,7 @@ class Weather {
     const s = c.s, ps = c._wxS; c._wxS = s;
     if (ps == null || c.speed < 15 || this.fixed) return;
     const L = this._g.L, bl = this.bl; let ds = s - ps; if (ds < -L / 2) ds += L; if (ds <= 0 || ds > 200) return;
-    const k = 0.012 * Math.min(1.4, c.speed / 55);
+    const k = 0.024 * Math.min(1.4, c.speed / 55);   // (a field of twenty: the line about 40 % drier each lap than the rain and the sun leave it)
     const i0 = Math.floor(ps / bl), i1 = Math.floor(s / bl) + (s < ps ? this.n : 0);
     for (let j = i0 + 1; j <= i1; j++) {
       const i = ((j % this.n) + this.n) % this.n, off = Math.abs(c.d - this._g.off[i]);
