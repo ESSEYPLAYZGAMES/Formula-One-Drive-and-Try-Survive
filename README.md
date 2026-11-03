@@ -462,6 +462,12 @@ barrier line, would round the rectangle's corners into a balloon.
   Heineken green with the name and the red star and the blue -0.0, repeating; beyond it the LasVegasGP wordmark and two
   big arrows in white outline, pointing on round the corner; the end and exit-side barrier under the same boards with
   a catch fence over it and white lattice light towers along it; the same boards on the fence over the braking zone.
+* **The barrier as the onboard footage has it**: on the concrete walls the street circuit's catch fence (`streetFence`,
+  TrackBuilder) - round galvanised posts every 3.6 m cranked in toward the track at the top, a clamp at the cables,
+  five steel cables, the chain link up the crank too; black Globant boards round Turns 2-3 and #LasVegasGP out of Turn 4.
+* **Trackside kit**: the recovery crane truck and the yellow telehandler behind the fence outside Turn 2, a TV camera
+  tower where the Turns 2-4 stand begins, a yellow boom lift by the building beyond the bend, the lattice gantry with
+  the race's banner across the run out of Turn 4.
 * **Light**: lamps on the fence line, the truss, the roofs, the plaza's edge, the stands and the run-off wall, baked into
   the floodlight field with the masts (world/Lighting.js) - the straight and the hairpin lit like day. The city's windows
   are lit more than elsewhere (most of them, on race night).

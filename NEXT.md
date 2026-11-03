@@ -1,3 +1,12 @@
+# V2.25 (2026-11-03): Las Vegas - the street circuit's catch fence, the walls' boards, the trackside kit
+
+- `def.streetFence` (TrackBuilder streetFence, Las Vegas): posts cranked in at the top, clamps, five cables, the chain
+  link up the crank; replaces the flat mesh band. (It was there all along in play; the scratch screenshot tool rendered
+  before the detail culling caught up with its moved camera - fixed in the tool, not the game.)
+- Boards: Branding panels 26 #LasVegasGP and 27 Globant; Vegas sponsorZones: Globant T2-T3, #LasVegasGP out of T4.
+- Kit: recovery crane truck + telehandler outside T2, camera tower at the stand's start, boom lift beyond the bend, the
+  gantry 190 m past T4.
+
 # V2.24 (2026-11-03): Las Vegas - the lap without its kinks; Turns 2-4 to the onboard footage
 
 - Kinks gone: the trace had swerved round the official map's own marks - the Turn 4 exit and 120 m after Turn 5 (sector

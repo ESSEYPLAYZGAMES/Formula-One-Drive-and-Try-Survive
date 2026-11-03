@@ -1032,6 +1032,56 @@ function fenceMaterial() {
   if (!_fenceMat) _fenceMat = new THREE.MeshStandardMaterial({ map: fenceTexture(), alphaTest: 0.35, side: THREE.DoubleSide, roughness: 0.55, metalness: 0.4, emissive: 0x15171a });
   return _fenceMat;
 }
+/** a street circuit's catch-fence mesh: fine diamond chain link alone (the posts are geometry) - u up the fence, v along
+ *  it (3 m a repeat) */
+function streetMeshTexture() {
+  const c = document.createElement('canvas'); c.width = 256; c.height = 192; const ctx = c.getContext('2d');
+  ctx.clearRect(0, 0, 256, 192); ctx.strokeStyle = 'rgba(212,216,222,0.9)'; ctx.lineWidth = 1.2;
+  for (let k = -256; k < 448; k += 9) { ctx.beginPath(); ctx.moveTo(k, 0); ctx.lineTo(k + 192, 192); ctx.stroke(); ctx.beginPath(); ctx.moveTo(k + 192, 0); ctx.lineTo(k, 192); ctx.stroke(); }
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+/**
+ * A street circuit's catch fence as Las Vegas has it (def.streetFence; the onboard footage): on the concrete wall, round
+ * galvanised posts every 3.6 m, 4.6 m tall and then cranked in toward the track for another 0.9 m; a clamp on each post
+ * at every cable; five steel cables strung along the posts in front of the chain-link mesh, the mesh up the cranked top
+ * too. Wherever the barrier is a concrete wall (masks[side]); in spatial chunks, drawn to the fences' detail distance.
+ */
+function streetFence(tr, wallAt, masks) {
+  const group = new THREE.Group(); group.name = 'fences'; group.userData.cut = DETAIL_CUT.fences;
+  const H = 4.6, TOP = 5.5, LEAN = 0.55, SP = 3.6, CABLES = [1.75, 2.45, 3.15, 3.85, 4.5];
+  const meshGeos = [], cableGeos = [], postGeos = [];
+  for (const side of [1, -1]) {
+    const m = masks[side], o = (d) => (i) => side * (wallAt(i, side) + d);
+    const up = ribbon(tr, o(0.3), o(0.3), 1.2, { yB: H, mask: m, uvFn: (i) => tr.s[i] / 3 });
+    const top = ribbon(tr, o(0.3), o(0.3 - LEAN), H, { yB: TOP, mask: m, uvFn: (i) => tr.s[i] / 3 });
+    { const uv = top.attributes.uv; for (let j = 0; j < uv.count; j++) uv.setX(j, uv.getX(j) * (TOP - H) / (H - 1.2)); }   // (the same mesh size up the crank)
+    meshGeos.push(up, top);
+    for (const y of CABLES) cableGeos.push(ribbon(tr, o(0.2), o(0.2), y, { yB: y + 0.035, mask: m }));
+    cableGeos.push(ribbon(tr, o(0.3 - LEAN), o(0.3 - LEAN), TOP - 0.04, { yB: TOP, mask: m }));
+  }
+  // one post (local: y up, z toward the track): the upright, the cranked top, a clamp at each cable
+  const parts = [];
+  { const g = new THREE.CylinderGeometry(0.055, 0.065, H - 1.15, 6, 1, true); g.translate(0, (H + 1.15) / 2, 0); parts.push(g); }
+  { const L = Math.hypot(TOP - H, LEAN), g = new THREE.CylinderGeometry(0.05, 0.055, L, 6, 1, true); g.translate(0, L / 2, 0); g.rotateX(Math.atan2(LEAN, TOP - H)); g.translate(0, H, 0); parts.push(g); }
+  for (const y of [CABLES[0], CABLES[2], CABLES[4]]) { const g = new THREE.BoxGeometry(0.16, 0.07, 0.16); g.translate(0, y + 0.02, 0.06); parts.push(g); }
+  const post = mergeGeometries(parts.map((g) => g.toNonIndexed()));
+  const M = new THREE.Matrix4(), X = new THREE.Vector3(), Y = new THREE.Vector3(0, 1, 0), Z = new THREE.Vector3(), f = {};
+  for (const side of [1, -1]) {
+    const m = masks[side];
+    for (let s = 0; s < tr.length - 1; s += SP) {
+      const i = tr.idxAtS(s); if (!m(i)) continue;
+      tr.sample(s, side * (wallAt(i, side) + 0.3), f);
+      Z.set(-tr.nx[i] * side, 0, -tr.nz[i] * side); X.set(Z.z, 0, -Z.x); M.makeBasis(X, Y, Z).setPosition(f.x, 0, f.z);
+      const g = post.clone(); g.applyMatrix4(M); g.setIndex([...Array(g.attributes.position.count).keys()]); postGeos.push(g);
+    }
+  }
+  const meshMat = new THREE.MeshStandardMaterial({ map: streetMeshTexture(), alphaTest: 0.3, side: THREE.DoubleSide, roughness: 0.5, metalness: 0.5, emissive: 0x16181b });
+  const steel = new THREE.MeshStandardMaterial({ color: 0xb9bec5, roughness: 0.45, metalness: 0.6, emissive: 0x1a1c20, side: THREE.DoubleSide });
+  const cable = new THREE.MeshBasicMaterial({ color: 0x8d939b, side: THREE.DoubleSide });
+  for (const [geos, mat] of [[meshGeos, meshMat], [postGeos, steel], [cableGeos, cable]]) for (const ch of [...spatialChunks(geos, mat, '').children]) group.add(ch);
+  return group;
+}
 /**
  * The paved infield of a last chicane (pit.infield, buildPitLane - Montreal's T13-T14 as it is now): one sheet of asphalt
  * from the circuit's edge to the lane's, sharing their edge points (no overlap to fight over); the green paint round the
@@ -1388,8 +1438,11 @@ export function buildTrackMeshes(track, pit, gridSlots) {
   const wLt = ribbon(tr, (i) => wallAt(i, 1), (i) => wallAt(i, 1) + 0.6, 1.2, { mask: solidL }), wRt = ribbon(tr, (i) => -wallAt(i, -1) - 0.6, (i) => -wallAt(i, -1), 1.2, { mask: solidR });
   group.add(spatialChunks([wLt, wRt], wallMat, 'caps'));
   const fenceMat = fenceMaterial();
-  const fL = ribbon(tr, (i) => wallAt(i, 1) + 0.3, (i) => wallAt(i, 1) + 0.3, 1.2, { yB: 4.2, mask: solidL, uvFn: (i) => tr.s[i] / 3 }), fR = ribbon(tr, (i) => -wallAt(i, -1) - 0.3, (i) => -wallAt(i, -1) - 0.3, 1.2, { yB: 4.2, mask: solidR, uvFn: (i) => tr.s[i] / 3 });
-  group.add(spatialChunks([fL, fR], fenceMat, 'fences'));
+  if (tr.def.streetFence) group.add(streetFence(tr, wallAt, { 1: solidL, '-1': solidR }));
+  else {
+    const fL = ribbon(tr, (i) => wallAt(i, 1) + 0.3, (i) => wallAt(i, 1) + 0.3, 1.2, { yB: 4.2, mask: solidL, uvFn: (i) => tr.s[i] / 3 }), fR = ribbon(tr, (i) => -wallAt(i, -1) - 0.3, (i) => -wallAt(i, -1) - 0.3, 1.2, { yB: 4.2, mask: solidR, uvFn: (i) => tr.s[i] / 3 });
+    group.add(spatialChunks([fL, fR], fenceMat, 'fences'));
+  }
   const railMat = new THREE.MeshBasicMaterial({ color: 0x2255ff });
   const rL = ribbon(tr, (i) => wallAt(i, 1) + 0.2, (i) => wallAt(i, 1) + 0.4, 1.22, { mask: (i) => !circuit && !tr.inCornerZone(i) && open(i, 1) }), rR = ribbon(tr, (i) => -wallAt(i, -1) - 0.4, (i) => -wallAt(i, -1) - 0.2, 1.22, { mask: (i) => !circuit && !tr.inCornerZone(i) && open(i, -1) });
   group.add(spatialChunks([rL, rR], railMat, 'rails'));

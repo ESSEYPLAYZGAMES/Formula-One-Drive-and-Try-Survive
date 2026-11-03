@@ -285,6 +285,16 @@ PANELS.push((x) => {   // 25 the red, white and blue stripes (the run-offs' colo
   const n = 9, w = PW / n; for (let k = 0; k < n; k++) { x.fillStyle = ['#b31942', '#ffffff', '#0a3161'][k % 3]; x.fillRect(k * w, 0, w + 1, PH); }
   star(x, PW * 0.5, PH * 0.5, PH * 0.32, '#ffffff');
 });
+PANELS.push((x) => {   // 26 #LasVegasGP: black board, the hashtag in white, twice (Las Vegas, Turns 2-5: the onboard footage)
+  x.fillStyle = '#0b0b0d'; x.fillRect(0, 0, PW, PH);
+  fit(x, '#LasVegasGP', PW * 0.04, PW * 0.48, PH * 0.52, '#ffffff', { size: PH * 0.58, weight: 800, italic: true });
+  fit(x, '#LasVegasGP', PW * 0.52, PW * 0.96, PH * 0.52, '#ffffff', { size: PH * 0.58, weight: 800, italic: true });
+});
+PANELS.push((x) => {   // 27 Globant: black board, the white wordmark and its lime-green chevron
+  x.fillStyle = '#0b0b0d'; x.fillRect(0, 0, PW, PH);
+  const t = fit(x, 'Globant', PW * 0.18, PW * 0.74, PH * 0.5, '#ffffff', { size: PH * 0.7, weight: 700 });
+  x.fillStyle = '#bfd730'; x.beginPath(); const cx = t.r + PW * 0.025, h = PH * 0.62; x.moveTo(cx, PH / 2 - h / 2); x.lineTo(cx + h * 0.32, PH / 2 - h / 2); x.lineTo(cx + h * 0.62, PH / 2); x.lineTo(cx + h * 0.32, PH / 2 + h / 2); x.lineTo(cx, PH / 2 + h / 2); x.lineTo(cx + h * 0.3, PH / 2); x.closePath(); x.fill();
+});
 /** sponsor per 180 m wall zone (both sides use the same sequence, offset on the right so they don't mirror) */
 export const ZONE_SEQ = [0, 3, 1, 2, 0, 4, 5, 7, 1, 6, 0, 2, 3, 0, 1, 5];
 export const ZONE_LEN = 180;

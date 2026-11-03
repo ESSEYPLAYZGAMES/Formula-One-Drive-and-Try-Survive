@@ -15,7 +15,7 @@
 // makes them these stands, and everything else.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { corridorSigned, fenceTexture } from '../track/TrackBuilder.js';
+import { corridorSigned } from '../track/TrackBuilder.js';
 import { STAND } from './Grandstands.js';
 import { FLOOD } from './Lighting.js';
 
@@ -232,6 +232,7 @@ export function buildVegasPaddock(track, pit, def, rings = []) {
     }
   };
   const scaffoldMat = new THREE.MeshStandardMaterial({ map: (() => { const t = trussTexture(); t.wrapS = t.wrapT = THREE.RepeatWrapping; return t; })(), alphaTest: 0.5, color: 0x9ea3ab, roughness: 0.6, metalness: 0.4, side: THREE.DoubleSide });
+  const gantryBanner = new THREE.MeshBasicMaterial({ map: canvasTex(1536, 160, (x, W, H) => { x.fillStyle = '#0b0b0d'; x.fillRect(0, 0, W, H); x.fillStyle = '#e10600'; x.font = `italic 900 120px ${FONT}`; x.textBaseline = 'middle'; x.textAlign = 'left'; x.fillText('F1', 40, H * 0.55); x.fillStyle = '#ffffff'; x.font = `800 84px ${FONT}`; x.fillText('LAS VEGAS GRAND PRIX', 250, H * 0.55); }), side: THREE.FrontSide });
   const aisleLit = new THREE.MeshBasicMaterial({ color: 0xdfe6ff, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
   const neverDrink = new THREE.MeshStandardMaterial({ map: neverDrinkTexture(), emissive: 0xffffff, emissiveIntensity: 0, roughness: 0.5, side: THREE.DoubleSide }); neverDrink.emissiveMap = neverDrink.map; neverDrink.emissiveIntensity = 0.7;
   const bandMat = new THREE.MeshStandardMaterial({ map: bandTileTexture(), roughness: 0.6, emissive: 0xffffff, emissiveIntensity: 0, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3, side: THREE.DoubleSide }); bandMat.emissiveMap = bandMat.map; bandMat.emissiveIntensity = 0.32;
@@ -680,16 +681,13 @@ export function buildVegasPaddock(track, pit, def, rings = []) {
       }
       const [tx, , tz] = UW(aimU, aimW, 0); put(flood, boxAt(x, H + 0.4, z, a, 2.2, 0.6, 1.0)); lights.push({ x, y: H + 0.4, z, tx, tz });
     };
-    // (and the barrier itself along the end and the exit side: concrete under the Heineken / 0.0 boards, the catch fence
-    //  over it - the track's own wall line, drawn here as the race dresses it)
-    const fenceMat = new THREE.MeshStandardMaterial({ map: fenceTexture(), alphaTest: 0.35, side: THREE.DoubleSide, roughness: 0.55, metalness: 0.4, emissive: 0x2a2c30 });
-    fenceMat.map.wrapS = THREE.RepeatWrapping;
+    // (and the barrier itself along the end and the exit side: concrete under the Heineken / 0.0 boards - the track's own
+    //  wall line, drawn here as the race dresses it; the catch fence over it is the track's: TrackBuilder streetFence)
     const run = (a, b) => {   // (a, b: [u, w] ends of a straight run of barrier)
       const [x0, , z0] = UW(a[0], a[1], 0), [x1, , z1] = UW(b[0], b[1], 0), len = Math.hypot(x1 - x0, z1 - z0), ex = [(x1 - x0) / len, (z1 - z0) / len], ang = Math.atan2(-ex[1], ex[0]);
       const panel = (y0, y1, mat, rep, off = 0) => { const g = new THREE.PlaneGeometry(len, y1 - y0), uv = g.attributes.uv; for (let j = 0; j < uv.count; j++) uv.setX(j, uv.getX(j) * rep); g.rotateY(ang); g.translate((x0 + x1) / 2 + ex[1] * off, (y0 + y1) / 2, (z0 + z1) / 2 - ex[0] * off); put(mat, g); };
       put(greyBox, boxAt((x0 + x1) / 2, 0.6, (z0 + z1) / 2, ex, len, 1.2, 0.6));
       panel(0.1, 1.15, bandMat, len / 24, 0.32); panel(0.1, 1.15, bandMat, len / 24, -0.32);
-      panel(1.2, 5.2, fenceMat, len / 3);
     };
     run([EB.uEnd + 0.4, EB.wR], [EB.uEnd + 0.4, EB.wEnd + 0.4]);
     run([EB.exitA[0], EB.exitA[1] + 0.4], [EB.uEnd + 0.4, EB.wEnd + 0.4]);   // (the exit side: the return leg's wall carried on at its slant)
@@ -805,6 +803,65 @@ export function buildVegasPaddock(track, pit, def, rings = []) {
       } else console.info('[vegas] Turns 3-4: no room for the blue-lit building');
     }
     console.info(`[vegas] Turns 3-4, outside: ${made.join(', ')}`);
+  }
+  // =============================================================================================================
+  // the trackside kit the onboard footage shows round Turns 2-5: the recovery crane truck and the yellow telehandler
+  // behind the fence outside Turn 2 (the aerial from beyond Turn 1 has the yellow machine there too), a yellow boom lift
+  // by the building beyond the bend, a TV camera tower on scaffolding where the stand begins, and the lattice gantry
+  // across the track on the run out of Turn 4 with the race's banner hung from it
+  // =============================================================================================================
+  {
+    const yellow = new THREE.MeshStandardMaterial({ color: 0xf2b705, roughness: 0.5, metalness: 0.2, emissive: 0x2a1e00 });
+    const craneRed = new THREE.MeshStandardMaterial({ color: 0xc8161d, roughness: 0.5, metalness: 0.2, emissive: 0x240404 });
+    const tyreM = new THREE.MeshStandardMaterial({ color: 0x141416, roughness: 0.9 });
+    const yaw = (ex) => Math.atan2(-ex[1], ex[0]);
+    const boom = (x, y, z, ex, L, w, tilt, mat) => { const g = new THREE.BoxGeometry(L, w, w); g.translate(L / 2, 0, 0); g.rotateZ(tilt); g.rotateY(yaw(ex)); g.translate(x, y, z); put(mat, g); };
+    const wheels = (x, z, ex, len, wid, n) => { const nz = [-ex[1], ex[0]]; for (let a = 0; a < n; a++) for (const sd of [-1, 1]) { const u = -len / 2 + 0.8 + (len - 1.6) * a / Math.max(1, n - 1), g = new THREE.CylinderGeometry(0.5, 0.5, 0.4, 10); g.rotateX(Math.PI / 2); g.rotateY(yaw(ex)); g.translate(x + ex[0] * u + nz[0] * sd * wid / 2, 0.5, z + ex[1] * u + nz[1] * sd * wid / 2); put(tyreM, g); } };
+    const at = (s0, d, along = 0) => { const i = tr.idxAtS(s0), p = tr.sample(s0 + along, d, {}); return { x: p.x, z: p.z, ex: [tr.tx[i], tr.tz[i]] }; };
+    const clearAt = (x, z, r) => { for (let a = 0; a < 8; a++) { const xx = x + Math.cos(a) * r, zz = z + Math.sin(a) * r; if (corridorSigned(tr, pit, xx, zz, 0.5) < 0 || near.some((q) => inRing(xx, zz, q))) return false; } return corridorSigned(tr, pit, x, z, 0.5) >= 0; };
+    const kit = [];
+    // the recovery crane truck: white cab, red crane on its bed, the boom raised; the telehandler beside it
+    { const i = tr.idxAtS(c2 + 30), d = -(tr.wallAt(i, -1) + 7), q = at(c2 + 30, d);
+      if (clearAt(q.x, q.z, 6)) {
+        const ex = q.ex, f2x = (u) => [q.x + ex[0] * u, q.z + ex[1] * u];
+        { const [x, z] = f2x(4.2); put(white, boxAt(x, 1.9, z, ex, 2.4, 2.8, 2.5)); }
+        { const [x, z] = f2x(-1.2); put(craneRed, boxAt(x, 1.4, z, ex, 8, 1.2, 2.5)); put(craneRed, boxAt(x - ex[0] * 1.5, 2.6, z - ex[1] * 1.5, ex, 2.2, 1.4, 2.0)); boom(x - ex[0] * 1.5, 3.2, z - ex[1] * 1.5, [-ex[0], -ex[1]], 11, 0.55, 0.62, craneRed); }
+        wheels(q.x - ex[0] * 0.5, q.z - ex[1] * 0.5, ex, 10, 2.3, 4);
+        const t2 = at(c2 + 30, d - 6, -9); put(yellow, boxAt(t2.x, 1.5, t2.z, t2.ex, 5, 1.8, 2.3)); boom(t2.x, 2.4, t2.z, t2.ex, 9, 0.6, 0.7, yellow); wheels(t2.x, t2.z, t2.ex, 5, 2.4, 2);
+        kit.push('the recovery truck and the telehandler outside Turn 2');
+      }
+    }
+    // the TV camera tower: scaffolding to a platform with a rail, a camera on it, where the stand begins
+    { const s0 = c2 + 86, i = tr.idxAtS(s0), q = at(s0, -(tr.wallAt(i, -1) + 3));
+      if (clearAt(q.x, q.z, 2.2)) {
+        const H = 7; for (const [a, b] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) { const nz = [-q.ex[1], q.ex[0]]; put(greyBox, boxAt(q.x + q.ex[0] * a * 1.3 + nz[0] * b * 1.3, H / 2, q.z + q.ex[1] * a * 1.3 + nz[1] * b * 1.3, q.ex, 0.12, H, 0.12)); }
+        put(greyBox, boxAt(q.x, H, q.z, q.ex, 3, 0.2, 3)); put(dark, boxAt(q.x, H + 0.9, q.z, q.ex, 0.6, 0.6, 1.0));
+        for (const [w2, h2] of [[3, 1.1], [3, 0.6]]) { const g = new THREE.BoxGeometry(w2, 0.05, 3); g.rotateY(yaw(q.ex)); g.translate(q.x, H + h2, q.z); put(greyBox, g); }
+        kit.push('the camera tower');
+      }
+    }
+    // the yellow boom lift in front of the building beyond the bend
+    { const sL = c3 - 30, iL = tr.idxAtS(sL), oL = tr.sample(sL, 0, {}), hd = [tr.tx[iL], tr.tz[iL]], lf = [tr.nx[iL], tr.nz[iL]];
+      const x = oL.x + hd[0] * 88 + lf[0] * 30, z = oL.z + hd[1] * 88 + lf[1] * 30;
+      if (clearAt(x, z, 3)) { put(yellow, boxAt(x, 1.0, z, hd, 4, 1.4, 2.2)); boom(x, 1.8, z, [-hd[0], -hd[1]], 13, 0.45, 0.75, yellow); const bx = x - hd[0] * 13 * Math.cos(0.75), bz = z - hd[1] * 13 * Math.cos(0.75); put(yellow, boxAt(bx, 1.8 + 13 * Math.sin(0.75) + 0.6, bz, hd, 1.6, 1.1, 1.0)); wheels(x, z, hd, 4, 2.2, 2); kit.push('the boom lift'); }
+    }
+    // the gantry across the run out of Turn 4: lattice towers outside the walls, a lattice span over the track, the
+    // race's banner hung from it on both faces, lamps under it
+    { const s0 = cornerS(4) + 190, i = tr.idxAtS(s0), wl = tr.wallAt(i, 1) + 2.2, wr = tr.wallAt(i, -1) + 2.2, Y0 = 7.2, Y1 = 9.4;
+      const A = tr.sample(s0, wl, {}), Bq = tr.sample(s0, -wr, {}), span = Math.hypot(A.x - Bq.x, A.z - Bq.z), ax = [(A.x - Bq.x) / span, (A.z - Bq.z) / span];
+      if (clearAt(A.x, A.z, 1.5) && clearAt(Bq.x, Bq.z, 1.5)) {
+        const tow = (P) => { for (const [a, b] of [[-0.8, -0.8], [0.8, -0.8], [0.8, 0.8], [-0.8, 0.8]]) put(white, boxAt(P.x + ax[0] * a - ax[1] * b, Y1 / 2, P.z + ax[1] * a + ax[0] * b, ax, 0.18, Y1, 0.18)); };
+        tow(A); tow(Bq);
+        const mx = (A.x + Bq.x) / 2, mz = (A.z + Bq.z) / 2, nn = [-ax[1], ax[0]], ang = Math.atan2(-ax[1], ax[0]);
+        for (const sd of [-1, 1]) { const g = new THREE.PlaneGeometry(span, Y1 - Y0); const uv = g.attributes.uv; for (let j = 0; j < uv.count; j++) uv.setX(j, uv.getX(j) * span / 7); g.rotateY(ang); g.translate(mx + nn[0] * sd * 0.8, (Y0 + Y1) / 2, mz + nn[1] * sd * 0.8); put(trussTall, g); }
+        { const g = new THREE.PlaneGeometry(span, 1.6); g.rotateX(-Math.PI / 2); const uv = g.attributes.uv; for (let j = 0; j < uv.count; j++) uv.setX(j, uv.getX(j) * span / 7); g.rotateY(ang); g.translate(mx, Y1, mz); put(trussTall, g); }
+        const bw = Math.min(span - 4, 22);
+        for (const sd of [-1, 1]) { const g = new THREE.PlaneGeometry(bw, 2.2); g.rotateY(ang + (sd > 0 ? 0 : Math.PI)); g.translate(mx + nn[0] * sd * 0.85, Y0 - 1.0, mz + nn[1] * sd * 0.85); put(gantryBanner, g); }
+        for (const u of [-0.3, 0, 0.3]) { const x = mx + ax[0] * u * span, z = mz + ax[1] * u * span; put(flood, boxAt(x, Y0 - 0.1, z, ax, 1.4, 0.3, 0.6)); const q2 = tr.nearest(x, z), aim = tr.sample(q2.s - 20, 0, f); lights.push({ x, y: Y0, z, tx: aim.x, tz: aim.z }); }
+        kit.push(`the gantry ${(s0 - cornerS(4)).toFixed(0)} m past Turn 4`);
+      }
+    }
+    console.info(`[vegas] trackside kit: ${kit.join(', ')}`);
   }
   // ---- one mesh per material (the static world: a handful of draw calls)
   for (const [mat, gs] of geos) {
