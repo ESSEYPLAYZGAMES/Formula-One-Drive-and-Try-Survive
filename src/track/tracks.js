@@ -25,6 +25,12 @@ export const TRACKS = {
       { roads: ['South Las Vegas Boulevard'], to: [-115.1729800, 36.1086800] },                        // The Strip south to T14
       { roads: ['East Harmon Avenue', 'South Las Vegas Boulevard'], to: [-115.1639015, 36.1079696] },  // Harmon east, T15-T17
     ],
+    // Turns 1-2 as raced (the aerials from above Turn 1): the export's line has a tight hairpin then a diagonal back to
+    // the return leg; the corner is a U - Turn 1 a 90-degree left (38 m radius), a flat bottom across, Turn 2 a
+    // 90-degree left (42 m) straight onto the return leg, which runs back parallel to the pit straight 119 m from it
+    // until the export's line takes over again before Turn 3. Local metres, in driving order (GeoLoader reshapeChain).
+    // (PAUSED - not applied: the U was drawn from an angled photo and is not the real track; the export's line stands)
+    reshapeDraft: { pts: [[99.1, -112.0], [101.8, -115.0], [104.4, -118.0], [107.1, -121.0], [109.7, -124.0], [112.4, -127.0], [115.0, -130.0], [117.7, -133.0], [120.3, -136.0], [123.0, -139.0], [125.6, -142.0], [126.3, -142.7], [128.4, -145.3], [130.3, -148.0], [131.9, -150.9], [133.2, -154.0], [134.3, -157.1], [135.1, -160.3], [135.6, -163.6], [135.8, -166.9], [135.8, -170.2], [135.4, -173.5], [134.8, -176.8], [133.9, -179.9], [132.7, -183.0], [131.3, -186.0], [129.6, -188.9], [127.6, -191.5], [125.4, -194.0], [123.0, -196.3], [120.1, -199.0], [117.1, -201.6], [114.1, -204.3], [111.1, -206.9], [108.1, -209.6], [105.1, -212.3], [102.1, -214.9], [99.1, -217.6], [96.1, -220.2], [93.8, -222.2], [91.0, -224.5], [88.0, -226.5], [84.8, -228.3], [81.4, -229.8], [77.9, -231.0], [74.4, -231.9], [70.8, -232.5], [67.1, -232.7], [63.5, -232.7], [59.8, -232.3], [56.2, -231.6], [52.7, -230.6], [49.3, -229.3], [46.0, -227.7], [42.8, -225.8], [39.9, -223.6], [37.1, -221.2], [34.6, -218.6], [31.9, -215.6], [29.3, -212.6], [26.6, -209.6], [23.9, -206.6], [21.3, -203.6], [18.6, -200.6], [16.0, -197.6], [13.3, -194.6], [10.7, -191.6], [8.0, -188.6], [5.4, -185.6], [2.7, -182.6], [0.1, -179.7], [-2.6, -176.7], [-5.2, -173.7], [-7.9, -170.7], [-10.5, -167.7], [-13.2, -164.7], [-15.8, -161.7], [-18.5, -158.7]] },
     pitLaneWayId: 'way/1223479152',
     // DRS: Koval Lane (detection in the T1-T4 complex, T4 -> T5) and the Strip (detection at T11, T12 -> T14)
     drs: [
@@ -47,8 +53,11 @@ export const TRACKS = {
     sponsorZone: { panel: 8, fromTurn: 5, toTurn: 10, before: 120, after: 40 },   // the T-Mobile Zone at Sphere
     runoffPaint: [{ turns: [5, 6, 7, 8, 9], color: [0.84, 0.05, 0.42] }, { turns: [12, 14], color: [0.06, 0.58, 0.52] }],
     runoffDecalTurns: [5, 12, 14],   // (Turn 1's run-off has the race's own paint: world/VegasPaddock.js)
-    // Turn 1's run-off: the wide asphalt escape on the outside of the hairpin, straight on from the pit straight
-    openCorners: [{ turn: 1, right: 40, before: 45, after: 110 }],
+    // Turns 1-2's run-off: the paved escape straight on beyond the U - between the main grandstand's line (the straight's
+    // barrier carried on) and the return leg's outer barrier, 42 m deep past the bottom of the U, a wall across its end
+    escapesDraft: [{ side: -1, ring: [[131.8, -131.2], [193.4, -200.8], [86.8, -295.2], [25.1, -225.6]] }],
+    // (the frame the U and its escape are drawn in: the pit straight's axis - origin at the line, along it, to its left)
+    sfFrame: { o: [-0.3, 0.3], along: [0.662888, -0.748718], left: [-0.748787, -0.662811], uTurn: 186, uFlat: 229, uEnd: 279, wReturn: 119 },
     shots: [
       { lm: 'sphere', label: 'SPHERE', rMul: 1.0, az: 0.5 }, { s: -160, label: 'PIT STRAIGHT', side: 1 },
       { lm: 'eiffel', label: 'PARIS LAS VEGAS', rMul: 1.05, az: -0.5 }, { s: 3900, label: 'THE STRIP', side: -1 },

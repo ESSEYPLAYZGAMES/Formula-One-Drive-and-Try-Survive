@@ -147,8 +147,12 @@ export class GeoWorld {
     const a = pts[0], b = pts[pts.length - 1];
     if (Math.hypot(a[0] - b[0], a[1] - b[1]) < 0.5) pts.pop();
     // dedupe consecutive
-    const out = [pts[0]];
+    let out = [pts[0]];
     for (const p of pts.slice(1)) { const q = out[out.length - 1]; if (Math.hypot(p[0] - q[0], p[1] - q[1]) > 0.05) out.push(p); }
+    // a stretch of the lap redrawn (def.reshape: { pts: [[x, z]...] } in local metres, in driving order): the chain's
+    // points from the one nearest its first point to the one nearest its last are replaced by it - where the export's
+    // line is not the circuit as it is raced (Las Vegas's Turns 1-2)
+    if (def.reshape?.pts?.length > 1) out = reshapeChain(out, def.reshape.pts);
     return { pts: out, bridges, legStarts };
   }
 
@@ -208,6 +212,13 @@ export function ringCentroid(r) {
     const n = r.length; return [r.reduce((s, p) => s + p[0], 0) / n, r.reduce((s, p) => s + p[1], 0) / n];
   }
   a *= 3; return [cx / a, cz / a];
+}
+/** replace the stretch of the closed chain `pts` between the vertices nearest R[0] and R[R.length - 1] with R */
+function reshapeChain(pts, R) {
+  const nearest = (p) => { let bi = 0, bd = Infinity; pts.forEach((q, i) => { const d = (q[0] - p[0]) ** 2 + (q[1] - p[1]) ** 2; if (d < bd) { bd = d; bi = i; } }); return bi; };
+  const ia = nearest(R[0]), ib = nearest(R[R.length - 1]);
+  if (ia < ib) return [...pts.slice(0, ia), ...R, ...pts.slice(ib + 1)];
+  return [...R, ...pts.slice(ib + 1, ia)];   // (the stretch crosses the chain's start: what is left of the chain follows it)
 }
 /** Principal axis via 2D covariance: returns { c:[x,z], angle (rad, of long axis), length, width } */
 export function footprintInfo(ring) {

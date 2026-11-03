@@ -767,6 +767,24 @@ export class Track {
       }
     }
   }
+  /**
+   * Escape roads (def.escapes: [{ ring: [[x, z]...], side }]): wherever the road's edge on that side (+1 left / -1 right)
+   * lies inside the ring, the barrier is pushed out along the normal to the ring's edge - a paved run-off the shape of
+   * the ring, straight on past a corner (Las Vegas's Turns 1-2: the escape beyond the U, between the main grandstand's
+   * line and the return leg's). Call after openCorners.
+   */
+  escapes(list = this.def.escapes) {
+    if (!list) return;
+    for (const e of list) {
+      const inside = insideRings([e.ring]), side = e.side ?? -1, arr = side > 0 ? this.wallL : this.wallR;
+      const at = (i, d) => [this.px[i] + this.nx[i] * side * d, this.pz[i] + this.nz[i] * side * d];
+      for (let i = 0; i < this.n; i++) {
+        let d = this.edgeAt(i, side) + this.kerbWidth + 0.5; if (!inside(...at(i, d))) continue;
+        while (d < 200 && inside(...at(i, d + 0.5))) d += 0.5;
+        arr[i] = Math.max(arr[i], d);
+      }
+    }
+  }
   /** the pinned wall (pinWall) that a point at arc length s, lateral d is up against, or null */
   pinAt(s, d) {
     for (const p of this.pins || []) if (Math.sign(d) === p.side && (p.a <= p.b ? s >= p.a && s <= p.b : s >= p.a || s <= p.b)) return p;

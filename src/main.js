@@ -189,6 +189,7 @@ async function loadWorld(def) {
     if (h) { track.h = h; setTerrain(buildHeightField(track, h), track); TERRAIN.halfRoad = track.maxHalfWidth + track.kerbWidth + 1; TERRAIN.halfRoadAt = (i, side = 1) => track.edgeAt(i, side) + track.kerbWidth + 1; }
   }
   track.openCorners();   // (corners left open: Montreal's Senna S and hairpin - before the barriers are capped against everything else)
+  track.escapes();       // (escape roads the shape of the real ones: Las Vegas's beyond Turns 1-2)
   // permanent circuits: the escape aprons stop short of the venue's real grandstands
   if (def.osmStands || def.standNames) {
     const stands = standFootprints(geo, def).map((b) => b.rings[0]);
@@ -255,6 +256,8 @@ async function loadWorld(def) {
   if (venue) receiveShadows(venue.group);
   await set('Raising the city…', 68);
   const buildings = buildGenericBuildings(geo, track, new Set([...lm.claimed, ...(venue ? venue.claimed : []), ...(scenery ? scenery.claimed : [])]), pit);
+  // (Las Vegas on race night: the city's windows lit as the aerials show it - most of them)
+  if (vegas && buildings.material?.uniforms?.uLitProb) buildings.material.uniforms.uLitProb.value = Math.min(0.92, buildings.material.uniforms.uLitProb.value * 1.7);
   scene.add(buildings);
   // branded pit garages: one per team, the Independent entry gets the last one
   const pitBoxes = pit ? buildPitBoxes(pit, [...TEAMS, { name: 'Independent', color: '#00d4ff', color2: '#ffffff' }]) : null;
@@ -444,7 +447,7 @@ async function switchTrack(id) {
 /** Attach official turn numbers to detected corner zones (used by AI error hotspots + telemetry). */
 function labelCorners(track, def, geo) {
   for (const c of def.corners) {
-    const [x, z] = geo.proj.toXZ(c.ll[0], c.ll[1]);
+    const [x, z] = c.xz || geo.proj.toXZ(c.ll[0], c.ll[1]);   // (xz: a corner placed in local metres - on a redrawn stretch)
     const q = track.nearest(x, z);
     const zone = track.inCornerZone(q.i) || track.inCornerZone(track.idxAtS(q.s + 20)) || track.inCornerZone(track.idxAtS(q.s - 20));
     if (zone) { if (zone.turn == null) zone.turn = c.n; zone.turns = (zone.turns || []).concat(c.n); c.s = q.s; }
