@@ -6,7 +6,9 @@ import * as THREE from 'three';
  * rear views both come from it. 1.1 m up keeps the helmet ~0.45 m from the lens, clear of the 0.3 m near plane.
  */
 export const TCAM_X = -0.13, TCAM_Y = 1.21;   // (just over the camera pod on the airbox: vehicle/CarModel.js)
-export const TCAM_PITCH = (21 * Math.PI) / 180;   // the forward T-cam's tilt down (the broadcast's)
+export const TCAM_PITCH = (11 * Math.PI) / 180;   // the forward T-cam's tilt down (the broadcast's: the horizon a fifth of the way down)
+export const TCAM_FOV = 48;   // its vertical field of view: a tight broadcast lens, not a wide one - less of the scene in frame at any moment (less to draw), the road ahead bigger
+export const TCAM_RISE = 0.1;   // the forward view's lens 10 cm higher on the pod, over the helmet: its crown at the foot of the frame, as on the broadcast
 
 export class CockpitCamera {
   constructor(camera) {
@@ -114,7 +116,7 @@ export class CockpitCamera {
       const rumble = (car.onKerb ? 0.003 : car.offTrack ? 0.006 : 0.0008) * Math.min(1, v / 40);
       const bobY = (Math.random() - 0.5) * rumble + bodyY(TCAM_X, 0);
       const al = Math.abs(look);
-      this._pos.set(car.x + TCAM_X * c + side * 0.4 * left[0], TCAM_Y + 0.15 * al + bobY, car.z + TCAM_X * s + side * 0.4 * left[1]);
+      this._pos.set(car.x + TCAM_X * c + side * 0.4 * left[0], TCAM_Y + TCAM_RISE + 0.15 * al + bobY, car.z + TCAM_X * s + side * 0.4 * left[1]);
       const lookYaw = car.steer * 0.05 * (1 - al) - lookYaw0; const lx = Math.cos(car.th - lookYaw), lz = Math.sin(car.th - lookYaw);
       // (pitched down 17 degrees as the broadcast's is: the halo and the nose fill the lower half, the horizon sits a fifth of
       //  the way down the frame - the road ahead and what stands over it, the bridges and gantries, in view long before they
@@ -125,7 +127,7 @@ export class CockpitCamera {
       const rl = this.roll - (car.rl || 0);
       this._up.set(Math.sin(rl) * left[0], Math.cos(rl), Math.sin(rl) * left[1]);
       this.cam.position.copy(this._pos); this.cam.up.copy(this._up); this.cam.lookAt(this._look);
-      const fov = 68 + 8 * Math.min(1, v / 95);
+      const fov = TCAM_FOV + 4 * Math.min(1, v / 95);
       if (Math.abs(this.cam.fov - fov) > 0.05) { this.cam.fov += (fov - this.cam.fov) * Math.min(1, dt * 4); this.cam.updateProjectionMatrix(); }
     } else if (this.mode === 'chase') {
       // the whole rig swings round the car toward the side being looked at

@@ -1,3 +1,8 @@
+# V2.27 (2026-11-03): the T-cam's lens tight, as the broadcast's
+
+- Forward T-cam: vertical FOV 48 deg (52 at speed; was 68-76), the lens 10 cm higher on the pod, tilted down 11 deg - the
+  halo's front bar across the lower third, the horizon a quarter of the way down; less of the scene in frame at once.
+
 # V2.26 (2026-11-03): Las Vegas, Turns 2-5 to the 2024 onboards; the T-cam pitched as the broadcast's
 
 - Pit entry/exit lines T-Mobile magenta, 0.35 m (def.pitLine, TrackBuilder).
