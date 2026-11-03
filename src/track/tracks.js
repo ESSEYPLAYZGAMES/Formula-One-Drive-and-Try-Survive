@@ -53,10 +53,10 @@ export const TRACKS = {
     zoneSeq: [0, 3, 1, 2, 0, 4, 5, 7, 1, 6, 0, 2, 3, 0, 1, 5],                 // sponsor panel per 180 m wall zone
     sponsorZone: { panel: 8, fromTurn: 5, toTurn: 10, before: 120, after: 40 },   // the T-Mobile Zone at Sphere
     runoffPaint: [{ turns: [5, 6, 7, 8, 9], color: [0.84, 0.05, 0.42] }, { turns: [12, 14], color: [0.06, 0.58, 0.52] }],
-    runoffDecalTurns: [5, 12, 14],   // (Turn 1's run-off has the race's own paint: world/VegasPaddock.js)
-    // Turn 1's run-off: the paved escape straight on beyond the hairpin, between the main grandstand's line (the straight's
-    // barrier carried on) and the outside of the exit, ~35 m deep past the tip, a wall across its end (Track.escapes)
-    escapes: [{ side: -1, ring: [[131.8, -131.2], [188.8, -195.6], [118.6, -257.7], [61.6, -193.3]] }],
+    runoffDecalTurns: [5, 12, 14],
+    // Turn 1's run-off: the straight carried on past the hairpin to a wall across its end (the aerials from beyond Turn 1)
+    // - the main grandstand's barrier line on one side, the return leg's on the other, 42 m past the hairpin's kerb
+    escapes: [{ side: -1, auto: { turn: 1, depth: 42 } }],   // (its paint: world/VegasPaddock.js)
     shots: [
       { lm: 'sphere', label: 'SPHERE', rMul: 1.0, az: 0.5 }, { s: -160, label: 'PIT STRAIGHT', side: 1 },
       { lm: 'eiffel', label: 'PARIS LAS VEGAS', rMul: 1.05, az: -0.5 }, { s: 3900, label: 'THE STRIP', side: -1 },

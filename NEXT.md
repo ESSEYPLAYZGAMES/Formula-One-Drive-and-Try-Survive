@@ -1,14 +1,11 @@
-# V2.20 (2026-11-03): Las Vegas revamp, section 1 - start/finish straight and Turn 1 (matched to the aerial)
+# V2.21 (2026-11-03): Las Vegas on the official circuit map; start/finish and Turn 1 revamp
 
-- `src/world/VegasPaddock.js`: Grand Prix Plaza (4 storeys over the garages, dark roof with lit terraces, pink-red F1
-  canopy, balconied Turn 1 end, grey tower), the paddock inside the loop (halls, hospitality, marquees, lit paving),
-  the big Heineken Silver main grandstand (maroon roof, truss, teal end walls), Turn 1 run-off paint (Heineken / 0.0%
-  band along the kerb, LAS VEGAS outline + chevrons), green fence inside the hairpin, the open Turn 1 grandstand on the
-  return leg, ~80 baked lamps, searchlights.
-- Check on a real GPU: the reference aerial (user's photo, from above Turn 1's run-off) vs the game; the headless
-  renders at 1285x852 drew the road dark (a capture artefact - 1100x620 is right).
-- Next sections (user to direct): T2-T4 onto Koval, the Sphere loop, the Strip, Harmon. Daytime look not reviewed;
-  crowd ~23k fans at Vegas.
+- The lap traced from the official map (LasVegasOfficial.js), start line at its flag, corners at its labels, pit lane
+  laid beside it; Turn 1's run-off a straight-on rectangle (Track.escapes auto); the section dressed to the aerials.
+- Tooling (session scratchpad, not in the repo): trace_full.py (map -> centre line), gen_pit.py (pit lane), check.py.
+- Test: a race with a pit stop through the new lane ran clean (laps 102-108 s). AI calibration for Vegas was fitted on
+  the old line - its corner numbers still apply; a refit on the new line is worth doing.
+- Next sections (user to direct): the Sphere loop, the Strip, Harmon. Daytime look not reviewed.
 
 # V2.18 (2026-11-02): dynamic weather
 

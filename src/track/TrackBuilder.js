@@ -775,8 +775,10 @@ export class Track {
    */
   escapes(list = this.def.escapes) {
     if (!list) return;
+    this.escapeBoxes = [];
     for (const e of list) {
-      const inside = insideRings([e.ring]), side = e.side ?? -1, arr = side > 0 ? this.wallL : this.wallR;
+      const side = e.side ?? -1, ring = e.auto ? this._escapeBox(e.auto, side) : e.ring; if (!ring) continue;
+      const inside = insideRings([ring]), arr = side > 0 ? this.wallL : this.wallR;
       const at = (i, d) => [this.px[i] + this.nx[i] * side * d, this.pz[i] + this.nz[i] * side * d];
       for (let i = 0; i < this.n; i++) {
         let d = this.edgeAt(i, side) + this.kerbWidth + 0.5; if (!inside(...at(i, d))) continue;
@@ -784,6 +786,35 @@ export class Track {
         arr[i] = Math.max(arr[i], d);
       }
     }
+  }
+  /**
+   * A straight-on escape beyond a corner (escapes auto: { turn, depth, from, to }): a rectangle in the frame of the
+   * straight before it (along it from `to` m before the apex - where the straight ends - to `depth` m past the corner's
+   * outermost kerb; across it from the straight's barrier line on the outside to the barrier line of the leg coming back
+   * out of the corner), so the run-off is the straight carried on with a wall across its end - never a bulge round the
+   * corner. Its frame is kept for the paint (escapeBoxes: { o, along, left, uOut, uEnd, wR, wL }).
+   */
+  _escapeBox(o, side) {
+    const c = (this.def.corners || []).find((k) => k.n === o.turn); if (!c || c.s == null) return null;
+    const a = this.sample(c.s - (o.from ?? 220), 0, {}), b = this.sample(c.s - (o.to ?? 80), 0, {});
+    const L = Math.hypot(b.x - a.x, b.z - a.z) || 1, al = [(b.x - a.x) / L, (b.z - a.z) / L], le = [al[1], -al[0]], O = [b.x, b.z];
+    const U = (x, z) => (x - O[0]) * al[0] + (z - O[1]) * al[1], Wv = (x, z) => (x - O[0]) * le[0] + (z - O[1]) * le[1];
+    const wR = side * this.wallAt(this.idxAtS(c.s - (o.to ?? 80)), side);   // (the straight's barrier line on that side)
+    let uOut = -Infinity, wL = null;
+    for (let s = c.s - 80; s <= c.s + 260; s += 2) {
+      const i = this.idxAtS(s), e = this.edgeAt(i, side) + this.kerbWidth, x = this.px[i] + this.nx[i] * side * e, z = this.pz[i] + this.nz[i] * side * e;
+      if (s <= c.s + 120) uOut = Math.max(uOut, U(x, z));
+    }
+    // (the leg coming back: its barrier line where it leaves the corner - `exit` m back down the straight from the kerb's
+    //  furthest point - so the run-off stops at the exit's kerb line and never spreads along a leg that opens away)
+    for (let s = c.s + 10; s <= c.s + 260 && wL == null; s += 2) {
+      const i = this.idxAtS(s); if (U(this.px[i], this.pz[i]) > uOut - (o.exit ?? 45)) continue;
+      const w = this.wallAt(i, side), wx = this.px[i] + this.nx[i] * side * w, wz = this.pz[i] + this.nz[i] * side * w; wL = Wv(wx, wz);
+    }
+    if (wL == null) return null;
+    const uEnd = uOut + (o.depth ?? 40), P = (u, w) => [O[0] + al[0] * u + le[0] * w, O[1] + al[1] * u + le[1] * w];
+    (this.escapeBoxes || (this.escapeBoxes = [])).push({ o: O, along: al, left: le, uOut, uEnd, wR, wL, turn: o.turn });
+    return [P(0, wR), P(uEnd, wR), P(uEnd, wL), P(0, wL)];
   }
   /** the pinned wall (pinWall) that a point at arc length s, lateral d is up against, or null */
   pinAt(s, d) {

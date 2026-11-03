@@ -551,7 +551,7 @@ export function buildVegasPaddock(track, pit, def, rings = []) {
   // =============================================================================================================
   // Turns 1-2: the U as it is painted - plain red and white kerbs round it, blue and white chevrons inside it, and on
   // the escape beyond it the Heineken band laid straight across the run-off along the bottom of the U, LAS VEGAS and
-  // the chevrons further out (tracks.js escapes, sfFrame: the frame the U is drawn in)
+  // the chevrons further out
   // =============================================================================================================
   const sub = (sA, sB) => { const ia = tr.idxAtS(sA), n = Math.round((sB - sA) / tr.ds), ids = []; for (let k = 0; k <= n; k++) ids.push((ia + k) % tr.n); const T = { px: [], pz: [], nx: [], nz: [], s: [] }; for (const i of ids) { T.px.push(tr.px[i]); T.pz.push(tr.pz[i]); T.nx.push(tr.nx[i]); T.nz.push(tr.nz[i]); T.s.push(T.s.length * tr.ds); } return { T, ids }; };
   {
@@ -564,49 +564,50 @@ export function buildVegasPaddock(track, pit, def, rings = []) {
     // (the green Heineken fence along the inside wall)
     put(fence, strip(T, 0, n, (k) => [tr.wallAt(ids[k], 1) + 0.35, 0.9], (k) => [tr.wallAt(ids[k], 1) + 0.35, 3.1], 12));
   }
-  const SF = def.escapes ? def.sfFrame : null;   // (the escape's paint and lamps: only with the escape itself - tracks.js)
-  if (SF) {
-    const UW = (u, w, y) => [SF.o[0] + SF.along[0] * u + SF.left[0] * w, y, SF.o[1] + SF.along[1] * u + SF.left[1] * w];
-    // (a flat decal on the escape: x along +w (left to right seen from the escape's end), its top toward the U)
+  // Turn 1's run-off (Track.escapes: the straight carried on past the hairpin to a wall across its end): the Heineken
+  // band straight across it past the hairpin's kerb, LAS VEGAS and the chevrons beyond, its end wall carrying lamps
+  const EB = (tr.escapeBoxes || []).find((e) => e.turn === 1);
+  if (EB) {
+    const UW = (u, w, y) => [EB.o[0] + EB.along[0] * u + EB.left[0] * w, y, EB.o[1] + EB.along[1] * u + EB.left[1] * w];
+    // (a flat decal on the run-off: x along +w (left to right seen from the run-off's end), its top toward the corner)
     const decal = (u0, u1, w0, w1, map, transparent) => {
       const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute([...UW(u0, w0, 0.02), ...UW(u0, w1, 0.02), ...UW(u1, w1, 0.02), ...UW(u0, w0, 0.02), ...UW(u1, w1, 0.02), ...UW(u1, w0, 0.02)], 3));
       g.setAttribute('uv', new THREE.Float32BufferAttribute([0, 1, 1, 1, 1, 0, 0, 1, 1, 0, 0, 0], 2)); g.computeVertexNormals();
       group.add(new THREE.Mesh(g, new THREE.MeshStandardMaterial({ map, transparent, roughness: 0.7, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3, side: THREE.DoubleSide, emissive: 0x161616, depthWrite: !transparent })));
     };
-    const uOut = SF.uFlat + tr.halfWidth + tr.kerbWidth + 0.5;
-    decal(uOut, uOut + 9, -10.6, 66, runoffBandTexture(), false);
-    decal(uOut + 11, uOut + 30, -10.6, 52, runoffLettersTexture(), true);
-    // (the escape lit from its end wall: lamps on the wall across it, aimed back at the U - no posts on the asphalt)
-    for (let w = -4; w <= 78; w += 14) { const [x, , z] = UW(SF.uEnd + 1.5, w, 0), [tx, , tz] = UW(SF.uFlat, w, 0); lights.push({ x, y: 14, z, tx, tz }); }
+    const u0 = EB.uOut + 0.8, wa = EB.wR + 1.2, wb = EB.wL - 1.2;   // (just past the kerb, wall to wall less a metre)
+    decal(u0, u0 + 9, wa, wb, runoffBandTexture(), false);
+    decal(u0 + 11, u0 + 30, wa, wa + (wb - wa) * 0.82, runoffLettersTexture(), true);
+    for (let w = wa + 4; w <= wb; w += 12) { const [x, , z] = UW(EB.uEnd + 1.5, w, 0), [tx, , tz] = UW(EB.uOut - 10, w, 0); lights.push({ x, y: 14, z, tx, tz }); }
+    console.info(`[vegas] Turn 1 run-off: ${(EB.uEnd - EB.uOut).toFixed(0)} m past the kerb, ${(EB.wL - EB.wR).toFixed(0)} m across, wall to wall`);
   }
   // (even light over the whole section: lamps along both sides at the catch-fence line, every 16 m, the straight to Turn 3)
-  for (let s0 = -200; s0 <= c3 + 40; s0 += 16) for (const sd of [1, -1]) {
+  for (let s0 = cornerS(17) - L + 20; s0 <= c3 + 40; s0 += 16) for (const sd of [1, -1]) {
     if (pit && sd === pit.sideSign && s0 < c1 - 40) continue;   // (the pit side of the straight: the plaza's roof lights it)
     const i = tr.idxAtS(s0), p = tr.sample(s0, sd * (tr.wallAt(i, sd) + 0.5), {}), aim = tr.sample(s0, 0, f); lights.push({ x: p.x, y: 12, z: p.z, tx: aim.x, tz: aim.z });
   }
 
   // =============================================================================================================
-  // around it: the fan zone behind the main grandstand (purple and pink light, marquees, screens) and the road beyond
-  // the return leg's grandstand, lit blue along its edges
+  // around it: the fan zone behind the main grandstand (purple and pink light, marquees, screens) and the road behind
+  // the general-admission stand on the return leg, lit blue along its edges - each laid in its stand's own frame
   // =============================================================================================================
-  if (SF) {
-    const UW = (u, w) => [SF.o[0] + SF.along[0] * u + SF.left[0] * w, SF.o[1] + SF.along[1] * u + SF.left[1] * w], ax = [SF.along[0], SF.along[1]];
+  {
     let seed = 11; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
     const ok = (x, z) => corridorSigned(tr, pit, x, z, 4) >= 0 && !near.some((r) => inRing(x, z, r)) && !stands.some((p) => { const dx = x - p.x, dz = z - p.z, lx = dx * p.ex[0] + dz * p.ex[1], lz = dx * p.ez[0] + dz * p.ez[1]; return Math.abs(lx) < p.len / 2 + 3 && lz > -3 && lz < (p.depth || 20) + 4; });
-    const wBack = -(11.7 + MAIN.gap + mBack + 6);
-    for (let u = -150; u <= 175; u += 22) for (let w = wBack; w > wBack - 110; w -= 24) {
-      const uu = u + (rnd() - 0.5) * 10, ww = w - rnd() * 8, [x, z] = UW(uu, ww); if (!ok(x, z)) continue;
-      if (rnd() < 0.45) continue; const r = 7 + rnd() * 9, g = new THREE.PlaneGeometry(r * 2, r * 2); g.rotateX(-Math.PI / 2); g.translate(x, 0.05 + rnd() * 0.02, z); put(rnd() < 0.6 ? glowPurple : glowPink, g);
-      if (rnd() < 0.45) { const tw = 8 + rnd() * 8; put(tentLit, boxAt(x, 1.5, z, ax, tw, 3, tw * 0.8)); const roof = new THREE.ConeGeometry(tw * 0.62, 2.6, 4); roof.rotateY(Math.PI / 4 + Math.atan2(-ax[1], ax[0])); roof.translate(x, 4.3, z); put(tentLit, roof); }
-      else if (rnd() < 0.3) { put(ledPink, boxAt(x, 6, z, ax, 7, 4, 0.3)); put(dark, boxAt(x, 2, z, ax, 0.4, 4, 0.4)); }   // (a screen)
+    for (const p of main) for (let lx = -p.len / 2; lx < p.len / 2; lx += 22) for (let lz = mBack + 10; lz < mBack + 110; lz += 24) {
+      const [x, z] = p.world(lx + (rnd() - 0.5) * 10, lz + rnd() * 8); if (!ok(x, z) || rnd() < 0.45) continue;
+      const r = 7 + rnd() * 9, g = new THREE.PlaneGeometry(r * 2, r * 2); g.rotateX(-Math.PI / 2); g.translate(x, 0.05 + rnd() * 0.02, z); put(rnd() < 0.6 ? glowPurple : glowPink, g);
+      if (rnd() < 0.45) { const tw = 8 + rnd() * 8; put(tentLit, boxAt(x, 1.5, z, p.ex, tw, 3, tw * 0.8)); const roof = new THREE.ConeGeometry(tw * 0.62, 2.6, 4); roof.rotateY(Math.PI / 4 + Math.atan2(-p.ex[1], p.ex[0])); roof.translate(x, 4.3, z); put(tentLit, roof); }
+      else if (rnd() < 0.3) { put(ledPink, boxAt(x, 6, z, p.ex, 7, 4, 0.3)); put(dark, boxAt(x, 2, z, p.ex, 0.4, 4, 0.4)); }   // (a screen)
     }
-    // the road beyond the Turn 1 grandstand: two lanes, blue light along both edges, street lamps
-    const w0 = SF.wReturn + 11.7 + T1S.gap + tBack + 9, u0 = 10, u1 = 150;
-    const rd = (wa, wb, y, mat) => { const a = UW(u0, wa), b = UW(u1, wa), c = UW(u1, wb), d = UW(u0, wb); const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute([a[0], y, a[1], b[0], y, b[1], c[0], y, c[1], a[0], y, a[1], c[0], y, c[1], d[0], y, d[1]], 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1], 2)); g.computeVertexNormals(); put(mat, g); };
-    const [mx, mz] = UW((u0 + u1) / 2, w0 + 6);
-    if (ok(mx, mz)) {
-      rd(w0, w0 + 12, 0.03, roadAsph); rd(w0 - 0.4, w0, 0.6, ledBlue); rd(w0 + 12, w0 + 12.4, 0.6, ledBlue);
-      for (let u = u0 + 6; u < u1; u += 24) { const [x, z] = UW(u, w0 + 12.6); put(white, boxAt(x, 4.5, z, ax, 0.25, 9, 0.25)); put(ledBlue, boxAt(x, 9, z, ax, 1.2, 0.3, 0.6)); }
+    const ga = t1[0];
+    if (ga) {   // the road behind it: two lanes, blue light along both edges, street lamps
+      const d0 = (ga.depth || 20) + 8, l0 = -ga.len / 2 - 20, l1 = ga.len / 2 + 20, [mx, mz] = ga.world(0, d0 + 6);
+      const rd = (da, db, y, mat) => { const A = ga.world(l0, da), Bq = ga.world(l1, da), C = ga.world(l1, db), D = ga.world(l0, db); const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute([A[0], y, A[1], Bq[0], y, Bq[1], C[0], y, C[1], A[0], y, A[1], C[0], y, C[1], D[0], y, D[1]], 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1], 2)); g.computeVertexNormals(); put(mat, g); };
+      if (ok(mx, mz)) {
+        rd(d0, d0 + 12, 0.03, roadAsph); rd(d0 - 0.4, d0, 0.6, ledBlue); rd(d0 + 12, d0 + 12.4, 0.6, ledBlue);
+        for (let lx = l0 + 6; lx < l1; lx += 24) { const [x, z] = ga.world(lx, d0 + 12.6); put(white, boxAt(x, 4.5, z, ga.ex, 0.25, 9, 0.25)); put(ledBlue, boxAt(x, 9, z, ga.ex, 1.2, 0.3, 0.6)); }
+      }
     }
   }
   // ---- one mesh per material (the static world: a handful of draw calls)
@@ -618,7 +619,7 @@ export function buildVegasPaddock(track, pit, def, rings = []) {
   for (const m of [glowPurple, glowPink]) m.userData.timeSkip = true;
   const boxes = [new THREE.Box3().setFromObject(group)].filter((b) => !b.isEmpty());
   // (and the whole section, from Turn 17's exit to Turn 3, 120 m round: no auto-placed stand in it - only the real ones)
-  { const b = new THREE.Box3(); for (let x = -260; x <= c3; x += 10) { tr.sample(x, 0, f); b.expandByPoint(new THREE.Vector3(f.x, 0, f.z)); } b.expandByVector(new THREE.Vector3(120, 0, 120)); b.max.y = 30; boxes.push(b); }
+  { const b = new THREE.Box3(); for (let x = cornerS(17) - L - 60; x <= c3; x += 10) { tr.sample(x, 0, f); b.expandByPoint(new THREE.Vector3(f.x, 0, f.z)); } b.expandByVector(new THREE.Vector3(120, 0, 120)); b.max.y = 30; boxes.push(b); }
   // (the boxes the auto-placed stands must keep out of: all of this, and each stand of ours)
   for (const p of stands) { const r = [p.world(-p.len / 2, 0), p.world(p.len / 2, 0), p.world(p.len / 2, p.depth), p.world(-p.len / 2, p.depth)]; const b = new THREE.Box3(); for (const [x, z] of r) b.expandByPoint(new THREE.Vector3(x, 0, z)); b.max.y = 20; boxes.push(b); }
   console.info(`[vegas] paddock: plaza ${pit ? 'built' : 'no pit lane'}, main grandstand ${main.length} sections, general admission ${[...t1, ...t3].map((p) => `${p.name.slice(-3)} ${p.len.toFixed(0)} m`).join(', ')}, ${lights.length} lamps`);

@@ -413,32 +413,43 @@ p-norm of the path curvature, projected Gauss-Seidel on a 40/20/10 m grid). Fast
 Las Vegas keeps it 1.5 m off the white lines (`lineMargin: 2.5`): walls, not grass, if a car runs wide. Where the OSM
 chain steps sideways between two parallel carriageways (Sands Avenue at Koval, T10), `easeJogs` in `TrackBuilder.js`
 spreads the step over 160 m of road instead of letting the spline turn it into two 15 m hairpins.
-### Las Vegas: the start/finish straight and Turn 1
+### Las Vegas: the lap as the official map draws it, and the start/finish straight and Turn 1
 
-`src/world/VegasPaddock.js` dresses the pit straight and Turn 1 as on race night (the first section of the Vegas revamp),
-matched against an aerial of the real thing from above Turn 1's run-off looking back down the straight:
-* **The Grand Prix Plaza** over the garages (in place of the landmark set's block, `lm:grandprix`): four storeys over the
-  straight part of the pit lane (278 m), white slabs with glass balustrades and lit handrails, lit hospitality suites
-  behind a curtain wall on every floor, the paddock side's dimmer, a dark roof with lit terraces and plant rooms, the
-  F1-logo canopy lit pink-red over the south-west end (F1 GRAND PRIX PLAZA on that end wall), and at the Turn 1 end a
-  balcony round every floor and a dark grey tower. Running LED lines (magenta, cyan, white) and cyan along the garages.
-* **The paddock** inside the loop, between the plaza and the return leg from Turn 2: a long dark-roofed hall right behind
-  the plaza, then team hospitality (dark or grey flat roofs, lit glass on both long sides, a terrace on some), white
-  marquees and grey service blocks, on lit paving with lamp posts - every piece checked clear of the circuit and the lane.
-* **The Heineken Silver main grandstand** opposite the pits, from Turn 17's exit to the start of the hairpin: a big
-  two-deck stand (38 rows) of black seats, the white lighting truss across the front of the upper deck with red lamps,
-  the glass hospitality pavilion on top under a roof that is maroon from above, lamps along its front on the fence
-  posts, and both ends teal Heineken Silver walls the whole profile of the stand.
-* **Turn 1**: the wide asphalt run-off round the outside of the hairpin (tracks.js `openCorners`), painted as on the
-  night - the Heineken green band with the red star and the blue 0.0% ALCOHOL FREE along the kerb round the corner, LAS
-  VEGAS in outline and chevrons further out; floodlight towers along its outer wall; the green Heineken fence along the
-  inside of the hairpin. The Turn 1 grandstand is one straight, open stand (26 rows, no roof, its back rail lit cyan)
-  on the outside of the run back from Turn 2, fitted to the straightest stretch of it - nothing round the hairpin itself.
-* **Light**: lamps on the fence posts, the truss, the stand roofs, the plaza's roof edge, the run-off towers and the Turn
-  1 grandstand, aimed at the track and baked into the floodlight field with the masts (world/Lighting.js) - the straight
-  and the hairpin lit like day; searchlight beams sweep the sky from the plaza roof and the stand (night only).
-The track itself is OpenStreetMap's: the return leg leaves the hairpin at about 45 degrees to the straight, so the loop
-is a little narrower than it looks from the air. The rest of the lap is next.
+**The lap** (`src/track/LasVegasOfficial.js`): the centre line traced from the official F1 circuit map (to scale) -
+the map's coloured line walked by a shortest path through its dark track band, corner to corner; its straights fitted
+as straight lines; Turn 2 into Turn 3 one continuous curve where the map's DRS dot covers the line - placed in the
+game's metres by the best fit of the OpenStreetMap line onto the map over the whole lap, and scaled to the official
+6.201 km. Against the map it is 1.2 m out on average, 95 % within 3.5 m (OpenStreetMap's chain, kept in the definition
+but unused, was up to 90 m out at Turns 1-3 and 40 m round the Sphere). The start/finish line is the map's flag
+(`sfXZ`), the corners its labels (`xz`). The pit lane (`pitLanePts`) runs 12.4 m inside the pit straight from Turn 17
+and crosses the inside of the U at Turns 1-2 to the inside of Turn 2's exit. Loader: `def.centreline` / `def.sfXZ` /
+`def.pitLanePts` (GeoLoader, main.js) take a lap given outright.
+
+**Turn 1's run-off** (`escapes: [{ auto: { turn: 1, depth: 42 } }]`, Track.escapes): the straight carried on past the
+hairpin to a wall across its end - a rectangle in the straight's frame, from the main grandstand's barrier line to the
+return leg's where it leaves the corner, 42 m past the hairpin's outermost kerb. No bulge round the corner and none
+along a leg that opens away.
+
+`src/world/VegasPaddock.js` dresses the section:
+* **The Grand Prix Plaza** over the garages (in place of the landmark set's block): four storeys (19.5 m) over the
+  straight part of the pit lane, white slabs with glass balustrades and lit handrails, lit suites behind a curtain wall
+  on every floor, a dark roof with plant rooms of different heights and lit terraces, the raised pink-lit pavilion
+  under the F1-logo canopy at the south-west end (F1 GRAND PRIX PLAZA on that end wall), and at the Turn 1 end a balcony
+  round every floor and a dark grey tower. The pit lane bright: a pale floor, a white light line along the garages.
+* **The paddock** between the plaza and the return leg: a long dark hall, team hospitality with lit glass and white
+  parapets, marquees, service blocks, lit paving.
+* **The Heineken Silver main grandstand** (PG1) from Turn 17's exit to Turn 1's braking, against the barrier: two decks
+  of black seats, the white lighting truss with red lamps, the hospitality suites, one dark red roof over most of the
+  seats on a white edge beam, teal Heineken Silver end walls over the whole profile, the white scaffold at its Turn 1
+  end. Behind it, the fan zone: purple and pink light, lit marquees, screens.
+* **The general-admission stands** PG2-PG5 (the official map's seating plan) on the outside of the return leg, open
+  tiers with a dark canopy over the back rows and blue rails; the road behind PG2 lit blue.
+* **Turn 1**: plain red and white kerbs round the hairpin, blue chevrons inside it, the green Heineken fence along the
+  inside wall; on the run-off the Heineken band with the star and the blue 0.0% ALCOHOL FREE laid straight across past
+  the kerb, LAS VEGAS in outline and the chevrons beyond, lamps on its end wall.
+* **Light**: lamps on the fence line, the truss, the roofs, the plaza's edge, the stands and the run-off wall, baked into
+  the floodlight field with the masts (world/Lighting.js) - the straight and the hairpin lit like day. The city's windows
+  are lit more than elsewhere (most of them, on race night).
 
 ### Montreal: the Circuit Gilles Villeneuve
 
