@@ -6,9 +6,9 @@
 import * as THREE from 'three';
 
 const SIZE = 1024;
-export const SHOW_BG = { smiley: 0xf7b21c, helmet: 0xdbeeff, sign: 0x05061a, marquee: 0x9b0f2e, champion: 0x080b16 };
+export const SHOW_BG = { smiley: 0xf7b21c, helmet: 0xdbeeff, sign: 0x05061a, marquee: 0x9b0f2e, champion: 0x080b16, sponsor: 0x1d3cf0 };
 /** how many faces each show is repeated on around the Sphere (1 = one-sided, 2 = front/back, 4 = quadrants) */
-export const SIDES = { smiley: 2, helmet: 2, sign: 4, marquee: 2, champion: 2 };
+export const SIDES = { smiley: 2, helmet: 2, sign: 4, marquee: 2, champion: 2, sponsor: 2 };
 
 export class SphereShow {
   constructor() {
@@ -25,7 +25,7 @@ export class SphereShow {
     if (mode === this.lastMode && t - this.last < 0.05) return;
     this.last = t; this.lastMode = mode;
     const c = this.ctx; c.setTransform(1, 0, 0, 1, 0, 0);
-    if (mode === 'sign') this.sign(c, t); else if (mode === 'marquee') this.marquee(c, t); else if (mode === 'helmet') this.helmet(c, t); else if (mode === 'champion') this.champion(c, t, this.championInfo); else this.face(c, t, false);
+    if (mode === 'sign') this.sign(c, t); else if (mode === 'marquee') this.marquee(c, t); else if (mode === 'helmet') this.helmet(c, t); else if (mode === 'champion') this.champion(c, t, this.championInfo); else if (mode === 'sponsor') this.sponsor(c, t); else this.face(c, t, false);
     this.texture.needsUpdate = true;
   }
 
@@ -57,6 +57,18 @@ export class SphereShow {
     c.fillStyle = lum > 150 ? '#101218' : '#ffffff'; c.font = `800 ${S * 0.042}px "Segoe UI", Arial, sans-serif`; c.fillText(info.team.toUpperCase(), cx, S * 0.63);
     // sparkles
     for (let i = 0; i < 26; i++) { const x = (i * 199) % S, y = (i * 313) % (S * 0.75); if (Math.abs(x - cx) < S * 0.36 && y > S * 0.2 && y < S * 0.68) continue; this.sparkle(c, x, y, 8 + (i % 3) * 5, i % 2 ? '#ffd76a' : '#ffffff', 0.5 + 0.5 * Math.sin(t * 2.5 + i)); }
+  }
+
+  // ---- race weekend: the sponsor's takeover (the 2024 onboards: the shell royal blue, LED-bright, the Red Bull mark -
+  //      the yellow sun between the two charging bulls - and the name across its face; a slow shimmer runs over it) ----
+  sponsor(c, t) {
+    const S = SIZE, cx = S * 0.5, cy = S * 0.5;
+    const g = c.createRadialGradient(cx, cy * 0.9, S * 0.05, cx, cy, S * 0.75); g.addColorStop(0, '#3a63ff'); g.addColorStop(1, '#1d3cf0'); c.fillStyle = g; c.fillRect(0, 0, S, S);
+    c.save(); c.globalAlpha = 0.12; c.fillStyle = '#ffffff'; for (let k = 0; k < 6; k++) { const x = ((t * 40 + k * 190) % (S + 200)) - 100; c.fillRect(x, 0, 40, S); } c.restore();
+    const sy = cy * 0.82; c.fillStyle = '#ffcc00'; c.beginPath(); c.arc(cx, sy, S * 0.09, 0, 6.283); c.fill();
+    c.fillStyle = '#d6001c';
+    for (const d of [-1, 1]) { c.beginPath(); c.moveTo(cx + d * S * 0.05, sy + S * 0.02); c.lineTo(cx + d * S * 0.25, sy - S * 0.07); c.lineTo(cx + d * S * 0.27, sy + S * 0.07); c.lineTo(cx + d * S * 0.07, sy + S * 0.09); c.closePath(); c.fill(); }
+    c.font = `italic 900 ${S * 0.13}px "Segoe UI", Arial, sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.lineWidth = S * 0.012; c.strokeStyle = '#ffffff'; c.strokeText('Red Bull', cx, cy * 1.22); c.fillText('Red Bull', cx, cy * 1.22);
   }
 
   // ---- the Grand Prix helmet emoji (as on the real Sphere): a white / sky-blue race helmet with the visor up,
@@ -242,7 +254,7 @@ export class SphereShow {
 }
 
 /** Show order on the Sphere (24 s each); canvas shows never sit next to each other so crossfades stay clean. */
-export const SPHERE_SEQUENCE = ['eyeball', 'planet', 'smiley', 'basketball', 'sign', 'lava', 'helmet', 'broadcast', 'marquee', 'clouds', 'off'];
-export const SHOW_ID = { eyeball: 0, planet: 1, basketball: 2, lava: 3, off: 4, smiley: 5, broadcast: 6, clouds: 7, sign: 8, helmet: 9, marquee: 10, champion: 11 };   // champion is never in the loop: forced at the end of a session
-export const CANVAS_SHOWS = new Set(['smiley', 'sign', 'helmet', 'marquee']);
+export const SPHERE_SEQUENCE = ['eyeball', 'planet', 'smiley', 'basketball', 'sign', 'lava', 'helmet', 'sponsor', 'broadcast', 'marquee', 'clouds', 'off'];
+export const SHOW_ID = { eyeball: 0, planet: 1, basketball: 2, lava: 3, off: 4, smiley: 5, broadcast: 6, clouds: 7, sign: 8, helmet: 9, marquee: 10, champion: 11, sponsor: 12 };   // champion is never in the loop: forced at the end of a session
+export const CANVAS_SHOWS = new Set(['smiley', 'sign', 'helmet', 'marquee', 'sponsor']);
 export const SHOW_SECONDS = 24;

@@ -1,3 +1,16 @@
+# V2.26 (2026-11-03): Las Vegas, Turns 2-5 to the 2024 onboards; the T-cam pitched as the broadcast's
+
+- Pit entry/exit lines T-Mobile magenta, 0.35 m (def.pitLine, TrackBuilder).
+- Boards (Branding 26-29): T-Mobile magenta out of T2, blue into T3, lilac T-Mobile right of the T4-T5 straight, bare dark
+  wall left. (Replaces V2.25's Globant / #LasVegasGP, which came from the F1 25 game footage.)
+- T4-T5 straight: double yellow, dark scrim + tall dark left mass, low dark right buildings, merch stalls, big screen,
+  footbridge with the purple sign 150 m before T5; lit things fog-free. Fence-line lamps every 32 m down it.
+- Sphere: a 'sponsor' show (royal blue, Red Bull) in the rotation (SphereShow, Landmarks shader modeAt / 288 s cycle,
+  Lighting SHOW_GLOW).
+- T-cam: pitched down 21 degrees (TCAM_PITCH), levelling out when looking sideways.
+- Race tests: pit stop fine; lap-1 pile-ups at T10-T11 in 2 of 3 runs (0, 2, 4 retirements) - nothing there changed this
+  version; the Vegas AI calibration predates the de-kinked line (V2.24) - refit it.
+
 # V2.25 (2026-11-03): Las Vegas - the street circuit's catch fence, the walls' boards, the trackside kit
 
 - `def.streetFence` (TrackBuilder streetFence, Las Vegas): posts cranked in at the top, clamps, five cables, the chain

@@ -464,7 +464,15 @@ barrier line, would round the rectangle's corners into a balloon.
   a catch fence over it and white lattice light towers along it; the same boards on the fence over the braking zone.
 * **The barrier as the onboard footage has it**: on the concrete walls the street circuit's catch fence (`streetFence`,
   TrackBuilder) - round galvanised posts every 3.6 m cranked in toward the track at the top, a clamp at the cables,
-  five steel cables, the chain link up the crank too; black Globant boards round Turns 2-3 and #LasVegasGP out of Turn 4.
+  five steel cables, the chain link up the crank too. The boards from Turn 2 to Turn 5 as the 2024 onboards show them:
+  T-Mobile magenta out of Turn 2, blue into Turn 3, lilac T-Mobile down the right of the straight to Turn 5 and the bare
+  dark wall on its left. The pit entry and exit lines T-Mobile magenta (`def.pitLine`).
+* **The straight from Turn 4 to Turn 5** (Koval Lane): the road's double yellow down the middle; a dark scrim on the
+  left fence and behind it one tall dark mass (the resorts' garages), hardly lit; on the right low dark buildings, a
+  lit room or balcony here and there, the Sphere over them all the way down; toward the end the merch stalls behind the
+  fence, the big screen showing the race, and the dark footbridge across the track with its purple-lit sign and a row
+  of lamps under it (no fog on the lit things: there from the moment the straight opens out). The Sphere's shows now
+  include the race weekend's sponsor takeover (royal blue, the Red Bull mark).
 * **Trackside kit**: the recovery crane truck and the yellow telehandler behind the fence outside Turn 2, a TV camera
   tower where the Turns 2-4 stand begins, a yellow boom lift by the building beyond the bend, the lattice gantry with
   the race's banner across the run out of Turn 4.

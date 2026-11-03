@@ -6,6 +6,7 @@ import * as THREE from 'three';
  * rear views both come from it. 1.1 m up keeps the helmet ~0.45 m from the lens, clear of the 0.3 m near plane.
  */
 export const TCAM_X = -0.13, TCAM_Y = 1.21;   // (just over the camera pod on the airbox: vehicle/CarModel.js)
+export const TCAM_PITCH = (21 * Math.PI) / 180;   // the forward T-cam's tilt down (the broadcast's)
 
 export class CockpitCamera {
   constructor(camera) {
@@ -115,7 +116,11 @@ export class CockpitCamera {
       const al = Math.abs(look);
       this._pos.set(car.x + TCAM_X * c + side * 0.4 * left[0], TCAM_Y + 0.15 * al + bobY, car.z + TCAM_X * s + side * 0.4 * left[1]);
       const lookYaw = car.steer * 0.05 * (1 - al) - lookYaw0; const lx = Math.cos(car.th - lookYaw), lz = Math.sin(car.th - lookYaw);
-      this._look.set(this._pos.x + lx * 25, 0.45 + 25 * (car.pt || 0), this._pos.z + lz * 25);
+      // (pitched down 17 degrees as the broadcast's is: the halo and the nose fill the lower half, the horizon sits a fifth of
+      //  the way down the frame - the road ahead and what stands over it, the bridges and gantries, in view long before they
+      //  pass over; looking to the side it levels out)
+      const pitch = TCAM_PITCH * (1 - al);
+      this._look.set(this._pos.x + lx * 25, this._pos.y - 25 * Math.tan(pitch) + 25 * (car.pt || 0), this._pos.z + lz * 25);
       this.roll += (latG * 0.004 - this.roll) * Math.min(1, dt * 6);
       const rl = this.roll - (car.rl || 0);
       this._up.set(Math.sin(rl) * left[0], Math.cos(rl), Math.sin(rl) * left[1]);

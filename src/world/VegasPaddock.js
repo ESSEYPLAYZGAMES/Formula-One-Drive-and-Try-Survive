@@ -153,6 +153,38 @@ function f1StripTexture() {
     x.restore();
   });
 }
+/** a dark street facade (32 m x 28 m a repeat): dark walls and darker glass, a few rooms lit warm or cool, a balcony rail
+ *  here and there catching the light - the rest left to the dark, as the backs of Koval Lane are from the track */
+function darkFacadeTexture(seed = 3, litK = 1) {
+  let a = seed; const rnd = () => ((a = (a * 16807) % 2147483647) / 2147483647);
+  return canvasTex(1024, 1024, (x, W, H) => {
+    x.fillStyle = '#131418'; x.fillRect(0, 0, W, H);
+    const FL = 8, fh = H / FL, cols = 14, cw = W / cols;
+    for (let f = 0; f < FL; f++) {
+      x.fillStyle = '#1d1f25'; x.fillRect(0, f * fh, W, 7);   // the floor slab
+      const balcony = rnd() < 0.22;
+      for (let c = 0; c < cols; c++) {
+        const lit = rnd(), wx = c * cw + 9, wy = f * fh + 20, ww = cw - 18, wh = fh - 34;
+        const l2 = lit / litK; x.fillStyle = l2 < 0.05 ? '#ffcf8a' : l2 < 0.075 ? '#bfe0ff' : l2 < 0.09 ? '#ff9ad8' : '#0a0c11'; x.fillRect(wx, wy, ww, wh);
+        if (l2 < 0.09) { x.fillStyle = 'rgba(30,20,20,0.5)'; x.fillRect(wx + ww * 0.6, wy, ww * 0.1, wh); }   // (a figure, a curtain)
+      }
+      if (balcony) { x.fillStyle = '#4a4d55'; x.fillRect(0, f * fh + fh - 26, W, 5); x.fillStyle = 'rgba(160,170,185,0.35)'; x.fillRect(0, f * fh + fh - 46, W, 20); }
+    }
+  }, true);
+}
+/** the screen by the Sphere: the broadcast - a car on the night track, the timing tower, the race's name */
+function broadcastTexture() {
+  return canvasTex(1024, 576, (x, W, H) => {
+    const g = x.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#0b0f2a'); g.addColorStop(0.55, '#1a1440'); g.addColorStop(0.56, '#2a2b33'); g.addColorStop(1, '#17181d'); x.fillStyle = g; x.fillRect(0, 0, W, H);
+    x.fillStyle = '#3d65ff'; x.beginPath(); x.arc(W * 0.78, H * 0.32, 120, 0, 6.283); x.fill();   // (the Sphere, behind)
+    x.fillStyle = '#e8e8ec'; x.fillRect(0, H * 0.75, W, 6);
+    x.fillStyle = '#c8102e'; x.beginPath(); x.moveTo(W * 0.3, H * 0.7); x.lineTo(W * 0.62, H * 0.66); x.lineTo(W * 0.66, H * 0.7); x.lineTo(W * 0.64, H * 0.74); x.lineTo(W * 0.3, H * 0.75); x.closePath(); x.fill();
+    x.fillStyle = '#111'; for (const u of [0.35, 0.6]) { x.beginPath(); x.arc(W * u, H * 0.75, 26, 0, 6.283); x.fill(); }
+    x.fillStyle = 'rgba(10,10,20,0.85)'; x.fillRect(24, 24, 210, 300); x.fillStyle = '#ffffff'; x.font = `700 26px ${FONT}`;
+    ['1  LEC', '2  VER', '3  NOR', '4  PIA', '5  HAM', '6  RUS', '7  SAI', '8  ALO'].forEach((t, k) => { x.fillText(t, 40, 64 + k * 34); x.fillStyle = ['#e10600', '#1e41ff', '#ff8000', '#ff8000', '#00d2be', '#00d2be', '#e10600', '#006f62'][k]; x.fillRect(30, 44 + k * 34, 5, 26); x.fillStyle = '#ffffff'; });
+    x.fillStyle = '#e10600'; x.font = `italic 900 44px ${FONT}`; x.fillText('F1', W - 180, H - 40); x.fillStyle = '#ffffff'; x.font = `800 30px ${FONT}`; x.fillText('LAS VEGAS GRAND PRIX', W - 560, H - 44);
+  });
+}
 /** the race's banner on the stands' backs: night-blue, LAS VEGAS GRAND PRIX, a pink stripe (tiles along) */
 function bannerTexture() {
   return canvasTex(1024, 256, (x, W, H) => {
@@ -233,6 +265,17 @@ export function buildVegasPaddock(track, pit, def, rings = []) {
   };
   const scaffoldMat = new THREE.MeshStandardMaterial({ map: (() => { const t = trussTexture(); t.wrapS = t.wrapT = THREE.RepeatWrapping; return t; })(), alphaTest: 0.5, color: 0x9ea3ab, roughness: 0.6, metalness: 0.4, side: THREE.DoubleSide });
   const gantryBanner = new THREE.MeshBasicMaterial({ map: canvasTex(1536, 160, (x, W, H) => { x.fillStyle = '#0b0b0d'; x.fillRect(0, 0, W, H); x.fillStyle = '#e10600'; x.font = `italic 900 120px ${FONT}`; x.textBaseline = 'middle'; x.textAlign = 'left'; x.fillText('F1', 40, H * 0.55); x.fillStyle = '#ffffff'; x.font = `800 84px ${FONT}`; x.fillText('LAS VEGAS GRAND PRIX', 250, H * 0.55); }), side: THREE.FrontSide });
+  const dYellow = new THREE.MeshBasicMaterial({ color: 0xd4ae1c, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 });
+  const scrim = new THREE.MeshStandardMaterial({ color: 0x141518, roughness: 0.95, side: THREE.DoubleSide });
+  const bodyDark = new THREE.MeshStandardMaterial({ color: 0x15161a, roughness: 0.9, side: THREE.DoubleSide });
+  const facadeGarage = new THREE.MeshStandardMaterial({ map: darkFacadeTexture(9, 0.2), emissive: 0xffffff, emissiveIntensity: 0, roughness: 0.9, side: THREE.DoubleSide }); facadeGarage.emissiveMap = facadeGarage.map; facadeGarage.emissiveIntensity = 0.6;
+  const facadeDark = new THREE.MeshStandardMaterial({ map: darkFacadeTexture(5), emissive: 0xffffff, emissiveIntensity: 0, roughness: 0.85, side: THREE.DoubleSide }); facadeDark.emissiveMap = facadeDark.map; facadeDark.emissiveIntensity = 0.9;
+  const merchFront = new THREE.MeshBasicMaterial({ map: canvasTex(256, 128, (x, W, H) => { x.fillStyle = '#fff3dc'; x.fillRect(0, 0, W, H); for (let k = 0; k < 9; k++) { x.fillStyle = ['#e10600', '#1b1b1f', '#e20074', '#ffffff', '#1e41ff'][k % 5]; x.fillRect(10 + k * 27, 30 + (k % 2) * 10, 20, 40); } x.fillStyle = '#e10600'; x.font = `800 24px ${FONT}`; x.fillText('F1 STORE', 70, H - 14); }), side: THREE.DoubleSide });
+  const awningPink = new THREE.MeshStandardMaterial({ color: 0xe20074, emissive: 0x40001a, roughness: 0.6 }), awningWhite = new THREE.MeshStandardMaterial({ color: 0xf2f2f2, emissive: 0x202020, roughness: 0.6 });
+  const screenMat = new THREE.MeshBasicMaterial({ map: broadcastTexture(), fog: false, side: THREE.DoubleSide });
+  const bridgeDark = new THREE.MeshStandardMaterial({ color: 0x1b1c22, roughness: 0.8, metalness: 0.2 });
+  const bridgeSign = new THREE.MeshBasicMaterial({ fog: false, side: THREE.DoubleSide, map: canvasTex(2048, 160, (x, W, H) => { x.fillStyle = '#121218'; x.fillRect(0, 0, W, H); x.fillStyle = '#c69bff'; x.shadowColor = '#b06bff'; x.shadowBlur = 18; x.font = `800 104px ${FONT}`; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('LAS VEGAS GRAND PRIX', W / 2, H * 0.54); }) });
+  const lampWhite = new THREE.MeshBasicMaterial({ color: 0xfffaf0, fog: false });
   const aisleLit = new THREE.MeshBasicMaterial({ color: 0xdfe6ff, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
   const neverDrink = new THREE.MeshStandardMaterial({ map: neverDrinkTexture(), emissive: 0xffffff, emissiveIntensity: 0, roughness: 0.5, side: THREE.DoubleSide }); neverDrink.emissiveMap = neverDrink.map; neverDrink.emissiveIntensity = 0.7;
   const bandMat = new THREE.MeshStandardMaterial({ map: bandTileTexture(), roughness: 0.6, emissive: 0xffffff, emissiveIntensity: 0, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3, side: THREE.DoubleSide }); bandMat.emissiveMap = bandMat.map; bandMat.emissiveIntensity = 0.32;
@@ -701,8 +744,9 @@ export function buildVegasPaddock(track, pit, def, rings = []) {
     for (let u = EB.uEnd - 4; u > EB.exitA[0]; u -= 22) tower(u, EB.wExit(u) + 1.2, u - 10, (EB.wR + EB.wExit(u)) / 2);
     console.info(`[vegas] Turn 1 run-off: ${(EB.uEnd - EB.uOut).toFixed(0)} m past the kerb, ${(EB.wL - EB.wR).toFixed(0)} m across at the kerb, ${(EB.wEnd - EB.wR).toFixed(0)} m at its end wall (the exit side slanting in at ${(Math.atan(-EB.slope) * 180 / Math.PI).toFixed(0)} deg)`);
   }
-  // (even light over the whole section: lamps along both sides at the catch-fence line, every 16 m, the straight to Turn 3)
-  for (let s0 = cornerS(17) - L + 20; s0 <= c3 + 40; s0 += 16) for (const sd of [1, -1]) {
+  // (even light over the whole section: lamps along both sides at the catch-fence line, every 16 m, the start/finish
+  //  straight to Turn 5 - the straight down to Turn 5 lit evenly grey, as the onboards show it)
+  for (let s0 = cornerS(17) - L + 20; s0 <= cornerS(5) + 10; s0 += s0 > cornerS(4) + 40 ? 32 : 16) for (const sd of [1, -1]) {
     if (pit && sd === pit.sideSign && s0 < c1 - 40) continue;   // (the pit side of the straight: the plaza's roof lights it)
     const i = tr.idxAtS(s0), p = tr.sample(s0, sd * (tr.wallAt(i, sd) + 0.5), {}), aim = tr.sample(s0, 0, f); lights.push({ x: p.x, y: 12, z: p.z, tx: aim.x, tz: aim.z });
   }
@@ -862,6 +906,84 @@ export function buildVegasPaddock(track, pit, def, rings = []) {
       }
     }
     console.info(`[vegas] trackside kit: ${kit.join(', ')}`);
+  }
+  // =============================================================================================================
+  // the straight from Turn 4 to Turn 5 (Koval Lane; the 2024 onboards): the public road's double yellow down its middle;
+  // its left side the bare dark wall with a dark scrim over the fence; both sides lined with dark buildings - a few
+  // rooms lit, a balcony here and there catching the light, the rest left to the dark; toward its end, on the Sphere's
+  // side, the merch stalls behind the fence and the big screen showing the race; and across it the dark footbridge with
+  // the purple-lit sign along its face and a row of lamps under it, the Sphere beyond. The screen, the sign and the
+  // lamps take no fog: lit things carry down a straight at night, there from the moment the straight opens out.
+  // =============================================================================================================
+  {
+    const c4 = cornerS(4), c5 = cornerS(5); let seed = 21; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    const okAt = (x, z, m = 1) => corridorSigned(tr, pit, x, z, m) >= 0 && !near.some((r) => inRing(x, z, r)) && !solids.some((o) => inRing(x, z, o.ring));
+    const frameAt = (sm, side) => { const i = tr.idxAtS(sm), w = tr.wallAt(i, side), t = [tr.tx[i], tr.tz[i]], nv = [tr.nx[i] * side, tr.nz[i] * side], o = tr.sample(sm, 0, {}); return { t, nv, P: (u, v) => [o.x + t[0] * u + nv[0] * (w + v), o.z + t[1] * u + nv[1] * (w + v)] }; };
+    const facing = (dir) => Math.atan2(dir[0], dir[1]);   // (rotateY for a plane whose face looks along dir)
+    const quadV = (P0, P1, y0, y1, dir, mat, uvs = [1, 1], off = [0, 0]) => { const L = Math.hypot(P1[0] - P0[0], P1[1] - P0[1]), g = new THREE.PlaneGeometry(L, y1 - y0), uv = g.attributes.uv; for (let j = 0; j < uv.count; j++) uv.setXY(j, uv.getX(j) * uvs[0] + off[0], uv.getY(j) * uvs[1] + off[1]); g.rotateY(facing(dir)); g.translate((P0[0] + P1[0]) / 2, (y0 + y1) / 2, (P0[1] + P1[1]) / 2); put(mat, g); };
+    const made = [];
+    // the double yellow
+    { const { T, ids } = sub(c4 + 70, c5 - 70), n = ids.length - 1;
+      for (const [a, b] of [[0.08, 0.2], [-0.2, -0.08]]) put(dYellow, strip(T, 0, n, () => [a, 0.013], () => [b, 0.013])); made.push(`the double yellow ${((n * tr.ds)).toFixed(0)} m`); }
+    // the scrim over the left fence
+    { const { T, ids } = sub(c4 + 40, c5 - 90), n = ids.length - 1; put(scrim, strip(T, 0, n, (k) => [tr.wallAt(ids[k], 1) + 0.4, 1.25], (k) => [tr.wallAt(ids[k], 1) + 0.4, 4.55])); }
+    // the dark buildings either side
+    let nB = 0;
+    // (the left: one tall dark mass close behind the fence - the backs of the resorts' garages, as the onboards show it,
+    //  hardly a light in it; the right, low and broken up, more of it lit - the Sphere over it all the way down)
+    for (const side of [1, -1]) for (let s0 = c4 + 90; s0 < c5 - 160;) {
+      const L1 = side > 0, len = L1 ? 34 + rnd() * 30 : 14 + rnd() * 22, dep = 12 + rnd() * 10, h = L1 ? 11 + rnd() * 5 : 4.5 + rnd() * 5, back = L1 ? 3.2 + rnd() * 1.2 : 6 + rnd() * 8, F = frameAt(s0 + len / 2, side);
+      let ok = true; for (let u = -len / 2; u <= len / 2 + 0.01 && ok; u += 3) for (let v = back - 1; v <= back + dep + 0.01 && ok; v += 3) if (!okAt(...F.P(u, v))) ok = false;
+      if (!ok) { s0 += 6; continue; }
+      const [cx, cz] = F.P(0, back + dep / 2), toTrack = [-F.nv[0], -F.nv[1]];
+      put(bodyDark, boxAt(cx, h / 2, cz, F.t, len, h, dep));
+      quadV(F.P(-len / 2, back - 0.05), F.P(len / 2, back - 0.05), 0, h, toTrack, L1 ? facadeGarage : facadeDark, [len / 32, h / 28], [rnd(), rnd()]);
+      if (!L1 && rnd() < 0.3) {   // (balconies: slabs out over the street, a lit glass rail on each)
+        for (let y = 3.5; y < h - 1; y += 3.5) { const [bx, bz] = F.P(0, back - 0.7); put(greyBox, boxAt(bx, y, bz, F.t, len - 2, 0.16, 1.4)); quadV(F.P(-len / 2 + 1, back - 1.38), F.P(len / 2 - 1, back - 1.38), y + 0.08, y + 1.05, toTrack, glass); }
+      }
+      if (!L1 && rnd() < 0.35) quadV(F.P(-len / 2 + 2, back - 0.1), F.P(-len / 2 + 2 + Math.min(10, len - 4), back - 0.1), 0.3, 3.2, toTrack, suites, [0.4, 1]);   // (a lit ground floor)
+      solids.push({ ring: [F.P(-len / 2, back), F.P(len / 2, back), F.P(len / 2, back + dep), F.P(-len / 2, back + dep)], h: h + 1 }); nB++;
+      s0 += len + (L1 ? 0.2 : 4 + rnd() * 10);
+    }
+    made.push(`${nB} dark buildings`);
+    // the merch stalls behind the right fence toward the end, white boxes with lit fronts and striped awnings
+    let nS = 0;
+    for (let s0 = c5 - 340; s0 < c5 - 205; s0 += 13) {
+      const F = frameAt(s0, -1), [x, z] = F.P(0, 4.2);
+      if (!okAt(x, z, 1.5) || !okAt(...F.P(0, 6))) continue;
+      put(white, boxAt(x, 1.35, z, F.t, 3.4, 2.7, 3));
+      quadV(F.P(-1.5, 2.66), F.P(1.5, 2.66), 0.7, 2.2, [-F.nv[0], -F.nv[1]], merchFront);
+      { const [ax, az] = F.P(0, 2.4); put(nS % 2 ? awningPink : awningWhite, boxAt(ax, 2.85, az, F.t, 3.6, 0.12, 1.2)); }
+      nS++;
+    }
+    made.push(`${nS} merch stalls`);
+    // the big screen, on its truss, angled to the cars coming down the straight
+    { const F = frameAt(c5 - 190, -1), [x, z] = F.P(0, 9);
+      if (okAt(x, z, 2)) {
+        const dir = [-F.t[0] * 0.8 - F.nv[0] * 0.6, -F.t[1] * 0.8 - F.nv[1] * 0.6], L = Math.hypot(...dir), d = [dir[0] / L, dir[1] / L], ax = [d[1], -d[0]];
+        for (const e of [-6, 6]) put(white, boxAt(x + ax[0] * e, 4, z + ax[1] * e, ax, 0.5, 8, 0.5));
+        put(dark, boxAt(x - d[0] * 0.4, 11, z - d[1] * 0.4, ax, 14.4, 8.4, 0.6));
+        quadV([x + ax[0] * -7, z + ax[1] * -7], [x + ax[0] * 7, z + ax[1] * 7], 7, 15, d, screenMat);
+        made.push('the big screen');
+      }
+    }
+    // the footbridge across the straight near its end
+    { const s0 = c5 - 150, i = tr.idxAtS(s0), wl = tr.wallAt(i, 1) + 4, wr = tr.wallAt(i, -1) + 4, A = tr.sample(s0, wl, {}), Bq = tr.sample(s0, -wr, {});
+      const span = Math.hypot(A.x - Bq.x, A.z - Bq.z), ax = [(A.x - Bq.x) / span, (A.z - Bq.z) / span], t = [tr.tx[i], tr.tz[i]], Y0 = 6.8, Y1 = 10.6, D = 7;
+      if (okAt(A.x, A.z, 0.5) && okAt(Bq.x, Bq.z, 0.5)) {
+        const mx = (A.x + Bq.x) / 2, mz = (A.z + Bq.z) / 2;
+        put(bridgeDark, boxAt(mx, (Y0 + Y1) / 2, mz, ax, span + 8, Y1 - Y0, D));
+        for (const P of [A, Bq]) { const o = P === A ? 1 : -1; put(bridgeDark, boxAt(P.x + ax[0] * o * 4, Y1 / 2, P.z + ax[1] * o * 4, ax, 7, Y1, D + 2)); }   // (its stair towers)
+        for (const sd of [-1, 1]) {
+          const [fx, fz] = [mx + t[0] * sd * (D / 2 + 0.05), mz + t[1] * sd * (D / 2 + 0.05)];
+          quadV([fx - ax[0] * span * 0.45, fz - ax[1] * span * 0.45], [fx + ax[0] * span * 0.45, fz + ax[1] * span * 0.45], Y1 - 2.4, Y1 - 0.6, [t[0] * sd, t[1] * sd], bridgeSign, [1, 1]);
+          for (let u = -span / 2; u <= span / 2; u += 2.6) { const lx = mx + ax[0] * u + t[0] * sd * (D / 2 - 0.4), lz = mz + ax[1] * u + t[1] * sd * (D / 2 - 0.4); put(lampWhite, boxAt(lx, Y0 - 0.12, lz, ax, 0.9, 0.18, 0.5)); }
+        }
+        for (let u = -span / 3; u <= span / 3; u += span / 3) { const x = mx + ax[0] * u, z = mz + ax[1] * u, q = tr.sample(s0 - 30, 0, f); lights.push({ x, y: Y0 - 0.3, z, tx: q.x, tz: q.z }); }
+        made.push(`the footbridge ${(c5 - s0).toFixed(0)} m before Turn 5`);
+      }
+    }
+    console.info(`[vegas] Turn 4 to Turn 5: ${made.join(', ')}`);
   }
   // ---- one mesh per material (the static world: a handful of draw calls)
   for (const [mat, gs] of geos) {

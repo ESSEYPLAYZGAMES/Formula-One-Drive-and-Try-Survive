@@ -1514,9 +1514,12 @@ export function buildTrackMeshes(track, pit, gridSlots) {
     const pitRoad = new THREE.Mesh(ribbon(pl, roadA, roadB, 0, { closed: false, colorFn: () => [0.85, 0.85, 0.9], uvV: 10, mask: own }), pitRoadMat);
     group.add(pitRoad); group.userData.pitRoadMat = pitRoadMat; pitRoad.userData.keep = true;
     // yellow edge lines: the track-side one follows the clipped edge (it is the pit entry / exit line where the lane meets the kerb)
-    const pe1 = ribbon(pl, (i) => ws * (pit.laneEdge[i] - 0.2), (i) => ws * pit.laneEdge[i], 0.01, { closed: false, mask: (i) => own(i) && pit.laneEdge[i] > -pit.halfWidth + 1.0 });
+    // (def.pitLine: a circuit's own colour and width for them - Las Vegas paints the pit entry and exit lines T-Mobile
+    //  magenta, wide)
+    const PL = tr.def.pitLine || {}, plw = PL.width ?? 0.2;
+    const pe1 = ribbon(pl, (i) => ws * (pit.laneEdge[i] - plw), (i) => ws * pit.laneEdge[i], 0.01, { closed: false, mask: (i) => own(i) && pit.laneEdge[i] > -pit.halfWidth + 1.0 });
     const pe2 = ribbon(pl, () => gs * pit.halfWidth, () => gs * (pit.halfWidth - 0.2), 0.01, { closed: false, mask: own });
-    const yellow = new THREE.MeshBasicMaterial({ color: 0xffd23a, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+    const yellow = new THREE.MeshBasicMaterial({ color: PL.color ?? 0xffd23a, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
     group.add(new THREE.Mesh(mergeGeometries([pe1, pe2]), yellow));
     // fast-lane / working-lane dashed separator
     const sep = ribbon(pl, () => gs * (pit.halfWidth - 3.6), () => gs * (pit.halfWidth - 3.45), 0.01, { closed: false, mask: (i) => own(i) && (i % 4) < 2 && isFinite(pit.wallIn[i]) });

@@ -32,6 +32,7 @@ export const TRACKS = {
     centreline: LV_CENTRELINE,
     sfXZ: [-89.9, 120.1],
     streetFence: true,   // (the catch fence as the onboard footage shows it: posts cranked in at the top, cables, mesh - TrackBuilder streetFence)
+    pitLine: { color: 0xe20074, width: 0.35 },   // (the pit entry and exit lines in T-Mobile magenta: the 2024 onboards)
     pitLanePts: LV_PITLANE,
     pitLaneWayId: 'way/1223479152',
     // DRS: Koval Lane (detection in the T1-T4 complex, T4 -> T5) and the Strip (detection at T11, T12 -> T14)
@@ -53,9 +54,10 @@ export const TRACKS = {
     autoStands: true,               // temporary grandstands auto-placed in empty lots
     zoneSeq: [0, 3, 1, 2, 0, 4, 5, 7, 1, 6, 0, 2, 3, 0, 1, 5],                 // sponsor panel per 180 m wall zone
     sponsorZone: { panel: 8, fromTurn: 5, toTurn: 10, before: 120, after: 40 },   // the T-Mobile Zone at Sphere
-    // (the boards on the walls from Turn 2 to Turn 4 and out of it, as the onboard footage shows them: Globant round Turns 2-3,
-    //  #LasVegasGP out of Turn 4)
-    sponsorZones: [{ panel: 27, fromTurn: 2, toTurn: 3, before: 10, after: 60 }, { panel: 26, fromTurn: 4, toTurn: 4, before: 10, after: 320 }],
+    // (the walls from Turn 2 to Turn 5 as the 2024 onboards show them: T-Mobile magenta out of Turn 2, blue into Turn 3,
+    //  then down the straight to Turn 5 lilac T-Mobile boards on its right and the bare dark wall on its left)
+    sponsorZones: [{ panel: 26, fromTurn: 2, toTurn: 2, before: 0, after: 110 }, { panel: 27, fromTurn: 3, toTurn: 4, before: 75, after: 20 },
+      { panel: 28, fromTurn: 4, toTurn: 4, side: -1, before: -20, after: 850 }, { panel: 29, fromTurn: 4, toTurn: 4, side: 1, before: -20, after: 850 }],
     runoffPaint: [{ turns: [5, 6, 7, 8, 9], color: [0.84, 0.05, 0.42] }, { turns: [12, 14], color: [0.06, 0.58, 0.52] }],
     runoffDecalTurns: [5, 12, 14],
     // Turn 1's run-off: the straight carried on past the hairpin to a wall across its end (the aerials from beyond Turn 1)

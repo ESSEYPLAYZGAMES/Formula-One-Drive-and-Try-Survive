@@ -216,23 +216,23 @@ function sphereShader() {
         else if (m == 1) c = planet(uv, t);
         else if (m == 2) c = basketball(uv, t);
         else if (m == 3) c = lava(uv, t);
-        else if (m == 5 || m == 8 || m == 9 || m == 10 || m == 11) c = canvasShow();
+        else if (m == 5 || m == 8 || m == 9 || m == 10 || m == 11 || m == 12) c = canvasShow();
         else if (m == 6) c = broadcast(uv, t);
         else if (m == 7) c = clouds(uv, t);
         return c;
       }
-      // show order (must match SPHERE_SEQUENCE in SphereShow.js): eyeball, planet, smiley, basketball, sign, lava, helmet, broadcast, marquee, clouds, off
+      // show order (must match SPHERE_SEQUENCE in SphereShow.js): eyeball, planet, smiley, basketball, sign, lava, helmet, sponsor, broadcast, marquee, clouds, off
       int modeAt(int k){
         if (k == 0) return 0; if (k == 1) return 1; if (k == 2) return 5; if (k == 3) return 2; if (k == 4) return 8;
-        if (k == 5) return 3; if (k == 6) return 9; if (k == 7) return 6; if (k == 8) return 10; if (k == 9) return 7; return 4;
+        if (k == 5) return 3; if (k == 6) return 9; if (k == 7) return 12; if (k == 8) return 6; if (k == 9) return 10; if (k == 10) return 7; return 4;
       }
       void main(){
         vec2 uv = sph();
-        float cyc = mod(uTime, 264.0);
+        float cyc = mod(uTime, 288.0);   // (12 shows x 24 s: SPHERE_SEQUENCE)
         int k = int(floor(cyc / 24.0));
         float tin = cyc - float(k) * 24.0;
         float blend = smoothstep(21.0, 24.0, tin);
-        int m = modeAt(k), mn = modeAt((k >= 10) ? 0 : k + 1);
+        int m = modeAt(k), mn = modeAt((k >= 11) ? 0 : k + 1);
         if (uForce >= 0.0) { m = int(uForce + 0.5); mn = m; blend = 0.0; }   // a forced show (the race-end winner tribute)
         vec3 a = show(m, uv, uTime); vec3 b = a;
         if (blend > 0.001) b = show(mn, uv, uTime);   // the second show is only evaluated during the 3 s crossfade
