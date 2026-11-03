@@ -192,7 +192,10 @@ export function buildVegasPaddock(track, pit, def, rings = []) {
   const ledBlue = ledMaterial(0x2a6cff, 0x22d3ff, 0.9, 0.025);
   const neverDrink = new THREE.MeshStandardMaterial({ map: neverDrinkTexture(), emissive: 0xffffff, emissiveIntensity: 0, roughness: 0.5, side: THREE.DoubleSide }); neverDrink.emissiveMap = neverDrink.map; neverDrink.emissiveIntensity = 0.7;
   const bandMat = new THREE.MeshStandardMaterial({ map: bandTileTexture(), roughness: 0.6, emissive: 0xffffff, emissiveIntensity: 0, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3, side: THREE.DoubleSide }); bandMat.emissiveMap = bandMat.map; bandMat.emissiveIntensity = 0.32;
-  const runoffAsph = new THREE.MeshStandardMaterial({ color: 0x505257, roughness: 0.85, emissive: 0x16171a, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1, side: THREE.DoubleSide });
+  // (the run-off's asphalt: lighter where the cars have run wide and the lamps are brightest, by the kerb, darkening out
+  //  to the walls - v 0 at the kerb, 1 at the wall)
+  const runoffGrad = canvasTex(8, 256, (x, W, H) => { const g = x.createLinearGradient(0, H, 0, 0); g.addColorStop(0, '#74767c'); g.addColorStop(0.35, '#5a5c62'); g.addColorStop(1, '#3a3c41'); x.fillStyle = g; x.fillRect(0, 0, W, H); });
+  const runoffAsph = new THREE.MeshStandardMaterial({ map: runoffGrad, color: 0xffffff, roughness: 0.85, emissive: 0x16171a, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1, side: THREE.DoubleSide });
   const trussTall = new THREE.MeshBasicMaterial({ map: trussTexture(), alphaTest: 0.5, side: THREE.DoubleSide, color: 0xe8eaf0 });
   const kerbRW = new THREE.MeshStandardMaterial({ map: canvasTex(256, 64, (x, W, H) => { x.fillStyle = '#d8262b'; x.fillRect(0, 0, W / 2, H); x.fillStyle = '#f3f1ec'; x.fillRect(W / 2, 0, W / 2, H); }, true), roughness: 0.6, emissive: 0x2a1010, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, side: THREE.DoubleSide });
   const chevBlue = new THREE.MeshStandardMaterial({ map: canvasTex(256, 256, (x, W, H) => { x.fillStyle = '#1d4fd8'; x.fillRect(0, 0, W, H); x.fillStyle = '#f2f4f8'; x.beginPath(); x.moveTo(W * 0.15, 0); x.lineTo(W * 0.6, H * 0.5); x.lineTo(W * 0.15, H); x.lineTo(W * 0.42, H); x.lineTo(W * 0.87, H * 0.5); x.lineTo(W * 0.42, 0); x.closePath(); x.fill(); }, true), roughness: 0.7, emissive: 0x0a1430, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, side: THREE.DoubleSide });
@@ -595,8 +598,8 @@ export function buildVegasPaddock(track, pit, def, rings = []) {
       g.setAttribute('uv', new THREE.Float32BufferAttribute([0, 1, 1, 1, 1, 0, 0, 1, 1, 0, 0, 0], 2)); g.computeVertexNormals();
       group.add(new THREE.Mesh(g, new THREE.MeshStandardMaterial({ map, transparent, roughness: 0.7, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4, side: THREE.DoubleSide, emissive: 0xffffff, emissiveMap: map, emissiveIntensity: 0.35, depthWrite: !transparent })));
     };
-    const wa = EB.wR + 3, wb = EB.wL - 3, ul = EB.uOut + 9.5;   // (beyond the band, wall to wall less a few metres)
-    decal(ul, ul + Math.min(24, (EB.uEnd - ul) - 4), wa, wb, lvgpRunoffTexture(), true);
+    const ul = EB.uOut + 9.5, uh = ul + Math.min(24, (EB.uEnd - ul) - 4), wa = EB.wR + 3, wb = Math.min(EB.wExit(ul), EB.wExit(uh)) - 3;   // (beyond the band, wall to wall less a few metres, inside the slant)
+    decal(ul, uh, wa, wb, lvgpRunoffTexture(), true);
     // the walls round it: white lattice light towers on the catch-fence line, along its end and the exit side, their
     // lamps aimed back over the run-off at the corner
     const tower = (u, w, aimU, aimW) => {
@@ -619,17 +622,17 @@ export function buildVegasPaddock(track, pit, def, rings = []) {
       panel(0.1, 1.15, bandMat, len / 24, 0.32); panel(0.1, 1.15, bandMat, len / 24, -0.32);
       panel(1.2, 5.2, fenceMat, len / 3);
     };
-    run([EB.uEnd + 0.4, EB.wR], [EB.uEnd + 0.4, EB.wL + 0.4]);
-    run([EB.uOut - 50, EB.wL + 0.4], [EB.uEnd + 0.4, EB.wL + 0.4]);
+    run([EB.uEnd + 0.4, EB.wR], [EB.uEnd + 0.4, EB.wEnd + 0.4]);
+    run([EB.exitA[0], EB.exitA[1] + 0.4], [EB.uEnd + 0.4, EB.wEnd + 0.4]);   // (the exit side: the return leg's wall carried on at its slant)
     // (the Heineken / 0.0 boards along the top of the catch fence on the outside of the braking zone, facing the track)
     for (const ds of [-150, -95]) {
       const s0 = c1 + ds, i = tr.idxAtS(s0), d = -(tr.wallAt(i, -1) + 0.5), a = tr.sample(s0 - 5, d, {}), b = tr.sample(s0 + 5, d, {}), len = Math.hypot(b.x - a.x, b.z - a.z), ex = [(b.x - a.x) / len, (b.z - a.z) / len];
       const g = new THREE.PlaneGeometry(len, 1.8), uv = g.attributes.uv; for (let j = 0; j < uv.count; j++) uv.setX(j, uv.getX(j) * len / 24); g.rotateY(Math.atan2(-ex[1], ex[0])); g.translate((a.x + b.x) / 2, 5.6, (a.z + b.z) / 2); put(bandMat, g);
       for (const p of [a, b]) put(white, boxAt(p.x, 3.3, p.z, ex, 0.2, 6.6, 0.2));
     }
-    for (let w = EB.wR + 6; w < EB.wL - 2; w += 20) tower(EB.uEnd + 1.2, w, EB.uOut, w);
-    for (let u = EB.uEnd - 4; u > EB.uOut - 60; u -= 22) tower(u, EB.wL + 1.2, u - 10, (EB.wR + EB.wL) / 2);
-    console.info(`[vegas] Turn 1 run-off: ${(EB.uEnd - EB.uOut).toFixed(0)} m past the kerb, ${(EB.wL - EB.wR).toFixed(0)} m across, wall to wall`);
+    for (let w = EB.wR + 6; w < EB.wEnd - 2; w += 20) tower(EB.uEnd + 1.2, w, EB.uOut, w);
+    for (let u = EB.uEnd - 4; u > EB.exitA[0]; u -= 22) tower(u, EB.wExit(u) + 1.2, u - 10, (EB.wR + EB.wExit(u)) / 2);
+    console.info(`[vegas] Turn 1 run-off: ${(EB.uEnd - EB.uOut).toFixed(0)} m past the kerb, ${(EB.wL - EB.wR).toFixed(0)} m across at the kerb, ${(EB.wEnd - EB.wR).toFixed(0)} m at its end wall (the exit side slanting in at ${(Math.atan(-EB.slope) * 180 / Math.PI).toFixed(0)} deg)`);
   }
   // (even light over the whole section: lamps along both sides at the catch-fence line, every 16 m, the straight to Turn 3)
   for (let s0 = cornerS(17) - L + 20; s0 <= c3 + 40; s0 += 16) for (const sd of [1, -1]) {

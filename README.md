@@ -426,9 +426,10 @@ and crosses the inside of the U at Turns 1-2 to the inside of Turn 2's exit. Loa
 `def.pitLanePts` (GeoLoader, main.js) take a lap given outright.
 
 **Turn 1's run-off** (`escapes: [{ auto: { turn: 1, depth: 42 } }]`, Track.escapes): the straight carried on past the
-hairpin to a wall across its end - a rectangle in the straight's frame, from the main grandstand's barrier line to the
-return leg's where it leaves the corner, 42 m past the hairpin's outermost kerb. No bulge round the corner and none
-along a leg that opens away. Its barrier line is held as drawn (`Track.heldWalls`): fairWalls, which rounds every other
+hairpin to a wall across its end, in the straight's frame: from the main grandstand's barrier line to the return leg's
+barrier, carried on at that leg's own slant (it opens away from the straight - the run-off 97 m across at the kerb
+narrowing to 85 m at its end wall, the exit side 16 degrees in), 42 m past the hairpin's outermost kerb. No bulge round
+the corner. The asphalt shades from light by the kerb to dark at the walls. Its barrier line is held as drawn (`Track.heldWalls`): fairWalls, which rounds every other
 barrier line, would round the rectangle's corners into a balloon.
 
 `src/world/VegasPaddock.js` dresses the section:

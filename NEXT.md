@@ -1,3 +1,9 @@
+# V2.23 (2026-11-03): Turn 1's run-off on the real slant
+
+- The exit side of the run-off is the return leg's barrier carried on at its own angle (the official map: the leg opens
+  away from the straight), not a line parallel to the straight: 97 m across at the kerb, 85 m at the end wall, 16 deg.
+  Paint, barrier, fence and light towers follow it. The asphalt shades light (kerb) to dark (walls).
+
 # V2.22 (2026-11-03): Las Vegas Turn 1 to the race-night photo
 
 - Turn 1's run-off is the whole rectangle at last: fairWalls had been rounding its barrier line into a balloon (32 m
