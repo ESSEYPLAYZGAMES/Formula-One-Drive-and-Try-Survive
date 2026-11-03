@@ -2,7 +2,7 @@
 
 - `src/world/VegasPaddock.js`: Grand Prix Plaza (4 storeys over the garages, suites, balconies, F1 roof canopy, LEDs),
   Heineken Silver main grandstand (two decks, truss, hospitality pavilion), Turn 1 run-off paint and openCorners,
-  Turn 1-3 stands traced along the curve, 51 extra baked lamps, searchlights. Old T1 red apron paint removed.
+  the Turn 1 grandstand (one straight stand on the T2->T3 run, per the aerials), extra baked lamps, searchlights. Old T1 red apron paint removed.
 - Next sections (user to direct): T2-T4 onto Koval, the Sphere loop, the Strip, Harmon. Daytime look of the new pieces
   not yet reviewed; crowd now ~23k fans at Vegas (was ~10k) - watch frame time on slow GPUs.
 

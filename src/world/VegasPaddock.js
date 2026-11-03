@@ -7,9 +7,9 @@
 //    hospitality pavilion on top under a white roof, washed pink.
 //  * Turn 1: the left hairpin round the building's north-east tip, with its big asphalt run-off (tracks.js
 //    openCorners) painted with the race's own design - Heineken green, the blue 0.0, LAS VEGAS and red chevrons -
-//    and grandstands traced round the outside of the corner and on round the sweep to Turn 3, in short straight
-//    sections that follow the curve.
-//  * Light: lamps on the truss, the plaza's roof edge and the Turn 1 stands, aimed at the track (baked into the
+//    and the Turn 1 grandstand: one straight, rectangular stand on the outside of the run back from Turn 2 toward
+//    Turn 3, along the plaza's north-west side (as the aerials from beyond Turn 1 show it).
+//  * Light: lamps on the truss, the plaza's roof edge and the Turn 1 grandstand, aimed at the track (baked into the
 //    floodlight field with the masts: world/Lighting.js) - the straight lit like day, as it is.
 // The stands' tiers and crowds are world/Grandstands.js's (returned here as fixed placements); this module adds what
 // makes them these stands, and everything else.
@@ -21,7 +21,7 @@ import { FLOOD } from './Lighting.js';
 
 const FONT = '"Segoe UI", "Helvetica Neue", Arial, sans-serif';
 const MAIN = { tiers: 26, tierH: 0.55, tierD: 0.95, gap: 4.5 };    // the main grandstand (two decks: Grandstands levels 2)
-const T1S = { tiers: 15, tierH: 0.52, tierD: 0.95, gap: 5.0 };     // the Turn 1 stands
+const T1S = { tiers: 20, tierH: 0.52, tierD: 0.95, gap: 5.0 };     // the Turn 1 grandstand
 
 function canvasTex(w, h, draw, repeat = false) {
   const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h);
@@ -121,7 +121,7 @@ export function buildVegasPaddock(track, pit, def, rings = []) {
   const stands = [], lights = [], solids = [], anims = [];
   const L = tr.length, f = {}, f2 = {};
   const cornerS = (n) => def.corners.find((c) => c.n === n)?.s;
-  const c1 = cornerS(1), c3 = cornerS(3);
+  const c1 = cornerS(1), c2 = cornerS(2), c3 = cornerS(3);
 
   // ---- materials
   const white = new THREE.MeshStandardMaterial({ color: 0xf2f2f4, roughness: 0.45, metalness: 0.05, emissive: 0x231a24, side: THREE.DoubleSide });
@@ -265,7 +265,27 @@ export function buildVegasPaddock(track, pit, def, rings = []) {
   const MAIN_STYLE = { tierH: MAIN.tierH, tierD: MAIN.tierD, roof: 'none', levels: 2, seat: 0x16171c, fill: 0.86 };
   const T1_STYLE = { tierH: T1S.tierH, tierD: T1S.tierD, roof: 'canopy', seat: 0x16171c, fill: 0.9 };
   const main = chain(-172, c1 - 70, 42, MAIN, MAIN_STYLE, 'Heineken Silver Main Grandstand');   // (from Turn 17's exit, s < 0: before the line)
-  const t1 = chain(c1 - 58, c3 - 20, 15, T1S, T1_STYLE, 'Turn 1 Grandstand');
+  // the Turn 1 grandstand (the aerials from beyond Turn 1): one straight, rectangular stand on the outside of the run back
+  // from Turn 2 toward Turn 3, along the plaza's north-west side, facing the track - no stand round the hairpin itself.
+  // Fitted to the straightest stretch of that run: the longest window whose front line stays within 3 m of a straight
+  // chord, the stand on that chord pushed out to the furthest point of the line (never closer than the barrier + gap)
+  const straightStand = (sA, sB, S, maxLen, style, tag) => {
+    const pts = []; for (let s = sA; s <= sB; s += 2) { const i = tr.idxAtS(s); tr.sample(s, side * (tr.wallAt(i, side) + S.gap), f); pts.push([f.x, f.z]); }
+    let best = null;
+    for (let a = 0; a < pts.length; a++) for (let b = pts.length - 1; b > a + 10; b--) {
+      const A = pts[a], B = pts[b], len = Math.hypot(B[0] - A[0], B[1] - A[1]); if (len > maxLen || (best && len <= best.len)) continue;
+      const ex = [(B[0] - A[0]) / len, (B[1] - A[1]) / len]; let ez = [-ex[1], ex[0]];
+      const M = [(A[0] + B[0]) / 2, (A[1] + B[1]) / 2], q = tr.nearest(M[0], M[1]), t = tr.sample(q.s, 0, f2); if (ez[0] * (M[0] - t.x) + ez[1] * (M[1] - t.z) < 0) ez = [ex[1], -ex[0]];
+      let out = 0, lo = Infinity; for (let k = a; k <= b; k++) { const d = (pts[k][0] - A[0]) * ez[0] + (pts[k][1] - A[1]) * ez[1]; out = Math.max(out, d); lo = Math.min(lo, d); }
+      if (out - lo > 3) continue;
+      best = { len, ex, ez, x: M[0] + ez[0] * out, z: M[1] + ez[1] * out };
+    }
+    if (!best) return [];
+    const depth = 0.8 + S.tiers * S.tierD + 0.6, len = best.len - 0.4, world = (lx, lz) => [best.x + best.ex[0] * lx + best.ez[0] * lz, best.z + best.ex[1] * lx + best.ez[1] * lz];
+    for (let lx = -len / 2; lx <= len / 2; lx += 3) for (let lz = 0; lz <= depth; lz += 3) { const [x, z] = world(lx, lz); if (corridorSigned(tr, pit, x, z, 1.0) < 0 || near.some((r) => inRing(x, z, r))) return []; }
+    return [{ x: best.x, z: best.z, ex: best.ex, ez: best.ez, len, tiers: S.tiers, style, name: tag, depth, world }];
+  };
+  const t1 = straightStand(c2 + 10, c3 - 30, T1S, 150, T1_STYLE, 'Turn 1 Grandstand');
   for (const p of [...main, ...t1]) stands.push(p);
 
   // ---- the main grandstand's own: the lighting truss on its towers, the hospitality pavilion on top, the signs
@@ -306,14 +326,14 @@ export function buildVegasPaddock(track, pit, def, rings = []) {
       g.rotateY(Math.atan2(-p.ex[1], p.ex[0]) + Math.PI / 2); g.translate(x, y, z); put(hnk, g);
     }
   });
-  // ---- the Turn 1 stands: a pink LED along each section's front, floodlights on its canopy
+  // ---- the Turn 1 grandstand: a pink LED along its front, floodlights on its canopy
   const tTop = STAND.base + T1S.tiers * T1S.tierH, tBack = 0.8 + T1S.tiers * T1S.tierD;
   t1.forEach((p, k) => {
     const [x, z] = p.world(0, -0.2); put(ledPink, boxAt(x, STAND.base + 0.2, z, p.ex, p.len, 0.18, 0.12));
     const [cx, cz] = p.world(0, tBack * 0.35); put(ledCyan, boxAt(cx, tTop + 5.2, cz, p.ex, p.len, 0.16, 0.16));
-    if (k % 2 === 0) { const [lx, lz] = p.world(0, tBack * 0.3); const q = tr.nearest(lx, lz), aim = tr.sample(q.s, 0, f); lights.push({ x: lx, y: tTop + 5, z: lz, tx: aim.x, tz: aim.z }); }
+    for (let ax = -p.len / 2 + 10; ax < p.len / 2; ax += 20) { const [lx, lz] = p.world(ax, tBack * 0.3); const q = tr.nearest(lx, lz), aim = tr.sample(q.s, 0, f); lights.push({ x: lx, y: tTop + 5, z: lz, tx: aim.x, tz: aim.z }); }
     // (its back, the side the city sees: the race's banner, lit pink along the top)
-    const g = new THREE.PlaneGeometry(p.len, tTop + 1.2); const uv = g.attributes.uv; for (let j = 0; j < uv.count; j++) uv.setX(j, (uv.getX(j) + k) * 0.25);
+    const g = new THREE.PlaneGeometry(p.len, tTop + 1.2); const uv = g.attributes.uv; for (let j = 0; j < uv.count; j++) uv.setX(j, uv.getX(j) * p.len / 60);
     const [bx, bz] = p.world(0, tBack + 0.68); g.rotateY(Math.atan2(-p.ex[1], p.ex[0])); g.translate(bx, (tTop + 1.2) / 2, bz); put(banner, g);
     const [tx, tz] = p.world(0, tBack + 0.72); put(ledPink, boxAt(tx, tTop + 1.0, tz, p.ex, p.len, 0.22, 0.1));
   });
@@ -357,9 +377,11 @@ export function buildVegasPaddock(track, pit, def, rings = []) {
   }
   const leds = [ledPink, ledCyan, ledWhite];
   const boxes = [new THREE.Box3().setFromObject(group)].filter((b) => !b.isEmpty());
+  // (and the whole section, from Turn 17's exit to Turn 3, 120 m round: no auto-placed stand in it - only the real ones)
+  { const b = new THREE.Box3(); for (let x = -260; x <= c3; x += 10) { tr.sample(x, 0, f); b.expandByPoint(new THREE.Vector3(f.x, 0, f.z)); } b.expandByVector(new THREE.Vector3(120, 0, 120)); b.max.y = 30; boxes.push(b); }
   // (the boxes the auto-placed stands must keep out of: all of this, and each stand of ours)
   for (const p of stands) { const r = [p.world(-p.len / 2, 0), p.world(p.len / 2, 0), p.world(p.len / 2, p.depth), p.world(-p.len / 2, p.depth)]; const b = new THREE.Box3(); for (const [x, z] of r) b.expandByPoint(new THREE.Vector3(x, 0, z)); b.max.y = 20; boxes.push(b); }
-  console.info(`[vegas] paddock: plaza ${pit ? 'built' : 'no pit lane'}, main grandstand ${main.length} sections, Turn 1 stands ${t1.length} sections, ${lights.length} lamps`);
+  console.info(`[vegas] paddock: plaza ${pit ? 'built' : 'no pit lane'}, main grandstand ${main.length} sections, Turn 1 grandstand ${t1.length ? `${t1[0].len.toFixed(0)} m` : 'none (no room)'}, ${lights.length} lamps`);
   return {
     group, stands, lights, boxes, solids,
     update(t) {

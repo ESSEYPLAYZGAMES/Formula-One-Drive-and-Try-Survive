@@ -425,10 +425,11 @@ spreads the step over 160 m of road instead of letting the spline turn it into t
   of black seats (Grandstands `levels: 2`), the white lighting truss across the front of the upper deck on its towers with
   red lamps, the two-storey glass hospitality pavilion on top under a white roof edged in pink, Heineken Silver on its ends.
 * **Turn 1**: the wide asphalt run-off on the outside of the hairpin (tracks.js `openCorners`), painted with the race's
-  design - Heineken green and star, the blue 0.0, LAS VEGAS, red chevrons; grandstands traced round the outside of the
-  corner and on round the sweep to Turn 3 in 15 m straight sections that follow the curve (each checked clear of the
-  circuit, the lane and the city), their backs carrying the race's banner lit pink.
-* **Light**: 51 lamps on the truss, the stand roofs, the plaza's roof edge and the Turn 1 canopies, aimed at the track
+  design - Heineken green and star, the blue 0.0, LAS VEGAS, red chevrons; and the Turn 1 grandstand, one straight
+  rectangular stand on the outside of the run back from Turn 2 toward Turn 3 (along the plaza's north-west side, as the
+  aerials from beyond Turn 1 show it - nothing round the hairpin itself), fitted to the straightest stretch of that run
+  and checked clear of the circuit, the lane and the city, its back carrying the race's banner lit pink.
+* **Light**: lamps on the truss, the stand roofs, the plaza's roof edge and the Turn 1 grandstand's canopy, aimed at the track
   and baked into the floodlight field with the masts (world/Lighting.js) - the straight lit like day; searchlight beams
   sweep the sky from the plaza roof and the stand (night only).
 The stands' tiers and crowds are world/Grandstands.js's, placed as fixed stands (the auto-placed ones keep clear of all
