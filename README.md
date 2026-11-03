@@ -428,7 +428,8 @@ and crosses the inside of the U at Turns 1-2 to the inside of Turn 2's exit. Loa
 **Turn 1's run-off** (`escapes: [{ auto: { turn: 1, depth: 42 } }]`, Track.escapes): the straight carried on past the
 hairpin to a wall across its end - a rectangle in the straight's frame, from the main grandstand's barrier line to the
 return leg's where it leaves the corner, 42 m past the hairpin's outermost kerb. No bulge round the corner and none
-along a leg that opens away.
+along a leg that opens away. Its barrier line is held as drawn (`Track.heldWalls`): fairWalls, which rounds every other
+barrier line, would round the rectangle's corners into a balloon.
 
 `src/world/VegasPaddock.js` dresses the section:
 * **The Grand Prix Plaza** over the garages (in place of the landmark set's block): four storeys (19.5 m) over the
@@ -444,9 +445,12 @@ along a leg that opens away.
   end. Behind it, the fan zone: purple and pink light, lit marquees, screens.
 * **The general-admission stands** PG2-PG5 (the official map's seating plan) on the outside of the return leg, open
   tiers with a dark canopy over the back rows and blue rails; the road behind PG2 lit blue.
-* **Turn 1**: plain red and white kerbs round the hairpin, blue chevrons inside it, the green Heineken fence along the
-  inside wall; on the run-off the Heineken band with the star and the blue 0.0% ALCOHOL FREE laid straight across past
-  the kerb, LAS VEGAS in outline and the chevrons beyond, lamps on its end wall.
+* **Turn 1** (to the race-night photo from beyond the run-off): plain red and white kerbs round the hairpin, blue
+  chevrons inside it; along the inside wall the green WHEN YOU DRIVE NEVER DRINK boards, and over it a white lighting
+  truss on posts. The run-off: lit asphalt out to its walls; right behind the kerb, all the way round, the band of
+  Heineken green with the name and the red star and the blue -0.0, repeating; beyond it the LasVegasGP wordmark and two
+  big arrows in white outline, pointing on round the corner; the end and exit-side barrier under the same boards with
+  a catch fence over it and white lattice light towers along it; the same boards on the fence over the braking zone.
 * **Light**: lamps on the fence line, the truss, the roofs, the plaza's edge, the stands and the run-off wall, baked into
   the floodlight field with the masts (world/Lighting.js) - the straight and the hairpin lit like day. The city's windows
   are lit more than elsewhere (most of them, on race night).

@@ -1,3 +1,13 @@
+# V2.22 (2026-11-03): Las Vegas Turn 1 to the race-night photo
+
+- Turn 1's run-off is the whole rectangle at last: fairWalls had been rounding its barrier line into a balloon (32 m
+  past the kerb at most); the escape's line is now held as drawn (Track.heldWalls) - 42 m past the kerb, square corners.
+- Dressed to the photo from beyond it: lit asphalt to the walls, the Heineken / -0.0 band round the kerb, the LasVegasGP
+  wordmark and two outline arrows, boards + catch fence + lattice light towers on its walls, WHEN YOU DRIVE NEVER DRINK
+  boards and a lighting truss on the inside wall, boards on the braking-zone fence.
+- Not yet like the photo: the city behind (dim, generic), the club at the hairpin's tip (the photo's stepped white
+  terraces and grey tower stand right at the corner; the game's plaza ends short of it), the PG2 stand's orange frame.
+
 # V2.21 (2026-11-03): Las Vegas on the official circuit map; start/finish and Turn 1 revamp
 
 - The lap traced from the official map (LasVegasOfficial.js), start line at its flag, corners at its labels, pit lane

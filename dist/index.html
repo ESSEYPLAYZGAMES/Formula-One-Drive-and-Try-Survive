@@ -597,7 +597,7 @@ table.res tr.me td { color: var(--accent2); font-weight: 700; }
     <div class="brand-line"></div>
     <h1 id="brand-title">FORMULA 1<span id="brand-sub">SIMULATOR</span></h1>
     <!-- the build's version: +0.01 with every build handed out -->
-    <span id="app-ver" title="Version">V2.21</span>
+    <span id="app-ver" title="Version">V2.22</span>
     <div id="menu-sub">Real circuits built from OpenStreetMap</div>
   </div>
   <div id="loading" class="hidden"><div class="ld"><i></i></div><span>Building the circuit from OpenStreetMap…</span></div>
@@ -78524,7 +78524,7 @@ class Track {
     const gs = gw.reduce((a, b) => a + b, 0);
     for (const side of [1, -1]) {
       const arr = side > 0 ? this.wallL : this.wallR, bar = side > 0 ? this.barL : this.barR;
-      const pinned = (i) => this.pinAt(this.s[i], side);
+      const pinned = (i) => this.pinAt(this.s[i], side) || this.heldAt(this.s[i], side);
       // (a concrete wall - the pit wall included - can have no gap: on the inside of a bend tighter than it stands far out
       //  it wraps round the apex instead of folding over itself into a point, behind the kerb if it has to be, as a street
       //  circuit's does)
@@ -78712,13 +78712,19 @@ class Track {
       const side = e.side ?? -1, ring = e.auto ? this._escapeBox(e.auto, side) : e.ring; if (!ring) continue;
       const inside = insideRings([ring]), arr = side > 0 ? this.wallL : this.wallR;
       const at = (i, d) => [this.px[i] + this.nx[i] * side * d, this.pz[i] + this.nz[i] * side * d];
+      let lo = -1, hi = -1;
       for (let i = 0; i < this.n; i++) {
         let d = this.edgeAt(i, side) + this.kerbWidth + 0.5; if (!inside(...at(i, d))) continue;
         while (d < 200 && inside(...at(i, d + 0.5))) d += 0.5;
-        arr[i] = Math.max(arr[i], d);
+        arr[i] = Math.max(arr[i], d); if (lo < 0) lo = i; hi = i;
       }
+      // (an escape drawn to the real one's shape is held as it is: fairWalls rounds every other barrier line, and would
+      //  round this one's square corners into a balloon)
+      if (e.auto && lo >= 0) (this.heldWalls || (this.heldWalls = [])).push({ a: this.s[lo], b: this.s[hi], side });
     }
   }
+  /** a barrier line held as drawn (escapes: an escape the shape of the real one) at arc length s on that side */
+  heldAt(s, side) { return (this.heldWalls || []).some((h) => h.side === side && s >= h.a && s <= h.b); }
   /**
    * A straight-on escape beyond a corner (escapes auto: { turn, depth, from, to }): a rectangle in the frame of the
    * straight before it (along it from `to` m before the apex - where the straight ends - to `depth` m past the corner's
@@ -185036,7 +185042,7 @@ return { Spray };
 
 // ---- src/world/VegasPaddock.js
 __m['src/world/VegasPaddock.js'] = (() => {
-const { corridorSigned } = __m['src/track/TrackBuilder.js'];
+const { corridorSigned, fenceTexture } = __m['src/track/TrackBuilder.js'];
 const { STAND } = __m['src/world/Grandstands.js'];
 const { FLOOD } = __m['src/world/Lighting.js'];
 // Las Vegas: the start/finish straight and Turn 1 as they are on race night (2023-).
@@ -185108,29 +185114,6 @@ function heinekenTexture() {
     x.font = `700 30px ${FONT}`; x.fillText('S I L V E R', W / 2, H - 20);
   });
 }
-/** Turn 1's run-off, the band along the kerb round the hairpin: Heineken green with the red star, the blue 0.0% ALCOHOL
- *  FREE, the green tip (u along the corner, v across: 0 at the kerb) - the lettering upright seen from outside the corner */
-function runoffBandTexture() {
-  return canvasTex(4096, 384, (x, W, H) => {
-    x.fillStyle = '#119a47'; x.fillRect(0, 0, W * 0.6, H);
-    x.fillStyle = '#1c5fd4'; x.beginPath(); x.moveTo(W * 0.6, 0); x.lineTo(W * 0.95, 0); x.lineTo(W * 0.92, H); x.lineTo(W * 0.6, H); x.closePath(); x.fill();
-    x.fillStyle = '#119a47'; x.beginPath(); x.moveTo(W * 0.95, 0); x.lineTo(W, 0); x.lineTo(W, H); x.lineTo(W * 0.92, H); x.closePath(); x.fill();
-    x.fillStyle = '#ffffff'; x.textBaseline = 'middle'; x.textAlign = 'center';
-    x.font = `italic 900 270px Georgia, "Times New Roman", serif`; x.fillText('Heineken', W * 0.3, H * 0.52);
-    x.fillStyle = '#e1001a'; x.beginPath(); for (let j = 0; j < 10; j++) { const a = -Math.PI / 2 + j * Math.PI / 5, r = j % 2 ? 62 : 150; (j ? x.lineTo : x.moveTo).call(x, W * 0.6 + Math.cos(a) * r, H * 0.5 + Math.sin(a) * r); } x.fill();
-    x.fillStyle = '#ffffff'; x.font = `900 220px ${FONT}`; x.fillText('-0.0%', W * 0.77, H * 0.42); x.font = `700 64px ${FONT}`; x.fillText('ALCOHOL FREE', W * 0.77, H * 0.8);
-  });
-}
-/** the letters further out on Turn 1's run-off: LAS VEGAS in outline (white, a pink glow) and chevrons, on the bare asphalt */
-function runoffLettersTexture() {
-  return canvasTex(4096, 640, (x, W, H) => {
-    x.clearRect(0, 0, W, H); x.lineJoin = 'round';
-    const out = (draw) => { x.strokeStyle = 'rgba(255,90,170,.85)'; x.lineWidth = 34; draw(); x.strokeStyle = '#ffffff'; x.lineWidth = 14; draw(); };
-    x.font = `300 430px ${FONT}`; x.textBaseline = 'middle'; x.textAlign = 'center';
-    out(() => x.strokeText('LAS VEGAS', W * 0.6, H * 0.5));
-    for (let k = 0; k < 3; k++) { const cx = W * 0.06 + k * 230; out(() => { x.beginPath(); x.moveTo(cx, H * 0.22); x.lineTo(cx + 160, H * 0.5); x.lineTo(cx, H * 0.78); x.stroke(); }); }
-  });
-}
 /** a roof terrace seen from above: warm lit decking, people (dark heads and shoulders), a few parasols */
 function terraceTexture() {
   let a = 5; const rnd = () => ((a = (a * 16807) % 2147483647) / 2147483647);
@@ -185149,25 +185132,43 @@ function silverEndTexture() {
     x.font = `700 70px ${FONT}`; x.fillText('S I L V E R', W / 2, H * 0.68);
   });
 }
-/** the run-off at Turn 1 as it is painted: Heineken green with the star, the blue 0.0, LAS VEGAS, red and white chevrons
- *  (u along the run-off, v across it from the kerb out) */
-function runoffTexture() {
-  return canvasTex(4096, 512, (x, W, H) => {
-    x.fillStyle = '#26282d'; x.fillRect(0, 0, W, H);
-    const seg = (a, b, col) => { x.fillStyle = col; x.fillRect(a, 0, b - a, H); };
-    seg(0, 1300, '#0e8a40'); seg(1300, 1750, '#1f5fd0'); seg(1750, 3300, '#1a1a20'); seg(3300, W, '#c8102e');
-    x.save(); x.translate(0, H); x.scale(1, -1);   // (v grows from the kerb: the lettering reads from the track)
+/** Turn 1's band along the outside kerb, one repeat (24 m): Heineken green with the name, the red star on the join,
+ *  the blue -0.0 - as painted round the hairpin (u along the lap; the canvas's top at the kerb) */
+function bandTileTexture() {
+  return canvasTex(2048, 320, (x, W, H) => {
+    const J = W * 0.64;
+    x.fillStyle = '#12a24a'; x.fillRect(0, 0, J, H); x.fillStyle = '#1f5ad6'; x.fillRect(J, 0, W - J, H);
     x.fillStyle = '#ffffff'; x.textBaseline = 'middle'; x.textAlign = 'center';
-    x.font = `italic 900 300px ${FONT}`; x.fillText('Heineken', 640, H / 2 + 10);
-    x.fillStyle = '#e1001a'; x.beginPath(); for (let j = 0; j < 10; j++) { const a = -Math.PI / 2 + j * Math.PI / 5, r = j % 2 ? 40 : 96; (j ? x.lineTo : x.moveTo).call(x, 1215 + Math.cos(a) * r, H / 2 + Math.sin(a) * r); } x.fill();
-    x.fillStyle = '#ffffff'; x.font = `900 280px ${FONT}`; x.fillText('0.0', 1525, H / 2 + 10);
-    x.font = `900 250px ${FONT}`; x.fillText('LAS VEGAS', 2525, H / 2 + 10);
-    x.fillStyle = '#ffffff';
-    for (let k = 0; k < 4; k++) { const cx = 3420 + k * 160; x.beginPath(); x.moveTo(cx, 60); x.lineTo(cx + 110, H / 2); x.lineTo(cx, H - 60); x.lineTo(cx + 55, H - 60); x.lineTo(cx + 165, H / 2); x.lineTo(cx + 55, 60); x.closePath(); x.fill(); }
-    x.restore();
+    x.font = `italic 900 210px Georgia, "Times New Roman", serif`; x.fillText('Heineken', J * 0.5, H * 0.53);
+    x.font = `900 190px ${FONT}`; x.fillText('-0.0', J + (W - J) * 0.5, H * 0.53);
+    const star = (cx, cy, r0, r1, col) => { x.fillStyle = col; x.beginPath(); for (let j = 0; j < 10; j++) { const a = -Math.PI / 2 + j * Math.PI / 5, r = j % 2 ? r0 : r1; (j ? x.lineTo : x.moveTo).call(x, cx + Math.cos(a) * r, cy + Math.sin(a) * r); } x.closePath(); x.fill(); };
+    star(J, H * 0.5, 52, 124, '#ffffff'); star(J, H * 0.5, 40, 100, '#e1001a');
+  }, true);
+}
+/** the race's wordmark and the two arrows on Turn 1's run-off: white outlines on the asphalt (x across the run-off from
+ *  the straight's side, the top toward the corner) */
+function lvgpRunoffTexture() {
+  return canvasTex(4096, 1024, (x, W, H) => {
+    x.clearRect(0, 0, W, H); x.lineJoin = 'round'; x.lineCap = 'round'; x.strokeStyle = '#f4f6fa';
+    // (the wordmark: a joined, sloping lowercase script, outlined - LasVegasGP)
+    x.save(); x.translate(W * 0.34, H * 0.55); x.transform(1, 0, -0.18, 1, 0, 0); x.scale(1.12, 1);
+    x.font = `italic 600 360px "Brush Script MT", "Segoe Script", "Comic Sans MS", ${FONT}`; x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.lineWidth = 15; x.strokeText('LasVegasGP', 0, 0); x.restore();
+    // (the two arrows: outlined chevrons, nested, pointing on round the corner)
+    for (let k = 0; k < 2; k++) {
+      const cx = W * 0.66 + k * 330, t = 150, top = H * 0.08, bot = H * 0.92, mid = H * 0.5, run = 520;
+      x.lineWidth = 15; x.beginPath(); x.moveTo(cx, top); x.lineTo(cx + t, top); x.lineTo(cx + t + run, mid); x.lineTo(cx + t, bot); x.lineTo(cx, bot); x.lineTo(cx + run, mid); x.closePath(); x.stroke();
+    }
   });
 }
-
+/** the boards along the inside wall round the hairpin: Heineken green, WHEN YOU DRIVE NEVER DRINK */
+function neverDrinkTexture() {
+  return canvasTex(1024, 96, (x, W, H) => {
+    x.fillStyle = '#16a34a'; x.fillRect(0, 0, W, H); x.fillStyle = '#0b6e30'; x.fillRect(0, 0, W, 6); x.fillRect(0, H - 6, W, 6);
+    x.fillStyle = '#ffffff'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.font = `900 46px ${FONT}`; x.fillText('WHEN YOU DRIVE NEVER DRINK', W * 0.5, H * 0.53);
+    x.fillStyle = '#e1001a'; for (const cx of [26, W - 26]) { x.beginPath(); for (let j = 0; j < 10; j++) { const a = -Math.PI / 2 + j * Math.PI / 5, r = j % 2 ? 7 : 17; (j ? x.lineTo : x.moveTo).call(x, cx + Math.cos(a) * r, H / 2 + Math.sin(a) * r); } x.fill(); }
+  }, true);
+}
 /** the race's banner on the stands' backs: night-blue, LAS VEGAS GRAND PRIX, a pink stripe (tiles along) */
 function bannerTexture() {
   return canvasTex(1024, 256, (x, W, H) => {
@@ -185235,6 +185236,9 @@ function buildVegasPaddock(track, pit, def, rings = []) {
   fence.emissiveMap = fence.map; fence.emissiveIntensity = 0.45;
   const silverEnd = new THREE.MeshStandardMaterial({ map: silverEndTexture(), emissive: 0xffffff, emissiveIntensity: 0, side: THREE.DoubleSide }); silverEnd.emissiveMap = silverEnd.map; silverEnd.emissiveIntensity = 0.75;
   const ledBlue = ledMaterial(0x2a6cff, 0x22d3ff, 0.9, 0.025);
+  const neverDrink = new THREE.MeshStandardMaterial({ map: neverDrinkTexture(), emissive: 0xffffff, emissiveIntensity: 0, roughness: 0.5, side: THREE.DoubleSide }); neverDrink.emissiveMap = neverDrink.map; neverDrink.emissiveIntensity = 0.7;
+  const bandMat = new THREE.MeshStandardMaterial({ map: bandTileTexture(), roughness: 0.6, emissive: 0xffffff, emissiveIntensity: 0, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3, side: THREE.DoubleSide }); bandMat.emissiveMap = bandMat.map; bandMat.emissiveIntensity = 0.32;
+  const runoffAsph = new THREE.MeshStandardMaterial({ color: 0x505257, roughness: 0.85, emissive: 0x16171a, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1, side: THREE.DoubleSide });
   const trussTall = new THREE.MeshBasicMaterial({ map: trussTexture(), alphaTest: 0.5, side: THREE.DoubleSide, color: 0xe8eaf0 });
   const kerbRW = new THREE.MeshStandardMaterial({ map: canvasTex(256, 64, (x, W, H) => { x.fillStyle = '#d8262b'; x.fillRect(0, 0, W / 2, H); x.fillStyle = '#f3f1ec'; x.fillRect(W / 2, 0, W / 2, H); }, true), roughness: 0.6, emissive: 0x2a1010, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, side: THREE.DoubleSide });
   const chevBlue = new THREE.MeshStandardMaterial({ map: canvasTex(256, 256, (x, W, H) => { x.fillStyle = '#1d4fd8'; x.fillRect(0, 0, W, H); x.fillStyle = '#f2f4f8'; x.beginPath(); x.moveTo(W * 0.15, 0); x.lineTo(W * 0.6, H * 0.5); x.lineTo(W * 0.15, H); x.lineTo(W * 0.42, H); x.lineTo(W * 0.87, H * 0.5); x.lineTo(W * 0.42, 0); x.closePath(); x.fill(); }, true), roughness: 0.7, emissive: 0x0a1430, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, side: THREE.DoubleSide });
@@ -185601,24 +185605,76 @@ function buildVegasPaddock(track, pit, def, rings = []) {
     // (inside the U, beyond the kerb: the blue chevrons, as far as the wall allows)
     const ci = (k) => tr.edgeAt(ids[k], 1) + kw + 0.1, co = (k) => Math.max(ci(k) + 0.2, Math.min(ci(k) + 2.6, tr.wallAt(ids[k], 1) - 0.4));
     put(chevBlue, strip(T, 8, n - 8, (k) => [ci(k), 0.02], (k) => [co(k), 0.02], 4));
-    // (the green Heineken fence along the inside wall)
-    put(fence, strip(T, 0, n, (k) => [tr.wallAt(ids[k], 1) + 0.35, 0.9], (k) => [tr.wallAt(ids[k], 1) + 0.35, 3.1], 12));
+    // (the inside wall round the hairpin: the green WHEN YOU DRIVE NEVER DRINK boards along it, and over it the white
+    //  lighting truss on its posts, its lamps aimed at the corner)
+    put(neverDrink, strip(T, 0, n, (k) => [tr.wallAt(ids[k], 1) + 0.32, 0.15], (k) => [tr.wallAt(ids[k], 1) + 0.32, 1.25], 9));
+    const tw = (k) => tr.wallAt(ids[k], 1) + 1.4, TY = 6.8, k0 = Math.round(20 / tr.ds), k1 = n - Math.round(30 / tr.ds);
+    if (k1 > k0) {
+      for (const dz of [-0.45, 0.45]) put(trussTall, strip(T, k0, k1, (k) => [tw(k) + dz, TY - 0.9], (k) => [tw(k) + dz, TY + 0.9], 7));
+      put(trussTall, strip(T, k0, k1, (k) => [tw(k) - 0.45, TY + 0.9], (k) => [tw(k) + 0.45, TY + 0.9], 7));
+      for (let k = k0; k <= k1; k += Math.round(22 / tr.ds)) {
+        const i = ids[k], p = tr.sample(tr.s[i], tw(k), {});
+        put(white, boxAt(p.x, TY / 2, p.z, [tr.tx[i], tr.tz[i]], 0.5, TY, 0.5));
+        const q = tr.sample(tr.s[i], tw(k) - 1.0, {}), aim = tr.sample(tr.s[i], -4, {});
+        put(flood, boxAt(q.x, TY - 1.1, q.z, [tr.tx[i], tr.tz[i]], 1.6, 0.4, 0.7)); lights.push({ x: q.x, y: TY - 1.1, z: q.z, tx: aim.x, tz: aim.z });
+      }
+    }
   }
   // Turn 1's run-off (Track.escapes: the straight carried on past the hairpin to a wall across its end): the Heineken
   // band straight across it past the hairpin's kerb, LAS VEGAS and the chevrons beyond, its end wall carrying lamps
   const EB = (tr.escapeBoxes || []).find((e) => e.turn === 1);
   if (EB) {
     const UW = (u, w, y) => [EB.o[0] + EB.along[0] * u + EB.left[0] * w, y, EB.o[1] + EB.along[1] * u + EB.left[1] * w];
+    const kw = tr.kerbWidth, sd = -1;
+    // (the run-off's samples: round the hairpin, wherever the barrier on the outside stands well back from the kerb)
+    const { T, ids } = sub(c1 - 140, c2 + 200), wide = (k) => tr.wallAt(ids[k], sd) - tr.edgeAt(ids[k], sd) - kw > 9;
+    let ka = ids.findIndex((_, k) => wide(k)), kb = ids.length - 1; while (kb > ka && !wide(kb)) kb--;
+    if (ka >= 0 && kb > ka + 4) {
+      // the asphalt itself, out to the walls, lit like the track (swept along the normals the walls were pushed out on)
+      put(runoffAsph, strip(T, Math.max(0, ka - 4), Math.min(ids.length - 1, kb + 4), (k) => [-(tr.edgeAt(ids[k], sd) + kw - 0.05), 0.01], (k) => [-(tr.wallAt(ids[k], sd) - 0.15), 0.01]));
+      // the Heineken / -0.0 band right behind the kerb, all the way round (its lettering upright from outside the corner)
+      put(bandMat, strip(T, ka, kb, (k) => [-(tr.edgeAt(ids[k], sd) + kw + 7.0), 0.03], (k) => [-(tr.edgeAt(ids[k], sd) + kw + 0.4), 0.03], 24));
+    }
     // (a flat decal on the run-off: x along +w (left to right seen from the run-off's end), its top toward the corner)
     const decal = (u0, u1, w0, w1, map, transparent) => {
-      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute([...UW(u0, w0, 0.02), ...UW(u0, w1, 0.02), ...UW(u1, w1, 0.02), ...UW(u0, w0, 0.02), ...UW(u1, w1, 0.02), ...UW(u1, w0, 0.02)], 3));
+      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute([...UW(u0, w0, 0.04), ...UW(u0, w1, 0.04), ...UW(u1, w1, 0.04), ...UW(u0, w0, 0.04), ...UW(u1, w1, 0.04), ...UW(u1, w0, 0.04)], 3));
       g.setAttribute('uv', new THREE.Float32BufferAttribute([0, 1, 1, 1, 1, 0, 0, 1, 1, 0, 0, 0], 2)); g.computeVertexNormals();
-      group.add(new THREE.Mesh(g, new THREE.MeshStandardMaterial({ map, transparent, roughness: 0.7, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3, side: THREE.DoubleSide, emissive: 0x161616, depthWrite: !transparent })));
+      group.add(new THREE.Mesh(g, new THREE.MeshStandardMaterial({ map, transparent, roughness: 0.7, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4, side: THREE.DoubleSide, emissive: 0xffffff, emissiveMap: map, emissiveIntensity: 0.35, depthWrite: !transparent })));
     };
-    const u0 = EB.uOut + 0.8, wa = EB.wR + 1.2, wb = EB.wL - 1.2;   // (just past the kerb, wall to wall less a metre)
-    decal(u0, u0 + 9, wa, wb, runoffBandTexture(), false);
-    decal(u0 + 11, u0 + 30, wa, wa + (wb - wa) * 0.82, runoffLettersTexture(), true);
-    for (let w = wa + 4; w <= wb; w += 12) { const [x, , z] = UW(EB.uEnd + 1.5, w, 0), [tx, , tz] = UW(EB.uOut - 10, w, 0); lights.push({ x, y: 14, z, tx, tz }); }
+    const wa = EB.wR + 3, wb = EB.wL - 3, ul = EB.uOut + 9.5;   // (beyond the band, wall to wall less a few metres)
+    decal(ul, ul + Math.min(24, (EB.uEnd - ul) - 4), wa, wb, lvgpRunoffTexture(), true);
+    // the walls round it: white lattice light towers on the catch-fence line, along its end and the exit side, their
+    // lamps aimed back over the run-off at the corner
+    const tower = (u, w, aimU, aimW) => {
+      const [x, , z] = UW(u, w, 0), H = 13, a = [EB.along[0], EB.along[1]];
+      for (const [ox, oz] of [[-0.6, -0.6], [0.6, -0.6], [0.6, 0.6], [-0.6, 0.6]]) { const [px, , pz] = UW(u + ox, w + oz, 0); put(white, boxAt(px, H / 2, pz, a, 0.14, H, 0.14)); }
+      for (const [ou, ow, rot] of [[0, -0.6, 0], [0, 0.6, 0], [-0.6, 0, 1], [0.6, 0, 1]]) {
+        const g = new THREE.PlaneGeometry(1.2, H), uv = g.attributes.uv; for (let j = 0; j < uv.count; j++) uv.setXY(j, uv.getY(j) * H / 5, uv.getX(j));
+        const [px, , pz] = UW(u + ou, w + ow, 0); g.rotateY(Math.atan2(-a[1], a[0]) + (rot ? Math.PI / 2 : 0)); g.translate(px, H / 2, pz); put(trussTall, g);
+      }
+      const [tx, , tz] = UW(aimU, aimW, 0); put(flood, boxAt(x, H + 0.4, z, a, 2.2, 0.6, 1.0)); lights.push({ x, y: H + 0.4, z, tx, tz });
+    };
+    // (and the barrier itself along the end and the exit side: concrete under the Heineken / 0.0 boards, the catch fence
+    //  over it - the track's own wall line, drawn here as the race dresses it)
+    const fenceMat = new THREE.MeshStandardMaterial({ map: fenceTexture(), alphaTest: 0.35, side: THREE.DoubleSide, roughness: 0.55, metalness: 0.4, emissive: 0x2a2c30 });
+    fenceMat.map.wrapS = THREE.RepeatWrapping;
+    const run = (a, b) => {   // (a, b: [u, w] ends of a straight run of barrier)
+      const [x0, , z0] = UW(a[0], a[1], 0), [x1, , z1] = UW(b[0], b[1], 0), len = Math.hypot(x1 - x0, z1 - z0), ex = [(x1 - x0) / len, (z1 - z0) / len], ang = Math.atan2(-ex[1], ex[0]);
+      const panel = (y0, y1, mat, rep, off = 0) => { const g = new THREE.PlaneGeometry(len, y1 - y0), uv = g.attributes.uv; for (let j = 0; j < uv.count; j++) uv.setX(j, uv.getX(j) * rep); g.rotateY(ang); g.translate((x0 + x1) / 2 + ex[1] * off, (y0 + y1) / 2, (z0 + z1) / 2 - ex[0] * off); put(mat, g); };
+      put(greyBox, boxAt((x0 + x1) / 2, 0.6, (z0 + z1) / 2, ex, len, 1.2, 0.6));
+      panel(0.1, 1.15, bandMat, len / 24, 0.32); panel(0.1, 1.15, bandMat, len / 24, -0.32);
+      panel(1.2, 5.2, fenceMat, len / 3);
+    };
+    run([EB.uEnd + 0.4, EB.wR], [EB.uEnd + 0.4, EB.wL + 0.4]);
+    run([EB.uOut - 50, EB.wL + 0.4], [EB.uEnd + 0.4, EB.wL + 0.4]);
+    // (the Heineken / 0.0 boards along the top of the catch fence on the outside of the braking zone, facing the track)
+    for (const ds of [-150, -95]) {
+      const s0 = c1 + ds, i = tr.idxAtS(s0), d = -(tr.wallAt(i, -1) + 0.5), a = tr.sample(s0 - 5, d, {}), b = tr.sample(s0 + 5, d, {}), len = Math.hypot(b.x - a.x, b.z - a.z), ex = [(b.x - a.x) / len, (b.z - a.z) / len];
+      const g = new THREE.PlaneGeometry(len, 1.8), uv = g.attributes.uv; for (let j = 0; j < uv.count; j++) uv.setX(j, uv.getX(j) * len / 24); g.rotateY(Math.atan2(-ex[1], ex[0])); g.translate((a.x + b.x) / 2, 5.6, (a.z + b.z) / 2); put(bandMat, g);
+      for (const p of [a, b]) put(white, boxAt(p.x, 3.3, p.z, ex, 0.2, 6.6, 0.2));
+    }
+    for (let w = EB.wR + 6; w < EB.wL - 2; w += 20) tower(EB.uEnd + 1.2, w, EB.uOut, w);
+    for (let u = EB.uEnd - 4; u > EB.uOut - 60; u -= 22) tower(u, EB.wL + 1.2, u - 10, (EB.wR + EB.wL) / 2);
     console.info(`[vegas] Turn 1 run-off: ${(EB.uEnd - EB.uOut).toFixed(0)} m past the kerb, ${(EB.wL - EB.wR).toFixed(0)} m across, wall to wall`);
   }
   // (even light over the whole section: lamps along both sides at the catch-fence line, every 16 m, the straight to Turn 3)

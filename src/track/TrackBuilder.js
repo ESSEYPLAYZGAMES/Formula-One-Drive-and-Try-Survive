@@ -592,7 +592,7 @@ export class Track {
     const gs = gw.reduce((a, b) => a + b, 0);
     for (const side of [1, -1]) {
       const arr = side > 0 ? this.wallL : this.wallR, bar = side > 0 ? this.barL : this.barR;
-      const pinned = (i) => this.pinAt(this.s[i], side);
+      const pinned = (i) => this.pinAt(this.s[i], side) || this.heldAt(this.s[i], side);
       // (a concrete wall - the pit wall included - can have no gap: on the inside of a bend tighter than it stands far out
       //  it wraps round the apex instead of folding over itself into a point, behind the kerb if it has to be, as a street
       //  circuit's does)
@@ -780,13 +780,19 @@ export class Track {
       const side = e.side ?? -1, ring = e.auto ? this._escapeBox(e.auto, side) : e.ring; if (!ring) continue;
       const inside = insideRings([ring]), arr = side > 0 ? this.wallL : this.wallR;
       const at = (i, d) => [this.px[i] + this.nx[i] * side * d, this.pz[i] + this.nz[i] * side * d];
+      let lo = -1, hi = -1;
       for (let i = 0; i < this.n; i++) {
         let d = this.edgeAt(i, side) + this.kerbWidth + 0.5; if (!inside(...at(i, d))) continue;
         while (d < 200 && inside(...at(i, d + 0.5))) d += 0.5;
-        arr[i] = Math.max(arr[i], d);
+        arr[i] = Math.max(arr[i], d); if (lo < 0) lo = i; hi = i;
       }
+      // (an escape drawn to the real one's shape is held as it is: fairWalls rounds every other barrier line, and would
+      //  round this one's square corners into a balloon)
+      if (e.auto && lo >= 0) (this.heldWalls || (this.heldWalls = [])).push({ a: this.s[lo], b: this.s[hi], side });
     }
   }
+  /** a barrier line held as drawn (escapes: an escape the shape of the real one) at arc length s on that side */
+  heldAt(s, side) { return (this.heldWalls || []).some((h) => h.side === side && s >= h.a && s <= h.b); }
   /**
    * A straight-on escape beyond a corner (escapes auto: { turn, depth, from, to }): a rectangle in the frame of the
    * straight before it (along it from `to` m before the apex - where the straight ends - to `depth` m past the corner's
