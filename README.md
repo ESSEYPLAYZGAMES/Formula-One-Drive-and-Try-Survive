@@ -413,6 +413,27 @@ p-norm of the path curvature, projected Gauss-Seidel on a 40/20/10 m grid). Fast
 Las Vegas keeps it 1.5 m off the white lines (`lineMargin: 2.5`): walls, not grass, if a car runs wide. Where the OSM
 chain steps sideways between two parallel carriageways (Sands Avenue at Koval, T10), `easeJogs` in `TrackBuilder.js`
 spreads the step over 160 m of road instead of letting the spline turn it into two 15 m hairpins.
+### Las Vegas: the start/finish straight and Turn 1
+
+`src/world/VegasPaddock.js` dresses the pit straight and Turn 1 as on race night (the first section of the Vegas revamp):
+* **The Grand Prix Plaza** over the garages (in place of the landmark set's block, `lm:grandprix`): four storeys over the
+  straight part of the pit lane (278 m), white slabs with glass balustrades and lit handrails, lit hospitality suites
+  behind a curtain wall on every floor (people at the glass, screens, the bar), the paddock side's suites dimmer, a roof
+  terrace, the red F1-logo canopy on columns at the south-west end, F1 GRAND PRIX PLAZA lit on both end walls, running
+  LED lines (magenta, cyan, white: one shader each, moving with time) and cyan along the garages' feet.
+* **The Heineken Silver main grandstand** opposite the pits, from Turn 17's exit to the Turn 1 braking zone: two decks
+  of black seats (Grandstands `levels: 2`), the white lighting truss across the front of the upper deck on its towers with
+  red lamps, the two-storey glass hospitality pavilion on top under a white roof edged in pink, Heineken Silver on its ends.
+* **Turn 1**: the wide asphalt run-off on the outside of the hairpin (tracks.js `openCorners`), painted with the race's
+  design - Heineken green and star, the blue 0.0, LAS VEGAS, red chevrons; grandstands traced round the outside of the
+  corner and on round the sweep to Turn 3 in 15 m straight sections that follow the curve (each checked clear of the
+  circuit, the lane and the city), their backs carrying the race's banner lit pink.
+* **Light**: 51 lamps on the truss, the stand roofs, the plaza's roof edge and the Turn 1 canopies, aimed at the track
+  and baked into the floodlight field with the masts (world/Lighting.js) - the straight lit like day; searchlight beams
+  sweep the sky from the plaza roof and the stand (night only).
+The stands' tiers and crowds are world/Grandstands.js's, placed as fixed stands (the auto-placed ones keep clear of all
+of it). The rest of the lap is next.
+
 ### Montreal: the Circuit Gilles Villeneuve
 
 `data/montreal.geojson` (the OSM export: the raceway, the pit lane, the island's buildings) holds the lap as one

@@ -1,3 +1,11 @@
+# V2.19 (2026-11-03): Las Vegas revamp, section 1 - start/finish straight and Turn 1
+
+- `src/world/VegasPaddock.js`: Grand Prix Plaza (4 storeys over the garages, suites, balconies, F1 roof canopy, LEDs),
+  Heineken Silver main grandstand (two decks, truss, hospitality pavilion), Turn 1 run-off paint and openCorners,
+  Turn 1-3 stands traced along the curve, 51 extra baked lamps, searchlights. Old T1 red apron paint removed.
+- Next sections (user to direct): T2-T4 onto Koval, the Sphere loop, the Strip, Harmon. Daytime look of the new pieces
+  not yet reviewed; crowd now ~23k fans at Vegas (was ~10k) - watch frame time on slow GPUs.
+
 # V2.18 (2026-11-02): dynamic weather
 
 - New: `src/race/Weather.js` (rain cells on the wind, track water every ~10 m on the line and off it, the dry line,

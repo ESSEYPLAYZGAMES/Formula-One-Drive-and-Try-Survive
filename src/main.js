@@ -89,6 +89,7 @@ import { FAULT_P } from './race/Calls.js';
 import { orderSub } from './race/TeamOrders.js';
 import { Weather, weatherPlan, WX_LABEL } from './race/Weather.js';
 import { Spray } from './world/Spray.js';
+import { buildVegasPaddock } from './world/VegasPaddock.js';
 
 const $ = (id) => document.getElementById(id);
 /** teams in roster order (pit garage k belongs to TEAMS[k]; the custom 23rd car gets the last garage) */
@@ -236,6 +237,14 @@ async function loadWorld(def) {
     u.uFace.value.set(fx / fl, 0, fz / fl); u.uRight.value.set(fz / fl, 0, -fx / fl);   // right = (-face) x up
     W.faceAngle0 = Math.atan2(fz, fx);   // the content then turns slowly (one revolution per 5 min) so it faces every part of the circuit over a race
   }
+  // Las Vegas: the start/finish straight and Turn 1 as on race night - the Grand Prix Plaza over the garages (in place of
+  // the landmark's block), the Heineken Silver main grandstand, the Turn 1 stands and run-off, their lamps lighting the
+  // track (world/VegasPaddock.js)
+  const vegas = def.id === 'lasvegas' ? buildVegasPaddock(track, pit, def, geo.buildings.filter((b) => b.rings[0] && b.rings[0].length >= 3 && b.name !== 'Grand Prix Plaza').map((b) => b.rings[0])) : null;
+  if (vegas) {
+    const old = lm.group.children.find((o) => o.name === 'lm:grandprix'); if (old) lm.group.remove(old);
+    scene.add(vegas.group); lm.anims.push((t) => vegas.update(t)); trackMesh.userData.masts.push(...vegas.lights);
+  }
   // venue pieces taken from the OSM footprints (a permanent circuit's pit building and real grandstands) - unless the
   // circuit has scenery of its own, which builds them itself (Silverstone's Wing and stands: world/Silverstone.js)
   const venue = !def.scenery && (def.osmStands || def.pitBuilding) ? buildVenue(geo, track, def, pit) : null;
@@ -253,7 +262,7 @@ async function loadWorld(def) {
   await set('Filling the grandstands…', 80);
   // grandstands only where nothing else stands: corridor + margin, masts, landmarks and every kept footprint are avoided
   const lmBoxes = lm.group.children.map((o) => new THREE.Box3().setFromObject(o)).filter((b) => !b.isEmpty());
-  const stands = buildGrandstands(track, pit, { rings: buildings.userData.rings, boxes: lmBoxes, masts: trackMesh.userData.masts }, { auto: def.autoStands !== false, fixed: [...(venue ? venue.stands : []), ...(scenery ? scenery.stands : [])] });
+  const stands = buildGrandstands(track, pit, { rings: buildings.userData.rings, boxes: [...lmBoxes, ...(vegas ? vegas.boxes : [])], masts: trackMesh.userData.masts }, { auto: def.autoStands !== false, fixed: [...(venue ? venue.stands : []), ...(scenery ? scenery.stands : []), ...(vegas ? vegas.stands : [])] });
   scene.add(stands.group);
   // the solid things beside the circuit (buildings, landmarks, grandstands: nothing drives or flies through them), and
   // catch fences on the barriers in front of the grandstands
@@ -261,7 +270,7 @@ async function loadWorld(def) {
   const clearOfTrack = (ring) => ring.every(([x, z]) => { const q = track.nearest(x, z); return Math.abs(q.d) > track.hw[q.i] + 3; });
   for (const r of buildings.userData.rings || []) if (r && r.length >= 3 && clearOfTrack(r)) obstacles.add(r, 12);
   for (const b of lmBoxes) { const r = [[b.min.x, b.min.z], [b.max.x, b.min.z], [b.max.x, b.max.z], [b.min.x, b.max.z]]; if (b.max.y > 2 && clearOfTrack(r)) obstacles.add(r, b.max.y); }
-  for (const o of scenery?.solids || []) if (clearOfTrack(o.ring)) obstacles.add(o.ring, o.h);   // (a circuit's own scenery: its buildings, the fences of its crowds)
+  for (const o of [...(scenery?.solids || []), ...(vegas?.solids || [])]) if (clearOfTrack(o.ring)) obstacles.add(o.ring, o.h);   // (a circuit's own scenery: its buildings, the fences of its crowds)
   for (const p of stands.stands) {
     const L = p.len, D = p.depth || 12, r = [p.world(-L / 2, 0), p.world(L / 2, 0), p.world(L / 2, D), p.world(-L / 2, D)];
     standRings.push(r); if (clearOfTrack(r)) obstacles.add(r, p.height || 14);
@@ -281,7 +290,7 @@ async function loadWorld(def) {
     console.info(`[world] terrain: ${n} objects raised, ${TERRAIN.field.nx} x ${TERRAIN.field.nz} cells, heights ${Math.min(...track.h).toFixed(1)} .. ${Math.max(...track.h).toFixed(1)} m`);
   }
   floodlitAll(scene);   // (the still world: lit by the baked light field, not the scene's spot lights)
-  Object.assign(W, { geo, track, pit, line, profile, lineSpeed: shown, showLine, trackMesh, landmarks: lm, buildings, circuit, pitBoxes, stands, lights, sphereInfo, venue, obstacles, fences, scenery });
+  Object.assign(W, { geo, track, pit, line, profile, lineSpeed: shown, showLine, trackMesh, landmarks: lm, buildings, circuit, pitBoxes, stands, lights, sphereInfo, venue, obstacles, fences, scenery, vegas });
   chunks.track = track; chunks.obstacles = obstacles;
   // big debris lying on the racing surface is dragged off by the marshals: to the verge (inside the barrier)
   debris.sweep = (x, z) => {
@@ -370,14 +379,14 @@ function unloadWorld() {
     if (m.uniforms) for (const k in m.uniforms) { const v = m.uniforms[k].value; if (v && v.isTexture) v.dispose(); }
     m.dispose();
   };
-  for (const o of [W.trackMesh, W.landmarks?.group, W.buildings, W.pitBoxes?.group, W.stands?.group, W.venue?.group, W.scenery?.group, W.fences, RL.group]) {
+  for (const o of [W.trackMesh, W.landmarks?.group, W.buildings, W.pitBoxes?.group, W.stands?.group, W.venue?.group, W.scenery?.group, W.vegas?.group, W.fences, RL.group]) {
     if (!o) continue; scene.remove(o);
     o.traverse((x) => { x.geometry?.dispose?.(); const ms = Array.isArray(x.material) ? x.material : x.material ? [x.material] : []; for (const m of ms) freeMat(m); });
   }
   W.lights?.dispose(scene); W.standHD?.dispose(); W.standHD = null;
   feed?.dispose(); show?.texture.dispose(); feed = null; show = null;
   RL.group = null; RL.main = null; RL.pitGuide = null;
-  for (const k of ['geo', 'track', 'pit', 'line', 'profile', 'lineSpeed', 'showLine', 'trackMesh', 'landmarks', 'buildings', 'circuit', 'pitBoxes', 'stands', 'lights', 'sphereInfo', 'venue', 'scenery', 'faceAngle0']) W[k] = null;
+  for (const k of ['geo', 'track', 'pit', 'line', 'profile', 'lineSpeed', 'showLine', 'trackMesh', 'landmarks', 'buildings', 'circuit', 'pitBoxes', 'stands', 'lights', 'sphereInfo', 'venue', 'scenery', 'vegas', 'faceAngle0']) W[k] = null;
 }
 /** brand header + track chips follow the selected circuit */
 function applyTrackUI() {
