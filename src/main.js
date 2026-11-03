@@ -178,7 +178,7 @@ async function loadWorld(def) {
   await set('Routing the circuit through the road graph…', 12);
   const circuit = geo.buildCircuit();
   const curve = buildSpline(circuit.pts, { closed: true, filletSigma: def.smoothSigma || 6, step: 4, tension: 0.5, fillet: def.fillet !== false });
-  const samples = rotateSamples(sampleCurve(curve, true, 2), 0, 0);   // s = 0 at the start/finish line (projection origin)
+  const samples = rotateSamples(sampleCurve(curve, true, 2), ...(def.sfXZ || [0, 0]));   // s = 0 at the start/finish line (the projection origin, or the map's flag: def.sfXZ)
   const track = new Track(samples, def);
   labelCorners(track, def, geo);
   track.widen();   // (a road wider in places: def.widths - before anything is laid along its edges, the ground included)
@@ -210,8 +210,8 @@ async function loadWorld(def) {
   track.layoutSurfaces();
   applyCalibration(track);   // the AI's corner-by-corner commitment on this circuit (ai/Calibration.js)
   env.setGround(def.ground || 'city');
-  const pitWay = geo.roadById(def.pitLaneWayId);
-  const pit = pitWay ? buildPitLane(track, pitLaneLeads(track, pitWay.pts, def.pitLeads)) : null;
+  const pitWay = def.pitLanePts ? null : geo.roadById(def.pitLaneWayId);   // (a pit lane given outright: laid beside an official map's lap)
+  const pit = def.pitLanePts ? buildPitLane(track, def.pitLanePts.map((p) => [p[0], p[1]])) : pitWay ? buildPitLane(track, pitLaneLeads(track, pitWay.pts, def.pitLeads)) : null;
   // a circuit's spectator areas round the lap (Austin's general admission): a barrier and a catch fence in front of each
   if (def.scenery === 'austin') {
     const rings = [...geo.buildings.filter((b) => b.rings[0] && b.rings[0].length >= 3).map((b) => b.rings[0]), ...((def.osmStands || def.standNames) ? standFootprints(geo, def).map((b) => b.rings[0]) : [])];

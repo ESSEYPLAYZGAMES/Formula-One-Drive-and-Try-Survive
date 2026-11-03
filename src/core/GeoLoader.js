@@ -116,6 +116,8 @@ export class GeoWorld {
    */
   buildCircuit() {
     const def = this.def;
+    // (a lap given outright, in local metres: the circuit as an official map draws it - tracks.js centreline)
+    if (def.centreline?.length > 8) return { pts: def.centreline.map((p) => [p[0], p[1]]), bridges: [], legStarts: [0] };
     if (def.ways) return this.buildCircuitFromWays(def.ways);
     let cur = this.nearestNode(def.chainStart[0], def.chainStart[1]);
     const pts = [cur.p];
