@@ -1,10 +1,14 @@
-# V2.19 (2026-11-03): Las Vegas revamp, section 1 - start/finish straight and Turn 1
+# V2.20 (2026-11-03): Las Vegas revamp, section 1 - start/finish straight and Turn 1 (matched to the aerial)
 
-- `src/world/VegasPaddock.js`: Grand Prix Plaza (4 storeys over the garages, suites, balconies, F1 roof canopy, LEDs),
-  Heineken Silver main grandstand (two decks, truss, hospitality pavilion), Turn 1 run-off paint and openCorners,
-  the Turn 1 grandstand (one straight stand on the T2->T3 run, per the aerials), extra baked lamps, searchlights. Old T1 red apron paint removed.
-- Next sections (user to direct): T2-T4 onto Koval, the Sphere loop, the Strip, Harmon. Daytime look of the new pieces
-  not yet reviewed; crowd now ~23k fans at Vegas (was ~10k) - watch frame time on slow GPUs.
+- `src/world/VegasPaddock.js`: Grand Prix Plaza (4 storeys over the garages, dark roof with lit terraces, pink-red F1
+  canopy, balconied Turn 1 end, grey tower), the paddock inside the loop (halls, hospitality, marquees, lit paving),
+  the big Heineken Silver main grandstand (maroon roof, truss, teal end walls), Turn 1 run-off paint (Heineken / 0.0%
+  band along the kerb, LAS VEGAS outline + chevrons), green fence inside the hairpin, the open Turn 1 grandstand on the
+  return leg, ~80 baked lamps, searchlights.
+- Check on a real GPU: the reference aerial (user's photo, from above Turn 1's run-off) vs the game; the headless
+  renders at 1285x852 drew the road dark (a capture artefact - 1100x620 is right).
+- Next sections (user to direct): T2-T4 onto Koval, the Sphere loop, the Strip, Harmon. Daytime look not reviewed;
+  crowd ~23k fans at Vegas.
 
 # V2.18 (2026-11-02): dynamic weather
 

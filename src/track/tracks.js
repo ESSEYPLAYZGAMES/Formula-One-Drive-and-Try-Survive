@@ -48,7 +48,7 @@ export const TRACKS = {
     runoffPaint: [{ turns: [5, 6, 7, 8, 9], color: [0.84, 0.05, 0.42] }, { turns: [12, 14], color: [0.06, 0.58, 0.52] }],
     runoffDecalTurns: [5, 12, 14],   // (Turn 1's run-off has the race's own paint: world/VegasPaddock.js)
     // Turn 1's run-off: the wide asphalt escape on the outside of the hairpin, straight on from the pit straight
-    openCorners: [{ turn: 1, right: 36, before: 110, after: 70 }],
+    openCorners: [{ turn: 1, right: 40, before: 45, after: 110 }],
     shots: [
       { lm: 'sphere', label: 'SPHERE', rMul: 1.0, az: 0.5 }, { s: -160, label: 'PIT STRAIGHT', side: 1 },
       { lm: 'eiffel', label: 'PARIS LAS VEGAS', rMul: 1.05, az: -0.5 }, { s: 3900, label: 'THE STRIP', side: -1 },
