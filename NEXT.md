@@ -1,3 +1,17 @@
+# V2.29 (2026-11-03): Paris Las Vegas - the Eiffel Tower and the Montgolfier balloon rebuilt
+
+- No photo could be fetched (every image host is outside this environment's network allowance); built from documented
+  facts: the tower 540 ft / 165 m half scale, deck 460 ft, restaurant on the first level, welded with false rivets; the
+  balloon sign 180 ft to the top, a 72 ft balloon on a space-frame floor, a skin decorated to the 1783 Aerostat
+  Reveillon, a mile of neon, a gondola carrying the digital sign (Federal Heath; Wikipedia; Caesars; VegasChanges).
+- Tower (Landmarks.js eiffel): the Paris original's geometry halved - four lattice legs on a 62.5 m base, the first
+  platform 35.3 m at 28.8 m with the lit gallery, the four great arches, the second platform 20.5 m at 57.9 m, the shaft
+  to the deck at 140 m, lantern, mast, beacon; bronze-brown, lit warm.
+- Balloon (Landmarks.js montgolfier): the Reveillon's shape, royal blue and gold (crown rays, star medallions, royal
+  cipher and suns, red waist band with fleurs-de-lis, garlands, eagles), gold neon on the seams and bands; the gondola's
+  four faces the Paris / LAS VEGAS sign; space frame, column, base.
+- To verify against photos: the balloon's exact artwork, the sign's current screen content, the tower's exact colour.
+
 # V2.28 (2026-11-03): the T-cam framed shot for shot against the 2024 onboards
 
 - Captured in a race at the onboards' three spots on the Turn 4-5 straight (scratch tcam_shots.mjs), 12 lens / tilt /

@@ -541,31 +541,172 @@ def('horseshoe', /^horseshoe las vegas/i, (fps, ctx) => {
   g.position.set(fp.info.c[0], 0, fp.info.c[1]); return g;
 });
 
-// 20 Eiffel Tower
+// 20 Eiffel Tower - the half-scale replica at Paris Las Vegas: 540 ft (165 m), welded steel with false rivets, the
+// observation deck at 460 ft (140 m), the restaurant on the first level ~11 floors up (Wikipedia; Caesars; the
+// builders). Built to the Paris original's own geometry, halved: four separate square lattice legs on a 62.5 m base,
+// curving in to the first platform (35.3 m square, 28.8 m up) and meeting at the second (20.5 m, 57.9 m), the four great
+// arches between them under the first; one tapering shaft from there to the deck, the lantern and the mast above it.
+// Bronze-brown, lit warm gold at night, the galleries lit.
+function latticeTexture() {
+  const c = document.createElement('canvas'); c.width = 128; c.height = 128; const x = c.getContext('2d');
+  x.clearRect(0, 0, 128, 128); x.strokeStyle = '#ffffff'; x.lineWidth = 5;
+  x.beginPath(); x.moveTo(0, 0); x.lineTo(128, 128); x.moveTo(128, 0); x.lineTo(0, 128); x.stroke();
+  x.lineWidth = 3; x.beginPath(); x.moveTo(0, 64); x.lineTo(128, 64); x.moveTo(64, 0); x.lineTo(64, 128); x.stroke();
+  x.lineWidth = 8; x.strokeRect(0, 0, 128, 128);
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; return t;
+}
+function galleryTexture(lit) {   // the first level's glazed gallery: bronze piers, arched windows (the restaurant, lit)
+  const c = document.createElement('canvas'); c.width = 512; c.height = 128; const x = c.getContext('2d');
+  x.fillStyle = '#5a3a22'; x.fillRect(0, 0, 512, 128);
+  for (let k = 0; k < 8; k++) { const wx = k * 64 + 10; x.fillStyle = lit ? '#ffcf86' : '#1a1410'; x.fillRect(wx, 30, 44, 80); x.beginPath(); x.arc(wx + 22, 30, 22, Math.PI, 0); x.fill(); }
+  x.fillStyle = '#7a5434'; x.fillRect(0, 0, 512, 14); x.fillRect(0, 116, 512, 12);
+  const t = new THREE.CanvasTexture(c); t.wrapS = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; return t;
+}
 def('eiffel', /^eiffel tower$/i, (fps, ctx) => {
-  const fp = fps[0]; const g = new THREE.Group(); const H = 165; const steel = std(0x9a7b4f, { roughness: 0.55, metalness: 0.6, emissive: 0x3a2610, emissiveIntensity: 0.8 });
-  const wAt = (y) => 31 * Math.pow(1 - y / H, 1.6) + 1.2;
-  const levels = [0, 30, 57, 90, 120, 150]; const geos = [];
-  const add = (a, b, r) => { const m = strut(a, b, r, steel); m.updateMatrix(); const gg = m.geometry.clone().applyMatrix4(m.matrix); geos.push(gg); };
-  const corner = (y, sx, sz) => new THREE.Vector3(sx * wAt(y), y, sz * wAt(y));
-  const S = [[1, 1], [1, -1], [-1, -1], [-1, 1]];
-  for (let li = 0; li < levels.length - 1; li++) {
-    const y0 = levels[li], y1 = levels[li + 1]; const r = 1.6 - li * 0.22;
-    for (let k = 0; k < 4; k++) {
-      const [sx, sz] = S[k], [sx2, sz2] = S[(k + 1) % 4];
-      add(corner(y0, sx, sz), corner(y1, sx, sz), r);                                 // leg segment
-      add(corner(y1, sx, sz), corner(y1, sx2, sz2), r * 0.5);                          // horizontal at top of segment
-      add(corner(y0, sx, sz), corner(y1, sx2, sz2), r * 0.35); add(corner(y0, sx2, sz2), corner(y1, sx, sz), r * 0.35); // X bracing
-      const ym = (y0 + y1) / 2; add(corner(ym, sx, sz), corner(ym, sx2, sz2), r * 0.3);
+  const fp = fps[0], g = new THREE.Group(), V = (x, y, z) => new THREE.Vector3(x, y, z);
+  const steel = std(0x7b5233, { roughness: 0.6, metalness: 0.55, emissive: 0x6a3a14, emissiveIntensity: 0.75 });
+  const lattice = new THREE.MeshStandardMaterial({ color: 0x7b5233, map: latticeTexture(), alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.6, metalness: 0.5, emissive: 0x6a3a14, emissiveIntensity: 0.75 });
+  // the outer corner's half-width up the tower (the original's 125 m base, 70.7 m first, 41 m second and 16.5 m third
+  // platforms, halved), monotone between them; each leg's own square section, 12.5 m at its foot to 5.1 m at the second
+  // platform, where the four meet
+  const YP = [0, 9, 18, 28.8, 43, 57.9], HP = [31.25, 26.0, 21.4, 17.67, 13.6, 10.24], SP = [12.5, 10.5, 8.6, 7.0, 5.9, 5.12];
+  const interp = (A, y) => { if (y <= YP[0]) return A[0]; for (let k = 1; k < YP.length; k++) if (y <= YP[k]) { const t = (y - YP[k - 1]) / (YP[k] - YP[k - 1]), e = t * t * (3 - 2 * t); return A[k - 1] + (A[k] - A[k - 1]) * (0.5 * t + 0.5 * e); } return A[A.length - 1]; };
+  const hw = (y) => (y <= 57.9 ? interp(HP, y) : y <= 138 ? 10.24 - (y - 57.9) * (6.12 / 80.1) : 4.12 - (y - 138) * 0.13);
+  const sz = (y) => interp(SP, y);
+  const geos = [], lat = [];
+  const rod = (a, b, r) => { const m = strut(a, b, r, steel); m.updateMatrix(); geos.push(m.geometry.clone().applyMatrix4(m.matrix)); };
+  const panel = (a, b, c2, d, w, h) => {   // a lattice quad a-b (bottom) c-d (top), tiled ~2.5 m
+    const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute([...a.toArray(), ...b.toArray(), ...c2.toArray(), ...a.toArray(), ...c2.toArray(), ...d.toArray()], 3));
+    const u = Math.max(1, w / 2.5), v = Math.max(1, h / 2.5); geo.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, u, 0, u, v, 0, 0, u, v, 0, v], 2)); geo.computeVertexNormals(); lat.push(geo);
+  };
+  const Q = [[1, 1], [1, -1], [-1, -1], [-1, 1]];
+  // ---- the four legs, foot to second platform
+  const LY = [0, 4.5, 9, 13.5, 18, 23, 28.8, 33.5, 38.5, 43, 48, 53, 57.9];
+  for (const [sx, sz2] of Q) {
+    const cor = (y) => { const H = hw(y), S = sz(y); return [V(sx * H, y, sz2 * H), V(sx * H, y, sz2 * (H - S)), V(sx * (H - S), y, sz2 * (H - S)), V(sx * (H - S), y, sz2 * H)]; };
+    for (let k = 0; k < LY.length - 1; k++) {
+      const A = cor(LY[k]), B = cor(LY[k + 1]), r = 0.42 - 0.025 * k, h = LY[k + 1] - LY[k];
+      for (let c = 0; c < 4; c++) { rod(A[c], B[c], r); rod(B[c], B[(c + 1) % 4], r * 0.55); rod(A[c], B[(c + 1) % 4], r * 0.38); rod(A[(c + 1) % 4], B[c], r * 0.38); panel(A[c], A[(c + 1) % 4], B[(c + 1) % 4], B[c], A[c].distanceTo(A[(c + 1) % 4]), h); }
     }
   }
-  g.add(new THREE.Mesh(mergeGeometries(geos), steel));
-  for (const y of [57, 120]) g.add(box(wAt(y) * 2 + 6, 3, wAt(y) * 2 + 6, std(0x6a5535, { roughness: 0.6 }), 0, y - 1.5));
-  g.add(box(wAt(57) * 2 + 6.2, 0.6, wAt(57) * 2 + 6.2, glow(0xffd9a0, 1.5), 0, 58.5));
-  g.add(box(11, 7, 11, glow(0xfff0c0, 2.2), 0, 150));
-  g.add(cyl(0.3, 1.4, 15, steel, 0, 157)); g.add(cyl(0.6, 0.6, 1.2, glow(0xff3030, 4), 0, 172));
+  // ---- the great arches under the first platform, one in each face, leg to leg: a lattice girder (two curved booms and
+  //      the diagonals between them) springing from the legs' inner edges 8 m up and touching the platform at its crown
+  for (const [axis, sgn] of [['x', 1], ['z', -1], ['x', -1], ['z', 1]]) {   // (each face: its plane x = +-H or z = +-H)
+    const N = 22, P = (t, drop) => {
+      const th = Math.PI * t, y = 8 + (27.4 - drop - 8) * Math.sin(th), H = hw(y), w = Math.cos(th) * (H - sz(y)), o = sgn * (H - 0.4);
+      return axis === 'x' ? V(o, y, w) : V(w, y, o);
+    };
+    for (let k = 0; k < N; k++) {
+      const a1 = P(k / N, 0), b1 = P((k + 1) / N, 0), a2 = P(k / N, 1.6), b2 = P((k + 1) / N, 1.6);
+      rod(a1, b1, 0.32); rod(a2, b2, 0.26); rod(a1, b2, 0.14); rod(a2, b1, 0.14);
+    }
+  }
+  // ---- the shaft, second platform to the deck, then its top to the lantern
+  const UY = [57.9, 66, 75, 85, 96, 108, 120, 130, 138, 144];
+  for (let k = 0; k < UY.length - 1; k++) {
+    const H0 = hw(UY[k]), H1 = hw(UY[k + 1]), h = UY[k + 1] - UY[k], r = 0.34 - 0.025 * k;
+    for (let c = 0; c < 4; c++) {
+      const [ax, az] = Q[c], [bx, bz] = Q[(c + 1) % 4];
+      const a0 = V(ax * H0, UY[k], az * H0), b0 = V(bx * H0, UY[k], bz * H0), a1 = V(ax * H1, UY[k + 1], az * H1), b1 = V(bx * H1, UY[k + 1], bz * H1);
+      rod(a0, a1, r); rod(a1, b1, r * 0.55); rod(a0, b1, r * 0.38); rod(b0, a1, r * 0.38); panel(a0, b0, b1, a1, 2 * H0, h);
+    }
+  }
+  g.add(new THREE.Mesh(mergeGeometries(geos), steel)); g.add(new THREE.Mesh(mergeGeometries(lat), lattice));
+  // ---- the platforms: the first's deck and its glazed gallery all round (the restaurant), the second's, the deck at the
+  //      top with its lit cabin
+  const deckMat = std(0x5e3d24, { roughness: 0.7, emissive: 0x2a1608, emissiveIntensity: 0.6 });
+  const galTex = galleryTexture(true); galTex.repeat.set(4, 1);
+  const galMat = new THREE.MeshStandardMaterial({ map: galTex, emissive: 0xffffff, emissiveMap: galTex, emissiveIntensity: 0.9, roughness: 0.6, side: THREE.DoubleSide });
+  const ring = (y, half, th, mat) => { for (const [w, d, x, z] of [[half * 2, 1.2, 0, half - 0.6], [half * 2, 1.2, 0, -half + 0.6], [1.2, half * 2, half - 0.6, 0], [1.2, half * 2, -half + 0.6, 0]]) g.add(box(w, th, d, mat, x, y, z)); };
+  const band = (y0, y1, half) => { for (let f = 0; f < 4; f++) { const pl = new THREE.Mesh(new THREE.PlaneGeometry(half * 2, y1 - y0), galMat); const a = f * Math.PI / 2; pl.position.set(Math.sin(a) * half, (y0 + y1) / 2, Math.cos(a) * half); pl.rotation.y = a; g.add(pl); } };
+  g.add(box(35.3, 1.1, 35.3, deckMat, 0, 28.3)); band(29.4, 33.0, 17.9); ring(33.0, 18.1, 0.6, deckMat);
+  g.add(box(20.5, 0.9, 20.5, deckMat, 0, 57.5)); band(58.4, 60.4, 10.4); ring(60.4, 10.6, 0.4, deckMat);
+  g.add(box(8.6, 0.8, 8.6, deckMat, 0, 137.6)); band(138.4, 142.2, 4.0); g.add(box(8.4, 0.5, 8.4, deckMat, 0, 142.2));
+  // ---- the lantern, the cupola, the mast and its beacon
+  g.add(cyl(2.4, 2.9, 3.2, steel, 0, 144, 0, 12)); g.add(cyl(2.6, 2.6, 0.9, glow(0xffd9a0, 2.2), 0, 145.2, 0, 12));
+  { const dome = new THREE.Mesh(new THREE.SphereGeometry(2.4, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), steel); dome.position.y = 147.2; g.add(dome); }
+  g.add(cyl(0.18, 0.32, 15.5, steel, 0, 149, 0, 8)); g.add(cyl(0.5, 0.5, 1.0, glow(0xff2a20, 4), 0, 164, 0, 10));
   return place(g, fp.info.c, fp.info.angle);
 });
+
+// The Montgolfier balloon sign (Paris Las Vegas, 1999; Federal Heath): 180 ft (54.9 m) to the top, the balloon 72 ft
+// (22 m) across on a space-frame floor, a skin decorated to the first passenger balloon of the Montgolfier brothers (the
+// Aerostat Reveillon, 1783: royal blue and gold) and outlined in more than a mile of neon, over a gondola that carries
+// the digital sign. The balloon's shape is the Reveillon's: a round crown swelling out over a long tapering skirt to the
+// open neck, the gondola hung under it.
+function montgolfierTexture() {
+  const c = document.createElement('canvas'); c.width = 2048; c.height = 1024; const x = c.getContext('2d'), W = 2048, H = 1024;
+  const gold = '#e8b84a', gold2 = '#b88a2a', blue = '#1d3f9e';
+  x.fillStyle = blue; x.fillRect(0, 0, W, H);
+  const bandY = (v) => H * (1 - v);   // (v up the profile, 0 at the neck: the canvas's top is the crown)
+  const band = (v0, v1, col) => { x.fillStyle = col; x.fillRect(0, bandY(v1), W, bandY(v0) - bandY(v1)); };
+  const star = (cx, cy, r) => { x.beginPath(); for (let j = 0; j < 16; j++) { const a = j * Math.PI / 8, rr = j % 2 ? r * 0.45 : r; x.lineTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr); } x.closePath(); x.fill(); };
+  const G = 16, gw = W / G;
+  // the crown: gold rays from the top
+  for (let k = 0; k < G; k++) { x.fillStyle = k % 2 ? gold : gold2; x.beginPath(); x.moveTo(k * gw + gw / 2, 0); x.lineTo(k * gw + gw * 0.15, bandY(0.9)); x.lineTo(k * gw + gw * 0.85, bandY(0.9)); x.closePath(); x.fill(); }
+  // the upper band: the signs of the zodiac in gold medallions on a gold-edged band
+  band(0.76, 0.84, '#173482'); x.fillStyle = gold; x.fillRect(0, bandY(0.84), W, 10); x.fillRect(0, bandY(0.76) - 10, W, 10);
+  for (let k = 0; k < G; k++) { const cx = k * gw + gw / 2, cy = (bandY(0.84) + bandY(0.76)) / 2; x.strokeStyle = gold; x.lineWidth = 6; x.beginPath(); x.arc(cx, cy, 30, 0, 6.283); x.stroke(); x.fillStyle = gold; star(cx, cy, 18); }
+  // the body: the royal cipher and the sun in alternate gores
+  for (let k = 0; k < G; k++) {
+    const cx = k * gw + gw / 2, cy = (bandY(0.74) + bandY(0.52)) / 2; x.fillStyle = gold;
+    if (k % 2) { star(cx, cy, 46); x.fillStyle = '#f6d27a'; x.beginPath(); x.arc(cx, cy, 22, 0, 6.283); x.fill(); }
+    else { x.font = 'italic bold 92px serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('LL', cx, cy); }
+  }
+  // the waist: a red band edged in gold, fleurs-de-lis along it
+  band(0.46, 0.52, '#b4182a'); x.fillStyle = gold; x.fillRect(0, bandY(0.52), W, 9); x.fillRect(0, bandY(0.46) - 9, W, 9);
+  const fleur = (cx, cy, r) => { x.beginPath(); x.moveTo(cx, cy - r); x.quadraticCurveTo(cx + r * 0.5, cy - r * 0.2, cx, cy + r * 0.3); x.quadraticCurveTo(cx - r * 0.5, cy - r * 0.2, cx, cy - r); x.fill();
+    for (const d of [-1, 1]) { x.beginPath(); x.moveTo(cx, cy + r * 0.1); x.quadraticCurveTo(cx + d * r, cy - r * 0.6, cx + d * r * 0.8, cy + r * 0.5); x.quadraticCurveTo(cx + d * r * 0.4, cy + r * 0.2, cx, cy + r * 0.3); x.fill(); }
+    x.fillRect(cx - r * 0.6, cy + r * 0.3, r * 1.2, r * 0.18); };
+  for (let k = 0; k < G * 2; k++) fleur(k * gw / 2 + gw / 4, (bandY(0.52) + bandY(0.46)) / 2, 20);
+  // the skirt: gold garlands swagged from gore to gore, eagles low down
+  x.strokeStyle = gold; x.lineWidth = 12;
+  for (let k = 0; k < G; k++) { x.beginPath(); x.moveTo(k * gw, bandY(0.42)); x.quadraticCurveTo(k * gw + gw / 2, bandY(0.32), (k + 1) * gw, bandY(0.42)); x.stroke(); }
+  for (let k = 0; k < G; k++) { const cx = k * gw + gw / 2, cy = bandY(0.2); x.fillStyle = gold; x.beginPath(); x.moveTo(cx, cy - 26); x.lineTo(cx - 44, cy - 6); x.lineTo(cx - 12, cy + 4); x.lineTo(cx, cy + 30); x.lineTo(cx + 12, cy + 4); x.lineTo(cx + 44, cy - 6); x.closePath(); x.fill(); }
+  // the neck's band, and the gores' seams
+  band(0, 0.08, gold2); x.fillStyle = gold; for (let k = 0; k <= G; k++) x.fillRect(k * gw - 3, 0, 6, H);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t;
+}
+function montgolfier(ctx) {
+  const g = new THREE.Group();
+  // the balloon: 22 m across, its top at 54.9 m; the profile (radius, height) of the Reveillon's shape
+  const prof = [[3.6, 33], [4.3, 34.6], [6.2, 37], [8.3, 39.6], [9.8, 42], [10.7, 44.2], [10.98, 45.6], [10.6, 48.4], [9.4, 51], [7.2, 53.1], [4.2, 54.4], [0.01, 54.9]];
+  const pts = prof.map(([r, y]) => new THREE.Vector2(r, y));
+  const tex = montgolfierTexture();
+  const skin = new THREE.MeshStandardMaterial({ map: tex, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.55, roughness: 0.75, side: THREE.DoubleSide });
+  g.add(new THREE.Mesh(new THREE.LatheGeometry(pts, 64), skin));
+  // its neon: gold tubes down the 16 seams and round the bands
+  const neon = glow(0xffcf5a, 3.2), tubes = [], curve = new THREE.CatmullRomCurve3(prof.map(([r, y]) => new THREE.Vector3(r * 1.006, y, 0)));
+  for (let k = 0; k < 16; k++) { const tg = new THREE.TubeGeometry(curve, 48, 0.09, 5, false); tg.rotateY((k / 16) * Math.PI * 2); tubes.push(tg); }
+  for (const v of [0.08, 0.46, 0.52, 0.76, 0.84]) {   // (the band edges, at the profile's height for that fraction)
+    const i = v * (prof.length - 1), i0 = Math.floor(i), f = i - i0, r = prof[i0][0] + (prof[Math.min(prof.length - 1, i0 + 1)][0] - prof[i0][0]) * f, y = prof[i0][1] + (prof[Math.min(prof.length - 1, i0 + 1)][1] - prof[i0][1]) * f;
+    const tg = new THREE.TorusGeometry(r * 1.008, 0.1, 5, 64); tg.rotateX(Math.PI / 2); tg.translate(0, y, 0); tubes.push(tg);
+  }
+  g.add(new THREE.Mesh(mergeGeometries(tubes.map((t) => t.toNonIndexed())), neon));
+  // the neck's ring and the rigging down to the gondola
+  { const ring = new THREE.TorusGeometry(3.7, 0.25, 6, 32); ring.rotateX(Math.PI / 2); ring.translate(0, 33, 0); g.add(new THREE.Mesh(ring, std(0xc9a040, { metalness: 0.6, roughness: 0.4 }))); }
+  const rope = std(0xd8c49a, { roughness: 0.8 });
+  for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4, top = new THREE.Vector3(Math.cos(a) * 3.6, 33, Math.sin(a) * 3.6), bot = new THREE.Vector3(Math.cos(a) * 6.4, 31.2, Math.sin(a) * 6.4); g.add(strut(bot, top, 0.07, rope)); }
+  // the gondola: the digital sign, a screen on each of its four sides between gilded rails, on the space-frame floor
+  const GW = 13, G0 = 24.6, G1 = 31.2, gilt = std(0xc9a040, { metalness: 0.7, roughness: 0.35, emissive: 0x3a2808, emissiveIntensity: 0.6 });
+  g.add(box(GW + 0.8, 0.7, GW + 0.8, gilt, 0, G0 - 0.7)); g.add(box(GW + 0.8, 0.6, GW + 0.8, gilt, 0, G1));
+  g.add(box(GW - 0.4, G1 - G0, GW - 0.4, std(0x1a1c24), 0, G0));
+  const marquee = new THREE.MeshBasicMaterial({ map: (() => { const c = document.createElement('canvas'); c.width = 1024; c.height = 512; const x = c.getContext('2d');
+    const bg = x.createLinearGradient(0, 0, 0, 512); bg.addColorStop(0, '#0d1236'); bg.addColorStop(1, '#1d2a6e'); x.fillStyle = bg; x.fillRect(0, 0, 1024, 512);
+    x.strokeStyle = '#e8b84a'; x.lineWidth = 14; x.strokeRect(14, 14, 996, 484); x.lineWidth = 4; x.strokeRect(34, 34, 956, 444);
+    x.fillStyle = '#ffffff'; x.font = 'italic 700 230px Georgia, serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('Paris', 512, 220);
+    x.fillStyle = '#e8b84a'; x.font = '700 64px Georgia, serif'; x.fillText('L A S   V E G A S', 512, 400);
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; })() });
+  for (let k = 0; k < 4; k++) {   // (the digital sign: the resort's name on each face)
+    const a = k * Math.PI / 2, sc = new THREE.Mesh(new THREE.PlaneGeometry(GW - 1, G1 - G0 - 0.6), marquee);
+    sc.position.set(Math.sin(a) * (GW / 2 - 0.15), (G0 + G1) / 2, Math.cos(a) * (GW / 2 - 0.15)); sc.rotation.y = a; g.add(sc);
+  }
+  // the space frame under it on its column, and the base on the plaza
+  g.add(frustum(GW, GW * 0.55, 3.2, std(0x8a8f99, { metalness: 0.5, roughness: 0.5 }), G0 - 3.9));
+  g.add(cyl(2.2, 2.8, G0 - 3.9 - 3.2, std(0xd9cdb4, { roughness: 0.7 }), 0, 3.2, 0, 16));
+  g.add(box(11, 3.2, 11, std(0xcfc2a6, { roughness: 0.8 }), 0, 0)); g.add(box(11.4, 0.4, 11.4, glow(0xffd28a, 1.4), 0, 3.1));
+  return g;
+}
 
 // 21 Paris Las Vegas + Arc de Triomphe + balloon
 def('paris', /^paris las vegas$|^le boulevard at paris$|^arc de triomphe$|^paris balloon$/i, (fps, ctx) => {
@@ -584,11 +725,7 @@ def('paris', /^paris las vegas$|^le boulevard at paris$|^arc de triomphe$|^paris
       const arc = new THREE.Mesh(geo, std(0xd8cdb8, { roughness: 0.8 })); const g = new THREE.Group(); g.add(arc); g.add(box(23, 0.5, 11, glow(0xffe0a0, 1.5), 0, 19.6));
       out.add(place(g, fp.info.c, fp.info.angle + Math.PI / 2));
     } else if (nm === 'paris balloon') {
-      const g = new THREE.Group(); g.add(cyl(0.6, 0.9, 30, std(0x555a66), 0, 0, 0, 8));
-      const bal = new THREE.Mesh(new THREE.SphereGeometry(12, 24, 16), std(0xf0f0f0, { emissive: 0x6070ff, emissiveIntensity: 0.6 })); bal.position.y = 46; g.add(bal);
-      g.add(new THREE.Mesh(new THREE.TorusGeometry(12.2, 0.8, 8, 40), glow(0x3355ff, 2.5))).position.y = 46; g.children[2].rotation.x = Math.PI / 2;
-      g.add(box(6, 3, 6, std(0x6a4a2a), 0, 30));
-      out.add(place(g, fp.info.c, 0));
+      out.add(place(montgolfier(ctx), fp.info.c, fp.info.angle || 0));
     } else { const p = podium(fp, 18, mat); if (p) out.add(p); }
   }
   return out;
