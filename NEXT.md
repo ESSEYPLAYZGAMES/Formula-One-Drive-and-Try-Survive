@@ -1,3 +1,11 @@
+# V2.28 (2026-11-03): the T-cam framed shot for shot against the 2024 onboards
+
+- Captured in a race at the onboards' three spots on the Turn 4-5 straight (scratch tcam_shots.mjs), 12 lens / tilt /
+  height variants side by side with the real frames. Kept: vertical FOV 40 (43 at speed), tilt 12 deg, the lens 5 cm up
+  on the pod - the horizon a fifth of the way down, the fences to the top edge with a strip of sky, the buildings only
+  glimpsed over them, the halo and the nose the share of the frame they are on the broadcast. (A lower lens put the
+  helmet in the middle of the view; a wider one showed the whole city.)
+
 # V2.27 (2026-11-03): the T-cam's lens tight, as the broadcast's
 
 - Forward T-cam: vertical FOV 48 deg (52 at speed; was 68-76), the lens 10 cm higher on the pod, tilted down 11 deg - the
