@@ -421,7 +421,9 @@ as straight lines; Turn 2 into Turn 3 one continuous curve where the map's DRS d
 game's metres by the best fit of the OpenStreetMap line onto the map over the whole lap, and scaled to the official
 6.201 km. Against the map it is 1.2 m out on average, 95 % within 3.5 m (OpenStreetMap's chain, kept in the definition
 but unused, was up to 90 m out at Turns 1-3 and 40 m round the Sphere). The start/finish line is the map's flag
-(`sfXZ`), the corners its labels (`xz`). The pit lane (`pitLanePts`) runs 12.4 m inside the pit straight from Turn 17
+(`sfXZ`), the corners its labels (`xz`; a labelled corner keeps its place even where it is flat out - Turn 13). Where
+the map's own marks hid its line (sector colour changes, the SECTOR 2 label, the DRS dots) the trace had swerved round
+them; those stretches are smooth curves joining the line either side, and the lap is scaled back to 6.201 km. The pit lane (`pitLanePts`) runs 12.4 m inside the pit straight from Turn 17
 and crosses the inside of the U at Turns 1-2 to the inside of Turn 2's exit. Loader: `def.centreline` / `def.sfXZ` /
 `def.pitLanePts` (GeoLoader, main.js) take a lap given outright.
 
@@ -444,8 +446,16 @@ barrier line, would round the rectangle's corners into a balloon.
   of black seats, the white lighting truss with red lamps, the hospitality suites, one dark red roof over most of the
   seats on a white edge beam, teal Heineken Silver end walls over the whole profile, the white scaffold at its Turn 1
   end. Behind it, the fan zone: purple and pink light, lit marquees, screens.
-* **The general-admission stands** PG2-PG5 (the official map's seating plan) on the outside of the return leg, open
-  tiers with a dark canopy over the back rows and blue rails; the road behind PG2 lit blue.
+* **The Turns 2-4 stand** (PG2 along the return leg, PG3 round Turn 3, PG4 on to Turn 4 - the official seating map;
+  placed to the onboard footage and dressed to the race's render of Turn 3): one open stand on the inside of the bend,
+  starting ~95 m out of Turn 2 and ending at Turn 4, its sections fanning round the bend with wedge aisles between them;
+  navy seats with an orange block by the apex, Red Bull boards along its front, lit aisles, white cabanas along the top
+  under floodlights, grey scaffold ends with the Red Bull panel at their foot.
+* **Outside Turns 3-4**: beyond the bend, square to the return leg (straight ahead down it, then on the left into Turn
+  3), the long hospitality building - white slabs and glass balconies over five floors - with the dark blue-edged
+  building behind it; along the run out of Turn 4 the lower hospitality building with the red F1 sign at its end, palms
+  in front of it, and between it and the barrier the painted strip (the red F1, FORMULA 1 * HEINEKEN SILVER, LAS VEGAS
+  GRAND PRIX).
 * **Turn 1** (to the race-night photo from beyond the run-off): plain red and white kerbs round the hairpin, blue
   chevrons inside it; along the inside wall the green WHEN YOU DRIVE NEVER DRINK boards, and over it a white lighting
   truss on posts. The run-off: lit asphalt out to its walls; right behind the kerb, all the way round, the band of

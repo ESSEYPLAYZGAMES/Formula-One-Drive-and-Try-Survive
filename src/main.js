@@ -451,6 +451,7 @@ function labelCorners(track, def, geo) {
     const q = track.nearest(x, z);
     const zone = track.inCornerZone(q.i) || track.inCornerZone(track.idxAtS(q.s + 20)) || track.inCornerZone(track.idxAtS(q.s - 20));
     if (zone) { if (zone.turn == null) zone.turn = c.n; zone.turns = (zone.turns || []).concat(c.n); c.s = q.s; }
+    else if (c.xz) c.s = q.s;   // (a corner placed from an official map's label is a corner even where it is flat out: Las Vegas's Turn 13)
   }
 }
 

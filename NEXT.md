@@ -1,3 +1,18 @@
+# V2.24 (2026-11-03): Las Vegas - the lap without its kinks; Turns 2-4 to the onboard footage
+
+- Kinks gone: the trace had swerved round the official map's own marks - the Turn 4 exit and 120 m after Turn 5 (sector
+  colour changes), the straight from Turn 9 to Turn 10 under the SECTOR 2 label (now a line fitted to the map's pixels),
+  after Turn 12, round the DRS dots after Turn 13, before Turn 14. Each stretch a smooth curve joining the line either
+  side; lap rescaled to 6.201 km; against the map: mean 1.2 m, 95% 2.5 m (was 3.5 m). A scan of the whole lap finds no
+  left-right jog left but the real corners. Turn 13 (flat out) keeps its label (main.js labelCorners: a corner with xz).
+- Lap times 96-100 s in the race test (were 100-108 s: the kinks cost time). The AI calibration was fitted on the old
+  line - a refit is worth doing.
+- Turns 2-4: one stand on the inside of the bend from ~95 m after Turn 2 to Turn 4 (PG2/PG3/PG4), dressed to the 2023
+  render (Red Bull, cabanas, lit aisles, orange block); outside: the hospitality building square to the return leg, the
+  blue-edged building behind it, the lower building with the F1 sign and palms along the run out of Turn 4, the painted
+  strip. PG5 (behind PG3 on the seating map) is folded into the one stand. The render's tented club and Red Bull
+  building were not built: the onboard footage (2025) has the hospitality building there.
+
 # V2.23 (2026-11-03): Turn 1's run-off on the real slant
 
 - The exit side of the run-off is the return leg's barrier carried on at its own angle (the official map: the leg opens
