@@ -57,7 +57,9 @@ export const TRACKS = {
     // (the walls from Turn 2 to Turn 5 as the 2024 onboards show them: T-Mobile magenta out of Turn 2, blue into Turn 3,
     //  then down the straight to Turn 5 lilac T-Mobile boards on its right and the bare dark wall on its left)
     sponsorZones: [{ panel: 26, fromTurn: 2, toTurn: 2, before: 0, after: 110 }, { panel: 27, fromTurn: 3, toTurn: 4, before: 75, after: 20 },
-      { panel: 28, fromTurn: 4, toTurn: 4, side: -1, before: -20, after: 850 }, { panel: 29, fromTurn: 4, toTurn: 4, side: 1, before: -20, after: 850 }],
+      { panel: 28, fromTurn: 4, toTurn: 4, side: -1, before: -20, after: 850 }, { panel: 29, fromTurn: 4, toTurn: 4, side: 1, before: -20, after: 850 },
+      // (the Bellagio Fountain Club's stretch of the Strip: MGM Rewards boards on its wall)
+      { panel: 30, fromTurn: 14, toTurn: 14, side: -1, before: 670, after: -350 }],
     runoffPaint: [{ turns: [5, 6, 7, 8, 9], color: [0.84, 0.05, 0.42] }, { turns: [12, 14], color: [0.06, 0.58, 0.52] }],
     runoffDecalTurns: [5, 12, 14],
     // Turn 1's run-off: the straight carried on past the hairpin to a wall across its end (the aerials from beyond Turn 1)

@@ -1,3 +1,14 @@
+# V2.30 (2026-11-04): the Bellagio at race week
+
+- From the user's photos (MGM's Fountain Club render, the deck at Carbone Riviera 2025, the race-night aerial): the lake
+  traced from the Bellagio's footprints (long along the Strip, not the old ellipse across it), animated fountains, the
+  hotel's crown and BELLAGIO, the casino base at 3 floors, the Fountain Club (2 grandstands, 2 three-level structures, the
+  Winner's Stage), MGM Rewards boards, palms opposite.
+- Fixed on the way: the paddock module's exclusion box for auto-placed stands was its whole group's box - since V2.26 it
+  reached the T4-T5 straight and would have reached the Strip: now one box per solid.
+- Not yet like the photos: the Cosmopolitan (its blue LED stripes, the name, the marquee), Caesars lit gold, the lake's
+  villas; the fountain show's exact choreography.
+
 # V2.29 (2026-11-03): Paris Las Vegas - the Eiffel Tower and the Montgolfier balloon rebuilt
 
 - No photo could be fetched (every image host is outside this environment's network allowance); built from documented

@@ -241,7 +241,7 @@ async function loadWorld(def) {
   // Las Vegas: the start/finish straight and Turn 1 as on race night - the Grand Prix Plaza over the garages (in place of
   // the landmark's block), the Heineken Silver main grandstand, the Turn 1 stands and run-off, their lamps lighting the
   // track (world/VegasPaddock.js)
-  const vegas = def.id === 'lasvegas' ? buildVegasPaddock(track, pit, def, geo.buildings.filter((b) => b.rings[0] && b.rings[0].length >= 3 && b.name !== 'Grand Prix Plaza').map((b) => b.rings[0])) : null;
+  const vegas = def.id === 'lasvegas' ? buildVegasPaddock(track, pit, def, geo.buildings.filter((b) => b.rings[0] && b.rings[0].length >= 3 && b.name !== 'Grand Prix Plaza').map((b) => b.rings[0]), geo) : null;
   if (vegas) {
     const old = lm.group.children.find((o) => o.name === 'lm:grandprix'); if (old) lm.group.remove(old);
     scene.add(vegas.group); lm.anims.push((t) => vegas.update(t)); trackMesh.userData.masts.push(...vegas.lights);

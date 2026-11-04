@@ -214,7 +214,7 @@ function ledMaterial(a, b, speed = 1.6, scale = 0.045) {
  * @returns { group, stands (fixed placements for buildGrandstands), lights (extra floodlights for the bake), boxes,
  *            solids [{ ring, h }], update(t) }
  */
-export function buildVegasPaddock(track, pit, def, rings = []) {
+export function buildVegasPaddock(track, pit, def, rings = [], geo = null) {
   const tr = track, group = new THREE.Group(); group.name = 'vegas-paddock';
   const stands = [], lights = [], solids = [], anims = [], club = [];
   const L = tr.length, f = {}, f2 = {};
@@ -276,6 +276,9 @@ export function buildVegasPaddock(track, pit, def, rings = []) {
   const bridgeDark = new THREE.MeshStandardMaterial({ color: 0x1b1c22, roughness: 0.8, metalness: 0.2 });
   const bridgeSign = new THREE.MeshBasicMaterial({ fog: false, side: THREE.DoubleSide, map: canvasTex(2048, 160, (x, W, H) => { x.fillStyle = '#121218'; x.fillRect(0, 0, W, H); x.fillStyle = '#c69bff'; x.shadowColor = '#b06bff'; x.shadowBlur = 18; x.font = `800 104px ${FONT}`; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('LAS VEGAS GRAND PRIX', W / 2, H * 0.54); }) });
   const lampWhite = new THREE.MeshBasicMaterial({ color: 0xfffaf0, fog: false });
+  const clubBlack = new THREE.MeshStandardMaterial({ color: 0x141418, roughness: 0.55, metalness: 0.4, side: THREE.DoubleSide });
+  const gold = new THREE.MeshStandardMaterial({ color: 0xc9a24a, metalness: 0.7, roughness: 0.35, emissive: 0x4a3410, emissiveIntensity: 0.8 });
+  const mgmBoard = new THREE.MeshStandardMaterial({ map: canvasTex(1200, 160, (x, W, H) => { x.fillStyle = '#0b0b0d'; x.fillRect(0, 0, W, H); for (const c of [0.06, 0.56]) { const cx = W * c, cy = H / 2; x.fillStyle = '#c9a24a'; x.beginPath(); x.arc(cx, cy, H * 0.3, 0, 6.283); x.fill(); x.fillStyle = '#0b0b0d'; x.beginPath(); x.arc(cx, cy, H * 0.22, 0, 6.283); x.fill(); x.fillStyle = '#c9a24a'; x.beginPath(); x.arc(cx, cy, H * 0.11, 0, 6.283); x.fill(); x.fillStyle = '#ffffff'; x.font = `800 74px ${FONT}`; x.textBaseline = 'middle'; x.fillText('MGM', cx + H * 0.42, cy - 12); x.font = `700 30px ${FONT}`; x.fillText('R E W A R D S', cx + H * 0.42, cy + 40); } }, true), emissive: 0xffffff, emissiveIntensity: 0, roughness: 0.5, side: THREE.DoubleSide }); mgmBoard.emissiveMap = mgmBoard.map; mgmBoard.emissiveIntensity = 0.65;
   const aisleLit = new THREE.MeshBasicMaterial({ color: 0xdfe6ff, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
   const neverDrink = new THREE.MeshStandardMaterial({ map: neverDrinkTexture(), emissive: 0xffffff, emissiveIntensity: 0, roughness: 0.5, side: THREE.DoubleSide }); neverDrink.emissiveMap = neverDrink.map; neverDrink.emissiveIntensity = 0.7;
   const bandMat = new THREE.MeshStandardMaterial({ map: bandTileTexture(), roughness: 0.6, emissive: 0xffffff, emissiveIntensity: 0, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3, side: THREE.DoubleSide }); bandMat.emissiveMap = bandMat.map; bandMat.emissiveIntensity = 0.32;
@@ -985,6 +988,86 @@ export function buildVegasPaddock(track, pit, def, rings = []) {
     }
     console.info(`[vegas] Turn 4 to Turn 5: ${made.join(', ')}`);
   }
+  // =============================================================================================================
+  // the Bellagio Fountain Club (race week, 2023-; MGM's render of it, the aerials, the builders: two three-level
+  // entertainment structures and two grandstands): along the Strip's lake side between the barrier and the fountains,
+  // from the north - a big open grandstand, the first structure, the Winner's Stage reaching out over the water (the
+  // podium), the second structure, a smaller grandstand at the south end. The structures: black frames, three glazed
+  // floors of guests looking down the straight, a roof terrace with its glass rail, its planters and its people, the
+  // MGM Rewards boards along every fascia; the grandstands' backs and tops in the same boards. Across the track, the
+  // palms down the Strip's middle.
+  // =============================================================================================================
+  if (geo?.proj && def.landmarkAnchors?.lakebellagio) {
+    const [ax, az] = geo.proj.toXZ(...def.landmarkAnchors.lakebellagio.ll), q0 = tr.nearest(ax, az), sd = Math.sign(q0.d) || -1, s0 = q0.s;
+    const made = [], okAt = (x, z) => corridorSigned(tr, pit, x, z, 0.5) >= 0 && !near.some((r) => inRing(x, z, r));
+    // (a straight run of the Strip: a frame from s at the barrier line on the lake side)
+    const F = (s) => { const i = tr.idxAtS(s), w = tr.wallAt(i, sd), o = tr.sample(s, 0, {}), t = [tr.tx[i], tr.tz[i]], n = [tr.nx[i] * sd, tr.nz[i] * sd]; return { t, n, P: (u, v) => [o.x + t[0] * u + n[0] * (w + v), o.z + t[1] * u + n[1] * (w + v)] }; };
+    const faceTrack = (fr) => Math.atan2(-fr.n[0], -fr.n[1]);   // (rotateY for a plane looking back at the track)
+    const vplane = (fr, u0, u1, v, y0, y1, mat, rep = [1, 1]) => { const L = u1 - u0, g = new THREE.PlaneGeometry(L, y1 - y0), uv = g.attributes.uv; for (let j = 0; j < uv.count; j++) uv.setXY(j, uv.getX(j) * rep[0], uv.getY(j) * rep[1]); g.rotateY(faceTrack(fr)); const [x, z] = fr.P((u0 + u1) / 2, v); g.translate(x, (y0 + y1) / 2, z); put(mat, g); };
+    const fbox = (fr, u0, u1, v0, v1, y0, y1, mat) => { const [x, z] = fr.P((u0 + u1) / 2, (v0 + v1) / 2); put(mat, boxAt(x, (y0 + y1) / 2, z, fr.t, u1 - u0, y1 - y0, v1 - v0)); };
+    const clearRect = (fr, u0, u1, v0, v1) => { for (let u = u0; u <= u1 + 0.01; u += 3) for (let v = v0; v <= v1 + 0.01; v += 3) if (!okAt(...fr.P(u, v))) return false; return true; };
+    // the structures: 3 floors (4.2 m) on black frames, glazed to the track, the roof terrace
+    const structure = (sA, sB, name) => {
+      const fr = F((sA + sB) / 2), L = sB - sA, u0 = -L / 2, u1 = L / 2, v0 = 1.6, v1 = 15.5, FLR = 4.2;
+      if (!clearRect(fr, u0, u1, v0, v1)) { console.info(`[vegas] Fountain Club: no room for ${name}`); return; }
+      for (let k = 0; k < 3; k++) {
+        const y = k * FLR;
+        fbox(fr, u0, u1, v0, v1, y, y + 0.45, clubBlack);                                              // the slab
+        vplane(fr, u0, u1, v0 + 1.2, y + 0.45, y + FLR - 0.9, k === 0 ? suitesDim : suites, [L / 30, 1]); // the guests inside
+        vplane(fr, u0, u1, v0 + 0.3, y + 0.45, y + FLR - 0.9, glass);                                  // the glazing
+        vplane(fr, u0, u1, v0 + 0.05, y + FLR - 0.9, y + FLR, mgmBoard, [L / 9, 1]);                  // the MGM Rewards fascia
+      }
+      fbox(fr, u0, u1, v0, v1, 3 * FLR, 3 * FLR + 0.45, clubBlack);                                    // the roof
+      put(terrace, (() => { const [x, z] = fr.P(0, (v0 + v1) / 2), g = new THREE.PlaneGeometry(L - 1, v1 - v0 - 1); g.rotateX(-Math.PI / 2); g.rotateY(Math.atan2(-fr.t[1], fr.t[0])); g.translate(x, 3 * FLR + 0.5, z); return g; })());
+      vplane(fr, u0, u1, v0 + 0.2, 3 * FLR + 0.45, 3 * FLR + 1.55, glass); { const [x, z] = fr.P(0, v0 + 0.2); put(ledWhite, boxAt(x, 3 * FLR + 1.55, z, fr.t, L, 0.07, 0.07)); }
+      for (let u = u0 + 3; u < u1; u += 7) { const [x, z] = fr.P(u, v0 + 1.4); put(frondMat, boxAt(x, 3 * FLR + 1.0, z, fr.t, 2.2, 1.0, 1.0)); }   // (the planters along the rail)
+      for (let u = u0; u <= u1 + 0.01; u += Math.max(5, L / Math.round(L / 6))) { const [x, z] = fr.P(u, v0 + 0.15); put(clubBlack, boxAt(x, 1.5 * FLR, z, fr.t, 0.35, 3 * FLR, 0.35)); }   // (the frame's posts)
+      for (const u of [u0, u1]) fbox(fr, u - 0.2, u + 0.2, v0, v1, 0, 3 * FLR + 0.45, clubBlack);
+      for (let u = u0 + 6; u < u1; u += 14) { const [x, z] = fr.P(u, v0 + 0.5), q = tr.nearest(x, z), aim = tr.sample(q.s, 0, f); lights.push({ x, y: 3 * FLR + 2.2, z, tx: aim.x, tz: aim.z }); put(flood, boxAt(x, 3 * FLR + 2.2, z, fr.t, 1.4, 0.35, 0.6)); }
+      solids.push({ ring: [fr.P(u0, v0), fr.P(u1, v0), fr.P(u1, v1), fr.P(u0, v1)], h: 3 * FLR + 2 }); made.push(`${name} ${L.toFixed(0)} m`);
+    };
+    // the grandstands: open, steep, black boards on their fronts and along their tops
+    const FCS = { tiers: 30, tierH: 0.58, tierD: 0.9, gap: 1.6 };
+    const grand = (sA, sB, tiers, name) => {
+      const fr = F((sA + sB) / 2), L = sB - sA, depth = 0.8 + tiers * FCS.tierD + 0.6;
+      if (!clearRect(fr, -L / 2, L / 2, FCS.gap, FCS.gap + depth)) { console.info(`[vegas] Fountain Club: no room for ${name}`); return; }
+      const [mx, mz] = fr.P(0, FCS.gap), world = (lx, lz) => { const [x, z] = fr.P(lx, FCS.gap + lz); return [x, z]; };
+      const p = { x: mx, z: mz, ex: fr.t, ez: fr.n, len: L, tiers, style: { tierH: FCS.tierH, tierD: FCS.tierD, roof: 'none', seat: 0x3a3c44, fill: 0.95 }, name, depth, world };
+      stands.push(p);
+      const top = STAND.base + tiers * FCS.tierH;
+      vplane(fr, -L / 2, L / 2, FCS.gap - 0.25, 0.1, STAND.base + 0.05, mgmBoard, [L / 9, 1]);                    // (its front)
+      vplane(fr, -L / 2, L / 2, FCS.gap + depth - 0.3, top + 0.2, top + 2.4, mgmBoard, [L / 9, 1]);               // (the boards along its top)
+      fbox(fr, -L / 2, L / 2, FCS.gap + depth - 0.2, FCS.gap + depth + 0.2, 0, top + 2.4, clubBlack);               // (its back)
+      for (const u of [-L / 2 - 0.3, L / 2 + 0.3]) {   // (its ends: open scaffold, the rake on its frame - the seats show through)
+        const [x0, z0] = fr.P(u, FCS.gap), [x1, z1] = fr.P(u, FCS.gap + depth), g = new THREE.BufferGeometry();
+        g.setAttribute('position', new THREE.Float32BufferAttribute([x0, 0, z0, x1, 0, z1, x1, top + 0.4, z1, x0, 0, z0, x1, top + 0.4, z1, x0, STAND.base + 0.6, z0], 3));
+        g.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, depth / 5, 0, depth / 5, top / 1.6, 0, 0, depth / 5, top / 1.6, 0, 1], 2)); g.computeVertexNormals(); put(scaffoldMat, g);
+      }
+      for (let u = -L / 2 + 5; u < L / 2; u += 12) { const [x, z] = fr.P(u, FCS.gap + depth - 0.6), q = tr.nearest(x, z), aim = tr.sample(q.s, 0, f); lights.push({ x, y: top + 3.2, z, tx: aim.x, tz: aim.z }); put(flood, boxAt(x, top + 3.2, z, fr.t, 1.4, 0.35, 0.6)); }
+      made.push(`${name} ${L.toFixed(0)} m`);
+    };
+    grand(s0 - 172, s0 - 122, 30, 'Fountain Club north grandstand');
+    structure(s0 - 118, s0 - 42, 'the first structure');
+    // the Winner's Stage: a deck from the shore out over the fountains, black and gold, the podium's three steps on it,
+    // a lit truss arch over it with the race's banner
+    { const sm = s0 - 30, fr = F(sm), L = 16, v0 = 2, v1 = 44;
+      if (okAt(...fr.P(0, v0))) {
+        fbox(fr, -L / 2, L / 2, v0, v1, 0, 2.75, clubBlack); for (const e of [-L / 2, L / 2]) fbox(fr, e - 0.15, e + 0.15, v0, v1, 2.6, 2.95, gold); fbox(fr, -L / 2, L / 2, v1 - 0.15, v1 + 0.15, 2.6, 2.95, gold);
+        for (const [u, h] of [[-3.6, 1.0], [0, 1.6], [3.6, 0.7]]) fbox(fr, u - 1.6, u + 1.6, v1 - 9, v1 - 5, 2.75, 2.75 + h, white);
+        for (const e of [-L / 2 + 0.6, L / 2 - 0.6]) fbox(fr, e - 0.6, e + 0.6, v1 - 3, v1 - 1.8, 2.75, 13, trussTall);
+        fbox(fr, -L / 2 + 0.6, L / 2 - 0.6, v1 - 3, v1 - 1.8, 12, 13.4, trussTall);
+        vplane(fr, -L / 2 + 1.5, L / 2 - 1.5, v1 - 3.05, 9.4, 11.8, gantryBanner);
+        for (let u = -L / 2 + 2; u < L / 2; u += 3) { const [x, z] = fr.P(u, v1 - 2.4); put(flood, boxAt(x, 11.8, z, fr.t, 0.8, 0.3, 0.4)); }
+        made.push('the Winner\'s Stage');
+      }
+    }
+    structure(s0 - 18, s0 + 42, 'the second structure');
+    grand(s0 + 46, s0 + 76, 22, 'Fountain Club south grandstand');
+    // the palms down the middle of the Strip, across the track
+    let nP = 0; for (let s = s0 - 250; s <= s0 + 90; s += 11) { const i = tr.idxAtS(s), p = tr.sample(s, -sd * (tr.wallAt(i, -sd) + 3.6), {}); if (!okAt(p.x, p.z)) continue; palm(p.x, p.z, 9 + ((s * 13) % 4)); nP++; }
+    made.push(`${nP} palms across the track`);
+    console.info(`[vegas] Bellagio Fountain Club: ${made.join(', ')}`);
+  }
   // ---- one mesh per material (the static world: a handful of draw calls)
   for (const [mat, gs] of geos) {
     const clean = gs.map((g) => { const h = g.index ? g.toNonIndexed() : g; for (const k of Object.keys(h.attributes)) if (k !== 'position' && k !== 'normal' && k !== 'uv') h.deleteAttribute(k); if (!h.attributes.uv) h.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(h.attributes.position.count * 2), 2)); if (!h.attributes.normal) h.computeVertexNormals(); return h; });
@@ -992,7 +1075,9 @@ export function buildVegasPaddock(track, pit, def, rings = []) {
   }
   const leds = [ledPink, ledCyan, ledWhite, ledBlue];
   for (const m of [glowPurple, glowPink]) m.userData.timeSkip = true;
-  const boxes = [new THREE.Box3().setFromObject(group)].filter((b) => !b.isEmpty());
+  // (what the auto-placed stands keep out of: each of our solids - not the whole group's box, which now reaches from the
+  //  plaza to the Strip and would empty the lap of them)
+  const boxes = solids.map((o) => { const b = new THREE.Box3(); for (const [x, z] of o.ring) b.expandByPoint(new THREE.Vector3(x, 0, z)); b.max.y = o.h; b.expandByVector(new THREE.Vector3(4, 0, 4)); return b; });
   // (and the whole section, from Turn 17's exit to Turn 3, 120 m round: no auto-placed stand in it - only the real ones)
   { const b = new THREE.Box3(); for (let x = cornerS(17) - L - 60; x <= c3; x += 10) { tr.sample(x, 0, f); b.expandByPoint(new THREE.Vector3(f.x, 0, f.z)); } b.expandByVector(new THREE.Vector3(120, 0, 120)); b.max.y = 30; boxes.push(b); }
   // (the boxes the auto-placed stands must keep out of: all of this, and each stand of ours)

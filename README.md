@@ -476,6 +476,14 @@ barrier line, would round the rectangle's corners into a balloon.
 * **Trackside kit**: the recovery crane truck and the yellow telehandler behind the fence outside Turn 2, a TV camera
   tower where the Turns 2-4 stand begins, a yellow boom lift by the building beyond the bend, the lattice gantry with
   the race's banner across the run out of Turn 4.
+* **The Bellagio at race week** (MGM's render of the Bellagio Fountain Club, the race-night aerials): the lake laid
+  between the Strip's sidewalk and the shore the Bellagio's own buildings make (OSM has no outline for it), its
+  balustrade lamps, the fountains running (the long double line down the Strip side and the rings, one instanced mesh
+  animated in its shader); the hotel cream and warm-lit with a lit cornice and the domed crown with the gold BELLAGIO;
+  its casino round the lake three floors of stucco under tile. Along the track on the lake side the Fountain Club
+  (VegasPaddock): the north grandstand, two three-floor glazed structures with roof terraces, the Winner's Stage out
+  over the water, the south grandstand, MGM Rewards on every fascia and on the wall (Branding panel 30); palms across
+  the track.
 * **Light**: lamps on the fence line, the truss, the roofs, the plaza's edge, the stands and the run-off wall, baked into
   the floodlight field with the masts (world/Lighting.js) - the straight and the hairpin lit like day. The city's windows
   are lit more than elsewhere (most of them, on race night).

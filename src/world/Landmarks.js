@@ -502,32 +502,101 @@ def('flamingo', /^flamingo las vegas$/i, (fps, ctx) => {
   return out;
 });
 
-// 17 Lake Bellagio
+// 17 Lake Bellagio and its fountains. The lake as it lies (OSM has no outline for it): between the Strip's sidewalk, 12 m
+// past the circuit's barrier, and the shore the Bellagio's own buildings make - its casino's east front running
+// south-west from the corner at Flamingo Road to the hotel - from that corner to the hotel's drive; its shore lit by a
+// row of lamps on the balustrade. The fountains as the show runs them: the long line of shooters down the Strip side and
+// the rings out in the lake, rising and falling in waves (one instanced mesh, the heights in its vertex shader), lit
+// white-gold.
 def('lakebellagio', /lake bellagio|bellagio fountains/i, (fps, ctx) => {
-  const a = ctx.anchor('lakebellagio', fps); const g = new THREE.Group();
-  const shp = new THREE.Shape(); shp.absellipse(0, 0, 125, 62, 0, Math.PI * 2, false, 0);
-  const water = new THREE.Mesh(new THREE.ShapeGeometry(shp, 48), new THREE.MeshStandardMaterial({ color: 0x14407a, roughness: 0.05, metalness: 0.6, envMapIntensity: 1.6 }));
-  water.rotation.x = -Math.PI / 2; water.position.y = -0.5; g.add(water);
-  const rimS = new THREE.Shape(); rimS.absellipse(0, 0, 129, 66, 0, Math.PI * 2, false, 0); rimS.holes.push(new THREE.Path().absellipse(0, 0, 125, 62, 0, Math.PI * 2, true, 0));
-  const rim = new THREE.Mesh(new THREE.ShapeGeometry(rimS, 48), std(0x6a6a70)); rim.rotation.x = -Math.PI / 2; rim.position.y = 0.0; g.add(rim);
-  const jets = [];
-  for (let i = 0; i < 14; i++) { const j = cyl(0.6, 1.2, 20, glow(0xdfefff, 1.6), -90 + i * 14, -0.5, Math.sin(i * 1.3) * 12, 6); j.userData.phase = i * 0.7; j.userData.animated = true; g.add(j); jets.push(j); }
-  ctx.anims.push((t) => { for (const j of jets) { const s = 0.3 + 0.7 * Math.abs(Math.sin(t * 0.8 + j.userData.phase)); j.scale.y = s; j.position.y = -0.5 + 10 * s; } });
-  return place(g, [a.x, a.z], a.rot);
+  const tr = ctx.track, g = new THREE.Group(), base = ctx.geo.buildings.find((b) => b.name === 'Bellagio' && b.rings[0]);
+  const a = ctx.anchor('lakebellagio', fps), q0 = tr.nearest(a.x, a.z), f = {};
+  const inRing = (x, z, r) => { let k = false; for (let i = 0, j = r.length - 1; i < r.length; j = i++) { const xi = r[i][0], zi = r[i][1], xj = r[j][0], zj = r[j][1]; if ((zi > z) !== (zj > z) && x < (xj - xi) * (z - zi) / (zj - zi) + xi) k = !k; } return k; };
+  const side = Math.sign(q0.d) || -1;   // (the lake's side of the Strip)
+  // the shore, every 4 m of the Strip: its east edge on the sidewalk line, its west where the Bellagio's buildings begin
+  const sA = q0.s - 190, sB = q0.s + 70, E = [], Wp = [];
+  for (let s = sA; s <= sB; s += 4) {
+    const i = tr.idxAtS(s), e = tr.wallAt(i, side) + 12; let d = e + 6;
+    while (d < e + 230 && !(base && inRing(...(() => { tr.sample(s, side * d, f); return [f.x, f.z]; })(), base.rings[0]))) d += 2;
+    const t = (s - sA) / (sB - sA), taper = Math.min(1, Math.sin(Math.PI * Math.min(1, t * 1.15)) * 1.6);   // (round ends)
+    const w = Math.max(8, (d - 5 - e) * taper);
+    tr.sample(s, side * e, f); E.push([f.x, f.z]); tr.sample(s, side * (e + w), f); Wp.push([f.x, f.z]);
+  }
+  const shoreRing = [...E, ...Wp.reverse()];
+  for (const b of ctx.geo.buildings) { if (!b.rings[0] || ctx.claimed.has(b.id)) continue; const c = b.rings[0].reduce((acc, p) => [acc[0] + p[0] / b.rings[0].length, acc[1] + p[1] / b.rings[0].length], [0, 0]); if (inRing(c[0], c[1], shoreRing) && b.name !== 'Bellagio') ctx.claimed.add(b.id); }   // (nothing built in the water)
+  const shp = new THREE.Shape(shoreRing.map(([x, z]) => new THREE.Vector2(x, -z)));
+  const water = new THREE.Mesh(new THREE.ShapeGeometry(shp), new THREE.MeshStandardMaterial({ color: 0x0f2e57, roughness: 0.06, metalness: 0.65, envMapIntensity: 1.6, emissive: 0x071a33, emissiveIntensity: 0.6 }));
+  water.rotation.x = -Math.PI / 2; water.position.y = -0.35; g.add(water);
+  // the balustrade round it, lamps along it
+  const rail = [], lampG = [];
+  for (let k = 0; k < shoreRing.length; k++) {
+    const p = shoreRing[k], q = shoreRing[(k + 1) % shoreRing.length], L = Math.hypot(q[0] - p[0], q[1] - p[1]); if (L < 0.5) continue;
+    const bx = new THREE.BoxGeometry(L, 1.0, 0.45); bx.rotateY(Math.atan2(-(q[1] - p[1]), q[0] - p[0])); bx.translate((p[0] + q[0]) / 2, 0.5, (p[1] + q[1]) / 2); rail.push(bx);
+    if (k % 3 === 0) { const lb = new THREE.BoxGeometry(0.35, 0.5, 0.35); lb.translate(p[0], 1.35, p[1]); lampG.push(lb); const pole = new THREE.BoxGeometry(0.12, 1.2, 0.12); pole.translate(p[0], 0.6, p[1]); rail.push(pole); }
+  }
+  g.add(new THREE.Mesh(mergeGeometries(rail), std(0xd9cdb4, { roughness: 0.8 })));
+  g.add(new THREE.Mesh(mergeGeometries(lampG), glow(0xffd9a0, 2.4)));
+  // the fountains: the long line 22 m in from the Strip shore, the rings in the lake's broad part
+  const jets = [];   // [x, z, phase, max height]
+  for (const [dd, hm] of [[22, 62], [26, 48]]) for (let s = sA + 25; s <= sB - 20; s += 1.4) { tr.sample(s, side * (tr.wallAt(tr.idxAtS(s), side) + 12 + dd), f); jets.push([f.x, f.z, (s - sA) * 0.035 + dd * 0.1, hm]); }
+  for (const [ds, dd, R, n] of [[-70, 95, 22, 28], [-25, 110, 18, 24], [-120, 70, 14, 18]]) {
+    tr.sample(q0.s + ds, side * (tr.wallAt(tr.idxAtS(q0.s + ds), side) + dd), f); const cx = f.x, cz = f.z;
+    if (!inRing(cx, cz, shoreRing)) continue;
+    for (let k = 0; k < n; k++) { const an = k / n * Math.PI * 2; jets.push([cx + Math.cos(an) * R, cz + Math.sin(an) * R, 7 + an, 26]); }
+  }
+  const jg = new THREE.CylinderGeometry(0.5, 2.2, 1, 6, 1, true); jg.translate(0, 0.5, 0);
+  const jm = new THREE.ShaderMaterial({
+    uniforms: { uTime: { value: 0 } }, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+    vertexShader: `attribute vec2 aJet; uniform float uTime; varying float vY;
+      void main(){ float h = aJet.y * (0.25 + 0.75 * pow(0.5 + 0.5 * sin(uTime * 0.9 - aJet.x), 2.0)) * (0.55 + 0.45 * step(0.0, sin(uTime * 0.21 + aJet.x * 0.15)));
+        vec3 p = position; p.y *= h; p.xz *= (0.6 + 0.4 * position.y); vY = position.y;
+        gl_Position = projectionMatrix * viewMatrix * modelMatrix * instanceMatrix * vec4(p, 1.0); }`,
+    fragmentShader: `varying float vY; void main(){ float a = (0.34 * (1.0 - vY) + 0.06) * (0.75 + 0.25 * sin(vY * 40.0)); gl_FragColor = vec4(vec3(1.0, 0.96, 0.88) * a, a); }`,   // (spray: strongest at the jet's foot, streaked)
+  });
+  const im = new THREE.InstancedMesh(jg, jm, jets.length), M = new THREE.Matrix4(), aJ = new Float32Array(jets.length * 2);
+  jets.forEach(([x, z, ph, h], k) => { M.makeTranslation(x, -0.3, z); im.setMatrixAt(k, M); aJ[k * 2] = ph; aJ[k * 2 + 1] = h; });
+  jg.setAttribute('aJet', new THREE.InstancedBufferAttribute(aJ, 2)); im.frustumCulled = false; im.userData.animated = true; im.renderOrder = 5; g.add(im);
+  ctx.anims.push((t) => { jm.uniforms.uTime.value = t; });
+  g.userData.shore = shoreRing; g.userData.keep = true;   // (laid to the shore: never shifted)
+  return g;
 });
 
-// 18 Bellagio
+// 18 Bellagio: the curved tower round the lake (36 floors, 508 ft to its top), cream and warm-lit at night, its parapet a
+// lit cornice; at its crown the domed pavilion with the gold BELLAGIO over the lake (the race's own render of the
+// Fountain Club, 2024; the aerials). The wings stepped down either side.
+function bellagioSignTexture() {
+  const c = document.createElement('canvas'); c.width = 1024; c.height = 192; const x = c.getContext('2d');
+  x.clearRect(0, 0, 1024, 192); x.fillStyle = '#ffd98a'; x.shadowColor = '#ffb030'; x.shadowBlur = 18;
+  x.font = '600 132px Georgia, "Times New Roman", serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('B E L L A G I O', 512, 100);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
 def('bellagio', /^bellagio las vegas$|^bellagio$/i, (fps, ctx) => {
-  const out = new THREE.Group(); const mat = win(0xd8b98a, 0xffe0b0, { litProb: 0.48, cellW: 3.4, cellH: 3.3 });
+  const out = new THREE.Group(); const mat = win(0xe4d2ac, 0xffdcaa, { litProb: 0.62, cellW: 3.4, cellH: 3.3 });
+  const cream = std(0xe8d8b6, { roughness: 0.75, emissive: 0x3a2a12, emissiveIntensity: 0.5 }), cornice = glow(0xffd9a0, 1.5);
+  const baseMat = win(0xe6d6b2, 0xffd49a, { litProb: 0.7, cellW: 5.5, cellH: 4.2 });   // (the low buildings: bigger, warmer windows)
   for (const fp of fps) {
     if (/las vegas/i.test(fp.b.name)) {
-      const g = new THREE.Group(); const H = 151;
+      const g = new THREE.Group(); const H = 140, half = 1.35 / 2, rM = 107;
       g.add(arcSlab(96, 118, 1.35, H, mat));
-      g.add(arcSlab(94, 120, 1.35, 6, std(0x2f5d3a, { roughness: 0.6 }), H));
-      const wingMat = mat; const rM = 107, half = 1.35 / 2;
-      for (const sgn of [1, -1]) { const w = box(22, 120, 40, wingMat, Math.cos(half) * rM - rM - 12, 0, sgn * Math.sin(half) * rM, sgn * 0.5); g.add(w); g.add(box(23, 5, 41, std(0x2f5d3a), w.position.x, 120, w.position.z, sgn * 0.5)); }
+      g.add(arcSlab(95.5, 118.5, 1.35, 3, cream, H)); g.add(arcSlab(95.3, 118.7, 1.35, 0.6, cornice, H + 3));   // (the parapet and its lit cornice)
+      g.add(arcSlab(95.6, 118.4, 1.35, 0.7, cornice, 18));   // (the lit band over the lower floors)
+      for (const sgn of [1, -1]) {
+        const w = box(22, 112, 40, mat, Math.cos(half) * rM - rM - 12, 0, sgn * Math.sin(half) * rM, sgn * 0.5); g.add(w);
+        g.add(box(23, 3, 41, cream, w.position.x, 112, w.position.z, sgn * 0.5)); g.add(box(23.4, 0.6, 41.4, cornice, w.position.x, 115, w.position.z, sgn * 0.5));
+      }
+      // the crown: a pavilion of lit arched windows on the parapet at the arc's middle, its dome and lantern, the name
+      const cx = 107, cy = H + 3.6;
+      g.add(box(20, 13, 18, cream, cx, cy)); g.add(box(20.6, 0.6, 18.6, cornice, cx, cy + 13));
+      { const winM = new THREE.MeshStandardMaterial({ map: (() => { const c = document.createElement('canvas'); c.width = 512; c.height = 256; const x = c.getContext('2d'); x.fillStyle = '#e8d8b6'; x.fillRect(0, 0, 512, 256); for (let k = 0; k < 5; k++) { const wx = 22 + k * 98; x.fillStyle = '#ffcf86'; x.fillRect(wx, 90, 64, 140); x.beginPath(); x.arc(wx + 32, 90, 32, Math.PI, 0); x.fill(); } const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; })(), emissive: 0xffffff, emissiveIntensity: 0.6, roughness: 0.7 }); winM.emissiveMap = winM.map;
+        for (const [dx, dz, ry] of [[-10.05, 0, -Math.PI / 2], [10.05, 0, Math.PI / 2], [0, 9.05, 0], [0, -9.05, Math.PI]]) { const pl = new THREE.Mesh(new THREE.PlaneGeometry(Math.abs(dz) > 1 ? 20 : 18, 12), winM); pl.rotation.y = ry; pl.position.set(cx + dx, cy + 6.5, dz); g.add(pl); } }
+      { const dome = new THREE.Mesh(new THREE.SphereGeometry(8.5, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), std(0xc9a75a, { metalness: 0.6, roughness: 0.4, emissive: 0x6a4a14, emissiveIntensity: 0.9 })); dome.position.set(cx, cy + 13.6, 0); dome.scale.y = 0.8; g.add(dome); }
+      g.add(cyl(1.6, 2.0, 5, cream, cx, cy + 20.4, 0, 12)); g.add(cyl(1.0, 1.0, 1.2, glow(0xffe2a8, 2.6), cx, cy + 25.4, 0, 12));
+      { const sign = new THREE.Mesh(new THREE.PlaneGeometry(26, 4.8), new THREE.MeshBasicMaterial({ map: bellagioSignTexture(), transparent: true, depthWrite: false, fog: false })); sign.rotation.y = -Math.PI / 2; sign.position.set(cx - 10.3, cy + 9.5, 0); g.add(sign); }
       const tt = ctx.toTrack(fp.info.c); g.rotation.y = rotYForLocalX(-tt[0], -tt[1]); g.position.set(fp.info.c[0], 0, fp.info.c[1]); out.add(g);
-    } else { const p = podium(fp, 20, mat); if (p) out.add(p); }
+    } else {   // the casino and its shops round the lake: three floors of cream stucco, arched windows lit warm, a tile roof
+      const p = podium(fp, 12.5, baseMat); if (p) out.add(p);
+      const r = podium(fp, 1.2, std(0x9a5a3a, { roughness: 0.85, emissive: 0x2a1408, emissiveIntensity: 0.6 })); if (r) { r.position.y = 12.5; out.add(r); }
+    }
   }
   return out;
 });
@@ -798,7 +867,7 @@ export function buildLandmarks(geo, track, trackDef, pit = null) {
   const claimed = new Set();
   const report = [];
   const ctx = {
-    anims, timeUniforms, geo, track, pit,
+    anims, timeUniforms, geo, track, pit, claimed,
     toTrack(c) { const q = track.nearest(c[0], c[1]); const f = track.sample(q.s); const dx = f.x - c[0], dz = f.z - c[1]; const l = Math.hypot(dx, dz) || 1; return [dx / l, dz / l]; },
     nearestTrackPoint(c) { const q = track.nearest(c[0], c[1]); return track.sample(q.s); },
     anchor(key, fps) {
