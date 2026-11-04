@@ -1,3 +1,46 @@
+# V2.38 (2026-11-04): barriers that give - a wall hit resolved over the contact, damage from what the car felt; TecPro blocks
+
+- Each barrier has its own give (vehicle/Car.js BARRIER, next to PULSE and BAR_KIND): how far its face can be pushed back
+  (concrete a few cm, a soft SAFER / TecPro wall 0.5 m, a tyre wall 0.85 m, Armco 0.6 m), the force it crushes at (36 /
+  24 / 20 g of the car's weight), its spring (the crush force reached at 0.2 / 0.4 / 0.3 m of give), how much stiffer it
+  is letting go (tyres hand back ~3 % of a hit, Armco ~17 %: it bounces), its damping and friction. Concrete stays the
+  one rigid impulse it was (its stop is the car's own crash structure, PULSE.wall).
+- A hit on a barrier that gives is resolved over the contact, not in one step (Car._barrierSoft): every point of the
+  car in it (nose, wheels, tail) is a spring-damper, implicit in the step, up to the crush force, until the speed into
+  it is spent; a point that has pushed it back all it gives meets what stands behind (Armco behind tyres, concrete
+  behind a soft wall, 60 ms crushed flat) and is stopped there at once. A car swinging in is held along its side.
+- Severity and damage from what the car felt, not the corner's raw speed: the hit's g measured as concrete's is (its
+  velocity change over the time the barrier pushed plus the car's own 45 ms) - Car.pulse takes it, so the suspension /
+  engine damage, the crash camera, the replay, the injury and fatality odds all follow - and never more than concrete
+  would have given for the same blow (the same speed into it at the same point: concrete rates a tail slapping in over
+  three steps as three hits, the barrier as one, and the injury odds are calibrated on concrete's); applyImpact takes the speed of
+  the part that touched for the wings and the struck wheel, and the felt hit (its concrete-equivalent speed) for the
+  rest; the dents and parts broken off by what the car took itself. A car is launched off a barrier by a 70 g hit
+  (G_LAUNCH, ~165 km/h head-on into concrete), not by any corner touching at 115 km/h: a corner-first slap spins the
+  car along the wall, it no longer throws it in the air.
+- Where they stand (Track.buildGive: giveL / giveR, def.barriers per corner in tracks.js - turn, side 'out' / 'in',
+  metres from the apex, kind, deep): Las Vegas concrete, with SAFER walls at the end of the Turn 1 run-off, the Turns
+  7-8 run-off's wall, the outsides of Turns 12 and 14; Silverstone tyre walls and Armco, TecPro outside Abbey, Becketts
+  - Chapel, Stowe and Club; Austin tyre walls and Armco, TecPro at Turn 1, the hairpin, Turn 12 and the last two
+  corners; Montreal concrete with TecPro across the back of its escape areas and outside the Senna S. The pit lane's
+  walls are as they were.
+- TecPro drawn as what it is: solid red and white blocks, 1.5 m long, 0.75 m deep, 1.1 m tall, linked in a chain
+  (TrackBuilder tecproBlocks; the catch fence stands behind them). Where a car presses into a barrier that gives, the
+  barrier is pushed back with it (world/BarrierGive.js, a vertex shader on the barrier materials: 8 dents at a time from
+  Car.GIVE_DENTS) - the TecPro blocks squash, face back and top bulging, the chain bowing round the car; tyre walls,
+  Armco and the fence behind flex - and spring back over 1.5 s once it has gone. No mesh changes, nothing allocated a frame.
+- The crash rig (tools/crash_rig.mjs, harness __crashRig): a car coasting into each kind of barrier at 100-300 km/h and
+  15-90 degrees, three seeds a cell. Before -> after: nothing at 150 km/h or under is launched, rolled or torn in two
+  any more, into any barrier (before: every 150 km/h hit at 60-90 degrees and every 200 km/h one at 30 degrees flew; on
+  concrete at 150 km/h 60-90 degrees two in three split). A 150 km/h hit into a tyre wall at 15 / 30 degrees: 5 / 10 g,
+  a damaged or lost front wing, driving on (before 11 / 6 g and the same wing); square on 36 g, driving on (before 29 g,
+  launched, out). Glancing hits on a soft wall at 250-300 km/h: 10-17 g against concrete's 13-16 g. Soft wall at 150 km/h square on 44 g (concrete 64 g); 200 km/h at 60
+  degrees 63 g and no flight (concrete 88 g, launched, split). Concrete itself: the same g at every speed and angle;
+  250-300 km/h at 60-90 degrees still 106-133 g, launched, split two in three, the injury odds near certain. The other
+  side of it: a 300 km/h hit at 60-90 degrees into a tyre wall bottoms it out onto the Armco behind and is now 81-85 g
+  (before 57-60 g, the tyre wall's 100 ms pulse taken whole; Armco itself is unchanged at ~82 g) - two in three split.
+RACES
+
 # V2.37 (2026-11-04): Las Vegas's maps and its AI on the new line; the loading bar and the map in step
 
 - The circuit map (ui/TrackMaps.js) and the menu card's outline (tracks.js) regenerated from the built circuit - they were

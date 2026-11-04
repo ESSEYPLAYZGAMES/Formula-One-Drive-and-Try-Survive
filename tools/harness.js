@@ -283,3 +283,59 @@ window.__calRun = function (laps = 3, cal = undefined, opts = {}) {
   }
   return { track: tr.def.id, length: +tr.length.toFixed(1), drv: `${solo.short} r${solo.rating}`, laps: solo.lapTimes.map((x) => +x.toFixed(3)), corners: out, events: ev.map((e) => `${e.k}@${Math.round(e.s)}${e.d != null ? `(d${e.d})` : ''}${e.over != null ? `(+${e.over}m)` : ''} L${e.lap}`), ev, trace: prof };
 };
+
+/**
+ * The barrier crash rig (tools/crash_rig.mjs): a car alone, coasting at `kmh` into the left-hand barrier of a straight
+ * at `deg` degrees, the barriers there (both sides) set to one kind for 300 m either way ('wall' concrete, 'soft' SAFER / TecPro,
+ * 'tyres', 'armco'). Every speed x angle x kind runs `seeds` times with Math.random seeded (launches and splits are
+ * dice). Per run: the car's peak g (Car.pulse), the contact time (the normal speed into the barrier from its first drop
+ * to spent), the speed when the contact ends and 5 s later, the severity reported (onImpact), the damage, a launch /
+ * roll / split, and the injury and death chances the race would roll (RaceDirector.injuries, main.js decideFate).
+ */
+window.__crashRig = function ({ kinds = ['wall', 'soft', 'tyres', 'armco'], speeds = [100, 150, 200, 250, 300], angles = [15, 30, 60, 90], seeds = 3, secs = 5 } = {}) {
+  const d = F.S.director, tr = d.track, SUB = 1 / 120, s0 = window.__crash.straight(tr), i0 = tr.idxAtS(s0);
+  const BARV = { wall: 3, armco: 1, tyres: 2, soft: 2 }, GIVEV = { wall: 3, armco: 1, tyres: 2, soft: 4 };
+  if (tr.buildGive && !tr.giveL) tr.buildGive();
+  const W = Math.round(300 / tr.ds), idx = []; for (let k = -W; k <= W; k++) idx.push((i0 + k + tr.n) % tr.n);
+  const keepB = idx.map((i) => [tr.barL[i], tr.barR[i]]), keepG = tr.giveL ? idx.map((i) => [tr.giveL[i], tr.giveR[i]]) : null;
+  const rand = Math.random, rows = [];
+  const pInj = (c) => { const g = c.peakG || 0; return g < 25 && !c.split ? 0 : Math.max(c.split ? 0.6 : 0, 1 / (1 + Math.exp(-(g - 62) / 9))); };
+  const pDeath = (c) => { const sev = (c.peakG || 0) + (c.split ? 12 : 0) + (c._flew ? 6 : 0) + 0.1 * Math.max(0, (c.peakDv || 0) * 3.6 - 220); return 1 / (1 + Math.exp(-(sev - 97) / 10)); };
+  for (const kind of kinds) for (const kmh of speeds) for (const deg of angles) {
+    for (const i of idx) { tr.barL[i] = tr.barR[i] = BARV[kind]; if (tr.giveL) tr.giveL[i] = tr.giveR[i] = GIVEV[kind]; }   // (both sides: a car spun across the road meets the same)
+    const runs = [];
+    for (let sd = 0; sd < seeds; sd++) {
+      let seed = 1000 + sd * 7919 + kmh * 13 + deg; Math.random = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+      const { cars } = window.__crash.setup(1), c = cars[0];
+      Object.assign(c, { flipped: false, _flew: false, split: false, hardest: 0, peakDv: 0, pulseG: 0, lastG: 0, lastImpact: 0, injured: false, retireReason: '', _bc: null, wheelsOn: [true, true, true, true], suspSide: 1, punct: null });
+      c.lost = {}; c.dents = []; c.crushed = {}; c.lostK = null; c.pieces = []; c.events = []; c.crashLog = null;
+      const a = deg * Math.PI / 180, wall = tr.wallL[i0];
+      c.placeOnTrack(s0, wall - (3.0 * Math.sin(a) + 0.95 * Math.cos(a)) - 0.4, kmh / 3.6); c.th -= a;   // (th grows to the right: aimed left, the nose 0.4 m off the barrier)
+      const nx = tr.nx[i0], nz = tr.nz[i0];
+      const vn = () => { const v = c.air ? [c.wvx, c.wvz] : c.worldVel(); return v[0] * nx + v[1] * nz; };   // (+: toward the left barrier)
+      let sev = 0; const oi = d.world.onImpact; d.world.onImpact = (car, s, k) => { if (k === 'wall') sev = Math.max(sev, s); };
+      const u0 = vn(); let prev = u0, t0 = null, t1 = null, vEnd = null, pk = null, E = null, lh = null;
+      for (let k = 0; k < secs / SUB; k++) {
+        c._clock = k * SUB; c.throttle = 0; c.brake = 0; c.steer = 0; c.step(SUB, d.world); d.collisions();
+        const u = vn();
+        if (t0 == null && prev - u > 0.25) t0 = k;
+        if (t0 != null && t1 == null && u <= 0.2) { t1 = k; vEnd = c.speed * 3.6; }
+        prev = u;
+        // (the barrier's own report of each hit - Car.lastHit: its peak force on the car in g, the energy it absorbed)
+        if (c.lastHit && (c.lastHit !== lh || c.lastHit.t !== lh._t)) { lh = c.lastHit; lh._t = lh.t; if (lh.g) { pk = Math.max(pk || 0, lh.peak || 0); E = (E || 0) + (lh.E || 0) / 1000; } }
+      }
+      d.world.onImpact = oi; d.simCars = null;
+      const dmg = Object.entries(c.dmg).filter(([, v]) => v >= 0.3).map(([k, v]) => `${k}${v.toFixed(1)}`), lost = Object.keys(c.lost).filter((k) => !/^w\d$/.test(k) || true);
+      runs.push({ pk, E, g: c.peakG || 0, ms: t0 != null && t1 != null ? (t1 - t0 + 1) * SUB * 1000 : null, u0, vEnd, vFin: c.speed * 3.6, sev, flew: !!c._flew, rolled: !!c.flipped, split: !!c.split,
+        out: !!(c.retired || c.wreck), why: c.retireReason, dmg: dmg.join(' '), lost: lost.join(' '), pInj: pInj(c), pDeath: pInj(c) * pDeath(c) });
+    }
+    const avg = (f) => { const a = runs.map(f).filter((x) => x != null); return a.length ? a.reduce((x, y) => x + y, 0) / a.length : null; };
+    rows.push({ kind, kmh, deg, peakF: avg((r) => r.pk) != null ? +avg((r) => r.pk).toFixed(0) : null, Ekj: avg((r) => r.E) != null ? +avg((r) => r.E).toFixed(0) : null, uN: +(avg((r) => r.u0) * 3.6).toFixed(0), g: +avg((r) => r.g).toFixed(1), gMax: +Math.max(...runs.map((r) => r.g)).toFixed(1), ms: avg((r) => r.ms) != null ? +avg((r) => r.ms).toFixed(0) : null,
+      vEnd: avg((r) => r.vEnd) != null ? +avg((r) => r.vEnd).toFixed(0) : null, vFin: +avg((r) => r.vFin).toFixed(0), sev: +avg((r) => r.sev).toFixed(2),
+      flew: runs.filter((r) => r.flew).length, rolled: runs.filter((r) => r.rolled).length, split: runs.filter((r) => r.split).length, out: runs.filter((r) => r.out).length, n: runs.length,
+      pInj: +avg((r) => r.pInj).toFixed(3), pDeath: +avg((r) => r.pDeath).toFixed(4), dmg: runs[0].dmg, lost: runs[0].lost, why: runs.map((r) => r.why).filter(Boolean)[0] || '' });
+  }
+  idx.forEach((i, k) => { [tr.barL[i], tr.barR[i]] = keepB[k]; if (keepG) [tr.giveL[i], tr.giveR[i]] = keepG[k]; });
+  Math.random = rand;
+  return rows;
+};

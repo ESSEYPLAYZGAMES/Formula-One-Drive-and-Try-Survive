@@ -1,6 +1,7 @@
 // Bootstrap: renderer, world construction from GeoJSON, menus, race weekend flow, frame loop.
 import * as THREE from 'three';
 import { TRACKS } from './track/tracks.js';
+import { updateGive } from './world/BarrierGive.js';
 import { loadGeoJSON, GeoWorld } from './core/GeoLoader.js';
 import { buildSpline, sampleCurve, rotateSamples, Track, buildTrackMeshes, buildCatchFences, buildPitLane, gridLayout, corridorSigned } from './track/TrackBuilder.js';
 import { RacingLine } from './track/RacingLine.js';
@@ -218,6 +219,7 @@ async function loadWorld(def) {
     track.guardZones(austinCrowdZones(track, def, pit), rings, pit);
   }
   track.fairWalls();   // (every circuit's barrier lines in long runs and gentle bends: no wedge of barrier jutting into a run-off)
+  track.buildGive();   // (what each barrier gives to a car that hits it: concrete, SAFER / TecPro, tyres, Armco - def.barriers per corner)
   await set('Computing the racing line…', 26);
   const { line, profile, shown, showLine } = makeRacingLine(track, def);
   await set('Laying the track, kerbs and barriers…', 40);
@@ -3644,6 +3646,7 @@ function frame(now) {
       S.fireworks.update(sdt, camera);
     }
     debris.update(sdt); fire.update(sdt, camera, renderer.domElement.height); chunks.update(sdt);
+    updateGive(d.time);   // (the barriers that give, pushed back round a car in them: world/BarrierGive.js)
     if (p) updateRacingLine(p);
     pitTiming.update(p, d.time, sdt, camCtl.mode === 'cockpit'); if (p && !S.spectating) strategyCalls(d, p);
     // (the turn-in point for your pull-in, painted across the lane: you can time it by eye from the cockpit)

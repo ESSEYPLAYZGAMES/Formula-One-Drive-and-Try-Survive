@@ -70,6 +70,16 @@ export const TRACKS = {
     // and the chicane's: the painted run-off on the way in, straight on past Turn 7 (its teal paint and the aramco name -
     // world/VegasSphereZone.js); out of Turn 8 the wall runs beside the road as everywhere else
     escapes: [{ side: -1, auto: { turn: 1, depth: 42 } }, { side: -1, band: { turn: 7, from: -40, to: 43, depth: 34 } }],   // (their paint: world/VegasPaddock.js, VegasSphereZone.js)
+    // What the barriers give (Track.buildGive, vehicle/Car.js BARRIER): a street circuit is concrete; soft walls (SAFER)
+    // at the ends of the run-offs and where a wall faces straight into the line - Turn 1's run-off end wall, the Turns 7-8
+    // run-off's wall, the outsides of Turns 12 and 14. (deep: only the wall out at the run-off, not the walls beside the
+    // road leading to it; from / to: metres from the apex)
+    barriers: [
+      { turn: 1, side: -1, from: -60, to: 160, kind: 'soft', deep: 6 },
+      { turn: 7, side: -1, from: -80, to: 90, kind: 'soft', deep: 6 },
+      { turn: 12, side: 'out', from: -60, to: 60, kind: 'soft' },
+      { turn: 14, side: 'out', from: -60, to: 60, kind: 'soft' },
+    ],
     shots: [
       { lm: 'sphere', label: 'SPHERE', rMul: 1.0, az: 0.5 }, { s: -160, label: 'PIT STRAIGHT', side: 1 },
       { lm: 'eiffel', label: 'PARIS LAS VEGAS', rMul: 1.05, az: -0.5 }, { s: 3900, label: 'THE STRIP', side: -1 },
@@ -146,6 +156,15 @@ export const TRACKS = {
     verge: 'circuit', vergeWidth: 12,
     runoffCaps: [80, 70, 55],
     runoff: { asphalt: [1, 2, 8, 10, 11, 14, 17, 18], grass: [5] },   // Abbey, Farm, Woodcote, Maggotts, Chapel, Club; everything else is a gravel trap
+    // what the barriers give (Track.buildGive, vehicle/Car.js BARRIER): tyre walls behind the gravel and the run-offs,
+    // Armco between close parts of the lap, the concrete pit wall - and TecPro on the outside of the fastest corners,
+    // where a car arrives with the most speed left (Abbey, Becketts - Chapel, Stowe, Club). Copse keeps its tyre wall.
+    barriers: [
+      { turn: 1, side: 'out', from: -60, to: 120, kind: 'soft' },
+      { turn: 13, side: 'out', from: -40, to: 160, kind: 'soft' },
+      { turn: 15, side: 'out', from: -80, to: 100, kind: 'soft' },
+      { turn: 17, side: 'out', from: -60, to: 120, kind: 'soft' },
+    ],
     fillet: false, smoothSigma: 14,   // the surveyed line is already smooth: no street-corner fillets; a wider smoothing kernel irons out the kinks where hand-drawn ways join
     line: 'optimal',                // minimum-curvature racing line over the full width (Copse, Maggotts, Stowe are only fast on the real line)
     // ---- venue dressing
@@ -231,6 +250,10 @@ export const TRACKS = {
     // metres back (verge 'park'). Escape areas are short: asphalt at the Senna S, T8-T9, the hairpin and the last
     // chicane (its straight-on escape road), gravel at T3-T4 and T6-T7, grass at the T5 kink
     verge: 'park', vergeWidth: 4.5,
+    // what the barriers give (Track.buildGive, vehicle/Car.js BARRIER): concrete all round, TecPro across the back of the
+    // escape areas (the walled circuit's tyre-wall runs) - and on the outside of the Senna S, where the field arrives
+    // three abreast; the Wall of Champions stays concrete
+    barriers: [{ turn: 1, side: 'out', from: -30, to: 70, kind: 'soft' }],
     runoffCaps: [55, 30, 12],
     // the corners that are open, not lined with concrete: the Senna S (paved escape outside T1, the big lawn inside
     // it), T3-T4, T6-T7, T8-T9, the hairpin (the paved escape beyond it), the last chicane's straight-on escape road -
@@ -338,6 +361,16 @@ export const TRACKS = {
     apronMax: 24,
     apronWide: { 1: 70, 11: 70, 12: 70, 20: 50 },   // (the big paved run-offs: up the hill at Turn 1, the hairpin, Turn 12's with its flag, the last corner)
     selfArmco: false,   // (no Armco between the legs of a hairpin: open grass inside Turn 1, Turn 11, Turn 12)
+    // what the barriers give (Track.buildGive, vehicle/Car.js BARRIER): tyre walls behind the run-offs, Armco between
+    // close parts of the lap, the concrete pit wall - and TecPro where a car arrives quickest: the outside of Turn 1 at
+    // the top of the hill, the hairpin at the end of the back straight (Turn 11), Turn 12, the last two corners
+    barriers: [
+      { turn: 1, side: 'out', from: -40, to: 120, kind: 'soft' },
+      { turn: 11, side: 'out', from: -80, to: 80, kind: 'soft' },
+      { turn: 12, side: 'out', from: -80, to: 80, kind: 'soft' },
+      { turn: 19, side: 'out', from: -60, to: 60, kind: 'soft' },
+      { turn: 20, side: 'out', from: -60, to: 80, kind: 'soft' },
+    ],
     pitWallRun: 0,      // (the pit wall stops where the lane leaves and rejoins: inside Turn 20 and Turn 1, not wrapped round either apex)
     fillet: false, smoothSigma: 10,
     line: 'optimal',

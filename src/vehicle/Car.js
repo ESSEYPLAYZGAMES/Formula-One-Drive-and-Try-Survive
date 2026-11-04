@@ -37,8 +37,6 @@ const SURF_GRIP = [1.0, 0.93, 0.82, 0.55, 0.5];     // paved run-off: grippy but
 // tyres): a car crawling through it, a tyre down or on full lock, still gets itself out
 const SURF_DRAG_A = [0, 0, 0, 0.5, 0.8], SURF_DRAG_B = [0, 0, 0, 0.022, 0.125];
 const G = 9.81;
-/** normal impact speed (m/s) at the barrier above which the car is launched (about 85 km/h straight into it) */
-export const LAUNCH_WALL = 32;
 const _v2 = [0, 0], _t2 = [0, 0, 0], _t3 = [0, 0, 0], _t4 = [0, 0, 0];
 // ---- rigid body of a wrecked car
 const REST_H = 0.48;                       // height of the body centre above the ground when on its wheels
@@ -68,11 +66,50 @@ const RB_SPLIT = RB_POINTS.map((p, k) => (k >= 4 && p[0] < -0.9 ? [-0.65, Math.m
 const BAR_H = [0, 0.85, 1.3, 4.2];          // barrier height by type (none, Armco, tyre wall, concrete wall + debris fence)
 /**
  * Crash pulses: how long a hit takes (s) - what turns a velocity change into g. A concrete wall stops the car in
- * ~45 ms, Armco gives (~70 ms), a tyre wall absorbs (~100 ms); two cars' crash structures crush (~60 ms); the ground
+ * ~45 ms, Armco gives (~70 ms), a tyre wall absorbs (~100 ms), a soft wall crushed flat still spreads the rest of a hit
+ * over its steel skin and the foam behind it (~60 ms); two cars' crash structures crush (~60 ms); the ground
  * in a roll ~50 ms, gravel ~90 ms. Calibrated on Grosjean's Bahrain 2020 crash (~50 m/s into Armco: 67 g).
  */
-export const PULSE = { wall: 0.045, armco: 0.07, tyres: 0.1, building: 0.04, car: 0.06, ground: 0.05, gravel: 0.09 };
-const BAR_KIND = ['ground', 'armco', 'tyres', 'wall'];
+export const PULSE = { wall: 0.045, soft: 0.06, armco: 0.07, tyres: 0.1, building: 0.04, car: 0.06, ground: 0.05, gravel: 0.09 };
+/** a barrier's physics kind by its code (Track.giveL / giveR: the BAR codes of TrackBuilder.js, and 4 for a soft wall) */
+export const BAR_KIND = ['ground', 'armco', 'tyres', 'wall', 'soft'];
+/**
+ * What each barrier gives when a car on its wheels hits it (_barriers). A wall hit is not one instant stop: the face is
+ * pushed back over several physics steps until the car's speed into it is spent or the barrier has given all it has.
+ *   D      how far the face can be pushed back (m) before what stands behind it stops the rest, rigidly (back: PULSE)
+ *   Fy     the force it crushes at, in g of the car's weight: what the driver feels while it gives
+ *   k, c   its spring (N/m) and damper (N s/m) before it crushes: how much of the hit it hands back (Armco bounces)
+ *   mu     friction along it (a tyre wall grabs)
+ *   local  how much of the speed into it the nose and wings still take (a front wing breaks on a tyre wall too)
+ * Concrete gives a few cm - its stop is the car's own crash structure (PULSE.wall), so it stays the one rigid impulse
+ * it always was. A SAFER / TecPro wall gives ~0.45 m, a tyre wall ~0.85 m, Armco ~0.6 m of deflection and springs back.
+ * (What each crushes at is what a car pressing into it feels: 24 g for 0.85 m of tyres absorbs a 150 km/h hit at 30
+ *  degrees whole; a harder one bottoms out on the Armco behind them, which is then a hit like any other.)
+ */
+export const BARRIER = {
+  wall: { D: 0.03, Fy: 0, y: 0, ku: 0, c: 0, mu: 0.35, local: 1, back: 'wall', rigid: true },
+  soft: { D: 0.5, Fy: 36, y: 0.2, ku: 20, c: 1.2e4, mu: 0.3, local: 0.85, back: 'soft' },
+  tyres: { D: 0.85, Fy: 24, y: 0.4, ku: 30, c: 6e3, mu: 0.4, local: 0.8, back: 'armco' },
+  armco: { D: 0.6, Fy: 20, y: 0.3, ku: 6, c: 5e3, mu: 0.3, local: 0.9, back: 'armco' },
+};
+// (each one's stiffness: its crush force reached at y metres of give; unloading ku times stiffer - a tyre wall hands
+//  back ~3 % of what it took, Armco ~17 %: it bounces)
+for (const B of Object.values(BARRIER)) B.k = B.y ? B.Fy * 9.81 * 768 / B.y : 0;
+/** the concrete-equivalent speed into the barrier (m/s) of a hit felt at 1 g: a car square into concrete feels ~2.5 g per m/s */
+const U_PER_G = PULSE.wall * 9.81 / 1.12;
+/**
+ * The hit (g the car felt, Car.pulse) from which a car on its wheels is launched off a barrier - the wheel nearest the
+ * contact climbing it. By what the car felt, not the speed of the corner that touched: a corner-first slap along a wall
+ * spins the car (most of it goes into rotation) and does not throw it in the air. 70 g is a ~165 km/h head-on hit into
+ * concrete; a tyre wall or soft wall takes a lot more than that to get there.
+ */
+const G_LAUNCH = 70;
+/**
+ * The barriers' give for the renderer (world/BarrierGive.js: the panels and tyres pushed back round a car pressing into
+ * them, linked, springing back after it): a ring of 8 slots, each [x, z, nx, nz (the barrier face's normal into the
+ * road), depth (m), time the contact ended (-1 while it lasts), 0, 0]. Written by the physics, never read by it.
+ */
+export const GIVE_DENTS = { a: new Float32Array(64), next: 0, ver: 0 };
 /**
  * g at which a car can be torn in two: from 60 g (15 %), more often than not from ~75 g. (Grosjean's car split at
  * 67 g; drivers walk away from 20-40 g hits most weekends - a T-bone at 120 km/h is ~34 g here, a 150 km/h glancing
@@ -173,6 +210,7 @@ export class Car {
     this.trackIdx = this.track.idxAtS(s);
     this.gear = speed > 1 ? this.gearFor(speed) : 1;
     this.hv = this.hvd = this.pt = this.ptd = this.rl = this.rld = 0; this.wh.u.fill(0);
+    if (this._bc) this._bc.on = 0;   // (no barrier contact carried over)
   }
   gearFor(v) { let g = 1; while (g < 8 && v > CAR.gearTop[g - 1] * 0.97) g++; return g; }
 
@@ -193,11 +231,15 @@ export class Car {
    * The rear wing sits high and behind the crash structure: only a solid rear hit damages it, a tap or a side
    * impact does not (losing it ends a race, so it takes a real accident).
    */
-  applyImpact(bx, by, vImp, zone = null) {
+  applyImpact(bx, by, vImp, zone = null, vBody = vImp) {
     if (this.dmgCooldown > 0 || this.ghost > 0) return 0;
     // (a touch under ~7 km/h into the bodywork leaves no mark; it takes a big hit to wreck a car outright)
-    const sev = Math.max(0, Math.min(1, (vImp - 2) / 26));
-    if (sev <= 0) return 0;
+    // Two measures of a barrier hit: the speed of the part that struck it (vImp: the wings, the wheel that touched -
+    // they break on a tyre wall too) and what the car as a whole felt (vBody: the concrete-equivalent speed of its peak
+    // g - the suspension mounts, the engine and gearbox). On concrete square on the two are the same; a tyre wall or a
+    // soft wall takes most of the second away. (A car-to-car touch passes one speed: both the same.)
+    const sevL = Math.max(0, Math.min(1, (vImp - 2) / 26)), sev = Math.max(0, Math.min(1, (vBody - 2) / 26));
+    if (sevL <= 0 && sev <= 0) return 0;
     const d = this.dmg;
     // a car-to-car touch knows what it touched: a wheel takes it in the suspension (a bent track rod pulls the car
     // to one side), a sidepod shrugs off a rub, a wing loses its endplate
@@ -205,17 +247,18 @@ export class Car {
     else if (zone === 'side') { d.susp += Math.max(0, sev - 0.15) * 0.6; this.suspSide = by >= 0 ? 1 : -1; if (sev > 0.6) d.eng += (sev - 0.6) * 0.5; }
     else if (zone === 'wing') { if (by > 0) d.fwL += sev * 1.5; else d.fwR += sev * 1.5; }
     else if (bx > 1.2) {
-      if (by > 0.25) d.fwL += sev * 1.3; else if (by < -0.25) d.fwR += sev * 1.3; else { d.fwL += sev * 0.8; d.fwR += sev * 0.8; }
+      if (by > 0.25) d.fwL += sevL * 1.3; else if (by < -0.25) d.fwR += sevL * 1.3; else { d.fwL += sevL * 0.8; d.fwR += sevL * 0.8; }
       if (sev > 0.45) { d.susp += (sev - 0.45) * 1.4; d.eng += (sev - 0.45) * 0.7; this.suspSide = by >= 0 ? 1 : -1; }
     } else if (bx < -1.2) {
-      d.rw += Math.max(0, sev - 0.3) * 0.9; d.eng += sev * 0.35; if (sev > 0.6) d.susp += (sev - 0.6);
+      d.rw += Math.max(0, sevL - 0.3) * 0.9; d.eng += sev * 0.35; if (sev > 0.6) d.susp += (sev - 0.6);
     } else {
-      d.susp += sev * 0.7; this.suspSide = by >= 0 ? 1 : -1;
-      if (by > 0) d.fwL += sev * 0.35; else d.fwR += sev * 0.35;
+      // (the wheel itself struck: its own suspension takes the part's hit, cushioned or not)
+      d.susp += Math.max(sev, sevL * 0.85) * 0.7; this.suspSide = by >= 0 ? 1 : -1;
+      if (by > 0) d.fwL += sevL * 0.35; else d.fwR += sevL * 0.35;
       if (sev > 0.75) d.rw += (sev - 0.75) * 0.5;
     }
     for (const k in d) d[k] = Math.min(1, d[k]);
-    this.dmgCooldown = 0.4; this.lastImpact = sev;
+    this.dmgCooldown = 0.4; this.lastImpact = Math.max(sev, sevL * 0.5);
     if (d.susp >= 0.97 && !this.retired) { this.retired = true; this.retireReason = 'Terminal suspension damage'; }
     return sev;
   }
@@ -449,14 +492,17 @@ export class Car {
         const through = outC ? Math.sign(dc) === Math.sign(dcC) && Math.abs(dc) < wall : Math.abs(dc) > wall;
         if (c[1] < (side > 0 ? hL : hR) && through) {
           const sg = outC ? -1 : 1, nx = -nxT * side * sg, nz = -nzT * side * sg, pen = outC ? wall - Math.abs(dc) : Math.abs(dc) - wall;
-          p[0] += nx * pen; p[2] += nz * pen;
+          // (a barrier that gives - BARRIER: the body sinks into it up to its give, each point held by its crush force;
+          //  past that, or concrete, it is pushed out and stopped at once)
+          const code = (side > 0 ? (tr.giveL || tr.barL) : (tr.giveR || tr.barR))[i], BB = BARRIER[BAR_KIND[code]] || BARRIER.wall, give = !BB.rigid && pen < BB.D;
+          if (!give) { const o = BB.rigid ? pen : pen - BB.D; p[0] += nx * o; p[2] += nz * o; }
           const vn = (v[0] + (w[1] * rz - w[2] * ry)) * nx + (v[2] + (w[0] * ry - w[1] * rx)) * nz;
           if (vn < 0) {
-            const j = -1.2 * vn / this._rbK(rx, ry, rz, nx, 0, nz);
+            const jr = -1.2 * vn / this._rbK(rx, ry, rz, nx, 0, nz), j = give ? Math.min(jr, 0.5 * BB.Fy * 9.81 * M * dt) : jr;
             this._rbApply(rx, ry, rz, nx * j, 0, nz * j);
             if (-vn > hard) { hard = -vn; hx = c[0]; hy = c[1]; hz = c[2]; }
             if (k >= 4 && vn < -3) { const a = rotInv(q, nx, 0, nz, _t4); this.crush(pt[0] - MX(), pt[1] + REST_H, pt[2], a[0], a[1], a[2], -vn); }
-            hitKind = BAR_KIND[side > 0 ? tr.barL[i] : tr.barR[i]] || 'wall';
+            hitKind = BAR_KIND[code] || 'wall';
           }
         }
       }
@@ -839,7 +885,7 @@ export class Car {
     } else if (this.lapDist < -50) this.lapDist = -50;
 
     // barrier collisions
-    if (this.ghost <= 0 && !this.inPit) { this._barriers(world); if (world.obstacles && !this.pitLane) this._obstacles(world); }
+    if (this.ghost <= 0 && !this.inPit) { this._barriers(world, dt); if (world.obstacles && !this.pitLane) this._obstacles(world); }
     // sliding sideways into gravel, grass or over a kerb's edge: the car can trip and roll
     if (!this.air && !this.wreck && !this.inPit && !this.pitLane && this.ghost <= 0) this._trip(world);
 
@@ -867,7 +913,7 @@ export class Car {
     if (this.pitLimiter && this.vLong > P.limiter) this.vLong = P.limiter;
   }
 
-  _barriers(world) {
+  _barriers(world, dt = 1 / 120) {
     const tr = this.track;
     let nx, nz, px, pz, boL, boR;   // wall distance on the left / right of the centreline (Infinity = open)
     if (this.pitLane) {                                             // pit-lane walls: garage wall + the pit wall once it exists
@@ -895,7 +941,121 @@ export class Car {
       const pen = out0 ? (Math.sign(dc) === Math.sign(dc0) ? wall - Math.abs(dc) : -1) : Math.abs(dc) - wall;
       if (pen > maxPen && isFinite(pen)) { maxPen = pen; hitBx = bx; hitBy = by; hitSide = Math.sign(dc) * (out0 ? -1 : 1); }
     }
-    if (hitSide === 0) return;
+    const bc = this._bc || (this._bc = { on: 0, rep: 0, code: 0, u0: 0, g: 0, hard: 0, res: 0, E: 0, dvx: 0, dvz: 0, t: 0, bx: 0, by: 0, nx: 0, nz: 0, cx: 0, cz: 0, pen: 0, slot: -1, dm: null, fm: null, inC: null });
+    if (hitSide === 0) { if (bc.on) this._barrierDone(world); return; }
+    // what the barrier is (BARRIER): the pit lane's own walls stay as they were - one rigid impulse, concrete or the
+    // tyre wall along its escape (a lane that is a lane: its walls hold the car on its line) - else the circuit's, by the
+    // side the car is on (Track.giveL / giveR: the barrier lines' kinds, soft walls where they stand)
+    if (this.pitLane) { if (bc.on) this._barrierDone(world); this._wallRigid(world, maxPen, hitSide, hitBx, hitBy, nx, nz, this.pit?.escape?.[this.pitI] ? 'tyres' : 'wall'); return; }
+    if (!tr.giveL && tr.buildGive) tr.buildGive();
+    const G = dc0 > 0 ? (tr.giveL || tr.barL) : (tr.giveR || tr.barR), code = G[this.trackIdx] || 3;
+    const bk = BAR_KIND[code] || 'wall', B = BARRIER[bk] || BARRIER.wall;
+    if (bc.on && bc.code !== code) this._barrierDone(world);   // (slid from one kind of barrier onto another: a new contact)
+    if (B.rigid) { this._wallRigid(world, maxPen, hitSide, hitBx, hitBy, nx, nz, bk); return; }
+    this._barrierSoft(world, dt, B, code, hitSide, maxPen, nx, nz, px, pz, boL, boR, out0, dc0);
+  }
+
+  /**
+   * A barrier that gives (BARRIER): the car presses into it over several steps - at every point of it that is in it, the
+   * nose, the wheels, the tail (a car swinging in against it is held along its side, not levered round its nose) - each
+   * point a spring-damper up to the force the barrier crushes at, until the speed into it is spent; a point that has
+   * pushed it back all it gives meets what stands behind (BARRIER.back) and is stopped there at once, as by a wall.
+   */
+  _barrierSoft(world, dt, B, code, hitSide, maxPen, nx, nz, px, pz, boL, boR, out0, dc0) {
+    const bc = this._bc, c = Math.cos(this.th), s = Math.sin(this.th), M = CAR.mass, Fy = B.Fy * 9.81 * M;
+    if (!bc.dm) { bc.dm = new Float32Array(6); bc.fm = new Float32Array(6); bc.inC = new Uint8Array(6); }
+    if (!bc.on) { bc.on = 1; bc.rep = 0; bc.code = code; this._blow(); bc.dm.fill(0); bc.fm.fill(0); bc.inC.fill(0); bc.slot = this._dentSlot(); }
+    // pushed out only as far as the barrier cannot give
+    const o = maxPen - B.D;
+    if (o > 0) { this.x -= nx * o * hitSide; this.z -= nz * o * hitSide; }
+    const wnx = -nx * hitSide, wnz = -nz * hitSide, tx = -wnz, tz = wnx;   // contact normal: from the barrier into the car
+    let gB = 0, best = -1, vOut = -Infinity, pDeep = 0, dX = 0, dZ = 0;
+    for (let k = 0; k < CORNERS.length; k++) {
+      const bx = CORNERS[k][0], by = CORNERS[k][1];
+      const cx = this.x + bx * c + by * s, cz = this.z + bx * s - by * c;
+      const dc = (cx - px) * nx + (cz - pz) * nz, wall = dc > 0 ? boL : boR;
+      const pen = out0 ? (Math.sign(dc) === Math.sign(dc0) ? wall - Math.abs(dc) : -1) : Math.abs(dc) - wall;
+      if (!(pen > 0) || !isFinite(pen) || Math.sign(dc) * (out0 ? -1 : 1) !== hitSide) { if (bc.inC[k]) { bc.inC[k] = 0; bc.dm[k] = 0; bc.fm[k] = 0; } continue; }
+      const v = this.velAt(cx, cz, _v2), vin = -(v[0] * wnx + v[1] * wnz), vt = v[0] * tx + v[1] * tz;
+      // (a point coming into it hard once the first blow was spent - the tail swinging in after the nose: a hit of its own)
+      if (!bc.inC[k]) { bc.inC[k] = 1; if (bc.rep && vin > 6) this._blow(); }
+      const K = this.invMassAt(cx, cz, wnx, wnz), Kt = this.invMassAt(cx, cz, tx, tz);
+      if (vin > bc.u0) { bc.u0 = vin; bc.bx = bx; bc.by = by; bc.mk = K; best = k; }
+      if (pen > pDeep) { pDeep = pen; dX = cx + wnx * pen; dZ = cz + wnz * pen; }
+      let j, mu = B.mu, rigid = false;
+      if (pen >= B.D - 1e-4 && vin > 0) {
+        // it has given all it has here: what stands behind it stops the rest at once
+        j = (1 + (vin > 8 ? 0.12 : 0.25)) * vin / K; mu = 0.35; rigid = true; bc.dm[k] = B.D; bc.fm[k] = Fy;
+      } else {
+        // the spring-damper, implicit in the step (stable however stiff): j = dt (F(del') + c vin'), vin' the speed into it
+        // after the impulse, del' the give then. Loading, the spring is soft and yields at the crush force; letting go,
+        // it follows a line ku times stiffer from the furthest it got - what it does not hand back it has absorbed.
+        const load = pen >= bc.dm[k] && vin >= 0, kk = load ? B.k : B.k * B.ku, del = pen - (load ? 0 : bc.dm[k] - bc.fm[k] / kk);
+        j = 0;
+        if (del > 0) { const kd = kk * dt + B.c; j = Math.max(0, Math.min(Fy * dt, dt * (kk * del + kd * vin) / (1 + K * dt * kd))); }
+        if (load) { bc.dm[k] = pen; bc.fm[k] = Math.max(bc.fm[k], Math.min(Fy, B.k * pen)); }
+      }
+      if (!(j > 0)) continue;
+      const jt = Math.max(-mu * j, Math.min(mu * j, -vt / Kt));
+      this.impulseAt(cx, cz, j * wnx + jt * tx, j * wnz + jt * tz);
+      if (rigid) { const g = this.pulse(Math.hypot(j, jt) / M, PULSE[B.back], B.back); bc.hard = Math.max(bc.hard, g); bc.res = Math.max(bc.res, vin); if (g > gB) { gB = g; bc.cx = cx; bc.cz = cz; } }
+      else {
+        bc.dvx += (j * wnx + jt * tx) / M; bc.dvz += (j * wnz + jt * tz) / M; bc.E += j * (vin - 0.5 * j * K);
+        bc.g = Math.max(bc.g, Math.hypot(j, jt) / (M * dt * 9.81));   // (the barrier's force on the car at its peak, in g: the rig reports it)
+        if (k === best || bc.cx === 0) { bc.cx = cx; bc.cz = cz; }
+      }
+      vOut = Math.max(vOut, vin - j * K);
+    }
+    bc.nx = wnx; bc.nz = wnz; bc.t += dt;
+    if (pDeep > 0) { bc.pen = Math.max(bc.pen, pDeep); this._dentAt(bc.slot, dX, dZ, wnx, wnz, pDeep); }
+    // the hit is over when the speed into it is spent everywhere - or the barrier bottomed out: then it is reported at once
+    if (!bc.rep && (gB > 0 || (bc.t > dt * 1.5 && vOut <= 0.3))) this._barrierHit(world);
+    if (gB > G_LAUNCH && !this.inPit) this._wallLaunch(world, gB, bc.res, bc.bx, bc.by, wnx, wnz, bc.cx, bc.cz);
+  }
+  /** a new blow against the barrier: its tally starts again (what the barrier has given stays given) */
+  _blow() { const bc = this._bc; bc.rep = 0; bc.u0 = 0; bc.g = 0; bc.hard = 0; bc.res = 0; bc.E = 0; bc.dvx = 0; bc.dvz = 0; bc.t = 0; bc.cx = 0; bc.cz = 0; bc.pen = 0; bc.mk = 0; }
+
+  /** a free dent slot of the barriers' give (GIVE_DENTS) for a contact starting now */
+  _dentSlot() {
+    const D = GIVE_DENTS, k = D.next; D.next = (k + 1) & 7;
+    const a = D.a, o = k * 8; a[o + 4] = 0; a[o + 5] = -1; return k;
+  }
+  _dentAt(k, x, z, nx, nz, depth) {
+    if (k < 0) return; const a = GIVE_DENTS.a, o = k * 8;
+    a[o] = x; a[o + 1] = z; a[o + 2] = nx; a[o + 3] = nz; if (depth > a[o + 4]) a[o + 4] = depth; a[o + 5] = -1; GIVE_DENTS.ver++;
+  }
+  /**
+   * A barrier hit that gave is over (its speed spent, or it bottomed out): the car is told what it felt - the peak g
+   * of the barrier's push (Car.pulse: the damage to the suspension and engine, the crash camera, the injuries and the
+   * fatality odds all read that) and the concrete-equivalent speed of it, the bodywork the speed of the part that touched.
+   */
+  _barrierHit(world) {
+    const bc = this._bc, B = BARRIER[BAR_KIND[bc.code]] || BARRIER.wall; bc.rep = 1;
+    // (the g of the give, measured as concrete's is - Car.pulse, the injury odds are calibrated on it: the velocity change
+    //  over the pulse's length, here the time the barrier pushed plus the car's own crash structure's, PULSE.wall)
+    // (and never harsher than concrete would have been for the same blow - the same speed into it at the same point:
+    //  a barrier that gives cannot hurt more than one that does not)
+    const dv = Math.hypot(bc.dvx, bc.dvz), gWall = 1.12 * bc.u0 / ((bc.mk || 1 / CAR.mass) * CAR.mass * PULSE.wall * 9.81);
+    const gs = Math.min(dv / ((bc.t + PULSE.wall) * 9.81), gWall);
+    if (gs >= 1 && gs > bc.hard) this.pulse(dv, dv / (gs * 9.81), BAR_KIND[bc.code]);
+    const gF = Math.max(gs, bc.hard), uEq = gF * U_PER_G, vLoc = bc.u0 * B.local;
+    this.hardest = Math.max(this.hardest || 0, uEq);
+    const L = this.lastHit || (this.lastHit = { g: 0, peak: 0, u: 0, E: 0, kind: '', t: 0 }); L.g = gF; L.peak = bc.g; L.u = bc.u0; L.E = bc.E; L.kind = BAR_KIND[bc.code]; L.t = bc.t;   // (the crash rig reads it)
+    const sev = this.applyImpact(bc.bx, bc.by, vLoc, null, uEq);
+    // (the bodywork is crushed by what the car took itself: what was left when the barrier bottomed out, else a share of
+    //  the speed of the part that pushed into it)
+    if (sev > 0) { world.onImpact?.(this, sev, 'wall'); this.emit('hit', bc.cx, bc.cz, sev); this.crushFlat(bc.bx, bc.by, 0.32, bc.nx, bc.nz, Math.max(bc.res, uEq, 0.6 * vLoc)); }
+  }
+  /** the car has left the barrier (or slid onto another kind): the hit reported if it was not yet, the panels let go */
+  _barrierDone(world) {
+    const bc = this._bc; if (!bc || !bc.on) return;
+    if (!bc.rep && bc.u0 > 0.5) this._barrierHit(world);
+    bc.on = 0;
+    if (bc.slot >= 0) { GIVE_DENTS.a[bc.slot * 8 + 5] = this._now || 0; GIVE_DENTS.ver++; bc.slot = -1; }
+  }
+  /** a concrete wall (and the pit lane's): the car pushed out of it and one rigid impulse, as it always was */
+  _wallRigid(world, maxPen, hitSide, hitBx, hitBy, nx, nz, bk) {
+    const c = Math.cos(this.th), s = Math.sin(this.th);
     this.x -= nx * maxPen * hitSide; this.z -= nz * maxPen * hitSide;
     // Rigid-body impulse at the corner that touches the wall: a glancing hit slides the car along the barrier, a
     // corner-first hit spins it (most of the energy goes into rotation, as in a real accident)
@@ -904,28 +1064,35 @@ export class Car {
     const v = this.velAt(cx, cz, _v2); const vn = v[0] * wnx + v[1] * wnz;
     if (vn >= 0) return;
     const into = -vn, e = into > 8 ? 0.12 : 0.25;
-    this.hardest = Math.max(this.hardest || 0, into);
     const j = (1 + e) * into / this.invMassAt(cx, cz, wnx, wnz);
     const tx = -wnz, tz = wnx, vt = v[0] * tx + v[1] * tz;               // Coulomb friction along the barrier
     const jt = Math.max(-0.35 * j, Math.min(0.35 * j, -vt / this.invMassAt(cx, cz, tx, tz)));
     this.impulseAt(cx, cz, j * wnx + jt * tx, j * wnz + jt * tz);
-    const bk = this.pitLane ? (this.pit?.escape?.[this.pitI] ? 'tyres' : 'wall') : BAR_KIND[dc0 > 0 ? tr.barL[this.trackIdx] : tr.barR[this.trackIdx]] || 'wall';
     const gHit = this.pulse(Math.hypot(j, jt) / CAR.mass, PULSE[bk], bk);
-    const sev = this.applyImpact(hitBx, hitBy, into);
+    // (what the car felt, as the speed square into concrete that would give it: a corner-first slap is a fraction of the
+    //  corner's speed, a head-on hit all of it)
+    const uEq = Math.min(into * 1.05, gHit * U_PER_G);
+    this.hardest = Math.max(this.hardest || 0, uEq);
+    const L = this.lastHit || (this.lastHit = { g: 0, peak: 0, u: 0, E: 0, kind: '', t: 0 }); L.g = gHit; L.peak = gHit; L.u = into; L.E = 0; L.kind = bk; L.t = 0;
+    const sev = this.applyImpact(hitBx, hitBy, into, null, uEq);
     if (sev > 0) { world.onImpact?.(this, sev, 'wall'); this.emit('hit', cx, cz, sev); this.crushFlat(hitBx, hitBy, 0.32, wnx, wnz, into); }
-    // A heavy hit wrecks the car. The harder it is, the likelier the corner digs in and the car vaults off the barrier
-    // (1-2 m up, about a second in the air, part of a roll); otherwise it is torn up and spun along the wall.
-    // The wheel nearest the contact climbs the barrier: its hub is kicked up (and a little off the wall) by an amount
-    // that grows with the impact speed. Everything after that is the rigid body's own physics.
-    if (into > LAUNCH_WALL && !this.inPit) {
-      const k = into - LAUNCH_WALL, fly = Math.random() < Math.min(0.6, 0.15 + k / 25);
-      const wx = this.x + Math.sign(hitBx || 1) * 1.8 * c + Math.sign(hitBy || 1) * 0.85 * s, wz = this.z + Math.sign(hitBx || 1) * 1.8 * s - Math.sign(hitBy || 1) * 0.85 * c;
-      // (a vault off the wall is a 6-14 m/s kick at the wheel: up to ~2 m, mostly a roll)
-      const up = fly ? Math.min(14, 6 + k * 0.4 + Math.random() * 4) : into * (0.06 + Math.random() * 0.08);
-      this.launch(wx, 0.36, wz, wnx * into * 0.1, up, wnz * into * 0.1);
-      if (gHit > SPLIT_G && Math.random() < Math.min(0.8, 0.15 + (gHit - SPLIT_G) / 40)) this.splitApart();
-      else if (gHit > 35 && Math.random() < 0.25) this.emit('fire', cx, cz, 0.8);
-    }
+    if (gHit > G_LAUNCH && !this.inPit) this._wallLaunch(world, gHit, into, hitBx, hitBy, wnx, wnz, cx, cz);
+  }
+  /**
+   * A heavy hit wrecks the car. The harder it is, the likelier the corner digs in and the car vaults off the barrier
+   * (1-2 m up, about a second in the air, part of a roll); otherwise it is torn up and spun along the wall. The wheel
+   * nearest the contact climbs the barrier: its hub is kicked up (and a little off the wall) by an amount that grows
+   * with the hit. Everything after that is the rigid body's own physics.
+   */
+  _wallLaunch(world, g, into, hitBx, hitBy, wnx, wnz, cx, cz) {
+    const c = Math.cos(this.th), s = Math.sin(this.th), k = (g - G_LAUNCH) * U_PER_G, fly = Math.random() < Math.min(0.6, 0.15 + k / 25);
+    const wx = this.x + Math.sign(hitBx || 1) * 1.8 * c + Math.sign(hitBy || 1) * 0.85 * s, wz = this.z + Math.sign(hitBx || 1) * 1.8 * s - Math.sign(hitBy || 1) * 0.85 * c;
+    // (a vault off the wall is a 6-14 m/s kick at the wheel: up to ~2 m, mostly a roll)
+    const up = fly ? Math.min(14, 6 + k * 0.4 + Math.random() * 4) : g * U_PER_G * (0.06 + Math.random() * 0.08);
+    if (this._bc?.on) this._barrierDone(world);
+    this.launch(wx, 0.36, wz, wnx * into * 0.1, up, wnz * into * 0.1);
+    if (g > SPLIT_G && Math.random() < Math.min(0.8, 0.15 + (g - SPLIT_G) / 40)) this.splitApart();
+    else if (g > 35 && Math.random() < 0.25) this.emit('fire', cx, cz, 0.8);
   }
 
   /**
@@ -943,9 +1110,10 @@ export class Car {
     const into = -vn, j = (1 + (into > 8 ? 0.12 : 0.25)) * into / this.invMassAt(cx, cz, nx, nz);
     const tx = -nz, tz = nx, vt = v[0] * tx + v[1] * tz, jt = Math.max(-0.35 * j, Math.min(0.35 * j, -vt / this.invMassAt(cx, cz, tx, tz)));
     this.impulseAt(cx, cz, j * nx + jt * tx, j * nz + jt * tz);
-    const g = this.pulse(Math.hypot(j, jt) / CAR.mass, PULSE.building, 'building');
-    const sev = this.applyImpact(hb, hy, into); if (sev > 0) { world.onImpact?.(this, sev, 'wall'); this.emit('hit', cx, cz, sev); this.crushFlat(hb, hy, 0.32, nx, nz, into); }
-    if (into > LAUNCH_WALL) { this.launch(cx, 0.36, cz, nx * into * 0.1, into * (0.06 + Math.random() * 0.08), nz * into * 0.1); if (g > SPLIT_G && Math.random() < Math.min(0.8, 0.15 + (g - SPLIT_G) / 40)) this.splitApart(); }
+    const g = this.pulse(Math.hypot(j, jt) / CAR.mass, PULSE.building, 'building'), uEq = Math.min(into * 1.05, g * U_PER_G);
+    this.hardest = Math.max(this.hardest || 0, uEq);
+    const sev = this.applyImpact(hb, hy, into, null, uEq); if (sev > 0) { world.onImpact?.(this, sev, 'wall'); this.emit('hit', cx, cz, sev); this.crushFlat(hb, hy, 0.32, nx, nz, into); }
+    if (g > G_LAUNCH) { this.launch(cx, 0.36, cz, nx * into * 0.1, into * (0.06 + Math.random() * 0.08), nz * into * 0.1); if (g > SPLIT_G && Math.random() < Math.min(0.8, 0.15 + (g - SPLIT_G) / 40)) this.splitApart(); }
   }
   /**
    * A car sliding sideways (more than ~40 km/h of it) whose leading wheels run off the asphalt into gravel or grass,

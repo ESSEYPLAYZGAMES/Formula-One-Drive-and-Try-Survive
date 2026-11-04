@@ -2,7 +2,8 @@
 // spatial hash for nearest-point queries, and the road/kerb/run-off/barrier meshes.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { kerbTexture, barrierAtlas, atlasU, runoffTextTexture, RUNOFF_DECAL_LEN, ZONE_SEQ, ZONE_LEN, PANEL_LEN, TECPRO_PANEL } from './Branding.js';
+import { giveMaterial } from '../world/BarrierGive.js';
+import { kerbTexture, barrierAtlas, atlasU, runoffTextTexture, RUNOFF_DECAL_LEN, ZONE_SEQ, ZONE_LEN, PANEL_LEN } from './Branding.js';
 
 const DS = 2.0;              // sample spacing (m)
 const CELL = 24;             // spatial hash cell (m)
@@ -16,6 +17,10 @@ const GREEN_W = 1.6;         // painted green strip behind a permanent circuit's
 export const DETAIL_CUT = { lines: 700, kerbs: 900, green: 700, panels: 1100, tyreWall: 900, caps: 900, fences: 800, rails: 900, armco: 900, pitDetail: 900 };
 /** barrier types at the wall line */
 export const BAR = { NONE: 0, ARMCO: 1, TYRES: 2, WALL: 3 };
+/** what a barrier gives to a car that hits it (Track.giveL / giveR, Car.js BARRIER): the BAR codes, and a soft wall -
+ *  SAFER / TecPro, energy-absorbing - drawn as what stands there */
+export const GIVE = { NONE: 0, ARMCO: 1, TYRES: 2, WALL: 3, SOFT: 4 };
+const GIVE_NAME = { wall: GIVE.WALL, soft: GIVE.SOFT, tyres: GIVE.TYRES, armco: GIVE.ARMCO };
 /** how tall each barrier type stands (m): Armco, a tyre wall, a concrete wall with its debris fence; a catch fence 4 m */
 export const BAR_HEIGHT = [0, 0.85, 1.3, 4.2], FENCE_H = 4.0;
 /** point-in-footprint test over a set of rings (bounding boxes first) */
@@ -271,6 +276,34 @@ export class Track {
         if (k <= gap) for (let q = 0; q < k; q++) bar[(i + q) % n] = bar[(i - 1 + n) % n];
       }
     }
+  }
+
+  /**
+   * What each barrier gives to a car that hits it (Car.js BARRIER), per sample and side: giveL / giveR. The barrier
+   * line's own kind (barL / barR) - concrete, tyres, Armco - with soft walls (GIVE.SOFT: SAFER / TecPro) where they
+   * stand: a walled park circuit's runs across the back of its escape areas are TecPro (Montreal). Then each corner of
+   * def.barriers: [{ turn, side, from, to, kind, deep }] - side 'out' / 'in' of the corner, or 1 / -1 (left / right),
+   * both when unset; from / to in metres from the apex; kind 'wall' | 'soft' | 'tyres' | 'armco'; deep: only where the
+   * barrier stands at least that far beyond the usual line (the end wall of a run-off, not the walls beside the road
+   * leading to it). It applies where a barrier stands, and changes nothing that is drawn. Call once the barrier lines
+   * are final (main.js, after fairWalls); Car builds it if nobody did.
+   */
+  buildGive() {
+    const n = this.n, gL = Uint8Array.from(this.barL), gR = Uint8Array.from(this.barR);
+    if (this.walled) for (const g of [gL, gR]) for (let i = 0; i < n; i++) if (g[i] === BAR.TYRES) g[i] = GIVE.SOFT;
+    for (const b of this.def.barriers || []) {
+      const c = (this.def.corners || []).find((k) => k.n === b.turn); if (!c || c.s == null) continue;
+      const kind = GIVE_NAME[b.kind]; if (kind == null) continue;
+      const ci = this.idxAtS(c.s), z = this.cornerZones.find((q) => (q.a <= q.b ? ci >= q.a - 20 && ci <= q.b + 20 : ci >= q.a - 20 || ci <= q.b + 20)), dir = z ? z.dir : 1;
+      const sides = b.side === 'out' ? [-dir] : b.side === 'in' ? [dir] : b.side === 1 || b.side === -1 ? [b.side] : [1, -1];
+      const i0 = this.idxAtS(c.s + (b.from ?? -60)), m = Math.round(this.wrapS((b.to ?? 60) - (b.from ?? -60)) / this.ds);
+      for (const side of sides) {
+        const g = side > 0 ? gL : gR, bar = side > 0 ? this.barL : this.barR, wall = side > 0 ? this.wallL : this.wallR;
+        for (let k = 0; k <= m; k++) { const i = (i0 + k) % n; if (bar[i] && (b.deep == null || wall[i] > this.barrierOffset + b.deep)) g[i] = kind; }
+      }
+    }
+    this.giveL = gL; this.giveR = gR;
+    return gL;
   }
 
   /**
@@ -1057,7 +1090,7 @@ export function fenceTexture() {
 }
 let _fenceMat = null;
 function fenceMaterial() {
-  if (!_fenceMat) _fenceMat = new THREE.MeshStandardMaterial({ map: fenceTexture(), alphaTest: 0.35, side: THREE.DoubleSide, roughness: 0.55, metalness: 0.4, emissive: 0x15171a });
+  if (!_fenceMat) _fenceMat = giveMaterial(new THREE.MeshStandardMaterial({ map: fenceTexture(), alphaTest: 0.35, side: THREE.DoubleSide, roughness: 0.55, metalness: 0.4, emissive: 0x15171a }));   // (the catch fence flexes with a barrier pushed back into it)
   return _fenceMat;
 }
 /** a street circuit's catch-fence mesh: fine diamond chain link alone (the posts are geometry) - u up the fence, v along
@@ -1157,6 +1190,78 @@ function buildInfield(tr, pit, roadMat, kw, side) {
   if (tyres.length) { const m = new THREE.Mesh(mergeGeometries(tyres), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.75 })); m.name = 'pit-infield:tyres'; m.castShadow = true; grp.add(m); }
   return grp;
 }
+/** TecPro blocks: how deep (m, back from the barrier's face), how tall, how long each, the gap between two */
+export const TECPRO = { depth: 0.75, h: 1.1, len: 1.5, gap: 0.05, bevel: 0.09 };
+/** where a soft wall (GIVE.SOFT) stands in front of tyres or Armco: drawn as a run of TecPro blocks (a SAFER wall's is concrete) */
+export const isTecpro = (tr, i, side) => { const g = side > 0 ? tr.giveL : tr.giveR, b = side > 0 ? tr.barL[i] : tr.barR[i]; return !!g && g[i] === GIVE.SOFT && b !== BAR.WALL && b !== BAR.NONE; };
+/** one block's face: white (the vertex colour makes half of them red), the seams dark, the logo plate and its lettering */
+let _tpTex = null;
+function tecproTexture() {
+  if (_tpTex) return _tpTex;
+  const c = document.createElement('canvas'); c.width = 256; c.height = 192; const x = c.getContext('2d');
+  x.fillStyle = '#f4f4f2'; x.fillRect(0, 0, 256, 192);
+  const gr = x.createLinearGradient(0, 0, 0, 192); gr.addColorStop(0, 'rgba(255,255,255,0.35)'); gr.addColorStop(0.15, 'rgba(255,255,255,0)'); gr.addColorStop(0.85, 'rgba(0,0,0,0)'); gr.addColorStop(1, 'rgba(0,0,0,0.25)');
+  x.fillStyle = gr; x.fillRect(0, 0, 256, 192);
+  x.fillStyle = 'rgba(0,0,0,0.35)'; x.fillRect(0, 0, 5, 192); x.fillRect(251, 0, 5, 192);   // (the moulded edges, where two blocks meet)
+  x.fillStyle = 'rgba(0,0,0,0.12)'; x.fillRect(0, 118, 256, 4);                              // (the strap between the blocks)
+  x.fillStyle = 'rgba(80,80,80,0.75)'; x.font = '800 40px Arial, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('TECPRO', 128, 74);
+  _tpTex = new THREE.CanvasTexture(c); _tpTex.colorSpace = THREE.SRGBColorSpace; _tpTex.anisotropy = 4;
+  return _tpTex;
+}
+/**
+ * The TecPro blocks along one side's barrier line where mask(i): solid blocks, TECPRO.len long, standing behind the
+ * barrier's face (the face is where the physics has it - vehicle/Car.js BARRIER.soft), linked in a chain, red and
+ * white in turn. Each vertex carries aGive - 1 on the face a car presses, falling to 0.1 at the back - so the barrier's
+ * give (world/BarrierGive.js) squashes them: the face pushed back, the back held, the top bulging up.
+ */
+function tecproBlocks(tr, side, wallAt, mask) {
+  const n = tr.n, L = tr.length, T = TECPRO, pos = [], uv = [], col = [], giv = [];
+  const P = (sv, out) => {   // (the barrier's face at arc length sv on this side, and the normal out of the road there)
+    sv = ((sv % L) + L) % L; const f = sv / tr.ds, i = Math.floor(f) % n, j = (i + 1) % n, t = f - Math.floor(f);
+    const wi = wallAt(i, side), wj = wallAt(j, side);
+    out[0] = (tr.px[i] + tr.nx[i] * side * wi) * (1 - t) + (tr.px[j] + tr.nx[j] * side * wj) * t;
+    out[1] = (tr.pz[i] + tr.nz[i] * side * wi) * (1 - t) + (tr.pz[j] + tr.nz[j] * side * wj) * t;
+    out[2] = (tr.nx[i] * (1 - t) + tr.nx[j] * t) * side; out[3] = (tr.nz[i] * (1 - t) + tr.nz[j] * t) * side; return out;
+  };
+  // the cross-section (w out from the face, y up) and what each edge gives: the face, the bevel, the top's back edge, the back
+  const SEC = [[0, 0, 1], [0, T.h - T.bevel, 1], [T.bevel, T.h, 0.85], [T.depth, T.h, 0.1], [T.depth, 0, 0.1]];
+  const A = [0, 0, 0, 0], B = [0, 0, 0, 0];
+  const vert = (E, w, y, g, u, v, rgb) => { pos.push(E[0] + E[2] * w, y, E[1] + E[3] * w); uv.push(u, v); col.push(rgb[0], rgb[1], rgb[2]); giv.push(g); };
+  const PLAIN = [0.5, 0.06];
+  let start = -1;
+  for (let k = 0; k <= n; k++) {
+    const on = k < n && mask(k);
+    if (on && start < 0) start = k;
+    if ((!on || k === n) && start >= 0) {
+      const s0 = start * tr.ds, s1 = k * tr.ds, m = Math.floor((s1 - s0 + 1e-6) / T.len);
+      for (let b = 0; b < m; b++) {
+        const sa = s0 + (s1 - s0 - m * T.len) / 2 + b * T.len, sb = sa + T.len - T.gap;
+        P(sa, A); P(sb, B);
+        const red = (Math.round(sa / T.len) & 1) === 0, rgb = red ? [0.84, 0.1, 0.12] : [1, 1, 1];
+        const [E0, E1] = side > 0 ? [A, B] : [B, A];   // (wound so the faces look out of the block)
+        // the four long faces: face, bevel, top, back
+        for (let q = 0; q < 4; q++) {
+          const p0 = SEC[q], p1 = SEC[q + 1], front = q === 0;
+          const u0 = 0, u1 = 1, v0 = front ? 0 : PLAIN[1], v1 = front ? (T.h - T.bevel) / T.h : PLAIN[1];
+          const a = [E0, p0, front ? u0 : PLAIN[0], v0], bb = [E1, p0, front ? u1 : PLAIN[0], v0], c = [E1, p1, front ? u1 : PLAIN[0], v1], d = [E0, p1, front ? u0 : PLAIN[0], v1];
+          for (const [E, pp, u, v] of [a, bb, c, a, c, d]) vert(E, pp[0], pp[1], pp[2], side > 0 ? u : 1 - u, v, rgb);
+        }
+        // the two ends: the cross-section, fanned
+        for (const [E, flip] of [[E0, false], [E1, true]]) for (let q = 1; q < 4; q++) {
+          const tri = flip ? [SEC[0], SEC[q + 1], SEC[q]] : [SEC[0], SEC[q], SEC[q + 1]];
+          for (const pp of tri) vert(E, pp[0], pp[1], pp[2], PLAIN[0], PLAIN[1], rgb);
+        }
+      }
+      start = -1;
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); g.setAttribute('aGive', new THREE.Float32BufferAttribute(giv, 1));
+  g.computeVertexNormals();
+  g.setIndex(Array.from({ length: pos.length / 3 }, (_, k) => k));   // (spatialChunks sorts by triangle)
+  return g;
+}
 /** the catch fences in front of the grandstands (Track.markFences), built once the stands are placed */
 export function buildCatchFences(track, pit) {
   const tr = track, group = new THREE.Group(); group.name = 'catch-fences';
@@ -1170,7 +1275,8 @@ export function buildCatchFences(track, pit) {
   const geos = [1, -1].map((side) => {
     const f = side > 0 ? tr.fenceL : tr.fenceR;
     const mask = (i) => f[i] && f[(i + 1) % tr.n] && !(pit && side === pitSide && (pit.laneCovers?.[i] || tr.pitInfield?.[i]));
-    return ribbon(tr, (i) => side * (barAt(i, side) + 0.25), (i) => side * (barAt(i, side) + 0.25), 0.4, { yB: FENCE_H, mask, uvFn: (i) => tr.s[i] / 3 });
+    const off = (i) => barAt(i, side) + 0.25 + (isTecpro(tr, i, side) ? TECPRO.depth : 0);   // (behind the TecPro blocks where they stand)
+    return ribbon(tr, (i) => side * off(i), (i) => side * off(i), 0.4, { yB: FENCE_H, mask, uvFn: (i) => tr.s[i] / 3 });
   }).filter((g) => g.index.count);
   if (geos.length) group.add(spatialChunks(geos, fenceMaterial(), 'catchFences'));
   return group;
@@ -1412,9 +1518,10 @@ export function buildTrackMeshes(track, pit, gridSlots) {
   //     zones, all from one atlas texture: one material for every banner on the circuit
   const atlas = barrierAtlas();
   const panelMat = new THREE.MeshStandardMaterial({ map: atlas, emissive: 0xffffff, emissiveMap: atlas, emissiveIntensity: 0.55, roughness: 0.55, side: THREE.DoubleSide });
+  giveMaterial(panelMat);   // (pushed back round a car pressing into a barrier that gives: world/BarrierGive.js)
   const zoneOf = (i) => Math.floor(tr.s[i] / ZONE_LEN);
   const nZones = Math.ceil(tr.length / ZONE_LEN);
-  const panelGeos = [];
+  const panelGeos = []; const tecproGeos = [];
   // the T-Mobile Zone: every barrier around the Sphere loop (T5 - T9) carries the magenta panel
   // (T5 through the straight past the Sphere itself to T10: the Sphere sits between T9 and T10)
   const cs = tr.def.corners || []; const sz = tr.def.sponsorZone; const seq = tr.def.zoneSeq || ZONE_SEQ;
@@ -1436,23 +1543,26 @@ export function buildTrackMeshes(track, pit, gridSlots) {
   // buildings, Armco between close parts of the lap, the concrete pit wall.
   const style = (i, side) => (side > 0 ? tr.barL[i] : tr.barR[i]);
   const seg = (side, fn) => (i) => open(i, side) && fn(style(i, side)) && fn(style((i + 1) % tr.n, side));
+  // (where TecPro blocks stand - a soft wall in front of tyres or Armco - nothing else is drawn on the line)
+  const tp = (i, side) => isTecpro(tr, i, side) || isTecpro(tr, (i + 1) % tr.n, side);
+  const segT = (side, fn) => (i) => seg(side, fn)(i) && !tp(i, side);
   for (const side of [1, -1]) {
     for (let z = 0; z < nZones; z++) {
       const p = inTMobile(z) ? sz.panel : seq[(z + (side < 0 ? 5 : 0)) % seq.length];
-      const keep = seg(side, (st) => (tr.walled ? st === BAR.WALL : st >= BAR.TYRES));   // (a walled park circuit's TecPro runs: below)
+      const keep = segT(side, (st) => (tr.walled ? st === BAR.WALL : st >= BAR.TYRES));   // (the TecPro runs: below)
       const g = ribbon(tr, (i) => side * wallAt(i, side), (i) => side * wallAt(i, side), 0, { yB: 1.2, mask: (i) => zoneOf(i) === z && keep(i) && !overAt(i, side), uvFn: (i) => -side * tr.s[i] / PANEL_LEN });
       if (!g.index.count) continue;
       const uv = g.attributes.uv; for (let k = 0; k < uv.count; k++) uv.setX(k, atlasU(p, uv.getX(k)));   // this zone's tile of the atlas
       panelGeos.push(g);
     }
-    // the red and white TecPro blocks across the back of a park circuit's escape areas (Montreal)
-    if (tr.walled) {
-      const tp = ribbon(tr, (i) => side * wallAt(i, side), (i) => side * wallAt(i, side), 0, { yB: 1.2, mask: seg(side, (st) => st === BAR.TYRES), uvFn: (i) => -side * tr.s[i] / PANEL_LEN });
-      if (tp.index.count) { const uv = tp.attributes.uv; for (let k = 0; k < uv.count; k++) uv.setX(k, atlasU(TECPRO_PANEL, uv.getX(k))); panelGeos.push(tp); }
-    }
+    // the red and white TecPro blocks wherever a soft wall stands in front of tyres or Armco: across the back of a park
+    // circuit's escape areas (Montreal), behind the run-offs a circuit names (def.barriers) - solid, linked, and squashed
+    // where a car presses into them (world/BarrierGive.js)
+    const tpg = tecproBlocks(tr, side, wallAt, (i) => open(i, side) && isTecpro(tr, i, side));
+    if (tpg.attributes.position.count) tecproGeos.push(tpg);
     for (const o of over) {
       if (o.side !== side) continue;
-      const keep = seg(side, (st) => st >= BAR.TYRES);
+      const keep = segT(side, (st) => st >= BAR.TYRES);
       const g = ribbon(tr, (i) => side * wallAt(i, side), (i) => side * wallAt(i, side), 0, { yB: 1.2, mask: (i) => keep(i) && inRangeS(tr.s[i], o.a, o.b), uvFn: (i) => -side * tr.s[i] / PANEL_LEN });
       if (!g.index.count) continue;
       const uv = g.attributes.uv; for (let k = 0; k < uv.count; k++) uv.setX(k, atlasU(o.panel, uv.getX(k)));
@@ -1460,8 +1570,9 @@ export function buildTrackMeshes(track, pit, gridSlots) {
     }
   }
   group.add(spatialChunks(panelGeos, panelMat, 'panels'));
+  if (tecproGeos.length) { const tm = giveMaterial(new THREE.MeshStandardMaterial({ map: tecproTexture(), vertexColors: true, roughness: 0.6 }), { blocks: true }); const tg = spatialChunks(tecproGeos, tm, 'tecpro'); tg.traverse((o) => { if (o.isMesh) o.castShadow = true; }); group.add(tg); }
   // wall caps, debris fence, blue LED rail
-  const wallMat = new THREE.MeshStandardMaterial({ color: 0x8e9299, roughness: 0.6, side: THREE.DoubleSide, emissive: 0x151515 });
+  const wallMat = giveMaterial(new THREE.MeshStandardMaterial({ color: 0x8e9299, roughness: 0.6, side: THREE.DoubleSide, emissive: 0x151515 }));
   const solidL = seg(1, (st) => st === BAR.WALL), solidR = seg(-1, (st) => st === BAR.WALL);
   const wLt = ribbon(tr, (i) => wallAt(i, 1), (i) => wallAt(i, 1) + 0.6, 1.2, { mask: solidL }), wRt = ribbon(tr, (i) => -wallAt(i, -1) - 0.6, (i) => -wallAt(i, -1), 1.2, { mask: solidR });
   group.add(spatialChunks([wLt, wRt], wallMat, 'caps'));
@@ -1476,12 +1587,12 @@ export function buildTrackMeshes(track, pit, gridSlots) {
   group.add(spatialChunks([rL, rR], railMat, 'rails'));
   let armcoMat = null;
   if (circuit) {
-    armcoMat = new THREE.MeshStandardMaterial({ map: armcoTexture(), roughness: 0.6, metalness: 0.1, side: THREE.DoubleSide });
-    const arm = [1, -1].map((side) => ribbon(tr, (i) => side * wallAt(i, side), (i) => side * wallAt(i, side), 0, { yB: 0.85, mask: seg(side, (st) => st === BAR.ARMCO), uvFn: (i) => tr.s[i] / 4 })).filter((g) => g.index.count);
+    armcoMat = giveMaterial(new THREE.MeshStandardMaterial({ map: armcoTexture(), roughness: 0.6, metalness: 0.1, side: THREE.DoubleSide }));
+    const arm = [1, -1].map((side) => ribbon(tr, (i) => side * wallAt(i, side), (i) => side * wallAt(i, side), 0, { yB: 0.85, mask: segT(side, (st) => st === BAR.ARMCO), uvFn: (i) => tr.s[i] / 4 })).filter((g) => g.index.count);
     group.add(spatialChunks(arm, armcoMat, 'armco'));
     // the tyre wall under its banners: a dark band of stacked tyres along the bottom, a touch in front of the cover
-    const tyreMat = new THREE.MeshStandardMaterial({ color: 0x151517, roughness: 0.9, side: THREE.DoubleSide });
-    const tyres = [1, -1].map((side) => ribbon(tr, (i) => side * (wallAt(i, side) - 0.05), (i) => side * (wallAt(i, side) - 0.05), 0, { yB: 0.35, mask: seg(side, (st) => st === BAR.TYRES) })).filter((g) => g.index.count);
+    const tyreMat = giveMaterial(new THREE.MeshStandardMaterial({ color: 0x151517, roughness: 0.9, side: THREE.DoubleSide }));
+    const tyres = [1, -1].map((side) => ribbon(tr, (i) => side * (wallAt(i, side) - 0.05), (i) => side * (wallAt(i, side) - 0.05), 0, { yB: 0.35, mask: segT(side, (st) => st === BAR.TYRES) })).filter((g) => g.index.count);
     group.add(spatialChunks(tyres, tyreMat, 'tyreWall'));
     // painted green strip behind the kerbs (as at the real circuit: the "astroturf" paint on corner exits)
     const greenMat = new THREE.MeshStandardMaterial({ color: 0x2f8f3a, roughness: 0.75, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
