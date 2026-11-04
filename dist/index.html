@@ -597,7 +597,7 @@ table.res tr.me td { color: var(--accent2); font-weight: 700; }
     <div class="brand-line"></div>
     <h1 id="brand-title">FORMULA 1<span id="brand-sub">SIMULATOR</span></h1>
     <!-- the build's version: +0.01 with every build handed out -->
-    <span id="app-ver" title="Version">V2.30</span>
+    <span id="app-ver" title="Version">V2.31</span>
     <div id="menu-sub">Real circuits built from OpenStreetMap</div>
   </div>
   <div id="loading" class="hidden"><div class="ld"><i></i></div><span>Building the circuit from OpenStreetMap…</span></div>
@@ -76940,6 +76940,7 @@ const TRACKS = {
     // at the map's flag, and the pit lane laid beside it
     centreline: LV_CENTRELINE,
     sfXZ: [-89.9, 120.1],
+    infill: true,   // (the city filled in between OSM's footprints along the circuit: world/Buildings.js infillBlocks)
     streetFence: true,   // (the catch fence as the onboard footage shows it: posts cranked in at the top, cables, mesh - TrackBuilder streetFence)
     pitLine: { color: 0xe20074, width: 0.35 },   // (the pit entry and exit lines in T-Mobile magenta: the 2024 onboards)
     pitLanePts: LV_PITLANE,
@@ -80053,16 +80054,67 @@ function groundTexture(day, style = 'city') {
     const t = new THREE.CanvasTexture(gc); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(260, 260); t.colorSpace = THREE.SRGBColorSpace;
     return t;
   }
-  ctx.fillStyle = day ? '#a89a80' : '#15161c'; ctx.fillRect(0, 0, 512, 512);
-  for (let i = 0; i < 4000; i++) {
-    ctx.fillStyle = day ? `rgba(${150 + Math.random() * 40},${135 + Math.random() * 35},${105 + Math.random() * 30},0.45)` : `rgba(${40 + Math.random() * 30},${40 + Math.random() * 30},${50 + Math.random() * 30},0.35)`;
-    ctx.fillRect(Math.random() * 512, Math.random() * 512, 3, 3);
+  // the city (1024 px = 120 m): asphalt lots with their bays painted, concrete sidewalks with their joints, planted strips
+  // and gravel beds, oil stains and cracks - what a desert city's ground is between its buildings
+  gc.width = gc.height = 1024; const S = 1024, k = S / 120;   // (px per metre)
+  ctx.fillStyle = day ? '#77736c' : '#2a2b30'; ctx.fillRect(0, 0, S, S);
+  const rnd = (() => { let a = 11; return () => ((a = (a * 16807) % 2147483647) / 2147483647); })();
+  // lots: big asphalt rectangles, a shade apart, their parking bays in white lines
+  for (let i = 0; i < 9; i++) {
+    const x = rnd() * S, y = rnd() * S, w = (20 + rnd() * 40) * k, h = (14 + rnd() * 30) * k, sh = day ? 92 + rnd() * 20 : 34 + rnd() * 10;
+    ctx.fillStyle = `rgb(${sh},${sh},${sh + (day ? -4 : 4)})`; ctx.fillRect(x, y, w, h);
+    ctx.strokeStyle = day ? 'rgba(240,240,235,0.75)' : 'rgba(200,200,210,0.45)'; ctx.lineWidth = 0.12 * k;
+    for (let r = y + 2 * k; r < y + h - 5 * k; r += 12 * k) for (let c = x + 1 * k; c < x + w - 1 * k; c += 2.7 * k) { ctx.beginPath(); ctx.moveTo(c, r); ctx.lineTo(c, r + 5 * k); ctx.stroke(); }
   }
-  // faint street grid
-  ctx.strokeStyle = day ? 'rgba(90,85,80,0.35)' : 'rgba(70,72,90,0.25)'; ctx.lineWidth = 2;
-  for (let i = 0; i < 512; i += 128) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, 512); ctx.moveTo(0, i); ctx.lineTo(512, i); ctx.stroke(); }
-  const gt = new THREE.CanvasTexture(gc); gt.wrapS = gt.wrapT = THREE.RepeatWrapping; gt.repeat.set(200, 200); gt.colorSpace = THREE.SRGBColorSpace;
+  // sidewalks: concrete bands with expansion joints every 1.5 m, kerbs along them
+  for (let i = 0; i < 6; i++) {
+    const vert = rnd() < 0.5, p0 = rnd() * S, w = (2.5 + rnd() * 3) * k;
+    ctx.fillStyle = day ? '#a7a39a' : '#45464c'; vert ? ctx.fillRect(p0, 0, w, S) : ctx.fillRect(0, p0, S, w);
+    ctx.fillStyle = day ? 'rgba(80,78,74,0.5)' : 'rgba(20,20,24,0.5)';
+    for (let q = 0; q < S; q += 1.5 * k) vert ? ctx.fillRect(p0, q, w, 1.2) : ctx.fillRect(q, p0, 1.2, w);
+    ctx.fillStyle = day ? '#c9c5bb' : '#5a5b62'; vert ? ctx.fillRect(p0 - 0.2 * k, 0, 0.2 * k, S) : ctx.fillRect(0, p0 - 0.2 * k, S, 0.2 * k);
+  }
+  // planted strips and gravel beds: desert landscaping, palms' and shrubs' dark crowns from above
+  for (let i = 0; i < 14; i++) {
+    const x = rnd() * S, y = rnd() * S, w = (4 + rnd() * 16) * k, h = (2 + rnd() * 6) * k;
+    ctx.fillStyle = day ? (rnd() < 0.5 ? '#9a8a6a' : '#7d7458') : '#22231d'; ctx.fillRect(x, y, w, h);
+    for (let j = 0; j < w * h / (k * k * 6); j++) { ctx.fillStyle = day ? `rgba(${50 + rnd() * 30},${80 + rnd() * 40},${40 + rnd() * 20},0.9)` : 'rgba(18,30,18,0.9)'; ctx.beginPath(); ctx.arc(x + rnd() * w, y + rnd() * h, (0.6 + rnd() * 1.4) * k, 0, 6.283); ctx.fill(); }
+  }
+  // grain, oil stains, cracks
+  for (let i = 0; i < 26000; i++) { const g = rnd(); ctx.fillStyle = day ? `rgba(${90 + g * 70},${88 + g * 66},${84 + g * 60},0.25)` : `rgba(${30 + g * 34},${30 + g * 34},${36 + g * 34},0.3)`; ctx.fillRect(rnd() * S, rnd() * S, 2, 2); }
+  for (let i = 0; i < 60; i++) { ctx.fillStyle = day ? 'rgba(40,38,36,0.12)' : 'rgba(8,8,10,0.18)'; ctx.beginPath(); ctx.ellipse(rnd() * S, rnd() * S, (0.4 + rnd()) * k, (0.3 + rnd() * 0.6) * k, rnd() * 3, 0, 6.283); ctx.fill(); }
+  ctx.strokeStyle = day ? 'rgba(50,48,46,0.35)' : 'rgba(10,10,12,0.4)'; ctx.lineWidth = 1.2;
+  for (let i = 0; i < 40; i++) { let x = rnd() * S, y = rnd() * S; ctx.beginPath(); ctx.moveTo(x, y); for (let j = 0; j < 6; j++) { x += (rnd() - 0.5) * 40; y += (rnd() - 0.5) * 40; ctx.lineTo(x, y); } ctx.stroke(); }
+  const gt = new THREE.CanvasTexture(gc); gt.wrapS = gt.wrapT = THREE.RepeatWrapping; gt.repeat.set(100, 100); gt.colorSpace = THREE.SRGBColorSpace; gt.anisotropy = 8;
   return gt;
+}
+
+/** the city ground's world-space life (the shader on top of its texture): broad patches lighter and darker, sandier and
+ *  greener, so the tile never repeats to the eye; at night the pools of the street lights on it, warm sodium and white
+ *  LED, every block or so */
+const GROUND_PARS = `varying vec3 vGW; uniform float uGNight, uGCity;
+float gHash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float gNoise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(gHash(i), gHash(i + vec2(1, 0)), f.x), mix(gHash(i + vec2(0, 1)), gHash(i + vec2(1, 1)), f.x), f.y); }`;
+function groundShader(mat, U) {
+  mat.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, U);
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vGW;').replace('#include <project_vertex>', '#include <project_vertex>\nvGW = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\n' + GROUND_PARS)
+      .replace('#include <map_fragment>', `#include <map_fragment>
+        if (uGCity > 0.5) {
+          float n1 = gNoise(vGW.xz / 230.0), n2 = gNoise(vGW.xz / 47.0 + 7.3);
+          diffuseColor.rgb *= 0.72 + 0.56 * n1;
+          diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(1.12, 1.04, 0.86), smoothstep(0.62, 0.9, n2));   // (sandier)
+          diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.8, 0.95, 0.78), smoothstep(0.3, 0.08, n2));    // (planted)
+        }`)
+      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+        if (uGCity > 0.5 && uGNight > 0.5) {
+          vec2 c = floor(vGW.xz / 38.0), pc = (c + 0.25 + 0.5 * vec2(gHash(c), gHash(c + 3.1))) * 38.0; float d = length(vGW.xz - pc);
+          float on = step(0.3, gHash(c + 9.7)); vec3 lampC = gHash(c + 5.3) < 0.55 ? vec3(1.0, 0.66, 0.36) : vec3(0.85, 0.9, 1.0);
+          float rad = 9.0 + 9.0 * gHash(c + 1.9); totalEmissiveRadiance += lampC * (0.04 + 0.04 * gHash(c + 2.2)) * on * smoothstep(rad, 0.0, d) * (0.6 + 0.4 * gNoise(vGW.xz / 6.0));
+        }`);
+  };
+  mat.customProgramCacheKey = () => 'cityGround';
 }
 
 const SHADOW_MAP = 4096, SHADOW_R = 120;   // (the shadow map's size in texels; the half-width of its box near the ground, metres)
@@ -80117,6 +80169,7 @@ function createEnvironment(scene, renderer) {
   let gtNight = groundSets.city.night, gtDay = groundSets.city.day;
   // pushed back in depth: from a helicopter shot the 5 cm between the ground and the road is below depth precision
   const groundMat = new THREE.MeshStandardMaterial({ map: gtNight, roughness: 1, color: 0x8a8a90, polygonOffset: true, polygonOffsetFactor: 4, polygonOffsetUnits: 8 });
+  const GU = { uGNight: { value: 1 }, uGCity: { value: 1 } }; groundShader(groundMat, GU);
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(12000, 12000), groundMat);
   ground.rotation.x = -Math.PI / 2; ground.position.y = -0.05; ground.name = 'ground'; ground.renderOrder = 1; scene.add(ground);
 
@@ -80160,13 +80213,13 @@ function createEnvironment(scene, renderer) {
     amb.color.set(p.amb); amb.intensity = p.ambI;
     scene.fog.color.set(p.fog); scene.fog.density = p.fogD; scene.background.set(p.bg);
     scene.environment = mode === 'day' ? envDay : envNight; scene.environmentIntensity = p.envI;
-    groundMat.map = mode === 'day' ? gtDay : gtNight; groundMat.color.set(mode === 'day' ? 0xffffff : 0x8a8a90); groundMat.needsUpdate = true;
+    groundMat.map = mode === 'day' ? gtDay : gtNight; groundMat.color.set(mode === 'day' ? 0xffffff : 0x8a8a90); GU.uGNight.value = mode === 'day' ? 0 : 1; groundMat.needsUpdate = true;
     renderer.toneMappingExposure = p.exposure;
   };
   /** ground cover per venue: 'city' (sandy lots + street grid) or 'grass' (a countryside circuit) */
   env.setGround = (style) => {
     if (!groundSets[style]) groundSets[style] = { night: groundTexture(false, style), day: groundTexture(true, style) };
-    gtNight = groundSets[style].night; gtDay = groundSets[style].day;
+    gtNight = groundSets[style].night; gtDay = groundSets[style].day; GU.uGCity.value = style === 'city' ? 1 : 0;
     groundMat.map = env.mode === 'day' ? gtDay : gtNight; groundMat.needsUpdate = true;
   };
   env.setTime('night');
@@ -81126,7 +81179,41 @@ function buildOne(G, b, rings, yb, h, ctx) {
   return kind;
 }
 
-function buildGenericBuildings(geo, track, skipIds, pit = null) {
+/**
+ * The city between the footprints OpenStreetMap has (def.infill): blocks in rows along the circuit on both sides, out to
+ * ~260 m, squared to the street - mostly low and mid-rise, a few towers - wherever the ground is clear: not on the
+ * circuit or the pit lane (8 m clear), not on any footprint, landmark, lake or race-week structure (avoid: rings), not on
+ * each other. Each goes through the same builder as a real footprint, so the street reads as one city, not landmark -
+ * blank - landmark. Returns fake building records.
+ */
+function infillBlocks(geo, track, pit, avoid) {
+  const CELL = 60, hash = new Map(), key = (x, z) => `${Math.floor(x / CELL)},${Math.floor(z / CELL)}`;
+  const addRing = (r) => { let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity; for (const p of r) { x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); z0 = Math.min(z0, p[1]); z1 = Math.max(z1, p[1]); } for (let cx = Math.floor(x0 / CELL); cx <= Math.floor(x1 / CELL); cx++) for (let cz = Math.floor(z0 / CELL); cz <= Math.floor(z1 / CELL); cz++) { const k = `${cx},${cz}`; if (!hash.has(k)) hash.set(k, []); hash.get(k).push(r); } };
+  for (const b of geo.buildings) if (b.rings[0] && b.rings[0].length >= 3) addRing(b.rings[0]);
+  for (const r of avoid) addRing(r);
+  const inAny = (x, z) => (hash.get(key(x, z)) || []).some((r) => inRing(x, z, r));
+  let seed = 7; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const out = [], f = {};
+  for (let s = 0; s < track.length; s += 26) for (const side of [1, -1]) {
+    const i = track.idxAtS(s); let d = track.wallAt(i, side) + 16 + rnd() * 6;
+    for (let row = 0; d < 260 && row < 7; row++) {
+      const len = 20 + rnd() * 22, dep = 16 + rnd() * 18, t = [track.tx[i], track.tz[i]], n = [track.nx[i] * side, track.nz[i] * side];
+      track.sample(s, side * (d + dep / 2), f);
+      const cx = f.x, cz = f.z, P = (u, v) => [cx + t[0] * u + n[0] * v, cz + t[1] * u + n[1] * v];
+      const ring = [P(-len / 2, -dep / 2), P(len / 2, -dep / 2), P(len / 2, dep / 2), P(-len / 2, dep / 2)];
+      let ok = true;
+      for (let a = 0; a <= 4 && ok; a++) for (let c = 0; c <= 3 && ok; c++) { const [x, z] = P(-len / 2 + len * a / 4, -dep / 2 + dep * c / 3); if (inAny(x, z) || corridorSigned(track, pit, x, z, 8) < 0) ok = false; }
+      if (ok) {
+        const r = rnd(), h = r < 0.55 ? 8 + rnd() * 14 : r < 0.88 ? 24 + rnd() * 26 : 60 + rnd() * 50;
+        out.push({ id: `infill${out.length}`, name: '', props: {}, rings: [ring], height: h }); addRing(ring);
+      }
+      d += dep + 7 + rnd() * 6;
+    }
+  }
+  return out;
+}
+
+function buildGenericBuildings(geo, track, skipIds, pit = null, avoid = []) {
   const cells = new Map(), rings = [], kinds = [0, 0, 0, 0, 0], samples = [[], [], [], [], []];   // (samples: a few of each kind, for the tools)
   let count = 0, dropped = 0;
   for (const b of geo.buildings) {
@@ -81144,6 +81231,14 @@ function buildGenericBuildings(geo, track, skipIds, pit = null) {
     const key = `${Math.floor(cx / 400)},${Math.floor(cz / 400)}`; if (!cells.has(key)) cells.set(key, new FacadeGeo());
     try { const k = buildOne(cells.get(key), b, rs, yBase, h, { track, pit, style: geo.def.buildingStyle || {} }); kinds[k]++; count++; if (samples[k].length < 8) samples[k].push({ x: cx, z: cz, h, r: Math.sqrt(Math.abs(sArea(rs[0]))) }); } catch (e) { console.warn('[buildings]', b.id, e); }
   }
+  // the city in between (def.infill)
+  let nInfill = 0;
+  if (geo.def.infill) for (const b of infillBlocks(geo, track, pit, avoid)) {
+    const ring0 = b.rings[0]; let cx = 0, cz = 0; for (const p of ring0) { cx += p[0]; cz += p[1]; } cx /= 4; cz /= 4;
+    const key = `${Math.floor(cx / 400)},${Math.floor(cz / 400)}`; if (!cells.has(key)) cells.set(key, new FacadeGeo());
+    try { const k = buildOne(cells.get(key), b, b.rings, 0, b.height, { track, pit, style: geo.def.buildingStyle || {} }); kinds[k]++; nInfill++; rings.push(ring0); } catch (e) { /* (a degenerate block: skipped) */ }
+  }
+  if (nInfill) console.info(`[world] the city between the footprints: ${nInfill} infill blocks`);
   const style = geo.def.buildingStyle || {};
   const mat = makeFacadeMaterial({ litProb: style.litProb ?? 0.38 });
   const group = new THREE.Group(); group.name = 'buildings'; group.material = mat;   // shared material (uTime is driven from main)
@@ -81627,28 +81722,46 @@ def('linq', /^the linq hotel/i, (fps, ctx) => {
   return out;
 });
 
-// 15 High Roller
+// 15 High Roller (the LINQ; the user's photos, its builders' figures): a 520 ft (158 m) wheel, 550 ft (168 m) to its top,
+// on one white tubular rim; 28 spherical glass cabins (6.9 m) outside the rim on their brackets; cable spokes laced
+// from the hub's two flanges like a bicycle wheel's; the hub cantilevered from one side on an A-frame of two legs
+// leaning together and a third leg behind them. At night the steel is floodlit white from below, a strip of LEDs runs
+// round the rim in a soft, slowly drifting tint, the cabins glow from inside. It turns once in 30 minutes.
 def('highroller', /high roller/i, (fps, ctx) => {
-  const a = ctx.anchor('highroller', fps); const g = new THREE.Group(); const R = 75, hubY = 93;
-  const steel = std(0xd8d8de, { roughness: 0.4, metalness: 0.7 });
+  const a = ctx.anchor('highroller', fps); const g = new THREE.Group(); const R = 79, hubY = 88.5, CAB = 3.45;
+  const steel = std(0xeef0f4, { roughness: 0.35, metalness: 0.55, emissive: 0x9aa0b4, emissiveIntensity: 0.32 });   // (white, floodlit)
   const rotor = new THREE.Group(); rotor.position.y = hubY; rotor.userData.animated = true;   // (never merged: it turns)
-  const rim = new THREE.Mesh(new THREE.TorusGeometry(R, 1.6, 8, 128), rgbRimShader()); rotor.add(rim);
-  const rim2 = new THREE.Mesh(new THREE.TorusGeometry(R - 3, 0.5, 6, 96), steel); rotor.add(rim2);
-  const hub = new THREE.Mesh(new THREE.CylinderGeometry(4, 4, 8, 16), steel); hub.rotation.x = Math.PI / 2; rotor.add(hub);
-  const spokeGeos = []; const podGeo = new THREE.SphereGeometry(3.2, 14, 10); const pods = [];
-  for (let k = 0; k < 28; k++) {
-    const an = k * 2 * Math.PI / 28; const x = Math.cos(an) * R, y = Math.sin(an) * R;
-    const sg = new THREE.CylinderGeometry(0.22, 0.22, R - 3, 5); sg.translate(0, (R - 3) / 2, 0); sg.rotateZ(an - Math.PI / 2); spokeGeos.push(sg);
-    const pg = podGeo.clone(); pg.translate(x, y, 0); pods.push(pg);
-  }
-  rotor.add(new THREE.Mesh(mergeGeometries(spokeGeos), steel));
-  rotor.add(new THREE.Mesh(mergeGeometries(pods), std(0xf4f4ff, { emissive: 0xfff0d0, emissiveIntensity: 0.9, roughness: 0.3 })));
-  const wheel = new THREE.Group(); wheel.add(rotor); wheel.rotation.y = Math.PI / 2; // plane spans north-south, faces the Strip
-  g.add(wheel);
-  const legMat = std(0xb8b8c0, { roughness: 0.5, metalness: 0.6 });
-  for (const [x, z] of [[-9, -34], [9, -34], [-9, 34], [9, 34]]) g.add(strut(new THREE.Vector3(x * 2.4, 0, z), new THREE.Vector3(x * 0.6, hubY, 0), 1.6, legMat));
-  g.add(box(30, 6, 90, std(0x2a2d35), 0, 0, 0));
-  ctx.anims.push((t, dt) => { rotor.rotation.z += dt * 0.0035; rim.material.uniforms.uTime.value = t; });
+  rotor.add(new THREE.Mesh(new THREE.TorusGeometry(R, 1.15, 10, 180), steel));
+  const led = new THREE.ShaderMaterial({ uniforms: { uTime: { value: 0 } }, vertexShader: 'varying vec3 vP; void main(){ vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: `uniform float uTime; varying vec3 vP; void main(){ float a = atan(vP.y, vP.x), w = 0.5 + 0.5 * sin(a * 2.0 - uTime * 0.12);
+      vec3 c = mix(vec3(1.0, 0.86, 0.95), vec3(0.86, 0.84, 1.0), w); gl_FragColor = vec4(c * 1.35, 1.0); }` });   // (a near-white, pink to lilac and back, slowly)
+  rotor.add(new THREE.Mesh(new THREE.TorusGeometry(R - 1.25, 0.32, 6, 180), led));
+  // the hub and its two flanges; the cable spokes laced from them, tangent and crossing, to the rim
+  { const hub = new THREE.Mesh(new THREE.CylinderGeometry(3.6, 3.6, 13, 24), steel); hub.rotation.x = Math.PI / 2; rotor.add(hub);
+    for (const zz of [-5.5, 5.5]) { const fl = new THREE.Mesh(new THREE.CylinderGeometry(6.2, 6.2, 0.9, 32), steel); fl.rotation.x = Math.PI / 2; fl.position.z = zz; rotor.add(fl); }
+    const cab = []; const NS = 56;
+    for (const zz of [-5.5, 5.5]) for (let k = 0; k < NS; k++) { const ah = k * 2 * Math.PI / NS, ar = ah + (k % 2 ? 0.22 : -0.22); cab.push(Math.cos(ah) * 6.2, Math.sin(ah) * 6.2, zz, Math.cos(ar) * (R - 0.8), Math.sin(ar) * (R - 0.8), 0); }
+    const sg = new THREE.BufferGeometry(); sg.setAttribute('position', new THREE.Float32BufferAttribute(cab, 3)); rotor.add(new THREE.LineSegments(sg, new THREE.LineBasicMaterial({ color: 0xd8dce6, transparent: true, opacity: 0.85 }))); }
+  // the cabins: glass spheres outside the rim, a steel ring round each one's waist, the bracket holding it to the rim
+  { const glassM = new THREE.MeshStandardMaterial({ color: 0x9fb4c8, roughness: 0.08, metalness: 0.4, transparent: true, opacity: 0.55, emissive: 0xffe6f2, emissiveIntensity: 0.45 });
+    const cg = [], rg = [], bg = [];
+    for (let k = 0; k < 28; k++) {
+      const an = k * 2 * Math.PI / 28, cx2 = Math.cos(an) * (R + CAB + 1.4), cy2 = Math.sin(an) * (R + CAB + 1.4);
+      const sp = new THREE.SphereGeometry(CAB, 18, 12); sp.translate(cx2, cy2, 0); cg.push(sp);
+      const rr = new THREE.TorusGeometry(CAB + 0.15, 0.18, 6, 32); rr.rotateX(Math.PI / 2); rr.translate(cx2, cy2, 0); rg.push(rr);
+      for (const zz of [-1.6, 1.6]) { const br = new THREE.CylinderGeometry(0.28, 0.28, 2.2, 6); br.rotateZ(an - Math.PI / 2); br.translate(Math.cos(an) * (R + 1.2), Math.sin(an) * (R + 1.2), zz); bg.push(br); }
+    }
+    rotor.add(new THREE.Mesh(mergeGeometries(cg), glassM)); rotor.add(new THREE.Mesh(mergeGeometries([...rg, ...bg]), steel)); }
+  const wheel = new THREE.Group(); wheel.add(rotor); wheel.rotation.y = Math.PI / 2; g.add(wheel);   // (its plane north-south, facing the Strip)
+  // the legs, all on one side: the A-frame of two leaning together to the hub's end, the third behind them
+  const legMat = steel, axle = new THREE.Vector3(7.5, hubY, 0);   // (wheel local z -> group x after the turn)
+  for (const zL of [-34, 34]) g.add(strut(new THREE.Vector3(26, 0, zL), axle, 1.5, legMat));
+  g.add(strut(new THREE.Vector3(62, 0, 0), axle, 1.3, legMat));
+  for (const [x, z] of [[26, -34], [26, 34], [62, 0]]) g.add(box(7, 3, 7, std(0x9a9aa2), x, 0, z));   // (their footings)
+  g.add(cyl(2.2, 2.2, 6, steel, 7.5, hubY - 3, 0, 16));   // (the axle's end, where the legs meet)
+  // the boarding building under it: glass and white, lit
+  g.add(box(46, 11, 30, win(0xdfe2ea, 0xe8f0ff, { litProb: 0.8, cellW: 4, cellH: 3.6 }), -6, 0, 0));
+  ctx.anims.push((t, dt) => { rotor.rotation.z += dt * 0.0035; led.uniforms.uTime.value = t; });
   return place(g, [a.x, a.z], a.rot);
 });
 
@@ -81697,66 +81810,233 @@ def('lakebellagio', /lake bellagio|bellagio fountains/i, (fps, ctx) => {
   }
   g.add(new THREE.Mesh(mergeGeometries(rail), std(0xd9cdb4, { roughness: 0.8 })));
   g.add(new THREE.Mesh(mergeGeometries(lampG), glow(0xffd9a0, 2.4)));
-  // the fountains: the long line 22 m in from the Strip shore, the rings in the lake's broad part
-  const jets = [];   // [x, z, phase, max height]
-  for (const [dd, hm] of [[22, 62], [26, 48]]) for (let s = sA + 25; s <= sB - 20; s += 1.4) { tr.sample(s, side * (tr.wallAt(tr.idxAtS(s), side) + 12 + dd), f); jets.push([f.x, f.z, (s - sA) * 0.035 + dd * 0.1, hm]); }
-  for (const [ds, dd, R, n] of [[-70, 95, 22, 28], [-25, 110, 18, 24], [-120, 70, 14, 18]]) {
-    tr.sample(q0.s + ds, side * (tr.wallAt(tr.idxAtS(q0.s + ds), side) + dd), f); const cx = f.x, cz = f.z;
-    if (!inRing(cx, cz, shoreRing)) continue;
-    for (let k = 0; k < n; k++) { const an = k / n * Math.PI * 2; jets.push([cx + Math.cos(an) * R, cz + Math.sin(an) * R, 7 + an, 26]); }
+  // the fountains, as the show sets them out (the aerials; the view from the Strip): the great semicircle out in the
+  // middle of the lake, its ends toward the Strip; an inner arc; the tall cluster at its heart; and along the outer arc
+  // the arching jets thrown in toward the middle. Each jet is water in motion - particles streaming up the beam,
+  // bursting into a spray head at the top and falling back as mist, a soft cloud at its foot - and the show lifts and
+  // drops them in waves. One point cloud, all of it in the shader.
+  let cx = 0, cz = 0; for (const [x, z] of shoreRing) { cx += x; cz += z; } cx /= shoreRing.length; cz /= shoreRing.length;
+  tr.sample(q0.s, 0, f); const toHotel = [cx - f.x, cz - f.z], tl = Math.hypot(...toHotel); toHotel[0] /= tl; toHotel[1] /= tl;
+  const along = [-toHotel[1], toHotel[0]];
+  const C = [cx - toHotel[0] * 8, cz - toHotel[1] * 8];   // (the arc's centre, a little toward the Strip)
+  const R = 62, jets = [];   // [x, z, phase, height, kind (0 beam, 1 arch), dirX, dirZ, reach]
+  const inLake = (x, z) => inRing(x, z, shoreRing);
+  const onArc = (r, a) => [C[0] + (toHotel[0] * Math.cos(a) + along[0] * Math.sin(a)) * r, C[1] + (toHotel[1] * Math.cos(a) + along[1] * Math.sin(a)) * r];
+  for (let a = -Math.PI / 2; a <= Math.PI / 2 + 1e-6; a += Math.PI / 64) { const [x, z] = onArc(R, a); if (inLake(x, z)) jets.push([x, z, a * 3.0, 34 + 10 * Math.cos(a * 2), 0, 0, 0, 0]); }
+  for (let a = -Math.PI / 2; a <= Math.PI / 2 + 1e-6; a += Math.PI / 30) { const [x, z] = onArc(R * 0.56, a); if (inLake(x, z)) jets.push([x, z, a * 2.2 + 1.7, 24, 0, 0, 0, 0]); }
+  for (let k = 0; k < 7; k++) { const [x, z] = onArc(k ? 7 : 0, k * Math.PI * 2 / 6); if (inLake(x, z)) jets.push([x, z, 3.3 + k * 0.4, 72, 0, 0, 0, 0]); }   // (the heart: the tall ones)
+  for (let a = -Math.PI / 2 + 0.05; a <= Math.PI / 2 - 0.05; a += Math.PI / 22) { const [x, z] = onArc(R + 3, a), [ix, iz] = onArc(R * 0.62, a), dx = ix - x, dz = iz - z, L = Math.hypot(dx, dz); if (inLake(x, z)) jets.push([x, z, a * 4 + 0.5, 13, 1, dx / L, dz / L, L * 0.75]); }
+  const PER = 110, N = jets.length * PER, pos = new Float32Array(N * 3), aJ = new Float32Array(N * 4), aK = new Float32Array(N * 4);
+  let k2 = 0; let sd2 = 3; const rr = () => ((sd2 = (sd2 * 16807) % 2147483647) / 2147483647);
+  for (const [x, z, ph, h, kind, dx, dz, reach] of jets) for (let p = 0; p < PER; p++, k2++) {
+    pos[k2 * 3] = x; pos[k2 * 3 + 1] = 0; pos[k2 * 3 + 2] = z;
+    aJ.set([ph, h, kind, reach], k2 * 4); aK.set([(p + 0.5 * rr()) / PER, rr(), dx, dz], k2 * 4);
   }
-  const jg = new THREE.CylinderGeometry(0.5, 2.2, 1, 6, 1, true); jg.translate(0, 0.5, 0);
-  const jm = new THREE.ShaderMaterial({
-    uniforms: { uTime: { value: 0 } }, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
-    vertexShader: `attribute vec2 aJet; uniform float uTime; varying float vY;
-      void main(){ float h = aJet.y * (0.25 + 0.75 * pow(0.5 + 0.5 * sin(uTime * 0.9 - aJet.x), 2.0)) * (0.55 + 0.45 * step(0.0, sin(uTime * 0.21 + aJet.x * 0.15)));
-        vec3 p = position; p.y *= h; p.xz *= (0.6 + 0.4 * position.y); vY = position.y;
-        gl_Position = projectionMatrix * viewMatrix * modelMatrix * instanceMatrix * vec4(p, 1.0); }`,
-    fragmentShader: `varying float vY; void main(){ float a = (0.34 * (1.0 - vY) + 0.06) * (0.75 + 0.25 * sin(vY * 40.0)); gl_FragColor = vec4(vec3(1.0, 0.96, 0.88) * a, a); }`,   // (spray: strongest at the jet's foot, streaked)
+  const fg = new THREE.BufferGeometry(); fg.setAttribute('position', new THREE.BufferAttribute(pos, 3)); fg.setAttribute('aJ', new THREE.BufferAttribute(aJ, 4)); fg.setAttribute('aK', new THREE.BufferAttribute(aK, 4));
+  const fm = new THREE.ShaderMaterial({
+    uniforms: { uTime: { value: 0 }, uScale: { value: 900 } }, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+    vertexShader: `attribute vec4 aJ; attribute vec4 aK; uniform float uTime, uScale; varying float vA;
+      void main(){
+        float ph = aJ.x, H = aJ.y, kind = aJ.z, reach = aJ.w, r1 = aK.x, r2 = aK.y;
+        float show = 0.18 + 0.82 * pow(0.5 + 0.5 * sin(uTime * 0.55 - ph), 2.0);          // (the wave the show sends round)
+        float t = fract(r1 + uTime * 0.6);                                  // (the water moving up the beam)
+        vec3 p = position; float sz; float a = 0.0; float ang = r2 * 6.2832;
+        if (kind < 0.5) {
+          float h = H * show, top = 0.86;
+          if (t < top) { float u = t / top; p.y += h * u; p.xz += vec2(cos(ang), sin(ang)) * (0.12 + 0.9 * u * u * u) * (h / 40.0); sz = 0.35 + 1.3 * u * u; a = 0.34 + 0.26 * u; }
+          else { float u = (t - top) / (1.0 - top); p.y += h * (1.0 - 0.35 * u * u); p.xz += vec2(cos(ang), sin(ang)) * (1.2 + 4.5 * u) * (h / 40.0); sz = 1.2 + 2.4 * u; a = 0.2 * (1.0 - u); }   // (the spray head, bursting, falling)
+          if (r2 < 0.06) { p.y = 0.6 + r1 * 3.0; p.xz += vec2(cos(ang), sin(ang)) * (2.0 + 3.0 * r2) * show; sz = 5.0; a = 0.08 * show; }   // (the mist at its foot)
+        } else {
+          vec2 dir = aK.zw; float h = H * show, L = reach * (0.6 + 0.4 * show);
+          p.xz += dir * L * t + vec2(cos(ang), sin(ang)) * 0.25 * t; p.y += 4.0 * h * t * (1.0 - t); sz = 0.8 + 1.8 * t; a = 0.36 * (1.0 - 0.6 * t);
+        }
+        vA = a; vec4 mv = modelViewMatrix * vec4(p, 1.0); gl_Position = projectionMatrix * mv; gl_PointSize = clamp(sz * uScale / max(1.0, -mv.z), 1.0, 90.0);
+      }`,
+    fragmentShader: `varying float vA; void main(){ vec2 d = gl_PointCoord - 0.5; float r = length(d); if (r > 0.5) discard; float s = smoothstep(0.5, 0.0, r); gl_FragColor = vec4(vec3(1.0, 0.86, 0.58) * vA * s, vA * s); }`,   // (lit gold from the nozzles' lamps, as at night)
   });
-  const im = new THREE.InstancedMesh(jg, jm, jets.length), M = new THREE.Matrix4(), aJ = new Float32Array(jets.length * 2);
-  jets.forEach(([x, z, ph, h], k) => { M.makeTranslation(x, -0.3, z); im.setMatrixAt(k, M); aJ[k * 2] = ph; aJ[k * 2 + 1] = h; });
-  jg.setAttribute('aJet', new THREE.InstancedBufferAttribute(aJ, 2)); im.frustumCulled = false; im.userData.animated = true; im.renderOrder = 5; g.add(im);
-  ctx.anims.push((t) => { jm.uniforms.uTime.value = t; });
+  const fountains = new THREE.Points(fg, fm); fountains.frustumCulled = false; fountains.userData.animated = true; fountains.renderOrder = 5; g.add(fountains);
+  // (each beam's core: a narrow glowing column, turned to the camera, as tall as the show has it)
+  { const beams = jets.filter((j) => !j[4]), cg = new THREE.PlaneGeometry(1, 1); cg.translate(0, 0.5, 0);
+    const bm = new THREE.ShaderMaterial({ uniforms: fm.uniforms, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+      vertexShader: `attribute vec2 aB; uniform float uTime; varying vec2 vUv;
+        void main(){ float show = 0.18 + 0.82 * pow(0.5 + 0.5 * sin(uTime * 0.55 - aB.x), 2.0), h = aB.y * show * 0.9;
+          vec4 base = modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0); vec3 right = normalize(vec3(viewMatrix[0][0], 0.0, viewMatrix[2][0]));
+          vec3 wp = base.xyz + right * position.x * (0.45 + 0.5 * position.y) * (h / 30.0 + 0.4) + vec3(0.0, position.y * h, 0.0); vUv = vec2(position.x + 0.5, position.y);
+          gl_Position = projectionMatrix * viewMatrix * vec4(wp, 1.0); }`,
+      fragmentShader: `varying vec2 vUv; void main(){ float a = (1.0 - abs(vUv.x - 0.5) * 2.0) * (0.55 - 0.4 * vUv.y) * smoothstep(1.0, 0.85, vUv.y); gl_FragColor = vec4(vec3(1.0, 0.88, 0.62) * a, a); }` });
+    const im = new THREE.InstancedMesh(cg, bm, beams.length), M = new THREE.Matrix4(), aB = new Float32Array(beams.length * 2);
+    beams.forEach(([x, z, ph, h], k) => { M.makeTranslation(x, -0.2, z); im.setMatrixAt(k, M); aB[k * 2] = ph; aB[k * 2 + 1] = h; });
+    cg.setAttribute('aB', new THREE.InstancedBufferAttribute(aB, 2)); im.frustumCulled = false; im.userData.animated = true; im.renderOrder = 5; g.add(im); }
+  ctx.anims.push((t) => { fm.uniforms.uTime.value = t; });
+  // (the nozzles' lamps under the water: a soft glow on the surface round each jet)
+  { const lampDisc = []; for (const [x, z, , , kind] of jets) { if (kind) continue; const dg = new THREE.CircleGeometry(1.6, 8); dg.rotateX(-Math.PI / 2); dg.translate(x, -0.28, z); lampDisc.push(dg); }
+    g.add(new THREE.Mesh(mergeGeometries(lampDisc), new THREE.MeshBasicMaterial({ color: 0xffd9a0, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false }))); }
   g.userData.shore = shoreRing; g.userData.keep = true;   // (laid to the shore: never shifted)
   return g;
 });
 
-// 18 Bellagio: the curved tower round the lake (36 floors, 508 ft to its top), cream and warm-lit at night, its parapet a
-// lit cornice; at its crown the domed pavilion with the gold BELLAGIO over the lake (the race's own render of the
-// Fountain Club, 2024; the aerials). The wings stepped down either side.
+// 18 Bellagio, from the lake (the user's photos: the front from the water; the aerial over the lake): one gently curved
+// front, concave to the lake, ~36 floors - a base of tall arched openings, then floors of paired windows in bays between
+// pilasters, white string courses every few floors, the top two floors an arcade of tall arched windows under the
+// cornice, a copper-green hip roof; its wings stepping forward at either end; at its middle the raised centre bay and the
+// crown on it - a drum ringed with columns, the BELLAGIO plaque, the ribbed dome and its lantern. Cream by day, its
+// windows and cornices warm at night. The facade one texture, drawn floor by floor, wrapped round the curve.
 function bellagioSignTexture() {
   const c = document.createElement('canvas'); c.width = 1024; c.height = 192; const x = c.getContext('2d');
   x.clearRect(0, 0, 1024, 192); x.fillStyle = '#ffd98a'; x.shadowColor = '#ffb030'; x.shadowBlur = 18;
   x.font = '600 132px Georgia, "Times New Roman", serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('B E L L A G I O', 512, 100);
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
 }
+function bellagioFacade(H) {
+  // (four bays, 6 m each, the full height: colour, and the glow of what is lit at night)
+  const W = 1024, Hp = 4096, px = Hp / H, mk = () => { const c = document.createElement('canvas'); c.width = W; c.height = Hp; return c; };
+  const cc = mk(), ce = mk(), x = cc.getContext('2d'), e = ce.getContext('2d'), bay = W / 4, Y = (m) => Hp - m * px;
+  let sd = 9; const rnd = () => ((sd = (sd * 16807) % 2147483647) / 2147483647);
+  x.fillStyle = '#e5cfa2'; x.fillRect(0, 0, W, Hp); e.fillStyle = '#4a3920'; e.fillRect(0, 0, W, Hp);   // (the night: the front floodlit warm from below)
+  const band = (m0, m1, col, glow) => { x.fillStyle = col; x.fillRect(0, Y(m1), W, (m1 - m0) * px); if (glow) { e.fillStyle = glow; e.fillRect(0, Y(m1), W, (m1 - m0) * px); } };
+  // the base: three floors of tall arches
+  for (let b = 0; b < 4; b++) { const cx = b * bay + bay / 2, w = bay * 0.55, top = Y(11.5), bot = Y(0.4);
+    x.fillStyle = '#2a2018'; x.fillRect(cx - w / 2, top + w / 2, w, bot - top - w / 2); x.beginPath(); x.arc(cx, top + w / 2, w / 2, Math.PI, 0); x.fill();
+    e.fillStyle = '#ffc98a'; e.fillRect(cx - w / 2 + 4, top + w / 2, w - 8, bot - top - w / 2); e.beginPath(); e.arc(cx, top + w / 2, w / 2 - 4, Math.PI, 0); e.fill(); }
+  band(12.0, 13.2, '#f6ecd6', '#3a2a14');
+  // the floors: paired windows per bay between pilasters, a string course every fifth floor
+  const FL = 3.4, f0 = 13.2, fTop = H - 11;
+  for (let y = f0, fl = 0; y + FL <= fTop; y += FL, fl++) {
+    if (fl % 5 === 4) { band(y + FL - 0.5, y + FL, '#f8f0de', '#2a1e10'); }
+    for (let b = 0; b < 4; b++) for (const o of [0.27, 0.73]) {
+      const cx = b * bay + bay * o, w = bay * 0.26, y0 = Y(y + FL * 0.82), hh = FL * 0.62 * px;
+      x.fillStyle = '#3a3a40'; x.fillRect(cx - w / 2, y0, w, hh);
+      const lit = rnd(); e.fillStyle = lit < 0.78 ? (rnd() < 0.8 ? '#ffd29a' : '#fff2d8') : lit < 0.88 ? '#8a6a44' : '#1a140c'; e.fillRect(cx - w / 2 + 2, y0 + 2, w - 4, hh - 4);
+      x.fillStyle = '#f2e4c4'; x.fillRect(cx - w / 2 - 3, y0 + hh, w + 6, 5); e.fillStyle = '#6a5230'; e.fillRect(cx - w / 2 - 3, y0 + hh, w + 6, 5);   // (its sill)
+    }
+    for (let b = 0; b <= 4; b++) { x.fillStyle = '#ead7ae'; x.fillRect(b * bay - 6, Y(y + FL), 12, FL * px); }   // (the pilasters)
+  }
+  // the top: two floors of tall arched windows, the cornice over them lit
+  band(fTop, fTop + 0.8, '#f8f0de', '#4a3418');
+  for (let b = 0; b < 4; b++) for (const o of [0.27, 0.73]) { const cx = b * bay + bay * o, w = bay * 0.3, top = Y(H - 2.6), bot = Y(fTop + 1.2);
+    x.fillStyle = '#2e2a28'; x.fillRect(cx - w / 2, top + w / 2, w, bot - top - w / 2); x.beginPath(); x.arc(cx, top + w / 2, w / 2, Math.PI, 0); x.fill();
+    e.fillStyle = '#ffd9a0'; e.fillRect(cx - w / 2 + 3, top + w / 2, w - 6, bot - top - w / 2); e.beginPath(); e.arc(cx, top + w / 2, w / 2 - 3, Math.PI, 0); e.fill(); }
+  band(H - 2.2, H, '#fbf3e2', '#c08a40');
+  const t = new THREE.CanvasTexture(cc), te = new THREE.CanvasTexture(ce);
+  for (const tt of [t, te]) { tt.wrapS = THREE.RepeatWrapping; tt.colorSpace = THREE.SRGBColorSpace; tt.anisotropy = 8; }
+  return [t, te];
+}
+/** a curved wall: radius r, angles a0..a1 (about the y axis, 0 along +x), y0..y1; facing in (toward the centre) or out;
+ *  u = arc length / 24 m (the four-bay repeat), v = y / H */
+function curvedWall(r, a0, a1, y0, y1, H, inward) {
+  const segs = Math.max(4, Math.ceil(Math.abs(a1 - a0) * r / 6)), pos = [], uv = [], idx = [];
+  for (let i = 0; i <= segs; i++) {
+    const a = a0 + (a1 - a0) * i / segs, x = Math.cos(a) * r, z = Math.sin(a) * r, u = (a - a0) * r / 24;
+    pos.push(x, y0, z, x, y1, z); uv.push(u, y0 / H, u, y1 / H);
+    if (i) { const k = i * 2; if (inward) idx.push(k - 2, k, k - 1, k - 1, k, k + 1); else idx.push(k - 2, k - 1, k, k - 1, k + 1, k); }
+  }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals(); return g;
+}
+function bellagioGrounds(fp, ctx) {
+  const g = new THREE.Group(), ring = fp.b.rings[0], tr = ctx.track;
+  const inR = (x, z) => { let k = false; for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) { const xi = ring[i][0], zi = ring[i][1], xj = ring[j][0], zj = ring[j][1]; if ((zi > z) !== (zj > z) && x < (xj - xi) * (z - zi) / (zj - zi) + xi) k = !k; } return k; };
+  // the paving: travertine, its joints, a shade lighter along the walks
+  const pc = document.createElement('canvas'); pc.width = pc.height = 256; const x = pc.getContext('2d');
+  x.fillStyle = '#cdbf9f'; x.fillRect(0, 0, 256, 256); x.strokeStyle = 'rgba(120,105,80,0.5)'; x.lineWidth = 2;
+  for (let k = 0; k <= 256; k += 32) { x.beginPath(); x.moveTo(k, 0); x.lineTo(k, 256); x.moveTo(0, k); x.lineTo(256, k); x.stroke(); }
+  for (let k = 0; k < 900; k++) { x.fillStyle = `rgba(${150 + Math.random() * 60},${135 + Math.random() * 50},${110 + Math.random() * 40},0.25)`; x.fillRect(Math.random() * 256, Math.random() * 256, 3, 3); }
+  const pt = new THREE.CanvasTexture(pc); pt.wrapS = pt.wrapT = THREE.RepeatWrapping; pt.colorSpace = THREE.SRGBColorSpace;
+  const shp = new THREE.Shape(ring.map(([px, pz]) => new THREE.Vector2(px, -pz)));
+  const pg = new THREE.ShapeGeometry(shp); pg.rotateX(-Math.PI / 2); pg.translate(0, 0.06, 0);
+  { const uv = pg.attributes.uv, P = pg.attributes.position; for (let i = 0; i < P.count; i++) uv.setXY(i, P.getX(i) / 8, P.getZ(i) / 8); }
+  g.add(new THREE.Mesh(pg, new THREE.MeshStandardMaterial({ map: pt, roughness: 0.85, color: 0x9a9080, emissive: 0x3a2e1c, emissiveIntensity: 0.2 })));
+  // the lakefront villas: along the edges of the ground that face the lake (toward the Strip), set 8 m in from the shore
+  const toTrack = ctx.toTrack(fp.info.c), villaG = [], roofG = [], domes = [], wallMats = [win(0xe8d2a6, 0xffcf90, { litProb: 0.6, cellW: 3.6, cellH: 3.6 }), win(0xd9b88a, 0xffcf90, { litProb: 0.6, cellW: 3.6, cellH: 3.6 }), win(0xe2b9a6, 0xffcf90, { litProb: 0.6, cellW: 3.6, cellH: 3.6 })];
+  let seed = 5; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647); let placed = 0; const taken = [];
+  for (let i = 0; i < ring.length; i++) {
+    const [ax, az] = ring[i], [bx, bz] = ring[(i + 1) % ring.length], L = Math.hypot(bx - ax, bz - az); if (L < 10) continue;
+    const tx = (bx - ax) / L, tz = (bz - az) / L; let nx = tz, nz = -tx; const mxp = (ax + bx) / 2, mzp = (az + bz) / 2; if (inR(mxp + nx * 2, mzp + nz * 2)) { nx = -nx; nz = -nz; }   // (outward)
+    if (nx * toTrack[0] + nz * toTrack[1] < 0.35) continue;   // (only the edges facing the lake)
+    for (let u = 7; u < L - 7; u += 15 + rnd() * 6) {
+      const w = 11 + rnd() * 6, d = 9 + rnd() * 4, h = 7 + rnd() * 6, cx = ax + tx * u - nx * (8 + d / 2), cz = az + tz * u - nz * (8 + d / 2);
+      if (!inR(cx, cz) || taken.some(([qx, qz]) => Math.hypot(qx - cx, qz - cz) < 13)) continue;
+      const ang = Math.atan2(-tz, tx), m = wallMats[placed % 3]; taken.push([cx, cz]);
+      const bw = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); bw.position.set(cx, h / 2, cz); bw.rotation.y = ang; g.add(bw);
+      const hip = new THREE.ConeGeometry(Math.hypot(w, d) / 2 * 1.02, 3.2, 4, 1); hip.rotateY(Math.PI / 4); hip.scale(w / Math.hypot(w, d) * 1.41, 1, d / Math.hypot(w, d) * 1.41); hip.rotateY(ang); hip.translate(cx, h + 1.6, cz); roofG.push(hip);
+      if (rnd() < 0.25) { const dm = new THREE.SphereGeometry(2.4, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2); dm.translate(cx, h + 3.1, cz); domes.push(dm); }
+      placed++;
+    }
+  }
+  if (roofG.length) g.add(new THREE.Mesh(mergeGeometries(roofG.map((r) => r.toNonIndexed())), std(0xa85a38, { roughness: 0.85, emissive: 0x2a1006, emissiveIntensity: 0.5 })));
+  if (domes.length) g.add(new THREE.Mesh(mergeGeometries(domes), std(0xd9b866, { metalness: 0.5, roughness: 0.4, emissive: 0x6a4a14, emissiveIntensity: 0.7 })));
+  // the gardens: trees in clumps over the ground, never on the villas
+  const trunks = [], crowns = [];
+  for (let k = 0; k < 160; k++) {
+    let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity; for (const [px, pz] of ring) { x0 = Math.min(x0, px); x1 = Math.max(x1, px); z0 = Math.min(z0, pz); z1 = Math.max(z1, pz); }
+    const tx2 = x0 + (x1 - x0) * rnd(), tz2 = z0 + (z1 - z0) * rnd(); if (!inR(tx2, tz2) || taken.some(([qx, qz]) => Math.hypot(qx - tx2, qz - tz2) < 10)) continue;
+    const ht = 4 + rnd() * 5, tg = new THREE.CylinderGeometry(0.18, 0.25, ht * 0.5, 5); tg.translate(tx2, ht * 0.25, tz2); trunks.push(tg);
+    const cr = new THREE.IcosahedronGeometry(1.6 + rnd() * 1.6, 0); cr.scale(1, 0.8, 1); cr.translate(tx2, ht * 0.62, tz2); crowns.push(cr);
+  }
+  if (trunks.length) { g.add(new THREE.Mesh(mergeGeometries(trunks), std(0x5a4632))); g.add(new THREE.Mesh(mergeGeometries(crowns.map((c) => c.toNonIndexed())), std(0x2f5a2c, { roughness: 0.9, emissive: 0x0a1608, emissiveIntensity: 0.5 }))); }
+  g.userData.keep = true;
+  return g;
+}
 def('bellagio', /^bellagio las vegas$|^bellagio$/i, (fps, ctx) => {
-  const out = new THREE.Group(); const mat = win(0xe4d2ac, 0xffdcaa, { litProb: 0.62, cellW: 3.4, cellH: 3.3 });
-  const cream = std(0xe8d8b6, { roughness: 0.75, emissive: 0x3a2a12, emissiveIntensity: 0.5 }), cornice = glow(0xffd9a0, 1.5);
-  const baseMat = win(0xe6d6b2, 0xffd49a, { litProb: 0.7, cellW: 5.5, cellH: 4.2 });   // (the low buildings: bigger, warmer windows)
+  const out = new THREE.Group();
   for (const fp of fps) {
     if (/las vegas/i.test(fp.b.name)) {
-      const g = new THREE.Group(); const H = 140, half = 1.35 / 2, rM = 107;
-      g.add(arcSlab(96, 118, 1.35, H, mat));
-      g.add(arcSlab(95.5, 118.5, 1.35, 3, cream, H)); g.add(arcSlab(95.3, 118.7, 1.35, 0.6, cornice, H + 3));   // (the parapet and its lit cornice)
-      g.add(arcSlab(95.6, 118.4, 1.35, 0.7, cornice, 18));   // (the lit band over the lower floors)
+      // (the curve read off the footprint: its long axis and length, and how far its middle bows from the line between its
+      //  ends - the radius from that sagitta, the centre on the concave side; the front 20 m deep on it)
+      const ring = fp.b.rings[0]; let mx = 0, mz = 0; for (const [x, z] of ring) { mx += x; mz += z; } mx /= ring.length; mz /= ring.length;
+      let sxx = 0, szz = 0, sxz = 0; for (const [x, z] of ring) { const dx = x - mx, dz = z - mz; sxx += dx * dx; szz += dz * dz; sxz += dx * dz; }
+      const th = 0.5 * Math.atan2(2 * sxz, sxx - szz), dA = [Math.cos(th), Math.sin(th)], nA = [-dA[1], dA[0]];
+      const P = ring.map(([x, z]) => [(x - mx) * dA[0] + (z - mz) * dA[1], (x - mx) * nA[0] + (z - mz) * nA[1]]);
+      const aMin = Math.min(...P.map((p) => p[0])), aMax = Math.max(...P.map((p) => p[0])), L = aMax - aMin, aMid = (aMin + aMax) / 2;
+      const mean = (f) => { const q = P.filter(f); return q.reduce((acc, p) => acc + p[1], 0) / Math.max(1, q.length); };
+      const bm = mean((p) => Math.abs(p[0] - aMid) < 0.15 * L), be = mean((p) => p[0] < aMin + 0.12 * L || p[0] > aMax - 0.12 * L), sag = bm - be;
+      const Rf = Math.min(600, L * L / (8 * Math.max(4, Math.abs(sag))) + Math.abs(sag) / 2), sg = Math.sign(sag) || 1;
+      const cb = bm - sg * Rf, Cx = mx + dA[0] * aMid + nA[0] * cb, Cz = mz + dA[1] * aMid + nA[1] * cb;
+      const am = Math.atan2(nA[1] * sg, nA[0] * sg), aHi = Math.asin(Math.min(0.95, (L / 2) / Rf)), aLo = -aHi;
+      const g = new THREE.Group(), H = 128, half = Math.min(0.9, (aHi - aLo) / 2 * 0.86), rIn = Rf - 10, rOut = Rf + 10, Hc = H + 8;
+      console.info(`[world] Bellagio: the front on a ${Rf.toFixed(0)} m curve, ${(2 * Rf * Math.sin(half)).toFixed(0)} m across, bowing ${sag.toFixed(0)} m`);
+      const [tex, texE] = bellagioFacade(H), [texC, texCE] = bellagioFacade(Hc);
+      const facade = new THREE.MeshStandardMaterial({ map: tex, emissiveMap: texE, emissive: 0xffffff, emissiveIntensity: 1.0, roughness: 0.75 });
+      const facadeC = new THREE.MeshStandardMaterial({ map: texC, emissiveMap: texCE, emissive: 0xffffff, emissiveIntensity: 1.0, roughness: 0.75 });
+      const cream = std(0xe8d4a8, { roughness: 0.8, emissive: 0x3a2a12, emissiveIntensity: 0.4 }), copper = std(0x5f7d72, { roughness: 0.6, metalness: 0.35, emissive: 0x0a1410, emissiveIntensity: 0.6 });
+      const cornice = glow(0xffd29a, 1.4);
+      // the main front and its back, either side of the raised centre bay
+      const cHalf = 0.075;
+      for (const [a0, a1] of [[-half, -cHalf], [cHalf, half]]) { g.add(new THREE.Mesh(curvedWall(rIn, a0, a1, 0, H, H, true), facade)); g.add(new THREE.Mesh(curvedWall(rOut, a0, a1, 0, H, H, false), facade)); }
+      g.add(new THREE.Mesh(curvedWall(rIn - 2.5, -cHalf, cHalf, 0, Hc, Hc, true), facadeC)); g.add(new THREE.Mesh(curvedWall(rOut, -cHalf, cHalf, 0, Hc, Hc, false), facadeC));
+      for (const a of [-cHalf, cHalf]) { const g2 = new THREE.PlaneGeometry(2.5, Hc); g2.rotateY(-a + Math.PI / 2); g2.translate(Math.cos(a) * (rIn - 1.25), Hc / 2, Math.sin(a) * (rIn - 1.25)); g.add(new THREE.Mesh(g2, cream)); }
+      // the roof: a hip of copper over the curve, the parapet and its lit cornice
+      { const segs = 60, pos = [], idx = [];
+        for (let i = 0; i <= segs; i++) { const a = -half + 2 * half * i / segs, c = Math.cos(a), s2 = Math.sin(a), rm = (rIn + rOut) / 2; pos.push(c * rIn, H, s2 * rIn, c * rm, H + 7, s2 * rm, c * rOut, H, s2 * rOut); if (i) { const k = i * 3; idx.push(k - 3, k, k - 2, k - 2, k, k + 1, k - 2, k + 1, k - 1, k - 1, k + 1, k + 2); } }
+        const rg = new THREE.BufferGeometry(); rg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); rg.setIndex(idx); rg.computeVertexNormals(); const roof = new THREE.Mesh(rg, copper); roof.material.side = THREE.DoubleSide; g.add(roof); }
+      g.add(arcSlab(rIn - 0.6, rIn + 0.6, 2 * half, 1.1, cream, H)); g.add(arcSlab(rIn - 0.8, rIn - 0.5, 2 * half, 0.4, cornice, H - 2.4));
+      // the wings: forward at each end, the same front, their own hips
       for (const sgn of [1, -1]) {
-        const w = box(22, 112, 40, mat, Math.cos(half) * rM - rM - 12, 0, sgn * Math.sin(half) * rM, sgn * 0.5); g.add(w);
-        g.add(box(23, 3, 41, cream, w.position.x, 112, w.position.z, sgn * 0.5)); g.add(box(23.4, 0.6, 41.4, cornice, w.position.x, 115, w.position.z, sgn * 0.5));
+        const a = sgn * half, wx = Math.cos(a) * (rIn + 4), wz = Math.sin(a) * (rIn + 4), wg = new THREE.Group(), WH = H - 14;
+        const [tw, twe] = bellagioFacade(WH), wm = new THREE.MeshStandardMaterial({ map: tw, emissiveMap: twe, emissive: 0xffffff, emissiveIntensity: 1.0, roughness: 0.75 });
+        for (const [px, pz, ry, w] of [[-14, 0, Math.PI / 2, 26], [14, 0, -Math.PI / 2, 26], [0, 13, 0, 28], [0, -13, Math.PI, 28]]) { const pl = new THREE.PlaneGeometry(w, WH); const uv = pl.attributes.uv; for (let j = 0; j < uv.count; j++) uv.setX(j, uv.getX(j) * w / 24); pl.rotateY(ry); pl.translate(px, WH / 2, pz); wg.add(new THREE.Mesh(pl, wm)); }
+        { const hip = new THREE.ConeGeometry(19.5, 8, 4, 1); hip.rotateY(Math.PI / 4); hip.scale(1, 1, 0.93); hip.translate(0, WH + 4, 0); wg.add(new THREE.Mesh(hip, copper)); }
+        wg.add(box(28.6, 0.5, 26.6, cornice, 0, WH - 0.3));
+        wg.position.set(wx, 0, wz); wg.rotation.y = -a + sgn * 0.35; g.add(wg);
       }
-      // the crown: a pavilion of lit arched windows on the parapet at the arc's middle, its dome and lantern, the name
-      const cx = 107, cy = H + 3.6;
-      g.add(box(20, 13, 18, cream, cx, cy)); g.add(box(20.6, 0.6, 18.6, cornice, cx, cy + 13));
-      { const winM = new THREE.MeshStandardMaterial({ map: (() => { const c = document.createElement('canvas'); c.width = 512; c.height = 256; const x = c.getContext('2d'); x.fillStyle = '#e8d8b6'; x.fillRect(0, 0, 512, 256); for (let k = 0; k < 5; k++) { const wx = 22 + k * 98; x.fillStyle = '#ffcf86'; x.fillRect(wx, 90, 64, 140); x.beginPath(); x.arc(wx + 32, 90, 32, Math.PI, 0); x.fill(); } const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; })(), emissive: 0xffffff, emissiveIntensity: 0.6, roughness: 0.7 }); winM.emissiveMap = winM.map;
-        for (const [dx, dz, ry] of [[-10.05, 0, -Math.PI / 2], [10.05, 0, Math.PI / 2], [0, 9.05, 0], [0, -9.05, Math.PI]]) { const pl = new THREE.Mesh(new THREE.PlaneGeometry(Math.abs(dz) > 1 ? 20 : 18, 12), winM); pl.rotation.y = ry; pl.position.set(cx + dx, cy + 6.5, dz); g.add(pl); } }
-      { const dome = new THREE.Mesh(new THREE.SphereGeometry(8.5, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), std(0xc9a75a, { metalness: 0.6, roughness: 0.4, emissive: 0x6a4a14, emissiveIntensity: 0.9 })); dome.position.set(cx, cy + 13.6, 0); dome.scale.y = 0.8; g.add(dome); }
-      g.add(cyl(1.6, 2.0, 5, cream, cx, cy + 20.4, 0, 12)); g.add(cyl(1.0, 1.0, 1.2, glow(0xffe2a8, 2.6), cx, cy + 25.4, 0, 12));
-      { const sign = new THREE.Mesh(new THREE.PlaneGeometry(26, 4.8), new THREE.MeshBasicMaterial({ map: bellagioSignTexture(), transparent: true, depthWrite: false, fog: false })); sign.rotation.y = -Math.PI / 2; sign.position.set(cx - 10.3, cy + 9.5, 0); g.add(sign); }
-      const tt = ctx.toTrack(fp.info.c); g.rotation.y = rotYForLocalX(-tt[0], -tt[1]); g.position.set(fp.info.c[0], 0, fp.info.c[1]); out.add(g);
-    } else {   // the casino and its shops round the lake: three floors of cream stucco, arched windows lit warm, a tile roof
-      const p = podium(fp, 12.5, baseMat); if (p) out.add(p);
-      const r = podium(fp, 1.2, std(0x9a5a3a, { roughness: 0.85, emissive: 0x2a1408, emissiveIntensity: 0.6 })); if (r) { r.position.y = 12.5; out.add(r); }
+      // the crown on the centre bay: a drum ringed with columns, the plaque, the ribbed dome, the lantern
+      const cx = (rIn + rOut) / 2 - 3, cy = Hc;
+      g.add(box(16, 3, 16, cream, cx, cy)); g.add(box(16.6, 0.5, 16.6, cornice, cx, cy + 3));
+      g.add(cyl(6.2, 6.2, 9, glow(0xffd29a, 1.1), cx, cy + 3.5, 0, 24));   // (its lit core)
+      { const cols = []; for (let k = 0; k < 16; k++) { const a = k * Math.PI / 8, c2 = new THREE.CylinderGeometry(0.45, 0.5, 9, 8); c2.translate(cx + Math.cos(a) * 7, cy + 3.5 + 4.5, Math.sin(a) * 7); cols.push(c2); } g.add(new THREE.Mesh(mergeGeometries(cols), cream)); }
+      g.add(cyl(7.8, 7.8, 1.4, cream, cx, cy + 12.5, 0, 32));
+      { const dome = new THREE.Mesh(new THREE.SphereGeometry(7.4, 32, 14, 0, Math.PI * 2, 0, Math.PI / 2), std(0xd9b866, { metalness: 0.5, roughness: 0.4, emissive: 0x8a6420, emissiveIntensity: 0.9 })); dome.position.set(cx, cy + 13.9, 0); dome.scale.y = 0.9; g.add(dome);
+        const ribs = []; for (let k = 0; k < 16; k++) { const rb = new THREE.TorusGeometry(7.45, 0.12, 4, 24, Math.PI / 2); rb.rotateY(k * Math.PI / 8); rb.scale(1, 0.9, 1); rb.translate(cx, cy + 13.9, 0); ribs.push(rb); } g.add(new THREE.Mesh(mergeGeometries(ribs), cream)); }
+      g.add(cyl(1.6, 1.6, 3.2, glow(0xffe0a8, 2.0), cx, cy + 20.4, 0, 16)); g.add(cyl(2.0, 1.4, 0.6, cream, cx, cy + 23.6, 0, 16));
+      { const ld = new THREE.Mesh(new THREE.SphereGeometry(1.5, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), std(0xd9b866, { metalness: 0.5, roughness: 0.4, emissive: 0x8a6420, emissiveIntensity: 0.9 })); ld.position.set(cx, cy + 24.2, 0); g.add(ld); }
+      g.add(cyl(0.12, 0.2, 3, cream, cx, cy + 25.6, 0, 6));
+      { const sign = new THREE.Mesh(new THREE.PlaneGeometry(11, 2.2), new THREE.MeshBasicMaterial({ map: bellagioSignTexture(), transparent: true, depthWrite: false, fog: false })); sign.rotation.y = -Math.PI / 2; sign.position.set(cx - 7.9, cy + 11, 0); g.add(sign);
+        g.add(box(0.4, 2.6, 12, std(0x2a2620), cx - 7.75, cy + 9.6, 0)); }
+      g.position.set(Cx, 0, Cz); g.rotation.y = -am; out.add(g);   // (local +x: from the curve's centre out through the front's middle)
+    } else {
+      // the rest of the Bellagio's ground (OSM draws it all as one 'building'; the aerial shows what it is): paved walkways
+      // and forecourts, garden beds and their trees, and only a few low buildings - the row of lakefront villas along the
+      // lake's west shore, terracotta hips over cream, ochre and rose walls, arched windows lit warm, a domed turret or two
+      out.add(bellagioGrounds(fp, ctx));
     }
   }
   return out;
@@ -186817,7 +187097,15 @@ async function loadWorld(def) {
   if (scenery) { scene.add(scenery.group); receiveShadows(scenery.group); }
   if (venue) receiveShadows(venue.group);
   await set('Raising the city…', 68);
-  const buildings = buildGenericBuildings(geo, track, new Set([...lm.claimed, ...(venue ? venue.claimed : []), ...(scenery ? scenery.claimed : [])]), pit);
+  // (what the city's infill keeps off: each landmark's parts, the lake's shore, the race-week structures and stands)
+  const avoid = [], rectOf = (b, m) => [[b.min.x - m, b.min.z - m], [b.max.x + m, b.min.z - m], [b.max.x + m, b.max.z + m], [b.min.x - m, b.max.z + m]];
+  if (def.infill) {
+    const bx = new THREE.Box3();
+    for (const L of lm.group.children) for (const o of L.children) { bx.setFromObject(o); if (!bx.isEmpty() && bx.max.x - bx.min.x < 700 && bx.max.z - bx.min.z < 700) avoid.push(rectOf(bx, 6)); }
+    lm.group.traverse((o) => { if (o.userData?.shore) avoid.push(o.userData.shore); });
+    for (const b of vegas?.boxes || []) avoid.push(rectOf(b, 4));
+  }
+  const buildings = buildGenericBuildings(geo, track, new Set([...lm.claimed, ...(venue ? venue.claimed : []), ...(scenery ? scenery.claimed : [])]), pit, avoid);
   // (Las Vegas on race night: the city's windows lit as the aerials show it - most of them)
   if (vegas && buildings.material?.uniforms?.uLitProb) buildings.material.uniforms.uLitProb.value = Math.min(0.92, buildings.material.uniforms.uLitProb.value * 1.7);
   scene.add(buildings);

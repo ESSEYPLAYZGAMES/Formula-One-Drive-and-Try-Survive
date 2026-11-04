@@ -1,3 +1,19 @@
+# V2.31 (2026-11-04): the Bellagio in detail, the fountains, a full city, live ground, the High Roller
+
+- Bellagio (Landmarks.js): the front's curve read off its footprint (long axis, length, bow -> a 194 m radius, 207 m
+  across, concave to the lake); a facade texture drawn floor by floor (arched base, paired windows in bays between
+  pilasters, string courses, the top arcade, the lit cornice; floodlit warm at night), the raised centre bay, copper hip
+  roofs, the stepped wings, the crown (drum of columns, plaque, ribbed dome, lantern). Its grounds (OSM's one 'building')
+  as they are: paving, gardens and trees, the lakefront villas along the lake's west shore - not one 12 m block.
+- Fountains: the semicircle out in the lake (outer and inner arcs, the tall heart, the arching jets), each jet a glowing
+  core plus particles streaming up, bursting and falling as mist; warm gold.
+- City: def.infill - blocks in rows along the circuit in OSM's gaps (343), clear of the circuit, footprints, landmarks,
+  the lake and the race-week structures. Ground: a richer city texture (lots with bays, sidewalks, landscaping) with
+  world-space variation and street-light pools at night.
+- High Roller: one white tubular rim, laced cable spokes from two hub flanges, 28 glass cabins outside the rim on
+  brackets, the A-frame and the rear leg on one side; floodlit white, a soft pink-lilac LED band.
+- Known: lap-1 pile-ups at T10-T11 (since V2.24): refit the Vegas AI calibration to the de-kinked line.
+
 # V2.30 (2026-11-04): the Bellagio at race week
 
 - From the user's photos (MGM's Fountain Club render, the deck at Carbone Riviera 2025, the race-night aerial): the lake

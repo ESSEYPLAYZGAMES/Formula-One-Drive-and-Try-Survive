@@ -448,7 +448,41 @@ function buildOne(G, b, rings, yb, h, ctx) {
   return kind;
 }
 
-export function buildGenericBuildings(geo, track, skipIds, pit = null) {
+/**
+ * The city between the footprints OpenStreetMap has (def.infill): blocks in rows along the circuit on both sides, out to
+ * ~260 m, squared to the street - mostly low and mid-rise, a few towers - wherever the ground is clear: not on the
+ * circuit or the pit lane (8 m clear), not on any footprint, landmark, lake or race-week structure (avoid: rings), not on
+ * each other. Each goes through the same builder as a real footprint, so the street reads as one city, not landmark -
+ * blank - landmark. Returns fake building records.
+ */
+function infillBlocks(geo, track, pit, avoid) {
+  const CELL = 60, hash = new Map(), key = (x, z) => `${Math.floor(x / CELL)},${Math.floor(z / CELL)}`;
+  const addRing = (r) => { let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity; for (const p of r) { x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); z0 = Math.min(z0, p[1]); z1 = Math.max(z1, p[1]); } for (let cx = Math.floor(x0 / CELL); cx <= Math.floor(x1 / CELL); cx++) for (let cz = Math.floor(z0 / CELL); cz <= Math.floor(z1 / CELL); cz++) { const k = `${cx},${cz}`; if (!hash.has(k)) hash.set(k, []); hash.get(k).push(r); } };
+  for (const b of geo.buildings) if (b.rings[0] && b.rings[0].length >= 3) addRing(b.rings[0]);
+  for (const r of avoid) addRing(r);
+  const inAny = (x, z) => (hash.get(key(x, z)) || []).some((r) => inRing(x, z, r));
+  let seed = 7; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const out = [], f = {};
+  for (let s = 0; s < track.length; s += 26) for (const side of [1, -1]) {
+    const i = track.idxAtS(s); let d = track.wallAt(i, side) + 16 + rnd() * 6;
+    for (let row = 0; d < 260 && row < 7; row++) {
+      const len = 20 + rnd() * 22, dep = 16 + rnd() * 18, t = [track.tx[i], track.tz[i]], n = [track.nx[i] * side, track.nz[i] * side];
+      track.sample(s, side * (d + dep / 2), f);
+      const cx = f.x, cz = f.z, P = (u, v) => [cx + t[0] * u + n[0] * v, cz + t[1] * u + n[1] * v];
+      const ring = [P(-len / 2, -dep / 2), P(len / 2, -dep / 2), P(len / 2, dep / 2), P(-len / 2, dep / 2)];
+      let ok = true;
+      for (let a = 0; a <= 4 && ok; a++) for (let c = 0; c <= 3 && ok; c++) { const [x, z] = P(-len / 2 + len * a / 4, -dep / 2 + dep * c / 3); if (inAny(x, z) || corridorSigned(track, pit, x, z, 8) < 0) ok = false; }
+      if (ok) {
+        const r = rnd(), h = r < 0.55 ? 8 + rnd() * 14 : r < 0.88 ? 24 + rnd() * 26 : 60 + rnd() * 50;
+        out.push({ id: `infill${out.length}`, name: '', props: {}, rings: [ring], height: h }); addRing(ring);
+      }
+      d += dep + 7 + rnd() * 6;
+    }
+  }
+  return out;
+}
+
+export function buildGenericBuildings(geo, track, skipIds, pit = null, avoid = []) {
   const cells = new Map(), rings = [], kinds = [0, 0, 0, 0, 0], samples = [[], [], [], [], []];   // (samples: a few of each kind, for the tools)
   let count = 0, dropped = 0;
   for (const b of geo.buildings) {
@@ -466,6 +500,14 @@ export function buildGenericBuildings(geo, track, skipIds, pit = null) {
     const key = `${Math.floor(cx / 400)},${Math.floor(cz / 400)}`; if (!cells.has(key)) cells.set(key, new FacadeGeo());
     try { const k = buildOne(cells.get(key), b, rs, yBase, h, { track, pit, style: geo.def.buildingStyle || {} }); kinds[k]++; count++; if (samples[k].length < 8) samples[k].push({ x: cx, z: cz, h, r: Math.sqrt(Math.abs(sArea(rs[0]))) }); } catch (e) { console.warn('[buildings]', b.id, e); }
   }
+  // the city in between (def.infill)
+  let nInfill = 0;
+  if (geo.def.infill) for (const b of infillBlocks(geo, track, pit, avoid)) {
+    const ring0 = b.rings[0]; let cx = 0, cz = 0; for (const p of ring0) { cx += p[0]; cz += p[1]; } cx /= 4; cz /= 4;
+    const key = `${Math.floor(cx / 400)},${Math.floor(cz / 400)}`; if (!cells.has(key)) cells.set(key, new FacadeGeo());
+    try { const k = buildOne(cells.get(key), b, b.rings, 0, b.height, { track, pit, style: geo.def.buildingStyle || {} }); kinds[k]++; nInfill++; rings.push(ring0); } catch (e) { /* (a degenerate block: skipped) */ }
+  }
+  if (nInfill) console.info(`[world] the city between the footprints: ${nInfill} infill blocks`);
   const style = geo.def.buildingStyle || {};
   const mat = makeFacadeMaterial({ litProb: style.litProb ?? 0.38 });
   const group = new THREE.Group(); group.name = 'buildings'; group.material = mat;   // shared material (uTime is driven from main)

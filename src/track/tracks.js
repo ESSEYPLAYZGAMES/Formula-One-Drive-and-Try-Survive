@@ -31,6 +31,7 @@ export const TRACKS = {
     // at the map's flag, and the pit lane laid beside it
     centreline: LV_CENTRELINE,
     sfXZ: [-89.9, 120.1],
+    infill: true,   // (the city filled in between OSM's footprints along the circuit: world/Buildings.js infillBlocks)
     streetFence: true,   // (the catch fence as the onboard footage shows it: posts cranked in at the top, cables, mesh - TrackBuilder streetFence)
     pitLine: { color: 0xe20074, width: 0.35 },   // (the pit entry and exit lines in T-Mobile magenta: the 2024 onboards)
     pitLanePts: LV_PITLANE,

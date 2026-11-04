@@ -255,7 +255,15 @@ async function loadWorld(def) {
   if (scenery) { scene.add(scenery.group); receiveShadows(scenery.group); }
   if (venue) receiveShadows(venue.group);
   await set('Raising the city…', 68);
-  const buildings = buildGenericBuildings(geo, track, new Set([...lm.claimed, ...(venue ? venue.claimed : []), ...(scenery ? scenery.claimed : [])]), pit);
+  // (what the city's infill keeps off: each landmark's parts, the lake's shore, the race-week structures and stands)
+  const avoid = [], rectOf = (b, m) => [[b.min.x - m, b.min.z - m], [b.max.x + m, b.min.z - m], [b.max.x + m, b.max.z + m], [b.min.x - m, b.max.z + m]];
+  if (def.infill) {
+    const bx = new THREE.Box3();
+    for (const L of lm.group.children) for (const o of L.children) { bx.setFromObject(o); if (!bx.isEmpty() && bx.max.x - bx.min.x < 700 && bx.max.z - bx.min.z < 700) avoid.push(rectOf(bx, 6)); }
+    lm.group.traverse((o) => { if (o.userData?.shore) avoid.push(o.userData.shore); });
+    for (const b of vegas?.boxes || []) avoid.push(rectOf(b, 4));
+  }
+  const buildings = buildGenericBuildings(geo, track, new Set([...lm.claimed, ...(venue ? venue.claimed : []), ...(scenery ? scenery.claimed : [])]), pit, avoid);
   // (Las Vegas on race night: the city's windows lit as the aerials show it - most of them)
   if (vegas && buildings.material?.uniforms?.uLitProb) buildings.material.uniforms.uLitProb.value = Math.min(0.92, buildings.material.uniforms.uLitProb.value * 1.7);
   scene.add(buildings);
