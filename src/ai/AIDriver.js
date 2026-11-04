@@ -607,8 +607,10 @@ export class AIDriver {
     // (each half of the turn runs long enough to swing the car round: forward on full lock ~3.5 s, back ~2.5 s)
     if (R.phase === 'go' && Math.abs(err) > 1.9 && v < 3 && (R.first ?? true)) { R.phase = 'reverse'; R.t = 0; }
     if (R.phase === 'go' && Math.abs(err) > 1.2 && R.t > 3.5 && v < 4) { R.phase = 'reverse'; R.t = 0; }
-    if (R.phase === 'go' && R.t > 1.5 && v < 0.4) { R.phase = 'reverse'; R.t = 0; }   // (nose against something: back out)
-    if (R.phase === 'reverse' && (R.t > 2.5 || Math.abs(err) < 0.9 || (R.t > 1.2 && v < 0.2))) { R.phase = 'go'; R.t = 0; R.first = false; }
+    if (R.phase === 'go' && R.t > 1.5 && v < 0.4) { R.phase = 'reverse'; R.t = 0; R.blocked = true; }   // (nose against something: back out)
+    // (backing off something it is pressed against - a tyre wall or a soft wall that takes the hit instead of bouncing the
+    //  car off it - takes a second and a half of reverse whichever way it points: it already pointed the right way, into it)
+    if (R.phase === 'reverse' && (R.t > 2.5 || (Math.abs(err) < 0.9 && !(R.blocked && R.t < 1.5)) || (R.t > 1.2 && v < 0.2))) { R.phase = 'go'; R.t = 0; R.first = false; R.blocked = false; }
     c.ers = 0; c.drs = false;
     if (R.phase === 'reverse') {
       if (c.gear !== 0) { if (v > 0.5) { c.throttle = 0; c.brake = 1; return; } c.gear = 0; }

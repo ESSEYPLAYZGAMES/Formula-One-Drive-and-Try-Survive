@@ -451,7 +451,8 @@ export class Car {
     const hL = tr.barrierHeight(i, 1), hR = tr.barrierHeight(i, -1);   // (as tall as what is drawn: a concrete wall and a catch fence 4 m+, a tyre wall 1.3, Armco 0.85)
     const nxT = tr.nx[i], nzT = tr.nz[i], pxT = tr.px[i], pzT = tr.pz[i];
     // (the body's centre beyond a barrier: it has gone over it, and lands on the far side - held out, not pulled back)
-    const dcC = (p[0] - pxT) * nxT + (p[2] - pzT) * nzT, outC = Math.abs(dcC) > (dcC > 0 ? wallL : wallR);
+    const dcC = (p[0] - pxT) * nxT + (p[2] - pzT) * nzT, BC = BARRIER[BAR_KIND[(dcC > 0 ? (tr.giveL || tr.barL) : (tr.giveR || tr.barR))[i]]];
+    const outC = Math.abs(dcC) > (dcC > 0 ? wallL : wallR) + (BC && !BC.rigid ? BC.D : 0);   // (past what it gives, too)
     let lift = 0, hard = 0, hx = 0, hy = 0, hz = 0;
     const v0x = v[0], v0y = v[1], v0z = v[2]; let hitKind = loose ? 'gravel' : 'ground';   // (the step's contact pulse)
     const c = _t2;
@@ -932,7 +933,11 @@ export class Car {
     // a car whose centre is already beyond a barrier (it went over it) stays on that side: the barrier holds it out.
     // (Not in the pit lane: a car the lane test has inside it is inside - beyond the garage-side line it was swept by an
     //  escape road's tyre wall closing in faster than half a car's width a step, and the wall pushes it back in)
-    const dc0 = (this.x - px) * nx + (this.z - pz) * nz, out0 = !this.pitLane && Math.abs(dc0) > (dc0 > 0 ? boL : boR);
+    // (beyond it means past what the barrier gives, too: a car pressed half its width into a tyre wall round a curving
+    //  run-off has its centre past the face, not over the barrier - held out there, it was trapped on its line)
+    if (!this.pitLane && !tr.giveL && tr.buildGive) tr.buildGive();
+    const dc0 = (this.x - px) * nx + (this.z - pz) * nz, B0 = this.pitLane || !tr.giveL ? null : BARRIER[BAR_KIND[(dc0 > 0 ? tr.giveL : tr.giveR)[this.trackIdx]]];
+    const out0 = !this.pitLane && Math.abs(dc0) > (dc0 > 0 ? boL : boR) + (B0 && !B0.rigid ? B0.D : 0);
     let maxPen = 0, hitBx = 0, hitBy = 0, hitSide = 0;
     for (let k = 0; k < CORNERS.length; k++) {
       const bx = CORNERS[k][0], by = CORNERS[k][1];
@@ -947,7 +952,6 @@ export class Car {
     // tyre wall along its escape (a lane that is a lane: its walls hold the car on its line) - else the circuit's, by the
     // side the car is on (Track.giveL / giveR: the barrier lines' kinds, soft walls where they stand)
     if (this.pitLane) { if (bc.on) this._barrierDone(world); this._wallRigid(world, maxPen, hitSide, hitBx, hitBy, nx, nz, this.pit?.escape?.[this.pitI] ? 'tyres' : 'wall'); return; }
-    if (!tr.giveL && tr.buildGive) tr.buildGive();
     const G = dc0 > 0 ? (tr.giveL || tr.barL) : (tr.giveR || tr.barR), code = G[this.trackIdx] || 3;
     const bk = BAR_KIND[code] || 'wall', B = BARRIER[bk] || BARRIER.wall;
     if (bc.on && bc.code !== code) this._barrierDone(world);   // (slid from one kind of barrier onto another: a new contact)

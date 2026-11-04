@@ -39,6 +39,14 @@
   250-300 km/h at 60-90 degrees still 106-133 g, launched, split two in three, the injury odds near certain. The other
   side of it: a 300 km/h hit at 60-90 degrees into a tyre wall bottoms it out onto the Armco behind and is now 81-85 g
   (before 57-60 g, the tyre wall's 100 ms pulse taken whole; Armco itself is unchanged at ~82 g) - two in three split.
+- The AI's rejoin after a touch (AIDriver.rejoin): a car that backs off something it is pressed against reverses for at
+  least 1.5 s, whichever way it points - it went "nose against something: back out", and stopped backing out the moment
+  it pointed at the road, which it already did; a concrete wall bounced it free, a barrier that takes the hit does not
+  (Las Vegas's Turn 14: stuck). And a car's centre is only "beyond the barrier" (gone over it, held out on the far side)
+  past what the barrier gives - pressed into the TecPro round Montreal's hairpin it was trapped on the barrier's line.
+  tools/rejoin_probe.mjs: an AI car rolled into a barrier at 30-100 km/h, 30-90 degrees, left to get going again (on a
+  straight per barrier kind, or at a corner as the circuit has it): 86 of 90 back on the road, the rest concrete as
+  before or a hit that broke the suspension.
 RACES
 
 # V2.37 (2026-11-04): Las Vegas's maps and its AI on the new line; the loading bar and the map in step
