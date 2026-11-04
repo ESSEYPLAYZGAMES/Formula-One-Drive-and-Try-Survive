@@ -36,8 +36,8 @@ const CSS = `
 #loader .ld-map .cas { fill: none; stroke: rgba(0,0,0,.6); stroke-width: 34; stroke-linejoin: round; }
 #loader .ld-map .trk { fill: none; stroke: rgba(255,255,255,.9); stroke-width: 13; stroke-linejoin: round; }
 #loader .ld-map .pit { fill: none; stroke: rgba(255,255,255,.4); stroke-width: 5; stroke-dasharray: 10 9; stroke-linejoin: round; }
-#loader .ld-map .run { fill: none; stroke: #e10600; stroke-width: 13; stroke-linejoin: round; stroke-linecap: round; stroke-dasharray: 1000; stroke-dashoffset: 1000; transition: stroke-dashoffset .7s ease; filter: drop-shadow(0 0 7px rgba(255,60,30,.75)); }
-#loader .ld-map .head { fill: #fff; filter: drop-shadow(0 0 9px #ff5a3d); transition: cx .7s ease, cy .7s ease; }
+#loader .ld-map .run { fill: none; stroke: #e10600; stroke-width: 13; stroke-linejoin: round; stroke-linecap: round; stroke-dasharray: 1000; stroke-dashoffset: 1000; filter: drop-shadow(0 0 7px rgba(255,60,30,.75)); }
+#loader .ld-map .head { fill: #fff; filter: drop-shadow(0 0 9px #ff5a3d); }
 #loader .ld-map .sf { stroke: #fff; stroke-width: 9; } #loader .ld-map .sf2 { stroke: #111; stroke-width: 9; stroke-dasharray: 9 9; }
 #loader .ld-map .dir { fill: #e10600; }
 #loader .ld-map .t circle { fill: rgba(10,12,18,.9); stroke: rgba(255,255,255,.55); stroke-width: 2.5; }
@@ -60,7 +60,7 @@ const CSS = `
 #loader .ld-fact b { font: 800 10px/1 'Segoe UI', Arial, sans-serif; letter-spacing: .28em; color: #ff4b3e; display: block; margin-bottom: 6px; }
 #loader .ld-cap { flex: none; max-width: 36%; font: 600 11px/1.3 'Segoe UI', Arial, sans-serif; letter-spacing: .16em; color: rgba(255,255,255,.55); text-transform: uppercase; text-align: right; transition: opacity .8s; }
 #loader .ld-bar { height: 3px; background: rgba(255,255,255,.14); border-radius: 2px; overflow: hidden; }
-#loader .ld-bar i { display: block; height: 100%; width: 100%; background: linear-gradient(90deg, #e10600, #ff6a3d); transform-origin: left center; transform: scaleX(0); transition: transform .6s ease; box-shadow: 0 0 12px rgba(255,80,40,.6); }
+#loader .ld-bar i { display: block; height: 100%; width: 100%; background: linear-gradient(90deg, #e10600, #ff6a3d); transform-origin: left center; transform: scaleX(0); box-shadow: 0 0 12px rgba(255,80,40,.6); }
 #loader .ld-stage { display: flex; justify-content: space-between; margin-top: 8px; font: 600 11px/1.3 'Segoe UI', Arial, sans-serif; letter-spacing: .14em; color: rgba(255,255,255,.62); text-transform: uppercase; }
 #loader .ld-stage b { color: #fff; font-variant-numeric: tabular-nums; }
 #loader .ld-err { margin-top: 12px; color: #ff8b80; font: 600 13px/1.5 'Segoe UI', Arial, sans-serif; }
@@ -134,12 +134,25 @@ function mapSVG(id) {
   const M = TRACK_MAPS[id]; if (!M) return '';
   const P = 76, pts = M.pts, n = pts.length, d = `M${pts.map((p) => p.join(' ')).join('L')}Z`;
   let cx = 0, cy = 0; for (const [x, y] of pts) { cx += x / n; cy += y / n; }
-  const labels = M.corners.map(([num, x, y]) => {
+  const L0 = M.corners.map(([num, x, y]) => {
     let bi = 0, bd = Infinity; pts.forEach(([px, py], i) => { const q = (px - x) ** 2 + (py - y) ** 2; if (q < bd) { bd = q; bi = i; } });
     const a = pts[(bi + n - 2) % n], b = pts[(bi + 2) % n]; let tx = b[0] - a[0], ty = b[1] - a[1]; const tl = Math.hypot(tx, ty) || 1; tx /= tl; ty /= tl;
     let nx = -ty, ny = tx; if ((x - cx) * nx + (y - cy) * ny < 0) { nx = -nx; ny = -ny; }   // (to the outside of the lap)
-    return `<g class="t" transform="translate(${Math.round(x + nx * 46)} ${Math.round(y + ny * 46)})"><circle r="21"/><text>${num}</text></g>`;
-  }).join('');
+    return { num, ax: x, ay: y, x: x + nx * 46, y: y + ny * 46 };
+  });
+  // (corners close together - a chicane, Las Vegas's 14-15-16: the numbers pushed apart until none covers another, each
+  //  kept clear of the track and near its corner)
+  for (let it = 0; it < 60; it++) {
+    for (let i = 0; i < L0.length; i++) for (let j = i + 1; j < L0.length; j++) {
+      const A = L0[i], B = L0[j]; let dx = B.x - A.x, dy = B.y - A.y; const d = Math.hypot(dx, dy) || 0.01; if (d >= 46) continue;
+      const push = (46 - d) / 2; dx /= d; dy /= d; A.x -= dx * push; A.y -= dy * push; B.x += dx * push; B.y += dy * push;
+    }
+    for (const Lb of L0) {
+      for (let k = 0; k < n; k += 2) { const [px, py] = pts[k], dx = Lb.x - px, dy = Lb.y - py, d = Math.hypot(dx, dy); if (d < 36 && d > 0.01) { Lb.x += (dx / d) * (36 - d) * 0.5; Lb.y += (dy / d) * (36 - d) * 0.5; } }
+      const dx = Lb.x - Lb.ax, dy = Lb.y - Lb.ay, d = Math.hypot(dx, dy); if (d > 80) { Lb.x = Lb.ax + (dx / d) * 80; Lb.y = Lb.ay + (dy / d) * 80; }
+    }
+  }
+  const labels = L0.map((Lb) => `<g class="t" transform="translate(${Math.round(Lb.x)} ${Math.round(Lb.y)})"><circle r="21"/><text>${Lb.num}</text></g>`).join('');
   const [sx, sy] = pts[0], c = Math.cos(M.dir), s = Math.sin(M.dir), L = 30;
   const sf = `<line class="sf" x1="${sx + s * L}" y1="${sy - c * L}" x2="${sx - s * L}" y2="${sy + c * L}"/><line class="sf2" x1="${sx + s * L}" y1="${sy - c * L}" x2="${sx - s * L}" y2="${sy + c * L}"/>`;
   const ax = sx + c * 62, ay = sy + s * 62, arrow = `<path class="dir" d="M${ax + c * 22} ${ay + s * 22}L${ax - c * 10 + s * 16} ${ay - s * 10 - c * 16}L${ax - c * 10 - s * 16} ${ay - s * 10 + c * 16}Z"/>`;
@@ -185,7 +198,7 @@ export const Loader = {
         <div class="ld-foot"><div class="ld-row"><div class="ld-fact"></div><div class="ld-cap"></div></div><div class="ld-bar"><i></i></div><div class="ld-stage"><span>Getting ready</span><b>0%</b></div></div>
       </div>`;
     document.body.appendChild(el);
-    L = { el, t0: performance.now(), slides: [], k: -1, timers: [], urls: [], pct: 0 };
+    L = { el, t0: performance.now(), slides: [], k: -1, timers: [], urls: [], pct: 0, shown: 0, raf: 0 };
     document.body.dataset.loader = 'on';
     requestAnimationFrame(() => el.classList.add('on')); setTimeout(() => el.classList.add('on'), 30);
     // (opaque once the 260 ms fade has played, from the frame it began on)
@@ -221,17 +234,27 @@ export const Loader = {
     };
     next(); L.timers.push(setInterval(next, 6000));
   },
-  /** the build's progress: what it is doing, how far (0-100) */
+  /**
+   * the build's progress: what it is doing, how far (0-100). The bar, the red line round the map, its head and the
+   * figure are one value, eased toward it frame by frame (_draw) - none of them with a CSS transition of its own: the bar's
+   * ran on the compositor while the build held the page, so it went on moving while the map's waited, and the two never
+   * agreed (the line half the time behind it)
+   */
   stage(text, pct) {
     if (!L) return;
     if (pct != null) L.pct = Math.max(L.pct, pct);
     L.el.querySelector('.ld-stage span').textContent = text || '';
-    L.el.querySelector('.ld-stage b').textContent = `${Math.round(L.pct)}%`;
-    L.el.querySelector('.ld-bar i').style.transform = `scaleX(${(L.pct / 100).toFixed(3)})`;
-    // (the map: the red line round the lap as far as the build has got, its head at the end of it)
-    const run = L.el.querySelector('.ld-map .run'), trk = L.el.querySelector('.ld-map .trk'), head = L.el.querySelector('.ld-map .head');
-    if (run) run.style.strokeDashoffset = `${1000 * (1 - L.pct / 100)}`;
-    if (trk && head) { try { const p = trk.getPointAtLength(trk.getTotalLength() * Math.min(0.9999, L.pct / 100)); head.setAttribute('cx', p.x); head.setAttribute('cy', p.y); } catch (e) { /* (not laid out yet) */ } }
+    if (!L.raf) { const mine = L, tick = () => { if (L !== mine) return; const d = mine.pct - mine.shown; mine.shown = Math.abs(d) < 0.05 ? mine.pct : mine.shown + d * 0.18; this._draw(mine); mine.raf = mine.shown !== mine.pct ? requestAnimationFrame(tick) : 0; }; L.raf = requestAnimationFrame(tick); }
+    if (pct >= 100) { L.shown = L.pct; this._draw(L); }
+  },
+  _draw(l) {
+    const f = Math.min(1, l.shown / 100);
+    l.el.querySelector('.ld-stage b').textContent = `${Math.round(l.shown)}%`;
+    l.el.querySelector('.ld-bar i').style.transform = `scaleX(${f.toFixed(4)})`;
+    // (the map: the red line round the lap as far as the bar, its head at the end of it - the same fraction of the lap)
+    const run = l.el.querySelector('.ld-map .run'), trk = l.el.querySelector('.ld-map .trk'), head = l.el.querySelector('.ld-map .head');
+    if (run) run.style.strokeDashoffset = `${(1000 * (1 - f)).toFixed(2)}`;
+    if (trk && head) { try { const p = trk.getPointAtLength(trk.getTotalLength() * Math.min(0.9999, f)); head.setAttribute('cx', p.x); head.setAttribute('cy', p.y); } catch (e) { /* (not laid out yet) */ } }
   },
   /** it went wrong: the reason, and a way back (back()) */
   fail(msg, back) {
@@ -251,7 +274,7 @@ export const Loader = {
   /** gone at once (quiet: a new loading screen takes its place, so nothing waiting behind is told it lifted) */
   kill(which = L, quiet = false) {
     if (!which) return;
-    for (const t of which.timers) clearInterval(t);
+    for (const t of which.timers) clearInterval(t); if (which.raf) cancelAnimationFrame(which.raf);
     which.el.remove(); for (const u of which.urls) URL.revokeObjectURL(u);
     // (gone without a fade - a failed build, a scene of its own: nothing may go on waiting for it)
     if (L === which) { L = null; if (!quiet) lifting(); }

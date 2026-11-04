@@ -591,7 +591,9 @@ export class AIDriver {
     const c = this.car, tr = this.track, R = this.rj, v = c.speed, hw = tr.edgeAt(c.trackIdx, Math.sign(c.d) || 1);
     R.t += dt; R.total += dt;
     const side = Math.sign(c.d) || 1, onRoad = Math.abs(c.d) < hw - 0.5;
-    const f = tr.sample(c.s + 35, side * Math.min(Math.abs(c.d), hw - 2.5), this._fr || (this._fr = {}));
+    // (aim at the road 35 m on - or, deep in a run-off, at the road beside it: the run-off's wall curves back in to the road
+    //  ahead, and the line to a point 35 m on ran into it - Las Vegas's Turns 7-8, beached against it)
+    const deep = Math.abs(c.d) > hw + 8, f = tr.sample(c.s + (deep ? 10 : 35), side * Math.min(Math.abs(c.d), hw - 2.5), this._fr || (this._fr = {}));
     // bearing to the target in the car's frame, left + (the car's left is (sin th, -cos th))
     const dx = f.x - c.x, dz = f.z - c.z, cth = Math.cos(c.th), sth = Math.sin(c.th);
     const err = Math.atan2(dx * sth - dz * cth, dx * cth + dz * sth);
@@ -635,6 +637,11 @@ export class AIDriver {
   rollError(zone, world) {
     const c = this.car;
     if (this.error || c.speed < 15 || this.isSC || this.rule) return;   // (nobody makes a mistake at safety-car pace)
+    // (a corner taken flat - Las Vegas's Turns 10, 11 and 13, kinks at 340 km/h: no stop to lock up in and no limit to
+    //  run wide past, so nothing to get wrong there; the 'wide' mistake of a fast sweeper put cars into the wall at full
+    //  speed. Flat: the line's speed through the whole zone within 4 % of the fastest anywhere on the lap)
+    const flat = zone._flat ?? (zone._flat = (() => { const tr = this.track, P = this.profile; if (!P || zone.sA == null) return false; let vTop = 0, vMin = Infinity; for (let i = 0; i < P.length; i++) vTop = Math.max(vTop, P[i]); const L = tr.length, span = ((zone.sB - zone.sA) % L + L) % L; for (let x = 0; x <= span; x += 5) vMin = Math.min(vMin, P[tr.idxAtS(zone.sA + x)]); return vMin > 0.96 * vTop; })());
+    if (flat) return;
     const cold = c.tyres.temp < 0.5 ? 1.8 : 1;
     const worn = 1 + 2.2 * c.tyres.wear + 4 * Math.max(0, (c.tyres.wear - 0.7) / 0.3);   // (the cliff's; cold is counted above)
     // (the driver's form: focus sets how often, composure how much a car on the gearbox gets to him - FORM.err and

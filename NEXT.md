@@ -1,3 +1,23 @@
+# V2.37 (2026-11-04): Las Vegas's maps and its AI on the new line; the loading bar and the map in step
+
+- The circuit map (ui/TrackMaps.js) and the menu card's outline (tracks.js) regenerated from the built circuit - they were
+  still the lap before the de-kinking (scratch tooling: the lap from the line in 400 points, the pit lane, the corners;
+  Silverstone regenerated the same way matches its stored map to the point). The in-race minimap draws the live track.
+  The corner numbers on the loading map pushed apart where they crowd (7-8, 14-15-16; each kept near its corner and off
+  the track).
+- The loading screen: the bar, the red line round the map, its head and the figure are one value eased frame by frame -
+  no CSS transitions (the bar's ran on the compositor while the build held the page, so it kept moving while the map's
+  waited: the line was half the time behind the bar).
+- The AI at Las Vegas (from 22-car races, every impact logged with the cars round it): the pile-ups were at Turns 10-11,
+  and the line was why - the trace had a sharp spot in each fast kink (Turn 10 a 55 m radius inside a 107 m bend at
+  280 km/h), so the field braked mid-kink and swung across the road. Turns 10, 11 and 13 smoothed (each one cubic over
+  100 m, the line moved 2.8 m at most, the lap scaled back to 6.201 km): Turn 10 is flat now, as it is. And no mistakes
+  in a corner taken flat (AIDriver.rollError): the 'wide' mistake of a fast sweeper put cars into the wall at 340 km/h.
+  A car deep in a run-off rejoins at the road beside it (it aimed 35 m on, into the wall where the chicane's run-off
+  curves back in - beached). Five seeded races: one retirement in five (was one in most).
+- The telemetry supplied (2026-11-03 19:30) is one wet lap (0.36) with a reset and a stop - not a lap to fit the AI to;
+  the dry AI stays on the physics, the wet calibration (fitted 2026-11-01) as it was.
+
 # V2.36 (2026-11-04): the T-cam's defaults - 11 degrees down, a 49 degree lens
 
 - The player's pick on the Vegas lap after V2.35's sliders: TCAM_TILT 11 (was 9), TCAM_FOV 49 (was 40); the Sphere's
