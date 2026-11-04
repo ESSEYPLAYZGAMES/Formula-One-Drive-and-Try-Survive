@@ -11,6 +11,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { corridorSigned } from '../track/TrackBuilder.js';
+import { STAND } from './Grandstands.js';
 
 const FONT = '"Segoe UI", "Helvetica Neue", Arial, sans-serif';
 function canvasTex(w, h, draw, repeat = false) {
@@ -101,6 +102,8 @@ export function buildSphereZone(track, pit, def, near = []) {
   const tmoWall = lit(tmoWallTexture(), 0.75);
   const cube = new THREE.MeshBasicMaterial({ map: canvasTex(256, 256, (x, W, H) => { const g = x.createRadialGradient(W / 2, H / 2, W * 0.1, W / 2, H / 2, W * 0.75); g.addColorStop(0, '#ff3ea0'); g.addColorStop(1, '#d0006a'); x.fillStyle = g; x.fillRect(0, 0, W, H); tmoT(x, W / 2, H * 0.5, H * 0.56, '#ffffff'); }), color: 0xffffff });
   const banner = lit(aramcoBannerTexture(), 0.8);
+  const numbers = lit(canvasTex(1024, 256, (x, W, H) => { x.clearRect(0, 0, W, H); x.fillStyle = '#ffffff'; x.font = `800 ${H * 0.36}px ${FONT}`; x.textAlign = 'center'; x.textBaseline = 'middle'; for (let n = 0; n < 16; n++) x.fillText(String(n + 1).padStart(2, '0'), (n % 8 + 0.5) * W / 8, (Math.floor(n / 8) + 0.5) * H / 2); }), 0.8, { transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  const tunnel = new THREE.MeshBasicMaterial({ map: canvasTex(128, 96, (x, W, H) => { x.fillStyle = '#0c0a10'; x.fillRect(0, 0, W, H); const g = x.createLinearGradient(0, H, 0, 0); g.addColorStop(0, 'rgba(255,220,240,0.55)'); g.addColorStop(1, 'rgba(255,220,240,0)'); x.fillStyle = g; x.fillRect(W * 0.15, H * 0.2, W * 0.7, H * 0.8); }), side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
   const screen = new THREE.MeshBasicMaterial({ map: stageScreenTexture(), side: THREE.DoubleSide });
   const black = new THREE.MeshStandardMaterial({ color: 0x141418, roughness: 0.6, metalness: 0.3, side: THREE.DoubleSide });
   const tent = new THREE.MeshStandardMaterial({ color: 0xf4f4f0, roughness: 0.55, emissive: 0x3a3440, side: THREE.DoubleSide });
@@ -133,28 +136,32 @@ export function buildSphereZone(track, pit, def, near = []) {
   // =============================================================================================================
   const EB = (tr.escapeBands || []).find((e) => e.turn === 7);
   if (EB) {
-    const sd = EB.side, pos = [], uv = [], idx = []; let n = 0, best = null;
-    for (let s = EB.sA - 6; s <= EB.sB + 6; s += 1) {
-      const i = tr.idxAtS(s), e0 = tr.edgeAt(i, sd) + kw - 0.05, e1 = tr.wallAt(i, sd) - 0.15; if (e1 - e0 < 1) { if (n) break; continue; }
-      const a = tr.sample(s, sd * e0, f), b = tr.sample(s, sd * e1, f2);
-      pos.push(a.x, 0.03, a.z, b.x, 0.03, b.z); uv.push(a.x / 6, a.z / 6, b.x / 6, b.z / 6);
-      if (n) { const p = n - 2; idx.push(p, p + 2, p + 1, p + 1, p + 2, p + 3); } n += 2;
-      if (!best || e1 - e0 > best.w) best = { s, w: e1 - e0, e0 };
-    }
-    if (n > 4) { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals(); put(runoff, g); }
-    if (best) {
-      // (the name: along the run-off at its widest, its foot toward the grandstand behind it - read from there)
-      const i = tr.idxAtS(best.s), t = [tr.tx[i], tr.tz[i]], nl = [tr.nx[i], tr.nz[i]], L = Math.min(70, best.w * 2.6), Wd = L / 4, c = tr.sample(best.s, sd * (best.e0 + best.w * 0.5), f);
-      const P = (u, v) => [c.x + t[0] * u + nl[0] * v, 0.05, c.z + t[1] * u + nl[1] * v];
-      const up = -sd;   // (the letters' tops toward the track)
-      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute([...P(-L / 2, -up * Wd / 2), ...P(L / 2, -up * Wd / 2), ...P(L / 2, up * Wd / 2), ...P(-L / 2, -up * Wd / 2), ...P(L / 2, up * Wd / 2), ...P(-L / 2, up * Wd / 2)], 3));
+    // (one polygon: the wall's arc from end to end, back along the kerb's outer edge - the wall samples themselves fold
+    //  over one another on the inside of Turn 8, where the normals they were pushed out along converge)
+    const sd = EB.side, arc = EB.outer, edge = [];
+    for (let s = EB.sB; s >= EB.sA - 0.01; s -= 2) { const i = tr.idxAtS(s); tr.sample(s, sd * (tr.edgeAt(i, sd) + kw - 0.05), f); edge.push([f.x, f.z]); }
+    const poly = [...arc, ...edge], shp = new THREE.Shape(poly.map(([x, z]) => new THREE.Vector2(x, -z)));
+    { const g = new THREE.ShapeGeometry(shp); g.rotateX(-Math.PI / 2); g.translate(0, 0.03, 0); const P = g.attributes.position, uv = g.attributes.uv; for (let j = 0; j < P.count; j++) uv.setXY(j, P.getX(j) / 6, P.getZ(j) / 6); g.computeVertexNormals(); put(runoff, g); }
+    // (the name: across its middle, along the line between the arc's ends, its foot toward the grandstand behind it)
+    {
+      const { A, B } = EB.arc, mid = arc[arc.length >> 1], iM = tr.idxAtS((EB.sA + EB.sB) / 2); tr.sample((EB.sA + EB.sB) / 2, sd * (tr.edgeAt(iM, sd) + kw), f);
+      const w = Math.hypot(mid[0] - f.x, mid[1] - f.z), c = [(mid[0] + f.x) / 2, (mid[1] + f.z) / 2], CL = Math.hypot(B[0] - A[0], B[1] - A[1]);
+      let t = [(B[0] - A[0]) / CL, (B[1] - A[1]) / CL]; const out = [(mid[0] - f.x) / (w || 1), (mid[1] - f.z) / (w || 1)];
+      // (u along t, the letters left to right for someone at the stand facing the track: facing -out, their right hand is
+      //  (out.z, -out.x), so t is turned to it - its left normal is then out)
+      const nl = [-t[1], t[0]]; if (nl[0] * out[0] + nl[1] * out[1] < 0) t = [-t[0], -t[1]];
+      const L = Math.min(72, CL * 0.42, w * 2.4), Wd = L / 4, up = [-out[0], -out[1]];
+      const P = (u, v) => [c[0] + t[0] * u + up[0] * v, 0.05, c[1] + t[1] * u + up[1] * v];
+      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute([...P(-L / 2, -Wd / 2), ...P(L / 2, -Wd / 2), ...P(L / 2, Wd / 2), ...P(-L / 2, -Wd / 2), ...P(L / 2, Wd / 2), ...P(-L / 2, Wd / 2)], 3));
       g.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1], 2)); g.computeVertexNormals(); group.add(new THREE.Mesh(g, word));
-      made.push(`run-off ${(EB.sB - EB.sA).toFixed(0)} m long, ${best.w.toFixed(0)} m deep at its widest`);
+      made.push(`run-off ${(EB.sB - EB.sA).toFixed(0)} m long, ${w.toFixed(0)} m deep at its middle, its wall one ${CL.toFixed(0)} m arc`);
     }
-    // light towers on its outer wall, lamps aimed back over it at the chicane; marshals' posts at its two ends
-    for (let s = EB.sA + 20; s <= EB.sB - 15; s += 26) {
-      const i = tr.idxAtS(s), p = tr.sample(s, sd * (tr.wallAt(i, sd) + 1.6), f), aim = tr.sample(s, -sd * 2, f2); mast(p.x, p.z, 14, [tr.tx[i], tr.tz[i]]);
-      put(flood, boxAt(p.x, 14.4, p.z, [tr.tx[i], tr.tz[i]], 2.2, 0.6, 1.0)); lights.push({ x: p.x, y: 14.4, z: p.z, tx: aim.x, tz: aim.z });
+    // light towers just behind its wall, lamps aimed back over it at the chicane; marshals' posts at its two ends
+    for (let k = 4; k < arc.length - 4; k += 7) {
+      const [x0, z0] = arc[k - 1], [x1, z1] = arc[k + 1], L = Math.hypot(x1 - x0, z1 - z0), ex = [(x1 - x0) / L, (z1 - z0) / L], q = tr.nearest(arc[k][0], arc[k][1]), o = tr.sample(q.s, 0, f2);
+      let nx = -ex[1], nz = ex[0]; if (nx * (arc[k][0] - o.x) + nz * (arc[k][1] - o.z) < 0) { nx = -nx; nz = -nz; }
+      const x = arc[k][0] + nx * 1.6, z = arc[k][1] + nz * 1.6; mast(x, z, 14, ex);
+      put(flood, boxAt(x, 14.4, z, ex, 2.2, 0.6, 1.0)); lights.push({ x, y: 14.4, z, tx: o.x, tz: o.z });
     }
     for (const s of [EB.sA + 8, EB.sB - 6]) {
       const i = tr.idxAtS(s), ex = [tr.tx[i], tr.tz[i]], p = tr.sample(s, sd * (tr.wallAt(i, sd) + 1.4), f);
@@ -187,8 +194,9 @@ export function buildSphereZone(track, pit, def, near = []) {
   // the T-Mobile grandstands: scaffold stands clad in magenta, round the outside of the loop
   // =============================================================================================================
   const STD = { tiers: 18, tierH: 0.55, tierD: 0.9, gap: 1.6 };
-  const chain = (sA, sB, side, S, tag) => {
-    const pts = []; for (let s = sA; s <= sB; s += 1) { const i = tr.idxAtS(s); tr.sample(s, side * (tr.wallAt(i, side) + S.gap), f); pts.push([f.x, f.z]); }
+  const EBring = EB ? [...EB.outer, ...(() => { const r = []; for (let s = EB.sB; s >= EB.sA; s -= 4) { tr.sample(s, 0, f); r.push([f.x, f.z]); } return r; })()] : null;
+  const chain = (sA, sB, side, S, tag, given = null) => {
+    const pts = given || []; if (!given) for (let s = sA; s <= sB; s += 1) { const i = tr.idxAtS(s); tr.sample(s, side * (tr.wallAt(i, side) + S.gap), f); pts.push([f.x, f.z]); }
     const depth = 0.8 + S.tiers * S.tierD + 0.6, out = [];
     const make = (a, b) => {
       const l0 = Math.hypot(b[0] - a[0], b[1] - a[1]), ex = [(b[0] - a[0]) / l0, (b[1] - a[1]) / l0], mx = (a[0] + b[0]) / 2, mz = (a[1] + b[1]) / 2;
@@ -199,6 +207,9 @@ export function buildSphereZone(track, pit, def, near = []) {
     const clear = (p) => {
       for (let lx = -p.len / 2; lx <= p.len / 2 + 0.01; lx += 2) for (let lz = 0; lz <= p.depth + 0.01; lz += 2) {
         const [x, z] = p.world(lx, lz); if (corridorSigned(tr, pit, x, z, -0.4) < 0 || near.some((r) => inRing(x, z, r)) || out.some((o) => within(o, x, z))) return false;
+        // (and never inside the barriers: a run-off is the cars' - the stand stands behind its wall)
+        const q = tr.nearest(x, z, -1, f2); if (Math.abs(q.d) < tr.wallAt(q.i, q.d >= 0 ? 1 : -1) + 0.8) return false;
+        if (EBring && inRing(x, z, EBring)) return false;
       }
       return true;
     };
@@ -214,24 +225,47 @@ export function buildSphereZone(track, pit, def, near = []) {
   };
   const south = chain(c5 + 45, c6 - 70, -1, STD, 'T-Mobile Zone south grandstand');
   const corner = chain(c6 - 55, c6 + 60, -1, STD, 'T-Mobile Zone Turn 6 grandstand');
-  const east = EB ? chain(EB.sA + 4, EB.sB - 4, EB.side, { ...STD, tiers: 22 }, 'T-Mobile Zone chicane grandstand') : [];
+  // (the chicane's stand: behind the run-off's wall, along its arc - not the wall samples, folded on the inside of Turn 8)
+  let east = [];
+  if (EB) {
+    const arc = EB.outer, pts = [], S2 = { ...STD, tiers: 22 };
+    for (let k = 0; k < arc.length - 1; k++) {
+      const [x0, z0] = arc[k], [x1, z1] = arc[k + 1], L = Math.hypot(x1 - x0, z1 - z0), q = tr.nearest(x0, z0), o = tr.sample(q.s, 0, f2);
+      let nx = -(z1 - z0) / L, nz = (x1 - x0) / L; if (nx * (x0 - o.x) + nz * (z0 - o.z) < 0) { nx = -nx; nz = -nz; }
+      for (let u = 0; u < L; u += 1) pts.push([x0 + (x1 - x0) * u / L + nx * S2.gap, z0 + (z1 - z0) * u / L + nz * S2.gap]);
+    }
+    east = chain(0, 0, EB.side, S2, 'T-Mobile Zone chicane grandstand', pts.slice(6, -6));
+  }
   const all = [...south, ...corner, ...east];
-  // (their magenta: the back and the ends clad in T-Mobile panels, the top rail lit)
-  for (const p of all) {
-    const top = 1.2 + p.tiers * STD.tierH, back = p.depth;
-    const plane = (lx0, lx1, lz0, lz1, y0, y1, rep) => { const [x0, z0] = p.world(lx0, lz0), [x1, z1] = p.world(lx1, lz1), L = Math.hypot(x1 - x0, z1 - z0), g = new THREE.PlaneGeometry(L, y1 - y0), uv = g.attributes.uv; for (let j = 0; j < uv.count; j++) uv.setX(j, uv.getX(j) * rep); g.rotateY(Math.atan2(-(z1 - z0), x1 - x0)); g.translate((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2); put(tmoWall, g); };
-    plane(-p.len / 2, p.len / 2, back + 0.65, back + 0.65, 0, top + 1.4, Math.max(1, Math.round(p.len / 14)));
-    // (the ends: the rake's profile, low at the front, the full height at the back)
-    for (const e of [-1, 1]) {
-      const lx = e * (p.len / 2 + 0.05), [x0, z0] = p.world(lx, 0), [x1, z1] = p.world(lx, back + 0.65), g = new THREE.BufferGeometry(), r = (back + 0.65) / 14;
-      g.setAttribute('position', new THREE.Float32BufferAttribute([x0, 0, z0, x1, 0, z1, x1, top + 1.4, z1, x0, 0, z0, x1, top + 1.4, z1, x0, 1.4, z0], 3));
-      g.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, r, 0, r, 1, 0, 0, r, 1, 0, 1.4 / (top + 1.4)], 2)); g.computeVertexNormals(); put(tmoWall, g);
+  // (their magenta, as the race's renders show them: the cladding under and behind the seats - the back wall up to the
+  //  top row, the section's number on it and a tunnel through it, and at the ends of a stand its side, following the
+  //  rake down to the front: nothing standing above the seats or across the view along the stand between sections)
+  let num = 0;
+  for (const chainOf of [south, corner, east]) chainOf.forEach((p, k) => {
+    const TOP = STAND.base + p.tiers * STD.tierH, back = p.depth;
+    const plane = (lx0, lx1, lz, y0, y1, mat, u = [0, Math.max(1, Math.round(p.len / 14))], v = [0, 1]) => {
+      const [x0, z0] = p.world(lx0, lz), [x1, z1] = p.world(lx1, lz), g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute([x0, y0, z0, x1, y0, z1, x1, y1, z1, x0, y0, z0, x1, y1, z1, x0, y1, z0], 3));
+      g.setAttribute('uv', new THREE.Float32BufferAttribute([u[0], v[0], u[1], v[0], u[1], v[1], u[0], v[0], u[1], v[1], u[0], v[1]], 2)); g.computeVertexNormals(); put(mat, g);
+    };
+    plane(-p.len / 2, p.len / 2, back + 0.05, 0, TOP, tmoWall);
+    // (its number high on the back, the tunnel in, lit, under it)
+    num++; const cell = (num - 1) % 16, cu = (cell % 8) / 8, cv = 1 - Math.floor(cell / 8) / 2;
+    plane(-p.len / 2 + 1.5, -p.len / 2 + 5.5, back + 0.12, TOP - 4.2, TOP - 1.2, numbers, [cu, cu + 1 / 8], [cv - 0.5, cv]);
+    plane(-2.2, 2.2, back + 0.12, 0, 3.2, tunnel, [0, 1], [0, 1]);
+    const ends = [];
+    if (k === 0 || Math.hypot(...((a, b) => [a[0] - b[0], a[1] - b[1]])(chainOf[k - 1].world(chainOf[k - 1].len / 2, 0), p.world(-p.len / 2, 0))) > 3) ends.push(-1);
+    if (k === chainOf.length - 1 || Math.hypot(...((a, b) => [a[0] - b[0], a[1] - b[1]])(chainOf[k + 1].world(-chainOf[k + 1].len / 2, 0), p.world(p.len / 2, 0))) > 3) ends.push(1);
+    for (const e of ends) {
+      const lx = e * (p.len / 2 + 0.02), [x0, z0] = p.world(lx, 0), [x1, z1] = p.world(lx, back + 0.05), g = new THREE.BufferGeometry(), r = back / 14;
+      g.setAttribute('position', new THREE.Float32BufferAttribute([x0, 0, z0, x1, 0, z1, x1, TOP, z1, x0, 0, z0, x1, TOP, z1, x0, STAND.base, z0], 3));
+      g.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, r, 0, r, 1, 0, 0, r, 1, 0, STAND.base / TOP], 2)); g.computeVertexNormals(); put(tmoWall, g);
     }
     const [lx, lz] = p.world(0, back - 0.4), q = tr.nearest(lx, lz), aim = tr.sample(q.s, 0, f);
-    lights.push({ x: lx, y: top + 3, z: lz, tx: aim.x, tz: aim.z }); put(flood, boxAt(lx, top + 3, lz, p.ex, 1.4, 0.35, 0.6));
-    for (const lxx of [-p.len / 2 + 1, p.len / 2 - 1]) { const [x, z] = p.world(lxx, back - 0.3); put(white, boxAt(x, (top + 3) / 2, z, p.ex, 0.25, top + 3, 0.25)); }
+    lights.push({ x: lx, y: TOP + 3, z: lz, tx: aim.x, tz: aim.z }); put(flood, boxAt(lx, TOP + 3, lz, p.ex, 1.4, 0.35, 0.6));
+    { const [x, z] = p.world(0, back - 0.3); put(white, boxAt(x, (TOP + 3) / 2, z, p.ex, 0.25, TOP + 3, 0.25)); }
     stands.push(p);
-  }
+  });
   // the T-Mobile cube: lit magenta, the T on each face, on its lattice mast over the chicane stand
   if (east.length) {
     const p = east[Math.min(east.length - 1, east.length >> 1)], [x, z] = p.world(-p.len / 2 + 2, p.depth + 4);

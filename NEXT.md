@@ -1,3 +1,21 @@
+# V2.33 (2026-11-04): the T-Mobile stands' cladding, the chicane's run-off wall, the pit lanes' mouths
+
+- The T-Mobile stands (VegasSphereZone.js, the user's render of the zone): the magenta cladding under and behind the
+  seats only - the back wall up to the top row with the section's number and a lit tunnel in, the side at the ends of a
+  stand following its rake down to the front. No more panels standing above the seats between sections (they walled off
+  the view along the stand).
+- The run-off beyond Turns 7-8 (TrackBuilder escapes band): its wall one gentle arc from the barrier before Turn 7 to the
+  barrier before Turn 9, bowed out to the depth at its middle - no longer an offset of the road, which wiggled with the
+  chicane. Its paint is the polygon between that arc and the kerb; the stand behind it follows the arc, and no stand may
+  stand inside a barrier or the run-off (one had been put on the run-off, where the wall samples fold over each other on
+  the inside of Turn 8).
+- Pit lanes: boards stood across the lane where it opens onto the track - at Las Vegas the green WHEN YOU DRIVE NEVER
+  DRINK boards on Turns 1-2's inside wall ran on over the exit road; at Silverstone the pit wall's DHL / Emirates banners
+  over the entry and exit roads. Both now stop where the barrier opens (the track's own rule: no pit wall, the lane's
+  infield or the lane over the line). Checked by ray along each lane's path at 0.3 and 0.7 m on all four circuits.
+- Seen on the way, not changed: Montreal's lane passes through its pit building's meshes near the garages (s ~4320-4350)
+  and Austin's start gantry has a leg on the lane (s ~3) - to look at.
+
 # V2.32 (2026-11-04): the Sphere zone, Wynn and Encore, the Sphere's one big screen, the T-cam
 
 - T-cam (CockpitCamera.js): one fixed lens - set, never eased (no zoom-in back from the rear view or another camera);

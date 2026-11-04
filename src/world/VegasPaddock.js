@@ -681,12 +681,16 @@ export function buildVegasPaddock(track, pit, def, rings = [], geo = null) {
     put(chevBlue, strip(T, 8, n - 8, (k) => [ci(k), 0.02], (k) => [co(k), 0.02], 4));
     // (the inside wall round the hairpin: the green WHEN YOU DRIVE NEVER DRINK boards along it, and over it the white
     //  lighting truss on its posts, its lamps aimed at the corner)
-    put(neverDrink, strip(T, 0, n, (k) => [tr.wallAt(ids[k], 1) + 0.32, 0.15], (k) => [tr.wallAt(ids[k], 1) + 0.32, 1.25], 9));
+    // (only where that wall stands: the pit exit road rejoins along it after Turn 2, and there the barrier is open - the
+    //  boards ran on across the lane)
+    const wallUp = (k) => { const i = ids[k]; return !(pit && pit.sideSign === 1 && (isNaN(pit.wallD[i]) || tr.pitInfield?.[i] || pit.laneCovers?.[i])); };
+    for (let k = 0; k < n;) { if (!wallUp(k)) { k++; continue; } let e = k; while (e < n && wallUp(e + 1)) e++; if (e > k) put(neverDrink, strip(T, k, e, (j) => [tr.wallAt(ids[j], 1) + 0.32, 0.15], (j) => [tr.wallAt(ids[j], 1) + 0.32, 1.25], 9)); k = e + 1; }
     const tw = (k) => tr.wallAt(ids[k], 1) + 1.4, TY = 6.8, k0 = Math.round(20 / tr.ds), k1 = n - Math.round(30 / tr.ds);
     if (k1 > k0) {
       for (const dz of [-0.45, 0.45]) put(trussTall, strip(T, k0, k1, (k) => [tw(k) + dz, TY - 0.9], (k) => [tw(k) + dz, TY + 0.9], 7));
       put(trussTall, strip(T, k0, k1, (k) => [tw(k) - 0.45, TY + 0.9], (k) => [tw(k) + 0.45, TY + 0.9], 7));
       for (let k = k0; k <= k1; k += Math.round(22 / tr.ds)) {
+        if (!wallUp(k)) continue;
         const i = ids[k], p = tr.sample(tr.s[i], tw(k), {});
         put(white, boxAt(p.x, TY / 2, p.z, [tr.tx[i], tr.tz[i]], 0.5, TY, 0.5));
         const q = tr.sample(tr.s[i], tw(k) - 1.0, {}), aim = tr.sample(tr.s[i], -4, {});

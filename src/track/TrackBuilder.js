@@ -793,19 +793,26 @@ export class Track {
   }
   /**
    * A run-off swelling out from the barrier line beside a stretch of the lap (escapes band: { turn, from, to, depth }):
-   * from `from` to `to` m about the corner's apex, the barrier on that side eased out to `depth` m past the kerb and back
-   * in again - a lozenge of paved run-off along the corner (Las Vegas's Turns 7-8: the painted run-off east of the
-   * chicane). Its outline is kept for the paint (escapeBands: { turn, sA, sB, side, depth, out(s) }).
+   * from `from` to `to` m about the corner's apex, its outer wall one gentle curve (a quadratic arc from the barrier
+   * line at one end to the barrier line at the other, bowed out to `depth` m past the kerb at the middle) - not an offset
+   * of the road, which would wiggle with every kerb of a chicane. Las Vegas's Turns 7-8: the painted run-off east of the
+   * chicane, its wall curving gently round in front of the stands. Its range is kept for the paint (escapeBands).
    */
   _escapeBand(o, side) {
     const c = (this.def.corners || []).find((k) => k.n === o.turn); if (!c || c.s == null) return null;
     const sA = c.s + (o.from ?? -20), sB = c.s + (o.to ?? 120), D = o.depth ?? 30, f = {};
-    const prof = (s) => { const t = (s - sA) / (sB - sA), a = Math.min(1, Math.max(0, t / 0.28)), b = Math.min(1, Math.max(0, (1 - t) / 0.3)); return (a * a * (3 - 2 * a)) * (b * b * (3 - 2 * b)); };
-    const out = (s) => { const i = this.idxAtS(s); return Math.max(this.wallAt(i, side), this.edgeAt(i, side) + this.kerbWidth + D * prof(s)); };
-    const outer = [], inner = [];
-    for (let s = sA; s <= sB + 0.01; s += 2) { this.sample(s, side * out(s), f); outer.push([f.x, f.z]); this.sample(s, 0, f); inner.push([f.x, f.z]); }
-    (this.escapeBands || (this.escapeBands = [])).push({ turn: o.turn, sA, sB, side, depth: D, out });
-    return [...outer, ...inner.reverse()];
+    const wallPt = (s) => { const i = this.idxAtS(s); this.sample(s, side * this.wallAt(i, side), f); return [f.x, f.z]; };
+    const A = wallPt(sA), B = wallPt(sB), M = [(A[0] + B[0]) / 2, (A[1] + B[1]) / 2], sM = (sA + sB) / 2, iM = this.idxAtS(sM);
+    // (the bow: out from the chord on the run-off's side, so the arc's middle stands D past the kerb at the middle of the stretch)
+    let nx = -(B[1] - A[1]), nz = B[0] - A[0]; const nl = Math.hypot(nx, nz) || 1; nx /= nl; nz /= nl;
+    this.sample(sM, 0, f); const c0 = [f.x, f.z]; this.sample(sM, side * 10, f); if ((f.x - c0[0]) * nx + (f.z - c0[1]) * nz < 0) { nx = -nx; nz = -nz; }
+    this.sample(sM, side * (this.edgeAt(iM, side) + this.kerbWidth + D), f);
+    const h = Math.max(4, 2 * ((f.x - M[0]) * nx + (f.z - M[1]) * nz)), C = [M[0] + nx * h, M[1] + nz * h];
+    const outer = [];
+    for (let k = 0; k <= 48; k++) { const t = k / 48, a = (1 - t) * (1 - t), b = 2 * t * (1 - t), q = t * t; outer.push([a * A[0] + b * C[0] + q * B[0], a * A[1] + b * C[1] + q * B[1]]); }
+    const inner = []; for (let s = sB; s >= sA - 0.01; s -= 2) { this.sample(s, 0, f); inner.push([f.x, f.z]); }
+    (this.escapeBands || (this.escapeBands = [])).push({ turn: o.turn, sA, sB, side, depth: D, arc: { A, B, C }, outer });
+    return [...outer, ...inner];
   }
   /** a barrier line held as drawn (escapes: an escape the shape of the real one) at arc length s on that side */
   heldAt(s, side) { return (this.heldWalls || []).some((h) => h.side === side && s >= h.a && s <= h.b); }
