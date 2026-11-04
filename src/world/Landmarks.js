@@ -109,11 +109,11 @@ function sphereShader() {
           // four-sided: the artwork repeats in each 90-degree quadrant around the Sphere (cylindrical wrap)
           float az = atan(r, d);
           float u = fract(az / 1.5707963 + 0.5);
-          return texture2D(uShow, vec2(u, vy)).rgb * 0.62;
+          return texture2D(uShow, vec2(u, vy)).rgb * 0.44;
         }
         vec3 front = texture2D(uShow, vec2(clamp(r * 0.62 + 0.5, 0.0, 1.0), vy)).rgb;
         vec3 back = uTwoSided > 0.5 ? texture2D(uShow, vec2(clamp(-r * 0.62 + 0.5, 0.0, 1.0), vy)).rgb : uShowBg;
-        return mix(back, front, smoothstep(-0.1, 0.1, d)) * 0.62;   // canvas art is pre-lit: tame the night boost
+        return mix(back, front, smoothstep(-0.1, 0.1, d)) * 0.44;   // canvas art is pre-lit: tame the night boost (more and it washes to white)
       }
       // daytime-sky show: deep blue with drifting cumulus and a sprinkle of stars (like the Sphere's cloud loop)
       vec3 clouds(vec2 uv, float t){
@@ -131,15 +131,15 @@ function sphereShader() {
       // each side, the caption low on the picture (the graphics: uBcast, SphereShow.js BroadcastOverlay). It is laid on
       // the shell by longitude and latitude, as the Sphere's own content is, so it bends with it: straight across the
       // middle, its top edge pulled in toward the crown, the sides wrapping round out of sight. The frame spans
-      // 86 degrees either side of the face and from 10 degrees below the equator (the shell meets the plaza at 25) to
-      // 65 above, a dark band under it and a red-gold ribbon over its top; the far side carries the same screen, read
+      // 86 degrees either side of the face and from 15 degrees below the equator (the shell meets its base at 19) to
+      // 58 above, a dark band under it and a red-gold ribbon over its top; the far side carries the same screen, read
       // the right way round from there.
       vec3 broadcast(vec2 uv, float t){
         vec3 n = normalize(vP);
         float az = atan(dot(n, uRight), dot(n, uFace));        // 0 = facing the track
         if (az > 1.5707963) az -= 3.1415927; else if (az < -1.5707963) az += 3.1415927;
         float el = asin(clamp(n.y, -1.0, 1.0));
-        const float A = 1.50, E0 = -0.17, E1 = 1.13;
+        const float A = 1.50, E0 = -0.26, E1 = 1.02;
         float u = az / (2.0 * A) + 0.5, v = (el - E0) / (E1 - E0);
         vec3 dark = vec3(0.012, 0.012, 0.022);
         if (v > 1.0) {   // over the screen: the ribbon, then the dark crown
@@ -329,13 +329,23 @@ def('sphere', /^sphere$/i, (fps, ctx) => {
   // 157 m wide / 112 m tall: a sphere of r = 78.5 with its centre 33.5 m above the plaza (the OSM footprint centroid)
   const fp = fps[0]; const g = new THREE.Group(); g.userData.keep = true;   // geo-exact: never displaced by the clearance pass
   const m = new THREE.Mesh(new THREE.SphereGeometry(78.5, 128, 80), sphereShader()); m.position.y = 112 - 78.5; g.add(m);
-  m.material.uniforms.uGround.value = -(112 - 78.5) / 78.5;   // the shell is buried below this normal.y: shows are laid out on the visible part only
+  // (its base: the solid ring the shell stands on, dark, 8.5 m high and 80 m round at the foot - the shell meets it at
+  //  a normal.y of -0.32; every show is laid out on the shell above it, so nothing is drawn behind it)
+  const BASE_H = 8.5; m.material.uniforms.uGround.value = (BASE_H - (112 - 78.5)) / 78.5;
   m.material.userData.timeSkip = true; ctx.timeUniforms.push(m.material.uniforms.uDay); ctx.sphere = m;
   ctx.anims.push((t) => { m.material.uniforms.uTime.value = t; });
   // flat urban plaza with a ring of walkways + the support plinth
   const plaza = new THREE.Mesh(new THREE.CircleGeometry(150, 64), std(0x3a3c42, { roughness: 0.95 })); plaza.rotation.x = -Math.PI / 2; plaza.position.y = 0.02; g.add(plaza);
   const walk = new THREE.Mesh(new THREE.RingGeometry(84, 92, 64), std(0x8a8c90, { roughness: 0.9 })); walk.rotation.x = -Math.PI / 2; walk.position.y = 0.04; g.add(walk);
-  g.add(cyl(34, 38, 10, std(0x1b1d22, { roughness: 0.6, metalness: 0.3 }), 0, 0, 0, 32));
+  {
+    const bc = document.createElement('canvas'); bc.width = 1024; bc.height = 64; const x = bc.getContext('2d');
+    x.fillStyle = '#26282d'; x.fillRect(0, 0, 1024, 64); x.fillStyle = '#1a1b1f'; for (let k = 0; k < 64; k++) x.fillRect(k * 16, 0, 2, 64);   // (its panels)
+    x.fillStyle = '#3a3c42'; x.fillRect(0, 0, 1024, 5);   // (the lip at its top)
+    for (let k = 0; k < 6; k++) { const ox = 60 + k * 165; x.fillStyle = '#0c0d10'; x.fillRect(ox, 26, 60, 38); x.fillStyle = 'rgba(255,214,160,0.55)'; x.fillRect(ox + 4, 30, 52, 4); }   // (its doors, lit over)
+    const bt = new THREE.CanvasTexture(bc); bt.wrapS = THREE.RepeatWrapping; bt.repeat.set(8, 1); bt.colorSpace = THREE.SRGBColorSpace;
+    const side = new THREE.Mesh(new THREE.CylinderGeometry(78.5, 80, BASE_H, 128, 1, true), std(0xffffff, { map: bt, roughness: 0.75, metalness: 0.2, emissive: 0x0a0a0c })); side.position.y = BASE_H / 2; g.add(side);
+    const top = new THREE.Mesh(new THREE.RingGeometry(70, 78.5, 128), std(0x2e3036, { roughness: 0.7, metalness: 0.2, side: THREE.DoubleSide })); top.rotation.x = -Math.PI / 2; top.position.y = BASE_H; g.add(top);
+  }
   for (let i = 0; i < 12; i++) { const a = i * Math.PI / 6; g.add(cyl(0.3, 0.3, 9, glow(0xfff2d0, 1.2), Math.cos(a) * 100, 0, Math.sin(a) * 100, 6)); }
   return place(g, fp.info.c, 0);
 });

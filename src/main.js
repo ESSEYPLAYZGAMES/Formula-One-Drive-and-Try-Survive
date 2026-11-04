@@ -46,7 +46,7 @@ import { CrashCam, CRASH_G } from './camera/CrashCam.js';
 import { SafetyCarMesh } from './vehicle/SafetyCarMesh.js';
 import { Debris } from './world/Debris.js';
 import { Input } from './input/Input.js';
-import { CockpitCamera, TCAM_TILT } from './camera/CockpitCamera.js';
+import { CockpitCamera, TCAM_TILT, TCAM_FOV } from './camera/CockpitCamera.js';
 import { AudioEngine } from './audio/Audio.js';
 import { ROSTER, customDriver, POINTS, standIn, dayPerf } from './race/Roster.js';
 import { showMemorial } from './ui/Memorial.js';
@@ -1075,6 +1075,14 @@ $('btn-resume').addEventListener('click', () => setPaused(false));
   const show = () => { for (const s of sliders) { s.value = Math.round(audio.volume * 100); const v = s.parentElement.querySelector('.vol-val'); if (v) v.textContent = `${s.value}%`; } };
   for (const s of sliders) s.addEventListener('input', () => { audio.setVolume(s.value / 100); show(); });
   show();
+}
+// the T-cam's lens (its vertical field of view, degrees): a slider beside the tilt, kept in this browser
+{
+  const KEY = 'f1sim-tcam-fov', sliders = ['fov-menu', 'fov-pause'].map($).filter(Boolean);
+  let deg = TCAM_FOV; try { const v = +localStorage.getItem(KEY); if (v >= 30 && v <= 60) deg = v; } catch (e) { /* (a private window) */ }
+  const set = (d) => { camCtl.tcam.fov = d; for (const s of sliders) { s.value = d; const v = s.parentElement.querySelector('.vol-val'); if (v) v.textContent = `${d}°`; } };
+  for (const s of sliders) s.addEventListener('input', () => { const d = +s.value; set(d); try { localStorage.setItem(KEY, String(d)); } catch (e) { /* */ } });
+  set(deg);
 }
 // the T-cam's tilt down (degrees): a slider in the pause menu and the setup's Driving page, kept in this browser
 {
@@ -3488,8 +3496,26 @@ function sphereInView() {
 function sphereShow() {
   const sphereSeen = sphereInView();
   if (W.landmarks?.sphere) {
-    const u = W.landmarks.sphere.material.uniforms; const a = (W.faceAngle0 || 0) + simTime * (2 * Math.PI / 300);
+    const u = W.landmarks.sphere.material.uniforms;
+    // (where its face looks: the content turns slowly round, one revolution in 5 minutes, so it faces every part of the
+    //  circuit over a race - but the emoji turns its face to the car you watch (else the nearest), and its eyes follow it)
+    const k0 = Math.floor((simTime % (SPHERE_SEQUENCE.length * SHOW_SECONDS)) / SHOW_SECONDS), cur0 = SPHERE_SEQUENCE[k0], nxt0 = SPHERE_SEQUENCE[(k0 + 1) % SPHERE_SEQUENCE.length];
+    const emojiOn = cur0 === 'smiley' || cur0 === 'helmet' || ((nxt0 === 'smiley' || nxt0 === 'helmet') && simTime % SHOW_SECONDS > SHOW_SECONDS - 3);
+    const aRot = (W.faceAngle0 || 0) + simTime * (2 * Math.PI / 300);
+    let car = null;
+    if (W.sphereInfo) {
+      const sc = W.sphereInfo.center; car = S.player && !S.player.retired ? S.player : null;
+      if (!car) { let bd = Infinity; for (const c of (S.director ? S.director.cars : S.ambient?.cars) || []) { const d = (c.x - sc.x) ** 2 + (c.z - sc.z) ** 2; if (d < bd) { bd = d; car = c; } } }
+    }
+    const sc = W.sphereInfo?.center, aCar = car && sc ? Math.atan2(car.z - sc.z, car.x - sc.x) : null, target = emojiOn && aCar != null ? aCar : aRot;
+    if (W.faceA == null) W.faceA = target;
+    W.faceA += Math.atan2(Math.sin(target - W.faceA), Math.cos(target - W.faceA)) * (emojiOn ? 0.035 : 0.02);
+    const a = W.faceA;
     u.uFace.value.set(Math.cos(a), 0, Math.sin(a)); u.uRight.value.set(Math.sin(a), 0, -Math.cos(a));
+    if (car && sc) {
+      const dx = car.x - sc.x, dz = car.z - sc.z, l = Math.hypot(dx, dz) || 1, lr = (dx * Math.sin(a) - dz * Math.cos(a)) / l, lf = (dx * Math.cos(a) + dz * Math.sin(a)) / l;
+      show.look = { x: Math.max(-1, Math.min(1, lf < 0 ? Math.sign(lr || 1) : lr * 2.2)), y: -0.45 - 0.3 * Math.min(1, 300 / Math.max(80, l)) };
+    }
     const k = Math.floor((simTime % (SPHERE_SEQUENCE.length * SHOW_SECONDS)) / SHOW_SECONDS);
     const cur = SPHERE_SEQUENCE[k], next = SPHERE_SEQUENCE[(k + 1) % SPHERE_SEQUENCE.length];
     const cs = FINALE.on ? 'champion' : CANVAS_SHOWS.has(cur) ? cur : CANVAS_SHOWS.has(next) ? next : null;
@@ -3665,7 +3691,7 @@ function frame(now) {
   if (W.buildings) W.buildings.material.uniforms.uTime.value = simTime;
   const sphereSeen = sphereShow();
   input.endFrame();
-  if (!halted) sphereFeed(sphereSeen);
+  sphereFeed(sphereSeen);   // (paused or in photo mode too: the frozen race on the Sphere's screen, not the black of a feed never drawn)
   cullBuildings();
   env.sky.position.copy(camera.position);   // the dome travels with the camera: its far side never crosses the far plane (that showed as a flat "mountain")
   renderView();
@@ -3681,6 +3707,8 @@ function frame(now) {
     crashFrame() { const n0 = renderer.info.programs.length; ensureCrashComposer(); crashPass.uniforms.uBlur.value = 0.6; crashPass.uniforms.uSat.value = 1.5; crashComposer.render(); return renderer.info.programs.length - n0; },
     /** (tests: the crash director, and the camera as drawn - terrainLift() lifts it for the frame and returns the undo; renderView() draws a frame through it) */
     crashCam, terrainLift, renderView,
+    /** (tests: the show clock - simTime - set, so the Sphere's loop can be put on any show) */
+    setSimTime(t) { simTime = t; },
     /** (tests: the Sphere's F1 stream drawn now - its feed rendered, its graphics drawn - and the show forced onto it) */
     feedNow() { if (!feed || !W.landmarks?.sphere) return false; const u = W.landmarks.sphere.material.uniforms; u.uForce.value = SHOW_ID.broadcast; feed.update(renderer, scene, feedPoses(), [W.stands?.group].filter(Boolean)); bcast.last = -1; bcast.draw(feedInfo(), simTime); return feed; },
     /** (tests: the safety car's model brought up to date with the race - main loop: frame) */

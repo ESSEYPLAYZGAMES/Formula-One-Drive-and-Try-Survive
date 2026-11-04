@@ -1,3 +1,25 @@
+# V2.35 (2026-11-04): the Sphere's emoji and helmet remade, its base, the screen in time trial; the chicane polished
+
+- The Sphere's emoji (SphereShow emoji(), the photos): glossy yellow, two tall white eyes with big black pupils and a
+  glint, thick dark-brown brows, a small mouth - four expressions in turn (a sly smile, wide-eyed awe with an "o", one
+  brow up and curious, a happy squint), blending, blinking; drawn in the shell's own measure (front-on, so the eyes stay
+  round on the Sphere). While it is on, the face turns to the car you watch (else the nearest), lagging a little, and
+  its eyes follow it. The helmet variant: the face in its race helmet - sky-blue shell, the white visor band with LAS
+  VEGAS GRAND PRIX in navy, the navy crown panel with its wave lines and the red F1, the visor pivots, navy and white
+  side stripes, the lilac chin guard and its vent. Canvas shows toned down (x0.44): the night glow washed them to white.
+- The Sphere's base (Landmarks.js): the solid dark ring the shell stands on, 8.5 m high, 80 m round at its foot, its
+  panels and lit doors; every show laid out on the shell above it (uGround at its top).
+- The F1 stream: drawn whenever it is on - paused or in photo mode too (it stayed black when the loop reached it while
+  the game was halted); its screen a little lower on the shell (15 below the equator to 58 above), centred on the face.
+- T-cam: a field-of-view slider beside the tilt (30-60 degrees, 40 by default), on the Driving page and in the pause
+  menu, kept in this browser.
+- The chicane: the run-off red (the race's render), the race's F1 / LAS VEGAS GRAND PRIX mark across it; it ends at
+  Turn 8's turn-in - past it, on the inside of Turn 8, the wall samples (pushed out along converging normals) jumped back
+  and forth and the barrier, fence and boards drawn between them made stray rectangles of fencing. No stand of the zone
+  may stand in another, whichever stand it belongs to; the run-off's stand only along its wall, not round its ends.
+- The suites' people: the stands' figures at their real size (the suite texture is laid 30 m to a repeat, ~3.6 m tall,
+  so they were twice as wide as they should be), darkened against the lit room - near-silhouettes, their colours there.
+
 # V2.34 (2026-11-04): the plaza's F1 logo, the suites' people, open stand ends, the chicane run-off's real wall
 
 - The Grand Prix Plaza's F1 logo (VegasPaddock.js): F1 red, unlit and untoned so it reads as neon (it washed to pink /

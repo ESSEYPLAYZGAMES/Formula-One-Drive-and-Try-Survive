@@ -69,7 +69,7 @@ export const TRACKS = {
     // - the main grandstand's barrier line on one side, the return leg's on the other, 42 m past the hairpin's kerb
     // and the chicane's: the painted run-off on the way in, straight on past Turn 7 (its teal paint and the aramco name -
     // world/VegasSphereZone.js); out of Turn 8 the wall runs beside the road as everywhere else
-    escapes: [{ side: -1, auto: { turn: 1, depth: 42 } }, { side: -1, band: { turn: 7, from: -40, to: 75, depth: 34 } }],   // (their paint: world/VegasPaddock.js, VegasSphereZone.js)
+    escapes: [{ side: -1, auto: { turn: 1, depth: 42 } }, { side: -1, band: { turn: 7, from: -40, to: 43, depth: 34 } }],   // (their paint: world/VegasPaddock.js, VegasSphereZone.js)
     shots: [
       { lm: 'sphere', label: 'SPHERE', rMul: 1.0, az: 0.5 }, { s: -160, label: 'PIT STRAIGHT', side: 1 },
       { lm: 'eiffel', label: 'PARIS LAS VEGAS', rMul: 1.05, az: -0.5 }, { s: 3900, label: 'THE STRIP', side: -1 },

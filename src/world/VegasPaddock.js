@@ -41,25 +41,25 @@ function suitesTexture(seed = 1) {
       x.fillStyle = 'rgba(255,90,200,.55)'; x.fillRect(k * 256 + 150, 96, 90, 8);
     }
     // people, drawn as the stands' crowd is (world/FanCutouts.js, its colours): a head in a skin tone with its hair, a
-    // coloured shirt with short sleeves, bare arms (now and then one raised), trousers - the same figures as on the
-    // tiers in front, lit by the room (H = 3.6 m: a figure 1.7 m tall is 120 px)
-    const hx = (c) => `#${c.toString(16).padStart(6, '0')}`, pick = (a) => hx(a[Math.floor(rnd() * a.length)]);
-    const ppl = []; for (let k = 0; k < 46; k++) ppl.push([rnd() * W, 0.9 + rnd() * 0.2, rnd()]);
-    ppl.sort((p, q) => p[1] - q[1]);   // (the nearer, larger, over the others)
+    // coloured shirt with short sleeves, bare arms (now and then one raised), trousers - the same figures, the same size,
+    // as on the tiers in front. The texture is laid 30 m to a repeat and ~3.6 m tall, so a metre across is half the
+    // pixels of a metre up (kx): a figure 1.7 m tall is ~118 px, its shoulders ~0.45 m = 15 px. Against the lit room they
+    // read as near-silhouettes - their colours there, darkened.
+    const hx = (c) => { const r = (c >> 16) & 255, g = (c >> 8) & 255, b = c & 255, k = 0.42; return `rgb(${Math.round(r * k + 26 * (1 - k))},${Math.round(g * k + 18 * (1 - k))},${Math.round(b * k + 22 * (1 - k))})`; };
+    const pick = (a) => hx(a[Math.floor(rnd() * a.length)]), kx = 0.5;
+    const ppl = []; for (let k = 0; k < 30; k++) ppl.push([rnd() * W, 0.94 + rnd() * 0.12, rnd()]);
+    ppl.sort((p, q) => p[1] - q[1]);
     for (const [px, sc, r0] of ppl) {
-      const h = 116 * sc, y0 = H - 4, u = h / 10, skin = pick(FAN_COLOURS.SKIN), shirt = pick(FAN_COLOURS.SHIRT), pants = pick(FAN_COLOURS.PANTS), hair = pick(FAN_COLOURS.HAIR);
-      x.fillStyle = pants; x.fillRect(px - 1.35 * u, y0 - 4.6 * u, 1.2 * u, 4.6 * u); x.fillRect(px + 0.15 * u, y0 - 4.6 * u, 1.2 * u, 4.6 * u);   // (legs)
-      x.fillStyle = skin; x.fillRect(px - 2.15 * u, y0 - 7.9 * u, 0.62 * u, 3.3 * u);   // (arms)
-      if (r0 < 0.15) x.fillRect(px + 1.55 * u, y0 - 10.4 * u, 0.62 * u, 3.3 * u); else x.fillRect(px + 1.55 * u, y0 - 7.9 * u, 0.62 * u, 3.3 * u);
-      x.fillStyle = shirt; x.fillRect(px - 1.5 * u, y0 - 8.3 * u, 3.0 * u, 3.9 * u); x.fillRect(px - 2.2 * u, y0 - 8.3 * u, 0.75 * u, 1.3 * u); x.fillRect(px + 1.5 * u, y0 - 8.3 * u, 0.75 * u, 1.3 * u);   // (shirt, sleeves)
-      x.fillStyle = skin; x.fillRect(px - 0.35 * u, y0 - 8.8 * u, 0.7 * u, 0.6 * u);   // (neck)
-      x.beginPath(); x.ellipse(px, y0 - 9.5 * u, 0.85 * u, 1.0 * u, 0, 0, 6.283); x.fill();   // (head)
+      const h = 112 * sc, y0 = H - 4, u = h / 10, ux = u * kx, skin = pick(FAN_COLOURS.SKIN), shirt = pick(FAN_COLOURS.SHIRT), pants = pick(FAN_COLOURS.PANTS), hair = pick(FAN_COLOURS.HAIR);
+      const R = (x0, y, w, hh) => x.fillRect(px + x0 * ux, y0 - y * u, w * ux, hh * u);
+      x.fillStyle = pants; R(-1.35, 4.6, 1.2, 4.6); R(0.15, 4.6, 1.2, 4.6);   // (legs)
+      x.fillStyle = skin; R(-2.15, 7.9, 0.62, 3.3); if (r0 < 0.15) R(1.55, 10.4, 0.62, 3.3); else R(1.55, 7.9, 0.62, 3.3);   // (arms)
+      x.fillStyle = shirt; R(-1.5, 8.3, 3.0, 3.9); R(-2.2, 8.3, 0.75, 1.3); R(1.5, 8.3, 0.75, 1.3);   // (shirt, sleeves)
+      x.fillStyle = skin; R(-0.35, 8.8, 0.7, 0.6); x.beginPath(); x.ellipse(px, y0 - 9.5 * u, 0.85 * ux, 1.0 * u, 0, 0, 6.283); x.fill();   // (neck, head)
       x.fillStyle = hair;
-      if (r0 > 0.62) { x.fillRect(px - 0.95 * u, y0 - 10.5 * u, 1.9 * u, 0.6 * u); x.fillRect(px - 1.0 * u, y0 - 10.2 * u, 0.4 * u, 2.6 * u); x.fillRect(px + 0.6 * u, y0 - 10.2 * u, 0.4 * u, 2.6 * u); }   // (long hair)
-      else { x.beginPath(); x.ellipse(px, y0 - 10.1 * u, 0.88 * u, 0.5 * u, 0, Math.PI, 0); x.fill(); }   // (short hair / a cap)
+      if (r0 > 0.62) { R(-0.95, 10.5, 1.9, 0.6); R(-1.0, 10.2, 0.4, 2.6); R(0.6, 10.2, 0.4, 2.6); }   // (long hair)
+      else { x.beginPath(); x.ellipse(px, y0 - 10.1 * u, 0.88 * ux, 0.5 * u, 0, Math.PI, 0); x.fill(); }   // (short hair / a cap)
     }
-    // (the room's light on them: a warm wash over the whole)
-    x.fillStyle = 'rgba(255,200,140,0.12)'; x.fillRect(0, 0, W, H);
     // mullions
     x.fillStyle = 'rgba(40,40,46,.85)'; for (let k = 0; k <= 8; k++) x.fillRect(k * 128 - 3, 0, 6, H);
   }, true);

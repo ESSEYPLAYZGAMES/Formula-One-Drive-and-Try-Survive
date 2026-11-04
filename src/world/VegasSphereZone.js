@@ -1,6 +1,6 @@
 // Las Vegas: the T-Mobile Zone at Sphere on race night (2024) - Turns 5 to 9, the loop round the Sphere.
-//  * The chicane's run-off (Turns 7-8, its outside: TrackBuilder escapes band): painted aramco teal, the sponsor's green
-//    in diagonal bands across it, its name written large along it (the aerials at sunset, the grandstand photos).
+//  * The chicane's run-off on the way in (Turns 7-8, its outside: TrackBuilder escapes band): painted the race's red with
+//    its mark written large across it (the race's render of the chicane); aramco's boards on the walls round it.
 //  * The white lattice lighting gantries: one along the inside wall of the chicane, its lamps on the track and the
 //    aramco banner hung from it; light towers along the run-off's outer wall.
 //  * The T-Mobile grandstands round the loop: magenta-clad scaffold stands outside the south leg, round Turn 6 and
@@ -25,24 +25,21 @@ function tmoT(x, cx, cy, h, col) {
   x.fillStyle = col; const w = h * 0.9, t = h * 0.22; x.fillRect(cx - w / 2, cy - h / 2, w, t); x.fillRect(cx - t / 2, cy - h / 2, t, h);
   for (const d of [-1, 1]) x.fillRect(cx + d * (t / 2 + t * 0.9) - t * 0.35, cy + h * 0.02, t * 0.7, t * 0.7);
 }
-/** the run-off's paint, in world metres (6 m a tile): aramco teal, the green bands crossing it at 45 degrees */
+/** the run-off's paint, in world metres (6 m a tile): the race's red (its render of the chicane), a fine grain of wear */
 function runoffTexture() {
   return canvasTex(256, 256, (x, W, H) => {
-    x.fillStyle = '#0f9db2'; x.fillRect(0, 0, W, H);
-    // (wear: lighter where the cars have run over it, a fine grain)
-    for (let k = 0; k < 900; k++) { x.fillStyle = `rgba(255,255,255,${0.02 + Math.random() * 0.04})`; x.fillRect(Math.random() * W, Math.random() * H, 2, 2); }
-    x.fillStyle = 'rgba(46,190,104,0.62)';
-    for (const o of [-W, 0, W]) { x.beginPath(); x.moveTo(o, H); x.lineTo(o + W * 0.42, H); x.lineTo(o + W * 0.42 + W, 0); x.lineTo(o + W, 0); x.closePath(); x.fill(); }
+    x.fillStyle = '#c8102e'; x.fillRect(0, 0, W, H);
+    for (let k = 0; k < 1400; k++) { const v = Math.random(); x.fillStyle = v < 0.5 ? `rgba(255,255,255,${0.02 + Math.random() * 0.035})` : `rgba(60,0,10,${0.03 + Math.random() * 0.05})`; x.fillRect(Math.random() * W, Math.random() * H, 2, 2); }
   }, true);
 }
-/** "aramco" as it is written across the run-off: white, lowercase, the brand's mark before it */
+/** the race's mark written across the run-off, white: the F1 logo, LAS VEGAS GRAND PRIX beside it */
 function aramcoWordTexture() {
   return canvasTex(2048, 512, (x, W, H) => {
-    x.clearRect(0, 0, W, H); x.fillStyle = 'rgba(255,255,255,0.92)'; x.font = `600 ${H * 0.62}px ${FONT}`; x.textAlign = 'left'; x.textBaseline = 'middle';
-    const tw = x.measureText('aramco').width, x0 = (W - tw - H * 0.6) / 2;
-    // (the mark: a ring of green and blue petals)
-    for (let k = 0; k < 8; k++) { x.fillStyle = k % 2 ? 'rgba(20,121,214,0.95)' : 'rgba(40,190,90,0.95)'; x.beginPath(); x.ellipse(x0 + H * 0.25 + Math.cos(k * 0.785) * H * 0.12, H * 0.5 + Math.sin(k * 0.785) * H * 0.12, H * 0.1, H * 0.05, k * 0.785, 0, 6.283); x.fill(); }
-    x.fillStyle = 'rgba(255,255,255,0.92)'; x.fillText('aramco', x0 + H * 0.6, H * 0.53);
+    x.clearRect(0, 0, W, H); x.fillStyle = 'rgba(255,255,255,0.93)'; x.textBaseline = 'middle';
+    x.font = `italic 900 ${H * 0.62}px ${FONT}`; x.textAlign = 'left'; const fw = x.measureText('F1').width;
+    x.font = `800 ${H * 0.27}px ${FONT}`; const tw = Math.max(x.measureText('LAS VEGAS').width, x.measureText('GRAND PRIX').width), x0 = (W - fw - H * 0.12 - tw) / 2;
+    x.font = `italic 900 ${H * 0.62}px ${FONT}`; x.fillText('F1', x0, H * 0.53);
+    x.font = `800 ${H * 0.27}px ${FONT}`; x.fillText('LAS VEGAS', x0 + fw + H * 0.12, H * 0.36); x.fillText('GRAND PRIX', x0 + fw + H * 0.12, H * 0.68);
   });
 }
 /** the T-Mobile cladding of the stands: magenta, the T and the name (u along, v up) */
@@ -97,7 +94,7 @@ export function buildSphereZone(track, pit, def, near = []) {
   const truss = new THREE.MeshBasicMaterial({ map: trussTexture(), alphaTest: 0.5, side: THREE.DoubleSide, color: 0xe8eaf0 });
   const flood = new THREE.MeshBasicMaterial({ color: 0xfffbf0 });
   const lit = (map, k = 0.6, extra = {}) => { const m = new THREE.MeshStandardMaterial({ map, emissive: 0xffffff, emissiveMap: map, emissiveIntensity: k, roughness: 0.6, side: THREE.DoubleSide, ...extra }); return m; };
-  const runoff = lit(runoffTexture(), 0.22, { roughness: 0.75, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  const runoff = lit(runoffTexture(), 0.3, { roughness: 0.75, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
   const word = lit(aramcoWordTexture(), 0.55, { transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
   const tmoWall = lit(tmoWallTexture(), 0.75);
   const cube = new THREE.MeshBasicMaterial({ map: canvasTex(256, 256, (x, W, H) => { const g = x.createRadialGradient(W / 2, H / 2, W * 0.1, W / 2, H / 2, W * 0.75); g.addColorStop(0, '#ff3ea0'); g.addColorStop(1, '#d0006a'); x.fillStyle = g; x.fillRect(0, 0, W, H); tmoT(x, W / 2, H * 0.5, H * 0.56, '#ffffff'); }), color: 0xffffff });
@@ -142,7 +139,7 @@ export function buildSphereZone(track, pit, def, near = []) {
     for (let s = EB.sB; s >= EB.sA - 0.01; s -= 2) { const i = tr.idxAtS(s); tr.sample(s, sd * (tr.edgeAt(i, sd) + kw - 0.05), f); edge.push([f.x, f.z]); }
     const poly = [...arc, ...edge], shp = new THREE.Shape(poly.map(([x, z]) => new THREE.Vector2(x, -z)));
     { const g = new THREE.ShapeGeometry(shp); g.rotateX(-Math.PI / 2); g.translate(0, 0.03, 0); const P = g.attributes.position, uv = g.attributes.uv; for (let j = 0; j < P.count; j++) uv.setXY(j, P.getX(j) / 6, P.getZ(j) / 6); g.computeVertexNormals(); put(runoff, g); }
-    // (the name: across its middle, along the line between the arc's ends, its foot toward the grandstand behind it)
+    // (the race's mark: across its middle, along the line between the arc's ends, its foot toward the grandstand behind it)
     {
       const { A, B } = EB.arc, mid = arc[arc.length >> 1], iM = tr.idxAtS((EB.sA + EB.sB) / 2); tr.sample((EB.sA + EB.sB) / 2, sd * (tr.edgeAt(iM, sd) + kw), f);
       const w = Math.hypot(mid[0] - f.x, mid[1] - f.z), c = [(mid[0] + f.x) / 2, (mid[1] + f.z) / 2], CL = Math.hypot(B[0] - A[0], B[1] - A[1]);
@@ -190,6 +187,7 @@ export function buildSphereZone(track, pit, def, near = []) {
   // =============================================================================================================
   const STD = { tiers: 18, tierH: 0.55, tierD: 0.9, gap: 1.6 };
   const EBring = EB ? [...EB.outer, ...(() => { const r = []; for (let s = EB.sB; s >= EB.sA; s -= 4) { tr.sample(s, 0, f); r.push([f.x, f.z]); } return r; })()] : null;
+  const placed = [];   // (every stand of the zone so far: none may stand in another, whichever chain it belongs to)
   const chain = (sA, sB, side, S, tag, given = null) => {
     const pts = given || []; if (!given) for (let s = sA; s <= sB; s += 1) { const i = tr.idxAtS(s); tr.sample(s, side * (tr.wallAt(i, side) + S.gap), f); pts.push([f.x, f.z]); }
     const depth = 0.8 + S.tiers * S.tierD + 0.6, out = [];
@@ -200,9 +198,11 @@ export function buildSphereZone(track, pit, def, near = []) {
     };
     const within = (p, x, z) => { const dx = x - p.x, dz = z - p.z, lx = dx * p.ex[0] + dz * p.ex[1], lz = dx * p.ez[0] + dz * p.ez[1]; return Math.abs(lx) < p.len / 2 + 0.8 && lz > -0.5 && lz < p.depth + 0.5; };
     const clear = (p) => {
+      // (and the other way: no corner or edge of a stand already there inside this one)
+      for (const o of [...placed, ...out]) for (const [lx, lz] of [[-1, 0], [1, 0], [-1, 1], [1, 1], [0, 0], [0, 1], [-1, 0.5], [1, 0.5]]) { const [x, z] = o.world(lx * o.len / 2, lz * o.depth); if (within(p, x, z)) return false; }
       for (let lx = -p.len / 2; lx <= p.len / 2 + 0.01; lx += 2) for (let lz = 0; lz <= p.depth + 0.01; lz += 2) {
         const [x, z] = p.world(lx, lz);
-        if (corridorSigned(tr, pit, x, z, -0.4) < 0 || near.some((r) => inRing(x, z, r)) || out.some((o) => within(o, x, z))) return false;
+        if (corridorSigned(tr, pit, x, z, -0.4) < 0 || near.some((r) => inRing(x, z, r)) || out.some((o) => within(o, x, z)) || placed.some((o) => within(o, x, z))) return false;
         // (and never inside the barriers: a run-off is the cars' - the stand stands behind its wall)
         // (beside the run-off its outline decides - the wall samples there were pushed out along normals that converge on
         //  the inside of Turn 8, so one sample's wall says nothing about the point next to it)
@@ -218,6 +218,7 @@ export function buildSphereZone(track, pit, def, near = []) {
       for (let k0 = k; k0 < Math.min(pts.length - 10, k + 24) && !got; k0++) for (const L of [30, 22, 15]) { if (k0 + L >= pts.length) continue; const p = make(pts[k0], pts[k0 + L]); if (clear(p)) { got = p; k = k0 + L + 1; break; } }
       if (got) out.push(got); else k += 4;
     }
+    placed.push(...out);
     for (const p of out) Object.assign(p, { tiers: S.tiers, name: tag, style: { tierH: S.tierH, tierD: S.tierD, roof: 'none', seat: 0x22232a, fill: 0.93 } });
     made.push(`${tag} ${out.length} sections (${out.reduce((a, p) => a + p.len, 0).toFixed(0)} m)`);
     return out;
@@ -233,7 +234,7 @@ export function buildSphereZone(track, pit, def, near = []) {
       let nx = -(z1 - z0) / L, nz = (x1 - x0) / L; if (nx * (x0 - o.x) + nz * (z0 - o.z) < 0) { nx = -nx; nz = -nz; }
       for (let u = 0; u < L; u += 1) pts.push([x0 + (x1 - x0) * u / L + nx * S2.gap, z0 + (z1 - z0) * u / L + nz * S2.gap]);
     }
-    east = chain(0, 0, EB.side, S2, 'T-Mobile Zone chicane grandstand', pts.slice(6, -6));
+    east = chain(0, 0, EB.side, S2, 'T-Mobile Zone chicane grandstand', pts.slice(Math.round(pts.length * 0.12), Math.round(pts.length * 0.9)));
     // (and out of Turn 8, where there is no run-off: the stand right behind the wall beside the road, to Turn 9)
     east.push(...chain(EB.sB + 4, c9 - 8, EB.side, S2, 'T-Mobile Zone chicane exit grandstand'));
   }
