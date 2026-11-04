@@ -17,6 +17,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { corridorSigned } from '../track/TrackBuilder.js';
 import { STAND } from './Grandstands.js';
+import { FAN_COLOURS } from './FanCutouts.js';
 import { FLOOD } from './Lighting.js';
 import { buildSphereZone } from './VegasSphereZone.js';
 
@@ -39,14 +40,26 @@ function suitesTexture(seed = 1) {
       const sx = k * 256 + 30 + rnd() * 120; x.fillStyle = '#1a1c28'; x.fillRect(sx, 40, 70, 42); x.fillStyle = ['#e10600', '#2aa8ff', '#ff2d9a', '#33d17a'][k]; x.fillRect(sx + 4, 44, 62, 34);
       x.fillStyle = 'rgba(255,90,200,.55)'; x.fillRect(k * 256 + 150, 96, 90, 8);
     }
-    // people: dark figures against the light, some at the glass, some in groups
-    for (let k = 0; k < 70; k++) {
-      const px = rnd() * W, sc = 0.75 + rnd() * 0.5, y0 = H - 6, hgt = 120 * sc;
-      x.fillStyle = `rgba(${20 + rnd() * 40},${15 + rnd() * 25},${20 + rnd() * 30},${0.75 + rnd() * 0.25})`;
-      x.beginPath(); x.ellipse(px, y0 - hgt + 12 * sc, 9 * sc, 11 * sc, 0, 0, 6.283); x.fill();
-      x.beginPath(); x.moveTo(px - 15 * sc, y0); x.lineTo(px - 12 * sc, y0 - hgt + 30 * sc); x.quadraticCurveTo(px, y0 - hgt + 20 * sc, px + 12 * sc, y0 - hgt + 30 * sc); x.lineTo(px + 15 * sc, y0); x.fill();
-      if (rnd() < 0.4) { x.fillStyle = ['#ff2d9a', '#ffffff', '#e10600', '#1e90ff'][(rnd() * 4) | 0]; x.fillRect(px - 10 * sc, y0 - hgt + 34 * sc, 20 * sc, 28 * sc); }
+    // people, drawn as the stands' crowd is (world/FanCutouts.js, its colours): a head in a skin tone with its hair, a
+    // coloured shirt with short sleeves, bare arms (now and then one raised), trousers - the same figures as on the
+    // tiers in front, lit by the room (H = 3.6 m: a figure 1.7 m tall is 120 px)
+    const hx = (c) => `#${c.toString(16).padStart(6, '0')}`, pick = (a) => hx(a[Math.floor(rnd() * a.length)]);
+    const ppl = []; for (let k = 0; k < 46; k++) ppl.push([rnd() * W, 0.9 + rnd() * 0.2, rnd()]);
+    ppl.sort((p, q) => p[1] - q[1]);   // (the nearer, larger, over the others)
+    for (const [px, sc, r0] of ppl) {
+      const h = 116 * sc, y0 = H - 4, u = h / 10, skin = pick(FAN_COLOURS.SKIN), shirt = pick(FAN_COLOURS.SHIRT), pants = pick(FAN_COLOURS.PANTS), hair = pick(FAN_COLOURS.HAIR);
+      x.fillStyle = pants; x.fillRect(px - 1.35 * u, y0 - 4.6 * u, 1.2 * u, 4.6 * u); x.fillRect(px + 0.15 * u, y0 - 4.6 * u, 1.2 * u, 4.6 * u);   // (legs)
+      x.fillStyle = skin; x.fillRect(px - 2.15 * u, y0 - 7.9 * u, 0.62 * u, 3.3 * u);   // (arms)
+      if (r0 < 0.15) x.fillRect(px + 1.55 * u, y0 - 10.4 * u, 0.62 * u, 3.3 * u); else x.fillRect(px + 1.55 * u, y0 - 7.9 * u, 0.62 * u, 3.3 * u);
+      x.fillStyle = shirt; x.fillRect(px - 1.5 * u, y0 - 8.3 * u, 3.0 * u, 3.9 * u); x.fillRect(px - 2.2 * u, y0 - 8.3 * u, 0.75 * u, 1.3 * u); x.fillRect(px + 1.5 * u, y0 - 8.3 * u, 0.75 * u, 1.3 * u);   // (shirt, sleeves)
+      x.fillStyle = skin; x.fillRect(px - 0.35 * u, y0 - 8.8 * u, 0.7 * u, 0.6 * u);   // (neck)
+      x.beginPath(); x.ellipse(px, y0 - 9.5 * u, 0.85 * u, 1.0 * u, 0, 0, 6.283); x.fill();   // (head)
+      x.fillStyle = hair;
+      if (r0 > 0.62) { x.fillRect(px - 0.95 * u, y0 - 10.5 * u, 1.9 * u, 0.6 * u); x.fillRect(px - 1.0 * u, y0 - 10.2 * u, 0.4 * u, 2.6 * u); x.fillRect(px + 0.6 * u, y0 - 10.2 * u, 0.4 * u, 2.6 * u); }   // (long hair)
+      else { x.beginPath(); x.ellipse(px, y0 - 10.1 * u, 0.88 * u, 0.5 * u, 0, Math.PI, 0); x.fill(); }   // (short hair / a cap)
     }
+    // (the room's light on them: a warm wash over the whole)
+    x.fillStyle = 'rgba(255,200,140,0.12)'; x.fillRect(0, 0, W, H);
     // mullions
     x.fillStyle = 'rgba(40,40,46,.85)'; for (let k = 0; k <= 8; k++) x.fillRect(k * 128 - 3, 0, 6, H);
   }, true);
@@ -78,12 +91,14 @@ function terraceTexture() {
   }, true);
 }
 /** Heineken Silver, the main grandstand's end wall: teal, the star, the name */
-function silverEndTexture() {
+/** the stand's end: teal, Heineken Silver low toward the back (cx: where along it, 0 the front - the end is only the
+ *  side under the seats, so the name sits where that side is tall) */
+function silverEndTexture(cx = 0.72) {
   return canvasTex(1024, 768, (x, W, H) => {
     const g = x.createLinearGradient(0, 0, W, H); g.addColorStop(0, '#0fb3a8'); g.addColorStop(1, '#087a76'); x.fillStyle = g; x.fillRect(0, 0, W, H);
-    x.fillStyle = '#e1001a'; x.beginPath(); for (let j = 0; j < 10; j++) { const a = -Math.PI / 2 + j * Math.PI / 5, r = j % 2 ? 22 : 54; (j ? x.lineTo : x.moveTo).call(x, W * 0.5 + Math.cos(a) * r, H * 0.32 + Math.sin(a) * r); } x.fill();
-    x.fillStyle = '#ffffff'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.font = `italic 900 150px Georgia, serif`; x.fillText('Heineken', W / 2, H * 0.5);
-    x.font = `700 70px ${FONT}`; x.fillText('S I L V E R', W / 2, H * 0.68);
+    x.fillStyle = '#e1001a'; x.beginPath(); for (let j = 0; j < 10; j++) { const a = -Math.PI / 2 + j * Math.PI / 5, r = j % 2 ? 15 : 36; (j ? x.lineTo : x.moveTo).call(x, W * cx + Math.cos(a) * r, H * 0.62 + Math.sin(a) * r); } x.fill();
+    x.fillStyle = '#ffffff'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.font = `italic 900 96px Georgia, serif`; x.fillText('Heineken', W * cx, H * 0.75);
+    x.font = `700 46px ${FONT}`; x.fillText('S I L V E R', W * cx, H * 0.86);
   });
 }
 /** Turn 1's band along the outside kerb, one repeat (24 m): Heineken green with the name, the red star on the join,
@@ -229,7 +244,7 @@ export function buildVegasPaddock(track, pit, def, rings = [], geo = null) {
   const glass = new THREE.MeshStandardMaterial({ color: 0x9cc4d8, roughness: 0.05, metalness: 0.6, transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide });
   const suites = new THREE.MeshBasicMaterial({ map: suitesTexture(7), color: 0xffffff, side: THREE.DoubleSide });
   const suitesDim = new THREE.MeshBasicMaterial({ map: suitesTexture(11), color: 0x9a8a80, side: THREE.DoubleSide });
-  const red = new THREE.MeshStandardMaterial({ color: 0xff2a5c, roughness: 0.4, metalness: 0.2, emissive: 0xff2a6a, emissiveIntensity: 1.6, side: THREE.DoubleSide });   // (the logo: lit hot pink-red at night)
+  const red = new THREE.MeshBasicMaterial({ color: 0xff0a0a, toneMapped: false, side: THREE.DoubleSide });   // (the logo: F1 red lit like neon - unlit, untoned, so it stays red and never washes to orange)
   const ledPink = ledMaterial(0xff2d9a, 0xb84dff), ledCyan = ledMaterial(0x22d3ff, 0xff2d9a, 1.1, 0.03), ledWhite = ledMaterial(0xfff4e0, 0xffc7ec, 0.8, 0.02);
   const lamp = new THREE.MeshBasicMaterial({ color: 0xff2a20 }), flood = new THREE.MeshBasicMaterial({ color: 0xfffbf0 });
   const truss = new THREE.MeshBasicMaterial({ map: trussTexture(), alphaTest: 0.5, side: THREE.DoubleSide, color: 0xe8eaf0 });
@@ -251,7 +266,7 @@ export function buildVegasPaddock(track, pit, def, rings = [], geo = null) {
   const greyBox = new THREE.MeshStandardMaterial({ color: 0x4a4e57, roughness: 0.7, metalness: 0.25, side: THREE.DoubleSide });
   const fence = new THREE.MeshStandardMaterial({ map: canvasTex(1024, 128, (x, W, H) => { x.fillStyle = '#0f8a42'; x.fillRect(0, 0, W, H); x.fillStyle = '#ffffff'; x.font = `italic 900 70px Georgia, serif`; x.textAlign = 'center'; x.textBaseline = 'middle'; for (let k = 0; k < 2; k++) x.fillText('Heineken', W * (0.25 + 0.5 * k), H / 2); }, true), emissive: 0xffffff, emissiveIntensity: 0, side: THREE.DoubleSide });
   fence.emissiveMap = fence.map; fence.emissiveIntensity = 0.45;
-  const silverEnd = new THREE.MeshStandardMaterial({ map: silverEndTexture(), emissive: 0xffffff, emissiveIntensity: 0, side: THREE.DoubleSide }); silverEnd.emissiveMap = silverEnd.map; silverEnd.emissiveIntensity = 0.75;
+  const silverEnds = [0.72, 0.28].map((cx) => { const m = new THREE.MeshStandardMaterial({ map: silverEndTexture(cx), emissive: 0xffffff, emissiveIntensity: 0, side: THREE.DoubleSide }); m.emissiveMap = m.map; m.emissiveIntensity = 0.75; return m; });
   const ledBlue = ledMaterial(0x2a6cff, 0x22d3ff, 0.9, 0.025);
   const rbBoard = new THREE.MeshStandardMaterial({ map: redBullBoardTexture(), emissive: 0xffffff, emissiveIntensity: 0, roughness: 0.5, side: THREE.DoubleSide }); rbBoard.emissiveMap = rbBoard.map; rbBoard.emissiveIntensity = 0.6;
   const rbEnd = new THREE.MeshStandardMaterial({ map: redBullEndTexture(), emissive: 0xffffff, emissiveIntensity: 0, roughness: 0.6, side: THREE.DoubleSide }); rbEnd.emissiveMap = rbEnd.map; rbEnd.emissiveIntensity = 0.55;
@@ -290,9 +305,9 @@ export function buildVegasPaddock(track, pit, def, rings = [], geo = null) {
   const trussTall = new THREE.MeshBasicMaterial({ map: trussTexture(), alphaTest: 0.5, side: THREE.DoubleSide, color: 0xe8eaf0 });
   const kerbRW = new THREE.MeshStandardMaterial({ map: canvasTex(256, 64, (x, W, H) => { x.fillStyle = '#d8262b'; x.fillRect(0, 0, W / 2, H); x.fillStyle = '#f3f1ec'; x.fillRect(W / 2, 0, W / 2, H); }, true), roughness: 0.6, emissive: 0x2a1010, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, side: THREE.DoubleSide });
   const chevBlue = new THREE.MeshStandardMaterial({ map: canvasTex(256, 256, (x, W, H) => { x.fillStyle = '#1d4fd8'; x.fillRect(0, 0, W, H); x.fillStyle = '#f2f4f8'; x.beginPath(); x.moveTo(W * 0.15, 0); x.lineTo(W * 0.6, H * 0.5); x.lineTo(W * 0.15, H); x.lineTo(W * 0.42, H); x.lineTo(W * 0.87, H * 0.5); x.lineTo(W * 0.42, 0); x.closePath(); x.fill(); }, true), roughness: 0.7, emissive: 0x0a1430, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, side: THREE.DoubleSide });
-  const pinkGlass = new THREE.MeshStandardMaterial({ color: 0xff3da0, emissive: 0xff2a90, emissiveIntensity: 1.2, roughness: 0.2, metalness: 0.3, side: THREE.DoubleSide });
   const laneFloor = new THREE.MeshStandardMaterial({ color: 0xc9ccd2, roughness: 0.7, emissive: 0x2c2e34, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1, side: THREE.DoubleSide });
   const glowPurple = new THREE.MeshBasicMaterial({ map: canvasTex(256, 256, (x, W, H) => { const g = x.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, W / 2); g.addColorStop(0, 'rgba(150,70,230,0.55)'); g.addColorStop(0.45, 'rgba(110,35,190,0.25)'); g.addColorStop(1, 'rgba(90,20,160,0)'); x.fillStyle = g; x.fillRect(0, 0, W, H); }), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
+  const glowRed = new THREE.MeshBasicMaterial({ map: canvasTex(256, 128, (x, W, H) => { const g = x.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, W / 2); g.addColorStop(0, 'rgba(255,30,20,0.55)'); g.addColorStop(0.45, 'rgba(230,10,10,0.22)'); g.addColorStop(1, 'rgba(200,0,0,0)'); x.fillStyle = g; x.fillRect(0, 0, W, H); }), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
   const glowPink = new THREE.MeshBasicMaterial({ map: canvasTex(256, 256, (x, W, H) => { const g = x.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, W / 2); g.addColorStop(0, 'rgba(240,70,160,0.5)'); g.addColorStop(0.5, 'rgba(200,40,130,0.22)'); g.addColorStop(1, 'rgba(160,20,100,0)'); x.fillStyle = g; x.fillRect(0, 0, W, H); }), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
   const tentLit = new THREE.MeshStandardMaterial({ color: 0xe8e2f0, emissive: 0x5a2a90, emissiveIntensity: 0.6, roughness: 0.5, side: THREE.DoubleSide });
   const roadAsph = new THREE.MeshStandardMaterial({ color: 0x2a2b30, roughness: 0.9, side: THREE.DoubleSide });
@@ -374,7 +389,7 @@ export function buildVegasPaddock(track, pit, def, rings = [], geo = null) {
       put(terrace, strip(ps, i, j, () => [O(fr + 2), ROOF + 0.6], () => [O(bk - 3), ROOF + 0.6], 26));
       const m = at(j + 3, (fr + bk) / 2, 0); put(roofDark, boxAt(m.x, ROOF + 3.4, m.z, [ps.tx[j], ps.tz[j]], 9, 5.6, 14));
     }
-    const li = Math.min(ib - 4, ia + Math.round(34 / ps.ds)), lc = at(li, (lip + bk) / 2, ROOF + 6.4), lang = Math.atan2(-ps.tz[li], ps.tx[li]);
+    const li = Math.min(ib - 4, ia + Math.round(34 / ps.ds)), lc = at(li, (lip + bk) / 2, ROOF + 0.58), lang = Math.atan2(-ps.tz[li], ps.tx[li]);
     const F1 = new THREE.Shape();
     // (the logo, laid flat: the F's sweep with its rounded top corner, the F's middle bar, the 1 - 46 x 11 units)
     F1.moveTo(0, 0); F1.lineTo(6, 0); F1.lineTo(13, 7); F1.lineTo(33, 7); F1.lineTo(36, 11); F1.lineTo(15.5, 11); F1.quadraticCurveTo(10.5, 11, 8, 8.5); F1.lineTo(0, 0);
@@ -382,11 +397,9 @@ export function buildVegasPaddock(track, pit, def, rings = [], geo = null) {
     const one = new THREE.Shape(); one.moveTo(33.5, 0); one.lineTo(38.5, 0); one.lineTo(46, 11); one.lineTo(41, 11); one.lineTo(33.5, 0);
     const logo = new THREE.ExtrudeGeometry([F1, mid, one], { depth: 1.1, bevelEnabled: false });
     logo.translate(-23, -5.5, 0); logo.scale(1.15 * gs, 1.15, 1); logo.rotateX(-Math.PI / 2); logo.rotateY(lang); logo.translate(lc.x, lc.y, lc.z);
-    put(red, logo);
-    for (const [dl, dc] of [[-20, -4], [-20, 4], [0, -4], [0, 4], [20, -4], [20, 4]]) {   // its columns
-      const j = Math.max(ia, Math.min(ib, li + Math.round(dl / ps.ds))), p = at(j, (lip + bk) / 2 + dc, 0);
-      put(white, boxAt(p.x, ROOF + 0.55 + 2.3, p.z, [ps.tx[j], ps.tz[j]], 0.5, 4.6, 0.5));
-    }
+    put(red, logo);   // (laid on the roof itself, as the aerials show it - not held up over it)
+    // (its glow on the roof round it: neon red light spilling over the dark deck)
+    { const g = new THREE.PlaneGeometry(64 * gs, 26); g.rotateX(-Math.PI / 2); g.rotateY(lang); g.translate(lc.x, ROOF + 0.6, lc.z); put(glowRed, g); }
     // floodlights along the roof edge, over the pit lane and the straight (the bake: Lighting.js)
     for (let i = ia + 2; i < ib; i += Math.round(20 / ps.ds)) {
       const p = at(i, lip, ROOF + 2.4); put(flood, boxAt(p.x, p.y, p.z, [ps.tx[i], ps.tz[i]], 1.6, 0.5, 0.7));
@@ -479,11 +492,11 @@ export function buildVegasPaddock(track, pit, def, rings = [], geo = null) {
     }
     { const p = at(ib - Math.round(10 / ps.ds), bk - 7, 0); put(greyBox, boxAt(p.x, 14, p.z, [ps.tx[ib], ps.tz[ib]], 14, 28, 12)); }   // (the dark grey tower at the plaza's Turn 1 end)
     // ---- the roof as the aerials show it: not one slab - plant rooms and stair heads of different heights between the
-    //      lit terraces, and at the south-west end the raised glass pavilion under the logo, lit pink
+    //      lit terraces (the south-west end: the logo flat on the deck)
     for (const [t, len, h, dep] of [[0.18, 16, 5.5, 12], [0.36, 22, 3.6, 16], [0.55, 12, 7.5, 10], [0.7, 26, 4.2, 15], [0.86, 14, 6, 11]]) {
-      const i = Math.round(ia + (ib - ia) * t), p = at(i, fr + 4 + dep / 2, 0); put(roofDark, boxAt(p.x, ROOF + 0.55 + h / 2, p.z, [ps.tx[i], ps.tz[i]], len, h, dep));
+      const i = Math.round(ia + (ib - ia) * t), p = at(i, fr + 4 + dep / 2, 0);
+      if (Math.abs(i - li) * ps.ds < 27 + len / 2 + 3) continue;   // (none on the logo: it lies on the open deck) put(roofDark, boxAt(p.x, ROOF + 0.55 + h / 2, p.z, [ps.tx[i], ps.tz[i]], len, h, dep));
     }
-    { const i = Math.min(ib, li), p = at(i, (lip + bk) / 2, 0); put(pinkGlass, boxAt(p.x, ROOF + 0.55 + 2.4, p.z, [ps.tx[i], ps.tz[i]], 44, 4.8, bk - lip - 6)); }
     // the pit lane itself, bright as it is under the lights: a pale floor between the pit wall and the garages, a white
     // light line along the garage fronts, lamps over the lane
     put(laneFloor, strip(ps, ia - 6, ib + 4, () => [O(-hw + 0.4), 0.012], () => [O(fr - 0.3), 0.012], 8));
@@ -611,13 +624,15 @@ export function buildVegasPaddock(track, pit, def, rings = [], geo = null) {
       { const [x, y, z] = W(lx, RF.yF - 0.9, RF.front - 0.3), q = tr.nearest(x, z), aim = tr.sample(q.s, 0, f); lights.push({ x, y, z, tx: aim.x, tz: aim.z }); B(lx, RF.yF - 0.95, RF.front - 0.2, 1.4, 0.35, 0.6, flood); }
       { const [x, , z] = W(lx, 0, -1.2), q = tr.nearest(x, z), aim = tr.sample(q.s, 2, f); lights.push({ x, y: 12.5, z, tx: aim.x, tz: aim.z }); }
     }
-    // the end walls: the whole profile of the stand under its roof, teal Heineken Silver, reading the right way round
-    // from outside either end
+    // the end walls, teal Heineken Silver, reading the right way round from outside either end: the stand's side only -
+    // under the seats, along their rake, and the suites' block at the back up to the roof. Nothing over the seats: the
+    // open stand is open at its ends (a wall over them took the view along the track from every seat near the end)
     if (k === 0 || k === main.length - 1) for (const e of k === 0 ? [-1] : [1]) {
-      const sh = new THREE.Shape(); sh.moveTo(-0.5, 0); sh.lineTo(rb, 0); sh.lineTo(rb, RF.yB + 0.3); sh.lineTo(RF.front, RF.yF + 0.3); sh.lineTo(-0.5, STAND.base + 2); sh.lineTo(-0.5, 0);
+      const rake = (lz) => STAND.base + (mTop - STAND.base) * Math.min(1, Math.max(0, lz / mBack)), roofAt = (lz) => RF.yF + (RF.yB - RF.yF) * (lz - RF.front) / (rb - RF.front);
+      const sh = new THREE.Shape(); sh.moveTo(-0.5, 0); sh.lineTo(rb, 0); sh.lineTo(rb, RF.yB + 0.3); sh.lineTo(pz0, roofAt(pz0) + 0.3); sh.lineTo(pz0, rake(pz0)); sh.lineTo(-0.5, STAND.base); sh.lineTo(-0.5, 0);
       const g = new THREE.ShapeGeometry(sh), P2 = g.attributes.position, uv = g.attributes.uv, pos = [];
       for (let j = 0; j < P2.count; j++) { const lz = P2.getX(j), y = P2.getY(j); uv.setXY(j, e > 0 ? 1 - lz / rb : lz / rb, y / (RF.yB + 0.3)); const [x, z] = p.world(e * (p.len / 2 + 0.7), lz); pos.push(x, y, z); }
-      g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.computeVertexNormals(); put(silverEnd, g);
+      g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.computeVertexNormals(); put(silverEnds[e > 0 ? 1 : 0], g);
       if (e > 0) {   // the white scaffold at the Turn 1 end: a lattice frame the height of the stand, in front of its end
         const sx0 = p.len / 2 + 1.2, sx1 = p.len / 2 + 7.2, sz0 = -0.5, sz1 = 9, hh = mTop * 0.92;
         for (const [ax, az] of [[sx0, sz0], [sx1, sz0], [sx1, sz1], [sx0, sz1]]) B(ax, hh / 2, az, 0.35, hh, 0.35, white);
@@ -660,7 +675,7 @@ export function buildVegasPaddock(track, pit, def, rings = [], geo = null) {
       const g2 = new THREE.ShapeGeometry(sh), P2 = g2.attributes.position, uv2 = g2.attributes.uv, pos2 = [];
       for (let j = 0; j < P2.count; j++) { const lz = P2.getX(j), y = P2.getY(j); uv2.setXY(j, lz / 6, y / 1.6); const [x, z] = p.world(ex, lz); pos2.push(x, y, z); }
       g2.setAttribute('position', new THREE.Float32BufferAttribute(pos2, 3)); g2.computeVertexNormals(); put(scaffoldMat, g2);
-      const g3 = new THREE.PlaneGeometry(9, 5.5); g3.rotateY(Math.atan2(-p.ez[1], p.ez[0]) + (e > 0 ? Math.PI : 0)); { const [x, z] = p.world(ex + e * 0.05, 5.4); g3.translate(x, 2.75 + 0.2, z); } put(rbEnd, g3);
+      const g3 = new THREE.PlaneGeometry(9, 5.5); g3.rotateY(Math.atan2(-p.ez[1], p.ez[0]) + (e > 0 ? Math.PI : 0)); { const [x, z] = p.world(ex + e * 0.05, 13); g3.translate(x, 2.75 + 0.2, z); } put(rbEnd, g3);   // (back under the rake: its top below the seats beside it - never in their view)
     }
   };
   wrap.forEach(dressRB);
@@ -1079,10 +1094,10 @@ export function buildVegasPaddock(track, pit, def, rings = [], geo = null) {
   // ---- one mesh per material (the static world: a handful of draw calls)
   for (const [mat, gs] of geos) {
     const clean = gs.map((g) => { const h = g.index ? g.toNonIndexed() : g; for (const k of Object.keys(h.attributes)) if (k !== 'position' && k !== 'normal' && k !== 'uv') h.deleteAttribute(k); if (!h.attributes.uv) h.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(h.attributes.position.count * 2), 2)); if (!h.attributes.normal) h.computeVertexNormals(); return h; });
-    const mesh = new THREE.Mesh(mergeGeometries(clean), mat); mesh.name = 'vp'; if (mat === glass) mesh.renderOrder = 3; if (mat === glowPurple || mat === glowPink) { mesh.renderOrder = 2; mesh.userData.glowZone = true; } group.add(mesh);
+    const mesh = new THREE.Mesh(mergeGeometries(clean), mat); mesh.name = 'vp'; if (mat === glass) mesh.renderOrder = 3; if (mat === glowPurple || mat === glowPink || mat === glowRed) { mesh.renderOrder = 2; mesh.userData.glowZone = true; } group.add(mesh);
   }
   const leds = [ledPink, ledCyan, ledWhite, ledBlue];
-  for (const m of [glowPurple, glowPink]) m.userData.timeSkip = true;
+  for (const m of [glowPurple, glowPink, glowRed]) m.userData.timeSkip = true;
   // (what the auto-placed stands keep out of: each of our solids - not the whole group's box, which now reaches from the
   //  plaza to the Strip and would empty the lap of them)
   const boxes = solids.map((o) => { const b = new THREE.Box3(); for (const [x, z] of o.ring) b.expandByPoint(new THREE.Vector3(x, 0, z)); b.max.y = o.h; b.expandByVector(new THREE.Vector3(4, 0, 4)); return b; });
@@ -1095,7 +1110,7 @@ export function buildVegasPaddock(track, pit, def, rings = [], geo = null) {
   return {
     group, stands, lights, boxes, solids,
     update(t) {
-      const night = FLOOD.floodOn.value > 0.5; for (const m of leds) { m.uniforms.uTime.value = t; m.uniforms.uBoost.value = night ? 1.25 : 0.45; } red.emissiveIntensity = night ? 1.6 : 0.25;
+      const night = FLOOD.floodOn.value > 0.5; for (const m of leds) { m.uniforms.uTime.value = t; m.uniforms.uBoost.value = night ? 1.25 : 0.45; } red.color.setHex(night ? 0xff0a0a : 0xc80000);
     },
   };
 }

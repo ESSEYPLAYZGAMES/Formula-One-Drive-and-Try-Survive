@@ -793,25 +793,30 @@ export class Track {
   }
   /**
    * A run-off swelling out from the barrier line beside a stretch of the lap (escapes band: { turn, from, to, depth }):
-   * from `from` to `to` m about the corner's apex, its outer wall one gentle curve (a quadratic arc from the barrier
-   * line at one end to the barrier line at the other, bowed out to `depth` m past the kerb at the middle) - not an offset
-   * of the road, which would wiggle with every kerb of a chicane. Las Vegas's Turns 7-8: the painted run-off east of the
-   * chicane, its wall curving gently round in front of the stands. Its range is kept for the paint (escapeBands).
+   * from `from` to `to` m about the corner's apex, its outer wall as the real one is built - leaving the road's own wall
+   * in line with it and curving gently away, then one straight run along the stands behind it (at least `depth` m past
+   * the kerb at the middle of the stretch, and never nearer the road than 12 m along that run), then curving gently back
+   * in to fence the road again. Not an offset of the road, which would wiggle with every kerb of a chicane. Las Vegas's
+   * Turns 7-8: the painted run-off east of the chicane. Its outline is kept for the paint (escapeBands).
    */
   _escapeBand(o, side) {
     const c = (this.def.corners || []).find((k) => k.n === o.turn); if (!c || c.s == null) return null;
     const sA = c.s + (o.from ?? -20), sB = c.s + (o.to ?? 120), D = o.depth ?? 30, f = {};
     const wallPt = (s) => { const i = this.idxAtS(s); this.sample(s, side * this.wallAt(i, side), f); return [f.x, f.z]; };
-    const A = wallPt(sA), B = wallPt(sB), M = [(A[0] + B[0]) / 2, (A[1] + B[1]) / 2], sM = (sA + sB) / 2, iM = this.idxAtS(sM);
-    // (the bow: out from the chord on the run-off's side, so the arc's middle stands D past the kerb at the middle of the stretch)
-    let nx = -(B[1] - A[1]), nz = B[0] - A[0]; const nl = Math.hypot(nx, nz) || 1; nx /= nl; nz /= nl;
-    this.sample(sM, 0, f); const c0 = [f.x, f.z]; this.sample(sM, side * 10, f); if ((f.x - c0[0]) * nx + (f.z - c0[1]) * nz < 0) { nx = -nx; nz = -nz; }
-    this.sample(sM, side * (this.edgeAt(iM, side) + this.kerbWidth + D), f);
-    const h = Math.max(4, 2 * ((f.x - M[0]) * nx + (f.z - M[1]) * nz)), C = [M[0] + nx * h, M[1] + nz * h];
-    const outer = [];
-    for (let k = 0; k <= 48; k++) { const t = k / 48, a = (1 - t) * (1 - t), b = 2 * t * (1 - t), q = t * t; outer.push([a * A[0] + b * C[0] + q * B[0], a * A[1] + b * C[1] + q * B[1]]); }
+    const tan = (s) => { const i = this.idxAtS(s); return [this.tx[i], this.tz[i]]; };
+    const A = wallPt(sA), B = wallPt(sB), CL = Math.hypot(B[0] - A[0], B[1] - A[1]), u = [(B[0] - A[0]) / CL, (B[1] - A[1]) / CL], sM = (sA + sB) / 2;
+    // (out from the line between its ends, on the run-off's side)
+    let n = [-u[1], u[0]]; { this.sample(sM, 0, f); const c0 = [f.x, f.z]; this.sample(sM, side * 10, f); if ((f.x - c0[0]) * n[0] + (f.z - c0[1]) * n[1] < 0) n = [-n[0], -n[1]]; }
+    const off = (s, d) => { const i = this.idxAtS(s); this.sample(s, side * (this.edgeAt(i, side) + this.kerbWidth + d), f); return (f.x - A[0]) * n[0] + (f.z - A[1]) * n[1]; };
+    let h = off(sM, D); for (let s = sA + (sB - sA) * 0.25; s <= sB - (sB - sA) * 0.25; s += 2) h = Math.max(h, off(s, 12));
+    const P1 = [A[0] + u[0] * CL * 0.3 + n[0] * h, A[1] + u[1] * CL * 0.3 + n[1] * h], P2 = [A[0] + u[0] * CL * 0.7 + n[0] * h, A[1] + u[1] * CL * 0.7 + n[1] * h];
+    const cubic = (p0, p1, p2, p3, out, first) => { for (let k = first ? 0 : 1; k <= 20; k++) { const t = k / 20, a = (1 - t) ** 3, b = 3 * t * (1 - t) ** 2, cc = 3 * t * t * (1 - t), d = t ** 3; out.push([a * p0[0] + b * p1[0] + cc * p2[0] + d * p3[0], a * p0[1] + b * p1[1] + cc * p2[1] + d * p3[1]]); } };
+    const tA = tan(sA), tB = tan(sB), k1 = Math.hypot(P1[0] - A[0], P1[1] - A[1]) * 0.5, k2 = Math.hypot(B[0] - P2[0], B[1] - P2[1]) * 0.5, outer = [];
+    cubic(A, [A[0] + tA[0] * k1, A[1] + tA[1] * k1], [P1[0] - u[0] * k1, P1[1] - u[1] * k1], P1, outer, true);
+    for (let k = 1; k < 10; k++) outer.push([P1[0] + (P2[0] - P1[0]) * k / 10, P1[1] + (P2[1] - P1[1]) * k / 10]);
+    cubic(P2, [P2[0] + u[0] * k2, P2[1] + u[1] * k2], [B[0] - tB[0] * k2, B[1] - tB[1] * k2], B, outer, false);
     const inner = []; for (let s = sB; s >= sA - 0.01; s -= 2) { this.sample(s, 0, f); inner.push([f.x, f.z]); }
-    (this.escapeBands || (this.escapeBands = [])).push({ turn: o.turn, sA, sB, side, depth: D, arc: { A, B, C }, outer });
+    (this.escapeBands || (this.escapeBands = [])).push({ turn: o.turn, sA, sB, side, depth: D, arc: { A, B, P1, P2 }, outer });
     return [...outer, ...inner];
   }
   /** a barrier line held as drawn (escapes: an escape the shape of the real one) at arc length s on that side */

@@ -1,3 +1,21 @@
+# V2.34 (2026-11-04): the plaza's F1 logo, the suites' people, open stand ends, the chicane run-off's real wall
+
+- The Grand Prix Plaza's F1 logo (VegasPaddock.js): F1 red, unlit and untoned so it reads as neon (it washed to pink /
+  orange), laid flat on the roof deck with its red glow round it - not held up on posts over a pink glass pavilion (gone).
+  No plant room on top of it.
+- The hospitality suites' people (suitesTexture): drawn as the stands' crowd is (world/FanCutouts.js colours - skin
+  tones, hair, coloured shirts with sleeves, arms, trousers), not dark silhouettes: the same crowd in the suites as on
+  the tiers below them.
+- Stand ends never wall in seats: the Heineken Silver main grandstand's teal ends are the stand's side only - under the
+  seats along their rake, and the suites' block at the back up to the roof (they were the whole profile under the roof,
+  over the seats); the name sits low at the back. The Red Bull end boards of the Turns 2-4 stand moved back under the
+  rake.
+- The chicane's run-off (Turns 7-8) on the way in only, as the race's render shows it: straight on past Turn 7, its wall
+  leaving the road's own wall in line with it, curving gently out, running straight along the stands and curving gently
+  back in to fence the road by Turn 8 (the band escape, TrackBuilder); out of Turn 8 the wall runs beside the road as
+  everywhere else, the stand right behind it to Turn 9. Nothing in the run-off or on its wall (the light masts gone: the
+  stands' lamps light it); Turn 9's magenta paint gone from its end.
+
 # V2.33 (2026-11-04): the T-Mobile stands' cladding, the chicane's run-off wall, the pit lanes' mouths
 
 - The T-Mobile stands (VegasSphereZone.js, the user's render of the zone): the magenta cladding under and behind the

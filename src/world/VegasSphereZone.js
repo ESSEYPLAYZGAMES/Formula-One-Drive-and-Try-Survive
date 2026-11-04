@@ -154,15 +154,10 @@ export function buildSphereZone(track, pit, def, near = []) {
       const P = (u, v) => [c[0] + t[0] * u + up[0] * v, 0.05, c[1] + t[1] * u + up[1] * v];
       const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute([...P(-L / 2, -Wd / 2), ...P(L / 2, -Wd / 2), ...P(L / 2, Wd / 2), ...P(-L / 2, -Wd / 2), ...P(L / 2, Wd / 2), ...P(-L / 2, Wd / 2)], 3));
       g.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1], 2)); g.computeVertexNormals(); group.add(new THREE.Mesh(g, word));
-      made.push(`run-off ${(EB.sB - EB.sA).toFixed(0)} m long, ${w.toFixed(0)} m deep at its middle, its wall one ${CL.toFixed(0)} m arc`);
+      made.push(`run-off ${(EB.sB - EB.sA).toFixed(0)} m long, ${w.toFixed(0)} m deep at its middle, its wall's straight run ${CL.toFixed(0)} m end to end`);
     }
-    // light towers just behind its wall, lamps aimed back over it at the chicane; marshals' posts at its two ends
-    for (let k = 4; k < arc.length - 4; k += 7) {
-      const [x0, z0] = arc[k - 1], [x1, z1] = arc[k + 1], L = Math.hypot(x1 - x0, z1 - z0), ex = [(x1 - x0) / L, (z1 - z0) / L], q = tr.nearest(arc[k][0], arc[k][1]), o = tr.sample(q.s, 0, f2);
-      let nx = -ex[1], nz = ex[0]; if (nx * (arc[k][0] - o.x) + nz * (arc[k][1] - o.z) < 0) { nx = -nx; nz = -nz; }
-      const x = arc[k][0] + nx * 1.6, z = arc[k][1] + nz * 1.6; mast(x, z, 14, ex);
-      put(flood, boxAt(x, 14.4, z, ex, 2.2, 0.6, 1.0)); lights.push({ x, y: 14.4, z, tx: o.x, tz: o.z });
-    }
+    // (nothing stands in it or on its wall: its light comes from the stands' lamps behind it and the gantry across the
+    //  track) - marshals' posts at its two ends, behind the wall
     for (const s of [EB.sA + 8, EB.sB - 6]) {
       const i = tr.idxAtS(s), ex = [tr.tx[i], tr.tz[i]], p = tr.sample(s, sd * (tr.wallAt(i, sd) + 1.4), f);
       put(white, boxAt(p.x, 1.6, p.z, ex, 3.0, 3.2, 1.8)); put(grey, boxAt(p.x, 3.3, p.z, ex, 3.4, 0.2, 2.2));
@@ -206,9 +201,13 @@ export function buildSphereZone(track, pit, def, near = []) {
     const within = (p, x, z) => { const dx = x - p.x, dz = z - p.z, lx = dx * p.ex[0] + dz * p.ex[1], lz = dx * p.ez[0] + dz * p.ez[1]; return Math.abs(lx) < p.len / 2 + 0.8 && lz > -0.5 && lz < p.depth + 0.5; };
     const clear = (p) => {
       for (let lx = -p.len / 2; lx <= p.len / 2 + 0.01; lx += 2) for (let lz = 0; lz <= p.depth + 0.01; lz += 2) {
-        const [x, z] = p.world(lx, lz); if (corridorSigned(tr, pit, x, z, -0.4) < 0 || near.some((r) => inRing(x, z, r)) || out.some((o) => within(o, x, z))) return false;
+        const [x, z] = p.world(lx, lz);
+        if (corridorSigned(tr, pit, x, z, -0.4) < 0 || near.some((r) => inRing(x, z, r)) || out.some((o) => within(o, x, z))) return false;
         // (and never inside the barriers: a run-off is the cars' - the stand stands behind its wall)
-        const q = tr.nearest(x, z, -1, f2); if (Math.abs(q.d) < tr.wallAt(q.i, q.d >= 0 ? 1 : -1) + 0.8) return false;
+        // (beside the run-off its outline decides - the wall samples there were pushed out along normals that converge on
+        //  the inside of Turn 8, so one sample's wall says nothing about the point next to it)
+        const q = tr.nearest(x, z, -1, f2), byBand = EB && q.s > EB.sA - 15 && q.s < EB.sB + 15 && Math.sign(q.d) === EB.side;
+        if (!byBand && Math.abs(q.d) < tr.wallAt(q.i, q.d >= 0 ? 1 : -1) + 0.8) return false;
         if (EBring && inRing(x, z, EBring)) return false;
       }
       return true;
@@ -235,6 +234,8 @@ export function buildSphereZone(track, pit, def, near = []) {
       for (let u = 0; u < L; u += 1) pts.push([x0 + (x1 - x0) * u / L + nx * S2.gap, z0 + (z1 - z0) * u / L + nz * S2.gap]);
     }
     east = chain(0, 0, EB.side, S2, 'T-Mobile Zone chicane grandstand', pts.slice(6, -6));
+    // (and out of Turn 8, where there is no run-off: the stand right behind the wall beside the road, to Turn 9)
+    east.push(...chain(EB.sB + 4, c9 - 8, EB.side, S2, 'T-Mobile Zone chicane exit grandstand'));
   }
   const all = [...south, ...corner, ...east];
   // (their magenta, as the race's renders show them: the cladding under and behind the seats - the back wall up to the
