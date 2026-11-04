@@ -47,7 +47,12 @@
   tools/rejoin_probe.mjs: an AI car rolled into a barrier at 30-100 km/h, 30-90 degrees, left to get going again (on a
   straight per barrier kind, or at a corner as the circuit has it): 86 of 90 back on the road, the rest concrete as
   before or a hit that broke the suspension.
-RACES
+- 22-car races (tools/race_probe.mjs: 5 laps, safety car off, six seeds on each of the four circuits, before and after;
+  each retirement put down to the last thing the car hit): retirements 27 -> 23, those down to a barrier 11 -> 3, cars
+  launched 22 -> 12, none torn in two either way, barrier hits over 0.3 severity 96 -> 11 (Montreal's walls 63 -> 5).
+  Drivers hurt 1 -> 3: the two new ones a car-to-car collision on the run to Austin's Turn 1 (car-to-car contact is as it
+  was). The probe pauses the game's own frame loop and seeds Math.random only while it steps the race (the renderer drew
+  from the same seeded stream between chunks and shifted it): a seeded race now repeats exactly, before and after.
 
 # V2.37 (2026-11-04): Las Vegas's maps and its AI on the new line; the loading bar and the map in step
 
