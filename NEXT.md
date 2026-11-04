@@ -1,3 +1,8 @@
+# V2.36 (2026-11-04): the T-cam's defaults - 11 degrees down, a 49 degree lens
+
+- The player's pick on the Vegas lap after V2.35's sliders: TCAM_TILT 11 (was 9), TCAM_FOV 49 (was 40); the Sphere's
+  onboard feed uses the same lens. A setting already chosen in the browser is kept.
+
 # V2.35 (2026-11-04): the Sphere's emoji and helmet remade, its base, the screen in time trial; the chicane polished
 
 - The Sphere's emoji (SphereShow emoji(), the photos): glossy yellow, two tall white eyes with big black pupils and a

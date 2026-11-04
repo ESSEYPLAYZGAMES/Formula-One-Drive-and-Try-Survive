@@ -597,7 +597,7 @@ table.res tr.me td { color: var(--accent2); font-weight: 700; }
     <div class="brand-line"></div>
     <h1 id="brand-title">FORMULA 1<span id="brand-sub">SIMULATOR</span></h1>
     <!-- the build's version: +0.01 with every build handed out -->
-    <span id="app-ver" title="Version">V2.35</span>
+    <span id="app-ver" title="Version">V2.36</span>
     <div id="menu-sub">Real circuits built from OpenStreetMap</div>
   </div>
   <div id="loading" class="hidden"><div class="ld"><i></i></div><span>Building the circuit from OpenStreetMap…</span></div>
@@ -80346,11 +80346,11 @@ __m['src/camera/CockpitCamera.js'] = (() => {
  * rear views both come from it. 1.1 m up keeps the helmet ~0.45 m from the lens, clear of the 0.3 m near plane.
  */
 const TCAM_X = -0.13, TCAM_Y = 1.21;   // (just over the camera pod on the airbox: vehicle/CarModel.js)
-const TCAM_TILT = 9;   // the forward T-cam's tilt down, degrees (the settings' T-cam tilt slider: 4 to 16) - the horizon a quarter
-                              //  of the way down the frame, the halo's bar and the helmet low in it
+const TCAM_TILT = 11;   // the forward T-cam's tilt down, degrees (the settings' T-cam tilt slider: 4 to 16; 11 the player's pick
+                               //  on the Vegas lap) - the horizon a quarter of the way down the frame, the halo and the helmet low in it
 const TCAM_PITCH = (TCAM_TILT * Math.PI) / 180;
-const TCAM_FOV = 40;   // its vertical field of view: a tight broadcast lens - the fences fill the frame's sides to its top edge, a strip of sky,
-                               //  the buildings only glimpsed over the fences (less of the scene in frame at any moment: less to draw)
+const TCAM_FOV = 49;   // its vertical field of view (the settings' slider: 30 to 60; 49 the player's pick) - the fences down the frame's
+                               //  sides, the city over them, a strip of sky
 const TCAM_RISE = 0.05;   // the forward view's lens 5 cm higher on the pod: the halo's bar low in the frame, the helmet just under it
 
 class CockpitCamera {
@@ -80566,7 +80566,7 @@ const POSES = {
     // (the T-cam as the player's: the pod, its tilt down and its lens - CockpitCamera; the body's heave and pitch with it)
     const c = Math.cos(car.th), s = Math.sin(car.th), y = TCAM_Y + TCAM_RISE + (car.hv || 0) + TCAM_X * (car.pt || 0);
     cam.position.set(car.x + TCAM_X * c, y, car.z + TCAM_X * s);
-    cam.up.set(0, 1, 0); cam.lookAt(car.x + c * 25, y - 25 * Math.tan(TCAM_PITCH), car.z + s * 25); cam.fov = TCAM_FOV + 8; cam.near = 0.12; cam.updateProjectionMatrix();   // (near: the halo and the helmet in the picture; a little wider than yours, the car filling its foot)
+    cam.up.set(0, 1, 0); cam.lookAt(car.x + c * 25, y - 25 * Math.tan(TCAM_PITCH), car.z + s * 25); cam.fov = TCAM_FOV; cam.near = 0.12; cam.updateProjectionMatrix();   // (near: the halo and the helmet in the picture)
   },
   /** nose camera: mounted on the nose tip just above the front wing, looking down the road */
   nose: (car) => (cam) => {

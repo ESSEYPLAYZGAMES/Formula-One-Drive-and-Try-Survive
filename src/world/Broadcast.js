@@ -63,7 +63,7 @@ export const POSES = {
     // (the T-cam as the player's: the pod, its tilt down and its lens - CockpitCamera; the body's heave and pitch with it)
     const c = Math.cos(car.th), s = Math.sin(car.th), y = TCAM_Y + TCAM_RISE + (car.hv || 0) + TCAM_X * (car.pt || 0);
     cam.position.set(car.x + TCAM_X * c, y, car.z + TCAM_X * s);
-    cam.up.set(0, 1, 0); cam.lookAt(car.x + c * 25, y - 25 * Math.tan(TCAM_PITCH), car.z + s * 25); cam.fov = TCAM_FOV + 8; cam.near = 0.12; cam.updateProjectionMatrix();   // (near: the halo and the helmet in the picture; a little wider than yours, the car filling its foot)
+    cam.up.set(0, 1, 0); cam.lookAt(car.x + c * 25, y - 25 * Math.tan(TCAM_PITCH), car.z + s * 25); cam.fov = TCAM_FOV; cam.near = 0.12; cam.updateProjectionMatrix();   // (near: the halo and the helmet in the picture)
   },
   /** nose camera: mounted on the nose tip just above the front wing, looking down the road */
   nose: (car) => (cam) => {

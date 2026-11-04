@@ -6,11 +6,11 @@ import * as THREE from 'three';
  * rear views both come from it. 1.1 m up keeps the helmet ~0.45 m from the lens, clear of the 0.3 m near plane.
  */
 export const TCAM_X = -0.13, TCAM_Y = 1.21;   // (just over the camera pod on the airbox: vehicle/CarModel.js)
-export const TCAM_TILT = 9;   // the forward T-cam's tilt down, degrees (the settings' T-cam tilt slider: 4 to 16) - the horizon a quarter
-                              //  of the way down the frame, the halo's bar and the helmet low in it
+export const TCAM_TILT = 11;   // the forward T-cam's tilt down, degrees (the settings' T-cam tilt slider: 4 to 16; 11 the player's pick
+                               //  on the Vegas lap) - the horizon a quarter of the way down the frame, the halo and the helmet low in it
 export const TCAM_PITCH = (TCAM_TILT * Math.PI) / 180;
-export const TCAM_FOV = 40;   // its vertical field of view: a tight broadcast lens - the fences fill the frame's sides to its top edge, a strip of sky,
-                               //  the buildings only glimpsed over the fences (less of the scene in frame at any moment: less to draw)
+export const TCAM_FOV = 49;   // its vertical field of view (the settings' slider: 30 to 60; 49 the player's pick) - the fences down the frame's
+                               //  sides, the city over them, a strip of sky
 export const TCAM_RISE = 0.05;   // the forward view's lens 5 cm higher on the pod: the halo's bar low in the frame, the helmet just under it
 
 export class CockpitCamera {
