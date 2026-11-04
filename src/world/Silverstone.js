@@ -604,8 +604,11 @@ export function buildSilverstone(geo, track, def, pit) {
   if (pit) {
     const side = pit.sideSign, a = tr.idxAtS(pit.entryS + 40), b = tr.idxAtS(pit.exitS - 40), n = tr.n, s0 = tr.s[a];
     const inB = (i) => (a <= b ? i >= a && i <= b : i >= a || i <= b);
+    // (only where the pit wall stands: not across the lane's mouths at either end, where the barrier is open - the
+    //  banners ran on over the entry and the exit roads)
+    const wallUp = (i) => !isNaN(pit.wallD[i]) && !tr.pitInfield?.[i] && !pit.laneCovers?.[i];
     for (const [row, ph] of [[rowOf('dhl'), 0], [rowOf('emirates'), 1]]) {
-      const g = ribbon(tr, (i) => side * (tr.wallAt(i, side) - 0.07), (i) => side * (tr.wallAt(i, side) - 0.07), 0.05, { yB: 1.15, mask: (i) => inB(i) && inB((i + 1) % n) && tr.pitWall?.[i] && Math.floor(tr.s[i] / 36) % 2 === ph && Math.floor(tr.s[(i + 1) % n] / 36) % 2 === ph, uvFn: (i) => (side * tr.wrapS(tr.s[i] - s0)) / BOARD_REPEAT });
+      const g = ribbon(tr, (i) => side * (tr.wallAt(i, side) - 0.07), (i) => side * (tr.wallAt(i, side) - 0.07), 0.05, { yB: 1.15, mask: (i) => inB(i) && inB((i + 1) % n) && tr.pitWall?.[i] && wallUp(i) && wallUp((i + 1) % n) && Math.floor(tr.s[i] / 36) % 2 === ph && Math.floor(tr.s[(i + 1) % n] / 36) % 2 === ph, uvFn: (i) => (side * tr.wrapS(tr.s[i] - s0)) / BOARD_REPEAT });
       const uv = g.attributes.uv, [v0, v1] = rowV(row); for (let k = 0; k < uv.count; k++) { const across = uv.getX(k), along = uv.getY(k); uv.setXY(k, along, v0 + (v1 - v0) * across); }
       if (g.index.count) boards.push(keepPNU(nonIdx(g)));
     }

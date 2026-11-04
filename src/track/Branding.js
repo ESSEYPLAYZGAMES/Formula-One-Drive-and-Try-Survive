@@ -285,6 +285,46 @@ PANELS.push((x) => {   // 25 the red, white and blue stripes (the run-offs' colo
   const n = 9, w = PW / n; for (let k = 0; k < n; k++) { x.fillStyle = ['#b31942', '#ffffff', '#0a3161'][k % 3]; x.fillRect(k * w, 0, w + 1, PH); }
   star(x, PW * 0.5, PH * 0.5, PH * 0.32, '#ffffff');
 });
+// (the boards from Turn 2 to Turn 5 as the 2024 onboards show them: lit LED boards, the T-Mobile magenta and purple out of
+//  Turn 2, blue into Turn 3, lilac down the straight to Turn 5 on its right with the dark wall on its left)
+const tmoT = (x, cx, cy, h, col) => {   // the T-Mobile T: the bar, the stem, a square either side of the stem
+  x.fillStyle = col; const w = h * 0.9, t = h * 0.22; x.fillRect(cx - w / 2, cy - h / 2, w, t); x.fillRect(cx - t / 2, cy - h / 2, t, h);
+  for (const d of [-1, 1]) x.fillRect(cx + d * (t / 2 + t * 0.9) - t * 0.35, cy + h * 0.02, t * 0.7, t * 0.7);
+};
+PANELS.push((x) => {   // 26 T-Mobile, out of Turn 2: magenta into purple, the T and the name in white
+  const g = x.createLinearGradient(0, 0, PW, 0); g.addColorStop(0, '#e20074'); g.addColorStop(0.55, '#a43bd6'); g.addColorStop(1, '#3b5bff'); x.fillStyle = g; x.fillRect(0, 0, PW, PH);
+  tmoT(x, PW * 0.1, PH * 0.5, PH * 0.6, '#ffffff');
+  fit(x, 'T-Mobile', PW * 0.18, PW * 0.62, PH * 0.52, '#ffffff', { size: PH * 0.6, weight: 800 });
+  fit(x, 'LAS VEGAS GRAND PRIX', PW * 0.64, PW * 0.97, PH * 0.52, 'rgba(255,255,255,0.85)', { size: PH * 0.26, weight: 700, spacing: 3 });
+});
+PANELS.push((x) => {   // 27 the blue boards into Turn 3: bright blue, lighter at the middle, the race's name in white
+  const g = x.createLinearGradient(0, 0, 0, PH); g.addColorStop(0, '#2c6dff'); g.addColorStop(0.5, '#5fa2ff'); g.addColorStop(1, '#2c6dff'); x.fillStyle = g; x.fillRect(0, 0, PW, PH);
+  fit(x, 'LAS VEGAS GRAND PRIX', PW * 0.06, PW * 0.94, PH * 0.52, '#ffffff', { size: PH * 0.5, weight: 800, spacing: 4 });
+});
+PANELS.push((x) => {   // 28 T-Mobile lilac, the straight to Turn 5
+  const g = x.createLinearGradient(0, 0, 0, PH); g.addColorStop(0, '#8e57e0'); g.addColorStop(0.5, '#c39bff'); g.addColorStop(1, '#8e57e0'); x.fillStyle = g; x.fillRect(0, 0, PW, PH);
+  for (const c of [0.12, 0.62]) { tmoT(x, PW * c, PH * 0.5, PH * 0.56, '#ffffff'); fit(x, 'T-Mobile', PW * (c + 0.06), PW * (c + 0.34), PH * 0.52, '#ffffff', { size: PH * 0.52, weight: 800 }); }
+});
+PANELS.push((x) => {   // 29 the dark wall: bare dark concrete, a faint purple glow along its foot (the straight's left)
+  x.fillStyle = '#26272c'; x.fillRect(0, 0, PW, PH);
+  for (let k = 0; k < 6; k++) { x.fillStyle = 'rgba(255,255,255,0.025)'; x.fillRect(k * PW / 6, 0, 3, PH); }
+  const g = x.createLinearGradient(0, PH * 0.7, 0, PH); g.addColorStop(0, 'rgba(150,90,230,0)'); g.addColorStop(1, 'rgba(150,90,230,0.55)'); x.fillStyle = g; x.fillRect(0, PH * 0.7, PW, PH * 0.3);
+});
+PANELS.push((x) => {   // 30 MGM Rewards: black boards, the gold lion medallion, MGM over REWARDS in white (the Bellagio Fountain Club)
+  x.fillStyle = '#0b0b0d'; x.fillRect(0, 0, PW, PH);
+  for (const c of [0.08, 0.58]) {
+    const cx = PW * c, cy = PH * 0.5; x.fillStyle = '#c9a24a'; x.beginPath(); x.arc(cx, cy, PH * 0.3, 0, 6.283); x.fill(); x.fillStyle = '#0b0b0d'; x.beginPath(); x.arc(cx, cy, PH * 0.22, 0, 6.283); x.fill();
+    x.fillStyle = '#c9a24a'; x.beginPath(); x.arc(cx + PH * 0.03, cy - PH * 0.02, PH * 0.12, 0, 6.283); x.fill();
+    fit(x, 'MGM', PW * (c + 0.05), PW * (c + 0.2), PH * 0.42, '#ffffff', { size: PH * 0.5, weight: 800, align: 'left' });
+    fit(x, 'REWARDS', PW * (c + 0.05), PW * (c + 0.2), PH * 0.8, '#ffffff', { size: PH * 0.2, weight: 700, spacing: 2, align: 'left' });
+  }
+});
+PANELS.push((x) => {   // 31 aramco (the chicane round the Sphere, 2024): a green board and a blue one, the white lowercase name on each
+  for (const [c0, c1, col] of [[0, 0.5, ['#13a24a', '#0d8a3c']], [0.5, 1, ['#1479d6', '#0b5fb4']]]) {
+    const g = x.createLinearGradient(0, 0, 0, PH); g.addColorStop(0, col[0]); g.addColorStop(1, col[1]); x.fillStyle = g; x.fillRect(PW * c0, 0, PW * (c1 - c0), PH);
+    fit(x, 'aramco', PW * (c0 + 0.08), PW * (c1 - 0.08), PH * 0.5, '#ffffff', { size: PH * 0.62, weight: 700 });
+  }
+});
 /** sponsor per 180 m wall zone (both sides use the same sequence, offset on the right so they don't mirror) */
 export const ZONE_SEQ = [0, 3, 1, 2, 0, 4, 5, 7, 1, 6, 0, 2, 3, 0, 1, 5];
 export const ZONE_LEN = 180;

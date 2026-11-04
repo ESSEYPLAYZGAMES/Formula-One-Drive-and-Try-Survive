@@ -225,6 +225,8 @@ window.__calRun = function (laps = 3, cal = undefined, opts = {}) {
   const diff0 = F.settings.diff; if (opts.diff != null) F.settings.diff = opts.diff;   // (the difficulty slider: 100 is the AI at its quickest)
   F.settings.grid = 'pick'; F.settings.slot = 22; F.settings.len = laps + 3; F.settings.weather = opts.weather || 'dry'; F.settings.tyre = 'SOFT'; F.settings.sc = 'off'; F.settings.fail = 'off'; F.settings.time = 'day'; F.restart();
   const d = F.S.director, solo = d.cars.filter((c) => !c.isPlayer)[opts.car || 0];
+  // (a wet run: the track held at one wetness all session, no sky - race/Weather.js; opts.wetness)
+  if (opts.wetness != null && d.weather) { const wx = d.weather; wx.fixed = true; wx.cells.length = 0; wx.believed.length = 0; wx.water.fill(opts.wetness); wx.lineW.fill(opts.wetness); wx.summary(); wx.fillTex(); }
   for (const c of d.cars) if (c !== solo) { if (c.isPlayer) { c.ghost = 1e9; c.placeOnTrack(c.s, 40, 0); } else { c.retired = true; c.placeOnTrack(c.s, 30, 0); } }
   if (!opts.form) solo.form = null;   // (the driver's form on the day moves between sessions: neutral, so runs compare)
   // (and its tyres: the race plan picks a compound at random - softs unless asked, the grippiest and the hardest to keep clean)

@@ -11,7 +11,7 @@
 const KEEP = 15, RATE = 4;
 /** fields never copied: static data, renderers, callbacks owned elsewhere, scratch objects */
 const SKIP = new Set(['track', 'line', 'profile', 'pit', 'hud', 'audio', 'engineer', 'telemetry', 'obstacles', 'planner', 'flashback', 'replay', 'injuryClip', '_halfTrack',
-  'onFinish', 'onPitDone', 'onRedFlag', 'events', 'sectors', 'passes', 'gLog', '_f', '_fr', '_fp', '_q', '_pq', '_po', '_oh', '_t2', '_v2', '_sa', '_sb', '_v3a', '_v3b', '_va', '_vb']);
+  'onFinish', 'onPitDone', 'onRedFlag', 'events', 'sectors', 'passes', 'gLog', '_f', '_fr', '_fp', '_q', '_pq', '_po', '_oh', '_t2', '_v2', '_sa', '_sb', '_v3a', '_v3b', '_va', '_vb', '_g', '_texData', '_sorted', 'weather']);
 
 class Ref { constructor(o) { this.o = o; } }
 

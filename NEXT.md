@@ -1,3 +1,238 @@
+# V2.37 (2026-11-04): Las Vegas's maps and its AI on the new line; the loading bar and the map in step
+
+- The circuit map (ui/TrackMaps.js) and the menu card's outline (tracks.js) regenerated from the built circuit - they were
+  still the lap before the de-kinking (scratch tooling: the lap from the line in 400 points, the pit lane, the corners;
+  Silverstone regenerated the same way matches its stored map to the point). The in-race minimap draws the live track.
+  The corner numbers on the loading map pushed apart where they crowd (7-8, 14-15-16; each kept near its corner and off
+  the track).
+- The loading screen: the bar, the red line round the map, its head and the figure are one value eased frame by frame -
+  no CSS transitions (the bar's ran on the compositor while the build held the page, so it kept moving while the map's
+  waited: the line was half the time behind the bar).
+- The AI at Las Vegas (from 22-car races, every impact logged with the cars round it): the pile-ups were at Turns 10-11,
+  and the line was why - the trace had a sharp spot in each fast kink (Turn 10 a 55 m radius inside a 107 m bend at
+  280 km/h), so the field braked mid-kink and swung across the road. Turns 10, 11 and 13 smoothed (each one cubic over
+  100 m, the line moved 2.8 m at most, the lap scaled back to 6.201 km): Turn 10 is flat now, as it is. And no mistakes
+  in a corner taken flat (AIDriver.rollError): the 'wide' mistake of a fast sweeper put cars into the wall at 340 km/h.
+  A car deep in a run-off rejoins at the road beside it (it aimed 35 m on, into the wall where the chicane's run-off
+  curves back in - beached). Five seeded races: one retirement in five (was one in most).
+- The telemetry supplied (2026-11-03 19:30) is one wet lap (0.36) with a reset and a stop - not a lap to fit the AI to;
+  the dry AI stays on the physics, the wet calibration (fitted 2026-11-01) as it was.
+
+# V2.36 (2026-11-04): the T-cam's defaults - 11 degrees down, a 49 degree lens
+
+- The player's pick on the Vegas lap after V2.35's sliders: TCAM_TILT 11 (was 9), TCAM_FOV 49 (was 40); the Sphere's
+  onboard feed uses the same lens. A setting already chosen in the browser is kept.
+
+# V2.35 (2026-11-04): the Sphere's emoji and helmet remade, its base, the screen in time trial; the chicane polished
+
+- The Sphere's emoji (SphereShow emoji(), the photos): glossy yellow, two tall white eyes with big black pupils and a
+  glint, thick dark-brown brows, a small mouth - four expressions in turn (a sly smile, wide-eyed awe with an "o", one
+  brow up and curious, a happy squint), blending, blinking; drawn in the shell's own measure (front-on, so the eyes stay
+  round on the Sphere). While it is on, the face turns to the car you watch (else the nearest), lagging a little, and
+  its eyes follow it. The helmet variant: the face in its race helmet - sky-blue shell, the white visor band with LAS
+  VEGAS GRAND PRIX in navy, the navy crown panel with its wave lines and the red F1, the visor pivots, navy and white
+  side stripes, the lilac chin guard and its vent. Canvas shows toned down (x0.44): the night glow washed them to white.
+- The Sphere's base (Landmarks.js): the solid dark ring the shell stands on, 8.5 m high, 80 m round at its foot, its
+  panels and lit doors; every show laid out on the shell above it (uGround at its top).
+- The F1 stream: drawn whenever it is on - paused or in photo mode too (it stayed black when the loop reached it while
+  the game was halted); its screen a little lower on the shell (15 below the equator to 58 above), centred on the face.
+- T-cam: a field-of-view slider beside the tilt (30-60 degrees, 40 by default), on the Driving page and in the pause
+  menu, kept in this browser.
+- The chicane: the run-off red (the race's render), the race's F1 / LAS VEGAS GRAND PRIX mark across it; it ends at
+  Turn 8's turn-in - past it, on the inside of Turn 8, the wall samples (pushed out along converging normals) jumped back
+  and forth and the barrier, fence and boards drawn between them made stray rectangles of fencing. No stand of the zone
+  may stand in another, whichever stand it belongs to; the run-off's stand only along its wall, not round its ends.
+- The suites' people: the stands' figures at their real size (the suite texture is laid 30 m to a repeat, ~3.6 m tall,
+  so they were twice as wide as they should be), darkened against the lit room - near-silhouettes, their colours there.
+
+# V2.34 (2026-11-04): the plaza's F1 logo, the suites' people, open stand ends, the chicane run-off's real wall
+
+- The Grand Prix Plaza's F1 logo (VegasPaddock.js): F1 red, unlit and untoned so it reads as neon (it washed to pink /
+  orange), laid flat on the roof deck with its red glow round it - not held up on posts over a pink glass pavilion (gone).
+  No plant room on top of it.
+- The hospitality suites' people (suitesTexture): drawn as the stands' crowd is (world/FanCutouts.js colours - skin
+  tones, hair, coloured shirts with sleeves, arms, trousers), not dark silhouettes: the same crowd in the suites as on
+  the tiers below them.
+- Stand ends never wall in seats: the Heineken Silver main grandstand's teal ends are the stand's side only - under the
+  seats along their rake, and the suites' block at the back up to the roof (they were the whole profile under the roof,
+  over the seats); the name sits low at the back. The Red Bull end boards of the Turns 2-4 stand moved back under the
+  rake.
+- The chicane's run-off (Turns 7-8) on the way in only, as the race's render shows it: straight on past Turn 7, its wall
+  leaving the road's own wall in line with it, curving gently out, running straight along the stands and curving gently
+  back in to fence the road by Turn 8 (the band escape, TrackBuilder); out of Turn 8 the wall runs beside the road as
+  everywhere else, the stand right behind it to Turn 9. Nothing in the run-off or on its wall (the light masts gone: the
+  stands' lamps light it); Turn 9's magenta paint gone from its end.
+
+# V2.33 (2026-11-04): the T-Mobile stands' cladding, the chicane's run-off wall, the pit lanes' mouths
+
+- The T-Mobile stands (VegasSphereZone.js, the user's render of the zone): the magenta cladding under and behind the
+  seats only - the back wall up to the top row with the section's number and a lit tunnel in, the side at the ends of a
+  stand following its rake down to the front. No more panels standing above the seats between sections (they walled off
+  the view along the stand).
+- The run-off beyond Turns 7-8 (TrackBuilder escapes band): its wall one gentle arc from the barrier before Turn 7 to the
+  barrier before Turn 9, bowed out to the depth at its middle - no longer an offset of the road, which wiggled with the
+  chicane. Its paint is the polygon between that arc and the kerb; the stand behind it follows the arc, and no stand may
+  stand inside a barrier or the run-off (one had been put on the run-off, where the wall samples fold over each other on
+  the inside of Turn 8).
+- Pit lanes: boards stood across the lane where it opens onto the track - at Las Vegas the green WHEN YOU DRIVE NEVER
+  DRINK boards on Turns 1-2's inside wall ran on over the exit road; at Silverstone the pit wall's DHL / Emirates banners
+  over the entry and exit roads. Both now stop where the barrier opens (the track's own rule: no pit wall, the lane's
+  infield or the lane over the line). Checked by ray along each lane's path at 0.3 and 0.7 m on all four circuits.
+- Seen on the way, not changed: Montreal's lane passes through its pit building's meshes near the garages (s ~4320-4350)
+  and Austin's start gantry has a leg on the lane (s ~3) - to look at.
+
+# V2.32 (2026-11-04): the Sphere zone, Wynn and Encore, the Sphere's one big screen, the T-cam
+
+- T-cam (CockpitCamera.js): one fixed lens - set, never eased (no zoom-in back from the rear view or another camera);
+  its tilt down a setting (T-cam tilt, 4-16 degrees, 9 by default: a touch higher than V2.26's 12), on the setup's
+  Driving page and in the pause menu, kept in this browser. Q / E turn the lens on its pod at the same height and tilt
+  (it used to rise 15 cm and level out: a diagonal sweep). The rear-facing lens on the pod's top at 1.30 m riding with
+  the body: at 1.21 m, fixed, the 0.3 m near plane sliced the airbox (1.18 m) open whenever the body heaved.
+- Turns 7-8 (TrackBuilder escapes band; VegasSphereZone.js): the run-off east of the chicane, ~195 m long and 33 m
+  deep, painted aramco teal with green bands across it and the name along it; aramco's green and blue boards on both
+  walls T7-T9 (Branding panel 31); a white lattice lighting gantry along the chicane's inside wall with the aramco
+  banner; light towers and marshals' posts on the run-off's wall.
+- The T-Mobile Zone at Sphere: magenta-clad stands outside the south leg, round Turn 6 and along the run-off (15
+  sections), the lit T-Mobile cube on its mast; the fan zone inside the loop (29 marquees, container bars, the stage,
+  light towers); the city's infill and auto stands kept out of the loop.
+- Sphere: the F1 stream is one big screen (the feed across the face, bent with the shell; timing towers, caption,
+  ribbon); a new show in the loop - race week's red shell with the white lattice and the race's title (SphereShow gp).
+- Wynn and Encore (Landmarks.js): curved slabs fitted to their footprints (Wynn: the crescent, a 304 m curve, 231 m
+  across, 26 m deep, concave to the Strip; Encore: on its footprint's curved north-east edge, a 233 m curve, 154 m, its
+  podium the rest), bronze glass drawn floor by floor - warm rooms lit at random, a white line of light along every
+  other floor, the dark crown, the names in white script, bronze end fins.
+- To check against photos: which way Encore's tower curves (OSM's footprint has it concave to the north-east; the
+  user's photo, a game render, shows its concave face from the Strip).
+- Known: lap-1 pile-ups at T10-T11 (since V2.24): refit the Vegas AI calibration to the de-kinked line.
+
+# V2.31 (2026-11-04): the Bellagio in detail, the fountains, a full city, live ground, the High Roller
+
+- Bellagio (Landmarks.js): the front's curve read off its footprint (long axis, length, bow -> a 194 m radius, 207 m
+  across, concave to the lake); a facade texture drawn floor by floor (arched base, paired windows in bays between
+  pilasters, string courses, the top arcade, the lit cornice; floodlit warm at night), the raised centre bay, copper hip
+  roofs, the stepped wings, the crown (drum of columns, plaque, ribbed dome, lantern). Its grounds (OSM's one 'building')
+  as they are: paving, gardens and trees, the lakefront villas along the lake's west shore - not one 12 m block.
+- Fountains: the semicircle out in the lake (outer and inner arcs, the tall heart, the arching jets), each jet a glowing
+  core plus particles streaming up, bursting and falling as mist; warm gold.
+- City: def.infill - blocks in rows along the circuit in OSM's gaps (343), clear of the circuit, footprints, landmarks,
+  the lake and the race-week structures. Ground: a richer city texture (lots with bays, sidewalks, landscaping) with
+  world-space variation and street-light pools at night.
+- High Roller: one white tubular rim, laced cable spokes from two hub flanges, 28 glass cabins outside the rim on
+  brackets, the A-frame and the rear leg on one side; floodlit white, a soft pink-lilac LED band.
+- Known: lap-1 pile-ups at T10-T11 (since V2.24): refit the Vegas AI calibration to the de-kinked line.
+
+# V2.30 (2026-11-04): the Bellagio at race week
+
+- From the user's photos (MGM's Fountain Club render, the deck at Carbone Riviera 2025, the race-night aerial): the lake
+  traced from the Bellagio's footprints (long along the Strip, not the old ellipse across it), animated fountains, the
+  hotel's crown and BELLAGIO, the casino base at 3 floors, the Fountain Club (2 grandstands, 2 three-level structures, the
+  Winner's Stage), MGM Rewards boards, palms opposite.
+- Fixed on the way: the paddock module's exclusion box for auto-placed stands was its whole group's box - since V2.26 it
+  reached the T4-T5 straight and would have reached the Strip: now one box per solid.
+- Not yet like the photos: the Cosmopolitan (its blue LED stripes, the name, the marquee), Caesars lit gold, the lake's
+  villas; the fountain show's exact choreography.
+
+# V2.29 (2026-11-03): Paris Las Vegas - the Eiffel Tower and the Montgolfier balloon rebuilt
+
+- No photo could be fetched (every image host is outside this environment's network allowance); built from documented
+  facts: the tower 540 ft / 165 m half scale, deck 460 ft, restaurant on the first level, welded with false rivets; the
+  balloon sign 180 ft to the top, a 72 ft balloon on a space-frame floor, a skin decorated to the 1783 Aerostat
+  Reveillon, a mile of neon, a gondola carrying the digital sign (Federal Heath; Wikipedia; Caesars; VegasChanges).
+- Tower (Landmarks.js eiffel): the Paris original's geometry halved - four lattice legs on a 62.5 m base, the first
+  platform 35.3 m at 28.8 m with the lit gallery, the four great arches, the second platform 20.5 m at 57.9 m, the shaft
+  to the deck at 140 m, lantern, mast, beacon; bronze-brown, lit warm.
+- Balloon (Landmarks.js montgolfier): the Reveillon's shape, royal blue and gold (crown rays, star medallions, royal
+  cipher and suns, red waist band with fleurs-de-lis, garlands, eagles), gold neon on the seams and bands; the gondola's
+  four faces the Paris / LAS VEGAS sign; space frame, column, base.
+- To verify against photos: the balloon's exact artwork, the sign's current screen content, the tower's exact colour.
+
+# V2.28 (2026-11-03): the T-cam framed shot for shot against the 2024 onboards
+
+- Captured in a race at the onboards' three spots on the Turn 4-5 straight (scratch tcam_shots.mjs), 12 lens / tilt /
+  height variants side by side with the real frames. Kept: vertical FOV 40 (43 at speed), tilt 12 deg, the lens 5 cm up
+  on the pod - the horizon a fifth of the way down, the fences to the top edge with a strip of sky, the buildings only
+  glimpsed over them, the halo and the nose the share of the frame they are on the broadcast. (A lower lens put the
+  helmet in the middle of the view; a wider one showed the whole city.)
+
+# V2.27 (2026-11-03): the T-cam's lens tight, as the broadcast's
+
+- Forward T-cam: vertical FOV 48 deg (52 at speed; was 68-76), the lens 10 cm higher on the pod, tilted down 11 deg - the
+  halo's front bar across the lower third, the horizon a quarter of the way down; less of the scene in frame at once.
+
+# V2.26 (2026-11-03): Las Vegas, Turns 2-5 to the 2024 onboards; the T-cam pitched as the broadcast's
+
+- Pit entry/exit lines T-Mobile magenta, 0.35 m (def.pitLine, TrackBuilder).
+- Boards (Branding 26-29): T-Mobile magenta out of T2, blue into T3, lilac T-Mobile right of the T4-T5 straight, bare dark
+  wall left. (Replaces V2.25's Globant / #LasVegasGP, which came from the F1 25 game footage.)
+- T4-T5 straight: double yellow, dark scrim + tall dark left mass, low dark right buildings, merch stalls, big screen,
+  footbridge with the purple sign 150 m before T5; lit things fog-free. Fence-line lamps every 32 m down it.
+- Sphere: a 'sponsor' show (royal blue, Red Bull) in the rotation (SphereShow, Landmarks shader modeAt / 288 s cycle,
+  Lighting SHOW_GLOW).
+- T-cam: pitched down 21 degrees (TCAM_PITCH), levelling out when looking sideways.
+- Race tests: pit stop fine; lap-1 pile-ups at T10-T11 in 2 of 3 runs (0, 2, 4 retirements) - nothing there changed this
+  version; the Vegas AI calibration predates the de-kinked line (V2.24) - refit it.
+
+# V2.25 (2026-11-03): Las Vegas - the street circuit's catch fence, the walls' boards, the trackside kit
+
+- `def.streetFence` (TrackBuilder streetFence, Las Vegas): posts cranked in at the top, clamps, five cables, the chain
+  link up the crank; replaces the flat mesh band. (It was there all along in play; the scratch screenshot tool rendered
+  before the detail culling caught up with its moved camera - fixed in the tool, not the game.)
+- Boards: Branding panels 26 #LasVegasGP and 27 Globant; Vegas sponsorZones: Globant T2-T3, #LasVegasGP out of T4.
+- Kit: recovery crane truck + telehandler outside T2, camera tower at the stand's start, boom lift beyond the bend, the
+  gantry 190 m past T4.
+
+# V2.24 (2026-11-03): Las Vegas - the lap without its kinks; Turns 2-4 to the onboard footage
+
+- Kinks gone: the trace had swerved round the official map's own marks - the Turn 4 exit and 120 m after Turn 5 (sector
+  colour changes), the straight from Turn 9 to Turn 10 under the SECTOR 2 label (now a line fitted to the map's pixels),
+  after Turn 12, round the DRS dots after Turn 13, before Turn 14. Each stretch a smooth curve joining the line either
+  side; lap rescaled to 6.201 km; against the map: mean 1.2 m, 95% 2.5 m (was 3.5 m). A scan of the whole lap finds no
+  left-right jog left but the real corners. Turn 13 (flat out) keeps its label (main.js labelCorners: a corner with xz).
+- Lap times 96-100 s in the race test (were 100-108 s: the kinks cost time). The AI calibration was fitted on the old
+  line - a refit is worth doing.
+- Turns 2-4: one stand on the inside of the bend from ~95 m after Turn 2 to Turn 4 (PG2/PG3/PG4), dressed to the 2023
+  render (Red Bull, cabanas, lit aisles, orange block); outside: the hospitality building square to the return leg, the
+  blue-edged building behind it, the lower building with the F1 sign and palms along the run out of Turn 4, the painted
+  strip. PG5 (behind PG3 on the seating map) is folded into the one stand. The render's tented club and Red Bull
+  building were not built: the onboard footage (2025) has the hospitality building there.
+
+# V2.23 (2026-11-03): Turn 1's run-off on the real slant
+
+- The exit side of the run-off is the return leg's barrier carried on at its own angle (the official map: the leg opens
+  away from the straight), not a line parallel to the straight: 97 m across at the kerb, 85 m at the end wall, 16 deg.
+  Paint, barrier, fence and light towers follow it. The asphalt shades light (kerb) to dark (walls).
+
+# V2.22 (2026-11-03): Las Vegas Turn 1 to the race-night photo
+
+- Turn 1's run-off is the whole rectangle at last: fairWalls had been rounding its barrier line into a balloon (32 m
+  past the kerb at most); the escape's line is now held as drawn (Track.heldWalls) - 42 m past the kerb, square corners.
+- Dressed to the photo from beyond it: lit asphalt to the walls, the Heineken / -0.0 band round the kerb, the LasVegasGP
+  wordmark and two outline arrows, boards + catch fence + lattice light towers on its walls, WHEN YOU DRIVE NEVER DRINK
+  boards and a lighting truss on the inside wall, boards on the braking-zone fence.
+- Not yet like the photo: the city behind (dim, generic), the club at the hairpin's tip (the photo's stepped white
+  terraces and grey tower stand right at the corner; the game's plaza ends short of it), the PG2 stand's orange frame.
+
+# V2.21 (2026-11-03): Las Vegas on the official circuit map; start/finish and Turn 1 revamp
+
+- The lap traced from the official map (LasVegasOfficial.js), start line at its flag, corners at its labels, pit lane
+  laid beside it; Turn 1's run-off a straight-on rectangle (Track.escapes auto); the section dressed to the aerials.
+- Tooling (session scratchpad, not in the repo): trace_full.py (map -> centre line), gen_pit.py (pit lane), check.py.
+- Test: a race with a pit stop through the new lane ran clean (laps 102-108 s). AI calibration for Vegas was fitted on
+  the old line - its corner numbers still apply; a refit on the new line is worth doing.
+- Next sections (user to direct): the Sphere loop, the Strip, Harmon. Daytime look not reviewed.
+
+# V2.18 (2026-11-02): dynamic weather
+
+- New: `src/race/Weather.js` (rain cells on the wind, track water every ~10 m on the line and off it, the dry line,
+  a forecast that can be wrong, radar, engineer calls), `src/world/Spray.js`, the road's wet shader (main.js
+  `wetRoad`/`wxFrame`), the HUD weather panel and wet minimap, AI weather calls with per-driver nerve and team double
+  stacks (`AIDriver.weatherCall`/`stackMate`), the planner reading the water off the dry line, Changeable in the menu
+  and in career forecasts, `wet` telemetry channel.
+- AI wet calibration: `tools/ai_fit_wet.mjs` from the driver's wet laps (Silverstone and Las Vegas at wetness 0.35,
+  2026-11-01/02 exports). Montreal's export was a dry race (wetness 0): not used for the wet fit.
+- To check in play: how often the AI gambles (wxStay / wxEarly spread), the drying rate at night, spray density
+  on slow GPUs (Spray pool 2600 points, only cars within 330 m of the camera).
+
 # F1 sim: work left after v72 preview (2026-10-09, 12:47)
 
 **STOPPED 2026-10-10 ~09:35 (usage limit).** Resume each with `resumeFromRunId`; agents read their `progress\*.md` logs.

@@ -38,7 +38,7 @@ export const PRIZE = [14, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2];
 /** race day, drawn when the calendar is made (the forecast): Las Vegas is a night race, Silverstone a day one, mostly */
 export function drawForecast(track) {
   const r = Math.random(), night = track === 'lasvegas' ? Math.random() < 0.85 : Math.random() < 0.15;
-  return { weather: r < 0.62 ? 'dry' : r < 0.84 ? 'damp' : 'wet', time: night ? 'night' : 'day' };
+  return { weather: r < 0.5 ? 'dry' : r < 0.7 ? 'changeable' : r < 0.87 ? 'damp' : 'wet', time: night ? 'night' : 'day' };   // (the forecast: race day itself can differ - race/Weather.js weatherPlan)
 }
 /**
  * Trophies: the milestones of a career, each earned once (the round and season it came in kept). check(x): x is the
@@ -351,7 +351,7 @@ export class Career {
    */
   simQuali() {
     const tid = this.calendar[this.round - 1], wet = this.forecastAt().weather, base = SIM_LAP[tid] || 90, es = this.entries();
-    const sc = (e) => carPace(e, tid) + (e.rating + moraleSimBonus(e.morale)) * 0.02, best = Math.max(...es.map(sc)), luck = wet === 'wet' ? 0.004 : wet === 'damp' ? 0.0028 : 0.0015;
+    const sc = (e) => carPace(e, tid) + (e.rating + moraleSimBonus(e.morale)) * 0.02, best = Math.max(...es.map(sc)), luck = wet === 'wet' ? 0.004 : wet === 'damp' || wet === 'changeable' ? 0.0028 : 0.0015;
     const laps = es.map((e) => ({ e, t: base * (wet === 'wet' ? 1.12 : wet === 'damp' ? 1.05 : 1) * (1 + (best - sc(e)) * 1.4 + gauss() * luck + (Math.random() < 0.03 ? 0.01 + Math.random() * 0.02 : 0)) }));   // (now and then a lap spoiled: traffic, a mistake, a red flag)
     laps.sort((a, b) => a.t - b.t);
     const ids = laps.map((x) => x.e.careerId);
@@ -375,7 +375,7 @@ export class Career {
     const tid = this.calendar[this.round - 1], wet = this.forecastAt().weather, base = SIM_LAP[tid] || 90, laps = this.laps || 10;
     const es = this.entries(), by = Object.fromEntries(es.map((e) => [e.careerId, e])), grid = this.savedGrid.ids.filter((id) => by[id]);
     for (const e of es) if (!grid.includes(e.careerId)) grid.push(e.careerId);
-    const sc = (e) => carPace(e, tid) + (e.rating + moraleSimBonus(e.morale)) * 0.02, best = Math.max(...es.map(sc)), rain = wet === 'wet' ? 2.2 : wet === 'damp' ? 1.5 : 1;
+    const sc = (e) => carPace(e, tid) + (e.rating + moraleSimBonus(e.morale)) * 0.02, best = Math.max(...es.map(sc)), rain = wet === 'wet' ? 2.2 : wet === 'damp' ? 1.5 : wet === 'changeable' ? 1.7 : 1;
     const rows = grid.map((id, gi) => {
       const e = by[id], lap = base * 1.035 * (wet === 'wet' ? 1.12 : wet === 'damp' ? 1.05 : 1) * (1 + (best - sc(e)) * 1.4);
       // (the start and the traffic: a place on the grid is worth a little over the distance; the pace varies lap to lap)

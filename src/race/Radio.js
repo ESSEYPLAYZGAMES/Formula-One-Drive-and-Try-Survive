@@ -117,6 +117,7 @@ export class RaceRadio {
     const d = this.d, p = d.player, E = d.engineer; if (!E || !p || p.retired || p.finished || o === p) return;
     const pos = d.positions, me = pos.indexOf(p), k = pos.indexOf(o); if (Math.abs(k - me) > 3) return;
     const g = this.gap(p, o), last = o.name.split(' ').pop(), w = p.tyres.wear, why = o.ai?.pitReason;
+    if (why === 'weather' || why === 'stack') return;   // (the weather's calls have their own words: RaceDirector.weatherStop)
     let txt = `${last} is boxing from P${k + 1}`;
     if (why === 'cheap') txt += ', a cheap stop under the safety car.';
     else if (g != null && Math.abs(g) < 3 && !p.pitRequested) txt += `${why === 'cover' ? ', covering' : ''}${g < 0 ? `, ${Math.abs(g).toFixed(1)} behind, that's the undercut` : ''}. ${w > 0.45 ? 'We can respond: box this lap, press P.' : 'Our tyres are good, we stay out.'}`;

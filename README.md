@@ -41,7 +41,7 @@ it runs from `file://` because nothing is fetched. Rebuild after editing the sou
 Volume: a slider in the pause menu and on the setup's Driving page (one master volume for everything, remembered).
 | V | Camera: cockpit → T-cam (airbox broadcast view) → chase → TV |
 | C (hold) | Look back, cut in instantly, per camera: cockpit → the driver's view back over the engine cover; T-cam → the rear-facing T-cam; chase → reverse chase from in front of the car; TV → the trackside camera behind |
-| Q / E (hold) | Look left / right: the head turns up to 80° and moves out past the halo (chase cam swings round) |
+| Q / E (hold) | Look left / right: the head turns up to 80° and moves out past the halo (chase cam swings round); on the T-cam the lens just turns on its pod, its tilt kept |
 | T | Lap telemetry report (pauses; T or Esc closes) |
 | H | Toggle the halo centre column |
 | M | Mute |
@@ -193,11 +193,12 @@ src/audio/Audio.js         synthesised engine/wind/impact audio
 * AI straights: flat out, and the track-edge guard never lifts on a straight (see "AI: a planner" for ERS).
 * Sphere marquee show: the chaotic old-Vegas casino-sign look (red field, golden bulb fans, purple ribbons, a
   vertical VEGAS blade with chasing bulbs), two-sided, in the 11-show loop after the F1 stream.
-* F1 stream: four feeds only (the leader's T-cam, your T-cam or P2's, the T1 trackside camera and a wide shot of
-  the Sphere itself), rendered one 256 px tile per frame into a double-buffered 2x2 atlas: the tiles go into a
-  work target and are blitted into the one the Sphere samples, so the Sphere can film itself (it shows the
-  previous frame's stream, the way the real wrap did). The shader lays the 2x2 grid out as a band around the
-  middle of the visible shell with black gutters and blank dark space above and below, capped by a red glow.
+* F1 stream (since V2.32): one big screen, as at the 2024 race - the world feed's onboard T-cam (the director
+  cutting to another car every 8 s: the leader, you, down the order) rendered at 768 x 432 into a double-buffered
+  target, laid across the shell by longitude and latitude so it bends with the Sphere (86 degrees either side of the
+  face, 10 below the equator to 65 above - the shell meets the plaza at 25 below), a timing tower down each side and
+  the car's caption over it (SphereShow.js BroadcastOverlay, a 2:1 canvas), a red-gold ribbon over the top, dark
+  below; the far side carries the same screen the right way round.
 * Finale: when a race or qualifying ends, the camera cuts to a static, slowly pushing-in shot of the Sphere
   for 7 s while it shows the "RACE WINNER" / "POLE POSITION" tribute (driver, team band in the team's colours,
   faint car number, gold title and rays); the results panel follows. `uForce` in the Sphere shader pins a show.
@@ -229,11 +230,51 @@ src/audio/Audio.js         synthesised engine/wind/impact audio
   from what each vertex carries: kind, part, storey height, its place along the facade) and one mesh per 400 m cell.
   Las Vegas has little brick (`buildingStyle.brick`). The landmarks' glass reflects the sky the same way by day.
 * Damp/Wet weather adds GPU rain (a camera-following point cloud), heavier greyer fog, dimmed sun and wet,
-  reflective asphalt; it previews live in the menu.
+  reflective asphalt; it previews live in the menu. In a session the weather is dynamic (see Weather below).
 * Driver selection is team-first: a 4×3 grid of team tiles (plus the Independent 23rd car); picking a team reveals
   its two drivers.
 * Grand Prix Plaza is extruded from its real parcel outline and fitted outside the corridor (shifted away from
   the track, then shrunk toward its centroid) so the F1 HQ stays without ever crossing the circuit.
+
+### Weather: forecast, showers, the dry line
+
+`src/race/Weather.js`, one per session (the race director's, rewound with flashbacks). The menu's weather is Dry, Damp,
+Wet or **Changeable**; a career's race day is drawn from the calendar's forecast and is not always what was forecast
+(`weatherPlan`: a dry forecast turns changeable now and then, a damp one can dry out or go wet).
+
+* **The sky** is rain cells: soft discs of rain born, growing over a minute or two and dying away, drifting across the
+  map on the wind (5-13 m/s). Where a cell's path crosses the circuit decides what gets wet - one off to the side
+  clips a corner or two, or misses the track entirely; a big one covers it all. A wet day is one cell over the whole
+  map that eases at a time of its own (before the end, or not at all), sometimes with a downpour on top. A damp day
+  starts damp and dries, or a drizzle hangs on, or a shower comes later. A changeable day has one to three showers.
+* **The track** is held every ~10 m of the lap as two water levels: off the line and on the racing line. Rain raises
+  both toward the level its strength holds, gradually (a drizzle takes minutes to make a track damp, a downpour about
+  a minute to soak it - never an instant monsoon); sun and wind dry both (slower at night), and every car through a
+  stretch on the line clears water off it: the **dry line**, a ribbon of grip ~3 m wide with wet asphalt either side.
+  Stretches that drain badly stay wet longest. `wetAt(s, d)` is the water under any point; each car's `wetness`
+  (its physics, tyres and spray) is the water under it, so a move off the dry line in a drying race is a gamble.
+* **The forecast** is what the pit walls believe: each real shower with its timing a few minutes out and its chance of
+  hitting not quite right; some showers (about one in three in a changeable day) unseen until the radar has them a
+  minute or two out; and false alarms that break up before they arrive. The radar firms a shower up inside ~7
+  minutes. The HUD's weather panel shows the condition, the water under you, the lap's water on the line and off it,
+  each sector, and the chance of rain in each of the next five two-minute windows; the minimap shows wet stretches and
+  where it is raining; the strategy screen gives the race's forecast.
+* **The engineer** says the forecast at the start, showers coming on the radar (how hard, how far, from where, which
+  corner first, the chance), surprise ones, ones that break up, the first drops and where, sectors going wet, the rain
+  stopping, the tyre the track wants against yours, your team-mate boxing for the weather (stack behind him if you
+  want), double stacks and rivals' gambles near you.
+* **The AI's calls** (`AIDriver.weatherCall`): on the track's tyre wetness (the lap's line water pulled toward its
+  wettest stretches: `tyreWet`) and the forecast, each car with its own nerve - `wxStay` (left out on the wrong tyre
+  hoping a shower passes) and `wxEarly` (in early for the tyre the sky is heading to: inters before the rain comes,
+  slicks the moment a dry line shows; the back of the grid gambles more). Crossovers about 0.27 (slick/inter) and 0.62
+  (inter/wet). A team calling one car in for the weather stacks its team-mate behind it when it is within ~9 s
+  (`stackMate`; the second car waits in the lane: `boxBusy`). The two-compound rule lapses once a race has been wet.
+  The AI plans on the water ahead on its line, and its planner weighs the water under every path it considers (off
+  the dry line: less grip, a longer stop), and a damp corner on slicks is where its mistakes happen.
+* **On screen**: the road's shader reads the weather's texture (off-line water, line water, line offset per cell) -
+  wet asphalt dark and glassy, puddles near-mirrors, the dry line lighter through it, broken up by noise; the drops
+  fall where the camera is; the sky darkens under the clouds; cars throw spray by the water under them (`world/Spray.js`).
+* **Telemetry** records `wet` (the water under the car) on every sample.
 
 ### Time of day
 
@@ -373,6 +414,81 @@ p-norm of the path curvature, projected Gauss-Seidel on a 40/20/10 m grid). Fast
 Las Vegas keeps it 1.5 m off the white lines (`lineMargin: 2.5`): walls, not grass, if a car runs wide. Where the OSM
 chain steps sideways between two parallel carriageways (Sands Avenue at Koval, T10), `easeJogs` in `TrackBuilder.js`
 spreads the step over 160 m of road instead of letting the spline turn it into two 15 m hairpins.
+### Las Vegas: the lap as the official map draws it, and the start/finish straight and Turn 1
+
+**The lap** (`src/track/LasVegasOfficial.js`): the centre line traced from the official F1 circuit map (to scale) -
+the map's coloured line walked by a shortest path through its dark track band, corner to corner; its straights fitted
+as straight lines; Turn 2 into Turn 3 one continuous curve where the map's DRS dot covers the line - placed in the
+game's metres by the best fit of the OpenStreetMap line onto the map over the whole lap, and scaled to the official
+6.201 km. Against the map it is 1.2 m out on average, 95 % within 3.5 m (OpenStreetMap's chain, kept in the definition
+but unused, was up to 90 m out at Turns 1-3 and 40 m round the Sphere). The start/finish line is the map's flag
+(`sfXZ`), the corners its labels (`xz`; a labelled corner keeps its place even where it is flat out - Turn 13). Where
+the map's own marks hid its line (sector colour changes, the SECTOR 2 label, the DRS dots) the trace had swerved round
+them; those stretches are smooth curves joining the line either side, and the lap is scaled back to 6.201 km. The pit lane (`pitLanePts`) runs 12.4 m inside the pit straight from Turn 17
+and crosses the inside of the U at Turns 1-2 to the inside of Turn 2's exit. Loader: `def.centreline` / `def.sfXZ` /
+`def.pitLanePts` (GeoLoader, main.js) take a lap given outright.
+
+**Turn 1's run-off** (`escapes: [{ auto: { turn: 1, depth: 42 } }]`, Track.escapes): the straight carried on past the
+hairpin to a wall across its end, in the straight's frame: from the main grandstand's barrier line to the return leg's
+barrier, carried on at that leg's own slant (it opens away from the straight - the run-off 97 m across at the kerb
+narrowing to 85 m at its end wall, the exit side 16 degrees in), 42 m past the hairpin's outermost kerb. No bulge round
+the corner. The asphalt shades from light by the kerb to dark at the walls. Its barrier line is held as drawn (`Track.heldWalls`): fairWalls, which rounds every other
+barrier line, would round the rectangle's corners into a balloon.
+
+`src/world/VegasPaddock.js` dresses the section:
+* **The Grand Prix Plaza** over the garages (in place of the landmark set's block): four storeys (19.5 m) over the
+  straight part of the pit lane, white slabs with glass balustrades and lit handrails, lit suites behind a curtain wall
+  on every floor, a dark roof with plant rooms of different heights and lit terraces, the raised pink-lit pavilion
+  under the F1-logo canopy at the south-west end (F1 GRAND PRIX PLAZA on that end wall), and at the Turn 1 end a balcony
+  round every floor and a dark grey tower. The pit lane bright: a pale floor, a white light line along the garages.
+* **The paddock** between the plaza and the return leg: a long dark hall, team hospitality with lit glass and white
+  parapets, marquees, service blocks, lit paving.
+* **The Heineken Silver main grandstand** (PG1) from Turn 17's exit to Turn 1's braking, against the barrier: two decks
+  of black seats, the white lighting truss with red lamps, the hospitality suites, one dark red roof over most of the
+  seats on a white edge beam, teal Heineken Silver end walls over the whole profile, the white scaffold at its Turn 1
+  end. Behind it, the fan zone: purple and pink light, lit marquees, screens.
+* **The Turns 2-4 stand** (PG2 along the return leg, PG3 round Turn 3, PG4 on to Turn 4 - the official seating map;
+  placed to the onboard footage and dressed to the race's render of Turn 3): one open stand on the inside of the bend,
+  starting ~95 m out of Turn 2 and ending at Turn 4, its sections fanning round the bend with wedge aisles between them;
+  navy seats with an orange block by the apex, Red Bull boards along its front, lit aisles, white cabanas along the top
+  under floodlights, grey scaffold ends with the Red Bull panel at their foot.
+* **Outside Turns 3-4**: beyond the bend, square to the return leg (straight ahead down it, then on the left into Turn
+  3), the long hospitality building - white slabs and glass balconies over five floors - with the dark blue-edged
+  building behind it; along the run out of Turn 4 the lower hospitality building with the red F1 sign at its end, palms
+  in front of it, and between it and the barrier the painted strip (the red F1, FORMULA 1 * HEINEKEN SILVER, LAS VEGAS
+  GRAND PRIX).
+* **Turn 1** (to the race-night photo from beyond the run-off): plain red and white kerbs round the hairpin, blue
+  chevrons inside it; along the inside wall the green WHEN YOU DRIVE NEVER DRINK boards, and over it a white lighting
+  truss on posts. The run-off: lit asphalt out to its walls; right behind the kerb, all the way round, the band of
+  Heineken green with the name and the red star and the blue -0.0, repeating; beyond it the LasVegasGP wordmark and two
+  big arrows in white outline, pointing on round the corner; the end and exit-side barrier under the same boards with
+  a catch fence over it and white lattice light towers along it; the same boards on the fence over the braking zone.
+* **The barrier as the onboard footage has it**: on the concrete walls the street circuit's catch fence (`streetFence`,
+  TrackBuilder) - round galvanised posts every 3.6 m cranked in toward the track at the top, a clamp at the cables,
+  five steel cables, the chain link up the crank too. The boards from Turn 2 to Turn 5 as the 2024 onboards show them:
+  T-Mobile magenta out of Turn 2, blue into Turn 3, lilac T-Mobile down the right of the straight to Turn 5 and the bare
+  dark wall on its left. The pit entry and exit lines T-Mobile magenta (`def.pitLine`).
+* **The straight from Turn 4 to Turn 5** (Koval Lane): the road's double yellow down the middle; a dark scrim on the
+  left fence and behind it one tall dark mass (the resorts' garages), hardly lit; on the right low dark buildings, a
+  lit room or balcony here and there, the Sphere over them all the way down; toward the end the merch stalls behind the
+  fence, the big screen showing the race, and the dark footbridge across the track with its purple-lit sign and a row
+  of lamps under it (no fog on the lit things: there from the moment the straight opens out). The Sphere's shows now
+  include the race weekend's sponsor takeover (royal blue, the Red Bull mark).
+* **Trackside kit**: the recovery crane truck and the yellow telehandler behind the fence outside Turn 2, a TV camera
+  tower where the Turns 2-4 stand begins, a yellow boom lift by the building beyond the bend, the lattice gantry with
+  the race's banner across the run out of Turn 4.
+* **The Bellagio at race week** (MGM's render of the Bellagio Fountain Club, the race-night aerials): the lake laid
+  between the Strip's sidewalk and the shore the Bellagio's own buildings make (OSM has no outline for it), its
+  balustrade lamps, the fountains running (the long double line down the Strip side and the rings, one instanced mesh
+  animated in its shader); the hotel cream and warm-lit with a lit cornice and the domed crown with the gold BELLAGIO;
+  its casino round the lake three floors of stucco under tile. Along the track on the lake side the Fountain Club
+  (VegasPaddock): the north grandstand, two three-floor glazed structures with roof terraces, the Winner's Stage out
+  over the water, the south grandstand, MGM Rewards on every fascia and on the wall (Branding panel 30); palms across
+  the track.
+* **Light**: lamps on the fence line, the truss, the roofs, the plaza's edge, the stands and the run-off wall, baked into
+  the floodlight field with the masts (world/Lighting.js) - the straight and the hairpin lit like day. The city's windows
+  are lit more than elsewhere (most of them, on race night).
+
 ### Montreal: the Circuit Gilles Villeneuve
 
 `data/montreal.geojson` (the OSM export: the raceway, the pit lane, the island's buildings) holds the lap as one
@@ -555,6 +671,11 @@ sample (`track.aiV`, `track.aiB`).
   in hand on the brakes at speed in the wet (from 160 km/h, all of it by 290: 15 % of the stop and a rear that
   trail-brakes inside 0.8 - 0.3 x wetness of its grip - Planner.brakeA). In 8-lap wet races at Silverstone that took
   the spins from 15-65 to 11-16 at the same pace.
+* A wet calibration (`wet: { at, corners }`), fitted by `tools/ai_fit_wet.mjs` from the game's own telemetry of a race
+  on a wet track: each corner's second-best clean pass (on the road, not rewound) - minimum speed and braking point -
+  against the AI alone in the same water on inters; then driven, a corner that goes off pulled back toward 1. It fades
+  in as the line gets wet (`calWet`: full at the wetness it was fitted at), while the dry one fades out.
+  `node tools/ai_fit_wet.mjs silverstone wet-race.json [--blend 0.7] [--dry]`.
 
 Both need Playwright and a Chromium (the scripts find `/opt/pw-browsers`, or set `CHROME`). After a fit, rebuild the
 game (`tools/bundle.py`, or `tools/splice_artifact.py <commit>` for the published Artifact, which carries changes of

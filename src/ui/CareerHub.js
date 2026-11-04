@@ -2248,7 +2248,7 @@ function briefBoxes(c) {
   const lab = (e) => e?.form?.label || safe(() => formOf(moodOf(c.drivers[e.careerId])).label, 'STEADY');
   const near = mine ? es.filter((e) => e !== mine).sort((a, b) => Math.abs(sc(a) - sc(mine)) - Math.abs(sc(b) - sc(mine))).slice(0, 2) : [];
   const note = near.map((e) => `${last(e.name)} ${lab(e).toLowerCase()}`).join(' · ');
-  return `<div><small>Race day</small><b>${fcTxt(fc)}</b><span>${fc.weather === 'wet' ? 'full wets likely' : fc.weather === 'damp' ? 'intermediates to start' : 'slicks'}</span></div>
+  return `<div><small>Race day</small><b>${fcTxt(fc)}</b><span>${fc.weather === 'wet' ? 'full wets likely' : fc.weather === 'damp' ? 'intermediates to start' : fc.weather === 'changeable' ? 'showers about: pit-wall gambles' : 'slicks'}</span></div>
     <div><small>Expected</small><b>${exp ? 'P' + exp : '-'}</b><span>on the car's pace and yours</span></div>
     <div><small>vs ${mate ? esc(last(mate.name)) : 'team-mate'}</small><b>${same ? `Q ${h.q[0]}–${h.q[1]} · R ${h.r[0]}–${h.r[1]}` : '–'}</b><span>qualifying · races this season</span></div>
     <div class="fm"><small>Form</small><b>${esc(mine ? lab(mine) : '-')}</b><span title="${esc(note)}">${note ? esc(note) : 'the field around you'}</span></div>`;
@@ -2335,7 +2335,7 @@ function roundDetail(c, n) {
   }
   const names = Object.entries(c.celebs?.bonds || {}).filter(([, b]) => b?.invited && b.invited.season === c.season && b.invited.round === n).map(([id]) => id.split('-').map((w) => w[0].toUpperCase() + w.slice(1)).join(' '));
   return `<h3>Round ${n} · ${esc(TN(tid))}</h3><span class="muted">${c.seasonOver ? 'Not raced this season.' : n === c.round ? 'The next race.' : `${n - c.round} race${n - c.round === 1 ? '' : 's'} away.`}</span>
-    <span class="lbl">Race day</span><div>${fcTxt(f)} · ${f.weather === 'wet' ? 'full wets likely' : f.weather === 'damp' ? 'intermediates to start' : 'slicks'}</div>
+    <span class="lbl">Race day</span><div>${fcTxt(f)} · ${f.weather === 'wet' ? 'full wets likely' : f.weather === 'damp' ? 'intermediates to start' : f.weather === 'changeable' ? 'showers about: pit-wall gambles' : 'slicks'}</div>
     ${names.length ? `<span class="lbl">Invited</span><div>${esc(nameList(names))}${names.length > 1 ? ' <span class="down">- both at the same race</span>' : ''}</div>` : ''}`;
 }
 

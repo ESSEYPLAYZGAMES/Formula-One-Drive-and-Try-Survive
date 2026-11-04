@@ -42,16 +42,67 @@ function groundTexture(day, style = 'city') {
     const t = new THREE.CanvasTexture(gc); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(260, 260); t.colorSpace = THREE.SRGBColorSpace;
     return t;
   }
-  ctx.fillStyle = day ? '#a89a80' : '#15161c'; ctx.fillRect(0, 0, 512, 512);
-  for (let i = 0; i < 4000; i++) {
-    ctx.fillStyle = day ? `rgba(${150 + Math.random() * 40},${135 + Math.random() * 35},${105 + Math.random() * 30},0.45)` : `rgba(${40 + Math.random() * 30},${40 + Math.random() * 30},${50 + Math.random() * 30},0.35)`;
-    ctx.fillRect(Math.random() * 512, Math.random() * 512, 3, 3);
+  // the city (1024 px = 120 m): asphalt lots with their bays painted, concrete sidewalks with their joints, planted strips
+  // and gravel beds, oil stains and cracks - what a desert city's ground is between its buildings
+  gc.width = gc.height = 1024; const S = 1024, k = S / 120;   // (px per metre)
+  ctx.fillStyle = day ? '#77736c' : '#2a2b30'; ctx.fillRect(0, 0, S, S);
+  const rnd = (() => { let a = 11; return () => ((a = (a * 16807) % 2147483647) / 2147483647); })();
+  // lots: big asphalt rectangles, a shade apart, their parking bays in white lines
+  for (let i = 0; i < 9; i++) {
+    const x = rnd() * S, y = rnd() * S, w = (20 + rnd() * 40) * k, h = (14 + rnd() * 30) * k, sh = day ? 92 + rnd() * 20 : 34 + rnd() * 10;
+    ctx.fillStyle = `rgb(${sh},${sh},${sh + (day ? -4 : 4)})`; ctx.fillRect(x, y, w, h);
+    ctx.strokeStyle = day ? 'rgba(240,240,235,0.75)' : 'rgba(200,200,210,0.45)'; ctx.lineWidth = 0.12 * k;
+    for (let r = y + 2 * k; r < y + h - 5 * k; r += 12 * k) for (let c = x + 1 * k; c < x + w - 1 * k; c += 2.7 * k) { ctx.beginPath(); ctx.moveTo(c, r); ctx.lineTo(c, r + 5 * k); ctx.stroke(); }
   }
-  // faint street grid
-  ctx.strokeStyle = day ? 'rgba(90,85,80,0.35)' : 'rgba(70,72,90,0.25)'; ctx.lineWidth = 2;
-  for (let i = 0; i < 512; i += 128) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, 512); ctx.moveTo(0, i); ctx.lineTo(512, i); ctx.stroke(); }
-  const gt = new THREE.CanvasTexture(gc); gt.wrapS = gt.wrapT = THREE.RepeatWrapping; gt.repeat.set(200, 200); gt.colorSpace = THREE.SRGBColorSpace;
+  // sidewalks: concrete bands with expansion joints every 1.5 m, kerbs along them
+  for (let i = 0; i < 6; i++) {
+    const vert = rnd() < 0.5, p0 = rnd() * S, w = (2.5 + rnd() * 3) * k;
+    ctx.fillStyle = day ? '#a7a39a' : '#45464c'; vert ? ctx.fillRect(p0, 0, w, S) : ctx.fillRect(0, p0, S, w);
+    ctx.fillStyle = day ? 'rgba(80,78,74,0.5)' : 'rgba(20,20,24,0.5)';
+    for (let q = 0; q < S; q += 1.5 * k) vert ? ctx.fillRect(p0, q, w, 1.2) : ctx.fillRect(q, p0, 1.2, w);
+    ctx.fillStyle = day ? '#c9c5bb' : '#5a5b62'; vert ? ctx.fillRect(p0 - 0.2 * k, 0, 0.2 * k, S) : ctx.fillRect(0, p0 - 0.2 * k, S, 0.2 * k);
+  }
+  // planted strips and gravel beds: desert landscaping, palms' and shrubs' dark crowns from above
+  for (let i = 0; i < 14; i++) {
+    const x = rnd() * S, y = rnd() * S, w = (4 + rnd() * 16) * k, h = (2 + rnd() * 6) * k;
+    ctx.fillStyle = day ? (rnd() < 0.5 ? '#9a8a6a' : '#7d7458') : '#22231d'; ctx.fillRect(x, y, w, h);
+    for (let j = 0; j < w * h / (k * k * 6); j++) { ctx.fillStyle = day ? `rgba(${50 + rnd() * 30},${80 + rnd() * 40},${40 + rnd() * 20},0.9)` : 'rgba(18,30,18,0.9)'; ctx.beginPath(); ctx.arc(x + rnd() * w, y + rnd() * h, (0.6 + rnd() * 1.4) * k, 0, 6.283); ctx.fill(); }
+  }
+  // grain, oil stains, cracks
+  for (let i = 0; i < 26000; i++) { const g = rnd(); ctx.fillStyle = day ? `rgba(${90 + g * 70},${88 + g * 66},${84 + g * 60},0.25)` : `rgba(${30 + g * 34},${30 + g * 34},${36 + g * 34},0.3)`; ctx.fillRect(rnd() * S, rnd() * S, 2, 2); }
+  for (let i = 0; i < 60; i++) { ctx.fillStyle = day ? 'rgba(40,38,36,0.12)' : 'rgba(8,8,10,0.18)'; ctx.beginPath(); ctx.ellipse(rnd() * S, rnd() * S, (0.4 + rnd()) * k, (0.3 + rnd() * 0.6) * k, rnd() * 3, 0, 6.283); ctx.fill(); }
+  ctx.strokeStyle = day ? 'rgba(50,48,46,0.35)' : 'rgba(10,10,12,0.4)'; ctx.lineWidth = 1.2;
+  for (let i = 0; i < 40; i++) { let x = rnd() * S, y = rnd() * S; ctx.beginPath(); ctx.moveTo(x, y); for (let j = 0; j < 6; j++) { x += (rnd() - 0.5) * 40; y += (rnd() - 0.5) * 40; ctx.lineTo(x, y); } ctx.stroke(); }
+  const gt = new THREE.CanvasTexture(gc); gt.wrapS = gt.wrapT = THREE.RepeatWrapping; gt.repeat.set(100, 100); gt.colorSpace = THREE.SRGBColorSpace; gt.anisotropy = 8;
   return gt;
+}
+
+/** the city ground's world-space life (the shader on top of its texture): broad patches lighter and darker, sandier and
+ *  greener, so the tile never repeats to the eye; at night the pools of the street lights on it, warm sodium and white
+ *  LED, every block or so */
+const GROUND_PARS = `varying vec3 vGW; uniform float uGNight, uGCity;
+float gHash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float gNoise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(gHash(i), gHash(i + vec2(1, 0)), f.x), mix(gHash(i + vec2(0, 1)), gHash(i + vec2(1, 1)), f.x), f.y); }`;
+function groundShader(mat, U) {
+  mat.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, U);
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vGW;').replace('#include <project_vertex>', '#include <project_vertex>\nvGW = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\n' + GROUND_PARS)
+      .replace('#include <map_fragment>', `#include <map_fragment>
+        if (uGCity > 0.5) {
+          float n1 = gNoise(vGW.xz / 230.0), n2 = gNoise(vGW.xz / 47.0 + 7.3);
+          diffuseColor.rgb *= 0.72 + 0.56 * n1;
+          diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(1.12, 1.04, 0.86), smoothstep(0.62, 0.9, n2));   // (sandier)
+          diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.8, 0.95, 0.78), smoothstep(0.3, 0.08, n2));    // (planted)
+        }`)
+      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+        if (uGCity > 0.5 && uGNight > 0.5) {
+          vec2 c = floor(vGW.xz / 38.0), pc = (c + 0.25 + 0.5 * vec2(gHash(c), gHash(c + 3.1))) * 38.0; float d = length(vGW.xz - pc);
+          float on = step(0.3, gHash(c + 9.7)); vec3 lampC = gHash(c + 5.3) < 0.55 ? vec3(1.0, 0.66, 0.36) : vec3(0.85, 0.9, 1.0);
+          float rad = 9.0 + 9.0 * gHash(c + 1.9); totalEmissiveRadiance += lampC * (0.04 + 0.04 * gHash(c + 2.2)) * on * smoothstep(rad, 0.0, d) * (0.6 + 0.4 * gNoise(vGW.xz / 6.0));
+        }`);
+  };
+  mat.customProgramCacheKey = () => 'cityGround';
 }
 
 const SHADOW_MAP = 4096, SHADOW_R = 120;   // (the shadow map's size in texels; the half-width of its box near the ground, metres)
@@ -68,19 +119,22 @@ export function createEnvironment(scene, renderer) {
   const skyGeo = new THREE.SphereGeometry(5200, 32, 16);   // inside the camera's 6000 m far plane; it follows the camera
   const skyMat = new THREE.ShaderMaterial({
     side: THREE.BackSide, depthWrite: false, fog: false,
-    uniforms: { top: { value: new THREE.Color(0x03040a) }, horizon: { value: new THREE.Color(0x2a1e3a) }, glow: { value: new THREE.Color(0x6a3a5a) }, uSun: { value: 0 }, uStars: { value: 1 }, sunDir: { value: new THREE.Vector3(0.4, 0.7, -0.3).normalize() } },
+    uniforms: { uCloud: { value: 0 }, uOver: { value: new THREE.Color(0x7d858f) }, top: { value: new THREE.Color(0x03040a) }, horizon: { value: new THREE.Color(0x2a1e3a) }, glow: { value: new THREE.Color(0x6a3a5a) }, uSun: { value: 0 }, uStars: { value: 1 }, sunDir: { value: new THREE.Vector3(0.4, 0.7, -0.3).normalize() } },
     vertexShader: `varying vec3 vDir; void main(){ vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
-    fragmentShader: `uniform vec3 top, horizon, glow, sunDir; uniform float uSun, uStars; varying vec3 vDir;
+    fragmentShader: `uniform vec3 top, horizon, glow, sunDir, uOver; uniform float uSun, uStars, uCloud; varying vec3 vDir;
       float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453); }
       void main(){
         float h = clamp(vDir.y, 0.0, 1.0);
         vec3 c = mix(horizon, top, pow(h, 0.45));
         c += glow * exp(-h * 14.0) * 0.9;
         vec2 g = floor(vDir.xz / max(vDir.y, 0.05) * 90.0);
-        float st = step(0.995, hash(g)) * smoothstep(0.1, 0.5, h) * uStars;
+        float st = step(0.995, hash(g)) * smoothstep(0.1, 0.5, h) * uStars * (1.0 - uCloud);
         c += vec3(st) * 0.7;
         float sd = max(dot(normalize(vDir), sunDir), 0.0);
-        c += uSun * (vec3(1.0, 0.95, 0.85) * pow(sd, 900.0) * 6.0 + vec3(1.0, 0.9, 0.7) * pow(sd, 12.0) * 0.35);
+        c += uSun * (1.0 - uCloud) * (vec3(1.0, 0.95, 0.85) * pow(sd, 900.0) * 6.0 + vec3(1.0, 0.9, 0.7) * pow(sd, 12.0) * 0.35);
+        // (rain cloud: an overcast sky - race/Weather.js cloudAt, main.js wxFrame - lighter at the horizon, lumpy)
+        float cl = hash(floor(vDir.xz / max(vDir.y, 0.08) * 3.0)) * 0.08;
+        c = mix(c, uOver * (0.78 + 0.3 * (1.0 - h) + cl), uCloud);
         gl_FragColor = vec4(c, 1.0);
       }`,
   });
@@ -103,6 +157,7 @@ export function createEnvironment(scene, renderer) {
   let gtNight = groundSets.city.night, gtDay = groundSets.city.day;
   // pushed back in depth: from a helicopter shot the 5 cm between the ground and the road is below depth precision
   const groundMat = new THREE.MeshStandardMaterial({ map: gtNight, roughness: 1, color: 0x8a8a90, polygonOffset: true, polygonOffsetFactor: 4, polygonOffsetUnits: 8 });
+  const GU = { uGNight: { value: 1 }, uGCity: { value: 1 } }; groundShader(groundMat, GU);
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(12000, 12000), groundMat);
   ground.rotation.x = -Math.PI / 2; ground.position.y = -0.05; ground.name = 'ground'; ground.renderOrder = 1; scene.add(ground);
 
@@ -146,13 +201,13 @@ export function createEnvironment(scene, renderer) {
     amb.color.set(p.amb); amb.intensity = p.ambI;
     scene.fog.color.set(p.fog); scene.fog.density = p.fogD; scene.background.set(p.bg);
     scene.environment = mode === 'day' ? envDay : envNight; scene.environmentIntensity = p.envI;
-    groundMat.map = mode === 'day' ? gtDay : gtNight; groundMat.color.set(mode === 'day' ? 0xffffff : 0x8a8a90); groundMat.needsUpdate = true;
+    groundMat.map = mode === 'day' ? gtDay : gtNight; groundMat.color.set(mode === 'day' ? 0xffffff : 0x8a8a90); GU.uGNight.value = mode === 'day' ? 0 : 1; groundMat.needsUpdate = true;
     renderer.toneMappingExposure = p.exposure;
   };
   /** ground cover per venue: 'city' (sandy lots + street grid) or 'grass' (a countryside circuit) */
   env.setGround = (style) => {
     if (!groundSets[style]) groundSets[style] = { night: groundTexture(false, style), day: groundTexture(true, style) };
-    gtNight = groundSets[style].night; gtDay = groundSets[style].day;
+    gtNight = groundSets[style].night; gtDay = groundSets[style].day; GU.uGCity.value = style === 'city' ? 1 : 0;
     groundMat.map = env.mode === 'day' ? gtDay : gtNight; groundMat.needsUpdate = true;
   };
   env.setTime('night');

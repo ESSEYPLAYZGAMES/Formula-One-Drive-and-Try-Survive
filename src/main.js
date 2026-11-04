@@ -6,7 +6,7 @@ import { buildSpline, sampleCurve, rotateSamples, Track, buildTrackMeshes, build
 import { RacingLine } from './track/RacingLine.js';
 import { createEnvironment, applyTimeToMaterials, createRain } from './world/Environment.js';
 import { Broadcast, POSES } from './world/Broadcast.js';
-import { SphereShow, SPHERE_SEQUENCE, CANVAS_SHOWS, SHOW_SECONDS, SHOW_BG, SIDES, SHOW_ID } from './world/SphereShow.js';
+import { SphereShow, BroadcastOverlay, SPHERE_SEQUENCE, CANVAS_SHOWS, SHOW_SECONDS, SHOW_BG, SIDES, SHOW_ID } from './world/SphereShow.js';
 import { Engineer } from './race/Engineer.js';
 import { buildGenericBuildings } from './world/Buildings.js';
 import { buildLandmarks, clearLandmarksFromTrack, mergeStaticParts } from './world/Landmarks.js';
@@ -46,7 +46,7 @@ import { CrashCam, CRASH_G } from './camera/CrashCam.js';
 import { SafetyCarMesh } from './vehicle/SafetyCarMesh.js';
 import { Debris } from './world/Debris.js';
 import { Input } from './input/Input.js';
-import { CockpitCamera } from './camera/CockpitCamera.js';
+import { CockpitCamera, TCAM_TILT, TCAM_FOV } from './camera/CockpitCamera.js';
 import { AudioEngine } from './audio/Audio.js';
 import { ROSTER, customDriver, POINTS, standIn, dayPerf } from './race/Roster.js';
 import { showMemorial } from './ui/Memorial.js';
@@ -87,6 +87,9 @@ import { TRACK_MAPS } from './ui/TrackMaps.js';
 import { BUILTIN_SHOTS } from './ui/LoadingShots.js';
 import { FAULT_P } from './race/Calls.js';
 import { orderSub } from './race/TeamOrders.js';
+import { Weather, weatherPlan, WX_LABEL } from './race/Weather.js';
+import { Spray } from './world/Spray.js';
+import { buildVegasPaddock } from './world/VegasPaddock.js';
 
 const $ = (id) => document.getElementById(id);
 /** teams in roster order (pit garage k belongs to TEAMS[k]; the custom 23rd car gets the last garage) */
@@ -121,12 +124,13 @@ fitViewport();
 window.addEventListener('resize', fitViewport);
 const env = createEnvironment(scene, renderer);
 const rain = createRain(scene);
+const spray = new Spray(scene);   // (the water thrown up behind the cars on a wet track: world/Spray.js)
 const debris = new Debris(scene); setDebris(debris);
 const fire = new Fire(scene); setFire(fire);              // fires, smoke, extinguishers: two draw calls
 const chunks = new Chunks(scene); setChunks(chunks);      // the free halves of cars torn in two   // crash debris: pooled instanced pieces, five draw calls in all
 // The Sphere's F1 stream (2x2 render-target atlas: two onboards, a trackside camera, the Sphere itself) and its
 // canvas-drawn shows exist only while a circuit with the Sphere is loaded (created in loadWorld, freed in unloadWorld)
-let feed = null, show = null;
+let feed = null, show = null, bcast = null;
 
 const input = new Input();
 const hud = new HUD();
@@ -174,7 +178,7 @@ async function loadWorld(def) {
   await set('Routing the circuit through the road graph…', 12);
   const circuit = geo.buildCircuit();
   const curve = buildSpline(circuit.pts, { closed: true, filletSigma: def.smoothSigma || 6, step: 4, tension: 0.5, fillet: def.fillet !== false });
-  const samples = rotateSamples(sampleCurve(curve, true, 2), 0, 0);   // s = 0 at the start/finish line (projection origin)
+  const samples = rotateSamples(sampleCurve(curve, true, 2), ...(def.sfXZ || [0, 0]));   // s = 0 at the start/finish line (the projection origin, or the map's flag: def.sfXZ)
   const track = new Track(samples, def);
   labelCorners(track, def, geo);
   track.widen();   // (a road wider in places: def.widths - before anything is laid along its edges, the ground included)
@@ -185,6 +189,7 @@ async function loadWorld(def) {
     if (h) { track.h = h; setTerrain(buildHeightField(track, h), track); TERRAIN.halfRoad = track.maxHalfWidth + track.kerbWidth + 1; TERRAIN.halfRoadAt = (i, side = 1) => track.edgeAt(i, side) + track.kerbWidth + 1; }
   }
   track.openCorners();   // (corners left open: Montreal's Senna S and hairpin - before the barriers are capped against everything else)
+  track.escapes();       // (escape roads the shape of the real ones: Las Vegas's beyond Turns 1-2)
   // permanent circuits: the escape aprons stop short of the venue's real grandstands
   if (def.osmStands || def.standNames) {
     const stands = standFootprints(geo, def).map((b) => b.rings[0]);
@@ -205,8 +210,8 @@ async function loadWorld(def) {
   track.layoutSurfaces();
   applyCalibration(track);   // the AI's corner-by-corner commitment on this circuit (ai/Calibration.js)
   env.setGround(def.ground || 'city');
-  const pitWay = geo.roadById(def.pitLaneWayId);
-  const pit = pitWay ? buildPitLane(track, pitLaneLeads(track, pitWay.pts, def.pitLeads)) : null;
+  const pitWay = def.pitLanePts ? null : geo.roadById(def.pitLaneWayId);   // (a pit lane given outright: laid beside an official map's lap)
+  const pit = def.pitLanePts ? buildPitLane(track, def.pitLanePts.map((p) => [p[0], p[1]])) : pitWay ? buildPitLane(track, pitLaneLeads(track, pitWay.pts, def.pitLeads)) : null;
   // a circuit's spectator areas round the lap (Austin's general admission): a barrier and a catch fence in front of each
   if (def.scenery === 'austin') {
     const rings = [...geo.buildings.filter((b) => b.rings[0] && b.rings[0].length >= 3).map((b) => b.rings[0]), ...((def.osmStands || def.standNames) ? standFootprints(geo, def).map((b) => b.rings[0]) : [])];
@@ -218,19 +223,30 @@ async function loadWorld(def) {
   await set('Laying the track, kerbs and barriers…', 40);
   const trackMesh = buildTrackMeshes(track, pit, gridLayout(track, 23, 1));
   scene.add(trackMesh); receiveShadows(trackMesh);
+  wetRoad(trackMesh.userData.roadMat, track.length);   // (the road's water, stretch by stretch: race/Weather.js)
   await set('Building the landmarks…', 54);
   const lm = buildLandmarks(geo, track, def, pit);
   const moved = clearLandmarksFromTrack(lm.group, track, pit);
   const mergedParts = mergeStaticParts(lm.group);   // draw calls: static same-material parts baked together per landmark
   scene.add(lm.group);
   if (lm.sphere) {
-    feed = new Broadcast(512, 2, 1); feed.init(renderer); show = new SphereShow();
+    // (the F1 stream: one 16:9 feed, 768 x 432, across the Sphere's one big screen, its graphics over it)
+    feed = new Broadcast(432, 1, 1, 16 / 9); feed.init(renderer); show = new SphereShow(); bcast = new BroadcastOverlay();
     const u = lm.sphere.material.uniforms; u.uFeed.value = feed.texture; u.uHasFeed.value = 1; u.uShow.value = show.texture; u.uGrid.value = feed.grid;
+    u.uBcast.value = bcast.texture; u.uHasBcast.value = 1;
     // content faces the nearest point of the circuit (the T5-T9 loop), and reads left-to-right from there
     const sp = lm.group.children.find((o) => o.name === 'lm:sphere').position; const q = track.nearest(sp.x, sp.z); const f = track.sample(q.s);
     const fx = f.x - sp.x, fz = f.z - sp.z, fl = Math.hypot(fx, fz) || 1;
     u.uFace.value.set(fx / fl, 0, fz / fl); u.uRight.value.set(fz / fl, 0, -fx / fl);   // right = (-face) x up
     W.faceAngle0 = Math.atan2(fz, fx);   // the content then turns slowly (one revolution per 5 min) so it faces every part of the circuit over a race
+  }
+  // Las Vegas: the start/finish straight and Turn 1 as on race night - the Grand Prix Plaza over the garages (in place of
+  // the landmark's block), the Heineken Silver main grandstand, the Turn 1 stands and run-off, their lamps lighting the
+  // track (world/VegasPaddock.js)
+  const vegas = def.id === 'lasvegas' ? buildVegasPaddock(track, pit, def, geo.buildings.filter((b) => b.rings[0] && b.rings[0].length >= 3 && b.name !== 'Grand Prix Plaza').map((b) => b.rings[0]), geo) : null;
+  if (vegas) {
+    const old = lm.group.children.find((o) => o.name === 'lm:grandprix'); if (old) lm.group.remove(old);
+    scene.add(vegas.group); lm.anims.push((t) => vegas.update(t)); trackMesh.userData.masts.push(...vegas.lights);
   }
   // venue pieces taken from the OSM footprints (a permanent circuit's pit building and real grandstands) - unless the
   // circuit has scenery of its own, which builds them itself (Silverstone's Wing and stands: world/Silverstone.js)
@@ -241,7 +257,17 @@ async function loadWorld(def) {
   if (scenery) { scene.add(scenery.group); receiveShadows(scenery.group); }
   if (venue) receiveShadows(venue.group);
   await set('Raising the city…', 68);
-  const buildings = buildGenericBuildings(geo, track, new Set([...lm.claimed, ...(venue ? venue.claimed : []), ...(scenery ? scenery.claimed : [])]), pit);
+  // (what the city's infill keeps off: each landmark's parts, the lake's shore, the race-week structures and stands)
+  const avoid = [], rectOf = (b, m) => [[b.min.x - m, b.min.z - m], [b.max.x + m, b.min.z - m], [b.max.x + m, b.max.z + m], [b.min.x - m, b.max.z + m]];
+  if (def.infill) {
+    const bx = new THREE.Box3();
+    for (const L of lm.group.children) for (const o of L.children) { bx.setFromObject(o); if (!bx.isEmpty() && bx.max.x - bx.min.x < 700 && bx.max.z - bx.min.z < 700) avoid.push(rectOf(bx, 6)); }
+    lm.group.traverse((o) => { if (o.userData?.shore) avoid.push(o.userData.shore); });
+    for (const b of vegas?.boxes || []) avoid.push(rectOf(b, 4));
+  }
+  const buildings = buildGenericBuildings(geo, track, new Set([...lm.claimed, ...(venue ? venue.claimed : []), ...(scenery ? scenery.claimed : [])]), pit, avoid);
+  // (Las Vegas on race night: the city's windows lit as the aerials show it - most of them)
+  if (vegas && buildings.material?.uniforms?.uLitProb) buildings.material.uniforms.uLitProb.value = Math.min(0.92, buildings.material.uniforms.uLitProb.value * 1.7);
   scene.add(buildings);
   // branded pit garages: one per team, the Independent entry gets the last one
   const pitBoxes = pit ? buildPitBoxes(pit, [...TEAMS, { name: 'Independent', color: '#00d4ff', color2: '#ffffff' }]) : null;
@@ -249,7 +275,7 @@ async function loadWorld(def) {
   await set('Filling the grandstands…', 80);
   // grandstands only where nothing else stands: corridor + margin, masts, landmarks and every kept footprint are avoided
   const lmBoxes = lm.group.children.map((o) => new THREE.Box3().setFromObject(o)).filter((b) => !b.isEmpty());
-  const stands = buildGrandstands(track, pit, { rings: buildings.userData.rings, boxes: lmBoxes, masts: trackMesh.userData.masts }, { auto: def.autoStands !== false, fixed: [...(venue ? venue.stands : []), ...(scenery ? scenery.stands : [])] });
+  const stands = buildGrandstands(track, pit, { rings: buildings.userData.rings, boxes: [...lmBoxes, ...(vegas ? vegas.boxes : [])], masts: trackMesh.userData.masts }, { auto: def.autoStands !== false, fixed: [...(venue ? venue.stands : []), ...(scenery ? scenery.stands : []), ...(vegas ? vegas.stands : [])] });
   scene.add(stands.group);
   // the solid things beside the circuit (buildings, landmarks, grandstands: nothing drives or flies through them), and
   // catch fences on the barriers in front of the grandstands
@@ -257,7 +283,7 @@ async function loadWorld(def) {
   const clearOfTrack = (ring) => ring.every(([x, z]) => { const q = track.nearest(x, z); return Math.abs(q.d) > track.hw[q.i] + 3; });
   for (const r of buildings.userData.rings || []) if (r && r.length >= 3 && clearOfTrack(r)) obstacles.add(r, 12);
   for (const b of lmBoxes) { const r = [[b.min.x, b.min.z], [b.max.x, b.min.z], [b.max.x, b.max.z], [b.min.x, b.max.z]]; if (b.max.y > 2 && clearOfTrack(r)) obstacles.add(r, b.max.y); }
-  for (const o of scenery?.solids || []) if (clearOfTrack(o.ring)) obstacles.add(o.ring, o.h);   // (a circuit's own scenery: its buildings, the fences of its crowds)
+  for (const o of [...(scenery?.solids || []), ...(vegas?.solids || [])]) if (clearOfTrack(o.ring)) obstacles.add(o.ring, o.h);   // (a circuit's own scenery: its buildings, the fences of its crowds)
   for (const p of stands.stands) {
     const L = p.len, D = p.depth || 12, r = [p.world(-L / 2, 0), p.world(L / 2, 0), p.world(L / 2, D), p.world(-L / 2, D)];
     standRings.push(r); if (clearOfTrack(r)) obstacles.add(r, p.height || 14);
@@ -277,7 +303,7 @@ async function loadWorld(def) {
     console.info(`[world] terrain: ${n} objects raised, ${TERRAIN.field.nx} x ${TERRAIN.field.nz} cells, heights ${Math.min(...track.h).toFixed(1)} .. ${Math.max(...track.h).toFixed(1)} m`);
   }
   floodlitAll(scene);   // (the still world: lit by the baked light field, not the scene's spot lights)
-  Object.assign(W, { geo, track, pit, line, profile, lineSpeed: shown, showLine, trackMesh, landmarks: lm, buildings, circuit, pitBoxes, stands, lights, sphereInfo, venue, obstacles, fences, scenery });
+  Object.assign(W, { geo, track, pit, line, profile, lineSpeed: shown, showLine, trackMesh, landmarks: lm, buildings, circuit, pitBoxes, stands, lights, sphereInfo, venue, obstacles, fences, scenery, vegas });
   chunks.track = track; chunks.obstacles = obstacles;
   // big debris lying on the racing surface is dragged off by the marshals: to the verge (inside the barrier)
   debris.sweep = (x, z) => {
@@ -366,14 +392,14 @@ function unloadWorld() {
     if (m.uniforms) for (const k in m.uniforms) { const v = m.uniforms[k].value; if (v && v.isTexture) v.dispose(); }
     m.dispose();
   };
-  for (const o of [W.trackMesh, W.landmarks?.group, W.buildings, W.pitBoxes?.group, W.stands?.group, W.venue?.group, W.scenery?.group, W.fences, RL.group]) {
+  for (const o of [W.trackMesh, W.landmarks?.group, W.buildings, W.pitBoxes?.group, W.stands?.group, W.venue?.group, W.scenery?.group, W.vegas?.group, W.fences, RL.group]) {
     if (!o) continue; scene.remove(o);
     o.traverse((x) => { x.geometry?.dispose?.(); const ms = Array.isArray(x.material) ? x.material : x.material ? [x.material] : []; for (const m of ms) freeMat(m); });
   }
   W.lights?.dispose(scene); W.standHD?.dispose(); W.standHD = null;
-  feed?.dispose(); show?.texture.dispose(); feed = null; show = null;
+  feed?.dispose(); show?.texture.dispose(); bcast?.texture.dispose(); feed = null; show = null; bcast = null;
   RL.group = null; RL.main = null; RL.pitGuide = null;
-  for (const k of ['geo', 'track', 'pit', 'line', 'profile', 'lineSpeed', 'showLine', 'trackMesh', 'landmarks', 'buildings', 'circuit', 'pitBoxes', 'stands', 'lights', 'sphereInfo', 'venue', 'scenery', 'faceAngle0']) W[k] = null;
+  for (const k of ['geo', 'track', 'pit', 'line', 'profile', 'lineSpeed', 'showLine', 'trackMesh', 'landmarks', 'buildings', 'circuit', 'pitBoxes', 'stands', 'lights', 'sphereInfo', 'venue', 'scenery', 'vegas', 'faceAngle0']) W[k] = null;
 }
 /** brand header + track chips follow the selected circuit */
 function applyTrackUI() {
@@ -431,10 +457,11 @@ async function switchTrack(id) {
 /** Attach official turn numbers to detected corner zones (used by AI error hotspots + telemetry). */
 function labelCorners(track, def, geo) {
   for (const c of def.corners) {
-    const [x, z] = geo.proj.toXZ(c.ll[0], c.ll[1]);
+    const [x, z] = c.xz || geo.proj.toXZ(c.ll[0], c.ll[1]);   // (xz: a corner placed in local metres - on a redrawn stretch)
     const q = track.nearest(x, z);
     const zone = track.inCornerZone(q.i) || track.inCornerZone(track.idxAtS(q.s + 20)) || track.inCornerZone(track.idxAtS(q.s - 20));
     if (zone) { if (zone.turn == null) zone.turn = c.n; zone.turns = (zone.turns || []).concat(c.n); c.s = q.s; }
+    else if (c.xz) c.s = q.s;   // (a corner placed from an official map's label is a corner even where it is flat out: Las Vegas's Turn 13)
   }
 }
 
@@ -1049,6 +1076,22 @@ $('btn-resume').addEventListener('click', () => setPaused(false));
   for (const s of sliders) s.addEventListener('input', () => { audio.setVolume(s.value / 100); show(); });
   show();
 }
+// the T-cam's lens (its vertical field of view, degrees): a slider beside the tilt, kept in this browser
+{
+  const KEY = 'f1sim-tcam-fov', sliders = ['fov-menu', 'fov-pause'].map($).filter(Boolean);
+  let deg = TCAM_FOV; try { const v = +localStorage.getItem(KEY); if (v >= 30 && v <= 60) deg = v; } catch (e) { /* (a private window) */ }
+  const set = (d) => { camCtl.tcam.fov = d; for (const s of sliders) { s.value = d; const v = s.parentElement.querySelector('.vol-val'); if (v) v.textContent = `${d}°`; } };
+  for (const s of sliders) s.addEventListener('input', () => { const d = +s.value; set(d); try { localStorage.setItem(KEY, String(d)); } catch (e) { /* */ } });
+  set(deg);
+}
+// the T-cam's tilt down (degrees): a slider in the pause menu and the setup's Driving page, kept in this browser
+{
+  const KEY = 'f1sim-tcam-tilt', sliders = ['tilt-menu', 'tilt-pause'].map($).filter(Boolean);
+  let deg = TCAM_TILT; try { const v = +localStorage.getItem(KEY); if (v >= 4 && v <= 16) deg = v; } catch (e) { /* (a private window) */ }
+  const set = (d) => { camCtl.tcam.pitch = (d * Math.PI) / 180; for (const s of sliders) { s.value = d; const v = s.parentElement.querySelector('.vol-val'); if (v) v.textContent = `${d}°`; } };
+  for (const s of sliders) s.addEventListener('input', () => { const d = +s.value; set(d); try { localStorage.setItem(KEY, String(d)); } catch (e) { /* */ } });
+  set(deg);
+}
 $('btn-quit').addEventListener('click', () => { setPaused(false); quitSession(); });
 $('btn-restart').addEventListener('click', () => { setPaused(false); restartRace(); });
 /**
@@ -1382,15 +1425,93 @@ function updateFinale(dt) {
 const S = { director: null, cars: [], meshes: new Map(), player: null, paused: false, weekend: null, halo: true };
 window.addEventListener('keydown', (e) => { if (e.code === 'Tab' && S.director && !S.director.done) e.preventDefault(); });   // (Tab: the next car to watch, not the browser's focus)
 
+/**
+ * The race's forecast in a sentence, for the strategy screen: the race's sky drawn now as it will be in the race (the
+ * same plan and seed - race/Weather.js), and what the pit wall believes of it (not always what will happen)
+ */
+function forecastLine(wk, pace) {
+  if (!wk?.wx || !W.track) return '';
+  let wx = null;
+  try {
+    const dur = wk.lapsTotal * pace; wx = new Weather({ track: W.track, line: W.line, plan: wk.wx, duration: dur, session: 'race' });
+    const lapOf = (t) => Math.max(1, Math.min(wk.lapsTotal, Math.ceil(t / pace))), o = wx.outlook(dur);
+    if (wx.rainNow > 0.05) { const l = wx.rainLeft(); return `Forecast: raining at the start${l > 0 && l < dur ? `, the radar has it easing around lap ${lapOf(l)}` : ', and set in for the race'}.`; }
+    if (o.p > 0.15) return `Forecast: ${Math.round(o.p * 10) * 10}% chance of ${o.peak > 0.7 ? 'heavy ' : ''}rain from around lap ${lapOf(o.eta)}. Forecasts move - the radar will firm it up in the race.`;
+    if (wx.tyreWet > 0.15) return 'Forecast: no more rain. The track will dry through the race, the racing line first.';
+    return 'Forecast: dry.';
+  } catch (e) { return ''; } finally { wx?.tex.dispose(); }
+}
+/** the weather as the build-up shows it: the track as it is at the start (a career's forecast may have been wrong) */
+function wxName() { const w = S.weekend?.wet; return w == null ? settings.weather : w > 0.5 ? 'wet' : w > 0.2 ? 'damp' : 'dry'; }
 function weatherWetness(w) { return w === 'wet' ? 0.75 : w === 'damp' ? 0.35 : 0; }
+/**
+ * The road's water (race/Weather.js): a shader on the asphalt reading the weather's texture - each 10 m of the lap,
+ * the water off the line, on it, where the line is - so the wet stretches are dark and glassy, the dry line a
+ * lighter ribbon through them, puddles near-mirrors; broken up by a noise so it never reads as stripes. Without a
+ * session's weather (the menus, the venues) one wetness for the whole road (uWxStatic).
+ */
+const WXU = { uWx: { value: null }, uWxLen: { value: 1000 }, uWxOn: { value: 0 }, uWxStatic: { value: 0 } };
+const WXV = { r: 0, c: 0 };
+function wetRoad(mat, L) {
+  if (!WXU.uWx.value) { WXU.uWx.value = new THREE.DataTexture(new Uint8Array(4), 1, 1, THREE.RGBAFormat); WXU.uWx.value.needsUpdate = true; }
+  WXU.uWxLen.value = L;
+  mat.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, WXU);
+    sh.vertexShader = 'attribute vec2 aWx;\nvarying vec2 vWx;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  vWx = aWx;');
+    sh.fragmentShader = `uniform sampler2D uWx; uniform float uWxLen, uWxOn, uWxStatic; varying vec2 vWx;
+float wxH(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float wxN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(wxH(i), wxH(i + vec2(1.0, 0.0)), f.x), mix(wxH(i + vec2(0.0, 1.0)), wxH(i + vec2(1.0, 1.0)), f.x), f.y); }
+` + sh.fragmentShader
+      .replace('#include <map_fragment>', `#include <map_fragment>
+  float wxW = uWxStatic;
+  if (uWxOn > 0.5) { vec4 wT = texture2D(uWx, vec2(fract(vWx.x / uWxLen), 0.5)); float wO = wT.b * 40.0 - 20.0; float wE = (vWx.y - wO) / 1.5; wxW = mix(wT.r, wT.g, exp(-0.5 * wE * wE)); }
+  float wxNz = wxN(vWx * vec2(0.09, 0.45)) * 0.6 + wxN(vWx * vec2(0.45, 1.4)) * 0.4;
+  float wxWet = clamp(wxW * (0.72 + 0.56 * wxNz) + (wxW > 0.55 ? (wxNz - 0.45) * 0.4 : 0.0), 0.0, 1.0);
+  float wxVis = smoothstep(0.03, 0.55, wxWet);
+  diffuseColor.rgb *= 1.0 - 0.45 * wxVis;`)
+      .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
+  roughnessFactor = mix(roughnessFactor, 0.08, wxVis); roughnessFactor = mix(roughnessFactor, 0.02, smoothstep(0.72, 0.92, wxWet));`)
+      .replace('#include <metalnessmap_fragment>', `#include <metalnessmap_fragment>
+  metalnessFactor = mix(metalnessFactor, 0.3, wxVis);`);
+  };
+  mat.customProgramCacheKey = () => 'wetroad';
+  mat.needsUpdate = true;
+}
+/**
+ * The weather on screen in a session (every frame): the road reading the session's water, the drops falling where
+ * the camera is (a shower in one corner, dry in the next), the sky darker under the clouds, the spray off the cars
+ */
+function wxFrame(dt) {
+  const wx = S.director?.weather;
+  if (!wx) { if (WXU.uWxOn.value) WXU.uWxOn.value = 0; spray.update(dt, null, camera.position, renderer.domElement.height); return; }
+  WXU.uWx.value = wx.tex; WXU.uWxOn.value = 1;
+  const x = camera.position.x, z = camera.position.z;
+  let r = wx.rainAt(x, z), cl = Math.max(r, wx.cloudAt(x, z));
+  if (wx.fixed) { r = wx.avgOff > 0.5 ? 0.85 : wx.avgOff > 0.2 ? 0.35 : 0; cl = r ? 0.9 : 0; }
+  WXV.r += (r - WXV.r) * Math.min(1, dt * 0.9); WXV.c += (cl - WXV.c) * Math.min(1, dt * 0.4);
+  rain.setIntensity(Math.min(1, WXV.r * 1.3));
+  const B = W.sky0;
+  if (B && B.time === W.time) {
+    scene.fog.density = B.fog + WXV.c * 0.0008; scene.fog.color.copy(B.col).lerp(W.time === 'day' ? WX_GREY_DAY : WX_GREY_NIGHT, 0.65 * WXV.c);
+    env.sun.intensity = B.sun * (1 - 0.45 * WXV.c); env.hemi.intensity = B.hemi * (1 - 0.2 * WXV.c);
+  }
+  skyCloud(WXV.c);
+  const rm = W.trackMesh?.userData.roadMat; if (rm) { rm.roughness = 0.62; rm.metalness = 0.06; rm.envMapIntensity = 0.55 + 1.4 * Math.max(wx.avgOff, WXV.r); }
+  spray.setNight(W.time !== 'day'); spray.update(dt, S.cars, camera.position, renderer.domElement.height);
+}
+const WX_GREY_DAY = new THREE.Color(0x8a929c), WX_GREY_NIGHT = new THREE.Color(0x0d0f16);
+/** the sky dome overcast by `k` (0 clear .. 1 a grey rain sky; at night a near-black one, no stars) */
+function skyCloud(k) { const u = env.sky?.material?.uniforms; if (!u?.uCloud) return; u.uCloud.value = Math.min(0.92, k); u.uOver.value.setHex(W.time === 'day' ? 0x7d858f : 0x0b0d13); }
 /** Visual weather: rain density, heavier fog, greyer sky, wet reflective asphalt. */
 function applyWeather(wet) {
+  W.sky0 = { time: W.time, fog: W.time === 'day' ? 0.00016 : 0.00035, col: scene.fog.color.clone(), sun: env.sun.intensity, hemi: env.hemi.intensity };   // (the dry sky: wxFrame darkens it from here)
+  WXU.uWxOn.value = 0; WXU.uWxStatic.value = wet; WXV.r = wet > 0.5 ? 0.8 : wet > 0.2 ? 0.35 : 0; WXV.c = wet > 0.2 ? 0.9 : 0; skyCloud(WXV.c);
   const base = W.time === 'day' ? 0.00016 : 0.00035;
   scene.fog.density = base + wet * 0.0007;
   rain.setIntensity(wet > 0.5 ? 1 : wet > 0.2 ? 0.45 : 0);
   if (wet > 0.2) { scene.fog.color.lerp(new THREE.Color(W.time === 'day' ? 0x8a929c : 0x0d0f16), 0.6); env.sun.intensity *= 0.6; env.hemi.intensity *= 0.8; }
   // slick night asphalt: enough gloss for the floodlights and the Sphere to smear across it, glassy when wet
-  const rm = W.trackMesh.userData.roadMat; rm.roughness = 0.62 - 0.4 * wet; rm.metalness = 0.06 + wet * 0.25; rm.envMapIntensity = 0.55 + wet * 1.4;
+  const rm = W.trackMesh.userData.roadMat; rm.roughness = 0.62; rm.metalness = 0.06; rm.envMapIntensity = 0.55 + wet * 1.4;   // (the water itself: the road's shader, wetRoad)
 }
 
 /** a team's car on the day (Roster dayPerf: the circuit's fit and the weekend's form) - drawn once a weekend and kept
@@ -1404,7 +1525,7 @@ function onTheDay(team) {
 }
 /** an AI car's starting tyre: wet weather, or by the race length and the car's pace */
 function aiCompound(e, lapsTotal) {
-  const wet = weatherWetness(settings.weather);
+  const wet = S.weekend?.wet ?? weatherWetness(settings.weather);
   return wet > 0.5 ? 'WET' : wet > 0.2 ? 'INTER' : lapsTotal >= 13 ? (e.tier <= 1 ? (Math.random() < 0.5 ? 'MEDIUM' : 'SOFT') : (Math.random() < 0.6 ? 'SOFT' : 'MEDIUM')) : (Math.random() < 0.85 ? 'SOFT' : 'MEDIUM');
 }
 /** why the seat-holder a stand-in replaces is out (an entry without outWhy: from the driver's record) -> 'ban' | 'injury' */
@@ -1488,7 +1609,7 @@ function buildField(lapsTotal) {
     const out = wk?.out?.get(e0.name) || deceased().find((x) => x.name === e0.name);
     if (out && (out.forever || (wk && wk.round >= out.round && wk.round <= (out.until ?? out.round)))) { e = { ...e0, name: out.standIn.name, short: out.standIn.short, rating: out.standIn.rating, number: out.standIn.number, helmet: out.standIn.helmet, standInFor: out.forever ? null : e0.name }; }   // (gone for good: the seat is the stand-in's now - and yours, if it was your team's)
     if (isPlayer && banned) { const si = standIn(e.team, taken); taken.add(si.name); e = { ...e, name: si.name, short: si.short, rating: si.rating, number: si.number, helmet: si.helmet, standInFor: e.standInFor || e.name, outWhy: 'ban' }; }   // (suspended: the reserve races - and you drive it as them)
-    const wet = weatherWetness(settings.weather);
+    const wet = wk?.wet ?? weatherWetness(settings.weather);
     let compound = settings.tyre;
     if (!isPlayer) compound = wet > 0.5 ? 'WET' : wet > 0.2 ? 'INTER' : lapsTotal >= 13 ? (e.tier <= 1 ? (Math.random() < 0.5 ? 'MEDIUM' : 'SOFT') : (Math.random() < 0.6 ? 'SOFT' : 'MEDIUM')) : (Math.random() < 0.85 ? 'SOFT' : 'MEDIUM');
     const car = new Car(W.track, { name: e.name, short: e.short, team: e.team, color: e.color, isPlayer, perf: e.perf + onTheDay(e.team), rating: e.rating, number: e.number, compound, raceLaps: lapsTotal, assists });
@@ -1663,9 +1784,12 @@ function startWeekend() {
   S.choosing = false;
   resetTransient();
   $('menu').classList.add('hidden'); $('shot-label').classList.add('hidden'); $('fade').style.opacity = '0'; CINE.i = -1; clearAmbient();
-  const lapsTotal = settings.len; const wet = weatherWetness(settings.weather);
+  const lapsTotal = settings.len;
+  // (the weekend's weather - race/Weather.js: a career's day is its forecast, not always right; a quick race the
+  //  weather chosen. The start's wetness picks the starting tyres; the race itself changes as the sky does)
+  const wx = weatherPlan(settings.weather, { forecast: settings.mode === 'champ' && !!S.career, night: settings.time === 'night' }), wet = wx.start;
   setTimeOfDay(settings.time); applyWeather(wet);
-  S.weekend = { mode: settings.mode, lapsTotal, wet, round: 1, rounds: settings.mode === 'champ' ? settings.rounds : 1, points: new Map(), out: new Map() };
+  S.weekend = { mode: settings.mode, lapsTotal, wet, wx, round: 1, rounds: settings.mode === 'champ' ? settings.rounds : 1, points: new Map(), out: new Map() };
   if (settings.mode === 'champ' && S.career) {
     // (a career round: its number, the season's standings so far)
     const C = S.career, wk = S.weekend; wk.career = C; wk.round = C.round; wk.rounds = C.rounds;
@@ -1677,7 +1801,7 @@ function startWeekend() {
 function startRound() {
   const wk = S.weekend; strings(false); NEWS.cancelled = false;
   if (wk.mode === 'champ' && !wk.career && wk.round > 1) { // vary the weather round to round
-    const r = Math.random(); wk.wet = r < 0.6 ? 0 : r < 0.85 ? 0.35 : 0.75; setTimeOfDay(settings.time); applyWeather(wk.wet);
+    const r = Math.random(); wk.wx = weatherPlan(r < 0.45 ? 'dry' : r < 0.7 ? 'changeable' : r < 0.87 ? 'damp' : 'wet', { night: settings.time === 'night' }); wk.wet = wk.wx.start; setTimeOfDay(settings.time); applyWeather(wk.wet);
   }
   wk.cars = buildField(wk.lapsTotal); wk.player = wk.cars.find((c) => c.isPlayer) || null;
   const C = wk.career, sg = C?.savedGrid;
@@ -1690,7 +1814,7 @@ function startRound() {
     $('quali-panel').classList.remove('hidden');
   } else if (settings.grid === 'quali' && wk.player) {
     $('btn-practice').classList.remove('hidden'); $('btn-quali-sim').classList.remove('hidden');
-    const cond = `${{ dry: 'Dry', damp: 'Damp', wet: 'Wet' }[settings.weather] || 'Dry'}, ${settings.time === 'night' ? 'night' : 'day'}`;
+    const cond = `${WX_LABEL[settings.weather] || 'Dry'}${wk.career ? ' forecast' : ''}, ${settings.time === 'night' ? 'night' : 'day'}`;
     $('quali-info').textContent = `Round ${wk.round}/${wk.rounds} · ${W.track.def.name} · ${cond}. Qualifying: the whole field is out with you on flying laps, two timed laps each, the best counts. You start on a straight. When your laps are done, watch the rest (Tab: next car, Enter: ×6) or press F to simulate it. Expected pace: ${fmtTime(estimatePace())}`;
     if (wk.career?.objectives?.length) $('quali-info').textContent += ` · Sponsor targets this weekend: ${wk.career.objectives.map((ob) => `${ob.text} ($${ob.reward}M)`).join('; ')}.`;
     $('quali-results').innerHTML = ''; $('btn-quali-go').classList.remove('hidden'); $('btn-quali-done').classList.add('hidden');
@@ -1718,12 +1842,12 @@ function makeDirector(mode, cars, player, extra = {}) {
   engineer.reset();
   S.director = new RaceDirector({
     track: W.track, line: W.line, profile: W.profile, pit: W.pit, obstacles: W.obstacles, cars, player, hud, audio, engineer: mode === 'race' ? engineer : null,
-    settings: { mode, practice: !!extra.practice, lapsTotal: wk.lapsTotal, aggression: settings.aggr, skill: skillOf(settings.diff), wetness: wk.wet, gridOrder: extra.gridOrder, stewards: settings.stewards, safetyCar: settings.sc !== 'off', failures: settings.fail !== 'off', flashbacks: settings.fb, champNext: wk.mode === 'champ' && wk.round < wk.rounds },
+    settings: { mode, practice: !!extra.practice, lapsTotal: wk.lapsTotal, aggression: settings.aggr, skill: skillOf(settings.diff), wetness: wk.wet, weather: wk.wx || null, weatherFixed: !!settings.weatherFixed, gridOrder: extra.gridOrder, stewards: settings.stewards, safetyCar: settings.sc !== 'off', failures: settings.fail !== 'off', flashbacks: settings.fb, champNext: wk.mode === 'champ' && wk.round < wk.rounds },
     onFinish: extra.onFinish, onPitDone: (c) => S.meshes.get(c)?.setCompound(c.tyres.compound),
     onContact: (a, b, v) => noteContact(a, b, v), onPlayerDone: (c) => watchSession(c),
     onRedFlag: () => { debris.clear(); fire.clear(); chunks.clear(); },
   });
-  hud.initMinimap(W.track, W.pit); hud.show(); camCtl.mode = 'tcam';   // every session starts on the broadcast T-cam
+  hud.initMinimap(W.track, W.pit); hud.wx = S.director.weather || null; hud.show(); camCtl.mode = 'tcam'; spray.clear();   // every session starts on the broadcast T-cam
   if (player && W.pitBoxes) W.pitBoxes.setPlayer(player.boxIdx ?? 0, player.name);   // your garage: cyan box + marker
   if (S.spectating) hud.msg(`${wk?.career?.noSeat ? 'NO SEAT THIS WEEKEND' : 'STOOD DOWN'} · WATCHING ${S.player.name.toUpperCase()}\nEnter: fast-forward · Tab: next car`, 'warn', 6);
   else if (player?.standInFor) hud.msg(standInBanner(player), 'warn', 6);   // (your driver hurt, or banned: you race their stand-in)
@@ -1851,7 +1975,7 @@ function runRace() {
   const P = W.pit, pace = estimatePace(), L = W.track.length;
   const laneLen = P ? P.samples.length : 400, pitLoss = P ? Math.max(12, laneLen / P.limiter - laneLen / (L / pace) + 2.4 + 2.2) : 22;
   const gi = wk.gridOrder ? wk.gridOrder.indexOf(p) + 1 : 0;
-  showStrategy({ laps: wk.lapsTotal, trackName: W.track.def.name, trackLength: L, pace, pitLoss, wet: wk.wet, night: W.time === 'night', field: wk.cars.filter((c) => c !== p).map((c) => c.tyres.compound), gridPos: gi > 0 ? gi : null,
+  showStrategy({ laps: wk.lapsTotal, trackName: W.track.def.name, trackLength: L, pace, pitLoss, wet: wk.wet, forecast: forecastLine(wk, pace), night: W.time === 'night', field: wk.cars.filter((c) => c !== p).map((c) => c.tyres.compound), gridPos: gi > 0 ? gi : null,
     onDone: (plan) => {
       S.choosing = false;
       if (plan) { p.fitTyres(plan.stints[0].compound); p.strategy = { name: plan.name, label: plan.label, stints: plan.stints.map((s) => ({ ...s })), laps: plan.laps }; }
@@ -2498,14 +2622,14 @@ function startPreRace() {
   let pen = !!myComeback;
   const toRace = () => { if (!pen) { toRaceNow(); return; } pen = false; comebackInterview(myComeback, toRaceNow); };
   const night = W.time === 'night', str = (on) => strings(on, { gain: 0.4, fade: 2 });
-  PRE.show = new PreRace({ scene, camera, track: W.track, stands: W.stands, pit: W.pit, cars: d.cars, player: d.player, trackName: W.track.def.name, night, weather: settings.weather, memorial: mem, returning: back, audio, strings: str,
+  PRE.show = new PreRace({ scene, camera, track: W.track, stands: W.stands, pit: W.pit, cars: d.cars, player: d.player, trackName: W.track.def.name, night, weather: wxName(), memorial: mem, returning: back, audio, strings: str,
     walk: !!d.player, career: C || null, trackId: W.def.id,
     onDone: (walk) => {
       if (!walk) { toRace(); return; }
       // on foot on the grid first (ui/GridWalk.js), on the show's own grid; that taken away when you get in
       // (a scuffle on the walk - what it came to, walk.brawled - is kept with the weekend for the interview)
       const pre = PRE.show;
-      PRE.walk = new GridWalk({ pre, scene, camera, canvas: renderer.domElement, track: W.track, cars: d.cars, player: d.player, career: C || null, trackName: W.track.def.name, night, weather: settings.weather, audio, strings: str,
+      PRE.walk = new GridWalk({ pre, scene, camera, canvas: renderer.domElement, track: W.track, cars: d.cars, player: d.player, career: C || null, trackName: W.track.def.name, night, weather: wxName(), audio, strings: str,
         onDone: () => { if (S.weekend) S.weekend.brawl = PRE.walk?.brawled || PRE.walk?.x?.brawled || null; pre.dispose(); toRace(); } });
     } });
   PRE.on = true;
@@ -3284,17 +3408,37 @@ function clearAmbient() {
   for (const m of A.meshes) { scene.remove(m.group); m.dispose(); } S.ambient = null;
 }
 
-/** Four feeds for the Sphere's F1 stream: the leader's T-cam, a second car's T-cam (you, when racing), the T1
- *  trackside camera and a wide shot of the Sphere itself (which shows the previous frame's stream: it films itself). */
+/**
+ * The Sphere's F1 stream: the world feed - an onboard T-cam, the director cutting to another car every 8 s (the leader,
+ * you when racing, then down the order) - or, with no cars on track, the trackside cameras -> [pose], the car on screen
+ */
+function feedCars() {
+  const d = S.director;
+  return d ? d.positions.filter((c) => !c.inPit && !c.retired) : (S.ambient ? S.ambient.cars : []);
+}
+function feedCar(cars) {
+  if (!cars.length) return null;
+  const k = Math.floor(simTime / 8), you = S.director && S.player && cars.includes(S.player) ? S.player : null;
+  const order = [cars[0], you || cars[1], cars[1], cars[2], cars[0], cars[3], you || cars[4]].filter(Boolean);
+  return order[k % order.length];
+}
 function feedPoses() {
-  const d = S.director, tr = W.track;
-  const cars = d ? d.positions.filter((c) => !c.inPit && !c.retired) : (S.ambient ? S.ambient.cars : []);
-  const sphere = W.sphereInfo ? POSES.landmark(W.sphereInfo.center, W.sphereInfo.radius * 3.0, W.sphereInfo.radius * 0.55, (W.faceAngle0 || 0)) : POSES.trackside(tr, 2200, 1, cars);
-  const side = POSES.trackside(tr, 180, 1, cars);
-  if (!cars.length) return [POSES.trackside(tr, 3900, -1, []), POSES.trackside(tr, 1800, -1, []), side, sphere];
-  const pick = (i) => cars[Math.min(i, cars.length - 1)];
-  const second = d && S.player && !S.player.inPit && !S.player.retired && S.player !== pick(0) ? S.player : pick(1);
-  return [POSES.onboard(pick(0)), POSES.onboard(second), side, sphere];
+  const tr = W.track, cars = feedCars(), car = feedCar(cars);
+  if (!car) return [POSES.trackside(tr, [3900, 1800, 180][Math.floor(simTime / 8) % 3], -1, [])];
+  return [POSES.onboard(car)];
+}
+/** the stream's graphics: the order down the two towers, the lap, the caption of the car on screen */
+function feedInfo() {
+  const d = S.director, cars = feedCars(), car = feedCar(cars);
+  if (!d) return { rows: [], cap: null, lap: 0, laps: 0 };
+  const P = d.positions, lead = P[0];
+  const code = (c) => String(c.short || c.name || '???').slice(0, 3).toUpperCase();
+  const rows = P.slice(0, 20).map((c, i) => {
+    const g = i === 0 ? 'Leader' : c.retired ? 'OUT' : c.inPit || c.pitLane ? 'PIT' : (() => { const x = d.radio?.gap?.(c, lead); const v = x != null ? Math.abs(x) : Math.abs(lead.totalDist - c.totalDist) / Math.max(12, lead.speed || 60); return v > 99 ? '+1 LAP' : `+${v.toFixed(1)}`; })();
+    return { pos: i + 1, code: code(c), gap: g, color: c.color };
+  });
+  const cap = car ? { pos: P.indexOf(car) + 1, name: car.name, team: car.team, color: car.color } : null;
+  return { rows, cap, lap: lead ? lead.lap + 1 : 0, laps: d.lapsTotal || 0 };
 }
 function tr0() { return W.track.length - 200; }
 
@@ -3352,8 +3496,26 @@ function sphereInView() {
 function sphereShow() {
   const sphereSeen = sphereInView();
   if (W.landmarks?.sphere) {
-    const u = W.landmarks.sphere.material.uniforms; const a = (W.faceAngle0 || 0) + simTime * (2 * Math.PI / 300);
+    const u = W.landmarks.sphere.material.uniforms;
+    // (where its face looks: the content turns slowly round, one revolution in 5 minutes, so it faces every part of the
+    //  circuit over a race - but the emoji turns its face to the car you watch (else the nearest), and its eyes follow it)
+    const k0 = Math.floor((simTime % (SPHERE_SEQUENCE.length * SHOW_SECONDS)) / SHOW_SECONDS), cur0 = SPHERE_SEQUENCE[k0], nxt0 = SPHERE_SEQUENCE[(k0 + 1) % SPHERE_SEQUENCE.length];
+    const emojiOn = cur0 === 'smiley' || cur0 === 'helmet' || ((nxt0 === 'smiley' || nxt0 === 'helmet') && simTime % SHOW_SECONDS > SHOW_SECONDS - 3);
+    const aRot = (W.faceAngle0 || 0) + simTime * (2 * Math.PI / 300);
+    let car = null;
+    if (W.sphereInfo) {
+      const sc = W.sphereInfo.center; car = S.player && !S.player.retired ? S.player : null;
+      if (!car) { let bd = Infinity; for (const c of (S.director ? S.director.cars : S.ambient?.cars) || []) { const d = (c.x - sc.x) ** 2 + (c.z - sc.z) ** 2; if (d < bd) { bd = d; car = c; } } }
+    }
+    const sc = W.sphereInfo?.center, aCar = car && sc ? Math.atan2(car.z - sc.z, car.x - sc.x) : null, target = emojiOn && aCar != null ? aCar : aRot;
+    if (W.faceA == null) W.faceA = target;
+    W.faceA += Math.atan2(Math.sin(target - W.faceA), Math.cos(target - W.faceA)) * (emojiOn ? 0.035 : 0.02);
+    const a = W.faceA;
     u.uFace.value.set(Math.cos(a), 0, Math.sin(a)); u.uRight.value.set(Math.sin(a), 0, -Math.cos(a));
+    if (car && sc) {
+      const dx = car.x - sc.x, dz = car.z - sc.z, l = Math.hypot(dx, dz) || 1, lr = (dx * Math.sin(a) - dz * Math.cos(a)) / l, lf = (dx * Math.cos(a) + dz * Math.sin(a)) / l;
+      show.look = { x: Math.max(-1, Math.min(1, lf < 0 ? Math.sign(lr || 1) : lr * 2.2)), y: -0.45 - 0.3 * Math.min(1, 300 / Math.max(80, l)) };
+    }
     const k = Math.floor((simTime % (SPHERE_SEQUENCE.length * SHOW_SECONDS)) / SHOW_SECONDS);
     const cur = SPHERE_SEQUENCE[k], next = SPHERE_SEQUENCE[(k + 1) % SPHERE_SEQUENCE.length];
     const cs = FINALE.on ? 'champion' : CANVAS_SHOWS.has(cur) ? cur : CANVAS_SHOWS.has(next) ? next : null;
@@ -3370,7 +3532,7 @@ function sphereFeed(seen) {
   if (W.landmarks?.sphere && seen && (RES.frames & 1) === 0) {
     const k = Math.floor((simTime % (SPHERE_SEQUENCE.length * SHOW_SECONDS)) / SHOW_SECONDS);
     const cur = SPHERE_SEQUENCE[k], next = SPHERE_SEQUENCE[(k + 1) % SPHERE_SEQUENCE.length], tin = simTime % SHOW_SECONDS;
-    if (cur === 'broadcast' || (next === 'broadcast' && tin > SHOW_SECONDS - 4)) feed.update(renderer, scene, feedPoses(), [W.stands?.group].filter(Boolean));
+    if (cur === 'broadcast' || (next === 'broadcast' && tin > SHOW_SECONDS - 4)) { feed.update(renderer, scene, feedPoses(), [W.stands?.group].filter(Boolean)); bcast?.draw(feedInfo(), simTime); }
   }
 }
 /** distant generic buildings (cells) are skipped entirely: the fog has faded them anyway */
@@ -3519,6 +3681,7 @@ function frame(now) {
   if (d && S.ambient) clearAmbient();
   standsHD(FINALE.on || (!d && !W.home), dt, simTime);   // (the finale's shots, the title shots behind the menus: the stands full of people)
   if (W.home || !W.track) { input.endFrame(); return; }   // home screen / building: no 3D scene to draw
+  wxFrame(halted ? 0 : dt);
   rain.update(camera, halted ? 0 : dt);
   if (W.lights) W.lights.update(camera.position, simTime);
   for (const m of S.meshes.values()) m.detail(camera.position, carZoom());
@@ -3528,7 +3691,7 @@ function frame(now) {
   if (W.buildings) W.buildings.material.uniforms.uTime.value = simTime;
   const sphereSeen = sphereShow();
   input.endFrame();
-  if (!halted) sphereFeed(sphereSeen);
+  sphereFeed(sphereSeen);   // (paused or in photo mode too: the frozen race on the Sphere's screen, not the black of a feed never drawn)
   cullBuildings();
   env.sky.position.copy(camera.position);   // the dome travels with the camera: its far side never crosses the far plane (that showed as a flat "mountain")
   renderView();
@@ -3539,11 +3702,15 @@ function frame(now) {
 // ---------------------------------------------------------------------------
 {
   document.body.classList.add('home');   // (also in index.html; an Artifact host supplies its own <body>)
-  window.__F1 = { PRE, W, S, settings, scene, camera, renderer, input, hud, AIDriver, AI_TUNE, AI_CAL, applyCalibration, chunks, debris, fire, respawnMesh,
+  window.__F1 = { PRE, W, S, settings, scene, camera, renderer, input, hud, camCtl, spray, show, AIDriver, AI_TUNE, AI_CAL, applyCalibration, chunks, debris, fire, respawnMesh,
     /** (tests: one frame drawn as the crash camera draws it - through its composer - and the programs that compiled) */
     crashFrame() { const n0 = renderer.info.programs.length; ensureCrashComposer(); crashPass.uniforms.uBlur.value = 0.6; crashPass.uniforms.uSat.value = 1.5; crashComposer.render(); return renderer.info.programs.length - n0; },
     /** (tests: the crash director, and the camera as drawn - terrainLift() lifts it for the frame and returns the undo; renderView() draws a frame through it) */
     crashCam, terrainLift, renderView,
+    /** (tests: the show clock - simTime - set, so the Sphere's loop can be put on any show) */
+    setSimTime(t) { simTime = t; },
+    /** (tests: the Sphere's F1 stream drawn now - its feed rendered, its graphics drawn - and the show forced onto it) */
+    feedNow() { if (!feed || !W.landmarks?.sphere) return false; const u = W.landmarks.sphere.material.uniforms; u.uForce.value = SHOW_ID.broadcast; feed.update(renderer, scene, feedPoses(), [W.stands?.group].filter(Boolean)); bcast.last = -1; bcast.draw(feedInfo(), simTime); return feed; },
     /** (tests: the safety car's model brought up to date with the race - main loop: frame) */
     syncSafetyCar(dt = 1 / 60) { syncSafetyCar(S.director, dt); },
     /** (tools: a calibration applied, the racing line and the speed profile rebuilt from it - the next session's AI drives them) */

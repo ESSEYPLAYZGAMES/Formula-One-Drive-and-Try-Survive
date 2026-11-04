@@ -8,7 +8,7 @@ import { SPHERE_SEQUENCE, SHOW_SECONDS } from './SphereShow.js';
 /** average glow colour of each Sphere show (drives the light it throws onto the track and the cars) */
 const SHOW_GLOW = {
   eyeball: [0.85, 0.75, 0.7], planet: [0.25, 0.45, 0.9], smiley: [1.0, 0.72, 0.15], basketball: [1.0, 0.5, 0.12], sign: [0.45, 0.3, 0.9],
-  lava: [1.0, 0.35, 0.08], helmet: [0.85, 0.85, 0.95], broadcast: [0.5, 0.5, 0.6], marquee: [1.0, 0.25, 0.4], clouds: [0.35, 0.6, 1.0], off: [0, 0, 0],
+  lava: [1.0, 0.35, 0.08], helmet: [0.85, 0.85, 0.95], sponsor: [0.2, 0.3, 1.0], broadcast: [0.5, 0.5, 0.6], marquee: [1.0, 0.25, 0.4], clouds: [0.35, 0.6, 1.0], gp: [1.0, 0.18, 0.28], off: [0, 0, 0],
 };
 const SPOT_I = 900, SPOT_ANGLE = Math.PI / 2.3, SPOT_PEN = 0.6, SPOT_RANGE = 95;
 

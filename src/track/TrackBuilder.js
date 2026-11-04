@@ -592,7 +592,7 @@ export class Track {
     const gs = gw.reduce((a, b) => a + b, 0);
     for (const side of [1, -1]) {
       const arr = side > 0 ? this.wallL : this.wallR, bar = side > 0 ? this.barL : this.barR;
-      const pinned = (i) => this.pinAt(this.s[i], side);
+      const pinned = (i) => this.pinAt(this.s[i], side) || this.heldAt(this.s[i], side);
       // (a concrete wall - the pit wall included - can have no gap: on the inside of a bend tighter than it stands far out
       //  it wraps round the apex instead of folding over itself into a point, behind the kerb if it has to be, as a street
       //  circuit's does)
@@ -766,6 +766,94 @@ export class Track {
         }
       }
     }
+  }
+  /**
+   * Escape roads (def.escapes: [{ ring: [[x, z]...], side }]): wherever the road's edge on that side (+1 left / -1 right)
+   * lies inside the ring, the barrier is pushed out along the normal to the ring's edge - a paved run-off the shape of
+   * the ring, straight on past a corner (Las Vegas's Turns 1-2: the escape beyond the U, between the main grandstand's
+   * line and the return leg's). Call after openCorners.
+   */
+  escapes(list = this.def.escapes) {
+    if (!list) return;
+    this.escapeBoxes = [];
+    for (const e of list) {
+      const side = e.side ?? -1, ring = e.auto ? this._escapeBox(e.auto, side) : e.band ? this._escapeBand(e.band, side) : e.ring; if (!ring) continue;
+      const inside = insideRings([ring]), arr = side > 0 ? this.wallL : this.wallR;
+      const at = (i, d) => [this.px[i] + this.nx[i] * side * d, this.pz[i] + this.nz[i] * side * d];
+      let lo = -1, hi = -1;
+      for (let i = 0; i < this.n; i++) {
+        let d = this.edgeAt(i, side) + this.kerbWidth + 0.5; if (!inside(...at(i, d))) continue;
+        while (d < 200 && inside(...at(i, d + 0.5))) d += 0.5;
+        arr[i] = Math.max(arr[i], d); if (lo < 0) lo = i; hi = i;
+      }
+      // (an escape drawn to the real one's shape is held as it is: fairWalls rounds every other barrier line, and would
+      //  round this one's square corners into a balloon)
+      if ((e.auto || e.band) && lo >= 0) (this.heldWalls || (this.heldWalls = [])).push({ a: this.s[lo], b: this.s[hi], side });
+    }
+  }
+  /**
+   * A run-off swelling out from the barrier line beside a stretch of the lap (escapes band: { turn, from, to, depth }):
+   * from `from` to `to` m about the corner's apex, its outer wall as the real one is built - leaving the road's own wall
+   * in line with it and curving gently away, then one straight run along the stands behind it (at least `depth` m past
+   * the kerb at the middle of the stretch, and never nearer the road than 12 m along that run), then curving gently back
+   * in to fence the road again. Not an offset of the road, which would wiggle with every kerb of a chicane. Las Vegas's
+   * Turns 7-8: the painted run-off east of the chicane. Its outline is kept for the paint (escapeBands).
+   */
+  _escapeBand(o, side) {
+    const c = (this.def.corners || []).find((k) => k.n === o.turn); if (!c || c.s == null) return null;
+    const sA = c.s + (o.from ?? -20), sB = c.s + (o.to ?? 120), D = o.depth ?? 30, f = {};
+    const wallPt = (s) => { const i = this.idxAtS(s); this.sample(s, side * this.wallAt(i, side), f); return [f.x, f.z]; };
+    const tan = (s) => { const i = this.idxAtS(s); return [this.tx[i], this.tz[i]]; };
+    const A = wallPt(sA), B = wallPt(sB), CL = Math.hypot(B[0] - A[0], B[1] - A[1]), u = [(B[0] - A[0]) / CL, (B[1] - A[1]) / CL], sM = (sA + sB) / 2;
+    // (out from the line between its ends, on the run-off's side)
+    let n = [-u[1], u[0]]; { this.sample(sM, 0, f); const c0 = [f.x, f.z]; this.sample(sM, side * 10, f); if ((f.x - c0[0]) * n[0] + (f.z - c0[1]) * n[1] < 0) n = [-n[0], -n[1]]; }
+    const off = (s, d) => { const i = this.idxAtS(s); this.sample(s, side * (this.edgeAt(i, side) + this.kerbWidth + d), f); return (f.x - A[0]) * n[0] + (f.z - A[1]) * n[1]; };
+    let h = off(sM, D); for (let s = sA + (sB - sA) * 0.25; s <= sB - (sB - sA) * 0.25; s += 2) h = Math.max(h, off(s, 12));
+    const P1 = [A[0] + u[0] * CL * 0.3 + n[0] * h, A[1] + u[1] * CL * 0.3 + n[1] * h], P2 = [A[0] + u[0] * CL * 0.7 + n[0] * h, A[1] + u[1] * CL * 0.7 + n[1] * h];
+    const cubic = (p0, p1, p2, p3, out, first) => { for (let k = first ? 0 : 1; k <= 20; k++) { const t = k / 20, a = (1 - t) ** 3, b = 3 * t * (1 - t) ** 2, cc = 3 * t * t * (1 - t), d = t ** 3; out.push([a * p0[0] + b * p1[0] + cc * p2[0] + d * p3[0], a * p0[1] + b * p1[1] + cc * p2[1] + d * p3[1]]); } };
+    const tA = tan(sA), tB = tan(sB), k1 = Math.hypot(P1[0] - A[0], P1[1] - A[1]) * 0.5, k2 = Math.hypot(B[0] - P2[0], B[1] - P2[1]) * 0.5, outer = [];
+    cubic(A, [A[0] + tA[0] * k1, A[1] + tA[1] * k1], [P1[0] - u[0] * k1, P1[1] - u[1] * k1], P1, outer, true);
+    for (let k = 1; k < 10; k++) outer.push([P1[0] + (P2[0] - P1[0]) * k / 10, P1[1] + (P2[1] - P1[1]) * k / 10]);
+    cubic(P2, [P2[0] + u[0] * k2, P2[1] + u[1] * k2], [B[0] - tB[0] * k2, B[1] - tB[1] * k2], B, outer, false);
+    const inner = []; for (let s = sB; s >= sA - 0.01; s -= 2) { this.sample(s, 0, f); inner.push([f.x, f.z]); }
+    (this.escapeBands || (this.escapeBands = [])).push({ turn: o.turn, sA, sB, side, depth: D, arc: { A, B, P1, P2 }, outer });
+    return [...outer, ...inner];
+  }
+  /** a barrier line held as drawn (escapes: an escape the shape of the real one) at arc length s on that side */
+  heldAt(s, side) { return (this.heldWalls || []).some((h) => h.side === side && s >= h.a && s <= h.b); }
+  /**
+   * A straight-on escape beyond a corner (escapes auto: { turn, depth, from, to }): a rectangle in the frame of the
+   * straight before it (along it from `to` m before the apex - where the straight ends - to `depth` m past the corner's
+   * outermost kerb; across it from the straight's barrier line on the outside to the barrier line of the leg coming back
+   * out of the corner, carried on at that leg's own angle), so the run-off is the straight carried on with a wall across
+   * its end and the exit leg's wall slanting in to it - never a bulge round the corner. Its frame is kept for the paint
+   * (escapeBoxes: { o, along, left, uOut, uEnd, wR, wL / wEnd: the exit side at uOut / at the end, wExit(u), slope }).
+   */
+  _escapeBox(o, side) {
+    const c = (this.def.corners || []).find((k) => k.n === o.turn); if (!c || c.s == null) return null;
+    const a = this.sample(c.s - (o.from ?? 220), 0, {}), b = this.sample(c.s - (o.to ?? 80), 0, {});
+    const L = Math.hypot(b.x - a.x, b.z - a.z) || 1, al = [(b.x - a.x) / L, (b.z - a.z) / L], le = [al[1], -al[0]], O = [b.x, b.z];
+    const U = (x, z) => (x - O[0]) * al[0] + (z - O[1]) * al[1], Wv = (x, z) => (x - O[0]) * le[0] + (z - O[1]) * le[1];
+    const wR = side * this.wallAt(this.idxAtS(c.s - (o.to ?? 80)), side);   // (the straight's barrier line on that side)
+    let uOut = -Infinity;
+    for (let s = c.s - 80; s <= c.s + 260; s += 2) {
+      const i = this.idxAtS(s), e = this.edgeAt(i, side) + this.kerbWidth, x = this.px[i] + this.nx[i] * side * e, z = this.pz[i] + this.nz[i] * side * e;
+      if (s <= c.s + 120) uOut = Math.max(uOut, U(x, z));
+    }
+    // (the leg coming back: its barrier line where it leaves the corner - `exit` m back down the straight from the kerb's
+    //  furthest point - carried on at its own angle to the end wall: the leg opens away from the straight (Las Vegas: ~20
+    //  degrees), so the run-off's exit side is that slant, narrowing to its end, never a line parallel to the straight)
+    let A = null, B = null;
+    for (let s = c.s + 10; s <= c.s + 400 && !B; s += 2) {
+      const i = this.idxAtS(s), w = this.wallAt(i, side), wx = this.px[i] + this.nx[i] * side * w, wz = this.pz[i] + this.nz[i] * side * w;
+      if (!A) { if (U(this.px[i], this.pz[i]) <= uOut - (o.exit ?? 45)) A = { s, u: U(wx, wz), w: Wv(wx, wz) }; }
+      else if (s >= A.s + (o.legLen ?? 60)) B = { s, u: U(wx, wz), w: Wv(wx, wz) };
+    }
+    if (!A || !B || B.u >= A.u) return null;
+    const uEnd = uOut + (o.depth ?? 40), slope = (B.w - A.w) / (B.u - A.u), wExit = (u) => A.w + (u - A.u) * slope;
+    const P = (u, w) => [O[0] + al[0] * u + le[0] * w, O[1] + al[1] * u + le[1] * w];
+    (this.escapeBoxes || (this.escapeBoxes = [])).push({ o: O, along: al, left: le, uOut, uEnd, wR, wL: wExit(uOut), wEnd: wExit(uEnd), exitA: [A.u, A.w], slope, wExit, turn: o.turn });
+    return [P(0, wR), P(uEnd, wR), P(uEnd, wExit(uEnd)), P(B.u, B.w)];
   }
   /** the pinned wall (pinWall) that a point at arc length s, lateral d is up against, or null */
   pinAt(s, d) {
@@ -972,6 +1060,56 @@ function fenceMaterial() {
   if (!_fenceMat) _fenceMat = new THREE.MeshStandardMaterial({ map: fenceTexture(), alphaTest: 0.35, side: THREE.DoubleSide, roughness: 0.55, metalness: 0.4, emissive: 0x15171a });
   return _fenceMat;
 }
+/** a street circuit's catch-fence mesh: fine diamond chain link alone (the posts are geometry) - u up the fence, v along
+ *  it (3 m a repeat) */
+function streetMeshTexture() {
+  const c = document.createElement('canvas'); c.width = 256; c.height = 192; const ctx = c.getContext('2d');
+  ctx.clearRect(0, 0, 256, 192); ctx.strokeStyle = 'rgba(212,216,222,0.9)'; ctx.lineWidth = 1.2;
+  for (let k = -256; k < 448; k += 9) { ctx.beginPath(); ctx.moveTo(k, 0); ctx.lineTo(k + 192, 192); ctx.stroke(); ctx.beginPath(); ctx.moveTo(k + 192, 0); ctx.lineTo(k, 192); ctx.stroke(); }
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+/**
+ * A street circuit's catch fence as Las Vegas has it (def.streetFence; the onboard footage): on the concrete wall, round
+ * galvanised posts every 3.6 m, 4.6 m tall and then cranked in toward the track for another 0.9 m; a clamp on each post
+ * at every cable; five steel cables strung along the posts in front of the chain-link mesh, the mesh up the cranked top
+ * too. Wherever the barrier is a concrete wall (masks[side]); in spatial chunks, drawn to the fences' detail distance.
+ */
+function streetFence(tr, wallAt, masks) {
+  const group = new THREE.Group(); group.name = 'fences'; group.userData.cut = DETAIL_CUT.fences;
+  const H = 4.6, TOP = 5.5, LEAN = 0.55, SP = 3.6, CABLES = [1.75, 2.45, 3.15, 3.85, 4.5];
+  const meshGeos = [], cableGeos = [], postGeos = [];
+  for (const side of [1, -1]) {
+    const m = masks[side], o = (d) => (i) => side * (wallAt(i, side) + d);
+    const up = ribbon(tr, o(0.3), o(0.3), 1.2, { yB: H, mask: m, uvFn: (i) => tr.s[i] / 3 });
+    const top = ribbon(tr, o(0.3), o(0.3 - LEAN), H, { yB: TOP, mask: m, uvFn: (i) => tr.s[i] / 3 });
+    { const uv = top.attributes.uv; for (let j = 0; j < uv.count; j++) uv.setX(j, uv.getX(j) * (TOP - H) / (H - 1.2)); }   // (the same mesh size up the crank)
+    meshGeos.push(up, top);
+    for (const y of CABLES) cableGeos.push(ribbon(tr, o(0.2), o(0.2), y, { yB: y + 0.035, mask: m }));
+    cableGeos.push(ribbon(tr, o(0.3 - LEAN), o(0.3 - LEAN), TOP - 0.04, { yB: TOP, mask: m }));
+  }
+  // one post (local: y up, z toward the track): the upright, the cranked top, a clamp at each cable
+  const parts = [];
+  { const g = new THREE.CylinderGeometry(0.055, 0.065, H - 1.15, 6, 1, true); g.translate(0, (H + 1.15) / 2, 0); parts.push(g); }
+  { const L = Math.hypot(TOP - H, LEAN), g = new THREE.CylinderGeometry(0.05, 0.055, L, 6, 1, true); g.translate(0, L / 2, 0); g.rotateX(Math.atan2(LEAN, TOP - H)); g.translate(0, H, 0); parts.push(g); }
+  for (const y of [CABLES[0], CABLES[2], CABLES[4]]) { const g = new THREE.BoxGeometry(0.16, 0.07, 0.16); g.translate(0, y + 0.02, 0.06); parts.push(g); }
+  const post = mergeGeometries(parts.map((g) => g.toNonIndexed()));
+  const M = new THREE.Matrix4(), X = new THREE.Vector3(), Y = new THREE.Vector3(0, 1, 0), Z = new THREE.Vector3(), f = {};
+  for (const side of [1, -1]) {
+    const m = masks[side];
+    for (let s = 0; s < tr.length - 1; s += SP) {
+      const i = tr.idxAtS(s); if (!m(i)) continue;
+      tr.sample(s, side * (wallAt(i, side) + 0.3), f);
+      Z.set(-tr.nx[i] * side, 0, -tr.nz[i] * side); X.set(Z.z, 0, -Z.x); M.makeBasis(X, Y, Z).setPosition(f.x, 0, f.z);
+      const g = post.clone(); g.applyMatrix4(M); g.setIndex([...Array(g.attributes.position.count).keys()]); postGeos.push(g);
+    }
+  }
+  const meshMat = new THREE.MeshStandardMaterial({ map: streetMeshTexture(), alphaTest: 0.3, side: THREE.DoubleSide, roughness: 0.5, metalness: 0.5, emissive: 0x16181b });
+  const steel = new THREE.MeshStandardMaterial({ color: 0xb9bec5, roughness: 0.45, metalness: 0.6, emissive: 0x1a1c20, side: THREE.DoubleSide });
+  const cable = new THREE.MeshBasicMaterial({ color: 0x8d939b, side: THREE.DoubleSide });
+  for (const [geos, mat] of [[meshGeos, meshMat], [postGeos, steel], [cableGeos, cable]]) for (const ch of [...spatialChunks(geos, mat, '').children]) group.add(ch);
+  return group;
+}
 /**
  * The paved infield of a last chicane (pit.infield, buildPitLane - Montreal's T13-T14 as it is now): one sheet of asphalt
  * from the circuit's edge to the lane's, sharing their edge points (no overlap to fight over); the green paint round the
@@ -1063,8 +1201,8 @@ export function checkerTexture(n = 8) {
  * mask(i) may skip segments. colorFn(i, d) -> [r,g,b] for vertex colors. y may be a function of i.
  * uv: u = 0 at offA, 1 at offB; v = uvFn(i) if given, else s / uvV.
  */
-export function ribbon(tr, offA, offB, y, { mask = null, colorFn = null, uvV = 8, closed = tr.closed, yB = null, uvFn = null } = {}) {
-  const pos = [], uv = [], idx = [], col = [];
+export function ribbon(tr, offA, offB, y, { mask = null, colorFn = null, uvV = 8, closed = tr.closed, yB = null, uvFn = null, wx = false } = {}) {
+  const pos = [], uv = [], idx = [], col = [], wxa = [];   // (wx: each vertex's lap distance and lateral offset, for the road's wetness - race/Weather.js, main.js wetRoad)
   const n = tr.n, segs = closed ? n : n - 1;
   let vcount = 0; let prevEmitted = false;
   const yAt = (i) => (typeof y === 'function' ? y(i) : y);
@@ -1078,6 +1216,7 @@ export function ribbon(tr, offA, offB, y, { mask = null, colorFn = null, uvV = 8
     pos.push(tr.px[i] + tr.nx[i] * a, yAt(i), tr.pz[i] + tr.nz[i] * a, tr.px[i] + tr.nx[i] * b, yBAt(i), tr.pz[i] + tr.nz[i] * b);
     const v = vOver ?? vAt(i);
     uv.push(0, v, 1, v);
+    if (wx) { const sv = vOver != null ? vOver * uvV : tr.s[i]; wxa.push(sv, a, sv, b); }
     if (colorFn) { col.push(...colorFn(i, a), ...colorFn(i, b)); }
     return vcount++;
   };
@@ -1097,6 +1236,7 @@ export function ribbon(tr, offA, offB, y, { mask = null, colorFn = null, uvV = 8
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
   if (colorFn) g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  if (wx) g.setAttribute('aWx', new THREE.Float32BufferAttribute(wxa, 2));
   g.setIndex(idx); g.computeVertexNormals();
   return g;
 }
@@ -1174,7 +1314,7 @@ export function buildTrackMeshes(track, pit, gridSlots) {
   const asphalt = asphaltTexture(); asphalt.repeat.set(2, 1);
   const roadMat = new THREE.MeshStandardMaterial({ map: asphalt, roughness: 0.62, metalness: 0.06, envMapIntensity: 0.55, vertexColors: true, emissive: 0x0c0d12, emissiveIntensity: 0.6 });   // slick: floodlights / Sphere glow smear across it
   const HW = tr.hw, HL = tr.hwL, HR = tr.hwR, EG = (i, side) => (side > 0 ? HL[i] : HR[i]);
-  const roadGeo = ribbon(tr, (i) => -HR[i], (i) => HL[i], 0, { colorFn: (i, d) => { const r = 1 - 0.28 * Math.exp(-(d * d) / 18); return [r, r, r]; }, uvV: 10 });
+  const roadGeo = ribbon(tr, (i) => -HR[i], (i) => HL[i], 0, { colorFn: (i, d) => { const r = 1 - 0.28 * Math.exp(-(d * d) / 18); return [r, r, r]; }, uvV: 10, wx: true });
   group.add(spatialChunks([roadGeo], roadMat, 'road')); group.userData.roadMat = roadMat;   // lap-long ribbons are cut into map cells so off-camera parts cull
 
   // --- white edge lines (polygon offset: painted overlays never z-fight with the road at distance)
@@ -1326,8 +1466,11 @@ export function buildTrackMeshes(track, pit, gridSlots) {
   const wLt = ribbon(tr, (i) => wallAt(i, 1), (i) => wallAt(i, 1) + 0.6, 1.2, { mask: solidL }), wRt = ribbon(tr, (i) => -wallAt(i, -1) - 0.6, (i) => -wallAt(i, -1), 1.2, { mask: solidR });
   group.add(spatialChunks([wLt, wRt], wallMat, 'caps'));
   const fenceMat = fenceMaterial();
-  const fL = ribbon(tr, (i) => wallAt(i, 1) + 0.3, (i) => wallAt(i, 1) + 0.3, 1.2, { yB: 4.2, mask: solidL, uvFn: (i) => tr.s[i] / 3 }), fR = ribbon(tr, (i) => -wallAt(i, -1) - 0.3, (i) => -wallAt(i, -1) - 0.3, 1.2, { yB: 4.2, mask: solidR, uvFn: (i) => tr.s[i] / 3 });
-  group.add(spatialChunks([fL, fR], fenceMat, 'fences'));
+  if (tr.def.streetFence) group.add(streetFence(tr, wallAt, { 1: solidL, '-1': solidR }));
+  else {
+    const fL = ribbon(tr, (i) => wallAt(i, 1) + 0.3, (i) => wallAt(i, 1) + 0.3, 1.2, { yB: 4.2, mask: solidL, uvFn: (i) => tr.s[i] / 3 }), fR = ribbon(tr, (i) => -wallAt(i, -1) - 0.3, (i) => -wallAt(i, -1) - 0.3, 1.2, { yB: 4.2, mask: solidR, uvFn: (i) => tr.s[i] / 3 });
+    group.add(spatialChunks([fL, fR], fenceMat, 'fences'));
+  }
   const railMat = new THREE.MeshBasicMaterial({ color: 0x2255ff });
   const rL = ribbon(tr, (i) => wallAt(i, 1) + 0.2, (i) => wallAt(i, 1) + 0.4, 1.22, { mask: (i) => !circuit && !tr.inCornerZone(i) && open(i, 1) }), rR = ribbon(tr, (i) => -wallAt(i, -1) - 0.4, (i) => -wallAt(i, -1) - 0.2, 1.22, { mask: (i) => !circuit && !tr.inCornerZone(i) && open(i, -1) });
   group.add(spatialChunks([rL, rR], railMat, 'rails'));
@@ -1399,9 +1542,12 @@ export function buildTrackMeshes(track, pit, gridSlots) {
     const pitRoad = new THREE.Mesh(ribbon(pl, roadA, roadB, 0, { closed: false, colorFn: () => [0.85, 0.85, 0.9], uvV: 10, mask: own }), pitRoadMat);
     group.add(pitRoad); group.userData.pitRoadMat = pitRoadMat; pitRoad.userData.keep = true;
     // yellow edge lines: the track-side one follows the clipped edge (it is the pit entry / exit line where the lane meets the kerb)
-    const pe1 = ribbon(pl, (i) => ws * (pit.laneEdge[i] - 0.2), (i) => ws * pit.laneEdge[i], 0.01, { closed: false, mask: (i) => own(i) && pit.laneEdge[i] > -pit.halfWidth + 1.0 });
+    // (def.pitLine: a circuit's own colour and width for them - Las Vegas paints the pit entry and exit lines T-Mobile
+    //  magenta, wide)
+    const PL = tr.def.pitLine || {}, plw = PL.width ?? 0.2;
+    const pe1 = ribbon(pl, (i) => ws * (pit.laneEdge[i] - plw), (i) => ws * pit.laneEdge[i], 0.01, { closed: false, mask: (i) => own(i) && pit.laneEdge[i] > -pit.halfWidth + 1.0 });
     const pe2 = ribbon(pl, () => gs * pit.halfWidth, () => gs * (pit.halfWidth - 0.2), 0.01, { closed: false, mask: own });
-    const yellow = new THREE.MeshBasicMaterial({ color: 0xffd23a, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+    const yellow = new THREE.MeshBasicMaterial({ color: PL.color ?? 0xffd23a, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
     group.add(new THREE.Mesh(mergeGeometries([pe1, pe2]), yellow));
     // fast-lane / working-lane dashed separator
     const sep = ribbon(pl, () => gs * (pit.halfWidth - 3.6), () => gs * (pit.halfWidth - 3.45), 0.01, { closed: false, mask: (i) => own(i) && (i % 4) < 2 && isFinite(pit.wallIn[i]) });

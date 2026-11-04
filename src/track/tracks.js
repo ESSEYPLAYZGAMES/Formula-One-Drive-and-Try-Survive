@@ -1,3 +1,4 @@
+import { LV_CENTRELINE, LV_PITLANE } from './LasVegasOfficial.js';
 // Track registry. Each definition tells the geo pipeline how to chain the circuit (ordered legs of OSM road names
 // for a street circuit, or an ordered list of raceway way ids for a permanent circuit), where the pit lane is,
 // and how the venue is dressed (ground, kerbs, sponsor panels, run-off paint, landmarks, grandstands).
@@ -8,7 +9,7 @@ export const TRACKS = {
     name: 'Las Vegas Strip Circuit',
     title: ['LAS VEGAS', 'STRIP CIRCUIT'],
     // outline for the home-screen card (SVG path in a 100 x 100 box, generated from the built track)
-    outline: 'M69.8 88.1L71.0 86.8L72.2 85.5L73.3 84.2L74.5 82.9L75.6 81.6L76.1 80.0L74.9 78.8L73.2 78.5L71.5 78.9L70.1 79.9L68.8 81.0L67.4 82.0L65.7 82.2L64.0 81.7L62.6 80.6L61.7 79.2L61.4 77.5L61.3 75.7L61.3 74.0L61.3 72.2L61.3 70.5L61.3 68.7L61.3 67.0L61.2 65.2L61.2 63.5L61.2 61.8L61.2 60.0L61.2 58.3L61.2 56.5L61.2 54.8L61.2 53.0L61.2 51.3L61.2 49.5L61.2 47.8L61.1 46.0L61.1 44.3L61.1 42.6L61.1 40.8L61.1 39.1L61.4 37.5L63.2 37.5L64.9 37.5L66.7 37.5L68.4 37.5L70.2 37.6L71.9 37.6L73.2 36.6L74.1 35.1L74.9 33.6L75.8 32.1L76.6 30.5L76.0 29.1L75.0 27.9L75.2 26.1L75.5 24.4L75.8 22.7L74.5 21.9L72.8 21.9L71.1 21.8L69.3 21.8L67.6 21.7L65.8 21.7L64.1 21.6L62.3 21.7L60.7 21.3L59.2 20.7L57.5 20.5L55.8 20.1L54.4 19.2L53.1 17.9L52.2 16.5L51.5 14.9L50.9 13.3L50.2 11.6L49.6 10.0L48.5 8.6L47.2 7.4L45.8 6.5L44.1 6.0L42.4 5.6L40.7 5.3L39.0 5.0L38.1 6.5L37.3 8.0L36.5 9.6L35.7 11.1L34.9 12.7L34.1 14.2L33.2 15.8L32.4 17.3L31.5 18.8L30.7 20.3L29.8 21.8L29.1 23.4L28.4 25.0L27.7 26.7L27.2 28.3L26.7 30.0L26.2 31.7L25.7 33.3L25.3 35.0L25.0 36.7L24.7 38.5L24.5 40.2L24.3 41.9L24.1 43.7L24.0 45.4L23.9 47.2L23.9 48.9L23.9 50.7L23.9 52.4L23.9 54.1L23.9 55.9L24.0 57.6L24.0 59.4L23.9 61.1L23.8 62.9L23.8 64.6L23.7 66.4L23.7 68.1L23.7 69.9L23.6 71.6L23.5 73.3L23.5 75.1L23.4 76.8L23.4 78.6L23.3 80.3L23.3 82.1L23.3 83.8L23.3 85.6L23.3 87.3L23.3 89.0L23.5 90.8L24.7 92.0L25.9 93.3L27.2 94.4L28.9 94.8L30.7 94.9L32.4 94.9L34.1 94.9L35.9 94.9L37.6 94.9L39.4 95.0L41.1 95.0L42.9 95.0L44.6 95.0L46.4 95.0L48.1 95.0L49.9 95.0L51.6 95.0L53.3 95.0L55.1 95.0L56.8 95.0L58.6 95.0L60.3 95.0L62.0 94.7L63.6 94.0L65.2 93.2L66.4 92.0L67.6 90.7L68.8 89.4Z',
+    outline: 'M65.4 93.1L66.4 92.2L67.5 91.3L68.5 90.4L69.6 89.5L70.7 88.6L71.7 87.7L72.8 86.8L73.8 85.9L74.5 84.7L73.8 83.6L72.5 83.0L71.2 83.0L69.9 83.5L68.6 84.2L67.4 84.9L66.1 85.4L64.8 85.5L63.5 85.0L62.5 84.0L61.8 82.9L61.4 81.5L61.2 80.2L61.0 78.8L61.0 77.4L60.9 76.0L60.9 74.6L60.9 73.2L60.9 71.8L60.9 70.5L60.9 69.1L60.8 67.7L60.8 66.3L60.8 64.9L60.8 63.5L60.8 62.1L60.8 60.7L60.7 59.4L60.7 58.0L60.7 56.6L60.7 55.2L60.7 53.8L60.7 52.4L60.6 51.0L60.6 49.6L60.6 48.2L60.6 46.9L60.6 45.5L60.6 44.1L60.5 42.7L60.5 41.3L60.5 39.9L60.5 38.5L60.9 37.2L62.2 37.0L63.6 37.0L65.0 37.0L66.4 37.0L67.8 37.0L69.2 36.9L70.5 36.7L71.8 36.1L72.9 35.3L73.8 34.3L74.5 33.1L75.0 31.8L75.3 30.4L75.5 29.1L75.4 27.7L74.2 26.9L73.4 25.8L73.5 24.5L74.2 23.3L75.0 22.2L74.6 21.1L73.3 21.0L71.9 20.9L70.5 20.9L69.1 20.9L67.7 20.9L66.3 20.9L64.9 20.9L63.5 20.9L62.2 20.9L60.8 20.9L59.4 20.9L58.0 20.8L56.6 20.6L55.3 20.0L54.2 19.2L53.3 18.2L52.5 17.1L51.7 15.9L51.1 14.7L50.6 13.4L50.1 12.1L49.6 10.8L49.0 9.6L48.3 8.3L47.3 7.4L46.1 6.7L44.8 6.2L43.5 5.8L42.1 5.5L40.8 5.2L39.5 5.2L39.2 6.6L38.7 7.8L38.0 9.1L37.3 10.3L36.5 11.4L35.7 12.5L35.0 13.7L34.2 14.9L33.5 16.1L32.8 17.3L32.1 18.5L31.4 19.7L30.8 20.9L30.2 22.2L29.5 23.4L28.9 24.6L28.3 25.9L27.7 27.1L27.1 28.4L26.5 29.6L26.0 30.9L25.5 32.2L25.1 33.6L24.9 34.9L24.8 36.3L24.8 37.7L24.8 39.1L24.8 40.5L24.8 41.9L24.8 43.2L24.8 44.6L24.8 46.0L24.8 47.4L24.8 48.8L24.8 50.2L24.8 51.6L24.8 53.0L24.7 54.4L24.7 55.7L24.7 57.1L24.7 58.5L24.7 59.9L24.7 61.3L24.7 62.7L24.7 64.1L24.7 65.5L24.7 66.9L24.7 68.2L24.7 69.6L24.7 71.0L24.7 72.4L24.7 73.8L24.7 75.2L24.7 76.6L24.7 78.0L24.7 79.3L24.7 80.7L24.7 82.1L24.7 83.5L24.7 84.9L24.6 86.3L24.6 87.7L24.5 89.1L24.6 90.4L25.4 91.3L26.8 91.5L27.8 92.4L28.8 93.4L29.8 94.3L31.1 94.7L32.5 94.7L33.9 94.7L35.3 94.7L36.7 94.8L38.1 94.8L39.5 94.8L40.8 94.8L42.2 94.8L43.6 94.8L45.0 94.8L46.4 94.9L47.8 94.9L49.2 94.9L50.6 94.9L51.9 94.9L53.3 94.9L54.7 94.9L56.1 95.0L57.5 95.0L58.9 95.0L60.3 95.0L61.7 94.9L63.0 94.5L64.2 93.9Z',
     geojson: 'data/lasvegas.geojson',
     // Origin = OSM circuit relation node with role "start" (start/finish line on the pit straight)
     origin: [-115.1618816, 36.1092838],
@@ -25,6 +26,15 @@ export const TRACKS = {
       { roads: ['South Las Vegas Boulevard'], to: [-115.1729800, 36.1086800] },                        // The Strip south to T14
       { roads: ['East Harmon Avenue', 'South Las Vegas Boulevard'], to: [-115.1639015, 36.1079696] },  // Harmon east, T15-T17
     ],
+    // the lap as the official circuit map draws it (src/track/LasVegasOfficial.js) - in place of the OpenStreetMap chain
+    // below (kept: the export's line was up to 90 m out at Turns 1-3 and 40 m round the Sphere), the start/finish line
+    // at the map's flag, and the pit lane laid beside it
+    centreline: LV_CENTRELINE,
+    sfXZ: [-89.9, 120.1],
+    infill: true,   // (the city filled in between OSM's footprints along the circuit: world/Buildings.js infillBlocks)
+    streetFence: true,   // (the catch fence as the onboard footage shows it: posts cranked in at the top, cables, mesh - TrackBuilder streetFence)
+    pitLine: { color: 0xe20074, width: 0.35 },   // (the pit entry and exit lines in T-Mobile magenta: the 2024 onboards)
+    pitLanePts: LV_PITLANE,
     pitLaneWayId: 'way/1223479152',
     // DRS: Koval Lane (detection in the T1-T4 complex, T4 -> T5) and the Strip (detection at T11, T12 -> T14)
     drs: [
@@ -45,8 +55,21 @@ export const TRACKS = {
     autoStands: true,               // temporary grandstands auto-placed in empty lots
     zoneSeq: [0, 3, 1, 2, 0, 4, 5, 7, 1, 6, 0, 2, 3, 0, 1, 5],                 // sponsor panel per 180 m wall zone
     sponsorZone: { panel: 8, fromTurn: 5, toTurn: 10, before: 120, after: 40 },   // the T-Mobile Zone at Sphere
-    runoffPaint: [{ turns: [1], color: [0.82, 0.1, 0.13] }, { turns: [5, 6, 7, 8, 9], color: [0.84, 0.05, 0.42] }, { turns: [12, 14], color: [0.06, 0.58, 0.52] }],
-    runoffDecalTurns: [1, 5, 12, 14],
+    // (the walls from Turn 2 to Turn 5 as the 2024 onboards show them: T-Mobile magenta out of Turn 2, blue into Turn 3,
+    //  then down the straight to Turn 5 lilac T-Mobile boards on its right and the bare dark wall on its left)
+    sponsorZones: [{ panel: 26, fromTurn: 2, toTurn: 2, before: 0, after: 110 }, { panel: 27, fromTurn: 3, toTurn: 4, before: 75, after: 20 },
+      { panel: 28, fromTurn: 4, toTurn: 4, side: -1, before: -20, after: 850 }, { panel: 29, fromTurn: 4, toTurn: 4, side: 1, before: -20, after: 850 },
+      // (the Bellagio Fountain Club's stretch of the Strip: MGM Rewards boards on its wall)
+      { panel: 30, fromTurn: 14, toTurn: 14, side: -1, before: 670, after: -350 },
+      // (the chicane round the Sphere: aramco's green and blue boards on both walls from the run into Turn 7 to Turn 9)
+      { panel: 31, fromTurn: 7, toTurn: 9, before: 90, after: 30 }],
+    runoffPaint: [{ turns: [5, 6], color: [0.84, 0.05, 0.42] }, { turns: [12, 14], color: [0.06, 0.58, 0.52] }],
+    runoffDecalTurns: [5, 12, 14],
+    // Turn 1's run-off: the straight carried on past the hairpin to a wall across its end (the aerials from beyond Turn 1)
+    // - the main grandstand's barrier line on one side, the return leg's on the other, 42 m past the hairpin's kerb
+    // and the chicane's: the painted run-off on the way in, straight on past Turn 7 (its teal paint and the aramco name -
+    // world/VegasSphereZone.js); out of Turn 8 the wall runs beside the road as everywhere else
+    escapes: [{ side: -1, auto: { turn: 1, depth: 42 } }, { side: -1, band: { turn: 7, from: -40, to: 43, depth: 34 } }],   // (their paint: world/VegasPaddock.js, VegasSphereZone.js)
     shots: [
       { lm: 'sphere', label: 'SPHERE', rMul: 1.0, az: 0.5 }, { s: -160, label: 'PIT STRAIGHT', side: 1 },
       { lm: 'eiffel', label: 'PARIS LAS VEGAS', rMul: 1.05, az: -0.5 }, { s: 3900, label: 'THE STRIP', side: -1 },
@@ -59,23 +82,23 @@ export const TRACKS = {
     ],
     // Named corners (approximate apex lon/lat) used for HUD, AI error zones and telemetry
     corners: [
-      { n: 1, ll: [-115.16036, 36.11070], type: 'hairpin-L' },
-      { n: 2, ll: [-115.16053, 36.11107], type: 'L' },
-      { n: 3, ll: [-115.16292, 36.11044], type: 'R' },
-      { n: 4, ll: [-115.16393, 36.11115], type: 'R' },
-      { n: 5, ll: [-115.1639952, 36.1192075], type: 'R' },
-      { n: 6, ll: [-115.1611853, 36.1191725], type: 'L' },
-      { n: 7, ll: [-115.1601131, 36.1207408], type: 'L' },
-      { n: 8, ll: [-115.1606710, 36.1209393], type: 'R' },
-      { n: 9, ll: [-115.1604062, 36.1222364], type: 'L' },
-      { n: 10, ll: [-115.1640396, 36.1222899], type: 'R' },
-      { n: 11, ll: [-115.1668882, 36.1247170], type: 'R' },
-      { n: 12, ll: [-115.1693784, 36.1255587], type: 'L-90' },
-      { n: 13, ll: [-115.1725210, 36.1201017], type: 'kink' },
-      { n: 14, ll: [-115.1731517, 36.1088112], type: 'L-90' },
-      { n: 15, ll: [-115.1717973, 36.1079798], type: 'R' },
-      { n: 16, ll: [-115.1699600, 36.1079600], type: 'L' },
-      { n: 17, ll: [-115.1639015, 36.1079696], type: 'L-90' },
+      { n: 1, xz: [111.2, -57.5], type: 'hairpin-L' },
+      { n: 2, xz: [85.0, -100.4], type: 'L' },
+      { n: 3, xz: [-86.7, -48.7], type: 'R' },
+      { n: 4, xz: [-179.7, -148.6], type: 'R' },
+      { n: 5, xz: [-193.7, -1123.5], type: 'R' },
+      { n: 6, xz: [93.6, -1185.3], type: 'L' },
+      { n: 7, xz: [133.5, -1339.0], type: 'L' },
+      { n: 8, xz: [90.2, -1376.3], type: 'R' },
+      { n: 9, xz: [125.5, -1482.2], type: 'L' },
+      { n: 10, xz: [-330.1, -1517.3], type: 'R' },
+      { n: 11, xz: [-499.3, -1800.3], type: 'R' },
+      { n: 12, xz: [-662.9, -1844.6], type: 'L-90' },
+      { n: 13, xz: [-947.2, -1314.4], type: 'kink' },
+      { n: 14, xz: [-995.6, 76.5], type: 'L-90' },
+      { n: 15, xz: [-943.2, 87.1], type: 'R' },
+      { n: 16, xz: [-873.3, 153.7], type: 'L' },
+      { n: 17, xz: [-170.2, 160.5], type: 'L-90' },
     ],
     // Landmarks that are not present as named footprints in the OSM export are placed by geo anchor.
     landmarkAnchors: {

@@ -170,6 +170,8 @@ export function showStrategy(o) {
   const A = plans[0], softLife = Math.round(R.life(o.wet > 0.2 ? (o.wet > 0.5 ? 'WET' : 'INTER') : 'SOFT'));
   const advice = o.laps < 6 ? `It's a sprint. The tyres will just about last it - nobody should be stopping. Start on what gives you the best first lap.`
     : `We like Plan A: ${A.label.toLowerCase()}${A.stops ? `, boxing on lap ${A.stints[0].end}` : ''}. The ${o.wet > 0.2 ? 'inters' : 'softs'} are good for about ${softLife} laps before they fall away${R.two ? ', and the rules say two different dry compounds' : ''}. The stop costs us about ${o.pitLoss.toFixed(0)} seconds here.`;
+  // (the weather's forecast as the pit wall has it - race/Weather.js, main.js runRace: o.forecast, a sentence)
+  const advice2 = o.forecast ? `${advice} ${o.forecast}` : advice;
   // (each card once: the bars, the box-lap labels, the window; sync() changes them in place after that)
   const card = (p, i) => {
     const w = pitWindow(R, p), L = p.laps;

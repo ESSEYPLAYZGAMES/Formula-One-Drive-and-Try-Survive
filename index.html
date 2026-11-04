@@ -97,7 +97,7 @@
     <div class="brand-line"></div>
     <h1 id="brand-title">FORMULA 1<span id="brand-sub">SIMULATOR</span></h1>
     <!-- the build's version: +0.01 with every build handed out -->
-    <span id="app-ver" title="Version">V2.17</span>
+    <span id="app-ver" title="Version">V2.37</span>
     <div id="menu-sub">Real circuits built from OpenStreetMap</div>
   </div>
   <div id="loading" class="hidden"><div class="ld"><i></i></div><span>Building the circuit from OpenStreetMap…</span></div>
@@ -161,7 +161,7 @@
             <div class="opt race-only"><div class="lbl">Distance</div><div class="seg k-seg" id="opt-len"><button data-v="3">3 laps</button><button data-v="5" class="sel">5 laps</button><button data-v="8">8 laps</button><button data-v="13">25%</button><button data-v="25">50%</button><button data-v="50">Full</button></div></div>
             <div class="grid2">
               <div class="opt"><div class="lbl">Time</div><div class="seg k-seg" id="opt-time"><button data-v="night" class="sel">Midnight</button><button data-v="day">Midday</button></div><small id="time-note" class="su-note"></small></div>
-              <div class="opt"><div class="lbl">Weather</div><div class="seg k-seg" id="opt-weather"><button data-v="dry" class="sel">Dry</button><button data-v="damp">Damp</button><button data-v="wet">Wet</button></div></div>
+              <div class="opt"><div class="lbl">Weather</div><div class="seg k-seg" id="opt-weather"><button data-v="dry" class="sel">Dry</button><button data-v="damp">Damp</button><button data-v="wet">Wet</button><button data-v="changeable" title="Showers that come and go: forecast, not promised">Changeable</button></div></div>
             </div>
           </section>
           <section class="m-pg race-only" data-p="rivals">
@@ -184,6 +184,8 @@
               <div class="opt"><div class="lbl">Racing line (L)</div><div class="seg k-seg" id="opt-line"><button data-v="on" class="sel">On</button><button data-v="off">Off</button></div></div>
               <div class="opt"><div class="lbl">Flashbacks</div><div class="seg k-seg" id="opt-fb"><button data-v="off">Off</button><button data-v="inf" class="sel">Unlimited</button></div></div>
               <div class="opt"><div class="lbl">Volume</div><div class="vol-row"><input type="range" id="vol-menu" class="vol" min="0" max="100" step="1"><span class="vol-val"></span></div></div>
+              <div class="opt"><div class="lbl">T-cam tilt</div><div class="vol-row"><input type="range" id="tilt-menu" class="vol tilt" min="4" max="16" step="1" aria-label="T-cam tilt"><span class="vol-val"></span></div></div>
+              <div class="opt"><div class="lbl">T-cam field of view</div><div class="vol-row"><input type="range" id="fov-menu" class="vol tilt" min="30" max="60" step="1" aria-label="T-cam field of view"><span class="vol-val"></span></div></div>
               <div class="opt"><div class="lbl">Race start</div><div class="seg k-seg" id="opt-intro"><button data-v="on" class="sel">Build-up</button><button data-v="skip">Straight to lights</button></div></div>
             </div>
             <div class="su-keys"><div class="lbl">Controls · keyboard or gamepad</div><dl>
@@ -239,6 +241,8 @@
   <h2>PAUSED</h2>
   <div class="row center"><button id="btn-resume" class="go">RESUME<span>→</span></button><button id="btn-restart" class="ghost hidden">RESTART RACE</button><button id="btn-tel" class="ghost">TELEMETRY</button><button id="btn-photo" class="ghost">PHOTO MODE</button><button id="btn-finish" class="ghost hidden">FINISH SESSION</button><button id="btn-end" class="ghost hidden">END SESSION</button><button id="btn-quit" class="ghost">QUIT TO MENU</button></div>
   <div class="row center vol-row"><label for="vol-pause">VOLUME</label><input type="range" id="vol-pause" class="vol" min="0" max="100" step="1"><span class="vol-val"></span></div>
+  <div class="row center vol-row"><label for="tilt-pause">T-CAM TILT</label><input type="range" id="tilt-pause" class="vol tilt" min="4" max="16" step="1"><span class="vol-val"></span></div>
+  <div class="row center vol-row"><label for="fov-pause">T-CAM FOV</label><input type="range" id="fov-pause" class="vol tilt" min="30" max="60" step="1"><span class="vol-val"></span></div>
   <div class="hint">Photo mode: WASD fly · Q/E down/up · Shift fast · Alt (or Ctrl) fine · drag or arrow keys to look · H toggle HUD · Esc back</div>
 </div>
 <div id="photo-hint" class="hidden"><span>PHOTO MODE · WASD fly · Q/E · Shift · drag to look · H HUD · P/Space play · Esc back</span><button id="photo-play">▶ PLAY</button></div>
