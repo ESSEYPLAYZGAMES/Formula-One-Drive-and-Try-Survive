@@ -1,3 +1,27 @@
+# V2.32 (2026-11-04): the Sphere zone, Wynn and Encore, the Sphere's one big screen, the T-cam
+
+- T-cam (CockpitCamera.js): one fixed lens - set, never eased (no zoom-in back from the rear view or another camera);
+  its tilt down a setting (T-cam tilt, 4-16 degrees, 9 by default: a touch higher than V2.26's 12), on the setup's
+  Driving page and in the pause menu, kept in this browser. Q / E turn the lens on its pod at the same height and tilt
+  (it used to rise 15 cm and level out: a diagonal sweep). The rear-facing lens on the pod's top at 1.30 m riding with
+  the body: at 1.21 m, fixed, the 0.3 m near plane sliced the airbox (1.18 m) open whenever the body heaved.
+- Turns 7-8 (TrackBuilder escapes band; VegasSphereZone.js): the run-off east of the chicane, ~195 m long and 33 m
+  deep, painted aramco teal with green bands across it and the name along it; aramco's green and blue boards on both
+  walls T7-T9 (Branding panel 31); a white lattice lighting gantry along the chicane's inside wall with the aramco
+  banner; light towers and marshals' posts on the run-off's wall.
+- The T-Mobile Zone at Sphere: magenta-clad stands outside the south leg, round Turn 6 and along the run-off (15
+  sections), the lit T-Mobile cube on its mast; the fan zone inside the loop (29 marquees, container bars, the stage,
+  light towers); the city's infill and auto stands kept out of the loop.
+- Sphere: the F1 stream is one big screen (the feed across the face, bent with the shell; timing towers, caption,
+  ribbon); a new show in the loop - race week's red shell with the white lattice and the race's title (SphereShow gp).
+- Wynn and Encore (Landmarks.js): curved slabs fitted to their footprints (Wynn: the crescent, a 304 m curve, 231 m
+  across, 26 m deep, concave to the Strip; Encore: on its footprint's curved north-east edge, a 233 m curve, 154 m, its
+  podium the rest), bronze glass drawn floor by floor - warm rooms lit at random, a white line of light along every
+  other floor, the dark crown, the names in white script, bronze end fins.
+- To check against photos: which way Encore's tower curves (OSM's footprint has it concave to the north-east; the
+  user's photo, a game render, shows its concave face from the Strip).
+- Known: lap-1 pile-ups at T10-T11 (since V2.24): refit the Vegas AI calibration to the de-kinked line.
+
 # V2.31 (2026-11-04): the Bellagio in detail, the fountains, a full city, live ground, the High Roller
 
 - Bellagio (Landmarks.js): the front's curve read off its footprint (long axis, length, bow -> a 194 m radius, 207 m

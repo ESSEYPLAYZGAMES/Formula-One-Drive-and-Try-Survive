@@ -1,6 +1,7 @@
 // Live "world feed": a grid of camera views (driver onboards, trackside, pit lane, helicopter) rendered
 // round-robin into a render-target atlas that the Sphere projects in its F1 stream mode.
 import * as THREE from 'three';
+import { TCAM_X, TCAM_Y, TCAM_RISE, TCAM_PITCH, TCAM_FOV } from '../camera/CockpitCamera.js';
 
 export class Broadcast {
   /**
@@ -8,12 +9,13 @@ export class Broadcast {
    * That lets the Sphere itself be one of the feeds (it is filmed showing the previous frame's atlas) without a
    * render target ever sampling itself.
    */
-  constructor(size = 512, grid = 2, perFrame = 1) {
-    this.size = size; this.grid = grid; this.perFrame = perFrame;
+  constructor(size = 512, grid = 2, perFrame = 1, aspect = 1) {
+    // (size is the atlas's height; its width is size x aspect - a single 16:9 feed for the Sphere's one big screen)
+    this.size = size; this.width = Math.round(size * aspect); this.grid = grid; this.perFrame = perFrame;
     const opts = { depthBuffer: true, samples: 0 };
-    this.work = new THREE.WebGLRenderTarget(size, size, opts); this.shown = new THREE.WebGLRenderTarget(size, size, { depthBuffer: false });
+    this.work = new THREE.WebGLRenderTarget(this.width, size, opts); this.shown = new THREE.WebGLRenderTarget(this.width, size, { depthBuffer: false });
     this.work.texture.colorSpace = THREE.SRGBColorSpace; this.shown.texture.colorSpace = THREE.SRGBColorSpace;
-    this.cams = Array.from({ length: grid * grid }, () => new THREE.PerspectiveCamera(58, 1, 0.5, 4000));
+    this.cams = Array.from({ length: grid * grid }, () => new THREE.PerspectiveCamera(58, aspect, 0.5, 4000));
     this.slot = 0;
     // blit quad (work -> shown)
     this.blitScene = new THREE.Scene(); this.blitCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
@@ -37,12 +39,12 @@ export class Broadcast {
     if (!poses.length) return;
     for (const o of hide) o.visible = false;
     const prevTarget = renderer.getRenderTarget();
-    const n = this.grid * this.grid, tile = this.size / this.grid;
+    const n = this.grid * this.grid, tile = this.size / this.grid, tileW = this.width / this.grid;
     for (let k = 0; k < this.perFrame; k++) {
       const i = this.slot; this.slot = (this.slot + 1) % n;
       const cam = this.cams[i]; poses[i % poses.length](cam); cam.updateMatrixWorld();
-      const x = (i % this.grid) * tile, y = Math.floor(i / this.grid) * tile;
-      this.work.viewport.set(x, y, tile, tile); this.work.scissor.set(x, y, tile, tile); this.work.scissorTest = true;
+      const x = (i % this.grid) * tileW, y = Math.floor(i / this.grid) * tile;
+      this.work.viewport.set(x, y, tileW, tile); this.work.scissor.set(x, y, tileW, tile); this.work.scissorTest = true;
       renderer.setRenderTarget(this.work);
       renderer.render(scene, cam);
     }
@@ -58,15 +60,16 @@ export class Broadcast {
 export const POSES = {
   /** broadcast T-cam on a car */
   onboard: (car) => (cam) => {
-    const c = Math.cos(car.th), s = Math.sin(car.th);
-    cam.position.set(car.x - 0.18 * c, 1.1, car.z - 0.18 * s);   // the T-cam pod (CockpitCamera TCAM_X / TCAM_Y)
-    cam.up.set(0, 1, 0); cam.lookAt(car.x + c * 25, 0.45, car.z + s * 25); cam.fov = 66; cam.updateProjectionMatrix();
+    // (the T-cam as the player's: the pod, its tilt down and its lens - CockpitCamera; the body's heave and pitch with it)
+    const c = Math.cos(car.th), s = Math.sin(car.th), y = TCAM_Y + TCAM_RISE + (car.hv || 0) + TCAM_X * (car.pt || 0);
+    cam.position.set(car.x + TCAM_X * c, y, car.z + TCAM_X * s);
+    cam.up.set(0, 1, 0); cam.lookAt(car.x + c * 25, y - 25 * Math.tan(TCAM_PITCH), car.z + s * 25); cam.fov = TCAM_FOV + 8; cam.near = 0.12; cam.updateProjectionMatrix();   // (near: the halo and the helmet in the picture; a little wider than yours, the car filling its foot)
   },
   /** nose camera: mounted on the nose tip just above the front wing, looking down the road */
   nose: (car) => (cam) => {
     const c = Math.cos(car.th), s = Math.sin(car.th);
     cam.position.set(car.x + 2.6 * c, 0.42, car.z + 2.6 * s);
-    cam.up.set(0, 1, 0); cam.lookAt(car.x + c * 40, 0.5, car.z + s * 40); cam.fov = 74; cam.updateProjectionMatrix();
+    cam.up.set(0, 1, 0); cam.lookAt(car.x + c * 40, 0.5, car.z + s * 40); cam.fov = 74; cam.near = 0.5; cam.updateProjectionMatrix();
   },
   /** visor / helmet camera: the driver's eye line, a touch of head movement with steering */
   visor: (car) => (cam) => {
@@ -90,7 +93,7 @@ export const POSES = {
   /** static trackside camera at arc length s that pans to follow the nearest car (or looks down the track) */
   trackside: (track, s, side, cars) => (cam) => {
     const f = track.sample(s, side * (track.wallAt(track.idxAtS(s), side) + 4));
-    cam.position.set(f.x, 4.5, f.z); cam.up.set(0, 1, 0);
+    cam.position.set(f.x, 4.5, f.z); cam.up.set(0, 1, 0); cam.near = 0.5;
     let best = null, bd = 260;
     for (const c of cars || []) { const L = track.length; let ds = c.s - s; if (ds > L / 2) ds -= L; if (ds < -L / 2) ds += L; if (Math.abs(ds) < bd) { bd = Math.abs(ds); best = c; } }
     if (best) { cam.lookAt(best.x, 0.7, best.z); cam.fov = Math.max(14, Math.min(50, 900 / Math.max(25, Math.hypot(best.x - f.x, best.z - f.z)))); }

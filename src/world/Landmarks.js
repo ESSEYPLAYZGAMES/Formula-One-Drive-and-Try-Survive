@@ -80,7 +80,7 @@ function archTexture() {
  */
 function sphereShader() {
   return new THREE.ShaderMaterial({
-    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uTime: { value: 0 }, uDay: { value: 0 }, uFeed: { value: null }, uHasFeed: { value: 0 }, uShow: { value: null }, uShowBg: { value: new THREE.Color(0xf7b21c) }, uGrid: { value: 3 }, uTwoSided: { value: 1 }, uFace: { value: new THREE.Vector3(1, 0, 0) }, uRight: { value: new THREE.Vector3(0, 0, -1) }, uGround: { value: -0.43 }, uForce: { value: -1 } }]), fog: true,
+    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uTime: { value: 0 }, uDay: { value: 0 }, uFeed: { value: null }, uHasFeed: { value: 0 }, uShow: { value: null }, uBcast: { value: null }, uHasBcast: { value: 0 }, uShowBg: { value: new THREE.Color(0xf7b21c) }, uGrid: { value: 3 }, uTwoSided: { value: 1 }, uFace: { value: new THREE.Vector3(1, 0, 0) }, uRight: { value: new THREE.Vector3(0, 0, -1) }, uGround: { value: -0.43 }, uForce: { value: -1 } }]), fog: true,
     vertexShader: `#include <common>
       #include <fog_pars_vertex>
       varying vec2 vUv; varying vec3 vN; varying vec3 vP;
@@ -91,7 +91,7 @@ function sphereShader() {
       }`,
     fragmentShader: `#include <common>
       #include <fog_pars_fragment>
-      uniform float uTime, uDay, uHasFeed, uGrid, uTwoSided, uGround, uForce; uniform sampler2D uFeed, uShow; uniform vec3 uShowBg, uFace, uRight; varying vec2 vUv; varying vec3 vN; varying vec3 vP;
+      uniform float uTime, uDay, uHasFeed, uHasBcast, uGrid, uTwoSided, uGround, uForce; uniform sampler2D uFeed, uShow, uBcast; uniform vec3 uShowBg, uFace, uRight; varying vec2 vUv; varying vec3 vN; varying vec3 vP;
       float hash(vec2 p); float noise(vec2 p); float fbm(vec2 p);   // defined further down
       // uFace points from the Sphere's centre to the nearest point of the circuit; uRight is screen-right for a
       // viewer standing there. Content is drawn so it reads correctly (not mirrored) from the track.
@@ -127,29 +127,32 @@ function sphereShader() {
         float st = step(0.996, hash(floor(uv * 260.0))) * (1.0 - cl);
         return c + st * 0.9;
       }
-      // F1 stream: the camera wall wraps all the way around the Sphere (the 3x3 atlas repeats twice around the
-      // circumference, tile rows follow latitude) with a red broadcast bar over the top cap
-      // F1 stream: a band of 2 x 2 camera tiles wraps the Sphere (the 2 x 2 atlas repeats twice around, so every
-      // side sees two feeds side by side) with dark blank space above and below and wide black gutters between the
-      // tiles, like the real broadcast wrap; a red glow caps the top
+      // F1 stream, as at the 2024 race: one big screen - the world feed's onboard across the face, a timing tower down
+      // each side, the caption low on the picture (the graphics: uBcast, SphereShow.js BroadcastOverlay). It is laid on
+      // the shell by longitude and latitude, as the Sphere's own content is, so it bends with it: straight across the
+      // middle, its top edge pulled in toward the crown, the sides wrapping round out of sight. The frame spans
+      // 86 degrees either side of the face and from 10 degrees below the equator (the shell meets the plaza at 25) to
+      // 65 above, a dark band under it and a red-gold ribbon over its top; the far side carries the same screen, read
+      // the right way round from there.
       vec3 broadcast(vec2 uv, float t){
         vec3 n = normalize(vP);
         float az = atan(dot(n, uRight), dot(n, uFace));        // 0 = facing the track
-        float u = fract(az / 6.2831853 + 0.5 + 1.0 / 8.0);      // 4 tile columns around, centred on the track-facing side
-        float vy = vis(n.y);
-        float v = (vy - 0.14) / 0.56;                            // the band: 14 % .. 70 % of the visible height
-        vec3 blank = vec3(0.02, 0.005, 0.01) + vec3(0.6, 0.03, 0.05) * smoothstep(0.72, 1.0, vy) * (0.5 + 0.5 * sin(uv.x * 40.0 + t * 0.4));
-        if (v < 0.0 || v > 1.0) return blank * 0.75;
-        vec2 g = vec2(fract(u * 2.0), v);
-        vec2 lc = fract(g * uGrid);
-        float gutter = 0.06;
-        if (lc.x < gutter || lc.x > 1.0 - gutter || lc.y < gutter || lc.y > 1.0 - gutter) return vec3(0.02) * 0.75;   // black gutters
-        vec2 inner = (lc - gutter) / (1.0 - 2.0 * gutter);                    // the tile's picture fills the cell inside the gutter
-        vec2 tex = (floor(g * uGrid) + inner) / uGrid;
-        vec3 col = uHasFeed > 0.5 ? texture2D(uFeed, tex).rgb : vec3(0.05);
-        float tag = step(0.92, inner.y) * step(inner.x, 0.2);                  // red channel tag per tile
-        col = mix(col, vec3(0.85, 0.02, 0.02), tag);
-        return col * 0.75;
+        if (az > 1.5707963) az -= 3.1415927; else if (az < -1.5707963) az += 3.1415927;
+        float el = asin(clamp(n.y, -1.0, 1.0));
+        const float A = 1.50, E0 = -0.17, E1 = 1.13;
+        float u = az / (2.0 * A) + 0.5, v = (el - E0) / (E1 - E0);
+        vec3 dark = vec3(0.012, 0.012, 0.022);
+        if (v > 1.0) {   // over the screen: the ribbon, then the dark crown
+          float k = (el - E1) / 0.07;
+          if (k < 1.0) return mix(vec3(1.0, 0.08, 0.04), vec3(1.0, 0.72, 0.08), k) * (0.8 + 0.2 * sin(az * 30.0 - t * 2.0));
+          return dark;
+        }
+        if (v < 0.0 || abs(az) > A) return dark;
+        vec3 col = dark;
+        vec2 pic = vec2((u - 0.14) / 0.72, (v - 0.06) / 0.84);
+        if (pic.x > 0.0 && pic.x < 1.0 && pic.y > 0.0 && pic.y < 1.0) col = uHasFeed > 0.5 ? texture2D(uFeed, pic).rgb * 0.72 : vec3(0.05);
+        if (uHasBcast > 0.5) { vec4 o = texture2D(uBcast, vec2(u, v)); col = mix(col, o.rgb * 0.62, o.a); }
+        return col;
       }
       float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
       float noise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f); return mix(mix(hash(i), hash(i+vec2(1,0)), f.x), mix(hash(i+vec2(0,1)), hash(i+vec2(1,1)), f.x), f.y); }
@@ -216,23 +219,23 @@ function sphereShader() {
         else if (m == 1) c = planet(uv, t);
         else if (m == 2) c = basketball(uv, t);
         else if (m == 3) c = lava(uv, t);
-        else if (m == 5 || m == 8 || m == 9 || m == 10 || m == 11 || m == 12) c = canvasShow();
+        else if (m == 5 || m == 8 || m == 9 || m == 10 || m == 11 || m == 12 || m == 13) c = canvasShow();
         else if (m == 6) c = broadcast(uv, t);
         else if (m == 7) c = clouds(uv, t);
         return c;
       }
-      // show order (must match SPHERE_SEQUENCE in SphereShow.js): eyeball, planet, smiley, basketball, sign, lava, helmet, sponsor, broadcast, marquee, clouds, off
+      // show order (must match SPHERE_SEQUENCE in SphereShow.js): eyeball, planet, smiley, basketball, sign, lava, helmet, sponsor, broadcast, marquee, clouds, gp, off
       int modeAt(int k){
         if (k == 0) return 0; if (k == 1) return 1; if (k == 2) return 5; if (k == 3) return 2; if (k == 4) return 8;
-        if (k == 5) return 3; if (k == 6) return 9; if (k == 7) return 12; if (k == 8) return 6; if (k == 9) return 10; if (k == 10) return 7; return 4;
+        if (k == 5) return 3; if (k == 6) return 9; if (k == 7) return 12; if (k == 8) return 6; if (k == 9) return 10; if (k == 10) return 7; if (k == 11) return 13; return 4;
       }
       void main(){
         vec2 uv = sph();
-        float cyc = mod(uTime, 288.0);   // (12 shows x 24 s: SPHERE_SEQUENCE)
+        float cyc = mod(uTime, 312.0);   // (13 shows x 24 s: SPHERE_SEQUENCE)
         int k = int(floor(cyc / 24.0));
         float tin = cyc - float(k) * 24.0;
         float blend = smoothstep(21.0, 24.0, tin);
-        int m = modeAt(k), mn = modeAt((k >= 11) ? 0 : k + 1);
+        int m = modeAt(k), mn = modeAt((k >= 12) ? 0 : k + 1);
         if (uForce >= 0.0) { m = int(uForce + 0.5); mn = m; blend = 0.0; }   // a forced show (the race-end winner tribute)
         vec3 a = show(m, uv, uTime); vec3 b = a;
         if (blend > 0.001) b = show(mn, uv, uTime);   // the second show is only evaluated during the 3 s crossfade
@@ -378,18 +381,109 @@ def('palazzo', /^palazzo tower$|^the palazzo$/i, (fps, ctx) => {
   return out;
 });
 
-// 7/8 Wynn + Encore (bronze crescents)
-function crescent(fp, ctx, H, color) {
-  const g = new THREE.Group(); const rIn = 105, rOut = 124, th = 1.25;
-  g.add(arcSlab(rIn, rOut, th, H, glass(color, { roughness: 0.1, metalness: 0.95, emissive: 0x1a1008, emissiveIntensity: 0.6 })));
-  g.add(arcSlab(rIn - 0.5, rOut + 0.5, th, 2.5, glow(0xffffff, 2.4), H));
-  const tt = ctx.toTrack(fp.info.c); g.rotation.y = rotYForLocalX(-tt[0], -tt[1]);
-  const out = new THREE.Group(); g.position.set(fp.info.c[0], 0, fp.info.c[1]); out.add(g);
-  const p = podium(fp, 16, std(0x3a2f26, { roughness: 0.6 })); if (p) out.add(p);
-  return out;
+// 7/8 Wynn + Encore: the two bronze curved slabs (the user's photo from the circuit: bronze-gold glass, a bright line
+// along every other floor, warm rooms lit at random, a dark crown band with the name in white script at one end). Each
+// tower's curve is fitted to its footprint (a least-squares circle through the face's points): Wynn's footprint is the
+// tower itself - a 23 m crescent, concave to the west, to the Strip; Encore's tower stands on the curved north-east edge
+// of its footprint, 25 m deep, the rest of the footprint its podium.
+function wynnFacade(H, seed) {
+  // (one 24 m bay of the curve, the full height: the glass's colour, and what glows at night)
+  const W = 512, Hp = 4096, px = Hp / H, mk = () => { const c = document.createElement('canvas'); c.width = W; c.height = Hp; return c; };
+  const cc = mk(), ce = mk(), x = cc.getContext('2d'), e = ce.getContext('2d'), Y = (m) => Hp - m * px;
+  let sd = seed; const rnd = () => ((sd = (sd * 16807) % 2147483647) / 2147483647);
+  const g = x.createLinearGradient(0, 0, W, 0); g.addColorStop(0, '#7a4f26'); g.addColorStop(0.5, '#a8743c'); g.addColorStop(1, '#7a4f26'); x.fillStyle = g; x.fillRect(0, 0, W, Hp);
+  e.fillStyle = '#2a1606'; e.fillRect(0, 0, W, Hp);   // (the bronze glass at night: a dull amber, the city's light in it)
+  const FL = 3.6, CROWN = 13, cols = 16, cw = W / cols;
+  for (let y = 4, fl = 0; y + FL <= H - CROWN; y += FL, fl++) {
+    for (let k = 0; k < cols; k++) {   // (the rooms: lit warm, dimmer, or dark behind the bronze)
+      const r = rnd(), y0 = Y(y + FL - 0.3), hh = (FL - 0.9) * px;
+      x.fillStyle = `rgba(60,34,14,${0.25 + rnd() * 0.25})`; x.fillRect(k * cw + 2, y0, cw - 4, hh);
+      e.fillStyle = r < 0.34 ? (rnd() < 0.7 ? '#e8913c' : '#f5c27a') : r < 0.5 ? '#4a2a10' : '#1e1004'; e.fillRect(k * cw + 2, y0, cw - 4, hh);
+    }
+    // (the floor's spandrel: bronze, and the white line of light along every other one)
+    x.fillStyle = '#c99a5a'; x.fillRect(0, Y(y + 0.6), W, 0.6 * px);
+    if (fl % 2 === 1) { e.fillStyle = '#fff6e8'; e.fillRect(0, Y(y + 0.45), W, 0.3 * px); x.fillStyle = '#f2e6d0'; x.fillRect(0, Y(y + 0.45), W, 0.3 * px); }
+  }
+  for (let k = 0; k <= cols; k++) { x.fillStyle = 'rgba(40,24,10,0.5)'; x.fillRect(k * cw - 1, Y(H - CROWN), 2, (H - CROWN) * px); }   // (mullions)
+  // the crown: dark glass over the plant floors, a thin bronze cap
+  x.fillStyle = '#1c140e'; x.fillRect(0, 0, W, CROWN * px); e.fillStyle = '#080503'; e.fillRect(0, 0, W, CROWN * px);
+  x.fillStyle = '#b07c40'; x.fillRect(0, 0, W, 0.8 * px); e.fillStyle = '#6a4a20'; e.fillRect(0, 0, W, 0.8 * px);
+  // the base: the porte-cochere's glow
+  e.fillStyle = '#ffcf8a'; e.fillRect(0, Y(4), W, 4 * px); x.fillStyle = '#d8b07a'; x.fillRect(0, Y(4), W, 4 * px);
+  const t = new THREE.CanvasTexture(cc), te = new THREE.CanvasTexture(ce);
+  for (const tt of [t, te]) { tt.wrapS = THREE.RepeatWrapping; tt.colorSpace = THREE.SRGBColorSpace; tt.anisotropy = 8; }
+  return [t, te];
 }
-def('wynn', /^wynn las vegas$/i, (fps, ctx) => crescent(fps[0], ctx, 187, 0x7a5a30));
-def('encore', /^encore$/i, (fps, ctx) => crescent(fps[0], ctx, 192, 0x7a5a30));
+/** the name at the top: white script, lit */
+function scriptSignTexture(name) {
+  const c = document.createElement('canvas'); c.width = 1024; c.height = 320; const x = c.getContext('2d');
+  x.clearRect(0, 0, 1024, 320); x.fillStyle = '#ffffff'; x.shadowColor = '#fff2dc'; x.shadowBlur = 16;
+  x.lineWidth = 7; x.strokeStyle = '#ffffff'; x.font = 'italic 700 230px "Brush Script MT", "Segoe Script", "Lucida Handwriting", "Apple Chancery", cursive'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.strokeText(name, 512, 150); x.fillText(name, 512, 150);
+  x.fillRect(560, 250, 360, 7);   // (the flourish under it)
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+/** a least-squares circle through points [[x, z]] -> { cx, cz, r } */
+function fitCircle(pts) {
+  let s = [0, 0, 0, 0, 0, 0, 0, 0, 0], v = [0, 0, 0];
+  for (const [x, z] of pts) { const q = [x, z, 1], w = -(x * x + z * z); for (let i = 0; i < 3; i++) { v[i] += q[i] * w; for (let j = 0; j < 3; j++) s[i * 3 + j] += q[i] * q[j]; } }
+  const det = (m) => m[0] * (m[4] * m[8] - m[5] * m[7]) - m[1] * (m[3] * m[8] - m[5] * m[6]) + m[2] * (m[3] * m[7] - m[4] * m[6]), D = det(s);
+  const sol = [0, 1, 2].map((k) => { const m = s.slice(); for (let i = 0; i < 3; i++) m[i * 3 + k] = v[i]; return det(m) / D; });
+  const cx = -sol[0] / 2, cz = -sol[1] / 2; return { cx, cz, r: Math.sqrt(Math.max(1, cx * cx + cz * cz - sol[2])) };
+}
+/** a curved tower about centre (cx, cz): faces at rIn (concave) and rOut, angles aLo..aHi, H tall, its name on both faces */
+function curvedTower(o) {
+  const { cx, cz, rIn, rOut, aLo, aHi, H, name, seed } = o, g = new THREE.Group(); g.position.set(cx, 0, cz);
+  const [tex, texE] = wynnFacade(H, seed), mat = new THREE.MeshStandardMaterial({ map: tex, emissiveMap: texE, emissive: 0xffffff, emissiveIntensity: 0.9, roughness: 0.25, metalness: 0.55 });
+  g.add(new THREE.Mesh(curvedWall(rIn, aLo, aHi, 0, H, H, true), mat), new THREE.Mesh(curvedWall(rOut, aLo, aHi, 0, H, H, false), mat));
+  // the ends: dark bronze fins, a little proud of the faces
+  const fin = std(0x2a1c10, { roughness: 0.5, metalness: 0.6, emissive: 0x120a04 });
+  for (const a of [aLo, aHi]) { const d = rOut - rIn + 2, f = new THREE.BoxGeometry(d, H + 1.5, 2.4); f.rotateY(-a); f.translate(Math.cos(a) * (rIn + rOut) / 2, (H + 1.5) / 2, Math.sin(a) * (rIn + rOut) / 2); g.add(new THREE.Mesh(f, fin)); }
+  // the roof and its parapet
+  const rf = new THREE.RingGeometry(rIn, rOut, 64, 1, -aHi, aHi - aLo); rf.rotateX(-Math.PI / 2); rf.translate(0, H, 0); g.add(new THREE.Mesh(rf, std(0x2a2622, { roughness: 0.8, side: THREE.DoubleSide })));
+  // the name: in the crown band at one end of each face, lit white
+  const sign = new THREE.MeshBasicMaterial({ map: scriptSignTexture(name), transparent: true, depthWrite: false, side: THREE.DoubleSide, fog: true }), w = Math.min(64, (aHi - aLo) * rIn * 0.3);
+  // (at the end that is the left one seen from in front of that face: from the concave side a rising angle runs to the
+  //  right, from the convex side to the left)
+  for (const [r, out] of [[rIn - 1.2, false], [rOut + 1.2, true]]) {
+    const a = aLo + (aHi - aLo) * (out ? 0.84 : 0.16), p = new THREE.PlaneGeometry(w, w * 0.31);
+    p.rotateY(-a + (out ? Math.PI / 2 : -Math.PI / 2)); p.translate(Math.cos(a) * r, H - 6.8, Math.sin(a) * r); const m = new THREE.Mesh(p, sign); m.renderOrder = 4; g.add(m);
+  }
+  return g;
+}
+function towerAngles(cx, cz, pts) {
+  const m = Math.atan2(pts.reduce((a, p) => a + (p[1] - cz), 0), pts.reduce((a, p) => a + (p[0] - cx), 0));
+  let lo = Infinity, hi = -Infinity; for (const [x, z] of pts) { let a = Math.atan2(z - cz, x - cx) - m; a = Math.atan2(Math.sin(a), Math.cos(a)); lo = Math.min(lo, a); hi = Math.max(hi, a); }
+  return [m + lo, m + hi];
+}
+def('wynn', /^wynn las vegas$/i, (fps, ctx) => {
+  // (the footprint is the crescent itself: its long axis and length, how far its middle line bows from the line between
+  //  its ends - the radius from that sagitta, the centre on the concave side - and its depth across the middle)
+  const ring = fps[0].b.rings[0]; let mx = 0, mz = 0; for (const [x, z] of ring) { mx += x; mz += z; } mx /= ring.length; mz /= ring.length;
+  let sxx = 0, szz = 0, sxz = 0; for (const [x, z] of ring) { const dx = x - mx, dz = z - mz; sxx += dx * dx; szz += dz * dz; sxz += dx * dz; }
+  const th = 0.5 * Math.atan2(2 * sxz, sxx - szz), dA = [Math.cos(th), Math.sin(th)], nA = [-dA[1], dA[0]];
+  const P = ring.map(([x, z]) => [(x - mx) * dA[0] + (z - mz) * dA[1], (x - mx) * nA[0] + (z - mz) * nA[1]]);
+  const aMin = Math.min(...P.map((p) => p[0])), aMax = Math.max(...P.map((p) => p[0])), L = aMax - aMin, aMid = (aMin + aMax) / 2;
+  const mid = P.filter((p) => Math.abs(p[0] - aMid) < 0.15 * L), ends = P.filter((p) => p[0] < aMin + 0.08 * L || p[0] > aMax - 0.08 * L);
+  const avg = (q) => q.reduce((acc, p) => acc + p[1], 0) / Math.max(1, q.length), bm = avg(mid), be = avg(ends), sag = bm - be;
+  const T = Math.max(16, Math.max(...mid.map((p) => p[1])) - Math.min(...mid.map((p) => p[1])));
+  const R = Math.min(800, L * L / (8 * Math.max(3, Math.abs(sag))) + Math.abs(sag) / 2), sg = Math.sign(sag) || 1;
+  const cb = bm - sg * R, cx = mx + dA[0] * aMid + nA[0] * cb, cz = mz + dA[1] * aMid + nA[1] * cb;
+  const am = Math.atan2(nA[1] * sg, nA[0] * sg), half = Math.asin(Math.min(0.95, (L / 2) / R));
+  console.info(`[world] Wynn: the crescent on a ${R.toFixed(0)} m curve, ${L.toFixed(0)} m across, ${T.toFixed(0)} m deep`);
+  const out = new THREE.Group(); out.add(curvedTower({ cx, cz, rIn: R - T / 2, rOut: R + T / 2, aLo: am - half, aHi: am + half, H: 187, name: 'Wynn', seed: 21 })); return out;
+});
+def('encore', /^encore$/i, (fps, ctx) => {
+  const fp = fps[0], ring = fp.b.rings[0], out = new THREE.Group();
+  // (the tower's face: the footprint's long curved north-east edge - the run of its points that bows evenly)
+  const face = ring.filter(([x, z]) => x > -316 && x < -195 && z < -2210 && z > -2320);
+  const p = podium(fp, 14, std(0x3a2f26, { roughness: 0.6, emissive: 0x1a1208 })); if (p) out.add(p);
+  if (face.length >= 6) {
+    const c = fitCircle(face), [aLo, aHi] = towerAngles(c.cx, c.cz, face);
+    console.info(`[world] Encore: the face on a ${c.r.toFixed(0)} m curve, ${((aHi - aLo) * c.r).toFixed(0)} m long`);
+    out.add(curvedTower({ cx: c.cx, cz: c.cz, rIn: c.r, rOut: c.r + 25, aLo, aHi, H: 192, name: 'Encore', seed: 33 }));
+  }
+  return out;
+});
 
 // 9 Treasure Island
 def('treasureisland', /^treasure island hotel and casino$/i, (fps, ctx) => {

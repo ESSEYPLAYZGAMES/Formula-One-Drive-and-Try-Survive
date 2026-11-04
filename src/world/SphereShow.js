@@ -6,9 +6,9 @@
 import * as THREE from 'three';
 
 const SIZE = 1024;
-export const SHOW_BG = { smiley: 0xf7b21c, helmet: 0xdbeeff, sign: 0x05061a, marquee: 0x9b0f2e, champion: 0x080b16, sponsor: 0x1d3cf0 };
+export const SHOW_BG = { smiley: 0xf7b21c, helmet: 0xdbeeff, sign: 0x05061a, marquee: 0x9b0f2e, champion: 0x080b16, sponsor: 0x1d3cf0, gp: 0xc8102e };
 /** how many faces each show is repeated on around the Sphere (1 = one-sided, 2 = front/back, 4 = quadrants) */
-export const SIDES = { smiley: 2, helmet: 2, sign: 4, marquee: 2, champion: 2, sponsor: 2 };
+export const SIDES = { smiley: 2, helmet: 2, sign: 4, marquee: 2, champion: 2, sponsor: 2, gp: 2 };
 
 export class SphereShow {
   constructor() {
@@ -25,7 +25,7 @@ export class SphereShow {
     if (mode === this.lastMode && t - this.last < 0.05) return;
     this.last = t; this.lastMode = mode;
     const c = this.ctx; c.setTransform(1, 0, 0, 1, 0, 0);
-    if (mode === 'sign') this.sign(c, t); else if (mode === 'marquee') this.marquee(c, t); else if (mode === 'helmet') this.helmet(c, t); else if (mode === 'champion') this.champion(c, t, this.championInfo); else if (mode === 'sponsor') this.sponsor(c, t); else this.face(c, t, false);
+    if (mode === 'sign') this.sign(c, t); else if (mode === 'marquee') this.marquee(c, t); else if (mode === 'helmet') this.helmet(c, t); else if (mode === 'champion') this.champion(c, t, this.championInfo); else if (mode === 'sponsor') this.sponsor(c, t); else if (mode === 'gp') this.gp(c, t); else this.face(c, t, false);
     this.texture.needsUpdate = true;
   }
 
@@ -57,6 +57,28 @@ export class SphereShow {
     c.fillStyle = lum > 150 ? '#101218' : '#ffffff'; c.font = `800 ${S * 0.042}px "Segoe UI", Arial, sans-serif`; c.fillText(info.team.toUpperCase(), cx, S * 0.63);
     // sparkles
     for (let i = 0; i < 26; i++) { const x = (i * 199) % S, y = (i * 313) % (S * 0.75); if (Math.abs(x - cx) < S * 0.36 && y > S * 0.2 && y < S * 0.68) continue; this.sparkle(c, x, y, 8 + (i % 3) * 5, i % 2 ? '#ffd76a' : '#ffffff', 0.5 + 0.5 * Math.sin(t * 2.5 + i)); }
+  }
+
+  // ---- race week (the aerial at sunset, 2024): the shell red, a white triangular lattice over all of it, and on its face
+  //      the race's title in a dark panel - FORMULA 1 / HEINEKEN SILVER / LAS VEGAS / GRAND PRIX under the F1 mark ----
+  gp(c, t) {
+    const S = SIZE; c.fillStyle = '#c8102e'; c.fillRect(0, 0, S, S);
+    const g = c.createRadialGradient(S * 0.5, S * 0.45, S * 0.1, S * 0.5, S * 0.5, S * 0.8); g.addColorStop(0, 'rgba(255,90,110,0.35)'); g.addColorStop(1, 'rgba(90,0,20,0.25)'); c.fillStyle = g; c.fillRect(0, 0, S, S);
+    // (the lattice: rows of triangles, its lines white and lit, a slow sparkle running along them)
+    const a = S / 9, h = a * 0.866; c.strokeStyle = 'rgba(255,240,245,0.95)'; c.lineWidth = 4;
+    for (let r = -1; r * h < S + h; r++) {
+      const y = r * h, off = (r % 2) * a / 2; c.beginPath(); c.moveTo(0, y); c.lineTo(S, y); c.stroke();
+      for (let k = -1; k * a < S + a; k++) { const x = k * a + off; c.beginPath(); c.moveTo(x, y); c.lineTo(x + a / 2, y + h); c.moveTo(x, y); c.lineTo(x - a / 2, y + h); c.stroke(); }
+    }
+    for (let k = 0; k < 14; k++) { const x = ((k * 211 + t * 60) % S), y = (k * 137) % S; this.sparkle(c, x, y, 10, '#ffffff', 0.5 + 0.5 * Math.sin(t * 3 + k)); }
+    // (the panel: dark, rounded, the title in white, the F1 mark and the red star)
+    const px = S * 0.24, py = S * 0.33, pw = S * 0.52, ph = S * 0.34;
+    c.fillStyle = 'rgba(20,4,10,0.92)'; this.rrect(c, px, py, pw, ph, S * 0.03); c.fill(); c.strokeStyle = '#ff2d4a'; c.lineWidth = 6; c.stroke();
+    c.fillStyle = '#e10600'; c.font = `italic 900 ${S * 0.06}px "Segoe UI", Arial, sans-serif`; c.textAlign = 'left'; c.textBaseline = 'middle'; c.fillText('F1', px + pw * 0.06, py + ph * 0.14);
+    c.fillStyle = '#d6001c'; c.beginPath(); for (let i = 0; i < 10; i++) { const an = -Math.PI / 2 + i * Math.PI / 5, rr = i % 2 ? S * 0.011 : S * 0.026; c.lineTo(px + pw * 0.56 + Math.cos(an) * rr, py + ph * 0.14 + Math.sin(an) * rr); } c.closePath(); c.fill();
+    c.fillStyle = '#ffffff'; c.font = `italic 700 ${S * 0.03}px Georgia, serif`; c.fillText('Heineken', px + pw * 0.62, py + ph * 0.12); c.font = `700 ${S * 0.016}px "Segoe UI", Arial, sans-serif`; c.fillText('S I L V E R', px + pw * 0.64, py + ph * 0.2);
+    c.font = `900 ${S * 0.045}px "Segoe UI", Arial, sans-serif`;
+    ['FORMULA 1', 'HEINEKEN SILVER', 'LAS VEGAS', 'GRAND PRIX'].forEach((l, i) => c.fillText(l, px + pw * 0.06, py + ph * (0.33 + i * 0.18)));
   }
 
   // ---- race weekend: the sponsor's takeover (the 2024 onboards: the shell royal blue, LED-bright, the Red Bull mark -
@@ -254,7 +276,65 @@ export class SphereShow {
 }
 
 /** Show order on the Sphere (24 s each); canvas shows never sit next to each other so crossfades stay clean. */
-export const SPHERE_SEQUENCE = ['eyeball', 'planet', 'smiley', 'basketball', 'sign', 'lava', 'helmet', 'sponsor', 'broadcast', 'marquee', 'clouds', 'off'];
-export const SHOW_ID = { eyeball: 0, planet: 1, basketball: 2, lava: 3, off: 4, smiley: 5, broadcast: 6, clouds: 7, sign: 8, helmet: 9, marquee: 10, champion: 11, sponsor: 12 };   // champion is never in the loop: forced at the end of a session
-export const CANVAS_SHOWS = new Set(['smiley', 'sign', 'helmet', 'marquee', 'sponsor']);
+export const SPHERE_SEQUENCE = ['eyeball', 'planet', 'smiley', 'basketball', 'sign', 'lava', 'helmet', 'sponsor', 'broadcast', 'marquee', 'clouds', 'gp', 'off'];
+export const SHOW_ID = { eyeball: 0, planet: 1, basketball: 2, lava: 3, off: 4, smiley: 5, broadcast: 6, clouds: 7, sign: 8, helmet: 9, marquee: 10, champion: 11, sponsor: 12, gp: 13 };   // champion is never in the loop: forced at the end of a session
+export const CANVAS_SHOWS = new Set(['smiley', 'sign', 'helmet', 'marquee', 'sponsor', 'gp']);
 export const SHOW_SECONDS = 24;
+
+/**
+ * The broadcast's graphics on the Sphere's one big screen (as at the 2024 race: the world feed's onboard across the
+ * face, a timing tower down each side, the car's caption low on the picture). A 2:1 canvas laid over the whole screen
+ * (the shader's frame, world/Landmarks.js): transparent over the picture, the towers and the caption drawn in.
+ * The picture itself sits at x 0.14 .. 0.86 and y 0.06 .. 0.90 of it (from the top: 0.10 .. 0.94).
+ */
+export class BroadcastOverlay {
+  constructor() {
+    this.canvas = document.createElement('canvas'); this.canvas.width = 1024; this.canvas.height = 512;
+    this.ctx = this.canvas.getContext('2d');
+    this.texture = new THREE.CanvasTexture(this.canvas); this.texture.colorSpace = THREE.SRGBColorSpace;
+    this.texture.wrapS = this.texture.wrapT = THREE.ClampToEdgeWrapping;
+    this.last = -1;
+  }
+  /**
+   * info: { rows: [{ pos, code, gap, color }] (the order), cap: { pos, name, team, color } | null (the car on the
+   * screen), lap, laps } - redrawn twice a second at most
+   */
+  draw(info, t) {
+    if (t - this.last < 0.5 && t >= this.last) return; this.last = t;
+    const c = this.ctx, W = 1024, H = 512; c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, W, H);
+    // the frame round the picture: black, as the Sphere's screen is round the feed
+    c.fillStyle = '#020204'; c.fillRect(0, 0, W, H * 0.1); c.fillRect(0, H * 0.94, W, H * 0.06); c.fillRect(0, 0, W * 0.14, H); c.fillRect(W * 0.86, 0, W * 0.14, H);
+    const rows = info?.rows || [];
+    // the two towers: P1-P10 on the left, P11-P20 on the right, the lap on top of the left one
+    const tower = (x0, from, head) => {
+      const w = W * 0.11, y0 = H * 0.13, rh = (H * 0.76) / 11;
+      c.fillStyle = '#e10600'; c.fillRect(x0, y0, w, rh * 0.9);
+      c.fillStyle = '#ffffff'; c.font = `800 ${rh * 0.5}px "Segoe UI", Arial, sans-serif`; c.textBaseline = 'middle'; c.textAlign = 'center';
+      c.fillText(head, x0 + w / 2, y0 + rh * 0.45);
+      for (let i = 0; i < 10; i++) {
+        const r = rows[from + i]; if (!r) break; const y = y0 + rh * (i + 1);
+        c.fillStyle = i % 2 ? 'rgba(18,18,26,0.96)' : 'rgba(30,30,40,0.96)'; c.fillRect(x0, y, w, rh * 0.96);
+        c.fillStyle = r.color || '#888'; c.fillRect(x0 + w * 0.2, y + rh * 0.15, w * 0.035, rh * 0.66);
+        c.textAlign = 'left'; c.fillStyle = '#ffffff'; c.font = `700 ${rh * 0.46}px "Segoe UI", Arial, sans-serif`;
+        c.fillText(String(r.pos), x0 + w * 0.04, y + rh * 0.5);
+        c.font = `800 ${rh * 0.48}px "Segoe UI", Arial, sans-serif`; c.fillText(r.code, x0 + w * 0.29, y + rh * 0.5);
+        c.textAlign = 'right'; c.fillStyle = '#d8d8e0'; c.font = `600 ${rh * 0.38}px "Segoe UI", Arial, sans-serif`; c.fillText(r.gap, x0 + w * 0.97, y + rh * 0.5);
+      }
+    };
+    const lapTxt = info?.laps ? `LAP ${Math.min(info.laps, info.lap)}/${info.laps}` : 'F1';
+    tower(W * 0.017, 0, lapTxt); tower(W * 0.873, 10, 'LAS VEGAS');
+    // the caption: position, the driver, the team's colour, over the picture's lower left
+    const cp = info?.cap;
+    if (cp) {
+      const x = W * 0.165, y = H * 0.82, h = H * 0.07;
+      c.fillStyle = 'rgba(12,12,18,0.92)'; c.fillRect(x, y, W * 0.27, h);
+      c.fillStyle = '#ffffff'; c.fillRect(x, y, h, h); c.fillStyle = '#101018'; c.textAlign = 'center'; c.font = `900 ${h * 0.62}px "Segoe UI", Arial, sans-serif`; c.fillText(String(cp.pos), x + h / 2, y + h * 0.54);
+      c.fillStyle = cp.color || '#e10600'; c.fillRect(x + h, y, W * 0.007, h);
+      c.textAlign = 'left'; c.fillStyle = '#ffffff'; c.font = `800 ${h * 0.5}px "Segoe UI", Arial, sans-serif`; c.fillText(String(cp.name || '').toUpperCase(), x + h + W * 0.016, y + h * 0.38);
+      c.fillStyle = '#b8b8c4'; c.font = `600 ${h * 0.3}px "Segoe UI", Arial, sans-serif`; c.fillText(String(cp.team || '').toUpperCase(), x + h + W * 0.016, y + h * 0.78);
+      // ("ONBOARD" tag, top right of the picture, and the F1 mark)
+      c.fillStyle = '#e10600'; c.fillRect(W * 0.76, H * 0.12, W * 0.085, H * 0.05); c.fillStyle = '#fff'; c.textAlign = 'center'; c.font = `800 ${H * 0.03}px "Segoe UI", Arial, sans-serif`; c.fillText('ONBOARD', W * 0.8025, H * 0.147);
+    }
+    this.texture.needsUpdate = true;
+  }
+}

@@ -60,12 +60,16 @@ export const TRACKS = {
     sponsorZones: [{ panel: 26, fromTurn: 2, toTurn: 2, before: 0, after: 110 }, { panel: 27, fromTurn: 3, toTurn: 4, before: 75, after: 20 },
       { panel: 28, fromTurn: 4, toTurn: 4, side: -1, before: -20, after: 850 }, { panel: 29, fromTurn: 4, toTurn: 4, side: 1, before: -20, after: 850 },
       // (the Bellagio Fountain Club's stretch of the Strip: MGM Rewards boards on its wall)
-      { panel: 30, fromTurn: 14, toTurn: 14, side: -1, before: 670, after: -350 }],
-    runoffPaint: [{ turns: [5, 6, 7, 8, 9], color: [0.84, 0.05, 0.42] }, { turns: [12, 14], color: [0.06, 0.58, 0.52] }],
+      { panel: 30, fromTurn: 14, toTurn: 14, side: -1, before: 670, after: -350 },
+      // (the chicane round the Sphere: aramco's green and blue boards on both walls from the run into Turn 7 to Turn 9)
+      { panel: 31, fromTurn: 7, toTurn: 9, before: 90, after: 30 }],
+    runoffPaint: [{ turns: [5, 6, 9], color: [0.84, 0.05, 0.42] }, { turns: [12, 14], color: [0.06, 0.58, 0.52] }],
     runoffDecalTurns: [5, 12, 14],
     // Turn 1's run-off: the straight carried on past the hairpin to a wall across its end (the aerials from beyond Turn 1)
     // - the main grandstand's barrier line on one side, the return leg's on the other, 42 m past the hairpin's kerb
-    escapes: [{ side: -1, auto: { turn: 1, depth: 42 } }],   // (its paint: world/VegasPaddock.js)
+    // and the chicane's: the big painted run-off on the outside of Turn 7, east of Turns 7-8 (the aerials: a lozenge
+    // ~180 m long, its teal paint and the aramco name - world/VegasSphereZone.js)
+    escapes: [{ side: -1, auto: { turn: 1, depth: 42 } }, { side: -1, band: { turn: 7, from: -30, to: 165, depth: 34 } }],   // (their paint: world/VegasPaddock.js, VegasSphereZone.js)
     shots: [
       { lm: 'sphere', label: 'SPHERE', rMul: 1.0, az: 0.5 }, { s: -160, label: 'PIT STRAIGHT', side: 1 },
       { lm: 'eiffel', label: 'PARIS LAS VEGAS', rMul: 1.05, az: -0.5 }, { s: 3900, label: 'THE STRIP', side: -1 },

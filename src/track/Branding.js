@@ -319,6 +319,12 @@ PANELS.push((x) => {   // 30 MGM Rewards: black boards, the gold lion medallion,
     fit(x, 'REWARDS', PW * (c + 0.05), PW * (c + 0.2), PH * 0.8, '#ffffff', { size: PH * 0.2, weight: 700, spacing: 2, align: 'left' });
   }
 });
+PANELS.push((x) => {   // 31 aramco (the chicane round the Sphere, 2024): a green board and a blue one, the white lowercase name on each
+  for (const [c0, c1, col] of [[0, 0.5, ['#13a24a', '#0d8a3c']], [0.5, 1, ['#1479d6', '#0b5fb4']]]) {
+    const g = x.createLinearGradient(0, 0, 0, PH); g.addColorStop(0, col[0]); g.addColorStop(1, col[1]); x.fillStyle = g; x.fillRect(PW * c0, 0, PW * (c1 - c0), PH);
+    fit(x, 'aramco', PW * (c0 + 0.08), PW * (c1 - 0.08), PH * 0.5, '#ffffff', { size: PH * 0.62, weight: 700 });
+  }
+});
 /** sponsor per 180 m wall zone (both sides use the same sequence, offset on the right so they don't mirror) */
 export const ZONE_SEQ = [0, 3, 1, 2, 0, 4, 5, 7, 1, 6, 0, 2, 3, 0, 1, 5];
 export const ZONE_LEN = 180;

@@ -41,7 +41,7 @@ it runs from `file://` because nothing is fetched. Rebuild after editing the sou
 Volume: a slider in the pause menu and on the setup's Driving page (one master volume for everything, remembered).
 | V | Camera: cockpit → T-cam (airbox broadcast view) → chase → TV |
 | C (hold) | Look back, cut in instantly, per camera: cockpit → the driver's view back over the engine cover; T-cam → the rear-facing T-cam; chase → reverse chase from in front of the car; TV → the trackside camera behind |
-| Q / E (hold) | Look left / right: the head turns up to 80° and moves out past the halo (chase cam swings round) |
+| Q / E (hold) | Look left / right: the head turns up to 80° and moves out past the halo (chase cam swings round); on the T-cam the lens just turns on its pod, its tilt kept |
 | T | Lap telemetry report (pauses; T or Esc closes) |
 | H | Toggle the halo centre column |
 | M | Mute |
@@ -193,11 +193,12 @@ src/audio/Audio.js         synthesised engine/wind/impact audio
 * AI straights: flat out, and the track-edge guard never lifts on a straight (see "AI: a planner" for ERS).
 * Sphere marquee show: the chaotic old-Vegas casino-sign look (red field, golden bulb fans, purple ribbons, a
   vertical VEGAS blade with chasing bulbs), two-sided, in the 11-show loop after the F1 stream.
-* F1 stream: four feeds only (the leader's T-cam, your T-cam or P2's, the T1 trackside camera and a wide shot of
-  the Sphere itself), rendered one 256 px tile per frame into a double-buffered 2x2 atlas: the tiles go into a
-  work target and are blitted into the one the Sphere samples, so the Sphere can film itself (it shows the
-  previous frame's stream, the way the real wrap did). The shader lays the 2x2 grid out as a band around the
-  middle of the visible shell with black gutters and blank dark space above and below, capped by a red glow.
+* F1 stream (since V2.32): one big screen, as at the 2024 race - the world feed's onboard T-cam (the director
+  cutting to another car every 8 s: the leader, you, down the order) rendered at 768 x 432 into a double-buffered
+  target, laid across the shell by longitude and latitude so it bends with the Sphere (86 degrees either side of the
+  face, 10 below the equator to 65 above - the shell meets the plaza at 25 below), a timing tower down each side and
+  the car's caption over it (SphereShow.js BroadcastOverlay, a 2:1 canvas), a red-gold ribbon over the top, dark
+  below; the far side carries the same screen the right way round.
 * Finale: when a race or qualifying ends, the camera cuts to a static, slowly pushing-in shot of the Sphere
   for 7 s while it shows the "RACE WINNER" / "POLE POSITION" tribute (driver, team band in the team's colours,
   faint car number, gold title and rays); the results panel follows. `uForce` in the Sphere shader pins a show.

@@ -18,6 +18,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { corridorSigned } from '../track/TrackBuilder.js';
 import { STAND } from './Grandstands.js';
 import { FLOOD } from './Lighting.js';
+import { buildSphereZone } from './VegasSphereZone.js';
 
 const FONT = '"Segoe UI", "Helvetica Neue", Arial, sans-serif';
 const MAIN = { tiers: 38, tierH: 0.6, tierD: 0.98, gap: 1.5 };     // the main grandstand (two decks: Grandstands levels 2) - a big one
@@ -1068,6 +1069,9 @@ export function buildVegasPaddock(track, pit, def, rings = [], geo = null) {
     made.push(`${nP} palms across the track`);
     console.info(`[vegas] Bellagio Fountain Club: ${made.join(', ')}`);
   }
+  // ---- the T-Mobile Zone at Sphere, Turns 5-9 (world/VegasSphereZone.js): its stands, lamps and solids are ours
+  const sz = buildSphereZone(tr, pit, def, near);
+  group.add(sz.group); stands.push(...sz.stands); lights.push(...sz.lights); solids.push(...sz.solids);
   // ---- one mesh per material (the static world: a handful of draw calls)
   for (const [mat, gs] of geos) {
     const clean = gs.map((g) => { const h = g.index ? g.toNonIndexed() : g; for (const k of Object.keys(h.attributes)) if (k !== 'position' && k !== 'normal' && k !== 'uv') h.deleteAttribute(k); if (!h.attributes.uv) h.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(h.attributes.position.count * 2), 2)); if (!h.attributes.normal) h.computeVertexNormals(); return h; });
@@ -1081,6 +1085,7 @@ export function buildVegasPaddock(track, pit, def, rings = [], geo = null) {
   // (and the whole section, from Turn 17's exit to Turn 3, 120 m round: no auto-placed stand in it - only the real ones)
   { const b = new THREE.Box3(); for (let x = cornerS(17) - L - 60; x <= c3; x += 10) { tr.sample(x, 0, f); b.expandByPoint(new THREE.Vector3(f.x, 0, f.z)); } b.expandByVector(new THREE.Vector3(120, 0, 120)); b.max.y = 30; boxes.push(b); }
   // (the boxes the auto-placed stands must keep out of: all of this, and each stand of ours)
+  boxes.push(...sz.boxes);
   for (const p of stands) { const r = [p.world(-p.len / 2, 0), p.world(p.len / 2, 0), p.world(p.len / 2, p.depth), p.world(-p.len / 2, p.depth)]; const b = new THREE.Box3(); for (const [x, z] of r) b.expandByPoint(new THREE.Vector3(x, 0, z)); b.max.y = 20; boxes.push(b); }
   console.info(`[vegas] paddock: plaza ${pit ? 'built' : 'no pit lane'}, main grandstand ${main.length} sections, the Turns 2-4 stand ${wrap.length} sections (${['PG2', 'PG3', 'PG4'].map((n) => `${n} ${wrap.filter((p) => p.name.endsWith(n)).reduce((a, p) => a + p.len, 0).toFixed(0)} m`).join(', ')}), ${lights.length} lamps`);
   return {

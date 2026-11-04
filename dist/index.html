@@ -597,7 +597,7 @@ table.res tr.me td { color: var(--accent2); font-weight: 700; }
     <div class="brand-line"></div>
     <h1 id="brand-title">FORMULA 1<span id="brand-sub">SIMULATOR</span></h1>
     <!-- the build's version: +0.01 with every build handed out -->
-    <span id="app-ver" title="Version">V2.31</span>
+    <span id="app-ver" title="Version">V2.32</span>
     <div id="menu-sub">Real circuits built from OpenStreetMap</div>
   </div>
   <div id="loading" class="hidden"><div class="ld"><i></i></div><span>Building the circuit from OpenStreetMap…</span></div>
@@ -684,6 +684,7 @@ table.res tr.me td { color: var(--accent2); font-weight: 700; }
               <div class="opt"><div class="lbl">Racing line (L)</div><div class="seg k-seg" id="opt-line"><button data-v="on" class="sel">On</button><button data-v="off">Off</button></div></div>
               <div class="opt"><div class="lbl">Flashbacks</div><div class="seg k-seg" id="opt-fb"><button data-v="off">Off</button><button data-v="inf" class="sel">Unlimited</button></div></div>
               <div class="opt"><div class="lbl">Volume</div><div class="vol-row"><input type="range" id="vol-menu" class="vol" min="0" max="100" step="1"><span class="vol-val"></span></div></div>
+              <div class="opt"><div class="lbl">T-cam tilt</div><div class="vol-row"><input type="range" id="tilt-menu" class="vol tilt" min="4" max="16" step="1" aria-label="T-cam tilt"><span class="vol-val"></span></div></div>
               <div class="opt"><div class="lbl">Race start</div><div class="seg k-seg" id="opt-intro"><button data-v="on" class="sel">Build-up</button><button data-v="skip">Straight to lights</button></div></div>
             </div>
             <div class="su-keys"><div class="lbl">Controls · keyboard or gamepad</div><dl>
@@ -739,6 +740,7 @@ table.res tr.me td { color: var(--accent2); font-weight: 700; }
   <h2>PAUSED</h2>
   <div class="row center"><button id="btn-resume" class="go">RESUME<span>→</span></button><button id="btn-restart" class="ghost hidden">RESTART RACE</button><button id="btn-tel" class="ghost">TELEMETRY</button><button id="btn-photo" class="ghost">PHOTO MODE</button><button id="btn-finish" class="ghost hidden">FINISH SESSION</button><button id="btn-end" class="ghost hidden">END SESSION</button><button id="btn-quit" class="ghost">QUIT TO MENU</button></div>
   <div class="row center vol-row"><label for="vol-pause">VOLUME</label><input type="range" id="vol-pause" class="vol" min="0" max="100" step="1"><span class="vol-val"></span></div>
+  <div class="row center vol-row"><label for="tilt-pause">T-CAM TILT</label><input type="range" id="tilt-pause" class="vol tilt" min="4" max="16" step="1"><span class="vol-val"></span></div>
   <div class="hint">Photo mode: WASD fly · Q/E down/up · Shift fast · Alt (or Ctrl) fine · drag or arrow keys to look · H toggle HUD · Esc back</div>
 </div>
 <div id="photo-hint" class="hidden"><span>PHOTO MODE · WASD fly · Q/E · Shift · drag to look · H HUD · P/Space play · Esc back</span><button id="photo-play">▶ PLAY</button></div>
@@ -76969,12 +76971,16 @@ const TRACKS = {
     sponsorZones: [{ panel: 26, fromTurn: 2, toTurn: 2, before: 0, after: 110 }, { panel: 27, fromTurn: 3, toTurn: 4, before: 75, after: 20 },
       { panel: 28, fromTurn: 4, toTurn: 4, side: -1, before: -20, after: 850 }, { panel: 29, fromTurn: 4, toTurn: 4, side: 1, before: -20, after: 850 },
       // (the Bellagio Fountain Club's stretch of the Strip: MGM Rewards boards on its wall)
-      { panel: 30, fromTurn: 14, toTurn: 14, side: -1, before: 670, after: -350 }],
-    runoffPaint: [{ turns: [5, 6, 7, 8, 9], color: [0.84, 0.05, 0.42] }, { turns: [12, 14], color: [0.06, 0.58, 0.52] }],
+      { panel: 30, fromTurn: 14, toTurn: 14, side: -1, before: 670, after: -350 },
+      // (the chicane round the Sphere: aramco's green and blue boards on both walls from the run into Turn 7 to Turn 9)
+      { panel: 31, fromTurn: 7, toTurn: 9, before: 90, after: 30 }],
+    runoffPaint: [{ turns: [5, 6, 9], color: [0.84, 0.05, 0.42] }, { turns: [12, 14], color: [0.06, 0.58, 0.52] }],
     runoffDecalTurns: [5, 12, 14],
     // Turn 1's run-off: the straight carried on past the hairpin to a wall across its end (the aerials from beyond Turn 1)
     // - the main grandstand's barrier line on one side, the return leg's on the other, 42 m past the hairpin's kerb
-    escapes: [{ side: -1, auto: { turn: 1, depth: 42 } }],   // (its paint: world/VegasPaddock.js)
+    // and the chicane's: the big painted run-off on the outside of Turn 7, east of Turns 7-8 (the aerials: a lozenge
+    // ~180 m long, its teal paint and the aramco name - world/VegasSphereZone.js)
+    escapes: [{ side: -1, auto: { turn: 1, depth: 42 } }, { side: -1, band: { turn: 7, from: -30, to: 165, depth: 34 } }],   // (their paint: world/VegasPaddock.js, VegasSphereZone.js)
     shots: [
       { lm: 'sphere', label: 'SPHERE', rMul: 1.0, az: 0.5 }, { s: -160, label: 'PIT STRAIGHT', side: 1 },
       { lm: 'eiffel', label: 'PARIS LAS VEGAS', rMul: 1.05, az: -0.5 }, { s: 3900, label: 'THE STRIP', side: -1 },
@@ -77904,6 +77910,12 @@ PANELS.push((x) => {   // 30 MGM Rewards: black boards, the gold lion medallion,
     fit(x, 'REWARDS', PW * (c + 0.05), PW * (c + 0.2), PH * 0.8, '#ffffff', { size: PH * 0.2, weight: 700, spacing: 2, align: 'left' });
   }
 });
+PANELS.push((x) => {   // 31 aramco (the chicane round the Sphere, 2024): a green board and a blue one, the white lowercase name on each
+  for (const [c0, c1, col] of [[0, 0.5, ['#13a24a', '#0d8a3c']], [0.5, 1, ['#1479d6', '#0b5fb4']]]) {
+    const g = x.createLinearGradient(0, 0, 0, PH); g.addColorStop(0, col[0]); g.addColorStop(1, col[1]); x.fillStyle = g; x.fillRect(PW * c0, 0, PW * (c1 - c0), PH);
+    fit(x, 'aramco', PW * (c0 + 0.08), PW * (c1 - 0.08), PH * 0.5, '#ffffff', { size: PH * 0.62, weight: 700 });
+  }
+});
 /** sponsor per 180 m wall zone (both sides use the same sequence, offset on the right so they don't mirror) */
 const ZONE_SEQ = [0, 3, 1, 2, 0, 4, 5, 7, 1, 6, 0, 2, 3, 0, 1, 5];
 const ZONE_LEN = 180;
@@ -78756,7 +78768,7 @@ class Track {
     if (!list) return;
     this.escapeBoxes = [];
     for (const e of list) {
-      const side = e.side ?? -1, ring = e.auto ? this._escapeBox(e.auto, side) : e.ring; if (!ring) continue;
+      const side = e.side ?? -1, ring = e.auto ? this._escapeBox(e.auto, side) : e.band ? this._escapeBand(e.band, side) : e.ring; if (!ring) continue;
       const inside = insideRings([ring]), arr = side > 0 ? this.wallL : this.wallR;
       const at = (i, d) => [this.px[i] + this.nx[i] * side * d, this.pz[i] + this.nz[i] * side * d];
       let lo = -1, hi = -1;
@@ -78767,8 +78779,24 @@ class Track {
       }
       // (an escape drawn to the real one's shape is held as it is: fairWalls rounds every other barrier line, and would
       //  round this one's square corners into a balloon)
-      if (e.auto && lo >= 0) (this.heldWalls || (this.heldWalls = [])).push({ a: this.s[lo], b: this.s[hi], side });
+      if ((e.auto || e.band) && lo >= 0) (this.heldWalls || (this.heldWalls = [])).push({ a: this.s[lo], b: this.s[hi], side });
     }
+  }
+  /**
+   * A run-off swelling out from the barrier line beside a stretch of the lap (escapes band: { turn, from, to, depth }):
+   * from `from` to `to` m about the corner's apex, the barrier on that side eased out to `depth` m past the kerb and back
+   * in again - a lozenge of paved run-off along the corner (Las Vegas's Turns 7-8: the painted run-off east of the
+   * chicane). Its outline is kept for the paint (escapeBands: { turn, sA, sB, side, depth, out(s) }).
+   */
+  _escapeBand(o, side) {
+    const c = (this.def.corners || []).find((k) => k.n === o.turn); if (!c || c.s == null) return null;
+    const sA = c.s + (o.from ?? -20), sB = c.s + (o.to ?? 120), D = o.depth ?? 30, f = {};
+    const prof = (s) => { const t = (s - sA) / (sB - sA), a = Math.min(1, Math.max(0, t / 0.28)), b = Math.min(1, Math.max(0, (1 - t) / 0.3)); return (a * a * (3 - 2 * a)) * (b * b * (3 - 2 * b)); };
+    const out = (s) => { const i = this.idxAtS(s); return Math.max(this.wallAt(i, side), this.edgeAt(i, side) + this.kerbWidth + D * prof(s)); };
+    const outer = [], inner = [];
+    for (let s = sA; s <= sB + 0.01; s += 2) { this.sample(s, side * out(s), f); outer.push([f.x, f.z]); this.sample(s, 0, f); inner.push([f.x, f.z]); }
+    (this.escapeBands || (this.escapeBands = [])).push({ turn: o.turn, sA, sB, side, depth: D, out });
+    return [...outer, ...inner.reverse()];
   }
   /** a barrier line held as drawn (escapes: an escape the shape of the real one) at arc length s on that side */
   heldAt(s, side) { return (this.heldWalls || []).some((h) => h.side === side && s >= h.a && s <= h.b); }
@@ -80294,11 +80322,175 @@ function applyTimeToMaterials(root, mode) {
 return { createEnvironment, createRain, applyTimeToMaterials };
 })();
 
+// ---- src/camera/CockpitCamera.js
+__m['src/camera/CockpitCamera.js'] = (() => {
+
+// Cockpit camera at driver eye level with head-bob, lateral-G tilt and speed FOV warp; chase/TV modes as extras.
+
+/**
+ * The T-cam pod on top of the airbox (CarMesh: 0.18 m behind the car's centre, top of the car at 0.97 m). Forward and
+ * rear views both come from it. 1.1 m up keeps the helmet ~0.45 m from the lens, clear of the 0.3 m near plane.
+ */
+const TCAM_X = -0.13, TCAM_Y = 1.21;   // (just over the camera pod on the airbox: vehicle/CarModel.js)
+const TCAM_TILT = 9;   // the forward T-cam's tilt down, degrees (the settings' T-cam tilt slider: 4 to 16) - the horizon a quarter
+                              //  of the way down the frame, the halo's bar and the helmet low in it
+const TCAM_PITCH = (TCAM_TILT * Math.PI) / 180;
+const TCAM_FOV = 40;   // its vertical field of view: a tight broadcast lens - the fences fill the frame's sides to its top edge, a strip of sky,
+                               //  the buildings only glimpsed over the fences (less of the scene in frame at any moment: less to draw)
+const TCAM_RISE = 0.05;   // the forward view's lens 5 cm higher on the pod: the halo's bar low in the frame, the helmet just under it
+
+class CockpitCamera {
+  constructor(camera) {
+    this.cam = camera;
+    this.mode = 'cockpit';
+    this.t = 0;
+    this.roll = 0; this.shiftY = 0; this.shiftZ = 0;
+    this.baseFov = 74;
+    this.tcam = { fov: TCAM_FOV, pitch: TCAM_PITCH, rise: TCAM_RISE };   // (the forward T-cam's lens, tilt and height on the pod)
+    this._pos = new THREE.Vector3(); this._look = new THREE.Vector3(); this._up = new THREE.Vector3(0, 1, 0);
+    this._chase = new THREE.Vector3(); this._tgt = new THREE.Vector3();   // scratch: no per-frame allocations
+    // driver's head: lookIn is the request (-1 full left .. +1 full right, Q / E or the right stick), look follows it
+    // smoothly; back (C held) cuts straight to the rear view
+    this.lookIn = 0; this.look = 0; this.back = false;
+  }
+  toggle() { const order = ['cockpit', 'tcam', 'chase', 'tv']; this.mode = order[(order.indexOf(this.mode) + 1) % order.length]; }
+
+  /**
+   * Look back (C), cut in instantly, a different view per camera:
+   *  cockpit - the driver's view back: just above his helmet, looking over the engine cover at the cars behind;
+   *  T-cam   - the rear-facing T-cam on the airbox (as in the broadcast), low over the rear wing;
+   *  chase   - the reverse chase: out in front of the car at chase distance, looking back at it and the pack;
+   *  TV      - the trackside camera behind the car instead of the one ahead.
+   */
+  _rear(car, c, s, v, track) {
+    let fov = 72;
+    if (this.mode === 'cockpit') {
+      this.cam.position.set(car.x + 1.3 * c, 1.25, car.z + 1.3 * s);
+      this.cam.lookAt(car.x - 30 * c, 0.5, car.z - 30 * s);
+    } else if (this.mode === 'tcam') {
+      // the rear-facing lens on the same pod, on its top (1.30 m) and riding with the body: the airbox's top is 1.18 m just
+      //  behind the pod and the engine cover 1.06 m from 0.3 m back, so nothing of the car comes inside the 0.3 m near
+      //  plane in a 60 degree frame (at 1.21 m, fixed, the near plane sliced the airbox open whenever the body heaved)
+      const by = (car.hv || 0) + TCAM_X * (car.pt || 0);
+      this.cam.position.set(car.x + (TCAM_X - 0.02) * c, 1.30 + by, car.z + (TCAM_X - 0.02) * s);
+      this.cam.lookAt(car.x - 25 * c, 0.75 + by, car.z - 25 * s); fov = 60;
+    } else if (this.mode === 'chase') {
+      const ahead = 8.5 + v * 0.03;
+      this.cam.position.set(car.x + c * ahead, 2.6 + v * 0.006, car.z + s * ahead);
+      this.cam.lookAt(car.x - c * 6, 0.9, car.z - s * 6); fov = 62;
+    } else {
+      const seg = Math.floor(car.s / 220) - 1, sc = seg * 220 + 110, f = track.sample(sc, track.wallAt(track.idxAtS(sc), 1) + 6);
+      this.cam.position.set(f.x, 9, f.z); this.cam.lookAt(car.x, 0.8, car.z);
+      fov = Math.max(12, Math.min(60, 1800 / Math.max(20, Math.hypot(car.x - f.x, car.z - f.z))));
+    }
+    this.cam.up.set(0, 1, 0);
+    if (this.cam.fov !== fov) { this.cam.fov = fov; this.cam.updateProjectionMatrix(); }
+  }
+
+  update(car, dt, track) {
+    this.t += dt;
+    this.look += (this.lookIn - this.look) * Math.min(1, dt * 7);
+    if (Math.abs(this.look) < 1e-3 && this.lookIn === 0) this.look = 0;
+    // a big accident: the onboard cameras would tumble with the car, so the director cuts to a chase shot from the
+    // direction the car was travelling when it went, off to one side and up a little, following the wreck to rest
+    if (car.air || car.wreck) {
+      if (!this._crash) {
+        const [vx, vz] = car.air ? [car.wvx, car.wvz] : [Math.cos(car.th), Math.sin(car.th)]; const l = Math.hypot(vx, vz) || 1;
+        this._crash = { dx: vx / l, dz: vz / l, side: Math.random() < 0.5 ? 1 : -1 };
+        this.cam.position.set(car.x - this._crash.dx * 22, 5, car.z - this._crash.dz * 22);
+      }
+      const k = this._crash;
+      this._chase.set(car.x - k.dx * 13 + k.dz * 8 * k.side, 3.8, car.z - k.dz * 13 - k.dx * 8 * k.side);
+      this.cam.position.lerp(this._chase, Math.min(1, dt * 7)); this.cam.up.set(0, 1, 0);
+      this._tgt.set(car.x, 0.6 + car.y, car.z); this.cam.lookAt(this._tgt);
+      if (Math.abs(this.cam.fov - 50) > 0.05) { this.cam.fov += (50 - this.cam.fov) * Math.min(1, dt * 3); this.cam.updateProjectionMatrix(); }
+      return;
+    }
+    this._crash = null;
+    const c = Math.cos(car.th), s = Math.sin(car.th);
+    const left = [s, -c];
+    const v = car.speed;
+    const latG = car.ay / 9.81;
+    if (this.back) { this._rear(car, c, s, v, track); this._wasBack = true; return; }
+    // released: the chase camera cuts straight back to its place behind the car (no swoop across from the front)
+    if (this._wasBack) { this._wasBack = false; if (this.mode === 'chase') { const b = 8.5 + v * 0.03, a = car.th + this.look * 1.4; this._chase.set(car.x - Math.cos(a) * b, 2.6 + v * 0.006, car.z - Math.sin(a) * b); } }
+    // looking to the side: the head turns up to 80 degrees and moves out and up past the halo and the sidepod
+    const look = this.mode === 'tv' ? 0 : this.look, lookYaw0 = look * 1.4, side = -look;   // side: + = toward the left
+    // the chassis under the camera: heave, pitch and roll of the sprung body (kerbs, bumps, braking, cornering)
+    const bodyY = (ex, ey) => (car.hv || 0) + ex * (car.pt || 0) + ey * (car.rl || 0);
+    if (this.mode === 'cockpit') {
+      // head bob: low-frequency sway grows with speed; the body's own motion carries the kerbs and the bumps, and the
+      // driver's head shakes on top of it (the buzz of a kerb's ridges is faster than a frame)
+      const sway = 0.006 * Math.min(1, v / 80);
+      const rumble = (car.onKerb ? 0.005 : car.offTrack ? 0.008 : 0) * Math.min(1, v / 40);
+      const bobY = Math.sin(this.t * 9.3) * sway + (Math.random() - 0.5) * rumble + bodyY(0.25, 0) * 1.4;
+      const bobZ = Math.sin(this.t * 6.1) * sway * 0.6 + (Math.random() - 0.5) * rumble * 0.5;
+      // lateral g: head/camera lean into the outside of the corner, roll opposite
+      const targetShift = -latG * 0.035, targetRoll = latG * 0.028;
+      this.shiftZ += (targetShift - this.shiftZ) * Math.min(1, dt * 6);
+      this.roll += (targetRoll - this.roll) * Math.min(1, dt * 6);
+      // the driver's eyes: 0.77 m off the ground, under the halo ring at 0.86 m (the car is 0.97 m tall at the roll hoop)
+      const al = Math.abs(look);
+      const eyeX = 0.25 - 0.1 * al, eyeY = 0.77 + 0.2 * al + bobY - Math.min(0.03, Math.max(-0.03, -car.ax * 0.003)), eyeZ = this.shiftZ + bobZ + side * 0.55;
+      this._pos.set(car.x + eyeX * c + eyeZ * left[0], eyeY, car.z + eyeX * s + eyeZ * left[1]);
+      // look slightly into the steering direction (and wherever the driver turns his head)
+      const lookYaw = car.steer * 0.12 * (1 - al) - lookYaw0;
+      const lx = Math.cos(car.th - lookYaw), lz = Math.sin(car.th - lookYaw);
+      this._look.set(this._pos.x + lx * 30, 0.55 + bobY * 0.3 + 30 * (car.pt || 0) * 1.4, this._pos.z + lz * 30);   // nose dives under braking
+      const rl = this.roll * (1 - al) - (car.rl || 0) * 1.4;
+      this._up.set(Math.sin(rl) * left[0], Math.cos(rl), Math.sin(rl) * left[1]);
+      this.cam.position.copy(this._pos); this.cam.up.copy(this._up); this.cam.lookAt(this._look);
+      // speed FOV warp
+      const fov = this.baseFov + 15 * Math.min(1, v / 95) + car.slipstream * 2;
+      if (Math.abs(this.cam.fov - fov) > 0.05) { this.cam.fov += (fov - this.cam.fov) * Math.min(1, dt * 4); this.cam.updateProjectionMatrix(); }
+    } else if (this.mode === 'tcam') {
+      // broadcast T-cam: on top of the airbox, looking over the driver's helmet
+      // bolted to the airbox: it moves exactly as the body does, plus a fine buzz from the engine and the kerbs
+      const rumble = (car.onKerb ? 0.003 : car.offTrack ? 0.006 : 0.0008) * Math.min(1, v / 40);
+      const bobY = (Math.random() - 0.5) * rumble + bodyY(TCAM_X, 0);
+      // looking left or right (Q / E): the lens just turns on the pod - the same height, the same tilt down, no lift and no
+      //  levelling out (that made a diagonal sweep of a plain turn), out 0.3 m to the side it turns to past the helmet
+      const al = Math.abs(look);
+      this._pos.set(car.x + TCAM_X * c + side * 0.3 * left[0], TCAM_Y + this.tcam.rise + bobY, car.z + TCAM_X * s + side * 0.3 * left[1]);
+      const lookYaw = car.steer * 0.05 * (1 - al) - lookYaw0; const lx = Math.cos(car.th - lookYaw), lz = Math.sin(car.th - lookYaw);
+      // (tilted down as the broadcast's is: the halo and the nose low in the frame, the road ahead and what stands over it,
+      //  the bridges and gantries, in view long before they pass over; the body's pitch only where the lens faces forward)
+      const pitch = this.tcam.pitch;
+      this._look.set(this._pos.x + lx * 25, this._pos.y - 25 * Math.tan(pitch) + 25 * (car.pt || 0) * (1 - al), this._pos.z + lz * 25);
+      this.roll += (latG * 0.004 - this.roll) * Math.min(1, dt * 6);
+      // (the roll about the car's own axis: seen sideways it would tip the frame forward, so it goes with the look)
+      const rl = (this.roll - (car.rl || 0)) * (1 - al);
+      this._up.set(Math.sin(rl) * left[0], Math.cos(rl), Math.sin(rl) * left[1]);
+      this.cam.position.copy(this._pos); this.cam.up.copy(this._up); this.cam.lookAt(this._look);
+      // one fixed lens: set, never eased - back from the rear view (C) or from another camera it cuts, no zoom
+      const fov = this.tcam.fov;
+      if (this.cam.fov !== fov) { this.cam.fov = fov; this.cam.updateProjectionMatrix(); }
+    } else if (this.mode === 'chase') {
+      // the whole rig swings round the car toward the side being looked at
+      const back = 8.5 + v * 0.03, a = car.th + lookYaw0, ca = Math.cos(a), sa = Math.sin(a);
+      const target = this._tgt.set(car.x - ca * back, 2.6 + v * 0.006, car.z - sa * back);
+      this._chase.lerp(target, Math.min(1, dt * 5)); this.cam.position.copy(this._chase);
+      this.cam.up.set(0, 1, 0); this.cam.lookAt(car.x + ca * 6, 0.9, car.z + sa * 6);
+      if (this.cam.fov !== 62) { this.cam.fov = 62; this.cam.updateProjectionMatrix(); }
+    } else {
+      // TV camera: static positions along the barriers every 220 m
+      const seg = Math.floor(car.s / 220); const sc = seg * 220 + 110; const f = track.sample(sc, track.wallAt(track.idxAtS(sc), 1) + 6);
+      this.cam.position.set(f.x, 9, f.z); this.cam.up.set(0, 1, 0); this.cam.lookAt(car.x, 0.8, car.z);
+      const dist = Math.hypot(car.x - f.x, car.z - f.z); const fov = Math.max(12, Math.min(60, 1800 / Math.max(20, dist)));
+      this.cam.fov += (fov - this.cam.fov) * Math.min(1, dt * 3); this.cam.updateProjectionMatrix();
+    }
+  }
+}
+
+return { TCAM_X, TCAM_TILT, TCAM_PITCH, TCAM_FOV, TCAM_RISE, CockpitCamera };
+})();
+
 // ---- src/world/Broadcast.js
 __m['src/world/Broadcast.js'] = (() => {
-
+const { TCAM_X, TCAM_Y, TCAM_RISE, TCAM_PITCH, TCAM_FOV } = __m['src/camera/CockpitCamera.js'];
 // Live "world feed": a grid of camera views (driver onboards, trackside, pit lane, helicopter) rendered
 // round-robin into a render-target atlas that the Sphere projects in its F1 stream mode.
+
 
 class Broadcast {
   /**
@@ -80306,12 +80498,13 @@ class Broadcast {
    * That lets the Sphere itself be one of the feeds (it is filmed showing the previous frame's atlas) without a
    * render target ever sampling itself.
    */
-  constructor(size = 512, grid = 2, perFrame = 1) {
-    this.size = size; this.grid = grid; this.perFrame = perFrame;
+  constructor(size = 512, grid = 2, perFrame = 1, aspect = 1) {
+    // (size is the atlas's height; its width is size x aspect - a single 16:9 feed for the Sphere's one big screen)
+    this.size = size; this.width = Math.round(size * aspect); this.grid = grid; this.perFrame = perFrame;
     const opts = { depthBuffer: true, samples: 0 };
-    this.work = new THREE.WebGLRenderTarget(size, size, opts); this.shown = new THREE.WebGLRenderTarget(size, size, { depthBuffer: false });
+    this.work = new THREE.WebGLRenderTarget(this.width, size, opts); this.shown = new THREE.WebGLRenderTarget(this.width, size, { depthBuffer: false });
     this.work.texture.colorSpace = THREE.SRGBColorSpace; this.shown.texture.colorSpace = THREE.SRGBColorSpace;
-    this.cams = Array.from({ length: grid * grid }, () => new THREE.PerspectiveCamera(58, 1, 0.5, 4000));
+    this.cams = Array.from({ length: grid * grid }, () => new THREE.PerspectiveCamera(58, aspect, 0.5, 4000));
     this.slot = 0;
     // blit quad (work -> shown)
     this.blitScene = new THREE.Scene(); this.blitCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
@@ -80335,12 +80528,12 @@ class Broadcast {
     if (!poses.length) return;
     for (const o of hide) o.visible = false;
     const prevTarget = renderer.getRenderTarget();
-    const n = this.grid * this.grid, tile = this.size / this.grid;
+    const n = this.grid * this.grid, tile = this.size / this.grid, tileW = this.width / this.grid;
     for (let k = 0; k < this.perFrame; k++) {
       const i = this.slot; this.slot = (this.slot + 1) % n;
       const cam = this.cams[i]; poses[i % poses.length](cam); cam.updateMatrixWorld();
-      const x = (i % this.grid) * tile, y = Math.floor(i / this.grid) * tile;
-      this.work.viewport.set(x, y, tile, tile); this.work.scissor.set(x, y, tile, tile); this.work.scissorTest = true;
+      const x = (i % this.grid) * tileW, y = Math.floor(i / this.grid) * tile;
+      this.work.viewport.set(x, y, tileW, tile); this.work.scissor.set(x, y, tileW, tile); this.work.scissorTest = true;
       renderer.setRenderTarget(this.work);
       renderer.render(scene, cam);
     }
@@ -80356,15 +80549,16 @@ class Broadcast {
 const POSES = {
   /** broadcast T-cam on a car */
   onboard: (car) => (cam) => {
-    const c = Math.cos(car.th), s = Math.sin(car.th);
-    cam.position.set(car.x - 0.18 * c, 1.1, car.z - 0.18 * s);   // the T-cam pod (CockpitCamera TCAM_X / TCAM_Y)
-    cam.up.set(0, 1, 0); cam.lookAt(car.x + c * 25, 0.45, car.z + s * 25); cam.fov = 66; cam.updateProjectionMatrix();
+    // (the T-cam as the player's: the pod, its tilt down and its lens - CockpitCamera; the body's heave and pitch with it)
+    const c = Math.cos(car.th), s = Math.sin(car.th), y = TCAM_Y + TCAM_RISE + (car.hv || 0) + TCAM_X * (car.pt || 0);
+    cam.position.set(car.x + TCAM_X * c, y, car.z + TCAM_X * s);
+    cam.up.set(0, 1, 0); cam.lookAt(car.x + c * 25, y - 25 * Math.tan(TCAM_PITCH), car.z + s * 25); cam.fov = TCAM_FOV + 8; cam.near = 0.12; cam.updateProjectionMatrix();   // (near: the halo and the helmet in the picture; a little wider than yours, the car filling its foot)
   },
   /** nose camera: mounted on the nose tip just above the front wing, looking down the road */
   nose: (car) => (cam) => {
     const c = Math.cos(car.th), s = Math.sin(car.th);
     cam.position.set(car.x + 2.6 * c, 0.42, car.z + 2.6 * s);
-    cam.up.set(0, 1, 0); cam.lookAt(car.x + c * 40, 0.5, car.z + s * 40); cam.fov = 74; cam.updateProjectionMatrix();
+    cam.up.set(0, 1, 0); cam.lookAt(car.x + c * 40, 0.5, car.z + s * 40); cam.fov = 74; cam.near = 0.5; cam.updateProjectionMatrix();
   },
   /** visor / helmet camera: the driver's eye line, a touch of head movement with steering */
   visor: (car) => (cam) => {
@@ -80388,7 +80582,7 @@ const POSES = {
   /** static trackside camera at arc length s that pans to follow the nearest car (or looks down the track) */
   trackside: (track, s, side, cars) => (cam) => {
     const f = track.sample(s, side * (track.wallAt(track.idxAtS(s), side) + 4));
-    cam.position.set(f.x, 4.5, f.z); cam.up.set(0, 1, 0);
+    cam.position.set(f.x, 4.5, f.z); cam.up.set(0, 1, 0); cam.near = 0.5;
     let best = null, bd = 260;
     for (const c of cars || []) { const L = track.length; let ds = c.s - s; if (ds > L / 2) ds -= L; if (ds < -L / 2) ds += L; if (Math.abs(ds) < bd) { bd = Math.abs(ds); best = c; } }
     if (best) { cam.lookAt(best.x, 0.7, best.z); cam.fov = Math.max(14, Math.min(50, 900 / Math.max(25, Math.hypot(best.x - f.x, best.z - f.z)))); }
@@ -80427,9 +80621,9 @@ __m['src/world/SphereShow.js'] = (() => {
 // level, canvas top = the top of the Sphere), so the whole canvas is above ground; nothing is buried.
 
 const SIZE = 1024;
-const SHOW_BG = { smiley: 0xf7b21c, helmet: 0xdbeeff, sign: 0x05061a, marquee: 0x9b0f2e, champion: 0x080b16, sponsor: 0x1d3cf0 };
+const SHOW_BG = { smiley: 0xf7b21c, helmet: 0xdbeeff, sign: 0x05061a, marquee: 0x9b0f2e, champion: 0x080b16, sponsor: 0x1d3cf0, gp: 0xc8102e };
 /** how many faces each show is repeated on around the Sphere (1 = one-sided, 2 = front/back, 4 = quadrants) */
-const SIDES = { smiley: 2, helmet: 2, sign: 4, marquee: 2, champion: 2, sponsor: 2 };
+const SIDES = { smiley: 2, helmet: 2, sign: 4, marquee: 2, champion: 2, sponsor: 2, gp: 2 };
 
 class SphereShow {
   constructor() {
@@ -80446,7 +80640,7 @@ class SphereShow {
     if (mode === this.lastMode && t - this.last < 0.05) return;
     this.last = t; this.lastMode = mode;
     const c = this.ctx; c.setTransform(1, 0, 0, 1, 0, 0);
-    if (mode === 'sign') this.sign(c, t); else if (mode === 'marquee') this.marquee(c, t); else if (mode === 'helmet') this.helmet(c, t); else if (mode === 'champion') this.champion(c, t, this.championInfo); else if (mode === 'sponsor') this.sponsor(c, t); else this.face(c, t, false);
+    if (mode === 'sign') this.sign(c, t); else if (mode === 'marquee') this.marquee(c, t); else if (mode === 'helmet') this.helmet(c, t); else if (mode === 'champion') this.champion(c, t, this.championInfo); else if (mode === 'sponsor') this.sponsor(c, t); else if (mode === 'gp') this.gp(c, t); else this.face(c, t, false);
     this.texture.needsUpdate = true;
   }
 
@@ -80478,6 +80672,28 @@ class SphereShow {
     c.fillStyle = lum > 150 ? '#101218' : '#ffffff'; c.font = `800 ${S * 0.042}px "Segoe UI", Arial, sans-serif`; c.fillText(info.team.toUpperCase(), cx, S * 0.63);
     // sparkles
     for (let i = 0; i < 26; i++) { const x = (i * 199) % S, y = (i * 313) % (S * 0.75); if (Math.abs(x - cx) < S * 0.36 && y > S * 0.2 && y < S * 0.68) continue; this.sparkle(c, x, y, 8 + (i % 3) * 5, i % 2 ? '#ffd76a' : '#ffffff', 0.5 + 0.5 * Math.sin(t * 2.5 + i)); }
+  }
+
+  // ---- race week (the aerial at sunset, 2024): the shell red, a white triangular lattice over all of it, and on its face
+  //      the race's title in a dark panel - FORMULA 1 / HEINEKEN SILVER / LAS VEGAS / GRAND PRIX under the F1 mark ----
+  gp(c, t) {
+    const S = SIZE; c.fillStyle = '#c8102e'; c.fillRect(0, 0, S, S);
+    const g = c.createRadialGradient(S * 0.5, S * 0.45, S * 0.1, S * 0.5, S * 0.5, S * 0.8); g.addColorStop(0, 'rgba(255,90,110,0.35)'); g.addColorStop(1, 'rgba(90,0,20,0.25)'); c.fillStyle = g; c.fillRect(0, 0, S, S);
+    // (the lattice: rows of triangles, its lines white and lit, a slow sparkle running along them)
+    const a = S / 9, h = a * 0.866; c.strokeStyle = 'rgba(255,240,245,0.95)'; c.lineWidth = 4;
+    for (let r = -1; r * h < S + h; r++) {
+      const y = r * h, off = (r % 2) * a / 2; c.beginPath(); c.moveTo(0, y); c.lineTo(S, y); c.stroke();
+      for (let k = -1; k * a < S + a; k++) { const x = k * a + off; c.beginPath(); c.moveTo(x, y); c.lineTo(x + a / 2, y + h); c.moveTo(x, y); c.lineTo(x - a / 2, y + h); c.stroke(); }
+    }
+    for (let k = 0; k < 14; k++) { const x = ((k * 211 + t * 60) % S), y = (k * 137) % S; this.sparkle(c, x, y, 10, '#ffffff', 0.5 + 0.5 * Math.sin(t * 3 + k)); }
+    // (the panel: dark, rounded, the title in white, the F1 mark and the red star)
+    const px = S * 0.24, py = S * 0.33, pw = S * 0.52, ph = S * 0.34;
+    c.fillStyle = 'rgba(20,4,10,0.92)'; this.rrect(c, px, py, pw, ph, S * 0.03); c.fill(); c.strokeStyle = '#ff2d4a'; c.lineWidth = 6; c.stroke();
+    c.fillStyle = '#e10600'; c.font = `italic 900 ${S * 0.06}px "Segoe UI", Arial, sans-serif`; c.textAlign = 'left'; c.textBaseline = 'middle'; c.fillText('F1', px + pw * 0.06, py + ph * 0.14);
+    c.fillStyle = '#d6001c'; c.beginPath(); for (let i = 0; i < 10; i++) { const an = -Math.PI / 2 + i * Math.PI / 5, rr = i % 2 ? S * 0.011 : S * 0.026; c.lineTo(px + pw * 0.56 + Math.cos(an) * rr, py + ph * 0.14 + Math.sin(an) * rr); } c.closePath(); c.fill();
+    c.fillStyle = '#ffffff'; c.font = `italic 700 ${S * 0.03}px Georgia, serif`; c.fillText('Heineken', px + pw * 0.62, py + ph * 0.12); c.font = `700 ${S * 0.016}px "Segoe UI", Arial, sans-serif`; c.fillText('S I L V E R', px + pw * 0.64, py + ph * 0.2);
+    c.font = `900 ${S * 0.045}px "Segoe UI", Arial, sans-serif`;
+    ['FORMULA 1', 'HEINEKEN SILVER', 'LAS VEGAS', 'GRAND PRIX'].forEach((l, i) => c.fillText(l, px + pw * 0.06, py + ph * (0.33 + i * 0.18)));
   }
 
   // ---- race weekend: the sponsor's takeover (the 2024 onboards: the shell royal blue, LED-bright, the Red Bull mark -
@@ -80675,12 +80891,70 @@ class SphereShow {
 }
 
 /** Show order on the Sphere (24 s each); canvas shows never sit next to each other so crossfades stay clean. */
-const SPHERE_SEQUENCE = ['eyeball', 'planet', 'smiley', 'basketball', 'sign', 'lava', 'helmet', 'sponsor', 'broadcast', 'marquee', 'clouds', 'off'];
-const SHOW_ID = { eyeball: 0, planet: 1, basketball: 2, lava: 3, off: 4, smiley: 5, broadcast: 6, clouds: 7, sign: 8, helmet: 9, marquee: 10, champion: 11, sponsor: 12 };   // champion is never in the loop: forced at the end of a session
-const CANVAS_SHOWS = new Set(['smiley', 'sign', 'helmet', 'marquee', 'sponsor']);
+const SPHERE_SEQUENCE = ['eyeball', 'planet', 'smiley', 'basketball', 'sign', 'lava', 'helmet', 'sponsor', 'broadcast', 'marquee', 'clouds', 'gp', 'off'];
+const SHOW_ID = { eyeball: 0, planet: 1, basketball: 2, lava: 3, off: 4, smiley: 5, broadcast: 6, clouds: 7, sign: 8, helmet: 9, marquee: 10, champion: 11, sponsor: 12, gp: 13 };   // champion is never in the loop: forced at the end of a session
+const CANVAS_SHOWS = new Set(['smiley', 'sign', 'helmet', 'marquee', 'sponsor', 'gp']);
 const SHOW_SECONDS = 24;
 
-return { SHOW_BG, SIDES, SphereShow, SPHERE_SEQUENCE, SHOW_ID, CANVAS_SHOWS, SHOW_SECONDS };
+/**
+ * The broadcast's graphics on the Sphere's one big screen (as at the 2024 race: the world feed's onboard across the
+ * face, a timing tower down each side, the car's caption low on the picture). A 2:1 canvas laid over the whole screen
+ * (the shader's frame, world/Landmarks.js): transparent over the picture, the towers and the caption drawn in.
+ * The picture itself sits at x 0.14 .. 0.86 and y 0.06 .. 0.90 of it (from the top: 0.10 .. 0.94).
+ */
+class BroadcastOverlay {
+  constructor() {
+    this.canvas = document.createElement('canvas'); this.canvas.width = 1024; this.canvas.height = 512;
+    this.ctx = this.canvas.getContext('2d');
+    this.texture = new THREE.CanvasTexture(this.canvas); this.texture.colorSpace = THREE.SRGBColorSpace;
+    this.texture.wrapS = this.texture.wrapT = THREE.ClampToEdgeWrapping;
+    this.last = -1;
+  }
+  /**
+   * info: { rows: [{ pos, code, gap, color }] (the order), cap: { pos, name, team, color } | null (the car on the
+   * screen), lap, laps } - redrawn twice a second at most
+   */
+  draw(info, t) {
+    if (t - this.last < 0.5 && t >= this.last) return; this.last = t;
+    const c = this.ctx, W = 1024, H = 512; c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, W, H);
+    // the frame round the picture: black, as the Sphere's screen is round the feed
+    c.fillStyle = '#020204'; c.fillRect(0, 0, W, H * 0.1); c.fillRect(0, H * 0.94, W, H * 0.06); c.fillRect(0, 0, W * 0.14, H); c.fillRect(W * 0.86, 0, W * 0.14, H);
+    const rows = info?.rows || [];
+    // the two towers: P1-P10 on the left, P11-P20 on the right, the lap on top of the left one
+    const tower = (x0, from, head) => {
+      const w = W * 0.11, y0 = H * 0.13, rh = (H * 0.76) / 11;
+      c.fillStyle = '#e10600'; c.fillRect(x0, y0, w, rh * 0.9);
+      c.fillStyle = '#ffffff'; c.font = `800 ${rh * 0.5}px "Segoe UI", Arial, sans-serif`; c.textBaseline = 'middle'; c.textAlign = 'center';
+      c.fillText(head, x0 + w / 2, y0 + rh * 0.45);
+      for (let i = 0; i < 10; i++) {
+        const r = rows[from + i]; if (!r) break; const y = y0 + rh * (i + 1);
+        c.fillStyle = i % 2 ? 'rgba(18,18,26,0.96)' : 'rgba(30,30,40,0.96)'; c.fillRect(x0, y, w, rh * 0.96);
+        c.fillStyle = r.color || '#888'; c.fillRect(x0 + w * 0.2, y + rh * 0.15, w * 0.035, rh * 0.66);
+        c.textAlign = 'left'; c.fillStyle = '#ffffff'; c.font = `700 ${rh * 0.46}px "Segoe UI", Arial, sans-serif`;
+        c.fillText(String(r.pos), x0 + w * 0.04, y + rh * 0.5);
+        c.font = `800 ${rh * 0.48}px "Segoe UI", Arial, sans-serif`; c.fillText(r.code, x0 + w * 0.29, y + rh * 0.5);
+        c.textAlign = 'right'; c.fillStyle = '#d8d8e0'; c.font = `600 ${rh * 0.38}px "Segoe UI", Arial, sans-serif`; c.fillText(r.gap, x0 + w * 0.97, y + rh * 0.5);
+      }
+    };
+    const lapTxt = info?.laps ? `LAP ${Math.min(info.laps, info.lap)}/${info.laps}` : 'F1';
+    tower(W * 0.017, 0, lapTxt); tower(W * 0.873, 10, 'LAS VEGAS');
+    // the caption: position, the driver, the team's colour, over the picture's lower left
+    const cp = info?.cap;
+    if (cp) {
+      const x = W * 0.165, y = H * 0.82, h = H * 0.07;
+      c.fillStyle = 'rgba(12,12,18,0.92)'; c.fillRect(x, y, W * 0.27, h);
+      c.fillStyle = '#ffffff'; c.fillRect(x, y, h, h); c.fillStyle = '#101018'; c.textAlign = 'center'; c.font = `900 ${h * 0.62}px "Segoe UI", Arial, sans-serif`; c.fillText(String(cp.pos), x + h / 2, y + h * 0.54);
+      c.fillStyle = cp.color || '#e10600'; c.fillRect(x + h, y, W * 0.007, h);
+      c.textAlign = 'left'; c.fillStyle = '#ffffff'; c.font = `800 ${h * 0.5}px "Segoe UI", Arial, sans-serif`; c.fillText(String(cp.name || '').toUpperCase(), x + h + W * 0.016, y + h * 0.38);
+      c.fillStyle = '#b8b8c4'; c.font = `600 ${h * 0.3}px "Segoe UI", Arial, sans-serif`; c.fillText(String(cp.team || '').toUpperCase(), x + h + W * 0.016, y + h * 0.78);
+      // ("ONBOARD" tag, top right of the picture, and the F1 mark)
+      c.fillStyle = '#e10600'; c.fillRect(W * 0.76, H * 0.12, W * 0.085, H * 0.05); c.fillStyle = '#fff'; c.textAlign = 'center'; c.font = `800 ${H * 0.03}px "Segoe UI", Arial, sans-serif`; c.fillText('ONBOARD', W * 0.8025, H * 0.147);
+    }
+    this.texture.needsUpdate = true;
+  }
+}
+
+return { SHOW_BG, SIDES, SphereShow, SPHERE_SEQUENCE, SHOW_ID, CANVAS_SHOWS, SHOW_SECONDS, BroadcastOverlay };
 })();
 
 // ---- src/race/Engineer.js
@@ -81336,7 +81610,7 @@ function archTexture() {
  */
 function sphereShader() {
   return new THREE.ShaderMaterial({
-    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uTime: { value: 0 }, uDay: { value: 0 }, uFeed: { value: null }, uHasFeed: { value: 0 }, uShow: { value: null }, uShowBg: { value: new THREE.Color(0xf7b21c) }, uGrid: { value: 3 }, uTwoSided: { value: 1 }, uFace: { value: new THREE.Vector3(1, 0, 0) }, uRight: { value: new THREE.Vector3(0, 0, -1) }, uGround: { value: -0.43 }, uForce: { value: -1 } }]), fog: true,
+    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uTime: { value: 0 }, uDay: { value: 0 }, uFeed: { value: null }, uHasFeed: { value: 0 }, uShow: { value: null }, uBcast: { value: null }, uHasBcast: { value: 0 }, uShowBg: { value: new THREE.Color(0xf7b21c) }, uGrid: { value: 3 }, uTwoSided: { value: 1 }, uFace: { value: new THREE.Vector3(1, 0, 0) }, uRight: { value: new THREE.Vector3(0, 0, -1) }, uGround: { value: -0.43 }, uForce: { value: -1 } }]), fog: true,
     vertexShader: `#include <common>
       #include <fog_pars_vertex>
       varying vec2 vUv; varying vec3 vN; varying vec3 vP;
@@ -81347,7 +81621,7 @@ function sphereShader() {
       }`,
     fragmentShader: `#include <common>
       #include <fog_pars_fragment>
-      uniform float uTime, uDay, uHasFeed, uGrid, uTwoSided, uGround, uForce; uniform sampler2D uFeed, uShow; uniform vec3 uShowBg, uFace, uRight; varying vec2 vUv; varying vec3 vN; varying vec3 vP;
+      uniform float uTime, uDay, uHasFeed, uHasBcast, uGrid, uTwoSided, uGround, uForce; uniform sampler2D uFeed, uShow, uBcast; uniform vec3 uShowBg, uFace, uRight; varying vec2 vUv; varying vec3 vN; varying vec3 vP;
       float hash(vec2 p); float noise(vec2 p); float fbm(vec2 p);   // defined further down
       // uFace points from the Sphere's centre to the nearest point of the circuit; uRight is screen-right for a
       // viewer standing there. Content is drawn so it reads correctly (not mirrored) from the track.
@@ -81383,29 +81657,32 @@ function sphereShader() {
         float st = step(0.996, hash(floor(uv * 260.0))) * (1.0 - cl);
         return c + st * 0.9;
       }
-      // F1 stream: the camera wall wraps all the way around the Sphere (the 3x3 atlas repeats twice around the
-      // circumference, tile rows follow latitude) with a red broadcast bar over the top cap
-      // F1 stream: a band of 2 x 2 camera tiles wraps the Sphere (the 2 x 2 atlas repeats twice around, so every
-      // side sees two feeds side by side) with dark blank space above and below and wide black gutters between the
-      // tiles, like the real broadcast wrap; a red glow caps the top
+      // F1 stream, as at the 2024 race: one big screen - the world feed's onboard across the face, a timing tower down
+      // each side, the caption low on the picture (the graphics: uBcast, SphereShow.js BroadcastOverlay). It is laid on
+      // the shell by longitude and latitude, as the Sphere's own content is, so it bends with it: straight across the
+      // middle, its top edge pulled in toward the crown, the sides wrapping round out of sight. The frame spans
+      // 86 degrees either side of the face and from 10 degrees below the equator (the shell meets the plaza at 25) to
+      // 65 above, a dark band under it and a red-gold ribbon over its top; the far side carries the same screen, read
+      // the right way round from there.
       vec3 broadcast(vec2 uv, float t){
         vec3 n = normalize(vP);
         float az = atan(dot(n, uRight), dot(n, uFace));        // 0 = facing the track
-        float u = fract(az / 6.2831853 + 0.5 + 1.0 / 8.0);      // 4 tile columns around, centred on the track-facing side
-        float vy = vis(n.y);
-        float v = (vy - 0.14) / 0.56;                            // the band: 14 % .. 70 % of the visible height
-        vec3 blank = vec3(0.02, 0.005, 0.01) + vec3(0.6, 0.03, 0.05) * smoothstep(0.72, 1.0, vy) * (0.5 + 0.5 * sin(uv.x * 40.0 + t * 0.4));
-        if (v < 0.0 || v > 1.0) return blank * 0.75;
-        vec2 g = vec2(fract(u * 2.0), v);
-        vec2 lc = fract(g * uGrid);
-        float gutter = 0.06;
-        if (lc.x < gutter || lc.x > 1.0 - gutter || lc.y < gutter || lc.y > 1.0 - gutter) return vec3(0.02) * 0.75;   // black gutters
-        vec2 inner = (lc - gutter) / (1.0 - 2.0 * gutter);                    // the tile's picture fills the cell inside the gutter
-        vec2 tex = (floor(g * uGrid) + inner) / uGrid;
-        vec3 col = uHasFeed > 0.5 ? texture2D(uFeed, tex).rgb : vec3(0.05);
-        float tag = step(0.92, inner.y) * step(inner.x, 0.2);                  // red channel tag per tile
-        col = mix(col, vec3(0.85, 0.02, 0.02), tag);
-        return col * 0.75;
+        if (az > 1.5707963) az -= 3.1415927; else if (az < -1.5707963) az += 3.1415927;
+        float el = asin(clamp(n.y, -1.0, 1.0));
+        const float A = 1.50, E0 = -0.17, E1 = 1.13;
+        float u = az / (2.0 * A) + 0.5, v = (el - E0) / (E1 - E0);
+        vec3 dark = vec3(0.012, 0.012, 0.022);
+        if (v > 1.0) {   // over the screen: the ribbon, then the dark crown
+          float k = (el - E1) / 0.07;
+          if (k < 1.0) return mix(vec3(1.0, 0.08, 0.04), vec3(1.0, 0.72, 0.08), k) * (0.8 + 0.2 * sin(az * 30.0 - t * 2.0));
+          return dark;
+        }
+        if (v < 0.0 || abs(az) > A) return dark;
+        vec3 col = dark;
+        vec2 pic = vec2((u - 0.14) / 0.72, (v - 0.06) / 0.84);
+        if (pic.x > 0.0 && pic.x < 1.0 && pic.y > 0.0 && pic.y < 1.0) col = uHasFeed > 0.5 ? texture2D(uFeed, pic).rgb * 0.72 : vec3(0.05);
+        if (uHasBcast > 0.5) { vec4 o = texture2D(uBcast, vec2(u, v)); col = mix(col, o.rgb * 0.62, o.a); }
+        return col;
       }
       float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
       float noise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f); return mix(mix(hash(i), hash(i+vec2(1,0)), f.x), mix(hash(i+vec2(0,1)), hash(i+vec2(1,1)), f.x), f.y); }
@@ -81472,23 +81749,23 @@ function sphereShader() {
         else if (m == 1) c = planet(uv, t);
         else if (m == 2) c = basketball(uv, t);
         else if (m == 3) c = lava(uv, t);
-        else if (m == 5 || m == 8 || m == 9 || m == 10 || m == 11 || m == 12) c = canvasShow();
+        else if (m == 5 || m == 8 || m == 9 || m == 10 || m == 11 || m == 12 || m == 13) c = canvasShow();
         else if (m == 6) c = broadcast(uv, t);
         else if (m == 7) c = clouds(uv, t);
         return c;
       }
-      // show order (must match SPHERE_SEQUENCE in SphereShow.js): eyeball, planet, smiley, basketball, sign, lava, helmet, sponsor, broadcast, marquee, clouds, off
+      // show order (must match SPHERE_SEQUENCE in SphereShow.js): eyeball, planet, smiley, basketball, sign, lava, helmet, sponsor, broadcast, marquee, clouds, gp, off
       int modeAt(int k){
         if (k == 0) return 0; if (k == 1) return 1; if (k == 2) return 5; if (k == 3) return 2; if (k == 4) return 8;
-        if (k == 5) return 3; if (k == 6) return 9; if (k == 7) return 12; if (k == 8) return 6; if (k == 9) return 10; if (k == 10) return 7; return 4;
+        if (k == 5) return 3; if (k == 6) return 9; if (k == 7) return 12; if (k == 8) return 6; if (k == 9) return 10; if (k == 10) return 7; if (k == 11) return 13; return 4;
       }
       void main(){
         vec2 uv = sph();
-        float cyc = mod(uTime, 288.0);   // (12 shows x 24 s: SPHERE_SEQUENCE)
+        float cyc = mod(uTime, 312.0);   // (13 shows x 24 s: SPHERE_SEQUENCE)
         int k = int(floor(cyc / 24.0));
         float tin = cyc - float(k) * 24.0;
         float blend = smoothstep(21.0, 24.0, tin);
-        int m = modeAt(k), mn = modeAt((k >= 11) ? 0 : k + 1);
+        int m = modeAt(k), mn = modeAt((k >= 12) ? 0 : k + 1);
         if (uForce >= 0.0) { m = int(uForce + 0.5); mn = m; blend = 0.0; }   // a forced show (the race-end winner tribute)
         vec3 a = show(m, uv, uTime); vec3 b = a;
         if (blend > 0.001) b = show(mn, uv, uTime);   // the second show is only evaluated during the 3 s crossfade
@@ -81634,18 +81911,109 @@ def('palazzo', /^palazzo tower$|^the palazzo$/i, (fps, ctx) => {
   return out;
 });
 
-// 7/8 Wynn + Encore (bronze crescents)
-function crescent(fp, ctx, H, color) {
-  const g = new THREE.Group(); const rIn = 105, rOut = 124, th = 1.25;
-  g.add(arcSlab(rIn, rOut, th, H, glass(color, { roughness: 0.1, metalness: 0.95, emissive: 0x1a1008, emissiveIntensity: 0.6 })));
-  g.add(arcSlab(rIn - 0.5, rOut + 0.5, th, 2.5, glow(0xffffff, 2.4), H));
-  const tt = ctx.toTrack(fp.info.c); g.rotation.y = rotYForLocalX(-tt[0], -tt[1]);
-  const out = new THREE.Group(); g.position.set(fp.info.c[0], 0, fp.info.c[1]); out.add(g);
-  const p = podium(fp, 16, std(0x3a2f26, { roughness: 0.6 })); if (p) out.add(p);
-  return out;
+// 7/8 Wynn + Encore: the two bronze curved slabs (the user's photo from the circuit: bronze-gold glass, a bright line
+// along every other floor, warm rooms lit at random, a dark crown band with the name in white script at one end). Each
+// tower's curve is fitted to its footprint (a least-squares circle through the face's points): Wynn's footprint is the
+// tower itself - a 23 m crescent, concave to the west, to the Strip; Encore's tower stands on the curved north-east edge
+// of its footprint, 25 m deep, the rest of the footprint its podium.
+function wynnFacade(H, seed) {
+  // (one 24 m bay of the curve, the full height: the glass's colour, and what glows at night)
+  const W = 512, Hp = 4096, px = Hp / H, mk = () => { const c = document.createElement('canvas'); c.width = W; c.height = Hp; return c; };
+  const cc = mk(), ce = mk(), x = cc.getContext('2d'), e = ce.getContext('2d'), Y = (m) => Hp - m * px;
+  let sd = seed; const rnd = () => ((sd = (sd * 16807) % 2147483647) / 2147483647);
+  const g = x.createLinearGradient(0, 0, W, 0); g.addColorStop(0, '#7a4f26'); g.addColorStop(0.5, '#a8743c'); g.addColorStop(1, '#7a4f26'); x.fillStyle = g; x.fillRect(0, 0, W, Hp);
+  e.fillStyle = '#2a1606'; e.fillRect(0, 0, W, Hp);   // (the bronze glass at night: a dull amber, the city's light in it)
+  const FL = 3.6, CROWN = 13, cols = 16, cw = W / cols;
+  for (let y = 4, fl = 0; y + FL <= H - CROWN; y += FL, fl++) {
+    for (let k = 0; k < cols; k++) {   // (the rooms: lit warm, dimmer, or dark behind the bronze)
+      const r = rnd(), y0 = Y(y + FL - 0.3), hh = (FL - 0.9) * px;
+      x.fillStyle = `rgba(60,34,14,${0.25 + rnd() * 0.25})`; x.fillRect(k * cw + 2, y0, cw - 4, hh);
+      e.fillStyle = r < 0.34 ? (rnd() < 0.7 ? '#e8913c' : '#f5c27a') : r < 0.5 ? '#4a2a10' : '#1e1004'; e.fillRect(k * cw + 2, y0, cw - 4, hh);
+    }
+    // (the floor's spandrel: bronze, and the white line of light along every other one)
+    x.fillStyle = '#c99a5a'; x.fillRect(0, Y(y + 0.6), W, 0.6 * px);
+    if (fl % 2 === 1) { e.fillStyle = '#fff6e8'; e.fillRect(0, Y(y + 0.45), W, 0.3 * px); x.fillStyle = '#f2e6d0'; x.fillRect(0, Y(y + 0.45), W, 0.3 * px); }
+  }
+  for (let k = 0; k <= cols; k++) { x.fillStyle = 'rgba(40,24,10,0.5)'; x.fillRect(k * cw - 1, Y(H - CROWN), 2, (H - CROWN) * px); }   // (mullions)
+  // the crown: dark glass over the plant floors, a thin bronze cap
+  x.fillStyle = '#1c140e'; x.fillRect(0, 0, W, CROWN * px); e.fillStyle = '#080503'; e.fillRect(0, 0, W, CROWN * px);
+  x.fillStyle = '#b07c40'; x.fillRect(0, 0, W, 0.8 * px); e.fillStyle = '#6a4a20'; e.fillRect(0, 0, W, 0.8 * px);
+  // the base: the porte-cochere's glow
+  e.fillStyle = '#ffcf8a'; e.fillRect(0, Y(4), W, 4 * px); x.fillStyle = '#d8b07a'; x.fillRect(0, Y(4), W, 4 * px);
+  const t = new THREE.CanvasTexture(cc), te = new THREE.CanvasTexture(ce);
+  for (const tt of [t, te]) { tt.wrapS = THREE.RepeatWrapping; tt.colorSpace = THREE.SRGBColorSpace; tt.anisotropy = 8; }
+  return [t, te];
 }
-def('wynn', /^wynn las vegas$/i, (fps, ctx) => crescent(fps[0], ctx, 187, 0x7a5a30));
-def('encore', /^encore$/i, (fps, ctx) => crescent(fps[0], ctx, 192, 0x7a5a30));
+/** the name at the top: white script, lit */
+function scriptSignTexture(name) {
+  const c = document.createElement('canvas'); c.width = 1024; c.height = 320; const x = c.getContext('2d');
+  x.clearRect(0, 0, 1024, 320); x.fillStyle = '#ffffff'; x.shadowColor = '#fff2dc'; x.shadowBlur = 16;
+  x.lineWidth = 7; x.strokeStyle = '#ffffff'; x.font = 'italic 700 230px "Brush Script MT", "Segoe Script", "Lucida Handwriting", "Apple Chancery", cursive'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.strokeText(name, 512, 150); x.fillText(name, 512, 150);
+  x.fillRect(560, 250, 360, 7);   // (the flourish under it)
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+/** a least-squares circle through points [[x, z]] -> { cx, cz, r } */
+function fitCircle(pts) {
+  let s = [0, 0, 0, 0, 0, 0, 0, 0, 0], v = [0, 0, 0];
+  for (const [x, z] of pts) { const q = [x, z, 1], w = -(x * x + z * z); for (let i = 0; i < 3; i++) { v[i] += q[i] * w; for (let j = 0; j < 3; j++) s[i * 3 + j] += q[i] * q[j]; } }
+  const det = (m) => m[0] * (m[4] * m[8] - m[5] * m[7]) - m[1] * (m[3] * m[8] - m[5] * m[6]) + m[2] * (m[3] * m[7] - m[4] * m[6]), D = det(s);
+  const sol = [0, 1, 2].map((k) => { const m = s.slice(); for (let i = 0; i < 3; i++) m[i * 3 + k] = v[i]; return det(m) / D; });
+  const cx = -sol[0] / 2, cz = -sol[1] / 2; return { cx, cz, r: Math.sqrt(Math.max(1, cx * cx + cz * cz - sol[2])) };
+}
+/** a curved tower about centre (cx, cz): faces at rIn (concave) and rOut, angles aLo..aHi, H tall, its name on both faces */
+function curvedTower(o) {
+  const { cx, cz, rIn, rOut, aLo, aHi, H, name, seed } = o, g = new THREE.Group(); g.position.set(cx, 0, cz);
+  const [tex, texE] = wynnFacade(H, seed), mat = new THREE.MeshStandardMaterial({ map: tex, emissiveMap: texE, emissive: 0xffffff, emissiveIntensity: 0.9, roughness: 0.25, metalness: 0.55 });
+  g.add(new THREE.Mesh(curvedWall(rIn, aLo, aHi, 0, H, H, true), mat), new THREE.Mesh(curvedWall(rOut, aLo, aHi, 0, H, H, false), mat));
+  // the ends: dark bronze fins, a little proud of the faces
+  const fin = std(0x2a1c10, { roughness: 0.5, metalness: 0.6, emissive: 0x120a04 });
+  for (const a of [aLo, aHi]) { const d = rOut - rIn + 2, f = new THREE.BoxGeometry(d, H + 1.5, 2.4); f.rotateY(-a); f.translate(Math.cos(a) * (rIn + rOut) / 2, (H + 1.5) / 2, Math.sin(a) * (rIn + rOut) / 2); g.add(new THREE.Mesh(f, fin)); }
+  // the roof and its parapet
+  const rf = new THREE.RingGeometry(rIn, rOut, 64, 1, -aHi, aHi - aLo); rf.rotateX(-Math.PI / 2); rf.translate(0, H, 0); g.add(new THREE.Mesh(rf, std(0x2a2622, { roughness: 0.8, side: THREE.DoubleSide })));
+  // the name: in the crown band at one end of each face, lit white
+  const sign = new THREE.MeshBasicMaterial({ map: scriptSignTexture(name), transparent: true, depthWrite: false, side: THREE.DoubleSide, fog: true }), w = Math.min(64, (aHi - aLo) * rIn * 0.3);
+  // (at the end that is the left one seen from in front of that face: from the concave side a rising angle runs to the
+  //  right, from the convex side to the left)
+  for (const [r, out] of [[rIn - 1.2, false], [rOut + 1.2, true]]) {
+    const a = aLo + (aHi - aLo) * (out ? 0.84 : 0.16), p = new THREE.PlaneGeometry(w, w * 0.31);
+    p.rotateY(-a + (out ? Math.PI / 2 : -Math.PI / 2)); p.translate(Math.cos(a) * r, H - 6.8, Math.sin(a) * r); const m = new THREE.Mesh(p, sign); m.renderOrder = 4; g.add(m);
+  }
+  return g;
+}
+function towerAngles(cx, cz, pts) {
+  const m = Math.atan2(pts.reduce((a, p) => a + (p[1] - cz), 0), pts.reduce((a, p) => a + (p[0] - cx), 0));
+  let lo = Infinity, hi = -Infinity; for (const [x, z] of pts) { let a = Math.atan2(z - cz, x - cx) - m; a = Math.atan2(Math.sin(a), Math.cos(a)); lo = Math.min(lo, a); hi = Math.max(hi, a); }
+  return [m + lo, m + hi];
+}
+def('wynn', /^wynn las vegas$/i, (fps, ctx) => {
+  // (the footprint is the crescent itself: its long axis and length, how far its middle line bows from the line between
+  //  its ends - the radius from that sagitta, the centre on the concave side - and its depth across the middle)
+  const ring = fps[0].b.rings[0]; let mx = 0, mz = 0; for (const [x, z] of ring) { mx += x; mz += z; } mx /= ring.length; mz /= ring.length;
+  let sxx = 0, szz = 0, sxz = 0; for (const [x, z] of ring) { const dx = x - mx, dz = z - mz; sxx += dx * dx; szz += dz * dz; sxz += dx * dz; }
+  const th = 0.5 * Math.atan2(2 * sxz, sxx - szz), dA = [Math.cos(th), Math.sin(th)], nA = [-dA[1], dA[0]];
+  const P = ring.map(([x, z]) => [(x - mx) * dA[0] + (z - mz) * dA[1], (x - mx) * nA[0] + (z - mz) * nA[1]]);
+  const aMin = Math.min(...P.map((p) => p[0])), aMax = Math.max(...P.map((p) => p[0])), L = aMax - aMin, aMid = (aMin + aMax) / 2;
+  const mid = P.filter((p) => Math.abs(p[0] - aMid) < 0.15 * L), ends = P.filter((p) => p[0] < aMin + 0.08 * L || p[0] > aMax - 0.08 * L);
+  const avg = (q) => q.reduce((acc, p) => acc + p[1], 0) / Math.max(1, q.length), bm = avg(mid), be = avg(ends), sag = bm - be;
+  const T = Math.max(16, Math.max(...mid.map((p) => p[1])) - Math.min(...mid.map((p) => p[1])));
+  const R = Math.min(800, L * L / (8 * Math.max(3, Math.abs(sag))) + Math.abs(sag) / 2), sg = Math.sign(sag) || 1;
+  const cb = bm - sg * R, cx = mx + dA[0] * aMid + nA[0] * cb, cz = mz + dA[1] * aMid + nA[1] * cb;
+  const am = Math.atan2(nA[1] * sg, nA[0] * sg), half = Math.asin(Math.min(0.95, (L / 2) / R));
+  console.info(`[world] Wynn: the crescent on a ${R.toFixed(0)} m curve, ${L.toFixed(0)} m across, ${T.toFixed(0)} m deep`);
+  const out = new THREE.Group(); out.add(curvedTower({ cx, cz, rIn: R - T / 2, rOut: R + T / 2, aLo: am - half, aHi: am + half, H: 187, name: 'Wynn', seed: 21 })); return out;
+});
+def('encore', /^encore$/i, (fps, ctx) => {
+  const fp = fps[0], ring = fp.b.rings[0], out = new THREE.Group();
+  // (the tower's face: the footprint's long curved north-east edge - the run of its points that bows evenly)
+  const face = ring.filter(([x, z]) => x > -316 && x < -195 && z < -2210 && z > -2320);
+  const p = podium(fp, 14, std(0x3a2f26, { roughness: 0.6, emissive: 0x1a1208 })); if (p) out.add(p);
+  if (face.length >= 6) {
+    const c = fitCircle(face), [aLo, aHi] = towerAngles(c.cx, c.cz, face);
+    console.info(`[world] Encore: the face on a ${c.r.toFixed(0)} m curve, ${((aHi - aLo) * c.r).toFixed(0)} m long`);
+    out.add(curvedTower({ cx: c.cx, cz: c.cz, rIn: c.r, rOut: c.r + 25, aLo, aHi, H: 192, name: 'Encore', seed: 33 }));
+  }
+  return out;
+});
 
 // 9 Treasure Island
 def('treasureisland', /^treasure island hotel and casino$/i, (fps, ctx) => {
@@ -96220,7 +96588,7 @@ const { SPHERE_SEQUENCE, SHOW_SECONDS } = __m['src/world/SphereShow.js'];
 /** average glow colour of each Sphere show (drives the light it throws onto the track and the cars) */
 const SHOW_GLOW = {
   eyeball: [0.85, 0.75, 0.7], planet: [0.25, 0.45, 0.9], smiley: [1.0, 0.72, 0.15], basketball: [1.0, 0.5, 0.12], sign: [0.45, 0.3, 0.9],
-  lava: [1.0, 0.35, 0.08], helmet: [0.85, 0.85, 0.95], sponsor: [0.2, 0.3, 1.0], broadcast: [0.5, 0.5, 0.6], marquee: [1.0, 0.25, 0.4], clouds: [0.35, 0.6, 1.0], off: [0, 0, 0],
+  lava: [1.0, 0.35, 0.08], helmet: [0.85, 0.85, 0.95], sponsor: [0.2, 0.3, 1.0], broadcast: [0.5, 0.5, 0.6], marquee: [1.0, 0.25, 0.4], clouds: [0.35, 0.6, 1.0], gp: [1.0, 0.18, 0.28], off: [0, 0, 0],
 };
 const SPOT_I = 900, SPOT_ANGLE = Math.PI / 2.3, SPOT_PEN = 0.6, SPOT_RANGE = 95;
 
@@ -145956,161 +146324,6 @@ class Input {
 return { Input };
 })();
 
-// ---- src/camera/CockpitCamera.js
-__m['src/camera/CockpitCamera.js'] = (() => {
-
-// Cockpit camera at driver eye level with head-bob, lateral-G tilt and speed FOV warp; chase/TV modes as extras.
-
-/**
- * The T-cam pod on top of the airbox (CarMesh: 0.18 m behind the car's centre, top of the car at 0.97 m). Forward and
- * rear views both come from it. 1.1 m up keeps the helmet ~0.45 m from the lens, clear of the 0.3 m near plane.
- */
-const TCAM_X = -0.13, TCAM_Y = 1.21;   // (just over the camera pod on the airbox: vehicle/CarModel.js)
-const TCAM_PITCH = (12 * Math.PI) / 180;   // the forward T-cam's tilt down (the broadcast's: the horizon a fifth of the way down)
-const TCAM_FOV = 40;   // its vertical field of view: a tight broadcast lens - the fences fill the frame's sides to its top edge, a strip of sky,
-                               //  the buildings only glimpsed over the fences (less of the scene in frame at any moment: less to draw)
-const TCAM_RISE = 0.05;   // the forward view's lens 5 cm higher on the pod: the halo's bar low in the frame, the helmet just under it
-
-class CockpitCamera {
-  constructor(camera) {
-    this.cam = camera;
-    this.mode = 'cockpit';
-    this.t = 0;
-    this.roll = 0; this.shiftY = 0; this.shiftZ = 0;
-    this.baseFov = 74;
-    this.tcam = { fov: TCAM_FOV, pitch: TCAM_PITCH, rise: TCAM_RISE };   // (the forward T-cam's lens, tilt and height on the pod)
-    this._pos = new THREE.Vector3(); this._look = new THREE.Vector3(); this._up = new THREE.Vector3(0, 1, 0);
-    this._chase = new THREE.Vector3(); this._tgt = new THREE.Vector3();   // scratch: no per-frame allocations
-    // driver's head: lookIn is the request (-1 full left .. +1 full right, Q / E or the right stick), look follows it
-    // smoothly; back (C held) cuts straight to the rear view
-    this.lookIn = 0; this.look = 0; this.back = false;
-  }
-  toggle() { const order = ['cockpit', 'tcam', 'chase', 'tv']; this.mode = order[(order.indexOf(this.mode) + 1) % order.length]; }
-
-  /**
-   * Look back (C), cut in instantly, a different view per camera:
-   *  cockpit - the driver's view back: just above his helmet, looking over the engine cover at the cars behind;
-   *  T-cam   - the rear-facing T-cam on the airbox (as in the broadcast), low over the rear wing;
-   *  chase   - the reverse chase: out in front of the car at chase distance, looking back at it and the pack;
-   *  TV      - the trackside camera behind the car instead of the one ahead.
-   */
-  _rear(car, c, s, v, track) {
-    let fov = 72;
-    if (this.mode === 'cockpit') {
-      this.cam.position.set(car.x + 1.3 * c, 1.25, car.z + 1.3 * s);
-      this.cam.lookAt(car.x - 30 * c, 0.5, car.z - 30 * s);
-    } else if (this.mode === 'tcam') {
-      // the same pod as the forward T-cam, just facing the other way (no jump in position when C is pressed)
-      this.cam.position.set(car.x + TCAM_X * c, TCAM_Y, car.z + TCAM_X * s);
-      this.cam.lookAt(car.x - 25 * c, 0.55, car.z - 25 * s); fov = 66;
-    } else if (this.mode === 'chase') {
-      const ahead = 8.5 + v * 0.03;
-      this.cam.position.set(car.x + c * ahead, 2.6 + v * 0.006, car.z + s * ahead);
-      this.cam.lookAt(car.x - c * 6, 0.9, car.z - s * 6); fov = 62;
-    } else {
-      const seg = Math.floor(car.s / 220) - 1, sc = seg * 220 + 110, f = track.sample(sc, track.wallAt(track.idxAtS(sc), 1) + 6);
-      this.cam.position.set(f.x, 9, f.z); this.cam.lookAt(car.x, 0.8, car.z);
-      fov = Math.max(12, Math.min(60, 1800 / Math.max(20, Math.hypot(car.x - f.x, car.z - f.z))));
-    }
-    this.cam.up.set(0, 1, 0);
-    if (this.cam.fov !== fov) { this.cam.fov = fov; this.cam.updateProjectionMatrix(); }
-  }
-
-  update(car, dt, track) {
-    this.t += dt;
-    this.look += (this.lookIn - this.look) * Math.min(1, dt * 7);
-    if (Math.abs(this.look) < 1e-3 && this.lookIn === 0) this.look = 0;
-    // a big accident: the onboard cameras would tumble with the car, so the director cuts to a chase shot from the
-    // direction the car was travelling when it went, off to one side and up a little, following the wreck to rest
-    if (car.air || car.wreck) {
-      if (!this._crash) {
-        const [vx, vz] = car.air ? [car.wvx, car.wvz] : [Math.cos(car.th), Math.sin(car.th)]; const l = Math.hypot(vx, vz) || 1;
-        this._crash = { dx: vx / l, dz: vz / l, side: Math.random() < 0.5 ? 1 : -1 };
-        this.cam.position.set(car.x - this._crash.dx * 22, 5, car.z - this._crash.dz * 22);
-      }
-      const k = this._crash;
-      this._chase.set(car.x - k.dx * 13 + k.dz * 8 * k.side, 3.8, car.z - k.dz * 13 - k.dx * 8 * k.side);
-      this.cam.position.lerp(this._chase, Math.min(1, dt * 7)); this.cam.up.set(0, 1, 0);
-      this._tgt.set(car.x, 0.6 + car.y, car.z); this.cam.lookAt(this._tgt);
-      if (Math.abs(this.cam.fov - 50) > 0.05) { this.cam.fov += (50 - this.cam.fov) * Math.min(1, dt * 3); this.cam.updateProjectionMatrix(); }
-      return;
-    }
-    this._crash = null;
-    const c = Math.cos(car.th), s = Math.sin(car.th);
-    const left = [s, -c];
-    const v = car.speed;
-    const latG = car.ay / 9.81;
-    if (this.back) { this._rear(car, c, s, v, track); this._wasBack = true; return; }
-    // released: the chase camera cuts straight back to its place behind the car (no swoop across from the front)
-    if (this._wasBack) { this._wasBack = false; if (this.mode === 'chase') { const b = 8.5 + v * 0.03, a = car.th + this.look * 1.4; this._chase.set(car.x - Math.cos(a) * b, 2.6 + v * 0.006, car.z - Math.sin(a) * b); } }
-    // looking to the side: the head turns up to 80 degrees and moves out and up past the halo and the sidepod
-    const look = this.mode === 'tv' ? 0 : this.look, lookYaw0 = look * 1.4, side = -look;   // side: + = toward the left
-    // the chassis under the camera: heave, pitch and roll of the sprung body (kerbs, bumps, braking, cornering)
-    const bodyY = (ex, ey) => (car.hv || 0) + ex * (car.pt || 0) + ey * (car.rl || 0);
-    if (this.mode === 'cockpit') {
-      // head bob: low-frequency sway grows with speed; the body's own motion carries the kerbs and the bumps, and the
-      // driver's head shakes on top of it (the buzz of a kerb's ridges is faster than a frame)
-      const sway = 0.006 * Math.min(1, v / 80);
-      const rumble = (car.onKerb ? 0.005 : car.offTrack ? 0.008 : 0) * Math.min(1, v / 40);
-      const bobY = Math.sin(this.t * 9.3) * sway + (Math.random() - 0.5) * rumble + bodyY(0.25, 0) * 1.4;
-      const bobZ = Math.sin(this.t * 6.1) * sway * 0.6 + (Math.random() - 0.5) * rumble * 0.5;
-      // lateral g: head/camera lean into the outside of the corner, roll opposite
-      const targetShift = -latG * 0.035, targetRoll = latG * 0.028;
-      this.shiftZ += (targetShift - this.shiftZ) * Math.min(1, dt * 6);
-      this.roll += (targetRoll - this.roll) * Math.min(1, dt * 6);
-      // the driver's eyes: 0.77 m off the ground, under the halo ring at 0.86 m (the car is 0.97 m tall at the roll hoop)
-      const al = Math.abs(look);
-      const eyeX = 0.25 - 0.1 * al, eyeY = 0.77 + 0.2 * al + bobY - Math.min(0.03, Math.max(-0.03, -car.ax * 0.003)), eyeZ = this.shiftZ + bobZ + side * 0.55;
-      this._pos.set(car.x + eyeX * c + eyeZ * left[0], eyeY, car.z + eyeX * s + eyeZ * left[1]);
-      // look slightly into the steering direction (and wherever the driver turns his head)
-      const lookYaw = car.steer * 0.12 * (1 - al) - lookYaw0;
-      const lx = Math.cos(car.th - lookYaw), lz = Math.sin(car.th - lookYaw);
-      this._look.set(this._pos.x + lx * 30, 0.55 + bobY * 0.3 + 30 * (car.pt || 0) * 1.4, this._pos.z + lz * 30);   // nose dives under braking
-      const rl = this.roll * (1 - al) - (car.rl || 0) * 1.4;
-      this._up.set(Math.sin(rl) * left[0], Math.cos(rl), Math.sin(rl) * left[1]);
-      this.cam.position.copy(this._pos); this.cam.up.copy(this._up); this.cam.lookAt(this._look);
-      // speed FOV warp
-      const fov = this.baseFov + 15 * Math.min(1, v / 95) + car.slipstream * 2;
-      if (Math.abs(this.cam.fov - fov) > 0.05) { this.cam.fov += (fov - this.cam.fov) * Math.min(1, dt * 4); this.cam.updateProjectionMatrix(); }
-    } else if (this.mode === 'tcam') {
-      // broadcast T-cam: on top of the airbox, looking over the driver's helmet
-      // bolted to the airbox: it moves exactly as the body does, plus a fine buzz from the engine and the kerbs
-      const rumble = (car.onKerb ? 0.003 : car.offTrack ? 0.006 : 0.0008) * Math.min(1, v / 40);
-      const bobY = (Math.random() - 0.5) * rumble + bodyY(TCAM_X, 0);
-      const al = Math.abs(look);
-      this._pos.set(car.x + TCAM_X * c + side * 0.4 * left[0], TCAM_Y + this.tcam.rise + 0.15 * al + bobY, car.z + TCAM_X * s + side * 0.4 * left[1]);
-      const lookYaw = car.steer * 0.05 * (1 - al) - lookYaw0; const lx = Math.cos(car.th - lookYaw), lz = Math.sin(car.th - lookYaw);
-      // (pitched down 17 degrees as the broadcast's is: the halo and the nose fill the lower half, the horizon sits a fifth of
-      //  the way down the frame - the road ahead and what stands over it, the bridges and gantries, in view long before they
-      //  pass over; looking to the side it levels out)
-      const pitch = this.tcam.pitch * (1 - al);
-      this._look.set(this._pos.x + lx * 25, this._pos.y - 25 * Math.tan(pitch) + 25 * (car.pt || 0), this._pos.z + lz * 25);
-      this.roll += (latG * 0.004 - this.roll) * Math.min(1, dt * 6);
-      const rl = this.roll - (car.rl || 0);
-      this._up.set(Math.sin(rl) * left[0], Math.cos(rl), Math.sin(rl) * left[1]);
-      this.cam.position.copy(this._pos); this.cam.up.copy(this._up); this.cam.lookAt(this._look);
-      const fov = this.tcam.fov + 3 * Math.min(1, v / 95);
-      if (Math.abs(this.cam.fov - fov) > 0.05) { this.cam.fov += (fov - this.cam.fov) * Math.min(1, dt * 4); this.cam.updateProjectionMatrix(); }
-    } else if (this.mode === 'chase') {
-      // the whole rig swings round the car toward the side being looked at
-      const back = 8.5 + v * 0.03, a = car.th + lookYaw0, ca = Math.cos(a), sa = Math.sin(a);
-      const target = this._tgt.set(car.x - ca * back, 2.6 + v * 0.006, car.z - sa * back);
-      this._chase.lerp(target, Math.min(1, dt * 5)); this.cam.position.copy(this._chase);
-      this.cam.up.set(0, 1, 0); this.cam.lookAt(car.x + ca * 6, 0.9, car.z + sa * 6);
-      if (this.cam.fov !== 62) { this.cam.fov = 62; this.cam.updateProjectionMatrix(); }
-    } else {
-      // TV camera: static positions along the barriers every 220 m
-      const seg = Math.floor(car.s / 220); const sc = seg * 220 + 110; const f = track.sample(sc, track.wallAt(track.idxAtS(sc), 1) + 6);
-      this.cam.position.set(f.x, 9, f.z); this.cam.up.set(0, 1, 0); this.cam.lookAt(car.x, 0.8, car.z);
-      const dist = Math.hypot(car.x - f.x, car.z - f.z); const fov = Math.max(12, Math.min(60, 1800 / Math.max(20, dist)));
-      this.cam.fov += (fov - this.cam.fov) * Math.min(1, dt * 3); this.cam.updateProjectionMatrix();
-    }
-  }
-}
-
-return { TCAM_X, TCAM_PITCH, TCAM_FOV, TCAM_RISE, CockpitCamera };
-})();
-
 // ---- src/audio/Audio.js
 __m['src/audio/Audio.js'] = (() => {
 
@@ -185654,11 +185867,301 @@ class Spray {
 return { Spray };
 })();
 
+// ---- src/world/VegasSphereZone.js
+__m['src/world/VegasSphereZone.js'] = (() => {
+const { corridorSigned } = __m['src/track/TrackBuilder.js'];
+// Las Vegas: the T-Mobile Zone at Sphere on race night (2024) - Turns 5 to 9, the loop round the Sphere.
+//  * The chicane's run-off (Turns 7-8, its outside: TrackBuilder escapes band): painted aramco teal, the sponsor's green
+//    in diagonal bands across it, its name written large along it (the aerials at sunset, the grandstand photos).
+//  * The white lattice lighting gantries: one along the inside wall of the chicane, its lamps on the track and the
+//    aramco banner hung from it; light towers along the run-off's outer wall.
+//  * The T-Mobile grandstands round the loop: magenta-clad scaffold stands outside the south leg, round Turn 6 and
+//    along the run-off, the big lit T-Mobile cube over them, marshals' posts on the run-off's wall.
+//  * The fan zone inside the loop between the track and the Sphere: white marquees, the stage and its screen,
+//    magenta container bars, light towers.
+// The stands' tiers and crowds are world/Grandstands.js's (returned as fixed placements, as VegasPaddock's are).
+
+
+
+const FONT = '"Segoe UI", "Helvetica Neue", Arial, sans-serif';
+function canvasTex(w, h, draw, repeat = false) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
+  if (repeat) t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  return t;
+}
+/** the T-Mobile T: the bar, the stem, a square either side of the stem */
+function tmoT(x, cx, cy, h, col) {
+  x.fillStyle = col; const w = h * 0.9, t = h * 0.22; x.fillRect(cx - w / 2, cy - h / 2, w, t); x.fillRect(cx - t / 2, cy - h / 2, t, h);
+  for (const d of [-1, 1]) x.fillRect(cx + d * (t / 2 + t * 0.9) - t * 0.35, cy + h * 0.02, t * 0.7, t * 0.7);
+}
+/** the run-off's paint, in world metres (6 m a tile): aramco teal, the green bands crossing it at 45 degrees */
+function runoffTexture() {
+  return canvasTex(256, 256, (x, W, H) => {
+    x.fillStyle = '#0f9db2'; x.fillRect(0, 0, W, H);
+    // (wear: lighter where the cars have run over it, a fine grain)
+    for (let k = 0; k < 900; k++) { x.fillStyle = `rgba(255,255,255,${0.02 + Math.random() * 0.04})`; x.fillRect(Math.random() * W, Math.random() * H, 2, 2); }
+    x.fillStyle = 'rgba(46,190,104,0.62)';
+    for (const o of [-W, 0, W]) { x.beginPath(); x.moveTo(o, H); x.lineTo(o + W * 0.42, H); x.lineTo(o + W * 0.42 + W, 0); x.lineTo(o + W, 0); x.closePath(); x.fill(); }
+  }, true);
+}
+/** "aramco" as it is written across the run-off: white, lowercase, the brand's mark before it */
+function aramcoWordTexture() {
+  return canvasTex(2048, 512, (x, W, H) => {
+    x.clearRect(0, 0, W, H); x.fillStyle = 'rgba(255,255,255,0.92)'; x.font = `600 ${H * 0.62}px ${FONT}`; x.textAlign = 'left'; x.textBaseline = 'middle';
+    const tw = x.measureText('aramco').width, x0 = (W - tw - H * 0.6) / 2;
+    // (the mark: a ring of green and blue petals)
+    for (let k = 0; k < 8; k++) { x.fillStyle = k % 2 ? 'rgba(20,121,214,0.95)' : 'rgba(40,190,90,0.95)'; x.beginPath(); x.ellipse(x0 + H * 0.25 + Math.cos(k * 0.785) * H * 0.12, H * 0.5 + Math.sin(k * 0.785) * H * 0.12, H * 0.1, H * 0.05, k * 0.785, 0, 6.283); x.fill(); }
+    x.fillStyle = 'rgba(255,255,255,0.92)'; x.fillText('aramco', x0 + H * 0.6, H * 0.53);
+  });
+}
+/** the T-Mobile cladding of the stands: magenta, the T and the name (u along, v up) */
+function tmoWallTexture() {
+  return canvasTex(1024, 256, (x, W, H) => {
+    const g = x.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#ff1f8e'); g.addColorStop(1, '#c4005f'); x.fillStyle = g; x.fillRect(0, 0, W, H);
+    for (const c of [0.12, 0.62]) { tmoT(x, W * c, H * 0.5, H * 0.5, '#ffffff'); x.fillStyle = '#ffffff'; x.font = `800 ${H * 0.34}px ${FONT}`; x.textBaseline = 'middle'; x.fillText('T-Mobile', W * (c + 0.07), H * 0.52); }
+  }, true);
+}
+/** a white lattice truss face (alpha-tested): two chords and the diagonals */
+function trussTexture() {
+  return canvasTex(256, 64, (x, W, H) => {
+    x.clearRect(0, 0, W, H); x.strokeStyle = '#f4f4f6'; x.lineWidth = 7;
+    x.beginPath(); x.moveTo(0, 5); x.lineTo(W, 5); x.moveTo(0, H - 5); x.lineTo(W, H - 5); x.stroke();
+    x.lineWidth = 4; x.beginPath(); for (let k = 0; k <= 4; k++) { const a = k * 64; x.moveTo(a, 5); x.lineTo(a + 32, H - 5); x.lineTo(a + 64, 5); } x.stroke();
+  }, true);
+}
+/** the aramco banner hung on the gantry: the green board and the blue one, white names */
+function aramcoBannerTexture() {
+  return canvasTex(2048, 200, (x, W, H) => {
+    x.fillStyle = '#13a24a'; x.fillRect(0, 0, W * 0.62, H); x.fillStyle = '#1479d6'; x.fillRect(W * 0.62, 0, W * 0.38, H);
+    x.fillStyle = '#ffffff'; x.font = `600 ${H * 0.66}px ${FONT}`; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('aramco', W * 0.31, H * 0.54); x.fillText('aramco', W * 0.81, H * 0.54);
+  });
+}
+/** the stage's screen: the race on it (the world feed's colours, the timing) */
+function stageScreenTexture() {
+  return canvasTex(512, 256, (x, W, H) => {
+    const g = x.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#0a1430'); g.addColorStop(0.55, '#24304a'); g.addColorStop(1, '#3a3d44'); x.fillStyle = g; x.fillRect(0, 0, W, H);
+    x.fillStyle = '#555a62'; x.beginPath(); x.moveTo(W * 0.42, H * 0.55); x.lineTo(W * 0.58, H * 0.55); x.lineTo(W, H); x.lineTo(0, H); x.closePath(); x.fill();
+    x.fillStyle = '#ff8a00'; x.fillRect(W * 0.43, H * 0.66, W * 0.14, H * 0.12); x.fillStyle = '#e20074'; x.fillRect(W * 0.02, H * 0.05, W * 0.16, H * 0.9);
+    x.fillStyle = '#fff'; x.font = `800 ${H * 0.07}px ${FONT}`; for (let k = 0; k < 10; k++) x.fillText(`${k + 1}  ${['VER', 'NOR', 'LEC', 'PIA', 'SAI', 'HAM', 'RUS', 'PER', 'ALO', 'GAS'][k]}`, W * 0.03, H * (0.12 + k * 0.083));
+    x.fillStyle = '#e10600'; x.font = `italic 900 ${H * 0.12}px ${FONT}`; x.fillText('F1', W * 0.86, H * 0.14);
+  });
+}
+
+/**
+ * -> { group, stands, lights, boxes, solids } (lights: { x, y, z, tx, tz } lamps for the floodlight field; boxes: kept
+ * clear of the auto-placed stands and the city's infill; solids: { ring, h } the cars can hit)
+ */
+function buildSphereZone(track, pit, def, near = []) {
+  const tr = track, group = new THREE.Group(); group.name = 'vegas-sphere-zone';
+  const stands = [], lights = [], solids = [], boxes = [], made = [];
+  const cornerS = (n) => def.corners.find((c) => c.n === n)?.s;
+  const c5 = cornerS(5), c6 = cornerS(6), c7 = cornerS(7), c8 = cornerS(8), c9 = cornerS(9), c10 = cornerS(10);
+  if ([c5, c6, c7, c8, c9, c10].some((v) => v == null)) return { group, stands, lights, boxes, solids };
+  const f = {}, f2 = {}, kw = tr.kerbWidth;
+  const inRing = (x, z, r) => { let k = false; for (let i = 0, j = r.length - 1; i < r.length; j = i++) { const xi = r[i][0], zi = r[i][1], xj = r[j][0], zj = r[j][1]; if ((zi > z) !== (zj > z) && x < (xj - xi) * (z - zi) / (zj - zi) + xi) k = !k; } return k; };
+  const okAt = (x, z, m = 1) => corridorSigned(tr, pit, x, z, m) >= 0 && !near.some((r) => inRing(x, z, r));
+
+  // ---- materials
+  const white = new THREE.MeshStandardMaterial({ color: 0xf2f2f4, roughness: 0.45, metalness: 0.05, emissive: 0x231a24, side: THREE.DoubleSide });
+  const truss = new THREE.MeshBasicMaterial({ map: trussTexture(), alphaTest: 0.5, side: THREE.DoubleSide, color: 0xe8eaf0 });
+  const flood = new THREE.MeshBasicMaterial({ color: 0xfffbf0 });
+  const lit = (map, k = 0.6, extra = {}) => { const m = new THREE.MeshStandardMaterial({ map, emissive: 0xffffff, emissiveMap: map, emissiveIntensity: k, roughness: 0.6, side: THREE.DoubleSide, ...extra }); return m; };
+  const runoff = lit(runoffTexture(), 0.22, { roughness: 0.75, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  const word = lit(aramcoWordTexture(), 0.55, { transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
+  const tmoWall = lit(tmoWallTexture(), 0.75);
+  const cube = new THREE.MeshBasicMaterial({ map: canvasTex(256, 256, (x, W, H) => { const g = x.createRadialGradient(W / 2, H / 2, W * 0.1, W / 2, H / 2, W * 0.75); g.addColorStop(0, '#ff3ea0'); g.addColorStop(1, '#d0006a'); x.fillStyle = g; x.fillRect(0, 0, W, H); tmoT(x, W / 2, H * 0.5, H * 0.56, '#ffffff'); }), color: 0xffffff });
+  const banner = lit(aramcoBannerTexture(), 0.8);
+  const screen = new THREE.MeshBasicMaterial({ map: stageScreenTexture(), side: THREE.DoubleSide });
+  const black = new THREE.MeshStandardMaterial({ color: 0x141418, roughness: 0.6, metalness: 0.3, side: THREE.DoubleSide });
+  const tent = new THREE.MeshStandardMaterial({ color: 0xf4f4f0, roughness: 0.55, emissive: 0x3a3440, side: THREE.DoubleSide });
+  const container = lit(canvasTex(512, 128, (x, W, H) => { x.fillStyle = '#e20074'; x.fillRect(0, 0, W, H); x.fillStyle = 'rgba(0,0,0,0.18)'; for (let k = 0; k < 32; k++) x.fillRect(k * 16, 0, 3, H); tmoT(x, W * 0.2, H * 0.5, H * 0.5, '#fff'); x.fillStyle = '#fff'; x.font = `800 ${H * 0.34}px ${FONT}`; x.textBaseline = 'middle'; x.fillText('T-Mobile', W * 0.3, H * 0.52); }), 0.55);
+  const orange = new THREE.MeshStandardMaterial({ color: 0xff6a10, emissive: 0x6a2004, roughness: 0.6 });
+  const grey = new THREE.MeshStandardMaterial({ color: 0x4a4e57, roughness: 0.7, metalness: 0.25 });
+  const geos = new Map(); const put = (mat, g) => { if (!geos.has(mat)) geos.set(mat, []); geos.get(mat).push(g); };
+  /** a box: centre (x, y, z), size lx along ex, ly up, lz across */
+  const boxAt = (x, y, z, ex, lx, ly, lz) => { const g = new THREE.BoxGeometry(lx, ly, lz); g.rotateY(Math.atan2(-ex[1], ex[0])); g.translate(x, y, z); return g; };
+  /** a lattice mast: four white chords and the truss faces between them, h tall, 0.9 m square */
+  const mast = (x, z, h, ex = [1, 0]) => {
+    const ez = [-ex[1], ex[0]];
+    for (const [a, b] of [[-0.45, -0.45], [0.45, -0.45], [0.45, 0.45], [-0.45, 0.45]]) put(white, boxAt(x + ex[0] * a + ez[0] * b, h / 2, z + ex[1] * a + ez[1] * b, ex, 0.12, h, 0.12));
+    for (const [ou, ow, rot] of [[0, -0.45, 0], [0, 0.45, 0], [-0.45, 0, 1], [0.45, 0, 1]]) {
+      const g = new THREE.PlaneGeometry(0.9, h), uv = g.attributes.uv; for (let j = 0; j < uv.count; j++) uv.setXY(j, uv.getY(j) * h / 4, uv.getX(j));
+      g.rotateY(Math.atan2(-ex[1], ex[0]) + (rot ? Math.PI / 2 : 0)); g.translate(x + ex[0] * ou + ez[0] * ow, h / 2, z + ex[1] * ou + ez[1] * ow); put(truss, g);
+    }
+  };
+  /** a horizontal box truss from a to b at height y (0.9 m deep) */
+  const beam = (a, b, y) => {
+    const L = Math.hypot(b[0] - a[0], b[1] - a[1]), ex = [(b[0] - a[0]) / L, (b[1] - a[1]) / L], ez = [-ex[1], ex[0]], ang = Math.atan2(-ex[1], ex[0]), mx = (a[0] + b[0]) / 2, mz = (a[1] + b[1]) / 2;
+    for (const [dy, dz, rotX] of [[0, -0.45, 0], [0, 0.45, 0], [0.45, 0, 1], [-0.45, 0, 1]]) {
+      const g = new THREE.PlaneGeometry(L, 0.9), uv = g.attributes.uv; for (let j = 0; j < uv.count; j++) uv.setX(j, uv.getX(j) * L / 4);
+      if (rotX) g.rotateX(Math.PI / 2); g.rotateY(ang); g.translate(mx + ez[0] * dz, y + dy, mz + ez[1] * dz); put(truss, g);
+    }
+  };
+
+  // =============================================================================================================
+  // the chicane's run-off: its paint out to the walls, the name along its widest part
+  // =============================================================================================================
+  const EB = (tr.escapeBands || []).find((e) => e.turn === 7);
+  if (EB) {
+    const sd = EB.side, pos = [], uv = [], idx = []; let n = 0, best = null;
+    for (let s = EB.sA - 6; s <= EB.sB + 6; s += 1) {
+      const i = tr.idxAtS(s), e0 = tr.edgeAt(i, sd) + kw - 0.05, e1 = tr.wallAt(i, sd) - 0.15; if (e1 - e0 < 1) { if (n) break; continue; }
+      const a = tr.sample(s, sd * e0, f), b = tr.sample(s, sd * e1, f2);
+      pos.push(a.x, 0.03, a.z, b.x, 0.03, b.z); uv.push(a.x / 6, a.z / 6, b.x / 6, b.z / 6);
+      if (n) { const p = n - 2; idx.push(p, p + 2, p + 1, p + 1, p + 2, p + 3); } n += 2;
+      if (!best || e1 - e0 > best.w) best = { s, w: e1 - e0, e0 };
+    }
+    if (n > 4) { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals(); put(runoff, g); }
+    if (best) {
+      // (the name: along the run-off at its widest, its foot toward the grandstand behind it - read from there)
+      const i = tr.idxAtS(best.s), t = [tr.tx[i], tr.tz[i]], nl = [tr.nx[i], tr.nz[i]], L = Math.min(70, best.w * 2.6), Wd = L / 4, c = tr.sample(best.s, sd * (best.e0 + best.w * 0.5), f);
+      const P = (u, v) => [c.x + t[0] * u + nl[0] * v, 0.05, c.z + t[1] * u + nl[1] * v];
+      const up = -sd;   // (the letters' tops toward the track)
+      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute([...P(-L / 2, -up * Wd / 2), ...P(L / 2, -up * Wd / 2), ...P(L / 2, up * Wd / 2), ...P(-L / 2, -up * Wd / 2), ...P(L / 2, up * Wd / 2), ...P(-L / 2, up * Wd / 2)], 3));
+      g.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1], 2)); g.computeVertexNormals(); group.add(new THREE.Mesh(g, word));
+      made.push(`run-off ${(EB.sB - EB.sA).toFixed(0)} m long, ${best.w.toFixed(0)} m deep at its widest`);
+    }
+    // light towers on its outer wall, lamps aimed back over it at the chicane; marshals' posts at its two ends
+    for (let s = EB.sA + 20; s <= EB.sB - 15; s += 26) {
+      const i = tr.idxAtS(s), p = tr.sample(s, sd * (tr.wallAt(i, sd) + 1.6), f), aim = tr.sample(s, -sd * 2, f2); mast(p.x, p.z, 14, [tr.tx[i], tr.tz[i]]);
+      put(flood, boxAt(p.x, 14.4, p.z, [tr.tx[i], tr.tz[i]], 2.2, 0.6, 1.0)); lights.push({ x: p.x, y: 14.4, z: p.z, tx: aim.x, tz: aim.z });
+    }
+    for (const s of [EB.sA + 8, EB.sB - 6]) {
+      const i = tr.idxAtS(s), ex = [tr.tx[i], tr.tz[i]], p = tr.sample(s, sd * (tr.wallAt(i, sd) + 1.4), f);
+      put(white, boxAt(p.x, 1.6, p.z, ex, 3.0, 3.2, 1.8)); put(grey, boxAt(p.x, 3.3, p.z, ex, 3.4, 0.2, 2.2));
+      for (const k of [-0.8, 0.6]) { const q = tr.sample(s + k, sd * (tr.wallAt(i, sd) + 0.5), f2); put(orange, boxAt(q.x, 0.9, q.z, ex, 0.5, 1.6, 0.32)); put(orange, boxAt(q.x, 1.85, q.z, ex, 0.24, 0.26, 0.24)); }
+    }
+  }
+
+  // =============================================================================================================
+  // the lighting gantry along the chicane's inside wall: lattice masts, the truss over the fence, lamps on the track,
+  // the aramco banner hung from it (the photos from the stands across the run-off)
+  // =============================================================================================================
+  {
+    const sd = -(EB ? EB.side : -1), sA = c7 - 40, sB = c9 - 10, H = 11.5, pts = [];
+    for (let s = sA; s <= sB; s += 24) { const i = tr.idxAtS(s), p = tr.sample(s, sd * (tr.wallAt(i, sd) + 1.8), f); if (!okAt(p.x, p.z, 0.5)) continue; pts.push([p.x, p.z, s, i]); }
+    for (let k = 0; k < pts.length; k++) {
+      const [x, z, s, i] = pts[k]; mast(x, z, H + 0.5, [tr.tx[i], tr.tz[i]]);
+      if (k) beam(pts[k - 1], pts[k], H);
+      for (const da of [-6, 6]) { const q = tr.sample(s + da, sd * (tr.wallAt(i, sd) + 1.0), f), aim = tr.sample(s + da, -sd * 3, f2); put(flood, boxAt(q.x, H - 0.8, q.z, [tr.tx[i], tr.tz[i]], 1.6, 0.4, 0.7)); lights.push({ x: q.x, y: H - 0.8, z: q.z, tx: aim.x, tz: aim.z }); }
+    }
+    // (the banner: under the truss in its middle span, facing the track)
+    if (pts.length > 3) {
+      const k = pts.length >> 1, a = pts[k - 1], b = pts[k], L = Math.hypot(b[0] - a[0], b[1] - a[1]), ex = [(b[0] - a[0]) / L, (b[1] - a[1]) / L];
+      const g = new THREE.PlaneGeometry(L - 2, 2.2); g.rotateY(Math.atan2(-ex[1], ex[0])); g.translate((a[0] + b[0]) / 2, H - 2.2, (a[1] + b[1]) / 2); put(banner, g);
+    }
+    made.push(`gantry ${pts.length} masts`);
+  }
+
+  // =============================================================================================================
+  // the T-Mobile grandstands: scaffold stands clad in magenta, round the outside of the loop
+  // =============================================================================================================
+  const STD = { tiers: 18, tierH: 0.55, tierD: 0.9, gap: 1.6 };
+  const chain = (sA, sB, side, S, tag) => {
+    const pts = []; for (let s = sA; s <= sB; s += 1) { const i = tr.idxAtS(s); tr.sample(s, side * (tr.wallAt(i, side) + S.gap), f); pts.push([f.x, f.z]); }
+    const depth = 0.8 + S.tiers * S.tierD + 0.6, out = [];
+    const make = (a, b) => {
+      const l0 = Math.hypot(b[0] - a[0], b[1] - a[1]), ex = [(b[0] - a[0]) / l0, (b[1] - a[1]) / l0], mx = (a[0] + b[0]) / 2, mz = (a[1] + b[1]) / 2;
+      const q = tr.nearest(mx, mz), t = tr.sample(q.s, 0, f2); let ez = [-ex[1], ex[0]]; if (ez[0] * (mx - t.x) + ez[1] * (mz - t.z) < 0) ez = [ex[1], -ex[0]];
+      return { x: mx, z: mz, ex, ez, len: l0 - 0.4, depth, s: q.s, world: (lx, lz) => [mx + ex[0] * lx + ez[0] * lz, mz + ex[1] * lx + ez[1] * lz] };
+    };
+    const within = (p, x, z) => { const dx = x - p.x, dz = z - p.z, lx = dx * p.ex[0] + dz * p.ex[1], lz = dx * p.ez[0] + dz * p.ez[1]; return Math.abs(lx) < p.len / 2 + 0.8 && lz > -0.5 && lz < p.depth + 0.5; };
+    const clear = (p) => {
+      for (let lx = -p.len / 2; lx <= p.len / 2 + 0.01; lx += 2) for (let lz = 0; lz <= p.depth + 0.01; lz += 2) {
+        const [x, z] = p.world(lx, lz); if (corridorSigned(tr, pit, x, z, -0.4) < 0 || near.some((r) => inRing(x, z, r)) || out.some((o) => within(o, x, z))) return false;
+      }
+      return true;
+    };
+    let k = 0;
+    while (k < pts.length - 10) {
+      let got = null;
+      for (let k0 = k; k0 < Math.min(pts.length - 10, k + 24) && !got; k0++) for (const L of [30, 22, 15]) { if (k0 + L >= pts.length) continue; const p = make(pts[k0], pts[k0 + L]); if (clear(p)) { got = p; k = k0 + L + 1; break; } }
+      if (got) out.push(got); else k += 4;
+    }
+    for (const p of out) Object.assign(p, { tiers: S.tiers, name: tag, style: { tierH: S.tierH, tierD: S.tierD, roof: 'none', seat: 0x22232a, fill: 0.93 } });
+    made.push(`${tag} ${out.length} sections (${out.reduce((a, p) => a + p.len, 0).toFixed(0)} m)`);
+    return out;
+  };
+  const south = chain(c5 + 45, c6 - 70, -1, STD, 'T-Mobile Zone south grandstand');
+  const corner = chain(c6 - 55, c6 + 60, -1, STD, 'T-Mobile Zone Turn 6 grandstand');
+  const east = EB ? chain(EB.sA + 4, EB.sB - 4, EB.side, { ...STD, tiers: 22 }, 'T-Mobile Zone chicane grandstand') : [];
+  const all = [...south, ...corner, ...east];
+  // (their magenta: the back and the ends clad in T-Mobile panels, the top rail lit)
+  for (const p of all) {
+    const top = 1.2 + p.tiers * STD.tierH, back = p.depth;
+    const plane = (lx0, lx1, lz0, lz1, y0, y1, rep) => { const [x0, z0] = p.world(lx0, lz0), [x1, z1] = p.world(lx1, lz1), L = Math.hypot(x1 - x0, z1 - z0), g = new THREE.PlaneGeometry(L, y1 - y0), uv = g.attributes.uv; for (let j = 0; j < uv.count; j++) uv.setX(j, uv.getX(j) * rep); g.rotateY(Math.atan2(-(z1 - z0), x1 - x0)); g.translate((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2); put(tmoWall, g); };
+    plane(-p.len / 2, p.len / 2, back + 0.65, back + 0.65, 0, top + 1.4, Math.max(1, Math.round(p.len / 14)));
+    // (the ends: the rake's profile, low at the front, the full height at the back)
+    for (const e of [-1, 1]) {
+      const lx = e * (p.len / 2 + 0.05), [x0, z0] = p.world(lx, 0), [x1, z1] = p.world(lx, back + 0.65), g = new THREE.BufferGeometry(), r = (back + 0.65) / 14;
+      g.setAttribute('position', new THREE.Float32BufferAttribute([x0, 0, z0, x1, 0, z1, x1, top + 1.4, z1, x0, 0, z0, x1, top + 1.4, z1, x0, 1.4, z0], 3));
+      g.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, r, 0, r, 1, 0, 0, r, 1, 0, 1.4 / (top + 1.4)], 2)); g.computeVertexNormals(); put(tmoWall, g);
+    }
+    const [lx, lz] = p.world(0, back - 0.4), q = tr.nearest(lx, lz), aim = tr.sample(q.s, 0, f);
+    lights.push({ x: lx, y: top + 3, z: lz, tx: aim.x, tz: aim.z }); put(flood, boxAt(lx, top + 3, lz, p.ex, 1.4, 0.35, 0.6));
+    for (const lxx of [-p.len / 2 + 1, p.len / 2 - 1]) { const [x, z] = p.world(lxx, back - 0.3); put(white, boxAt(x, (top + 3) / 2, z, p.ex, 0.25, top + 3, 0.25)); }
+    stands.push(p);
+  }
+  // the T-Mobile cube: lit magenta, the T on each face, on its lattice mast over the chicane stand
+  if (east.length) {
+    const p = east[Math.min(east.length - 1, east.length >> 1)], [x, z] = p.world(-p.len / 2 + 2, p.depth + 4);
+    if (okAt(x, z)) { mast(x, z, 24, p.ex); const g = new THREE.BoxGeometry(7, 7, 7); g.rotateY(Math.atan2(-p.ex[1], p.ex[0])); g.translate(x, 28, z); put(cube, g); solids.push({ ring: [[x - 1, z - 1], [x + 1, z - 1], [x + 1, z + 1], [x - 1, z + 1]], h: 31 }); made.push('the T-Mobile cube'); }
+  }
+
+  // =============================================================================================================
+  // the fan zone inside the loop, between the track and the Sphere: marquees, the stage, container bars, light towers
+  // =============================================================================================================
+  {
+    const sp = tr.nearest(-17, -1331);   // (the Sphere: world/Landmarks.js, from its footprint)
+    const SPH = [-17, -1331], R = 96;
+    const free = (x, z, r = 4) => { for (const [dx, dz] of [[0, 0], [r, 0], [-r, 0], [0, r], [0, -r]]) { const px = x + dx, pz = z + dz; if (Math.hypot(px - SPH[0], pz - SPH[1]) < R || !okAt(px, pz, 4)) return false; } return true; };
+    let nT = 0, nC = 0;
+    // (marquees in rows: the white peaked tents, 10 m square)
+    for (let x = -70; x <= 90; x += 15) for (let z = -1160; z >= -1245; z -= 15) {
+      if (!free(x, z, 7)) continue; const h = 3;
+      if (Math.round((x + 70) / 15 - (z + 1160) / 15) % 3 === 2) {   // (every third a bar: two magenta containers, a canopy)
+        for (const dz of [-1.5, 1.5]) put(container, boxAt(x, 1.3, z + dz, [1, 0], 6.1, 2.6, 2.4)); nC++; continue;
+      }
+      put(tent, boxAt(x, h / 2, z, [1, 0], 10, h, 10));
+      const roof = new THREE.ConeGeometry(7.07, 3, 4, 1); roof.rotateY(Math.PI / 4); roof.translate(x, h + 1.5, z); put(tent, roof); nT++;
+      solids.push({ ring: [[x - 5, z - 5], [x + 5, z - 5], [x + 5, z + 5], [x - 5, z + 5]], h: 6 });
+    }
+    // (the stage: on the Sphere's side of the zone, facing the track, its screen and lighting truss)
+    { const x = 40, z = -1255; if (free(x, z, 3)) {
+      put(black, boxAt(x, 0.8, z, [1, 0], 22, 1.6, 10)); put(screen, (() => { const g = new THREE.PlaneGeometry(16, 9); g.translate(x, 7.2, z - 4.6); return g; })());
+      for (const dx of [-11, 11]) mast(x + dx, z - 3, 13, [1, 0]); beam([x - 11, z - 3], [x + 11, z - 3], 13);
+      for (const dx of [-7, 0, 7]) { put(flood, boxAt(x + dx, 12.2, z - 3, [1, 0], 1.2, 0.4, 0.6)); lights.push({ x: x + dx, y: 12.2, z: z - 3, tx: x + dx, tz: z + 25 }); }
+      solids.push({ ring: [[x - 11, z - 5], [x + 11, z - 5], [x + 11, z + 5], [x - 11, z + 5]], h: 14 }); made.push('the stage');
+    } }
+    // (light towers over the zone)
+    for (const [x, z] of [[-55, -1175], [20, -1170], [85, -1200], [80, -1280]]) if (free(x, z, 1.5)) { mast(x, z, 16); put(flood, boxAt(x, 16.4, z, [1, 0], 2.0, 0.5, 1.0)); lights.push({ x, y: 16.4, z, tx: x, tz: z - 20 }); }
+    made.push(`fan zone ${nT} marquees, ${nC} container bars (the Sphere at s ${sp.s.toFixed(0)})`);
+  }
+  // (the boxes the city's infill and the auto-placed stands keep out of: the loop's inside and the strips outside it)
+  const bx = (x0, z0, x1, z1) => { const b = new THREE.Box3(new THREE.Vector3(x0, 0, z0), new THREE.Vector3(x1, 40, z1)); boxes.push(b); };
+  bx(-215, -1480, 125, -1140); bx(125, -1520, 260, -1100); bx(-215, -1140, 140, -1060);
+  // (lamps along both walls round the loop, every 30 m)
+  for (let s = c5 + 20; s <= c10 - 20; s += 30) for (const sd of [1, -1]) { const i = tr.idxAtS(s), p = tr.sample(s, sd * (tr.wallAt(i, sd) + 0.5), f), aim = tr.sample(s, 0, f2); lights.push({ x: p.x, y: 12, z: p.z, tx: aim.x, tz: aim.z }); }
+
+  // ---- one mesh per material
+  for (const [mat, gs] of geos) {
+    const clean = gs.map((g) => { const h = g.index ? g.toNonIndexed() : g; for (const k of Object.keys(h.attributes)) if (k !== 'position' && k !== 'normal' && k !== 'uv') h.deleteAttribute(k); if (!h.attributes.uv) h.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(h.attributes.position.count * 2), 2)); if (!h.attributes.normal) h.computeVertexNormals(); return h; });
+    const mesh = new THREE.Mesh(mergeGeometries(clean), mat); mesh.name = 'sz'; group.add(mesh);
+  }
+  console.info(`[vegas] Sphere zone: ${made.join(', ')}, ${lights.length} lamps`);
+  return { group, stands, lights, boxes, solids };
+}
+
+return { buildSphereZone };
+})();
+
 // ---- src/world/VegasPaddock.js
 __m['src/world/VegasPaddock.js'] = (() => {
 const { corridorSigned } = __m['src/track/TrackBuilder.js'];
 const { STAND } = __m['src/world/Grandstands.js'];
 const { FLOOD } = __m['src/world/Lighting.js'];
+const { buildSphereZone } = __m['src/world/VegasSphereZone.js'];
 // Las Vegas: the start/finish straight and Turn 1 as they are on race night (2023-).
 //  * The Grand Prix Plaza - the pit and paddock building: four storeys over the garages, white slabs with glass
 //    balustrades and lit hospitality suites on every floor looking down the pit lane, a roof terrace, and the red
@@ -185674,6 +186177,7 @@ const { FLOOD } = __m['src/world/Lighting.js'];
 //    floodlight field with the masts: world/Lighting.js) - the straight lit like day, as it is.
 // The stands' tiers and crowds are world/Grandstands.js's (returned here as fixed placements); this module adds what
 // makes them these stands, and everything else.
+
 
 
 
@@ -186728,6 +187232,9 @@ function buildVegasPaddock(track, pit, def, rings = [], geo = null) {
     made.push(`${nP} palms across the track`);
     console.info(`[vegas] Bellagio Fountain Club: ${made.join(', ')}`);
   }
+  // ---- the T-Mobile Zone at Sphere, Turns 5-9 (world/VegasSphereZone.js): its stands, lamps and solids are ours
+  const sz = buildSphereZone(tr, pit, def, near);
+  group.add(sz.group); stands.push(...sz.stands); lights.push(...sz.lights); solids.push(...sz.solids);
   // ---- one mesh per material (the static world: a handful of draw calls)
   for (const [mat, gs] of geos) {
     const clean = gs.map((g) => { const h = g.index ? g.toNonIndexed() : g; for (const k of Object.keys(h.attributes)) if (k !== 'position' && k !== 'normal' && k !== 'uv') h.deleteAttribute(k); if (!h.attributes.uv) h.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(h.attributes.position.count * 2), 2)); if (!h.attributes.normal) h.computeVertexNormals(); return h; });
@@ -186741,6 +187248,7 @@ function buildVegasPaddock(track, pit, def, rings = [], geo = null) {
   // (and the whole section, from Turn 17's exit to Turn 3, 120 m round: no auto-placed stand in it - only the real ones)
   { const b = new THREE.Box3(); for (let x = cornerS(17) - L - 60; x <= c3; x += 10) { tr.sample(x, 0, f); b.expandByPoint(new THREE.Vector3(f.x, 0, f.z)); } b.expandByVector(new THREE.Vector3(120, 0, 120)); b.max.y = 30; boxes.push(b); }
   // (the boxes the auto-placed stands must keep out of: all of this, and each stand of ours)
+  boxes.push(...sz.boxes);
   for (const p of stands) { const r = [p.world(-p.len / 2, 0), p.world(p.len / 2, 0), p.world(p.len / 2, p.depth), p.world(-p.len / 2, p.depth)]; const b = new THREE.Box3(); for (const [x, z] of r) b.expandByPoint(new THREE.Vector3(x, 0, z)); b.max.y = 20; boxes.push(b); }
   console.info(`[vegas] paddock: plaza ${pit ? 'built' : 'no pit lane'}, main grandstand ${main.length} sections, the Turns 2-4 stand ${wrap.length} sections (${['PG2', 'PG3', 'PG4'].map((n) => `${n} ${wrap.filter((p) => p.name.endsWith(n)).reduce((a, p) => a + p.len, 0).toFixed(0)} m`).join(', ')}), ${lights.length} lamps`);
   return {
@@ -186762,7 +187270,7 @@ const { buildSpline, sampleCurve, rotateSamples, Track, buildTrackMeshes, buildC
 const { RacingLine } = __m['src/track/RacingLine.js'];
 const { createEnvironment, applyTimeToMaterials, createRain } = __m['src/world/Environment.js'];
 const { Broadcast, POSES } = __m['src/world/Broadcast.js'];
-const { SphereShow, SPHERE_SEQUENCE, CANVAS_SHOWS, SHOW_SECONDS, SHOW_BG, SIDES, SHOW_ID } = __m['src/world/SphereShow.js'];
+const { SphereShow, BroadcastOverlay, SPHERE_SEQUENCE, CANVAS_SHOWS, SHOW_SECONDS, SHOW_BG, SIDES, SHOW_ID } = __m['src/world/SphereShow.js'];
 const { Engineer } = __m['src/race/Engineer.js'];
 const { buildGenericBuildings } = __m['src/world/Buildings.js'];
 const { buildLandmarks, clearLandmarksFromTrack, mergeStaticParts } = __m['src/world/Landmarks.js'];
@@ -186797,7 +187305,7 @@ const { CrashCam, CRASH_G } = __m['src/camera/CrashCam.js'];
 const { SafetyCarMesh } = __m['src/vehicle/SafetyCarMesh.js'];
 const { Debris } = __m['src/world/Debris.js'];
 const { Input } = __m['src/input/Input.js'];
-const { CockpitCamera } = __m['src/camera/CockpitCamera.js'];
+const { CockpitCamera, TCAM_TILT } = __m['src/camera/CockpitCamera.js'];
 const { AudioEngine } = __m['src/audio/Audio.js'];
 const { ROSTER, customDriver, POINTS, standIn, dayPerf } = __m['src/race/Roster.js'];
 const { showMemorial } = __m['src/ui/Memorial.js'];
@@ -186972,7 +187480,7 @@ const fire = new Fire(scene); setFire(fire);              // fires, smoke, extin
 const chunks = new Chunks(scene); setChunks(chunks);      // the free halves of cars torn in two   // crash debris: pooled instanced pieces, five draw calls in all
 // The Sphere's F1 stream (2x2 render-target atlas: two onboards, a trackside camera, the Sphere itself) and its
 // canvas-drawn shows exist only while a circuit with the Sphere is loaded (created in loadWorld, freed in unloadWorld)
-let feed = null, show = null;
+let feed = null, show = null, bcast = null;
 
 const input = new Input();
 const hud = new HUD();
@@ -187072,8 +187580,10 @@ async function loadWorld(def) {
   const mergedParts = mergeStaticParts(lm.group);   // draw calls: static same-material parts baked together per landmark
   scene.add(lm.group);
   if (lm.sphere) {
-    feed = new Broadcast(512, 2, 1); feed.init(renderer); show = new SphereShow();
+    // (the F1 stream: one 16:9 feed, 768 x 432, across the Sphere's one big screen, its graphics over it)
+    feed = new Broadcast(432, 1, 1, 16 / 9); feed.init(renderer); show = new SphereShow(); bcast = new BroadcastOverlay();
     const u = lm.sphere.material.uniforms; u.uFeed.value = feed.texture; u.uHasFeed.value = 1; u.uShow.value = show.texture; u.uGrid.value = feed.grid;
+    u.uBcast.value = bcast.texture; u.uHasBcast.value = 1;
     // content faces the nearest point of the circuit (the T5-T9 loop), and reads left-to-right from there
     const sp = lm.group.children.find((o) => o.name === 'lm:sphere').position; const q = track.nearest(sp.x, sp.z); const f = track.sample(q.s);
     const fx = f.x - sp.x, fz = f.z - sp.z, fl = Math.hypot(fx, fz) || 1;
@@ -187237,7 +187747,7 @@ function unloadWorld() {
     o.traverse((x) => { x.geometry?.dispose?.(); const ms = Array.isArray(x.material) ? x.material : x.material ? [x.material] : []; for (const m of ms) freeMat(m); });
   }
   W.lights?.dispose(scene); W.standHD?.dispose(); W.standHD = null;
-  feed?.dispose(); show?.texture.dispose(); feed = null; show = null;
+  feed?.dispose(); show?.texture.dispose(); bcast?.texture.dispose(); feed = null; show = null; bcast = null;
   RL.group = null; RL.main = null; RL.pitGuide = null;
   for (const k of ['geo', 'track', 'pit', 'line', 'profile', 'lineSpeed', 'showLine', 'trackMesh', 'landmarks', 'buildings', 'circuit', 'pitBoxes', 'stands', 'lights', 'sphereInfo', 'venue', 'scenery', 'vegas', 'faceAngle0']) W[k] = null;
 }
@@ -187915,6 +188425,14 @@ $('btn-resume').addEventListener('click', () => setPaused(false));
   const show = () => { for (const s of sliders) { s.value = Math.round(audio.volume * 100); const v = s.parentElement.querySelector('.vol-val'); if (v) v.textContent = `${s.value}%`; } };
   for (const s of sliders) s.addEventListener('input', () => { audio.setVolume(s.value / 100); show(); });
   show();
+}
+// the T-cam's tilt down (degrees): a slider in the pause menu and the setup's Driving page, kept in this browser
+{
+  const KEY = 'f1sim-tcam-tilt', sliders = ['tilt-menu', 'tilt-pause'].map($).filter(Boolean);
+  let deg = TCAM_TILT; try { const v = +localStorage.getItem(KEY); if (v >= 4 && v <= 16) deg = v; } catch (e) { /* (a private window) */ }
+  const set = (d) => { camCtl.tcam.pitch = (d * Math.PI) / 180; for (const s of sliders) { s.value = d; const v = s.parentElement.querySelector('.vol-val'); if (v) v.textContent = `${d}°`; } };
+  for (const s of sliders) s.addEventListener('input', () => { const d = +s.value; set(d); try { localStorage.setItem(KEY, String(d)); } catch (e) { /* */ } });
+  set(deg);
 }
 $('btn-quit').addEventListener('click', () => { setPaused(false); quitSession(); });
 $('btn-restart').addEventListener('click', () => { setPaused(false); restartRace(); });
@@ -190232,17 +190750,37 @@ function clearAmbient() {
   for (const m of A.meshes) { scene.remove(m.group); m.dispose(); } S.ambient = null;
 }
 
-/** Four feeds for the Sphere's F1 stream: the leader's T-cam, a second car's T-cam (you, when racing), the T1
- *  trackside camera and a wide shot of the Sphere itself (which shows the previous frame's stream: it films itself). */
+/**
+ * The Sphere's F1 stream: the world feed - an onboard T-cam, the director cutting to another car every 8 s (the leader,
+ * you when racing, then down the order) - or, with no cars on track, the trackside cameras -> [pose], the car on screen
+ */
+function feedCars() {
+  const d = S.director;
+  return d ? d.positions.filter((c) => !c.inPit && !c.retired) : (S.ambient ? S.ambient.cars : []);
+}
+function feedCar(cars) {
+  if (!cars.length) return null;
+  const k = Math.floor(simTime / 8), you = S.director && S.player && cars.includes(S.player) ? S.player : null;
+  const order = [cars[0], you || cars[1], cars[1], cars[2], cars[0], cars[3], you || cars[4]].filter(Boolean);
+  return order[k % order.length];
+}
 function feedPoses() {
-  const d = S.director, tr = W.track;
-  const cars = d ? d.positions.filter((c) => !c.inPit && !c.retired) : (S.ambient ? S.ambient.cars : []);
-  const sphere = W.sphereInfo ? POSES.landmark(W.sphereInfo.center, W.sphereInfo.radius * 3.0, W.sphereInfo.radius * 0.55, (W.faceAngle0 || 0)) : POSES.trackside(tr, 2200, 1, cars);
-  const side = POSES.trackside(tr, 180, 1, cars);
-  if (!cars.length) return [POSES.trackside(tr, 3900, -1, []), POSES.trackside(tr, 1800, -1, []), side, sphere];
-  const pick = (i) => cars[Math.min(i, cars.length - 1)];
-  const second = d && S.player && !S.player.inPit && !S.player.retired && S.player !== pick(0) ? S.player : pick(1);
-  return [POSES.onboard(pick(0)), POSES.onboard(second), side, sphere];
+  const tr = W.track, cars = feedCars(), car = feedCar(cars);
+  if (!car) return [POSES.trackside(tr, [3900, 1800, 180][Math.floor(simTime / 8) % 3], -1, [])];
+  return [POSES.onboard(car)];
+}
+/** the stream's graphics: the order down the two towers, the lap, the caption of the car on screen */
+function feedInfo() {
+  const d = S.director, cars = feedCars(), car = feedCar(cars);
+  if (!d) return { rows: [], cap: null, lap: 0, laps: 0 };
+  const P = d.positions, lead = P[0];
+  const code = (c) => String(c.short || c.name || '???').slice(0, 3).toUpperCase();
+  const rows = P.slice(0, 20).map((c, i) => {
+    const g = i === 0 ? 'Leader' : c.retired ? 'OUT' : c.inPit || c.pitLane ? 'PIT' : (() => { const x = d.radio?.gap?.(c, lead); const v = x != null ? Math.abs(x) : Math.abs(lead.totalDist - c.totalDist) / Math.max(12, lead.speed || 60); return v > 99 ? '+1 LAP' : `+${v.toFixed(1)}`; })();
+    return { pos: i + 1, code: code(c), gap: g, color: c.color };
+  });
+  const cap = car ? { pos: P.indexOf(car) + 1, name: car.name, team: car.team, color: car.color } : null;
+  return { rows, cap, lap: lead ? lead.lap + 1 : 0, laps: d.lapsTotal || 0 };
 }
 function tr0() { return W.track.length - 200; }
 
@@ -190318,7 +190856,7 @@ function sphereFeed(seen) {
   if (W.landmarks?.sphere && seen && (RES.frames & 1) === 0) {
     const k = Math.floor((simTime % (SPHERE_SEQUENCE.length * SHOW_SECONDS)) / SHOW_SECONDS);
     const cur = SPHERE_SEQUENCE[k], next = SPHERE_SEQUENCE[(k + 1) % SPHERE_SEQUENCE.length], tin = simTime % SHOW_SECONDS;
-    if (cur === 'broadcast' || (next === 'broadcast' && tin > SHOW_SECONDS - 4)) feed.update(renderer, scene, feedPoses(), [W.stands?.group].filter(Boolean));
+    if (cur === 'broadcast' || (next === 'broadcast' && tin > SHOW_SECONDS - 4)) { feed.update(renderer, scene, feedPoses(), [W.stands?.group].filter(Boolean)); bcast?.draw(feedInfo(), simTime); }
   }
 }
 /** distant generic buildings (cells) are skipped entirely: the fog has faded them anyway */
@@ -190493,6 +191031,8 @@ function frame(now) {
     crashFrame() { const n0 = renderer.info.programs.length; ensureCrashComposer(); crashPass.uniforms.uBlur.value = 0.6; crashPass.uniforms.uSat.value = 1.5; crashComposer.render(); return renderer.info.programs.length - n0; },
     /** (tests: the crash director, and the camera as drawn - terrainLift() lifts it for the frame and returns the undo; renderView() draws a frame through it) */
     crashCam, terrainLift, renderView,
+    /** (tests: the Sphere's F1 stream drawn now - its feed rendered, its graphics drawn - and the show forced onto it) */
+    feedNow() { if (!feed || !W.landmarks?.sphere) return false; const u = W.landmarks.sphere.material.uniforms; u.uForce.value = SHOW_ID.broadcast; feed.update(renderer, scene, feedPoses(), [W.stands?.group].filter(Boolean)); bcast.last = -1; bcast.draw(feedInfo(), simTime); return feed; },
     /** (tests: the safety car's model brought up to date with the race - main loop: frame) */
     syncSafetyCar(dt = 1 / 60) { syncSafetyCar(S.director, dt); },
     /** (tools: a calibration applied, the racing line and the speed profile rebuilt from it - the next session's AI drives them) */

@@ -777,7 +777,7 @@ export class Track {
     if (!list) return;
     this.escapeBoxes = [];
     for (const e of list) {
-      const side = e.side ?? -1, ring = e.auto ? this._escapeBox(e.auto, side) : e.ring; if (!ring) continue;
+      const side = e.side ?? -1, ring = e.auto ? this._escapeBox(e.auto, side) : e.band ? this._escapeBand(e.band, side) : e.ring; if (!ring) continue;
       const inside = insideRings([ring]), arr = side > 0 ? this.wallL : this.wallR;
       const at = (i, d) => [this.px[i] + this.nx[i] * side * d, this.pz[i] + this.nz[i] * side * d];
       let lo = -1, hi = -1;
@@ -788,8 +788,24 @@ export class Track {
       }
       // (an escape drawn to the real one's shape is held as it is: fairWalls rounds every other barrier line, and would
       //  round this one's square corners into a balloon)
-      if (e.auto && lo >= 0) (this.heldWalls || (this.heldWalls = [])).push({ a: this.s[lo], b: this.s[hi], side });
+      if ((e.auto || e.band) && lo >= 0) (this.heldWalls || (this.heldWalls = [])).push({ a: this.s[lo], b: this.s[hi], side });
     }
+  }
+  /**
+   * A run-off swelling out from the barrier line beside a stretch of the lap (escapes band: { turn, from, to, depth }):
+   * from `from` to `to` m about the corner's apex, the barrier on that side eased out to `depth` m past the kerb and back
+   * in again - a lozenge of paved run-off along the corner (Las Vegas's Turns 7-8: the painted run-off east of the
+   * chicane). Its outline is kept for the paint (escapeBands: { turn, sA, sB, side, depth, out(s) }).
+   */
+  _escapeBand(o, side) {
+    const c = (this.def.corners || []).find((k) => k.n === o.turn); if (!c || c.s == null) return null;
+    const sA = c.s + (o.from ?? -20), sB = c.s + (o.to ?? 120), D = o.depth ?? 30, f = {};
+    const prof = (s) => { const t = (s - sA) / (sB - sA), a = Math.min(1, Math.max(0, t / 0.28)), b = Math.min(1, Math.max(0, (1 - t) / 0.3)); return (a * a * (3 - 2 * a)) * (b * b * (3 - 2 * b)); };
+    const out = (s) => { const i = this.idxAtS(s); return Math.max(this.wallAt(i, side), this.edgeAt(i, side) + this.kerbWidth + D * prof(s)); };
+    const outer = [], inner = [];
+    for (let s = sA; s <= sB + 0.01; s += 2) { this.sample(s, side * out(s), f); outer.push([f.x, f.z]); this.sample(s, 0, f); inner.push([f.x, f.z]); }
+    (this.escapeBands || (this.escapeBands = [])).push({ turn: o.turn, sA, sB, side, depth: D, out });
+    return [...outer, ...inner.reverse()];
   }
   /** a barrier line held as drawn (escapes: an escape the shape of the real one) at arc length s on that side */
   heldAt(s, side) { return (this.heldWalls || []).some((h) => h.side === side && s >= h.a && s <= h.b); }

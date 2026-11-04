@@ -6,7 +6,7 @@ import { buildSpline, sampleCurve, rotateSamples, Track, buildTrackMeshes, build
 import { RacingLine } from './track/RacingLine.js';
 import { createEnvironment, applyTimeToMaterials, createRain } from './world/Environment.js';
 import { Broadcast, POSES } from './world/Broadcast.js';
-import { SphereShow, SPHERE_SEQUENCE, CANVAS_SHOWS, SHOW_SECONDS, SHOW_BG, SIDES, SHOW_ID } from './world/SphereShow.js';
+import { SphereShow, BroadcastOverlay, SPHERE_SEQUENCE, CANVAS_SHOWS, SHOW_SECONDS, SHOW_BG, SIDES, SHOW_ID } from './world/SphereShow.js';
 import { Engineer } from './race/Engineer.js';
 import { buildGenericBuildings } from './world/Buildings.js';
 import { buildLandmarks, clearLandmarksFromTrack, mergeStaticParts } from './world/Landmarks.js';
@@ -46,7 +46,7 @@ import { CrashCam, CRASH_G } from './camera/CrashCam.js';
 import { SafetyCarMesh } from './vehicle/SafetyCarMesh.js';
 import { Debris } from './world/Debris.js';
 import { Input } from './input/Input.js';
-import { CockpitCamera } from './camera/CockpitCamera.js';
+import { CockpitCamera, TCAM_TILT } from './camera/CockpitCamera.js';
 import { AudioEngine } from './audio/Audio.js';
 import { ROSTER, customDriver, POINTS, standIn, dayPerf } from './race/Roster.js';
 import { showMemorial } from './ui/Memorial.js';
@@ -130,7 +130,7 @@ const fire = new Fire(scene); setFire(fire);              // fires, smoke, extin
 const chunks = new Chunks(scene); setChunks(chunks);      // the free halves of cars torn in two   // crash debris: pooled instanced pieces, five draw calls in all
 // The Sphere's F1 stream (2x2 render-target atlas: two onboards, a trackside camera, the Sphere itself) and its
 // canvas-drawn shows exist only while a circuit with the Sphere is loaded (created in loadWorld, freed in unloadWorld)
-let feed = null, show = null;
+let feed = null, show = null, bcast = null;
 
 const input = new Input();
 const hud = new HUD();
@@ -230,8 +230,10 @@ async function loadWorld(def) {
   const mergedParts = mergeStaticParts(lm.group);   // draw calls: static same-material parts baked together per landmark
   scene.add(lm.group);
   if (lm.sphere) {
-    feed = new Broadcast(512, 2, 1); feed.init(renderer); show = new SphereShow();
+    // (the F1 stream: one 16:9 feed, 768 x 432, across the Sphere's one big screen, its graphics over it)
+    feed = new Broadcast(432, 1, 1, 16 / 9); feed.init(renderer); show = new SphereShow(); bcast = new BroadcastOverlay();
     const u = lm.sphere.material.uniforms; u.uFeed.value = feed.texture; u.uHasFeed.value = 1; u.uShow.value = show.texture; u.uGrid.value = feed.grid;
+    u.uBcast.value = bcast.texture; u.uHasBcast.value = 1;
     // content faces the nearest point of the circuit (the T5-T9 loop), and reads left-to-right from there
     const sp = lm.group.children.find((o) => o.name === 'lm:sphere').position; const q = track.nearest(sp.x, sp.z); const f = track.sample(q.s);
     const fx = f.x - sp.x, fz = f.z - sp.z, fl = Math.hypot(fx, fz) || 1;
@@ -395,7 +397,7 @@ function unloadWorld() {
     o.traverse((x) => { x.geometry?.dispose?.(); const ms = Array.isArray(x.material) ? x.material : x.material ? [x.material] : []; for (const m of ms) freeMat(m); });
   }
   W.lights?.dispose(scene); W.standHD?.dispose(); W.standHD = null;
-  feed?.dispose(); show?.texture.dispose(); feed = null; show = null;
+  feed?.dispose(); show?.texture.dispose(); bcast?.texture.dispose(); feed = null; show = null; bcast = null;
   RL.group = null; RL.main = null; RL.pitGuide = null;
   for (const k of ['geo', 'track', 'pit', 'line', 'profile', 'lineSpeed', 'showLine', 'trackMesh', 'landmarks', 'buildings', 'circuit', 'pitBoxes', 'stands', 'lights', 'sphereInfo', 'venue', 'scenery', 'vegas', 'faceAngle0']) W[k] = null;
 }
@@ -1073,6 +1075,14 @@ $('btn-resume').addEventListener('click', () => setPaused(false));
   const show = () => { for (const s of sliders) { s.value = Math.round(audio.volume * 100); const v = s.parentElement.querySelector('.vol-val'); if (v) v.textContent = `${s.value}%`; } };
   for (const s of sliders) s.addEventListener('input', () => { audio.setVolume(s.value / 100); show(); });
   show();
+}
+// the T-cam's tilt down (degrees): a slider in the pause menu and the setup's Driving page, kept in this browser
+{
+  const KEY = 'f1sim-tcam-tilt', sliders = ['tilt-menu', 'tilt-pause'].map($).filter(Boolean);
+  let deg = TCAM_TILT; try { const v = +localStorage.getItem(KEY); if (v >= 4 && v <= 16) deg = v; } catch (e) { /* (a private window) */ }
+  const set = (d) => { camCtl.tcam.pitch = (d * Math.PI) / 180; for (const s of sliders) { s.value = d; const v = s.parentElement.querySelector('.vol-val'); if (v) v.textContent = `${d}°`; } };
+  for (const s of sliders) s.addEventListener('input', () => { const d = +s.value; set(d); try { localStorage.setItem(KEY, String(d)); } catch (e) { /* */ } });
+  set(deg);
 }
 $('btn-quit').addEventListener('click', () => { setPaused(false); quitSession(); });
 $('btn-restart').addEventListener('click', () => { setPaused(false); restartRace(); });
@@ -3390,17 +3400,37 @@ function clearAmbient() {
   for (const m of A.meshes) { scene.remove(m.group); m.dispose(); } S.ambient = null;
 }
 
-/** Four feeds for the Sphere's F1 stream: the leader's T-cam, a second car's T-cam (you, when racing), the T1
- *  trackside camera and a wide shot of the Sphere itself (which shows the previous frame's stream: it films itself). */
+/**
+ * The Sphere's F1 stream: the world feed - an onboard T-cam, the director cutting to another car every 8 s (the leader,
+ * you when racing, then down the order) - or, with no cars on track, the trackside cameras -> [pose], the car on screen
+ */
+function feedCars() {
+  const d = S.director;
+  return d ? d.positions.filter((c) => !c.inPit && !c.retired) : (S.ambient ? S.ambient.cars : []);
+}
+function feedCar(cars) {
+  if (!cars.length) return null;
+  const k = Math.floor(simTime / 8), you = S.director && S.player && cars.includes(S.player) ? S.player : null;
+  const order = [cars[0], you || cars[1], cars[1], cars[2], cars[0], cars[3], you || cars[4]].filter(Boolean);
+  return order[k % order.length];
+}
 function feedPoses() {
-  const d = S.director, tr = W.track;
-  const cars = d ? d.positions.filter((c) => !c.inPit && !c.retired) : (S.ambient ? S.ambient.cars : []);
-  const sphere = W.sphereInfo ? POSES.landmark(W.sphereInfo.center, W.sphereInfo.radius * 3.0, W.sphereInfo.radius * 0.55, (W.faceAngle0 || 0)) : POSES.trackside(tr, 2200, 1, cars);
-  const side = POSES.trackside(tr, 180, 1, cars);
-  if (!cars.length) return [POSES.trackside(tr, 3900, -1, []), POSES.trackside(tr, 1800, -1, []), side, sphere];
-  const pick = (i) => cars[Math.min(i, cars.length - 1)];
-  const second = d && S.player && !S.player.inPit && !S.player.retired && S.player !== pick(0) ? S.player : pick(1);
-  return [POSES.onboard(pick(0)), POSES.onboard(second), side, sphere];
+  const tr = W.track, cars = feedCars(), car = feedCar(cars);
+  if (!car) return [POSES.trackside(tr, [3900, 1800, 180][Math.floor(simTime / 8) % 3], -1, [])];
+  return [POSES.onboard(car)];
+}
+/** the stream's graphics: the order down the two towers, the lap, the caption of the car on screen */
+function feedInfo() {
+  const d = S.director, cars = feedCars(), car = feedCar(cars);
+  if (!d) return { rows: [], cap: null, lap: 0, laps: 0 };
+  const P = d.positions, lead = P[0];
+  const code = (c) => String(c.short || c.name || '???').slice(0, 3).toUpperCase();
+  const rows = P.slice(0, 20).map((c, i) => {
+    const g = i === 0 ? 'Leader' : c.retired ? 'OUT' : c.inPit || c.pitLane ? 'PIT' : (() => { const x = d.radio?.gap?.(c, lead); const v = x != null ? Math.abs(x) : Math.abs(lead.totalDist - c.totalDist) / Math.max(12, lead.speed || 60); return v > 99 ? '+1 LAP' : `+${v.toFixed(1)}`; })();
+    return { pos: i + 1, code: code(c), gap: g, color: c.color };
+  });
+  const cap = car ? { pos: P.indexOf(car) + 1, name: car.name, team: car.team, color: car.color } : null;
+  return { rows, cap, lap: lead ? lead.lap + 1 : 0, laps: d.lapsTotal || 0 };
 }
 function tr0() { return W.track.length - 200; }
 
@@ -3476,7 +3506,7 @@ function sphereFeed(seen) {
   if (W.landmarks?.sphere && seen && (RES.frames & 1) === 0) {
     const k = Math.floor((simTime % (SPHERE_SEQUENCE.length * SHOW_SECONDS)) / SHOW_SECONDS);
     const cur = SPHERE_SEQUENCE[k], next = SPHERE_SEQUENCE[(k + 1) % SPHERE_SEQUENCE.length], tin = simTime % SHOW_SECONDS;
-    if (cur === 'broadcast' || (next === 'broadcast' && tin > SHOW_SECONDS - 4)) feed.update(renderer, scene, feedPoses(), [W.stands?.group].filter(Boolean));
+    if (cur === 'broadcast' || (next === 'broadcast' && tin > SHOW_SECONDS - 4)) { feed.update(renderer, scene, feedPoses(), [W.stands?.group].filter(Boolean)); bcast?.draw(feedInfo(), simTime); }
   }
 }
 /** distant generic buildings (cells) are skipped entirely: the fog has faded them anyway */
@@ -3651,6 +3681,8 @@ function frame(now) {
     crashFrame() { const n0 = renderer.info.programs.length; ensureCrashComposer(); crashPass.uniforms.uBlur.value = 0.6; crashPass.uniforms.uSat.value = 1.5; crashComposer.render(); return renderer.info.programs.length - n0; },
     /** (tests: the crash director, and the camera as drawn - terrainLift() lifts it for the frame and returns the undo; renderView() draws a frame through it) */
     crashCam, terrainLift, renderView,
+    /** (tests: the Sphere's F1 stream drawn now - its feed rendered, its graphics drawn - and the show forced onto it) */
+    feedNow() { if (!feed || !W.landmarks?.sphere) return false; const u = W.landmarks.sphere.material.uniforms; u.uForce.value = SHOW_ID.broadcast; feed.update(renderer, scene, feedPoses(), [W.stands?.group].filter(Boolean)); bcast.last = -1; bcast.draw(feedInfo(), simTime); return feed; },
     /** (tests: the safety car's model brought up to date with the race - main loop: frame) */
     syncSafetyCar(dt = 1 / 60) { syncSafetyCar(S.director, dt); },
     /** (tools: a calibration applied, the racing line and the speed profile rebuilt from it - the next session's AI drives them) */
