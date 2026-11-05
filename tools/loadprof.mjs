@@ -1,6 +1,7 @@
 // Where a circuit's loading time goes: the game opened on the home screen, then the circuit built (main.js switchTrack)
 // under Chrome's CPU profiler. Reports the build's wall time, its stages (the functions switchTrack calls, inclusive)
-// and the hottest functions by self time.
+// and the hottest functions by self time - and when the first three frames after it are drawn (a shader left to compile
+// on first use stalls those).
 //   node tools/loadprof.mjs [track]
 import { openGame } from './ai_lib.mjs';
 
@@ -15,6 +16,9 @@ try {
   await page.evaluate((t) => window.__F1.switchTrack(t), track);
   await page.waitForFunction(() => window.__F1.W.track && !window.__F1.W.loading, null, { timeout: 300000 });
   const wall = Date.now() - t0;
+  // (and the first three frames drawn after it: a shader not compiled while loading is compiled here, the screen frozen)
+  await page.evaluate(() => new Promise((r) => { let n = 0; const f = () => (++n >= 3 ? r() : requestAnimationFrame(f)); requestAnimationFrame(f); }));
+  const wall3 = Date.now() - t0;
   const { profile } = await cdp.send('Profiler.stop');
   const N = new Map(profile.nodes.map((n) => [n.id, { ...n, self: 0 }]));
   for (let i = 0; i < profile.samples.length; i++) N.get(profile.samples[i]).self += profile.timeDeltas[i] || 0;
@@ -30,7 +34,7 @@ try {
   }
   const idle = [...N.values()].filter((n) => n.callFrame.functionName === '(idle)').reduce((s, n) => s + n.self, 0);
   const top = (m, k) => [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, k).map(([n, v]) => `  ${(v / 1000).toFixed(0).padStart(7)} ms  ${n}`).join('\n');
-  console.log(`== ${track}: built in ${(wall / 1000).toFixed(1)} s wall; ${(total / 1000).toFixed(0)} ms profiled, of it idle ${(idle / 1000).toFixed(0)} ms`);
+  console.log(`== ${track}: built in ${(wall / 1000).toFixed(1)} s wall, its first three frames drawn at ${(wall3 / 1000).toFixed(1)} s; ${(total / 1000).toFixed(0)} ms profiled, of it idle ${(idle / 1000).toFixed(0)} ms`);
   console.log(`-- inclusive:\n${top(byIncl, 50)}`);
   console.log(`-- self:\n${top(bySelf, 30)}`);
 } finally { await g.close(); }

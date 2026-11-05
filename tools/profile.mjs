@@ -7,7 +7,7 @@
 //   - what allocates the most (bytes sampled, by allocation site): garbage the collector then has to clear
 //   - draw calls and triangles per frame, the frame time, the build (load) time of the circuit
 //   node tools/profile.mjs [track] [frames] [out.json]       (the whole profile is written to out.json if named)
-//   PROFILE_MODE=menu: the home screen's ambient scene instead of a race
+//   PROFILE_MODE=menu: the home screen's ambient scene instead of a race; PROFILE_MODE=hangout: an evening out (rooftop)
 import fs from 'fs';
 import { openGame } from './ai_lib.mjs';
 
@@ -19,7 +19,11 @@ const page = g.page;
 try {
   // (a small canvas: the GPU here is a software one - its work is not what is measured, the main thread's is)
   await page.setViewportSize({ width: +(process.env.PROFILE_W || 320), height: +(process.env.PROFILE_H || 180) });
-  if (process.env.PROFILE_MODE !== 'menu') {
+  if (process.env.PROFILE_MODE === 'hangout') {
+    // (an evening out - ui/Hangout.js: the venue, its people)
+    await page.evaluate((v) => { window.__F1.hangout(v, []); }, process.env.PROFILE_VENUE || 'rooftop');
+    await page.waitForTimeout(15000);
+  } else if (process.env.PROFILE_MODE !== 'menu') {
     await page.evaluate(() => {
       const F = window.__F1; Object.assign(F.settings, { grid: 'pick', slot: 12, len: 5, intro: 'off', sc: 'on', fail: 'on' });
       F.restart();
@@ -73,6 +77,11 @@ try {
   const allocs = new Map(); let allocT = 0;
   const walk = (n) => { const f = n.callFrame, k = `${f.functionName || '(anon)'} ${(f.url || '').split('/').slice(-2).join('/')}:${f.lineNumber + 1}`; allocs.set(k, (allocs.get(k) || 0) + n.selfSize); allocT += n.selfSize; for (const c of n.children || []) walk(c); };
   walk(heap.head);
+  // (the JavaScript itself: self time of every function with a source - three.js and the game - apart from the native
+  //  calls into WebGL, where a software GPU's stalls land; that is the measure that compares from run to run)
+  let js = 0, gl = 0; for (const n of N.values()) { if (n.callFrame.url) js += n.self; else if (!/^\(/.test(n.callFrame.functionName)) gl += n.self; }
+  let jsThree = 0; for (const n of N.values()) if (/three\.module/.test(n.callFrame.url)) jsThree += n.self;
+  console.log(`JS ${ms(js / nFrames)} ms a frame (three.js ${ms(jsThree / nFrames)}, the game ${ms((js - jsThree) / nFrames)}); in native WebGL calls ${ms(gl / nFrames)} ms a frame`);
   console.log(`== ${track}${process.env.PROFILE_MODE === 'menu' ? ' (menu)' : ''}: load ${loadS.toFixed(1)} s; ${nFrames} frames (${secs.toFixed(0)} s of game) in ${(wall / 1000).toFixed(1)} s wall; frame() ${ms(frameT / nFrames)} ms of main-thread JS a frame; draw calls ${samples.at(-1).calls}, triangles ${samples.at(-1).triangles}`);
   console.log(`profiled ${ms(total)} ms: frame() ${pct(frameT, total)}; idle ${pct(idle['(idle)'] || 0, total)}, GC ${pct(idle['(garbage collector)'] || 0, total)}, program ${pct(idle['(program)'] || 0, total)}`);
   console.log(`-- frame() phases (inclusive, share of frame()):\n${top(phases, 30, frameT)}`);

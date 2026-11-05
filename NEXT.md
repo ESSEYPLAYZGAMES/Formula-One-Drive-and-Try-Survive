@@ -1,3 +1,43 @@
+# V2.39 (2026-11-05): the frame lighter - matrices only where something moved, no shadows nobody sees, no forced layout
+
+Measured first (tools/profile.mjs, sceneprof.mjs, gpuprof.mjs, loadprof.mjs - a race of 22 cars with the player's car
+handed to the AI, its frames driven at a fixed 1/60 s under Chrome's CPU and allocation profilers). Per frame on the
+main thread, before: 10.5-13 ms of JavaScript - three.js's own 5.7-7.3 ms of it, the game's (the physics, the AI's
+planner, the race director, the HUD) 4.9-6 ms. A race scene is ~7,400 objects: 4,356 of them the parts of 22 cars
+(~198 a car), 2,270 the pit crews; 300-830 draw calls and 0.6-1.8 M triangles a frame by circuit; the 4096 x 4096 sun
+shadow map drew up to 300 car parts on top. Loading is mostly shaders compiled one after another on first use.
+- Matrices (core/FastMatrix.js): three.js recomputed the local and world matrix of every object every frame. Now an
+  object's local matrix is recomposed only when its position / rotation / scale changed, its world matrix only when that
+  or its parent's changed; and in the renderer's walk of the scene a car's hidden level of detail (a car far off shows
+  its simple model - its ~190-part close one is hidden) is not walked, but marked out of date and brought up to date the
+  moment it is shown again (LOD.update, inside the render, before it is drawn). The same arithmetic on the same values:
+  the matrices drawn are the ones three.js would have computed. A direct updateMatrixWorld(true) (a part torn off, a car
+  split) still walks everything. Per frame at Silverstone: 7,397 local matrices recomposed -> 86; 4,921 world matrices
+  multiplied -> 1,448.
+- The cars' shadows (main.js carShadowsOff): every car inside the shadow box - well behind and beside the camera too -
+  was drawn into the shadow map. A car's shadow falls along the sun's rays, from the car down to the lowest ground there
+  is; that volume (the car swept down the ray, in spheres a margin larger) missing the view entirely, nothing on screen
+  can sample its part of the shadow map: it is left out of that frame's shadow pass (put back right after it - the
+  Sphere's feed, replays draw all). Draw calls: Silverstone -19 %, Austin -21 %, Montreal -10 %; Las Vegas's field is
+  rarely in the box off screen (0).
+- No forced layout: fitViewport read the canvas's size every frame - after the HUD had written to the page, that made
+  the browser lay the whole page out again each frame (0.4 ms). A ResizeObserver says when it may have changed.
+- Per frame, main-thread JavaScript (one run at a time, three.js's part in brackets): Las Vegas 12.0 -> 7.3 ms (6.8 ->
+  2.9), Silverstone 10.6 -> 9.4 (5.7 -> 3.9), Montreal 12.4 -> 11.1 (6.5 -> 4.7), Austin 13.2 -> 10.5 (7.3 -> 4.7). (The
+  game's own share moves +-10 % from run to run: a different moment of a live race.) Evenings out and parties: no change
+  either way (their first frames compile their shaders; the walk costs them 0.2 ms).
+- Nothing seen changed (tools/regress.mjs): on each circuit, at four moments and five camera poses (the game's, chase,
+  overhead, side, looking back at the field), the frame drawn from the same state with the optimisations on and with
+  three.js's own walk and every shadow - 80 views: at most 5 isolated pixels apart, by up to 16 levels of 255, the same
+  as the same frame drawn twice the same way (the software renderer's own variation: 4 pixels, up to 19 levels). Nothing
+  felt changed: seeded races (tools/race_probe.mjs, now with the game's frame loop paused) identical to the byte before
+  and after. Every mode runs without an error (tools/smoke.mjs: menus, the pre-race show, the race, cameras, crash
+  camera, photo mode, a flashback, an evening out, a night out).
+- Tried and left out: compiling every shader while the loading screen is up (three's compileAsync) - here it built
+  variants the game never draws and the first frames came later (Montreal 3.2 -> 15.2 s), so not kept; the two passes
+  three.js draws a transparent double-sided material in (it re-derives the shader twice a frame - ~0.2 ms at Las Vegas,
+  inside three.js); the AI's planner (1.1 ms) - it must stay bit-for-bit what it is, or every race changes.
+
 # V2.38 (2026-11-04): barriers that give - a wall hit resolved over the contact, damage from what the car felt; TecPro blocks
 
 - Each barrier has its own give (vehicle/Car.js BARRIER, next to PULSE and BAR_KIND): how far its face can be pushed back

@@ -597,7 +597,7 @@ table.res tr.me td { color: var(--accent2); font-weight: 700; }
     <div class="brand-line"></div>
     <h1 id="brand-title">FORMULA 1<span id="brand-sub">SIMULATOR</span></h1>
     <!-- the build's version: +0.01 with every build handed out -->
-    <span id="app-ver" title="Version">V2.38</span>
+    <span id="app-ver" title="Version">V2.39</span>
     <div id="menu-sub">Real circuits built from OpenStreetMap</div>
   </div>
   <div id="loading" class="hidden"><div class="ld"><i></i></div><span>Building the circuit from OpenStreetMap…</span></div>
@@ -187856,6 +187856,8 @@ const { Spray } = __m['src/world/Spray.js'];
 const { buildVegasPaddock } = __m['src/world/VegasPaddock.js'];
 // Bootstrap: renderer, world construction from GeoJSON, menus, race weekend flow, frame loop.
 
+import { FAST_MATRIX, fastMatrix } from './core/FastMatrix.js';   // (the scene's matrices recomputed only where something moved: before anything is built)
+void FAST_MATRIX;
 
 
 
@@ -187967,17 +187969,22 @@ const carZoom = () => Math.tan(37 * Math.PI / 180) / Math.tan(camera.fov * Math.
 // The canvas is sized by CSS (fixed, 100% x 100%); the drawing buffer follows its CSS size. three.js must never
 // write inline width/height on the canvas (updateStyle = false everywhere), otherwise a frame that lays out after
 // load (an embedded artifact) keeps the initial size and stretches the picture.
-const VIEW = { w: 0, h: 0 };
+// (the canvas's size is read only when it may have changed - a ResizeObserver says so: reading clientWidth every frame
+//  forced the browser to lay the whole page out again each frame, after the HUD had written to it)
+const VIEW = { w: 0, h: 0, dirty: true };
 function fitViewport() {
+  if (!VIEW.dirty) return false;
   const w = canvas.clientWidth || window.innerWidth, h = canvas.clientHeight || window.innerHeight;
   if (!w || !h) return false;   // not laid out yet (hidden tab / frame): a 0 x 0 drawing buffer would make every draw call fail
+  if (typeof ResizeObserver !== 'undefined') VIEW.dirty = false;   // (without one: read every frame, as before)
   if (w === VIEW.w && h === VIEW.h) return false;
   VIEW.w = w; VIEW.h = h;
   renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
   return true;
 }
+if (typeof ResizeObserver !== 'undefined') new ResizeObserver(() => { VIEW.dirty = true; }).observe(canvas);
 fitViewport();
-window.addEventListener('resize', fitViewport);
+window.addEventListener('resize', () => { VIEW.dirty = true; fitViewport(); });
 const env = createEnvironment(scene, renderer);
 const rain = createRain(scene);
 const spray = new Spray(scene);   // (the water thrown up behind the cars on a wet track: world/Spray.js)
@@ -189152,16 +189159,56 @@ function renderView() {
 function receiveShadows(g) { g.traverse((m) => { if (m.isMesh && m.material && !m.material.isShaderMaterial && !m.material.isMeshBasicMaterial) m.receiveShadow = true; }); }
 function renderFrame() {
   env.followShadow(camera, TERRAIN.on ? TERRAIN.at(camera.position.x, camera.position.z) : 0);
-  if (!PHOTO.on && crashCam.on && (crashCam.blur > 0.01 || crashCam.sat > 1.01)) {
-    ensureCrashComposer(); crashPass.uniforms.uBlur.value = crashCam.blur; crashPass.uniforms.uSat.value = crashCam.sat;
-    crashComposer.render(); return;
-  }
-  if (PHOTO.on && PHOTO.fx.blur > 0) {
-    ensureComposer(); bokeh.uniforms.focus.value = photoFocus(); bokeh.uniforms.aperture.value = PHOTO.fx.blur * 0.00006; bokeh.uniforms.maxblur.value = 0.014;
-    composer.render();
-  } else renderer.render(scene, camera);
+  carShadowsOff();
+  try {
+    if (!PHOTO.on && crashCam.on && (crashCam.blur > 0.01 || crashCam.sat > 1.01)) {
+      ensureCrashComposer(); crashPass.uniforms.uBlur.value = crashCam.blur; crashPass.uniforms.uSat.value = crashCam.sat;
+      crashComposer.render(); return;
+    }
+    if (PHOTO.on && PHOTO.fx.blur > 0) {
+      ensureComposer(); bokeh.uniforms.focus.value = photoFocus(); bokeh.uniforms.aperture.value = PHOTO.fx.blur * 0.00006; bokeh.uniforms.maxblur.value = 0.014;
+      composer.render();
+    } else renderer.render(scene, camera);
+  } finally { carShadowsOn(); }
   if (Gallery.pending) Gallery.grab(renderer.domElement);   // (a moment kept for the loading screen: ui/Gallery.js)
 }
+/**
+ * The cars' shadows that cannot fall anywhere on screen are left out of this frame's shadow map. The shadow box follows
+ * the camera and reaches well behind and beside it (env.followShadow): every car in it was drawn into the shadow map,
+ * the ones behind the camera and off to the side as much as those in view - often twice as many shadow draws as cars
+ * drawn. A car's shadow falls along the sun's rays, from the car down to the ground, and can land no lower than the
+ * lowest ground there is: the volume it can fall in is the car swept along the ray down to there. That volume, covered by
+ * spheres a little larger than the car stepped along the ray (the soft shadow's filter and a margin besides), is tested
+ * against the camera's view: a car whose volume misses the view entirely can shadow nothing seen - its part of the
+ * shadow map is never sampled - so it is not drawn into it. Every frame afresh, and put back right after the frame (any
+ * other view of the scene - the Sphere's feed, a replay - draws every shadow as before).
+ */
+const _shFr = new THREE.Frustum(), _shPV = new THREE.Matrix4(), _shSph = new THREE.Sphere(), _shOff = [];
+const SH_CAR = 3.6, SH_STEP = 2, SH_PAD = 1.2;   // (a sphere round any car, however it lies; the step along the ray; the filter's reach and a margin)
+let _shFloorOf = undefined, _shFloor = 0;
+function _shCollect(o) { if (o.isMesh && o.castShadow) { o.castShadow = false; _shOff.push(o); } }
+const SHADOW_CULL = { on: true };   // (tests: off to compare the pictures - tools/regress.mjs)
+function carShadowsOff() {
+  if (!SHADOW_CULL.on || !renderer.shadowMap.enabled || !env.sun.castShadow || !S.meshes.size) return;
+  const sd = env.sunDir; if (sd.y < 0.1) return;   // (a sun that low throws shadows a long way: all drawn)
+  // (the lowest ground there is: the venue's height field and the plane beyond it, or the flat ground)
+  if (_shFloorOf !== TERRAIN.field) {
+    _shFloorOf = TERRAIN.field; let lo = 0;
+    if (TERRAIN.on && TERRAIN.field?.H) { const H = TERRAIN.field.H; for (let i = 0; i < H.length; i++) if (H[i] < lo) lo = H[i]; lo = Math.min(lo, TERRAIN.edge); }
+    _shFloor = lo - 2;
+  }
+  camera.updateMatrixWorld(); _shPV.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse); _shFr.setFromProjectionMatrix(_shPV);
+  const kx = -sd.x / sd.y, kz = -sd.z / sd.y, len = Math.sqrt(1 + kx * kx + kz * kz), R = SH_CAR + SH_STEP / 2 + SH_PAD;
+  _shSph.radius = R;
+  for (const m of S.meshes.values()) {
+    const g = m.group; if (!g.visible || g.parent !== scene) continue;
+    const p = g.position, y0 = p.y + 0.5, drop = Math.max(0, y0 + SH_CAR - _shFloor), n = Math.ceil((drop * len) / SH_STEP);
+    let seen = false;
+    for (let k = 0; k <= n && !seen; k++) { const dy = (drop * k) / Math.max(1, n); _shSph.center.set(p.x + kx * dy, y0 - dy, p.z + kz * dy); seen = _shFr.intersectsSphere(_shSph); }
+    if (!seen) g.traverse(_shCollect);
+  }
+}
+function carShadowsOn() { for (let i = 0; i < _shOff.length; i++) _shOff[i].castShadow = true; _shOff.length = 0; }
 /** the photo, as framed and graded (contrast, saturation and vignette included), saved as a PNG */
 function savePhoto() {
   if (W.def) Gallery.want('photo', W.def.id);
@@ -191565,6 +191612,8 @@ function frame(now) {
     crashFrame() { const n0 = renderer.info.programs.length; ensureCrashComposer(); crashPass.uniforms.uBlur.value = 0.6; crashPass.uniforms.uSat.value = 1.5; crashComposer.render(); return renderer.info.programs.length - n0; },
     /** (tests: the crash director, and the camera as drawn - terrainLift() lifts it for the frame and returns the undo; renderView() draws a frame through it) */
     crashCam, terrainLift, renderView,
+    /** (tests - tools/regress.mjs: the optimisations that must not change a pixel, switched off and on) */
+    fastMatrix, SHADOW_CULL,
     /** (tests: the show clock - simTime - set, so the Sphere's loop can be put on any show) */
     setSimTime(t) { simTime = t; },
     /** (tests: the Sphere's F1 stream drawn now - its feed rendered, its graphics drawn - and the show forced onto it) */

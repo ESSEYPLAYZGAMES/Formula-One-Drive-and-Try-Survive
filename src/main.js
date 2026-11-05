@@ -459,20 +459,8 @@ async function switchTrack(id) {
     settings.time = W.def.defaultTime || 'night';
     for (const b of document.querySelectorAll('#opt-time button')) b.classList.toggle('sel', b.dataset.v === settings.time);
     setTimeOfDay(settings.time); applyWeather(weatherWetness(settings.weather));
-    await precompileAsync();
   } catch (e) { console.error(e); $('loading').querySelector('span').textContent = `Failed to build world: ${e.message}`; Loader.fail(`The circuit could not be built: ${e.message}`, () => { $('menu').classList.remove('hidden'); }); W.loading = false; return; }
   W.loading = false; $('loading').classList.add('hidden'); $('fade').style.opacity = '0';
-}
-
-/**
- * Every shader the circuit needs, compiled while the loading screen is up - all of them at once, in parallel where the
- * GPU's driver can (three's compileAsync: KHR_parallel_shader_compile), waited for without holding the page. Left to the
- * first frame, each of the ~140 programs was compiled and checked one after another, the page frozen through each - most
- * of a circuit's loading time. (The session's start compiles what it adds - the cars, the hidden parts: precompile.)
- */
-async function precompileAsync() {
-  try { const p = renderer.compileAsync?.(scene, camera); if (p) await Promise.race([p, new Promise((r) => setTimeout(r, 15000))]); }
-  catch (e) { console.warn('[precompileAsync]', e); }   // (then compiled on first draw, as before - and at the session's start: precompile)
 }
 
 /** Attach official turn numbers to detected corner zones (used by AI error hotspots + telemetry). */
