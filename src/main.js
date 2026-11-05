@@ -1,6 +1,7 @@
 // Bootstrap: renderer, world construction from GeoJSON, menus, race weekend flow, frame loop.
 import * as THREE from 'three';
-import { FAST_MATRIX, fastMatrix } from './core/FastMatrix.js';   // (the scene's matrices recomputed only where something moved: before anything is built)
+// (the scene's matrices recomputed only where something moved: in place before anything is built)
+import { FAST_MATRIX, fastMatrix } from './core/FastMatrix.js';
 void FAST_MATRIX;
 import { TRACKS } from './track/tracks.js';
 import { updateGive } from './world/BarrierGive.js';
