@@ -53,7 +53,7 @@ import { Input } from './input/Input.js';
 import { CockpitCamera, TCAM_TILT, TCAM_FOV } from './camera/CockpitCamera.js';
 import { TVDirector, TV_CAMS, TV_CAM_NAME } from './camera/TVDirector.js';
 import { TVGraphics } from './ui/TVGraphics.js';
-import { PitWall, PACE } from './ui/PitWall.js';
+import { PitWall, MODES } from './ui/PitWall.js';
 import { ManagerCareer } from './career/Manager.js';
 import { openManagerHub, closeManagerHub, managerHubOpen } from './ui/ManagerHub.js';
 import { AudioEngine } from './audio/Audio.js';
@@ -2288,10 +2288,16 @@ const TP = { on: false, cars: [], speed: 1, paused: false, cam: 'auto', tv: null
 /** the team you run (settings.tpTeam) and its two cars in this field */
 function tpCars(cars) { return (cars || []).filter((c) => c.team === settings.tpTeam && !c.isSC).slice(0, 2); }
 /** the team principal's controls, from the pit wall's buttons and the keys */
-function tpAct(a, x, y) {
+function tpAct(a, x, y, z) {
   const d = S.director; if (!d || !TP.on) return;
   const wall = TP.wall, sur = (c) => surname(c.name);
-  if (a === 'pace') { tpPace(x, y); wall.radio('Engineer', `${sur(x)}: ${PACE[y].label.toLowerCase()} mode${y === 'push' ? ', the tyres will pay for it' : y === 'save' ? ', looking after the tyres' : ''}.`); }
+  if (a === 'mode') {
+    // (TYRES / FUEL / ERS - ui/PitWall.js MODES)
+    if (!MODES[y]?.[z]) return; x.mgr.modes[y] = z; tpModes(x);
+    const L = MODES[y][z].label.toLowerCase(), W = { tyre: { aggr: 'push the tyres, every corner', light: 'look after the tyres a little', cons: 'conserve the tyres' }, fuel: { push: 'fuel mode push', save: 'save fuel', lico: 'lift and coast into every braking zone' }, ers: { harvest: 'harvest, no deployment', deploy: 'deploy on the straights', ovt: 'overtake mode, everything you have' } }[y]?.[z];
+    wall.radio('Engineer', `${sur(x)}, ${W || `${y === 'tyre' ? 'tyres' : y === 'fuel' ? 'fuel' : 'ERS'} ${L}`}.`);
+  }
+  else if (a === 'fuel') { if (x.fuel != null && x.mgr.preRace) { x.fuel = Math.max(x.mgr.perLap * 1, x.fuel + y * x.mgr.perLap); x.mgr.fuel0 = x.fuel; } }
   else if (a === 'strat') {
     // (who makes the calls: 'ai' the strategist; 'plan' the pre-race plan's stops (tpPlanCalls); 'you' nobody but you)
     const mode = y === true ? 'you' : y === false ? 'ai' : y; if (mode === 'plan' && !x.mgr.plan) return;
@@ -2323,10 +2329,49 @@ function tpAct(a, x, y) {
     else if (o) wall.radio('You', x === 'swap' ? `${sur(o.Y)}, let ${sur(o.B)} through. That's an order.` : x === 'hold' ? 'Hold position, both cars. No racing each other.' : 'Order off. You are free to race.');
   }
 }
-/** a car's pace mode: its cornering commitment (AIDriver.vScale), its tyres' wear, its engine's risk */
-function tpPace(c, mode) {
-  const m = c.mgr, P = PACE[mode] || PACE.std; m.pace = mode;
-  c.mgrPace = P.pace; c.wearMul = m.baseWear * P.wear; if (c.tyres) c.tyres.wearMul = c.wearMul; c.relMul = m.baseRel * P.rel;
+/**
+ * A car's driving instructions (ui/PitWall.js MODES) into the race: the tyres' mode its cornering commitment
+ * (AIDriver.vScale) and its tyres' wear; the fuel mixture its engine's power (Car.enginePower, with the fuel's weight:
+ * tpFuel), its consumption and its failure risk; the ERS mode when the AI spends the battery (AIDriver: c.mgrErs)
+ */
+function tpModes(c) {
+  const m = c.mgr, T = MODES.tyre[m.modes.tyre] || MODES.tyre.std, F = MODES.fuel[m.modes.fuel] || MODES.fuel.std, E = MODES.ers[m.modes.ers] || MODES.ers.bal;
+  c.mgrPace = T.pace; c.wearMul = m.baseWear * T.wear * F.wear * E.wear; if (c.tyres) c.tyres.wearMul = c.wearMul; c.relMul = m.baseRel * F.rel;
+  c.mgrErs = { harvest: 'harvest', deploy: 'deploy', ovt: 'overtake' }[m.modes.ers] || null;
+  m.burnMul = F.burn; m.powerMix = F.power;
+  c.mgrPower = m.powerMix * (m.weightK || 1);
+}
+/** fuel (kg) a lap at the standard mixture: ~0.35 kg a km */
+const FUEL_KM = 0.35;
+/** the laps of race run by a car (from the start; never below 0 on the grid) */
+const tpRun = (c, d) => Math.max(0, c.lap + Math.max(0, c.lapDist) / W.track.length);
+/** a car's fuel against what the rest of the race needs at the standard mixture, in laps */
+function tpFuelDelta(c, d) { const m = c.mgr; if (c.fuel == null || !m?.perLap) return 0; return (c.fuel - m.perLap * Math.max(0, d.lapsTotal - tpRun(c, d))) / m.perLap; }
+/**
+ * Fuel, every frame: burnt by the distance run (the mixture's rate; under the safety car 60 %), and its weight on the
+ * car - against the fuel a car would carry at this point on the standard plan (the AI cars carry no modelled fuel: an
+ * even weight to them) - as power (768 kg of car). Dry: no drive, the car stops (Failures.js 'Out of fuel'); short:
+ * the engineer says so
+ */
+function tpFuel(d) {
+  if (d.mode !== 'race') return;
+  for (const c of TP.cars) {
+    const m = c.mgr; if (c.fuel == null || !m) continue;
+    const run = tpRun(c, d), L = W.track.length;
+    if (m.lastRun == null) m.lastRun = run;
+    const dl = run - m.lastRun; m.lastRun = run;
+    if (dl > 0 && dl < 30 && !c.retired && !c.finished && d.world.racing) {
+      const sc = d.sc && d.sc.phase !== 'green' ? 0.6 : 1;
+      c.fuel = Math.max(0, c.fuel - dl * m.perLap * (m.burnMul || 1) * sc);
+      if (c.fuel <= 0 && !c.engineDead) { c.failed = 'fuel'; c.engineDead = true; TP.wall.radio(surname(c.name), "I've got no power... we're out of fuel!"); }
+    }
+    const nominal = m.perLap * Math.max(0, d.lapsTotal - run);
+    m.weightK = (768 + nominal) / (768 + c.fuel);
+    c.mgrPower = (m.powerMix || 1) * m.weightK;
+    const delta = tpFuelDelta(c, d);
+    if (delta < -0.4 && !m.fuelWarned && d.world.racing && !c.retired) { m.fuelWarned = true; TP.wall.radio('Engineer', `${surname(c.name)}: we are ${(-delta).toFixed(1)} laps short on fuel. Save fuel, or lift and coast.`); }
+    if (delta > -0.2) m.fuelWarned = false;
+  }
 }
 /** a session of the weekend starts: your cars taken over, the feed's graphics and the pit wall up */
 function tpStart() {
@@ -2336,7 +2381,10 @@ function tpStart() {
   for (const c of TP.cars) {
     // (a plan chosen on the strategy screen - tpStrategy: the pit wall follows it, CALLS PLAN)
     const plan = d.mode === 'race' && c.mgrPlan ? c.mgrPlan : null;
-    c.mgr = { pace: 'std', manual: !!plan, calls: plan ? 'plan' : 'ai', plan, next: 'MEDIUM', baseWear: c.wearMul || 1, baseRel: c.relMul || 1, holdLap: null, called: false, preRace: true };
+    c.mgr = { modes: { tyre: 'std', fuel: 'std', ers: 'bal' }, manual: !!plan, calls: plan ? 'plan' : 'ai', plan, next: 'MEDIUM', baseWear: c.wearMul || 1, baseRel: c.relMul || 1, holdLap: null, called: false, preRace: true };
+    // (the race: the fuel load - the race at the standard mixture and a third of a lap's margin; FUEL LOAD before the lights)
+    if (d.mode === 'race') { c.mgr.perLap = FUEL_KM * W.track.length / 1000; c.fuel = c.mgr.perLap * (d.lapsTotal + 0.3); c.mgr.fuel0 = c.fuel; }
+    tpModes(c);
     c.mgr.next = plan?.stints[1]?.compound || (c.tyres.compound === 'MEDIUM' ? 'HARD' : 'MEDIUM');
   }
   if (!TP.tv) { TP.tv = new TVDirector(camera); TP.tv.onCut = (sh) => TP.gfx?.cut(sh, S.director); }
@@ -2372,8 +2420,8 @@ function tpUi(dt) {
   TP.gfx.update(dt, { d, focus: TP.cars, shot: TP.tv.shot, track: shortTrack(W.def?.id), camName: TV_CAM_NAME[TP.tv.shot?.kind] || '', speed: TP.paused ? 0 : TP.speed });
   const ord = d.orders?.pairOf?.(TP.cars[0])?.order || null;
   TP.wall.update(dt, { d, speed: TP.speed, paused: TP.paused, cam: TP.cam, order: ord, tyreLaps: (c) => TP.gfx.tyreLaps(c),
-    mustStop: (c) => d.mode === 'race' && d.lapsTotal >= 8 && c.pitStops === 0 && !c.usedRain && !d.weather?.everWet });
-  if (d.mode === 'race') { tpRadio(d); tpPlanCalls(d); }
+    mustStop: (c) => d.mode === 'race' && d.lapsTotal >= 8 && c.pitStops === 0 && !c.usedRain && !d.weather?.everWet, fuelDelta: (c) => tpFuelDelta(c, d) });
+  if (d.mode === 'race') { tpFuel(d); tpRadio(d); tpPlanCalls(d); }
 }
 /** what your engineers tell you: the strategist's calls, the tyres going off, damage, a car out, the orders answered */
 function tpRadio(d) {

@@ -438,6 +438,11 @@ export class AIDriver {
     if (!fighting && B.follow) { const g = P.ds(c.s, B.follow.s); fighting = g > 0 && g < 30; }
     const straight = Math.abs(kl) < 0.004;
     c.ers = c.throttle > 0.9 && (straight || Math.abs(kl) < 0.008) && ((v > 45 && c.ersEnergy > 0.12) || (flat && c.ersEnergy > 0.02) || (fighting && v > 25 && c.ersEnergy > 0.04)) ? 1 : 0;
+    // (a team principal's ERS mode - main.js tpModes: harvest never deploys; deploy spends readily; overtake spends it all,
+    //  in a fight above all)
+    const em = c.mgrErs;
+    if (em) c.ers = em === 'harvest' ? 0 : em === 'overtake' ? (c.throttle > 0.9 && c.ersEnergy > 0.02 && (straight || Math.abs(kl) < 0.008 || (fighting && v > 25)) ? 1 : 0)
+      : em === 'deploy' ? (c.throttle > 0.9 && (straight || Math.abs(kl) < 0.008) && v > 30 && c.ersEnergy > 0.05 ? 1 : 0) : c.ers;
 
     if (this.error) { this.error.t += dt; if (this.error.t > this.error.dur) this.error = null; }
     // stuck against a barrier or in the gravel: stationary for 1.5 s - get itself out

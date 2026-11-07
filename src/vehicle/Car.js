@@ -223,7 +223,7 @@ export class Car {
   // damage-derived multipliers
   aeroFront() { return Math.max(0.1, 1 - 0.45 * this.dmg.fwL - 0.45 * this.dmg.fwR) * (this.lostK ? this.lostK[0] : 1); }
   aeroRear() { return Math.max(0.0, 1 - this.dmg.rw) * (this.lostK ? this.lostK[1] : 1); }
-  enginePower() { return this.perf * (this.puLoss ? 0.93 : 1) * (1 - 0.35 * this.dmg.eng) * (1 - 0.3 * Math.max(0, this.engTemp - 0.8)) * (1 + 0.12 * (this.band || 0)); }
+  enginePower() { return this.perf * (this.puLoss ? 0.93 : 1) * (1 - 0.35 * this.dmg.eng) * (1 - 0.3 * Math.max(0, this.engTemp - 0.8)) * (1 + 0.12 * (this.band || 0)) * (this.mgrPower ?? 1); }   // (mgrPower: a team principal's fuel mode and fuel load - main.js tpModes)
   damageTotal() { const d = this.dmg; return Math.min(1, (d.fwL + d.fwR) * 0.25 + d.rw * 0.3 + d.susp * 0.4 + d.eng * 0.3); }
 
   /**

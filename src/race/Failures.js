@@ -13,7 +13,7 @@
 // overheating engine. A car with no drive pulls off the road (AIDriver.pullOver) and retires once stopped.
 const RATE = 0.004;   // failures per car per lap (no damage, normal temperature)
 const TYPES = [['engine', 30], ['gearbox', 14], ['hydraulics', 14], ['brakes', 10], ['puncture', 16], ['pu', 16]];
-const NAMES = { engine: 'Engine', gearbox: 'Gearbox', hydraulics: 'Hydraulics', brakes: 'Brakes', pu: 'Power unit', puncture: 'Puncture' };
+const NAMES = { engine: 'Engine', gearbox: 'Gearbox', hydraulics: 'Hydraulics', brakes: 'Brakes', pu: 'Power unit', puncture: 'Puncture', fuel: 'Out of fuel' };   // (fuel: a team principal's car run dry - main.js tpFuel)
 const WHEEL = ['front left', 'front right', 'rear left', 'rear right'];
 
 export class Failures {

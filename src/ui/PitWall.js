@@ -57,11 +57,35 @@ const CSS = `
 `;
 const LETTER = { SOFT: 'S', MEDIUM: 'M', HARD: 'H', INTER: 'I', WET: 'W' };
 const ORDER = ['SOFT', 'MEDIUM', 'HARD', 'INTER', 'WET'];
-export const PACE = {
-  push: { label: 'PUSH', short: 'PUSH', pace: 1.008, wear: 1.22, rel: 1.25, title: 'Push: quicker in the corners; the tyres wear faster and the engine is at more risk' },
-  std: { label: 'STANDARD', short: 'STD', pace: 1, wear: 1, rel: 1, title: 'Standard pace' },
-  save: { label: 'CONSERVE', short: 'SAVE', pace: 0.99, wear: 0.78, rel: 0.9, title: 'Conserve: slower, the tyres and the engine last longer' },
+/**
+ * The driving instructions, three of them (as F1 Manager has them): TYRES - how hard the driver leans on them (cornering
+ * commitment against wear); FUEL - the engine's mixture (power against consumption; lift and coast: off the throttle
+ * before each braking zone - the most saved, the most lost); ERS - when the battery is spent (harvest: never, and it fills;
+ * overtake: every straight, a fight above all). Each: { label, short, title, pace (cornering, AIDriver.vScale), wear
+ * (tyres), power (engine, Car.enginePower), burn (fuel), rel (failure risk) }
+ */
+export const MODES = {
+  tyre: {
+    aggr: { label: 'Aggressive', short: 'AGGR', pace: 1.008, wear: 1.3, rel: 1, title: 'Aggressive: on the limit in every corner - the quickest, the tyres go fastest' },
+    std: { label: 'Standard', short: 'STD', pace: 1, wear: 1, rel: 1, title: 'Standard: the pace the car is set up for' },
+    light: { label: 'Light', short: 'LIGHT', pace: 0.995, wear: 0.84, rel: 1, title: 'Light: a little off the limit - the tyres last longer' },
+    cons: { label: 'Conserve', short: 'CONS', pace: 0.989, wear: 0.68, rel: 1, title: 'Conserve: well off the limit - the tyres last much longer, the laps are slower' },
+  },
+  fuel: {
+    push: { label: 'Push', short: 'PUSH', power: 1.012, burn: 1.08, wear: 1.03, rel: 1.15, title: 'Push: the richest mixture - more power, more fuel, the engine works harder' },
+    std: { label: 'Standard', short: 'STD', power: 1, burn: 1, wear: 1, rel: 1, title: 'Standard mixture' },
+    save: { label: 'Save', short: 'SAVE', power: 0.988, burn: 0.93, wear: 1, rel: 0.95, title: 'Save: a leaner mixture - less power, less fuel' },
+    lico: { label: 'Lift & coast', short: 'L&C', power: 0.972, burn: 0.85, wear: 0.97, rel: 0.9, title: 'Lift and coast: off the throttle before every braking zone - the most fuel saved, the most time lost' },
+  },
+  ers: {
+    harvest: { label: 'Harvest', short: 'HARV', wear: 0.98, title: 'Harvest: no deployment - the battery fills (an easy target from behind)' },
+    bal: { label: 'Balanced', short: 'BAL', wear: 1, title: 'Balanced: the battery spent where it pays, as the driver sees fit' },
+    deploy: { label: 'Deploy', short: 'DEPL', wear: 1.02, title: 'Deploy: spent readily on every straight' },
+    ovt: { label: 'Overtake', short: 'OVT', wear: 1.04, title: 'Overtake: everything, now - attack or defend; it runs flat in a lap or two' },
+  },
 };
+/** (the old name of the tyre modes: their labels, for the radio) */
+export const PACE = MODES.tyre;
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const surname = (c) => { const w = String(c?.name || '').trim().split(/\s+/); return w[0] === 'Zhou' ? 'Zhou' : w[w.length - 1]; };
 const fmtLap = (t) => { if (!isFinite(t)) return '-'; const m = Math.floor(t / 60), s = t - m * 60; return `${m}:${s.toFixed(3).padStart(6, '0')}`; };
@@ -82,12 +106,13 @@ export class PitWall {
     const card = (c, k) => `<div class="car" data-k="${k}" style="--c:${esc(c.color)}">
       <div class="hd"><span class="ps">P-</span><span class="nm">${esc(c.name)}</span><span class="gp"></span><button class="fw" data-a="follow" data-k="${k}" title="Watch this car">◉</button></div>
       <div class="body">
-      <div class="st"><span class="tyre"><i></i><span class="tl"></span><span class="wear"><u></u></span><span class="wp"></span></span><span class="lt"></span><span class="dm dmg"></span></div>
+      <div class="st"><span class="tyre"><i></i><span class="tl"></span><span class="wear"><u></u></span><span class="wp"></span></span><span class="lt"></span><span class="fu"></span><span class="dm dmg"></span></div>
       <div class="ctl">
-        <span class="grp" data-g="pace"><span>PACE</span>${Object.entries(PACE).map(([m, p]) => `<button data-a="pace" data-k="${k}" data-v="${m}" title="${p.title}">${p.short}</button>`).join('')}</span>
+        ${['tyre', 'fuel', 'ers'].map((g) => `<span class="grp" data-g="${g}"><span>${g === 'tyre' ? 'TYRES' : g.toUpperCase()}</span>${Object.entries(MODES[g]).map(([m, p]) => `<button data-a="mode" data-g="${g}" data-k="${k}" data-v="${m}" title="${esc(p.title)}">${p.short}</button>`).join('')}</span>`).join('')}
         <span class="grp" data-g="strat"><span>CALLS</span><button data-a="strat" data-k="${k}" data-v="ai" title="The AI strategist boxes the car when it should - you can still call a stop or keep it out">AI</button><button data-a="strat" data-k="${k}" data-v="plan" title="The plan chosen before the race: the pit wall boxes the car on its laps (STAY OUT on a call: a lap later)">PLAN</button><button data-a="strat" data-k="${k}" data-v="you" title="Nothing happens unless you call it">YOU</button></span>
         <span class="grp cmp" data-g="cmp"><span class="cl">BOX FOR</span>${ORDER.map((x) => `<button data-a="cmp" data-k="${k}" data-v="${x}" style="--tc:${COMPOUNDS[x].color}">${LETTER[x]}</button>`).join('')}</span>
         <button class="pbx bx" data-a="box" data-k="${k}">BOX</button>
+        <span class="grp fl" data-g="fload"><span>FUEL LOAD</span><button data-a="fuel" data-k="${k}" data-v="-0.5" title="Half a lap's fuel less: lighter, quicker - and it must be saved later">−</button><button data-a="fuel" data-k="${k}" data-v="0.5" title="Half a lap's fuel more: heavier, slower - and a margin">+</button></span>
       </div>
       <div class="note"></div>
       </div></div>`;
@@ -113,7 +138,8 @@ export class PitWall {
     if (a === 'min') { this.el.classList.toggle('min'); b.textContent = this.el.classList.contains('min') ? 'PIT WALL ▴' : 'PIT WALL ▾'; return; }
     if (a === 'cmp') { car.mgr.next = b.dataset.v; if (car.mgr.preRace) this.act('start', car, b.dataset.v); this.acc = 1; return; }
     if (a === 'box') { if (car.pitRequested && !car.pitLane) this.act('stay', car); else this.act('box', car, car.mgr.next); this.acc = 1; return; }
-    if (a === 'pace') this.act('pace', car, b.dataset.v);
+    if (a === 'mode') this.act('mode', car, b.dataset.g, b.dataset.v);
+    else if (a === 'fuel') this.act('fuel', car, +b.dataset.v);
     else if (a === 'strat') this.act('strat', car, b.dataset.v);
     else if (a === 'speed') this.act('speed', +b.dataset.v);
     else if (a === 'pause') this.act('pause');
@@ -168,7 +194,13 @@ export class PitWall {
       this.setText(card.querySelector('.lt'), `LAST ${fmtLap(last)} · BEST ${fmtLap(c.bestLap)}`);
       const dm = c.dmg || {}, worst = Math.max(dm.fwL || 0, dm.fwR || 0, dm.rw || 0, dm.susp || 0, dm.eng || 0);
       this.setText(card.querySelector('.dm'), worst > 0.12 ? `DAMAGE ${[(dm.fwL || 0) + (dm.fwR || 0) > 0.2 ? 'front wing' : null, dm.rw > 0.12 ? 'rear wing' : null, dm.susp > 0.12 ? 'suspension' : null, dm.eng > 0.12 ? 'engine' : null].filter(Boolean).join(', ')}` : c.punct != null ? 'PUNCTURE' : '');
-      this.mark(card, '[data-a="pace"]', (b) => b.dataset.v === m.pace);
+      this.mark(card, '[data-a="mode"]', (b) => b.dataset.v === m.modes?.[b.dataset.g]);
+      // fuel: what is in the car against what the rest of the race needs at the standard mixture, in laps (+: a margin)
+      if (c.fuel != null) {
+        const fu = card.querySelector('.fu'), dl = st.fuelDelta?.(c) ?? 0;
+        this.setText(fu, `FUEL ${c.fuel.toFixed(1)} kg · ${dl >= 0 ? '+' : ''}${dl.toFixed(1)} lap${Math.abs(dl) === 1 ? '' : 's'}`); fu.className = `fu${dl < -0.15 ? ' dmg' : dl < 0.1 ? ' warnc' : ''}`;
+      }
+      card.querySelector('[data-g="fload"]').style.display = m.preRace && c.fuel != null ? '' : 'none';
       this.mark(card, '[data-a="strat"]', (b) => b.dataset.v === (m.calls || (m.manual ? 'you' : 'ai')));
       m.preRace = !racing && !d.leaderFinished;
       this.setText(card.querySelector('.cl'), m.preRace ? 'START ON' : 'BOX FOR');
@@ -177,7 +209,7 @@ export class PitWall {
       bx.disabled = c.retired || c.finished || m.preRace || (inLane && !c.pitRequested) || d.done;
       this.setText(bx, inLane ? 'IN PIT' : c.pitRequested ? 'STAY OUT' : 'BOX');
       bx.classList.toggle('on', !!c.pitRequested);
-      for (const b of card.querySelectorAll('[data-a="pace"],[data-a="strat"],[data-a="cmp"]')) b.disabled = c.retired || c.finished || (b.dataset.a !== 'cmp' && d.done) || (b.dataset.v === 'plan' && !m.plan);
+      for (const b of card.querySelectorAll('[data-a="mode"],[data-a="strat"],[data-a="cmp"]')) b.disabled = c.retired || c.finished || (b.dataset.a !== 'cmp' && d.done) || (b.dataset.v === 'plan' && !m.plan);
       // the note: what is going on with this car
       const plan = c.pitPlan || c.ai?.pitPlan;
       // (the plan, short: 'Plan B · S → M L9 → H L17' - the stops still to come)
@@ -187,7 +219,7 @@ export class PitWall {
       const note = c.retired ? `Out of the race · ${c.retireReason || ''}` : c.finished ? 'Finished' : m.preRace ? `Starts on ${comp.toLowerCase()}s · ${who}`
         : inLane ? `In the pit lane${plan ? ` · ${plan.compound.toLowerCase()}s${plan.repair && plan.repair !== 'none' ? ' and repairs' : ''}` : ''}`
         : c.pitRequested ? `Boxing this lap for ${(plan?.compound || m.next).toLowerCase()}s${!m.manual && c.ai?.pitReason && c.ai.pitReason !== 'manager' ? ` · the strategist's call (${c.ai.pitReason})` : ''}`
-        : m.holdLap === c.lap ? 'Staying out this lap' : m.calls === 'plan' && PL ? `${c.pitStops} stop${c.pitStops === 1 ? '' : 's'} · ${planTxt}` : st.mustStop(c) ? `${c.pitStops} stops · the mandatory stop is still to make` : `${c.pitStops} stop${c.pitStops === 1 ? '' : 's'} · ${PACE[m.pace].label.toLowerCase()} pace`;
+        : m.holdLap === c.lap ? 'Staying out this lap' : m.calls === 'plan' && PL ? `${c.pitStops} stop${c.pitStops === 1 ? '' : 's'} · ${planTxt}` : st.mustStop(c) ? `${c.pitStops} stops · the mandatory stop is still to make` : `${c.pitStops} stop${c.pitStops === 1 ? '' : 's'} · tyres ${MODES.tyre[m.modes?.tyre || 'std'].label.toLowerCase()}, fuel ${MODES.fuel[m.modes?.fuel || 'std'].label.toLowerCase()}, ERS ${MODES.ers[m.modes?.ers || 'bal'].label.toLowerCase()}`;
       this.setText(card.querySelector('.note'), note);
     }
   }
