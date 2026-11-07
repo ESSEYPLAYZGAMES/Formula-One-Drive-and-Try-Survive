@@ -2090,6 +2090,7 @@ function runQuali() {
  */
 function runRace() {
   const wk = S.weekend, p = wk.player;
+  if (wk.mode === 'tp' && !S.noStrategy) return tpStrategy();   // (the team principal: a plan for each of the two cars)
   if (!p || S.noStrategy) { S.noStrategy = false; return beginRace(); }
   if (S.choosing) return; S.choosing = true;   // (one strategy screen: a second press of the button opens no second one)
   $('quali-panel').classList.add('hidden');
@@ -2291,8 +2292,13 @@ function tpAct(a, x, y) {
   const d = S.director; if (!d || !TP.on) return;
   const wall = TP.wall, sur = (c) => surname(c.name);
   if (a === 'pace') { tpPace(x, y); wall.radio('Engineer', `${sur(x)}: ${PACE[y].label.toLowerCase()} mode${y === 'push' ? ', the tyres will pay for it' : y === 'save' ? ', looking after the tyres' : ''}.`); }
-  else if (a === 'strat') { x.mgr.manual = !!y; x.mgr.holdLap = null; wall.radio('Strategy', `${sur(x)}: ${y ? 'your calls from here. Nothing happens unless you box the car.' : 'the strategist makes the calls again.'}`); }
-  else if (a === 'start') { if (!d.world.racing && !x.pitLane) { x.fitTyres(y); x.tyres.temp = x.tyres.spec.start ?? 0.7; x.tyres.work = 0.45; S.meshes.get(x)?.setCompound(y); x.mgr.next = y === 'SOFT' ? 'MEDIUM' : y === 'MEDIUM' ? 'HARD' : y; } }
+  else if (a === 'strat') {
+    // (who makes the calls: 'ai' the strategist; 'plan' the pre-race plan's stops (tpPlanCalls); 'you' nobody but you)
+    const mode = y === true ? 'you' : y === false ? 'ai' : y; if (mode === 'plan' && !x.mgr.plan) return;
+    x.mgr.calls = mode; x.mgr.manual = mode !== 'ai'; x.mgr.holdLap = null;
+    wall.radio('Strategy', `${sur(x)}: ${mode === 'you' ? 'your calls from here. Nothing happens unless you box the car.' : mode === 'plan' ? `back on ${x.mgr.plan.name}: we box on its laps.` : 'the strategist makes the calls again.'}`);
+  }
+  else if (a === 'start') { if (!d.world.racing && !x.pitLane) { x.fitTyres(y); x.tyres.temp = x.tyres.spec.start ?? 0.7; x.tyres.work = 0.45; S.meshes.get(x)?.setCompound(y); if (x.mgr.plan) x.mgr.plan.stints[0].compound = y; x.mgr.next = x.mgr.plan?.stints[1]?.compound || (y === 'SOFT' ? 'MEDIUM' : y === 'MEDIUM' ? 'HARD' : y); } }
   else if (a === 'box') {
     if (x.retired || x.finished || x.inPit) return;
     const dm = x.dmg || {}, plan = { compound: y || x.mgr.next, repair: (dm.rw > 0.35 || dm.susp > 0.55) ? 'full' : (dm.fwL || 0) + (dm.fwR || 0) > 0.3 ? 'wing' : 'none' };
@@ -2303,6 +2309,8 @@ function tpAct(a, x, y) {
   } else if (a === 'stay') {
     if (x.pitLane || x.inPit) return;
     x.pitRequested = false; x.pitPlan = null; if (x.ai) { x.ai.pitPlan = null; x.ai.pitReason = null; } x.mgr.holdLap = x.lap; x.mgr.called = false;
+    // (on the plan's own call: that stop a lap later - called again next lap)
+    const m = x.mgr, pl = m.plan; if (m.byPlan && pl) { const k = Math.min(x.pitStops, pl.stints.length - 1), cur = pl.stints[k], nx = pl.stints[k + 1]; if (nx && nx.end > cur.end + 1) { cur.end++; nx.start++; } m.planCalled = null; m.warned = k; m.byPlan = false; }
     wall.radio('You', `${sur(x)}, stay out, stay out.`);
   } else if (a === 'speed') { TP.speed = x; TP.paused = false; }
   else if (a === 'pause') TP.paused = !TP.paused;
@@ -2325,7 +2333,12 @@ function tpStart() {
   const d = S.director; if (!d) return;
   TP.on = true; TP.speed = 1; TP.paused = false; TP.cam = 'auto'; TP.seen = new Map(); TP.orderSeen = 0;
   TP.cars = tpCars(S.cars);
-  for (const c of TP.cars) { c.mgr = { pace: 'std', manual: false, next: 'MEDIUM', baseWear: c.wearMul || 1, baseRel: c.relMul || 1, holdLap: null, called: false, preRace: true }; c.mgr.next = c.tyres.compound === 'MEDIUM' ? 'HARD' : 'MEDIUM'; }
+  for (const c of TP.cars) {
+    // (a plan chosen on the strategy screen - tpStrategy: the pit wall follows it, CALLS PLAN)
+    const plan = d.mode === 'race' && c.mgrPlan ? c.mgrPlan : null;
+    c.mgr = { pace: 'std', manual: !!plan, calls: plan ? 'plan' : 'ai', plan, next: 'MEDIUM', baseWear: c.wearMul || 1, baseRel: c.relMul || 1, holdLap: null, called: false, preRace: true };
+    c.mgr.next = plan?.stints[1]?.compound || (c.tyres.compound === 'MEDIUM' ? 'HARD' : 'MEDIUM');
+  }
   if (!TP.tv) { TP.tv = new TVDirector(camera); TP.tv.onCut = (sh) => TP.gfx?.cut(sh, S.director); }
   if (!TP.gfx) TP.gfx = new TVGraphics({ onPick: (c) => { if (c && TP.on) TP.tv.follow(TP.tv.followCar === c ? null : c); } });
   if (!TP.wall) TP.wall = new PitWall({ act: tpAct });
@@ -2360,7 +2373,7 @@ function tpUi(dt) {
   const ord = d.orders?.pairOf?.(TP.cars[0])?.order || null;
   TP.wall.update(dt, { d, speed: TP.speed, paused: TP.paused, cam: TP.cam, order: ord, tyreLaps: (c) => TP.gfx.tyreLaps(c),
     mustStop: (c) => d.mode === 'race' && d.lapsTotal >= 8 && c.pitStops === 0 && !c.usedRain && !d.weather?.everWet });
-  if (d.mode === 'race') tpRadio(d);
+  if (d.mode === 'race') { tpRadio(d); tpPlanCalls(d); }
 }
 /** what your engineers tell you: the strategist's calls, the tyres going off, damage, a car out, the orders answered */
 function tpRadio(d) {
@@ -2369,7 +2382,11 @@ function tpRadio(d) {
     let s = TP.seen.get(c); if (!s) TP.seen.set(c, (s = { req: c.pitRequested, worn: false, dmg: 0, out: c.retired, stops: c.pitStops }));
     if (c.pitRequested && !s.req && !c.mgr.called && c.ai?.pitReason) W2.radio('Strategy', `We're boxing ${sur(c)} this lap: ${{ tyres: 'the tyres are done', undercut: 'the undercut is on', cover: 'covering the stop behind', cheap: 'a cheap stop under the safety car', weather: 'the weather', damage: 'the damage' }[c.ai.pitReason] || c.ai.pitReason}. ${(c.ai.pitPlan?.compound || '').toLowerCase()}s.`);
     s.req = c.pitRequested;
-    if (c.pitStops !== s.stops) { s.stops = c.pitStops; s.worn = false; c.mgr.called = false; c.pitPlan = null; }
+    if (c.pitStops !== s.stops) {
+      s.stops = c.pitStops; s.worn = false; c.mgr.called = false; c.mgr.byPlan = false; c.pitPlan = null;
+      const pl = c.mgr.plan, k = pl ? Math.min(c.pitStops, pl.stints.length - 1) : 0;   // (the box-for set: the plan's next stint, once one is on)
+      if (pl && pl.stints[k + 1]) c.mgr.next = pl.stints[k + 1].compound;
+    }
     if (!s.worn && c.tyres.wear > 0.58 && !c.retired) { s.worn = true; W2.radio(sur(c), `The tyres are going off${c.tyres.wear > 0.68 ? ', they are finished' : ''}.`); }
     const dm = c.dmg ? Math.max(c.dmg.fwL || 0, c.dmg.fwR || 0, c.dmg.rw || 0, c.dmg.susp || 0) : 0;
     if (dm > s.dmg + 0.2 && !c.retired) { W2.radio(sur(c), dm > 0.5 ? 'Big damage, I need a new wing!' : "I've hit something. Car feels different."); } s.dmg = Math.max(s.dmg, dm);
@@ -2458,6 +2475,46 @@ function mgrField(C, lapsTotal, assists) {
     cars.push(car);
   }
   return cars;
+}
+/**
+ * The team principal's strategy (ui/Strategy.js), one car after the other: the plans for this race worked out from the
+ * tyre model for each - its grid slot, what the field starts on - and the one chosen is its start tyre and the stops
+ * the pit wall will call for it (tpPlanCalls: CALLS PLAN, the default once a plan is picked)
+ */
+function tpStrategy() {
+  const wk = S.weekend; if (S.choosing) return; S.choosing = true;
+  $('quali-panel').classList.add('hidden');
+  const mine = tpCars(wk.cars), P = W.pit, pace = estimatePace(), L = W.track.length;
+  const laneLen = P ? P.samples.length : 400, pitLoss = P ? Math.max(12, laneLen / P.limiter - laneLen / (L / pace) + 2.4 + 2.2) : 22;
+  const one = (i) => {
+    const car = mine[i]; if (!car) { S.choosing = false; beginRace(); return; }
+    const gi = wk.gridOrder ? wk.gridOrder.indexOf(car) + 1 : 0;
+    showStrategy({ laps: wk.lapsTotal, trackName: W.track.def.name, trackLength: L, pace, pitLoss, wet: wk.wet, forecast: forecastLine(wk, pace), night: W.time === 'night', gridPos: gi > 0 ? gi : null,
+      field: wk.cars.filter((c) => c !== car && !mine.includes(c)).map((c) => c.tyres.compound),
+      who: { name: car.name, color: car.color, step: `car ${i + 1} of ${mine.length}` }, okText: i + 1 < mine.length ? 'CONFIRM · NEXT CAR ▸' : 'CONFIRM · TO THE GRID ▸',
+      onDone: (plan) => {
+        if (plan) { car.fitTyres(plan.stints[0].compound); car.mgrPlan = { name: plan.name, label: plan.label, stints: plan.stints.map((s) => ({ ...s })) }; }
+        one(i + 1);
+      } });
+  };
+  one(0);
+}
+/**
+ * CALLS PLAN: the pit wall boxes the car on its plan's laps - a warning the lap before, BOX on the lap with the next
+ * stint's tyre (a stop made early moves the plan on; STAY OUT on the call pushes that stop a lap later)
+ */
+function tpPlanCalls(d) {
+  if (d.mode !== 'race' || !d.world.racing) return;
+  for (const c of TP.cars) {
+    const m = c.mgr, st = m?.plan; if (!st || m.calls !== 'plan' || c.retired || c.finished) continue;
+    const k = Math.min(c.pitStops, st.stints.length - 1); if (k >= st.stints.length - 1) continue;
+    const cur = st.stints[k], next = st.stints[k + 1], lapNow = c.lap + 1, nm = next.compound.toLowerCase(), who = surname(c.name);
+    if (lapNow === cur.end - 1 && m.warned !== k) { m.warned = k; TP.wall.radio('Strategy', `${who}: ${st.name} - box next lap for ${nm}s.`); }
+    if (lapNow >= cur.end && m.planCalled !== k && !c.pitRequested && !c.pitLane && !c.inPit) {
+      m.planCalled = k; tpAct('box', c, next.compound); m.byPlan = true;
+      TP.wall.radio('Strategy', `${who}: box this lap, ${st.name}. ${nm.charAt(0).toUpperCase() + nm.slice(1)}s.`);
+    }
+  }
 }
 /** qualifying in the team principal's weekend: watched on the feed, or simulated */
 function tpQuali(watch) {

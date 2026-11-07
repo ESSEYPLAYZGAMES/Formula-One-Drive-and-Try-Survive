@@ -1,3 +1,19 @@
+# V2.43 (2026-11-07): the team principal's race strategy, both cars
+
+- After qualifying, the strategy screen (ui/Strategy.js) once for each of your cars (main.js tpStrategy): the plans
+  worked out from the tyre model for this race, each car's grid slot and what the rest of the field starts on, the
+  driver named at the top (car 1 of 2, car 2 of 2); CONFIRM · NEXT CAR, then CONFIRM · TO THE GRID. A team principal's
+  weekend and a career round alike.
+- The plan chosen is the car's start tyre (the AI's own start-tyre pick at the lights now leaves a planned car alone:
+  AIDriver.planRace) and its stops: the pit wall's CALLS gains PLAN (AI · PLAN · YOU; PLAN the default once a plan is
+  picked) - a warning the lap before, BOX on the plan's lap with the next stint's tyre (tpPlanCalls); STAY OUT on that
+  call moves the stop a lap later; a stop made early moves the plan on. BOX FOR follows the plan's next set. The car's
+  note shows the plan to come ("following B · S -> S L4 -> S L7").
+- Checked at Silverstone, 10 laps, McLaren: plan A for Norris (one stop, lap 5), plan B for Piastri (two, laps 3 and
+  6) - both on the plan's start tyre, each called in exactly on its plan's laps and never otherwise (every call traced).
+  (In the first run, before the start-tyre fix, both cars were called in once more on lap 7 after their plans had
+  finished; it did not happen again in two traced runs - its cause not found.)
+
 # V2.42 (2026-11-07): the team principal's career; the broadcast's cameras where real ones stand
 
 - A career for the team principal (career/Manager.js, the HQ ui/ManagerHub.js; the home's card 04 opens it - or a

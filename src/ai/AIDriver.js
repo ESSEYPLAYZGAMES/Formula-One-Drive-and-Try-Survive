@@ -686,7 +686,7 @@ export class AIDriver {
     //  back - stay - and how soon it jumps to the tyre the sky is heading for - early; the back of the grid gambles,
     //  it has nothing to lose)
     this.wxStay = Math.min(1, rnd() * 0.85 + 0.15 * this.aggression); this.wxEarly = Math.min(1, rnd() * 0.75 + (back ? 0.3 : 0));
-    if (c.wetness >= 0.2 || world.lapsTotal < 3) return false;
+    if (c.mgrPlan || c.wetness >= 0.2 || world.lapsTotal < 3) return false;   // (mgrPlan: a team principal's plan - main.js tpStrategy - chose this start tyre)
     // (the start tyre from the strategy screen's sums - ui/Strategy.js planRace: each compound's pace, life and cliff for
     //  this race - the quickest plan's, now and then the next one's, for a standard race; the softest start among the
     //  plans for the undercut, the hardest for the overcut; hards for the gamble. A soft dies at half distance: in a sprint

@@ -85,7 +85,7 @@ export class PitWall {
       <div class="st"><span class="tyre"><i></i><span class="tl"></span><span class="wear"><u></u></span><span class="wp"></span></span><span class="lt"></span><span class="dm dmg"></span></div>
       <div class="ctl">
         <span class="grp" data-g="pace"><span>PACE</span>${Object.entries(PACE).map(([m, p]) => `<button data-a="pace" data-k="${k}" data-v="${m}" title="${p.title}">${p.short}</button>`).join('')}</span>
-        <span class="grp" data-g="strat"><span>CALLS</span><button data-a="strat" data-k="${k}" data-v="ai" title="The AI strategist boxes the car when it should - you can still call a stop or keep it out">AI</button><button data-a="strat" data-k="${k}" data-v="me" title="Nothing happens unless you call it">YOU</button></span>
+        <span class="grp" data-g="strat"><span>CALLS</span><button data-a="strat" data-k="${k}" data-v="ai" title="The AI strategist boxes the car when it should - you can still call a stop or keep it out">AI</button><button data-a="strat" data-k="${k}" data-v="plan" title="The plan chosen before the race: the pit wall boxes the car on its laps (STAY OUT on a call: a lap later)">PLAN</button><button data-a="strat" data-k="${k}" data-v="you" title="Nothing happens unless you call it">YOU</button></span>
         <span class="grp cmp" data-g="cmp"><span class="cl">BOX FOR</span>${ORDER.map((x) => `<button data-a="cmp" data-k="${k}" data-v="${x}" style="--tc:${COMPOUNDS[x].color}">${LETTER[x]}</button>`).join('')}</span>
         <button class="pbx bx" data-a="box" data-k="${k}">BOX</button>
       </div>
@@ -114,7 +114,7 @@ export class PitWall {
     if (a === 'cmp') { car.mgr.next = b.dataset.v; if (car.mgr.preRace) this.act('start', car, b.dataset.v); this.acc = 1; return; }
     if (a === 'box') { if (car.pitRequested && !car.pitLane) this.act('stay', car); else this.act('box', car, car.mgr.next); this.acc = 1; return; }
     if (a === 'pace') this.act('pace', car, b.dataset.v);
-    else if (a === 'strat') this.act('strat', car, b.dataset.v === 'me');
+    else if (a === 'strat') this.act('strat', car, b.dataset.v);
     else if (a === 'speed') this.act('speed', +b.dataset.v);
     else if (a === 'pause') this.act('pause');
     else if (a === 'sim') this.act('sim', +b.dataset.v);
@@ -169,7 +169,7 @@ export class PitWall {
       const dm = c.dmg || {}, worst = Math.max(dm.fwL || 0, dm.fwR || 0, dm.rw || 0, dm.susp || 0, dm.eng || 0);
       this.setText(card.querySelector('.dm'), worst > 0.12 ? `DAMAGE ${[(dm.fwL || 0) + (dm.fwR || 0) > 0.2 ? 'front wing' : null, dm.rw > 0.12 ? 'rear wing' : null, dm.susp > 0.12 ? 'suspension' : null, dm.eng > 0.12 ? 'engine' : null].filter(Boolean).join(', ')}` : c.punct != null ? 'PUNCTURE' : '');
       this.mark(card, '[data-a="pace"]', (b) => b.dataset.v === m.pace);
-      this.mark(card, '[data-a="strat"]', (b) => (b.dataset.v === 'me') === !!m.manual);
+      this.mark(card, '[data-a="strat"]', (b) => b.dataset.v === (m.calls || (m.manual ? 'you' : 'ai')));
       m.preRace = !racing && !d.leaderFinished;
       this.setText(card.querySelector('.cl'), m.preRace ? 'START ON' : 'BOX FOR');
       this.mark(card, '[data-a="cmp"]', (b) => b.dataset.v === (m.preRace ? comp : m.next));
@@ -177,13 +177,17 @@ export class PitWall {
       bx.disabled = c.retired || c.finished || m.preRace || (inLane && !c.pitRequested) || d.done;
       this.setText(bx, inLane ? 'IN PIT' : c.pitRequested ? 'STAY OUT' : 'BOX');
       bx.classList.toggle('on', !!c.pitRequested);
-      for (const b of card.querySelectorAll('[data-a="pace"],[data-a="strat"],[data-a="cmp"]')) b.disabled = c.retired || c.finished || (b.dataset.a !== 'cmp' && d.done);
+      for (const b of card.querySelectorAll('[data-a="pace"],[data-a="strat"],[data-a="cmp"]')) b.disabled = c.retired || c.finished || (b.dataset.a !== 'cmp' && d.done) || (b.dataset.v === 'plan' && !m.plan);
       // the note: what is going on with this car
       const plan = c.pitPlan || c.ai?.pitPlan;
-      const note = c.retired ? `Out of the race · ${c.retireReason || ''}` : c.finished ? 'Finished' : m.preRace ? `Starts on ${comp.toLowerCase()}s · ${m.manual ? 'you make the calls' : 'the AI strategist makes the calls'}`
+      // (the plan, short: 'Plan B · S → M L9 → H L17' - the stops still to come)
+      const PL = m.plan, k0 = PL ? Math.min(c.pitStops, PL.stints.length - 1) : 0;
+      const planTxt = PL ? `${PL.name} · ${PL.stints.slice(k0).map((x, j) => (j ? `${LETTER[x.compound]} L${x.start}` : LETTER[x.compound])).join(' → ')}` : '';
+      const who = m.calls === 'plan' ? `following ${planTxt}` : m.calls === 'you' ? 'you make the calls' : 'the AI strategist makes the calls';
+      const note = c.retired ? `Out of the race · ${c.retireReason || ''}` : c.finished ? 'Finished' : m.preRace ? `Starts on ${comp.toLowerCase()}s · ${who}`
         : inLane ? `In the pit lane${plan ? ` · ${plan.compound.toLowerCase()}s${plan.repair && plan.repair !== 'none' ? ' and repairs' : ''}` : ''}`
         : c.pitRequested ? `Boxing this lap for ${(plan?.compound || m.next).toLowerCase()}s${!m.manual && c.ai?.pitReason && c.ai.pitReason !== 'manager' ? ` · the strategist's call (${c.ai.pitReason})` : ''}`
-        : m.holdLap === c.lap ? 'Staying out this lap' : st.mustStop(c) ? `${c.pitStops} stops · the mandatory stop is still to make` : `${c.pitStops} stop${c.pitStops === 1 ? '' : 's'} · ${PACE[m.pace].label.toLowerCase()} pace`;
+        : m.holdLap === c.lap ? 'Staying out this lap' : m.calls === 'plan' && PL ? `${c.pitStops} stop${c.pitStops === 1 ? '' : 's'} · ${planTxt}` : st.mustStop(c) ? `${c.pitStops} stops · the mandatory stop is still to make` : `${c.pitStops} stop${c.pitStops === 1 ? '' : 's'} · ${PACE[m.pace].label.toLowerCase()} pace`;
       this.setText(card.querySelector('.note'), note);
     }
   }

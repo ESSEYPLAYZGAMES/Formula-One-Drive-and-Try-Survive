@@ -185,12 +185,12 @@ export function showStrategy(o) {
     </div>`;
   };
   el.innerHTML = `<div class="k-sheet st-box">
-    <header class="st-head"><div class="st-ttl"><div class="st-h">RACE <span>STRATEGY</span></div><div class="st-sub">${esc(o.trackName)} · ${o.laps} laps · ${cond}${o.night ? ' · night' : ''}${o.gridPos ? ` · starting P${o.gridPos}` : ''}</div></div>
+    <header class="st-head"><div class="st-ttl"><div class="st-h">RACE <span>STRATEGY</span></div><div class="st-sub">${o.who ? `<b style="color:${esc(o.who.color || '#fff')}">${esc(o.who.name)}</b>${o.who.step ? ` (${esc(o.who.step)})` : ''} · ` : ''}${esc(o.trackName)} · ${o.laps} laps · ${cond}${o.night ? ' · night' : ''}${o.gridPos ? ` · starting P${o.gridPos}` : ''}</div></div>
       <ol class="st-rail" aria-label="The weekend"><li class="done"><i></i>Practice</li><li class="done"><i></i>Qualifying</li><li class="on" aria-current="step"><i></i>Strategy</li><li><i></i>Race</li></ol></header>
     <div class="st-body"><div class="st-eng"><b>RACE ENGINEER</b>${esc(advice)}</div>
       <div class="st-cards" data-scroll-ok>${plans.map(card).join('')}</div>
       <div class="st-field">The field starts on:${Object.entries(counts).map(([c, n]) => `<i style="background:${COMPOUNDS[c]?.color || '#888'}"></i>${n} ${c.toLowerCase()}`).join('')}</div></div>
-    <footer class="st-foot"><span class="st-keys"><kbd class="k-kbd">1</kbd><kbd class="k-kbd">2</kbd><kbd class="k-kbd">3</kbd> plan · <kbd class="k-kbd">←</kbd><kbd class="k-kbd">→</kbd> first stop · <kbd class="k-kbd">Enter</kbd> confirm</span><button class="st-ok">CONFIRM · TO THE GRID ▸</button></footer></div>`;
+    <footer class="st-foot"><span class="st-keys"><kbd class="k-kbd">1</kbd><kbd class="k-kbd">2</kbd><kbd class="k-kbd">3</kbd> plan · <kbd class="k-kbd">←</kbd><kbd class="k-kbd">→</kbd> first stop · <kbd class="k-kbd">Enter</kbd> confirm</span><button class="st-ok">${esc(o.okText || 'CONFIRM · TO THE GRID ▸')}</button></footer></div>`;
   document.body.appendChild(el);
   const cards = [...el.querySelectorAll('.st-card')], strip = el.querySelector('.st-cards'), t0 = performance.now();
   // (the entrance comes off once played, so the chosen card's lift can move freely)
