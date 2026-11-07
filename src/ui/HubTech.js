@@ -286,7 +286,7 @@ export function techHTML(c, S = {}, H = {}) {
   const soon = dev.length ? Math.min(...dev.map((x) => x.left)) : 0;
 
   // the header: what you have to spend, where the car is, how busy the factory is
-  const head = `<div class="tt-head"><div class="tt-hl"><h2>Tech tree</h2><p class="lead">Thirty-eight upgrades in nine branches, each built a level at a time: every level costs more than the last and gives a little less, and many need work in another branch first. A part is <b>correlated</b> when it reaches the car - it can land anywhere from 70% to 110% of what the tunnel promised. ${esc(team.name)} decide${/s$/.test(team.name) ? '' : 's'} what to build and pay for it; you drive what comes.</p></div>
+  const head = `<div class="tt-head"><div class="tt-hl"><h2>Tech tree</h2><p class="lead">Thirty-eight upgrades in nine branches, each built a level at a time: every level costs more than the last and gives a little less, and many need work in another branch first. A part is <b>correlated</b> when it reaches the car - it can land anywhere from 70% to 110% of what the tunnel promised. ${c.manager ? `You decide what ${esc(team.name)} build${/s$/.test(team.name) ? '' : 's'} - BUILD on a part's card - under the season's cost cap; your technical director decides how well it correlates.` : `${esc(team.name)} decide${/s$/.test(team.name) ? '' : 's'} what to build and pay for it; you drive what comes.`}</p></div>
     <div class="tt-kpis"><div class="tt-kpi"><small>Team budget</small><b>${money(team.budget)}</b></div><div class="tt-kpi"><small>Pace</small><b>${gapTxt(gapOf(c, team))}</b></div><div class="tt-kpi"><small>Parts</small><b>${P.have}<i> / ${P.total}</i></b></div></div></div>`;
   const msg = S.tmsg ? `<div class="tt-msg ${S.tok ? 'ok' : 'no'}"><b>${S.tok ? '✓' : '!'}</b><span>${esc(S.tmsg)}</span></div>` : '';
 
@@ -305,7 +305,7 @@ export function techHTML(c, S = {}, H = {}) {
   const locked = UPGRADES.filter((u) => u.branch === 'facilities').flatMap((u) => u.levels.map((L, i) => ({ u, lv: i + 1, s: L.fx.slots || 0 }))).filter((x) => x.s && levelOf(team, x.u.id) < x.lv);
   const LR = safe0(() => liveRequest(c), null), lrTxt = LR ? ` · your request: ${esc(UP[LR.up]?.short || LR.up)} L${LR.level}, ${esc(reqState(LR))}` : '';
   const queue = `<div class="tt-q"><div class="tt-qh"><span class="lbl">Development</span><span class="muted">${dev.length} of ${slots} slot${slots === 1 ? '' : 's'} in use${dev.length ? ` · the next part reaches the car ${when(c, soon)}` : ' · the factory is waiting for work'}${lrTxt}</span></div>
-    <div class="tt-slots">${filled}${'<div class="tt-slot free"><b>Free slot</b><small>The team will fill it</small></div>'.repeat(Math.max(0, slots - dev.length))}${locked.map((x) => `<div class="tt-slot lock"><b>+1 slot</b><small>${esc(x.u.name)} · level ${x.lv}</small></div>`).join('')}</div></div>`;
+    <div class="tt-slots">${filled}${`<div class="tt-slot free"><b>Free slot</b><small>${c.manager ? 'Yours to fill: BUILD a part' : 'The team will fill it'}</small></div>`.repeat(Math.max(0, slots - dev.length))}${locked.map((x) => `<div class="tt-slot lock"><b>+1 slot</b><small>${esc(x.u.name)} · level ${x.lv}</small></div>`).join('')}</div></div>`;
 
   // the branch: what it has given the car, and its upgrades as cards
   const card = (u) => {
@@ -383,6 +383,13 @@ const REQ_STATE = { building: 'the team agreed: it is in the factory', queued: '
 /** a request's state in words (a yes waiting for a free slot is first in the queue, a half is on the list) */
 const reqState = (R) => (R.state === 'queued' && R.answer === 'yes' ? 'agreed: first in the queue' : REQ_STATE[R.state] || R.state);
 function reqHTML(c, u, st, nx) {
+  // (a team principal - career/Manager.js: the factory is theirs - BUILD, under the cost cap)
+  if (c?.manager) {
+    if (!nx || st === 'max' || st === 'dev') return '';
+    const team = teamOf(c), cost = levelCost(c, team.name, u.id, nx), why = st === 'open' ? c.capCheck?.(cost) : null, ok = st === 'open' && !why;
+    const tip = st === 'open' ? (why || `Start level ${nx}: ${money(cost)} now, on the car in ${levelRounds(c, team.name, u.id, nx)} race(s).`) : st === 'locked' ? `Needs ${needTxt(missingReq(team, u.id, nx))} first.` : st === 'busy' ? 'Every development slot is in use.' : `Not enough money: ${money(cost)} needed.`;
+    return `<button class="${ok ? 'go ' : ''}tt-rqb" data-tdev="${u.id}"${ok ? '' : ' disabled'} title="${esc(tip)}">BUILD LEVEL ${nx} · ${money(cost)}</button>`;
+  }
   const R = requestFor(c, u.id), live = R && ['building', 'queued', 'onCar'].includes(R.state);
   if (live || (R && R.level === nx && R.season === c.season)) return `<span class="tt-req s-${esc(R.state)}" title="${esc(`You asked for ${upgradeName(R.up, R.level)} in round ${R.round}.`)}">YOUR REQUEST · L${R.level} · ${esc(reqState(R))}</span>`;
   if (!['open', 'busy', 'poor'].includes(st) || !nx) return '';
@@ -484,12 +491,13 @@ export function techClick(c, ds, S = {}) {
     return { tab: 'dev', S: { ...base, branch: u.branch, up: u.id, tmsg: r.text, tok: !!r.ok && r.answer !== 'no' } };
   }
   // (the team's car, the team's choice: nothing here builds or re-tunes - you may only ask)
-  if (!ALLOW_DEV) return { tab: 'dev', S: { ...base, tmsg: 'The team decides what it builds. You can ask for a part - REQUEST - with your bargaining power.', tok: false } };
+  if (!ALLOW_DEV && !c.manager) return { tab: 'dev', S: { ...base, tmsg: 'The team decides what it builds. You can ask for a part - REQUEST - with your bargaining power.', tok: false } };
   const team = teamOf(c); if (!team) return { tab: 'dev', S: base };
   ready(c);
   if (ds.tdev != null) {
     const u = UP[ds.tdev]; if (!u) return { tab: 'dev', S: base };
     const st = upgradeState(c, team.name, u.id), lv = nextLevel(team, u.id), cost = lv ? levelCost(c, team.name, u.id, lv) : 0, n = lv ? levelRounds(c, team.name, u.id, lv) : 0;
+    const cap = st === 'open' ? c.capCheck?.(cost) : null; if (cap) return { tab: 'dev', S: { ...base, branch: u.branch, up: u.id, tmsg: cap, tok: false } };   // (a team principal's cost cap)
     const ok = develop(c, team.name, u.id); if (ok) c.save?.();
     const tmsg = ok ? `Work starts on ${upgradeName(u.id, lv)}: ${money(cost)}, on the car ${when(c, n)}.` : whyNot(c, team, u, st, lv, cost);
     return { tab: 'dev', S: { ...base, branch: u.branch, up: u.id, tlv: null, tmsg, tok: ok } };

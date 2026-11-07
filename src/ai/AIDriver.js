@@ -849,7 +849,7 @@ export class AIDriver {
       : lapsLeft <= Math.ceil(world.lapsTotal * 0.45) && (t.wear > 0.45 || world.lapsTotal < 13 || lapsLeft <= 2.5));
     // (the pit wall gets it wrong now and then - the more often the smaller the team: race/Calls.js FAULT_P. A stop for
     //  worn tyres alone left a lap too late, once a stint; it stays out to the next lap's entry, on the cliff's edge)
-    const fp = FAULT_P[c.tier] ?? FAULT_P[2], onlyTyres = wornOut && !damaged && !wetMismatch && !mustStop && !cheap && !cover && !under;
+    const fp = (FAULT_P[c.tier] ?? FAULT_P[2]) * (c.faultMul ?? 1), onlyTyres = wornOut && !damaged && !wetMismatch && !mustStop && !cheap && !cover && !under;
     if (onlyTyres && this._lateStint !== c.pitStops && lapsLeft >= 3) { this._lateStint = c.pitStops; if (rnd() < fp) { this._lateLap = c.lap; world.calls?.fault(c, 'late'); } }
     if (onlyTyres && this._lateLap === c.lap) return;
     if (wornOut || damaged || wetMismatch || mustStop || cheap || cover || under) {

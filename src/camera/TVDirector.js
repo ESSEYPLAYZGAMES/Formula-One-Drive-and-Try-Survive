@@ -3,16 +3,18 @@
 // moment it happens, a stop in the pit lane, the leader at the start and at the flag, and the cars of the team you run
 // (main.js TP: they come round on the feed more often than the rest, and every time they are in a fight or the pits) -
 // and a camera for it: the trackside cameras along the barriers, panning and zooming as the car comes by; the onboard
-// T-cam; the chase; the helicopter; the rear-facing onboard of the car ahead with the one attacking it behind; the pit
+// T-cam; the helicopter; the rear-facing onboard of the car ahead with the one attacking it behind; the pit
 // lane camera. A shot is held 5-9 s (an incident cuts in at once). Or you direct: follow a car (the cameras still cut
 // round it), and / or keep to one camera.
 //   update(dt, ctx) -> the car the shot is of (the game's S.player: the HUD, the sound and the camera's ground follow it)
-//   ctx: { d (RaceDirector), track, pit, focus: [your cars], camCtl (CockpitCamera: the onboard and chase views) }
+//   ctx: { d (RaceDirector), track, pit, focus: [your cars], camCtl (CockpitCamera: the onboard views) }
+// (No chase camera: television has none. The trackside cameras stand where real ones do - on platforms high over the
+//  catch fence, looking down past its top, or in slots in the fence line just over the barrier - never behind the mesh.)
 import * as THREE from 'three';
 
 /** the cameras a viewer can keep to (keys 1-6 in the team principal's race) */
-export const TV_CAMS = ['auto', 'track', 'tcam', 'chase', 'heli', 'rear'];
-export const TV_CAM_NAME = { auto: 'Director', track: 'Trackside', tcam: 'Onboard', chase: 'Chase', heli: 'Helicopter', rear: 'Rear onboard', pit: 'Pit lane', grid: 'Grid' };
+export const TV_CAMS = ['auto', 'track', 'tcam', 'heli', 'rear'];
+export const TV_CAM_NAME = { auto: 'Director', track: 'Trackside', tcam: 'Onboard', heli: 'Helicopter', rear: 'Rear onboard', pit: 'Pit lane', grid: 'Grid' };
 
 const _v = new THREE.Vector3();
 
@@ -76,8 +78,8 @@ export class TVDirector {
     if (st.why === 'pit') return 'pit';
     if (st.why === 'out' || st.why === 'spin') return this.cuts % 3 === 2 ? 'heli' : 'track';
     const r = (this.cuts * 0.618034) % 1;   // (a steady spread, not a die: the same race cuts the same way)
-    if (st.why === 'battle') return r < 0.42 ? 'track' : r < 0.62 ? 'chase' : r < 0.82 ? 'tcam' : 'rear';
-    return r < 0.4 ? 'track' : r < 0.62 ? 'tcam' : r < 0.8 ? 'chase' : 'heli';
+    if (st.why === 'battle') return r < 0.58 ? 'track' : r < 0.8 ? 'tcam' : 'rear';
+    return r < 0.5 ? 'track' : r < 0.78 ? 'tcam' : 'heli';
   }
 
   // ---- a cut ---------------------------------------------------------------------------------------------------------
@@ -89,8 +91,14 @@ export class TVDirector {
     if (kind === 'track') {
       // a camera along the barrier ahead of the car: it comes toward it, passes, and the shot ends a little after
       const ahead = st.urgent ? 25 : 90 + ((this.cuts * 0.7548) % 1) * 110, s0 = tr.wrapS(subject.s + Math.max(20, ahead * Math.min(1.6, Math.max(0.5, subject.speed / 55))));
-      const side = (this.cuts & 1) ? 1 : -1, i = tr.idxAtS(s0), f = tr.sample(s0, side * (tr.wallAt(i, side) + 5));
-      sh.s0 = s0; sh.side = side; sh.h = st.urgent ? 9 : 4.5 + ((this.cuts * 0.271) % 1) * 4; sh.pos = new THREE.Vector3(f.x, sh.h, f.z);
+      // (two kinds of trackside camera, as at a real circuit: on a pole over the barrier - 10-13 m up, 0.6 m behind the
+      //  wall's face: the line down to a car even 1 m off that wall clears the top of a 5.5 m catch fence cranked in over
+      //  the road - or in a slot cut in the fence line, the lens just over the concrete, the mesh beside it, none in front)
+      const side = (this.cuts & 1) ? 1 : -1, i = tr.idxAtS(s0), slot = !st.urgent && ((this.cuts * 0.4142) % 1) < 0.4;
+      const off = slot ? 0.05 : 0.6, f = tr.sample(s0, side * (tr.wallAt(i, side) + off));
+      sh.s0 = s0; sh.side = side; sh.slot = slot;
+      sh.h = slot ? Math.max(1.9, (tr.barrierHeight?.(i, side) > 2 ? 1.3 : tr.barrierHeight?.(i, side) || 1.2) + 0.7) : 10 + ((this.cuts * 0.271) % 1) * 3;
+      sh.pos = new THREE.Vector3(f.x, sh.h, f.z);
     } else if (kind === 'grid') {
       // high over the start line, looking down the grid
       const f = tr.sample(tr.wrapS(40), 0), b = tr.sample(tr.wrapS(-160), 0);
@@ -138,11 +146,8 @@ export class TVDirector {
   // ---- the camera ----------------------------------------------------------------------------------------------------
   place(dt, ctx) {
     const sh = this.shot, cam = this.cam, car = sh.car, cc = ctx.camCtl;
-    if (sh.kind === 'tcam' || sh.kind === 'chase' || sh.kind === 'rear') {
-      cc.mode = sh.kind === 'chase' ? 'chase' : 'tcam'; cc.back = sh.kind === 'rear'; cc.lookIn = 0;
-      // (a cut, not a swoop: the chase camera starts where it settles behind this car)
-      if (sh.kind === 'chase' && !sh.placed) { const a = car.th, b = 8.5 + car.speed * 0.03; cc._chase.set(car.x - Math.cos(a) * b, 2.6 + car.speed * 0.006, car.z - Math.sin(a) * b); }
-      sh.placed = true;
+    if (sh.kind === 'tcam' || sh.kind === 'rear') {
+      cc.mode = 'tcam'; cc.back = sh.kind === 'rear'; cc.lookIn = 0;
       cc.update(car, dt, ctx.track); cc.back = false;
       return;
     }

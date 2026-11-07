@@ -54,6 +54,8 @@ import { CockpitCamera, TCAM_TILT, TCAM_FOV } from './camera/CockpitCamera.js';
 import { TVDirector, TV_CAMS, TV_CAM_NAME } from './camera/TVDirector.js';
 import { TVGraphics } from './ui/TVGraphics.js';
 import { PitWall, PACE } from './ui/PitWall.js';
+import { ManagerCareer } from './career/Manager.js';
+import { openManagerHub, closeManagerHub, managerHubOpen } from './ui/ManagerHub.js';
 import { AudioEngine } from './audio/Audio.js';
 import { ROSTER, customDriver, POINTS, standIn, dayPerf } from './race/Roster.js';
 import { showMemorial } from './ui/Memorial.js';
@@ -481,9 +483,11 @@ addEventListener('pointerdown', () => { PRE_TRACK.lastInput = performance.now();
 addEventListener('keydown', () => { PRE_TRACK.lastInput = performance.now(); }, { passive: true, capture: true });
 /** the circuit worth building now -> its id, or null */
 function preloadWanted() {
-  if (PRE_TRACK.block || !W.home || S.director || W.loading || Loader.on || HANG.on || swapping || !menuFree()) return null;   // (menuFree: not in the career, a phone, a negotiation)
-  if ($('menu').classList.contains('hidden')) return null;
-  const id = !$('step-setup').classList.contains('hidden') ? settings.track : (savedQuick()?.track || settings.track);
+  if (PRE_TRACK.block || !W.home || S.director || W.loading || Loader.on || HANG.on || swapping) return null;
+  // (in the team principal's HQ: the next round's circuit)
+  const hubC = managerHubOpen() ? MGR.c : null;
+  if (!hubC && (!menuFree() || $('menu').classList.contains('hidden'))) return null;   // (menuFree: not in the career, a phone, a negotiation)
+  const id = hubC ? (hubC.seasonDone ? null : hubC.track) : !$('step-setup').classList.contains('hidden') ? settings.track : (savedQuick()?.track || settings.track);
   if (!TRACKS[id] || (W.track && W.def?.id === id) || PRE_TRACK.failed.has(id)) return null;
   return id;
 }
@@ -929,6 +933,7 @@ function loaderCovered() {
 async function startQuick() {
   if (settings.mode === 'tp' ? !settings.tpTeam : settings.driver == null) { if (!$('step-setup').classList.contains('hidden')) { showMem(false); goPage('driver'); flashGrid(); } return; }
   if (W.loading || Loader.on || swapping) return;
+  S.mgr = null;   // (a single weekend: no team principal's career behind it)
   // (a quick race is no career's: no career driver's look or helmet carried into it by name - E. Esselink is both menus' default)
   syncLooks(null);
   audio.init(); audio.resume(); saveQuick();
@@ -949,7 +954,7 @@ function refreshHome() {
   const s = savedQuick(), C = careerPeek(), last = describeQuick(s), card = (v) => $('step-mode').querySelector(`.card[data-v="${v}"]`);
   card('quick').querySelector('.live').textContent = s?.mode === 'quick' && last ? `Last time: ${last}` : '';
   card('tt').querySelector('.live').textContent = s?.mode === 'tt' && last ? `Last time: ${last}` : '';
-  card('tp').querySelector('.live').textContent = s?.mode === 'tp' && last ? `Last time: ${last}` : '';
+  card('tp').querySelector('.live').textContent = ManagerCareer.peek() || (s?.mode === 'tp' && last ? `Last time: ${last}` : '');
   card('champ').querySelector('b').textContent = C ? 'Continue Career' : 'New Career'; card('champ').querySelector('.live').textContent = C || '';
   const ra = $('race-again'); ra.classList.toggle('hidden', !last); ra.querySelector('span').textContent = last; $('keys-r').classList.toggle('hidden', !last);
   refreshMemoriam();
@@ -957,12 +962,13 @@ function refreshHome() {
 /** nothing else has the screen or the keys: no session, loading screen, career, evening out, phone or negotiation */
 function menuFree() {
   const hub = document.getElementById('career');
-  return !S.director && !Loader.on && !HANG.on && !(hub && hub.style.display !== 'none') && !document.getElementById('phone') && !document.getElementById('nego') && !document.getElementById('hangout');
+  return !S.director && !Loader.on && !HANG.on && !(hub && hub.style.display !== 'none') && !managerHubOpen() && !document.getElementById('phone') && !document.getElementById('nego') && !document.getElementById('hangout');
 }
 $('step-mode').addEventListener('click', (e) => {
   const c = e.target.closest('.card'); if (!c || swapping) return;
   careerSetup(false);
   if (c.dataset.v === 'champ') { settings.mode = 'champ'; toCareer(); return; }   // (the championship is a career: ui/CareerHub.js)
+  if (c.dataset.v === 'tp') { openMgrHub(); return; }   // (the team principal: the HQ - a career, or a single weekend from it - ui/ManagerHub.js)
   openSetup(c.dataset.v);
 });
 $('race-again').addEventListener('click', raceAgain);
@@ -1696,6 +1702,7 @@ setTimeout(refreshMemoriam, 0);
 function buildField(lapsTotal) {
   const cars = []; const assists = settings.assist === 'full' ? { tc: true, abs: true } : settings.assist === 'abs' ? { tc: false, abs: true } : { tc: false, abs: false };
   if (S.weekend?.career) return careerField(S.weekend.career, lapsTotal, assists);
+  if (S.weekend?.mgr) return mgrField(S.weekend.mgr, lapsTotal, assists);
   const isCustom = settings.driver === 'custom';
   const entries = ROSTER.map((r) => ({ ...r }));
   if (isCustom) entries.push(customDriver(settings.custom));
@@ -1838,10 +1845,11 @@ function endSession() {
 }
 /** out of the session: a career's menu is the career (the main menu is one step further out, from the career's MENU) */
 function toMenu() {
-  const career = !!(S.weekend?.career || S.career);
-  endSession(); S.weekend = null; restoreSettings(); strings(false); NEWS.cancelled = false;
+  const career = !!(S.weekend?.career || S.career), mgr = !!S.weekend?.mgr;
+  endSession(); S.weekend = null; S.mgr = null; restoreSettings(); strings(false); NEWS.cancelled = false;
   $('menu').classList.remove('hidden'); $('step-setup').classList.add('hidden'); $('step-mode').classList.remove('hidden');
   if (career) openCareerHub();
+  if (mgr) openMgrHub();   // (a team principal's round left early: back to the HQ - the round is still to run)
 }
 /** END SESSION (practice, qualifying): practice simply stops; qualifying is finished for you, the rest simulated */
 function endSessionEarly() {
@@ -1893,9 +1901,9 @@ function startWeekend() {
   const lapsTotal = settings.len;
   // (the weekend's weather - race/Weather.js: a career's day is its forecast, not always right; a quick race the
   //  weather chosen. The start's wetness picks the starting tyres; the race itself changes as the sky does)
-  const wx = weatherPlan(settings.weather, { forecast: settings.mode === 'champ' && !!S.career, night: settings.time === 'night' }), wet = wx.start;
+  const wx = weatherPlan(settings.weather, { forecast: (settings.mode === 'champ' && !!S.career) || (settings.mode === 'tp' && !!S.mgr), night: settings.time === 'night' }), wet = wx.start;   // (a career's day - the driver's or the team principal's - is its forecast, not a promise)
   setTimeOfDay(settings.time); applyWeather(wet);
-  S.weekend = { mode: settings.mode, lapsTotal, wet, wx, round: 1, rounds: settings.mode === 'champ' ? settings.rounds : 1, points: new Map(), out: new Map() };
+  S.weekend = { mode: settings.mode, lapsTotal, wet, wx, round: 1, rounds: settings.mode === 'champ' ? settings.rounds : 1, points: new Map(), out: new Map(), mgr: settings.mode === 'tp' ? S.mgr || null : null };   // (mgr: the team principal's career round - career/Manager.js)
   if (settings.mode === 'champ' && S.career) {
     // (a career round: its number, the season's standings so far)
     const C = S.career, wk = S.weekend; wk.career = C; wk.round = C.round; wk.rounds = C.rounds;
@@ -2131,6 +2139,7 @@ function beginRace() {
       const facts = NEWS.cancelled ? null : raceFacts(S.director, rows);   // (Driver of the Day and the race in numbers; not for a race stopped by a death - first: the career wants the fans' vote)
       wk.banNote = null;
       if (wk.mode === 'tp') { for (const r of rows) r.me = r.car.team === settings.tpTeam; tpStop(); }   // (your team's two rows marked; no licence for the pit wall)
+      if (wk.mgr && !NEWS.cancelled) { try { wk.mgrRep = wk.mgr.applyRace(rows, W.def.id); } catch (e) { console.error('[manager] the race into the season', e); } }   // (the team principal's career: points, money, the factories, the board)
       if (wk.career) {
         // (the career: points, starts, money, development, Paddock Rapport, morale, the press, the licence, the next round
         //  - and the interview after)
@@ -2168,7 +2177,7 @@ function beginRace() {
       const winner = rows.find((r) => !r.car.retired) || rows[0];
       const results = () => {
         hud.results(`${wk.mode === 'champ' ? `ROUND ${wk.round}/${wk.rounds} · ` : ''}${NEWS.cancelled ? 'RACE CANCELLED' : NEWS.abandoned ? 'RACE ABANDONED' : 'RACE RESULT'}${wk.pointsNote ? ` (${wk.pointsNote})` : ''} · ${wk.mode === 'tp' ? `${settings.tpTeam}: ${rows.filter((r) => r.me).map((r) => `P${r.pos}`).join(' & ')}` : me ? `P${me.pos}` : ''}${me && me.penalties ? ` (+${me.penalties}s penalties)` : ''}${wk.banNote ? ` · ${wk.banNote}` : ''}`, rows, champ, facts);
-        $('btn-next').firstChild.textContent = wk.career ? 'CAREER' : wk.mode === 'champ' && wk.round < wk.rounds ? 'NEXT ROUND' : 'MAIN MENU';
+        $('btn-next').firstChild.textContent = wk.career ? 'CAREER' : wk.mgr ? 'TEAM HQ' : wk.mode === 'champ' && wk.round < wk.rounds ? 'NEXT ROUND' : 'MAIN MENU';
         $('btn-menu').textContent = wk.career ? 'CAREER MENU' : 'MAIN MENU';
       };
       if (NEWS.abandoned) { NEWS.results = results; return; }   // (abandoned after an accident: the news and the memorial first)
@@ -2342,6 +2351,9 @@ function tpUi(dt) {
   const d = S.director; if (!d || !TP.on) return;
   const show = !FINALE.on && !PRE.on && !NEWS.on && !POV.on;
   TP.gfx.el.classList.toggle('hidden', !show); TP.wall.el.classList.toggle('hidden', !show || d.done);
+  // (the HUD's messages - LINE ON / OFF, the safety car's, race control's - run out here: the HUD's own update, which
+  //  times them, is not called in the team principal's race)
+  if (hud.msgTimer > 0) { hud.msgTimer -= dt; if (hud.msgTimer <= 0) hud.msgEl.textContent = ''; }
   if (!show) return;
   document.documentElement.style.setProperty('--pw', `${TP.wall.height()}px`);
   TP.gfx.update(dt, { d, focus: TP.cars, shot: TP.tv.shot, track: shortTrack(W.def?.id), camName: TV_CAM_NAME[TP.tv.shot?.kind] || '', speed: TP.paused ? 0 : TP.speed });
@@ -2398,6 +2410,54 @@ function tpKeys() {
   if (input.pressed('Minus') || input.pressed('NumpadSubtract')) tpAct('speed', Math.max(1, TP.speed / 2));
   if (input.pressed('Tab')) { const P = S.director.positions.filter((c) => !c.retired), i = P.indexOf(TP.tv.followCar); TP.tv.follow(P[(i + 1) % P.length] || null); }
   if (input.pressed('KeyC')) { const k = TV_CAMS[(TV_CAMS.indexOf(TP.cam) + 1) % TV_CAMS.length]; tpAct('cam', k); }
+}
+/** the team principal's career (career/Manager.js) as the HQ has it open (MGR.c) */
+const MGR = { c: null };
+/** the HQ: the career saved in this browser, or a new one's set-up (ui/ManagerHub.js) */
+function openMgrHub() {
+  MGR.c = ManagerCareer.load();
+  openManagerHub({ career: MGR.c, trackName: (k) => shortTrack(k),
+    teams: TEAMS.map((t) => ({ name: t.name, color: t.color, tier: t.drivers[0]?.tier ?? 2, drivers: seats(t).map((d) => d.name) })),
+    onCreate: (c) => { MGR.c = c; },
+    onRace: (c) => mgrRace(c),
+    onSim: (c) => { const rep = c.applyRace(c.simRace(), c.track); refreshHome(); return rep; },
+    onQuick: () => { closeManagerHub(); openSetup('tp'); },
+    onExit: () => { closeManagerHub(); refreshHome(); } });
+}
+/** RACE from the HQ: the round's circuit, its forecast and distance - the team principal's weekend (qualifying, the race) */
+async function mgrRace(c) {
+  if (W.loading || Loader.on || swapping || !c.seatsReady()) return;
+  closeManagerHub(); S.mgr = c; MGR.c = c;
+  S.savedSettings = { ...settings };   // (your own settings back when the weekend is over: restoreSettings)
+  Object.assign(settings, { mode: 'tp', tpTeam: c.myTeam, track: c.track, len: c.laps, weather: c.fc.weather, time: c.fc.time, diff: c.diff ?? settings.diff });
+  syncLooks(null); audio.init(); audio.resume();
+  Loader.show({ ...loaderInfo(settings.track), kicker: `Team principal · ${c.myTeam} · Round ${c.round} of ${c.rounds}` });
+  await loaderCovered();
+  const time = settings.time;
+  if (!W.track || W.def?.id !== settings.track || W.home || PRE_TRACK.p) {
+    $('menu').classList.add('hidden'); await switchTrack(settings.track);
+    if (!W.track) { $('menu').classList.remove('hidden'); restoreSettings(); S.mgr = null; openMgrHub(); return; }
+    settings.time = time;
+  }
+  $('menu').classList.add('hidden');
+  Loader.stage('Preparing the weekend', 90); await paint();
+  startWeekend();
+  Loader.hide();
+}
+/** the field of a team principal's round: every team's car as its development has it, its drivers, your staff's work */
+function mgrField(C, lapsTotal, assists) {
+  const cars = [], sfx = C.staffFx();
+  for (const e of C.entries()) {
+    const car = new Car(W.track, { name: e.name, short: e.short, team: e.team, color: e.color, isPlayer: false, perf: e.perf + onTheDay(e.team), rating: e.rating, number: e.number, compound: aiCompound(e, lapsTotal), raceLaps: lapsTotal, assists });
+    car.tier = e.tier; car.color2 = e.color2; car.helmet = e.helmet; car.livery = e.livery || null; car.boxIdx = e.garage; car.careerId = e.careerId;
+    car.form = neutralForm(); car.licencePts = 0; car.champPts = e.champPts ?? null;
+    const fx = e.fx || {};
+    car.drsGain = fx.drs || 0; car.ersMul = fx.ers || 1; car.ersCap = fx.erc || 1; car.brakeMul = fx.brake || 1; car.relMul = fx.relMul || 1; car.pitMul = fx.pitMul || 1;
+    car.baseWear = fx.wear || 1; car.wearMul = car.baseWear; car.tyres.wearMul = car.wearMul;
+    if (e.mine) { car.pitMul *= sfx.pitMul; car.faultMul = sfx.faultMul; }   // (your pit crew chief, your head of strategy)
+    cars.push(car);
+  }
+  return cars;
 }
 /** qualifying in the team principal's weekend: watched on the feed, or simulated */
 function tpQuali(watch) {
@@ -3482,6 +3542,7 @@ function afterResults() {
   const wk = S.weekend, next = wk && wk.mode === 'champ' && wk.round < wk.rounds;
   NEWS.abandoned = false; NEWS.results = null; NEWS.cancelled = false;
   endSession();
+  if (wk?.mgr) { S.weekend = null; S.mgr = null; restoreSettings(); $('menu').classList.remove('hidden'); $('step-setup').classList.add('hidden'); $('step-mode').classList.remove('hidden'); openMgrHub(); return; }   // (the team principal's career: back to the HQ)
   if (wk?.career) {   // (a career: the interview, then back to the hub)
     const C = wk.career, ctx = wk.interview; S.weekend = null;
     if (ctx && wk.incident) strings(true); else strings(false);

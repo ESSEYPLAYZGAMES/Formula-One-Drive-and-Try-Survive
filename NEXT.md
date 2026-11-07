@@ -1,3 +1,36 @@
+# V2.42 (2026-11-07): the team principal's career; the broadcast's cameras where real ones stand
+
+- A career for the team principal (career/Manager.js, the HQ ui/ManagerHub.js; the home's card 04 opens it - or a
+  single weekend from it). Pick one of the eleven teams; the season's length (4 / 8 / 12 rounds, the four circuits in
+  turn) and the race distance. Saved in the browser (f1sim-manager-v1).
+  - The whole paddock lives on: every team develops its car through the tech tree (career/TechTree.js) - the AI teams
+    choose their own work, you BUILD yours (ui/HubTech.js, the factory tab, a manager's flag: BUILD where a driver has
+    REQUEST) - every team under a $70M cost cap a season (the AI's spending held to what the cap leaves it).
+  - Drivers: contracts (salary, to the end of a season), EXTEND (they ask more), RELEASE (paid off), SIGN a free agent
+    (the reserves and F2: their asking salary, half a season's as a fee). At the season's end a contract run out ends:
+    the AI teams re-sign or replace; yours leave unless extended. Ratings move a little with each season.
+  - Staff: a technical director (how well a new part correlates on your car), a head of strategy (how often the AI
+    strategist's call goes wrong: AIDriver faultMul), a pit crew chief (the stop's length): hire from three a role.
+  - Money: the commercial rights every race by tier and $0.25M a point, the title sponsor's target for the weekend (a
+    place, both cars in the top n) and its bonus, the drivers' and staff's salaries every race, prize money at the end by
+    the constructors' order.
+  - The board: its target is where the team should finish on its car and drivers against the field (Williams P5, Haas
+    P7, McLaren P1); its confidence moves with points against what the car should score and the table; a season far
+    short with the board's patience gone (never the first with a team) and you are out - a team further down may offer
+    a way back.
+  - The weekend: RACE - the team principal's weekend (qualifying watched or simulated, the race on the feed, the pit
+    wall), the round's circuit, forecast and distance, your staff's work on your cars; SIMULATE - the result at once.
+    The result into the season: points, money, the factories, the board, the next round; TEAM HQ after the results.
+  - Checked: three simulated seasons for Williams, Haas, McLaren, Ferrari and Cadillac (no runaway budgets, targets
+    met / missed / beaten, a sacking and a new team); in the browser a career made, every tab, a part built, a hire, a
+    round simulated and a round raced at Silverstone, back to the HQ - no errors.
+- The broadcast (camera/TVDirector.js): no chase camera (television has none: gone from the director, the pit wall and
+  C); the trackside cameras stand where real ones do - on a pole over the barrier 10-13 m up, 0.6 m behind the wall's
+  face (the line down to a car even 1 m off that wall clears the 5.5 m catch fence's cranked top), or in a slot in the
+  fence line just over the concrete (the mesh beside the lens, none in front).
+- The HUD's messages (LINE ON / OFF, the safety car's, race control's) now run out in the team principal's race (they
+  stayed up: the HUD's own update, which times them, is not called there).
+
 # V2.41 (2026-11-07): Las Vegas's damp AI from the new telemetry
 
 - The driver's damp laps (2026-11-06 export: wetness 0.31, three laps, the flashbacks' rewound attempts left out by
