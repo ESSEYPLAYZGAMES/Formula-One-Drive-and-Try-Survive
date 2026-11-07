@@ -55,6 +55,7 @@ import { TVDirector, TV_CAMS, TV_CAM_NAME } from './camera/TVDirector.js';
 import { TVGraphics } from './ui/TVGraphics.js';
 import { PitWall, MODES } from './ui/PitWall.js';
 import { ManagerCareer } from './career/Manager.js';
+import { takePenalties } from './career/ManagerOps.js';
 import { openManagerHub, closeManagerHub, managerHubOpen } from './ui/ManagerHub.js';
 import { AudioEngine } from './audio/Audio.js';
 import { ROSTER, customDriver, POINTS, standIn, dayPerf } from './race/Roster.js';
@@ -2140,7 +2141,7 @@ function beginRace() {
       const facts = NEWS.cancelled ? null : raceFacts(S.director, rows);   // (Driver of the Day and the race in numbers; not for a race stopped by a death - first: the career wants the fans' vote)
       wk.banNote = null;
       if (wk.mode === 'tp') { for (const r of rows) r.me = r.car.team === settings.tpTeam; tpStop(); }   // (your team's two rows marked; no licence for the pit wall)
-      if (wk.mgr && !NEWS.cancelled) { try { wk.mgrRep = wk.mgr.applyRace(rows, W.def.id); } catch (e) { console.error('[manager] the race into the season', e); } }   // (the team principal's career: points, money, the factories, the board)
+      if (wk.mgr && !NEWS.cancelled) { try { wk.mgrRep = wk.mgr.applyRace(rows, W.def.id, { push: Object.fromEntries(rows.filter((r) => r.car.mgr?.modes?.fuel === 'push').map((r) => [r.car.careerId, true])) }); } catch (e) { console.error('[manager] the race into the season', e); } }   // (the team principal's career: points, money, the factories, the board)
       if (wk.career) {
         // (the career: points, starts, money, development, Paddock Rapport, morale, the press, the licence, the next round
         //  - and the interview after)
@@ -2576,13 +2577,21 @@ function tpQuali(watch) {
       wk.cars = buildField(wk.lapsTotal); wk.player = null;
       wk.gridOrder = names.map((n) => wk.cars.find((c) => c.name === n)).filter(Boolean);
       for (const c of wk.cars) if (!wk.gridOrder.includes(c)) wk.gridOrder.push(c);
+      // (the team principal's career: grid penalties for power-unit elements beyond the allocation - every car back as
+      //  many places as it was given, from where it qualified)
+      const pen = wk.mgr ? takePenalties(wk.mgr) : new Map(); wk.penText = '';
+      if (pen.size) {
+        const key = (c, i) => i + (pen.get(c.name) || 0) + (pen.has(c.name) ? 0.5 : 0);
+        wk.gridOrder = wk.gridOrder.map((c, i) => ({ c, k: key(c, i) })).sort((a, b) => a.k - b.k).map((x) => x.c);
+        wk.penText = ` Grid penalties: ${[...pen].map(([n, k]) => `${surname(n)} +${k}`).join(', ')}.`;
+      }
       tpStop();
       startFinale(all[0].car, 'POLE POSITION', () => {
         let html = '<table class="res"><tr><th>#</th><th>Driver</th><th>Time</th><th>Gap</th></tr>';
         all.forEach((e, i) => { html += `<tr class="${e.car.team === settings.tpTeam ? 'me' : ''}"><td>${i + 1}</td><td><span class="sw" style="background:${e.car.color}"></span>${htmlEsc(e.car.name)}</td><td>${fmtTime(e.time)}</td><td>${i === 0 ? '' : isFinite(e.time) ? '+' + (e.time - all[0].time).toFixed(3) : 'no time'}</td></tr>`; });
         $('quali-results').innerHTML = html + '</table>';
         const mine = all.map((e, i) => (e.car.team === settings.tpTeam ? `${surname(e.car.name)} P${i + 1}` : null)).filter(Boolean);
-        $('quali-info').textContent = `${settings.tpTeam}: ${mine.join(', ')}. The race next, from the pit wall.`;
+        $('quali-info').textContent = `${settings.tpTeam}: ${mine.join(', ')}.${wk.penText || ''} The race next, from the pit wall.`;
         $('btn-quali-go').classList.add('hidden'); $('btn-practice').classList.add('hidden'); $('btn-quali-sim').classList.add('hidden'); $('btn-quali-done').classList.remove('hidden'); $('quali-panel').classList.remove('hidden');
         endSession();
       });

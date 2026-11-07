@@ -13,6 +13,7 @@
 // team, a smaller one, may offer you a way back.
 import { ROSTER, RESERVES, F2, POINTS, PERF_GAIN, dayPerf } from '../race/Roster.js';
 import { startLevels, techEffects, devTick, aiDevelopTeam, upgradeName, UP } from './TechTree.js';
+import { opsEnsure, puEffect, sparesPerf, partsAfterRace, partsNewSeason, takePenalties, facFx, facRound, sponsorRace, sponsorsSeasonEnd } from './ManagerOps.js';
 
 const KEY = 'f1sim-manager-v1';
 export const TRACKS_ALL = ['lasvegas', 'silverstone', 'montreal', 'austin'];
@@ -66,10 +67,10 @@ export class ManagerCareer {
       board: { target: 0, conf: 60 }, since: 2026, seasonSpend: 0, spendAt: 0, news: [], results: [], history: [], last: null, seasonDone: false, sacked: false, offers: [], hires: null });
     c.forecast = calendar.map(forecastFor); c.board.target = c.boardTarget();
     c.addNews(`You take charge of ${my} for the ${c.season} season. The board expects P${c.board.target} in the constructors' championship.`);
-    c.newObjective(); c.refreshHires(); c.save();
+    opsEnsure(c); c.newObjective(); c.refreshHires(); c.save();
     return c;
   }
-  static load() { try { const s = localStorage.getItem(KEY); if (!s) return null; const o = JSON.parse(s); return o && o.v === 1 ? new ManagerCareer(o) : null; } catch (e) { return null; } }
+  static load() { try { const s = localStorage.getItem(KEY); if (!s) return null; const o = JSON.parse(s); if (!o || o.v !== 1) return null; const c = new ManagerCareer(o); opsEnsure(c); return c; } catch (e) { return null; } }
   static erase() { try { localStorage.removeItem(KEY); } catch (e) { /* nothing kept */ } }
   static peek() { const c = ManagerCareer.load(); return c ? `${c.myTeam} · Season ${c.season} · ${c.seasonDone ? 'the season is over' : `Round ${c.round} of ${c.rounds}`}` : null; }
   save() { try { const o = { ...this }; delete o.manager; localStorage.setItem(KEY, JSON.stringify(o)); } catch (e) { /* a private window: this sitting only */ } }
@@ -111,14 +112,19 @@ export class ManagerCareer {
     const out = [];
     for (const t of Object.values(this.teams).sort((a, b) => a.garage - b.garage)) {
       const fx = techEffects(t);
-      for (const d of this.seatsOf(t.name)) out.push({ careerId: d.id, name: d.name, short: d.short, team: t.name, color: t.color, color2: t.color2, livery: t.livery, helmet: d.helmet, tier: t.tier, perf: fx.perf, rating: d.rating, number: d.number, fx, garage: t.garage, mine: t.name === this.myTeam, champPts: d.points });
+      for (const d of this.seatsOf(t.name)) {
+        // (the power unit's wear - a worn ICE a little down on power, any worn element more likely to fail - and, for your
+        //  team, a damaged part raced for want of a spare: career/ManagerOps.js)
+        const pu = puEffect(this, t.name, d.id), sp = t.name === this.myTeam ? sparesPerf(this, t.name) : 1;
+        out.push({ careerId: d.id, name: d.name, short: d.short, team: t.name, color: t.color, color2: t.color2, livery: t.livery, helmet: d.helmet, tier: t.tier, perf: fx.perf * pu.perfMul * sp, rating: d.rating, number: d.number, fx: { ...fx, relMul: (fx.relMul || 1) * pu.relMul }, garage: t.garage, mine: t.name === this.myTeam, champPts: d.points });
+      }
     }
     return out;
   }
   /** the staff's effect on your cars: pitMul (the stop's length), faultMul (the strategist's mistakes) */
   staffFx() {
     const s = this.staff;
-    return { pitMul: 1.08 - 0.12 * (s.crew?.rating ?? 0.7), faultMul: clamp(2.2 - 2 * (s.strat?.rating ?? 0.7), 0.25, 1.4) };
+    return { pitMul: (1.08 - 0.12 * (s.crew?.rating ?? 0.7)) * facFx(this, 'pitc').pitMul, faultMul: clamp(2.2 - 2 * (s.strat?.rating ?? 0.7), 0.25, 1.4) };
   }
 
   // ---- the weekend done ------------------------------------------------------------------------------------------------
@@ -126,7 +132,7 @@ export class ManagerCareer {
    * A race's result into the season: rows [{ pos, car: { careerId, team, retired, bestLap } }] (the live race's
    * classification, or simRace's). Points, the money, the factories, the board, the next round -> a report for the hub
    */
-  applyRace(rows, trackId) {
+  applyRace(rows, trackId, o = {}) {
     if (this.seasonDone) return null;
     const rep = { round: this.round, track: trackId, season: this.season, mine: [], income: 0, sponsor: 0, wages: 0, objective: this.objective ? { ...this.objective, met: false } : null, parts: [], conf0: this.board.conf };
     const byTeam = {};
@@ -144,12 +150,12 @@ export class ManagerCareer {
       t.budget = r1(t.budget + inc - wages);
       if (t.name === this.myTeam) { rep.income = r1(inc); rep.wages = r1(wages + this.staffCost() / this.rounds); t.budget = r1(t.budget - this.staffCost() / this.rounds); }
     }
-    const ob = this.objective;
-    if (ob) {
-      const P = rep.mine.filter((m) => !m.dnf).map((m) => m.pos), best = P.length ? Math.min(...P) : 99;
-      const met = ob.kind === 'both' ? P.length === 2 && P.every((p) => p <= ob.pos) : ob.kind === 'best' ? best <= ob.pos : P.length === 2;
-      if (met) { this.team.budget = r1(this.team.budget + ob.reward); rep.sponsor = ob.reward; rep.objective.met = true; this.addNews(`The title sponsor's target is met: ${ob.text} - $${ob.reward}M.`); }
-    }
+    // the sponsors: their fees, and the bonus of each whose target for the weekend was met (career/ManagerOps.js)
+    const sp = sponsorRace(this, rep.mine);
+    this.team.budget = r1(this.team.budget + sp.fees + sp.bonus); rep.sponsor = r1(sp.fees + sp.bonus); rep.spFees = sp.fees; rep.spBonus = sp.bonus; rep.spMet = sp.met;
+    if (sp.met.length) this.addNews(`Sponsor targets met: ${sp.met.join(', ')} - $${sp.bonus}M in bonuses.`);
+    // the parts: the weekend's wear and damage, the factory's spares; the facilities' round
+    rep.used = partsAfterRace(this, rows, o.push || {}); facRound(this);
     // the factories: what was built reaches the cars (your technical director's eye on how it correlates), then every
     // other team chooses its next work
     const done = devTick(this);
@@ -178,14 +184,16 @@ export class ManagerCareer {
   /** the weekend simulated (no race run): every car's result from its car, its driver and the day */
   simRace() {
     const track = this.track, wet = { dry: 0, changeable: 0.2, damp: 0.35, wet: 0.75 }[this.fc.weather] ?? 0;
-    const E = this.entries(), g = () => (Math.random() + Math.random() + Math.random() - 1.5) * 1.63;
+    const E = this.entries(), g = () => (Math.random() + Math.random() + Math.random() - 1.5) * 1.63, pen = takePenalties(this);
     const rows = E.map((e) => {
       const p = (e.perf + dayPerf(e.team, track)) - 1, rel = e.fx.relMul || 1, dnf = Math.random() < (0.035 * rel + 0.03 * wet) * (1.5 - e.rating * 0.5) * this.laps / 10;
-      const score = p * PERF_GAIN * 100 + (e.rating - 0.9) * 33 + g() * (0.9 + wet * 0.8);
+      const score = p * PERF_GAIN * 100 + (e.rating - 0.9) * 33 + g() * (0.9 + wet * 0.8) - (pen.get(e.name) || 0) * 0.12;   // (a grid penalty: a start further back)
       return { e, score, dnf };
     }).sort((a, b) => (a.dnf - b.dnf) || b.score - a.score);
     return rows.map((x, i) => ({ pos: i + 1, car: { careerId: x.e.careerId, team: x.e.team, name: x.e.name, retired: x.dnf, retireReason: x.dnf ? (Math.random() < 0.5 ? 'Accident' : 'Mechanical') : null, bestLap: x.dnf ? Infinity : 90 - x.score * 0.05 } }));
   }
+  /** where your cars should finish on average, by the car and the drivers against the field */
+  expectedPos() { return expectedPos(this, this.myTeam); }
   /** the title sponsor's target for the coming weekend, by what the car can do */
   newObjective() {
     const pos = expectedPos(this, this.myTeam), t = this.team.tier;
@@ -254,6 +262,7 @@ export class ManagerCareer {
       // (a team further down the order wants you: a chance to rebuild)
       this.offers = Object.values(this.teams).filter((t) => t.name !== this.myTeam && t.tier >= this.team.tier).sort(() => Math.random() - 0.5).slice(0, 2).map((t) => t.name);
     }
+    rev.sponsorPaid = sponsorsSeasonEnd(this, rev.bpos ?? pos);
     this.history.push(rev); this.review = rev;
     this.addNews(`Season ${this.season} is over: ${this.myTeam} P${pos} in the constructors' (the board's target P${tgt}). ${rev.champ} is champion, ${rev.champTeam} the constructors' champions.`);
   }
@@ -281,6 +290,7 @@ export class ManagerCareer {
     for (const t of Object.values(this.teams)) t.spendAt = +t.devSpend?.all || 0;   // (the cost cap: every team's spending counted afresh)
     this.board.target = this.boardTarget();
     for (const t of Object.values(this.teams)) if (t.name !== this.myTeam) this.aiDevelop(t);
+    partsNewSeason(this);
     this.forecast = this.calendar.map(forecastFor); this.newObjective(); this.refreshHires();
     this.addNews(`Season ${this.season} begins. The board expects P${this.board.target}.`);
     this.save();

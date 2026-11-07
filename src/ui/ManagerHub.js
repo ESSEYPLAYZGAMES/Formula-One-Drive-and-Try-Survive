@@ -10,6 +10,7 @@
 import { TECH_CSS, techHTML, techClick } from './HubTech.js';
 import { ManagerCareer, TRACKS_ALL, COST_CAP, PRIZE, TIER_NAME, TIER_BUDGET, RACE_INCOME, POINT_INCOME, STAFF_ROLES, askOf } from '../career/Manager.js';
 import { techEffects, UP, upgradeName, partsCount } from '../career/TechTree.js';
+import { PU, SPARES, allocOf, fitNew, orderSpare, FAC, FAC_MAX, facCost, facRounds, facFx, facUpgrade, facMaintain, maintCost, SPONSOR_SLOTS, acceptOdds, propose, sponsorTargets, marketability } from '../career/ManagerOps.js';
 
 const CSS = `
 #mgr { position: fixed; inset: 0; z-index: 60; background: #eef1f5; color: #151a22; font-family: "Segoe UI Variable", "Segoe UI", Inter, system-ui, Roboto, sans-serif; display: flex; flex-direction: column; overflow: hidden; }
@@ -29,7 +30,7 @@ const CSS = `
 #mgr .m-k b { display: block; font-size: 16px; font-weight: 800; margin-top: 3px; white-space: nowrap; }
 #mgr .m-k b.m-bad { color: #d4351c; } #mgr .m-k b.m-ok { color: #1d8a4e; }
 #mgr .m-mn { display: flex; gap: 2px; padding: 0 16px; background: #fff; border-bottom: 1px solid rgba(21,26,34,.08); overflow-x: auto; }
-#mgr .m-mn button { border: 0; border-radius: 0; background: none; padding: 11px 13px; font-size: 11px; letter-spacing: .14em; color: #6b7480; border-bottom: 3px solid transparent; }
+#mgr .m-mn button { border: 0; border-radius: 0; background: none; padding: 11px 9px; font-size: 10.5px; letter-spacing: .1em; color: #6b7480; border-bottom: 3px solid transparent; }
 #mgr .m-mn button.m-on { color: #151a22; border-bottom-color: var(--tc, #e10600); }
 #mgr .m-mn .m-sp { flex: 1; }
 #mgr .m-mn .m-ctas { display: flex; gap: 6px; align-items: center; padding: 5px 0; }
@@ -94,7 +95,7 @@ function render() {
   el.innerHTML = `<div class="m-mh"><div class="m-tn"><small>Team principal · Season ${c.season}${c.seasonDone ? ' · over' : ` · Round ${c.round} of ${c.rounds}`}</small><b>${esc(t.name)}</b></div>
     <div class="m-kp"><div class="m-k"><small>Budget</small><b class="${t.budget < 5 ? 'm-bad' : ''}">${money(t.budget)}</b></div><div class="m-k"><small>Cost cap left</small><b>${money(c.capLeft())}</b></div>
     <div class="m-k"><small>Constructors</small><b>P${pos}<span style="font-size:11px;color:#8a93a0"> · target P${c.board.target}</span></b></div><div class="m-k"><small>Board</small><b class="${conf < 30 ? 'm-bad' : conf >= 65 ? 'm-ok' : ''}">${conf}%</b></div></div></div>
-    <div class="m-mn">${[['home', 'OVERVIEW'], ['stand', 'STANDINGS'], ['fac', 'FACTORY'], ['drv', 'DRIVERS'], ['staff', 'STAFF'], ['fin', 'FINANCES'], ['cal', 'CALENDAR']].map(([k, n]) => `<button data-tab="${k}" class="${H.tab === k ? 'm-on' : ''}">${n}</button>`).join('')}<span class="m-sp"></span><span class="m-ctas">${ctas}<button data-a="exit">MENU</button></span></div>
+    <div class="m-mn">${[['home', 'OVERVIEW'], ['stand', 'STANDINGS'], ['fac', 'FACTORY'], ['drv', 'DRIVERS'], ['parts', 'PARTS'], ['facil', 'FACILITIES'], ['spons', 'SPONSORS'], ['staff', 'STAFF'], ['fin', 'FINANCES'], ['cal', 'CALENDAR']].map(([k, n]) => `<button data-tab="${k}" class="${H.tab === k ? 'm-on' : ''}">${n}</button>`).join('')}<span class="m-sp"></span><span class="m-ctas">${ctas}<button data-a="exit">MENU</button></span></div>
     <div class="m-mb">${H.msg ? `<div class="m-msg ${H.ok ? '' : 'm-no'}">${esc(H.msg)}</div>` : ''}${body(c)}</div>`;
 }
 function body(c) {
@@ -105,6 +106,9 @@ function body(c) {
       case 'drv': return drvHTML(c);
       case 'staff': return staffHTML(c);
       case 'fin': return finHTML(c);
+      case 'parts': return partsHTML(c);
+      case 'facil': return facilHTML(c);
+      case 'spons': return sponsHTML(c);
       case 'cal': return calHTML(c);
       default: return homeHTML(c);
     }
@@ -118,7 +122,7 @@ function homeHTML(c) {
   const nextCard = `<div class="m-card"><h3>Next · Round ${c.round}</h3><div class="m-big">${esc(trk)}</div>
     <div class="m-row2"><span>Forecast</span><b>${esc({ dry: 'Dry', changeable: 'Changeable', damp: 'Damp', wet: 'Wet' }[fc.weather] || fc.weather)} · ${fc.time === 'night' ? 'night' : 'day'}</b></div>
     <div class="m-row2"><span>Distance</span><b>${c.laps} laps</b></div>
-    ${c.objective ? `<div class="m-row2"><span>Title sponsor's target</span><b>${esc(c.objective.text)} · ${money(c.objective.reward)}</b></div>` : ''}
+    ${sponsorTargets(c).map((x) => `<div class="m-row2"><span>${esc(x.brand)}'s target</span><b>${esc(x.text)} · ${money(x.bonus)}</b></div>`).join('') || '<div class="m-row2"><span>Sponsors</span><b>none signed - SPONSORS</b></div>'}
     <div class="m-row2"><span>The board expects</span><b>P${c.board.target} in the constructors'</b></div>
     ${c.seatsReady() ? '' : '<p style="color:#d4351c"><b>A seat is empty:</b> sign a driver (DRIVERS) before the race.</p>'}</div>`;
   const fx = techEffects(t), best = Math.max(...Object.values(c.teams).map((x) => techEffects(x).perf)), gap = (best - fx.perf) * 90, P = partsCount(t);
@@ -154,6 +158,52 @@ function drvHTML(c) {
     <div class="m-acts"><button class="${empty ? 'm-go' : ''}" data-a="sign" data-v="${d.id}"${empty ? '' : ' disabled title="Both seats are taken: release a driver first"'}>SIGN</button></div></div>`).join('');
   return `<div class="m-grid"><div class="m-card"><h3>Your drivers</h3>${mine || '<p>No drivers.</p>'}<p style="font-size:12px;color:#6b7480">Rating: their pace and racecraft (out of 100). A contract that ends this season runs out when the next starts - extend to keep them.</p></div>
     <div class="m-card"><h3>Free agents</h3>${free || '<p>Nobody is free.</p>'}</div></div>`;
+}
+const pct = (x) => `${Math.round(x * 100)}%`;
+const bar = (x, bad) => `<div class="m-bar" style="--bc:${bad ? '#d4351c' : x > 0.5 ? '#1fae64' : '#e0a100'}"><i style="width:${(Math.max(0, Math.min(1, x)) * 100).toFixed(0)}%"></i></div>`;
+function partsHTML(c) {
+  const t = c.team, D = c.seatsOf(c.myTeam), fx = facFx(c, 'factory');
+  const pu = D.map((d) => {
+    const p = t.pu?.[d.id] || {};
+    return `<div class="m-card"><h3>${esc(d.name)} · power unit</h3><table><tr><th>Element</th><th>Wear</th><th>Used</th><th></th></tr>${Object.entries(PU).map(([k, P]) => {
+      const u = p[k] || { used: 1, wear: 0 }, al = allocOf(c, k), over = u.used >= al;
+      return `<tr><td>${esc(P.short)}</td><td style="width:40%">${bar(1 - u.wear, u.wear > 0.8)}<small style="color:#6b7480">${pct(u.wear)} worn${u.wear > 0.7 ? ' · failure risk up' : ''}</small></td><td>${u.used} / ${al}</td>
+        <td><button data-a="fit" data-v="${d.id}|${k}" title="${over ? `Beyond the allocation: a ${Object.keys(PU).some((x) => x !== k && (p[x]?.used || 0) > allocOf(c, x)) ? 5 : 10}-place grid penalty next race` : 'A new unit from the season\'s allocation'}">${over ? 'NEW · PENALTY' : 'FIT NEW'}</button></td></tr>`;
+    }).join('')}</table></div>`;
+  }).join('');
+  const sp = `<div class="m-card"><h3>Spares</h3><table><tr><th>Part</th><th>In stock</th><th>Racing damaged</th><th>Being made</th><th></th></tr>${Object.entries(SPARES).map(([k, S]) => `<tr><td>${esc(S.name)}</td><td>${t.spares?.[k] ?? 0}</td><td style="color:${t.short?.[k] ? '#d4351c' : 'inherit'}">${t.short?.[k] || 0}</td><td>${(t.making || []).filter((x) => x.part === k).length}</td><td><button data-a="spare" data-v="${k}">BUILD · ${money(S.cost * fx.costMul)}</button></td></tr>`).join('')}</table>
+    <p style="font-size:12px;color:#6b7480">Damage and crashes use spares up. A car that needs one with none in stock races the damaged part (a little slower) until the factory has made one. The factory makes ${fx.perRound} a round (FACILITIES); spares count against the cost cap.</p></div>`;
+  return `<div class="m-grid">${pu}${sp}</div><p style="font-size:12px;color:#6b7480;margin-top:12px">Each element wears every race weekend - a push fuel mixture wears the ICE faster. A worn unit fails more often (and a worn ICE loses a little power). The allocation per driver per season is the rules': fit one beyond it and the next race's grid costs 10 places (5 for every further element).</p>`;
+}
+function facilHTML(c) {
+  const cards = Object.entries(FAC).map(([k, F]) => {
+    const f = c.fac[k], nx = f.level + 1, fx = facFx(c, k), eff = k === 'factory' ? `${fx.perRound} spares a round at ${pct(fx.costMul)} of the price` : k === 'hosp' ? `sponsors pay ${pct(fx.sponsorMul)}` : k === 'dil' ? `practice feedback ${pct(fx.setupK)}` : `stops at ${pct(fx.pitMul)} of their time`;
+    return `<div class="m-card"><h3>${esc(F.name)}</h3><div class="m-big">Level ${f.level}<span style="font-size:13px;color:#6b7480;font-weight:600"> of ${FAC_MAX}${f.building ? ` · level ${f.building.to} in ${f.building.left} round${f.building.left === 1 ? '' : 's'}` : ''}</span></div>
+      <div class="m-row2"><span>Condition</span><b>${pct(f.cond)}</b></div>${bar(f.cond, f.cond < 0.5)}<div class="m-row2"><span>Effect now</span><b>${eff}</b></div>
+      <p style="font-size:12px;color:#6b7480">${esc(F.what)}</p><div class="m-acts"><button data-a="facup" data-v="${k}"${f.building || f.level >= FAC_MAX ? ' disabled' : ''}>UPGRADE · ${money(facCost(k, nx))} · ${facRounds(nx)} rounds</button><button data-a="facmt" data-v="${k}"${f.cond > 0.995 ? ' disabled' : ''}>MAINTAIN · ${money(maintCost(c, k))}</button></div></div>`;
+  }).join('');
+  return `<div class="m-grid">${cards}</div><p style="font-size:12px;color:#6b7480;margin-top:12px">A facility wears every round it is used: its effect runs from half (worn out) to full (maintained). An upgrade is capital spending, outside the cost cap; while it is built the facility works at 80 %. The wind tunnel, CFD and the rest that develop the car are in the FACTORY's tech tree.</p>`;
+}
+function sponsHTML(c) {
+  const T = sponsorTargets(c), m = marketability(c);
+  const cur = Object.entries(SPONSOR_SLOTS).map(([k, S]) => { const s = c.sponsors?.[k], tg = T.find((x) => x.slot === k);
+    return `<tr><td>${esc(S.name)}</td><td>${s ? `<b>${esc(s.brand)}</b>` : '<span style="color:#d4351c">empty</span>'}</td><td>${s ? money(s.base) : ''}</td><td>${s && tg ? `${esc(tg.text)} · ${money(s.bonus)}` : ''}</td><td>${s ? `to the end of ${s.until}` : ''}</td></tr>`; }).join('');
+  const N = H.neg;
+  const offers = (c.spOffers || []).map((o) => {
+    const open = N && N.id === o.id, terms = open ? N : { base: 1, bonus: 1, years: o.years }, od = acceptOdds(o, terms);
+    return `<div class="m-card"><h3>${esc(SPONSOR_SLOTS[o.slot].name)} · offer</h3><div class="m-big">${esc(o.brand)}</div>
+      <div class="m-row2"><span>A race</span><b>${money(o.base * terms.base)}</b></div><div class="m-row2"><span>On signing</span><b>${money(o.sign * terms.base)}</b></div>
+      <div class="m-row2"><span>Race target bonus</span><b>${money(o.bonus * terms.bonus)} · ${o.kind === 'best' ? 'a car near the front' : 'both cars in the points'}</b></div>
+      <div class="m-row2"><span>Season bonus (constructors within one of the board's target)</span><b>${money(o.seasonBonus)}</b></div><div class="m-row2"><span>Seasons</span><b>${terms.years}</b></div>
+      ${open ? `<div class="m-row2"><span>Fee</span><span class="m-seg">${[0.9, 1, 1.1, 1.2, 1.35].map((x) => `<button data-a="ng" data-v="base|${x}" class="${Math.abs(N.base - x) < 1e-6 ? 'm-on' : ''}">${pct(x)}</button>`).join('')}</span></div>
+        <div class="m-row2"><span>Bonus</span><span class="m-seg">${[0.8, 1, 1.2, 1.4].map((x) => `<button data-a="ng" data-v="bonus|${x}" class="${Math.abs(N.bonus - x) < 1e-6 ? 'm-on' : ''}">${pct(x)}</button>`).join('')}</span></div>
+        <div class="m-row2"><span>Seasons</span><span class="m-seg">${[1, 2, 3].map((x) => `<button data-a="ng" data-v="years|${x}" class="${N.years === x ? 'm-on' : ''}">${x}</button>`).join('')}</span></div>
+        <div class="m-row2"><span>Their answer</span><b style="color:${od.p > 0.6 ? '#1d8a4e' : od.p > 0.4 ? '#b07b00' : '#d4351c'}">${od.word}</b></div>
+        <div class="m-acts"><button class="m-go" data-a="prop" data-v="${o.id}"${c.sponsors?.[o.slot] ? ' disabled' : ''}>PROPOSE</button><button data-a="ngx">CLOSE</button></div><p style="font-size:12px;color:#6b7480">${o.patience} more proposal${o.patience === 1 ? '' : 's'} before they walk away.</p>`
+      : `<div class="m-acts"><button data-a="neg" data-v="${o.id}"${c.sponsors?.[o.slot] ? ' disabled title="That slot is taken"' : ''}>NEGOTIATE</button></div>`}</div>`;
+  }).join('');
+  return `<div class="m-card"><h3>Contracts · marketability ${pct(m / 1.7)}</h3><table><tr><th>Slot</th><th>Sponsor</th><th>A race</th><th>This weekend's target</th><th></th></tr>${cur}</table></div>
+    <h3 style="margin:16px 0 8px;font-size:11px;letter-spacing:.18em;color:#6b7480">OFFERS</h3><div class="m-grid">${offers || '<div class="m-card"><p>No offers now: new ones come when a slot is empty at the season\'s end.</p></div>'}</div>`;
 }
 function staffHTML(c) {
   const cards = Object.entries(STAFF_ROLES).map(([k, R]) => {
@@ -214,6 +264,14 @@ function onClick(e) {
   else if (a === 'extend') say(c.extend(v));
   else if (a === 'release') { const r = c.release(v); say(r, !/^Not/.test(r)); }
   else if (a === 'sign') { const r = c.sign(v); say(r, !/^(Not|Both)/.test(r)); }
+  else if (a === 'fit') { const [did, el] = String(v).split('|'); say(fitNew(c, c.myTeam, did, el)); c.save(); }
+  else if (a === 'spare') { const r = orderSpare(c, v); say(r, !/^(Not|Over|No )/.test(r)); c.save(); }
+  else if (a === 'facup') { const r = facUpgrade(c, v); say(r, !/^(Not|No |.*already|.*highest)/.test(r)); c.save(); }
+  else if (a === 'facmt') { const r = facMaintain(c, v); say(r, !/^Not/.test(r)); c.save(); }
+  else if (a === 'neg') { const o = c.spOffers.find((x) => x.id === v); H.neg = o ? { id: o.id, base: 1, bonus: 1, years: o.years } : null; }
+  else if (a === 'ng') { const [k, x] = String(v).split('|'); if (H.neg) H.neg[k] = +x; }
+  else if (a === 'ngx') H.neg = null;
+  else if (a === 'prop') { const r = propose(c, v, H.neg || { base: 1, bonus: 1, years: 1 }); say(r, /signs/.test(r)); if (!c.spOffers.some((x) => x.id === v)) H.neg = null; c.save(); }
   else if (a === 'hire') { const [k, i] = String(v).split('|'); const r = c.hire(k, +i); say(r, !/^(Not|No )/.test(r)); }
   render();
 }
