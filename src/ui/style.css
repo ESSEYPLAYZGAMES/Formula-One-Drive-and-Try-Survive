@@ -501,3 +501,8 @@ table.res tr.me td { color: var(--accent2); font-weight: 700; }
 #pause .vol-row { margin-top: 12px; font: 600 12px/1 inherit; letter-spacing: .15em; color: #c9ced6; }
 .vol-row .vol { width: 180px; accent-color: #e10600; cursor: pointer; }
 .vol-row .vol-val { min-width: 40px; font-variant-numeric: tabular-nums; color: #c9ced6; font-size: 12px; }
+
+/* the team principal's race (main.js TP): the driver's HUD gives way to the broadcast (ui/TVGraphics.js) and the pit wall
+   (ui/PitWall.js) - the start lights and the messages stay */
+body.tp #hud > :not(#hud-lights):not(#hud-msg) { display: none !important; }
+body.tp #hud-msg { top: 30%; }

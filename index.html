@@ -97,7 +97,7 @@
     <div class="brand-line"></div>
     <h1 id="brand-title">FORMULA 1<span id="brand-sub">SIMULATOR</span></h1>
     <!-- the build's version: +0.01 with every build handed out -->
-    <span id="app-ver" title="Version">V2.39</span>
+    <span id="app-ver" title="Version">V2.40</span>
     <div id="menu-sub">Real circuits built from OpenStreetMap</div>
   </div>
   <div id="loading" class="hidden"><div class="ld"><i></i></div><span>Building the circuit from OpenStreetMap…</span></div>
@@ -109,6 +109,7 @@
       <button class="card" data-v="quick"><span class="ci"></span><em>01</em><b>Quick Race</b><i>Practice, qualifying, lights out, race to the flag</i><small class="live"></small></button>
       <button class="card" data-v="tt"><span class="ci"></span><em>02</em><b>Time Trial</b><i>Empty track, chase the perfect lap</i><small class="live"></small></button>
       <button class="card" data-v="champ"><span class="ci"></span><em>03</em><b>Career</b><i>Your driver, your team, season after season</i><small class="live"></small></button>
+      <button class="card" data-v="tp"><span class="ci"></span><em>04</em><b>Team Principal</b><i>Run both cars from the pit wall, the race on the world feed</i><small class="live"></small></button>
     </div>
     <!-- the last race again, and STATS: everything you have played, every mode (ui/StatsScreen.js) -->
     <div class="home-acts">
@@ -118,7 +119,7 @@
     <footer class="home-foot">
       <div id="memoriam-home" class="memoriam hidden"></div>
       <span class="credit">Real circuits built from OpenStreetMap · Car model: “2026 Redbull RB22” by Dave Love, <a href="http://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a> (livery removed)</span>
-      <span class="keys"><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> choose<span id="keys-r" class="hidden">&nbsp;· <kbd>R</kbd> race again</span>&nbsp;· <kbd>S</kbd> stats</span>
+      <span class="keys"><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><kbd>4</kbd> choose<span id="keys-r" class="hidden">&nbsp;· <kbd>R</kbd> race again</span>&nbsp;· <kbd>S</kbd> stats</span>
       <button id="dl-offline" class="ghost small hidden">⬇ Download the offline version (one HTML file, 4 MB)</button>
       <div id="dl-msg" class="small hidden"></div>
     </footer>
@@ -170,7 +171,7 @@
             <div class="opt"><div class="lbl">Stewards · <span id="stew-val">50</span><em id="stew-name">Standard</em></div><input type="range" id="opt-stew" class="slider" min="0" max="100" value="50" aria-label="Stewards"><small class="su-desc">Track limits and collisions: from no penalties at all, through lenient, to harsh.</small></div>
           </section>
           <section class="m-pg race-only" data-p="rules">
-            <div class="opt"><div class="lbl">Grid</div><div class="seg k-seg" id="opt-grid"><button data-v="quali" class="sel">Flying lap</button><button data-v="pick">Pick slot</button></div><small id="grid-desc" class="su-desc"></small></div>
+            <div class="opt drv-only"><div class="lbl">Grid</div><div class="seg k-seg" id="opt-grid"><button data-v="quali" class="sel">Flying lap</button><button data-v="pick">Pick slot</button></div><small id="grid-desc" class="su-desc"></small></div>
             <div id="grid-pick" class="opt hidden"><div class="lbl">Starting position · <span id="slot-val">P1</span></div><div class="gridpick" id="opt-slot"></div></div>
             <div class="grid2">
               <div class="opt"><div class="lbl">Safety car &amp; red flags</div><div class="seg k-seg" id="opt-sc"><button data-v="off">Off</button><button data-v="on" class="sel">On</button></div></div>
@@ -179,16 +180,24 @@
           </section>
           <section class="m-pg" data-p="driving">
             <div class="grid2">
-              <div class="opt"><div class="lbl">Starting tyre</div><div class="seg k-seg" id="opt-tyre" data-tyre><button data-v="SOFT" class="c-soft sel">S</button><button data-v="MEDIUM" class="c-medium">M</button><button data-v="HARD" class="c-hard">H</button><button data-v="INTER" class="c-inter">I</button><button data-v="WET" class="c-wet">W</button></div></div>
-              <div class="opt"><div class="lbl">Assists</div><div class="seg k-seg" id="opt-assist"><button data-v="full" class="sel">TC+ABS</button><button data-v="abs">ABS</button><button data-v="none">None</button></div></div>
-              <div class="opt"><div class="lbl">Racing line (L)</div><div class="seg k-seg" id="opt-line"><button data-v="on" class="sel">On</button><button data-v="off">Off</button></div></div>
-              <div class="opt"><div class="lbl">Flashbacks</div><div class="seg k-seg" id="opt-fb"><button data-v="off">Off</button><button data-v="inf" class="sel">Unlimited</button></div></div>
+              <div class="opt drv-only"><div class="lbl">Starting tyre</div><div class="seg k-seg" id="opt-tyre" data-tyre><button data-v="SOFT" class="c-soft sel">S</button><button data-v="MEDIUM" class="c-medium">M</button><button data-v="HARD" class="c-hard">H</button><button data-v="INTER" class="c-inter">I</button><button data-v="WET" class="c-wet">W</button></div></div>
+              <div class="opt drv-only"><div class="lbl">Assists</div><div class="seg k-seg" id="opt-assist"><button data-v="full" class="sel">TC+ABS</button><button data-v="abs">ABS</button><button data-v="none">None</button></div></div>
+              <div class="opt drv-only"><div class="lbl">Racing line (L)</div><div class="seg k-seg" id="opt-line"><button data-v="on" class="sel">On</button><button data-v="off">Off</button></div></div>
+              <div class="opt drv-only"><div class="lbl">Flashbacks</div><div class="seg k-seg" id="opt-fb"><button data-v="off">Off</button><button data-v="inf" class="sel">Unlimited</button></div></div>
               <div class="opt"><div class="lbl">Volume</div><div class="vol-row"><input type="range" id="vol-menu" class="vol" min="0" max="100" step="1"><span class="vol-val"></span></div></div>
               <div class="opt"><div class="lbl">T-cam tilt</div><div class="vol-row"><input type="range" id="tilt-menu" class="vol tilt" min="4" max="16" step="1" aria-label="T-cam tilt"><span class="vol-val"></span></div></div>
               <div class="opt"><div class="lbl">T-cam field of view</div><div class="vol-row"><input type="range" id="fov-menu" class="vol tilt" min="30" max="60" step="1" aria-label="T-cam field of view"><span class="vol-val"></span></div></div>
-              <div class="opt"><div class="lbl">Race start</div><div class="seg k-seg" id="opt-intro"><button data-v="on" class="sel">Build-up</button><button data-v="skip">Straight to lights</button></div></div>
+              <div class="opt drv-only"><div class="lbl">Race start</div><div class="seg k-seg" id="opt-intro"><button data-v="on" class="sel">Build-up</button><button data-v="skip">Straight to lights</button></div></div>
             </div>
-            <div class="su-keys"><div class="lbl">Controls · keyboard or gamepad</div><dl>
+            <div class="su-keys tp-only hidden"><div class="lbl">The pit wall · mouse, or the keys</div><dl>
+              <div><dt><kbd>Space</kbd></dt><dd>Pause</dd></div>
+              <div><dt><kbd>-</kbd> <kbd>=</kbd></dt><dd>Race speed ×1 · ×2 · ×4</dd></div>
+              <div><dt><kbd>Tab</kbd></dt><dd>Follow the next car</dd></div>
+              <div><dt><kbd>C</kbd></dt><dd>Camera: director, trackside, onboard, chase, helicopter, rear</dd></div>
+              <div><dt>Tower</dt><dd>Click a driver to follow them</dd></div>
+              <div><dt><kbd>Esc</kbd></dt><dd>Menu</dd></div>
+            </dl></div>
+            <div class="su-keys drv-only"><div class="lbl">Controls · keyboard or gamepad</div><dl>
               <div><dt><kbd>WASD</kbd> <kbd>Arrows</kbd></dt><dd>Drive</dd></div>
               <div><dt><kbd>Space</kbd></dt><dd>Handbrake</dd></div>
               <div><dt><kbd>Shift</kbd> <kbd>X</kbd></dt><dd>ERS boost (hold)</dd></div>

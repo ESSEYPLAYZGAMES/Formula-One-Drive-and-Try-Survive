@@ -1,3 +1,45 @@
+# V2.40 (2026-11-06): Team Principal - both cars from the pit wall, the race on the world feed; the circuit built ahead in the menus
+
+A fourth mode on the home (04 TEAM PRINCIPAL): you pick a team, not a driver, and run its two cars. Qualifying with the
+whole field (watched on the feed or simulated), then the race watched as television shows it, run from the pit wall.
+- The world feed (camera/TVDirector.js): a director cuts every 5-9 s to the story worth watching - a fight for a place
+  (closer and higher up the order scores more), an accident or a spin at once, a stop in the pit lane, the leader at
+  the start and the flag, your cars more often than the rest - with a camera for it: trackside cameras along the
+  barriers that pan and zoom as the car comes by, the onboard T-cam, the chase, the helicopter, the rear-facing onboard
+  of the car ahead with its attacker in the mirror, the pit lane camera, high over the grid before the lights. Or you
+  direct: follow a car (a click on the tower, Tab) and / or keep to one camera (C).
+- The graphics (ui/TVGraphics.js): the timing tower (interval and gap to the leader alternating, the tyre, PIT, OUT;
+  your cars marked; qualifying by best lap), the lap and the flag, the caption at every cut (the car, or the fight and
+  its gap), race control (safety car, retirement, each stop and its time, fastest lap, penalties), LIVE and the camera.
+- The pit wall (ui/PitWall.js): per car - place and gaps either side, the set, its laps, its wear and the laps to the
+  cliff, damage, last and best; pace PUSH / STD / SAVE (AIDriver.vScale x1.008 / x0.99, tyre wear x1.22 / x0.78, failure
+  risk x1.25 / x0.9); the calls - the AI strategist's (it boxes when the tyres, the weather, a safety car or the
+  undercut say so; you can still call a stop, or STAY OUT for a lap) or yours alone; BOX for the set chosen (repairs
+  fitted when the car needs them); before the lights, the set each car starts on. Team orders: SWAP, HOLD, RACE (race/
+  TeamOrders.js mgrOrder - the drivers obey or not as they always have; the automatic orders are off for your pair).
+  The radio: the strategist's calls and why, tyres going off, damage, a car out, orders obeyed or refused.
+- Time: pause (Space), x1 / x2 / x4 (- / =); SIM 1 LAP, 5 LAPS - the race model (RaceDirector.simulateRest, now with
+  o.laps) run that far and every car put back on the track where it has them (simPlace: laps, lap times, stops, tyres
+  and wear, the timing loops' gaps; a car out in the model taken to its garage; the sky moved on), then live again;
+  only under green flags - or TO FLAG. Your pace modes and a stop called count in the model too. The model now picks
+  the lap for a stop (RaceDirector.stopNow: no later lap cheaper - k more laps on the old set, then the stop and the new
+  set to the flag); it used to stop the moment a stop paid at all, which brought the whole field in on lap 2 of 10.
+  This also changes TO FLAG / F (simulate the rest) in every mode - for the better.
+- The circuit built ahead (main.js PRE_TRACK): on the home screen, after 1.5 s without input, the circuit you are most
+  likely to race (the one picked in the settings, else your last race's) is built in the background - nothing drawn,
+  the home's look untouched; START (any mode, a career round, an evening out) waits for a build under way and takes the
+  circuit over when it is the one. Once a circuit has been asked for, nothing more is built ahead (two builds at once
+  would tangle the world - caught in testing). Las Vegas, START to the circuit ready, here (software GPU): 13.7 s ->
+  3.2 s - what is left is the first frame compiling its shaders.
+- Unchanged for every other mode: the new hooks only act on a team principal's car (c.mgr); seeded races identical to
+  V2.39 (tools/race_probe.mjs: Silverstone and Las Vegas). (Found on the way: V2.39's own Las Vegas seeded race came
+  out differently in one of its three runs - run after Silverstone in the same probe; something outside the seed
+  reaches the race there. To look into.)
+- Next for the mode (the user's brief: "deep, like F1 Manager"): the season - a calendar, the constructors' table,
+  money (prize money, sponsors and their targets, the cost cap), the factory (career/TechTree.js's development, chosen
+  by you), staff and the driver market (career/Market.js), the board; a strategy screen before the race for both cars;
+  replays of incidents on the feed.
+
 # V2.39 (2026-11-05): the frame lighter - matrices only where something moved, no shadows nobody sees, no forced layout
 
 Measured first (tools/profile.mjs, sceneprof.mjs, gpuprof.mjs, loadprof.mjs - a race of 22 cars with the player's car

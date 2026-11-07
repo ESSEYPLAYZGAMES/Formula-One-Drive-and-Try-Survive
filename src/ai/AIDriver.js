@@ -90,7 +90,7 @@ export class AIDriver {
     this.gripState();
   }
   /** commitment: by driver rating and difficulty (and a hair of confidence, FORM.pace); a car with a broken rear wing is nursed back to the pits */
-  get vScale() { return (AI_TUNE.vScaleBase + AI_TUNE.vScaleK * this.car.rating) * this.skill * (1 - 0.25 * Math.min(1, this.car.dmg.rw / 0.6)) * (this.car.form || NF).pace * (1 + 0.012 * (this.car.band || 0)); }
+  get vScale() { return (AI_TUNE.vScaleBase + AI_TUNE.vScaleK * this.car.rating) * this.skill * (1 - 0.25 * Math.min(1, this.car.dmg.rw / 0.6)) * (this.car.form || NF).pace * (1 + 0.012 * (this.car.band || 0)) * (this.car.mgrPace || 1); }   // (mgrPace: a team principal's pace mode - main.js PitWall)
   get state() { return this.defend ? 'defend' : this.planner.best.follow ? 'follow' : this.planner.best.spec && this.planner.best.spec.k ? 'lane' : 'race'; }
 
   // ---- what this car can do now ----------------------------------------------------------------------------------
@@ -813,6 +813,8 @@ export class AIDriver {
       c.pitRequested = false; this.pitPlan = null; this.pitReason = null;
     }
     if (c.pitRequested || c.inPit || !world.racing || this.isSC) return;
+    // (a team principal's car - ui/PitWall.js: the calls are theirs - all of them, or none this lap after STAY OUT)
+    if (c.mgr && (c.mgr.manual || c.mgr.holdLap === c.lap)) return;
     const lapsLeft = world.lapsTotal - c.lap;
     if (lapsLeft < 1.2) return;
     const t = c.tyres;

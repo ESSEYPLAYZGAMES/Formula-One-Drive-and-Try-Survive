@@ -51,6 +51,9 @@ import { SafetyCarMesh } from './vehicle/SafetyCarMesh.js';
 import { Debris } from './world/Debris.js';
 import { Input } from './input/Input.js';
 import { CockpitCamera, TCAM_TILT, TCAM_FOV } from './camera/CockpitCamera.js';
+import { TVDirector, TV_CAMS, TV_CAM_NAME } from './camera/TVDirector.js';
+import { TVGraphics } from './ui/TVGraphics.js';
+import { PitWall, PACE } from './ui/PitWall.js';
 import { AudioEngine } from './audio/Audio.js';
 import { ROSTER, customDriver, POINTS, standIn, dayPerf } from './race/Roster.js';
 import { showMemorial } from './ui/Memorial.js';
@@ -447,6 +450,8 @@ function applyTrackUI() {
 // the car model (vehicle/CarModel.js): loading from the start; every car is made after a circuit is built, which waits for it
 const CAR_MODEL = loadCarModel().catch((e) => console.error('[car model]', e));
 async function switchTrack(id) {
+  PRE_TRACK.block = true;   // (a circuit asked for: nothing more is built ahead - two builds at once would tangle the world)
+  if (PRE_TRACK.p) await PRE_TRACK.p.catch(() => {});   // (a circuit being built ahead, in the menus: let it finish - it may be this one)
   if (W.loading || !TRACKS[id] || S.director) return;
   await CAR_MODEL;
   W.home = false; document.body.classList.remove('home');
@@ -463,6 +468,43 @@ async function switchTrack(id) {
   } catch (e) { console.error(e); $('loading').querySelector('span').textContent = `Failed to build world: ${e.message}`; Loader.fail(`The circuit could not be built: ${e.message}`, () => { $('menu').classList.remove('hidden'); }); W.loading = false; return; }
   W.loading = false; $('loading').classList.add('hidden'); $('fade').style.opacity = '0';
 }
+
+/**
+ * The circuit built ahead, while you are in the menus: the one you are most likely to race (the circuit picked in the
+ * race settings, else your last race's) is built in the background once the menus have been left alone for a moment,
+ * so START goes straight to the weekend. Only on the home screen (no circuit stands behind the menus there, nothing is
+ * drawn): the home's look is untouched - switchTrack, when the weekend starts, waits for a build under way and takes
+ * the circuit over if it is the one. A circuit changed in the settings is built in its place, after a pause.
+ */
+const PRE_TRACK = { p: null, id: null, lastInput: performance.now(), failed: new Set(), block: false };
+addEventListener('pointerdown', () => { PRE_TRACK.lastInput = performance.now(); }, { passive: true, capture: true });
+addEventListener('keydown', () => { PRE_TRACK.lastInput = performance.now(); }, { passive: true, capture: true });
+/** the circuit worth building now -> its id, or null */
+function preloadWanted() {
+  if (PRE_TRACK.block || !W.home || S.director || W.loading || Loader.on || HANG.on || swapping || !menuFree()) return null;   // (menuFree: not in the career, a phone, a negotiation)
+  if ($('menu').classList.contains('hidden')) return null;
+  const id = !$('step-setup').classList.contains('hidden') ? settings.track : (savedQuick()?.track || settings.track);
+  if (!TRACKS[id] || (W.track && W.def?.id === id) || PRE_TRACK.failed.has(id)) return null;
+  return id;
+}
+async function preloadTrack(id) {
+  W.loading = true; PRE_TRACK.id = id;
+  try {
+    await CAR_MODEL;
+    if (PRE_TRACK.block || !W.home || S.director) return;
+    unloadWorld(); W.def = TRACKS[id];
+    await loadWorld(W.def);
+    setTimeOfDay(W.def.defaultTime || 'night'); applyWeather(weatherWetness(settings.weather));
+  } catch (e) {
+    console.warn('[preload]', id, e); PRE_TRACK.failed.add(id);
+    try { unloadWorld(); } catch (e2) { /* (half built) */ } W.track = null; W.def = null;
+  } finally { W.loading = false; PRE_TRACK.id = null; }
+}
+setInterval(() => {
+  if (PRE_TRACK.p || performance.now() - PRE_TRACK.lastInput < 1500) return;
+  const id = preloadWanted(); if (!id) return;
+  PRE_TRACK.p = preloadTrack(id).finally(() => { PRE_TRACK.p = null; });
+}, 700);
 
 /** Attach official turn numbers to detected corner zones (used by AI error hotspots + telemetry). */
 function labelCorners(track, def, geo) {
@@ -495,7 +537,7 @@ function setTimeOfDay(mode) {
 // is ui/Motion.js's: only transform and opacity, nothing over 260 ms, none at all with reduced motion.
 // ---------------------------------------------------------------------------
 Kit.ensureMotion();
-const settings = { track: 'lasvegas', mode: 'quick', driver: null, len: 5, grid: 'quali', slot: 1, tyre: 'SOFT', weather: 'dry', time: 'night', assist: 'full', aggr: 1.0, diff: 75, stewards: 50, sc: 'on', fail: 'on', fb: 'inf', intro: 'on', rounds: 3, custom: { name: 'E. Esselink', color: '#00d4ff', tier: 1 } };
+const settings = { track: 'lasvegas', mode: 'quick', driver: null, tpTeam: null, len: 5, grid: 'quali', slot: 1, tyre: 'SOFT', weather: 'dry', time: 'night', assist: 'full', aggr: 1.0, diff: 75, stewards: 50, sc: 'on', fail: 'on', fb: 'inf', intro: 'on', rounds: 3, custom: { name: 'E. Esselink', color: '#00d4ff', tier: 1 } };
 /** AI pace slider (0-100) -> cornering commitment multiplier for every AI driver (0.94 .. 1.02; 75 = the tuned default) */
 const skillOf = (diff) => 0.94 + 0.08 * (diff / 100);
 const diffName = (d) => (d < 20 ? 'Rookie' : d < 40 ? 'Amateur' : d < 60 ? 'Semi-pro' : d < 80 ? 'Pro' : d < 95 ? 'Elite' : 'Legend');
@@ -570,7 +612,7 @@ function timeNote(id) {
 /** the starting grid: the slot picker only for a chosen slot (never in a time trial), and a line on what happens */
 function gridUI() {
   const pick = settings.grid === 'pick';
-  $('grid-pick').classList.toggle('hidden', settings.mode === 'tt' || !pick);
+  $('grid-pick').classList.toggle('hidden', settings.mode === 'tt' || settings.mode === 'tp' || !pick);
   for (const b of $('opt-slot').children) b.classList.toggle('sel', +b.dataset.v === settings.slot);
   $('slot-val').textContent = `P${settings.slot}`;
   $('grid-desc').textContent = pick ? 'No practice or qualifying: you line up in the slot you pick, the rest in order of pace.' : 'Practice if you like, then qualifying with the whole field: two timed laps each, the best one counts.';
@@ -603,7 +645,7 @@ function showSliders() {
   }
   // the home's cards: one of the game's own pictures behind each (none docked: the live scene is the backdrop)
   const shot = (track, caption) => (BUILTIN_SHOTS.find((s) => s.track === track && s.caption === caption) || BUILTIN_SHOTS[0])?.url;
-  const IMG = { quick: shot('lasvegas', 'The Strip'), tt: shot('silverstone', 'Maggotts and Becketts'), champ: shot('lasvegas', 'The Sphere') };
+  const IMG = { quick: shot('lasvegas', 'The Strip'), tt: shot('silverstone', 'Maggotts and Becketts'), champ: shot('lasvegas', 'The Sphere'), tp: shot('lasvegas', 'Las Vegas Boulevard') };
   for (const c of $('step-mode').querySelectorAll('.card')) if (IMG[c.dataset.v]) c.querySelector('.ci').style.setProperty('--img', `url("${IMG[c.dataset.v]}")`);
 }
 
@@ -618,6 +660,7 @@ function seats(t, L = deceased()) {
 }
 /** who races for you with these settings -> { name, team, color, sub } or null */
 function pickedDriver() {
+  if (settings.mode === 'tp') { const t = TEAMS.find((x) => x.name === settings.tpTeam); return t ? { name: t.name, team: t.name, color: t.color, sub: `Team principal · ${seats(t).map((d) => surname(d.name)).join(' & ')}` } : null; }
   if (settings.driver === 'custom') return { name: settings.custom.name || 'You', team: 'Independent', color: settings.custom.color, sub: `Independent · ${TIER_TXT[settings.custom.tier] || ''}` };
   const r = typeof settings.driver === 'number' ? ROSTER[settings.driver] : null; if (!r) return null;
   const t = TEAMS.find((x) => x.name === r.team), d = (t && seats(t).find((x) => x.index === settings.driver)) || r;
@@ -626,13 +669,15 @@ function pickedDriver() {
 /** the team grid: eleven teams (their two cars as they race now) and your own entry */
 function renderTeams() {
   const L = deceased(), tile = (v, name, sub, c, h) => `<button class="team${SU.team === v ? ' sel' : ''}" data-v="${htmlEsc(v)}" style="--c:${c};--h:${h}">${htmlEsc(name)}<small>${htmlEsc(sub)}</small></button>`;
-  $('team-grid').innerHTML = TEAMS.map((t) => tile(t.name, t.name.replace(' Racing', ''), seats(t, L).map((d) => d.short).join(' · '), t.color, hlColour(t))).join('') + tile('custom', '★ Independent', 'your own 23rd car', '#00d4ff', '#00d4ff');
+  $('team-grid').innerHTML = TEAMS.map((t) => tile(t.name, t.name.replace(' Racing', ''), seats(t, L).map((d) => d.short).join(' · '), t.color, hlColour(t))).join('') + (settings.mode === 'tp' ? '' : tile('custom', '★ Independent', 'your own 23rd car', '#00d4ff', '#00d4ff'));
 }
 let slotTok = 0;
 /** the slot under the grid: the open team's two drivers, your own car's entry, or a hint; anim: the old fades (90 ms), the new rises (160 ms) */
 async function renderSlot(anim = false) {
   const pick = $('driver-pick'), custom = $('custom-row'), hint = $('su-pickhint'), tok = ++slotTok, moving = anim && !Kit.reduced();
-  const t = TEAMS.find((x) => x.name === SU.team), show = SU.team === 'custom' ? custom : t ? pick : hint;
+  const t = TEAMS.find((x) => x.name === SU.team), show = settings.mode === 'tp' ? hint : SU.team === 'custom' ? custom : t ? pick : hint;
+  if (settings.mode === 'tp') hint.textContent = t ? `${seats(t).map((d) => `${d.name} (#${d.number})`).join(' and ')} race for you. You run the team from the pit wall.` : 'Pick the team you will run: both its cars are yours';
+  else hint.textContent = 'Pick a team above, then one of its two drivers';
   const cur = [pick, custom, hint].find((el) => !el.classList.contains('hidden'));
   if (moving && cur) {
     const a = cur.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 90, easing: 'linear', fill: 'forwards' });
@@ -663,6 +708,7 @@ function showMem(on, pg = 0) {
 $('team-grid').addEventListener('click', (e) => {
   const b = e.target.closest('.team'); if (!b || b.dataset.v === SU.team) return;
   SU.team = b.dataset.v; for (const o of $('team-grid').children) o.classList.toggle('sel', o === b);
+  if (settings.mode === 'tp') { settings.tpTeam = SU.team; renderSlot(true); updateStart(); sumUpdate(); pulse($('su-next')); return; }   // (the team principal: the team is the choice)
   // (a team only opens its two drivers: nobody is picked for you - the one you had stays only if this is their team)
   if (SU.team === 'custom') settings.driver = 'custom';
   else if (typeof settings.driver !== 'number' || ROSTER[settings.driver]?.team !== SU.team) settings.driver = null;
@@ -706,14 +752,14 @@ function sumUpdate() {
   const cond = `${settings.time === 'night' ? 'Night' : 'Day'} · ${menuCap(settings.weather)}`, laps = `${settings.len} laps`;
   const pct = segText('opt-len'), rules = `${settings.grid === 'pick' ? `From P${settings.slot}` : 'Flying lap'} · SC ${settings.sc}`;
   const V = {
-    driver: d ? `${surname(d.name)} · ${d.team.replace(' Racing', '')}` : 'Choose a driver',
+    driver: settings.mode === 'tp' ? (d ? d.team.replace(' Racing', '') : 'Choose a team') : d ? `${surname(d.name)} · ${d.team.replace(' Racing', '')}` : 'Choose a driver',
     event: [tn, tt ? null : laps, cond].filter(Boolean).join(' · '),
     rivals: `${diffName(settings.diff)} ${settings.diff} · ${segText('opt-aggr')}`,
     rules,
     driving: `${segText('opt-assist')} · ${menuCap(settings.tyre)}`,
   };
   for (const b of $('su-tabs').querySelectorAll(':scope > button')) b.querySelector('em').textContent = V[b.dataset.p] || '';
-  $('su-name').textContent = d ? d.name : 'No driver yet'; $('su-team').textContent = d ? d.sub : 'Choose one on the first page';
+  $('su-name').textContent = d ? d.name : settings.mode === 'tp' ? 'No team yet' : 'No driver yet'; $('su-team').textContent = d ? d.sub : 'Choose one on the first page';
   document.querySelector('#su-sum .sw').style.setProperty('--c', d ? d.color : 'rgba(255,255,255,.12)');
   const mp = $('su-map'); if (mp.dataset.t !== settings.track) { mp.dataset.t = settings.track; mp.innerHTML = outline(settings.track); }
   $('su-trk').textContent = TRACKS[settings.track]?.name || tn; $('su-trkm').textContent = M ? `${M.km.toFixed(3)} km · ${M.turns} turns` : '';
@@ -731,8 +777,8 @@ function syncSetupUI() {
 }
 /** START reads "CHOOSE YOUR DRIVER" (and only shows you where) until a driver or your own entry is chosen; a sheen the moment it is ready */
 function updateStart() {
-  const ok = settings.driver != null, b = $('btn-start'), was = !b.classList.contains('disabled');
-  b.classList.toggle('disabled', !ok); b.firstChild.textContent = ok ? (settings.mode === 'tt' ? 'START TIME TRIAL' : 'START WEEKEND') : 'CHOOSE YOUR DRIVER';
+  const ok = settings.mode === 'tp' ? !!settings.tpTeam : settings.driver != null, b = $('btn-start'), was = !b.classList.contains('disabled');
+  b.classList.toggle('disabled', !ok); b.firstChild.textContent = ok ? (settings.mode === 'tt' ? 'START TIME TRIAL' : 'START WEEKEND') : settings.mode === 'tp' ? 'CHOOSE YOUR TEAM' : 'CHOOSE YOUR DRIVER';
   if (ok && !was && !Kit.reduced()) { b.classList.remove('ready'); void b.offsetWidth; b.classList.add('ready'); setTimeout(() => b.classList.remove('ready'), 300); }
 }
 /** phones: the pages and the tab strip may scroll there (and only there) */
@@ -750,7 +796,7 @@ function outline(id) {
 
 // ---- your last set-up (a convenience kept in this browser only) -----------------------------------------------------
 const QUICK_KEY = 'f1sim-quick';
-const QUICK_FIELDS = ['track', 'mode', 'driver', 'len', 'grid', 'slot', 'tyre', 'weather', 'time', 'assist', 'aggr', 'diff', 'stewards', 'sc', 'fail', 'fb'];
+const QUICK_FIELDS = ['track', 'mode', 'driver', 'tpTeam', 'len', 'grid', 'slot', 'tyre', 'weather', 'time', 'assist', 'aggr', 'diff', 'stewards', 'sc', 'fail', 'fb'];
 /** this quick race or time trial's set-up, kept for the home's RACE AGAIN and the next visit to the settings */
 function saveQuick() {
   const o = { v: 1 }; for (const k of QUICK_FIELDS) o[k] = settings[k];
@@ -767,7 +813,8 @@ function savedQuick() {
   for (const k of ['diff', 'stewards']) if (Number.isFinite(s[k])) o[k] = Math.max(0, Math.min(100, Math.round(s[k])));
   if (Number.isInteger(s.slot) && s.slot >= 1 && s.slot <= 23) o.slot = s.slot;
   if (s.driver === 'custom' || (Number.isInteger(s.driver) && ROSTER[s.driver])) o.driver = s.driver;
-  if (s.mode === 'quick' || s.mode === 'tt') o.mode = s.mode;
+  if (s.mode === 'quick' || s.mode === 'tt' || s.mode === 'tp') o.mode = s.mode;
+  if (typeof s.tpTeam === 'string' && TEAMS.some((t) => t.name === s.tpTeam)) o.tpTeam = s.tpTeam;
   const c = s.custom;
   if (c && typeof c === 'object') o.custom = { name: typeof c.name === 'string' ? c.name.slice(0, 18) : settings.custom.name, color: /^#[0-9a-f]{6}$/i.test(c.color || '') ? c.color : settings.custom.color, tier: [0, 1, 2, 3].includes(c.tier) ? c.tier : settings.custom.tier };
   return o.track ? o : null;
@@ -780,6 +827,7 @@ function applyQuick(s) {
 }
 /** 'Las Vegas · 5 laps · Verstappen' for a kept set-up ('' without a driver) */
 function describeQuick(s) {
+  if (s?.mode === 'tp') return s.tpTeam ? [shortTrack(s.track), `${s.len} laps`, s.tpTeam.replace(' Racing', '')].join(' · ') : '';
   if (!s || s.driver == null) return '';
   const r = typeof s.driver === 'number' ? ROSTER[s.driver] : null, t = r && TEAMS.find((x) => x.name === r.team), d = t && seats(t).find((x) => x.index === s.driver);
   const who = s.driver === 'custom' ? (s.custom?.name || 'your own car') : surname((d || r)?.name);
@@ -834,14 +882,20 @@ function openSetup(mode) {
   settings.mode = mode;
   // (the first visit this session: your last set-up, if there is one, so the same race is one click away)
   if (!SU.loaded) { SU.loaded = true; const s = settings.driver == null ? savedQuick() : null; if (s) applyQuick(s); }
-  $('setup-title').textContent = mode === 'tt' ? 'TIME TRIAL' : 'QUICK RACE';
+  $('setup-title').textContent = mode === 'tt' ? 'TIME TRIAL' : mode === 'tp' ? 'TEAM PRINCIPAL' : 'QUICK RACE';
   for (const el of $('step-setup').querySelectorAll('.race-only')) el.classList.toggle('hidden', mode === 'tt');
+  // (the team principal: a team, not a driver; no driving aids, no grid slot - qualifying sets the grid)
+  for (const el of $('step-setup').querySelectorAll('.drv-only')) el.classList.toggle('hidden', mode === 'tp');
+  for (const el of $('step-setup').querySelectorAll('.tp-only')) el.classList.toggle('hidden', mode !== 'tp');
+  { const tb = $('su-tabs').querySelector('[data-p="driver"]'); tb.childNodes[1].textContent = mode === 'tp' ? 'TEAM' : 'DRIVER'; PAGE_NAME.driver = mode === 'tp' ? 'Team' : 'Driver'; }
+  document.querySelector('.su-drv > .lbl').textContent = mode === 'tp' ? 'The team you will run' : 'Your team, then your driver';
+  if (mode === 'tp') SU.team = settings.tpTeam; renderTeams();
   let n = 0; for (const b of $('su-tabs').querySelectorAll(':scope > button')) if (!b.classList.contains('hidden')) b.querySelector('i').textContent = ++n;
   $('su-hint').innerHTML = `<kbd>←</kbd> <kbd>→</kbd> pages · <kbd>1</kbd>-<kbd>${n}</kbd> · <kbd>Enter</kbd> start · <kbd>Esc</kbd> back`;
-  SU.team = settings.driver === 'custom' ? 'custom' : typeof settings.driver === 'number' ? ROSTER[settings.driver]?.team ?? null : SU.team;
-  showMem(false); refreshMemoriam(); syncSetupUI(); phoneLayout();
+  if (mode !== 'tp') SU.team = settings.driver === 'custom' ? 'custom' : typeof settings.driver === 'number' ? ROSTER[settings.driver]?.team ?? null : SU.team;
+  showMem(false); renderSlot(false); refreshMemoriam(); syncSetupUI(); phoneLayout();
   const enter = SU.first ? () => { SU.first = false; firstRise(); } : null;
-  swapStep($('step-mode'), $('step-setup'), 1, { shown: () => goPage(settings.driver == null ? 'driver' : 'event'), enter });
+  swapStep($('step-mode'), $('step-setup'), 1, { shown: () => goPage((mode === 'tp' ? !settings.tpTeam : settings.driver == null) ? 'driver' : 'event'), enter });
 }
 /** back from the settings: to the home (or, from a career's settings, to the career) */
 function setupBack() {
@@ -857,7 +911,7 @@ function toCareer() {
 }
 /** the last race again, as it was set up: from the home straight to the loading screen */
 function raceAgain() {
-  const s = savedQuick(); if (!s || s.driver == null || swapping || W.loading || Loader.on) return;
+  const s = savedQuick(); if (!s || (s.mode === 'tp' ? !s.tpTeam : s.driver == null) || swapping || W.loading || Loader.on) return;
   careerSetup(false); applyQuick(s); settings.mode = s.mode || 'quick'; SU.loaded = true;
   SU.team = settings.driver === 'custom' ? 'custom' : ROSTER[settings.driver]?.team ?? null;
   syncSetupUI(); startQuick();
@@ -873,7 +927,7 @@ function loaderCovered() {
  * is built if it is not the one standing (the time of day you chose kept), then the weekend begins.
  */
 async function startQuick() {
-  if (settings.driver == null) { if (!$('step-setup').classList.contains('hidden')) { showMem(false); goPage('driver'); flashGrid(); } return; }
+  if (settings.mode === 'tp' ? !settings.tpTeam : settings.driver == null) { if (!$('step-setup').classList.contains('hidden')) { showMem(false); goPage('driver'); flashGrid(); } return; }
   if (W.loading || Loader.on || swapping) return;
   // (a quick race is no career's: no career driver's look or helmet carried into it by name - E. Esselink is both menus' default)
   syncLooks(null);
@@ -881,7 +935,7 @@ async function startQuick() {
   Loader.show(loaderInfo(settings.track));   // (the loading screen: over the menus until the weekend is ready)
   await loaderCovered();
   const time = settings.time, from = $('step-setup').classList.contains('hidden') ? $('step-mode') : $('step-setup');
-  if (!W.track || W.def?.id !== settings.track) {
+  if (!W.track || W.def?.id !== settings.track || W.home || PRE_TRACK.p) {   // (W.home: built ahead in the menus - switchTrack takes it over)
     from.classList.add('hidden'); await switchTrack(settings.track);
     if (!W.track) { from.classList.remove('hidden'); return; }
     settings.time = time;
@@ -895,6 +949,7 @@ function refreshHome() {
   const s = savedQuick(), C = careerPeek(), last = describeQuick(s), card = (v) => $('step-mode').querySelector(`.card[data-v="${v}"]`);
   card('quick').querySelector('.live').textContent = s?.mode === 'quick' && last ? `Last time: ${last}` : '';
   card('tt').querySelector('.live').textContent = s?.mode === 'tt' && last ? `Last time: ${last}` : '';
+  card('tp').querySelector('.live').textContent = s?.mode === 'tp' && last ? `Last time: ${last}` : '';
   card('champ').querySelector('b').textContent = C ? 'Continue Career' : 'New Career'; card('champ').querySelector('.live').textContent = C || '';
   const ra = $('race-again'); ra.classList.toggle('hidden', !last); ra.querySelector('span').textContent = last; $('keys-r').classList.toggle('hidden', !last);
   refreshMemoriam();
@@ -918,7 +973,7 @@ $('su-next').addEventListener('click', () => stepPage(1));
 $('su-tabs').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) goPage(b.dataset.p); });
 $('su-sum').addEventListener('click', (e) => { const b = e.target.closest('[data-goto]'); if (b) goPage(b.dataset.goto); });
 Kit.keys($('step-mode'), {
-  1: () => { $('step-mode').querySelectorAll('.card')[0].click(); }, 2: () => { $('step-mode').querySelectorAll('.card')[1].click(); }, 3: () => { $('step-mode').querySelectorAll('.card')[2].click(); },
+  1: () => { $('step-mode').querySelectorAll('.card')[0].click(); }, 2: () => { $('step-mode').querySelectorAll('.card')[1].click(); }, 3: () => { $('step-mode').querySelectorAll('.card')[2].click(); }, 4: () => { $('step-mode').querySelectorAll('.card')[3].click(); },
   r: () => { if ($('race-again').classList.contains('hidden')) return 'pass'; raceAgain(); return undefined; },
   s: () => { if (document.getElementById('playstats')) return 'pass'; showPlayStats(); return undefined; },
 }, { when: menuFree });
@@ -969,7 +1024,7 @@ async function careerRace(career, sim = null) {
   if (typeof Agenda.raceDayCheck === 'function') { try { Agenda.raceDayCheck(career); } catch (e) { console.warn('[career] race-day check', e); } }
   const id = career.calendar[career.round - 1];
   Loader.show(loaderInfo(id, career));
-  if (!W.def || W.def.id !== id || !W.track) await switchTrack(id);
+  if (!W.def || W.def.id !== id || !W.track || W.home || PRE_TRACK.p) await switchTrack(id);
   if (!W.track) return;
   Loader.stage('Preparing the weekend', 90); await paint();
   S.career = career;
@@ -1071,9 +1126,9 @@ function helmetURL(d, { blood = false, colour = false } = {}) {
   x.putImageData(img, 0, 0);
   const url = cv.toDataURL('image/jpeg', 0.92); HELMETS.set(key, url); return url;
 }
-$('btn-quali-go').addEventListener('click', () => { $('quali-panel').classList.add('hidden'); runQuali(); });
+$('btn-quali-go').addEventListener('click', () => { $('quali-panel').classList.add('hidden'); if (S.weekend?.mode === 'tp') tpQuali(true); else runQuali(); });
 $('btn-practice').addEventListener('click', () => { $('quali-panel').classList.add('hidden'); runPractice(); });
-$('btn-quali-sim').addEventListener('click', () => { $('quali-panel').classList.add('hidden'); runQuali(); simToEnd(); });   // (the whole session simulated, your lap too)
+$('btn-quali-sim').addEventListener('click', () => { $('quali-panel').classList.add('hidden'); if (S.weekend?.mode === 'tp') { tpQuali(false); return; } runQuali(); simToEnd(); });   // (the whole session simulated, your lap too)
 $('btn-end').addEventListener('click', () => { setPaused(false); endSessionEarly(); });
 $('btn-quali-done').addEventListener('click', () => { $('quali-panel').classList.add('hidden'); runRace(); });
 $('btn-next').addEventListener('click', () => { $('results').classList.add('hidden'); nextAfterResults(); });
@@ -1653,7 +1708,7 @@ function buildField(lapsTotal) {
   const QM = wk ? (wk.qMood?.round === wk.round ? wk.qMood : (wk.qMood = { round: wk.round, m: new Map() })) : { m: new Map() };
   const moodFor = (name) => { let v = QM.m.get(name); if (v == null) QM.m.set(name, (v = 45 + Math.random() * 30)); return v; };
   entries.forEach((e0, i) => {
-    let isPlayer = isCustom ? !!e0.custom : i === +settings.driver, e = e0;
+    let isPlayer = settings.mode === 'tp' ? false : isCustom ? !!e0.custom : i === +settings.driver, e = e0;   // (the team principal's weekend: nobody's car is driven - main.js TP)
     // stood down after a big accident last round: the stand-in drives this car (yours: you drive it as them)
     // (out: hurt and missing rounds, or killed and gone for good - this championship, and every quick race after it)
     const out = wk?.out?.get(e0.name) || deceased().find((x) => x.name === e0.name);
@@ -1776,6 +1831,7 @@ function endSession() {
   for (const o of [...scene.children]) if (o.userData?.isCar) scene.remove(o);
   if (POV.on) { povEnd(); blackout().style.opacity = '0'; } if (visorEl) visorEl.style.display = 'none';   // (quit in the middle of it: not left in the black)
   S.meshes.clear(); S.director = null; S.cars = []; S.player = null; S.spectating = false; S.ff = false; if (S.fb) { S.fb = null; fbShow(false); } hud.hide(); hud.closePit(); hud.boxCue(null); input.enabled = true;
+  tpStop();
   debris.clear(); fire.clear(); chunks.clear(); syncSafetyCar(null, 0); endCrash();
   if (RL.group) RL.group.visible = false;
   W.pitBoxes?.update(0, false);
@@ -1862,7 +1918,14 @@ function startRound() {
     $('quali-results').innerHTML = ''; $('quali-info').textContent = `Round ${wk.round}/${wk.rounds} · ${W.track.def.name} · qualifying is done: you start P${pi + 1}${sg.times?.[pi] ? ` (${fmtTime(sg.times[pi])})` : ''}.`;
     $('btn-practice').classList.add('hidden'); $('btn-quali-go').classList.add('hidden'); $('btn-quali-sim').classList.add('hidden'); $('btn-quali-done').classList.remove('hidden');
     $('quali-panel').classList.remove('hidden');
+  } else if (wk.mode === 'tp') {
+    // (the team principal's weekend: qualifying with the whole field, watched on the feed or simulated - tpQuali)
+    $('btn-practice').classList.add('hidden'); $('btn-quali-sim').classList.remove('hidden'); $('btn-quali-go').classList.remove('hidden'); $('btn-quali-done').classList.add('hidden');
+    $('btn-quali-go').firstChild.textContent = 'WATCH QUALIFYING'; $('btn-quali-sim').textContent = 'SIMULATE QUALIFYING';
+    $('quali-info').textContent = `${W.track.def.name} · ${WX_LABEL[settings.weather] || 'Dry'}, ${settings.time === 'night' ? 'night' : 'day'}. You run ${settings.tpTeam}: qualifying first - two timed laps each, the best counts. Watch it on the feed, or simulate it.`;
+    $('quali-results').innerHTML = ''; $('quali-panel').classList.remove('hidden');
   } else if (settings.grid === 'quali' && wk.player) {
+    $('btn-quali-go').firstChild.textContent = 'QUALIFY';   // (the team principal's weekend names it WATCH)
     $('btn-practice').classList.remove('hidden'); $('btn-quali-sim').classList.remove('hidden');
     const cond = `${WX_LABEL[settings.weather] || 'Dry'}${wk.career ? ' forecast' : ''}, ${settings.time === 'night' ? 'night' : 'day'}`;
     $('quali-info').textContent = `Round ${wk.round}/${wk.rounds} · ${W.track.def.name} · ${cond}. Qualifying: the whole field is out with you on flying laps, two timed laps each, the best counts. You start on a straight. When your laps are done, watch the rest (Tab: next car, Enter: ×6) or press F to simulate it. Expected pace: ${fmtTime(estimatePace())}`;
@@ -1899,7 +1962,7 @@ function makeDirector(mode, cars, player, extra = {}) {
   });
   hud.initMinimap(W.track, W.pit); hud.wx = S.director.weather || null; hud.show(); camCtl.mode = 'tcam'; spray.clear();   // every session starts on the broadcast T-cam
   if (player && W.pitBoxes) W.pitBoxes.setPlayer(player.boxIdx ?? 0, player.name);   // your garage: cyan box + marker
-  if (S.spectating) hud.msg(`${wk?.career?.noSeat ? 'NO SEAT THIS WEEKEND' : 'STOOD DOWN'} · WATCHING ${S.player.name.toUpperCase()}\nEnter: fast-forward · Tab: next car`, 'warn', 6);
+  if (S.spectating && wk?.mode !== 'tp') hud.msg(`${wk?.career?.noSeat ? 'NO SEAT THIS WEEKEND' : 'STOOD DOWN'} · WATCHING ${S.player.name.toUpperCase()}\nEnter: fast-forward · Tab: next car`, 'warn', 6);
   else if (player?.standInFor) hud.msg(standInBanner(player), 'warn', 6);   // (your driver hurt, or banned: you race their stand-in)
   ensureRacingLine(); RL.group.visible = RL.on;
   S.crews?.dispose(); S.crews = W.pit ? new PitCrews(scene, 5, S.meshes, W.time === 'night') : null;   // (the crews: a whole stop, choreographed - world/PitCrew.js)
@@ -2052,6 +2115,7 @@ function strategyCalls(d, p) {
 }
 function beginRace() {
   const wk = S.weekend;
+  if (wk.mode === 'tp') wk.spectate = tpCars(wk.cars)[0] || null;   // (the team principal's race: the feed opens on your car)
   makeDirector('race', wk.cars, wk.player, {
     gridOrder: wk.gridOrder, spectate: wk.spectate,
     onFinish: (rows) => {
@@ -2066,6 +2130,7 @@ function beginRace() {
       const me = rows.find((r) => r.me);
       const facts = NEWS.cancelled ? null : raceFacts(S.director, rows);   // (Driver of the Day and the race in numbers; not for a race stopped by a death - first: the career wants the fans' vote)
       wk.banNote = null;
+      if (wk.mode === 'tp') { for (const r of rows) r.me = r.car.team === settings.tpTeam; tpStop(); }   // (your team's two rows marked; no licence for the pit wall)
       if (wk.career) {
         // (the career: points, starts, money, development, Paddock Rapport, morale, the press, the licence, the next round
         //  - and the interview after)
@@ -2091,7 +2156,7 @@ function beginRace() {
         C.applyRace(rows, W.def.id, contacts, table, extra);
         wk.interview = C.me?.alive && pc && !pc.injured && !pc.standInFor ? interviewCtx(C, rows, contacts, upgrade, { grave: extra.grave, seen, strat: strategy.find((x) => x.mine) || null, orders: orders.find((x) => x.mine && x.sub) || null }) : null;   // (standing in: the stand-in's media pen, not yours)   // (hurt: in the medical centre, not the media pen)
         wk.incident = S.cars.some((c) => c.injured);   // (the interview after it: under the strings)
-      } else {
+      } else if (wk.mode !== 'tp') {
         rememberResult(rows, me);   // (for the loading screen's news)
         // (your licence, a quick race's: the stewards' points from this race - none for one you sat out on a ban - then
         //  the race counts: points age, a ban served comes off)
@@ -2102,7 +2167,7 @@ function beginRace() {
       input.enabled = false;
       const winner = rows.find((r) => !r.car.retired) || rows[0];
       const results = () => {
-        hud.results(`${wk.mode === 'champ' ? `ROUND ${wk.round}/${wk.rounds} · ` : ''}${NEWS.cancelled ? 'RACE CANCELLED' : NEWS.abandoned ? 'RACE ABANDONED' : 'RACE RESULT'}${wk.pointsNote ? ` (${wk.pointsNote})` : ''} · ${me ? `P${me.pos}` : ''}${me && me.penalties ? ` (+${me.penalties}s penalties)` : ''}${wk.banNote ? ` · ${wk.banNote}` : ''}`, rows, champ, facts);
+        hud.results(`${wk.mode === 'champ' ? `ROUND ${wk.round}/${wk.rounds} · ` : ''}${NEWS.cancelled ? 'RACE CANCELLED' : NEWS.abandoned ? 'RACE ABANDONED' : 'RACE RESULT'}${wk.pointsNote ? ` (${wk.pointsNote})` : ''} · ${wk.mode === 'tp' ? `${settings.tpTeam}: ${rows.filter((r) => r.me).map((r) => `P${r.pos}`).join(' & ')}` : me ? `P${me.pos}` : ''}${me && me.penalties ? ` (+${me.penalties}s penalties)` : ''}${wk.banNote ? ` · ${wk.banNote}` : ''}`, rows, champ, facts);
         $('btn-next').firstChild.textContent = wk.career ? 'CAREER' : wk.mode === 'champ' && wk.round < wk.rounds ? 'NEXT ROUND' : 'MAIN MENU';
         $('btn-menu').textContent = wk.career ? 'CAREER MENU' : 'MAIN MENU';
       };
@@ -2113,6 +2178,7 @@ function beginRace() {
       startFinale(winner.car, 'RACE WINNER', podium);
     },
   });
+  if (wk.mode === 'tp' && S.director) tpStart();
   if (S.director && !S.spectating) {
     if (S.skipIntro || (settings.intro === 'skip' && !S.weekend?.career)) { input.enabled = true; hud.show(); camCtl.mode = 'tcam'; if (S.player) for (let i = 0; i < 30; i++) camCtl.update(S.player, 1 / 30, W.track); }   // (straight to the grid and the lights)
     else startPreRace();   // (the build-up first: the race waits on the grid)
@@ -2200,6 +2266,167 @@ function simToEnd() {
     S.simming = false; simEl.style.opacity = '0'; setTimeout(() => { simEl.style.display = 'none'; }, 300);
   }, 450);   // (a beat for the card to show)
 }
+// ---------------------------------------------------------------------------
+// the team principal: a weekend run from the pit wall, the race watched as the broadcast shows it
+// ---------------------------------------------------------------------------
+/**
+ * TP: on - a session of the team principal's weekend is running (settings.mode 'tp'); cars - your team's two; speed -
+ * the race's pace (x1, x2, x4: that many steps of the race a frame); paused; cam - the camera kept to ('auto': the
+ * director's choice); tv (camera/TVDirector.js), gfx (ui/TVGraphics.js), wall (ui/PitWall.js) made on first use.
+ */
+const TP = { on: false, cars: [], speed: 1, paused: false, cam: 'auto', tv: null, gfx: null, wall: null, seen: new Map(), orderSeen: 0, team: null };
+/** the team you run (settings.tpTeam) and its two cars in this field */
+function tpCars(cars) { return (cars || []).filter((c) => c.team === settings.tpTeam && !c.isSC).slice(0, 2); }
+/** the team principal's controls, from the pit wall's buttons and the keys */
+function tpAct(a, x, y) {
+  const d = S.director; if (!d || !TP.on) return;
+  const wall = TP.wall, sur = (c) => surname(c.name);
+  if (a === 'pace') { tpPace(x, y); wall.radio('Engineer', `${sur(x)}: ${PACE[y].label.toLowerCase()} mode${y === 'push' ? ', the tyres will pay for it' : y === 'save' ? ', looking after the tyres' : ''}.`); }
+  else if (a === 'strat') { x.mgr.manual = !!y; x.mgr.holdLap = null; wall.radio('Strategy', `${sur(x)}: ${y ? 'your calls from here. Nothing happens unless you box the car.' : 'the strategist makes the calls again.'}`); }
+  else if (a === 'start') { if (!d.world.racing && !x.pitLane) { x.fitTyres(y); x.tyres.temp = x.tyres.spec.start ?? 0.7; x.tyres.work = 0.45; S.meshes.get(x)?.setCompound(y); x.mgr.next = y === 'SOFT' ? 'MEDIUM' : y === 'MEDIUM' ? 'HARD' : y; } }
+  else if (a === 'box') {
+    if (x.retired || x.finished || x.inPit) return;
+    const dm = x.dmg || {}, plan = { compound: y || x.mgr.next, repair: (dm.rw > 0.35 || dm.susp > 0.55) ? 'full' : (dm.fwL || 0) + (dm.fwR || 0) > 0.3 ? 'wing' : 'none' };
+    x.pitPlan = plan; if (x.ai) { x.ai.pitPlan = plan; x.ai.pitReason = 'manager'; }
+    if (!x.pitRequested) d.requestPit(x, plan);
+    x.mgr.holdLap = null; x.mgr.called = true;
+    wall.radio('You', `${sur(x)}, box this lap. ${plan.compound.charAt(0) + plan.compound.slice(1).toLowerCase()}s${plan.repair !== 'none' ? ', and fix the car' : ''}.`);
+  } else if (a === 'stay') {
+    if (x.pitLane || x.inPit) return;
+    x.pitRequested = false; x.pitPlan = null; if (x.ai) { x.ai.pitPlan = null; x.ai.pitReason = null; } x.mgr.holdLap = x.lap; x.mgr.called = false;
+    wall.radio('You', `${sur(x)}, stay out, stay out.`);
+  } else if (a === 'speed') { TP.speed = x; TP.paused = false; }
+  else if (a === 'pause') TP.paused = !TP.paused;
+  else if (a === 'cam') { TP.cam = x; TP.tv.setCam(x); }
+  else if (a === 'follow') { TP.tv.follow(TP.tv.followCar === x ? null : x); }
+  else if (a === 'sim') tpSim(x);
+  else if (a === 'order') {
+    const o = d.orders?.mgrOrder?.(TP.cars[0], x);
+    if (typeof o === 'string') wall.radio('Pit wall', `No order: ${o}.`);
+    else if (o) wall.radio('You', x === 'swap' ? `${sur(o.Y)}, let ${sur(o.B)} through. That's an order.` : x === 'hold' ? 'Hold position, both cars. No racing each other.' : 'Order off. You are free to race.');
+  }
+}
+/** a car's pace mode: its cornering commitment (AIDriver.vScale), its tyres' wear, its engine's risk */
+function tpPace(c, mode) {
+  const m = c.mgr, P = PACE[mode] || PACE.std; m.pace = mode;
+  c.mgrPace = P.pace; c.wearMul = m.baseWear * P.wear; if (c.tyres) c.tyres.wearMul = c.wearMul; c.relMul = m.baseRel * P.rel;
+}
+/** a session of the weekend starts: your cars taken over, the feed's graphics and the pit wall up */
+function tpStart() {
+  const d = S.director; if (!d) return;
+  TP.on = true; TP.speed = 1; TP.paused = false; TP.cam = 'auto'; TP.seen = new Map(); TP.orderSeen = 0;
+  TP.cars = tpCars(S.cars);
+  for (const c of TP.cars) { c.mgr = { pace: 'std', manual: false, next: 'MEDIUM', baseWear: c.wearMul || 1, baseRel: c.relMul || 1, holdLap: null, called: false, preRace: true }; c.mgr.next = c.tyres.compound === 'MEDIUM' ? 'HARD' : 'MEDIUM'; }
+  if (!TP.tv) { TP.tv = new TVDirector(camera); TP.tv.onCut = (sh) => TP.gfx?.cut(sh, S.director); }
+  if (!TP.gfx) TP.gfx = new TVGraphics({ onPick: (c) => { if (c && TP.on) TP.tv.follow(TP.tv.followCar === c ? null : c); } });
+  if (!TP.wall) TP.wall = new PitWall({ act: tpAct });
+  TP.tv.reset(); TP.gfx.reset(); TP.gfx.show(true);
+  TP.wall.open(TP.cars); TP.wall.el.classList.toggle('q', d.mode === 'quali');
+  document.body.classList.add('tp');
+  hud.wx = null;
+}
+function tpStop() {
+  if (!TP.on && !document.body.classList.contains('tp')) return;
+  TP.on = false; TP.paused = false; TP.cars = [];
+  TP.gfx?.show(false); TP.wall?.close(); document.body.classList.remove('tp');
+}
+/** the camera and the subject: the director's shot (S.player is the car on screen: the sound and the ground follow it) */
+function tpCamera(dt) {
+  const d = S.director;
+  const car = TP.tv.update(dt, { d, track: W.track, pit: W.pit, focus: TP.cars, camCtl });
+  if (car) S.player = car;
+  cockpitVisor(S.player, false);
+}
+/** the graphics, the pit wall and the radio (every frame, paused too) */
+function tpUi(dt) {
+  const d = S.director; if (!d || !TP.on) return;
+  const show = !FINALE.on && !PRE.on && !NEWS.on && !POV.on;
+  TP.gfx.el.classList.toggle('hidden', !show); TP.wall.el.classList.toggle('hidden', !show || d.done);
+  if (!show) return;
+  document.documentElement.style.setProperty('--pw', `${TP.wall.height()}px`);
+  TP.gfx.update(dt, { d, focus: TP.cars, shot: TP.tv.shot, track: shortTrack(W.def?.id), camName: TV_CAM_NAME[TP.tv.shot?.kind] || '', speed: TP.paused ? 0 : TP.speed });
+  const ord = d.orders?.pairOf?.(TP.cars[0])?.order || null;
+  TP.wall.update(dt, { d, speed: TP.speed, paused: TP.paused, cam: TP.cam, order: ord, tyreLaps: (c) => TP.gfx.tyreLaps(c),
+    mustStop: (c) => d.mode === 'race' && d.lapsTotal >= 8 && c.pitStops === 0 && !c.usedRain && !d.weather?.everWet });
+  if (d.mode === 'race') tpRadio(d);
+}
+/** what your engineers tell you: the strategist's calls, the tyres going off, damage, a car out, the orders answered */
+function tpRadio(d) {
+  const W2 = TP.wall, sur = (c) => surname(c.name);
+  for (const c of TP.cars) {
+    let s = TP.seen.get(c); if (!s) TP.seen.set(c, (s = { req: c.pitRequested, worn: false, dmg: 0, out: c.retired, stops: c.pitStops }));
+    if (c.pitRequested && !s.req && !c.mgr.called && c.ai?.pitReason) W2.radio('Strategy', `We're boxing ${sur(c)} this lap: ${{ tyres: 'the tyres are done', undercut: 'the undercut is on', cover: 'covering the stop behind', cheap: 'a cheap stop under the safety car', weather: 'the weather', damage: 'the damage' }[c.ai.pitReason] || c.ai.pitReason}. ${(c.ai.pitPlan?.compound || '').toLowerCase()}s.`);
+    s.req = c.pitRequested;
+    if (c.pitStops !== s.stops) { s.stops = c.pitStops; s.worn = false; c.mgr.called = false; c.pitPlan = null; }
+    if (!s.worn && c.tyres.wear > 0.58 && !c.retired) { s.worn = true; W2.radio(sur(c), `The tyres are going off${c.tyres.wear > 0.68 ? ', they are finished' : ''}.`); }
+    const dm = c.dmg ? Math.max(c.dmg.fwL || 0, c.dmg.fwR || 0, c.dmg.rw || 0, c.dmg.susp || 0) : 0;
+    if (dm > s.dmg + 0.2 && !c.retired) { W2.radio(sur(c), dm > 0.5 ? 'Big damage, I need a new wing!' : "I've hit something. Car feels different."); } s.dmg = Math.max(s.dmg, dm);
+    if (c.retired && !s.out) { s.out = true; W2.radio('Pit wall', `${sur(c)} is out. ${c.retireReason || ''}`); }
+  }
+  const done = d.orders?.done || [];
+  for (; TP.orderSeen < done.length; TP.orderSeen++) {
+    const o = done[TP.orderSeen]; if (!TP.cars.includes(o.Y || o.F)) continue;
+    const t = { obeyed: `${sur(o.Y)} has let ${sur(o.B)} through.`, refused: `${sur(o.Y)} refuses to let ${sur(o.B)} by!`, ignored: `${sur(o.Y)} has ignored the order.`, broken: `${sur(o.Bk)} has broken the hold order and passed ${sur(o.F)}.` }[o.state];
+    if (t) W2.radio(o.state === 'obeyed' ? 'Pit wall' : 'Pit wall', t);
+  }
+}
+/** SIM: n laps of the race model (then live again from where it leaves the cars), or 0 - to the flag */
+function tpSim(n) {
+  const d = S.director; if (!d || d.done || S.simming || NEWS.cancel) return;
+  if (!n) { simToEnd(); return; }
+  if (!d.world.racing || (d.sc && d.sc.phase !== 'green')) { TP.wall.radio('Pit wall', 'Not now: only under green flags.'); return; }
+  S.simming = true; endCrash();
+  TP.wall.simCard(`SIMULATING ${n} LAP${n > 1 ? 'S' : ''}`, 'every car from where it is now - the strategists make the calls');
+  setTimeout(() => {
+    try {
+      if (S.director === d && !d.done) {
+        const live = d.simulateRest({ laps: n });
+        if (live) {
+          debris.clear(); fire.clear(); chunks.clear(); TP.tv.shot = null;
+          for (const c of S.cars) { const m = S.meshes.get(c); if (m) { m.setCompound(c.tyres.compound); m.update(c, 0); } }
+          for (const c of TP.cars) { const s = TP.seen.get(c); if (s) { s.stops = c.pitStops; s.req = false; } c.mgr.called = false; c.mgr.holdLap = null; }
+          const P = d.positions; TP.wall.radio('Pit wall', `Lap ${Math.min(d.lapsTotal, (P[0]?.lap ?? 0) + 1)}. ${TP.cars.map((c) => (c.retired ? `${surname(c.name)} out` : `${surname(c.name)} P${P.indexOf(c) + 1}`)).join(', ')}.`);
+        }
+      }
+    } finally { S.simming = false; TP.wall.simCard(null); }
+  }, 60);
+}
+/** the keys of the team principal's race: Space pause, - / = slower / quicker, Tab follow the next car (Esc the menu) */
+function tpKeys() {
+  if (input.pressed('Space')) tpAct('pause');
+  if (input.pressed('Equal') || input.pressed('NumpadAdd')) tpAct('speed', Math.min(4, TP.speed * 2));
+  if (input.pressed('Minus') || input.pressed('NumpadSubtract')) tpAct('speed', Math.max(1, TP.speed / 2));
+  if (input.pressed('Tab')) { const P = S.director.positions.filter((c) => !c.retired), i = P.indexOf(TP.tv.followCar); TP.tv.follow(P[(i + 1) % P.length] || null); }
+  if (input.pressed('KeyC')) { const k = TV_CAMS[(TV_CAMS.indexOf(TP.cam) + 1) % TV_CAMS.length]; tpAct('cam', k); }
+}
+/** qualifying in the team principal's weekend: watched on the feed, or simulated */
+function tpQuali(watch) {
+  const wk = S.weekend, wet = wk.wet;
+  $('quali-panel').classList.add('hidden');
+  for (const c of wk.cars) c.fitTyres(wet > 0.5 ? 'WET' : wet > 0.2 ? 'INTER' : 'SOFT');
+  makeDirector('quali', wk.cars, null, {
+    spectate: tpCars(wk.cars)[0],
+    onFinish: () => {
+      const all = wk.cars.map((c) => ({ car: c, time: c.bestLap })).sort((a, b) => a.time - b.time), names = all.map((e) => e.car.name);
+      wk.cars = buildField(wk.lapsTotal); wk.player = null;
+      wk.gridOrder = names.map((n) => wk.cars.find((c) => c.name === n)).filter(Boolean);
+      for (const c of wk.cars) if (!wk.gridOrder.includes(c)) wk.gridOrder.push(c);
+      tpStop();
+      startFinale(all[0].car, 'POLE POSITION', () => {
+        let html = '<table class="res"><tr><th>#</th><th>Driver</th><th>Time</th><th>Gap</th></tr>';
+        all.forEach((e, i) => { html += `<tr class="${e.car.team === settings.tpTeam ? 'me' : ''}"><td>${i + 1}</td><td><span class="sw" style="background:${e.car.color}"></span>${htmlEsc(e.car.name)}</td><td>${fmtTime(e.time)}</td><td>${i === 0 ? '' : isFinite(e.time) ? '+' + (e.time - all[0].time).toFixed(3) : 'no time'}</td></tr>`; });
+        $('quali-results').innerHTML = html + '</table>';
+        const mine = all.map((e, i) => (e.car.team === settings.tpTeam ? `${surname(e.car.name)} P${i + 1}` : null)).filter(Boolean);
+        $('quali-info').textContent = `${settings.tpTeam}: ${mine.join(', ')}. The race next, from the pit wall.`;
+        $('btn-quali-go').classList.add('hidden'); $('btn-practice').classList.add('hidden'); $('btn-quali-sim').classList.add('hidden'); $('btn-quali-done').classList.remove('hidden'); $('quali-panel').classList.remove('hidden');
+        endSession();
+      });
+    },
+  });
+  tpStart();
+  if (!watch) simToEnd();
+}
+
 /**
  * Tonight's invitations as the media pen knows them (career/Party.js: applyRace has made them by now) -> { team, club,
  * city, lean: null } | null (no night on). A winner is asked how he will celebrate; the answer's lean ('team' | 'club' |
@@ -2800,7 +3027,7 @@ async function careerHangout(launch, done, c0 = null) {
   };
   audio.init(); audio.resume(); strings(false, { fade: 1 });   // (the evening has its own sound)
   try {
-    if (!W.track || W.def?.id !== id) {
+    if (!W.track || W.def?.id !== id || W.home || PRE_TRACK.p) {
       if (party && SEALED_THROUGHOUT.has(vid)) { alone(); return; }
       const names = (L0.guests || []).filter((g) => g?.name && (!party || g.tier === 'principal' || !g.tier)).map((g) => g.name);
       const who = names.length > 3 ? `With ${names.slice(0, 3).join(', ')} and ${names.length - 3} more` : names.length ? `With ${names.join(', ')}` : null;
@@ -3642,8 +3869,9 @@ function frame(now) {
     }
     if (input.pressed('KeyH')) { S.halo = !S.halo; for (const m of S.meshes.values()) m.setHalo(S.halo); }
     if (input.pressed('KeyM')) audio.toggleMute();
-    if (S.spectating && d && !S.paused && input.pressed('Enter')) { S.ff = !S.ff; hud.msg(S.ff ? 'FAST-FORWARD ×6' : 'NORMAL SPEED', '', 1.2); }
-    if (S.spectating && d && !d.done && !S.paused && !S.simming) { if (input.pressed('Tab')) watchNext(); if (input.pressed('KeyF')) simToEnd(); }
+    if (TP.on && d && !S.paused && !S.simming) tpKeys();   // (the team principal's race: its own keys)
+    if (S.spectating && !TP.on && d && !S.paused && input.pressed('Enter')) { S.ff = !S.ff; hud.msg(S.ff ? 'FAST-FORWARD ×6' : 'NORMAL SPEED', '', 1.2); }
+    if (S.spectating && !TP.on && d && !d.done && !S.paused && !S.simming) { if (input.pressed('Tab')) watchNext(); if (input.pressed('KeyF')) simToEnd(); }
     if (d && !d.done && !S.spectating && !S.paused && d.mode === 'quali' && p && !p.autopilot && (p.qLaps || 0) >= 1 && input.pressed('KeyF')) simToEnd();   // (one timed lap in: skip the second)
     if (d && p && !S.paused && !d.done && !S.spectating) {
       if (hud.pit.open) { for (const k of ['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5', 'Digit7', 'Digit8', 'Digit9', 'Enter']) if (input.pressed(k)) hud.handlePitKey(k); }
@@ -3666,7 +3894,7 @@ function frame(now) {
     NEWS.wait += dt; if (NEWS.wait > (fbOk ? 3 : 1.5)) crashNews();
   }
   if (NEWS.cancel && d && !d.done && !S.paused && !NEWS.fading && !S.fb) cancelFrame(dt);   // (a race cancelled: the drive back, then the news)
-  const halted = (PHOTO.on ? !PHOTO.live : S.paused) || hud.pit.open || !!S.fb || NEWS.fading || !!S.simming;
+  const halted = (PHOTO.on ? !PHOTO.live : S.paused) || hud.pit.open || !!S.fb || NEWS.fading || !!S.simming || (TP.on && TP.paused);
 
   if (d && !halted) {
     input.update(dt, p ? p.speed : 0);
@@ -3674,7 +3902,7 @@ function frame(now) {
     // while the wreck is still moving - the steering nudges it (aftertouch)
     const ts = crashCam.on ? crashCam.timeScale : 1, sdt = dt * ts, crashing = crashCam.on && !crashCam.resolved;
     if (crashing) crashCam.aftertouch(input.steer, sdt);
-    for (let k = S.spectating && S.ff ? 6 : 1; k > 0; k--) d.update(sdt, crashing ? CRASH_INPUT : input);
+    for (let k = TP.on ? TP.speed : S.spectating && S.ff ? 6 : 1; k > 0; k--) d.update(sdt, crashing ? CRASH_INPUT : input);   // (TP.speed: the team principal's x1 / x2 / x4)
     if (p && p.crashLog && p.crashLog.length && !S.spectating) {
       for (const e of p.crashLog.splice(0)) { if (!crashCam.on) { if ((e.kind === 'launch' || e.g >= CRASH_G) && !d.done) startCrash(p, e); } else if (!crashCam.resolved) crashHit(p, e); }
     }
@@ -3714,13 +3942,14 @@ function frame(now) {
         m.userData.mat.opacity = 0.55 + 0.4 * Math.abs(Math.sin(d.time * 6));
       } else if (S.pullMark) S.pullMark.visible = false;
     }
-    if (p && W.pit) {   // pit-box cue: floating marker over your garage while a stop is called / you are in the lane, distance readout in the HUD
+    if (p && W.pit && !TP.on) {   // pit-box cue: floating marker over your garage while a stop is called / you are in the lane, distance readout in the HUD
       const box = W.pit.boxFor(p.boxIdx ?? 0); const show = (p.pitRequested || p.pitLane) && !p.inPit && !p.retired;
       W.pitBoxes?.update(simTime, show);
       hud.boxCue(p.pitLane && p.pitLaneState !== 'out' ? box.u - p.pitU : null, p.color);
     }
     if (FINALE.on) { updateFinale(dt); cockpitVisor(p, false); }
     else if (POV.on) povFrame(dt);
+    else if (TP.on && p && !PHOTO.on) { tpCamera(dt); audio.update(S.player, dt); audioLive = true; }   // (the team principal's race: the world feed - camera/TVDirector.js)
     else if (p && !PHOTO.on) { if (crashCam.on) crashCam.update(dt, dt * crashCam.timeScale); else camCtl.update(p, dt, W.track); cockpitVisor(p, camCtl.mode === 'cockpit' && !crashCam.on && !d.done); hud.update(p, { mode: d.mode, lapsTotal: d.lapsTotal, positions: d.positions, time: d.time, qualiStarted: d.qualiStarted, sectors: d.sectors, delta: (c) => d.telemetry?.liveDelta(c, d.time), sc: d.sc?.hudState(), gap: (a, b) => d.radio?.gap(a, b), drs: (c) => d.drs?.state(c) }, dt); hud.drawMinimap(S.cars, p); audio.update(p, dt); audioLive = true; }
     else if (p && PHOTO.hud) { hud.update(p, { mode: d.mode, lapsTotal: d.lapsTotal, positions: d.positions, time: d.time, qualiStarted: d.qualiStarted, sectors: d.sectors, delta: (c) => d.telemetry?.liveDelta(c, d.time), sc: d.sc?.hudState(), gap: (a, b) => d.radio?.gap(a, b), drs: (c) => d.drs?.state(c) }, dt); hud.drawMinimap(S.cars, p); }
   } else if (d && hud.pit.open && p) {
@@ -3729,6 +3958,8 @@ function frame(now) {
     // (the ambient field only behind the menus themselves: not between a weekend's sessions, not under the results)
     simTime += dt; if (!S.weekend && !PRE.show && !PRE.walk) { ensureAmbient(); stepAmbient(dt); } else clearAmbient(); cinematic(dt);
   }
+  if (TP.on && d && halted && !PHOTO.on && !FINALE.on && !POV.on) tpCamera(0);   // (paused: a camera chosen still cuts)
+  if (TP.on) tpUi(dt);
   if (d && S.ambient) clearAmbient();
   standsHD(FINALE.on || (!d && !W.home), dt, simTime);   // (the finale's shots, the title shots behind the menus: the stands full of people)
   if (W.home || !W.track) { input.endFrame(); return; }   // home screen / building: no 3D scene to draw
@@ -3758,6 +3989,8 @@ function frame(now) {
     crashFrame() { const n0 = renderer.info.programs.length; ensureCrashComposer(); crashPass.uniforms.uBlur.value = 0.6; crashPass.uniforms.uSat.value = 1.5; crashComposer.render(); return renderer.info.programs.length - n0; },
     /** (tests: the crash director, and the camera as drawn - terrainLift() lifts it for the frame and returns the undo; renderView() draws a frame through it) */
     crashCam, terrainLift, renderView,
+    /** (tests: the team principal's race - main.js TP; the circuit built ahead in the menus) */
+    TP, tpAct, PRE_TRACK, preloadWanted,
     /** (tests - tools/regress.mjs: the optimisations that must not change a pixel, switched off and on) */
     fastMatrix, SHADOW_CULL,
     /** (tests: the show clock - simTime - set, so the Sphere's loop can be put on any show) */

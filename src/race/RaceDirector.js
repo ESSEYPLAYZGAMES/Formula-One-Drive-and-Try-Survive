@@ -1038,9 +1038,14 @@ export class RaceDirector {
    * retirement and safety car; the flag falls on the leader and everyone finishes on their next crossing. Qualifying:
    * the laps each car still has, with their mistakes.
    */
-  simulateRest() {
-    if (this.done) return;
-    if (this.practice) { this.finish(); return; }   // (practice: nothing to simulate - the times are what they are)
+  /**
+   * o.laps (a race only): not to the flag but n laps on - to the end of the leader's lap n laps from now, counting the one it
+   * is on - and then the race goes on live from there: every car put back on the track where the model has it at that
+   * moment (simPlace). With the flag within reach it is the whole race, as without. -> true when the race goes on live
+   */
+  simulateRest(o = {}) {
+    if (this.done) return false;
+    if (this.practice) { this.finish(); return false; }   // (practice: nothing to simulate - the times are what they are)
     const L = this.track.length, wet = this.weather ? this.weather.lapWet() : this.settings.wetness || 0, rnd = Math.random;
     const gauss = () => (rnd() + rnd() + rnd() - 1.5) * 1.63;
     const model = this.estimateLap() / (0.4 + 0.6 * (this.settings.skill ?? 1));
@@ -1060,17 +1065,23 @@ export class RaceDirector {
         }
         c.qualiDone = true;
       }
-      this.time = Math.max(this.time, this.qualiLimit || 0); this.finish(); return;
+      this.time = Math.max(this.time, this.qualiLimit || 0); this.finish(); return false;
     }
     // ---- the race
     const N = this.lapsTotal, TS = Object.getPrototypeOf(this.cars[0].tyres).constructor;
+    const lead0 = this.positions.find((c) => !c.retired && !c.finished), upTo = o.laps > 0 && lead0 && !this.leaderFinished && lead0.lap + o.laps < N ? lead0.lap + o.laps : null;
+    const t0 = this.time;
     const S = this.positions.filter((c) => !c.retired && !c.finished).map((c) => {
       const b = base(c) * 1.012, into = Math.max(0, Math.min(L, c.lapDist || 0));   // (a race lap: fuel and tyres, a touch off a flying one)
-      return { c, b, at: this.time + ((L - into) / L) * b * (c.speed < 5 ? 1.4 : 1), laps: c.lap + 1, w: c.tyres.wear, life: c.tyres.lifeMeters / L, comp: c.tyres.compound, stops: 0, lt: b, times: [], out: null };
+      // (a team principal's car - main.js: its pace mode, and a stop called and not yet made, made on this lap)
+      const x = { c, b, at: this.time + ((L - into) / L) * b * (c.speed < 5 ? 1.4 : 1), laps: c.lap + 1, w: c.tyres.wear, life: c.tyres.lifeMeters / L, comp: c.tyres.compound, stops: 0, lt: b, times: [], out: null };
+      if (c.mgr) { if (c.mgrPace) x.b *= 1 - (c.mgrPace - 1) * 0.6; if (c.pitRequested && !c.inPit) x.call = c.pitPlan?.compound || null; }
+      return x;
     });
     const pitLoss = this.world.pitLoss || 21.4, finishers = [];
     let Tw = Infinity, sc = 0, guard = 0;
     while (S.some((s) => !s.done && !s.out) && guard++ < 400) {
+      if (upTo != null && S.some((s) => !s.out && s.laps >= upTo)) break;   // (as far as asked: the race goes on live from here)
       // the crossing each car is at: the flag falls on the first to complete the distance, everyone after it is done
       for (const s of S) if (!s.done && !s.out && s.laps >= N) Tw = Math.min(Tw, s.at);
       for (const s of S) if (!s.done && !s.out && s.at >= Tw) { s.done = true; finishers.push(s); }
@@ -1091,7 +1102,9 @@ export class RaceDirector {
         const nx = wet > 0.5 ? 'WET' : wet > 0.2 ? 'INTER' : ['SOFT', 'MEDIUM', 'HARD'].find((k) => cliffLaps(k, rl) >= left - 0.3) || 'HARD';
         const nLife = new TS(nx, rl, L).lifeMeters / L, nPer = (RATE_NOM * 1.05 / nLife) * (c.wearMul || 1);
         let stay = 0, fresh = pitLoss + outLapLoss(nx, s.b); for (let j = 1; j <= left; j++) { stay += lapLoss(s.comp, s.w + j * perLap, rl); fresh += lapLoss(nx, (j - 0.5) * nPer, rl); }
-        if (left >= 1 && fresh < stay) {   // (the tyres are done: a stop for a fresh set)
+        if (s.call !== undefined) {   // (the stop the pit wall called: made now, onto the set it chose)
+          const k = s.call || nx; s.call = undefined; s.comp = k; s.life = new TS(k, rl, L).lifeMeters / L; s.w = 0; s.stops++; s.cold = true; lt += pitLoss * (0.85 + 0.15 * (c.pitMul || 1));
+        } else if (left >= 1 && fresh < stay && this.stopNow(s, left, perLap, rl, nx, nPer)) {   // (the tyres are done: a stop for a fresh set)
           s.comp = nx; s.life = nLife; s.w = 0; s.stops++; s.cold = true; lt += pitLoss * (0.85 + 0.15 * (c.pitMul || 1));
         }
         s.lt = lt; s.raw = s.at + lt + (sc ? 26 : 0);
@@ -1112,6 +1125,7 @@ export class RaceDirector {
       }
       for (const s of go) { s.times.push(s.at2 - s.at); s.at = s.at2; s.laps++; }
     }
+    if (upTo != null) { this.simPlace(S, t0, model); return true; }
     // ---- the result onto the cars
     // (8 laps or more: the mandatory stop - a car that has not stopped makes it, its time in the pit lane added)
     if (this.lapsTotal >= 8) for (const s of finishers) if (!s.stops && !s.c.pitStops) { s.forcedStop = true; s.at += 21 + rnd() * 3; }
@@ -1125,6 +1139,76 @@ export class RaceDirector {
     for (const s of finishers) { const c = s.c; c.lap = s.laps; c.finished = true; c.finishTime = s.at + c.penalties; this.finishOrder.push(c); this.time = Math.max(this.time, s.at); }
     if (finishers.length && !this.leaderFinished) { this.leaderFinished = true; this.leaderFinishTime = finishers[0].at; }
     this.finish();
+  }
+
+  /**
+   * The race model's stop (simulateRest): a stop for a fresh set pays against never stopping - but is it the lap for it?
+   * Only if no later lap would cost less: k more laps on the worn set, then the stop and the new set to the flag. (Stopping
+   * the moment a stop paid at all brought every car in on the second lap of a ten-lap race.)
+   */
+  stopNow(s, left, perLap, rl, nx, nPer) {
+    const base = (this.world.pitLoss || 21.4) + outLapLoss(nx, s.b);
+    const nw = [0]; for (let j = 1; j <= left; j++) nw[j] = nw[j - 1] + lapLoss(nx, (j - 0.5) * nPer, rl);
+    const now = base + nw[left];
+    let old = 0;
+    for (let k = 1; k < left; k++) { old += lapLoss(s.comp, s.w + k * perLap, rl); if (old + base + nw[left - k] < now - 1e-9) return false; }
+    return true;
+  }
+
+  /**
+   * A part of the race simulated (simulateRest with o.laps): every car put back where the model has it - the moment the
+   * leader crosses the line, each other car as far short of its own next crossing as its time behind at its lap's pace,
+   * a car length and a bit apart at least - at the speed the circuit allows there, on the racing line; its laps, its lap
+   * times, its stops and its tyres as the model ran them; a car out in the model taken away to its garage. The pit lane,
+   * the AI's moment-to-moment state (a rejoin, a defence, a mistake), the flashback's buffer and the DRS's detection all
+   * start afresh; the sky moves on by the time that passed.
+   */
+  simPlace(S, t0, model) {
+    const L = this.track.length, tr = this.track;
+    const live = S.filter((s) => !s.out); if (!live.length) { this.finish(); return; }
+    const top = Math.max(...live.map((s) => s.laps)), T = Math.min(...live.filter((s) => s.laps === top).map((s) => s.at));
+    // (progress at T: laps x length, less the time to its next crossing at its own lap's average speed)
+    // (a car that crossed its line before T has run on since - at most most of a lap: the model moves every car a lap a round)
+    for (const s of live) { s.v = L / Math.max(30, s.b); s.prog = s.laps * L - Math.max(-0.97 * L, (s.at - T) * s.v); }
+    live.sort((a, b) => b.prog - a.prog);
+    for (let i = 1; i < live.length; i++) live[i].prog = Math.min(live[i].prog, live[i - 1].prog - 9);
+    // (two cars a lap apart may land on the same metres: side by side, either side of the line)
+    const byS = live.map((s) => ({ s, x: ((s.prog % L) + L) % L })).sort((a, b) => a.x - b.x);
+    for (let i = 1; i < byS.length; i++) if (byS[i].x - byS[i - 1].x < 9) byS[i].s.side = byS[i - 1].s.side ? -byS[i - 1].s.side : 1;
+    for (const s of S) {
+      const c = s.c, ai = this.ai.find((a) => a.car === c);
+      for (const x of s.times) { c.lapTimes.push(x); if (x < c.bestLap && x > model * 0.85) c.bestLap = x; }
+      c.pitStops += s.stops;
+      this.pitStates.delete(c); c.inPit = false; c.pitLane = false; c.pitLaneState = null; c.pitRequested = false; c.pitPlan = null; c.held = false;
+      if (ai) { ai.pitPlan = null; ai.pitReason = null; ai.rj = null; ai.spun = false; ai.defend = null; ai.error = null; ai._wLap = null; ai.coverOf = null; if (ai.planner?.best) { ai.planner.best.n = 0; ai.planner.best.spec = null; } }
+      if (s.stops) { c.fitTyres(s.comp); c.tyres.temp = 0.85; this.onPitDone?.(c); }
+      c.tyres.wear = Math.min(0.99, s.w);
+      if (s.out) { c.retired = true; c.retireReason = s.out; c.lap = s.laps; c.cleared = true; c.parked = true; c.hiddenAway = true; c.x = c.z = -1e5; c.vLong = c.vLat = 0; continue; }
+      const lap = Math.floor(s.prog / L), ld = s.prog - lap * L, at = tr.wrapS(ld);
+      const dl = this.line.offsetAt(at) + (s.side ? s.side * 2.6 : 0);
+      c.placeOnTrack(at, dl, Math.max(20, this.profileAt(at) * 0.92));
+      c.lap = lap; c.lapDist = ld; c.totalDist = lap * L + c.s; c.lapStart = T - ld / s.v; c.currentLapTime = ld / s.v;
+      c.spinning = false; c.stoppedTime = 0; c.ghost = 0; c.drs = false; c.drsAvail = null; c._unlap = false; c._owes = null;
+    }
+    for (const z of this.drs?.zones || []) z.last?.clear?.();
+    if (this.flashback) this.flashback.buf.length = 0;
+    // (the weather's clock: on by the time simulated, its own steps)
+    if (this.weather && T > t0) { for (let k = Math.min(4800, Math.ceil((T - t0) / 0.25)); k > 0; k--) this.weather.update(0.25, null); }
+    this.time = T; this.world.time = T;
+    // (the timing loops - race/Radio.js - as the model had the cars pass them over the last lap: the gaps known at once)
+    const R = this.radio?.loops;
+    if (R) {
+      const seg = L / 20;
+      for (const s of S) {
+        if (s.out) { R.delete(s.c); continue; }
+        const idx = Math.floor(s.prog / seg), t = new Map();
+        for (let k = Math.max(0, idx - 40); k <= idx; k++) t.set(k, T - (s.prog - k * seg) / s.v);
+        R.set(s.c, { idx, t });
+      }
+    }
+    this.rank();
+    // (the overtake count: today's places as they are now, no passes read into the jump)
+    for (const [c, st] of this.passes?.st || []) { const i = this.positions.indexOf(c); st.idx = st.stable = i; st.since = T; st.ahead = new Set(this.positions.slice(0, i)); }
   }
 
   // --------------------------------------------------------------------------

@@ -91,6 +91,7 @@ export class TeamOrders {
     const blk = (ahead._grudge?.car === behind && t < ahead._grudge.until) || (P.block?.car === ahead && P.block.on === behind && t < P.block.until);
     if (close && blk && !pending) P.heldT.set(ahead, (P.heldT.get(ahead) || 0) + st);
     P.stuck = g != null && g > 0 && g < 1.5 ? P.stuck + st : 0;
+    if (a.mgr) return;   // (a team principal's pair - ui/PitWall.js: the orders are theirs, mgrOrder)
     if (P.order || !green || t < P.cool || a.lap < 1 || b.lap < 1 || g == null) return;
     const left = d.lapsTotal - Math.max(a.lap, b.lap); if (left < 1) return;
     // a team-mate who has fallen out with you badly holds you up without being told to
@@ -111,6 +112,26 @@ export class TeamOrders {
     if (!P.held && pri !== behind && left <= Math.max(2, Math.round(d.lapsTotal * 0.3)) && this.posOf(behind) <= 10 && g < 2) {
       P.held = true; if (Math.random() < ((ahead.tier ?? 2) <= 1 ? 0.7 : 0.45)) this.hold(P, ahead, behind);
     }
+  }
+
+  /**
+   * A team principal's order for their pair (ui/PitWall.js): 'swap' - the car ahead lets its team-mate by; 'hold' - the
+   * car behind stays there; 'free' - the order off, race each other. -> the order, or a reason it can't be given
+   */
+  mgrOrder(car, type) {
+    const d = this.d; if (d.mode !== 'race' || d.done) return 'no race';
+    if (!this.pairs) this.setup();
+    const P = this.pairOf(car); if (!P) return 'no team-mate';
+    const { a, b } = P;
+    if (type === 'free') {
+      const o = P.order; if (!o) return 'no order';
+      if (o.Y && o.Y._yieldTo === o.B) o.Y._yieldTo = null; if (o.Bk && o.Bk._holdFor === o.F) o.Bk._holdFor = null;
+      o.state = 'moot'; o.t1 = d.time; P.order = null; P.cool = d.time; return o;
+    }
+    if (a.retired || b.retired || this.away(a) || this.away(b)) return 'a car is not on track';
+    if (P.order) return 'an order is already on';
+    const ahead = d.positions.indexOf(a) < d.positions.indexOf(b) ? a : b, behind = ahead === a ? b : a;
+    return type === 'swap' ? this.swap(P, ahead, behind, 'manager') : this.hold(P, ahead, behind);
   }
 
   /** how likely an AI driver Y does as it is told and gives way to (or stays behind) its team-mate B */
