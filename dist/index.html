@@ -602,7 +602,7 @@ body.tp #hud-msg { top: 30%; }
     <div class="brand-line"></div>
     <h1 id="brand-title">FORMULA 1<span id="brand-sub">SIMULATOR</span></h1>
     <!-- the build's version: +0.01 with every build handed out -->
-    <span id="app-ver" title="Version">V2.40</span>
+    <span id="app-ver" title="Version">V2.41</span>
     <div id="menu-sub">Real circuits built from OpenStreetMap</div>
   </div>
   <div id="loading" class="hidden"><div class="ld"><i></i></div><span>Building the circuit from OpenStreetMap…</span></div>
@@ -180644,23 +180644,26 @@ const AI_CAL = {
     source: "no dry calibration: the physics alone in the dry",
     corners: {},
     wet: {
-      at: 0.35,
-      source: "the driver's wet laps (tools/ai_fit_wet.mjs): 31cde445-telemetry-lasvegas-2026-11-01-20-53.json (wetness 0.35, 8 laps); inters, the AI alone at wetness 0.35: 98.15 s -> 97.15 s (2026-11-02, blend 0.7)",
+      at: 0.31,
+      source: "the driver's wet laps (tools/ai_fit_wet.mjs): 165bf759-telemetry-lasvegas-2026-11-06-22-48.json (wetness 0.31, 3 laps); inters, the AI alone at wetness 0.31: 100.68 s -> 99.70 s (2026-11-07, blend 0.7); the flat-out kinks (10, 11, 13, 17) and Turn 12's braking left at 1 by hand after 22-car damp races",
       corners: {
-        1: { v: 0.892, b: 1.2 },
-        2: { v: 0.892, b: 1.2 },
-        3: { v: 1.004, b: 1 },
-        4: { v: 1.042, b: 1 },
-        5: { v: 1.018, b: 1.2 },
-        6: { v: 1.151, b: 1.151 },
-        7: { v: 1.25, b: 1 },
-        8: { v: 1.25, b: 1 },
-        9: { v: 1.159, b: 1.2 },
-        11: { v: 1.006, b: 1 },
-        12: { v: 1.09, b: 1.2 },
-        14: { v: 1.25, b: 1 },
-        15: { v: 1.003, b: 1 },
-        17: { v: 1.068, b: 1 },
+        1: { v: 0.895, b: 1.2 },
+        2: { v: 0.895, b: 1 },
+        3: { v: 1.188, b: 1 },
+        4: { v: 1.014, b: 1 },
+        5: { v: 0.928, b: 1.049 },
+        6: { v: 0.961, b: 1 },
+        7: { v: 1.172, b: 1.135 },
+        8: { v: 1.173, b: 1 },
+        9: { v: 1.007, b: 1 },
+        10: { v: 1, b: 1 },   // (the flat-out kinks - 10, 11, 13, 17 - left to the physics: the laps were lifted through them where the AI is flat, and either way a change there crashed 22-car damp races, as Turns 10-11 did before V2.37)
+        11: { v: 1, b: 1 },
+        12: { v: 1.051, b: 1 },   // (the telemetry's braking point here - 35 m from 250 km/h - is light braking under the 0.3 the fit reads, not a stop)
+        13: { v: 1, b: 1 },
+        14: { v: 0.877, b: 1.2 },
+        15: { v: 0.877, b: 1 },
+        16: { v: 1.143, b: 1 },
+        17: { v: 1, b: 1 },
       },
     },
   },

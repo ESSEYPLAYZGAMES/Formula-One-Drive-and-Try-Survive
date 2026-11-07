@@ -1,3 +1,15 @@
+# V2.41 (2026-11-07): Las Vegas's damp AI from the new telemetry
+
+- The driver's damp laps (2026-11-06 export: wetness 0.31, three laps, the flashbacks' rewound attempts left out by
+  tools/ai_fit_wet.mjs) fitted into Las Vegas's wet calibration, replacing the 2026-11-01 one (fitted on the lap before
+  the V2.24 / V2.37 de-kinking). Kept as fitted at the braking corners (T1-T9, T12's speed, T14-T16).
+- Held back by hand, from 22-car damp races (tools/race_probe.mjs, now WEATHER=damp): the flat-out kinks T10, T11, T13
+  and T17 at 1 - the laps lifted there where the AI is flat, the fit's driven rounds then pushed them to 1.19-1.25, and
+  both that (T11 too quick: into the wall on its exit) and the laps' own numbers (T10 slower: the field lifting
+  mid-kink, the V2.37 pile-ups) crashed the field there; T12's later braking at 1 (the export's braking point there -
+  35 m from 250 km/h - is braking under the 0.3 the fit reads).
+- Four damp 5-lap races each, old -> new: retirements 0 -> 1, barrier hits 1 -> 3, spins 41 -> 26, contacts 154 -> 122.
+
 # V2.40 (2026-11-06): Team Principal - both cars from the pit wall, the race on the world feed; the circuit built ahead in the menus
 
 A fourth mode on the home (04 TEAM PRINCIPAL): you pick a team, not a driver, and run its two cars. Qualifying with the
