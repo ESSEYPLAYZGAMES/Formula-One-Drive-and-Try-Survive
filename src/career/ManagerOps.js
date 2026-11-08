@@ -214,11 +214,11 @@ function sign(c, o, terms, paid) {
 }
 /** a race's sponsor money: the fees, the race target's bonus (the title sponsor's and the partners') -> { fees, bonus, met: [brand] } */
 export function sponsorRace(c, mine) {
-  const P = mine.filter((m) => !m.dnf).map((m) => m.pos), best = P.length ? Math.min(...P) : 99, exp = c.expectedPos?.() ?? 10;
+  const P = mine.filter((m) => !m.dnf).map((m) => m.pos), best = P.length ? Math.min(...P) : 99, exp = c.expectedPos?.() ?? 10, expB = c.expectedPos?.(true) ?? exp;
   let fees = 0, bonus = 0; const met = [];
   for (const s of Object.values(c.sponsors || {})) {
     if (!s) continue; fees += s.base;
-    const target = s.kind === 'best' ? Math.max(1, Math.round(exp - 1)) : Math.min(10, Math.round(exp + 2));
+    const target = s.kind === 'best' ? Math.max(1, Math.round(expB)) : Math.min(10, Math.round(exp + 2));   // (a car: as high as the better car should finish; both: a little behind where they should)
     const ok = s.kind === 'best' ? best <= target : P.length === 2 && P.every((p) => p <= target);
     s.lastTarget = s.kind === 'best' ? `a car in the top ${target}` : `both cars in the top ${target}`;
     if (ok) { bonus += s.bonus; met.push(s.brand); }
@@ -227,9 +227,9 @@ export function sponsorRace(c, mine) {
 }
 /** each sponsor's target for the coming weekend -> [{ brand, slot, text, bonus }] */
 export function sponsorTargets(c) {
-  const exp = c.expectedPos?.() ?? 10;
+  const exp = c.expectedPos?.() ?? 10, expB = c.expectedPos?.(true) ?? exp;
   return Object.values(c.sponsors || {}).filter(Boolean).map((s) => ({ brand: s.brand, slot: s.slot, bonus: s.bonus,
-    text: s.kind === 'best' ? `a car in the top ${Math.max(1, Math.round(exp - 1))}` : `both cars in the top ${Math.min(10, Math.round(exp + 2))}` }));
+    text: s.kind === 'best' ? `a car in the top ${Math.max(1, Math.round(expB))}` : `both cars in the top ${Math.min(10, Math.round(exp + 2))}` }));
 }
 /** the season's end: the season targets (constructors' place within two of the board's), contracts run out, new offers */
 export function sponsorsSeasonEnd(c, pos) {

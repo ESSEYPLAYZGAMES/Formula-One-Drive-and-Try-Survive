@@ -193,7 +193,7 @@ export class ManagerCareer {
     return rows.map((x, i) => ({ pos: i + 1, car: { careerId: x.e.careerId, team: x.e.team, name: x.e.name, retired: x.dnf, retireReason: x.dnf ? (Math.random() < 0.5 ? 'Accident' : 'Mechanical') : null, bestLap: x.dnf ? Infinity : 90 - x.score * 0.05 } }));
   }
   /** where your cars should finish on average, by the car and the drivers against the field */
-  expectedPos() { return expectedPos(this, this.myTeam); }
+  expectedPos(best = false) { return expectedPos(this, this.myTeam, best); }
   /** the title sponsor's target for the coming weekend, by what the car can do */
   newObjective() {
     const pos = expectedPos(this, this.myTeam), t = this.team.tier;
@@ -305,10 +305,10 @@ function forecastFor(track) {
   return { weather: r < 0.6 ? 'dry' : r < 0.75 ? 'changeable' : r < 0.9 ? 'damp' : 'wet', time: night ? 'night' : 'day' };
 }
 /** where a team's cars should finish, from the car and the drivers against the field */
-function expectedPos(c, team) {
+function expectedPos(c, team, best = false) {
   const E = c.entries().map((e) => ({ e, s: (e.perf - 1) * PERF_GAIN * 100 + (e.rating - 0.9) * 33 })).sort((a, b) => b.s - a.s);
   const P = E.map((x, i) => (x.e.team === team ? i + 1 : null)).filter(Boolean);
-  return P.length ? P.reduce((a, b) => a + b, 0) / P.length : 11;
+  return P.length ? (best ? Math.min(...P) : P.reduce((a, b) => a + b, 0) / P.length) : 11;
 }
 function expectedPoints(c, team) {
   const E = c.entries().map((e) => ({ e, s: (e.perf - 1) * PERF_GAIN * 100 + (e.rating - 0.9) * 33 })).sort((a, b) => b.s - a.s);

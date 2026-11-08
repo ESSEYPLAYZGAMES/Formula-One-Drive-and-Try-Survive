@@ -1,3 +1,40 @@
+# V2.44 (2026-11-08): the team principal's depth - driving instructions and fuel, parts, facilities, sponsors, set-up
+
+Modelled on F1 Manager (its guides: the tyre / fuel / ERS instructions and no refuelling; the set-up's five feedback
+areas and a window that narrows run by run, faster with a better simulator; facilities behind development and sponsor
+appeal; sponsor targets that pay).
+- Driving instructions (ui/PitWall.js MODES, main.js tpModes / tpFuel), per car, in place of PUSH / STD / SAVE:
+  - TYRES aggressive / standard / light / conserve (cornering x1.008 .. x0.989, wear x1.3 .. x0.68);
+  - FUEL push / standard / save / lift & coast (engine power x1.012 .. x0.972, consumption x1.08 .. x0.85, failure
+    risk); a fuel load - the race at the standard mixture + 0.3 lap, FUEL LOAD -/+ half a lap before the lights - burnt
+    by the distance run (0.35 kg a km, 60 % under the safety car); its weight against the standard plan's at that point
+    as engine power (768 kg of car: the AI's carry no modelled fuel); FUEL n kg +/- laps on the card; run dry: no
+    drive, retired 'Out of fuel'; the engineer warns when short;
+  - ERS harvest / balanced / deploy / overtake (AIDriver: when the battery is spent).
+  Every hook (Car.enginePower x mgrPower, AIDriver mgrErs) is neutral for every car that is not a team principal's.
+- Car parts (career/ManagerOps.js, HQ tab PARTS): each driver's power unit - ICE, turbo, MGU-K, energy store, gearbox -
+  with a season's allocation (the rules' ratio: 2 a season of 8 rounds), worn every weekend (a push mixture the ICE
+  more); worn: fails more, a worn ICE loses power; FIT NEW, and beyond the allocation a grid penalty - 10 places, 5
+  for every further element - applied to the grid after qualifying (the AI teams fit new units at 85 % and take theirs
+  too); a new season, new units. Spares - front wing, rear wing, floor, suspension - used up by damage and crashes,
+  BUILD in the factory (under the cost cap, ready next round, a few a round by the factory's level); none in stock: the
+  car races the damaged part, a little slower, until one is made.
+- Facilities (HQ tab FACILITIES): factory (spares a round, their price), hospitality (sponsors' pay and offers),
+  driver-in-the-loop simulator (practice feedback), pit crew training centre (stops) - levels 1-5, UPGRADE (rounds to
+  build, capital spending outside the cap, 80 % while building), condition that wears every round (the effect from half
+  to full), MAINTAIN.
+- Sponsors (HQ tab SPONSORS): a title sponsor and two partners - a fee a race, a signing bonus, a race target bonus
+  (shown on the overview before the race), a season bonus, seasons. A new team starts with a title sponsor and a
+  partner; offers come by marketability (place, drivers, hospitality); NEGOTIATE the fee, the bonus and the seasons -
+  their answer from very likely to very unlikely - PROPOSE; twice turned down and they walk away.
+- Set-up (ui/Setup.js; PRACTICE · CAR SET-UP on the qualifying panel): five controls (front wing, rear wing,
+  anti-roll balance, camber, toe-out), five aspects (oversteer, braking stability, cornering, traction, straights) each
+  a mix of the controls; every circuit its own ideal per car and a driver's preference; six practice runs a car, each
+  the driver's feedback with a window that narrows (the simulator's level); the satisfaction is pace (+-0.2-0.4 %) and
+  tyre wear (+-15-20 %) in qualifying and the race; a career keeps the set-up run at each circuit for the next visit,
+  the ideal moving with each season's car.
+- Balance (three-season model runs): sponsors $2-3M a race; no runaway budgets; allocation enough when managed.
+
 # V2.43 (2026-11-07): the team principal's race strategy, both cars
 
 - After qualifying, the strategy screen (ui/Strategy.js) once for each of your cars (main.js tpStrategy): the plans

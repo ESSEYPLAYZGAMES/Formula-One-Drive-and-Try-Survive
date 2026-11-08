@@ -19,7 +19,7 @@ const CSS = `
 #mgr button:disabled { opacity: .45; cursor: default; }
 #mgr button.m-go { background: #e10600; border-color: #e10600; color: #fff; }
 #mgr button.m-dark { background: #151a22; border-color: #151a22; color: #fff; }
-#mgr .m-mh { display: flex; align-items: center; gap: 16px; padding: 12px 20px; background: #fff; border-bottom: 1px solid rgba(21,26,34,.08); position: relative; }
+#mgr .m-mh { display: flex; flex-wrap: wrap; row-gap: 8px; align-items: center; gap: 16px; padding: 12px 20px; background: #fff; border-bottom: 1px solid rgba(21,26,34,.08); position: relative; }
 #mgr .m-mh::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 6px; background: var(--tc, #888); }
 #mgr .m-mh .m-tn { display: flex; flex-direction: column; min-width: 0; }
 #mgr .m-mh .m-tn small { font-size: 10px; font-weight: 700; letter-spacing: .18em; color: #6b7480; text-transform: uppercase; }
@@ -33,10 +33,10 @@ const CSS = `
 #mgr .m-mn button { border: 0; border-radius: 0; background: none; padding: 11px 9px; font-size: 10.5px; letter-spacing: .1em; color: #6b7480; border-bottom: 3px solid transparent; }
 #mgr .m-mn button.m-on { color: #151a22; border-bottom-color: var(--tc, #e10600); }
 #mgr .m-mn .m-sp { flex: 1; }
-#mgr .m-mn .m-ctas { display: flex; gap: 6px; align-items: center; padding: 5px 0; }
-#mgr .m-mn .m-ctas button { border: 1px solid rgba(21,26,34,.14); border-radius: 9px; background: #fff; color: #151a22; padding: 7px 12px; font-size: 11px; letter-spacing: .08em; }
-#mgr .m-mn .m-ctas button.m-go { background: #e10600; border-color: #e10600; color: #fff; }
-#mgr .m-mn .m-ctas button.m-dark { background: #151a22; border-color: #151a22; color: #fff; }
+#mgr .m-ctas { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+#mgr .m-ctas button { border: 1px solid rgba(21,26,34,.14); border-radius: 9px; background: #fff; color: #151a22; padding: 7px 12px; font-size: 11px; letter-spacing: .08em; }
+#mgr .m-ctas button.m-go { background: #e10600; border-color: #e10600; color: #fff; }
+#mgr .m-ctas button.m-dark { background: #151a22; border-color: #151a22; color: #fff; }
 #mgr .m-mb { flex: 1; overflow-y: auto; padding: 18px 20px 30px; }
 #mgr .m-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; align-items: start; }
 #mgr .m-card { background: #fff; border-radius: 14px; padding: 14px 16px; box-shadow: 0 2px 12px rgba(25,35,60,.05); border: 1px solid rgba(21,26,34,.06); }
@@ -94,8 +94,8 @@ function render() {
     : `<button class="m-dark" data-a="sim"${ready ? '' : ' disabled'} title="The weekend's result at once">SIMULATE</button><button class="m-go" data-a="race"${ready ? '' : ' disabled title="Both seats need a driver"'}>RACE · ${esc(trk.toUpperCase())} →</button>`;
   el.innerHTML = `<div class="m-mh"><div class="m-tn"><small>Team principal · Season ${c.season}${c.seasonDone ? ' · over' : ` · Round ${c.round} of ${c.rounds}`}</small><b>${esc(t.name)}</b></div>
     <div class="m-kp"><div class="m-k"><small>Budget</small><b class="${t.budget < 5 ? 'm-bad' : ''}">${money(t.budget)}</b></div><div class="m-k"><small>Cost cap left</small><b>${money(c.capLeft())}</b></div>
-    <div class="m-k"><small>Constructors</small><b>P${pos}<span style="font-size:11px;color:#8a93a0"> · target P${c.board.target}</span></b></div><div class="m-k"><small>Board</small><b class="${conf < 30 ? 'm-bad' : conf >= 65 ? 'm-ok' : ''}">${conf}%</b></div></div></div>
-    <div class="m-mn">${[['home', 'OVERVIEW'], ['stand', 'STANDINGS'], ['fac', 'FACTORY'], ['drv', 'DRIVERS'], ['parts', 'PARTS'], ['facil', 'FACILITIES'], ['spons', 'SPONSORS'], ['staff', 'STAFF'], ['fin', 'FINANCES'], ['cal', 'CALENDAR']].map(([k, n]) => `<button data-tab="${k}" class="${H.tab === k ? 'm-on' : ''}">${n}</button>`).join('')}<span class="m-sp"></span><span class="m-ctas">${ctas}<button data-a="exit">MENU</button></span></div>
+    <div class="m-k"><small>Constructors</small><b>P${pos}<span style="font-size:11px;color:#8a93a0"> · target P${c.board.target}</span></b></div><div class="m-k"><small>Board</small><b class="${conf < 30 ? 'm-bad' : conf >= 65 ? 'm-ok' : ''}">${conf}%</b></div></div><span class="m-ctas">${ctas}<button data-a="exit">MENU</button></span></div>
+    <div class="m-mn">${[['home', 'OVERVIEW'], ['stand', 'STANDINGS'], ['fac', 'FACTORY'], ['drv', 'DRIVERS'], ['parts', 'PARTS'], ['facil', 'FACILITIES'], ['spons', 'SPONSORS'], ['staff', 'STAFF'], ['fin', 'FINANCES'], ['cal', 'CALENDAR']].map(([k, n]) => `<button data-tab="${k}" class="${H.tab === k ? 'm-on' : ''}">${n}</button>`).join('')}</div>
     <div class="m-mb">${H.msg ? `<div class="m-msg ${H.ok ? '' : 'm-no'}">${esc(H.msg)}</div>` : ''}${body(c)}</div>`;
 }
 function body(c) {

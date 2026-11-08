@@ -55,7 +55,8 @@ import { TVDirector, TV_CAMS, TV_CAM_NAME } from './camera/TVDirector.js';
 import { TVGraphics } from './ui/TVGraphics.js';
 import { PitWall, MODES } from './ui/PitWall.js';
 import { ManagerCareer } from './career/Manager.js';
-import { takePenalties } from './career/ManagerOps.js';
+import { takePenalties, facFx } from './career/ManagerOps.js';
+import { showSetup, setupEffect, idealOf, satisfaction } from './ui/Setup.js';
 import { openManagerHub, closeManagerHub, managerHubOpen } from './ui/ManagerHub.js';
 import { AudioEngine } from './audio/Audio.js';
 import { ROSTER, customDriver, POINTS, standIn, dayPerf } from './race/Roster.js';
@@ -1134,7 +1135,7 @@ function helmetURL(d, { blood = false, colour = false } = {}) {
   const url = cv.toDataURL('image/jpeg', 0.92); HELMETS.set(key, url); return url;
 }
 $('btn-quali-go').addEventListener('click', () => { $('quali-panel').classList.add('hidden'); if (S.weekend?.mode === 'tp') tpQuali(true); else runQuali(); });
-$('btn-practice').addEventListener('click', () => { $('quali-panel').classList.add('hidden'); runPractice(); });
+$('btn-practice').addEventListener('click', () => { $('quali-panel').classList.add('hidden'); if (S.weekend?.mode === 'tp') { tpSetup(); return; } runPractice(); });   // (the team principal: practice is the set-up - tpSetup)
 $('btn-quali-sim').addEventListener('click', () => { $('quali-panel').classList.add('hidden'); if (S.weekend?.mode === 'tp') { tpQuali(false); return; } runQuali(); simToEnd(); });   // (the whole session simulated, your lap too)
 $('btn-end').addEventListener('click', () => { setPaused(false); endSessionEarly(); });
 $('btn-quali-done').addEventListener('click', () => { $('quali-panel').classList.add('hidden'); runRace(); });
@@ -1703,7 +1704,7 @@ setTimeout(refreshMemoriam, 0);
 function buildField(lapsTotal) {
   const cars = []; const assists = settings.assist === 'full' ? { tc: true, abs: true } : settings.assist === 'abs' ? { tc: false, abs: true } : { tc: false, abs: false };
   if (S.weekend?.career) return careerField(S.weekend.career, lapsTotal, assists);
-  if (S.weekend?.mgr) return mgrField(S.weekend.mgr, lapsTotal, assists);
+  if (S.weekend?.mgr) return tpApplySetup(mgrField(S.weekend.mgr, lapsTotal, assists));
   const isCustom = settings.driver === 'custom';
   const entries = ROSTER.map((r) => ({ ...r }));
   if (isCustom) entries.push(customDriver(settings.custom));
@@ -1732,7 +1733,7 @@ function buildField(lapsTotal) {
     car.form = isPlayer ? neutralForm() : formOf(moodOf({ morale: moodFor(e.name), moodOff: { focus: 0, racecraft: 0, confidence: 0, composure: 0 } }));
     car.licencePts = isPlayer && !e.outWhy ? pts : 0; car.baseWear = 1;
   });
-  return cars;
+  return settings.mode === 'tp' ? tpApplySetup(cars) : cars;   // (the team principal's set-up on their cars: tpApplySetup)
 }
 
 function spawnMeshes(cars) {
@@ -1929,13 +1930,13 @@ function startRound() {
     $('quali-panel').classList.remove('hidden');
   } else if (wk.mode === 'tp') {
     // (the team principal's weekend: qualifying with the whole field, watched on the feed or simulated - tpQuali)
-    $('btn-practice').classList.add('hidden'); $('btn-quali-sim').classList.remove('hidden'); $('btn-quali-go').classList.remove('hidden'); $('btn-quali-done').classList.add('hidden');
+    $('btn-practice').classList.remove('hidden'); $('btn-practice').textContent = 'PRACTICE · CAR SET-UP'; $('btn-quali-sim').classList.remove('hidden'); $('btn-quali-go').classList.remove('hidden'); $('btn-quali-done').classList.add('hidden');
     $('btn-quali-go').firstChild.textContent = 'WATCH QUALIFYING'; $('btn-quali-sim').textContent = 'SIMULATE QUALIFYING';
-    $('quali-info').textContent = `${W.track.def.name} · ${WX_LABEL[settings.weather] || 'Dry'}, ${settings.time === 'night' ? 'night' : 'day'}. You run ${settings.tpTeam}: qualifying first - two timed laps each, the best counts. Watch it on the feed, or simulate it.`;
+    $('quali-info').textContent = `${W.track.def.name} · ${WX_LABEL[settings.weather] || 'Dry'}, ${settings.time === 'night' ? 'night' : 'day'}. You run ${settings.tpTeam}: practice first - set the cars up - then qualifying, two timed laps each, the best counts. Watch it on the feed, or simulate it.${tpSetupLine()}`;
     $('quali-results').innerHTML = ''; $('quali-panel').classList.remove('hidden');
   } else if (settings.grid === 'quali' && wk.player) {
     $('btn-quali-go').firstChild.textContent = 'QUALIFY';   // (the team principal's weekend names it WATCH)
-    $('btn-practice').classList.remove('hidden'); $('btn-quali-sim').classList.remove('hidden');
+    $('btn-practice').classList.remove('hidden'); $('btn-practice').textContent = 'FREE PRACTICE'; $('btn-quali-sim').classList.remove('hidden');
     const cond = `${WX_LABEL[settings.weather] || 'Dry'}${wk.career ? ' forecast' : ''}, ${settings.time === 'night' ? 'night' : 'day'}`;
     $('quali-info').textContent = `Round ${wk.round}/${wk.rounds} · ${W.track.def.name} · ${cond}. Qualifying: the whole field is out with you on flying laps, two timed laps each, the best counts. You start on a straight. When your laps are done, watch the rest (Tab: next car, Enter: ×6) or press F to simulate it. Expected pace: ${fmtTime(estimatePace())}`;
     if (wk.career?.objectives?.length) $('quali-info').textContent += ` · Sponsor targets this weekend: ${wk.career.objectives.map((ob) => `${ob.text} ($${ob.reward}M)`).join('; ')}.`;
@@ -2564,6 +2565,51 @@ function tpPlanCalls(d) {
       TP.wall.radio('Strategy', `${who}: box this lap, ${st.name}. ${nm.charAt(0).toUpperCase() + nm.slice(1)}s.`);
     }
   }
+}
+/**
+ * The team principal's set-up (ui/Setup.js): each car's five controls this weekend, as last left on the set-up screen
+ * - or, before any, as last run at this circuit (a career's set-up book), else the middle of every range. Its
+ * satisfaction against the circuit's ideal for that car is pace and tyre wear on it in qualifying and the race.
+ */
+function tpSetupOf(car) {
+  const wk = S.weekend, mine = wk?.tpSetup?.[car.name]; if (mine) return mine;
+  const book = wk?.mgr?.setupBook?.[W.def?.id]?.[car.careerId];
+  return { x: book ? book.slice() : [0.5, 0.5, 0.5, 0.5, 0.5], runs: 0 };
+}
+function tpIdeal(car) { return idealOf(W.def?.id || '', car.team, car.name, S.weekend?.mgr?.season ?? 2026); }
+/** the set-up on the team principal's cars (a field just built) -> the cars */
+function tpApplySetup(cars) {
+  for (const c of cars) {
+    if (c.team !== settings.tpTeam) continue;
+    const st = tpSetupOf(c), sat = satisfaction(st.x, tpIdeal(c)), e = setupEffect(sat);
+    c.perf *= e.perf; c.baseWear = (c.baseWear || 1) * e.wear; c.wearMul = (c.wearMul || 1) * e.wear; if (c.tyres) c.tyres.wearMul = c.wearMul; c.setupSat = sat;
+  }
+  return cars;
+}
+/** the set-up as the panel says it ('' before any) */
+function tpSetupLine() {
+  const wk = S.weekend, mine = tpCars(wk?.cars || []); if (!mine.length) return '';
+  const known = mine.filter((c) => wk.tpSetup?.[c.name]?.runs);
+  return known.length ? ` Set-up: ${known.map((c) => `${surname(c.name)} ${Math.round((wk.tpSetup[c.name].shown ?? 0) * 100)}%`).join(', ')}.` : wk?.mgr?.setupBook?.[W.def?.id] ? ' Set-up: last season\'s here, not yet tried.' : '';
+}
+/** PRACTICE: the set-up screen for both cars; the field rebuilt for qualifying on the new set-up */
+function tpSetup() {
+  const wk = S.weekend, mine = tpCars(wk.cars);
+  showSetup({ trackName: W.track.def.name, track: W.def.id, season: wk.mgr?.season ?? 2026, k: wk.mgr ? facFx(wk.mgr, 'dil').setupK : 1,
+    note: wk.mgr ? 'What you run here is kept for the next visit.' : '',
+    cars: mine.map((c) => { const st = tpSetupOf(c); return { name: c.name, color: c.color, team: c.team, x: st.x, runs: st.runs }; }),
+    onDone: (res) => {
+      wk.tpSetup = wk.tpSetup || {};
+      for (const r of res) {
+        const car = mine.find((c) => c.name === r.name), fb = r.runs ? r.sat : null;
+        wk.tpSetup[r.name] = { x: r.x, runs: r.runs, shown: fb };
+        if (wk.mgr && car?.careerId) { const B = wk.mgr.setupBook || (wk.mgr.setupBook = {}); (B[W.def.id] || (B[W.def.id] = {}))[car.careerId] = r.x.slice(); }
+      }
+      if (wk.mgr) wk.mgr.save();
+      wk.cars = buildField(wk.lapsTotal); wk.player = null;   // (qualifying on the new set-up)
+      $('quali-info').textContent = `${W.track.def.name}: the cars are set up.${tpSetupLine()} Qualifying next - watch it on the feed, or simulate it.`;
+      $('btn-practice').textContent = 'PRACTICE · CAR SET-UP'; $('quali-panel').classList.remove('hidden');
+    } });
 }
 /** qualifying in the team principal's weekend: watched on the feed, or simulated */
 function tpQuali(watch) {
