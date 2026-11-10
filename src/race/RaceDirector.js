@@ -907,6 +907,7 @@ export class RaceDirector {
    * cross-threaded nut costs 2.5-6 s more; a front wing change adds 6 s, a bigger repair 10 s.
    */
   stopTime(c, plan) {
+    if (c.crewStop) return c.crewStop(c, plan);   // (a team principal's pit crew: career/ManagerCrew.js, main.js mgrStop)
     c._slowStop = Math.random() < 0.035;
     const rep = plan.repair === 'wing' ? 6.0 : plan.repair === 'full' ? 10.0 : 0;
     return (2.0 + Math.random() * Math.random() * 0.6) * (c.pitMul || 1) + rep + (c._slowStop ? 2.5 + Math.random() * 3.5 : 0);   // (pitMul: the team's crew, career/Career.js)

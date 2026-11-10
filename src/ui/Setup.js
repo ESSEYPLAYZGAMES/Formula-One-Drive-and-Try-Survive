@@ -109,7 +109,7 @@ export function showSetup(o) {
       <div class="cols">${S.map(colHTML).join('')}</div><div class="ft"><button class="go" data-a="done">DONE · TO QUALIFYING ▸</button></div></div>`;
   };
   // (the satisfaction shown: the engineers' read of the last run - it is only known after a run)
-  const run = (s) => { if (s.runs >= RUNS) return; s.runs++; s.fb = feedback(s.x, s.ideal, s.runs, k); const e = s.fb.reduce((a, f) => a + Math.abs(f.est), 0); s.shown = Math.max(0, Math.min(1, 1 - e * 0.85)); };
+  const run = (s) => { if (s.runs >= RUNS) return; s.runs++; s.fb = feedback(s.x, s.ideal, s.runs, k * (s.k || 1)); const e = s.fb.reduce((a, f) => a + Math.abs(f.est), 0); s.shown = Math.max(0, Math.min(1, 1 - e * 0.85)); };
   draw();
   el.addEventListener('input', (e) => {
     const r = e.target.closest('input[type=range]'); if (!r) return;

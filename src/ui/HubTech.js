@@ -386,7 +386,7 @@ function reqHTML(c, u, st, nx) {
   // (a team principal - career/Manager.js: the factory is theirs - BUILD, under the cost cap)
   if (c?.manager) {
     if (!nx || st === 'max' || st === 'dev') return '';
-    const team = teamOf(c), cost = levelCost(c, team.name, u.id, nx), why = st === 'open' ? c.capCheck?.(cost) : null, ok = st === 'open' && !why;
+    const team = teamOf(c), cost = levelCost(c, team.name, u.id, nx), why = st === 'open' ? (c.buildCheck ? c.buildCheck(u.id, nx, cost) : c.capCheck?.(cost)) : null, ok = st === 'open' && !why;
     const tip = st === 'open' ? (why || `Start level ${nx}: ${money(cost)} now, on the car in ${levelRounds(c, team.name, u.id, nx)} race(s).`) : st === 'locked' ? `Needs ${needTxt(missingReq(team, u.id, nx))} first.` : st === 'busy' ? 'Every development slot is in use.' : `Not enough money: ${money(cost)} needed.`;
     return `<button class="${ok ? 'go ' : ''}tt-rqb" data-tdev="${u.id}"${ok ? '' : ' disabled'} title="${esc(tip)}">BUILD LEVEL ${nx} · ${money(cost)}</button>`;
   }
@@ -497,8 +497,8 @@ export function techClick(c, ds, S = {}) {
   if (ds.tdev != null) {
     const u = UP[ds.tdev]; if (!u) return { tab: 'dev', S: base };
     const st = upgradeState(c, team.name, u.id), lv = nextLevel(team, u.id), cost = lv ? levelCost(c, team.name, u.id, lv) : 0, n = lv ? levelRounds(c, team.name, u.id, lv) : 0;
-    const cap = st === 'open' ? c.capCheck?.(cost) : null; if (cap) return { tab: 'dev', S: { ...base, branch: u.branch, up: u.id, tmsg: cap, tok: false } };   // (a team principal's cost cap)
-    const ok = develop(c, team.name, u.id); if (ok) c.save?.();
+    const cap = st === 'open' ? (c.buildCheck ? c.buildCheck(u.id, lv, cost) : c.capCheck?.(cost)) : null; if (cap) return { tab: 'dev', S: { ...base, branch: u.branch, up: u.id, tmsg: cap, tok: false } };   // (a team principal's cost cap)
+    const ok = develop(c, team.name, u.id); if (ok) { c.onBuilt?.(u.id, lv); c.save?.(); }
     const tmsg = ok ? `Work starts on ${upgradeName(u.id, lv)}: ${money(cost)}, on the car ${when(c, n)}.` : whyNot(c, team, u, st, lv, cost);
     return { tab: 'dev', S: { ...base, branch: u.branch, up: u.id, tlv: null, tmsg, tok: ok } };
   }

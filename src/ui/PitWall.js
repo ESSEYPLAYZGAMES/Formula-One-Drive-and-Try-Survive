@@ -13,6 +13,7 @@
 //   'follow' (car), 'order' (type)
 import { COMPOUNDS, cliffLaps, CLIFF } from '../vehicle/Tyres.js';
 import { TV_CAM_NAME } from '../camera/TVDirector.js';
+import { ORDERS } from '../race/TeamTactics.js';
 
 const CSS = `
 #pw { --tvf: "Segoe UI Variable", "Segoe UI", Inter, system-ui, Roboto, sans-serif; position: fixed; left: 0; right: 0; bottom: 0; z-index: 23; display: grid; grid-template-columns: minmax(0,1fr) minmax(250px, 330px) minmax(0,1fr); gap: 6px; padding: 6px 8px 7px; background: linear-gradient(to top, rgba(8,10,14,.94), rgba(8,10,14,.8)); font-family: "Segoe UI Variable", "Segoe UI", Inter, system-ui, Roboto, sans-serif; color: #eef1f5; border-top: 1px solid rgba(255,255,255,.08); font-size: 11px; }
@@ -43,6 +44,9 @@ const CSS = `
 #pw .grp > span { font: 700 8.5px/1 var(--tvf); letter-spacing: .14em; color: #8b95a3; margin-right: 3px; }
 #pw .cmp button { width: 20px; padding: 2px 0; text-align: center; border-color: var(--tc); }
 #pw .cmp button.on { background: var(--tc); color: #111; }
+#pw .pgs { display: inline-flex; gap: 2px; margin-left: 6px; flex: none; } #pw .pgs button { padding: 1px 6px; font-size: 9px; }
+#pw .car[data-pg="drive"] .pg-race, #pw .car[data-pg="drive"] .pg-car, #pw .car[data-pg="race"] .pg-drive, #pw .car[data-pg="race"] .pg-car, #pw .car[data-pg="car"] .pg-drive, #pw .car[data-pg="car"] .pg-race { display: none; }
+#pw .alert { display: none; align-items: center; gap: 6px; background: rgba(255,176,0,.16); border: 1px solid rgba(255,176,0,.5); border-radius: 5px; padding: 2px 6px; font-size: 10.5px; } #pw .alert.on { display: flex; } #pw .alert span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #pw .note { font-size: 10px; color: #9aa4b2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #pw .mid { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 #pw .mid .row { display: flex; gap: 2px; flex-wrap: wrap; align-items: center; margin: 0; }   /* (not the menus' .row) */
@@ -103,11 +107,16 @@ export class PitWall {
   /** a race: your two cars (built anew) */
   open(cars) {
     this.cars = cars; this.keys.clear(); this.radioLines = [];
-    const card = (c, k) => `<div class="car" data-k="${k}" style="--c:${esc(c.color)}">
-      <div class="hd"><span class="ps">P-</span><span class="nm">${esc(c.name)}</span><span class="gp"></span><button class="fw" data-a="follow" data-k="${k}" title="Watch this car">◉</button></div>
+    const ordRow = (pg) => Object.entries(ORDERS).filter(([, O]) => O.page === pg).map(([g, O]) => `<span class="grp" data-g="o-${g}"><span>${O.name}</span>${Object.entries(O.opts).map(([m, p]) => `<button data-a="ord" data-g="${g}" data-k="${k0}" data-v="${m}" title="${esc(p.title)}">${p.short}</button>`).join('')}</span>`).join('');
+    let k0 = 0;
+    const card = (c, k) => { k0 = k; return `<div class="car" data-k="${k}" data-pg="drive" style="--c:${esc(c.color)}">
+      <div class="hd"><span class="ps">P-</span><span class="nm">${esc(c.name)}</span><span class="pgs"><button data-a="pg" data-k="${k}" data-v="drive" title="Tyres, fuel, ERS, the stops">DRIVE</button><button data-a="pg" data-k="${k}" data-v="race" title="How the car is raced">RACECRAFT</button><button data-a="pg" data-k="${k}" data-v="car" title="Brake bias, differential, cooling">CAR</button></span><span class="gp"></span><button class="fw" data-a="follow" data-k="${k}" title="Watch this car">◉</button></div>
       <div class="body">
       <div class="st"><span class="tyre"><i></i><span class="tl"></span><span class="wear"><u></u></span><span class="wp"></span></span><span class="lt"></span><span class="fu"></span><span class="dm dmg"></span></div>
-      <div class="ctl">
+      <div class="alert"><span></span><button data-a="alert" data-k="${k}" data-v="yes">YES</button><button data-a="alert" data-k="${k}" data-v="no">NO</button></div>
+      <div class="ctl pg-race">${ordRow('race')}</div>
+      <div class="ctl pg-car">${ordRow('car')}<span class="grp" data-g="replan"><button data-a="replan" data-k="${k}" title="Work the strategy out again from here: the stops still worth making">RE-PLAN</button></span></div>
+      <div class="ctl pg-drive">
         ${['tyre', 'fuel', 'ers'].map((g) => `<span class="grp" data-g="${g}"><span>${g === 'tyre' ? 'TYRES' : g.toUpperCase()}</span>${Object.entries(MODES[g]).map(([m, p]) => `<button data-a="mode" data-g="${g}" data-k="${k}" data-v="${m}" title="${esc(p.title)}">${p.short}</button>`).join('')}</span>`).join('')}
         <span class="grp" data-g="strat"><span>CALLS</span><button data-a="strat" data-k="${k}" data-v="ai" title="The AI strategist boxes the car when it should - you can still call a stop or keep it out">AI</button><button data-a="strat" data-k="${k}" data-v="plan" title="The plan chosen before the race: the pit wall boxes the car on its laps (STAY OUT on a call: a lap later)">PLAN</button><button data-a="strat" data-k="${k}" data-v="you" title="Nothing happens unless you call it">YOU</button></span>
         <span class="grp cmp" data-g="cmp"><span class="cl">BOX FOR</span>${ORDER.map((x) => `<button data-a="cmp" data-k="${k}" data-v="${x}" style="--tc:${COMPOUNDS[x].color}">${LETTER[x]}</button>`).join('')}</span>
@@ -115,7 +124,7 @@ export class PitWall {
         <span class="grp fl" data-g="fload"><span>FUEL LOAD</span><button data-a="fuel" data-k="${k}" data-v="-0.5" title="Half a lap's fuel less: lighter, quicker - and it must be saved later">−</button><button data-a="fuel" data-k="${k}" data-v="0.5" title="Half a lap's fuel more: heavier, slower - and a margin">+</button></span>
       </div>
       <div class="note"></div>
-      </div></div>`;
+      </div></div>`; };
     {
       const C = cars;
       this.el.innerHTML = `${card(C[0], 0)}<div class="mid">
@@ -138,7 +147,11 @@ export class PitWall {
     if (a === 'min') { this.el.classList.toggle('min'); b.textContent = this.el.classList.contains('min') ? 'PIT WALL ▴' : 'PIT WALL ▾'; return; }
     if (a === 'cmp') { car.mgr.next = b.dataset.v; if (car.mgr.preRace) this.act('start', car, b.dataset.v); this.acc = 1; return; }
     if (a === 'box') { if (car.pitRequested && !car.pitLane) this.act('stay', car); else this.act('box', car, car.mgr.next); this.acc = 1; return; }
-    if (a === 'mode') this.act('mode', car, b.dataset.g, b.dataset.v);
+    if (a === 'pg') { b.closest('.car').dataset.pg = b.dataset.v; this.acc = 1; return; }
+    if (a === 'ord') this.act('ord', car, b.dataset.g, b.dataset.v);
+    else if (a === 'alert') this.act('alert', car, b.dataset.v);
+    else if (a === 'replan') this.act('replan', car);
+    else if (a === 'mode') this.act('mode', car, b.dataset.g, b.dataset.v);
     else if (a === 'fuel') this.act('fuel', car, +b.dataset.v);
     else if (a === 'strat') this.act('strat', car, b.dataset.v);
     else if (a === 'speed') this.act('speed', +b.dataset.v);
@@ -195,6 +208,10 @@ export class PitWall {
       const dm = c.dmg || {}, worst = Math.max(dm.fwL || 0, dm.fwR || 0, dm.rw || 0, dm.susp || 0, dm.eng || 0);
       this.setText(card.querySelector('.dm'), worst > 0.12 ? `DAMAGE ${[(dm.fwL || 0) + (dm.fwR || 0) > 0.2 ? 'front wing' : null, dm.rw > 0.12 ? 'rear wing' : null, dm.susp > 0.12 ? 'suspension' : null, dm.eng > 0.12 ? 'engine' : null].filter(Boolean).join(', ')}` : c.punct != null ? 'PUNCTURE' : '');
       this.mark(card, '[data-a="mode"]', (b) => b.dataset.v === m.modes?.[b.dataset.g]);
+      this.mark(card, '[data-a="ord"]', (b) => b.dataset.v === m.orders?.[b.dataset.g]);
+      this.mark(card, '[data-a="pg"]', (b) => b.dataset.v === card.dataset.pg);
+      // (a question from the pit wall or the driver: an undercut on, rain coming, "are you sure?" - YES / NO)
+      { const al = card.querySelector('.alert'), A = m.alert; al.classList.toggle('on', !!A); if (A) { this.setText(al.firstElementChild, A.text); al.children[1].textContent = A.yes || 'YES'; al.children[2].textContent = A.no || 'NO'; } }
       // fuel: what is in the car against what the rest of the race needs at the standard mixture, in laps (+: a margin)
       if (c.fuel != null) {
         const fu = card.querySelector('.fu'), dl = st.fuelDelta?.(c) ?? 0;
@@ -209,7 +226,7 @@ export class PitWall {
       bx.disabled = c.retired || c.finished || m.preRace || (inLane && !c.pitRequested) || d.done;
       this.setText(bx, inLane ? 'IN PIT' : c.pitRequested ? 'STAY OUT' : 'BOX');
       bx.classList.toggle('on', !!c.pitRequested);
-      for (const b of card.querySelectorAll('[data-a="mode"],[data-a="strat"],[data-a="cmp"]')) b.disabled = c.retired || c.finished || (b.dataset.a !== 'cmp' && d.done) || (b.dataset.v === 'plan' && !m.plan);
+      for (const b of card.querySelectorAll('[data-a="mode"],[data-a="ord"],[data-a="strat"],[data-a="cmp"]')) b.disabled = c.retired || c.finished || (b.dataset.a !== 'cmp' && d.done) || (b.dataset.v === 'plan' && !m.plan);
       // the note: what is going on with this car
       const plan = c.pitPlan || c.ai?.pitPlan;
       // (the plan, short: 'Plan B · S → M L9 → H L17' - the stops still to come)

@@ -166,7 +166,7 @@ export class AIDriver {
     const va = wx * tr.tx[i] + wz * tr.tz[i], vd = wx * tr.nx[i] + wz * tr.nz[i];
     const lineSlope = (line.offsetAt(c.s + 5) - line.offsetAt(c.s - 5)) / 10;
     ctx.e1 = Math.max(-0.5, Math.min(0.5, vd / Math.max(5, va) - lineSlope));
-    ctx.m = tr.halfWidth - (tr.def.aiEdgeMargin ?? T.edgeMargin);   // (the base road: the planner adds what the road is wider by under each node)   // (a circuit where the kerbs are part of the lap lets the car's centre wider: Montreal)
+    ctx.m = tr.halfWidth - (tr.def.aiEdgeMargin ?? T.edgeMargin) + (c.mgrEdge || 0);   // (the base road: the planner adds what the road is wider by under each node)   // (a circuit where the kerbs are part of the lap lets the car's centre wider: Montreal)
     ctx.grip = this.g;
     const sEnd = c.s + (ctx.n - 1) * DS;
     ctx.vEnd = Math.min(ctx.vCap ?? 99, this.profile[tr.idxAtS(sEnd)] * this.gripFactor() * this.g.scale);
@@ -180,7 +180,7 @@ export class AIDriver {
     ctx.unreadRoom = Math.max(0.4, 1.15 - 0.5 * this.aggression);   // how much of the extra room a car it cannot read gets
     // (running hot from following in dirty air: drop back a few car lengths to cool it, as a driver is told to; the
     //  following gap itself by racecraft - a sharp driver sits a little closer, FORM.gap - before race control's minimum)
-    ctx.gap = (T.gapBase + v * T.gapK * (1 - 0.3 * this.aggression)) * (1 + 0.3 * lap1) * F.gap + 25 * Math.max(0, c.engTemp - 0.75);
+    ctx.gap = (T.gapBase + v * T.gapK * (1 - 0.3 * this.aggression)) * (1 + 0.3 * lap1) * F.gap + 25 * Math.max(0, c.engTemp - 0.75) + (c.mgrGap || 0);
     if (rule && rule.gap) ctx.gap = Math.max(ctx.gap, rule.gap + 0.15 * v);
     ctx.lap1 = lap1;
     // (racecraft: how much it means a move - by the driver's aggression, half of it on the opening lap, none under race
@@ -253,7 +253,7 @@ export class AIDriver {
     let att = null;
     for (let r = 0; r < P.nOthers; r++) {
       const R = P.others[r], o = R.car;
-      if (R.s0 >= -2 || R.lapping || o.retired || o.spinning || o.rigid || o === c._owes || o === c._yieldTo) continue;   // (never against a car it owes a place, or has been told to let by)
+      if (R.s0 >= -2 || (R.lapping && !c.mgrBlueLate) || o.retired || o.spinning || o.rigid || o === c._owes || o === c._yieldTo || (c.mgrMateEasy && o.team === c.team)) continue;   // (never against a car it owes a place, or has been told to let by)
       // close enough to try it: within half a second and closing, or right on the gearbox
       const gapT = -R.s0 / Math.max(10, o.speed);
       if ((gapT < T.defendGap && o.speed > c.speed + 1.5) || gapT < 0.25) { att = o; break; }
@@ -264,7 +264,7 @@ export class AIDriver {
     const fe = att === this.ctx.feud ? this.ctx.feudK || 0 : 0;
     if (!zone || isFast(zone) || dist < (fe > 0.4 ? 30 : 60)) return;   // (too late to move once in the braking zone - later still against someone it has a feud with)
     // (racecraft: a sharp driver covers the inside a little more often, FORM.defend; a feud: it always shuts the door on you)
-    if (rnd() > 0.32 + 0.4 * this.aggression + (c.form || NF).defend + 0.6 * fe) { this.defendCool = 5; return; }
+    if (rnd() > 0.32 + 0.4 * this.aggression + (c.form || NF).defend + 0.6 * fe + (c.mgrDefend || 0)) { this.defendCool = 5; return; }   // (mgrDefend: a team principal's DEFEND order - race/TeamTactics.js)
     this.defend = { side: zone.dir, untilS: zone.sA + 15, attacker: att };
     this.defences = (this.defences || 0) + 1;
   }

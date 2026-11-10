@@ -54,8 +54,11 @@ import { CockpitCamera, TCAM_TILT, TCAM_FOV } from './camera/CockpitCamera.js';
 import { TVDirector, TV_CAMS, TV_CAM_NAME } from './camera/TVDirector.js';
 import { TVGraphics } from './ui/TVGraphics.js';
 import { PitWall, MODES } from './ui/PitWall.js';
+import { ORDERS, defaultOrders, applyOrders, scFactors, tacticsUpdate } from './race/TeamTactics.js';
 import { ManagerCareer } from './career/Manager.js';
 import { takePenalties, facFx } from './career/ManagerOps.js';
+import { crewStop, crewPractise } from './career/ManagerCrew.js';
+import { engineerFx } from './career/ManagerPeople.js';
 import { showSetup, setupEffect, idealOf, satisfaction } from './ui/Setup.js';
 import { openManagerHub, closeManagerHub, managerHubOpen } from './ui/ManagerHub.js';
 import { AudioEngine } from './audio/Audio.js';
@@ -2299,6 +2302,12 @@ function tpAct(a, x, y, z) {
     const L = MODES[y][z].label.toLowerCase(), W = { tyre: { aggr: 'push the tyres, every corner', light: 'look after the tyres a little', cons: 'conserve the tyres' }, fuel: { push: 'fuel mode push', save: 'save fuel', lico: 'lift and coast into every braking zone' }, ers: { harvest: 'harvest, no deployment', deploy: 'deploy on the straights', ovt: 'overtake mode, everything you have' } }[y]?.[z];
     wall.radio('Engineer', `${sur(x)}, ${W || `${y === 'tyre' ? 'tyres' : y === 'fuel' ? 'fuel' : 'ERS'} ${L}`}.`);
   }
+  else if (a === 'ord') {
+    // (RACECRAFT / CAR - race/TeamTactics.js ORDERS)
+    const O = ORDERS[y]?.opts[z]; if (!O) return; x.mgr.orders[y] = z; tpModes(x);
+    wall.radio('Engineer', `${sur(x)}: ${ORDERS[y].name.toLowerCase()} - ${O.label.toLowerCase()}.`);
+  }
+  else if (a === 'alert') { const A = x.mgr.alert; x.mgr.alert = null; if (A) (y === 'yes' ? A.onYes : A.onNo)?.(); }
   else if (a === 'fuel') { if (x.fuel != null && x.mgr.preRace) { x.fuel = Math.max(x.mgr.perLap * 1, x.fuel + y * x.mgr.perLap); x.mgr.fuel0 = x.fuel; } }
   else if (a === 'strat') {
     // (who makes the calls: 'ai' the strategist; 'plan' the pre-race plan's stops (tpPlanCalls); 'you' nobody but you)
@@ -2309,6 +2318,13 @@ function tpAct(a, x, y, z) {
   else if (a === 'start') { if (!d.world.racing && !x.pitLane) { x.fitTyres(y); x.tyres.temp = x.tyres.spec.start ?? 0.7; x.tyres.work = 0.45; S.meshes.get(x)?.setCompound(y); if (x.mgr.plan) x.mgr.plan.stints[0].compound = y; x.mgr.next = x.mgr.plan?.stints[1]?.compound || (y === 'SOFT' ? 'MEDIUM' : y === 'MEDIUM' ? 'HARD' : y); } }
   else if (a === 'box') {
     if (x.retired || x.finished || x.inPit) return;
+    // (a stop called on tyres with life in them, nothing broken, no rain: the driver asks - once)
+    { const t = x.tyres, dm0 = x.dmg || {}, hurt = (dm0.fwL || 0) + (dm0.fwR || 0) > 0.3 || dm0.rw > 0.25 || dm0.susp > 0.4 || x.punct != null, wx = d.weather ? d.weather.tyreWet : 0, rain = (wx > 0.27) !== (t.compound === 'INTER' || t.compound === 'WET');
+      if (d.world.racing && !z && t.wear < 0.2 && !hurt && !rain && !(d.sc && d.sc.phase !== 'green') && !x.mgr.byPlanCall && d.lapsTotal - x.lap > 2) {
+        wall.radio(sur(x), 'Box? These tyres are fine. Are you sure?');
+        x.mgr.alert = { text: `${sur(x)}: "These tyres are fine - are you sure?"`, yes: 'BOX', no: 'STAY', onYes: () => { tpPeople('override', x); tpAct('box', x, y, true); }, onNo: () => wall.radio('You', `${sur(x)}, stay out.`) };
+        return;
+      } }
     const dm = x.dmg || {}, plan = { compound: y || x.mgr.next, repair: (dm.rw > 0.35 || dm.susp > 0.55) ? 'full' : (dm.fwL || 0) + (dm.fwR || 0) > 0.3 ? 'wing' : 'none' };
     x.pitPlan = plan; if (x.ai) { x.ai.pitPlan = plan; x.ai.pitReason = 'manager'; }
     if (!x.pitRequested) d.requestPit(x, plan);
@@ -2328,7 +2344,8 @@ function tpAct(a, x, y, z) {
   else if (a === 'order') {
     const o = d.orders?.mgrOrder?.(TP.cars[0], x);
     if (typeof o === 'string') wall.radio('Pit wall', `No order: ${o}.`);
-    else if (o) wall.radio('You', x === 'swap' ? `${sur(o.Y)}, let ${sur(o.B)} through. That's an order.` : x === 'hold' ? 'Hold position, both cars. No racing each other.' : 'Order off. You are free to race.');
+    else if (o) { if (x === 'swap' && o.Y) tpPeople('yield', o.Y); if (x === 'hold' && o.Bk) tpPeople('held', o.Bk); }
+    if (o && typeof o !== 'string') wall.radio('You', x === 'swap' ? `${sur(o.Y)}, let ${sur(o.B)} through. That's an order.` : x === 'hold' ? 'Hold position, both cars. No racing each other.' : 'Order off. You are free to race.');
   }
 }
 /**
@@ -2338,9 +2355,10 @@ function tpAct(a, x, y, z) {
  */
 function tpModes(c) {
   const m = c.mgr, T = MODES.tyre[m.modes.tyre] || MODES.tyre.std, F = MODES.fuel[m.modes.fuel] || MODES.fuel.std, E = MODES.ers[m.modes.ers] || MODES.ers.bal;
-  c.mgrPace = T.pace; c.wearMul = m.baseWear * T.wear * F.wear * E.wear; if (c.tyres) c.tyres.wearMul = c.wearMul; c.relMul = m.baseRel * F.rel;
+  const O = applyOrders(c), d = S.director, sc = d?.sc && d.sc.phase !== 'green' ? scFactors(c) : null;   // (the RACECRAFT and CAR orders: race/TeamTactics.js)
+  c.mgrPace = T.pace * O.pace; c.wearMul = m.baseWear * T.wear * F.wear * E.wear * O.wear * (sc ? sc.wear : 1); if (c.tyres) c.tyres.wearMul = c.wearMul; c.relMul = m.baseRel * F.rel;
   c.mgrErs = { harvest: 'harvest', deploy: 'deploy', ovt: 'overtake' }[m.modes.ers] || null;
-  m.burnMul = F.burn; m.powerMix = F.power;
+  m.burnMul = F.burn; m.powerMix = F.power * O.power;
   c.mgrPower = m.powerMix * (m.weightK || 1);
 }
 /** fuel (kg) a lap at the standard mixture: ~0.35 kg a km */
@@ -2363,7 +2381,7 @@ function tpFuel(d) {
     if (m.lastRun == null) m.lastRun = run;
     const dl = run - m.lastRun; m.lastRun = run;
     if (dl > 0 && dl < 30 && !c.retired && !c.finished && d.world.racing) {
-      const sc = d.sc && d.sc.phase !== 'green' ? 0.6 : 1;
+      const sc = d.sc && d.sc.phase !== 'green' ? scFactors(c).burn : 1;
       c.fuel = Math.max(0, c.fuel - dl * m.perLap * (m.burnMul || 1) * sc);
       if (c.fuel <= 0 && !c.engineDead) { c.failed = 'fuel'; c.engineDead = true; TP.wall.radio(surname(c.name), "I've got no power... we're out of fuel!"); }
     }
@@ -2375,6 +2393,8 @@ function tpFuel(d) {
     if (delta > -0.2) m.fuelWarned = false;
   }
 }
+/** what the team's people make of a call (the career's morale - career/ManagerPeople.js; nothing in a single weekend) */
+function tpPeople(what, car) { const C = S.weekend?.mgr; if (C?.onRaceEvent) try { C.onRaceEvent(what, car.careerId); } catch (e) { console.warn('[manager] people', e); } }
 /** a session of the weekend starts: your cars taken over, the feed's graphics and the pit wall up */
 function tpStart() {
   const d = S.director; if (!d) return;
@@ -2383,7 +2403,7 @@ function tpStart() {
   for (const c of TP.cars) {
     // (a plan chosen on the strategy screen - tpStrategy: the pit wall follows it, CALLS PLAN)
     const plan = d.mode === 'race' && c.mgrPlan ? c.mgrPlan : null;
-    c.mgr = { modes: { tyre: 'std', fuel: 'std', ers: 'bal' }, manual: !!plan, calls: plan ? 'plan' : 'ai', plan, next: 'MEDIUM', baseWear: c.wearMul || 1, baseRel: c.relMul || 1, holdLap: null, called: false, preRace: true };
+    c.mgr = { modes: { tyre: 'std', fuel: 'std', ers: 'bal' }, orders: defaultOrders(), manual: !!plan, calls: plan ? 'plan' : 'ai', plan, next: 'MEDIUM', baseWear: c.wearMul || 1, baseRel: c.relMul || 1, holdLap: null, called: false, preRace: true };
     // (the race: the fuel load - the race at the standard mixture and a third of a lap's margin; FUEL LOAD before the lights)
     if (d.mode === 'race') { c.mgr.perLap = FUEL_KM * W.track.length / 1000; c.fuel = c.mgr.perLap * (d.lapsTotal + 0.3); c.mgr.fuel0 = c.fuel; }
     tpModes(c);
@@ -2423,7 +2443,12 @@ function tpUi(dt) {
   const ord = d.orders?.pairOf?.(TP.cars[0])?.order || null;
   TP.wall.update(dt, { d, speed: TP.speed, paused: TP.paused, cam: TP.cam, order: ord, tyreLaps: (c) => TP.gfx.tyreLaps(c),
     mustStop: (c) => d.mode === 'race' && d.lapsTotal >= 8 && c.pitStops === 0 && !c.usedRain && !d.weather?.everWet, fuelDelta: (c) => tpFuelDelta(c, d) });
-  if (d.mode === 'race') { tpFuel(d); tpRadio(d); tpPlanCalls(d); }
+  if (d.mode === 'race') {
+    tpFuel(d); tpRadio(d); tpPlanCalls(d);
+    if (!TP.paused && !S.paused && !S.simming) tacticsUpdate(dt * TP.speed, { d, cars: TP.cars, radio: (w, t) => TP.wall.radio(w, t), surname: (c) => surname(c.name) });
+    // (the safety car out or in: the SC order's wear on or off)
+    const scNow = !!(d.sc && d.sc.phase !== 'green'); if (scNow !== TP.scWas) { TP.scWas = scNow; for (const c of TP.cars) tpModes(c); }
+  }
 }
 /** what your engineers tell you: the strategist's calls, the tyres going off, damage, a car out, the orders answered */
 function tpRadio(d) {
@@ -2434,6 +2459,10 @@ function tpRadio(d) {
     s.req = c.pitRequested;
     if (c.pitStops !== s.stops) {
       s.stops = c.pitStops; s.worn = false; c.mgr.called = false; c.mgr.byPlan = false; c.pitPlan = null;
+      // (the stop as the crew made it - mgrStop: a mistake said; an unsafe release: the stewards' five seconds)
+      if (c.mgrStopNote) { W2.radio('Pit wall', `Slow stop for ${sur(c)}: ${c.mgrStopNote}.`); c.mgrStopNote = null; }
+      else if (c.mgrStacked) W2.radio('Pit wall', `${sur(c)} had to wait in the double stop.`);
+      if (c.mgrUnsafe) { c.mgrUnsafe = false; d.stewards?.award?.(c, 5, 'unsafe release'); W2.radio('Race control', `${sur(c)}: 5 second penalty, unsafe release.`); }
       const pl = c.mgr.plan, k = pl ? Math.min(c.pitStops, pl.stints.length - 1) : 0;   // (the box-for set: the plan's next stint, once one is on)
       if (pl && pl.stints[k + 1]) c.mgr.next = pl.stints[k + 1].compound;
     }
@@ -2511,17 +2540,28 @@ async function mgrRace(c) {
   startWeekend();
   Loader.hide();
 }
+/**
+ * A stop by the team principal's crew (career/ManagerCrew.js): as long as its slowest corner and its jacks, a mistake
+ * now and then; a double stop waits on how ready the crew is for one; an unsafe release is five seconds, given when
+ * the car is back on the road (tpRadio) -> s stationary (RaceDirector.stopTime)
+ */
+function mgrStop(C, car, plan) {
+  const d = S.director, mate = TP.cars.find((x) => x !== car), stacked = !!mate && (mate.inPit || (mate._stopAt != null && d && d.time - mate._stopAt < 12));
+  const r = crewStop(C, { stacked, mul: car.pitMul || 1 }), rep = plan.repair === 'wing' ? 6.0 : plan.repair === 'full' ? 10.0 : 0;
+  car._slowStop = r.slow; car.mgrStopNote = r.note; car.mgrUnsafe = r.unsafe; car.mgrStacked = stacked;
+  return r.time + rep;
+}
 /** the field of a team principal's round: every team's car as its development has it, its drivers, your staff's work */
 function mgrField(C, lapsTotal, assists) {
   const cars = [], sfx = C.staffFx();
   for (const e of C.entries()) {
     const car = new Car(W.track, { name: e.name, short: e.short, team: e.team, color: e.color, isPlayer: false, perf: e.perf + onTheDay(e.team), rating: e.rating, number: e.number, compound: aiCompound(e, lapsTotal), raceLaps: lapsTotal, assists });
     car.tier = e.tier; car.color2 = e.color2; car.helmet = e.helmet; car.livery = e.livery || null; car.boxIdx = e.garage; car.careerId = e.careerId;
-    car.form = neutralForm(); car.licencePts = 0; car.champPts = e.champPts ?? null;
+    car.form = formOf(moodOf({ morale: e.morale ?? 60, moodOff: { focus: 0, racecraft: 0, confidence: 0, composure: 0 } })); car.licencePts = 0; car.champPts = e.champPts ?? null;   // (the driver's morale is their form: career/ManagerPeople.js)
     const fx = e.fx || {};
     car.drsGain = fx.drs || 0; car.ersMul = fx.ers || 1; car.ersCap = fx.erc || 1; car.brakeMul = fx.brake || 1; car.relMul = fx.relMul || 1; car.pitMul = fx.pitMul || 1;
     car.baseWear = fx.wear || 1; car.wearMul = car.baseWear; car.tyres.wearMul = car.wearMul;
-    if (e.mine) { car.pitMul *= sfx.pitMul; car.faultMul = sfx.faultMul; }   // (your pit crew chief, your head of strategy)
+    if (e.mine) { car.pitMul *= sfx.pitMul; car.faultMul = sfx.faultMul; car.crewStop = (c2, plan) => mgrStop(C, c2, plan); }   // (your pit crew chief, your head of strategy; your crew's stops)
     cars.push(car);
   }
   return cars;
@@ -2561,7 +2601,7 @@ function tpPlanCalls(d) {
     const cur = st.stints[k], next = st.stints[k + 1], lapNow = c.lap + 1, nm = next.compound.toLowerCase(), who = surname(c.name);
     if (lapNow === cur.end - 1 && m.warned !== k) { m.warned = k; TP.wall.radio('Strategy', `${who}: ${st.name} - box next lap for ${nm}s.`); }
     if (lapNow >= cur.end && m.planCalled !== k && !c.pitRequested && !c.pitLane && !c.inPit) {
-      m.planCalled = k; tpAct('box', c, next.compound); m.byPlan = true;
+      m.planCalled = k; m.byPlanCall = true; tpAct('box', c, next.compound); m.byPlanCall = false; m.byPlan = true;
       TP.wall.radio('Strategy', `${who}: box this lap, ${st.name}. ${nm.charAt(0).toUpperCase() + nm.slice(1)}s.`);
     }
   }
@@ -2597,7 +2637,7 @@ function tpSetup() {
   const wk = S.weekend, mine = tpCars(wk.cars);
   showSetup({ trackName: W.track.def.name, track: W.def.id, season: wk.mgr?.season ?? 2026, k: wk.mgr ? facFx(wk.mgr, 'dil').setupK : 1,
     note: wk.mgr ? 'What you run here is kept for the next visit.' : '',
-    cars: mine.map((c) => { const st = tpSetupOf(c); return { name: c.name, color: c.color, team: c.team, x: st.x, runs: st.runs }; }),
+    cars: mine.map((c) => { const st = tpSetupOf(c); return { name: c.name, color: c.color, team: c.team, x: st.x, runs: st.runs, k: wk.mgr && c.careerId ? engineerFx(wk.mgr, c.careerId).setupK : 1 }; }),
     onDone: (res) => {
       wk.tpSetup = wk.tpSetup || {};
       for (const r of res) {

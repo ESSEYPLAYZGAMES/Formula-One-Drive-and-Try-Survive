@@ -10,6 +10,7 @@
 import { TECH_CSS, techHTML, techClick } from './HubTech.js';
 import { ManagerCareer, TRACKS_ALL, COST_CAP, PRIZE, TIER_NAME, TIER_BUDGET, RACE_INCOME, POINT_INCOME, STAFF_ROLES, askOf } from '../career/Manager.js';
 import { techEffects, UP, upgradeName, partsCount } from '../career/TechTree.js';
+import { EXTRA_TABS, extraHTML, extraClick, homeExtra } from './ManagerHub2.js';
 import { PU, SPARES, allocOf, fitNew, orderSpare, FAC, FAC_MAX, facCost, facRounds, facFx, facUpgrade, facMaintain, maintCost, SPONSOR_SLOTS, acceptOdds, propose, sponsorTargets, marketability } from '../career/ManagerOps.js';
 
 const CSS = `
@@ -95,7 +96,7 @@ function render() {
   el.innerHTML = `<div class="m-mh"><div class="m-tn"><small>Team principal · Season ${c.season}${c.seasonDone ? ' · over' : ` · Round ${c.round} of ${c.rounds}`}</small><b>${esc(t.name)}</b></div>
     <div class="m-kp"><div class="m-k"><small>Budget</small><b class="${t.budget < 5 ? 'm-bad' : ''}">${money(t.budget)}</b></div><div class="m-k"><small>Cost cap left</small><b>${money(c.capLeft())}</b></div>
     <div class="m-k"><small>Constructors</small><b>P${pos}<span style="font-size:11px;color:#8a93a0"> · target P${c.board.target}</span></b></div><div class="m-k"><small>Board</small><b class="${conf < 30 ? 'm-bad' : conf >= 65 ? 'm-ok' : ''}">${conf}%</b></div></div><span class="m-ctas">${ctas}<button data-a="exit">MENU</button></span></div>
-    <div class="m-mn">${[['home', 'OVERVIEW'], ['stand', 'STANDINGS'], ['fac', 'FACTORY'], ['drv', 'DRIVERS'], ['parts', 'PARTS'], ['facil', 'FACILITIES'], ['spons', 'SPONSORS'], ['staff', 'STAFF'], ['fin', 'FINANCES'], ['cal', 'CALENDAR']].map(([k, n]) => `<button data-tab="${k}" class="${H.tab === k ? 'm-on' : ''}">${n}</button>`).join('')}</div>
+    <div class="m-mn">${[['home', 'OVERVIEW'], ['stand', 'STANDINGS'], ['fac', 'FACTORY'], ['drv', 'DRIVERS'], ['parts', 'PARTS'], ['facil', 'FACILITIES'], ['spons', 'SPONSORS'], ['staff', 'STAFF'], ...EXTRA_TABS, ['fin', 'FINANCES'], ['cal', 'CALENDAR']].map(([k, n]) => `<button data-tab="${k}" class="${H.tab === k ? 'm-on' : ''}">${n}</button>`).join('')}</div>
     <div class="m-mb">${H.msg ? `<div class="m-msg ${H.ok ? '' : 'm-no'}">${esc(H.msg)}</div>` : ''}${body(c)}</div>`;
 }
 function body(c) {
@@ -110,7 +111,7 @@ function body(c) {
       case 'facil': return facilHTML(c);
       case 'spons': return sponsHTML(c);
       case 'cal': return calHTML(c);
-      default: return homeHTML(c);
+      default: return extraHTML(c, H.tab, H) ?? homeHTML(c);
     }
   } catch (e) { console.warn('[manager hub]', e); return '<div class="m-card"><p>This page could not be drawn.</p></div>'; }
 }
@@ -133,7 +134,7 @@ function homeHTML(c) {
     <div class="m-row2"><span>Income</span><b>${money(L.income)}${L.sponsor ? ` + sponsor ${money(L.sponsor)}` : ''}</b></div><div class="m-row2"><span>Wages</span><b>-${money(L.wages)}</b></div>
     <div class="m-row2"><span>Board confidence</span><b>${L.conf0}% → ${L.conf}%</b></div>${L.parts.length ? `<div class="m-row2"><span>New on the car</span><b>${L.parts.map((x) => `${esc(UP[x.id]?.short || x.id)} L${x.level} (${Math.round(x.q * 100)}%)`).join(', ')}</b></div>` : ''}</div>` : '';
   const news = `<div class="m-card"><h3>News</h3><div class="m-news">${c.news.slice(0, 10).map((n) => `<div><small>S${n.season} R${n.round}</small>${esc(n.text)}</div>`).join('')}</div></div>`;
-  return `<div class="m-grid">${nextCard}${lastCard}${drvCard}${carCard}${news}</div>`;
+  return `<div class="m-grid">${nextCard}${homeExtra(c)}${lastCard}${drvCard}${carCard}${news}</div>`;
 }
 function reviewHTML(c) {
   const r = c.review || c.history[c.history.length - 1] || {};
@@ -251,6 +252,7 @@ function onClick(e) {
     return;
   }
   const a = d.a, v = d.v; H.msg = null;
+  if (c) { const r = extraClick(c, a, v); if (r !== undefined) { if (r) say(r.text, r.ok); render(); return; } }   // (the crew, the people, the car: ui/ManagerHub2.js)
   if (a === 'exit') { H.o.onExit?.(); return; }
   if (a === 'quick') { H.o.onQuick?.(); return; }
   if (a === 'nteam') H.nc.team = v; else if (a === 'nrounds') H.nc.rounds = +v; else if (a === 'nlaps') H.nc.laps = +v;

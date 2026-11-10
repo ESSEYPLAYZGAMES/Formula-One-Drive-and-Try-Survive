@@ -174,7 +174,7 @@ export const SPONSOR_SLOTS = SLOTS;
 export function marketability(c) {
   const n = Object.keys(c.teams).length, pos = c.boardPos ? c.boardPos(c.myTeam) : 6, D = c.seatsOf(c.myTeam);
   const drv = D.length ? D.reduce((s, d) => s + d.rating, 0) / D.length : 0.85;
-  return clamp((0.55 + 0.9 * (1 - (pos - 1) / Math.max(1, n - 1)) + (drv - 0.85) * 3) * facFx(c, 'hosp').sponsorMul, 0.45, 1.7);
+  return clamp((0.55 + 0.9 * (1 - (pos - 1) / Math.max(1, n - 1)) + (drv - 0.85) * 3 + (c.buzz || 0)) * facFx(c, 'hosp').sponsorMul, 0.45, 1.7);   // (buzz: what you tell the press - career/ManagerPeople.js)
 }
 /** the offers for the empty slots (three a slot, by marketability) */
 export function makeOffers(c) {

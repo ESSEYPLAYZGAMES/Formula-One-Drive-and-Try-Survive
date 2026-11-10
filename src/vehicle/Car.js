@@ -856,7 +856,7 @@ export class Car {
     // ---- engine thermal: following closely in dirty air heats the car up (about 40 s right on a gearbox to get hot);
     //      hot, it is derated (up to 6 % less power, enginePower) and cools in clean air; only staying at the very
     //      top of the range does lasting damage, and slowly
-    const heat = (this.dirtyAir > 0.3 ? 0.018 * this.dirtyAir : -0.04) + (this.throttle * 0.004) + this.dmg.eng * 0.01;
+    const heat = (this.dirtyAir > 0.3 ? 0.018 * this.dirtyAir * (this.mgrHeatK ?? 1) : -0.04) + (this.throttle * 0.004) + this.dmg.eng * 0.01;
     this.engTemp = Math.max(0.2, Math.min(1, this.engTemp + heat * dt));
     if (this.engTemp > 0.95) this.dmg.eng = Math.min(1, this.dmg.eng + 0.003 * dt);
 
