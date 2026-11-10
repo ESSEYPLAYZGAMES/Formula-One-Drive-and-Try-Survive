@@ -112,7 +112,7 @@ export function pitwall(k, T, o = {}) {
   k.box(7.2, 0.25, 2.0, k.m('#2b2e35', 0.6), 0, 0.125, 0); k.box(7.0, 0.08, 0.6, k.m('#17181c', 0.4, 0.3), 0, 1.3, 0.62);
   const scr = []; [-2.4, -1.2, 0, 1.2, 2.4].forEach((sx, i) => {
     k.cyl(0.035, 0.035, 0.82, k.m('#8a8f98', 0.3, 0.8), sx, 0.66, -0.2, 8); k.cyl(0.19, 0.19, 0.06, k.m('#1b1d22', 0.6), sx, 1.08, -0.2, 16);
-    k.box(0.62, 0.4, 0.05, k.m('#0d0e11', 0.5), sx, 1.56, 0.72); scr.push(k.screen(0.56, 0.34, (o.screens || [])[i] || paintTable(['GAPS', 'TYRES', 'TIMING', 'WEATHER', 'FUEL'][i], [], col), sx, 1.56, 0.69, PI, 1.2, 256));
+    k.box(0.62, 0.4, 0.05, k.m('#0d0e11', 0.5), sx, 1.5, 0.72); scr.push(k.screen(0.56, 0.34, (o.screens || [])[i] || paintTable(['GAPS', 'TYRES', 'TIMING', 'WEATHER', 'FUEL'][i], [], col), sx, 1.5, 0.69, PI, 1.2, 256));
   });
   for (const [px, pz] of [[-3.5, -0.9], [3.5, -0.9], [-3.5, 0.9], [3.5, 0.9]]) k.cyl(0.05, 0.05, 2.75, k.m('#c9ccd1', 0.4, 0.6), px, 1.6, pz, 8);
   k.box(7.5, 0.1, 2.3, k.m(col, 0.5), 0, 3.0, 0).castShadow = false; k.sign(7.4, 0.42, k.letters([[T.name.toUpperCase(), 110, ink(col), 900]], col), 0, 2.74, 1.16, 0, 1536); k.sign(7.4, 0.42, k.letters([[T.name.toUpperCase(), 110, ink(col), 900]], col), 0, 2.74, -1.16, PI, 1536);
@@ -172,7 +172,7 @@ export function office(k, T, o = {}) {
 export function pressroom(k, T, o = {}) {
   k.floor(16, 14, k.m('#1d1f25', 0.95)); k.box(16, 0.2, 14, k.m('#101114', 0.9), 0, 4.1, 0).castShadow = false; k.box(16, 4, 0.2, k.m('#15171c', 0.9), 0, 2, -3.2); k.box(0.2, 4, 14, k.m('#15171c', 0.9), -8, 2, 0); k.box(0.2, 4, 14, k.m('#15171c', 0.9), 8, 2, 0);
   const names = (o.names && o.names.length ? o.names : [T.name]).slice(0, 6);
-  k.sign(8, 3, (x, W, H) => { x.fillStyle = '#f3f4f6'; x.fillRect(0, 0, W, H); x.textAlign = 'center'; x.textBaseline = 'middle'; for (let r = 0; r < 5; r++) for (let c = 0; c < 5; c++) { const n = (r + c) % (names.length + 1), t = n === 0 ? T.name : names[n - 1]; x.font = `900 ${H * 0.062}px ${FONT}`; x.fillStyle = n === 0 ? T.color : '#1a1c21'; x.fillText(String(t).toUpperCase().slice(0, 14), W * (0.1 + c * 0.2), H * (0.1 + r * 0.2)); } }, 0, 2.0, -2.9, 0, 1536);
+  k.sign(8, 3, (x, W, H) => { x.fillStyle = '#f3f4f6'; x.fillRect(0, 0, W, H); x.textAlign = 'center'; x.textBaseline = 'middle'; for (let r = 0; r < 5; r++) for (let c = 0; c < 5; c++) { const n = (r + c) % (names.length + 1), t = n === 0 ? T.name : names[n - 1]; x.font = `900 ${H * 0.062}px ${FONT}`; x.fillStyle = n === 0 ? T.color : '#1a1c21'; x.fillText(String(t).toUpperCase().slice(0, 14), W * (0.1 + c * 0.2), H * (0.1 + r * 0.2)); } }, 0, 2.0, -2.9, 0, 1536, { color: '#9da1a8' });
   k.box(6, 0.3, 2.2, k.m('#2b2e35', 0.8), 0, 0.15, -1.6); k.box(4.6, 0.75, 0.7, k.m(T.color, 0.6), 0, 0.68, -1.1); k.box(4.7, 0.05, 0.8, k.m('#17181c', 0.4), 0, 1.07, -1.1);
   const seats = [-1.3, 0, 1.3].map((sx) => { chair(k, sx, -1.85, 0, '#1b1d22', 0.76); k.cyl(0.012, 0.012, 0.22, k.m('#111', 0.4, 0.6), sx, 1.2, -0.95, 6); k.ball(0.035, k.m('#222', 0.9), sx, 1.32, -0.95); return [sx, 0.3, -1.85, 0]; });
   const R = o.rows ?? 4, press = [];
