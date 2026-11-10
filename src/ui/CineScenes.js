@@ -11,7 +11,7 @@ import { baseLook } from '../world/People.js';
 const PI = Math.PI;
 export const surname = (n) => String(n || '').trim().split(/\s+/).pop() || '';
 /** people's options (world/People.js): a driver in the team's race suit, staff in its polo, someone in a jacket */
-export const drv = (d, T, pose = 'talk', ex = {}) => ({ pose, kit: 'suit', color: T.color, accent: T.color2 || '#ffffff', cap: true, driver: d.name, teamName: T.name, ...ex });
+export const drv = (d, T, pose = 'talk', ex = {}) => ({ pose, kit: 'suit', color: T.color, accent: T.color2 || '#ffffff', driver: d.name, teamName: T.name, ...ex, cap: false });   // (bare-headed: the cap sat like a bowl on them in close-up)
 /** the same face each time for a name (People draws skin and hair at random unless told) */
 const look = (id) => { const B = baseLook(id); return { seed: id, skin: B.skin, hair: B.hair, style: B.style }; };
 export const staff = (name, T, pose = 'talk', ex = {}) => ({ pose, kit: 'polo', color: T.color, accent: T.color2 || '#ffffff', teamName: T.name, ...look(`staff|${name}`), build: 'average', ...ex });

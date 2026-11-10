@@ -69,7 +69,7 @@ export function obeyChance(c, did) {
   return clamp(0.98 - Math.max(0, 58 - m) * 0.013 - ({ hot: 0.1, political: 0.05, mercenary: 0.05, perfectionist: 0.03 }[tr] || 0) + ({ team: 0.06, loyal: 0.05 }[tr] || 0) - S.feud.level / 100 * 0.22 + (S.obey[did] || 0), 0.25, 1);
 }
 /** something in the race, kept for the story: { kind: 'contact' | 'order' | 'refuse' | 'crash' | 'stop' | 'pen', ... } */
-export function storyLive(c, ev) { const S = storyEnsure(c); if (!S.live) S.live = { contacts: [], orders: [], crashes: [], stops: [], pens: [] }; const k = { contact: 'contacts', order: 'orders', refuse: 'orders', crash: 'crashes', stop: 'stops', pen: 'pens' }[ev.kind]; if (k) S.live[k].push(ev.kind === 'refuse' ? { ...ev, obeyed: false } : ev); }
+export function storyLive(c, ev) { const S = storyEnsure(c); if (!S.live) S.live = { contacts: [], orders: [], crashes: [], stops: [], pens: [] }; const k = { contact: 'contacts', order: 'orders', refuse: 'orders', crash: 'crashes', stop: 'stops', pen: 'pens' }[ev.kind]; if (k) S.live[k].push(ev.kind === 'refuse' ? { ...ev, kind: ev.order || 'swap', obeyed: false } : ev.kind === 'order' ? { ...ev, kind: ev.order || 'swap', obeyed: true } : ev); }
 /** what the track should know of the story this weekend: the feud hot, the pairs with a grudge, a stand-in */
 export function storyTrack(c) {
   const S = storyEnsure(c), [a, b] = mineOf(c);
@@ -223,6 +223,7 @@ export function storyAfterRace(c, rep, rows, live = null) {
   live = live || { contacts: [], orders: [], crashes: [], stops: [], pens: [] }; S.live = null;
   S.n++; S.lastRows = rows.map((r) => ({ id: r.car.careerId, team: r.car.team, pos: r.pos, dnf: !!r.car.retired }));
   const mine = rep.mine || [], F = facts(c), fact = factLine(F, T), posOf = (id) => S.lastRows.find((x) => x.id === id), win = mine.some((m) => !m.dnf && m.pos === 1), podium = mine.some((m) => !m.dnf && m.pos <= 3), double = mine.length >= 2 && mine.every((m) => m.dnf);
+  if (fact) c.addNews(`${cap1(fact)}.`);   // (the result in the season's own terms)
   // (a simulated weekend: now and then the two of yours touch, or someone leans on one of them)
   if (sim && a && b) { if (rnd() < 0.05) live.contacts.push({ a: a.id, b: b.id, sev: 0.4 + rnd() * 0.4, lap: 3, where: 'Turn 1' }); if (rnd() < 0.1) { const o = pick(S.lastRows.filter((x) => x.team !== T)); if (o) live.contacts.push({ a: o.id, b: pick(my).id, sev: 0.3 + rnd() * 0.5, lap: 2 + ((rnd() * 20) | 0), where: `Turn ${1 + ((rnd() * 9) | 0)}` }); } }
   // matters whose time has run out decide themselves

@@ -9,5 +9,5 @@ export { cineLive };
 export function playScene(name, ctx = {}, o = {}) {
   const make = SCENES[name]; if (!make) return Promise.resolve({ skipped: true, failed: true });
   let def = null; try { def = make(ctx); } catch (e) { console.error('[cine]', name, e); return Promise.resolve({ skipped: true, failed: true }); }
-  return playCine(def, { ...o, ctx, seed: o.seed ?? `${ctx.season || ''}|${ctx.round || ''}` });
+  return playCine(def, { ...o, ctx, lite: o.lite ?? !!globalThis.__cineLite, seed: o.seed ?? `${ctx.season || ''}|${ctx.round || ''}` });   // (__cineLite: a test's - no shadows, no lens blur)
 }

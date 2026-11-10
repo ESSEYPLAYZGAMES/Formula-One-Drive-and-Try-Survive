@@ -11,6 +11,8 @@ import { TECH_CSS, techHTML, techClick } from './HubTech.js';
 import { ManagerCareer, TRACKS_ALL, COST_CAP, PRIZE, TIER_NAME, TIER_BUDGET, RACE_INCOME, POINT_INCOME, STAFF_ROLES, askOf } from '../career/Manager.js';
 import { techEffects, UP, upgradeName, partsCount } from '../career/TechTree.js';
 import { EXTRA_TABS, extraHTML, extraClick, homeExtra } from './ManagerHub2.js';
+import { STORY_TABS, storyHTML, storyHome, storyAct, storyPump } from './ManagerHub3.js';
+import { storySigning, storyReleased, storyShown, storyApply } from '../career/ManagerStory.js';
 import { PU, SPARES, allocOf, fitNew, orderSpare, FAC, FAC_MAX, facCost, facRounds, facFx, facUpgrade, facMaintain, maintCost, SPONSOR_SLOTS, acceptOdds, propose, sponsorTargets, marketability } from '../career/ManagerOps.js';
 
 const CSS = `
@@ -80,13 +82,24 @@ export function openManagerHub(o) {
   H.o = o; H.c = o.career || null; H.msg = null; if (!H.c) H.tab = 'new'; else if (H.tab === 'new') H.tab = 'home';
   if (!document.getElementById('mgr-css')) { const st = document.createElement('style'); st.id = 'mgr-css'; st.textContent = CSS + TECH_CSS.replaceAll('#career', '#mgr .fac'); document.head.appendChild(st); }
   if (!el) { el = document.createElement('div'); el.id = 'mgr'; el.addEventListener('click', onClick); document.body.appendChild(el); }
-  el.style.display = 'flex'; render();
+  el.style.display = 'flex'; render(); pump();
 }
+/** the story's scenes that play themselves on coming back to the HQ (ui/ManagerHub3.js; o.play shows one) */
+let pumping = false;
+function pump() {
+  if (!H.c || !H.o.play || pumping) return; pumping = true;
+  storyPump(H.c, H.o.play).then((lines) => { pumping = false; if (lines.length) say(lines[lines.length - 1]); if (managerHubOpen()) render(); }, () => { pumping = false; });
+}
+/** a scene asked for from a page (a matter watched, a signing): shown, then the page drawn again with what it said */
+function scene(p) { pumping = true; p.then((t) => { pumping = false; if (t) say(t); if (managerHubOpen()) render(); }, () => { pumping = false; }); }
 export function closeManagerHub() { if (el) el.style.display = 'none'; }
 export function managerHubOpen() { return !!el && el.style.display !== 'none'; }
 
 function render() {
   const c = H.c;
+  // (the page stays where it was scrolled to when a button on it redraws it - only a change of page starts at the top)
+  const mb0 = el.querySelector('.m-mb'), keep = mb0 && H._tab === H.tab ? mb0.scrollTop : 0; H._tab = H.tab;
+  requestAnimationFrame(() => { const mb = el.querySelector('.m-mb'); if (mb && keep) mb.scrollTop = keep; }); queueMicrotask(() => { const mb = el.querySelector('.m-mb'); if (mb && keep) mb.scrollTop = keep; });
   if (!c) { el.innerHTML = newHTML(); el.style.setProperty('--tc', '#e10600'); return; }
   const t = c.team, pos = c.posOf(c.myTeam), conf = c.board.conf;
   el.style.setProperty('--tc', t.color);
@@ -96,7 +109,7 @@ function render() {
   el.innerHTML = `<div class="m-mh"><div class="m-tn"><small>Team principal · Season ${c.season}${c.seasonDone ? ' · over' : ` · Round ${c.round} of ${c.rounds}`}</small><b>${esc(t.name)}</b></div>
     <div class="m-kp"><div class="m-k"><small>Budget</small><b class="${t.budget < 5 ? 'm-bad' : ''}">${money(t.budget)}</b></div><div class="m-k"><small>Cost cap left</small><b>${money(c.capLeft())}</b></div>
     <div class="m-k"><small>Constructors</small><b>P${pos}<span style="font-size:11px;color:#8a93a0"> · target P${c.board.target}</span></b></div><div class="m-k"><small>Board</small><b class="${conf < 30 ? 'm-bad' : conf >= 65 ? 'm-ok' : ''}">${conf}%</b></div></div><span class="m-ctas">${ctas}<button data-a="exit">MENU</button></span></div>
-    <div class="m-mn">${[['home', 'OVERVIEW'], ['stand', 'STANDINGS'], ['fac', 'FACTORY'], ['drv', 'DRIVERS'], ['parts', 'PARTS'], ['facil', 'FACILITIES'], ['spons', 'SPONSORS'], ['staff', 'STAFF'], ...EXTRA_TABS, ['fin', 'FINANCES'], ['cal', 'CALENDAR']].map(([k, n]) => `<button data-tab="${k}" class="${H.tab === k ? 'm-on' : ''}">${n}</button>`).join('')}</div>
+    <div class="m-mn">${[['home', 'OVERVIEW'], ['stand', 'STANDINGS'], ['fac', 'FACTORY'], ['drv', 'DRIVERS'], ['parts', 'PARTS'], ['facil', 'FACILITIES'], ['spons', 'SPONSORS'], ['staff', 'STAFF'], ...EXTRA_TABS, ...STORY_TABS, ['fin', 'FINANCES'], ['cal', 'CALENDAR']].map(([k, n]) => `<button data-tab="${k}" class="${H.tab === k ? 'm-on' : ''}">${n}</button>`).join('')}</div>
     <div class="m-mb">${H.msg ? `<div class="m-msg ${H.ok ? '' : 'm-no'}">${esc(H.msg)}</div>` : ''}${body(c)}</div>`;
 }
 function body(c) {
@@ -111,7 +124,7 @@ function body(c) {
       case 'facil': return facilHTML(c);
       case 'spons': return sponsHTML(c);
       case 'cal': return calHTML(c);
-      default: return extraHTML(c, H.tab, H) ?? homeHTML(c);
+      default: return extraHTML(c, H.tab, H) ?? storyHTML(c, H.tab) ?? homeHTML(c);
     }
   } catch (e) { console.warn('[manager hub]', e); return '<div class="m-card"><p>This page could not be drawn.</p></div>'; }
 }
@@ -134,7 +147,7 @@ function homeHTML(c) {
     <div class="m-row2"><span>Income</span><b>${money(L.income)}${L.sponsor ? ` + sponsor ${money(L.sponsor)}` : ''}</b></div><div class="m-row2"><span>Wages</span><b>-${money(L.wages)}</b></div>
     <div class="m-row2"><span>Board confidence</span><b>${L.conf0}% → ${L.conf}%</b></div>${L.parts.length ? `<div class="m-row2"><span>New on the car</span><b>${L.parts.map((x) => `${esc(UP[x.id]?.short || x.id)} L${x.level} (${Math.round(x.q * 100)}%)`).join(', ')}</b></div>` : ''}</div>` : '';
   const news = `<div class="m-card"><h3>News</h3><div class="m-news">${c.news.slice(0, 10).map((n) => `<div><small>S${n.season} R${n.round}</small>${esc(n.text)}</div>`).join('')}</div></div>`;
-  return `<div class="m-grid">${nextCard}${homeExtra(c)}${lastCard}${drvCard}${carCard}${news}</div>`;
+  return `<div class="m-grid">${nextCard}${storyHome(c)}${homeExtra(c)}${lastCard}${drvCard}${carCard}${news}</div>`;
 }
 function reviewHTML(c) {
   const r = c.review || c.history[c.history.length - 1] || {};
@@ -252,20 +265,22 @@ function onClick(e) {
     return;
   }
   const a = d.a, v = d.v; H.msg = null;
+  if (pumping) return;
+  if (c && H.o.play) { const p = storyAct(c, a, v, H.o.play); if (p) { scene(p); return; } }   // (the story: ui/ManagerHub3.js)
   if (c) { const r = extraClick(c, a, v); if (r !== undefined) { if (r) say(r.text, r.ok); render(); return; } }   // (the crew, the people, the car: ui/ManagerHub2.js)
   if (a === 'exit') { H.o.onExit?.(); return; }
   if (a === 'quick') { H.o.onQuick?.(); return; }
   if (a === 'nteam') H.nc.team = v; else if (a === 'nrounds') H.nc.rounds = +v; else if (a === 'nlaps') H.nc.laps = +v;
-  else if (a === 'create') { H.c = ManagerCareer.create({ team: H.nc.team, rounds: H.nc.rounds, laps: H.nc.laps }); H.tab = 'home'; H.o.onCreate?.(H.c); }
+  else if (a === 'create') { H.c = ManagerCareer.create({ team: H.nc.team, rounds: H.nc.rounds, laps: H.nc.laps }); H.tab = 'home'; H.o.onCreate?.(H.c); render(); pump(); return; }
   else if (!c) { /* nothing */ }
   else if (a === 'race') { H.o.onRace?.(c); return; }
-  else if (a === 'sim') { const rep = H.o.onSim?.(c); if (rep) say(`Round ${rep.round} simulated: ${rep.mine.map((m) => `${sur(m.name)} ${m.dnf ? 'DNF' : `P${m.pos}`}`).join(', ')}.`); H.tab = 'home'; }
-  else if (a === 'next') { c.nextSeason(); H.tab = 'home'; say(`Season ${c.season}: ${c.rounds} rounds. The board expects P${c.board.target}.`); }
-  else if (a === 'join') { c.nextSeason(v); H.tab = 'home'; say(`You are ${v}'s team principal now.`); }
+  else if (a === 'sim') { const rep = H.o.onSim?.(c); if (rep) say(`Round ${rep.round} simulated: ${rep.mine.map((m) => `${sur(m.name)} ${m.dnf ? 'DNF' : `P${m.pos}`}`).join(', ')}.`); H.tab = 'home'; render(); pump(); return; }
+  else if (a === 'next') { c.nextSeason(); H.tab = 'home'; say(`Season ${c.season}: ${c.rounds} rounds. The board expects P${c.board.target}.`); render(); pump(); return; }
+  else if (a === 'join') { c.nextSeason(v); H.tab = 'home'; say(`You are ${v}'s team principal now.`); render(); pump(); return; }
   else if (a === 'erase') { ManagerCareer.erase(); H.c = null; H.tab = 'new'; }
   else if (a === 'extend') say(c.extend(v));
-  else if (a === 'release') { const r = c.release(v); say(r, !/^Not/.test(r)); }
-  else if (a === 'sign') { const r = c.sign(v); say(r, !/^(Not|Both)/.test(r)); }
+  else if (a === 'release') { const r = c.release(v), ok = !/^Not/.test(r); say(r, ok); if (ok && H.o.play) { const m = storyReleased(c, v); if (m) { scene(H.o.play(m.scene, m.ctx).then((res) => { storyShown(c, m.key); storyApply(c, m.key, res || {}); return r; })); return; } } }
+  else if (a === 'sign') { const r = c.sign(v), ok = !/^(Not|Both)/.test(r); say(r, ok); if (ok && H.o.play) { const m = storySigning(c, v); if (m) { scene(H.o.play(m.scene, m.ctx).then((res) => { storyShown(c, m.key); storyApply(c, m.key, res || {}); return r; })); return; } } }
   else if (a === 'fit') { const [did, el] = String(v).split('|'); say(fitNew(c, c.myTeam, did, el)); c.save(); }
   else if (a === 'spare') { const r = orderSpare(c, v); say(r, !/^(Not|Over|No )/.test(r)); c.save(); }
   else if (a === 'facup') { const r = facUpgrade(c, v); say(r, !/^(Not|No |.*already|.*highest)/.test(r)); c.save(); }

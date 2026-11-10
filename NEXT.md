@@ -1,3 +1,87 @@
+# V2.46 (2026-11-10): cutscenes and the team principal's story
+
+Asked for: every item of the "more immersive" list (thirty-one), as detailed cutscenes with proper camera work - and
+not so many between races that the menus drown; then, mid-build: some of them interactive (answers against the clock,
+quick-time events), no awkward pauses. What was built:
+- The cinematic engine (ui/Cine.js): a scene is a list of shots over a set built for it. A shot is a camera move (a
+  dolly between two framings, its lens, an arc, a hand-held tremble, a roll), a cut or a dip to black, its subtitles, a
+  lower third, an overlay (a security camera's stamp). Depth of field (three's BokehPass: what the shot looks at is
+  sharp, a pull of focus between two subjects), a 2.39:1 letterbox, a grade, a lamp by the lens so a face in a dim
+  room reads. People are world/People.js figures in a pose, alive (breath, a head that turns to whoever they look at,
+  a nod, a shake, a bounce); the crew are the skinned rig (they walk, kneel, work); the car is the CarMesh in its
+  livery. Space / Enter / click: the next shot; Esc or SKIP: the end (what a scene asks is still settled).
+  - Interactive, and never stopped: ask (a question with a clock - the scene runs on, the default answer when the time
+    is gone, later shots branch on it: when(res), sub as a function), qte ('time': a press as the marker crosses the
+    zone; 'hold'; 'mash' - the scene reacts as you do it), a choice the picture holds on at the end (drifting, not
+    frozen), browse (a room to walk round: left / right).
+- The sets (ui/CineSets.js), built from boxes and painted screens that carry the season's own numbers: garage (and the
+  scrutineering bay), pit wall, boardroom, the principal's office, press room, launch stage, cool-down room,
+  stewards' room, a documentary's chair, the paddock, the factory's four halls (what stands in each by its level, the
+  levels not built as tape on the floor), the trophy room.
+- Twenty-three scenes (ui/CineScenes.js, CineScenes2.js; tools/cine_sheet.mjs draws a contact sheet of any of them):
+  the launch (hold: pull the cover), the factory walked through, the pit wall as the flag falls (win / podium / points
+  / both out / a stop thrown away), the garage through the night after a crash, the signing (the handshake for the
+  cameras: a press in the zone; what you tell the room), dismissed by the board (how you take it), a driver released
+  (how you tell him), the title decider's film, the cool-down room, the season's film (its real moments), a
+  documentary episode (people in a chair, the garage between them, your own answer on camera), the trophy room (to
+  walk round); the board (three meetings as its patience goes; your pitch), the row between your drivers (step in or
+  not; whose side), the debrief after an order refused (your tone; fine / let go / warn), a rival's approach in the
+  paddock (walk over or watch; counter / promise / let them talk), the stewards' hearing (your evidence: the opening
+  line hints at which one the case turns on; the verdict read out), the scrutineering bay (the directive measured on
+  your car; comply / run it / lobby), the auditors (your line; accept / contest), a sponsor's call (promise / cut /
+  walk), the leak (the factory's cameras: freeze the frame as the face turns - got them, half a face, nothing; what
+  you can do follows), the reserve's seat fitting (who drives, against the clock), a mechanic's word, the press (one
+  question from someone who remembers).
+- The story (career/ManagerStory.js, StoryLines.js; saved in the career): fed by every race (the result, and what
+  happened in it - contacts between any two cars, orders given and refused, crashes, stops).
+  - Slow things: the feud between your two (contact, orders, a refusal; their manner); rivalries on the grid (three
+    comings-together: named; they defend harder against each other: AIDriver car.grudge); the fans' mood; what your
+    word is worth; each rival principal's heat with you (eleven invented principals, four manners).
+  - Matters raised from it: a row (feud 55+), a debrief (an order refused: obeyChance - morale, manner, the feud, the
+    last fine), an approach (a driver whose contract is up or who is unhappy; a race engineer), a protest (someone hit
+    yours and finished ahead: yours to lodge; or you are summoned), the technical directive (once a season: your part
+    or a rival's), a cost-cap audit (season's end, within 5 % of the cap), a sponsor's ultimatum (three targets missed
+    running), a leak (something being built: the team ahead gets the level), an injury (a heavy crash: a reserve
+    drives - Manager.entries subOf), the board's three stages (45 / 30 / 15 % confidence), the press with a memory
+    (what you promised, checked race by race: kept or thrown back at you), a mechanic after a 4.6 s+ stop, a veteran
+    retiring, a facility finished, the documentary at half distance, the season's film, the launch.
+  - Drivers have a manner (six: hot-headed, political, loyal, money-driven, perfectionist, team player): how readily
+    they obey, how a feud grows, what they say.
+  - History-aware words (facts): "three retirements in four races", "the first points since Montreal", "the first win
+    of the season" - in the news, the feed, the radio as a car retires, the press's question, the board's line.
+  - The feed (posts from fans, a stats account, a gossip site, the rival principal nearest you), rumours in the second
+    half of the season (deny one that is true and it costs your word; let one run and the paddock talks).
+  - THE BUDGET: back at the HQ at most ONE matter plays itself as a scene (the most pressing; none straight after
+    another unless it is serious), plus those that cannot wait (the launch, the season's film, an empty seat). The
+    rest wait in the STORY page's inbox: watch each as its scene, or decide it in a line; left alone it decides itself
+    the cautious way. At the track after the flag: at most one short scene, never two races running unless you won.
+    Simulated over seasons: about one scene every three races plays itself; the inbox holds one or two.
+- The HQ: a STORY page (ui/ManagerHub3.js) - the inbox, the mood, your drivers' manners and how likely each is to take
+  an order, the other principals, the feed, the rumours, the scenes seen (to watch again), THE TROPHY ROOM, WALK THE
+  FACTORY; the overview says what is waiting. Signing or releasing a driver plays its scene.
+- The race: an order may be refused (the driver's line by his manner; the order comes off); the stop, the crash, every
+  contact go to the story; at war, MATE: NO RISKS does nothing; the pit wall says how the stands are; team radio
+  replays over the results (ui/RadioReplay.js: the few lines worth hearing again).
+- The driver's career: the same scenes, one a race at most - your team's pit wall when you win, the cool-down room on
+  the podium, the garage through the night after your crash (after the podium, before the results), the decider's
+  film before a last round with the title open.
+- Other modes: untouched - every hook is a field absent there (car.grudge, car.mgrFeud).
+- Fixed on the way: the pit wall threw when the first team order of a race ended (every state's radio line was built at
+  once: a swap has no car "behind", a hold no car "yielding"); the HQ's page no longer jumps to the top when a button
+  on it is pressed; the drivers in the scenes are bare-headed (the cap sat like a bowl in close-up).
+- Checked: a contact sheet of every scene (tools/cine_sheet.mjs: 23 scenes build, no errors); the story over seasons
+  of simulated weekends and with every path forced and every option applied (30 careers, no failures); in the browser:
+  a new career (the launch plays itself), the STORY page and its buttons, the trophy room, the factory, a half season
+  simulated (the documentary played itself at half distance; a matter watched from the inbox); a career race from the
+  grid to the HQ with the two drivers at war (the radio at the start, an order refused with the driver's own line,
+  the radio replays over the results, the row played itself back at the HQ, the debrief and a press question waiting).
+  The seeded Silverstone race in a quick weekend is identical to V2.45's.
+- Not checked in the browser: the driver's career's scenes in a real career race (the same scenes, the same engine);
+  the scene at the track after a win (none was earned in the test race); a second season's launch.
+- Not there: banners or boos in the grandstands for the fans' mood (it is a number, a line on the radio, the launch's
+  crowd and the sponsors' appetite); a sacking in mid-season (the board's ultimatum makes the season's-end verdict
+  harsher, no more); people walking with faces (only the crew's rig walks - the others are cut to where they stand).
+
 # V2.45 (2026-11-10): the team principal - race orders, the pit crew, the weekend, the people, the car, live strategy
 
 Thirty-three controls asked for at once ("make them all"); each a real system, none deep yet. By where it lives:

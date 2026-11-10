@@ -70,7 +70,7 @@ export function applyOrders(c) {
   if (m.startRoll == null) m.startRoll = Math.random();
   const L = g('launch'); c.mgrStart = L.dt + (m.startRoll < L.bog ? 0.3 : 0);
   if (ai) { if (m.baseAggr == null) m.baseAggr = ai.aggression; ai.aggression = m.baseAggr * g('attack').aggr * (m.lap1 ? g('lap1').k : 1); }
-  c.mgrDefend = g('defend').k; c.mgrMateEasy = o.mate === 'care'; c.mgrBlueLate = o.blue === 'late';
+  c.mgrDefend = g('defend').k; c.mgrMateEasy = o.mate === 'care' && !c.mgrFeud; c.mgrBlueLate = o.blue === 'late';   // (mgrFeud: the two of them at war - career/ManagerStory.js: no order makes them easy on each other)
   c.mgrEdge = g('limits').edge; c.mgrHeatK = g('cool').heat; c.mgrGap = g('cool').gap;
   return { pace: g('limits').pace * g('bias').pace * g('cool').pace, wear: g('bias').wear * g('diff').wear, power: g('diff').power };
 }

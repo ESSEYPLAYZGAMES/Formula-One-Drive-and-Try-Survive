@@ -264,7 +264,7 @@ export class AIDriver {
     const fe = att === this.ctx.feud ? this.ctx.feudK || 0 : 0;
     if (!zone || isFast(zone) || dist < (fe > 0.4 ? 30 : 60)) return;   // (too late to move once in the braking zone - later still against someone it has a feud with)
     // (racecraft: a sharp driver covers the inside a little more often, FORM.defend; a feud: it always shuts the door on you)
-    if (rnd() > 0.32 + 0.4 * this.aggression + (c.form || NF).defend + 0.6 * fe + (c.mgrDefend || 0)) { this.defendCool = 5; return; }   // (mgrDefend: a team principal's DEFEND order - race/TeamTactics.js)
+    if (rnd() > 0.32 + 0.4 * this.aggression + (c.form || NF).defend + 0.6 * fe + (c.mgrDefend || 0) + (c.grudge && c.grudge.has(att.careerId) ? 0.3 : 0)) { this.defendCool = 5; return; }   // (mgrDefend: a team principal's DEFEND order - race/TeamTactics.js)
     this.defend = { side: zone.dir, untilS: zone.sA + 15, attacker: att };
     this.defences = (this.defences || 0) + 1;
   }
