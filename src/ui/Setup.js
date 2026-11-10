@@ -128,6 +128,7 @@ export function showSetup(o) {
     <div class="kn">${kn}${sets ? `<br>Sets: ${sets}` : ''}</div>${qp}</div>`;
   };
   const draw = () => {
+    { const sb0 = el.querySelector('.sb'), keepY = sb0 ? sb0.scrollTop : 0; if (keepY) queueMicrotask(() => { const sb = el.querySelector('.sb'); if (sb) sb.scrollTop = keepY; }); }   // (the page stays where it was scrolled to)
     el.innerHTML = `<div class="sb"><h2>PRACTICE · <b>${esc(o.trackName || '')}</b> · forecast ${wet > 0.5 ? 'wet' : wet > 0.2 ? 'damp' : 'dry'}</h2>
       <div class="sp">Six runs a car. A <b>set-up run</b> brings the driver's feedback: the white mark is where they feel the car on each of the five, the green line optimal, the blue window how sure the engineers are (it narrows with every run). A <b>tyre run</b> tells the pit wall how long that compound lasts here; a <b>race sim</b> the fuel the car really burns. <b>Parc fermé:</b> the set-up is locked once qualifying starts - and it is set for the forecast. ${o.note || ''}</div>
       <div class="cols">${S.map(colHTML).join('')}</div><div class="ft"><span class="cm">${esc(crewMsg)}</span>${o.crew ? `<button data-a="crew" ${o.crew.left() > 0 ? '' : 'disabled'} title="The pit crew practises stops: sharper for this race, a little more tired">PIT STOP PRACTICE · ${o.crew.left()} left</button>` : ''}<button class="go" data-a="done">DONE · TO QUALIFYING ▸</button></div></div>`;

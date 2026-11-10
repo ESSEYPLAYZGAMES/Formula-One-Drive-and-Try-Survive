@@ -9,7 +9,7 @@ import { STYLES } from '../career/StoryLines.js';
 export const STORY_TABS = [['story', 'STORY']];
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const bar = (x, col) => `<div class="m-bar" style="--bc:${col || (x > 0.66 ? '#1fae64' : x > 0.4 ? '#e0a100' : '#d4351c')}"><i style="width:${(Math.max(0, Math.min(1, x)) * 100).toFixed(0)}%"></i></div>`;
-const note = (t) => `<p style="font-size:12px;color:#6b7480">${t}</p>`;
+const note = (t) => `<details class="m-note"><summary>How this works</summary><p>${t}</p></details>`;   // (folded away: the page reads without it)
 const SCENE = { feudRow: 'The garage', debrief: 'Your office', poach: 'The paddock', hearing: 'The stewards', scrutineering: 'Scrutineering', audit: 'The auditors', sponsorCall: 'A call', leak: 'The factory, at night', seatFit: 'The garage', crewTalk: 'The garage', press: 'The press room', board: 'The boardroom', launch: 'Launch night', seasonReview: 'A film', documentary: 'A film', factoryTour: 'The factory', garageNight: 'The garage', sacked: 'The boardroom', signing: 'The press room', released: 'Your office' };
 
 function matterHTML(c, m) {

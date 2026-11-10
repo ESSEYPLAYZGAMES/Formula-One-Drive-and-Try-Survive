@@ -13,7 +13,7 @@ const money = (m) => `$${(Math.round(m * 10) / 10).toFixed(1)}M`;
 const pct = (x) => `${Math.round(x * 100)}%`;
 const bar = (x, col) => `<div class="m-bar" style="--bc:${col || (x > 0.66 ? '#1fae64' : x > 0.4 ? '#e0a100' : '#d4351c')}"><i style="width:${(Math.max(0, Math.min(1, x)) * 100).toFixed(0)}%"></i></div>`;
 const seg = (a, cur, opts) => `<span class="m-seg">${opts.map(([v, n, t]) => `<button data-a="${a}" data-v="${v}" class="${String(cur) === String(v) ? 'm-on' : ''}"${t ? ` title="${esc(t)}"` : ''}>${esc(n)}</button>`).join('')}</span>`;
-const note = (t) => `<p style="font-size:12px;color:#6b7480">${t}</p>`;
+const note = (t) => `<details class="m-note"><summary>How this works</summary><p>${t}</p></details>`;   // (folded away: the page reads without it)
 
 export function extraHTML(c, tab, T) {
   if (tab === 'crew') return crewHTML(c);

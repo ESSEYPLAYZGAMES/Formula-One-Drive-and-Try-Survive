@@ -602,7 +602,7 @@ body.tp #hud-msg { top: 30%; }
     <div class="brand-line"></div>
     <h1 id="brand-title">FORMULA 1<span id="brand-sub">SIMULATOR</span></h1>
     <!-- the build's version: +0.01 with every build handed out -->
-    <span id="app-ver" title="Version">V2.46</span>
+    <span id="app-ver" title="Version">V2.47</span>
     <div id="menu-sub">Real circuits built from OpenStreetMap</div>
   </div>
   <div id="loading" class="hidden"><div class="ld"><i></i></div><span>Building the circuit from OpenStreetMap…</span></div>
@@ -146862,7 +146862,8 @@ __m['src/camera/TVDirector.js'] = (() => {
 // lane camera. A shot is held 5-9 s (an incident cuts in at once). Or you direct: follow a car (the cameras still cut
 // round it), and / or keep to one camera.
 //   update(dt, ctx) -> the car the shot is of (the game's S.player: the HUD, the sound and the camera's ground follow it)
-//   ctx: { d (RaceDirector), track, pit, focus: [your cars], camCtl (CockpitCamera: the onboard views) }
+//   ctx: { d (RaceDirector), track, pit, focus: [your cars], camCtl (CockpitCamera: the onboard views), clear(px, py,
+//          pz, tx, ty, tz) -> true if nothing solid stands between a camera there and a target (main.js tvClear) }
 // (No chase camera: television has none. The trackside cameras stand where real ones do - on platforms high over the
 //  catch fence, looking down past its top, or in slots in the fence line just over the barrier - never behind the mesh.)
 
@@ -146871,6 +146872,8 @@ const TV_CAMS = ['auto', 'track', 'tcam', 'heli', 'rear'];
 const TV_CAM_NAME = { auto: 'Director', track: 'Trackside', tcam: 'Onboard', heli: 'Helicopter', rear: 'Rear onboard', pit: 'Pit lane', grid: 'Grid' };
 
 const _v = new THREE.Vector3();
+/** where the helicopter may fly, relative to the car: [along its heading (m, - behind), to its left, up] - tried in turn */
+const HELI = [[-70, 40, 55], [-70, -40, 55], [-45, 26, 95], [-45, -26, 95], [-20, 12, 140], [-6, 0, 190]];
 
 class TVDirector {
   constructor(camera) {
@@ -146899,6 +146902,11 @@ class TVDirector {
     const onTrack = (c) => c && !c.retired && !c.finished && !c.inPit && !c.pitLane && !c.isSC && !c.hiddenAway;
     // (before the start: the front of the grid, the lights)
     if (!d.world.racing && !d.leaderFinished) { if (P[0]) out.push({ car: P[0], score: 50, why: 'grid' }); return out; }
+    // (the safety car's own feed: the car itself at the head of the queue, the stops under it, the wreck that called
+    //  it - no "battles": nobody may pass; the red flag's: the cars stopped, the leader, yours)
+    const ph = d.sc?.phase || 'green', neutral = ph === 'sc' || ph === 'scIn' || ph === 'vsc' || ph === 'vscEnd' || ph === 'red';
+    if ((ph === 'sc' || ph === 'scIn') && d.sc.car && !d.sc.car.pitLane) out.push({ car: d.sc.car, other: P.find((c) => onTrack(c)) || null, score: 19 + ((this.cuts * 0.618034) % 1) * 6, why: 'sc' });
+    if (ph === 'red') { const l0 = P.find((c) => !c.retired); if (l0) out.push({ car: l0, score: 18, why: 'red' }); }
     // the flag: the leader coming to it, then the cars after it
     const lead = P.find((c) => !c.retired);
     if (lead && lead.lap >= d.lapsTotal - 1 && !lead.finished) out.push({ car: lead, score: 16, why: 'leader' });
@@ -146909,10 +146917,10 @@ class TVDirector {
       if (c.retired && !c.hiddenAway && !this.seenOut.has(c) && t - this.outAt.get(c) < 12) { out.push({ car: c, score: 40 + (mine(c) ? 10 : 0), why: 'out', urgent: true }); continue; }
       if (!c.retired && (c.air || c.wreck || (c.spinning && c.speed > 3))) { out.push({ car: c, score: 34 + (mine(c) ? 10 : 0), why: 'spin', urgent: true }); continue; }
       // a stop: in the lane
-      if (!c.retired && (c.pitLane || c.inPit) && !c.isSC) { out.push({ car: c, score: mine(c) ? 22 : 3 + Math.max(0, 6 - i), why: 'pit' }); continue; }
+      if (!c.retired && (c.pitLane || c.inPit) && !c.isSC && ph !== 'red') { out.push({ car: c, score: (mine(c) ? 22 : 3 + Math.max(0, 6 - i)) + (neutral ? 9 : 0), why: 'pit' }); continue; }   // (under the safety car the stops are the story)
       // a fight for a place: within a second of the car ahead, both on track
       const a = P[i - 1];
-      if (i > 0 && d.mode === 'race' && onTrack(c) && onTrack(a) && c.lap === a.lap) {
+      if (i > 0 && d.mode === 'race' && !neutral && onTrack(c) && onTrack(a) && c.lap === a.lap) {
         const g = d.radio?.gap?.(c, a);
         if (g != null && g > 0 && g < 1.0) out.push({ car: c, other: a, score: 14 - i * 0.45 + (1 - g) * 5 + (mine(c) || mine(a) ? 9 : 0), why: 'battle' });
       }
@@ -146927,10 +146935,14 @@ class TVDirector {
   }
   /** the camera for a story */
   pickKind(st, ctx) {
-    if (this.camKind !== 'auto') return st.why === 'pit' && this.camKind !== 'tcam' ? 'pit' : this.camKind;
+    // (a camera you keep to stays yours in the pit lane too: the helicopter over it, the onboards on the car - only
+    //  the trackside cameras hand over to the pit lane's own)
+    if (this.camKind !== 'auto') return st.why === 'pit' && this.camKind === 'track' ? 'pit' : this.camKind;
     if (st.why === 'grid') return 'grid';
     if (st.why === 'pit') return 'pit';
     if (st.why === 'out' || st.why === 'spin') return this.cuts % 3 === 2 ? 'heli' : 'track';
+    if (st.why === 'sc') return this.cuts % 2 ? 'heli' : 'track';   // (the safety car and the queue behind it: from the air, from the fence)
+    if (st.why === 'red') return 'heli';
     const r = (this.cuts * 0.618034) % 1;   // (a steady spread, not a die: the same race cuts the same way)
     if (st.why === 'battle') return r < 0.58 ? 'track' : r < 0.8 ? 'tcam' : 'rear';
     return r < 0.5 ? 'track' : r < 0.78 ? 'tcam' : 'heli';
@@ -146953,6 +146965,22 @@ class TVDirector {
       sh.s0 = s0; sh.side = side; sh.slot = slot;
       sh.h = slot ? Math.max(1.9, (tr.barrierHeight?.(i, side) > 2 ? 1.3 : tr.barrierHeight?.(i, side) || 1.2) + 0.7) : 10 + ((this.cuts * 0.271) % 1) * 3;
       sh.pos = new THREE.Vector3(f.x, sh.h, f.z);
+      // (the camera must SEE the car: from where it stands to the car now and to the road it will pass on, nothing
+      //  in the way - a wall or a fence where the track bends, a building, a stand. The first of a few places that
+      //  does: this one, the other side of the road, a pole instead of a slot, nearer, further, higher)
+      if (ctx.clear) {
+        const sees = (p) => { const m = tr.sample(tr.wrapS(s0 - 22), 0); return ctx.clear(p.x, p.y, p.z, subject.x, 0.8, subject.z) && ctx.clear(p.x, p.y, p.z, m.x, 0.8, m.z); };
+        if (!sees(sh.pos)) {
+          let found = false;
+          for (const [sd, sl, k, hh] of [[-side, false, 1, 11], [side, false, 1, 12.5], [side, false, 0.55, 11], [-side, false, 0.55, 12], [side, false, 1.5, 13], [-side, false, 1.5, 13], [side, false, 1, 17], [-side, false, 1, 17]]) {
+            const sq = tr.wrapS(subject.s + Math.max(20, ahead * k * Math.min(1.6, Math.max(0.5, subject.speed / 55)))), iq = tr.idxAtS(sq), fq = tr.sample(sq, sd * (tr.wallAt(iq, sd) + 0.6)), p = new THREE.Vector3(fq.x, hh, fq.z);
+            const m = tr.sample(tr.wrapS(sq - 22), 0);
+            if (ctx.clear(p.x, p.y, p.z, subject.x, 0.8, subject.z) && ctx.clear(p.x, p.y, p.z, m.x, 0.8, m.z)) { sh.pos = p; sh.s0 = sq; sh.side = sd; sh.slot = sl; sh.h = hh; found = true; break; }
+          }
+          // (nowhere along here has a view - between buildings, under a bridge: the helicopter has it)
+          if (!found) { sh.kind = 'heli'; sh.pos = null; }
+        }
+      }
     } else if (kind === 'grid') {
       // high over the start line, looking down the grid
       const f = tr.sample(tr.wrapS(40), 0), b = tr.sample(tr.wrapS(-160), 0);
@@ -147014,16 +147042,34 @@ class TVDirector {
       if (sh.other) { tgt.x = (car.x * 2 + sh.other.x) / 3; tgt.z = (car.z * 2 + sh.other.z) / 3; fov = Math.max(fov, Math.min(55, 2400 / Math.max(18, dist))); }
     } else if (sh.kind === 'heli') {
       const c = Math.cos(car.th), s = Math.sin(car.th);
-      this._pos.set(car.x - c * 70 - s * 40, 55, car.z - s * 70 + c * 40);
+      // (the helicopter flies where it can see the car: behind and to one side - or the other side, or higher and
+      //  closer over it where towers stand along the road; looked at again a few times a second)
+      const H = HELI[sh.hk || 0];
+      this._pos.set(car.x + c * H[0] - s * H[1], H[2], car.z + s * H[0] + c * H[1]);
+      if (ctx.clear && (sh.hk == null || sh.t - (sh.ht ?? -9) > 0.45)) {
+        sh.ht = sh.t;
+        if (sh.hk == null || !ctx.clear(this._pos.x, this._pos.y, this._pos.z, car.x, 1.0, car.z)) {
+          const k0 = sh.hk ?? 0;
+          for (let q = 0; q < HELI.length; q++) { const k = (k0 + q) % HELI.length, G = HELI[k], px = car.x + c * G[0] - s * G[1], pz = car.z + s * G[0] + c * G[1]; if (ctx.clear(px, G[2], pz, car.x, 1.0, car.z)) { sh.hk = k; this._pos.set(px, G[2], pz); break; } if (q === HELI.length - 1) sh.hk = HELI.length - 1; }
+        }
+        if (sh.hk == null) sh.hk = 0;
+      }
       if (!this._lookInit) cam.position.copy(this._pos); else cam.position.lerp(this._pos, Math.min(1, dt * 1.6));
-      tgt.set(car.x + c * 15, 0, car.z + s * 15); fov = 30;
+      tgt.set(car.x + c * 15, 0, car.z + s * 15); fov = H[2] > 120 ? 16 : H[2] > 80 ? 22 : 30;
     } else if (sh.kind === 'pit') {
       const P = ctx.pit;
       if (P && P.samples) {
         // along the lane, a little ahead of the car, on the garage side, looking back at it
         const ps = P.samples; let bi = 0, bd = Infinity;
         for (let i = 0; i < ps.n; i += 4) { const dd = (ps.px[i] - car.x) ** 2 + (ps.pz[i] - car.z) ** 2; if (dd < bd) { bd = dd; bi = i; } }
-        if (!sh.pos) { const j = Math.min(ps.n - 1, bi + Math.round(28 / ps.ds)), off = -P.trackSide * (P.halfWidth + 2.5); sh.pos = new THREE.Vector3(ps.px[j] + ps.nx[j] * off, 3.6, ps.pz[j] + ps.nz[j] * off); }
+        if (!sh.pos) {
+          // (the pit lane's cameras hang over the lane itself, on the pit wall's side - the garages and the pit
+          //  building stand at the other edge: a camera "on the garage side" was inside them. The first with a view:
+          //  ahead of the car on the wall's side, behind it, high over the middle of the lane)
+          const at = (dj, k, h) => { const j = Math.max(0, Math.min(ps.n - 1, bi + Math.round(dj / ps.ds))), off = P.trackSide * P.halfWidth * k; return new THREE.Vector3(ps.px[j] + ps.nx[j] * off, h, ps.pz[j] + ps.nz[j] * off); };
+          const C = [at(30, 0.75, 5.2), at(-26, 0.75, 5.2), at(22, 0.2, 9), at(-18, 0.2, 9), at(12, 0, 14)];
+          sh.pos = C.find((p) => !ctx.clear || ctx.clear(p.x, p.y, p.z, car.x, 0.9, car.z)) || C[C.length - 1];
+        }
         cam.position.copy(sh.pos);
         fov = Math.max(14, Math.min(50, 900 / Math.max(10, Math.hypot(car.x - sh.pos.x, car.z - sh.pos.z))));
       } else { this.shot.kind = 'track'; return; }
@@ -147116,7 +147162,7 @@ class TVGraphics {
     this.age = new Map(); this.prev = new Map(); this.best = Infinity; this.phase = 'green'; this.rcQ = [];
   }
   show(on) { this.el.classList.toggle('hidden', !on); if (!on) { this.capEl.classList.remove('in'); this.rcEl.innerHTML = ''; } }
-  reset() { this.age.clear(); this.prev.clear(); this.best = Infinity; this.phase = 'green'; this.rcEl.innerHTML = ''; this.capEl.classList.remove('in'); this.capT = 0; this.acc = 1; }
+  reset() { this.pidx = new Map(); this.pfl = new Map(); this.age.clear(); this.prev.clear(); this.best = Infinity; this.phase = 'green'; this.rcEl.innerHTML = ''; this.capEl.classList.remove('in'); this.capT = 0; this.acc = 1; }
   /** laps on this car's set of tyres */
   tyreLaps(c) { const a = this.age.get(c); return a ? Math.max(0, c.lap - a.lap) : c.lap; }
   /** a message from race control (kind: '' | warn | bad | good | purple) */
@@ -147131,6 +147177,7 @@ class TVGraphics {
     const c = sh.car, P = d.positions, o = sh.other;
     const tyre = (x) => { const k = x.tyres?.compound || 'SOFT'; return `<span class="ty2" style="border-color:${COMPOUNDS[k]?.color || '#fff'}">${LETTER[k] || '?'}</span>`; };
     let html;
+    if (sh.why === 'sc' || sh.why === 'red') { this.capEl.innerHTML = `<div class="cp" style="background:${sh.why === 'red' ? '#e10600' : '#ffd400'};color:${sh.why === 'red' ? '#fff' : '#111'}">${sh.why === 'red' ? 'RED' : 'SC'}</div><div class="cn"><b>${sh.why === 'red' ? 'Race suspended' : 'The safety car'}</b><small>${sh.why === 'red' ? 'the field returns to the grid' : o ? `leads ${surname(o)} and the field` : 'on the circuit'}</small></div>`; this.capEl.classList.add('in'); this.capT = 4.5; return; }
     if (o && sh.why === 'battle') {
       const front = P.indexOf(c) < P.indexOf(o) ? c : o, back = front === c ? o : c, g = d.radio?.gap?.(back, front);
       html = `<div class="cp">P${P.indexOf(front) + 1}</div><div class="cb" style="background:${front.color}"></div><div class="cn"><b>${surname(front)}</b><small>${front.team || ''}</small></div>`
@@ -147166,8 +147213,12 @@ class TVGraphics {
       this.rowsEl.appendChild(r); this.rows.push({ el: r, p: r.children[0], tc: r.children[1], cd: r.children[2], g: r.children[3], ty: r.children[4], k: '' });
     }
     this.cars = P.slice();
+    const nowMs = performance.now(); if (!this.pidx) { this.pidx = new Map(); this.pfl = new Map(); }
     for (let i = 0; i < P.length; i++) {
       const c = P[i], R = this.rows[i];
+      // (a place won or lost: the number gives way to an arrow for three seconds)
+      const was = this.pidx.get(c); if (was != null && was !== i && d.world.racing && d.mode === 'race' && !c.retired) this.pfl.set(c, { dir: i < was ? 'up' : 'dn', until: nowMs + 3000 }); this.pidx.set(c, i);
+      const fl = this.pfl.get(c), fd = fl && fl.until > nowMs ? fl.dir : '';
       let g, gc = '';
       if (d.mode === 'quali') { g = !isFinite(c.bestLap) ? (c.retired ? 'OUT' : c.pitLane || c.inPit ? 'PIT' : 'NO TIME') : i === 0 ? fmtLap(c.bestLap) : `+${(c.bestLap - lead.bestLap).toFixed(3)}`; gc = !isFinite(c.bestLap) && c.retired ? 'out' : ''; }   // (qualifying: by the best lap)
       else if (c.retired) { g = 'OUT'; gc = 'out'; } else if (c.pitLane || c.inPit) { g = 'PIT'; gc = 'pit'; }
@@ -147178,9 +147229,9 @@ class TVGraphics {
         else { const x = d.radio?.gap?.(c, ref); g = x != null && x > 0 ? `+${x.toFixed(x < 10 ? 3 : 1)}` : '-'; }
       }
       const k = c.tyres?.compound || 'SOFT';
-      const key = `${i}|${c.name}|${g}|${gc}|${k}|${focus.includes(c) ? 1 : 0}|${c === on ? 1 : 0}|${c.retired ? 1 : 0}`;
+      const key = `${i}|${c.name}|${g}|${gc}|${k}|${focus.includes(c) ? 1 : 0}|${c === on ? 1 : 0}|${c.retired ? 1 : 0}|${fd}`;
       if (key === R.k) continue; R.k = key;
-      R.p.textContent = i + 1; R.tc.style.background = c.color; R.cd.textContent = code(c); R.g.textContent = g; R.g.className = `g ${gc}`;
+      R.p.textContent = fd === 'up' ? '▲' : fd === 'dn' ? '▼' : i + 1; R.p.className = `p ${fd}`; R.tc.style.background = c.color; R.cd.textContent = code(c); R.g.textContent = g; R.g.className = `g ${gc}`;
       R.ty.style.borderColor = COMPOUNDS[k]?.color || '#fff'; R.ty.textContent = c.retired ? '' : LETTER[k] || '';
       R.el.className = `r${focus.includes(c) ? ' mine' : ''}${c === on ? ' on' : ''}${c.retired ? ' dnf' : ''}`;
     }
@@ -147196,7 +147247,7 @@ class TVGraphics {
       if (!p) { p = { stops: c.pitStops, retired: c.retired, pen: c.penalties || 0 }; this.prev.set(c, p); this.age.set(c, { lap: 0 }); continue; }
       if (c.pitStops !== p.stops) {
         this.age.set(c, { lap: c.lap });
-        if (c.pitStops === p.stops + 1 && c._stopDur != null && racing) this.rc(`${surname(c)} · ${c.tyres.compound} · STOP ${c._stopDur.toFixed(1)}s`, '', 'PIT STOP');
+        if (c.pitStops === p.stops + 1 && c._stopDur != null && racing && !(this.extras && (d.sc?.phase || 'green') !== 'green')) this.rc(`${surname(c)} · ${c.tyres.compound} · STOP ${c._stopDur.toFixed(1)}s`, '', 'PIT STOP');
         p.stops = c.pitStops;
       }
       if (c.retired && !p.retired) { p.retired = true; if (racing) this.rc(`${c.name} · ${c.retireReason || 'retired'}`, 'bad', 'RETIREMENT'); }
@@ -147209,7 +147260,7 @@ class TVGraphics {
     const ph = d.sc?.phase || 'green';
     if (ph !== this.phase) {
       const T = { sc: ['SAFETY CAR DEPLOYED', 'warn'], vsc: ['VIRTUAL SAFETY CAR DEPLOYED', 'warn'], red: ['RED FLAG · SESSION SUSPENDED', 'bad'], scIn: ['SAFETY CAR IN THIS LAP', 'warn'], vscEnd: ['VSC ENDING', 'warn'] }[ph];
-      if (T) this.rc(T[0], T[1]); else if (ph === 'green' && this.phase !== 'yellow') this.rc('GREEN FLAG · TRACK CLEAR', 'good');
+      if (!this.extras) { if (T) this.rc(T[0], T[1]); else if (ph === 'green' && this.phase !== 'yellow') this.rc('GREEN FLAG · TRACK CLEAR', 'good'); }   // (extras: ui/TVExtras.js has the safety car's and the red flag's own stingers and cards)
       this.phase = ph;
     }
   }
@@ -147396,7 +147447,8 @@ const CSS = `
 #pw .pgs { display: inline-flex; gap: 2px; margin-left: 6px; flex: none; } #pw .pgs button { padding: 1px 6px; font-size: 9px; }
 #pw .car[data-pg="drive"] .pg-race, #pw .car[data-pg="drive"] .pg-car, #pw .car[data-pg="race"] .pg-drive, #pw .car[data-pg="race"] .pg-car, #pw .car[data-pg="car"] .pg-drive, #pw .car[data-pg="car"] .pg-race { display: none; }
 #pw .alert { display: none; align-items: center; gap: 6px; background: rgba(255,176,0,.16); border: 1px solid rgba(255,176,0,.5); border-radius: 5px; padding: 2px 6px; font-size: 10.5px; } #pw .alert.on { display: flex; } #pw .alert span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#pw .note { font-size: 10px; color: #9aa4b2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#pw .note { font-size: 10px; color: #9aa4b2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: none; }
+#pw .car:hover .note { display: block; }   /* (the card's footnote only when the card is pointed at: less to read while the race runs) */
 #pw .mid { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 #pw .mid .row { display: flex; gap: 2px; flex-wrap: wrap; align-items: center; margin: 0; }   /* (not the menus' .row) */
 #pw .mid .row > span { font: 700 8.5px/1 var(--tvf); letter-spacing: .12em; color: #8b95a3; width: 34px; text-transform: none; }
@@ -147404,6 +147456,12 @@ const CSS = `
 #pw .radio b { color: #fff; }
 #pw.q .ctl, #pw.q .note, #pw.q [data-g="order"], #pw.q [data-a="sim"]:not([data-v="0"]) { display: none; }
 #pw .tog { position: absolute; right: 8px; top: -22px; font-size: 9px !important; padding: 2px 8px !important; background: rgba(8,10,14,.85) !important; }
+#pw .tog.tg2 { right: 96px; }
+/* COMPACT (the default on a laptop's screen): each instruction shows only what it is set to - point at it and its
+   choices open; the box-for tyres and the fuel load stay as they are. Less to read while the race runs. */
+#pw.cpt .grp:not(.cmp):not(.fl):not([data-g="replan"]):not(:hover):not(:focus-within) button:not(.on) { display: none; }
+#pw.cpt .ctl { gap: 3px 10px; }
+#pw.cpt .st .lt { display: none; }
 #pw-sim { position: fixed; inset: 0; z-index: 48; display: none; align-items: center; justify-content: center; flex-direction: column; gap: 10px; background: rgba(4,6,10,.72); color: #eef1f5; font: 600 14px/1.4 "Segoe UI", Arial, sans-serif; letter-spacing: .2em; text-align: center; }
 #pw-sim small { color: #9aa4b2; letter-spacing: .1em; }
 @media (max-width: 900px) { #pw { grid-template-columns: 1fr 1fr; } #pw .mid { grid-column: 1 / -1; grid-row: 1; flex-direction: row; flex-wrap: wrap; } #pw .radio { display: none; } }
@@ -147448,6 +147506,8 @@ class PitWall {
     this.act = o.act;
     if (!document.getElementById('pw-css')) { const st = document.createElement('style'); st.id = 'pw-css'; st.textContent = CSS; document.head.appendChild(st); }
     const el = this.el = document.createElement('div'); el.id = 'pw'; el.className = 'hidden';
+    // (compact on a laptop's screen unless you chose otherwise)
+    { let pref = null; try { pref = localStorage.getItem('f1sim-pw-compact'); } catch (e) { pref = null; } if (pref === '1' || (pref == null && innerHeight < 900)) el.classList.add('cpt'); }
     document.body.appendChild(el);
     this.sim = document.createElement('div'); this.sim.id = 'pw-sim'; document.body.appendChild(this.sim);
     el.addEventListener('click', (e) => this.click(e));
@@ -147482,7 +147542,7 @@ class PitWall {
         <div class="row" data-g="cam"><span>CAM</span>${['auto', 'track', 'tcam', 'heli', 'rear'].map((k) => `<button data-a="cam" data-v="${k}" title="${TV_CAM_NAME[k]}">${{ auto: 'DIRECTOR', track: 'TRACK', tcam: 'ONBOARD', heli: 'HELI', rear: 'REAR' }[k]}</button>`).join('')}</div>
         <div class="row" data-g="order"><span>TEAM</span><button data-a="order" data-v="swap" title="The car ahead lets its team-mate through">SWAP</button><button data-a="order" data-v="hold" title="The car behind stays behind">HOLD</button><button data-a="order" data-v="free" title="Call the order off: race each other">RACE</button></div>
         <div class="radio"></div>
-      </div>${card(C[1] || C[0], 1)}<button class="tog" data-a="min">PIT WALL ▾</button>`;
+      </div>${card(C[1] || C[0], 1)}<button class="tog" data-a="min">PIT WALL ▾</button><button class="tog tg2" data-a="cpt" title="Compact: each instruction shows only its setting until you point at it">${this.el.classList.contains('cpt') ? 'FULL' : 'COMPACT'}</button>`;
     }
     this.el.classList.remove('hidden', 'min');
     this.radio('Pit wall', `Both cars on the grid. ${this.cars.map((c) => `${surname(c)} on ${c.tyres.compound.toLowerCase()}s`).join(', ')}.`);
@@ -147493,6 +147553,7 @@ class PitWall {
   click(e) {
     const b = e.target.closest('button'); if (!b) return;
     const a = b.dataset.a, car = b.dataset.k != null ? this.cars[+b.dataset.k] : null;
+    if (a === 'cpt') { const on = this.el.classList.toggle('cpt'); b.textContent = on ? 'FULL' : 'COMPACT'; try { localStorage.setItem('f1sim-pw-compact', on ? '1' : '0'); } catch (e) { /* not kept */ } return; }
     if (a === 'min') { this.el.classList.toggle('min'); b.textContent = this.el.classList.contains('min') ? 'PIT WALL ▴' : 'PIT WALL ▾'; return; }
     if (a === 'cmp') { car.mgr.next = b.dataset.v; if (car.mgr.preRace) this.act('start', car, b.dataset.v); this.acc = 1; return; }
     if (a === 'box') { if (car.pitRequested && !car.pitLane) this.act('stay', car); else this.act('box', car, car.mgr.next); this.acc = 1; return; }
@@ -149358,6 +149419,7 @@ function showSetup(o) {
     <div class="kn">${kn}${sets ? `<br>Sets: ${sets}` : ''}</div>${qp}</div>`;
   };
   const draw = () => {
+    { const sb0 = el.querySelector('.sb'), keepY = sb0 ? sb0.scrollTop : 0; if (keepY) queueMicrotask(() => { const sb = el.querySelector('.sb'); if (sb) sb.scrollTop = keepY; }); }   // (the page stays where it was scrolled to)
     el.innerHTML = `<div class="sb"><h2>PRACTICE · <b>${esc(o.trackName || '')}</b> · forecast ${wet > 0.5 ? 'wet' : wet > 0.2 ? 'damp' : 'dry'}</h2>
       <div class="sp">Six runs a car. A <b>set-up run</b> brings the driver's feedback: the white mark is where they feel the car on each of the five, the green line optimal, the blue window how sure the engineers are (it narrows with every run). A <b>tyre run</b> tells the pit wall how long that compound lasts here; a <b>race sim</b> the fuel the car really burns. <b>Parc fermé:</b> the set-up is locked once qualifying starts - and it is set for the forecast. ${o.note || ''}</div>
       <div class="cols">${S.map(colHTML).join('')}</div><div class="ft"><span class="cm">${esc(crewMsg)}</span>${o.crew ? `<button data-a="crew" ${o.crew.left() > 0 ? '' : 'disabled'} title="The pit crew practises stops: sharper for this race, a little more tired">PIT STOP PRACTICE · ${o.crew.left()} left</button>` : ''}<button class="go" data-a="done">DONE · TO QUALIFYING ▸</button></div></div>`;
@@ -151016,7 +151078,7 @@ const money = (m) => `$${(Math.round(m * 10) / 10).toFixed(1)}M`;
 const pct = (x) => `${Math.round(x * 100)}%`;
 const bar = (x, col) => `<div class="m-bar" style="--bc:${col || (x > 0.66 ? '#1fae64' : x > 0.4 ? '#e0a100' : '#d4351c')}"><i style="width:${(Math.max(0, Math.min(1, x)) * 100).toFixed(0)}%"></i></div>`;
 const seg = (a, cur, opts) => `<span class="m-seg">${opts.map(([v, n, t]) => `<button data-a="${a}" data-v="${v}" class="${String(cur) === String(v) ? 'm-on' : ''}"${t ? ` title="${esc(t)}"` : ''}>${esc(n)}</button>`).join('')}</span>`;
-const note = (t) => `<p style="font-size:12px;color:#6b7480">${t}</p>`;
+const note = (t) => `<details class="m-note"><summary>How this works</summary><p>${t}</p></details>`;   // (folded away: the page reads without it)
 
 function extraHTML(c, tab, T) {
   if (tab === 'crew') return crewHTML(c);
@@ -151121,7 +151183,7 @@ const { STYLES } = __m['src/career/StoryLines.js'];
 const STORY_TABS = [['story', 'STORY']];
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const bar = (x, col) => `<div class="m-bar" style="--bc:${col || (x > 0.66 ? '#1fae64' : x > 0.4 ? '#e0a100' : '#d4351c')}"><i style="width:${(Math.max(0, Math.min(1, x)) * 100).toFixed(0)}%"></i></div>`;
-const note = (t) => `<p style="font-size:12px;color:#6b7480">${t}</p>`;
+const note = (t) => `<details class="m-note"><summary>How this works</summary><p>${t}</p></details>`;   // (folded away: the page reads without it)
 const SCENE = { feudRow: 'The garage', debrief: 'Your office', poach: 'The paddock', hearing: 'The stewards', scrutineering: 'Scrutineering', audit: 'The auditors', sponsorCall: 'A call', leak: 'The factory, at night', seatFit: 'The garage', crewTalk: 'The garage', press: 'The press room', board: 'The boardroom', launch: 'Launch night', seasonReview: 'A film', documentary: 'A film', factoryTour: 'The factory', garageNight: 'The garage', sacked: 'The boardroom', signing: 'The press room', released: 'Your office' };
 
 function matterHTML(c, m) {
@@ -151257,6 +151319,15 @@ const CSS = `
 #mgr .fac { max-width: 860px; }
 #mgr .m-verdict { font-size: 26px; font-weight: 900; margin: 4px 0 8px; } #mgr .m-verdict.m-bad { color: #d4351c; } #mgr .m-verdict.m-good { color: #1d8a4e; }
 @media (max-width: 700px) { #mgr .m-mh { flex-wrap: wrap; } #mgr .m-kp { margin-left: 0; } }
+/* less to read at a glance: a row's explanation is one line until the row is pointed at; the long notes fold away */
+#mgr .m-drv .m-nm small:not([style]) { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; overflow: hidden; }
+#mgr .m-drv:hover .m-nm small:not([style]), #mgr .m-drv:focus-within .m-nm small:not([style]) { -webkit-line-clamp: 8; }
+#mgr details.m-note { margin-top: 8px; font-size: 12px; color: #6b7480; }
+#mgr details.m-note summary { cursor: pointer; list-style: none; font: 700 10px/1.4 inherit; letter-spacing: .1em; text-transform: uppercase; color: #8a93a0; user-select: none; }
+#mgr details.m-note summary::-webkit-details-marker { display: none; } #mgr details.m-note summary::before { content: 'ⓘ  '; } #mgr details.m-note summary:hover { color: #151a22; }
+#mgr details.m-note p { margin: 6px 0 0; }
+/* a laptop's height: the header and the cards drawn tighter, more of the page on the screen */
+@media (max-height: 860px) { #mgr .m-mh { padding: 7px 16px; gap: 10px; row-gap: 5px; } #mgr .m-mh .m-tn b { font-size: 17px; } #mgr .m-mh .m-tn small { font-size: 9px; } #mgr .m-k { padding: 4px 9px; } #mgr .m-k b { font-size: 14px; } #mgr .m-mn button { padding: 8px 9px; } #mgr .m-mb { padding: 12px 14px 20px; } #mgr .m-card { padding: 10px 12px; } #mgr .m-drv { padding: 6px 0; gap: 9px; } #mgr .m-grid { gap: 10px; } #mgr .m-card h3 { margin-bottom: 6px; } #mgr .m-go, #mgr .m-dark { padding-top: 7px; padding-bottom: 7px; } }
 `;
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const money = (m) => `$${(Math.round(m * 10) / 10).toFixed(1)}M`;
@@ -153199,6 +153270,224 @@ function radioReplays(log, o = {}) {
 }
 
 return { bestRadio, stopRadioReplays, radioReplays };
+})();
+
+// ---- src/ui/TVExtras.js
+__m['src/ui/TVExtras.js'] = (() => {
+
+// The broadcast's live graphics beyond the tower and the captions (ui/TVGraphics.js), over the world feed in the team
+// principal's race - what a real broadcast puts up while the race runs:
+//   BATTLE FOR 1ST / FOR P5: two cars inside 1.2 s - the gap as it moves, whether it is closing, DRS, each car's tyre
+//     and its age;
+//   CATCHING: a car closing on the one ahead (the gap sampled every few seconds, its trend over the last half-minute
+//     turned into seconds a lap): the gap, the rate, and the laps until they are together - only when that is before
+//     the flag;
+//   PIT STOP: the clock on a car stopped in its box, running, then frozen on its time;
+//   the onboard's strip (speed, gear, throttle and brake, DRS) while the feed is on an onboard camera;
+//   OVERTAKE banners, FINAL LAP;
+//   THE SAFETY CAR's own feed: a yellow stinger across the picture as it is called, a yellow frame round the feed and
+//     the tower while it is out, and its card in place of the battles (gaps mean nothing behind it) - the laps it has
+//     led, who caused it, who has stopped under it (the cheap stop), the order it will release; SAFETY CAR IN THIS
+//     LAP flashing as it comes in; the virtual safety car's the same, lighter; GREEN FLAG as the racing starts again;
+//   THE RED FLAG's: a red stinger, a red frame, RACE SUSPENDED with what stopped it, then the restart's grid - the
+//     order as it was frozen, each car's tyres (they may be changed), the laps still to run - and RACE RESUMES;
+//   INSTANT REPLAY: an overtake for a place, a coming-together, a spin or a crash is OFFERED - a chip with a clock on
+//     it (R, or a click); taken, the race holds and the last seconds are shown again from a camera by the place it
+//     happened (main.js plays it from the director's rolling record: race/Replay.js); left alone, the chip goes.
+// Plain DOM inside the graphics' own layer; written only where a value changed.
+const CSS = `
+#tvg .xr { position: absolute; right: 14px; bottom: calc(var(--pw, 150px) + 16px); display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+#tvg .xc { width: 268px; background: rgba(12,14,20,.9); border-radius: 6px; overflow: hidden; box-shadow: 0 6px 22px rgba(0,0,0,.35); transform: translateX(24px); opacity: 0; transition: opacity .3s, transform .35s cubic-bezier(.2,.7,.2,1); }
+#tvg .xc.in { transform: none; opacity: 1; }
+#tvg .xc .xh { display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; font: 900 11px/1 var(--tvf); letter-spacing: .16em; background: #e10600; }
+#tvg .xc.catch .xh { background: #1f6feb; } #tvg .xc.pst .xh { background: #00a3c7; }
+#tvg .xc .xh small { font: 700 9px/1 var(--tvf); letter-spacing: .14em; opacity: .9; }
+#tvg .xc .xrw { display: grid; grid-template-columns: 26px 4px 1fr auto; gap: 0 8px; align-items: center; padding: 6px 10px; font: 700 13px/1 var(--tvf); }
+#tvg .xc .xrw + .xrw { border-top: 1px solid rgba(255,255,255,.08); }
+#tvg .xc .xrw .p { font-weight: 900; color: #c9d1db; text-align: right; } #tvg .xc .xrw .tc { height: 15px; border-radius: 2px; }
+#tvg .xc .xrw .n { text-transform: uppercase; letter-spacing: .03em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#tvg .xc .xrw .t { display: flex; align-items: center; gap: 6px; font: 700 10px/1 var(--tvf); color: #b7c0cc; }
+#tvg .xc .xg { display: flex; align-items: baseline; justify-content: space-between; padding: 7px 10px 8px; background: rgba(255,255,255,.06); }
+#tvg .xc .xg b { font: 900 24px/1 var(--tvf); font-variant-numeric: tabular-nums; } #tvg .xc .xg b small { font: 700 10px/1 var(--tvf); letter-spacing: .12em; margin-left: 4px; color: #b7c0cc; }
+#tvg .xc .xg span { font: 800 11px/1.2 var(--tvf); letter-spacing: .08em; text-align: right; }
+#tvg .xc .xg span.cl { color: #3ddc84; } #tvg .xc .xg span.op { color: #ff8a80; } #tvg .xc .xg em { font-style: normal; display: inline-block; background: #3ddc84; color: #06210f; font: 900 9px/1 var(--tvf); letter-spacing: .12em; padding: 3px 5px; border-radius: 3px; margin-left: 6px; }
+#tvg .xc .sp { display: flex; align-items: flex-end; gap: 2px; height: 16px; padding: 0 10px 8px; background: rgba(255,255,255,.06); }
+#tvg .xc .sp i { flex: 1; background: #1f6feb; border-radius: 1px; min-height: 2px; }
+#tvg .xc.pst .xg b { font-size: 30px; } #tvg .xc.pst.done .xg b { color: #3ddc84; }
+#tvg .rpo { pointer-events: auto; cursor: pointer; display: flex; align-items: center; gap: 10px; background: rgba(12,14,20,.94); border: 1px solid rgba(255,255,255,.25); border-left: 4px solid #ffd400; border-radius: 6px; padding: 8px 12px; font: 700 12px/1.25 var(--tvf); max-width: 300px; position: relative; overflow: hidden; transform: translateX(24px); opacity: 0; transition: opacity .25s, transform .3s; }
+#tvg .rpo.in { transform: none; opacity: 1; } #tvg .rpo:hover { border-color: #fff; }
+#tvg .rpo kbd { font: 900 11px/1 var(--tvf); border: 1.5px solid #ffd400; color: #ffd400; border-radius: 4px; padding: 3px 6px; }
+#tvg .rpo small { display: block; font: 800 9px/1 var(--tvf); letter-spacing: .2em; color: #ffd400; margin-bottom: 3px; }
+#tvg .rpo i { position: absolute; left: 0; bottom: 0; height: 2px; width: 100%; background: #ffd400; transform-origin: 0 50%; }
+#tvg .rbug { position: absolute; left: 50%; top: 14px; transform: translateX(-50%); display: none; align-items: center; gap: 10px; background: #e10600; padding: 8px 16px; font: 900 14px/1 var(--tvf); letter-spacing: .3em; border-radius: 4px; pointer-events: auto; cursor: pointer; }
+#tvg .rbug.on { display: flex; } #tvg .rbug small { font: 700 10px/1 var(--tvf); letter-spacing: .12em; opacity: .9; }
+#tvg .rbug::before { content: ''; width: 9px; height: 9px; border-radius: 50%; background: #fff; animation: tvgBlink 1s infinite; }
+#tvg .tel { position: absolute; left: 50%; bottom: calc(var(--pw, 150px) + 84px); transform: translateX(-50%); display: none; align-items: center; gap: 14px; background: rgba(12,14,20,.82); border-radius: 6px; padding: 7px 14px; font: 800 12px/1 var(--tvf); }
+#tvg .tel.on { display: flex; }
+#tvg .tel .sp2 b { font: 900 26px/1 var(--tvf); font-variant-numeric: tabular-nums; } #tvg .tel .sp2 small { font: 700 9px/1 var(--tvf); letter-spacing: .14em; color: #b7c0cc; margin-left: 4px; }
+#tvg .tel .gr { font: 900 22px/1 var(--tvf); width: 22px; text-align: center; color: #ffd400; }
+#tvg .tel .bars { display: grid; gap: 4px; width: 110px; } #tvg .tel .bars div { height: 6px; background: rgba(255,255,255,.14); border-radius: 3px; overflow: hidden; } #tvg .tel .bars i { display: block; height: 100%; transform-origin: 0 50%; }
+#tvg .tel .drs { font: 900 10px/1 var(--tvf); letter-spacing: .14em; padding: 4px 6px; border-radius: 3px; border: 1.5px solid rgba(255,255,255,.3); color: rgba(255,255,255,.4); } #tvg .tel .drs.on { background: #3ddc84; border-color: #3ddc84; color: #06210f; }
+#tvg .r .p.up { color: #3ddc84; } #tvg .r .p.dn { color: #ff8a80; }
+body.tp #hud-msg { display: none !important; }   /* (the broadcast says it itself - race control's column, the stingers: no second line across the middle of the picture) */
+#tvg .frame { position: absolute; inset: 0; pointer-events: none; border: 0 solid transparent; transition: border-width .4s, border-color .4s; box-sizing: border-box; }
+#tvg.ph-sc .frame, #tvg.ph-vsc .frame { border-width: 5px; border-color: #ffd400; } #tvg.ph-red .frame { border-width: 6px; border-color: #e10600; }
+#tvg.ph-sc .th, #tvg.ph-vsc .th { background: #ffd400; color: #111; } #tvg.ph-red .th { background: #7a0a06; }
+#tvg.ph-sc .mode, #tvg.ph-vsc .mode { color: #ffd400; } #tvg.ph-red .mode { color: #ff6b61; }
+#tvg .sting { position: absolute; left: 0; right: 0; top: 34%; height: 15vh; min-height: 70px; display: flex; flex-direction: column; align-items: center; justify-content: center; transform: translateX(-102%); pointer-events: none; font: 900 clamp(26px, 5.2vw, 62px)/1 var(--tvf); letter-spacing: .22em; box-shadow: 0 10px 40px rgba(0,0,0,.45); }
+#tvg .sting small { font: 800 clamp(10px, 1.2vw, 15px)/1 var(--tvf); letter-spacing: .3em; margin-top: 10px; opacity: .85; }
+#tvg .sting.go { animation: tvxSting 3.1s cubic-bezier(.2,.8,.2,1) forwards; }
+#tvg .sting.y { background: repeating-linear-gradient(-45deg, #ffd400 0 34px, #f2c500 34px 68px); color: #111; } #tvg .sting.r { background: repeating-linear-gradient(-45deg, #e10600 0 34px, #c40500 34px 68px); color: #fff; } #tvg .sting.g { background: #1fae64; color: #fff; }
+@keyframes tvxSting { 0% { transform: translateX(-102%); } 14% { transform: translateX(0); } 82% { transform: translateX(0); opacity: 1; } 100% { transform: translateX(102%); opacity: 0; } }
+#tvg .xc.scc .xh { background: #ffd400; color: #111; } #tvg .xc.scc.red .xh { background: #e10600; color: #fff; } #tvg .xc.scc { width: 286px; }
+#tvg .xc.scc .ln { display: flex; justify-content: space-between; gap: 10px; padding: 5px 10px; font: 700 11px/1.25 var(--tvf); letter-spacing: .04em; border-top: 1px solid rgba(255,255,255,.08); }
+#tvg .xc.scc .ln small { font: 800 9px/1.4 var(--tvf); letter-spacing: .16em; color: #9aa4b2; white-space: nowrap; } #tvg .xc.scc .ln span { text-align: right; }
+#tvg .xc.scc .in2 { padding: 7px 10px; font: 900 12px/1 var(--tvf); letter-spacing: .14em; text-align: center; background: #ffd400; color: #111; animation: tvgBlink 1s infinite; }
+#tvg .xc.scc.red .in2 { background: #e10600; color: #fff; }
+#tvg .xc.scc .xrw { padding: 4px 10px; font-size: 12px; }
+@media (max-width: 900px) { #tvg .xc { width: 220px; } #tvg .tel { display: none !important; } }
+`;
+const surname = (c) => { const w = String(c?.name || '').trim().split(/\s+/); return w[0] === 'Zhou' ? 'Zhou' : w[w.length - 1]; };
+const LETTER = { SOFT: 'S', MEDIUM: 'M', HARD: 'H', INTER: 'I', WET: 'W' }, TCOL = { SOFT: '#e8322e', MEDIUM: '#ffd400', HARD: '#f2f2f2', INTER: '#3ddc84', WET: '#3d8bff' };
+const ord = (n) => (n === 1 ? '1ST' : n === 2 ? '2ND' : n === 3 ? '3RD' : `P${n}`);
+
+class TVExtras {
+  /** root: the graphics' layer (#tvg); o: { tyreLaps(car), onReplay(offer) (a replay taken), onSkip() (a replay playing: ended by hand) } */
+  constructor(root, o = {}) {
+    this.o = o;
+    if (!document.getElementById('tvx-css')) { const st = document.createElement('style'); st.id = 'tvx-css'; st.textContent = CSS; document.head.appendChild(st); }
+    const col = this.col = document.createElement('div'); col.className = 'xr'; root.appendChild(col);
+    col.innerHTML = '<div class="rpo"><kbd>R</kbd><div><small>INSTANT REPLAY</small><span></span></div><i></i></div><div class="xc pst"></div><div class="xc bt"></div><div class="xc catch"></div>';
+    this.rpo = col.children[0]; this.pst = col.children[1]; this.bt = col.children[2]; this.ct = col.children[3];
+    this.bug = document.createElement('div'); this.bug.className = 'rbug'; this.bug.innerHTML = 'REPLAY<small></small>'; root.appendChild(this.bug);
+    this.tel = document.createElement('div'); this.tel.className = 'tel'; this.tel.innerHTML = '<span class="sp2"><b>0</b><small>KM/H</small></span><span class="gr">1</span><span class="bars"><div><i style="background:#3ddc84"></i></div><div><i style="background:#e10600"></i></div></span><span class="drs">DRS</span>'; root.appendChild(this.tel);
+    this.root = root; this.frame = document.createElement('div'); this.frame.className = 'frame'; root.appendChild(this.frame);
+    this.sting = document.createElement('div'); this.sting.className = 'sting'; root.appendChild(this.sting);
+    this.scc = document.createElement('div'); this.scc.className = 'xc scc'; col.appendChild(this.scc);
+    this.rpo.addEventListener('click', () => this.take()); this.bug.addEventListener('click', () => this.o.onSkip?.());
+    this.reset();
+  }
+  reset() {
+    this.hist = new Map();      // car -> [{ t, g, ahead }]: its gap to the car ahead, sampled
+    this.acc = 0; this.sampT = 0; this.order = null; this.passAt = new Map(); this.offer = null; this.pending = null; this.lastOffer = -99; this.catchK = 0; this.catchT = 0; this.stop = new Map(); this.finalSaid = false; this.spun = new Map(); this.outSeen = new Set(); this.keys = {};
+    for (const e of [this.rpo, this.pst, this.bt, this.ct]) e.classList.remove('in'); this.bug.classList.remove('on'); this.tel.classList.remove('on');
+    this.ph = 'green'; this.scS = null; this.redGrid = false; if (this.scc) this.scc.classList.remove('in'); if (this.root) this.root.classList.remove('ph-sc', 'ph-vsc', 'ph-red'); if (this.sting) this.sting.className = 'sting';
+  }
+  /** the stinger across the picture: kind 'y' | 'r' | 'g' */
+  stinger(text, sub, kind) { const s = this.sting; s.className = 'sting'; s.innerHTML = `${text}${sub ? `<small>${sub}</small>` : ''}`; void s.offsetWidth; s.className = `sting ${kind} go`; }
+  html(el, key, make) { if (this.keys[el.className.split(' ')[1]] === key) return; this.keys[el.className.split(' ')[1]] = key; el.innerHTML = make(); }
+  /** something worth a replay: { text, cars: [a, b?], t (race time) } - offered a moment later, once what followed is on record */
+  event(e, d) { if (!d || d.time - this.lastOffer < 14 || this.pending || this.offer) return; this.pending = { ...e, t: d.time, due: d.time + (e.wait ?? 2.4) }; }
+  /** the offer taken (R, a click) */
+  take() { const o = this.offer; if (!o) return false; this.offer = null; this.rpo.classList.remove('in'); this.o.onReplay?.(o); return true; }
+  /** a replay is playing (main.js): the bug up, the cards away */
+  replaying(on, text = '') { this.bug.classList.toggle('on', !!on); this.bug.querySelector('small').textContent = on ? text : ''; this.col.style.visibility = on ? 'hidden' : ''; if (on) { this.tel.classList.remove('on'); this.root.querySelector('.cap')?.classList.remove('in'); } this.root.querySelector('.live')?.classList.toggle('rp', !!on); }
+
+  /** every frame. ctx: { d, focus, shot (the director's), halted, say(text, kind, head) (race control's line) } */
+  update(dt, ctx) {
+    const d = ctx.d; if (!d || d.mode !== 'race') { for (const e of [this.rpo, this.pst, this.bt, this.ct]) e.classList.remove('in'); this.tel.classList.remove('on'); return; }
+    const P = d.positions, racing = d.world.racing && !d.done, mine = (c) => (ctx.focus || []).includes(c), gap = (a, b) => d.radio?.gap?.(a, b);
+    const onTrack = (c) => c && !c.retired && !c.finished && !c.inPit && !c.pitLane && !c.isSC && !c.hiddenAway;
+    // the onboard's strip: live, every frame
+    const sh = ctx.shot, ob = sh && (sh.kind === 'tcam' || sh.kind === 'rear') && sh.car && !ctx.halted;
+    this.tel.classList.toggle('on', !!ob);
+    if (ob) { const c = sh.car, k = Math.round(Math.abs(c.speed) * 3.6); const b = this.tel.querySelector('.sp2 b'); if (b.textContent !== String(k)) b.textContent = k; const g = this.tel.querySelector('.gr'); if (g.textContent !== String(c.gear || 1)) g.textContent = c.gear || 1; const I = this.tel.querySelectorAll('.bars i'); I[0].style.transform = `scaleX(${Math.max(0, Math.min(1, c.throttle || 0)).toFixed(2)})`; I[1].style.transform = `scaleX(${Math.max(0, Math.min(1, c.brake || 0)).toFixed(2)})`; this.tel.querySelector('.drs').classList.toggle('on', !!c.drs); }
+    // the replay's offer: its clock
+    if (this.offer) { const left = 1 - (performance.now() - this.offer.shown) / 7000; this.rpo.querySelector('i').style.transform = `scaleX(${Math.max(0, left)})`; if (left <= 0) { this.offer = null; this.rpo.classList.remove('in'); } }
+    if (ctx.halted) return;
+    if (this.pending && d.time >= this.pending.due) { const e = this.pending; this.pending = null; if (racing || d.leaderFinished) { this.offer = { ...e, shown: performance.now() }; this.lastOffer = d.time; this.rpo.querySelector('span').textContent = e.text; this.rpo.classList.add('in'); } }
+    this.acc += dt; if (this.acc < 0.2) return; this.acc = 0;
+    // ---- the safety car's and the red flag's own feed ------------------------------------------------------------
+    const ph = d.sc?.phase || 'green', lead0 = P.find((c) => !c.retired), neutral = ph === 'sc' || ph === 'scIn' || ph === 'vsc' || ph === 'vscEnd';
+    const rowQ = (c, i) => { const k = c.tyres?.compound || 'SOFT'; return `<div class="xrw"><span class="p">${i + 1}</span><span class="tc" style="background:${c.color}"></span><span class="n">${surname(c)}</span><span class="t"><span class="ty2" style="border-color:${TCOL[k]};width:17px;height:17px;border-width:3px;font-size:8px">${LETTER[k] || ''}</span>${this.o.tyreLaps ? this.o.tyreLaps(c) : ''}L</span></div>`; };
+    const cause = () => { const S0 = d.sc?.incident?.cars; const n = S0 ? [...S0].map((c) => surname(c)).filter(Boolean) : []; return n.length ? n.slice(0, 3).join(', ') : ''; };
+    if (ph !== this.ph) {
+      const was = this.ph; this.ph = ph;
+      if (ph === 'sc' && was !== 'scIn') { this.scS = { kind: 'sc', t0: d.time, lap0: lead0?.lap || 0, stops: new Map(P.map((c) => [c, c.pitStops])), cause: cause() }; this.stinger('SAFETY CAR', this.scS.cause ? `${this.scS.cause.toUpperCase()} · NO OVERTAKING` : 'NO OVERTAKING', 'y'); if (d.sc?.incident?.cars?.size) this.event({ text: `the incident: ${this.scS.cause}`, cars: [...d.sc.incident.cars].slice(0, 2), wait: 1.5 }, d); }
+      else if (ph === 'vsc') { this.scS = { kind: 'vsc', t0: d.time, lap0: lead0?.lap || 0, stops: new Map(P.map((c) => [c, c.pitStops])), cause: cause() }; this.stinger('VIRTUAL SAFETY CAR', 'HOLD THE DELTA · NO OVERTAKING', 'y'); }
+      else if (ph === 'red') { this.scS = { kind: 'red', t0: d.time, lap0: lead0?.lap || 0, stops: new Map(), cause: cause() }; this.redGrid = true; this.stinger('RED FLAG', this.scS.cause ? `RACE SUSPENDED · ${this.scS.cause.toUpperCase()}` : 'RACE SUSPENDED', 'r'); if (d.sc?.incident?.cars?.size) this.event({ text: `what stopped the race: ${this.scS.cause}`, cars: [...d.sc.incident.cars].slice(0, 2), wait: 1.2 }, d); }
+      else if ((ph === 'green' || ph === 'restart') && (was === 'sc' || was === 'scIn' || was === 'vsc' || was === 'vscEnd')) { this.stinger('GREEN FLAG', was.startsWith('vsc') ? 'VIRTUAL SAFETY CAR ENDED' : 'RACING RESUMES', 'g'); }
+      this.root.classList.toggle('ph-sc', ph === 'sc' || ph === 'scIn'); this.root.classList.toggle('ph-vsc', ph === 'vsc' || ph === 'vscEnd');
+    }
+    // (the red flag: its frame stays over the restart's grid until the lights go out again)
+    if (this.redGrid && ph !== 'red' && d.world.racing) { this.redGrid = false; this.stinger('RACE RESUMES', `LAP ${Math.min(d.lapsTotal, (lead0?.lap || 0) + 1)} OF ${d.lapsTotal}`, 'g'); this.scS = null; }
+    this.root.classList.toggle('ph-red', ph === 'red' || this.redGrid);
+    if (neutral && this.scS) {
+      const S0 = this.scS, laps = Math.max(0, (lead0?.lap || 0) - S0.lap0) + 1, boxed = P.filter((c) => !c.retired && c.pitStops > (S0.stops.get(c) ?? c.pitStops)).map((c) => surname(c)), inLane = P.filter((c) => !c.retired && (c.pitLane || c.inPit)).map((c) => surname(c));
+      this.scc.className = 'xc scc in'; this.bt.classList.remove('in'); this.ct.classList.remove('in');
+      this.scc.innerHTML = `<div class="xh">${S0.kind === 'vsc' ? 'VIRTUAL SAFETY CAR' : 'SAFETY CAR'}<small>LAP ${Math.min(d.lapsTotal, (lead0?.lap || 0) + 1)}/${d.lapsTotal}</small></div>`
+        + (ph === 'scIn' ? '<div class="in2">SAFETY CAR IN THIS LAP</div>' : ph === 'vscEnd' ? '<div class="in2">VSC ENDING</div>' : '')
+        + `<div class="ln"><small>${S0.kind === 'vsc' ? 'VSC' : 'SC'} LAP</small><span>${laps}</span></div>`
+        + (S0.cause ? `<div class="ln"><small>CAUSE</small><span>${S0.cause}</span></div>` : '')
+        + `<div class="ln"><small>STOPPED UNDER IT</small><span>${boxed.length ? `${boxed.slice(0, 4).join(', ')}${boxed.length > 4 ? ` +${boxed.length - 4}` : ''}` : 'nobody yet'}</span></div>`
+        + (inLane.length ? `<div class="ln"><small>IN THE PIT LANE</small><span>${inLane.slice(0, 3).join(', ')}${inLane.length > 3 ? ` +${inLane.length - 3}` : ''}</span></div>` : '')
+        + (S0.kind === 'sc' ? `<div class="ln"><small>THE QUEUE</small><span></span></div>${P.filter((c) => !c.retired && !c.pitLane && !c.inPit).slice(0, 3).map((c) => rowQ(c, P.indexOf(c))).join('')}` : '');
+    } else if ((ph === 'red' || this.redGrid) && this.scS) {
+      const S0 = this.scS, left = Math.max(0, d.lapsTotal - (lead0?.lap || 0));
+      this.scc.className = 'xc scc red in'; this.bt.classList.remove('in'); this.ct.classList.remove('in');
+      this.scc.innerHTML = `<div class="xh">RED FLAG<small>${ph === 'red' ? 'RACE SUSPENDED' : 'STANDING RESTART'}</small></div>`
+        + (ph === 'red' ? '<div class="in2">ALL CARS TO THE GRID</div>' : '<div class="in2">THE RESTART</div>')
+        + (S0.cause ? `<div class="ln"><small>STOPPED BY</small><span>${S0.cause}</span></div>` : '')
+        + `<div class="ln"><small>STILL TO RUN</small><span>${left} lap${left === 1 ? '' : 's'}</span></div><div class="ln"><small>TYRES</small><span>may be changed</span></div>`
+        + `<div class="ln"><small>THE ORDER</small><span></span></div>${P.filter((c) => !c.retired).slice(0, 5).map((c) => rowQ(c, P.indexOf(c))).join('')}`;
+    } else this.scc.classList.remove('in');
+    this.neutral = neutral || ph === 'red' || this.redGrid;
+    if (!racing) { this.bt.classList.remove('in'); this.ct.classList.remove('in'); if (!d.leaderFinished) return; }
+    // overtakes on the road (not a stop, not a car out): a banner, and a replay offered
+    const idx = new Map(P.map((c, i) => [c, i]));
+    if (this.order && racing && !this.neutral) for (let i = 0; i < Math.min(P.length - 1, 12); i++) {
+      const a = P[i], b = P[i + 1], was = this.order;
+      if (was.get(a) > was.get(b) && onTrack(a) && onTrack(b) && a.lap === b.lap && d.time - (this.passAt.get(a) ?? -99) > 12 && (a.lap > 0 || a.lapDist > 600)) {
+        this.passAt.set(a, d.time); if (i < 10 || mine(a) || mine(b)) { ctx.say?.(`${surname(a)} PASSES ${surname(b)} FOR ${ord(i + 1)}`, mine(a) ? 'good' : mine(b) ? 'bad' : '', 'OVERTAKE'); if (i < 6 || mine(a) || mine(b)) this.event({ text: `${surname(a)} passes ${surname(b)} for ${ord(i + 1).toLowerCase()}`, cars: [a, b], wait: 1.6 }, d); }
+      }
+    }
+    this.order = idx;
+    // a spin, a car out in an accident: a replay offered
+    for (const c of P) {
+      if (c.spinning && c.speed > 8 && d.time - (this.spun.get(c) ?? -99) > 20) { this.spun.set(c, d.time); this.event({ text: `${surname(c)} spins`, cars: [c], wait: 2.8 }, d); }
+      if (c.retired && !this.outSeen.has(c)) { this.outSeen.add(c); if (/accident|crash|collision|torn|wall/i.test(c.retireReason || '') && racing) this.event({ text: `${surname(c)} is out: ${String(c.retireReason || 'an accident').toLowerCase()}`, cars: [c], wait: 3.2 }, d); }
+    }
+    // the final lap
+    const lead = P.find((c) => !c.retired); if (lead && !this.finalSaid && racing && lead.lap >= d.lapsTotal - 1 && d.lapsTotal > 1) { this.finalSaid = true; ctx.say?.(`${surname(lead)} STARTS THE LAST LAP`, 'purple', 'FINAL LAP'); }
+    // the gaps, sampled: each car to the one ahead of it
+    this.sampT += 0.2;
+    if (this.sampT >= 3 && racing) {
+      this.sampT = 0;
+      for (let i = 1; i < P.length; i++) { const c = P[i], a = P[i - 1]; if (!onTrack(c) || !onTrack(a) || c.lap !== a.lap) { this.hist.delete(c); continue; } const g = gap(c, a); if (g == null || !(g > 0)) continue; let H = this.hist.get(c); if (!H || H[H.length - 1].ahead !== a) this.hist.set(c, (H = [])); H.push({ t: d.time, g, ahead: a }); if (H.length > 14) H.shift(); }
+    }
+    const lapT = isFinite(lead?.bestLap) ? lead.bestLap : (ctx.lapTime || 90), left = lead ? Math.max(0, d.lapsTotal - lead.lap - Math.min(1, Math.max(0, lead.lapDist) / Math.max(1, ctx.len || 5000))) : 0;
+    /** seconds a lap the gap to the car ahead is closing by (+: closing), over its samples -> null with too few */
+    const rate = (c) => { const H = this.hist.get(c); if (!H || H.length < 4) return null; const n = H.length, t0 = H[0].t; let sx = 0, sy = 0, sxx = 0, sxy = 0; for (const h of H) { const x = h.t - t0; sx += x; sy += h.g; sxx += x * x; sxy += x * h.g; } const den = n * sxx - sx * sx; if (!(den > 1e-6)) return null; return -((n * sxy - sx * sy) / den) * lapT; };
+    const tyre = (c) => { const k = c.tyres?.compound || 'SOFT'; return `<span class="ty2" style="border-color:${TCOL[k]};width:17px;height:17px;border-width:3px;font-size:8px">${LETTER[k] || ''}</span>${this.o.tyreLaps ? this.o.tyreLaps(c) : ''}L`; };
+    const row = (c, i) => `<div class="xrw"><span class="p">${i + 1}</span><span class="tc" style="background:${c.color}"></span><span class="n">${surname(c)}</span><span class="t">${tyre(c)}</span></div>`;
+    // a stop: the clock on a car of yours (or the car on screen) in its box
+    let stopCar = null;
+    for (const c of P) { let s = this.stop.get(c); if (c.inPit && !c.retired) { if (!s || s.done) this.stop.set(c, (s = { t0: d.time, done: false, n: c.pitStops })); if (mine(c) || sh?.car === c) stopCar = stopCar || c; } else if (s && !s.done) { s.done = true; s.time = c._stopDur ?? d.time - s.t0; s.until = d.time + 4; if (mine(c) || sh?.car === c) stopCar = stopCar || c; } else if (s && s.done && d.time < s.until && (mine(c) || sh?.car === c)) stopCar = stopCar || c; }
+    if (stopCar) { const s = this.stop.get(stopCar), v = s.done ? s.time : d.time - s.t0; this.pst.className = `xc pst in${s.done ? ' done' : ''}`; this.pst.innerHTML = `<div class="xh">PIT STOP<small>${surname(stopCar).toUpperCase()}</small></div><div class="xg"><b>${v.toFixed(1)}<small>SEC</small></b><span>${stopCar.tyres?.compound || ''}</span></div>`; } else this.pst.classList.remove('in');
+    if (!racing || this.neutral) { this.bt.classList.remove('in'); this.ct.classList.remove('in'); this.hist.clear(); return; }
+    // the battle: the closest pair worth showing (the fight on screen first, then the highest up, yours ahead of others)
+    let best = null;
+    for (let i = 1; i < P.length; i++) { const c = P[i], a = P[i - 1]; if (!onTrack(c) || !onTrack(a) || c.lap !== a.lap || (c.lap === 0 && c.lapDist < 900)) continue; const g = gap(c, a); if (g == null || !(g > 0) || g > 1.2) continue; const sc = (sh && sh.why === 'battle' && (sh.car === c || sh.other === c) ? 40 : 0) + (i === 1 ? 14 : Math.max(0, 9 - i)) + (mine(c) || mine(a) ? 8 : 0) + (1.2 - g) * 4; if (i > 8 && !mine(c) && !mine(a) && sc < 40) continue; if (!best || sc > best.sc) best = { c, a, i, g, sc }; }
+    if (best) {
+      const r = rate(best.c), drs = best.g < 1 && (best.c.drs || best.c.drsOk);
+      this.bt.classList.add('in');
+      this.bt.innerHTML = `<div class="xh">BATTLE FOR ${ord(best.i)}<small>LAP ${Math.min(d.lapsTotal, best.a.lap + 1)}/${d.lapsTotal}</small></div>${row(best.a, best.i - 1)}${row(best.c, best.i)}<div class="xg"><b>${best.g.toFixed(2)}<small>SEC</small></b><span class="${r != null && r > 0.05 ? 'cl' : r != null && r < -0.05 ? 'op' : ''}">${r == null ? '' : r > 0.05 ? `CLOSING ${r.toFixed(1)}/LAP` : r < -0.05 ? `PULLING AWAY ${(-r).toFixed(1)}/LAP` : 'HOLDING'}${drs ? '<em>DRS</em>' : ''}</span></div>`;
+    } else this.bt.classList.remove('in');
+    // catching: who is closing on whom, and when they meet (one at a time, the next every twelve seconds)
+    const C = [];
+    for (let i = 1; i < P.length; i++) { const c = P[i], a = P[i - 1]; if (best && (best.c === c || best.a === c)) continue; const H = this.hist.get(c); if (!H) continue; const g = H[H.length - 1].g, r = rate(c); if (r == null || r < 0.12 || g < 1.2 || g > 18) continue; const laps = (g - 0.8) / r; if (laps > left - 0.3 || laps < 0.4) continue; if (i > 9 && !mine(c) && !mine(a)) continue; C.push({ c, a, i, g, r, laps, sc: (i === 1 ? 14 : Math.max(0, 9 - i)) + (mine(c) || mine(a) ? 8 : 0) - laps * 0.5, H }); }
+    C.sort((x, y) => y.sc - x.sc);
+    this.catchT += 0.2; if (this.catchT > 12) { this.catchT = 0; this.catchK++; }
+    const k = C.length ? C[this.catchK % Math.min(C.length, 3)] : null;
+    if (k) {
+      const mx = Math.max(...k.H.map((h) => h.g), 0.1);
+      this.ct.classList.add('in');
+      this.ct.innerHTML = `<div class="xh">CATCHING · FOR ${ord(k.i)}<small>${Math.ceil(left)} LAP${Math.ceil(left) === 1 ? '' : 'S'} LEFT</small></div>${row(k.a, k.i - 1)}${row(k.c, k.i)}<div class="xg"><b>${k.g.toFixed(1)}<small>SEC</small></b><span class="cl">−${k.r.toFixed(1)}/LAP<br>FIGHT IN ~${k.laps < 1.5 ? '1 LAP' : `${Math.round(k.laps)} LAPS`}</span></div><div class="sp">${k.H.slice(-12).map((h) => `<i style="height:${Math.max(12, h.g / mx * 100).toFixed(0)}%"></i>`).join('')}</div>`;
+    } else this.ct.classList.remove('in');
+  }
+}
+
+return { TVExtras };
 })();
 
 // ---- src/audio/Audio.js
@@ -192943,6 +193232,7 @@ const { storyLive, storyTakeLive, storyTrack, storyTrackScene, storyBeforeRace, 
 const { driverLine } = __m['src/career/StoryLines.js'];
 const { playScene } = __m['src/ui/CineIndex.js'];
 const { radioReplays, stopRadioReplays } = __m['src/ui/RadioReplay.js'];
+const { TVExtras } = __m['src/ui/TVExtras.js'];
 const { AudioEngine } = __m['src/audio/Audio.js'];
 const { ROSTER, customDriver, POINTS, standIn, dayPerf } = __m['src/race/Roster.js'];
 const { showMemorial } = __m['src/ui/Memorial.js'];
@@ -192991,6 +193281,7 @@ const { buildVegasPaddock } = __m['src/world/VegasPaddock.js'];
 // (the scene's matrices recomputed only where something moved: in place before anything is built)
 
 void FAST_MATRIX;
+
 
 
 
@@ -195277,6 +195568,7 @@ function raceFacts(d, rows) {
 // ---------------------------------------------------------------------------
 /** contact between your car and another: the hardest one with each driver (closing speed m/s -> 0..1.5) */
 function noteContact(a, b, v) {
+  if (TP.on && v >= 5 && S.director?.mode === 'race' && S.director.world.racing && !a.isSC && !b.isSC && a.name && b.name) TP.fx?.event({ text: `${surname(a.name)} and ${surname(b.name)} touch`, cars: [a, b], wait: 2.6 }, S.director);   // (the broadcast: an instant replay offered - ui/TVExtras.js)
   if (TP.on && S.weekend?.mgr && v >= 3 && a.careerId && b.careerId && S.director?.mode === 'race') {   // (the team principal's story: who touched whom - career/ManagerStory.js)
     const k = a.careerId < b.careerId ? `${a.careerId}|${b.careerId}` : `${b.careerId}|${a.careerId}`, t = S.director.time, M = TP.touch || (TP.touch = new Map());
     if (!(t - (M.get(k) ?? -99) < 12)) { M.set(k, t); let z = null; try { for (const ds of [0, 40, -40, 90, -90]) { z = W.track.inCornerZone(W.track.idxAtS(a.s + ds)); if (z?.turn != null) break; } } catch (e) { z = null; } storyLive(S.weekend.mgr, { kind: 'contact', a: a.careerId, b: b.careerId, sev: Math.min(1.5, v / 20), lap: Math.max(a.lap || 0, b.lap || 0) + 1, where: z?.turn != null ? `Turn ${z.turn}` : 'the straight' }); }
@@ -195478,6 +195770,9 @@ function tpStart() {
   if (!TP.tv) { TP.tv = new TVDirector(camera); TP.tv.onCut = (sh) => TP.gfx?.cut(sh, S.director); }
   if (!TP.gfx) TP.gfx = new TVGraphics({ onPick: (c) => { if (c && TP.on) TP.tv.follow(TP.tv.followCar === c ? null : c); } });
   if (!TP.wall) { TP.wall = new PitWall({ act: tpAct }); const say0 = TP.wall.radio.bind(TP.wall); TP.wall.radio = (who, text) => { (TP.log || (TP.log = [])).push({ who, text, lap: Math.max(0, ...TP.cars.map((c) => c.lap || 0)) + 1 }); return say0(who, text); }; }   // (everything said, kept: the replays over the results - ui/RadioReplay.js)
+  if (!TP.fx) TP.fx = new TVExtras(TP.gfx.el, { tyreLaps: (c) => TP.gfx.tyreLaps(c), onReplay: (o) => tpReplayStart(o), onSkip: () => tpReplayEnd() });   // (battles, catching, the stop's clock, the onboard's strip, instant replays: ui/TVExtras.js)
+  TP.rep = null; TP.fx.reset(); TP.fx.replaying(false);
+  TP.gfx.extras = true;   // (ui/TVExtras.js has the safety car's and the red flag's own stingers and cards: the tower's column does not repeat them)
   TP.tv.reset(); TP.gfx.reset(); TP.gfx.show(true);
   TP.wall.open(TP.cars); TP.wall.el.classList.toggle('q', d.mode === 'quali');
   document.body.classList.add('tp');
@@ -195486,13 +195781,96 @@ function tpStart() {
 }
 function tpStop() {
   if (!TP.on && !document.body.classList.contains('tp')) return;
-  TP.on = false; TP.paused = false; TP.cars = [];
+  TP.on = false; TP.paused = false; TP.cars = []; if (TP.rep) tpReplayEnd(); TP.fx?.reset();
   TP.gfx?.show(false); TP.wall?.close(); document.body.classList.remove('tp');
+}
+/**
+ * A camera's line of sight (the television director's: camera/TVDirector.js): from a camera at (px, py, pz) to a target
+ * - is anything solid in the way? Two tests. The circuit's own walls and fences, by arithmetic: a point of the line
+ * outside the road's corridor (beyond the wall on its side) while still lower than the fence there is behind that
+ * wall or mesh - where the track bends toward the camera, the far side of a chicane. And the buildings, the
+ * landmarks, the pit building and the stands, by a ray against their meshes (the big instanced crowds left out).
+ * -> true: a clear view
+ */
+const _tvq = {}, _tvRay = new THREE.Raycaster(), _tvO = new THREE.Vector3(), _tvD = new THREE.Vector3();
+function tvOccluders() {
+  if (W._tvOcc && W._tvOccFor === W.track) return W._tvOcc;
+  const out = [];
+  for (const g of [W.buildings, W.landmarks?.group, W.venue?.group, W.pitBoxes?.group, W.stands?.group, W.vegas?.group]) {
+    if (!g) continue;
+    g.traverse((o) => { if (!o.isMesh || o.isInstancedMesh || o.isSkinnedMesh || !o.visible || !o.geometry) return; const n = o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position?.count || 0; if (n < 6 || n > 900000) return; if (o.material && (o.material.transparent && (o.material.opacity ?? 1) < 0.5)) return; if (!o.geometry.boundingSphere) o.geometry.computeBoundingSphere(); out.push(o); });
+  }
+  W._tvOcc = out; W._tvOccFor = W.track; return out;
+}
+function tvClear(px, py, pz, tx, ty, tz) {
+  const tr = W.track; if (!tr) return true;
+  const dx = tx - px, dy = ty - py, dz = tz - pz, L = Math.hypot(dx, dy, dz); if (L < 3) return true;
+  // the road's walls and fences along the line (not the first metres - the camera stands at its own wall - nor the last)
+  // (a target off the road itself - a car in the pit lane, in a run-off behind the wall's line: the walls' test is
+  //  not for it; the ray still is)
+  tr.nearest(tx, tz, -1, _tvq); const onRoad = Math.abs(_tvq.d) <= tr.wallAt(_tvq.i, _tvq.d > 0 ? 1 : -1) + 0.4;
+  let hint = -1;
+  for (let d = Math.min(8, L * 0.2); onRoad && d < L - 6; d += 5) {
+    const f = d / L, x = px + dx * f, y = py + dy * f, z = pz + dz * f; if (y > 7.5) continue;
+    tr.nearest(x, z, hint, _tvq); hint = _tvq.i;
+    const sd = _tvq.d > 0 ? 1 : -1, w = tr.wallAt(_tvq.i, sd); if (!(Math.abs(_tvq.d) > w + 0.4)) continue;
+    if (Math.abs(_tvq.d) > w + 60) continue;   // (far outside the circuit: not this stretch's wall - the buildings' ray answers)
+    const bh = tr.barrierHeight?.(_tvq.i, sd) || 1.1; if (y < bh + 0.3) return false;
+  }
+  // buildings, the pit building, stands, landmarks
+  const occ = tvOccluders(); if (!occ.length) return true;
+  _tvO.set(px, py, pz); _tvD.set(dx / L, dy / L, dz / L); _tvRay.set(_tvO, _tvD); _tvRay.near = 1.2; _tvRay.far = Math.max(1.3, L - 2.5); _tvRay.camera = camera;
+  try { return _tvRay.intersectObjects(occ, false).length === 0; } catch (e) { return true; }
+}
+/**
+ * An instant replay (ui/TVExtras.js offers it; taken, it comes here): the race holds, and the seconds around the moment
+ * are shown again from the director's rolling record of every car's pose (race/Replay.js: twelve seconds, twenty a
+ * second) - the cars put back where they were, frame by frame at a little over half speed, from a camera standing by
+ * the place it happened (the first of a few spots with a clear view: tvClear). Then the cars where they really are,
+ * and the race goes on.
+ */
+const _rqa = new THREE.Quaternion(), _rqb = new THREE.Quaternion();
+function tpReplayStart(o) {
+  const d = S.director, R = d?.replay; if (!R || TP.rep || R.frames.length < 30 || S.simming) return;
+  const t0 = Math.max(R.frames[0].t, o.t - 4.2), F = R.frames.filter((f) => f.t >= t0); if (F.length < 24) return;
+  const i = R.cars.indexOf(o.cars[0]), j = o.cars[1] ? R.cars.indexOf(o.cars[1]) : -1; if (i < 0) return;
+  const ke = Math.max(0, Math.min(F.length - 1, F.findIndex((f) => f.t >= o.t))), ex = F[ke].f[i * 7], ez = F[ke].f[i * 7 + 2], tr = W.track;
+  tr.nearest(ex, ez, -1, _tvq); const s = _tvq.s; let pos = null;
+  for (const [sd, ah, h] of [[1, 28, 5.5], [-1, 28, 5.5], [1, -20, 6.5], [-1, -20, 6.5], [1, 45, 11], [-1, 45, 11], [1, 10, 16], [-1, 10, 16]]) {
+    const sq = tr.wrapS(s + ah), iq = tr.idxAtS(sq), f = tr.sample(sq, sd * (tr.wallAt(iq, sd) + 0.6));
+    if (tvClear(f.x, h, f.z, ex, 0.8, ez)) { pos = new THREE.Vector3(f.x, h, f.z); break; }
+  }
+  if (!pos) pos = new THREE.Vector3(ex + 18, 40, ez + 18);   // (nowhere on the ground sees it: from above)
+  TP.rep = { F, i, j, t: 0, k: 0, speed: 0.55, pos, look: new THREE.Vector3(ex, 0.7, ez), init: false };
+  TP.fx.replaying(true, String(o.text || '').toUpperCase()); audio.quiet?.();
+}
+function tpReplayFrame(dt) {
+  const r = TP.rep, F = r.F, cars = S.director?.replay?.cars; if (!r || !cars) { tpReplayEnd(); return; }
+  r.t += Math.min(0.05, dt) * r.speed; const T = F[0].t + r.t;
+  while (r.k < F.length - 2 && F[r.k + 1].t < T) r.k++;
+  if (T >= F[F.length - 1].t) { tpReplayEnd(); return; }
+  const A = F[r.k], B = F[r.k + 1], u = Math.max(0, Math.min(1, (T - A.t) / Math.max(1e-3, B.t - A.t)));
+  for (let n = 0; n < cars.length; n++) {
+    const m = S.meshes.get(cars[n]); if (!m) continue; const q = n * 7;
+    m.group.position.set(A.f[q] + (B.f[q] - A.f[q]) * u, A.f[q + 1] + (B.f[q + 1] - A.f[q + 1]) * u, A.f[q + 2] + (B.f[q + 2] - A.f[q + 2]) * u);
+    _rqa.set(A.f[q + 3], A.f[q + 4], A.f[q + 5], A.f[q + 6]); _rqb.set(B.f[q + 3], B.f[q + 4], B.f[q + 5], B.f[q + 6]); m.group.quaternion.copy(_rqa).slerp(_rqb, u);
+  }
+  const at = (n) => [A.f[n * 7] + (B.f[n * 7] - A.f[n * 7]) * u, A.f[n * 7 + 2] + (B.f[n * 7 + 2] - A.f[n * 7 + 2]) * u], a = at(r.i), b = r.j >= 0 ? at(r.j) : a;
+  const tx = (a[0] * 2 + b[0]) / 3, tz = (a[1] * 2 + b[1]) / 3;
+  if (!r.init) { r.look.set(tx, 0.7, tz); r.init = true; } else { r.look.x += (tx - r.look.x) * Math.min(1, dt * 8); r.look.z += (tz - r.look.z) * Math.min(1, dt * 8); }
+  camera.position.copy(r.pos); camera.up.set(0, 1, 0); camera.lookAt(r.look);
+  const dist = Math.hypot(tx - r.pos.x, tz - r.pos.z), fov = Math.max(10, Math.min(50, 1700 / Math.max(18, dist)));
+  camera.fov += (fov - camera.fov) * Math.min(1, dt * 4); camera.updateProjectionMatrix();
+}
+function tpReplayEnd() {
+  if (!TP.rep) return; TP.rep = null; TP.fx?.replaying(false);
+  for (const c of S.cars) { const m = S.meshes.get(c); if (m) { m.update(c, 0); if (c.hiddenAway || c._povHide) m.group.visible = false; } }   // (every car back where it really is)
+  if (TP.tv) TP.tv.shot = null;   // (the feed cuts back in on a new shot)
 }
 /** the camera and the subject: the director's shot (S.player is the car on screen: the sound and the ground follow it) */
 function tpCamera(dt) {
   const d = S.director;
-  const car = TP.tv.update(dt, { d, track: W.track, pit: W.pit, focus: TP.cars, camCtl });
+  const car = TP.tv.update(dt, { d, track: W.track, pit: W.pit, focus: TP.cars, camCtl, clear: tvClear });
   if (car) S.player = car;
   cockpitVisor(S.player, false);
 }
@@ -195506,7 +195884,8 @@ function tpUi(dt) {
   if (hud.msgTimer > 0) { hud.msgTimer -= dt; if (hud.msgTimer <= 0) hud.msgEl.textContent = ''; }
   if (!show) return;
   document.documentElement.style.setProperty('--pw', `${TP.wall.height()}px`);
-  TP.gfx.update(dt, { d, focus: TP.cars, shot: TP.tv.shot, track: shortTrack(W.def?.id), camName: TV_CAM_NAME[TP.tv.shot?.kind] || '', speed: TP.paused ? 0 : TP.speed });
+  TP.gfx.update(dt, { d, focus: TP.cars, shot: TP.tv.shot, track: shortTrack(W.def?.id), camName: TP.rep ? 'Replay' : TV_CAM_NAME[TP.tv.shot?.kind] || '', speed: TP.paused ? 0 : TP.speed });
+  TP.fx?.update(dt, { d, focus: TP.cars, shot: TP.tv.shot, halted: TP.paused || S.paused || !!S.simming || !!TP.rep, say: (t, k, h) => TP.gfx.rc(t, k, h), len: W.track?.length });
   const ord = d.orders?.pairOf?.(TP.cars[0])?.order || null;
   TP.wall.update(dt, { d, speed: TP.speed, paused: TP.paused, cam: TP.cam, order: ord, tyreLaps: (c) => TP.gfx.tyreLaps(c),
     mustStop: (c) => d.mode === 'race' && d.lapsTotal >= 8 && c.pitStops === 0 && !c.usedRain && !d.weather?.everWet, fuelDelta: (c) => tpFuelDelta(c, d),
@@ -195586,6 +195965,9 @@ function tpSim(n) {
 }
 /** the keys of the team principal's race: Space pause, - / = slower / quicker, Tab follow the next car (Esc the menu) */
 function tpKeys() {
+  // (an instant replay: R takes the one offered; R, Space or Esc ends the one playing)
+  if (TP.rep) { if (input.pressed('KeyR') || input.pressed('Space') || input.pressed('Escape') || input.pressed('Enter')) tpReplayEnd(); return; }
+  if (input.pressed('KeyR')) TP.fx?.take();
   if (input.pressed('Space')) tpAct('pause');
   if (input.pressed('Equal') || input.pressed('NumpadAdd')) tpAct('speed', Math.min(4, TP.speed * 2));
   if (input.pressed('Minus') || input.pressed('NumpadSubtract')) tpAct('speed', Math.max(1, TP.speed / 2));
@@ -197259,7 +197641,7 @@ function frame(now) {
     NEWS.wait += dt; if (NEWS.wait > (fbOk ? 3 : 1.5)) crashNews();
   }
   if (NEWS.cancel && d && !d.done && !S.paused && !NEWS.fading && !S.fb) cancelFrame(dt);   // (a race cancelled: the drive back, then the news)
-  const halted = (PHOTO.on ? !PHOTO.live : S.paused) || hud.pit.open || !!S.fb || NEWS.fading || !!S.simming || (TP.on && TP.paused);
+  const halted = (PHOTO.on ? !PHOTO.live : S.paused) || hud.pit.open || !!S.fb || NEWS.fading || !!S.simming || (TP.on && (TP.paused || !!TP.rep));   // (TP.rep: an instant replay playing - the race holds)
 
   if (d && !halted) {
     input.update(dt, p ? p.speed : 0);
@@ -197323,7 +197705,8 @@ function frame(now) {
     // (the ambient field only behind the menus themselves: not between a weekend's sessions, not under the results)
     simTime += dt; if (!S.weekend && !PRE.show && !PRE.walk) { ensureAmbient(); stepAmbient(dt); } else clearAmbient(); cinematic(dt);
   }
-  if (TP.on && d && halted && !PHOTO.on && !FINALE.on && !POV.on) tpCamera(0);   // (paused: a camera chosen still cuts)
+  if (TP.on && d && TP.rep && !PHOTO.on && !FINALE.on) tpReplayFrame(dt);   // (an instant replay: the cars and the camera from the record)
+  else if (TP.on && d && halted && !PHOTO.on && !FINALE.on && !POV.on) tpCamera(0);   // (paused: a camera chosen still cuts)
   if (TP.on) tpUi(dt);
   if (d && S.ambient) clearAmbient();
   standsHD(FINALE.on || (!d && !W.home), dt, simTime);   // (the finale's shots, the title shots behind the menus: the stands full of people)
@@ -197355,7 +197738,7 @@ function frame(now) {
     /** (tests: the crash director, and the camera as drawn - terrainLift() lifts it for the frame and returns the undo; renderView() draws a frame through it) */
     crashCam, terrainLift, renderView,
     /** (tests: the team principal's race - main.js TP; the circuit built ahead in the menus) */
-    TP, tpAct, PRE_TRACK, preloadWanted, playScene,
+    TP, tpAct, PRE_TRACK, preloadWanted, playScene, tvClear,
     /** (tests - tools/regress.mjs: the optimisations that must not change a pixel, switched off and on) */
     fastMatrix, SHADOW_CULL,
     /** (tests: the show clock - simTime - set, so the Sphere's loop can be put on any show) */

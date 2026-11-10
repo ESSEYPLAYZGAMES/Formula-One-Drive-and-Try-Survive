@@ -72,7 +72,7 @@ export class TVGraphics {
     this.age = new Map(); this.prev = new Map(); this.best = Infinity; this.phase = 'green'; this.rcQ = [];
   }
   show(on) { this.el.classList.toggle('hidden', !on); if (!on) { this.capEl.classList.remove('in'); this.rcEl.innerHTML = ''; } }
-  reset() { this.age.clear(); this.prev.clear(); this.best = Infinity; this.phase = 'green'; this.rcEl.innerHTML = ''; this.capEl.classList.remove('in'); this.capT = 0; this.acc = 1; }
+  reset() { this.pidx = new Map(); this.pfl = new Map(); this.age.clear(); this.prev.clear(); this.best = Infinity; this.phase = 'green'; this.rcEl.innerHTML = ''; this.capEl.classList.remove('in'); this.capT = 0; this.acc = 1; }
   /** laps on this car's set of tyres */
   tyreLaps(c) { const a = this.age.get(c); return a ? Math.max(0, c.lap - a.lap) : c.lap; }
   /** a message from race control (kind: '' | warn | bad | good | purple) */
@@ -87,6 +87,7 @@ export class TVGraphics {
     const c = sh.car, P = d.positions, o = sh.other;
     const tyre = (x) => { const k = x.tyres?.compound || 'SOFT'; return `<span class="ty2" style="border-color:${COMPOUNDS[k]?.color || '#fff'}">${LETTER[k] || '?'}</span>`; };
     let html;
+    if (sh.why === 'sc' || sh.why === 'red') { this.capEl.innerHTML = `<div class="cp" style="background:${sh.why === 'red' ? '#e10600' : '#ffd400'};color:${sh.why === 'red' ? '#fff' : '#111'}">${sh.why === 'red' ? 'RED' : 'SC'}</div><div class="cn"><b>${sh.why === 'red' ? 'Race suspended' : 'The safety car'}</b><small>${sh.why === 'red' ? 'the field returns to the grid' : o ? `leads ${surname(o)} and the field` : 'on the circuit'}</small></div>`; this.capEl.classList.add('in'); this.capT = 4.5; return; }
     if (o && sh.why === 'battle') {
       const front = P.indexOf(c) < P.indexOf(o) ? c : o, back = front === c ? o : c, g = d.radio?.gap?.(back, front);
       html = `<div class="cp">P${P.indexOf(front) + 1}</div><div class="cb" style="background:${front.color}"></div><div class="cn"><b>${surname(front)}</b><small>${front.team || ''}</small></div>`
@@ -122,8 +123,12 @@ export class TVGraphics {
       this.rowsEl.appendChild(r); this.rows.push({ el: r, p: r.children[0], tc: r.children[1], cd: r.children[2], g: r.children[3], ty: r.children[4], k: '' });
     }
     this.cars = P.slice();
+    const nowMs = performance.now(); if (!this.pidx) { this.pidx = new Map(); this.pfl = new Map(); }
     for (let i = 0; i < P.length; i++) {
       const c = P[i], R = this.rows[i];
+      // (a place won or lost: the number gives way to an arrow for three seconds)
+      const was = this.pidx.get(c); if (was != null && was !== i && d.world.racing && d.mode === 'race' && !c.retired) this.pfl.set(c, { dir: i < was ? 'up' : 'dn', until: nowMs + 3000 }); this.pidx.set(c, i);
+      const fl = this.pfl.get(c), fd = fl && fl.until > nowMs ? fl.dir : '';
       let g, gc = '';
       if (d.mode === 'quali') { g = !isFinite(c.bestLap) ? (c.retired ? 'OUT' : c.pitLane || c.inPit ? 'PIT' : 'NO TIME') : i === 0 ? fmtLap(c.bestLap) : `+${(c.bestLap - lead.bestLap).toFixed(3)}`; gc = !isFinite(c.bestLap) && c.retired ? 'out' : ''; }   // (qualifying: by the best lap)
       else if (c.retired) { g = 'OUT'; gc = 'out'; } else if (c.pitLane || c.inPit) { g = 'PIT'; gc = 'pit'; }
@@ -134,9 +139,9 @@ export class TVGraphics {
         else { const x = d.radio?.gap?.(c, ref); g = x != null && x > 0 ? `+${x.toFixed(x < 10 ? 3 : 1)}` : '-'; }
       }
       const k = c.tyres?.compound || 'SOFT';
-      const key = `${i}|${c.name}|${g}|${gc}|${k}|${focus.includes(c) ? 1 : 0}|${c === on ? 1 : 0}|${c.retired ? 1 : 0}`;
+      const key = `${i}|${c.name}|${g}|${gc}|${k}|${focus.includes(c) ? 1 : 0}|${c === on ? 1 : 0}|${c.retired ? 1 : 0}|${fd}`;
       if (key === R.k) continue; R.k = key;
-      R.p.textContent = i + 1; R.tc.style.background = c.color; R.cd.textContent = code(c); R.g.textContent = g; R.g.className = `g ${gc}`;
+      R.p.textContent = fd === 'up' ? '▲' : fd === 'dn' ? '▼' : i + 1; R.p.className = `p ${fd}`; R.tc.style.background = c.color; R.cd.textContent = code(c); R.g.textContent = g; R.g.className = `g ${gc}`;
       R.ty.style.borderColor = COMPOUNDS[k]?.color || '#fff'; R.ty.textContent = c.retired ? '' : LETTER[k] || '';
       R.el.className = `r${focus.includes(c) ? ' mine' : ''}${c === on ? ' on' : ''}${c.retired ? ' dnf' : ''}`;
     }
@@ -152,7 +157,7 @@ export class TVGraphics {
       if (!p) { p = { stops: c.pitStops, retired: c.retired, pen: c.penalties || 0 }; this.prev.set(c, p); this.age.set(c, { lap: 0 }); continue; }
       if (c.pitStops !== p.stops) {
         this.age.set(c, { lap: c.lap });
-        if (c.pitStops === p.stops + 1 && c._stopDur != null && racing) this.rc(`${surname(c)} · ${c.tyres.compound} · STOP ${c._stopDur.toFixed(1)}s`, '', 'PIT STOP');
+        if (c.pitStops === p.stops + 1 && c._stopDur != null && racing && !(this.extras && (d.sc?.phase || 'green') !== 'green')) this.rc(`${surname(c)} · ${c.tyres.compound} · STOP ${c._stopDur.toFixed(1)}s`, '', 'PIT STOP');
         p.stops = c.pitStops;
       }
       if (c.retired && !p.retired) { p.retired = true; if (racing) this.rc(`${c.name} · ${c.retireReason || 'retired'}`, 'bad', 'RETIREMENT'); }
@@ -165,7 +170,7 @@ export class TVGraphics {
     const ph = d.sc?.phase || 'green';
     if (ph !== this.phase) {
       const T = { sc: ['SAFETY CAR DEPLOYED', 'warn'], vsc: ['VIRTUAL SAFETY CAR DEPLOYED', 'warn'], red: ['RED FLAG · SESSION SUSPENDED', 'bad'], scIn: ['SAFETY CAR IN THIS LAP', 'warn'], vscEnd: ['VSC ENDING', 'warn'] }[ph];
-      if (T) this.rc(T[0], T[1]); else if (ph === 'green' && this.phase !== 'yellow') this.rc('GREEN FLAG · TRACK CLEAR', 'good');
+      if (!this.extras) { if (T) this.rc(T[0], T[1]); else if (ph === 'green' && this.phase !== 'yellow') this.rc('GREEN FLAG · TRACK CLEAR', 'good'); }   // (extras: ui/TVExtras.js has the safety car's and the red flag's own stingers and cards)
       this.phase = ph;
     }
   }

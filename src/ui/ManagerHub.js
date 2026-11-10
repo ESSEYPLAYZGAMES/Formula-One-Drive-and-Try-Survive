@@ -70,6 +70,15 @@ const CSS = `
 #mgr .fac { max-width: 860px; }
 #mgr .m-verdict { font-size: 26px; font-weight: 900; margin: 4px 0 8px; } #mgr .m-verdict.m-bad { color: #d4351c; } #mgr .m-verdict.m-good { color: #1d8a4e; }
 @media (max-width: 700px) { #mgr .m-mh { flex-wrap: wrap; } #mgr .m-kp { margin-left: 0; } }
+/* less to read at a glance: a row's explanation is one line until the row is pointed at; the long notes fold away */
+#mgr .m-drv .m-nm small:not([style]) { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; overflow: hidden; }
+#mgr .m-drv:hover .m-nm small:not([style]), #mgr .m-drv:focus-within .m-nm small:not([style]) { -webkit-line-clamp: 8; }
+#mgr details.m-note { margin-top: 8px; font-size: 12px; color: #6b7480; }
+#mgr details.m-note summary { cursor: pointer; list-style: none; font: 700 10px/1.4 inherit; letter-spacing: .1em; text-transform: uppercase; color: #8a93a0; user-select: none; }
+#mgr details.m-note summary::-webkit-details-marker { display: none; } #mgr details.m-note summary::before { content: 'ⓘ  '; } #mgr details.m-note summary:hover { color: #151a22; }
+#mgr details.m-note p { margin: 6px 0 0; }
+/* a laptop's height: the header and the cards drawn tighter, more of the page on the screen */
+@media (max-height: 860px) { #mgr .m-mh { padding: 7px 16px; gap: 10px; row-gap: 5px; } #mgr .m-mh .m-tn b { font-size: 17px; } #mgr .m-mh .m-tn small { font-size: 9px; } #mgr .m-k { padding: 4px 9px; } #mgr .m-k b { font-size: 14px; } #mgr .m-mn button { padding: 8px 9px; } #mgr .m-mb { padding: 12px 14px 20px; } #mgr .m-card { padding: 10px 12px; } #mgr .m-drv { padding: 6px 0; gap: 9px; } #mgr .m-grid { gap: 10px; } #mgr .m-card h3 { margin-bottom: 6px; } #mgr .m-go, #mgr .m-dark { padding-top: 7px; padding-bottom: 7px; } }
 `;
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const money = (m) => `$${(Math.round(m * 10) / 10).toFixed(1)}M`;

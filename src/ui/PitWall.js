@@ -48,7 +48,8 @@ const CSS = `
 #pw .pgs { display: inline-flex; gap: 2px; margin-left: 6px; flex: none; } #pw .pgs button { padding: 1px 6px; font-size: 9px; }
 #pw .car[data-pg="drive"] .pg-race, #pw .car[data-pg="drive"] .pg-car, #pw .car[data-pg="race"] .pg-drive, #pw .car[data-pg="race"] .pg-car, #pw .car[data-pg="car"] .pg-drive, #pw .car[data-pg="car"] .pg-race { display: none; }
 #pw .alert { display: none; align-items: center; gap: 6px; background: rgba(255,176,0,.16); border: 1px solid rgba(255,176,0,.5); border-radius: 5px; padding: 2px 6px; font-size: 10.5px; } #pw .alert.on { display: flex; } #pw .alert span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#pw .note { font-size: 10px; color: #9aa4b2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#pw .note { font-size: 10px; color: #9aa4b2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: none; }
+#pw .car:hover .note { display: block; }   /* (the card's footnote only when the card is pointed at: less to read while the race runs) */
 #pw .mid { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 #pw .mid .row { display: flex; gap: 2px; flex-wrap: wrap; align-items: center; margin: 0; }   /* (not the menus' .row) */
 #pw .mid .row > span { font: 700 8.5px/1 var(--tvf); letter-spacing: .12em; color: #8b95a3; width: 34px; text-transform: none; }
@@ -56,6 +57,12 @@ const CSS = `
 #pw .radio b { color: #fff; }
 #pw.q .ctl, #pw.q .note, #pw.q [data-g="order"], #pw.q [data-a="sim"]:not([data-v="0"]) { display: none; }
 #pw .tog { position: absolute; right: 8px; top: -22px; font-size: 9px !important; padding: 2px 8px !important; background: rgba(8,10,14,.85) !important; }
+#pw .tog.tg2 { right: 96px; }
+/* COMPACT (the default on a laptop's screen): each instruction shows only what it is set to - point at it and its
+   choices open; the box-for tyres and the fuel load stay as they are. Less to read while the race runs. */
+#pw.cpt .grp:not(.cmp):not(.fl):not([data-g="replan"]):not(:hover):not(:focus-within) button:not(.on) { display: none; }
+#pw.cpt .ctl { gap: 3px 10px; }
+#pw.cpt .st .lt { display: none; }
 #pw-sim { position: fixed; inset: 0; z-index: 48; display: none; align-items: center; justify-content: center; flex-direction: column; gap: 10px; background: rgba(4,6,10,.72); color: #eef1f5; font: 600 14px/1.4 "Segoe UI", Arial, sans-serif; letter-spacing: .2em; text-align: center; }
 #pw-sim small { color: #9aa4b2; letter-spacing: .1em; }
 @media (max-width: 900px) { #pw { grid-template-columns: 1fr 1fr; } #pw .mid { grid-column: 1 / -1; grid-row: 1; flex-direction: row; flex-wrap: wrap; } #pw .radio { display: none; } }
@@ -100,6 +107,8 @@ export class PitWall {
     this.act = o.act;
     if (!document.getElementById('pw-css')) { const st = document.createElement('style'); st.id = 'pw-css'; st.textContent = CSS; document.head.appendChild(st); }
     const el = this.el = document.createElement('div'); el.id = 'pw'; el.className = 'hidden';
+    // (compact on a laptop's screen unless you chose otherwise)
+    { let pref = null; try { pref = localStorage.getItem('f1sim-pw-compact'); } catch (e) { pref = null; } if (pref === '1' || (pref == null && innerHeight < 900)) el.classList.add('cpt'); }
     document.body.appendChild(el);
     this.sim = document.createElement('div'); this.sim.id = 'pw-sim'; document.body.appendChild(this.sim);
     el.addEventListener('click', (e) => this.click(e));
@@ -134,7 +143,7 @@ export class PitWall {
         <div class="row" data-g="cam"><span>CAM</span>${['auto', 'track', 'tcam', 'heli', 'rear'].map((k) => `<button data-a="cam" data-v="${k}" title="${TV_CAM_NAME[k]}">${{ auto: 'DIRECTOR', track: 'TRACK', tcam: 'ONBOARD', heli: 'HELI', rear: 'REAR' }[k]}</button>`).join('')}</div>
         <div class="row" data-g="order"><span>TEAM</span><button data-a="order" data-v="swap" title="The car ahead lets its team-mate through">SWAP</button><button data-a="order" data-v="hold" title="The car behind stays behind">HOLD</button><button data-a="order" data-v="free" title="Call the order off: race each other">RACE</button></div>
         <div class="radio"></div>
-      </div>${card(C[1] || C[0], 1)}<button class="tog" data-a="min">PIT WALL ▾</button>`;
+      </div>${card(C[1] || C[0], 1)}<button class="tog" data-a="min">PIT WALL ▾</button><button class="tog tg2" data-a="cpt" title="Compact: each instruction shows only its setting until you point at it">${this.el.classList.contains('cpt') ? 'FULL' : 'COMPACT'}</button>`;
     }
     this.el.classList.remove('hidden', 'min');
     this.radio('Pit wall', `Both cars on the grid. ${this.cars.map((c) => `${surname(c)} on ${c.tyres.compound.toLowerCase()}s`).join(', ')}.`);
@@ -145,6 +154,7 @@ export class PitWall {
   click(e) {
     const b = e.target.closest('button'); if (!b) return;
     const a = b.dataset.a, car = b.dataset.k != null ? this.cars[+b.dataset.k] : null;
+    if (a === 'cpt') { const on = this.el.classList.toggle('cpt'); b.textContent = on ? 'FULL' : 'COMPACT'; try { localStorage.setItem('f1sim-pw-compact', on ? '1' : '0'); } catch (e) { /* not kept */ } return; }
     if (a === 'min') { this.el.classList.toggle('min'); b.textContent = this.el.classList.contains('min') ? 'PIT WALL ▴' : 'PIT WALL ▾'; return; }
     if (a === 'cmp') { car.mgr.next = b.dataset.v; if (car.mgr.preRace) this.act('start', car, b.dataset.v); this.acc = 1; return; }
     if (a === 'box') { if (car.pitRequested && !car.pitLane) this.act('stay', car); else this.act('box', car, car.mgr.next); this.acc = 1; return; }

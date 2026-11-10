@@ -1,3 +1,60 @@
+# V2.47 (2026-11-11): the broadcast - cameras that can see, live graphics, instant replays, the safety car's and the red flag's own feed; lighter menus
+
+Asked for: no silly hats on the people in the scenes; the menus (the team principal's above all) fit for a laptop - a
+button no longer throws the page back to its top, less to read, the pit wall too; the broadcast's cameras not blocked by
+walls and fences nor inside the pit buildings (even with the helicopter or the rear onboard chosen); more of what a
+real broadcast shows - a battle for first, the laps until a fight, instant replays offered (take one or let it time
+out); then: the safety car and the red flag each with a feed of their own.
+- Cameras (camera/TVDirector.js, main.js tvClear): every camera is placed where it has a line of sight to its car.
+  tvClear(from, to): the circuit's own walls and fences by arithmetic (a point of the line beyond the wall on its side
+  while still lower than the barrier or fence there: blocked - a track that bends toward the camera, the far side of a
+  chicane), then the buildings, the pit building, the stands and the landmarks by a ray against their meshes (about
+  1.4 ms a look). Trackside: the place first thought of, else the other side, a pole for a slot, nearer, further,
+  higher; nowhere: the helicopter takes the shot. The helicopter: six places round the car (behind left / right at
+  55 m, closer at 95 m, over it at 140 and 190 m), the first that sees it, looked at again twice a second. The pit
+  lane's camera hangs over the lane on the pit wall's side (it stood "on the garage side": inside the garages) - five
+  places tried. A camera you keep to (helicopter, onboard, rear) is kept in the pit lane too: before, any stop put the
+  pit lane's camera on whatever you had chosen - that was the helicopter "clipping through buildings".
+- Live graphics (ui/TVExtras.js), right of the picture over the pit wall:
+  - BATTLE FOR 1ST / FOR P5: the two cars, their tyres and the laps on them, the gap to a hundredth, CLOSING x/LAP or
+    PULLING AWAY (the gap sampled every three seconds, a line through the last forty), DRS;
+  - CATCHING: a car closing on the one ahead from 1.2-18 s back - the gap, the rate, FIGHT IN ~n LAPS (only when that
+    is before the flag), the gap's last samples as bars; the next pair every twelve seconds;
+  - PIT STOP: the clock running on a car of yours in its box, then its time;
+  - the onboard's strip: speed, gear, throttle, brake, DRS while the feed is on an onboard;
+  - OVERTAKE (x PASSES y FOR 3RD) and FINAL LAP in race control's column; a place won or lost shows as an arrow in the
+    tower for three seconds.
+- Instant replays: an overtake for a place in the top six (or a car of yours), a coming-together (5 m/s or more), a
+  spin, an accident: offered a moment later - a chip with a seven-second clock (R, or a click). Taken: the race holds
+  and the four seconds before it to the present are shown again at 0.55x from the director's rolling record
+  (race/Replay.js: every car's pose, twenty a second) by a camera standing where it happened with a clear view; R /
+  Space / Esc ends it. Left alone, the chip goes. Never two within fourteen seconds.
+- The safety car's feed: SAFETY CAR in a yellow stinger across the picture (who caused it), a yellow frame round the
+  feed and a yellow tower while it is out, its own card in place of the battles (the lap it is on, the cause, who has
+  stopped under it, who is in the lane, the queue's first four), SAFETY CAR IN THIS LAP flashing as it comes in, GREEN
+  FLAG as it goes; the director shows the safety car leading the queue (from the fence, from the air) and the stops -
+  no "battles"; the incident is offered as a replay. The virtual safety car: the same, lighter.
+- The red flag's: RED FLAG / RACE SUSPENDED in a red stinger, a red frame, the helicopter over the field, what stopped
+  it offered as a replay; on the restart's grid a card - STANDING RESTART, what stopped it, the laps still to run, the
+  tyres (may be changed), the order's first five; RACE RESUMES as the lights go out.
+- Menus: the HQ and the practice screen stay where they were scrolled to when a button redraws them; each row's
+  explanation is one line until the row is pointed at; the long notes fold away behind "How this works"; under 860 px
+  of height the header and the cards are drawn tighter; the pit wall's footnote only when a card is pointed at.
+- The scenes' drivers are bare-headed.
+- The pit wall, COMPACT (the default under 900 px of height; FULL / COMPACT by its tab, remembered): each instruction
+  shows only what it is set to - point at it and its choices open; the box-for tyres and the fuel load as they were.
+  The card's DRIVE page is two rows instead of five.
+- In the broadcast the HUD's line across the middle of the picture is gone (race control's column and the stingers say
+  it); under the safety car the column no longer lists each stop (its card does).
+- Checked, in a team principal's race at Silverstone: a camera with a clear view of its car in 62 of 63 looks; the
+  battle card, the tower's arrows, a replay offered, taken, played (103 frames) and ended with the race's clock held;
+  the safety car and the red flag forced (the stingers, the frames, both cards, the restart's grid); screenshots of
+  each; no errors. The seeded Silverstone race in a quick weekend identical to V2.45's.
+- Not checked: the cameras at Las Vegas, Montreal and Austin (the same test, not run there: towers by the road are
+  what the helicopter's six places and the buildings' ray are for); the pit lane's camera with a car stopped in its
+  box (the run ended before the stop); the catching card on screen (its arithmetic only); the HQ's folded notes and
+  the laptop's layout in a screenshot.
+
 # V2.46 (2026-11-10): cutscenes and the team principal's story
 
 Asked for: every item of the "more immersive" list (thirty-one), as detailed cutscenes with proper camera work - and
