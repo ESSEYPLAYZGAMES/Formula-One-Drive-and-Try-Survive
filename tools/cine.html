@@ -1,0 +1,16 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>cine test</title>
+<style>html,body{margin:0;background:#000;height:100%;overflow:hidden}</style>
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/" } }
+</script></head><body>
+<script type="module">
+// the cutscenes on their own (tools/cine_sheet.mjs): no game behind them
+import { playCine } from '../src/ui/Cine.js';
+import { SCENES } from '../src/ui/CineScenes.js';
+import { loadCarModel } from '../src/vehicle/CarModel.js';
+window.__ready = false;
+window.__scenes = Object.keys(SCENES);
+window.__play = (name, ctx, o = {}) => { window.__res = null; window.__done = false; const def = SCENES[name](ctx || {}); playCine(def, { ctx, ...o }).then((r) => { window.__res = r; window.__done = true; }); return def.id; };
+loadCarModel('/assets/car/').catch((e) => console.warn('car model', e)).then(() => { window.__ready = true; });
+</script></body></html>
