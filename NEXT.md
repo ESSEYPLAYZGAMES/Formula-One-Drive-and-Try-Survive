@@ -1,3 +1,59 @@
+# V2.45 (2026-11-10): the team principal - race orders, the pit crew, the weekend, the people, the car, live strategy
+
+Thirty-three controls asked for at once ("make them all"); each a real system, none deep yet. By where it lives:
+- Race orders (race/TeamTactics.js; the pit wall's cards now have three pages - DRIVE, RACECRAFT, CAR): ATTACK (the
+  driver's aggression: cautious x0.6 .. all-in x1.65), DEFEND (yield / normal / hard), MATE (race / no risks: no
+  defending against the sister car), BLUE (move over: the lapping car let by as an order lets a team-mate by / hold up:
+  5 s after 8 s in the way), LIMITS (tidy / normal / wide: the planner's edge margin -0.3 .. +0.45 m, the stewards
+  count the strikes), SC (save / normal / ready: fuel and wear behind the safety car, the tyres' temperature at the
+  restart), LAUNCH (safe / normal / aggressive: the reaction time, and a roll for a bogged start) and LAP 1 (the first
+  forty seconds' aggression); BIAS, DIFF (pace / power against wear), COOL (out of the slipstream: Car's heat x0.35,
+  the following gap +9 m). A stop called on fresh tyres with nothing wrong: the driver asks, BOX / STAY. Every hook in
+  AIDriver / Car / RaceDirector is a field absent on every other car.
+- The pit crew (career/ManagerCrew.js, HQ tab PIT CREW): ten jobs (jacks, four guns, four tyre handlers), each a
+  speed, a consistency, a fatigue; a stop as long as its slowest corner and the jacks (RaceDirector.stopTime ->
+  car.crewStop); mistakes by consistency and fatigue (a nut, a jack, a wheel: +1-5.5 s, said on the radio); training
+  between the races (speed / consistency / double stops / rest x light / normal / hard); practice stops at the weekend
+  (three sessions: sharper, more tired); release safe / normal / aggressive (unsafe release: 5 s, given by the
+  stewards when the car is back out); a double stop waits on the crew's readiness; replacements from a market.
+- The weekend (race/TeamWeekend.js, ui/Setup.js): practice is six runs a car, each a programme - SET-UP (the feedback),
+  TYRES on a compound (the wall then knows its life here: without it the laps-to-the-cliff are off by up to a quarter
+  and marked "?"), RACE SIM (the fuel the car really burns: without it up to 4 % off, and marked "~"); tyre sets (3
+  S, 2 M, 2 H, 2 I, 2 W a car: practice and qualifying use them, the race fits the freshest, none left cannot be
+  called for; the count on the BOX FOR buttons); qualifying plans (one run or two, early or late, a tow); parc ferme
+  (the set-up is set for the forecast and locked: a wet day wants more wing, and a forecast can be wrong).
+- The people (career/ManagerPeople.js, HQ tab PEOPLE): driver morale (results against expectation, orders, promises,
+  what you say) as the driver's form on track; praise / demand more; promises (number one, a part in three rounds,
+  contract talks) kept or broken; a race engineer a car (feedback for practice, chemistry as a little pace); the
+  press's question after every race (three answers, each a cost); the team's fatigue and the rest week.
+- The car (career/ManagerCar.js, HQ tab CAR): design focus (low drag / balanced / high downforce: the car's character
+  against what each circuit wants, +-0.13 s); wind tunnel and CFD hours (100 x the testing allowance a season, 10 + 4 a
+  level); next year's car (0-75 % of the factory: this season's levels later, next season's car up to 0.17 s quicker,
+  double in a year the rules change - every third season); the power unit's maker (five; customers may change for next
+  season); RUSH a level (40 % of its price again).
+- Live strategy (race/TeamStrategy.js): RE-PLAN (the rest of the race re-timed with the tyre model from the car's own
+  state and sets: no stop / one / two, offered in turn; taken, it is the plan the wall follows); alerts as questions on
+  the card for a car on PLAN or YOU - the undercut is on, a rival behind has stopped, wet enough for inters, dry enough
+  for slicks - and the rain forecast on the radio.
+- Simulated weekends: the pace model now weights the car and the driver as the race does (RaceDirector.simulateRest's
+  own: the car about three times the driver across the grid; it had the driver four times the car).
+- The set-up's effect rescaled (ui/Setup.js setupEffect): neutral at 60 % satisfaction (+-0.2 % of pace across the
+  range, wear x0.84 .. x1.24), and a car whose set-up was never touched is at 60 %. It was a penalty from the first
+  lap: with no orders given both cars slid six to thirteen places; now they finish where the car belongs.
+- The fuel margin is kept across a red flag (main.js tpFuel: the margin at the flag, restored at the restart; a part
+  lap run twice was counted against the load). Not seen to be the cause of one test's "0.5 laps short" for certain: a
+  normal eight-lap race traced held +0.30 .. +0.34 laps through a stop.
+- Checked: four-season model runs for Williams, McLaren and Haas with every system on (a sensible player climbs, a
+  passive one sinks; no runaway money; crew fatigue holds on normal training); the HQ's new pages in the browser, every
+  button; a career round at Silverstone with the lot (practice programmes, the qualifying plans and the tow, the sets
+  used, launch and lap 1, the driver's doubt at an early stop, the crew's stop - 2.26 s - the re-plan taken); each
+  order alone over sixteen four-lap races at Las Vegas (no order retired a car); the pit wall's three pages at 1280 x
+  720 (165 px), 1920 x 1080 and a phone's 844 x 390 (232 px: tall there). The seeded Silverstone race in the other
+  modes byte-identical to V2.39.
+- Not deep yet: practice runs are instant (not watched); the AI teams have no crew, sets, morale or sponsors of their
+  own; SIMULATE (a weekend) ignores the orders, the crew and the set-up. Not found again: V2.43's one run with both
+  cars called in on lap 7 after their plans were done.
+
 # V2.44 (2026-11-08): the team principal's depth - driving instructions and fuel, parts, facilities, sponsors, set-up
 
 Modelled on F1 Manager (its guides: the tyre / fuel / ERS instructions and no refuelling; the set-up's five feedback

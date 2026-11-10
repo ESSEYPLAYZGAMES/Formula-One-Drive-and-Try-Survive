@@ -40,6 +40,14 @@ export const ORDERS = {
     save: { short: 'SAVE', label: 'Save', burn: 0.45, wear: 0.8, title: 'Behind the safety car: save fuel and tyres - they go cold, the restart is slow' },
     std: { short: 'STD', label: 'Normal', burn: 0.6, wear: 1, title: 'Behind the safety car: as the driver sees fit' },
     ready: { short: 'READY', label: 'Ready', burn: 0.72, wear: 1.15, title: 'Behind the safety car: tyres and brakes kept hot for the restart - more fuel, more wear' } } },
+  launch: { name: 'LAUNCH', page: 'race', def: 'std', opts: {
+    safe: { short: 'SAFE', label: 'Safe', dt: 0.03, bog: 0, title: 'The start: a safe clutch bite - three hundredths lost, never bogged down' },
+    std: { short: 'STD', label: 'Normal', dt: 0, bog: 0.04, title: 'The start: as practised' },
+    aggr: { short: 'AGGR', label: 'Aggressive', dt: -0.035, bog: 0.18, title: 'The start: on the edge of the clutch - quicker away, and now and then wheelspin and places lost' } } },
+  lap1: { name: 'LAP 1', page: 'race', def: 'std', opts: {
+    caut: { short: 'CAUT', label: 'Cautious', k: 0.6, title: 'The first lap: stay out of trouble' },
+    std: { short: 'STD', label: 'Normal', k: 1, title: 'The first lap: as the driver sees fit' },
+    att: { short: 'ATTACK', label: 'Attack', k: 1.45, title: 'The first lap: every gap - places won and noses lost' } } },
   bias: { name: 'BIAS', page: 'car', def: 'std', opts: {
     fwd: { short: 'FWD', label: 'Forward', pace: 0.9985, wear: 0.98, title: 'Brake bias forward: stable into the corners, a little slower, kind to the rear tyres' },
     std: { short: 'NEUT', label: 'Neutral', pace: 1, wear: 1, title: 'Brake bias neutral' },
@@ -58,7 +66,10 @@ export const defaultOrders = () => Object.fromEntries(Object.entries(ORDERS).map
 export function applyOrders(c) {
   const m = c.mgr, o = m.orders || (m.orders = defaultOrders()), g = (k) => ORDERS[k].opts[o[k]] || ORDERS[k].opts[ORDERS[k].def];
   const ai = c.ai;
-  if (ai) { if (m.baseAggr == null) m.baseAggr = ai.aggression; ai.aggression = m.baseAggr * g('attack').aggr * (m.lap1Aggr ?? 1); }
+  // (the first forty seconds of the race are LAP 1's; the launch: its reaction time, and its roll of the dice - made once)
+  if (m.startRoll == null) m.startRoll = Math.random();
+  const L = g('launch'); c.mgrStart = L.dt + (m.startRoll < L.bog ? 0.3 : 0);
+  if (ai) { if (m.baseAggr == null) m.baseAggr = ai.aggression; ai.aggression = m.baseAggr * g('attack').aggr * (m.lap1 ? g('lap1').k : 1); }
   c.mgrDefend = g('defend').k; c.mgrMateEasy = o.mate === 'care'; c.mgrBlueLate = o.blue === 'late';
   c.mgrEdge = g('limits').edge; c.mgrHeatK = g('cool').heat; c.mgrGap = g('cool').gap;
   return { pace: g('limits').pace * g('bias').pace * g('cool').pace, wear: g('bias').wear * g('diff').wear, power: g('diff').power };
@@ -73,9 +84,10 @@ export function scFactors(c) { const s = ORDERS.sc.opts[c.mgr?.orders?.sc || 'st
  */
 export function tacticsUpdate(dt, o) {
   const d = o.d; if (d.mode !== 'race' || !d.world.racing) return;
-  const L = d.track.length, green = !d.sc || d.sc.phase === 'green';
+  const L = d.track.length, green = !d.sc || d.sc.phase === 'green', early = d.time - (d.world.raceStart ?? 0) < 40;
   for (const c of o.cars) {
     const m = c.mgr; if (!m || c.retired || c.finished) continue;
+    if (m.lap1 !== early) { m.lap1 = early; o.reapply?.(c); }   // (LAP 1's order on, then off)
     // ---- blue flags: a car about a lap up, close behind
     let lapper = null, gap = 1e9;
     if (green && !c.inPit && !c.pitLane) for (const x of d.cars) {

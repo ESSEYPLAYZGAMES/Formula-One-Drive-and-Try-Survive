@@ -602,7 +602,7 @@ body.tp #hud-msg { top: 30%; }
     <div class="brand-line"></div>
     <h1 id="brand-title">FORMULA 1<span id="brand-sub">SIMULATOR</span></h1>
     <!-- the build's version: +0.01 with every build handed out -->
-    <span id="app-ver" title="Version">V2.44</span>
+    <span id="app-ver" title="Version">V2.45</span>
     <div id="menu-sub">Real circuits built from OpenStreetMap</div>
   </div>
   <div id="loading" class="hidden"><div class="ld"><i></i></div><span>Building the circuit from OpenStreetMap…</span></div>
@@ -80076,7 +80076,7 @@ class Car {
     // ---- engine thermal: following closely in dirty air heats the car up (about 40 s right on a gearbox to get hot);
     //      hot, it is derated (up to 6 % less power, enginePower) and cools in clean air; only staying at the very
     //      top of the range does lasting damage, and slowly
-    const heat = (this.dirtyAir > 0.3 ? 0.018 * this.dirtyAir : -0.04) + (this.throttle * 0.004) + this.dmg.eng * 0.01;
+    const heat = (this.dirtyAir > 0.3 ? 0.018 * this.dirtyAir * (this.mgrHeatK ?? 1) : -0.04) + (this.throttle * 0.004) + this.dmg.eng * 0.01;
     this.engTemp = Math.max(0.2, Math.min(1, this.engTemp + heat * dt));
     if (this.engTemp > 0.95) this.dmg.eng = Math.min(1, this.dmg.eng + 0.003 * dt);
 
@@ -147218,10 +147218,135 @@ class TVGraphics {
 return { TVGraphics };
 })();
 
+// ---- src/race/TeamTactics.js
+__m['src/race/TeamTactics.js'] = (() => {
+
+// The team principal's orders to a driver beyond the tyres, the fuel and the battery (ui/PitWall.js MODES): how the car
+// is raced and how it is run. Each a row of buttons on the pit wall's RACECRAFT and CAR pages (ui/PitWall.js), each
+// read by the AI through a field on the car that is absent - and so changes nothing - on every car that is not a team
+// principal's:
+//   ATTACK   how much is risked to pass: the driver's aggression (AIDriver: the gap left, the lunges, the room given -
+//            and the mistakes, the contact and the stewards that come with it)
+//   DEFEND   yield (never covers the inside) / normal / hard (covers it far more often)
+//   MATE     race the team-mate, or take no risks with them (no defending against the sister car)
+//   BLUE     blue flags: move over at once, or make the lapping car work for it (a few tenths kept - and a 5 s penalty
+//            when it is held up for more than eight seconds)
+//   LIMITS   tidy (half a car inside the white line: slower, never a warning) / normal / wide (every centimetre: a
+//            little quicker - and the track-limit strikes that the stewards count)
+//   SC       behind the safety car: save (less fuel, the tyres go cold: a slow restart) / normal / ready (tyres kept
+//            hot for the restart: more wear and fuel)
+//   BIAS     brake bias forward (stable, a little slower) / neutral / rearward (later on the brakes, harder on the rears)
+//   DIFF     differential open (kind to the rear tyres, slower off the corners) / neutral / locked (traction, wear)
+//   COOL     engine cooling: out of the slipstream on the straights - the engine stays cool (and keeps its power and its
+//            reliability), the tow is given up and the car follows further back
+const ORDERS = {
+  attack: { name: 'ATTACK', page: 'race', def: 'std', opts: {
+    caut: { short: 'CAUT', label: 'Cautious', aggr: 0.6, title: 'Cautious: passes only when it is safe - few risks, few places gained' },
+    std: { short: 'STD', label: 'Normal', aggr: 1, title: 'Normal racecraft' },
+    aggr: { short: 'AGGR', label: 'Aggressive', aggr: 1.3, title: 'Aggressive: later on the brakes into a gap, less room given - more passes, more contact' },
+    all: { short: 'ALL-IN', label: 'All-in', aggr: 1.65, title: 'All-in: every gap, every lap - places gained, and crashes and penalties' } } },
+  defend: { name: 'DEFEND', page: 'race', def: 'std', opts: {
+    easy: { short: 'YIELD', label: 'Yield', k: -1, title: 'Yield: never covers the inside - no time lost fighting a quicker car' },
+    std: { short: 'STD', label: 'Normal', k: 0, title: 'Normal: covers the inside as the driver sees fit' },
+    hard: { short: 'HARD', label: 'Hard', k: 0.35, title: 'Hard: the door shut at every corner - places kept, time and tyres lost' } } },
+  mate: { name: 'MATE', page: 'race', def: 'free', opts: {
+    free: { short: 'RACE', label: 'Race', title: 'Free to race the team-mate' },
+    care: { short: 'NO RISK', label: 'No risks', title: 'No risks with the team-mate: no defending against the sister car' } } },
+  blue: { name: 'BLUE', page: 'race', def: 'quick', opts: {
+    quick: { short: 'MOVE', label: 'Move over', title: 'Blue flags: let the lapping car by at once' },
+    late: { short: 'HOLD', label: 'Hold up', title: 'Blue flags: make them work for it - a little time kept, a 5 s penalty if the car is held up for 8 s' } } },
+  limits: { name: 'LIMITS', page: 'race', def: 'std', opts: {
+    tidy: { short: 'TIDY', label: 'Tidy', edge: -0.3, pace: 0.998, title: 'Tidy: well inside the white lines - a little slower, never a warning' },
+    std: { short: 'STD', label: 'Normal', edge: 0, pace: 1, title: 'Normal use of the track' },
+    wide: { short: 'WIDE', label: 'Wide', edge: 0.45, pace: 1.002, title: 'Wide: every centimetre and the kerbs - a little quicker, and the stewards count the strikes' } } },
+  sc: { name: 'SC', page: 'race', def: 'std', opts: {
+    save: { short: 'SAVE', label: 'Save', burn: 0.45, wear: 0.8, title: 'Behind the safety car: save fuel and tyres - they go cold, the restart is slow' },
+    std: { short: 'STD', label: 'Normal', burn: 0.6, wear: 1, title: 'Behind the safety car: as the driver sees fit' },
+    ready: { short: 'READY', label: 'Ready', burn: 0.72, wear: 1.15, title: 'Behind the safety car: tyres and brakes kept hot for the restart - more fuel, more wear' } } },
+  launch: { name: 'LAUNCH', page: 'race', def: 'std', opts: {
+    safe: { short: 'SAFE', label: 'Safe', dt: 0.03, bog: 0, title: 'The start: a safe clutch bite - three hundredths lost, never bogged down' },
+    std: { short: 'STD', label: 'Normal', dt: 0, bog: 0.04, title: 'The start: as practised' },
+    aggr: { short: 'AGGR', label: 'Aggressive', dt: -0.035, bog: 0.18, title: 'The start: on the edge of the clutch - quicker away, and now and then wheelspin and places lost' } } },
+  lap1: { name: 'LAP 1', page: 'race', def: 'std', opts: {
+    caut: { short: 'CAUT', label: 'Cautious', k: 0.6, title: 'The first lap: stay out of trouble' },
+    std: { short: 'STD', label: 'Normal', k: 1, title: 'The first lap: as the driver sees fit' },
+    att: { short: 'ATTACK', label: 'Attack', k: 1.45, title: 'The first lap: every gap - places won and noses lost' } } },
+  bias: { name: 'BIAS', page: 'car', def: 'std', opts: {
+    fwd: { short: 'FWD', label: 'Forward', pace: 0.9985, wear: 0.98, title: 'Brake bias forward: stable into the corners, a little slower, kind to the rear tyres' },
+    std: { short: 'NEUT', label: 'Neutral', pace: 1, wear: 1, title: 'Brake bias neutral' },
+    rear: { short: 'REAR', label: 'Rearward', pace: 1.0015, wear: 1.03, title: 'Brake bias rearward: later on the brakes, harder on the rear tyres' } } },
+  diff: { name: 'DIFF', page: 'car', def: 'std', opts: {
+    open: { short: 'OPEN', label: 'Open', power: 0.997, wear: 0.95, title: 'Differential open: kind to the rear tyres, slower off the corners' },
+    std: { short: 'NEUT', label: 'Neutral', power: 1, wear: 1, title: 'Differential neutral' },
+    lock: { short: 'LOCK', label: 'Locked', power: 1.003, wear: 1.05, title: 'Differential locked: traction off the corners, the rear tyres pay' } } },
+  cool: { name: 'COOL', page: 'car', def: 'off', opts: {
+    off: { short: 'OFF', label: 'Off', heat: 1, pace: 1, gap: 0, title: 'No cooling: in the slipstream as the driver likes' },
+    on: { short: 'COOL', label: 'Cooling', heat: 0.35, pace: 0.997, gap: 9, title: 'Cool the car: out of the slipstream - the engine keeps its power and lasts, the tow is given up' } } },
+};
+const defaultOrders = () => Object.fromEntries(Object.entries(ORDERS).map(([k, o]) => [k, o.def]));
+
+/** a car's orders onto the car and its AI -> the factors the driving modes are multiplied by: { pace, wear, power } */
+function applyOrders(c) {
+  const m = c.mgr, o = m.orders || (m.orders = defaultOrders()), g = (k) => ORDERS[k].opts[o[k]] || ORDERS[k].opts[ORDERS[k].def];
+  const ai = c.ai;
+  // (the first forty seconds of the race are LAP 1's; the launch: its reaction time, and its roll of the dice - made once)
+  if (m.startRoll == null) m.startRoll = Math.random();
+  const L = g('launch'); c.mgrStart = L.dt + (m.startRoll < L.bog ? 0.3 : 0);
+  if (ai) { if (m.baseAggr == null) m.baseAggr = ai.aggression; ai.aggression = m.baseAggr * g('attack').aggr * (m.lap1 ? g('lap1').k : 1); }
+  c.mgrDefend = g('defend').k; c.mgrMateEasy = o.mate === 'care'; c.mgrBlueLate = o.blue === 'late';
+  c.mgrEdge = g('limits').edge; c.mgrHeatK = g('cool').heat; c.mgrGap = g('cool').gap;
+  return { pace: g('limits').pace * g('bias').pace * g('cool').pace, wear: g('bias').wear * g('diff').wear, power: g('diff').power };
+}
+/** behind the safety car: the fuel burnt and the tyres' wear against a racing lap */
+function scFactors(c) { const s = ORDERS.sc.opts[c.mgr?.orders?.sc || 'std'] || ORDERS.sc.opts.std; return { burn: s.burn, wear: s.wear }; }
+
+/**
+ * The orders that need watching, every frame: blue flags (move over - the lapping car let by as a team order lets a
+ * team-mate by; hold up - the clock that ends in a penalty), the safety car's restart (tyres cold after SAVE, hot after
+ * READY). o: { d, cars, radio(who, text), surname(car) }
+ */
+function tacticsUpdate(dt, o) {
+  const d = o.d; if (d.mode !== 'race' || !d.world.racing) return;
+  const L = d.track.length, green = !d.sc || d.sc.phase === 'green', early = d.time - (d.world.raceStart ?? 0) < 40;
+  for (const c of o.cars) {
+    const m = c.mgr; if (!m || c.retired || c.finished) continue;
+    if (m.lap1 !== early) { m.lap1 = early; o.reapply?.(c); }   // (LAP 1's order on, then off)
+    // ---- blue flags: a car about a lap up, close behind
+    let lapper = null, gap = 1e9;
+    if (green && !c.inPit && !c.pitLane) for (const x of d.cars) {
+      if (x === c || x.retired || x.inPit || x.pitLane || x.finished || x.isSC) continue;
+      const behind = L - (d.progress(x) - d.progress(c));
+      if (behind > 0 && behind < 90 && behind < gap) { lapper = x; gap = behind; }
+    }
+    if (lapper) {
+      if (m.orders.blue === 'late') {
+        if (m.blueCar !== lapper) { m.blueCar = lapper; m.blueT = 0; }
+        if (gap < 45) m.blueT += dt;
+        if (m.blueT > 8 && !m.bluePen) { m.bluePen = true; d.stewards?.award?.(c, 5, 'ignoring blue flags'); o.radio('Race control', `${o.surname(c)}: 5 second penalty, ignoring blue flags.`); }
+      } else if (!c._yieldTo || c._yieldTo === m.blueY) { c._yieldTo = lapper; c._yieldUntil = d.time + 3; m.blueY = lapper; }
+    } else {
+      if (m.blueY && c._yieldTo === m.blueY) c._yieldTo = null;
+      m.blueY = null; m.blueCar = null; m.blueT = 0; m.bluePen = false;
+    }
+    // ---- the safety car's restart
+    const sc = !green;
+    if (m.wasSC && !sc) {
+      const k = m.orders.sc;
+      if (k === 'save') { c.tyres.temp = Math.min(c.tyres.temp, 0.5); o.radio(o.surname(c), 'Tyres are cold, no grip for the restart.'); }
+      else if (k === 'ready') c.tyres.temp = Math.max(c.tyres.temp, 0.8);
+    }
+    m.wasSC = sc;
+  }
+}
+
+return { ORDERS, defaultOrders, applyOrders, scFactors, tacticsUpdate };
+})();
+
 // ---- src/ui/PitWall.js
 __m['src/ui/PitWall.js'] = (() => {
 const { COMPOUNDS, cliffLaps, CLIFF } = __m['src/vehicle/Tyres.js'];
 const { TV_CAM_NAME } = __m['src/camera/TVDirector.js'];
+const { ORDERS } = __m['src/race/TeamTactics.js'];
 // The pit wall: the team principal's race (main.js TP), your two cars run from here while the world feed plays above
 // (camera/TVDirector.js, ui/TVGraphics.js). For each car: its place and the gaps either side, its tyres (the set, the
 // laps on it, the wear and the laps to the cliff), damage, the last and best laps; its pace mode - PUSH (quicker, the
@@ -147235,6 +147360,7 @@ const { TV_CAM_NAME } = __m['src/camera/TVDirector.js'];
 //   new PitWall({ act(name, ...args) }) - the buttons call act: 'pace' (car, mode), 'strat' (car, manual), 'box' (car,
 //   compound), 'stay' (car), 'start' (car, compound), 'speed' (x), 'pause', 'sim' (laps | 0: to the flag), 'cam' (kind),
 //   'follow' (car), 'order' (type)
+
 
 
 const CSS = `
@@ -147266,6 +147392,10 @@ const CSS = `
 #pw .grp > span { font: 700 8.5px/1 var(--tvf); letter-spacing: .14em; color: #8b95a3; margin-right: 3px; }
 #pw .cmp button { width: 20px; padding: 2px 0; text-align: center; border-color: var(--tc); }
 #pw .cmp button.on { background: var(--tc); color: #111; }
+#pw .cmp button[data-n]::after { content: attr(data-n); font-size: 7px; vertical-align: super; margin-left: 1px; opacity: .8; }
+#pw .pgs { display: inline-flex; gap: 2px; margin-left: 6px; flex: none; } #pw .pgs button { padding: 1px 6px; font-size: 9px; }
+#pw .car[data-pg="drive"] .pg-race, #pw .car[data-pg="drive"] .pg-car, #pw .car[data-pg="race"] .pg-drive, #pw .car[data-pg="race"] .pg-car, #pw .car[data-pg="car"] .pg-drive, #pw .car[data-pg="car"] .pg-race { display: none; }
+#pw .alert { display: none; align-items: center; gap: 6px; background: rgba(255,176,0,.16); border: 1px solid rgba(255,176,0,.5); border-radius: 5px; padding: 2px 6px; font-size: 10.5px; } #pw .alert.on { display: flex; } #pw .alert span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #pw .note { font-size: 10px; color: #9aa4b2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #pw .mid { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 #pw .mid .row { display: flex; gap: 2px; flex-wrap: wrap; align-items: center; margin: 0; }   /* (not the menus' .row) */
@@ -147326,11 +147456,16 @@ class PitWall {
   /** a race: your two cars (built anew) */
   open(cars) {
     this.cars = cars; this.keys.clear(); this.radioLines = [];
-    const card = (c, k) => `<div class="car" data-k="${k}" style="--c:${esc(c.color)}">
-      <div class="hd"><span class="ps">P-</span><span class="nm">${esc(c.name)}</span><span class="gp"></span><button class="fw" data-a="follow" data-k="${k}" title="Watch this car">◉</button></div>
+    const ordRow = (pg) => Object.entries(ORDERS).filter(([, O]) => O.page === pg).map(([g, O]) => `<span class="grp" data-g="o-${g}"><span>${O.name}</span>${Object.entries(O.opts).map(([m, p]) => `<button data-a="ord" data-g="${g}" data-k="${k0}" data-v="${m}" title="${esc(p.title)}">${p.short}</button>`).join('')}</span>`).join('');
+    let k0 = 0;
+    const card = (c, k) => { k0 = k; return `<div class="car" data-k="${k}" data-pg="drive" style="--c:${esc(c.color)}">
+      <div class="hd"><span class="ps">P-</span><span class="nm">${esc(c.name)}</span><span class="pgs"><button data-a="pg" data-k="${k}" data-v="drive" title="Tyres, fuel, ERS, the stops">DRIVE</button><button data-a="pg" data-k="${k}" data-v="race" title="How the car is raced">RACECRAFT</button><button data-a="pg" data-k="${k}" data-v="car" title="Brake bias, differential, cooling">CAR</button></span><span class="gp"></span><button class="fw" data-a="follow" data-k="${k}" title="Watch this car">◉</button></div>
       <div class="body">
       <div class="st"><span class="tyre"><i></i><span class="tl"></span><span class="wear"><u></u></span><span class="wp"></span></span><span class="lt"></span><span class="fu"></span><span class="dm dmg"></span></div>
-      <div class="ctl">
+      <div class="alert"><span></span><button data-a="alert" data-k="${k}" data-v="yes">YES</button><button data-a="alert" data-k="${k}" data-v="no">NO</button></div>
+      <div class="ctl pg-race">${ordRow('race')}</div>
+      <div class="ctl pg-car">${ordRow('car')}<span class="grp" data-g="replan"><button data-a="replan" data-k="${k}" title="Work the strategy out again from here: the stops still worth making">RE-PLAN</button></span></div>
+      <div class="ctl pg-drive">
         ${['tyre', 'fuel', 'ers'].map((g) => `<span class="grp" data-g="${g}"><span>${g === 'tyre' ? 'TYRES' : g.toUpperCase()}</span>${Object.entries(MODES[g]).map(([m, p]) => `<button data-a="mode" data-g="${g}" data-k="${k}" data-v="${m}" title="${esc(p.title)}">${p.short}</button>`).join('')}</span>`).join('')}
         <span class="grp" data-g="strat"><span>CALLS</span><button data-a="strat" data-k="${k}" data-v="ai" title="The AI strategist boxes the car when it should - you can still call a stop or keep it out">AI</button><button data-a="strat" data-k="${k}" data-v="plan" title="The plan chosen before the race: the pit wall boxes the car on its laps (STAY OUT on a call: a lap later)">PLAN</button><button data-a="strat" data-k="${k}" data-v="you" title="Nothing happens unless you call it">YOU</button></span>
         <span class="grp cmp" data-g="cmp"><span class="cl">BOX FOR</span>${ORDER.map((x) => `<button data-a="cmp" data-k="${k}" data-v="${x}" style="--tc:${COMPOUNDS[x].color}">${LETTER[x]}</button>`).join('')}</span>
@@ -147338,7 +147473,7 @@ class PitWall {
         <span class="grp fl" data-g="fload"><span>FUEL LOAD</span><button data-a="fuel" data-k="${k}" data-v="-0.5" title="Half a lap's fuel less: lighter, quicker - and it must be saved later">−</button><button data-a="fuel" data-k="${k}" data-v="0.5" title="Half a lap's fuel more: heavier, slower - and a margin">+</button></span>
       </div>
       <div class="note"></div>
-      </div></div>`;
+      </div></div>`; };
     {
       const C = cars;
       this.el.innerHTML = `${card(C[0], 0)}<div class="mid">
@@ -147361,7 +147496,11 @@ class PitWall {
     if (a === 'min') { this.el.classList.toggle('min'); b.textContent = this.el.classList.contains('min') ? 'PIT WALL ▴' : 'PIT WALL ▾'; return; }
     if (a === 'cmp') { car.mgr.next = b.dataset.v; if (car.mgr.preRace) this.act('start', car, b.dataset.v); this.acc = 1; return; }
     if (a === 'box') { if (car.pitRequested && !car.pitLane) this.act('stay', car); else this.act('box', car, car.mgr.next); this.acc = 1; return; }
-    if (a === 'mode') this.act('mode', car, b.dataset.g, b.dataset.v);
+    if (a === 'pg') { b.closest('.car').dataset.pg = b.dataset.v; this.acc = 1; return; }
+    if (a === 'ord') this.act('ord', car, b.dataset.g, b.dataset.v);
+    else if (a === 'alert') this.act('alert', car, b.dataset.v);
+    else if (a === 'replan') this.act('replan', car);
+    else if (a === 'mode') this.act('mode', car, b.dataset.g, b.dataset.v);
     else if (a === 'fuel') this.act('fuel', car, +b.dataset.v);
     else if (a === 'strat') this.act('strat', car, b.dataset.v);
     else if (a === 'speed') this.act('speed', +b.dataset.v);
@@ -147410,29 +147549,35 @@ class PitWall {
       const u = card.querySelector('.wear u'); u.style.transform = `scaleX(${(1 - wear).toFixed(3)})`; u.style.background = wear > CLIFF ? '#e10600' : wear > 0.5 ? '#ffd400' : '#2fbf4f';
       // (laps to the cliff at the rate this set is wearing: the AI's measure of its last lap, else the nominal rate)
       const per = c.ai?._wPerLap > 0 && c.ai._wTyres === t ? c.ai._wPerLap : 1 / Math.max(1, cliffLaps(comp, c.raceLaps) / CLIFF);
-      const toCliff = Math.max(0, (CLIFF - wear) / Math.max(1e-4, per));
-      this.setText(card.querySelector('.wp'), `${Math.round(wear * 100)}%${!c.retired && racing ? ` · cliff ${wear >= CLIFF ? 'NOW' : `~${toCliff < 10 ? toCliff.toFixed(1) : Math.round(toCliff)} laps`}` : ''}`);
+      const kb = st.lifeK ? st.lifeK(c) : 1, toCliff = Math.max(0, (CLIFF - wear) / Math.max(1e-4, per)) * kb, sure = kb === 1;   // (lifeK: without a tyre run in practice the pit wall's idea of the life is off - race/TeamWeekend.js)
+      this.setText(card.querySelector('.wp'), `${Math.round(wear * 100)}%${!c.retired && racing ? ` · cliff ${wear >= CLIFF ? 'NOW' : `~${toCliff < 10 ? toCliff.toFixed(sure ? 1 : 0) : Math.round(toCliff)} laps${sure ? '' : '?'}`}` : ''}`);
       card.querySelector('.wp').className = `wp${wear > 0.6 ? ' warnc' : ''}`;
       const last = c.lapTimes?.[c.lapTimes.length - 1];
       this.setText(card.querySelector('.lt'), `LAST ${fmtLap(last)} · BEST ${fmtLap(c.bestLap)}`);
       const dm = c.dmg || {}, worst = Math.max(dm.fwL || 0, dm.fwR || 0, dm.rw || 0, dm.susp || 0, dm.eng || 0);
       this.setText(card.querySelector('.dm'), worst > 0.12 ? `DAMAGE ${[(dm.fwL || 0) + (dm.fwR || 0) > 0.2 ? 'front wing' : null, dm.rw > 0.12 ? 'rear wing' : null, dm.susp > 0.12 ? 'suspension' : null, dm.eng > 0.12 ? 'engine' : null].filter(Boolean).join(', ')}` : c.punct != null ? 'PUNCTURE' : '');
       this.mark(card, '[data-a="mode"]', (b) => b.dataset.v === m.modes?.[b.dataset.g]);
+      this.mark(card, '[data-a="ord"]', (b) => b.dataset.v === m.orders?.[b.dataset.g]);
+      this.mark(card, '[data-a="pg"]', (b) => b.dataset.v === card.dataset.pg);
+      // (a question from the pit wall or the driver: an undercut on, rain coming, "are you sure?" - YES / NO)
+      { const al = card.querySelector('.alert'), A = m.alert; al.classList.toggle('on', !!A); if (A) { this.setText(al.firstElementChild, A.text); al.children[1].textContent = A.yes || 'YES'; al.children[2].textContent = A.no || 'NO'; } }
       // fuel: what is in the car against what the rest of the race needs at the standard mixture, in laps (+: a margin)
       if (c.fuel != null) {
         const fu = card.querySelector('.fu'), dl = st.fuelDelta?.(c) ?? 0;
-        this.setText(fu, `FUEL ${c.fuel.toFixed(1)} kg · ${dl >= 0 ? '+' : ''}${dl.toFixed(1)} lap${Math.abs(dl) === 1 ? '' : 's'}`); fu.className = `fu${dl < -0.15 ? ' dmg' : dl < 0.1 ? ' warnc' : ''}`;
+        const fk = st.fuelSure ? st.fuelSure(c) : true;
+        this.setText(fu, `FUEL ${c.fuel.toFixed(1)} kg · ${fk ? '' : '~'}${dl >= 0 ? '+' : ''}${dl.toFixed(1)} lap${Math.abs(dl) === 1 ? '' : 's'}`); fu.className = `fu${dl < -0.15 ? ' dmg' : dl < 0.1 ? ' warnc' : ''}`;
       }
       card.querySelector('[data-g="fload"]').style.display = m.preRace && c.fuel != null ? '' : 'none';
       this.mark(card, '[data-a="strat"]', (b) => b.dataset.v === (m.calls || (m.manual ? 'you' : 'ai')));
       m.preRace = !racing && !d.leaderFinished;
       this.setText(card.querySelector('.cl'), m.preRace ? 'START ON' : 'BOX FOR');
       this.mark(card, '[data-a="cmp"]', (b) => b.dataset.v === (m.preRace ? comp : m.next));
+      if (st.sets) { const S = st.sets(c); if (S) for (const b of card.querySelectorAll('[data-a="cmp"]')) { const n = String((S[b.dataset.v] || []).length); if (b.dataset.n !== n) b.dataset.n = n; } }
       const bx = card.querySelector('.bx'), inLane = c.pitLane || c.inPit;
       bx.disabled = c.retired || c.finished || m.preRace || (inLane && !c.pitRequested) || d.done;
       this.setText(bx, inLane ? 'IN PIT' : c.pitRequested ? 'STAY OUT' : 'BOX');
       bx.classList.toggle('on', !!c.pitRequested);
-      for (const b of card.querySelectorAll('[data-a="mode"],[data-a="strat"],[data-a="cmp"]')) b.disabled = c.retired || c.finished || (b.dataset.a !== 'cmp' && d.done) || (b.dataset.v === 'plan' && !m.plan);
+      for (const b of card.querySelectorAll('[data-a="mode"],[data-a="ord"],[data-a="strat"],[data-a="cmp"]')) b.disabled = c.retired || c.finished || (b.dataset.a !== 'cmp' && d.done) || (b.dataset.v === 'plan' && !m.plan);
       // the note: what is going on with this car
       const plan = c.pitPlan || c.ai?.pitPlan;
       // (the plan, short: 'Plan B · S → M L9 → H L17' - the stops still to come)
@@ -147449,6 +147594,448 @@ class PitWall {
 }
 
 return { MODES, PACE, PitWall };
+})();
+
+// ---- src/career/ManagerCrew.js
+__m['src/career/ManagerCrew.js'] = (() => {
+
+// The team principal's pit crew (career/Manager.js): ten people with a job each - the front and rear jacks, a wheel
+// gun at every corner, a tyre handler at every corner - and each a speed, a consistency and a fatigue. A stop is as
+// long as its slowest corner (the gun and the handler there) and the jacks, a little luck on top; anyone can make a
+// mistake - a nut cross-threaded, a jack dropped late, a wheel fumbled - the less consistent and the more tired, the
+// more often. Between the races the crew trains to a plan: a focus (speed, consistency, double stops, or rest) and an
+// intensity - hard training teaches more and tires more, and a tired crew fumbles. At a race weekend it can practise
+// stops (three sessions: sharper for that race, a little more tired). The release: safe (two tenths lost, never
+// unsafe), normal, or aggressive (a tenth and a half gained - and now and then an unsafe release: five seconds). Two
+// cars stopping on the same lap wait on how ready the crew is for a double stop. People can be replaced from the
+// market: a fee, a salary.
+const r1 = (x) => Math.round(x * 10) / 10;
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+const pick = (a) => a[Math.floor(Math.random() * a.length)];
+const FIRST = ['Sam', 'Jo', 'Marco', 'Dani', 'Lee', 'Chris', 'Alex', 'Nico', 'Tomas', 'Ravi', 'Kai', 'Luis', 'Ben', 'Mika', 'Owen', 'Pavel', 'Iker', 'Jules', 'Arjun', 'Matteo', 'Callum', 'Yusuf', 'Erik', 'Hugo'];
+const LAST = ['Reyes', 'Novak', 'Carter', 'Bianchi', 'Okoro', 'Lindgren', 'Marsh', 'Duval', 'Petrov', 'Sato', 'Keane', 'Moretti', 'Brandt', 'Ferreira', 'Holt', 'Vance', 'Ilves', 'Roche', 'Banerjee', 'Stone', 'Maddox', 'Quinn', 'Eze', 'Larsen'];
+
+const CREW_ROLES = [
+  { id: 'fj', name: 'Front jack', kind: 'jack' }, { id: 'rj', name: 'Rear jack', kind: 'jack' },
+  { id: 'gFL', name: 'Gun · front left', kind: 'gun', corner: 0 }, { id: 'gFR', name: 'Gun · front right', kind: 'gun', corner: 1 },
+  { id: 'gRL', name: 'Gun · rear left', kind: 'gun', corner: 2 }, { id: 'gRR', name: 'Gun · rear right', kind: 'gun', corner: 3 },
+  { id: 'tFL', name: 'Tyres · front left', kind: 'tyre', corner: 0 }, { id: 'tFR', name: 'Tyres · front right', kind: 'tyre', corner: 1 },
+  { id: 'tRL', name: 'Tyres · rear left', kind: 'tyre', corner: 2 }, { id: 'tRR', name: 'Tyres · rear right', kind: 'tyre', corner: 3 },
+];
+const TRAIN_FOCUS = { speed: 'Speed', cons: 'Consistency', stack: 'Double stops', rest: 'Rest' };
+const TRAIN_INT = { light: { name: 'Light', gain: 0.5, fat: -0.08 }, normal: { name: 'Normal', gain: 1, fat: -0.01 }, hard: { name: 'Hard', gain: 1.7, fat: 0.07 } };
+const RELEASE = { safe: { name: 'Safe', dt: 0.2, unsafe: 0 }, normal: { name: 'Normal', dt: 0, unsafe: 0.012 }, aggr: { name: 'Aggressive', dt: -0.15, unsafe: 0.07 } };
+const PIT_PRACTICE = 3;
+
+function member(role, base) {
+  const sp = clamp(base + (Math.random() - 0.5) * 0.16, 0.4, 0.97), co = clamp(base + (Math.random() - 0.5) * 0.2, 0.4, 0.97);
+  return { role, name: `${pick(FIRST)} ${pick(LAST)}`, speed: +sp.toFixed(2), cons: +co.toFixed(2), fat: 0.1, salary: r1(0.1 + ((sp + co) / 2 - 0.5) * 0.7) };
+}
+/** the crew made once (an old save brought up to date) */
+function crewEnsure(c) {
+  if (c.crew?.members?.length === CREW_ROLES.length) return;
+  const base = 0.74 - 0.045 * (c.team?.tier ?? 2);
+  c.crew = { members: CREW_ROLES.map((R) => member(R.id, base)), plan: { focus: 'speed', int: 'normal' }, release: 'normal', stack: 0.45 + 0.1 * (3 - (c.team?.tier ?? 2)) / 3, sharp: 0, practice: 0, market: null, log: [] };
+  crewMarket(c);
+}
+function crewMarket(c) { const base = 0.72 - 0.03 * (c.team?.tier ?? 2); c.crew.market = Array.from({ length: 6 }, () => member(pick(CREW_ROLES).id, base + Math.random() * 0.14)); }
+const of = (c, id) => c.crew.members.find((m) => m.role === id);
+/** the stop the crew would make on an average day (s stationary), and its chance of a mistake */
+function crewExpect(c) {
+  crewEnsure(c);
+  const M = c.crew, corner = (k) => 1.5 + (1 - (of(c, ['gFL', 'gFR', 'gRL', 'gRR'][k]).speed + of(c, ['tFL', 'tFR', 'tRL', 'tRR'][k]).speed) / 2) * 1.35;
+  const jack = 0.22 + (1 - (of(c, 'fj').speed + of(c, 'rj').speed) / 2) * 0.55;
+  const time = (Math.max(corner(0), corner(1), corner(2), corner(3)) + jack) * (1 - M.sharp * 0.5) + 0.12 + RELEASE[M.release].dt;
+  let ok = 1; for (const m of M.members) ok *= 1 - errP(m, c);
+  return { time, err: 1 - ok, fatigue: M.members.reduce((s, m) => s + m.fat, 0) / M.members.length };
+}
+const errP = (m, c) => 0.002 + (1 - m.cons) * 0.012 + Math.max(0, m.fat - 0.3) * 0.05 + Math.max(0, (c.fatigue || 0) - 0.6) * 0.02;
+/**
+ * A stop: o { stacked (the team-mate in the box this lap), mul (the crew chief's and the training centre's factor) } ->
+ * { time (s stationary, before repairs), slow (a mistake), note (who and what), unsafe (a 5 s penalty to come) }
+ */
+function crewStop(c, o = {}) {
+  crewEnsure(c);
+  const M = c.crew, E = crewExpect(c);
+  let time = E.time * (o.mul || 1) + Math.random() * Math.random() * 0.45, slow = false, note = null;
+  for (const m of M.members) {
+    if (Math.random() >= errP(m, c)) continue;
+    const R = CREW_ROLES.find((x) => x.id === m.role); slow = true;
+    const add = R.kind === 'gun' ? 2.5 + Math.random() * 3 : R.kind === 'jack' ? 1 + Math.random() * 1.2 : 1.5 + Math.random() * 1.8;
+    time += add; note = `${R.kind === 'gun' ? 'wheel nut stuck' : R.kind === 'jack' ? 'the jack dropped late' : 'a wheel fumbled'} (${R.name.toLowerCase()}, ${m.name})`;
+    break;
+  }
+  if (o.stacked) time += (1 - M.stack) * 2.6;
+  const unsafe = Math.random() < RELEASE[M.release].unsafe * (o.stacked ? 2 : 1);
+  M.log.push({ season: c.season, round: c.round, time: +time.toFixed(2), slow, note, unsafe }); if (M.log.length > 30) M.log.shift();
+  return { time, slow, note, unsafe };
+}
+/** a practice-stop session at the race weekend: sharper for this race, a little more tired -> text */
+function crewPractise(c) {
+  crewEnsure(c); const M = c.crew;
+  if (M.practice >= PIT_PRACTICE) return 'The crew has done its practice stops for this weekend.';
+  M.practice++; M.sharp = Math.min(0.18, M.sharp + 0.06); for (const m of M.members) m.fat = clamp(m.fat + 0.02, 0, 1);
+  const t = 1.9 + Math.random() * 0.9;
+  return `Practice stops: best ${t.toFixed(2)} s. The crew is sharper for this race (${PIT_PRACTICE - M.practice} session${PIT_PRACTICE - M.practice === 1 ? '' : 's'} left).`;
+}
+/** the round's training (after a race): the plan's gains and its fatigue; the weekend's sharpness gone */
+function crewRound(c, facMul = 1) {
+  crewEnsure(c);
+  const M = c.crew, I = TRAIN_INT[M.plan.int] || TRAIN_INT.normal, f = M.plan.focus, g = 0.012 * I.gain * facMul;
+  for (const m of M.members) {
+    const tired = 1 - 0.5 * m.fat;
+    if (f === 'speed') m.speed = clamp(m.speed + g * tired * (1 - m.speed) * 2.2 * (0.6 + Math.random() * 0.8), 0.3, 0.98);
+    if (f === 'cons') m.cons = clamp(m.cons + g * tired * (1 - m.cons) * 2.2 * (0.6 + Math.random() * 0.8), 0.3, 0.98);
+    m.speed = +m.speed.toFixed(3); m.cons = +m.cons.toFixed(3);
+    m.fat = +clamp(m.fat + (f === 'rest' ? -0.3 : I.fat) + 0.03, 0, 1).toFixed(3);   // (a race weekend tires everyone a little)
+  }
+  M.stack = +clamp(M.stack + (f === 'stack' ? 0.07 * I.gain * facMul : -0.012), 0.1, 0.98).toFixed(3);
+  M.sharp = 0; M.practice = 0;
+}
+function crewHire(c, i) {
+  const M = c.crew, p = M.market?.[i], t = c.team; if (!p) return 'No such person.';
+  const fee = r1(p.salary * 1.5); if (t.budget < fee) return `Not enough money: bringing ${p.name} in costs $${fee}M.`;
+  const k = M.members.findIndex((m) => m.role === p.role), was = M.members[k];
+  t.budget = r1(t.budget - fee); M.members[k] = { ...p, fat: 0.1 }; M.market.splice(i, 1);
+  c.addNews?.(`${p.name} joins the pit crew (${CREW_ROLES.find((R) => R.id === p.role).name.toLowerCase()}), replacing ${was.name}.`);
+  return `${p.name} replaces ${was.name} on ${CREW_ROLES.find((R) => R.id === p.role).name.toLowerCase()} ($${fee}M).`;
+}
+/** the winter: everyone rested */
+function crewNewSeason(c) { crewEnsure(c); for (const m of c.crew.members) m.fat = 0.1; c.crew.sharp = 0; c.crew.practice = 0; crewMarket(c); }
+const crewSalaries = (c) => r1((c.crew?.members || []).reduce((s, m) => s + (m.salary || 0), 0));
+
+return { CREW_ROLES, TRAIN_FOCUS, TRAIN_INT, RELEASE, PIT_PRACTICE, crewEnsure, crewMarket, crewExpect, crewStop, crewPractise, crewRound, crewHire, crewNewSeason, crewSalaries };
+})();
+
+// ---- src/career/ManagerPeople.js
+__m['src/career/ManagerPeople.js'] = (() => {
+
+// The team principal's people (career/Manager.js): the drivers' morale, what you tell and promise them, their race
+// engineers, the press, and how tired the whole team is.
+//
+// MORALE (0-100, a driver's): results against what the car and the driver should do, a win or a podium, a retirement
+// (the car's fault hurts more than their own), being told to move over, a call overridden on the radio, a contract
+// running out with no talks, promises kept and broken - and what you say to them. It is the driver's form on track
+// (career/Morale.js: pace, mistakes, starts) and what a contract extension takes: an unhappy driver will not sign.
+//
+// TALKS: praise or criticism (once a round each driver), and three promises - number-one status for the season (broken
+// the moment they are told to let the other car by), a new part on the car within three rounds, contract talks before
+// the season ends. Kept: trust; broken: a lot of it gone.
+//
+// RACE ENGINEERS: one a car. Feedback: how much each practice run tells (ui/Setup.js); chemistry with the driver, which
+// grows race by race and is a little pace; swapped, it starts again.
+//
+// THE PRESS: a question after every race, three ways to answer - each costs or wins something: a driver's morale, the
+// board's confidence, the team's profile with sponsors.
+//
+// FATIGUE (the whole team, 0-1): every round, more with a full factory and hard pit crew training. Tired: parts
+// correlate worse, the crew fumbles. A rest week (chosen before a race) takes it off - the factory stands still for it.
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+const pick = (a) => a[Math.floor(Math.random() * a.length)];
+const sur = (n) => String(n || '').split(' ').pop();
+const ENG_FIRST = ['Tom', 'Julien', 'Riccardo', 'Hannah', 'Will', 'Gaëtan', 'Marcus', 'Laura', 'Bono', 'Hugh', 'Xavi', 'Andrea', 'Mark', 'Peter', 'Emma'];
+const ENG_LAST = ['Stallard', 'Simon-Chautemps', 'Adami', 'Joseph', 'Bozzi', 'Jego', 'Dudley', 'Mueller', 'Bonnington', 'Bird', 'Marcos', 'Benisi', 'Slade', 'Hall', 'Whitcombe'];
+
+function peopleEnsure(c) {
+  for (const d of Object.values(c.drivers)) if (d.morale == null) d.morale = 60;
+  if (!c.promises) c.promises = [];
+  if (!c.talked) c.talked = {};
+  if (!c.engineers) {
+    const tier = c.team?.tier ?? 2, mk = () => ({ name: `${pick(ENG_FIRST)} ${pick(ENG_LAST)}`, feedback: +clamp(0.55 + (3 - tier) * 0.06 + Math.random() * 0.2, 0.4, 0.95).toFixed(2), did: null, chem: 0.4, salary: 0.4 });
+    c.engineers = [mk(), mk()];
+    c.team.seats.forEach((did, i) => { if (c.engineers[i]) c.engineers[i].did = did; });
+    c.engMarket = [mk(), mk(), mk()].map((e) => ({ ...e, feedback: +clamp(e.feedback + 0.08, 0.4, 0.97).toFixed(2), chem: 0.3 }));
+  }
+  // (a driver signed since: the engineer without a driver takes the driver without an engineer)
+  const seats = c.team.seats; for (const e of c.engineers) if (e.did && !seats.includes(e.did)) e.did = null;
+  for (const did of seats) if (!c.engineers.some((e) => e.did === did)) { const free = c.engineers.find((e) => !e.did); if (free) { free.did = did; free.chem = 0.3; } }
+  if (c.fatigue == null) c.fatigue = 0.2;
+  if (c.buzz == null) c.buzz = 0;
+}
+const moraleWord = (m) => (m >= 80 ? 'Delighted' : m >= 65 ? 'Happy' : m >= 45 ? 'Content' : m >= 30 ? 'Unhappy' : 'Wants out');
+const shift = (c, did, n, why) => { const d = c.drivers[did]; if (!d) return; d.morale = Math.round(clamp((d.morale ?? 60) + n, 0, 100)); if (why && Math.abs(n) >= 4 && d.team === c.myTeam) c.addNews(`${d.name} ${n > 0 ? 'is lifted' : 'is unhappy'}: ${why}.`); };
+const engineerOf = (c, did) => (c.engineers || []).find((e) => e.did === did) || null;
+/** a car's practice feedback factor and its little pace from the engineer's chemistry */
+function engineerFx(c, did) { const e = engineerOf(c, did); return e ? { setupK: 0.75 + 0.55 * e.feedback, perf: 1 + (e.chem - 0.5) * 0.0016 } : { setupK: 0.7, perf: 0.9992 }; }
+
+/** something on the radio or the pit wall during the race: 'override' (a stop the driver doubted), 'yield' (told to let the team-mate by), 'held' */
+function raceEvent(c, what, did) {
+  peopleEnsure(c);
+  if (what === 'override') shift(c, did, -1);
+  else if (what === 'yield') { shift(c, did, -5, 'told to let the other car through'); const p = c.promises.find((x) => x.did === did && x.kind === 'no1' && !x.done); if (p) { p.done = true; p.kept = false; shift(c, did, -12, 'promised number-one status, then told to move over'); } }
+  else if (what === 'held') shift(c, did, -2);
+}
+/** the race into the morale, the engineers' chemistry, the team's fatigue; the promises checked; the press's question */
+function peopleAfterRace(c, rows, rep, o = {}) {
+  peopleEnsure(c);
+  const E = c.entries().map((e) => ({ id: e.careerId, s: (e.perf - 1) * 40.5 + (e.rating - 0.9) * 1.08 })).sort((a, b) => b.s - a.s);
+  for (const r of rows) {
+    const d = c.drivers[r.car.careerId]; if (!d) continue;
+    const exp = E.findIndex((x) => x.id === d.id) + 1 || r.pos, mine = d.team === c.myTeam;
+    let n = r.car.retired ? (/accident|collision/i.test(r.car.retireReason || '') ? -2 : -4) : clamp((exp - r.pos) * 0.8, -5, 5) + (r.pos === 1 ? 6 : r.pos <= 3 ? 3 : 0);
+    if (mine && !r.car.retired) { const mate = rows.find((x) => x.car.team === d.team && x.car.careerId !== d.id); const md = mate && c.drivers[mate.car.careerId]; if (md && !mate.car.retired && mate.pos < r.pos && d.rating > md.rating + 0.01) n -= 2; }
+    shift(c, d.id, n * (mine ? 1 : 0.6));
+    // (it settles toward content between races)
+    d.morale = Math.round(d.morale + (58 - d.morale) * 0.07);
+    if (mine && d.until != null && d.until <= c.season && c.round > c.rounds / 2) shift(c, d.id, -1.5);
+  }
+  for (const e of c.engineers) if (e.did) e.chem = +clamp(e.chem + 0.05, 0, 1).toFixed(2);
+  // the promises: a part within three rounds
+  for (const p of c.promises) {
+    if (p.done || p.season !== c.season) continue;
+    if (p.kind === 'part') {
+      if (rep.parts?.length) { p.done = true; p.kept = true; shift(c, p.did, 6, 'the new part they were promised is on the car'); }
+      else if (c.round >= p.due) { p.done = true; p.kept = false; shift(c, p.did, -9, 'the part they were promised never came'); }
+    }
+  }
+  // fatigue: the round, the factory's load, the crew's training
+  const load = (c.team.dev || []).length, hard = c.crew?.plan?.int === 'hard' && c.crew?.plan?.focus !== 'rest';
+  if (o.rest) { c.fatigue = clamp(c.fatigue - 0.32, 0, 1); c.addNews('A rest week: the factory stood still, and the team is fresher for it.'); }
+  else c.fatigue = +clamp(c.fatigue + 0.045 + 0.014 * load + (hard ? 0.02 : 0), 0, 1).toFixed(3);
+  if (c.fatigue > 0.8) for (const did of c.team.seats) shift(c, did, -1);
+  c.talked = {};
+  c.buzz = +(c.buzz * 0.8).toFixed(3);
+  // the press: what was promised in public for this race, held against the result; a question left unanswered
+  if (c.pressTarget && c.pressTarget.round === rep.round) {
+    const best = (rep.mine || []).filter((m) => !m.dnf).sort((a, b) => a.pos - b.pos)[0], ok = best && best.pos <= (c.expectedPos?.(true) ?? 10) + 1;
+    c.board.conf = Math.round(clamp(c.board.conf + (ok ? 1 : -2), 0, 100)); if (!ok) c.addNews('The papers remember what you promised before the race.');
+    c.pressTarget = null;
+  }
+  if (c.press && !c.press.done) { c.board.conf = Math.round(clamp(c.board.conf - 1, 0, 100)); }
+  c.press = makePress(c, rep);
+}
+function makePress(c, rep) {
+  const M = rep.mine || [], best = M.filter((m) => !m.dnf).sort((a, b) => a.pos - b.pos)[0], dnf = M.find((m) => m.dnf), D = c.seatsOf(c.myTeam);
+  const exp = c.expectedPos?.() ?? 10, good = best && best.pos <= exp - 1, bad = !best || best.pos > exp + 3;
+  const a = D[0]?.id, b = D[1]?.id, worse = M.slice().sort((x, y) => (y.dnf ? 99 : y.pos) - (x.dnf ? 99 : x.pos))[0];
+  if (dnf && /accident|collision/i.test(dnf.why || '')) return { q: `${sur(dnf.name)} crashed out today. Was that the driver's mistake?`, opts: [
+    { t: 'Back the driver', text: '"These things happen. We win and lose together."', fx: { morale: [[dnf.id, 4]], conf: -1 } },
+    { t: 'Blame the driver', text: '"That was avoidable, and he knows it."', fx: { morale: [[dnf.id, -7]], conf: 1 } },
+    { t: 'No comment', text: '"We will look at the data."', fx: {} }] };
+  if (good) return { q: `A strong result for ${c.myTeam}. Is this the team's real level now?`, opts: [
+    { t: 'Talk it up', text: '"This is where we belong - and there is more to come."', fx: { buzz: 0.12, conf: 1, pressure: 1 } },
+    { t: 'Credit the drivers', text: '"The drivers were superb today."', fx: { morale: [[a, 3], [b, 3]] } },
+    { t: 'Stay humble', text: '"One race. We keep our heads down."', fx: { conf: 1 } }] };
+  if (bad) return { q: `A difficult weekend. What went wrong for ${c.myTeam}?`, opts: [
+    { t: 'Take the blame', text: '"That is on me and the pit wall, not the drivers."', fx: { morale: [[a, 3], [b, 3]], conf: -2 } },
+    { t: 'Blame the car', text: '"We simply did not have the pace."', fx: { conf: -1, fatigue: 0.03 } },
+    { t: 'Blame the driver', text: `"${sur(worse?.name)} had the car to do better."`, fx: { morale: [[worse?.id, -6]], conf: 1 } }] };
+  return { q: `Solid, not spectacular. What is the target for the next race?`, opts: [
+    { t: 'Promise more', text: '"Points with both cars, minimum."', fx: { buzz: 0.08, pressure: 1 } },
+    { t: 'Praise the team', text: '"The factory has been flat out. This is for them."', fx: { fatigue: -0.04 } },
+    { t: 'Say little', text: '"We take it race by race."', fx: {} }] };
+}
+/** the answer given -> text */
+function answerPress(c, i) {
+  const P = c.press, o = P?.opts?.[i]; if (!P || P.done || !o) return 'There is no question to answer.';
+  P.done = true; P.answer = i;
+  for (const [did, n] of o.fx.morale || []) if (did) shift(c, did, n, n < 0 ? 'criticised in public by the team principal' : 'backed in public by the team principal');
+  if (o.fx.conf) c.board.conf = Math.round(clamp(c.board.conf + o.fx.conf, 0, 100));
+  if (o.fx.buzz) c.buzz = +clamp(c.buzz + o.fx.buzz, 0, 0.4).toFixed(3);
+  if (o.fx.fatigue) c.fatigue = clamp(c.fatigue + o.fx.fatigue, 0, 1);
+  if (o.fx.pressure) c.pressTarget = { round: c.round, n: o.fx.pressure };
+  c.addNews(`To the press: ${o.text}`);
+  return `You said: ${o.text}`;
+}
+
+// ---- talks ---------------------------------------------------------------------------------------------------------------
+const TALKS = {
+  praise: { name: 'PRAISE', title: 'Tell them they are doing a great job (once a round)' },
+  push: { name: 'DEMAND MORE', title: 'Tell them you expect more: it fires some drivers up, and upsets others (once a round)' },
+  no1: { name: 'PROMISE NO. 1 STATUS', title: 'Number-one status for the season: broken the moment they are told to let the other car through' },
+  part: { name: 'PROMISE A NEW PART', title: 'A new part on the car within three rounds' },
+  contract: { name: 'PROMISE CONTRACT TALKS', title: 'An extension before the season ends' },
+};
+function talk(c, did, kind) {
+  peopleEnsure(c);
+  const d = c.drivers[did]; if (!d || d.team !== c.myTeam) return 'Not your driver.';
+  const live = (k) => c.promises.find((p) => p.did === did && p.kind === k && p.season === c.season && !p.done);
+  if (kind === 'praise' || kind === 'push') {
+    if (c.talked[did]) return `You have already spoken to ${d.name} this round.`;
+    c.talked[did] = true;
+    if (kind === 'praise') { const n = d.morale >= 80 ? 0 : d.morale >= 65 ? 1 : 2; shift(c, did, n); return n ? `${d.name} appreciates it.` : `${d.name} has heard it before: it changes nothing.`; }
+    const fired = Math.random() < 0.45 + (d.rating - 0.85) * 2; shift(c, did, fired ? 3 : -4);
+    return fired ? `${d.name} takes it well: "I'll show you."` : `${d.name} does not take it well.`;
+  }
+  if (live(kind)) return `You have already promised ${d.name} that.`;
+  if (kind === 'no1') { const other = c.promises.find((p) => p.kind === 'no1' && p.season === c.season && !p.done && p.did !== did); if (other) return `You have promised that to ${c.drivers[other.did]?.name}.`; }
+  c.promises.push({ did, kind, season: c.season, round: c.round, due: c.round + 3, done: false, kept: null });
+  shift(c, did, kind === 'no1' ? 8 : 4);
+  return `${d.name}: "${kind === 'no1' ? 'Number one. I will hold you to that.' : kind === 'part' ? 'Good. I need it on the car within three races.' : 'Then let us talk before the season is out.'}"`;
+}
+/** a contract extended: the promise kept, the driver lifted */
+function onExtend(c, did) { const p = c.promises.find((x) => x.did === did && x.kind === 'contract' && !x.done); if (p) { p.done = true; p.kept = true; } shift(c, did, 6); }
+/** will this driver sign on? -> null, or why not */
+function extendBlock(c, did) { const d = c.drivers[did]; return d && (d.morale ?? 60) < 28 ? `${d.name} will not sign: ${moraleWord(d.morale).toLowerCase()} with the team.` : null; }
+/** the season's end: the promises still open */
+function peopleSeasonEnd(c) {
+  for (const p of c.promises) {
+    if (p.done || p.season !== c.season) continue; p.done = true;
+    if (p.kind === 'no1') { p.kept = true; shift(c, p.did, 4, 'number-one status, as promised, all season'); }
+    else { p.kept = false; shift(c, p.did, p.kind === 'contract' ? -10 : -8, p.kind === 'contract' ? 'the contract talks they were promised never happened' : 'a promise broken'); }
+  }
+}
+/** the engineers swapped between the two cars: the chemistry starts again */
+function swapEngineers(c) {
+  const [a, b] = c.engineers; if (!a || !b) return 'Two engineers are needed.';
+  [a.did, b.did] = [b.did, a.did]; a.chem = 0.3; b.chem = 0.3;
+  return `${a.name} now runs ${c.drivers[a.did]?.name || 'the other car'}, ${b.name} ${c.drivers[b.did]?.name || 'the other car'}. They start from scratch together.`;
+}
+function hireEngineer(c, i, slot) {
+  const p = c.engMarket?.[i], was = c.engineers[slot], t = c.team; if (!p || !was) return 'No such engineer.';
+  const fee = 0.8; if (t.budget < fee) return `Not enough money: $${fee}M to bring ${p.name} in.`;
+  t.budget = Math.round((t.budget - fee) * 10) / 10; c.engineers[slot] = { ...p, did: was.did, chem: 0.3 }; c.engMarket.splice(i, 1);
+  c.addNews(`${p.name} joins as race engineer for ${c.drivers[was.did]?.name || 'a car'}, replacing ${was.name}.`);
+  return `${p.name} is ${c.drivers[was.did]?.name || 'the car'}'s race engineer ($${fee}M).`;
+}
+/** how tiredness spoils a new part (a factor on its correlation) */
+const fatigueQ = (c) => 1 - Math.max(0, (c.fatigue || 0) - 0.5) * 0.16;
+
+return { peopleEnsure, moraleWord, engineerOf, engineerFx, raceEvent, peopleAfterRace, answerPress, TALKS, talk, onExtend, extendBlock, peopleSeasonEnd, swapEngineers, hireEngineer, fatigueQ };
+})();
+
+// ---- src/career/ManagerCar.js
+__m['src/career/ManagerCar.js'] = (() => {
+const { UP, atrFactor, upgradeName } = __m['src/career/TechTree.js'];
+// The team principal's car beyond the tech tree's levels (career/Manager.js, career/TechTree.js):
+//
+// DESIGN FOCUS. Every aerodynamic part is designed to a philosophy - low drag, balanced, high downforce - and the car
+// takes on the character of what is on it (the more aero work with a focus, the more of one). A circuit wants what it
+// wants: Las Vegas and Montreal's straights low drag, Silverstone and Austin's sweeps downforce. A car that suits the
+// circuit gains up to ~0.13 s a lap; one that does not loses as much. The AI teams have characters of their own.
+//
+// TUNNEL AND CFD HOURS. The aerodynamic testing restrictions as an allowance: 100 hours a season scaled by the
+// constructors' order (the leaders 70, tenth 115 - TechTree.atrFactor); every aerodynamic level costs hours (10 + 4 a
+// level) as well as money, and with none left no aero work starts until next season.
+//
+// NEXT YEAR'S CAR. A share of the factory - 0, 25, 50 or 75 % - works on next season's car. This season pays: at 50 %
+// every level started takes a race longer, at 75 % two. Next season gains: up to ~0.17 s a lap of a head start for a
+// full season at 75 % (double in a year the rules change: every third season, when everyone's old advantage is also cut
+// by a third). The AI teams make the same choice in their own way.
+//
+// THE POWER UNIT'S SUPPLIER. Works teams build their own; the rest buy (a dearer maker costs the difference a season,
+// and $5M to change the car round a new unit): the unit's power and reliability as that maker has them (they drift from season to season). A customer may sign with another maker for
+// next season.
+//
+// RUSH. A level in the factory brought forward a race for 40 % of its price again (under the cap).
+
+const r1 = (x) => Math.round(x * 10) / 10;
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+const hash = (s) => { let h = 2166136261; for (const ch of String(s)) h = Math.imul(h ^ ch.charCodeAt(0), 16777619); return (h >>> 0) / 4294967295; };
+
+const FOCUS = { ld: { name: 'Low drag', v: -1 }, bal: { name: 'Balanced', v: 0 }, hd: { name: 'High downforce', v: 1 } };
+/** what each circuit asks of a car: -1 low drag .. +1 downforce */
+const TRACK_DF = { lasvegas: -0.85, montreal: -0.45, austin: 0.35, silverstone: 0.65 };
+const SUPPLIERS = {
+  merc: { name: 'Mercedes', power: 0.0008, rel: 0.94, fee: 13, works: 'Mercedes' },
+  ferrari: { name: 'Ferrari', power: 0.0006, rel: 1.0, fee: 12, works: 'Ferrari' },
+  rbford: { name: 'Red Bull Ford', power: 0.0004, rel: 1.06, fee: 11, works: 'Red Bull Racing' },
+  honda: { name: 'Honda', power: 0.0005, rel: 0.97, fee: 12, works: 'Aston Martin' },
+  audi: { name: 'Audi', power: -0.0002, rel: 1.1, fee: 9, works: 'Audi' },
+};
+const DEFAULT_SUP = { McLaren: 'merc', Mercedes: 'merc', Williams: 'merc', Alpine: 'merc', Ferrari: 'ferrari', Haas: 'ferrari', Cadillac: 'ferrari', 'Red Bull Racing': 'rbford', 'Racing Bulls': 'rbford', 'Aston Martin': 'honda', Audi: 'audi' };
+const NEXT_SHARES = [0, 0.25, 0.5, 0.75];
+const SWITCH_FEE = 5;
+/** what a maker's supply costs a season against the deal the team started with ($M, + dearer) */
+const supplyDiff = (c, key) => r1((SUPPLIERS[key]?.fee || 0) - (SUPPLIERS[c.team.engine0]?.fee || 0));
+const ATR_BASE = 100;
+
+function carEnsure(c) {
+  for (const t of Object.values(c.teams)) {
+    if (!t.aero) { const ai = t.name !== c.myTeam; t.aero = ai ? { sum: (hash(t.name + 'aero') * 2 - 1) * 4, n: 6 } : { sum: 0, n: 0 }; }
+    if (!t.engine) t.engine = DEFAULT_SUP[t.name] || 'ferrari';
+    if (t.engine0 == null) t.engine0 = t.engine;
+  }
+  if (!c.supDrift) c.supDrift = Object.fromEntries(Object.keys(SUPPLIERS).map((k) => [k, { power: 0, rel: 1 }]));
+  if (!c.designFocus) c.designFocus = 'bal';
+  if (!c.atr) c.atr = { used: 0 };
+  if (!c.nextCar) c.nextCar = { share: 0, pts: 0 };
+  if (c.engineNext === undefined) c.engineNext = null;
+}
+/** a team's aerodynamic character: p (-1 low drag .. +1 downforce) and how strong (0..1) */
+function aeroOf(t) { const a = t.aero || { sum: 0, n: 0 }; return { p: a.n ? clamp(a.sum / a.n, -1, 1) : 0, k: Math.min(1, a.n / 6) }; }
+/** how a team's car suits a circuit: a factor on its performance (0.9986 .. 1.0014) */
+function trackFit(t, track) {
+  const { p, k } = aeroOf(t), want = TRACK_DF[track] ?? 0;
+  return 1 + (1 - Math.abs(p - want)) * 0.0014 * k;
+}
+const fitText = (f) => { const s = (f - 1) * 90; return Math.abs(s) < 0.015 ? 'neutral' : `${s > 0 ? '+' : '−'}${Math.abs(s).toFixed(2)} s a lap`; };
+/** the supplier's unit as it is this season: power (added to the car's performance) and rel (a factor on failures) */
+function supplierOf(c, key) { const S = SUPPLIERS[key] || SUPPLIERS.ferrari, d = c.supDrift?.[key] || { power: 0, rel: 1 }; return { ...S, key, power: S.power + d.power, rel: S.rel * d.rel }; }
+/** what a team's power unit does to its cars, against the one it started the career with (the grid's balance is the tech tree's) */
+function engineFx(c, t) {
+  const now = supplierOf(c, t.engine), was = SUPPLIERS[t.engine0] || now;
+  return { perf: 1 + (now.power - was.power), relMul: now.rel / was.rel };
+}
+const isWorks = (c, team = c.myTeam) => Object.values(SUPPLIERS).some((S) => S.works === team);
+
+// ---- the tunnel's hours ------------------------------------------------------------------------------------------------
+const atrAllowance = (c) => Math.round(ATR_BASE * atrFactor(c, c.myTeam));
+const atrCost = (lvl) => 10 + 4 * lvl;
+const atrLeft = (c) => atrAllowance(c) - (c.atr?.used || 0);
+/** may this level be started -> null, or why not (the cost cap first: career/Manager.js capCheck) */
+function buildCheck(c, id, lvl, cost) {
+  const cap = c.capCheck?.(cost); if (cap) return cap;
+  if (UP[id]?.atr && atrCost(lvl) > atrLeft(c)) return `No wind tunnel and CFD time left for it: ${atrCost(lvl)} hours needed, ${Math.max(0, atrLeft(c))} of ${atrAllowance(c)} left this season.`;
+  return null;
+}
+/** a level started: its hours, its design focus, and the delay of a factory busy with next year's car */
+function onBuilt(c, id, lvl) {
+  carEnsure(c);
+  const u = UP[id], t = c.team;
+  if (u?.atr) { c.atr.used += atrCost(lvl); t.aero.sum += FOCUS[c.designFocus]?.v ?? 0; t.aero.n += 1; }
+  const extra = c.nextCar.share >= 0.75 ? 2 : c.nextCar.share >= 0.5 ? 1 : 0;
+  if (extra && u?.branch !== 'facilities') { const x = (t.dev || []).find((y) => y.id === id && y.level === lvl); if (x) { x.left += extra; x.n = (x.n || x.left) + extra; } }
+}
+/** rush a level in the factory: a race sooner, 40 % of its price again -> text */
+function rush(c, id) {
+  const t = c.team, x = (t.dev || []).find((y) => y.id === id); if (!x) return 'That is not in the factory.';
+  if (x.left <= 1) return 'It is on the car after the next race already.';
+  if (x.rushed) return 'It has been rushed once already.';
+  const cost = r1((x.cost || 4) * 0.4), cap = c.capCheck?.(cost); if (cap) return cap;
+  if (t.budget < cost) return `Not enough money: rushing it costs $${cost}M.`;
+  t.budget = r1(t.budget - cost); t.devSpend = t.devSpend || { all: 0, fac: 0 }; t.devSpend.all = r1((+t.devSpend.all || 0) + cost);
+  x.left--; x.rushed = true;
+  return `${upgradeName(x.id, x.level)} rushed: $${cost}M, a race sooner.`;
+}
+/** a round's work on next year's car */
+function carRound(c) { carEnsure(c); c.nextCar.pts = +(c.nextCar.pts + c.nextCar.share).toFixed(2); }
+/** the rules change every third season */
+const rulesChange = (season) => season % 3 === 0;
+/**
+ * The new season's cars (called with c.season already the new one): each team's head start from the work it put into
+ * this car last season, the old advantages cut in a year the rules change, the makers' units drifting, a new supplier
+ * signed, the tunnel's hours afresh -> lines of news
+ */
+function carNewSeason(c) {
+  carEnsure(c);
+  const reg = rulesChange(c.season), out = [];
+  for (const t of Object.values(c.teams)) {
+    const mine = t.name === c.myTeam, share = mine ? c.nextCar.pts / Math.max(1, c.rounds) : 0.05 + hash(`${t.name}|${c.season}|next`) * 0.3;
+    if (reg) t.perfAdj = (+t.perfAdj || 0) * 0.65 - (t.tier === 0 ? 0.0008 : 0) + (hash(`${t.name}|${c.season}|reg`) - 0.5) * 0.003;
+    const gain = share * 0.0025 * (reg ? 2 : 1);
+    t.perfAdj = +((+t.perfAdj || 0) + gain).toFixed(5);
+    if (mine) out.push(`Last season's work on this car is worth ${(gain * 90).toFixed(2)} s a lap${reg ? ' under the new rules' : ''}.`);
+  }
+  if (reg) out.push(`New technical regulations for ${c.season}: the order is shaken, and the work done early counts double.`);
+  for (const k of Object.keys(SUPPLIERS)) { const d = c.supDrift[k]; d.power = +clamp(d.power + (Math.random() - 0.5) * 0.0006, -0.001, 0.001).toFixed(5); d.rel = +clamp(d.rel * (0.96 + Math.random() * 0.08), 0.85, 1.2).toFixed(3); }
+  if (c.engineNext && SUPPLIERS[c.engineNext] && !isWorks(c)) { c.team.engine = c.engineNext; c.team.budget = r1(c.team.budget - SWITCH_FEE); out.push(`${c.myTeam} race ${SUPPLIERS[c.engineNext].name} power this season ($${SWITCH_FEE}M to change the car round it).`); }
+  c.engineNext = null;
+  // (the supply the team started with is in its budget already: a dearer or a cheaper maker is the difference)
+  if (!isWorks(c)) { const diff = supplyDiff(c, c.team.engine); if (diff) { c.team.budget = r1(c.team.budget - diff); out.push(`The power unit supply from ${SUPPLIERS[c.team.engine].name}: $${Math.abs(diff)}M ${diff > 0 ? 'more' : 'less'} than the old deal this season.`); } }
+  c.nextCar = { share: c.nextCar.share, pts: 0 }; c.atr = { used: 0 };
+  return out;
+}
+/** sign with a maker for next season (a customer team) -> text */
+function signSupplier(c, key) {
+  if (isWorks(c)) return `${c.myTeam} build their own power unit.`;
+  if (!SUPPLIERS[key]) return 'No such supplier.';
+  c.engineNext = key === c.team.engine ? null : key;
+  const diff = supplyDiff(c, key);
+  return c.engineNext ? `${SUPPLIERS[key].name} power for next season: $${SWITCH_FEE}M to change, then ${diff ? `$${Math.abs(diff)}M a season ${diff > 0 ? 'more' : 'less'} than now` : 'the same price'}.` : `Staying with ${SUPPLIERS[key].name}.`;
+}
+
+return { FOCUS, TRACK_DF, SUPPLIERS, NEXT_SHARES, SWITCH_FEE, supplyDiff, ATR_BASE, carEnsure, aeroOf, trackFit, fitText, supplierOf, engineFx, isWorks, atrAllowance, atrCost, atrLeft, buildCheck, onBuilt, rush, carRound, rulesChange, carNewSeason, signSupplier };
 })();
 
 // ---- src/career/ManagerOps.js
@@ -147629,7 +148216,7 @@ const SPONSOR_SLOTS = SLOTS;
 function marketability(c) {
   const n = Object.keys(c.teams).length, pos = c.boardPos ? c.boardPos(c.myTeam) : 6, D = c.seatsOf(c.myTeam);
   const drv = D.length ? D.reduce((s, d) => s + d.rating, 0) / D.length : 0.85;
-  return clamp((0.55 + 0.9 * (1 - (pos - 1) / Math.max(1, n - 1)) + (drv - 0.85) * 3) * facFx(c, 'hosp').sponsorMul, 0.45, 1.7);
+  return clamp((0.55 + 0.9 * (1 - (pos - 1) / Math.max(1, n - 1)) + (drv - 0.85) * 3 + (c.buzz || 0)) * facFx(c, 'hosp').sponsorMul, 0.45, 1.7);   // (buzz: what you tell the press - career/ManagerPeople.js)
 }
 /** the offers for the empty slots (three a slot, by marketability) */
 function makeOffers(c) {
@@ -147706,6 +148293,9 @@ return { PU, SPARES, allocOf, opsEnsure, puEffect, sparesPerf, fitNew, orderSpar
 __m['src/career/Manager.js'] = (() => {
 const { ROSTER, RESERVES, F2, POINTS, PERF_GAIN, dayPerf } = __m['src/race/Roster.js'];
 const { startLevels, techEffects, devTick, aiDevelopTeam, upgradeName, UP } = __m['src/career/TechTree.js'];
+const { crewEnsure, crewRound, crewNewSeason, crewSalaries } = __m['src/career/ManagerCrew.js'];
+const { peopleEnsure, peopleAfterRace, peopleSeasonEnd, raceEvent, onExtend, extendBlock, engineerFx, fatigueQ } = __m['src/career/ManagerPeople.js'];
+const { carEnsure, trackFit, engineFx, buildCheck, onBuilt, carRound, carNewSeason } = __m['src/career/ManagerCar.js'];
 const { opsEnsure, puEffect, sparesPerf, partsAfterRace, partsNewSeason, takePenalties, facFx, facRound, sponsorRace, sponsorsSeasonEnd } = __m['src/career/ManagerOps.js'];
 // The team principal's career: you run a Formula 1 team, season after season - never a driver. The whole paddock lives
 // on in one save (the browser's): every team develops its car through the tech tree (career/TechTree.js - the AI teams
@@ -147720,6 +148310,9 @@ const { opsEnsure, puEffect, sparesPerf, partsAfterRace, partsNewSeason, takePen
 // board sets a target (a place in the constructors' championship, by what the team is) and watches: its confidence
 // moves with every result, and a season far short of the target with the board's patience gone is the end - another
 // team, a smaller one, may offer you a way back.
+
+
+
 
 
 
@@ -147775,15 +148368,22 @@ class ManagerCareer {
       board: { target: 0, conf: 60 }, since: 2026, seasonSpend: 0, spendAt: 0, news: [], results: [], history: [], last: null, seasonDone: false, sacked: false, offers: [], hires: null });
     c.forecast = calendar.map(forecastFor); c.board.target = c.boardTarget();
     c.addNews(`You take charge of ${my} for the ${c.season} season. The board expects P${c.board.target} in the constructors' championship.`);
-    opsEnsure(c); c.newObjective(); c.refreshHires(); c.save();
+    c.ensure(); c.newObjective(); c.refreshHires(); c.save();
     return c;
   }
-  static load() { try { const s = localStorage.getItem(KEY); if (!s) return null; const o = JSON.parse(s); if (!o || o.v !== 1) return null; const c = new ManagerCareer(o); opsEnsure(c); return c; } catch (e) { return null; } }
+  static load() { try { const s = localStorage.getItem(KEY); if (!s) return null; const o = JSON.parse(s); if (!o || o.v !== 1) return null; const c = new ManagerCareer(o); c.ensure(); return c; } catch (e) { return null; } }
   static erase() { try { localStorage.removeItem(KEY); } catch (e) { /* nothing kept */ } }
   static peek() { const c = ManagerCareer.load(); return c ? `${c.myTeam} · Season ${c.season} · ${c.seasonDone ? 'the season is over' : `Round ${c.round} of ${c.rounds}`}` : null; }
   save() { try { const o = { ...this }; delete o.manager; localStorage.setItem(KEY, JSON.stringify(o)); } catch (e) { /* a private window: this sitting only */ } }
 
   get team() { return this.teams[this.myTeam]; }
+  /** every system's state made or brought up to date: parts, facilities and sponsors; the pit crew; the people; the car */
+  ensure() { opsEnsure(this); crewEnsure(this); peopleEnsure(this); carEnsure(this); }
+  /** may this level be started (the cost cap, the tunnel's hours) -> null or why not; a level started (career/ManagerCar.js) */
+  buildCheck(id, lvl, cost) { return buildCheck(this, id, lvl, cost); }
+  onBuilt(id, lvl) { onBuilt(this, id, lvl); }
+  /** something in the race for the people's morale: 'override' | 'yield' | 'held' (career/ManagerPeople.js) */
+  onRaceEvent(what, did) { raceEvent(this, what, did); }
   addNews(text) { this.news.unshift({ season: this.season, round: this.round, text }); if (this.news.length > 60) this.news.length = 60; }
   seatsOf(team) { return (this.teams[team]?.seats || []).map((x) => this.drivers[x]).filter(Boolean); }
   freeAgents() { return Object.values(this.drivers).filter((d) => !d.team).sort((a, b) => b.rating - a.rating); }
@@ -147800,7 +148400,7 @@ class ManagerCareer {
   spent(t = this.team) { return r1((+t.devSpend?.all || 0) - (t.spendAt || 0)); }
   /** the board's target: where the team should finish, by its car and its drivers against the field (a top team: the title) */
   boardTarget(team = this.myTeam) {
-    const E = this.entries().map((e) => ({ e, s: (e.perf - 1) * PERF_GAIN * 100 + (e.rating - 0.9) * 33 })), by = {};
+    const E = this.entries().map((e) => ({ e, s: paceOf(e) })), by = {};
     for (const x of E) by[x.e.team] = (by[x.e.team] || 0) + x.s;
     const order = Object.keys(by).sort((a, b) => by[b] - by[a]), i = order.indexOf(team) + 1;
     return Math.max(1, i || BOARD_TARGET[this.teams[team]?.tier ?? 2]);
@@ -147816,15 +148416,15 @@ class ManagerCareer {
 
   // ---- the race field ------------------------------------------------------------------------------------------------
   /** every car this weekend -> [{ careerId, name, short, team, color, color2, livery, helmet, tier, perf, rating, number, fx, garage, mine }] */
-  entries() {
+  entries(track = this.track) {
     const out = [];
     for (const t of Object.values(this.teams).sort((a, b) => a.garage - b.garage)) {
-      const fx = techEffects(t);
+      const fx = techEffects(t), fit = trackFit(t, track), eng = engineFx(this, t);   // (how the car suits the circuit; its power unit's maker: career/ManagerCar.js)
       for (const d of this.seatsOf(t.name)) {
         // (the power unit's wear - a worn ICE a little down on power, any worn element more likely to fail - and, for your
         //  team, a damaged part raced for want of a spare: career/ManagerOps.js)
         const pu = puEffect(this, t.name, d.id), sp = t.name === this.myTeam ? sparesPerf(this, t.name) : 1;
-        out.push({ careerId: d.id, name: d.name, short: d.short, team: t.name, color: t.color, color2: t.color2, livery: t.livery, helmet: d.helmet, tier: t.tier, perf: fx.perf * pu.perfMul * sp, rating: d.rating, number: d.number, fx: { ...fx, relMul: (fx.relMul || 1) * pu.relMul }, garage: t.garage, mine: t.name === this.myTeam, champPts: d.points });
+        out.push({ careerId: d.id, name: d.name, short: d.short, team: t.name, color: t.color, color2: t.color2, livery: t.livery, helmet: d.helmet, tier: t.tier, perf: fx.perf * pu.perfMul * sp * fit * eng.perf * (t.name === this.myTeam ? engineerFx(this, d.id).perf : 1), rating: d.rating, number: d.number, morale: d.morale ?? 60, fx: { ...fx, relMul: (fx.relMul || 1) * pu.relMul * eng.relMul }, garage: t.garage, mine: t.name === this.myTeam, champPts: d.points });
       }
     }
     return out;
@@ -147856,7 +148456,7 @@ class ManagerCareer {
     for (const t of Object.values(this.teams)) {
       const inc = RACE_INCOME[t.tier] + (byTeam[t.name] || 0) * POINT_INCOME, wages = this.seatsOf(t.name).reduce((s, d) => s + (d.salary || 0), 0) / this.rounds;
       t.budget = r1(t.budget + inc - wages);
-      if (t.name === this.myTeam) { rep.income = r1(inc); rep.wages = r1(wages + this.staffCost() / this.rounds); t.budget = r1(t.budget - this.staffCost() / this.rounds); }
+      if (t.name === this.myTeam) { const staff = (this.staffCost() + crewSalaries(this) + (this.engineers || []).reduce((s, e) => s + (e.salary || 0), 0)) / this.rounds; rep.income = r1(inc); rep.wages = r1(wages + staff); t.budget = r1(t.budget - staff); }
     }
     // the sponsors: their fees, and the bonus of each whose target for the weekend was met (career/ManagerOps.js)
     const sp = sponsorRace(this, rep.mine);
@@ -147866,16 +148466,23 @@ class ManagerCareer {
     rep.used = partsAfterRace(this, rows, o.push || {}); facRound(this);
     // the factories: what was built reaches the cars (your technical director's eye on how it correlates), then every
     // other team chooses its next work
+    if (this.restWeek) for (const x of this.team.dev || []) x.left++;   // (a rest week: the factory stands still)
     const done = devTick(this);
-    const td = this.staff.td?.rating ?? 0.7;
+    const td = this.staff.td?.rating ?? 0.7, tired = fatigueQ(this);
     for (const x of done) {
       if (x.team !== this.myTeam || x.re || UP[x.id]?.branch === 'facilities') continue;
       const qa = this.team.quality[x.id], k = x.level - 1; if (!qa) continue;
-      qa[k] = +clamp(qa[k] * (1 + (td - 0.75) * 0.25), 0.6, 1.12).toFixed(3); x.q = qa[k];
+      qa[k] = +clamp(qa[k] * (1 + (td - 0.75) * 0.25) * tired, 0.6, 1.12).toFixed(3); x.q = qa[k];
       rep.parts.push({ id: x.id, level: x.level, q: x.q });
       this.addNews(`${upgradeName(x.id, x.level)} is on the car: ${Math.round(x.q * 100)}% of what the tunnel promised.`);
     }
     for (const t of Object.values(this.teams)) if (t.name !== this.myTeam) this.aiDevelop(t);
+    // the people and the car: what the team principal's orders did to the drivers; morale, the engineers, fatigue, the
+    // press; the pit crew's training; the work on next year's car
+    for (const ev of o.events || []) raceEvent(this, ev.what, ev.did);
+    peopleAfterRace(this, rows, rep, { rest: !!this.restWeek });
+    if (!this.restWeek) crewRound(this, 1 + (1.04 - facFx(this, 'pitc').pitMul) * 5); else { const f = this.crew.plan.focus; this.crew.plan.focus = 'rest'; crewRound(this, 1); this.crew.plan.focus = f; }
+    carRound(this); this.restWeek = false;
     // the board: where the team stands against its target, and this race against what the car should do
     const pos = this.posOf(this.myTeam), bpos = this.boardPos(this.myTeam), tgt = this.board.target, exp = expectedPoints(this, this.myTeam), got = byTeam[this.myTeam] || 0;
     const delta = clamp(clamp(tgt - bpos, -3, 3) * 0.6 + (got - exp) * 0.3, -6, 6);
@@ -147894,8 +148501,8 @@ class ManagerCareer {
     const track = this.track, wet = { dry: 0, changeable: 0.2, damp: 0.35, wet: 0.75 }[this.fc.weather] ?? 0;
     const E = this.entries(), g = () => (Math.random() + Math.random() + Math.random() - 1.5) * 1.63, pen = takePenalties(this);
     const rows = E.map((e) => {
-      const p = (e.perf + dayPerf(e.team, track)) - 1, rel = e.fx.relMul || 1, dnf = Math.random() < (0.035 * rel + 0.03 * wet) * (1.5 - e.rating * 0.5) * this.laps / 10;
-      const score = p * PERF_GAIN * 100 + (e.rating - 0.9) * 33 + g() * (0.9 + wet * 0.8) - (pen.get(e.name) || 0) * 0.12;   // (a grid penalty: a start further back)
+      const rel = e.fx.relMul || 1, dnf = Math.random() < (0.035 * rel + 0.03 * wet) * (1.5 - e.rating * 0.5) * this.laps / 10;
+      const score = paceOf({ perf: e.perf + dayPerf(e.team, track), rating: e.rating }) + g() * (0.2 + wet * 0.25) - (pen.get(e.name) || 0) * 0.03;   // (seconds a lap: the car, the driver, the day; a grid penalty: a start further back)
       return { e, score, dnf };
     }).sort((a, b) => (a.dnf - b.dnf) || b.score - a.score);
     return rows.map((x, i) => ({ pos: i + 1, car: { careerId: x.e.careerId, team: x.e.team, name: x.e.name, retired: x.dnf, retireReason: x.dnf ? (Math.random() < 0.5 ? 'Accident' : 'Mechanical') : null, bestLap: x.dnf ? Infinity : 90 - x.score * 0.05 } }));
@@ -147917,6 +148524,8 @@ class ManagerCareer {
   /** a driver's contract extended by a season: they ask more the better the season has gone -> text */
   extend(did) {
     const d = this.drivers[did]; if (!d || d.team !== this.myTeam) return 'Not your driver.';
+    const no = extendBlock(this, did); if (no) return no;
+    onExtend(this, did);
     const ask = r1(Math.max(d.salary * 1.08, askOf(d.rating)));
     d.until += 1; d.salary = ask; this.addNews(`${d.name} signs on to the end of ${d.until}: $${ask}M a season.`); this.save();
     return `${d.name} extends to the end of ${d.until} at $${ask}M a season.`;
@@ -147936,7 +148545,7 @@ class ManagerCareer {
     if (t.seats.length >= 2) return 'Both seats are taken: release a driver first.';
     const sal = askOf(d.rating), fee = r1(sal * 0.5); if (t.budget < fee) return `Not enough money for the signing fee ($${fee}M).`;
     t.budget = r1(t.budget - fee); d.team = t.name; d.salary = sal; d.until = this.season + 1; t.seats.push(did);
-    this.addNews(`${t.name} sign ${d.name} to the end of ${d.until}: $${sal}M a season.`); this.save();
+    this.addNews(`${t.name} sign ${d.name} to the end of ${d.until}: $${sal}M a season.`); this.ensure(); this.save();
     return `${d.name} signed: $${sal}M a season to the end of ${d.until} (signing fee $${fee}M).`;
   }
   /** the staff on the market for each role (drawn once a season, or after a hire) */
@@ -147971,6 +148580,7 @@ class ManagerCareer {
       this.offers = Object.values(this.teams).filter((t) => t.name !== this.myTeam && t.tier >= this.team.tier).sort(() => Math.random() - 0.5).slice(0, 2).map((t) => t.name);
     }
     rev.sponsorPaid = sponsorsSeasonEnd(this, rev.bpos ?? pos);
+    peopleSeasonEnd(this);
     this.history.push(rev); this.review = rev;
     this.addNews(`Season ${this.season} is over: ${this.myTeam} P${pos} in the constructors' (the board's target P${tgt}). ${rev.champ} is champion, ${rev.champTeam} the constructors' champions.`);
   }
@@ -147998,13 +148608,20 @@ class ManagerCareer {
     for (const t of Object.values(this.teams)) t.spendAt = +t.devSpend?.all || 0;   // (the cost cap: every team's spending counted afresh)
     this.board.target = this.boardTarget();
     for (const t of Object.values(this.teams)) if (t.name !== this.myTeam) this.aiDevelop(t);
-    partsNewSeason(this);
+    partsNewSeason(this); this.ensure(); crewNewSeason(this); this.fatigue = 0.15;   // (the winter: everyone rested)
+    for (const line of carNewSeason(this)) this.addNews(line);
     this.forecast = this.calendar.map(forecastFor); this.newObjective(); this.refreshHires();
     this.addNews(`Season ${this.season} begins. The board expects P${this.board.target}.`);
     this.save();
   }
 }
 
+/**
+ * A car and driver's pace in seconds a lap against a perfect car and a 0.90 driver - the race model's own weights
+ * (RaceDirector.simulateRest: 0.45 of the lap for the car's performance, 0.012 for the driver's rating, a 90 s lap):
+ * the car counts about three times what the driver does across the grid
+ */
+const paceOf = (e) => (e.perf - 1) * 40.5 + (e.rating - 0.9) * 1.08;
 function newDriver(name, short, rating, number, helmet, from) {
   return { id: id(name), name, short, rating, number, helmet, from, team: null, salary: askOf(rating), until: null, points: 0, starts: 0, wins: 0, podiums: 0 };
 }
@@ -148014,16 +148631,16 @@ function forecastFor(track) {
 }
 /** where a team's cars should finish, from the car and the drivers against the field */
 function expectedPos(c, team, best = false) {
-  const E = c.entries().map((e) => ({ e, s: (e.perf - 1) * PERF_GAIN * 100 + (e.rating - 0.9) * 33 })).sort((a, b) => b.s - a.s);
+  const E = c.entries().map((e) => ({ e, s: paceOf(e) })).sort((a, b) => b.s - a.s);
   const P = E.map((x, i) => (x.e.team === team ? i + 1 : null)).filter(Boolean);
   return P.length ? (best ? Math.min(...P) : P.reduce((a, b) => a + b, 0) / P.length) : 11;
 }
 function expectedPoints(c, team) {
-  const E = c.entries().map((e) => ({ e, s: (e.perf - 1) * PERF_GAIN * 100 + (e.rating - 0.9) * 33 })).sort((a, b) => b.s - a.s);
+  const E = c.entries().map((e) => ({ e, s: paceOf(e) })).sort((a, b) => b.s - a.s);
   return E.reduce((s, x, i) => s + (x.e.team === team ? (POINTS[i] || 0) * 0.85 : 0), 0);
 }
 
-return { TRACKS_ALL, TIER_BUDGET, RACE_INCOME, POINT_INCOME, COST_CAP, BOARD_TARGET, PRIZE, TIER_NAME, STAFF_ROLES, askOf, ManagerCareer };
+return { TRACKS_ALL, TIER_BUDGET, RACE_INCOME, POINT_INCOME, COST_CAP, BOARD_TARGET, PRIZE, TIER_NAME, STAFF_ROLES, askOf, ManagerCareer, paceOf };
 })();
 
 // ---- src/ui/Setup.js
@@ -148066,10 +148683,11 @@ const RUNS = 6;
 
 const hash = (s) => { let h = 2166136261; for (const ch of String(s)) h = Math.imul(h ^ ch.charCodeAt(0), 16777619); return (h >>> 0) / 4294967295; };
 /** the ideal set-up for a car at a circuit (its team's car this season; the driver's own preference on top) -> [5] in 0..1 */
-function idealOf(track, team, driver, season = 2026) {
+function idealOf(track, team, driver, season = 2026, wet = 0) {
   return CONTROLS.map((c, i) => {
     const base = 0.2 + 0.6 * hash(`${track}|${c.id}`), car = (hash(`${team}|${c.id}|${season}`) - 0.5) * 0.24, me = (hash(`${driver}|${c.id}`) - 0.5) * 0.08;
-    return Math.max(0.03, Math.min(0.97, base + car + me));
+    const rain = i < 2 ? 0.2 * wet : 0;   // (a wet track wants more wing, front and rear)
+    return Math.max(0.03, Math.min(0.97, base + car + me + rain));
   });
 }
 /** how each aspect sits against optimal for set-up x -> [5] errors (0: optimal; + / -: as ASPECTS) */
@@ -148077,7 +148695,7 @@ function errorsOf(x, ideal) { return M.map((row) => row.reduce((s, w, i) => s + 
 /** the set-up's satisfaction 0..1 */
 function satisfaction(x, ideal) { const e = errorsOf(x, ideal); return Math.max(0, Math.min(1, 1 - e.reduce((s, v) => s + Math.abs(v), 0) * 0.85)); }
 /** what a set-up does in the race: pace (a factor on the car's performance) and tyre wear - neutral at 85 % */
-function setupEffect(sat) { return { perf: 1 + (sat - 0.85) * 0.012, wear: 1 + (0.85 - sat) * 0.5 }; }
+function setupEffect(sat) { return { perf: 1 + (sat - 0.6) * 0.005, wear: 1 + (0.6 - sat) * 0.4 }; }   // (neutral at 60 %: the base set-up a team arrives with; a perfect one ~0.2 s a lap and a sixth less wear; a bad one ~0.1 s and a tenth more)
 /** a practice run's feedback: each aspect's error as the driver reports it, with the window the engineers trust */
 function feedback(x, ideal, runs, k = 1) {
   const e = errorsOf(x, ideal), w = 0.32 / (1 + runs * 0.55 * k);
@@ -148119,28 +148737,51 @@ const CSS = `
 `;
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
-/** the set-up screen for the team's cars; onDone([{ name, x, sat, runs }]) */
+
+const LET = { SOFT: 'S', MEDIUM: 'M', HARD: 'H', INTER: 'I', WET: 'W' };
+/**
+ * The practice screen for the team's cars. o: { cars: [{ name, color, team, x, runs, k (the engineer's feedback),
+ * sets (the weekend's tyre sets), know: { tyre: { SOFT: true }, fuel }, quali: { runs, timing, tow } }], track,
+ * trackName, season, k (the simulator), wet (the forecast: what practice is run in), note, crew: { left(), practise()
+ * -> text } | null, QUALI (race/TeamWeekend.js), useSet(sets, comp, add), onDone([{ name, x, runs, sat, know, quali }]) }
+ */
 function showSetup(o) {
-  if (!document.getElementById('setup-css')) { const st = document.createElement('style'); st.id = 'setup-css'; st.textContent = CSS; document.head.appendChild(st); }
+  if (!document.getElementById('setup-css')) { const st = document.createElement('style'); st.id = 'setup-css'; st.textContent = CSS + `
+#setup .runs { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-top: 10px; } #setup .runs small { color: #8b95a3; font-size: 11px; margin-left: auto; }
+#setup .runs button, #setup .qp button { padding: 5px 8px; font-size: 10.5px; } #setup .runs span, #setup .qp span { font-size: 9.5px; letter-spacing: .14em; color: #8b95a3; }
+#setup .kn { font-size: 11px; color: #b7c0cc; margin-top: 6px; line-height: 1.5; } #setup .kn b { color: #2fbf4f; font-weight: 700; }
+#setup .qp { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,.08); }
+#setup .qp .g { display: inline-flex; gap: 3px; align-items: center; } #setup button.on { background: #eef1f5; color: #0b0d12; border-color: #eef1f5; }
+#setup .ft { align-items: center; } #setup .ft .cm { margin-right: auto; font-size: 12px; color: #b7c0cc; }`; document.head.appendChild(st); }
   const el = document.createElement('div'); el.id = 'setup'; document.body.appendChild(el);
-  const k = o.k || 1;
-  const S = o.cars.map((c) => ({ ...c, x: (c.x || [0.5, 0.5, 0.5, 0.5, 0.5]).slice(), ideal: idealOf(o.track, c.team, c.name, o.season), runs: c.runs || 0, fb: null }));
+  const k = o.k || 1, wet = o.wet || 0, Q = o.QUALI;
+  const S = o.cars.map((c) => ({ ...c, x: (c.x || [0.5, 0.5, 0.5, 0.5, 0.5]).slice(), ideal: idealOf(o.track, c.team, c.name, o.season, wet), runs: c.runs || 0, fb: null,
+    know: { tyre: { ...(c.know?.tyre || {}) }, fuel: !!c.know?.fuel }, quali: { runs: 'two', timing: 'early', tow: 'none', ...(c.quali || {}) } }));
+  let crewMsg = '';
   const fbHTML = (s) => ASPECTS.map((A, i) => {
     const f = s.fb?.[i]; if (!f) return `<span>${A.name}</span><div class="fbb"><s></s></div><div class="fbt">No run yet: the driver has no feedback</div>`;
     const sc = (v) => 50 + Math.max(-48, Math.min(48, v * 120));
     return `<span>${A.name}</span><div class="fbb"><s></s><i style="left:${sc(f.est - f.w)}%;width:${Math.max(2, sc(f.est + f.w) - sc(f.est - f.w))}%"></i><u style="left:${sc(f.est)}%"></u></div><div class="fbt${f.word === 'Optimal' ? ' ok' : ''}">${esc(f.word.charAt(0).toUpperCase() + f.word.slice(1))}</div>`;
   }).join('');
-  const colHTML = (s, j) => `<div class="col" data-j="${j}" style="--c:${esc(s.color)}"><div class="hd"><b>${esc(s.name)}</b><small>SET-UP SATISFACTION</small><span class="sat">${s.fb ? `${Math.round(s.shown * 100)}%` : '?'}</span></div>
+  const dry = wet <= 0.2, comps = dry ? ['SOFT', 'MEDIUM', 'HARD'] : wet > 0.5 ? ['WET', 'INTER'] : ['INTER', 'WET'];
+  const colHTML = (s, j) => {
+    const left = RUNS - s.runs, dis = left <= 0 ? 'disabled' : '';
+    const sets = s.sets ? Object.entries(s.sets).map(([c, a]) => `${LET[c]} ${a.length}${a.some((w) => w > 0.01) ? ` (${a.filter((w) => w > 0.01).length} used)` : ''}`).join(' · ') : '';
+    const kn = [Object.keys(s.know.tyre).length ? `tyre life known: <b>${Object.keys(s.know.tyre).map((c) => LET[c]).join(' ')}</b>` : 'tyre life: an estimate', s.know.fuel ? '<b>fuel burn known</b>' : 'fuel burn: an estimate'].join(' · ');
+    const qp = Q ? `<div class="qp"><span>QUALIFYING</span>${['runs', 'timing', 'tow'].map((g) => `<span class="g">${Object.entries(Q[g]).map(([v, X]) => `<button data-a="q" data-g="${g}" data-v="${v}" class="${s.quali[g] === v ? 'on' : ''}" title="${esc(X.title || '')}">${esc(X.name)}</button>`).join('')}</span>`).join('')}</div>` : '';
+    return `<div class="col" data-j="${j}" style="--c:${esc(s.color)}"><div class="hd"><b>${esc(s.name)}</b><small>SET-UP SATISFACTION</small><span class="sat">${s.fb ? `${Math.round(s.shown * 100)}%` : '?'}</span></div>
     ${CONTROLS.map((c, i) => `<div class="ctl"><span>${c.name}</span><input type="range" min="0" max="100" value="${Math.round(s.x[i] * 100)}" data-i="${i}" aria-label="${c.name}"><em>${Math.round(s.x[i] * 100)}</em></div>`).join('')}
     <div class="fb">${fbHTML(s)}</div>
-    <div class="acts"><button data-a="run" ${s.runs >= RUNS ? 'disabled' : ''}>PRACTICE RUN</button><small>${RUNS - s.runs} of ${RUNS} runs left</small></div></div>`;
+    <div class="runs"><span>RUN</span><button data-a="run" ${dis} title="A set-up run: the driver's feedback on all five">SET-UP</button>${s.sets ? comps.map((c) => `<button data-a="tyre" data-v="${c}" ${dis || (s.sets[c]?.length ? '' : 'disabled')} title="A long run on this compound: how long it lasts here (the set is used)">TYRES ${LET[c]}</button>`).join('') : ''}<button data-a="sim" ${dis} title="A race simulation: the fuel the car really burns, and a rough read of the set-up">RACE SIM</button><small>${left} of ${RUNS} runs left</small></div>
+    <div class="kn">${kn}${sets ? `<br>Sets: ${sets}` : ''}</div>${qp}</div>`;
+  };
   const draw = () => {
-    el.innerHTML = `<div class="sb"><h2>PRACTICE · <b>CAR SET-UP</b> · ${esc(o.trackName || '')}</h2>
-      <div class="sp">Set each car up, send it out, and read the driver's feedback: the white mark is where they feel the car is on each of the five - the green line is optimal - and the blue window how sure the engineers are (it narrows with every run${k > 1.05 ? ', faster with your simulator' : ''}). The set-up's satisfaction is pace and, more, tyre life in qualifying and the race. ${o.note || ''}</div>
-      <div class="cols">${S.map(colHTML).join('')}</div><div class="ft"><button class="go" data-a="done">DONE · TO QUALIFYING ▸</button></div></div>`;
+    el.innerHTML = `<div class="sb"><h2>PRACTICE · <b>${esc(o.trackName || '')}</b> · forecast ${wet > 0.5 ? 'wet' : wet > 0.2 ? 'damp' : 'dry'}</h2>
+      <div class="sp">Six runs a car. A <b>set-up run</b> brings the driver's feedback: the white mark is where they feel the car on each of the five, the green line optimal, the blue window how sure the engineers are (it narrows with every run). A <b>tyre run</b> tells the pit wall how long that compound lasts here; a <b>race sim</b> the fuel the car really burns. <b>Parc fermé:</b> the set-up is locked once qualifying starts - and it is set for the forecast. ${o.note || ''}</div>
+      <div class="cols">${S.map(colHTML).join('')}</div><div class="ft"><span class="cm">${esc(crewMsg)}</span>${o.crew ? `<button data-a="crew" ${o.crew.left() > 0 ? '' : 'disabled'} title="The pit crew practises stops: sharper for this race, a little more tired">PIT STOP PRACTICE · ${o.crew.left()} left</button>` : ''}<button class="go" data-a="done">DONE · TO QUALIFYING ▸</button></div></div>`;
   };
   // (the satisfaction shown: the engineers' read of the last run - it is only known after a run)
-  const run = (s) => { if (s.runs >= RUNS) return; s.runs++; s.fb = feedback(s.x, s.ideal, s.runs, k); const e = s.fb.reduce((a, f) => a + Math.abs(f.est), 0); s.shown = Math.max(0, Math.min(1, 1 - e * 0.85)); };
+  const read = (s, q) => { s.fb = feedback(s.x, s.ideal, Math.max(1, s.runs * q), k * (s.k || 1)); const e = s.fb.reduce((a, f) => a + Math.abs(f.est), 0); s.shown = Math.max(0, Math.min(1, 1 - e * 0.85)); };
   draw();
   el.addEventListener('input', (e) => {
     const r = e.target.closest('input[type=range]'); if (!r) return;
@@ -148148,12 +148789,181 @@ function showSetup(o) {
   });
   el.addEventListener('click', (e) => {
     const b = e.target.closest('button'); if (!b || b.disabled) return;
-    if (b.dataset.a === 'run') { run(S[+b.closest('.col').dataset.j]); draw(); }
-    else if (b.dataset.a === 'done') { el.remove(); o.onDone?.(S.map((s) => ({ name: s.name, x: s.x, runs: s.runs, sat: satisfaction(s.x, s.ideal) }))); }
+    const a = b.dataset.a, col = b.closest('.col'), s = col ? S[+col.dataset.j] : null;
+    if (a === 'run' && s.runs < RUNS) { s.runs++; read(s, 1); draw(); }
+    else if (a === 'tyre' && s.runs < RUNS) { s.runs++; o.useSet?.(s.sets, b.dataset.v, 0.22); s.know.tyre[b.dataset.v] = true; draw(); }
+    else if (a === 'sim' && s.runs < RUNS) { s.runs++; s.know.fuel = true; read(s, 0.5); draw(); }
+    else if (a === 'q') { s.quali[b.dataset.g] = b.dataset.v; if (b.dataset.g === 'tow' && b.dataset.v === 'give') for (const t of S) if (t !== s) t.quali.tow = 'none'; draw(); }
+    else if (a === 'crew') { crewMsg = o.crew.practise(); draw(); }
+    else if (a === 'done') { el.remove(); o.onDone?.(S.map((s) => ({ name: s.name, x: s.x, runs: s.runs, sat: satisfaction(s.x, s.ideal), know: s.know, quali: s.quali }))); }
   });
 }
 
 return { CONTROLS, ASPECTS, RUNS, idealOf, errorsOf, satisfaction, setupEffect, feedback, showSetup };
+})();
+
+// ---- src/race/TeamWeekend.js
+__m['src/race/TeamWeekend.js'] = (() => {
+
+// The team principal's race weekend beyond the set-up (main.js TP, ui/Setup.js):
+//
+// TYRE SETS. Each car has an allocation for the weekend - 3 sets of softs, 2 of mediums, 2 of hards, 2 intermediates,
+// 2 wets - and every set remembers its wear. Practice runs and qualifying laps go on a set and leave it used; the race
+// starts on, and every stop fits, the freshest set of that compound - a set once raced is gone. No set left of a
+// compound: it cannot be called for (the strategist, calling for one anyway, gets the best used set there is). The other
+// teams' sets are not counted.
+//
+// WHAT PRACTICE TEACHES. A tyre run on a compound tells the pit wall how long it lasts here (without it the laps-to-the
+// -cliff on the wall are an estimate, off by up to a quarter either way - the same way all weekend); a race simulation
+// tells it the fuel the car really burns (without it the burn is up to 4 % off what the wall assumes, and the fuel
+// figure is shown as approximate).
+//
+// QUALIFYING. Runs: two (two sets of softs used) or one (a set saved for the race, a little pace lost for want of a
+// second try). Timing: early (a clear track) or late (more grip - and one time in seven, traffic or a yellow flag and a
+// lap lost). A tow: one car gives the other its slipstream down the straights (the towed car quicker, the other slower).
+const ALLOCATION = { SOFT: 3, MEDIUM: 2, HARD: 2, INTER: 2, WET: 2 };
+const hash = (s) => { let h = 2166136261; for (const ch of String(s)) h = Math.imul(h ^ ch.charCodeAt(0), 16777619); return (h >>> 0) / 4294967295; };
+
+const newSets = () => Object.fromEntries(Object.entries(ALLOCATION).map(([k, n]) => [k, Array.from({ length: n }, () => 0)]));
+/** sets left of a compound, and how many of them are new */
+const setsLeft = (sets, comp) => (sets?.[comp] || []).length;
+const setsNewLeft = (sets, comp) => (sets?.[comp] || []).filter((w) => w < 0.01).length;
+/** a set used and put back (practice, qualifying): the most used one that still has life, `add` more wear on it -> its wear before */
+function useSet(sets, comp, add, fresh = false) {
+  const a = sets?.[comp]; if (!a || !a.length) return null;
+  let i = -1; if (!fresh) for (let k = 0; k < a.length; k++) if (a[k] < 0.5 && (i < 0 || a[k] > a[i])) i = k;
+  if (i < 0) i = a.indexOf(Math.min(...a));   // (fresh: a new set - a qualifying run)
+  const was = a[i]; a[i] = Math.min(0.95, a[i] + add); return was;
+}
+/** a set fitted for the race (the start, a stop): the freshest of the compound, gone from the allocation -> its wear, or null (none left) */
+function fitSet(sets, comp) {
+  const a = sets?.[comp]; if (!a || !a.length) return null;
+  const i = a.indexOf(Math.min(...a)), w = a[i]; a.splice(i, 1); return w;
+}
+/** how far off the pit wall's idea of a compound's life is without a tyre run on it (a factor on the laps to the cliff: 0.75 .. 1.3) */
+const lifeBias = (track, name, comp, round = 0) => 0.75 + 0.55 * hash(`${track}|${name}|${comp}|${round}|life`);
+/** how far the fuel the car really burns is off what the wall assumes, without a race simulation (a factor: 0.96 .. 1.04) */
+const burnBias = (track, name, round = 0) => 0.96 + 0.08 * hash(`${track}|${name}|${round}|burn`);
+
+const QUALI = {
+  runs: { two: { name: 'Two runs', perf: 1, sets: 2, title: 'Two timed runs, a new set of softs for each' }, one: { name: 'One run', perf: 0.9988, sets: 1, title: 'One run: a set of softs saved for the race - and no second try' } },
+  timing: { early: { name: 'Early', title: 'Out first: a clear track, less rubber down' }, late: { name: 'Late', title: 'Out last: the most grip - and now and then traffic or a yellow flag' } },
+  tow: { none: { name: 'No tow' }, give: { name: 'Tows the other car', title: 'This car gives its team-mate a slipstream: the team-mate quicker, this one slower' } },
+};
+const defaultQuali = () => ({ runs: 'two', timing: 'early', tow: 'none' });
+/**
+ * The qualifying plans onto the two cars: cars [car, car], plans { name: { runs, timing, tow } }, sets { name: sets }
+ * -> lines for the pit wall (what happened)
+ */
+function applyQuali(cars, plans, sets) {
+  const out = [];
+  for (const c of cars) {
+    const p = plans?.[c.name] || defaultQuali(), R = QUALI.runs[p.runs] || QUALI.runs.two, sur = c.name.split(' ').pop();
+    let k = R.perf;
+    if (p.timing === 'late') { if (Math.random() < 0.15) { k *= 0.995; out.push(`${sur}: caught in traffic on the late run.`); } else { k *= 1.0012; out.push(`${sur}: the late run found the grip.`); } }
+    const mate = cars.find((x) => x !== c), mp = mate && (plans?.[mate.name] || defaultQuali());
+    if (p.tow === 'give' && mate) k *= 0.9992;
+    if (mp?.tow === 'give' && p.tow !== 'give') { k *= 1.0012; out.push(`${sur} gets a tow from ${mate.name.split(' ').pop()}.`); }
+    c.perf *= k;
+    for (let i = 0; i < R.sets; i++) useSet(sets?.[c.name], c.tyres.compound, 0.12, true);
+    if (R.sets === 1) out.push(`${sur}: one run, a set of softs saved.`);
+  }
+  return out;
+}
+
+return { ALLOCATION, newSets, setsLeft, setsNewLeft, useSet, fitSet, lifeBias, burnBias, QUALI, defaultQuali, applyQuali };
+})();
+
+// ---- src/race/TeamStrategy.js
+__m['src/race/TeamStrategy.js'] = (() => {
+const { COMPOUNDS, lapLoss, outLapLoss, RATE_NOM } = __m['src/vehicle/Tyres.js'];
+// The team principal's strategy during the race (main.js TP, ui/PitWall.js):
+//
+// RE-PLAN. The rest of the race worked out again from where the car is: the set it is on and its wear, the laps left,
+// the sets still in its allocation, the track's wetness, the stop the rules still want - no stop, one or two, each timed
+// lap by lap with the tyre model the cars race on (vehicle/Tyres.js) - and the quickest of each offered in turn.
+//
+// THE STRATEGIST'S ALERTS (for a car whose calls are yours or the plan's - the AI strategist acts on its own): the
+// undercut on the car ahead is on (the AI's own sums: AIDriver.undercutOn); a rival just behind has stopped (cover it?:
+// AIDriver.watchRivals); the rain is coming, the track is wet enough for intermediates, or dry enough for slicks
+// (race/Weather.js outlook). Each a question on the car's card: YES boxes the car for the tyre named.
+
+const LET = { SOFT: 'S', MEDIUM: 'M', HARD: 'H', INTER: 'I', WET: 'W' };
+const basePace = (comp, lapT, W) => { const s = COMPOUNDS[comp], grip = s.grip * (1 - W) + s.wetGrip * W * s.grip, g = 1 - grip; return lapT * (0.405 * g + 1.53 * g * g); };
+/**
+ * The plans from here. o: { car, d (RaceDirector), sets, pitLoss, mustStop } -> [{ label, stops, time, stints }] the
+ * quickest with no stop, one and two (those possible), quickest first; stints as the pit wall's plan has them (one per
+ * stop already made, then the rest: { compound, start, end } - end: the lap it boxes on)
+ */
+function replan(o) {
+  const c = o.car, d = o.d, L = d.track.length, lapT = d.world.lapT || 90, rl = c.raceLaps || d.lapsTotal, TS = Object.getPrototypeOf(c.tyres).constructor;
+  const left = d.lapsTotal - c.lap, lapNow = c.lap + 1, W = d.weather ? d.weather.tyreWet : 0;
+  const comps = (W > 0.62 ? ['WET', 'INTER'] : W > 0.27 ? ['INTER', 'WET'] : ['SOFT', 'MEDIUM', 'HARD']).filter((k) => (o.sets?.[k] || []).length);
+  const per = (comp) => (RATE_NOM * 1.05 / (new TS(comp, rl, L).lifeMeters / L)) * (c.wearMul || 1) * (COMPOUNDS[comp].dryWear && W < COMPOUNDS[comp].wetFrom ? 1 + (COMPOUNDS[comp].dryWear - 1) * (1 - W / COMPOUNDS[comp].wetFrom) : 1);
+  const cur = c.tyres.compound, p0 = c.ai?._wPerLap > 0 && c.ai._wTyres === c.tyres ? c.ai._wPerLap : per(cur);
+  // a stint's time over n laps from wear w0 (a set worn through is not a plan)
+  const stint = (comp, w0, p, n, fresh) => { let t = fresh ? outLapLoss(comp, lapT) : 0; for (let j = 1; j <= n; j++) { const w = w0 + j * p; if (w > 0.97) return Infinity; t += lapLoss(comp, w - p * 0.5, rl) + basePace(comp, lapT, W); } return t; };
+  const setW = (comp, used = []) => { const a = (o.sets?.[comp] || []).slice().sort((x, y) => x - y); return a[used.filter((u) => u === comp).length]; };
+  const out = [];
+  const add = (stops, time) => { if (isFinite(time)) out.push({ stops, time }); };
+  if (left <= 0) return [];
+  if (!o.mustStop) add([], stint(cur, c.tyres.wear, p0, left, false));
+  for (let k = 0; k < left; k++) for (const X of comps) {
+    const wx = setW(X); if (wx == null) continue;
+    const t1 = stint(cur, c.tyres.wear, p0, k, false) + o.pitLoss + stint(X, wx, per(X), left - k, true);
+    add([{ lap: lapNow + k, compound: X }], t1);
+    if (left - k >= 4) for (let j = k + 2; j < left; j++) for (const Y of comps) {
+      const wy = setW(Y, [X]); if (wy == null) continue;
+      add([{ lap: lapNow + k, compound: X }, { lap: lapNow + j, compound: Y }], stint(cur, c.tyres.wear, p0, k, false) + o.pitLoss + stint(X, wx, per(X), j - k, true) + o.pitLoss + stint(Y, wy, per(Y), left - j, true));
+    }
+  }
+  const best = [0, 1, 2].map((n) => out.filter((x) => x.stops.length === n).sort((a, b) => a.time - b.time)[0]).filter(Boolean).sort((a, b) => a.time - b.time);
+  return best.map((x, i) => {
+    const stints = Array.from({ length: c.pitStops }, () => ({ compound: cur, start: 1, end: 0 }));
+    let from = lapNow, comp = cur;
+    for (const s of x.stops) { stints.push({ compound: comp, start: from, end: s.lap }); from = s.lap + 1; comp = s.compound; }
+    stints.push({ compound: comp, start: from, end: d.lapsTotal });
+    const label = x.stops.length ? x.stops.map((s) => `box lap ${s.lap} for ${LET[s.compound]}`).join(', then ') : 'no stop: to the flag on this set';
+    return { name: `Re-plan ${'ABC'[i]}`, label, stops: x.stops, time: x.time, delta: x.time - best[0].time, stints };
+  });
+}
+
+/**
+ * The strategist's questions, twice a second. o: { d, cars, sets(car), ask(car, { key, text, yes, comp }), say(who, text) }
+ * - ask puts the question on the car's card (once per key); say is the radio
+ */
+function alerts(o) {
+  const d = o.d; if (d.mode !== 'race' || !d.world.racing || d.done) return;
+  const wx = d.weather, W = wx ? wx.tyreWet : 0, green = !d.sc || d.sc.phase === 'green';
+  // ---- the sky, for the whole pit wall
+  if (wx && !wx.fixed) {
+    const O = wx.outlook(300), T = o.state;
+    if (O.p >= 0.4 && O.eta > 20 && W < 0.2 && (T.rainAt == null || d.time - T.rainAt > 150)) {
+      T.rainAt = d.time; const laps = O.eta / (d.world.lapT || 90);
+      o.say('Weather', `Rain ${laps < 0.8 ? 'within the lap' : `in about ${laps.toFixed(laps < 3 ? 1 : 0)} laps`}: ${Math.round(O.p * 100)}% on the radar${O.peak > 0.5 ? ', and heavy' : ''}${O.at ? `, first at Turn ${O.at}` : ''}.`);
+    }
+  }
+  for (const c of o.cars) {
+    const m = c.mgr; if (!m || c.retired || c.finished || c.inPit || c.pitLane || c.pitRequested || m.alert) continue;
+    const ai = c.ai, left = d.lapsTotal - c.lap, rain = c.tyres.compound === 'INTER' || c.tyres.compound === 'WET', sets = o.sets(c) || {};
+    const has = (k) => (sets[k] || []).length > 0;
+    // ---- the wrong tyre for the track
+    if (left >= 1.5) {
+      if (!rain && W > 0.3) { const k = W > 0.62 && has('WET') ? 'WET' : has('INTER') ? 'INTER' : null; if (k) { o.ask(c, { key: `wet${c.pitStops}`, text: `The track is wet enough for ${k === 'WET' ? 'full wets' : 'intermediates'}. Box?`, comp: k }); continue; } }
+      if (rain && W < 0.18 && !(wx && wx.outlook(120).p > 0.5)) { const k = ai?.slickFor ? ai.slickFor(left) : 'MEDIUM', kk = has(k) ? k : ['SOFT', 'MEDIUM', 'HARD'].find(has); if (kk) { o.ask(c, { key: `dry${c.pitStops}`, text: `A dry line: time for slicks (${kk.toLowerCase()}s). Box?`, comp: kk }); continue; } }
+    }
+    if (m.calls === 'ai' || !ai || !green || left < 2.5) continue;
+    // ---- the undercut on the car ahead; a rival's stop to cover (the AI's own sums)
+    if (!ai.strat) continue;
+    const next = (() => { const k = ai.nextCompound(left); return has(k) ? k : ['SOFT', 'MEDIUM', 'HARD', 'INTER', 'WET'].find(has); })();
+    if (!next) continue;
+    const u = ai.undercutOn(d.world, left);
+    if (u) { const g = ai.lastUndercut; o.ask(c, { key: `uc${c.lap}|${u.name}`, text: `The undercut on ${u.name.split(' ').pop()} is on: about ${Math.max(0.1, g.gain - g.gap).toFixed(1)} s in hand. Box for ${next.toLowerCase()}s?`, comp: next }); continue; }
+    if (ai.watchRivals(d.world, left)) { const r = ai.coverOf; o.ask(c, { key: `cv${c.lap}`, text: `${r ? r.name.split(' ').pop() : 'The car behind'} has boxed behind us. Cover the undercut (${next.toLowerCase()}s)?`, comp: next }); }
+  }
+}
+
+return { replan, alerts };
 })();
 
 // ---- src/career/Seat.js
@@ -149477,7 +150287,7 @@ function reqHTML(c, u, st, nx) {
   // (a team principal - career/Manager.js: the factory is theirs - BUILD, under the cost cap)
   if (c?.manager) {
     if (!nx || st === 'max' || st === 'dev') return '';
-    const team = teamOf(c), cost = levelCost(c, team.name, u.id, nx), why = st === 'open' ? c.capCheck?.(cost) : null, ok = st === 'open' && !why;
+    const team = teamOf(c), cost = levelCost(c, team.name, u.id, nx), why = st === 'open' ? (c.buildCheck ? c.buildCheck(u.id, nx, cost) : c.capCheck?.(cost)) : null, ok = st === 'open' && !why;
     const tip = st === 'open' ? (why || `Start level ${nx}: ${money(cost)} now, on the car in ${levelRounds(c, team.name, u.id, nx)} race(s).`) : st === 'locked' ? `Needs ${needTxt(missingReq(team, u.id, nx))} first.` : st === 'busy' ? 'Every development slot is in use.' : `Not enough money: ${money(cost)} needed.`;
     return `<button class="${ok ? 'go ' : ''}tt-rqb" data-tdev="${u.id}"${ok ? '' : ' disabled'} title="${esc(tip)}">BUILD LEVEL ${nx} · ${money(cost)}</button>`;
   }
@@ -149588,8 +150398,8 @@ function techClick(c, ds, S = {}) {
   if (ds.tdev != null) {
     const u = UP[ds.tdev]; if (!u) return { tab: 'dev', S: base };
     const st = upgradeState(c, team.name, u.id), lv = nextLevel(team, u.id), cost = lv ? levelCost(c, team.name, u.id, lv) : 0, n = lv ? levelRounds(c, team.name, u.id, lv) : 0;
-    const cap = st === 'open' ? c.capCheck?.(cost) : null; if (cap) return { tab: 'dev', S: { ...base, branch: u.branch, up: u.id, tmsg: cap, tok: false } };   // (a team principal's cost cap)
-    const ok = develop(c, team.name, u.id); if (ok) c.save?.();
+    const cap = st === 'open' ? (c.buildCheck ? c.buildCheck(u.id, lv, cost) : c.capCheck?.(cost)) : null; if (cap) return { tab: 'dev', S: { ...base, branch: u.branch, up: u.id, tmsg: cap, tok: false } };   // (a team principal's cost cap)
+    const ok = develop(c, team.name, u.id); if (ok) { c.onBuilt?.(u.id, lv); c.save?.(); }
     const tmsg = ok ? `Work starts on ${upgradeName(u.id, lv)}: ${money(cost)}, on the car ${when(c, n)}.` : whyNot(c, team, u, st, lv, cost);
     return { tab: 'dev', S: { ...base, branch: u.branch, up: u.id, tlv: null, tmsg, tok: ok } };
   }
@@ -149604,11 +150414,123 @@ function techClick(c, ds, S = {}) {
 return { TECH_CSS, techHTML, techSide, techView, techClick };
 })();
 
+// ---- src/ui/ManagerHub2.js
+__m['src/ui/ManagerHub2.js'] = (() => {
+const { CREW_ROLES, TRAIN_FOCUS, TRAIN_INT, RELEASE, crewExpect, crewHire } = __m['src/career/ManagerCrew.js'];
+const { TALKS, talk, moraleWord, engineerOf, swapEngineers, hireEngineer, answerPress } = __m['src/career/ManagerPeople.js'];
+const { FOCUS, TRACK_DF, SUPPLIERS, NEXT_SHARES, SWITCH_FEE, aeroOf, trackFit, fitText, supplierOf, supplyDiff, isWorks, atrAllowance, atrLeft, atrCost, rush, signSupplier, rulesChange } = __m['src/career/ManagerCar.js'];
+const { UP, upgradeName } = __m['src/career/TechTree.js'];
+// The team principal's HQ, its further pages (ui/ManagerHub.js draws the frame and passes the clicks on): CREW (the pit
+// crew: who, how quick, how tired; the training plan; the release; replacements), PEOPLE (the drivers' morale, what you
+// say and promise, the race engineers), CAR (the design focus, the tunnel's hours, next year's car, the power unit's
+// maker, the factory's work to rush) - and on the overview: the press's question and the rest week.
+
+
+
+
+const EXTRA_TABS = [['crew', 'PIT CREW'], ['people', 'PEOPLE'], ['car', 'CAR']];
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const money = (m) => `$${(Math.round(m * 10) / 10).toFixed(1)}M`;
+const pct = (x) => `${Math.round(x * 100)}%`;
+const bar = (x, col) => `<div class="m-bar" style="--bc:${col || (x > 0.66 ? '#1fae64' : x > 0.4 ? '#e0a100' : '#d4351c')}"><i style="width:${(Math.max(0, Math.min(1, x)) * 100).toFixed(0)}%"></i></div>`;
+const seg = (a, cur, opts) => `<span class="m-seg">${opts.map(([v, n, t]) => `<button data-a="${a}" data-v="${v}" class="${String(cur) === String(v) ? 'm-on' : ''}"${t ? ` title="${esc(t)}"` : ''}>${esc(n)}</button>`).join('')}</span>`;
+const note = (t) => `<p style="font-size:12px;color:#6b7480">${t}</p>`;
+
+function extraHTML(c, tab, T) {
+  if (tab === 'crew') return crewHTML(c);
+  if (tab === 'people') return peopleHTML(c);
+  if (tab === 'car') return carHTML(c, T);
+  return null;
+}
+function crewHTML(c) {
+  const M = c.crew, E = crewExpect(c);
+  const rows = CREW_ROLES.map((R) => { const m = M.members.find((x) => x.role === R.id); return `<tr><td>${esc(R.name)}</td><td><b>${esc(m.name)}</b></td><td style="width:16%">${bar(m.speed)}<small>${Math.round(m.speed * 100)}</small></td><td style="width:16%">${bar(m.cons)}<small>${Math.round(m.cons * 100)}</small></td><td style="width:16%">${bar(1 - m.fat, m.fat > 0.6 ? '#d4351c' : m.fat > 0.35 ? '#e0a100' : '#1fae64')}<small>${m.fat > 0.6 ? 'exhausted' : m.fat > 0.35 ? 'tired' : 'fresh'}</small></td></tr>`; }).join('');
+  const market = (M.market || []).map((p, i) => { const R = CREW_ROLES.find((x) => x.id === p.role), cur = M.members.find((x) => x.role === p.role); return `<div class="m-drv"><div class="m-nm"><b>${esc(p.name)}</b><small>${esc(R.name)} · speed ${Math.round(p.speed * 100)} (now ${Math.round(cur.speed * 100)}) · consistency ${Math.round(p.cons * 100)} (now ${Math.round(cur.cons * 100)}) · ${money(p.salary * 1.5)} to bring in</small></div><button data-a="crewhire" data-v="${i}">HIRE</button></div>`; }).join('');
+  return `<div class="m-grid"><div class="m-card" style="grid-column:1/-1"><h3>The crew</h3><table><tr><th>Job</th><th>Who</th><th>Speed</th><th>Consistency</th><th>Freshness</th></tr>${rows}</table></div>
+    <div class="m-card"><h3>The stop</h3><div class="m-big">${E.time.toFixed(2)} s<span style="font-size:13px;color:#6b7480;font-weight:600"> on an average day</span></div>
+      <div class="m-row2"><span>A mistake in a stop</span><b style="color:${E.err > 0.15 ? '#d4351c' : 'inherit'}">${pct(E.err)}</b></div>
+      <div class="m-row2"><span>Ready for a double stop</span><b>${pct(M.stack)}</b></div>${bar(M.stack)}
+      <div class="m-row2"><span>Release</span>${seg('crewrel', M.release, Object.entries(RELEASE).map(([k, R]) => [k, R.name, k === 'safe' ? 'Two tenths lost, never an unsafe release' : k === 'aggr' ? 'A tenth and a half gained; now and then an unsafe release: 5 s' : 'As trained']))}</div>
+      ${note('A stop is as long as its slowest corner (the gun and the tyre handler there) and the jacks. The crew chief (STAFF) and the training centre (FACILITIES) shorten every stop. At a race weekend the crew can practise stops (PRACTICE): sharper for that race, a little more tired.')}</div>
+    <div class="m-card"><h3>Training between the races</h3><div class="m-row2"><span>Focus</span>${seg('crewfocus', M.plan.focus, Object.entries(TRAIN_FOCUS).map(([k, n]) => [k, n]))}</div>
+      <div class="m-row2"><span>Intensity</span>${seg('crewint', M.plan.int, Object.entries(TRAIN_INT).map(([k, I]) => [k, I.name, k === 'hard' ? 'Learns the most, tires the most' : k === 'light' ? 'Learns little, recovers' : 'Holds its freshness over a short season']))}</div>
+      <div class="m-row2"><span>The crew's fatigue</span><b>${pct(E.fatigue)}</b></div>
+      ${note('Speed and consistency are trained one at a time; double stops are their own drill; rest takes the fatigue off. A tired crew fumbles: wheel nuts, jacks, wheels.')}</div>
+    <div class="m-card"><h3>On the market</h3>${market || '<p>Nobody now: new people at the season\'s end.</p>'}</div></div>`;
+}
+function peopleHTML(c) {
+  const D = c.seatsOf(c.myTeam);
+  const drv = D.map((d) => {
+    const e = engineerOf(c, d.id), P = (c.promises || []).filter((p) => p.did === d.id && p.season === c.season);
+    return `<div class="m-card"><h3>${esc(d.name)}</h3><div class="m-row2"><span>Morale</span><b>${d.morale ?? 60} · ${moraleWord(d.morale ?? 60)}</b></div>${bar((d.morale ?? 60) / 100)}
+      <div class="m-row2"><span>Contract</span><b>to the end of ${d.until} · ${money(d.salary)}/season</b></div>
+      <div class="m-row2"><span>Race engineer</span><b>${e ? `${esc(e.name)} · feedback ${Math.round(e.feedback * 100)} · chemistry ${pct(e.chem)}` : 'none'}</b></div>
+      ${P.length ? `<div class="m-row2"><span>Promises</span><b>${P.map((p) => `${{ no1: 'number one', part: `a part by round ${p.due}`, contract: 'contract talks' }[p.kind]}${p.done ? (p.kept ? ' ✓' : ' ✗') : ''}`).join(', ')}</b></div>` : ''}
+      <div class="m-acts" style="margin-top:8px">${Object.entries(TALKS).map(([k, T]) => `<button data-a="talk" data-v="${d.id}|${k}" title="${esc(T.title)}">${T.name}</button>`).join('')}</div></div>`;
+  }).join('');
+  const eng = `<div class="m-card"><h3>Race engineers</h3>${(c.engineers || []).map((e) => `<div class="m-drv"><div class="m-rt">${Math.round(e.feedback * 100)}</div><div class="m-nm"><b>${esc(e.name)}</b><small>with ${esc(c.drivers[e.did]?.name || 'no driver')} · chemistry ${pct(e.chem)}</small></div></div>`).join('')}
+    <div class="m-acts"><button data-a="engswap">SWAP THE ENGINEERS</button></div>
+    ${(c.engMarket || []).map((p, i) => `<div class="m-drv"><div class="m-rt" style="font-size:16px">${Math.round(p.feedback * 100)}</div><div class="m-nm"><b>${esc(p.name)}</b><small>available · $0.8M to bring in</small></div><span class="m-acts">${(c.engineers || []).map((e, k) => `<button data-a="enghire" data-v="${i}|${k}">FOR ${esc(String(c.drivers[e.did]?.name || '').split(' ').pop().toUpperCase())}</button>`).join('')}</span></div>`).join('')}
+    ${note('Feedback: how much each practice run tells you about the set-up. Chemistry grows with every race together and is a little pace; a new pairing starts again.')}</div>`;
+  const team = `<div class="m-card"><h3>The team</h3><div class="m-row2"><span>Fatigue</span><b>${pct(c.fatigue || 0)}</b></div>${bar(1 - (c.fatigue || 0))}
+    <div class="m-row2"><span>Rest week before the next race</span>${seg('rest', c.restWeek ? 1 : 0, [[0, 'Work'], [1, 'Rest', 'The factory stands still for a round; the fatigue comes off']])}</div>
+    ${note('The team tires every round - more with a full factory and hard pit crew training. Tired, new parts correlate worse and the crew fumbles. Morale is the driver\'s form on track (pace, mistakes, starts); an unhappy driver will not sign a new contract.')}</div>`;
+  return `<div class="m-grid">${drv}${eng}${team}</div>`;
+}
+function carHTML(c, T) {
+  const t = c.team, A = aeroOf(t), trk = c.seasonDone ? null : c.track, fit = trk ? trackFit(t, trk) : 1, name = (k) => T?.o?.trackName?.(k) || k;
+  const ch = A.k < 0.05 ? 'no character yet' : `${A.p < -0.25 ? 'low drag' : A.p > 0.25 ? 'high downforce' : 'balanced'} (${Math.round(A.k * 100)}% defined)`;
+  const design = `<div class="m-card"><h3>Design focus</h3><div class="m-row2"><span>New aero parts are designed for</span>${seg('focus', c.designFocus, Object.entries(FOCUS).map(([k, F]) => [k, F.name]))}</div>
+    <div class="m-row2"><span>The car's character</span><b>${ch}</b></div>
+    ${Object.keys(TRACK_DF).map((k) => `<div class="m-row2"><span>${esc(name(k))}${k === trk ? ' · next' : ''} <small style="color:#8a93a0">wants ${TRACK_DF[k] < -0.2 ? 'low drag' : TRACK_DF[k] > 0.2 ? 'downforce' : 'balance'}</small></span><b>${fitText(trackFit(t, k))}</b></div>`).join('')}
+    ${note('Every aerodynamic level built (FACTORY) takes the focus chosen here; the car becomes what is on it.')}</div>`;
+  const hours = `<div class="m-card"><h3>Wind tunnel &amp; CFD</h3><div class="m-big">${Math.max(0, atrLeft(c))}<span style="font-size:13px;color:#6b7480;font-weight:600"> of ${atrAllowance(c)} hours left this season</span></div>${bar(Math.max(0, atrLeft(c)) / atrAllowance(c))}
+    ${note(`The testing restrictions: the higher in the constructors' championship, the fewer hours. An aerodynamic level costs ${atrCost(1)}-${atrCost(5)} hours as well as its price; with none left, no aero work starts until next season.`)}</div>`;
+  const next = `<div class="m-card"><h3>Next year's car</h3><div class="m-row2"><span>Factory on the ${c.season + 1} car</span>${seg('nextshare', c.nextCar.share, NEXT_SHARES.map((s) => [s, pct(s), s >= 0.75 ? 'Every level started this season takes two races longer' : s >= 0.5 ? 'Every level started this season takes a race longer' : '']))}</div>
+    <div class="m-row2"><span>Head start banked</span><b>${((c.nextCar.pts / Math.max(1, c.rounds)) * 0.0025 * 90 * (rulesChange(c.season + 1) ? 2 : 1)).toFixed(2)} s a lap</b></div>
+    ${rulesChange(c.season + 1) ? '<p style="color:#b07b00"><b>New regulations next season:</b> work on next year\'s car counts double, and everyone\'s old advantage is cut by a third.</p>' : ''}
+    ${note('The other teams make the same choice. A full season at 75 % is worth about 0.17 s a lap at the start of the next.')}</div>`;
+  const cur = supplierOf(c, t.engine), works = isWorks(c);
+  const sup = `<div class="m-card"><h3>Power unit</h3><div class="m-big">${esc(cur.name)}<span style="font-size:13px;color:#6b7480;font-weight:600"> · ${works ? 'works team' : 'customer'}</span></div>
+    <table><tr><th>Maker</th><th>Power</th><th>Failures</th><th>A season</th><th></th></tr>${Object.keys(SUPPLIERS).map((k) => { const S = supplierOf(c, k), d = supplyDiff(c, k); return `<tr class="${k === t.engine ? 'm-me' : ''}"><td>${esc(S.name)}</td><td>${S.power >= 0 ? '+' : '−'}${Math.abs(S.power * 90).toFixed(2)} s</td><td>${pct(S.rel)}</td><td>${works ? '' : d ? `${d > 0 ? '+' : '−'}${money(Math.abs(d))}` : 'as now'}</td><td>${works ? '' : `<button data-a="supplier" data-v="${k}" class="${(c.engineNext || t.engine) === k ? 'm-on' : ''}">${k === t.engine ? (c.engineNext ? 'STAY' : 'NOW') : c.engineNext === k ? 'SIGNED' : 'SIGN'}</button>`}</td></tr>`; }).join('')}</table>
+    ${note(works ? 'A works team builds its own.' : `A new maker's unit is in the car from next season: ${money(SWITCH_FEE)} to change the car round it. The makers' power and reliability move a little every winter.`)}</div>`;
+  const dev = (t.dev || []).map((x) => `<div class="m-drv"><div class="m-nm"><b>${esc(upgradeName(x.id, x.level) || x.id)}</b><small>${x.left} race${x.left === 1 ? '' : 's'} to go${x.rushed ? ' · rushed' : ''}</small></div><button data-a="rush" data-v="${x.id}"${x.left <= 1 || x.rushed ? ' disabled' : ''}>RUSH · ${money((x.cost || 4) * 0.4)}</button></div>`).join('');
+  const rsh = `<div class="m-card"><h3>In the factory</h3>${dev || '<p>Nothing being built: FACTORY to start a part.</p>'}${note('RUSH brings a level forward a race for 40 % of its price again (under the cost cap).')}</div>`;
+  return `<div class="m-grid">${design}${hours}${next}${sup}${rsh}</div>`;
+}
+/** the overview's extra cards: the press's question */
+function homeExtra(c) {
+  const P = c.press; if (!P || P.done) return '';
+  return `<div class="m-card"><h3>The press</h3><p><b>${esc(P.q)}</b></p>${P.opts.map((o, i) => `<div class="m-drv"><div class="m-nm"><b>${esc(o.t)}</b><small>${esc(o.text)}</small></div><button data-a="press" data-v="${i}">SAY IT</button></div>`).join('')}${note('Every answer costs or wins something: a driver\'s morale, the board\'s confidence, the team\'s profile with sponsors. Unanswered by the next race: the board notices.')}</div>`;
+}
+/** a click on these pages -> { text, ok } | null (handled, nothing to say) | undefined (not ours) */
+function extraClick(c, a, v) {
+  const R = (text, bad = /^(Not|No |You have already|.*will not|.*already|Two |There is no)/) => ({ text, ok: !bad.test(text) });
+  if (a === 'crewfocus') { c.crew.plan.focus = v; c.save(); return null; }
+  if (a === 'crewint') { c.crew.plan.int = v; c.save(); return null; }
+  if (a === 'crewrel') { c.crew.release = v; c.save(); return null; }
+  if (a === 'crewhire') { const r = crewHire(c, +v); c.save(); return R(r); }
+  if (a === 'talk') { const [did, k] = String(v).split('|'); const r = talk(c, did, k); c.save(); return R(r); }
+  if (a === 'engswap') { const r = swapEngineers(c); c.save(); return R(r); }
+  if (a === 'enghire') { const [i, k] = String(v).split('|'); const r = hireEngineer(c, +i, +k); c.save(); return R(r); }
+  if (a === 'rest') { c.restWeek = v === '1'; c.save(); return { text: c.restWeek ? 'A rest week: after the next race the fatigue comes off - and the factory makes no progress that round.' : 'Back to work.', ok: true }; }
+  if (a === 'press') { const r = answerPress(c, +v); c.save(); return R(r); }
+  if (a === 'focus') { c.designFocus = v; c.save(); return null; }
+  if (a === 'nextshare') { c.nextCar.share = +v; c.save(); return null; }
+  if (a === 'supplier') { const r = signSupplier(c, v); c.save(); return R(r); }
+  if (a === 'rush') { const r = rush(c, v); c.save(); return R(r, /^(Not|Over|That is not|It )/); }
+  return undefined;
+}
+
+return { EXTRA_TABS, extraHTML, homeExtra, extraClick };
+})();
+
 // ---- src/ui/ManagerHub.js
 __m['src/ui/ManagerHub.js'] = (() => {
 const { TECH_CSS, techHTML, techClick } = __m['src/ui/HubTech.js'];
 const { ManagerCareer, TRACKS_ALL, COST_CAP, PRIZE, TIER_NAME, TIER_BUDGET, RACE_INCOME, POINT_INCOME, STAFF_ROLES, askOf } = __m['src/career/Manager.js'];
 const { techEffects, UP, upgradeName, partsCount } = __m['src/career/TechTree.js'];
+const { EXTRA_TABS, extraHTML, extraClick, homeExtra } = __m['src/ui/ManagerHub2.js'];
 const { PU, SPARES, allocOf, fitNew, orderSpare, FAC, FAC_MAX, facCost, facRounds, facFx, facUpgrade, facMaintain, maintCost, SPONSOR_SLOTS, acceptOdds, propose, sponsorTargets, marketability } = __m['src/career/ManagerOps.js'];
 // The team principal's HQ (career/Manager.js): between the race weekends, the team's home. The header holds what
 // matters every day - the budget, what is left under the cost cap, the board's confidence, where the team stands - and
@@ -149619,6 +150541,7 @@ const { PU, SPARES, allocOf, fitNew, orderSpare, FAC, FAC_MAX, facCost, facRound
 // director, the head of strategy, the pit crew chief: who you have, who you could hire), FINANCES and CALENDAR. A new
 // career starts here too: the team, the season's length, the race distance.
 //   openManagerHub({ career, teams, trackName, onRace(c), onSim(c), onQuick(), onExit() }) / closeManagerHub()
+
 
 
 
@@ -149706,7 +150629,7 @@ function render() {
   el.innerHTML = `<div class="m-mh"><div class="m-tn"><small>Team principal · Season ${c.season}${c.seasonDone ? ' · over' : ` · Round ${c.round} of ${c.rounds}`}</small><b>${esc(t.name)}</b></div>
     <div class="m-kp"><div class="m-k"><small>Budget</small><b class="${t.budget < 5 ? 'm-bad' : ''}">${money(t.budget)}</b></div><div class="m-k"><small>Cost cap left</small><b>${money(c.capLeft())}</b></div>
     <div class="m-k"><small>Constructors</small><b>P${pos}<span style="font-size:11px;color:#8a93a0"> · target P${c.board.target}</span></b></div><div class="m-k"><small>Board</small><b class="${conf < 30 ? 'm-bad' : conf >= 65 ? 'm-ok' : ''}">${conf}%</b></div></div><span class="m-ctas">${ctas}<button data-a="exit">MENU</button></span></div>
-    <div class="m-mn">${[['home', 'OVERVIEW'], ['stand', 'STANDINGS'], ['fac', 'FACTORY'], ['drv', 'DRIVERS'], ['parts', 'PARTS'], ['facil', 'FACILITIES'], ['spons', 'SPONSORS'], ['staff', 'STAFF'], ['fin', 'FINANCES'], ['cal', 'CALENDAR']].map(([k, n]) => `<button data-tab="${k}" class="${H.tab === k ? 'm-on' : ''}">${n}</button>`).join('')}</div>
+    <div class="m-mn">${[['home', 'OVERVIEW'], ['stand', 'STANDINGS'], ['fac', 'FACTORY'], ['drv', 'DRIVERS'], ['parts', 'PARTS'], ['facil', 'FACILITIES'], ['spons', 'SPONSORS'], ['staff', 'STAFF'], ...EXTRA_TABS, ['fin', 'FINANCES'], ['cal', 'CALENDAR']].map(([k, n]) => `<button data-tab="${k}" class="${H.tab === k ? 'm-on' : ''}">${n}</button>`).join('')}</div>
     <div class="m-mb">${H.msg ? `<div class="m-msg ${H.ok ? '' : 'm-no'}">${esc(H.msg)}</div>` : ''}${body(c)}</div>`;
 }
 function body(c) {
@@ -149721,7 +150644,7 @@ function body(c) {
       case 'facil': return facilHTML(c);
       case 'spons': return sponsHTML(c);
       case 'cal': return calHTML(c);
-      default: return homeHTML(c);
+      default: return extraHTML(c, H.tab, H) ?? homeHTML(c);
     }
   } catch (e) { console.warn('[manager hub]', e); return '<div class="m-card"><p>This page could not be drawn.</p></div>'; }
 }
@@ -149744,7 +150667,7 @@ function homeHTML(c) {
     <div class="m-row2"><span>Income</span><b>${money(L.income)}${L.sponsor ? ` + sponsor ${money(L.sponsor)}` : ''}</b></div><div class="m-row2"><span>Wages</span><b>-${money(L.wages)}</b></div>
     <div class="m-row2"><span>Board confidence</span><b>${L.conf0}% → ${L.conf}%</b></div>${L.parts.length ? `<div class="m-row2"><span>New on the car</span><b>${L.parts.map((x) => `${esc(UP[x.id]?.short || x.id)} L${x.level} (${Math.round(x.q * 100)}%)`).join(', ')}</b></div>` : ''}</div>` : '';
   const news = `<div class="m-card"><h3>News</h3><div class="m-news">${c.news.slice(0, 10).map((n) => `<div><small>S${n.season} R${n.round}</small>${esc(n.text)}</div>`).join('')}</div></div>`;
-  return `<div class="m-grid">${nextCard}${lastCard}${drvCard}${carCard}${news}</div>`;
+  return `<div class="m-grid">${nextCard}${homeExtra(c)}${lastCard}${drvCard}${carCard}${news}</div>`;
 }
 function reviewHTML(c) {
   const r = c.review || c.history[c.history.length - 1] || {};
@@ -149862,6 +150785,7 @@ function onClick(e) {
     return;
   }
   const a = d.a, v = d.v; H.msg = null;
+  if (c) { const r = extraClick(c, a, v); if (r !== undefined) { if (r) say(r.text, r.ok); render(); return; } }   // (the crew, the people, the car: ui/ManagerHub2.js)
   if (a === 'exit') { H.o.onExit?.(); return; }
   if (a === 'quick') { H.o.onQuick?.(); return; }
   if (a === 'nteam') H.nc.team = v; else if (a === 'nrounds') H.nc.rounds = +v; else if (a === 'nlaps') H.nc.laps = +v;
@@ -182906,7 +183830,7 @@ class AIDriver {
     const va = wx * tr.tx[i] + wz * tr.tz[i], vd = wx * tr.nx[i] + wz * tr.nz[i];
     const lineSlope = (line.offsetAt(c.s + 5) - line.offsetAt(c.s - 5)) / 10;
     ctx.e1 = Math.max(-0.5, Math.min(0.5, vd / Math.max(5, va) - lineSlope));
-    ctx.m = tr.halfWidth - (tr.def.aiEdgeMargin ?? T.edgeMargin);   // (the base road: the planner adds what the road is wider by under each node)   // (a circuit where the kerbs are part of the lap lets the car's centre wider: Montreal)
+    ctx.m = tr.halfWidth - (tr.def.aiEdgeMargin ?? T.edgeMargin) + (c.mgrEdge || 0);   // (the base road: the planner adds what the road is wider by under each node)   // (a circuit where the kerbs are part of the lap lets the car's centre wider: Montreal)
     ctx.grip = this.g;
     const sEnd = c.s + (ctx.n - 1) * DS;
     ctx.vEnd = Math.min(ctx.vCap ?? 99, this.profile[tr.idxAtS(sEnd)] * this.gripFactor() * this.g.scale);
@@ -182920,7 +183844,7 @@ class AIDriver {
     ctx.unreadRoom = Math.max(0.4, 1.15 - 0.5 * this.aggression);   // how much of the extra room a car it cannot read gets
     // (running hot from following in dirty air: drop back a few car lengths to cool it, as a driver is told to; the
     //  following gap itself by racecraft - a sharp driver sits a little closer, FORM.gap - before race control's minimum)
-    ctx.gap = (T.gapBase + v * T.gapK * (1 - 0.3 * this.aggression)) * (1 + 0.3 * lap1) * F.gap + 25 * Math.max(0, c.engTemp - 0.75);
+    ctx.gap = (T.gapBase + v * T.gapK * (1 - 0.3 * this.aggression)) * (1 + 0.3 * lap1) * F.gap + 25 * Math.max(0, c.engTemp - 0.75) + (c.mgrGap || 0);
     if (rule && rule.gap) ctx.gap = Math.max(ctx.gap, rule.gap + 0.15 * v);
     ctx.lap1 = lap1;
     // (racecraft: how much it means a move - by the driver's aggression, half of it on the opening lap, none under race
@@ -182993,7 +183917,7 @@ class AIDriver {
     let att = null;
     for (let r = 0; r < P.nOthers; r++) {
       const R = P.others[r], o = R.car;
-      if (R.s0 >= -2 || R.lapping || o.retired || o.spinning || o.rigid || o === c._owes || o === c._yieldTo) continue;   // (never against a car it owes a place, or has been told to let by)
+      if (R.s0 >= -2 || (R.lapping && !c.mgrBlueLate) || o.retired || o.spinning || o.rigid || o === c._owes || o === c._yieldTo || (c.mgrMateEasy && o.team === c.team)) continue;   // (never against a car it owes a place, or has been told to let by)
       // close enough to try it: within half a second and closing, or right on the gearbox
       const gapT = -R.s0 / Math.max(10, o.speed);
       if ((gapT < T.defendGap && o.speed > c.speed + 1.5) || gapT < 0.25) { att = o; break; }
@@ -183004,7 +183928,7 @@ class AIDriver {
     const fe = att === this.ctx.feud ? this.ctx.feudK || 0 : 0;
     if (!zone || isFast(zone) || dist < (fe > 0.4 ? 30 : 60)) return;   // (too late to move once in the braking zone - later still against someone it has a feud with)
     // (racecraft: a sharp driver covers the inside a little more often, FORM.defend; a feud: it always shuts the door on you)
-    if (rnd() > 0.32 + 0.4 * this.aggression + (c.form || NF).defend + 0.6 * fe) { this.defendCool = 5; return; }
+    if (rnd() > 0.32 + 0.4 * this.aggression + (c.form || NF).defend + 0.6 * fe + (c.mgrDefend || 0)) { this.defendCool = 5; return; }   // (mgrDefend: a team principal's DEFEND order - race/TeamTactics.js)
     this.defend = { side: zone.dir, untilS: zone.sA + 15, attacker: att };
     this.defences = (this.defences || 0) + 1;
   }
@@ -186275,7 +187199,7 @@ class RaceDirector {
           for (const c of this.cars) { c.lapStart = this.time; c.startRun = true; }   // (to Turn 1 on even terms: Car.step, speedBands)
           // every driver launches with a human reaction time (~0.15-0.3 s); tier/rating does not slow the getaway, focus
           // moves it by a few hundredths either way (FORM.react)
-          for (const a of this.ai) if (!a.jumped) a.reaction = Math.max(0.1, 0.14 + Math.random() * 0.12 + (1 - a.car.rating) * 0.04 + (a.car.form || NF).react);
+          for (const a of this.ai) if (!a.jumped) a.reaction = Math.max(0.1, 0.14 + Math.random() * 0.12 + (1 - a.car.rating) * 0.04 + (a.car.form || NF).react + (a.car.mgrStart || 0));   // (mgrStart: a team principal's LAUNCH - race/TeamTactics.js)
         }
         break;
       }
@@ -186852,6 +187776,7 @@ class RaceDirector {
    * cross-threaded nut costs 2.5-6 s more; a front wing change adds 6 s, a bigger repair 10 s.
    */
   stopTime(c, plan) {
+    if (c.crewStop) return c.crewStop(c, plan);   // (a team principal's pit crew: career/ManagerCrew.js, main.js mgrStop)
     c._slowStop = Math.random() < 0.035;
     const rep = plan.repair === 'wing' ? 6.0 : plan.repair === 'full' ? 10.0 : 0;
     return (2.0 + Math.random() * Math.random() * 0.6) * (c.pitMul || 1) + rep + (c._slowStop ? 2.5 + Math.random() * 3.5 : 0);   // (pitMul: the team's crew, career/Career.js)
@@ -189618,9 +190543,14 @@ const { CockpitCamera, TCAM_TILT, TCAM_FOV } = __m['src/camera/CockpitCamera.js'
 const { TVDirector, TV_CAMS, TV_CAM_NAME } = __m['src/camera/TVDirector.js'];
 const { TVGraphics } = __m['src/ui/TVGraphics.js'];
 const { PitWall, MODES } = __m['src/ui/PitWall.js'];
+const { ORDERS, defaultOrders, applyOrders, scFactors, tacticsUpdate } = __m['src/race/TeamTactics.js'];
 const { ManagerCareer } = __m['src/career/Manager.js'];
 const { takePenalties, facFx } = __m['src/career/ManagerOps.js'];
+const { crewStop, crewPractise } = __m['src/career/ManagerCrew.js'];
+const { engineerFx } = __m['src/career/ManagerPeople.js'];
 const { showSetup, setupEffect, idealOf, satisfaction } = __m['src/ui/Setup.js'];
+const { newSets, setsLeft, useSet, fitSet, lifeBias, burnBias, QUALI, applyQuali } = __m['src/race/TeamWeekend.js'];
+const { replan, alerts } = __m['src/race/TeamStrategy.js'];
 const { openManagerHub, closeManagerHub, managerHubOpen } = __m['src/ui/ManagerHub.js'];
 const { AudioEngine } = __m['src/audio/Audio.js'];
 const { ROSTER, customDriver, POINTS, standIn, dayPerf } = __m['src/race/Roster.js'];
@@ -189670,6 +190600,11 @@ const { buildVegasPaddock } = __m['src/world/VegasPaddock.js'];
 // (the scene's matrices recomputed only where something moved: in place before anything is built)
 
 void FAST_MATRIX;
+
+
+
+
+
 
 
 
@@ -191965,6 +192900,24 @@ function tpAct(a, x, y, z) {
     const L = MODES[y][z].label.toLowerCase(), W = { tyre: { aggr: 'push the tyres, every corner', light: 'look after the tyres a little', cons: 'conserve the tyres' }, fuel: { push: 'fuel mode push', save: 'save fuel', lico: 'lift and coast into every braking zone' }, ers: { harvest: 'harvest, no deployment', deploy: 'deploy on the straights', ovt: 'overtake mode, everything you have' } }[y]?.[z];
     wall.radio('Engineer', `${sur(x)}, ${W || `${y === 'tyre' ? 'tyres' : y === 'fuel' ? 'fuel' : 'ERS'} ${L}`}.`);
   }
+  else if (a === 'ord') {
+    // (RACECRAFT / CAR - race/TeamTactics.js ORDERS)
+    const O = ORDERS[y]?.opts[z]; if (!O) return; x.mgr.orders[y] = z; tpModes(x);
+    wall.radio('Engineer', `${sur(x)}: ${ORDERS[y].name.toLowerCase()} - ${O.label.toLowerCase()}.`);
+  }
+  else if (a === 'replan') {
+    // (the rest of the race worked out again - race/TeamStrategy.js: the options offered one after another)
+    if (d.mode !== 'race' || !d.world.racing || x.retired || x.finished) return;
+    const P0 = W.pit, pace = estimatePace(), laneLen = P0 ? P0.samples.length : 400, pitLoss = d.world.pitLoss || (P0 ? Math.max(12, laneLen / P0.limiter - laneLen / (W.track.length / pace) + 4.6) : 22);
+    const opts = replan({ car: x, d, sets: tpSetsOf(x), pitLoss, mustStop: d.lapsTotal >= 8 && x.pitStops === 0 && !x.usedRain && !d.weather?.everWet });
+    if (!opts.length) { wall.radio('Strategy', `${sur(x)}: nothing to plan from here.`); return; }
+    wall.radio('Strategy', `${sur(x)}: ${opts.map((p, i) => `${'ABC'[i]} ${p.label}${i ? ` (+${p.delta.toFixed(1)} s)` : ''}`).join(' · ')}.`);
+    const offer = (i) => { const p = opts[i]; if (!p) return; x.mgr.alert = { text: `${p.name}: ${p.label}${i ? ` (+${p.delta.toFixed(1)} s)` : ' (quickest)'}`, yes: 'TAKE', no: opts[i + 1] ? 'NEXT' : 'KEEP',
+      onYes: () => { x.mgr.plan = { name: p.name, label: p.label, stints: p.stints }; x.mgr.calls = 'plan'; x.mgr.manual = true; x.mgr.planCalled = null; x.mgr.warned = null; x.mgr.holdLap = null; const nx = p.stints[x.pitStops + 1]; if (nx) x.mgr.next = nx.compound; wall.radio('Strategy', `${sur(x)}: ${p.name} it is - ${p.label}.`); },
+      onNo: () => offer(i + 1) }; };
+    offer(0);
+  }
+  else if (a === 'alert') { const A = x.mgr.alert; x.mgr.alert = null; if (A) (y === 'yes' ? A.onYes : A.onNo)?.(); }
   else if (a === 'fuel') { if (x.fuel != null && x.mgr.preRace) { x.fuel = Math.max(x.mgr.perLap * 1, x.fuel + y * x.mgr.perLap); x.mgr.fuel0 = x.fuel; } }
   else if (a === 'strat') {
     // (who makes the calls: 'ai' the strategist; 'plan' the pre-race plan's stops (tpPlanCalls); 'you' nobody but you)
@@ -191972,9 +192925,17 @@ function tpAct(a, x, y, z) {
     x.mgr.calls = mode; x.mgr.manual = mode !== 'ai'; x.mgr.holdLap = null;
     wall.radio('Strategy', `${sur(x)}: ${mode === 'you' ? 'your calls from here. Nothing happens unless you box the car.' : mode === 'plan' ? `back on ${x.mgr.plan.name}: we box on its laps.` : 'the strategist makes the calls again.'}`);
   }
-  else if (a === 'start') { if (!d.world.racing && !x.pitLane) { x.fitTyres(y); x.tyres.temp = x.tyres.spec.start ?? 0.7; x.tyres.work = 0.45; S.meshes.get(x)?.setCompound(y); if (x.mgr.plan) x.mgr.plan.stints[0].compound = y; x.mgr.next = x.mgr.plan?.stints[1]?.compound || (y === 'SOFT' ? 'MEDIUM' : y === 'MEDIUM' ? 'HARD' : y); } }
+  else if (a === 'start') { if (!d.world.racing && !x.pitLane && setsLeft(tpSetsOf(x), y)) { x.fitTyres(y); x.tyres.temp = x.tyres.spec.start ?? 0.7; x.tyres.work = 0.45; S.meshes.get(x)?.setCompound(y); if (x.mgr.plan) x.mgr.plan.stints[0].compound = y; x.mgr.next = x.mgr.plan?.stints[1]?.compound || (y === 'SOFT' ? 'MEDIUM' : y === 'MEDIUM' ? 'HARD' : y); } }
   else if (a === 'box') {
     if (x.retired || x.finished || x.inPit) return;
+    // (a stop called on tyres with life in them, nothing broken, no rain: the driver asks - once)
+    { const t = x.tyres, dm0 = x.dmg || {}, hurt = (dm0.fwL || 0) + (dm0.fwR || 0) > 0.3 || dm0.rw > 0.25 || dm0.susp > 0.4 || x.punct != null, wx = d.weather ? d.weather.tyreWet : 0, rain = (wx > 0.27) !== (t.compound === 'INTER' || t.compound === 'WET');
+      if (d.world.racing && !z && t.wear < 0.2 && !hurt && !rain && !(d.sc && d.sc.phase !== 'green') && !x.mgr.byPlanCall && d.lapsTotal - x.lap > 2) {
+        wall.radio(sur(x), 'Box? These tyres are fine. Are you sure?');
+        x.mgr.alert = { text: `${sur(x)}: "These tyres are fine - are you sure?"`, yes: 'BOX', no: 'STAY', onYes: () => { tpPeople('override', x); tpAct('box', x, y, true); }, onNo: () => wall.radio('You', `${sur(x)}, stay out.`) };
+        return;
+      } }
+    if (d.mode === 'race' && !setsLeft(tpSetsOf(x), y || x.mgr.next)) { wall.radio('Pit wall', `No ${(y || x.mgr.next).toLowerCase()}s left for ${sur(x)}. Choose another tyre.`); return; }
     const dm = x.dmg || {}, plan = { compound: y || x.mgr.next, repair: (dm.rw > 0.35 || dm.susp > 0.55) ? 'full' : (dm.fwL || 0) + (dm.fwR || 0) > 0.3 ? 'wing' : 'none' };
     x.pitPlan = plan; if (x.ai) { x.ai.pitPlan = plan; x.ai.pitReason = 'manager'; }
     if (!x.pitRequested) d.requestPit(x, plan);
@@ -191994,7 +192955,8 @@ function tpAct(a, x, y, z) {
   else if (a === 'order') {
     const o = d.orders?.mgrOrder?.(TP.cars[0], x);
     if (typeof o === 'string') wall.radio('Pit wall', `No order: ${o}.`);
-    else if (o) wall.radio('You', x === 'swap' ? `${sur(o.Y)}, let ${sur(o.B)} through. That's an order.` : x === 'hold' ? 'Hold position, both cars. No racing each other.' : 'Order off. You are free to race.');
+    else if (o) { if (x === 'swap' && o.Y) tpPeople('yield', o.Y); if (x === 'hold' && o.Bk) tpPeople('held', o.Bk); }
+    if (o && typeof o !== 'string') wall.radio('You', x === 'swap' ? `${sur(o.Y)}, let ${sur(o.B)} through. That's an order.` : x === 'hold' ? 'Hold position, both cars. No racing each other.' : 'Order off. You are free to race.');
   }
 }
 /**
@@ -192004,9 +192966,10 @@ function tpAct(a, x, y, z) {
  */
 function tpModes(c) {
   const m = c.mgr, T = MODES.tyre[m.modes.tyre] || MODES.tyre.std, F = MODES.fuel[m.modes.fuel] || MODES.fuel.std, E = MODES.ers[m.modes.ers] || MODES.ers.bal;
-  c.mgrPace = T.pace; c.wearMul = m.baseWear * T.wear * F.wear * E.wear; if (c.tyres) c.tyres.wearMul = c.wearMul; c.relMul = m.baseRel * F.rel;
+  const O = applyOrders(c), d = S.director, sc = d?.sc && d.sc.phase !== 'green' ? scFactors(c) : null;   // (the RACECRAFT and CAR orders: race/TeamTactics.js)
+  c.mgrPace = T.pace * O.pace; c.wearMul = m.baseWear * T.wear * F.wear * E.wear * O.wear * (sc ? sc.wear : 1); if (c.tyres) c.tyres.wearMul = c.wearMul; c.relMul = m.baseRel * F.rel;
   c.mgrErs = { harvest: 'harvest', deploy: 'deploy', ovt: 'overtake' }[m.modes.ers] || null;
-  m.burnMul = F.burn; m.powerMix = F.power;
+  m.burnMul = F.burn; m.powerMix = F.power * O.power;
   c.mgrPower = m.powerMix * (m.weightK || 1);
 }
 /** fuel (kg) a lap at the standard mixture: ~0.35 kg a km */
@@ -192026,11 +192989,15 @@ function tpFuel(d) {
   for (const c of TP.cars) {
     const m = c.mgr; if (c.fuel == null || !m) continue;
     const run = tpRun(c, d), L = W.track.length;
+    // (a red flag's restart from the grid: the part of a lap already run is run again - the margin the car had when
+    //  the race stopped is the margin it restarts with)
+    if (d.world.racing) { if (m.redDelta != null) { c.fuel = m.perLap * (Math.max(0, d.lapsTotal - run) + m.redDelta); m.redDelta = null; m.lastRun = run; } m.raced = true; m.keepDelta = tpFuelDelta(c, d); }
+    else if (m.raced && m.redDelta == null && m.keepDelta != null) m.redDelta = m.keepDelta;
     if (m.lastRun == null) m.lastRun = run;
     const dl = run - m.lastRun; m.lastRun = run;
     if (dl > 0 && dl < 30 && !c.retired && !c.finished && d.world.racing) {
-      const sc = d.sc && d.sc.phase !== 'green' ? 0.6 : 1;
-      c.fuel = Math.max(0, c.fuel - dl * m.perLap * (m.burnMul || 1) * sc);
+      const sc = d.sc && d.sc.phase !== 'green' ? scFactors(c).burn : 1;
+      c.fuel = Math.max(0, c.fuel - dl * m.perLap * (m.burnMul || 1) * (m.burnTrue || 1) * sc);
       if (c.fuel <= 0 && !c.engineDead) { c.failed = 'fuel'; c.engineDead = true; TP.wall.radio(surname(c.name), "I've got no power... we're out of fuel!"); }
     }
     const nominal = m.perLap * Math.max(0, d.lapsTotal - run);
@@ -192041,17 +193008,23 @@ function tpFuel(d) {
     if (delta > -0.2) m.fuelWarned = false;
   }
 }
+/** what the team's people make of a call (the career's morale - career/ManagerPeople.js; nothing in a single weekend) */
+function tpPeople(what, car) { const C = S.weekend?.mgr; if (C?.onRaceEvent) try { C.onRaceEvent(what, car.careerId); } catch (e) { console.warn('[manager] people', e); } }
 /** a session of the weekend starts: your cars taken over, the feed's graphics and the pit wall up */
 function tpStart() {
   const d = S.director; if (!d) return;
-  TP.on = true; TP.speed = 1; TP.paused = false; TP.cam = 'auto'; TP.seen = new Map(); TP.orderSeen = 0;
+  TP.on = true; TP.speed = 1; TP.paused = false; TP.cam = 'auto'; TP.seen = new Map(); TP.orderSeen = 0; TP.wxState = {}; TP.scWas = false; TP.alertT = 0;
   TP.cars = tpCars(S.cars);
   for (const c of TP.cars) {
     // (a plan chosen on the strategy screen - tpStrategy: the pit wall follows it, CALLS PLAN)
     const plan = d.mode === 'race' && c.mgrPlan ? c.mgrPlan : null;
-    c.mgr = { modes: { tyre: 'std', fuel: 'std', ers: 'bal' }, manual: !!plan, calls: plan ? 'plan' : 'ai', plan, next: 'MEDIUM', baseWear: c.wearMul || 1, baseRel: c.relMul || 1, holdLap: null, called: false, preRace: true };
+    c.mgr = { modes: { tyre: 'std', fuel: 'std', ers: 'bal' }, orders: defaultOrders(), manual: !!plan, calls: plan ? 'plan' : 'ai', plan, next: 'MEDIUM', baseWear: c.wearMul || 1, baseRel: c.relMul || 1, holdLap: null, called: false, preRace: true };
     // (the race: the fuel load - the race at the standard mixture and a third of a lap's margin; FUEL LOAD before the lights)
-    if (d.mode === 'race') { c.mgr.perLap = FUEL_KM * W.track.length / 1000; c.fuel = c.mgr.perLap * (d.lapsTotal + 0.3); c.mgr.fuel0 = c.fuel; }
+    if (d.mode === 'race') {
+      c.mgr.perLap = FUEL_KM * W.track.length / 1000; c.fuel = c.mgr.perLap * (d.lapsTotal + 0.3); c.mgr.fuel0 = c.fuel;
+      // (no race simulation in practice: the car burns up to 4 % more or less than the wall assumes)
+      c.mgr.fuelSure = tpKnowOf(c).fuel; c.mgr.burnTrue = c.mgr.fuelSure ? 1 : burnBias(W.def?.id, c.name, S.weekend?.mgr?.round ?? 0);
+    }
     tpModes(c);
     c.mgr.next = plan?.stints[1]?.compound || (c.tyres.compound === 'MEDIUM' ? 'HARD' : 'MEDIUM');
   }
@@ -192088,8 +193061,26 @@ function tpUi(dt) {
   TP.gfx.update(dt, { d, focus: TP.cars, shot: TP.tv.shot, track: shortTrack(W.def?.id), camName: TV_CAM_NAME[TP.tv.shot?.kind] || '', speed: TP.paused ? 0 : TP.speed });
   const ord = d.orders?.pairOf?.(TP.cars[0])?.order || null;
   TP.wall.update(dt, { d, speed: TP.speed, paused: TP.paused, cam: TP.cam, order: ord, tyreLaps: (c) => TP.gfx.tyreLaps(c),
-    mustStop: (c) => d.mode === 'race' && d.lapsTotal >= 8 && c.pitStops === 0 && !c.usedRain && !d.weather?.everWet, fuelDelta: (c) => tpFuelDelta(c, d) });
-  if (d.mode === 'race') { tpFuel(d); tpRadio(d); tpPlanCalls(d); }
+    mustStop: (c) => d.mode === 'race' && d.lapsTotal >= 8 && c.pitStops === 0 && !c.usedRain && !d.weather?.everWet, fuelDelta: (c) => tpFuelDelta(c, d),
+    sets: (c) => (d.mode === 'race' ? tpSetsOf(c) : null), lifeK: (c) => (d.mode === 'race' ? tpLifeK(c) : 1), fuelSure: (c) => !!c.mgr?.fuelSure });
+  if (d.mode === 'race') {
+    tpFuel(d); tpRadio(d); tpPlanCalls(d);
+    // (the strategist's questions - the undercut, a stop to cover, the weather: race/TeamStrategy.js - twice a second)
+    TP.alertT = (TP.alertT || 0) + dt;
+    if (TP.alertT > 0.5 && !TP.paused && !S.paused && !S.simming) {
+      TP.alertT = 0;
+      alerts({ d, cars: TP.cars, state: TP.wxState || (TP.wxState = {}), sets: (c) => tpSetsOf(c), say: (w, t) => TP.wall.radio(w, t),
+        ask: (c, q) => { const m = c.mgr, A = m.asked || (m.asked = new Set()); if (A.has(q.key)) return; A.add(q.key); TP.wall.radio('Strategy', `${surname(c.name)}: ${q.text}`);
+          m.alert = { text: q.text, yes: 'BOX', no: 'NO', t: d.time, onYes: () => tpAct('box', c, q.comp, true), onNo: () => {} }; } });
+      // (a question nobody answered goes away with the lap)
+      for (const c of TP.cars) { const A = c.mgr.alert; if (A && A.t != null && d.time - A.t > 45) c.mgr.alert = null; }
+    }
+    // (the lights out: the set each car starts on comes out of its allocation)
+    if (d.world.racing) for (const c of TP.cars) if (!c.mgr.setTaken) { c.mgr.setTaken = true; tpFitSet(c); }
+    if (!TP.paused && !S.paused && !S.simming) tacticsUpdate(dt * TP.speed, { d, cars: TP.cars, radio: (w, t) => TP.wall.radio(w, t), surname: (c) => surname(c.name), reapply: (c) => tpModes(c) });
+    // (the safety car out or in: the SC order's wear on or off)
+    const scNow = !!(d.sc && d.sc.phase !== 'green'); if (scNow !== TP.scWas) { TP.scWas = scNow; for (const c of TP.cars) tpModes(c); }
+  }
 }
 /** what your engineers tell you: the strategist's calls, the tyres going off, damage, a car out, the orders answered */
 function tpRadio(d) {
@@ -192100,6 +193091,11 @@ function tpRadio(d) {
     s.req = c.pitRequested;
     if (c.pitStops !== s.stops) {
       s.stops = c.pitStops; s.worn = false; c.mgr.called = false; c.mgr.byPlan = false; c.pitPlan = null;
+      { const w = tpFitSet(c); if (w == null) W2.radio('Pit wall', `No ${c.tyres.compound.toLowerCase()}s left for ${sur(c)}: an old set went on.`); else if (w > 0.05) W2.radio('Pit wall', `${sur(c)}: a used set of ${c.tyres.compound.toLowerCase()}s (${Math.round(w * 100)}% worn).`); }
+      // (the stop as the crew made it - mgrStop: a mistake said; an unsafe release: the stewards' five seconds)
+      if (c.mgrStopNote) { W2.radio('Pit wall', `Slow stop for ${sur(c)}: ${c.mgrStopNote}.`); c.mgrStopNote = null; }
+      else if (c.mgrStacked) W2.radio('Pit wall', `${sur(c)} had to wait in the double stop.`);
+      if (c.mgrUnsafe) { c.mgrUnsafe = false; d.stewards?.award?.(c, 5, 'unsafe release'); W2.radio('Race control', `${sur(c)}: 5 second penalty, unsafe release.`); }
       const pl = c.mgr.plan, k = pl ? Math.min(c.pitStops, pl.stints.length - 1) : 0;   // (the box-for set: the plan's next stint, once one is on)
       if (pl && pl.stints[k + 1]) c.mgr.next = pl.stints[k + 1].compound;
     }
@@ -192129,7 +193125,7 @@ function tpSim(n) {
         if (live) {
           debris.clear(); fire.clear(); chunks.clear(); TP.tv.shot = null;
           for (const c of S.cars) { const m = S.meshes.get(c); if (m) { m.setCompound(c.tyres.compound); m.update(c, 0); } }
-          for (const c of TP.cars) { const s = TP.seen.get(c); if (s) { s.stops = c.pitStops; s.req = false; } c.mgr.called = false; c.mgr.holdLap = null; }
+          for (const c of TP.cars) { const s = TP.seen.get(c); if (s) { if (c.pitStops !== s.stops) fitSet(tpSetsOf(c), c.tyres.compound); s.stops = c.pitStops; s.req = false; } c.mgr.called = false; c.mgr.holdLap = null; }
           const P = d.positions; TP.wall.radio('Pit wall', `Lap ${Math.min(d.lapsTotal, (P[0]?.lap ?? 0) + 1)}. ${TP.cars.map((c) => (c.retired ? `${surname(c.name)} out` : `${surname(c.name)} P${P.indexOf(c) + 1}`)).join(', ')}.`);
         }
       }
@@ -192177,17 +193173,28 @@ async function mgrRace(c) {
   startWeekend();
   Loader.hide();
 }
+/**
+ * A stop by the team principal's crew (career/ManagerCrew.js): as long as its slowest corner and its jacks, a mistake
+ * now and then; a double stop waits on how ready the crew is for one; an unsafe release is five seconds, given when
+ * the car is back on the road (tpRadio) -> s stationary (RaceDirector.stopTime)
+ */
+function mgrStop(C, car, plan) {
+  const d = S.director, mate = TP.cars.find((x) => x !== car), stacked = !!mate && (mate.inPit || (mate._stopAt != null && d && d.time - mate._stopAt < 12));
+  const r = crewStop(C, { stacked, mul: car.pitMul || 1 }), rep = plan.repair === 'wing' ? 6.0 : plan.repair === 'full' ? 10.0 : 0;
+  car._slowStop = r.slow; car.mgrStopNote = r.note; car.mgrUnsafe = r.unsafe; car.mgrStacked = stacked;
+  return r.time + rep;
+}
 /** the field of a team principal's round: every team's car as its development has it, its drivers, your staff's work */
 function mgrField(C, lapsTotal, assists) {
   const cars = [], sfx = C.staffFx();
   for (const e of C.entries()) {
     const car = new Car(W.track, { name: e.name, short: e.short, team: e.team, color: e.color, isPlayer: false, perf: e.perf + onTheDay(e.team), rating: e.rating, number: e.number, compound: aiCompound(e, lapsTotal), raceLaps: lapsTotal, assists });
     car.tier = e.tier; car.color2 = e.color2; car.helmet = e.helmet; car.livery = e.livery || null; car.boxIdx = e.garage; car.careerId = e.careerId;
-    car.form = neutralForm(); car.licencePts = 0; car.champPts = e.champPts ?? null;
+    car.form = formOf(moodOf({ morale: e.morale ?? 60, moodOff: { focus: 0, racecraft: 0, confidence: 0, composure: 0 } })); car.licencePts = 0; car.champPts = e.champPts ?? null;   // (the driver's morale is their form: career/ManagerPeople.js)
     const fx = e.fx || {};
     car.drsGain = fx.drs || 0; car.ersMul = fx.ers || 1; car.ersCap = fx.erc || 1; car.brakeMul = fx.brake || 1; car.relMul = fx.relMul || 1; car.pitMul = fx.pitMul || 1;
     car.baseWear = fx.wear || 1; car.wearMul = car.baseWear; car.tyres.wearMul = car.wearMul;
-    if (e.mine) { car.pitMul *= sfx.pitMul; car.faultMul = sfx.faultMul; }   // (your pit crew chief, your head of strategy)
+    if (e.mine) { car.pitMul *= sfx.pitMul; car.faultMul = sfx.faultMul; car.crewStop = (c2, plan) => mgrStop(C, c2, plan); }   // (your pit crew chief, your head of strategy; your crew's stops)
     cars.push(car);
   }
   return cars;
@@ -192227,7 +193234,7 @@ function tpPlanCalls(d) {
     const cur = st.stints[k], next = st.stints[k + 1], lapNow = c.lap + 1, nm = next.compound.toLowerCase(), who = surname(c.name);
     if (lapNow === cur.end - 1 && m.warned !== k) { m.warned = k; TP.wall.radio('Strategy', `${who}: ${st.name} - box next lap for ${nm}s.`); }
     if (lapNow >= cur.end && m.planCalled !== k && !c.pitRequested && !c.pitLane && !c.inPit) {
-      m.planCalled = k; tpAct('box', c, next.compound); m.byPlan = true;
+      m.planCalled = k; m.byPlanCall = true; tpAct('box', c, next.compound); m.byPlanCall = false; m.byPlan = true;
       TP.wall.radio('Strategy', `${who}: box this lap, ${st.name}. ${nm.charAt(0).toUpperCase() + nm.slice(1)}s.`);
     }
   }
@@ -192242,12 +193249,21 @@ function tpSetupOf(car) {
   const book = wk?.mgr?.setupBook?.[W.def?.id]?.[car.careerId];
   return { x: book ? book.slice() : [0.5, 0.5, 0.5, 0.5, 0.5], runs: 0 };
 }
-function tpIdeal(car) { return idealOf(W.def?.id || '', car.team, car.name, S.weekend?.mgr?.season ?? 2026); }
+function tpIdeal(car) { return idealOf(W.def?.id || '', car.team, car.name, S.weekend?.mgr?.season ?? 2026, S.weekend?.wet || 0); }   // (as the day is - practice was run for the forecast)
+/** a car's tyre sets for the weekend, and what practice taught the pit wall about it (race/TeamWeekend.js) */
+function tpSetsOf(car) { const wk = S.weekend; if (!wk) return null; const A = wk.tpSets || (wk.tpSets = {}); return A[car.name] || (A[car.name] = newSets()); }
+function tpKnowOf(car) { const wk = S.weekend; if (!wk) return { tyre: {}, fuel: false }; const A = wk.tpKnow || (wk.tpKnow = {}); return A[car.name] || (A[car.name] = { tyre: {}, fuel: false }); }
+const tpLifeK = (c) => (tpKnowOf(c).tyre[c.tyres.compound] ? 1 : lifeBias(W.def?.id, c.name, c.tyres.compound, S.weekend?.mgr?.round ?? 0));
+/** the set a car has just had fitted, out of its allocation: its wear onto the tyres */
+function tpFitSet(c) { const w = fitSet(tpSetsOf(c), c.tyres.compound); c.tyres.wear = Math.max(c.tyres.wear, w == null ? 0.35 : w); return w; }
 /** the set-up on the team principal's cars (a field just built) -> the cars */
 function tpApplySetup(cars) {
   for (const c of cars) {
     if (c.team !== settings.tpTeam) continue;
-    const st = tpSetupOf(c), sat = satisfaction(st.x, tpIdeal(c)), e = setupEffect(sat);
+    // (never touched - no practice this weekend, no set-up kept from a visit before: the base set-up the team arrived
+    //  with, 60 %, neither a gain nor a loss)
+    const wk = S.weekend, touched = !!wk?.tpSetup?.[c.name] || !!wk?.mgr?.setupBook?.[W.def?.id]?.[c.careerId];
+    const st = tpSetupOf(c), sat = touched ? satisfaction(st.x, tpIdeal(c)) : 0.6, e = setupEffect(sat);
     c.perf *= e.perf; c.baseWear = (c.baseWear || 1) * e.wear; c.wearMul = (c.wearMul || 1) * e.wear; if (c.tyres) c.tyres.wearMul = c.wearMul; c.setupSat = sat;
   }
   return cars;
@@ -192262,13 +193278,16 @@ function tpSetupLine() {
 function tpSetup() {
   const wk = S.weekend, mine = tpCars(wk.cars);
   showSetup({ trackName: W.track.def.name, track: W.def.id, season: wk.mgr?.season ?? 2026, k: wk.mgr ? facFx(wk.mgr, 'dil').setupK : 1,
+    wet: weatherWetness(settings.weather), QUALI, useSet,
+    crew: wk.mgr ? { left: () => 3 - (wk.mgr.crew?.practice || 0), practise: () => { const t = crewPractise(wk.mgr); wk.mgr.save(); return t; } } : null,
     note: wk.mgr ? 'What you run here is kept for the next visit.' : '',
-    cars: mine.map((c) => { const st = tpSetupOf(c); return { name: c.name, color: c.color, team: c.team, x: st.x, runs: st.runs }; }),
+    cars: mine.map((c) => { const st = tpSetupOf(c); return { name: c.name, color: c.color, team: c.team, x: st.x, runs: st.runs, k: wk.mgr && c.careerId ? engineerFx(wk.mgr, c.careerId).setupK : 1, sets: tpSetsOf(c), know: tpKnowOf(c), quali: wk.tpQuali?.[c.name] }; }),
     onDone: (res) => {
       wk.tpSetup = wk.tpSetup || {};
       for (const r of res) {
         const car = mine.find((c) => c.name === r.name), fb = r.runs ? r.sat : null;
         wk.tpSetup[r.name] = { x: r.x, runs: r.runs, shown: fb };
+        (wk.tpKnow || (wk.tpKnow = {}))[r.name] = r.know; (wk.tpQuali || (wk.tpQuali = {}))[r.name] = r.quali;
         if (wk.mgr && car?.careerId) { const B = wk.mgr.setupBook || (wk.mgr.setupBook = {}); (B[W.def.id] || (B[W.def.id] = {}))[car.careerId] = r.x.slice(); }
       }
       if (wk.mgr) wk.mgr.save();
@@ -192282,6 +193301,8 @@ function tpQuali(watch) {
   const wk = S.weekend, wet = wk.wet;
   $('quali-panel').classList.add('hidden');
   for (const c of wk.cars) c.fitTyres(wet > 0.5 ? 'WET' : wet > 0.2 ? 'INTER' : 'SOFT');
+  // (the qualifying plans - one run or two, early or late, a tow - onto your cars; the sets they use: race/TeamWeekend.js)
+  { const mine = tpCars(wk.cars); for (const c of mine) tpSetsOf(c); wk.qualiLines = applyQuali(mine, wk.tpQuali, wk.tpSets); }
   makeDirector('quali', wk.cars, null, {
     spectate: tpCars(wk.cars)[0],
     onFinish: () => {
@@ -192303,7 +193324,7 @@ function tpQuali(watch) {
         all.forEach((e, i) => { html += `<tr class="${e.car.team === settings.tpTeam ? 'me' : ''}"><td>${i + 1}</td><td><span class="sw" style="background:${e.car.color}"></span>${htmlEsc(e.car.name)}</td><td>${fmtTime(e.time)}</td><td>${i === 0 ? '' : isFinite(e.time) ? '+' + (e.time - all[0].time).toFixed(3) : 'no time'}</td></tr>`; });
         $('quali-results').innerHTML = html + '</table>';
         const mine = all.map((e, i) => (e.car.team === settings.tpTeam ? `${surname(e.car.name)} P${i + 1}` : null)).filter(Boolean);
-        $('quali-info').textContent = `${settings.tpTeam}: ${mine.join(', ')}.${wk.penText || ''} The race next, from the pit wall.`;
+        $('quali-info').textContent = `${settings.tpTeam}: ${mine.join(', ')}.${wk.qualiLines?.length ? ` ${wk.qualiLines.join(' ')}` : ''}${wk.penText || ''} The race next, from the pit wall.`;
         $('btn-quali-go').classList.add('hidden'); $('btn-practice').classList.add('hidden'); $('btn-quali-sim').classList.add('hidden'); $('btn-quali-done').classList.remove('hidden'); $('quali-panel').classList.remove('hidden');
         endSession();
       });

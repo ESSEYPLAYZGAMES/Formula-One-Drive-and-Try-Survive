@@ -44,6 +44,7 @@ const CSS = `
 #pw .grp > span { font: 700 8.5px/1 var(--tvf); letter-spacing: .14em; color: #8b95a3; margin-right: 3px; }
 #pw .cmp button { width: 20px; padding: 2px 0; text-align: center; border-color: var(--tc); }
 #pw .cmp button.on { background: var(--tc); color: #111; }
+#pw .cmp button[data-n]::after { content: attr(data-n); font-size: 7px; vertical-align: super; margin-left: 1px; opacity: .8; }
 #pw .pgs { display: inline-flex; gap: 2px; margin-left: 6px; flex: none; } #pw .pgs button { padding: 1px 6px; font-size: 9px; }
 #pw .car[data-pg="drive"] .pg-race, #pw .car[data-pg="drive"] .pg-car, #pw .car[data-pg="race"] .pg-drive, #pw .car[data-pg="race"] .pg-car, #pw .car[data-pg="car"] .pg-drive, #pw .car[data-pg="car"] .pg-race { display: none; }
 #pw .alert { display: none; align-items: center; gap: 6px; background: rgba(255,176,0,.16); border: 1px solid rgba(255,176,0,.5); border-radius: 5px; padding: 2px 6px; font-size: 10.5px; } #pw .alert.on { display: flex; } #pw .alert span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -200,8 +201,8 @@ export class PitWall {
       const u = card.querySelector('.wear u'); u.style.transform = `scaleX(${(1 - wear).toFixed(3)})`; u.style.background = wear > CLIFF ? '#e10600' : wear > 0.5 ? '#ffd400' : '#2fbf4f';
       // (laps to the cliff at the rate this set is wearing: the AI's measure of its last lap, else the nominal rate)
       const per = c.ai?._wPerLap > 0 && c.ai._wTyres === t ? c.ai._wPerLap : 1 / Math.max(1, cliffLaps(comp, c.raceLaps) / CLIFF);
-      const toCliff = Math.max(0, (CLIFF - wear) / Math.max(1e-4, per));
-      this.setText(card.querySelector('.wp'), `${Math.round(wear * 100)}%${!c.retired && racing ? ` · cliff ${wear >= CLIFF ? 'NOW' : `~${toCliff < 10 ? toCliff.toFixed(1) : Math.round(toCliff)} laps`}` : ''}`);
+      const kb = st.lifeK ? st.lifeK(c) : 1, toCliff = Math.max(0, (CLIFF - wear) / Math.max(1e-4, per)) * kb, sure = kb === 1;   // (lifeK: without a tyre run in practice the pit wall's idea of the life is off - race/TeamWeekend.js)
+      this.setText(card.querySelector('.wp'), `${Math.round(wear * 100)}%${!c.retired && racing ? ` · cliff ${wear >= CLIFF ? 'NOW' : `~${toCliff < 10 ? toCliff.toFixed(sure ? 1 : 0) : Math.round(toCliff)} laps${sure ? '' : '?'}`}` : ''}`);
       card.querySelector('.wp').className = `wp${wear > 0.6 ? ' warnc' : ''}`;
       const last = c.lapTimes?.[c.lapTimes.length - 1];
       this.setText(card.querySelector('.lt'), `LAST ${fmtLap(last)} · BEST ${fmtLap(c.bestLap)}`);
@@ -215,13 +216,15 @@ export class PitWall {
       // fuel: what is in the car against what the rest of the race needs at the standard mixture, in laps (+: a margin)
       if (c.fuel != null) {
         const fu = card.querySelector('.fu'), dl = st.fuelDelta?.(c) ?? 0;
-        this.setText(fu, `FUEL ${c.fuel.toFixed(1)} kg · ${dl >= 0 ? '+' : ''}${dl.toFixed(1)} lap${Math.abs(dl) === 1 ? '' : 's'}`); fu.className = `fu${dl < -0.15 ? ' dmg' : dl < 0.1 ? ' warnc' : ''}`;
+        const fk = st.fuelSure ? st.fuelSure(c) : true;
+        this.setText(fu, `FUEL ${c.fuel.toFixed(1)} kg · ${fk ? '' : '~'}${dl >= 0 ? '+' : ''}${dl.toFixed(1)} lap${Math.abs(dl) === 1 ? '' : 's'}`); fu.className = `fu${dl < -0.15 ? ' dmg' : dl < 0.1 ? ' warnc' : ''}`;
       }
       card.querySelector('[data-g="fload"]').style.display = m.preRace && c.fuel != null ? '' : 'none';
       this.mark(card, '[data-a="strat"]', (b) => b.dataset.v === (m.calls || (m.manual ? 'you' : 'ai')));
       m.preRace = !racing && !d.leaderFinished;
       this.setText(card.querySelector('.cl'), m.preRace ? 'START ON' : 'BOX FOR');
       this.mark(card, '[data-a="cmp"]', (b) => b.dataset.v === (m.preRace ? comp : m.next));
+      if (st.sets) { const S = st.sets(c); if (S) for (const b of card.querySelectorAll('[data-a="cmp"]')) { const n = String((S[b.dataset.v] || []).length); if (b.dataset.n !== n) b.dataset.n = n; } }
       const bx = card.querySelector('.bx'), inLane = c.pitLane || c.inPit;
       bx.disabled = c.retired || c.finished || m.preRace || (inLane && !c.pitRequested) || d.done;
       this.setText(bx, inLane ? 'IN PIT' : c.pitRequested ? 'STAY OUT' : 'BOX');
