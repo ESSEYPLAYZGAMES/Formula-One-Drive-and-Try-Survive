@@ -72,7 +72,7 @@ export function engineFx(c, t) {
 export const isWorks = (c, team = c.myTeam) => Object.values(SUPPLIERS).some((S) => S.works === team);
 
 // ---- the tunnel's hours ------------------------------------------------------------------------------------------------
-export const atrAllowance = (c) => Math.round(ATR_BASE * atrFactor(c, c.myTeam));
+export const atrAllowance = (c) => Math.round(ATR_BASE * atrFactor(c, c.myTeam) * (c.story?.flags?.atrMul || 1));   // (less after a cost-cap breach: career/ManagerStory.js)
 export const atrCost = (lvl) => 10 + 4 * lvl;
 export const atrLeft = (c) => atrAllowance(c) - (c.atr?.used || 0);
 /** may this level be started -> null, or why not (the cost cap first: career/Manager.js capCheck) */

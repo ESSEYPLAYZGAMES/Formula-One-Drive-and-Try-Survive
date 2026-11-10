@@ -310,7 +310,7 @@ export function trophyRoom(k, T, items, o = {}) {
     if (it.kind === 'cup') { k.cyl(0.13, 0.16, 0.06, k.m('#17181c', 0.4), x, 1.03, z, 20); k.cyl(0.03, 0.06, 0.2, mt, x, 1.16, z, 14); k.cyl(0.19, 0.06, 0.34, mt, x, 1.43, z, 22); for (const s of [-1, 1]) { const h = new k.THREE.Mesh(k.own(new k.THREE.TorusGeometry(0.09, 0.014, 8, 16, PI)), mt); h.position.set(k.org.x + x + s * 0.19, 1.45, k.org.z + z); h.rotation.z = -s * PI / 2; k.S.add(h); } }
     else if (it.kind === 'plate') { const d = k.cyl(0.3, 0.3, 0.025, mt, x, 1.36, z, 36); d.rotation.x = PI / 2 - 0.25; k.cyl(0.02, 0.02, 0.3, k.m('#17181c', 0.4), x, 1.15, z - 0.05, 8); }
     else if (it.kind === 'helmet') { const h = k.ball(0.17, k.m(it.color || T.color, 0.25, 0.3), x, 1.2, z); h.scale.set(1.1, 1, 1); k.box(0.2, 0.07, 0.3, k.m('#111318', 0.1, 0.6), x, 1.22, z + 0.1); }
-    else { k.box(1.5, 1.0, 0.05, k.m('#0d0e11', 0.5), x, 1.9, -2.96); k.screen(1.4, 0.9, it.paint || paintTable(it.title || '', [], T.color), x, 1.9, -2.92, 0, 0.9, 512); }
+    else { k.box(1.5, 1.0, 0.05, k.m('#0d0e11', 0.5), x, 1.9, -2.96); k.screen(1.4, 0.9, it.paint || paintTable(it.title || '', it.rows || [], T.color, { min: 3 }), x, 1.9, -2.92, 0, 0.9, 512); }
     const board = it.kind === 'board';
     stations.push({ p: [x + 0.9, board ? 1.8 : 1.5, z + (board ? 3.4 : 2.3)], l: [x, board ? 1.85 : 1.3, board ? -2.9 : z], f: board ? 30 : 24, kicker: it.kicker, title: it.title, text: it.text });
   });
