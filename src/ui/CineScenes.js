@@ -6,13 +6,16 @@
 // The set pieces are here; the drama's scenes are in CineScenes2.js.
 import * as SETS from './CineSets.js';
 import { paintTable, paintHeadline, paintIncident } from './CineSets.js';
+import { baseLook } from '../world/People.js';
 
 const PI = Math.PI;
 export const surname = (n) => String(n || '').trim().split(/\s+/).pop() || '';
 /** people's options (world/People.js): a driver in the team's race suit, staff in its polo, someone in a jacket */
 export const drv = (d, T, pose = 'talk', ex = {}) => ({ pose, kit: 'suit', color: T.color, accent: T.color2 || '#ffffff', cap: true, driver: d.name, teamName: T.name, ...ex });
-export const staff = (name, T, pose = 'talk', ex = {}) => ({ pose, kit: 'polo', color: T.color, accent: T.color2 || '#ffffff', teamName: T.name, seed: `staff|${name}`, build: 'average', ...ex });
-export const suit = (name, pose = 'talk', ex = {}) => ({ pose, kit: 'jacket', color: '#1c2333', accent: '#e9e9ec', legs: '#1a1c22', seed: `suit|${name}`, build: 'average', ...ex });
+/** the same face each time for a name (People draws skin and hair at random unless told) */
+const look = (id) => { const B = baseLook(id); return { seed: id, skin: B.skin, hair: B.hair, style: B.style }; };
+export const staff = (name, T, pose = 'talk', ex = {}) => ({ pose, kit: 'polo', color: T.color, accent: T.color2 || '#ffffff', teamName: T.name, ...look(`staff|${name}`), build: 'average', ...ex });
+export const suit = (name, pose = 'talk', ex = {}) => ({ pose, kit: 'jacket', color: '#1c2333', accent: '#e9e9ec', legs: '#1a1c22', ...look(`suit|${name}`), build: 'average', ...ex });
 /** a line: who says it, what, their colour */
 export const say = (who, text, c = null) => ({ who, text, c });
 /** something animated from now for `dur` seconds: fn(u 0..1) */
@@ -30,7 +33,7 @@ const base = (ctx) => ({ T: ctx.T || T0, D: ctx.drivers && ctx.drivers.length ? 
  */
 export function launch(ctx) {
   const { T, D } = base(ctx);
-  return { id: 'launch', kicker: `${T.name} · Season ${ctx.season || ''}`, title: 'The new car', sub: 'Launch night', accent: T.color, bg: '#040508', fog: [18, 46], exposure: 1.05, needsCar: true, sound: { name: 'crowd', gain: 0.18 },
+  return { id: 'launch', fill: 0.35, kicker: `${T.name} · Season ${ctx.season || ''}`, title: 'The new car', sub: 'Launch night', accent: T.color, bg: '#040508', fog: [18, 46], exposure: 1.05, needsCar: true, sound: { name: 'crowd', gain: 0.18 },
     build(k) {
       k.env(0.9, 0.3);
       const sponsors = (ctx.sponsors || []).slice(0, 4);
@@ -63,4 +66,19 @@ export function launch(ctx) {
     } };
 }
 
-export const SCENES = { launch };
+export const SET_PIECES = { launch };
+
+// ---- the camera's grammar: framings worked out from where the actors stand ---------------------------------------------
+/** an actor's head (a.hY: its height above their feet - lower seated) */
+export const hd = (a) => [a.g.position.x, a.g.position.y + (a.hY ?? 1.62), a.g.position.z];
+/** a close-up: `dist` from the head, `ang` round from straight ahead of them (+ to their left), a long lens */
+export const cu = (a, o = {}) => { const h = hd(a), yaw = a.yaw + (o.ang ?? 0.35), d = o.dist ?? 2.3; return { p: [h[0] + Math.sin(yaw) * d, h[1] + (o.up ?? 0.03), h[2] + Math.cos(yaw) * d], l: [h[0], h[1] - (o.drop ?? 0.06), h[2]], f: o.f ?? 16 }; };
+/** over a's shoulder at b: a's shoulder soft in the foreground, b sharp */
+export const ots = (a, b, o = {}) => { const A = hd(a), B = hd(b), dx = B[0] - A[0], dz = B[2] - A[2], L = Math.hypot(dx, dz) || 1, ux = dx / L, uz = dz / L, s = o.side ?? 1, back = o.back ?? 0.95; return { p: [A[0] - ux * back - uz * 0.42 * s, A[1] + (o.up ?? 0.1), A[2] - uz * back + ux * 0.42 * s], l: [B[0], B[1] - 0.05, B[2]], f: o.f ?? 22, focus: B }; };
+/** the two of them in one frame, from the side (s: which) */
+export const two = (a, b, o = {}) => { const A = hd(a), B = hd(b), mx = (A[0] + B[0]) / 2, mz = (A[2] + B[2]) / 2, dx = B[0] - A[0], dz = B[2] - A[2], L = Math.hypot(dx, dz) || 1, s = o.side ?? 1, d = o.dist ?? Math.max(3.2, L * 2.2); return { p: [mx - dz / L * d * s + (o.slide ?? 0) * dx / L, (A[1] + B[1]) / 2 + (o.up ?? -0.1), mz + dx / L * d * s + (o.slide ?? 0) * dz / L], l: [mx, (A[1] + B[1]) / 2 - 0.1, mz], f: o.f ?? 26 }; };
+/** a framing moved a little for a shot's end: a creep toward what it looks at (k: how far), a slide sideways */
+export const creep = (sh, kq = 0.12, side = 0) => { const dx = sh.l[0] - sh.p[0], dy = sh.l[1] - sh.p[1], dz = sh.l[2] - sh.p[2], L = Math.hypot(dx, dz) || 1; return { ...sh, p2: [sh.p[0] + dx * kq - dz / L * side, sh.p[1] + dy * kq, sh.p[2] + dz * kq + dx / L * side] }; };
+/** you: the team principal, in the team's colours - seen from behind, over a shoulder, never named */
+export const youOpts = (T, pose = 'talk') => ({ pose, kit: 'polo', color: T.color, accent: T.color2 || '#ffffff', teamName: T.name, ...look('the-principal'), build: 'average' });
+export const seated = (a, y = 1.27) => { if (a) a.hY = y; return a; };

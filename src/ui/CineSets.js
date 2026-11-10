@@ -97,7 +97,7 @@ export function garage(k, T, o = {}) {
   // outside: the pit lane, the pit wall's fence, the sky
   k.floor(60, 14, k.m(o.night ? '#23262d' : '#5d6168', 0.85), -0.01, 0, 12); k.box(60, 1.0, 0.3, k.m('#c9ccd1', 0.8), 0, 0.5, 17); k.box(60, 2.4, 0.04, k.m('#3d424b', 0.6, 0.4, { transparent: true, opacity: 0.35 }), 0, 2.2, 17).castShadow = false;
   backdrop(k, 120, 40, 0, 14, 40, PI, o.night ? '#05070f' : '#6fa3dc', o.night ? '#141a2e' : '#cfe1f2', o.night);
-  k.light.hemi(0xffffff, 0x5a5f68, o.night ? 0.55 : 0.8); k.light.key(0xffffff, o.night ? 1.5 : 1.9, [3.5, 9, 6], [0, 0, -0.5], true, 9);
+  k.light.hemi(0xffffff, 0x8a8f98, o.night ? 0.9 : 1.25); k.light.key(0xffffff, o.night ? 1.3 : 1.7, [3.5, 9, 6], [0, 0, -0.5], true, 9); k.light.key(0xfff1e0, 0.7, [-6, 3, 9], [0, 1.4, 2], false);
   k.light.point(col, 14, [-5.5, 2.4, -3.8], 9); k.light.point(col, 14, [5.5, 2.4, -3.8], 9); k.light.point(0xdfe8ff, 10, [0, 3.6, 0.5], 12);
   return { car: [0, 0, 0.3], carFace: 0, screens: scr, col };
 }
@@ -257,7 +257,7 @@ export function paddock(k, T, o = {}) {
 }
 /**
  * The factory, four halls in a row along x (each 12 m, centred on x = 0, 12, 24, 36): the design office and machine
- * shop, the wind tunnel and its model, the simulator, the pit crew's practice bay. lv: { factory, hosp, dil, pitc }
+ * shop, the partners' lounge, the simulator, the pit crew's practice bay. o: { sponsors }. lv: { factory, hosp, dil, pitc }
  * (1..5: how much stands in each - a level not yet built is a taped outline on the floor). -> { bays }
  */
 export function factory(k, T, lv = {}, o = {}) {
@@ -265,7 +265,7 @@ export function factory(k, T, lv = {}, o = {}) {
   k.floor(56, 16, k.m('#aeb2b9', 0.3, 0.05), 0, 18, 0); k.box(56, 8, 0.3, k.m('#e6e8ec', 0.8), 18, 4, -8.1); k.box(56, 0.3, 16.4, k.m('#22252b', 0.9), 18, 8.1, 0).castShadow = false; k.box(0.3, 8, 16, k.m('#e6e8ec', 0.8), -10, 4, 0); k.box(0.3, 8, 16, k.m('#e6e8ec', 0.8), 46, 4, 0);
   k.floor(56, 0.3, k.m(col, 0.5), 0.004, 18, 5.5); k.floor(56, 0.12, k.m('#ffd400', 0.5), 0.004, 18, 4.9);
   for (let x = -6; x <= 42; x += 6) { strip(k, x, 7.8, -2, 4.4, false, '#f4f7ff', 2.4); strip(k, x, 7.8, 3, 4.4, false, '#f4f7ff', 2.4); k.box(0.25, 8, 0.25, k.m('#c9ccd1', 0.5, 0.4), x + 3, 4, -7.8); }
-  const names = { factory: 'DESIGN & MANUFACTURING', hosp: 'WIND TUNNEL', dil: 'SIMULATOR', pitc: 'PIT STOP PRACTICE' };
+  const names = { factory: 'DESIGN & MANUFACTURING', hosp: 'HOSPITALITY', dil: 'SIMULATOR', pitc: 'PIT CREW CENTRE' };
   const tape = (x, z, w, d, lab) => { for (const [a, b, c, e] of [[x, z - d / 2, w, 0.08], [x, z + d / 2, w, 0.08], [x - w / 2, z, 0.08, d], [x + w / 2, z, 0.08, d]]) k.floor(c, e, k.m('#ffd400', 0.6), 0.006, a, b); k.sign(w * 0.7, 0.5, k.letters([[lab, 60, '#ffd400', 800]], null), x, 0.012, z, 0, 512, { transparent: true }).rotation.x = -PI / 2; };
   ['factory', 'hosp', 'dil', 'pitc'].forEach((id, i) => k.sign(7, 0.8, k.letters([[names[id], 84, ink(col), 800], [`LEVEL ${L(id)}`, 44, ink(col), 600]], col), i * 12, 6.4, -7.9, 0, 1024));
   // hall 1: desks with CAD screens (two per level), a five-axis mill and an autoclave from level 3
@@ -273,12 +273,12 @@ export function factory(k, T, lv = {}, o = {}) {
   for (let i = 0; i < 5; i++) { const dx = -4 + (i % 3) * 3.4, dz = -5.2 + Math.floor(i / 3) * 2.6; if (i < f) { table(k, 2.6, 0.9, dx, dz, 0.75, '#e9ebee'); for (const s of [-0.6, 0.6]) { k.box(0.6, 0.4, 0.04, k.m('#0d0e11', 0.5), dx + s, 1.12, dz - 0.25); k.screen(0.56, 0.36, (x, W, H) => { x.fillStyle = '#0f1420'; x.fillRect(0, 0, W, H); x.strokeStyle = col; x.lineWidth = 2; x.beginPath(); for (let q = 0; q < 14; q++) { x.moveTo(W * 0.1, H * (0.2 + q * 0.045)); x.bezierCurveTo(W * 0.4, H * (0.1 + k.rnd() * 0.5), W * 0.6, H * (0.4 + k.rnd() * 0.4), W * 0.92, H * (0.5 + q * 0.02)); } x.stroke(); }, dx + s, 1.12, dz - 0.22, 0, 1.1, 256); chair(k, dx + s, dz + 0.7, PI, '#2a2d33'); } } else tape(dx, dz, 2.8, 1.6, `PHASE ${i + 1}`); }
   if (f >= 3) { k.box(2.4, 2.6, 2.2, k.m('#d7dade', 0.35, 0.5), -5.5, 1.3, 1.5); k.box(1.2, 1.2, 0.05, k.m('#20242c', 0.1, 0.5, { transparent: true, opacity: 0.6 }), -5.5, 1.5, 2.63); } else tape(-5.5, 1.5, 2.6, 2.4, 'FIVE-AXIS MILL');
   if (f >= 4) { const a = k.cyl(1.2, 1.2, 4.2, k.m('#c9ccd1', 0.3, 0.7), 2.5, 1.4, 1.5, 28); a.rotation.z = PI / 2; } else tape(2.5, 1.5, 4.4, 2.6, 'AUTOCLAVE');
-  // hall 2: the tunnel - a contraction, the working section in glass with the model in it, the fan
-  const w = L('hosp'); k.box(6.5, 3.2, 3.4, k.m('#20242c', 0.1, 0.4, { transparent: true, opacity: 0.28 }), 12, 1.9, -2); k.box(6.7, 0.25, 3.6, k.m('#2a2d33', 0.5), 12, 0.25, -2); k.box(6.7, 0.2, 3.6, k.m('#2a2d33', 0.5), 12, 3.6, -2);
-  const cone = k.cyl(2.6, 1.7, 3.2, k.m('#d7dade', 0.4, 0.5), 7.2, 1.9, -2, 24); cone.rotation.z = PI / 2; const fan = k.cyl(1.9, 1.9, 0.5, k.m('#17181c', 0.5, 0.5), 16.4, 1.9, -2, 24); fan.rotation.z = PI / 2;
-  const blades = []; for (let i = 0; i < (w >= 2 ? 8 : 4); i++) { const b = k.box(0.06, 1.7, 0.34, k.m('#8a8f98', 0.3, 0.8), 16.1, 1.9, -2); b.geometry.translate(0, 0.85, 0); b.rotation.x = i / (w >= 2 ? 8 : 4) * 6.283; blades.push(b); }
-  k.each((t) => blades.forEach((b, i) => { b.rotation.x = i / blades.length * 6.283 + t * (2 + w); }));
-  for (let i = 0; i < 4; i++) { if (i < w - 1) { table(k, 1.8, 0.8, 9.4 + i * 2.1, 3, 0.75, '#e9ebee'); k.box(0.7, 0.45, 0.04, k.m('#0d0e11', 0.5), 9.4 + i * 2.1, 1.14, 2.8); k.screen(0.66, 0.41, paintTable('CFD', [{ a: '', b: 'Cz', c: (3.1 + w * 0.12 + i * 0.01).toFixed(2) }, { a: '', b: 'Cx', c: (1.02 - w * 0.02).toFixed(2) }, { a: '', b: 'L/D', c: (3 + w * 0.2).toFixed(2) }], col, { min: 3 }), 9.4 + i * 2.1, 1.14, 2.83, 0, 1.1, 256); } else tape(9.4 + i * 2.1, 3, 1.9, 1.2, 'RIG'); }
+  // hall 2: hospitality - the partners' lounge: sofas and tables (more with each level), the bar, the wall of names
+  const w = L('hosp'); k.floor(10.5, 9, k.m('#3a2f28', 0.7), 0.006, 12, -2.5);
+  k.sign(8, 1.6, (x, W, H) => { x.fillStyle = '#17181c'; x.fillRect(0, 0, W, H); x.textAlign = 'center'; x.textBaseline = 'middle'; const N = (o.sponsors && o.sponsors.length ? o.sponsors : ['YOUR PARTNERS HERE']).slice(0, 6); N.forEach((n, i2) => { x.font = `800 ${H * 0.16}px ${FONT}`; x.fillStyle = i2 % 2 ? '#d9b04a' : '#ffffff'; x.fillText(String(n).toUpperCase().slice(0, 16), W * (0.2 + (i2 % 3) * 0.3), H * (0.32 + Math.floor(i2 / 3) * 0.36)); }); }, 12, 3.2, -7.9, 0, 1024);
+  k.box(5, 1.1, 0.7, k.m('#1b1d22', 0.4, 0.2), 12, 0.55, -6.6); k.box(5.1, 0.05, 0.8, k.m('#d9b04a', 0.3, 0.8), 12, 1.12, -6.6); k.box(5, 0.9, 0.2, k.glow(col, 1.2), 12, 1.9, -7.6).castShadow = false; for (let i = 0; i < 4 + w * 2; i++) k.cyl(0.035, 0.035, 0.26, k.m(['#9fd0e8', '#6a8a4a', '#b0703a'][i % 3], 0.2, 0.1), 9.9 + i * 0.32, 1.28, -6.75, 8);
+  for (let i = 0; i < 5; i++) { const sx = 8.2 + (i % 3) * 3.6, sz = -3.4 + Math.floor(i / 3) * 3.4; if (i < w) { k.box(2.0, 0.42, 0.85, k.m('#e7e2d6', 0.9), sx, 0.25, sz); k.box(2.0, 0.5, 0.2, k.m('#e7e2d6', 0.9), sx, 0.6, sz - 0.4); k.cyl(0.4, 0.4, 0.04, k.m('#3a2a1e', 0.4), sx, 0.45, sz + 1.1, 20); k.cyl(0.04, 0.2, 0.42, k.m('#17181c', 0.5), sx, 0.22, sz + 1.1, 10); } else tape(sx, sz + 0.3, 2.4, 2.2, `SUITE ${i + 1}`); }
+  for (const sx of [9, 12, 15]) { k.box(0.5, 0.04, 0.5, k.glow('#ffe2b0', 2), sx, 5.2, -2.5).castShadow = false; k.light.point(0xffd9a0, 8, [sx, 4.8, -2.5], 9); }
   // hall 3: the simulator - the tub on its legs, the screen wrapped round it; the operators' desk
   const s = L('dil'); k.cyl(1.6, 1.9, 0.3, k.m('#2a2d33', 0.5, 0.4), 24, 0.15, -2, 24);
   for (let i = 0; i < 6; i++) { const a = i / 6 * 6.283, l = k.cyl(0.07, 0.07, 1.3, k.m('#c9ccd1', 0.3, 0.8), 24 + Math.cos(a) * 1.0, 0.85, -2 + Math.sin(a) * 1.0, 8); l.rotation.z = Math.cos(a) * 0.35; l.rotation.x = -Math.sin(a) * 0.35; }

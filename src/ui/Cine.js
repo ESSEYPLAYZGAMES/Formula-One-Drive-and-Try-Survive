@@ -108,7 +108,7 @@ function makeKit(R, S, cam, def, o) {
   const k = { R, S, cam, rnd, o, actors, THREE, FONT, t: 0, org: new THREE.Vector3() };
   /** where the next things are built (a second set, far from the first, in the one scene); shots(list): those shots moved there too */
   k.at = (x = 0, y = 0, z = 0) => { k.org.set(x, y, z); return k; };
-  k.shots = (list) => { const O = k.org.clone(), mv = (a) => (a ? [a[0] + O.x, a[1] + O.y, a[2] + O.z] : a); return list.filter(Boolean).map((sh) => ({ ...sh, p: mv(sh.p), l: mv(sh.l), p2: mv(sh.p2), l2: mv(sh.l2) })); };
+  k.shots = (list) => { const O = k.org.clone(), mv = (a) => (a ? [a[0] + O.x, a[1] + O.y, a[2] + O.z] : a); return list.filter(Boolean).map((sh) => ({ ...sh, p: mv(sh.p), l: mv(sh.l), p2: mv(sh.p2), l2: mv(sh.l2), focus: mv(sh.focus), focus2: mv(sh.focus2) })); };
   k.own = (x) => { own.push(x); return x; };
   k.add = (x, parent = S) => { parent.add(x); return x; };
   /** a standard material (shared by its look) */
@@ -284,6 +284,8 @@ export function playCine(def, o = {}) {
     let comp = null, bokeh = null;
     if (!o.lite && def.dof !== false) { try { comp = new EffectComposer(R); comp.addPass(new RenderPass(S, cam)); bokeh = new BokehPass(S, cam, { focus: 5, aperture: 0.0008, maxblur: 0.007 }); comp.addPass(bokeh); comp.addPass(new OutputPass()); } catch (e) { comp = null; bokeh = null; } }
     const focusAt = new THREE.Vector3();
+    // (a lamp by the lens: a little light on whatever the shot looks at, so a face in a dim room still reads)
+    const eye = new THREE.PointLight(0xfff4e8, 0, 0, 2); S.add(eye);
     const draw = (sh) => {
       if (!comp || sh?.dof === 0) { R.render(S, cam); return; }
       // (sharp at what the shot looks at, or at its own focus - pulled from one subject to another over the shot;
@@ -323,7 +325,7 @@ export function playCine(def, o = {}) {
       hud.className = 'hud' + (sh.hud ? ` on ${sh.hud}` : '');
       if (sh.hud) { const T = sh.hudText || {}; hud.querySelector('.tl').innerHTML = sh.hud === 'cctv' ? `<span class="rec">REC</span> ${esc(T.tl || 'CAM 04')}` : esc(T.tl || 'REPLAY'); hud.querySelector('.tr').textContent = T.tr || ''; hud.querySelector('.bl').textContent = T.bl || ''; }
       cv.style.filter = GRADE[sh.grade || def.grade || 'neutral'] || 'none';
-      try { sh.on?.(k); } catch (e) { console.warn('[cine] shot', e); }
+      try { sh.on?.(k, res); } catch (e) { console.warn('[cine] shot', e); }
       if (sh.sfx && o.audio) { try { sh.sfx(o.audio); } catch (e) { /* no sound */ } }
     };
     const askEl = $('.ask'), qEl = $('.qte');
@@ -384,6 +386,7 @@ export function playCine(def, o = {}) {
     };
     const askChoice = () => {
       if (held) return; held = true; sub.classList.remove('on'); low.classList.remove('on');
+      if (typeof choice === 'function') { try { choice = choice(res); } catch (e) { choice = null; } if (!choice) { held = false; picked = '-'; finish(); return; } }
       const box = $('.choice'); box.querySelector('h4').textContent = choice.prompt || '';
       box.querySelector('.ops').innerHTML = choice.options.map((x, n) => `<button data-c="${esc(x.id)}"><kbd>${n + 1}</kbd>${esc(x.label)}${x.hint ? `<small>${esc(x.hint)}</small>` : ''}</button>`).join('');
       box.classList.add('on'); $('.skip').style.display = 'none';
@@ -425,6 +428,7 @@ export function playCine(def, o = {}) {
       cam.position.copy(pA); cam.fov = f; const roll = (sh.roll || 0) + (sh.roll2 != null ? (sh.roll2 - (sh.roll || 0)) * e : 0) + Math.sin(t * 0.9 + i) * 0.004 * hh;
       up.set(Math.sin(roll), Math.cos(roll), 0); cam.up.copy(up); cam.lookAt(lA); lookNow.copy(lA); cam.updateProjectionMatrix();
       if (sh.focus) { focusAt.set(sh.focus[0], sh.focus[1], sh.focus[2]); if (sh.focus2) focusAt.lerp(V(sh.focus2), e); } else focusAt.copy(lA);
+      { const fd = cam.position.distanceTo(focusAt); eye.position.copy(cam.position); eye.position.y += 0.25; eye.intensity = (sh.fill ?? def.fill ?? 1) * 1.1 * fd * fd; }
     };
     const step = (dt) => {
       if (!on) return; t += dt; size();
@@ -464,7 +468,7 @@ export function playCine(def, o = {}) {
           if (qteOn && x >= 1) doneQte(Q.kind === 'time' ? 'miss' : Q._p >= 0.6 ? 'ok' : 'miss');
         }
       }
-      try { sh.run?.(k, clamp(u, 0, 1), t - t0); } catch (e) { /* (a shot's flourish) */ }
+      try { sh.run?.(k, clamp(u, 0, 1), t - t0, res); } catch (e) { /* (a shot's flourish) */ }
       if (!sh.card) frameCam(sh, held ? 1 : u);
       // fades: out of black at the start, through black into a shot marked dip, to black at the very end
       let fo = 0; const into = t - t0, left = sh._cut ? sh._cut - t : sh.d - into, nxi = after(i), nx = nxi >= 0 ? shots[nxi] : null;
@@ -496,7 +500,7 @@ export function playCine(def, o = {}) {
         else enter(ok(shots[0]) ? 0 : Math.max(0, after(0)));
       }, hold);
     };
-    window.__cine = { id: def.id, step, next, finish, skip: skipAll, pick: (id) => { picked = id; finish(); }, answer: (id) => pickAsk(id), press, hold: (v) => { down = !!v; }, res, go, get state() { return { built, i, n: shots.length, t, held, ending, browse: browse?.length || 0, station, choice: choice ? choice.options.map((x) => x.id) : null, ask: askOn ? askOn.ask.options.map((x) => x.id) : null, qte: qteOn ? qteOn.qte.kind : null, sub: sub.classList.contains('on') ? sub.querySelector('p').textContent : '', shots: shots.map((s) => s.d) }; }, jump(n, u = 0.5) { if (!built) return; enter(clamp(n, 0, shots.length - 1)); t0 = t - shots[i].d * u; } };
+    window.__cine = { id: def.id, step, next, finish, skip: skipAll, pick: (id) => { picked = id; finish(); }, answer: (id) => pickAsk(id), press, hold: (v) => { down = !!v; }, res, go, get state() { return { built, i, n: shots.length, t, held, ending, browse: browse?.length || 0, station, choice: choice && choice.options ? choice.options.map((x) => x.id) : choice ? ['?'] : null, ask: askOn ? askOn.ask.options.map((x) => x.id) : null, qte: qteOn ? qteOn.qte.kind : null, sub: sub.classList.contains('on') ? sub.querySelector('p').textContent : '', shots: shots.map((s) => s.d) }; }, jump(n, u = 0.5) { if (!built) return; enter(clamp(n, 0, shots.length - 1)); t0 = t - shots[i].d * u; } };
     size(); requestAnimationFrame((now) => { last = now; requestAnimationFrame(loop); });
     build();
   });
