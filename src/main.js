@@ -2519,9 +2519,9 @@ const _tvq = {}, _tvRay = new THREE.Raycaster(), _tvO = new THREE.Vector3(), _tv
 function tvOccluders() {
   if (W._tvOcc && W._tvOccFor === W.track) return W._tvOcc;
   const out = [];
-  for (const g of [W.buildings, W.landmarks?.group, W.venue?.group, W.pitBoxes?.group, W.stands?.group, W.vegas?.group]) {
+  for (const g of [W.buildings, W.landmarks?.group, W.venue?.group, W.pitBoxes?.group, W.stands?.group, W.vegas?.group, W.scenery?.group]) {   // (scenery: a circuit's own buildings - Silverstone's Wing stood between the helicopter and the pit lane)
     if (!g) continue;
-    g.traverse((o) => { if (!o.isMesh || o.isInstancedMesh || o.isSkinnedMesh || !o.visible || !o.geometry) return; const n = o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position?.count || 0; if (n < 6 || n > 900000) return; if (o.material && (o.material.transparent && (o.material.opacity ?? 1) < 0.5)) return; if (!o.geometry.boundingSphere) o.geometry.computeBoundingSphere(); out.push(o); });
+    g.traverse((o) => { if (!o.isMesh || o.isInstancedMesh || o.isSkinnedMesh || !o.visible || !o.geometry) return; const n = o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position?.count || 0; if (n < 6 || n > 900000) return; if (g === W.scenery?.group) { if (!o.geometry.boundingBox) o.geometry.computeBoundingBox(); const bb = o.geometry.boundingBox.clone().applyMatrix4(o.matrixWorld); if (bb.max.y - bb.min.y < 7) return; } /* (of a circuit's scenery only what stands tall: its buildings, not its fields, tents and signs) */ if (o.material && (o.material.transparent && (o.material.opacity ?? 1) < 0.5)) return; if (!o.geometry.boundingSphere) o.geometry.computeBoundingSphere(); out.push(o); });
   }
   W._tvOcc = out; W._tvOccFor = W.track; return out;
 }
@@ -2532,18 +2532,23 @@ function tvClear(px, py, pz, tx, ty, tz) {
   // (a target off the road itself - a car in the pit lane, in a run-off behind the wall's line: the walls' test is
   //  not for it; the ray still is)
   tr.nearest(tx, tz, -1, _tvq); const onRoad = Math.abs(_tvq.d) <= tr.wallAt(_tvq.i, _tvq.d > 0 ? 1 : -1) + 0.4;
-  let hint = -1;
+  // (heights above the ground where each point is: the circuit is not flat everywhere. A low camera - a slot in the
+  //  fence line, under 4.5 m - may not look across the wall's line at all: beside it the wall and its mesh run on)
+  let hint = -1; const low = py - TERRAIN.at(px, pz) < 4.5;
   for (let d = Math.min(8, L * 0.2); onRoad && d < L - 6; d += 5) {
-    const f = d / L, x = px + dx * f, y = py + dy * f, z = pz + dz * f; if (y > 7.5) continue;
+    const f = d / L, x = px + dx * f, z = pz + dz * f, y = py + dy * f - TERRAIN.at(x, z); if (y > 7.5) continue;
+    if (y < 0.15) return false;   // (the ground itself: a crest between the camera and the car)
     tr.nearest(x, z, hint, _tvq); hint = _tvq.i;
-    const sd = _tvq.d > 0 ? 1 : -1, w = tr.wallAt(_tvq.i, sd); if (!(Math.abs(_tvq.d) > w + 0.4)) continue;
+    const sd = _tvq.d > 0 ? 1 : -1, w = tr.wallAt(_tvq.i, sd); if (!(Math.abs(_tvq.d) > w + (low ? -0.2 : 0.4))) continue;
     if (Math.abs(_tvq.d) > w + 60) continue;   // (far outside the circuit: not this stretch's wall - the buildings' ray answers)
+    if (low) return false;
     const bh = tr.barrierHeight?.(_tvq.i, sd) || 1.1; if (y < bh + 0.3) return false;
   }
   // buildings, the pit building, stands, landmarks
-  const occ = tvOccluders(); if (!occ.length) return true;
+  // (a target off the road - the pit lane: the circuit's own mesh in the ray too - the pit wall, its fence, a gantry)
+  const occ = onRoad ? tvOccluders() : [...tvOccluders(), ...[W.trackMesh, W.fences].filter(Boolean)]; if (!occ.length) return true;
   _tvO.set(px, py, pz); _tvD.set(dx / L, dy / L, dz / L); _tvRay.set(_tvO, _tvD); _tvRay.near = 1.2; _tvRay.far = Math.max(1.3, L - 2.5); _tvRay.camera = camera;
-  try { return _tvRay.intersectObjects(occ, false).length === 0; } catch (e) { return true; }
+  try { return _tvRay.intersectObjects(occ, !onRoad).length === 0; } catch (e) { return true; }
 }
 /**
  * An instant replay (ui/TVExtras.js offers it; taken, it comes here): the race holds, and the seconds around the moment
@@ -2557,14 +2562,14 @@ function tpReplayStart(o) {
   const d = S.director, R = d?.replay; if (!R || TP.rep || R.frames.length < 30 || S.simming) return;
   const t0 = Math.max(R.frames[0].t, o.t - 4.2), F = R.frames.filter((f) => f.t >= t0); if (F.length < 24) return;
   const i = R.cars.indexOf(o.cars[0]), j = o.cars[1] ? R.cars.indexOf(o.cars[1]) : -1; if (i < 0) return;
-  const ke = Math.max(0, Math.min(F.length - 1, F.findIndex((f) => f.t >= o.t))), ex = F[ke].f[i * 7], ez = F[ke].f[i * 7 + 2], tr = W.track;
+  const ke = Math.max(0, Math.min(F.length - 1, F.findIndex((f) => f.t >= o.t))), ex = F[ke].f[i * 7], ez = F[ke].f[i * 7 + 2], ey = F[ke].f[i * 7 + 1] + TERRAIN.at(ex, ez), tr = W.track;
   tr.nearest(ex, ez, -1, _tvq); const s = _tvq.s; let pos = null;
   for (const [sd, ah, h] of [[1, 28, 5.5], [-1, 28, 5.5], [1, -20, 6.5], [-1, -20, 6.5], [1, 45, 11], [-1, 45, 11], [1, 10, 16], [-1, 10, 16]]) {
     const sq = tr.wrapS(s + ah), iq = tr.idxAtS(sq), f = tr.sample(sq, sd * (tr.wallAt(iq, sd) + 0.6));
-    if (tvClear(f.x, h, f.z, ex, 0.8, ez)) { pos = new THREE.Vector3(f.x, h, f.z); break; }
+    const gy = TERRAIN.at(f.x, f.z); if (tvClear(f.x, gy + h, f.z, ex, ey + 0.8, ez)) { pos = new THREE.Vector3(f.x, gy + h, f.z); break; }
   }
-  if (!pos) pos = new THREE.Vector3(ex + 18, 40, ez + 18);   // (nowhere on the ground sees it: from above)
-  TP.rep = { F, i, j, t: 0, k: 0, speed: 0.55, pos, look: new THREE.Vector3(ex, 0.7, ez), init: false };
+  if (!pos) pos = new THREE.Vector3(ex + 18, ey + 40, ez + 18);   // (nowhere on the ground sees it: from above)
+  TP.rep = { F, i, j, t: 0, k: 0, speed: 0.55, pos, look: new THREE.Vector3(ex, ey + 0.7, ez), init: false };
   TP.fx.replaying(true, String(o.text || '').toUpperCase()); audio.quiet?.();
 }
 function tpReplayFrame(dt) {
@@ -2575,12 +2580,14 @@ function tpReplayFrame(dt) {
   const A = F[r.k], B = F[r.k + 1], u = Math.max(0, Math.min(1, (T - A.t) / Math.max(1e-3, B.t - A.t)));
   for (let n = 0; n < cars.length; n++) {
     const m = S.meshes.get(cars[n]); if (!m) continue; const q = n * 7;
-    m.group.position.set(A.f[q] + (B.f[q] - A.f[q]) * u, A.f[q + 1] + (B.f[q + 1] - A.f[q + 1]) * u, A.f[q + 2] + (B.f[q + 2] - A.f[q + 2]) * u);
+    const rx = A.f[q] + (B.f[q] - A.f[q]) * u, rz = A.f[q + 2] + (B.f[q + 2] - A.f[q + 2]) * u;
+    m.group.position.set(rx, A.f[q + 1] + (B.f[q + 1] - A.f[q + 1]) * u + TERRAIN.at(rx, rz), rz);   // (the record is above the ground: the ground under it added, as CarMesh does)
     _rqa.set(A.f[q + 3], A.f[q + 4], A.f[q + 5], A.f[q + 6]); _rqb.set(B.f[q + 3], B.f[q + 4], B.f[q + 5], B.f[q + 6]); m.group.quaternion.copy(_rqa).slerp(_rqb, u);
   }
   const at = (n) => [A.f[n * 7] + (B.f[n * 7] - A.f[n * 7]) * u, A.f[n * 7 + 2] + (B.f[n * 7 + 2] - A.f[n * 7 + 2]) * u], a = at(r.i), b = r.j >= 0 ? at(r.j) : a;
   const tx = (a[0] * 2 + b[0]) / 3, tz = (a[1] * 2 + b[1]) / 3;
-  if (!r.init) { r.look.set(tx, 0.7, tz); r.init = true; } else { r.look.x += (tx - r.look.x) * Math.min(1, dt * 8); r.look.z += (tz - r.look.z) * Math.min(1, dt * 8); }
+  const ty = A.f[r.i * 7 + 1] + TERRAIN.at(tx, tz) + 0.7;
+  if (!r.init) { r.look.set(tx, ty, tz); r.init = true; } else { r.look.x += (tx - r.look.x) * Math.min(1, dt * 8); r.look.y += (ty - r.look.y) * Math.min(1, dt * 8); r.look.z += (tz - r.look.z) * Math.min(1, dt * 8); }
   camera.position.copy(r.pos); camera.up.set(0, 1, 0); camera.lookAt(r.look);
   const dist = Math.hypot(tx - r.pos.x, tz - r.pos.z), fov = Math.max(10, Math.min(50, 1700 / Math.max(18, dist)));
   camera.fov += (fov - camera.fov) * Math.min(1, dt * 4); camera.updateProjectionMatrix();
@@ -2593,7 +2600,7 @@ function tpReplayEnd() {
 /** the camera and the subject: the director's shot (S.player is the car on screen: the sound and the ground follow it) */
 function tpCamera(dt) {
   const d = S.director;
-  const car = TP.tv.update(dt, { d, track: W.track, pit: W.pit, focus: TP.cars, camCtl, clear: tvClear });
+  const car = TP.tv.update(dt, { d, track: W.track, pit: W.pit, focus: TP.cars, camCtl, clear: tvClear, ground: (x, z) => TERRAIN.at(x, z) });
   if (car) S.player = car;
   cockpitVisor(S.player, false);
 }
@@ -4461,7 +4468,7 @@ function frame(now) {
     /** (tests: the crash director, and the camera as drawn - terrainLift() lifts it for the frame and returns the undo; renderView() draws a frame through it) */
     crashCam, terrainLift, renderView,
     /** (tests: the team principal's race - main.js TP; the circuit built ahead in the menus) */
-    TP, tpAct, PRE_TRACK, preloadWanted, playScene, tvClear,
+    TP, tpAct, PRE_TRACK, preloadWanted, playScene, tvClear, tvRay: _tvRay, tvGround: (x, z) => TERRAIN.at(x, z),
     /** (tests - tools/regress.mjs: the optimisations that must not change a pixel, switched off and on) */
     fastMatrix, SHADOW_CULL,
     /** (tests: the show clock - simTime - set, so the Sphere's loop can be put on any show) */

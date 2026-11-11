@@ -30,11 +30,12 @@ export class TVDirector {
     this.lastSeen = new Map();   // car -> time it was last on screen (the team's cars come round again)
     this.seenOut = new Set();    // cars whose retirement has been shown
     this.outAt = new Map();      // car -> when it was first seen retired
+    this.spinAt = new Map();     // car -> when its incident became the story
     this.t = 0; this.cuts = 0;
     this._look = new THREE.Vector3(); this._pos = new THREE.Vector3(); this._lookInit = false;
     this.onCut = null;           // (the graphics: a new shot - its car, its story)
   }
-  reset() { this.shot = null; this.followCar = null; this.camKind = 'auto'; this.lastSeen.clear(); this.seenOut.clear(); this.outAt.clear(); this.t = 0; this.cuts = 0; }
+  reset() { this.shot = null; this.followCar = null; this.camKind = 'auto'; this.lastSeen.clear(); this.seenOut.clear(); this.outAt.clear(); this.spinAt.clear(); this.t = 0; this.cuts = 0; }
   /** follow this car (null: the director chooses again) */
   follow(car) { this.followCar = car || null; this.shot = null; }
   /** keep to this camera ('auto': the director's choice) */
@@ -61,7 +62,12 @@ export class TVDirector {
       // an accident, a spin, a car stopped: at once (once per retirement)
       if (c.retired && !this.outAt.has(c)) this.outAt.set(c, t);
       if (c.retired && !c.hiddenAway && !this.seenOut.has(c) && t - this.outAt.get(c) < 12) { out.push({ car: c, score: 40 + (mine(c) ? 10 : 0), why: 'out', urgent: true }); continue; }
-      if (!c.retired && (c.air || c.wreck || (c.spinning && c.speed > 3))) { out.push({ car: c, score: 34 + (mine(c) ? 10 : 0), why: 'spin', urgent: true }); continue; }
+      if (!c.retired && (c.air || c.wreck || (c.spinning && c.speed > 3))) {
+        // (an incident is the story for ten seconds - not for as long as the car sits there: then the race again, and
+        //  the same car's next one only half a minute on)
+        const t0 = this.spinAt.get(c); if (t0 == null || t - t0 > 40) this.spinAt.set(c, t);
+        if (t - this.spinAt.get(c) < 10) { out.push({ car: c, score: 34 + (mine(c) ? 10 : 0), why: 'spin', urgent: true }); continue; }
+      }
       // a stop: in the lane
       if (!c.retired && (c.pitLane || c.inPit) && !c.isSC && ph !== 'red') { out.push({ car: c, score: (mine(c) ? 22 : 3 + Math.max(0, 6 - i)) + (neutral ? 9 : 0), why: 'pit' }); continue; }   // (under the safety car the stops are the story)
       // a fight for a place: within a second of the car ahead, both on track
@@ -97,6 +103,9 @@ export class TVDirector {
   // ---- a cut ---------------------------------------------------------------------------------------------------------
   cut(ctx, st) {
     const kind = this.pickKind(st, ctx), tr = ctx.track, car = st.car;
+    // (a circuit that is not flat - Austin: every camera stands on the ground where it is, and looks at the car where
+    //  the car is; heights are above that ground, never above zero)
+    const G = (x, z) => (ctx.ground ? ctx.ground(x, z) : 0), cy = (c) => G(c.x, c.z) + ((c.air || c.wreck) && c.p ? Math.max(0, c.p[1]) : 0);
     // (the rear onboard is the car ahead's, the one behind in its mirror)
     const subject = kind === 'rear' && st.other ? st.other : car;
     const sh = { kind, car: subject, other: kind === 'rear' ? car : st.other || null, why: st.why, t: 0, dur: st.why === 'grid' ? 7 : st.urgent ? 7 : 5 + ((this.cuts * 0.3819) % 1) * 4, s0: 0, side: 1, h: 6 };
@@ -110,18 +119,18 @@ export class TVDirector {
       const off = slot ? 0.05 : 0.6, f = tr.sample(s0, side * (tr.wallAt(i, side) + off));
       sh.s0 = s0; sh.side = side; sh.slot = slot;
       sh.h = slot ? Math.max(1.9, (tr.barrierHeight?.(i, side) > 2 ? 1.3 : tr.barrierHeight?.(i, side) || 1.2) + 0.7) : 10 + ((this.cuts * 0.271) % 1) * 3;
-      sh.pos = new THREE.Vector3(f.x, sh.h, f.z);
+      sh.pos = new THREE.Vector3(f.x, G(f.x, f.z) + sh.h, f.z);
       // (the camera must SEE the car: from where it stands to the car now and to the road it will pass on, nothing
       //  in the way - a wall or a fence where the track bends, a building, a stand. The first of a few places that
       //  does: this one, the other side of the road, a pole instead of a slot, nearer, further, higher)
       if (ctx.clear) {
-        const sees = (p) => { const m = tr.sample(tr.wrapS(s0 - 22), 0); return ctx.clear(p.x, p.y, p.z, subject.x, 0.8, subject.z) && ctx.clear(p.x, p.y, p.z, m.x, 0.8, m.z); };
+        const sees = (p) => { const m = tr.sample(tr.wrapS(s0 - 22), 0); return ctx.clear(p.x, p.y, p.z, subject.x, cy(subject) + 0.8, subject.z) && ctx.clear(p.x, p.y, p.z, m.x, G(m.x, m.z) + 0.8, m.z); };
         if (!sees(sh.pos)) {
           let found = false;
           for (const [sd, sl, k, hh] of [[-side, false, 1, 11], [side, false, 1, 12.5], [side, false, 0.55, 11], [-side, false, 0.55, 12], [side, false, 1.5, 13], [-side, false, 1.5, 13], [side, false, 1, 17], [-side, false, 1, 17]]) {
-            const sq = tr.wrapS(subject.s + Math.max(20, ahead * k * Math.min(1.6, Math.max(0.5, subject.speed / 55)))), iq = tr.idxAtS(sq), fq = tr.sample(sq, sd * (tr.wallAt(iq, sd) + 0.6)), p = new THREE.Vector3(fq.x, hh, fq.z);
+            const sq = tr.wrapS(subject.s + Math.max(20, ahead * k * Math.min(1.6, Math.max(0.5, subject.speed / 55)))), iq = tr.idxAtS(sq), fq = tr.sample(sq, sd * (tr.wallAt(iq, sd) + 0.6)), p = new THREE.Vector3(fq.x, G(fq.x, fq.z) + hh, fq.z);
             const m = tr.sample(tr.wrapS(sq - 22), 0);
-            if (ctx.clear(p.x, p.y, p.z, subject.x, 0.8, subject.z) && ctx.clear(p.x, p.y, p.z, m.x, 0.8, m.z)) { sh.pos = p; sh.s0 = sq; sh.side = sd; sh.slot = sl; sh.h = hh; found = true; break; }
+            if (ctx.clear(p.x, p.y, p.z, subject.x, cy(subject) + 0.8, subject.z) && ctx.clear(p.x, p.y, p.z, m.x, G(m.x, m.z) + 0.8, m.z)) { sh.pos = p; sh.s0 = sq; sh.side = sd; sh.slot = sl; sh.h = hh; found = true; break; }
           }
           // (nowhere along here has a view - between buildings, under a bridge: the helicopter has it)
           if (!found) { sh.kind = 'heli'; sh.pos = null; }
@@ -130,7 +139,7 @@ export class TVDirector {
     } else if (kind === 'grid') {
       // high over the start line, looking down the grid
       const f = tr.sample(tr.wrapS(40), 0), b = tr.sample(tr.wrapS(-160), 0);
-      sh.pos = new THREE.Vector3(f.x + (f.x - b.x) * 0.15, 22, f.z + (f.z - b.z) * 0.15); sh.lookAt = new THREE.Vector3(b.x, 0, b.z);
+      sh.pos = new THREE.Vector3(f.x + (f.x - b.x) * 0.15, G(f.x, f.z) + 22, f.z + (f.z - b.z) * 0.15); sh.lookAt = new THREE.Vector3(b.x, G(b.x, b.z), b.z);
     }
     this.shot = sh; this.cuts++; this._lookInit = false;
     this.lastSeen.set(subject, this.t); if (sh.other) this.lastSeen.set(sh.other, this.t);
@@ -180,28 +189,35 @@ export class TVDirector {
       return;
     }
     let fov = 40;
-    const tgt = _v.set(car.x, 0.7, car.z);
+    const G = (x, z) => (ctx.ground ? ctx.ground(x, z) : 0), carY = G(car.x, car.z) + ((car.air || car.wreck) && car.p ? Math.max(0, car.p[1]) : 0);   // (the ground the car is on: not flat everywhere)
+    const tgt = _v.set(car.x, carY + 0.7, car.z);
     if (sh.kind === 'track') {
       cam.position.copy(sh.pos);
       const dist = Math.hypot(car.x - sh.pos.x, car.z - sh.pos.z);
       fov = Math.max(9, Math.min(55, 1500 / Math.max(18, dist)));
-      if (sh.other) { tgt.x = (car.x * 2 + sh.other.x) / 3; tgt.z = (car.z * 2 + sh.other.z) / 3; fov = Math.max(fov, Math.min(55, 2400 / Math.max(18, dist))); }
+      if (sh.other) { tgt.x = (car.x * 2 + sh.other.x) / 3; tgt.z = (car.z * 2 + sh.other.z) / 3; tgt.y = (carY * 2 + G(sh.other.x, sh.other.z)) / 3 + 0.7; fov = Math.max(fov, Math.min(55, 2400 / Math.max(18, dist))); }
     } else if (sh.kind === 'heli') {
       const c = Math.cos(car.th), s = Math.sin(car.th);
       // (the helicopter flies where it can see the car: behind and to one side - or the other side, or higher and
       //  closer over it where towers stand along the road; looked at again a few times a second)
+      // (over the pit lane: from nearly overhead - the pit wall, its fence and the garages' roof stand either side of it)
+      if ((car.pitLane || car.inPit) && (sh.hk ?? 0) < 4) sh.hk = 4;
       const H = HELI[sh.hk || 0];
-      this._pos.set(car.x + c * H[0] - s * H[1], H[2], car.z + s * H[0] + c * H[1]);
+      this._pos.set(car.x + c * H[0] - s * H[1], carY + H[2], car.z + s * H[0] + c * H[1]);
       if (ctx.clear && (sh.hk == null || sh.t - (sh.ht ?? -9) > 0.45)) {
         sh.ht = sh.t;
-        if (sh.hk == null || !ctx.clear(this._pos.x, this._pos.y, this._pos.z, car.x, 1.0, car.z)) {
-          const k0 = sh.hk ?? 0;
-          for (let q = 0; q < HELI.length; q++) { const k = (k0 + q) % HELI.length, G = HELI[k], px = car.x + c * G[0] - s * G[1], pz = car.z + s * G[0] + c * G[1]; if (ctx.clear(px, G[2], pz, car.x, 1.0, car.z)) { sh.hk = k; this._pos.set(px, G[2], pz); break; } if (q === HELI.length - 1) sh.hk = HELI.length - 1; }
+        // (judged from where it would be AND from where it is now - it trails the car a little as it flies)
+        if (sh.hk == null || !ctx.clear(this._pos.x, this._pos.y, this._pos.z, car.x, carY + 1.0, car.z) || (this._lookInit && !ctx.clear(cam.position.x, cam.position.y, cam.position.z, car.x, carY + 1.0, car.z))) {
+          // (over the pit lane only the steep places are tried - the low ones see the pit wall, and trying them set
+          //  the helicopter swinging between a low place and a high one; with no view at all - a car in its box under
+          //  the pit building's roof - it stays overhead)
+          const from = car.pitLane || car.inPit ? 4 : 0, cnt = HELI.length - from, k0 = Math.max(from, sh.hk ?? from);
+          for (let q = 0; q < cnt; q++) { const k = from + ((k0 - from + q) % cnt), Hq = HELI[k], px = car.x + c * Hq[0] - s * Hq[1], pz = car.z + s * Hq[0] + c * Hq[1]; if (ctx.clear(px, carY + Hq[2], pz, car.x, carY + 1.0, car.z)) { sh.hk = k; this._pos.set(px, carY + Hq[2], pz); break; } if (q === cnt - 1) sh.hk = HELI.length - 1; }
         }
         if (sh.hk == null) sh.hk = 0;
       }
-      if (!this._lookInit) cam.position.copy(this._pos); else cam.position.lerp(this._pos, Math.min(1, dt * 1.6));
-      tgt.set(car.x + c * 15, 0, car.z + s * 15); fov = H[2] > 120 ? 16 : H[2] > 80 ? 22 : 30;
+      if (!this._lookInit || cam.position.distanceTo(this._pos) > 160) cam.position.copy(this._pos); else cam.position.lerp(this._pos, Math.min(1, dt * 3.5));   // (it keeps up: a second behind at most; a jump of more than 160 m is a cut)
+      tgt.set(car.x + c * 15, carY, car.z + s * 15); fov = H[2] > 120 ? 16 : H[2] > 80 ? 22 : 30;
     } else if (sh.kind === 'pit') {
       const P = ctx.pit;
       if (P && P.samples) {
@@ -212,10 +228,13 @@ export class TVDirector {
           // (the pit lane's cameras hang over the lane itself, on the pit wall's side - the garages and the pit
           //  building stand at the other edge: a camera "on the garage side" was inside them. The first with a view:
           //  ahead of the car on the wall's side, behind it, high over the middle of the lane)
-          const at = (dj, k, h) => { const j = Math.max(0, Math.min(ps.n - 1, bi + Math.round(dj / ps.ds))), off = P.trackSide * P.halfWidth * k; return new THREE.Vector3(ps.px[j] + ps.nx[j] * off, h, ps.pz[j] + ps.nz[j] * off); };
+          const at = (dj, k, h) => { const j = Math.max(0, Math.min(ps.n - 1, bi + Math.round(dj / ps.ds))), off = P.trackSide * P.halfWidth * k; const x = ps.px[j] + ps.nx[j] * off, z = ps.pz[j] + ps.nz[j] * off; return new THREE.Vector3(x, G(x, z) + h, z); };
           const C = [at(30, 0.75, 5.2), at(-26, 0.75, 5.2), at(22, 0.2, 9), at(-18, 0.2, 9), at(12, 0, 14)];
-          sh.pos = C.find((p) => !ctx.clear || ctx.clear(p.x, p.y, p.z, car.x, 0.9, car.z)) || C[C.length - 1];
+          sh.pos = C.find((p) => !ctx.clear || ctx.clear(p.x, p.y, p.z, car.x, carY + 0.9, car.z)) || C[C.length - 1];
         }
+        // (the car moves on down the lane: a camera that has lost it behind a gantry or the next garage's awning is
+        //  placed again, a second or so apart)
+        if (ctx.clear && sh.t - (sh.pt ?? 0) > 1.0) { sh.pt = sh.t; if (!ctx.clear(sh.pos.x, sh.pos.y, sh.pos.z, car.x, carY + 0.9, car.z)) { sh.pos = null; this._lookInit = false; return this.place(0, ctx); } }
         cam.position.copy(sh.pos);
         fov = Math.max(14, Math.min(50, 900 / Math.max(10, Math.hypot(car.x - sh.pos.x, car.z - sh.pos.z))));
       } else { this.shot.kind = 'track'; return; }
