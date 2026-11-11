@@ -22,6 +22,7 @@ const CSS = `
 #tvg .xr { position: absolute; right: 14px; bottom: calc(var(--pw, 150px) + 16px); display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
 #tvg .xc { width: 268px; background: rgba(12,14,20,.9); border-radius: 6px; overflow: hidden; box-shadow: 0 6px 22px rgba(0,0,0,.35); transform: translateX(24px); opacity: 0; transition: opacity .3s, transform .35s cubic-bezier(.2,.7,.2,1); }
 #tvg .xc.in { transform: none; opacity: 1; }
+#tvg .xc:not(.in) { position: absolute; right: 0; bottom: 0; pointer-events: none; }   /* (a card that is not up takes no room in the column: the ones that are sit at its foot) */
 #tvg .xc .xh { display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; font: 900 11px/1 var(--tvf); letter-spacing: .16em; background: #e10600; }
 #tvg .xc.catch .xh { background: #1f6feb; } #tvg .xc.pst .xh { background: #00a3c7; }
 #tvg .xc .xh small { font: 700 9px/1 var(--tvf); letter-spacing: .14em; opacity: .9; }
@@ -60,7 +61,7 @@ body.tp #hud-msg { display: none !important; }   /* (the broadcast says it itsel
 #tvg .sting { position: absolute; left: 0; right: 0; top: 34%; height: 15vh; min-height: 70px; display: flex; flex-direction: column; align-items: center; justify-content: center; transform: translateX(-102%); pointer-events: none; font: 900 clamp(26px, 5.2vw, 62px)/1 var(--tvf); letter-spacing: .22em; box-shadow: 0 10px 40px rgba(0,0,0,.45); }
 #tvg .sting small { font: 800 clamp(10px, 1.2vw, 15px)/1 var(--tvf); letter-spacing: .3em; margin-top: 10px; opacity: .85; }
 #tvg .sting.go { animation: tvxSting 3.1s cubic-bezier(.2,.8,.2,1) forwards; }
-#tvg .sting.y { background: repeating-linear-gradient(-45deg, #ffd400 0 34px, #f2c500 34px 68px); color: #111; } #tvg .sting.r { background: repeating-linear-gradient(-45deg, #e10600 0 34px, #c40500 34px 68px); color: #fff; } #tvg .sting.g { background: #1fae64; color: #fff; }
+#tvg .sting.y { background: repeating-linear-gradient(-45deg, #ffd400 0 34px, #f2c500 34px 68px); color: #111; } #tvg .sting.r { background: repeating-linear-gradient(-45deg, #e10600 0 34px, #c40500 34px 68px); color: #fff; } #tvg .sting.g { background: #1fae64; color: #fff; } #tvg .sting.c { background: repeating-conic-gradient(#fff 0 25%, #16181d 0 50%) 0 0 / 46px 46px; color: #fff; text-shadow: 0 0 14px #000, 0 0 14px #000, 0 0 6px #000; }
 @keyframes tvxSting { 0% { transform: translateX(-102%); } 14% { transform: translateX(0); } 82% { transform: translateX(0); opacity: 1; } 100% { transform: translateX(102%); opacity: 0; } }
 #tvg .xc.scc .xh { background: #ffd400; color: #111; } #tvg .xc.scc.red .xh { background: #e10600; color: #fff; } #tvg .xc.scc { width: 286px; }
 #tvg .xc.scc .ln { display: flex; justify-content: space-between; gap: 10px; padding: 5px 10px; font: 700 11px/1.25 var(--tvf); letter-spacing: .04em; border-top: 1px solid rgba(255,255,255,.08); }
@@ -92,7 +93,7 @@ export class TVExtras {
   }
   reset() {
     this.hist = new Map();      // car -> [{ t, g, ahead }]: its gap to the car ahead, sampled
-    this.acc = 0; this.sampT = 0; this.order = null; this.passAt = new Map(); this.offer = null; this.pending = null; this.lastOffer = -99; this.catchK = 0; this.catchT = 0; this.stop = new Map(); this.finalSaid = false; this.spun = new Map(); this.outSeen = new Set(); this.keys = {};
+    this.acc = 0; this.sampT = 0; this.order = null; this.passAt = new Map(); this.offer = null; this.pending = null; this.lastOffer = -99; this.catchK = 0; this.catchT = 0; this.stop = new Map(); this.finalSaid = false; this.flagSaid = false; this.btPair = null; this.ctPair = null; this.clips = []; this.spun = new Map(); this.outSeen = new Set(); this.keys = {};
     for (const e of [this.rpo, this.pst, this.bt, this.ct]) e.classList.remove('in'); this.bug.classList.remove('on'); this.tel.classList.remove('on');
     this.ph = 'green'; this.scS = null; this.redGrid = false; if (this.scc) this.scc.classList.remove('in'); if (this.root) this.root.classList.remove('ph-sc', 'ph-vsc', 'ph-red'); if (this.sting) this.sting.className = 'sting';
   }
@@ -102,7 +103,7 @@ export class TVExtras {
   /** something worth a replay: { text, cars: [a, b?], t (race time) } - offered a moment later, once what followed is on record */
   event(e, d) { if (!d || d.time - this.lastOffer < 14 || this.pending || this.offer) return; this.pending = { ...e, t: d.time, due: d.time + (e.wait ?? 2.4) }; }
   /** the offer taken (R, a click) */
-  take() { const o = this.offer; if (!o) return false; this.offer = null; this.rpo.classList.remove('in'); this.o.onReplay?.(o); return true; }
+  take() { const o = this.offer; if (!o) return false; this.offer = null; this.rpo.classList.remove('in'); this.o.on?.('replay', {}); this.o.onReplay?.(o); return true; }
   /** a replay is playing (main.js): the bug up, the cards away */
   replaying(on, text = '') { this.bug.classList.toggle('on', !!on); this.bug.querySelector('small').textContent = on ? text : ''; this.col.style.visibility = on ? 'hidden' : ''; if (on) { this.tel.classList.remove('on'); this.root.querySelector('.cap')?.classList.remove('in'); } this.root.querySelector('.live')?.classList.toggle('rp', !!on); }
 
@@ -118,7 +119,8 @@ export class TVExtras {
     // the replay's offer: its clock
     if (this.offer) { const left = 1 - (performance.now() - this.offer.shown) / 7000; this.rpo.querySelector('i').style.transform = `scaleX(${Math.max(0, left)})`; if (left <= 0) { this.offer = null; this.rpo.classList.remove('in'); } }
     if (ctx.halted) return;
-    if (this.pending && d.time >= this.pending.due) { const e = this.pending; this.pending = null; if (racing || d.leaderFinished) { this.offer = { ...e, shown: performance.now() }; this.lastOffer = d.time; this.rpo.querySelector('span').textContent = e.text; this.rpo.classList.add('in'); } }
+    if (this.pending && d.time >= this.pending.due) { const e = this.pending; this.pending = null; if (racing || d.leaderFinished) { try { this.o.onClip?.(e); } catch (er) { /* no clip */ } if (ctx.noOffer) return;   /* (a replay is in its window: this one is kept for the highlights, not offered) */
+      this.offer = { ...e, shown: performance.now() }; this.lastOffer = d.time; this.rpo.querySelector('span').textContent = e.text; this.rpo.classList.add('in'); } }
     this.acc += dt; if (this.acc < 0.2) return; this.acc = 0;
     // ---- the safety car's and the red flag's own feed ------------------------------------------------------------
     const ph = d.sc?.phase || 'green', lead0 = P.find((c) => !c.retired), neutral = ph === 'sc' || ph === 'scIn' || ph === 'vsc' || ph === 'vscEnd';
@@ -126,14 +128,14 @@ export class TVExtras {
     const cause = () => { const S0 = d.sc?.incident?.cars; const n = S0 ? [...S0].map((c) => surname(c)).filter(Boolean) : []; return n.length ? n.slice(0, 3).join(', ') : ''; };
     if (ph !== this.ph) {
       const was = this.ph; this.ph = ph;
-      if (ph === 'sc' && was !== 'scIn') { this.scS = { kind: 'sc', t0: d.time, lap0: lead0?.lap || 0, stops: new Map(P.map((c) => [c, c.pitStops])), cause: cause() }; this.stinger('SAFETY CAR', this.scS.cause ? `${this.scS.cause.toUpperCase()} · NO OVERTAKING` : 'NO OVERTAKING', 'y'); if (d.sc?.incident?.cars?.size) this.event({ text: `the incident: ${this.scS.cause}`, cars: [...d.sc.incident.cars].slice(0, 2), wait: 1.5 }, d); }
-      else if (ph === 'vsc') { this.scS = { kind: 'vsc', t0: d.time, lap0: lead0?.lap || 0, stops: new Map(P.map((c) => [c, c.pitStops])), cause: cause() }; this.stinger('VIRTUAL SAFETY CAR', 'HOLD THE DELTA · NO OVERTAKING', 'y'); }
-      else if (ph === 'red') { this.scS = { kind: 'red', t0: d.time, lap0: lead0?.lap || 0, stops: new Map(), cause: cause() }; this.redGrid = true; this.stinger('RED FLAG', this.scS.cause ? `RACE SUSPENDED · ${this.scS.cause.toUpperCase()}` : 'RACE SUSPENDED', 'r'); if (d.sc?.incident?.cars?.size) this.event({ text: `what stopped the race: ${this.scS.cause}`, cars: [...d.sc.incident.cars].slice(0, 2), wait: 1.2 }, d); }
-      else if ((ph === 'green' || ph === 'restart') && (was === 'sc' || was === 'scIn' || was === 'vsc' || was === 'vscEnd')) { this.stinger('GREEN FLAG', was.startsWith('vsc') ? 'VIRTUAL SAFETY CAR ENDED' : 'RACING RESUMES', 'g'); }
+      if (ph === 'sc' && was !== 'scIn') { this.scS = { kind: 'sc', t0: d.time, lap0: lead0?.lap || 0, stops: new Map(P.map((c) => [c, c.pitStops])), cause: cause() }; this.stinger('SAFETY CAR', this.scS.cause ? `${this.scS.cause.toUpperCase()} · NO OVERTAKING` : 'NO OVERTAKING', 'y'); this.o.on?.('sc', { cause: this.scS.cause }); this.o.on?.('scA', {}); if (d.sc?.incident?.cars?.size) this.event({ text: `the incident: ${this.scS.cause}`, cars: [...d.sc.incident.cars].slice(0, 2), wait: 1.5 }, d); }
+      else if (ph === 'vsc') { this.scS = { kind: 'vsc', t0: d.time, lap0: lead0?.lap || 0, stops: new Map(P.map((c) => [c, c.pitStops])), cause: cause() }; this.stinger('VIRTUAL SAFETY CAR', 'HOLD THE DELTA · NO OVERTAKING', 'y'); this.o.on?.('vsc', {}); }
+      else if (ph === 'red') { this.scS = { kind: 'red', t0: d.time, lap0: lead0?.lap || 0, stops: new Map(), cause: cause() }; this.redGrid = true; this.stinger('RED FLAG', this.scS.cause ? `RACE SUSPENDED · ${this.scS.cause.toUpperCase()}` : 'RACE SUSPENDED', 'r'); this.o.on?.('red', { cause: this.scS.cause }); if (d.sc?.incident?.cars?.size) this.event({ text: `what stopped the race: ${this.scS.cause}`, cars: [...d.sc.incident.cars].slice(0, 2), wait: 1.2 }, d); }
+      else if ((ph === 'green' || ph === 'restart') && (was === 'sc' || was === 'scIn' || was === 'vsc' || was === 'vscEnd')) { this.stinger('GREEN FLAG', was.startsWith('vsc') ? 'VIRTUAL SAFETY CAR ENDED' : 'RACING RESUMES', 'g'); this.o.on?.('green', {}); }
       this.root.classList.toggle('ph-sc', ph === 'sc' || ph === 'scIn'); this.root.classList.toggle('ph-vsc', ph === 'vsc' || ph === 'vscEnd');
     }
     // (the red flag: its frame stays over the restart's grid until the lights go out again)
-    if (this.redGrid && ph !== 'red' && d.world.racing) { this.redGrid = false; this.stinger('RACE RESUMES', `LAP ${Math.min(d.lapsTotal, (lead0?.lap || 0) + 1)} OF ${d.lapsTotal}`, 'g'); this.scS = null; }
+    if (this.redGrid && ph !== 'red' && d.world.racing) { this.redGrid = false; this.o.on?.('resume', {}); this.stinger('RACE RESUMES', `LAP ${Math.min(d.lapsTotal, (lead0?.lap || 0) + 1)} OF ${d.lapsTotal}`, 'g'); this.scS = null; }
     this.root.classList.toggle('ph-red', ph === 'red' || this.redGrid);
     if (neutral && this.scS) {
       const S0 = this.scS, laps = Math.max(0, (lead0?.lap || 0) - S0.lap0) + 1, boxed = P.filter((c) => !c.retired && c.pitStops > (S0.stops.get(c) ?? c.pitStops)).map((c) => surname(c)), inLane = P.filter((c) => !c.retired && (c.pitLane || c.inPit)).map((c) => surname(c));
@@ -155,23 +157,24 @@ export class TVExtras {
         + `<div class="ln"><small>THE ORDER</small><span></span></div>${P.filter((c) => !c.retired).slice(0, 5).map((c) => rowQ(c, P.indexOf(c))).join('')}`;
     } else this.scc.classList.remove('in');
     this.neutral = neutral || ph === 'red' || this.redGrid;
+    if (d.leaderFinished && !this.flagSaid) { this.flagSaid = true; const w = P.find((c) => c.finished && !c.retired); this.stinger('CHEQUERED FLAG', w ? `${surname(w).toUpperCase()} WINS` : '', 'c'); for (const e of [this.bt, this.ct, this.pst, this.rpo]) e.classList.remove('in'); this.offer = null; this.pending = null; }
     if (!racing) { this.bt.classList.remove('in'); this.ct.classList.remove('in'); if (!d.leaderFinished) return; }
     // overtakes on the road (not a stop, not a car out): a banner, and a replay offered
     const idx = new Map(P.map((c, i) => [c, i]));
     if (this.order && racing && !this.neutral) for (let i = 0; i < Math.min(P.length - 1, 12); i++) {
       const a = P[i], b = P[i + 1], was = this.order;
       if (was.get(a) > was.get(b) && onTrack(a) && onTrack(b) && a.lap === b.lap && d.time - (this.passAt.get(a) ?? -99) > 12 && (a.lap > 0 || a.lapDist > 600)) {
-        this.passAt.set(a, d.time); if (i < 10 || mine(a) || mine(b)) { ctx.say?.(`${surname(a)} PASSES ${surname(b)} FOR ${ord(i + 1)}`, mine(a) ? 'good' : mine(b) ? 'bad' : '', 'OVERTAKE'); if (i < 6 || mine(a) || mine(b)) this.event({ text: `${surname(a)} passes ${surname(b)} for ${ord(i + 1).toLowerCase()}`, cars: [a, b], wait: 1.6 }, d); }
+        this.passAt.set(a, d.time); if (i < 8 || mine(a) || mine(b)) this.o.on?.(i === 0 ? 'passLead' : 'pass', { a: surname(a), b: surname(b), pos: i + 1, mine: mine(a) || mine(b) }); if (i < 10 || mine(a) || mine(b)) { ctx.say?.(`${surname(a)} PASSES ${surname(b)} FOR ${ord(i + 1)}`, mine(a) ? 'good' : mine(b) ? 'bad' : '', 'OVERTAKE'); if (i < 6 || mine(a) || mine(b)) this.event({ text: `${surname(a)} passes ${surname(b)} for ${ord(i + 1).toLowerCase()}`, cars: [a, b], wait: 1.6 }, d); }
       }
     }
     this.order = idx;
     // a spin, a car out in an accident: a replay offered
     for (const c of P) {
-      if (c.spinning && c.speed > 8 && d.time - (this.spun.get(c) ?? -99) > 20) { this.spun.set(c, d.time); this.event({ text: `${surname(c)} spins`, cars: [c], wait: 2.8 }, d); }
-      if (c.retired && !this.outSeen.has(c)) { this.outSeen.add(c); if (/accident|crash|collision|torn|wall/i.test(c.retireReason || '') && racing) this.event({ text: `${surname(c)} is out: ${String(c.retireReason || 'an accident').toLowerCase()}`, cars: [c], wait: 3.2 }, d); }
+      if (c.spinning && c.speed > 8 && d.time - (this.spun.get(c) ?? -99) > 20) { this.spun.set(c, d.time); this.o.on?.('spin', { who: surname(c) }); this.event({ text: `${surname(c)} spins`, cars: [c], wait: 2.8 }, d); }
+      if (c.retired && !this.outSeen.has(c)) { this.outSeen.add(c); if (racing) { this.o.on?.('out', { who: surname(c), why: c.retireReason || 'Retired' }); if (mine(c)) this.o.on?.('outMine', { who: surname(c), team: c.team, car: c }); } if (/accident|crash|collision|torn|wall/i.test(c.retireReason || '') && racing) this.event({ text: `${surname(c)} is out: ${String(c.retireReason || 'an accident').toLowerCase()}`, cars: [c], wait: 3.2 }, d); }
     }
     // the final lap
-    const lead = P.find((c) => !c.retired); if (lead && !this.finalSaid && racing && lead.lap >= d.lapsTotal - 1 && d.lapsTotal > 1) { this.finalSaid = true; ctx.say?.(`${surname(lead)} STARTS THE LAST LAP`, 'purple', 'FINAL LAP'); }
+    const lead = P.find((c) => !c.retired); if (lead && !this.finalSaid && racing && lead.lap >= d.lapsTotal - 1 && d.lapsTotal > 1) { this.finalSaid = true; ctx.say?.(`${surname(lead)} STARTS THE LAST LAP`, 'purple', 'FINAL LAP'); const p2 = P.find((c) => c !== lead && !c.retired), g2 = p2 ? gap(p2, lead) : null; this.o.on?.('final', { who: surname(lead), g: g2 != null && g2 > 0 ? g2.toFixed(1) : '' }); }
     // the gaps, sampled: each car to the one ahead of it
     this.sampT += 0.2;
     if (this.sampT >= 3 && racing) {
@@ -185,7 +188,7 @@ export class TVExtras {
     const row = (c, i) => `<div class="xrw"><span class="p">${i + 1}</span><span class="tc" style="background:${c.color}"></span><span class="n">${surname(c)}</span><span class="t">${tyre(c)}</span></div>`;
     // a stop: the clock on a car of yours (or the car on screen) in its box
     let stopCar = null;
-    for (const c of P) { let s = this.stop.get(c); if (c.inPit && !c.retired) { if (!s || s.done) this.stop.set(c, (s = { t0: d.time, done: false, n: c.pitStops })); if (mine(c) || sh?.car === c) stopCar = stopCar || c; } else if (s && !s.done) { s.done = true; s.time = c._stopDur ?? d.time - s.t0; s.until = d.time + 4; if (mine(c) || sh?.car === c) stopCar = stopCar || c; } else if (s && s.done && d.time < s.until && (mine(c) || sh?.car === c)) stopCar = stopCar || c; }
+    for (const c of P) { let s = this.stop.get(c); if (c.inPit && !c.retired) { if (!s || s.done) this.stop.set(c, (s = { t0: d.time, done: false, n: c.pitStops })); if (mine(c) || sh?.car === c) stopCar = stopCar || c; } else if (s && !s.done) { s.done = true; s.time = c._stopDur ?? d.time - s.t0; s.until = d.time + 4; if (racing && (mine(c) || P.indexOf(c) < 8)) { this.o.on?.('stop', { who: surname(c), t: +s.time.toFixed(1) }); this.o.on?.('stopA', { who: surname(c), comp: (c.tyres?.compound || '').toLowerCase(), pos: P.indexOf(c) + 1 }); } if (mine(c) || sh?.car === c) stopCar = stopCar || c; } else if (s && s.done && d.time < s.until && (mine(c) || sh?.car === c)) stopCar = stopCar || c; }
     if (stopCar) { const s = this.stop.get(stopCar), v = s.done ? s.time : d.time - s.t0; this.pst.className = `xc pst in${s.done ? ' done' : ''}`; this.pst.innerHTML = `<div class="xh">PIT STOP<small>${surname(stopCar).toUpperCase()}</small></div><div class="xg"><b>${v.toFixed(1)}<small>SEC</small></b><span>${stopCar.tyres?.compound || ''}</span></div>`; } else this.pst.classList.remove('in');
     if (!racing || this.neutral) { this.bt.classList.remove('in'); this.ct.classList.remove('in'); this.hist.clear(); return; }
     // the battle: the closest pair worth showing (the fight on screen first, then the highest up, yours ahead of others)
@@ -193,6 +196,7 @@ export class TVExtras {
     for (let i = 1; i < P.length; i++) { const c = P[i], a = P[i - 1]; if (!onTrack(c) || !onTrack(a) || c.lap !== a.lap || (c.lap === 0 && c.lapDist < 900)) continue; const g = gap(c, a); if (g == null || !(g > 0) || g > 1.2) continue; const sc = (sh && sh.why === 'battle' && (sh.car === c || sh.other === c) ? 40 : 0) + (i === 1 ? 14 : Math.max(0, 9 - i)) + (mine(c) || mine(a) ? 8 : 0) + (1.2 - g) * 4; if (i > 8 && !mine(c) && !mine(a) && sc < 40) continue; if (!best || sc > best.sc) best = { c, a, i, g, sc }; }
     if (best) {
       const r = rate(best.c), drs = best.g < 1 && (best.c.drs || best.c.drsOk);
+      if (this.btPair !== best.c) { this.btPair = best.c; this.o.on?.('battle', { a: surname(best.a), b: surname(best.c), pos: best.i, g: Math.max(1, Math.round(best.g * 10)) }); this.o.on?.('battleA', { a: surname(best.a), b: surname(best.c), drs: !!drs }); }
       this.bt.classList.add('in');
       this.bt.innerHTML = `<div class="xh">BATTLE FOR ${ord(best.i)}<small>LAP ${Math.min(d.lapsTotal, best.a.lap + 1)}/${d.lapsTotal}</small></div>${row(best.a, best.i - 1)}${row(best.c, best.i)}<div class="xg"><b>${best.g.toFixed(2)}<small>SEC</small></b><span class="${r != null && r > 0.05 ? 'cl' : r != null && r < -0.05 ? 'op' : ''}">${r == null ? '' : r > 0.05 ? `CLOSING ${r.toFixed(1)}/LAP` : r < -0.05 ? `PULLING AWAY ${(-r).toFixed(1)}/LAP` : 'HOLDING'}${drs ? '<em>DRS</em>' : ''}</span></div>`;
     } else this.bt.classList.remove('in');
@@ -204,6 +208,7 @@ export class TVExtras {
     const k = C.length ? C[this.catchK % Math.min(C.length, 3)] : null;
     if (k) {
       const mx = Math.max(...k.H.map((h) => h.g), 0.1);
+      if (this.ctPair !== k.c) { this.ctPair = k.c; this.o.on?.('catching', { a: surname(k.a), b: surname(k.c), g: k.g.toFixed(1), r: `${k.r.toFixed(1)} s`, laps: k.laps < 1.5 ? 'a lap' : `${Math.round(k.laps)} laps` }); }
       this.ct.classList.add('in');
       this.ct.innerHTML = `<div class="xh">CATCHING · FOR ${ord(k.i)}<small>${Math.ceil(left)} LAP${Math.ceil(left) === 1 ? '' : 'S'} LEFT</small></div>${row(k.a, k.i - 1)}${row(k.c, k.i)}<div class="xg"><b>${k.g.toFixed(1)}<small>SEC</small></b><span class="cl">−${k.r.toFixed(1)}/LAP<br>FIGHT IN ~${k.laps < 1.5 ? '1 LAP' : `${Math.round(k.laps)} LAPS`}</span></div><div class="sp">${k.H.slice(-12).map((h) => `<i style="height:${Math.max(12, h.g / mx * 100).toFixed(0)}%"></i>`).join('')}</div>`;
     } else this.ct.classList.remove('in');

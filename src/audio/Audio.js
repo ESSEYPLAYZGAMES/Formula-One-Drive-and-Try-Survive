@@ -186,9 +186,12 @@ export class AudioEngine {
     this.osc1.frequency.setTargetAtTime(f, t, 0.03); this.osc2.frequency.setTargetAtTime(f * 1.002, t, 0.03); this.sub.frequency.setTargetAtTime(f / 2, t, 0.03);
     this.filter.frequency.setTargetAtTime(400 + rpmN * 3200 + car.throttle * 800, t, 0.05);
     const dmg = 1 - car.dmg.eng * 0.3;
-    this.engGain.gain.setTargetAtTime((0.12 + car.throttle * 0.22 + rpmN * 0.1) * dmg, t, 0.05);
+    // (external: metres from a camera that is not on the car - the broadcast's trackside and helicopter shots: the
+    //  engine fades with the distance; 0, as everywhere else: on board)
+    const far = external > 0 ? Math.max(0.1, Math.min(1, 30 / external)) : 1;
+    this.engGain.gain.setTargetAtTime((0.12 + car.throttle * 0.22 + rpmN * 0.1) * dmg * far, t, 0.05);
     const wind = Math.min(1, car.speed / 90);
-    this.noiseGain.gain.setTargetAtTime(wind * 0.08 + car.slip * 0.03 + (car.offTrack ? 0.06 : 0), t, 0.08);
+    this.noiseGain.gain.setTargetAtTime((wind * 0.08 + car.slip * 0.03 + (car.offTrack ? 0.06 : 0)) * far, t, 0.08);
     this.noiseFilter.frequency.setTargetAtTime(600 + wind * 1800 + car.slip * 600, t, 0.1);
   }
 

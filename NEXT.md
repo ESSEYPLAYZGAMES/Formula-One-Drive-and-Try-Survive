@@ -1,3 +1,101 @@
+# V2.50 (2026-11-11): the broadcast gets a show - commentary, radio on air, a map, replays in a window, highlights
+
+Asked for: "Add them all, 1-26" - the list of what the Team Principal broadcast was still missing. The list had 21
+items, not 26; all 21 are below with what was built and what was not. Only the Team Principal broadcast changes: a
+seeded race in the other modes is identical to V2.45-V2.49 (`tools/race_probe.mjs 5 1 silverstone`).
+
+New file `src/ui/TVShow.js` (the show: what is said and shown around the pictures); the pictures themselves are in
+`src/camera/TVDirector.js` and `src/main.js` (tpPip, tpReplay*, tpHighlights).
+
+What you hear and read
+1. Commentary, two voices (a lead, an analyst): a caption at the top of the picture for the grid, the lights, lap
+   one's winners, passes, fights, a car catching another, stops, fastest laps, spins, retirements, contacts, the
+   safety car, red flags, restarts, penalties, track limits, rain coming, team orders (obeyed or refused), the last
+   lap, the flag. A line that matters more cuts in on one that matters less; nothing is said twice within 24 s.
+   Spoken aloud by the browser's own voice if you turn it on (the VOICE button on the feed, or V): off by default,
+   remembered. Captions only otherwise - there is no recorded commentary.
+2. Team radio on air: every line a driver or the pit wall says in a race comes up as a TEAM RADIO card in the team's
+   colour with a beep (the same lines the pit wall's log already had).
+3. Sound by camera: the engine fades with the camera's distance from the car for trackside, crane, kerb, drone and
+   helicopter shots (full on the onboards); the crowd rises for the lights, a pass for the lead, a pass by your car,
+   the flag; a gasp for a spin or a contact; stings for a replay, the safety car, the red flag.
+
+What is on the screen
+4. Sector colours in the tower: three chips a row (purple / green / yellow) from the timing's own sectors; a fastest
+   lap is called with its time.
+5. A track map, top right: every car a dot in its team's colour, yours larger, the car on screen ringed, the safety
+   car in yellow; the outline goes yellow under a safety car and red under a red flag. Hidden under 1000 px wide.
+6. The pit window: "P9 IF HE STOPS NOW", who he would come out behind and by how much, who is the next car back -
+   from the gaps and the circuit's own pit loss (less under a safety car). From lap 2, for each of your cars.
+7. Tyre history: a car's stints as bars in the compounds' colours, laps on each.
+8. The speed trap: the four highest speeds seen so far.
+9. The stewards: "incident noted" on a contact and "no further action" nine seconds later if no penalty came;
+   penalties called from the stewards' own log; track-limit strikes counted ("strike 2 of 3", the black-and-white
+   flag at the last); an overtake off the track under investigation.
+10. A driver's season in a card (championship place, points, wins, podiums) - in a career only: a single weekend
+    has no season to quote.
+11. Before the race: the starting grid as a graphic in grid order, two columns, tyres per car, how many on each
+    compound, a wet track flagged; the commentary names pole and where your two start.
+12. The start: a drone behind the grid for the first eight seconds, "lights out" called, the three best reaction
+    times, then at the end of lap one who gained and lost the most places (from real grid positions).
+13. The flag: a chequered banner, the winner called, then the classification of the top ten with real gaps (or laps
+    down) and a driver of the day (most places gained from the grid).
+14. Qualifying, when you watch it: an ON A LAP card for the car on screen (its three sectors' colours, the live
+    delta to its best), a call at the end of sector two, a call when provisional pole changes. Qualifying here is
+    one session: there is no elimination zone to show.
+
+The pictures
+15. Highlights: every moment that was offered as a replay is kept (up to six); at the flag they play one after
+    another as whole-picture replays - "HIGHLIGHTS 2/6 · ..." - before the winner's lap of honour. Esc, Space or
+    Enter skips. Not shown with fewer than two moments.
+16. Picture in picture: your car in the pit lane in a window while the feed is elsewhere; the attacker's onboard in
+    a window during a fight seen from the fence or the air (every other such shot).
+17. Replays no longer stop the race: an accepted replay plays in a window while the feed and the race run on - once
+    at 0.7 speed, then the moment itself again in slow motion (0.34) from a second camera - then closes. R or Esc
+    closes it early. A moment that comes up during a replay is kept for the highlights, not offered.
+18. New cameras, in the director's mix and on the pit wall (HELMET / KERB / CRANE / DRONE, or C to cycle): a kerb
+    camera at the apex of the next corner, 0.55 m up; a crane at the fence that rises and swings out as the car
+    passes; a drone; a helmet camera; and now and then a view of the whole circuit from the air. Each is placed only
+    where it has a clear line to its car (the V2.47 test), otherwise a trackside camera or the helicopter takes it.
+19. Cutaways: the crowd in the nearest stand on a pass for the lead and at the flag; your garage when one of your
+    cars retires. Not built: the pit wall's faces, marshals, a retired driver walking back.
+20. Weather: drops on the lens of any camera that stands in the rain (not the helicopter's), new ones at each cut;
+    a RAIN RADAR card (chance, when, for how long) from the race's own forecast, and a line of commentary.
+21. Checked: the grid camera (22 m up, 84 m back, clear line to pole) and the catching card on screen.
+
+Fixed on the way
+- Austin: the director's cameras have stood on the ground since V2.49 - and were then lifted by the ground's height
+  a second time when drawn (main.js terrainLift did not know they were already placed in the world). They are drawn
+  where they are placed now; only the onboards still ride the car. V2.49's audit read the camera before the second
+  lift, which is why it passed.
+- Cards that were not up still took their room in the right-hand column and pushed the others up the screen (under
+  the map, once there was one): a hidden card takes no room.
+- The classification waits for the flag's banner to go; the info cards wait for the race to settle (the first one
+  16 s in) and share the column with a fight's card when there is room.
+- Places gained were counted from the running order when the lights went out, not from the grid.
+- A trackside camera is looked through again every half second while its shot runs, with the circuit's own walls
+  and fences in the ray: twice running with something between it and its car (a car that spun on and stopped behind
+  a fence line, one gone round the bend, a fence a metre in front of the lens) and the shot is over. Before, only the
+  pit lane's camera was looked at again. A slot camera in the fence line is tested against the fence's own mesh
+  when it is placed too.
+- The cameras by the audit of V2.49 (a ray from the camera as drawn to its car, against everything drawn), on the
+  build before the last two of these changes: Silverstone trackside 2 of 50 looks with something in the way (a
+  fence a metre from a slot camera, a far building), helicopter 2 of 24 (the kerb beside a spun car), the pit lane
+  0 of 12, the helicopter kept in the lane 0 of 8; Austin trackside 3 of 60 (the same two kinds), helicopter 0 of
+  18, the helicopter kept in the lane 0 of 19, the pit lane's own camera 0 of 26.
+  On the final build, trackside only: Silverstone 0 of 50, Austin 1 of 50 (a building 99 m down a 121 m line, one
+  look); no shot in either had to be ended for a lost view (0 of 22 and 0 of 23 cuts). Montreal and Las Vegas were
+  not audited again for this version.
+- Austin, as drawn: trackside cameras 10-12 m over the ground they stand on, the helicopter 53-56 m, the same as
+  placed (before: the ground's height again on top); the onboard 1.2 m over the road, carried by the car.
+- Rain on the lens is under the graphics, not over them. The garage cutaway stood behind the pit wall looking at
+  concrete: it stands in the lane now, looking across at the garage and its crew.
+
+Not done, or not seen
+- No formation lap. No real voices. No pit-wall, marshal or walking-driver cutaways (19). Wheels do not turn in a
+  replay (the record keeps the cars' poses only). The season card (10) and the story's fact at the flag need a
+  career and were not seen in a browser here.
+
 # V2.49 (2026-11-11): the broadcast's cameras at every circuit, the pit lane too
 
 Asked for: "fix the camera for all other tracks, including pitlane". V2.47's line-of-sight test had only been run at

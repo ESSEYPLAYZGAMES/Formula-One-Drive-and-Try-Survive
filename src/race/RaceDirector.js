@@ -330,7 +330,7 @@ export class RaceDirector {
           for (const c of this.cars) { c.lapStart = this.time; c.startRun = true; }   // (to Turn 1 on even terms: Car.step, speedBands)
           // every driver launches with a human reaction time (~0.15-0.3 s); tier/rating does not slow the getaway, focus
           // moves it by a few hundredths either way (FORM.react)
-          for (const a of this.ai) if (!a.jumped) a.reaction = Math.max(0.1, 0.14 + Math.random() * 0.12 + (1 - a.car.rating) * 0.04 + (a.car.form || NF).react + (a.car.mgrStart || 0));   // (mgrStart: a team principal's LAUNCH - race/TeamTactics.js)
+          for (const a of this.ai) if (!a.jumped) a.react0 = a.reaction = Math.max(0.1, 0.14 + Math.random() * 0.12 + (1 - a.car.rating) * 0.04 + (a.car.form || NF).react + (a.car.mgrStart || 0));   // (mgrStart: a team principal's LAUNCH - race/TeamTactics.js)
         }
         break;
       }

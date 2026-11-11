@@ -119,8 +119,8 @@ export class TVGraphics {
     // the rows
     while (this.rows.length < P.length) {
       const r = document.createElement('div'); r.className = 'r'; r.dataset.i = this.rows.length;
-      r.innerHTML = '<span class="p"></span><span class="tc"></span><span class="cd"></span><span class="g"></span><span class="ty"></span>';
-      this.rowsEl.appendChild(r); this.rows.push({ el: r, p: r.children[0], tc: r.children[1], cd: r.children[2], g: r.children[3], ty: r.children[4], k: '' });
+      r.innerHTML = '<span class="p"></span><span class="tc"></span><span class="cd"></span><span class="g"></span><span class="ty"></span><span class="sx"><u></u><u></u><u></u></span>';
+      this.rowsEl.appendChild(r); this.rows.push({ el: r, p: r.children[0], tc: r.children[1], cd: r.children[2], g: r.children[3], ty: r.children[4], sx: r.children[5], k: '' });
     }
     this.cars = P.slice();
     const nowMs = performance.now(); if (!this.pidx) { this.pidx = new Map(); this.pfl = new Map(); }
@@ -139,10 +139,12 @@ export class TVGraphics {
         else { const x = d.radio?.gap?.(c, ref); g = x != null && x > 0 ? `+${x.toFixed(x < 10 ? 3 : 1)}` : '-'; }
       }
       const k = c.tyres?.compound || 'SOFT';
-      const key = `${i}|${c.name}|${g}|${gc}|${k}|${focus.includes(c) ? 1 : 0}|${c === on ? 1 : 0}|${c.retired ? 1 : 0}|${fd}`;
+      const sxk = ctx.sectors ? ctx.sectors(c) : '';   // (its sectors' colours: purple, green, yellow - ui/TVShow.js sectorChips)
+      const key = `${i}|${c.name}|${g}|${gc}|${k}|${focus.includes(c) ? 1 : 0}|${c === on ? 1 : 0}|${c.retired ? 1 : 0}|${fd}|${sxk}`;
       if (key === R.k) continue; R.k = key;
       R.p.textContent = fd === 'up' ? '▲' : fd === 'dn' ? '▼' : i + 1; R.p.className = `p ${fd}`; R.tc.style.background = c.color; R.cd.textContent = code(c); R.g.textContent = g; R.g.className = `g ${gc}`;
       R.ty.style.borderColor = COMPOUNDS[k]?.color || '#fff'; R.ty.textContent = c.retired ? '' : LETTER[k] || '';
+      { const S3 = sxk.split(','); for (let q = 0; q < 3; q++) R.sx.children[q].className = c.retired ? '' : S3[q] || ''; }
       R.el.className = `r${focus.includes(c) ? ' mine' : ''}${c === on ? ' on' : ''}${c.retired ? ' dnf' : ''}`;
     }
     for (let i = P.length; i < this.rows.length; i++) this.rows[i].el.style.display = 'none';
@@ -164,7 +166,7 @@ export class TVGraphics {
       const pen = c.penalties || 0; if (pen > p.pen) this.rc(`${c.name} · ${pen - p.pen} s time penalty`, 'warn', 'PENALTY'); p.pen = pen;
       if (racing && isFinite(c.bestLap) && c.bestLap < this.best - 1e-6 && c.lapTimes?.length >= 2) {
         const first = this.best === Infinity; this.best = c.bestLap;
-        if (!first) this.rc(`${c.name} · ${fmtLap(c.bestLap)}`, 'purple', 'FASTEST LAP');
+        if (!first) { this.rc(`${c.name} · ${fmtLap(c.bestLap)}`, 'purple', 'FASTEST LAP'); this.onFastest?.(c, fmtLap(c.bestLap)); }
       }
     }
     const ph = d.sc?.phase || 'green';
