@@ -636,6 +636,28 @@ export function buildSilverstone(geo, track, def, pit) {
     const info = footprintInfo(ring); if (info.length < 14 || info.width < 4) continue;
     front = simplify(front, 1.6);
     for (let it = 0; it < 6 && front.length > 2; it++) { let worst = -1, wl = 12; for (let k = 1; k < front.length - 1; k++) { const l = Math.min(Math.hypot(front[k][0] - front[k - 1][0], front[k][1] - front[k - 1][1]), Math.hypot(front[k + 1][0] - front[k][0], front[k + 1][1] - front[k][1])); if (l < wl) { wl = l; worst = k; } } if (worst < 0) break; front.splice(worst, 1); }
+    // (stubs out of the front: a short run turned sharply from its neighbour is not the stand's front at all - it is the
+    //  footprint's end wall, or a notch in its outline, taken for one. Each became a stand of its own, full depth,
+    //  standing across the real one: Farm Curve's three stands through one another, Village B's, Vale's and Chapel's
+    //  ends. The sharpest such run is folded away - the corner it does not share with its longer neighbour goes -
+    //  until none is left)
+    for (let it = 0; it < 12 && front.length > 2; it++) {
+      const n = front.length, sl = (k) => Math.hypot(front[k + 1][0] - front[k][0], front[k + 1][1] - front[k][1]), sd = (k) => Math.atan2(front[k + 1][0] - front[k][0], front[k + 1][1] - front[k][1]);
+      const turn = (i, j) => { const d = Math.abs(sd(i) - sd(j)) % (2 * Math.PI); return d > Math.PI ? 2 * Math.PI - d : d; };
+      let hit = -1, worst = 50 * Math.PI / 180;
+      for (let k = 0; k < n - 1; k++) { if (sl(k) >= Math.max(30, depth * 1.5)) continue; const t = Math.max(k > 0 ? turn(k - 1, k) : 0, k < n - 2 ? turn(k, k + 1) : 0); if (t > worst) { worst = t; hit = k; } }
+      if (hit < 0) break;
+      if (hit === 0) front.shift(); else if (hit === n - 2) front.pop(); else front.splice(sl(hit - 1) >= sl(hit + 1) ? hit + 1 : hit, 1);
+    }
+    // (a front that doubles back on itself: where the lap passes both sides of a stand - Village B, between Village and
+    //  the Wellington straight - the outline's far side was taken for front as well, and two full stands stood back to
+    //  back through each other. The longer part is the front; the rest is the stand's back)
+    for (let k = 1; k < front.length - 1; k++) {
+      const dA = Math.atan2(front[k][0] - front[k - 1][0], front[k][1] - front[k - 1][1]), dB = Math.atan2(front[k + 1][0] - front[k][0], front[k + 1][1] - front[k][1]);
+      let t = Math.abs(dA - dB) % (2 * Math.PI); if (t > Math.PI) t = 2 * Math.PI - t; if (t < 2.1) continue;
+      const len = (P) => { let L = 0; for (let j = 0; j < P.length - 1; j++) L += Math.hypot(P[j + 1][0] - P[j][0], P[j + 1][1] - P[j][1]); return L; };
+      const A = front.slice(0, k + 1), B = front.slice(k); front = len(A) >= len(B) ? A : B; k = 0;
+    }
     if (front.length < 2) continue;
     // (away from the track: by the outline's middle against its nearest point of the lap)
     const qc = tr.nearest(info.c[0], info.c[1]), fc = tr.sample(qc.s, 0); let ax0 = info.c[0] - fc.x, az0 = info.c[1] - fc.z; { const l = Math.hypot(ax0, az0) || 1; ax0 /= l; az0 /= l; }

@@ -1,3 +1,20 @@
+# V2.48 (2026-11-11): Silverstone's stands standing through one another
+
+Asked for: "that bit of Silverstone where there's like 3 stands all rotated in one another". Found by measuring: each
+stand's runs (world/Silverstone.js: a footprint's front edge as a chain of straight runs, each a stand of its own for
+world/Grandstands.js) tested for how much of one lies inside another. Four footprints were wrong, for two reasons:
+- A short run turned sharply from its neighbour is not front at all: it is the footprint's end wall, or a notch in its
+  outline, that the nearest-point-per-4-m-of-lap rule took for one - and it became a full-depth stand standing across
+  the real one. Farm Curve (T2): four runs, two of them 13 m stubs pointing almost opposite ways, 86 % inside each
+  other and half inside the 141 m stand: the three stands in one. Vale: two stubs at its end. Chapel and Village B: a
+  13 m stub at right angles, 91 % inside the main stand. Now the sharpest such run (under 30 m, turned more than 50
+  degrees) is folded out of the chain until none is left.
+- Village B's outline was "front" on both long sides (the lap passes it twice: Village on one side, the Wellington
+  straight on the other): two full stands back to back through each other (52 %). A chain that doubles back (a turn
+  over 120 degrees) keeps its longer part.
+- After: 34 runs (42 before); no run more than 9 % inside another (the 9 % are neighbours at a gentle bend). Farm
+  Curve, Village B and Vale looked at from the air. The seeded Silverstone race is the same as before.
+
 # V2.47 (2026-11-11): the broadcast - cameras that can see, live graphics, instant replays, the safety car's and the red flag's own feed; lighter menus
 
 Asked for: no silly hats on the people in the scenes; the menus (the team principal's above all) fit for a laptop - a
