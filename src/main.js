@@ -2525,6 +2525,14 @@ function tvOccluders() {
   }
   W._tvOcc = out; W._tvOccFor = W.track; return out;
 }
+/** the same with the circuit's own meshes (walls, the pit wall, fences, gantries) - for a target off the road: listed
+ *  once, leaf meshes only - never the instanced ones (a ray against every instance of a kerb or a crowd is ruinous) */
+function tvOccludersFull() {
+  if (W._tvOccF && W._tvOccFor2 === W.track) return W._tvOccF;
+  const out = [...tvOccluders()];
+  for (const g of [W.trackMesh, W.fences]) { if (!g) continue; g.traverse((o) => { if (!o.isMesh || o.isInstancedMesh || o.isSkinnedMesh || !o.visible || !o.geometry) return; const n = o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position?.count || 0; if (n < 6 || n > 1500000) return; if (!o.geometry.boundingSphere) o.geometry.computeBoundingSphere(); out.push(o); }); }
+  W._tvOccF = out; W._tvOccFor2 = W.track; return out;
+}
 function tvClear(px, py, pz, tx, ty, tz) {
   const tr = W.track; if (!tr) return true;
   const dx = tx - px, dy = ty - py, dz = tz - pz, L = Math.hypot(dx, dy, dz); if (L < 3) return true;
@@ -2546,9 +2554,9 @@ function tvClear(px, py, pz, tx, ty, tz) {
   }
   // buildings, the pit building, stands, landmarks
   // (a target off the road - the pit lane: the circuit's own mesh in the ray too - the pit wall, its fence, a gantry)
-  const occ = onRoad ? tvOccluders() : [...tvOccluders(), ...[W.trackMesh, W.fences].filter(Boolean)]; if (!occ.length) return true;
+  const occ = onRoad ? tvOccluders() : tvOccludersFull(); if (!occ.length) return true;
   _tvO.set(px, py, pz); _tvD.set(dx / L, dy / L, dz / L); _tvRay.set(_tvO, _tvD); _tvRay.near = 1.2; _tvRay.far = Math.max(1.3, L - 2.5); _tvRay.camera = camera;
-  try { return _tvRay.intersectObjects(occ, !onRoad).length === 0; } catch (e) { return true; }
+  try { return _tvRay.intersectObjects(occ, false).length === 0; } catch (e) { return true; }
 }
 /**
  * An instant replay (ui/TVExtras.js offers it; taken, it comes here): the race holds, and the seconds around the moment

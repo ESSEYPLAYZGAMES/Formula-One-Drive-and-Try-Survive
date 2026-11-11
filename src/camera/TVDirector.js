@@ -212,7 +212,7 @@ export class TVDirector {
           //  the helicopter swinging between a low place and a high one; with no view at all - a car in its box under
           //  the pit building's roof - it stays overhead)
           const from = car.pitLane || car.inPit ? 4 : 0, cnt = HELI.length - from, k0 = Math.max(from, sh.hk ?? from);
-          for (let q = 0; q < cnt; q++) { const k = from + ((k0 - from + q) % cnt), Hq = HELI[k], px = car.x + c * Hq[0] - s * Hq[1], pz = car.z + s * Hq[0] + c * Hq[1]; if (ctx.clear(px, carY + Hq[2], pz, car.x, carY + 1.0, car.z)) { sh.hk = k; this._pos.set(px, carY + Hq[2], pz); break; } if (q === cnt - 1) sh.hk = HELI.length - 1; }
+          for (let q = 0; q < cnt; q++) { const k = from + ((k0 - from + q) % cnt), Hq = HELI[k], px = car.x + c * Hq[0] - s * Hq[1], pz = car.z + s * Hq[0] + c * Hq[1]; if (ctx.clear(px, carY + Hq[2], pz, car.x, carY + 1.0, car.z)) { sh.hk = k; this._pos.set(px, carY + Hq[2], pz); break; } if (q === cnt - 1) { sh.hk = HELI.length - 1; if (from === 4) { /* (in its box under the pit building's roof: nothing in the air sees it - the pit lane's own camera has it until it is out again) */ sh.kind = 'pit'; sh.pos = null; this._lookInit = false; return this.place(dt, ctx); } } }
         }
         if (sh.hk == null) sh.hk = 0;
       }

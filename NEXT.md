@@ -1,3 +1,44 @@
+# V2.49 (2026-11-11): the broadcast's cameras at every circuit, the pit lane too
+
+Asked for: "fix the camera for all other tracks, including pitlane". V2.47's line-of-sight test had only been run at
+Silverstone. An audit that is not the director's own test (a ray from the camera to its car against everything drawn:
+the track's walls and fences, buildings, the pit building, stands, scenery) run at all four circuits found:
+- Austin, half of every kind of shot blocked (trackside 20 of 40, the helicopter 13 of 24): the circuit is not flat,
+  and every camera's height was a height above ZERO - a pole "12 m up" at Turn 1 stood thirty metres under the track,
+  the helicopter "at 55 m" skimmed the hill, and all of them aimed at a car "0.7 m up" that was thirty metres higher
+  (so did the director before V2.47). Now every camera stands on the ground where it is (ctx.ground: Terrain's
+  height), looks at the car where the car is, and tvClear measures a line's height above the ground under each point
+  of it - and a crest between the camera and the car blocks. The instant replay puts its cars and its camera on the
+  ground too (the record is above the ground: its height is added, as CarMesh does).
+- Montreal: a slot camera in the fence line looking along the wall (2 of 40) - a camera under 4.5 m may not look
+  across the wall's line at all; the helicopter kept over the pit lane seeing the pit wall and its fence instead of
+  the car (6 of 20) - over the pit lane it flies nearly overhead (140 m and up), and a target off the road has the
+  circuit's own mesh in its ray.
+- Las Vegas: the helicopter trailing far behind the car it follows (it eased toward its place at 1.6 a second: fifty
+  metres behind at speed, and the sight line that had been tested was not the one it had) - it keeps up at 3.5 a
+  second, jumps when more than 160 m off, and is judged from where it IS as well as where it will be.
+- Everywhere: the pit lane's camera is looked at again every second as the car goes down the lane and placed again
+  when it has lost it; an incident (a spin, a car in the air) is the story for ten seconds, not for as long as the
+  car sits there - one stuck car held the feed for a minute.
+- Silverstone: the helicopter kept over the pit lane saw the Wing's roof, not the car in its box (4 of 16): the
+  circuit's own tall buildings (its scenery, what stands over 7 m) are in the ray now, and where nothing in the air
+  can see a car in the lane the pit lane's own camera has it until it is out again. Over the pit lane only the steep
+  places are tried (trying the low ones set the helicopter swinging between a low place and a high one).
+- A target off the road (the pit lane) is tested against the circuit's own meshes too - leaf meshes listed once,
+  never the instanced ones (a ray against every instance of a kerb or a crowd, twice a second, ran the test machine
+  out of memory). The test costs 1-4 ms a look.
+- After, by the audit (shots with something between the camera and its car, of those looked at; before in brackets):
+  Silverstone: trackside 0 of 30, helicopter 0 of 18, the pit lane 0 of 13, the helicopter kept in the lane 0 of 14
+    (4 of 16);
+  Austin: 0 of 20 (20 of 40), 1 of 12 (13 of 24), the pit lane 0 of 26; the helicopter kept in the lane 0 of 13 on the
+    build before the last pit-lane change, and not run again on this one (the test ran out of time there);
+  Montreal: 0 of 14 (2 of 40), 0 of 8, 0 of 4, 0 of 2 - and, a build earlier, 0 of 36, 2 of 22, 0 of 11, 0 of 20
+    (6 of 20);
+  Las Vegas: 0 of 14 (2 of 40), 1 of 8 (6 of 24: a building the next look moved off), 0 of 13, 0 of 4.
+  The seeded Silverstone race in a quick weekend identical to V2.45's.
+- What is left: a look now and then with a wall 3 m from the car between them, or a building for the half second
+  before the helicopter moves; the grid's camera was not audited (it looks at the grid, not at a car).
+
 # V2.48 (2026-11-11): Silverstone's stands standing through one another
 
 Asked for: "that bit of Silverstone where there's like 3 stands all rotated in one another". Found by measuring: each
