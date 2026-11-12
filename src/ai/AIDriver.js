@@ -465,9 +465,20 @@ export class AIDriver {
     //  corner; this takes over at the lane's first metre, on to the speed-limit line where the car counts as in the lane)
     const approaching = c.pitRequested && !c.pitLaneState && toStart > -(P.divergeU + 30) && toStart < 2;
     const inLane = c.pitLane || (c.pitLaneState && c.pitLaneState !== 'out');
-    if (!approaching && !inLane && !(this.inPitMode && c.pitLaneState === 'out')) { this.inPitMode = false; this.missed = false; this.laneTurn = null; return false; }
+    // (on the way out the lane's own line is followed until the car is ON THE ROAD - this.exiting. Where the lane runs on
+    //  beside the road after its merge line - Montreal's, a lane's width out for another ninety metres - a car handed to
+    //  the planner at that line held its place out there, ran on past the end of the opening behind the circuit's wall,
+    //  and drove on the grass behind it to the next corner: every stop, every car)
+    if (this.inPitMode && c.pitLaneState === 'out') this.exiting = !!this.exitSlow;
+    if (!approaching && !inLane && !(this.inPitMode && c.pitLaneState === 'out') && !this.exiting) { this.inPitMode = false; this.missed = false; this.laneTurn = null; return false; }
     const q = P.nearest(c.x, c.z, this._pq || (this._pq = {}));
-    if (c.pitLaneState === 'out' && !c.pitLane && q.u > P.mergeU - 2) { this.inPitMode = false; this.planT = 0; return false; }   // out: the planner takes over
+    if (!c.pitLane && (c.pitLaneState === 'out' || this.exiting) && q.u > P.mergeU - 2) {
+      // (on the road, and pointing along it: a car still crossing it at the lane's angle is not yet the planner's)
+      const tr = this.track, i = c.trackIdx, along = Math.cos(c.th) * tr.tx[i] + Math.sin(c.th) * tr.tz[i];
+      const onRoad = Math.abs(c.d) < tr.edgeAt(i, Math.sign(c.d) || 1) - 0.6 && along > 0.985;
+      // (only where the lane comes out onto a slow piece of road - exitSlow; everywhere else the merge line hands over, as it did)
+      if (!this.exitSlow || onRoad || q.u > P.samples.length - 8) { this.inPitMode = false; this.exiting = false; this.exitSlow = false; this.planT = 0; return false; }   // out: the planner takes over
+    } else if (this.exiting && !c.pitLane && c.pitLaneState !== 'out') { this.inPitMode = false; this.exiting = false; this.exitSlow = false; this.planT = 0; return false; }   // (not on the way out after all)
     this.inPitMode = true;
     const ps = P.samples, lim = P.limiter, v = c.speed, T = AI_TUNE;
     const box = P.boxFor(c.boxIdx ?? c.number + c.id), u = Math.max(0, q.u);
@@ -513,6 +524,16 @@ export class AIDriver {
     // (into the box on a gentle stop), then the exit road at speed again
     const iu = Math.max(0, Math.min(ps.n - 1, Math.round(u / ps.ds))), S = laneSpeeds(P);
     let vT = u < P.limitFrom ? S.vIn[iu] : u <= P.limitTo ? lim : S.vOut[iu];
+    // (the exit road is driven for the road it comes out ONTO: no quicker than four fifths of what the racing line does
+    //  over the next 140 m of the circuit beside it. Montreal's lane comes out onto the exit of the Turn 2 hairpin -
+    //  at the exit road's own limits cars arrived at 200 km/h, crossed the road at the lane's angle, went off its far
+    //  side and were beyond the wall where it starts again. Where the road it joins is fast - Silverstone's, Abbey flat
+    //  out - nothing changes: exitSlow stays false.)
+    if (u > P.limitTo && this.profile) {
+      const tr = this.track, nA = Math.round(140 / tr.ds); let vr = Infinity; for (let k = 0; k <= nA; k += 2) vr = Math.min(vr, this.profile[(c.trackIdx + k) % tr.n]);
+      // (a slow piece of road only - under 45 m/s on the racing line: a lane that joins a fast one is left alone)
+      const cap = Math.max(lim, vr * 0.8); if (vr < 45 && cap < vT - 1) { vT = cap; this.exitSlow = true; }
+    } else if (u <= P.limitTo) this.exitSlow = false;
     if (stopping && c.pitLaneState === 'in') vT = Math.min(vT, Math.sqrt(Math.max(0, 2 * 5 * (box.u - u - 0.5))), Math.sqrt(81 + 2 * 6 * Math.max(0, box.u - 26 - u)));   // (into the S at 32 km/h at most)
     // a double stack: the team-mate in the box, or released from it under 4 s ago (its crew still clearing it and
     // fetching the next set of tyres) - wait 9.5 m short of it, out of everyone's way

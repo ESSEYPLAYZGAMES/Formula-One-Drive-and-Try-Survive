@@ -53,11 +53,13 @@ export function planRace(o) {
   // A: the quickest; B: the quickest with a different number of stops; C: the quickest with a different start tyre
   const picks = [];
   if (out[0]) picks.push(out[0]);
-  const b = out.find((p) => p.stops !== picks[0]?.stops) || out.find((p) => p !== picks[0]); if (b) picks.push(b);
-  const c = out.find((p) => !picks.includes(p) && p.stints[0].compound !== picks[0]?.stints[0].compound); if (c) picks.push(c);
+  // (B and C: the quickest plan starting on each of the other tyres - three plans that are three different races, not
+  //  one race with its stop moved; then a different number of stops, if a tyre has no plan of its own)
+  for (const cmp of comps) { if (picks.length >= 3) break; if (picks.some((p) => p.stints[0].compound === cmp)) continue; const q = out.find((p) => p.stints[0].compound === cmp); if (q) picks.push(q); }
+  const b = out.find((p) => !picks.includes(p) && p.stops !== picks[0]?.stops); if (b && picks.length < 3) picks.push(b);
   for (const p of out) { if (picks.length >= 3) break; if (!picks.includes(p)) picks.push(p); }
   picks.forEach((p, i) => { p.name = 'ABC'[i]; p.label = label(p); p.laps = L; });
-  return { plans: picks, retime: (stints) => stints.reduce((t, s, i) => t + stint(s.compound, s.end - s.start + 1, i === 0), 0) + (stints.length - 1) * o.pitLoss, life: (c) => pre[c]?.life || life(c), two };
+  return { plans: picks, retime: (stints) => stints.reduce((t, s, i) => t + stint(s.compound, s.end - s.start + 1, i === 0), 0) + (stints.length - 1) * o.pitLoss, life: (c) => pre[c]?.life || life(c), two, comps, mustStop: L >= 8 };
 }
 function label(p) {
   const n = ['No-stop', 'One-stop', 'Two-stop', 'Three-stop'][p.stops] || `${p.stops}-stop`;
@@ -72,7 +74,7 @@ function label(p) {
 const CSS = `
 #strategy.k-layer { z-index: 46; --k-scrim: rgba(3,4,8,.86); text-align: left; font-family: var(--k-font); }
 #strategy * { box-sizing: border-box; }
-#strategy .st-box { --w: 1000px; grid-template-rows: auto minmax(0,1fr) auto; grid-template-columns: minmax(0,1fr); padding: 18px 24px 0; color: #eef1f5; }
+#strategy .st-box { --w: 1220px; grid-template-rows: auto minmax(0,1fr) auto; grid-template-columns: minmax(0,1fr); padding: 18px 24px 0; color: #eef1f5; }
 #strategy .st-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; flex-wrap: wrap; padding-bottom: 12px; border-bottom: 1px solid var(--k-line); }
 #strategy .st-ttl { min-width: 0; }
 #strategy .st-h { font: 900 28px/1 var(--k-font); letter-spacing: .08em; margin: 0; }
@@ -89,7 +91,18 @@ const CSS = `
 #strategy .st-body { display: flex; flex-direction: column; gap: 12px; min-height: 0; overflow: hidden; padding: 14px 0; }
 #strategy .st-eng { flex: none; background: rgba(255,255,255,.05); border-left: 3px solid #e10600; border-radius: 0 8px 8px 0; padding: 9px 12px; font: 500 14.5px/1.45 var(--k-font); }
 #strategy .st-eng b { color: #e10600; letter-spacing: .1em; font-size: 11px; display: block; margin-bottom: 2px; }
-#strategy .st-cards { flex: none; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; align-items: stretch; padding-top: 4px; }
+#strategy .st-cards { flex: none; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; align-items: stretch; padding-top: 4px; }
+#strategy .st-own { display: flex; flex-direction: column; gap: 5px; margin-top: 9px; }
+#strategy .st-row { display: flex; align-items: center; gap: 6px; font: 600 11.5px/1 var(--k-font); color: #b9c0cc; white-space: nowrap; }
+#strategy .st-row > span:first-child { width: 44px; flex: none; }
+#strategy .st-row .st-to { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; }
+#strategy .st-row b { font: 800 12px/1 var(--k-font); color: #fff; min-width: 26px; text-align: center; }
+#strategy .st-own button { display: inline-flex; align-items: center; justify-content: center; flex: none; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.18); color: #fff; border-radius: 6px; width: 22px; height: 22px; min-width: 0; padding: 0; margin: 0; cursor: pointer; font: 800 12px/1 var(--k-font); box-shadow: none; }
+#strategy .st-own button.cp { border-radius: 50%; border: 2px solid var(--c); color: var(--c); background: transparent; font-size: 10px; opacity: .55; }
+#strategy .st-own button.cp.on { background: var(--c); color: #111; opacity: 1; }
+#strategy .st-own button:disabled { opacity: .25; cursor: default; }
+#strategy .st-t.bad .st-dt { color: #ff8a80; }
+@media (max-width: 1100px) { #strategy .st-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } #strategy .st-body { overflow-y: auto; } }
 #strategy .st-card { display: flex; flex-direction: column; position: relative; min-width: 0; margin: 0; background: rgba(255,255,255,.045); border: 1px solid rgba(255,255,255,.1); border-radius: 12px; padding: 14px; cursor: pointer; outline: none;
   transition: transform var(--m-fast) var(--ease-out), border-color var(--m-fast), background-color var(--m-fast); }
 #strategy .st-card.in { animation: m-in-up var(--m-base) var(--ease-out) both; animation-delay: calc(var(--n, 0) * 2.5 * var(--m-stagger)); }
@@ -173,24 +186,29 @@ export function showStrategy(o) {
   // (the weather's forecast as the pit wall has it - race/Weather.js, main.js runRace: o.forecast, a sentence)
   const advice2 = o.forecast ? `${advice} ${o.forecast}` : advice;
   // (each card once: the bars, the box-lap labels, the window; sync() changes them in place after that)
-  const card = (p, i) => {
-    const w = pitWindow(R, p), L = p.laps;
-    return `<div class="st-card in" role="button" tabindex="0" data-i="${i}" style="--n:${i}" aria-pressed="false">
-      <div class="st-nm"><b>${p.name}</b><span class="st-lb"></span><kbd class="k-kbd">${i + 1}</kbd></div>
+  // (the plan you build yourself - D: the tyre it starts on, how many stops, each stint's tyre and its last lap; it
+  //  begins as Plan A)
+  const own = { name: 'D', custom: true, laps: plans[0].laps, stints: plans[0].stints.map((s) => ({ ...s })), stops: plans[0].stops, time: plans[0].time };
+  plans.push(own);
+  const ownRows = (p) => `<div class="st-own">${p.stints.map((s, k) => `<div class="st-row"><span>Stint ${k + 1}</span>${R.comps.map((c) => `<button class="cp${s.compound === c ? ' on' : ''}" data-k="${k}" data-c="${c}" style="--c:${COMPOUNDS[c].color}" title="${c[0] + c.slice(1).toLowerCase()}s" aria-label="Stint ${k + 1} on ${c.toLowerCase()}s">${c[0]}</button>`).join('')}${k < p.stints.length - 1 ? `<span class="st-to">to L<button data-k="${k}" data-e="-1" aria-label="Box a lap earlier">−</button><b>${s.end}</b><button data-k="${k}" data-e="1" aria-label="Box a lap later">+</button></span>` : `<span class="st-to">to the flag</span>`}</div>`).join('')}
+      <div class="st-row"><span>Stops</span><button data-n="-1" ${p.stints.length <= 1 ? 'disabled' : ''} aria-label="One stop fewer">−</button><b>${p.stints.length - 1}</b><button data-n="1" ${p.stints.length >= 4 || p.stints.length >= p.laps ? 'disabled' : ''} aria-label="One stop more">+</button></div></div>`;
+  const inner = (p, i) => {
+    const w = p.custom ? null : pitWindow(R, p), L = p.laps;
+    return `<div class="st-nm"><b>${p.name}</b><span class="st-lb"></span><kbd class="k-kbd">${i + 1}</kbd></div>
       <div class="st-bar">${p.stints.map((s) => `<i style="flex-grow:${s.end - s.start + 1};background:${COMPOUNDS[s.compound].color}">${s.compound[0]}</i>`).join('')}</div>
       <div class="st-win">${w ? `<u style="left:${((w.a - 0.5) / L) * 100}%;width:${(Math.max(1, w.b - w.a + 1) / L) * 100}%" title="Pit window: box between laps ${w.a} and ${w.b} for less than a second"></u>` : ''}</div>
       <div class="st-laps"><b class="a">L1</b>${p.stints.slice(0, -1).map(() => '<span class="st-stop"><em></em></span>').join('')}<b class="z">L${L}</b></div>
       <div class="st-t"><span class="st-dt"></span><small class="st-pt"></small></div>
-      ${p.stops ? `<div class="st-adj">First stop <button data-d="-1" aria-label="Box a lap earlier">−</button><b></b><button data-d="1" aria-label="Box a lap later">+</button>${w ? `<small>window L${w.a}${w.b > w.a ? `-${w.b}` : ''}</small>` : ''}</div>` : ''}
-    </div>`;
+      ${p.custom ? ownRows(p) : p.stops ? `<div class="st-adj">First stop <button data-d="-1" aria-label="Box a lap earlier">−</button><b></b><button data-d="1" aria-label="Box a lap later">+</button>${w ? `<small>window L${w.a}${w.b > w.a ? `-${w.b}` : ''}</small>` : ''}</div>` : ''}`;
   };
+  const card = (p, i) => `<div class="st-card in" role="button" tabindex="0" data-i="${i}" style="--n:${i}" aria-pressed="false">${inner(p, i)}</div>`;
   el.innerHTML = `<div class="k-sheet st-box">
     <header class="st-head"><div class="st-ttl"><div class="st-h">RACE <span>STRATEGY</span></div><div class="st-sub">${o.who ? `<b style="color:${esc(o.who.color || '#fff')}">${esc(o.who.name)}</b>${o.who.step ? ` (${esc(o.who.step)})` : ''} · ` : ''}${esc(o.trackName)} · ${o.laps} laps · ${cond}${o.night ? ' · night' : ''}${o.gridPos ? ` · starting P${o.gridPos}` : ''}</div></div>
       <ol class="st-rail" aria-label="The weekend"><li class="done"><i></i>Practice</li><li class="done"><i></i>Qualifying</li><li class="on" aria-current="step"><i></i>Strategy</li><li><i></i>Race</li></ol></header>
     <div class="st-body"><div class="st-eng"><b>RACE ENGINEER</b>${esc(advice)}</div>
       <div class="st-cards" data-scroll-ok>${plans.map(card).join('')}</div>
       <div class="st-field">The field starts on:${Object.entries(counts).map(([c, n]) => `<i style="background:${COMPOUNDS[c]?.color || '#888'}"></i>${n} ${c.toLowerCase()}`).join('')}</div></div>
-    <footer class="st-foot"><span class="st-keys"><kbd class="k-kbd">1</kbd><kbd class="k-kbd">2</kbd><kbd class="k-kbd">3</kbd> plan · <kbd class="k-kbd">←</kbd><kbd class="k-kbd">→</kbd> first stop · <kbd class="k-kbd">Enter</kbd> confirm</span><button class="st-ok">${esc(o.okText || 'CONFIRM · TO THE GRID ▸')}</button></footer></div>`;
+    <footer class="st-foot"><span class="st-keys"><kbd class="k-kbd">1</kbd>-<kbd class="k-kbd">4</kbd> plan (D: your own) · <kbd class="k-kbd">←</kbd><kbd class="k-kbd">→</kbd> first stop · <kbd class="k-kbd">Enter</kbd> confirm</span><button class="st-ok">${esc(o.okText || 'CONFIRM · TO THE GRID ▸')}</button></footer></div>`;
   document.body.appendChild(el);
   const cards = [...el.querySelectorAll('.st-card')], strip = el.querySelector('.st-cards'), t0 = performance.now();
   // (the entrance comes off once played, so the chosen card's lift can move freely)
@@ -198,16 +216,18 @@ export function showStrategy(o) {
   let sel = 0;
   const sync = (fadeTimes) => {
     for (const p of plans) p.time = R.retime(p.stints);
-    const best = Math.min(...plans.map((q) => q.time));
+    const best = Math.min(...plans.map((q) => q.time).filter(isFinite));
     plans.forEach((p, i) => {
       const C = cards[i], d = p.time - best;
-      C.querySelector('.st-lb').textContent = label(p);
+      p.stops = p.stints.length - 1; C.querySelector('.st-lb').textContent = p.custom ? `Your own: ${p.stints.map((s) => s.compound.toLowerCase()).join(' → ')}` : label(p);
       C.querySelectorAll('.st-bar i').forEach((x, k) => { x.style.flexGrow = String(p.stints[k].end - p.stints[k].start + 1); });
       C.querySelectorAll('.st-stop').forEach((x, k) => { x.style.setProperty('--p', String(p.stints[k].end / p.laps)); x.firstChild.textContent = `box L${p.stints[k].end}`; });
       const lap = C.querySelector('.st-adj b'); if (lap) lap.textContent = `lap ${p.stints[0].end}`;
-      const dt = d < 0.05 ? 'Quickest' : `+${d.toFixed(1)} s`;
-      const pt = `Predicted race time ${fmt(p.time)}${p.stops ? ` · ${p.stops} stop${p.stops > 1 ? 's' : ''}` : ' · no stop'}${p.stints.some((s) => s.end - s.start + 1 > R.life(s.compound) * 0.92) ? ' · on the edge of the tyres' : ''}`;
-      const T = C.querySelector('.st-t');
+      const ok = isFinite(p.time), dt = !ok ? 'Will not last' : d < 0.05 ? 'Quickest' : `+${d.toFixed(1)} s`;
+      // (what the rules will make of it: a dry race of 12 laps or more on one compound, a race of 8 or more without a stop)
+      const rule = R.two && new Set(p.stints.map((s) => s.compound)).size < 2 ? ' · the rules want two dry compounds' : R.mustStop && !p.stops ? ' · no stop: 30 s at the flag' : '';
+      const pt = !ok ? `A set is worn through before its stint is over: shorten ${p.stints.length > 1 ? 'that stint' : 'it with a stop'} or fit a harder tyre` : `Predicted race time ${fmt(p.time)}${p.stops ? ` · ${p.stops} stop${p.stops > 1 ? 's' : ''}` : ' · no stop'}${p.stints.some((s) => s.end - s.start + 1 > R.life(s.compound) * 0.92) ? ' · on the edge of the tyres' : ''}${rule}`;
+      const T = C.querySelector('.st-t'); T.classList.toggle('bad', !ok);
       if (T.dataset.k !== dt + pt) {
         T.dataset.k = dt + pt; T.querySelector('.st-dt').textContent = dt; T.querySelector('.st-pt').textContent = pt;
         if (fadeTimes && !reduced()) { T.classList.remove('sw'); void T.offsetWidth; T.classList.add('sw'); }
@@ -227,26 +247,48 @@ export function showStrategy(o) {
     const s0 = p.stints[0], s1 = p.stints[1], ne = Math.max(1, Math.min(s1.end - 1, s0.end + dd)); if (ne === s0.end) return;
     s0.end = ne; s1.start = ne + 1; sync(true);
   };
+  /** the builder's card drawn again (its stints changed in number or tyre) */
+  const redraw = () => { const i = plans.indexOf(own); cards[i].innerHTML = inner(own, i); sync(true); };
+  const edit = (b) => {
+    const S0 = own.stints, L = own.laps;
+    if (b.dataset.c) { S0[+b.dataset.k].compound = b.dataset.c; redraw(); return; }
+    if (b.dataset.e) {
+      // (a stop a lap earlier or later: never a stint of no laps either side of it)
+      const k = +b.dataset.k, a = S0[k], n = S0[k + 1], ne = Math.max(a.start, Math.min(n.end - 1, a.end + +b.dataset.e)); if (ne === a.end) return;
+      a.end = ne; n.start = ne + 1; redraw(); return;
+    }
+    if (b.dataset.n === '1' && S0.length < 4) {
+      // (a stop more: the longest stint cut in two, its second half on the next tyre along)
+      let k = 0; S0.forEach((s, q) => { if (s.end - s.start > S0[k].end - S0[k].start) k = q; });
+      const s = S0[k], len = s.end - s.start + 1; if (len < 2) return;
+      const mid = s.start + Math.ceil(len / 2) - 1, nx = R.comps[(R.comps.indexOf(s.compound) + 1) % R.comps.length];
+      S0.splice(k + 1, 0, { compound: nx, start: mid + 1, end: s.end }); s.end = mid; redraw();
+    } else if (b.dataset.n === '-1' && S0.length > 1) { const z = S0.pop(); S0[S0.length - 1].end = L; void z; redraw(); }
+  };
   sync(false);
   el.addEventListener('click', (e) => {
     if (e.target.closest('.st-ok')) { done(); return; }
     const C = e.target.closest('.st-card'); if (!C) return;
+    const ob = e.target.closest('.st-own button'); if (ob) { if (+C.dataset.i !== sel) choose(+C.dataset.i); if (!ob.disabled) edit(ob); return; }
     const i = +C.dataset.i, b = e.target.closest('button[data-d]');
     if (b) { if (i !== sel) choose(i); move(i, +b.dataset.d); } else choose(i);
   });
   let over = false, unkeys = null;   // (once: Enter on the focused button is a key and a click, a double click is two)
   const done = () => {
-    if (over) return; over = true; unkeys?.();
+    if (over) return;
+    // (a plan whose tyres will not last is not a plan: its card says why)
+    if (!isFinite(plans[sel].time)) { const T = cards[sel].querySelector('.st-t'); T.classList.remove('sw'); void T.offsetWidth; T.classList.add('sw'); return; }
+    over = true; unkeys?.();
     close(el, () => el.remove());
-    const p = plans[sel]; p.label = label(p); o.onDone?.(p);
+    const p = plans[sel]; p.stops = p.stints.length - 1; p.label = p.custom ? `Your own: ${p.stints.map((s) => s.compound.toLowerCase()).join(' → ')}` : label(p); o.onDone?.(p);
   };
   // (the keys: only this screen hears them while it is up; a held Enter from the screen before does not confirm it)
   unkeys = keys(el, {
     Enter: (e) => { if (e.repeat || performance.now() - t0 < 400) return; done(); },
     ' ': (e) => { const C = e.target?.closest?.('.st-card'); if (C) choose(+C.dataset.i); else return 'pass'; },
     ArrowUp: () => choose((sel + plans.length - 1) % plans.length), ArrowDown: () => choose((sel + 1) % plans.length),
-    ArrowLeft: () => move(sel, -1), ArrowRight: () => move(sel, 1),
-    1: () => choose(0), 2: () => choose(1), 3: () => choose(2),
+    ArrowLeft: () => { if (plans[sel].custom) { const b = cards[sel].querySelector('button[data-e="-1"]'); if (b) edit(b); } else move(sel, -1); }, ArrowRight: () => { if (plans[sel].custom) { const b = cards[sel].querySelector('button[data-e="1"]'); if (b) edit(b); } else move(sel, 1); },
+    1: () => choose(0), 2: () => choose(1), 3: () => choose(2), 4: () => choose(3),
   });
   // (from the hub's "sim qualifying" the loading screen may still be up: the sheet then arrives as it lifts)
   open(el, 'layer');

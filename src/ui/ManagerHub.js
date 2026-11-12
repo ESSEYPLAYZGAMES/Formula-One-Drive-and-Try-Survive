@@ -41,7 +41,11 @@ const CSS = `
 #mgr .m-ctas button.m-go { background: #e10600; border-color: #e10600; color: #fff; }
 #mgr .m-ctas button.m-dark { background: #151a22; border-color: #151a22; color: #fff; }
 #mgr .m-mb { flex: 1; overflow-y: auto; padding: 18px 20px 30px; }
-#mgr .m-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; align-items: start; }
+/* (a page's cards packed into columns - pack(): each column filled top to bottom, no card waiting under a taller
+   neighbour for the next row to start, and as many columns as the page has cards for, so they reach both edges) */
+#mgr .m-grid { display: block; column-gap: 14px; column-fill: balance; }
+#mgr .m-grid > * { break-inside: avoid; -webkit-column-break-inside: avoid; margin: 0 0 14px; }
+#mgr .m-grid > [style*="grid-column"] { column-span: all; }
 #mgr .m-card { background: #fff; border-radius: 14px; padding: 14px 16px; box-shadow: 0 2px 12px rgba(25,35,60,.05); border: 1px solid rgba(21,26,34,.06); }
 #mgr .m-card h3 { margin: 0 0 10px; font-size: 11px; letter-spacing: .18em; color: #6b7480; text-transform: uppercase; }
 #mgr .m-card .m-big { font-size: 20px; font-weight: 900; margin-bottom: 4px; }
@@ -68,6 +72,14 @@ const CSS = `
 #mgr .m-teams button small { display: block; color: #6b7480; font-weight: 600; font-size: 11px; margin-top: 3px; letter-spacing: 0; }
 #mgr .m-seg { display: inline-flex; gap: 4px; flex-wrap: wrap; } #mgr .m-seg button.m-on { background: #151a22; color: #fff; border-color: #151a22; }
 #mgr .fac { max-width: 860px; }
+/* (the factory on a wide screen: the branches and the queue on the left, the branch chosen beside them - not one
+   narrow column down the left of the page with the rest of it empty and twice the scrolling) */
+@media (min-width: 1180px) {
+  #mgr .fac { max-width: none; }
+  #mgr .fac .tt { columns: 2; column-gap: 22px; }
+  #mgr .fac .tt > * { break-inside: avoid; -webkit-column-break-inside: avoid; }
+  #mgr .fac .tt > .tt-sec { break-before: column; margin-top: 0; }
+}
 #mgr .m-verdict { font-size: 26px; font-weight: 900; margin: 4px 0 8px; } #mgr .m-verdict.m-bad { color: #d4351c; } #mgr .m-verdict.m-good { color: #1d8a4e; }
 @media (max-width: 700px) { #mgr .m-mh { flex-wrap: wrap; } #mgr .m-kp { margin-left: 0; } }
 /* less to read at a glance: a row's explanation is one line until the row is pointed at; the long notes fold away */
@@ -90,7 +102,7 @@ let el = null;
 export function openManagerHub(o) {
   H.o = o; H.c = o.career || null; H.msg = null; if (!H.c) H.tab = 'new'; else if (H.tab === 'new') H.tab = 'home';
   if (!document.getElementById('mgr-css')) { const st = document.createElement('style'); st.id = 'mgr-css'; st.textContent = CSS + TECH_CSS.replaceAll('#career', '#mgr .fac'); document.head.appendChild(st); }
-  if (!el) { el = document.createElement('div'); el.id = 'mgr'; el.addEventListener('click', onClick); document.body.appendChild(el); }
+  if (!el) { el = document.createElement('div'); el.id = 'mgr'; el.addEventListener('click', onClick); document.body.appendChild(el); let rt = 0; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if (el && !el.classList.contains('hidden')) pack(); }, 120); }); }
   el.style.display = 'flex'; render(); pump();
 }
 /** the story's scenes that play themselves on coming back to the HQ (ui/ManagerHub3.js; o.play shows one) */
@@ -119,7 +131,27 @@ function render() {
     <div class="m-kp"><div class="m-k"><small>Budget</small><b class="${t.budget < 5 ? 'm-bad' : ''}">${money(t.budget)}</b></div><div class="m-k"><small>Cost cap left</small><b>${money(c.capLeft())}</b></div>
     <div class="m-k"><small>Constructors</small><b>P${pos}<span style="font-size:11px;color:#8a93a0"> · target P${c.board.target}</span></b></div><div class="m-k"><small>Board</small><b class="${conf < 30 ? 'm-bad' : conf >= 65 ? 'm-ok' : ''}">${conf}%</b></div></div><span class="m-ctas">${ctas}<button data-a="exit">MENU</button></span></div>
     <div class="m-mn">${[['home', 'OVERVIEW'], ['stand', 'STANDINGS'], ['fac', 'FACTORY'], ['drv', 'DRIVERS'], ['parts', 'PARTS'], ['facil', 'FACILITIES'], ['spons', 'SPONSORS'], ['staff', 'STAFF'], ...EXTRA_TABS, ...STORY_TABS, ['fin', 'FINANCES'], ['cal', 'CALENDAR']].map(([k, n]) => `<button data-tab="${k}" class="${H.tab === k ? 'm-on' : ''}">${n}</button>`).join('')}</div>
-    <div class="m-mb">${H.msg ? `<div class="m-msg ${H.ok ? '' : 'm-no'}">${esc(H.msg)}</div>` : ''}${body(c)}</div>`;
+    <div class="m-mb"><div class="m-pg">${H.msg ? `<div class="m-msg ${H.ok ? '' : 'm-no'}">${esc(H.msg)}</div>` : ''}${body(c)}</div></div>`;
+  pack();
+}
+/**
+ * A page's cards packed into columns: as many columns as fit the width and as the page has cards for, and of those
+ * the count that leaves the page shortest (three cards on a wide screen are three columns edge to edge, not two and a
+ * hole; a tall card beside two short ones is two columns, not three with half of them empty).
+ */
+function pack() {
+  const mb = el?.querySelector('.m-mb'), pg = mb?.querySelector('.m-pg'); if (!mb || !pg) return;
+  const grids = () => {
+    for (const g of pg.querySelectorAll('.m-grid')) {
+      const n = [...g.children].filter((c) => !c.style.gridColumn).length, max = Math.max(1, Math.min(n, Math.floor((g.clientWidth + 14) / 334)));
+      let best = max, bh = Infinity;
+      for (let k = max; k >= 1; k--) { g.style.columnCount = String(k); const h = g.offsetHeight; if (h < bh - 8) { bh = h; best = k; } }
+      g.style.columnCount = String(best);
+    }
+  };
+  // (a page with little on it is shown larger - up to 130 % - as long as all of it still fits without scrolling: a
+  //  quarter of a laptop's screen in small type and the rest of it blank was most of these pages)
+  for (const z of [1.3, 1.2, 1.1, 1]) { pg.style.zoom = z === 1 ? '' : String(z); grids(); if (z === 1 || mb.scrollHeight <= mb.clientHeight + 2) break; }
 }
 function body(c) {
   try {

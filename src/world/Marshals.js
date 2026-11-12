@@ -8,6 +8,7 @@
 // the moment the winner crosses it. Only drawn near the camera.
 import * as THREE from 'three';
 import { makePerson } from './People.js';
+import { TERRAIN } from './Terrain.js';
 
 const COLORS = { yellow: '#ffd400', green: '#16c45a', red: '#e3141b', blue: '#1f6bff', chequered: '#ffffff' };
 const POSTS = [[-190, 'yellow', 1], [-60, 'yellow', 2], [70, 'green', 1]];   // [m from the incident, flag, waves: 1 single, 2 double]
@@ -68,6 +69,7 @@ export class Marshals {
       this.lastS = inc.s; this.greenUntil = time + 10;
       const car = inc.cars && [...inc.cars][0]; if (car) this.side = Math.sign(car.d) || 1;
     } else if (!mode && this.lastS != null && time < this.greenUntil) mode = 'clear';
+    this.mode = mode;
     const cam = camera.position;
     for (let k = 0; k < this.posts.length; k++) {
       const q = this.posts[k];
@@ -91,21 +93,31 @@ export class Marshals {
     } else this._show(this.line, null);
   }
 
+  /** a post showing a flag now, for a camera (the broadcast's cutaway): 'chequered' the one at the line, else the post
+   *  just before the incident, or any -> { x, y, z (the marshal's feet), ux, uz (back up the road), flag } | null */
+  spot(want = null) {
+    if (want === 'chequered') return this.line?.at || null;
+    if (this.mode === 'red') return null;   // (the red flag's posts stand round the camera: they would follow it)
+    const P = this.posts; return (want === 'green' ? P[1]?.at && P[1].at.flag === 'green' ? P[1].at : null : P[1]?.at || P[0]?.at || P[2]?.at) || null;
+  }
   /** a marshal at arc length s (null: hidden) behind the barrier on that side, showing flag */
   _show(q, s, side, flag, waves, time, k, cam, o = {}) {
     const P = q.p.group, tr = this.track;
-    if (s == null) { P.visible = false; if (q.panel) q.panel.visible = false; return; }
+    if (s == null) { q.at = null; P.visible = false; if (q.panel) q.panel.visible = false; return; }
     s = tr.wrapS(s);
     const i = tr.idxAtS(s), wall = tr.wallAt(i, side), f = tr.sample(s, side * (wall + 1.1 + (o.inset || 0))), c = tr.sample(s, 0), w = tr.sample(s, side * (wall - 0.05));
+    // (where the post is, drawn or not: the broadcast may cut to it - spot(); up: back up the road, the way the marshal looks)
+    const gy = TERRAIN.at(f.x, f.z), py = 0.75 + (o.lift || 0) + gy;
+    q.at = { x: f.x, y: py, z: f.z, ux: -c.tx, uz: -c.tz, cx: c.x, cz: c.z, s, side, flag };
     if (Math.hypot(f.x - cam.x, f.z - cam.z) > NEAR) { P.visible = false; if (q.panel) q.panel.visible = false; return; }
-    P.visible = true; P.position.set(f.x, 0.75 + (o.lift || 0), f.z);   // (on the post's platform: head and flag above the barrier)
+    P.visible = true; P.position.set(f.x, py, f.z);   // (on the post's platform: head and flag above the barrier; on the ground where it is - a circuit that is not flat)
     // facing the cars coming: toward the road and back up it
     let fx = (c.x - f.x), fz = (c.z - f.z); const l = Math.hypot(fx, fz) || 1; fx = fx / l * 0.55 - c.tx * 0.85; fz = fz / l * 0.55 - c.tz * 0.85;
     P.rotation.y = Math.atan2(-fz, fx);
     if (q.color !== flag && flag !== 'chequered') { q.color = flag; q.mat.color.set(COLORS[flag]); q.mat.emissive.set(COLORS[flag]); }
     // the light panel on the barrier top, facing back up the road; flashing
     if (q.panel) {
-      q.panel.visible = true; q.panel.position.set(w.x, 1.55, w.z); q.panel.rotation.y = Math.atan2(c.tz, -c.tx);
+      q.panel.visible = true; q.panel.position.set(w.x, 1.55 + TERRAIN.at(w.x, w.z), w.z); q.panel.rotation.y = Math.atan2(c.tz, -c.tx);
       const on = (time * 2.2 + k * 0.3) % 1 < 0.6; q.lamp.color.set(on ? COLORS[flag] : '#111214');
     }
     // waving: side to side across the body (a double wave: faster and wider; the chequered flag in big sweeps), the

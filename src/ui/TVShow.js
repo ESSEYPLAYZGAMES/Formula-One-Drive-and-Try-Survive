@@ -45,12 +45,15 @@ const CSS = `
 #tvg .cls .gr { display: grid; grid-template-columns: 22px 4px 1fr auto; gap: 0 7px; align-items: center; height: 22px; padding: 0 10px; font: 700 12px/1 var(--tvf); } #tvg .cls .gr.mine { background: rgba(255,255,255,.12); }
 #tvg .cls .gr .p { text-align: right; font-weight: 900; color: #c9d1db; } #tvg .cls .gr .tc { height: 13px; border-radius: 2px; } #tvg .cls .gr .n { text-transform: uppercase; } #tvg .cls .gr .g { font-variant-numeric: tabular-nums; color: #dfe5ec; }
 #tvg .pip { position: absolute; left: 244px; top: 126px; width: min(300px, 24vw); aspect-ratio: 16 / 9; border: 2px solid #fff; border-radius: 4px; box-shadow: 0 8px 26px rgba(0,0,0,.5); display: none; }
-#tvg .pip.on { display: block; } #tvg .pip.big { width: min(430px, 34vw); border-color: #e10600; }
+#tvg .pip.on { display: block; transform-origin: left top; transform: scale(calc(.9 + .1 * var(--k, 1))); opacity: calc(var(--k, 1) * 2); }
+#tvg .pip .cur { position: absolute; inset: 0; background: #07080b; opacity: calc(1 - var(--k, 1)); pointer-events: none; }   /* (the window's curtain: over the picture drawn in it, lifted as it opens) */ #tvg .pip.big { width: min(430px, 34vw); border-color: #e10600; }
 #tvg .pip b { position: absolute; left: -2px; top: -22px; background: #fff; color: #111; font: 900 10px/1 var(--tvf); letter-spacing: .16em; padding: 5px 8px; border-radius: 4px 4px 0 0; white-space: nowrap; } #tvg .pip.big b { background: #e10600; color: #fff; }
 #tvg .cls .dotd { margin-top: 6px; padding: 7px 10px; background: rgba(255,212,0,.14); border-left: 3px solid #ffd400; font: 800 13px/1.2 var(--tvf); color: #fff; }
 #tvg .cls .dotd small { display: block; font-size: 9px; letter-spacing: .16em; color: #ffd400; margin-bottom: 3px; }
 #tvg .cls .dotd em { display: block; font: 600 10px/1.3 var(--tvf); color: #b7c0cc; font-style: normal; }
 body.tp-hl #hud, body.tp-hl #hud-msg { visibility: hidden !important; }   /* (the highlights at the flag: the picture and its tag, nothing of the driver's own display) */
+#tvg .sk { position: absolute; left: 50%; bottom: calc(var(--pw, 150px) + 86px); transform: translateX(-50%); background: rgba(12,14,20,.78); border-radius: 14px; padding: 5px 12px 5px 6px; font: 700 10px/1 var(--tvf); letter-spacing: .12em; text-transform: uppercase; color: #dfe5ec; opacity: 0; transition: opacity .25s; white-space: nowrap; }
+#tvg .sk.in { opacity: 1; } #tvg .sk b { display: inline-block; background: #fff; color: #111; border-radius: 9px; padding: 3px 7px; margin-right: 8px; font-weight: 900; }
 #tvg .vc { position: absolute; right: 214px; top: 14px; pointer-events: auto; cursor: pointer; background: rgba(12,14,20,.75); color: #b7c0cc; border: 1px solid rgba(255,255,255,.2); border-radius: 4px; font: 800 9px/1 var(--tvf); letter-spacing: .16em; padding: 8px 9px; }
 #tvg .vc:hover { color: #fff; border-color: #fff; }
 #tvg .rain { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 1.2s; overflow: hidden; }
@@ -58,7 +61,7 @@ body.tp-hl #hud, body.tp-hl #hud-msg { visibility: hidden !important; }   /* (th
 #tvg .rain i { position: absolute; border-radius: 50%; background: radial-gradient(ellipse at 35% 30%, rgba(255,255,255,.5), rgba(190,210,230,.16) 45%, rgba(255,255,255,.04) 70%, transparent 72%); box-shadow: inset 0 -2px 3px rgba(0,0,0,.18); backdrop-filter: blur(2px); }
 #tvg .r .sx { position: absolute; right: 96px; top: 50%; margin-top: -2px; display: flex; gap: 2px; } #tvg .r .sx u { width: 5px; height: 4px; border-radius: 1px; background: rgba(255,255,255,.14); text-decoration: none; }
 #tvg .r .sx u.purple { background: #b45cff; } #tvg .r .sx u.green { background: #3ddc84; } #tvg .r .sx u.yellow { background: #ffd400; }
-#tvg.hl .tower, #tvg.hl .live, #tvg.hl .xr, #tvg.hl .map, #tvg.hl .cap, #tvg.hl .rc, #tvg.hl .cm, #tvg.hl .rad, #tvg.hl .tel, #tvg.hl .cls, #tvg.hl .gridg, #tvg.hl .pip, #tvg.hl .vc, #tvg.hl .rain, #tvg.hl .sting { display: none !important; }
+#tvg.hl .tower, #tvg.hl .live, #tvg.hl .xr, #tvg.hl .map, #tvg.hl .cap, #tvg.hl .rc, #tvg.hl .cm, #tvg.hl .rad, #tvg.hl .tel, #tvg.hl .cls, #tvg.hl .gridg, #tvg.hl .pip, #tvg.hl .vc, #tvg.hl .rain, #tvg.hl .sting, #tvg.hl .sk { display: none !important; }
 @media (max-width: 1000px) { #tvg .map, #tvg .rad { display: none; } #tvg .pip { left: 190px; } }
 `;
 const surname = (c) => { const w = String(c?.name || c || '').trim().split(/\s+/); return w[0] === 'Zhou' ? 'Zhou' : w[w.length - 1]; };
@@ -102,6 +105,9 @@ const LINES = {
   order: [5, 1, (x) => [`That is a team order. ${x.who} told to move over.`]],
   refuse: [8, 0, (x) => [`${x.who} is not moving over! He has ignored the pit wall!`]],
   replay: [1, 0, () => ['Let us see that again.']],
+  form: [6, 0, () => ['And away they go on the formation lap. One lap to put some heat into the tyres and the brakes.']],
+  formMid: [5, 1, (x) => [`Weaving all the way round, working the tyres. ${x.mine ? `${x.mine} looking after the clutch for the start.` : 'Brakes and clutch checked for the start.'}`]],
+  formEnd: [6, 0, (x) => [`They come back round to the grid. ${x.pole} takes up pole position; the rest file in behind.`]],
   quali: [3, 0, (x) => [`${x.who} is on a lap. ${x.up ? 'Up on his best so far.' : 'He needs to find time in the last sector.'}`]],
   pole: [6, 0, (x) => [`${x.who} goes fastest! ${x.t}.`]],
 };
@@ -112,7 +118,7 @@ export class TVShow {
     this.root = root; this.o = o;
     if (!document.getElementById('tvs-css')) { const st = document.createElement('style'); st.id = 'tvs-css'; st.textContent = CSS; document.head.appendChild(st); }
     const mk = (cls, html = '') => { const e = document.createElement('div'); e.className = cls; e.innerHTML = html; root.appendChild(e); return e; };
-    this.rain = mk('rain'); root.insertBefore(this.rain, root.firstChild);   /* (the drops are on the lens: under every graphic) */ this.cm = mk('cm', '<small></small><span></span>'); this.rad = mk('rad'); this.gridg = mk('gridg'); this.cls = mk('cls'); this.pipEl = mk('pip', '<b></b>');
+    this.sk = mk('sk'); this.rain = mk('rain'); root.insertBefore(this.rain, root.firstChild);   /* (the drops are on the lens: under every graphic) */ this.cm = mk('cm', '<small></small><span></span>'); this.rad = mk('rad'); this.gridg = mk('gridg'); this.cls = mk('cls'); this.pipEl = mk('pip', '<b></b><i class="cur"></i>');
     this.mapEl = document.createElement('canvas'); this.mapEl.className = 'map'; this.mapEl.width = 380; this.mapEl.height = 256; root.appendChild(this.mapEl);
     this.inf = document.createElement('div'); this.inf.className = 'xc inf'; (root.querySelector('.xr') || root).appendChild(this.inf);
     this.voice = false; try { this.voice = localStorage.getItem('f1sim-tv-voice') === '1'; } catch (e) { this.voice = false; }
@@ -122,8 +128,8 @@ export class TVShow {
   reset() {
     this.q = []; this.cur = null; this.curT = 0; this.n = 0; this.said = new Map(); this.radT = 0; this.acc = 0; this.mapPts = null; this.mapFor = null;
     this.infT = 99; this.infK = 0; this.stints = new Map(); this.vmax = new Map(); this.tl = new Map(); this.logN = 0; this.notes = []; this.offN = 0;
-    this.phase = 'pre'; this.t0 = 0; this.lap1 = false; this.react = false; this.flag = false; this.flagA = false; this.clsK = -1; this.infHold = 0; this.rainOn = false; this.rainSaid = -99; this.best = Infinity; this.pb = new Map(); this.drops = 0;
-    for (const e of [this.cm, this.rad, this.gridg, this.cls, this.inf]) e.classList.remove('in'); this.rain.classList.remove('on'); this.pipEl.classList.remove('on', 'big'); this.root.classList.remove('hl', 'has-pip', 'tight');
+    this.phase = 'pre'; this.t0 = 0; this.lap1 = false; this.react = false; this.flag = false; this.flagA = false; this.clsK = -1; this.infHold = 0; this.formPh = null; this.rainOn = false; this.rainSaid = -99; this.best = Infinity; this.pb = new Map(); this.drops = 0;
+    for (const e of [this.cm, this.rad, this.gridg, this.cls, this.inf]) e.classList.remove('in'); this.rain.classList.remove('on'); this.pipEl.classList.remove('on', 'big'); this.root.classList.remove('hl', 'has-pip', 'tight'); this.skK = ''; this.sk?.classList.remove('in');
     try { window.speechSynthesis?.cancel(); } catch (e) { /* no speech */ }
   }
   setVoice(on) { this.voice = !!on; if (this.vc) this.vc.textContent = on ? 'VOICE ON' : 'VOICE OFF'; try { localStorage.setItem('f1sim-tv-voice', on ? '1' : '0'); if (!on) window.speechSynthesis?.cancel(); } catch (e) { /* not kept */ } }
@@ -157,7 +163,7 @@ export class TVShow {
   /** the stewards have seen a contact: noted - and, if no penalty follows, no further action */
   noted(a, b, d) { if (!d || this.notes.some((n) => n.a === a && n.b === b && d.time - n.t < 30)) return; this.notes.push({ a, b, t: d.time, pen: (a.penalties || 0) + (b.penalties || 0) }); this.rcSay?.(`${surname(a)} · ${surname(b)} · incident noted`, 'warn', 'STEWARDS'); this.say('noted', { a: surname(a), b: surname(b) }); }
   /** the picture-in-picture's frame: label (null: off), big (a replay's window) -> its rectangle on the page, or null */
-  pip(label, big = false) { this.root.classList.toggle('has-pip', !!label); if (!label) { this.pipEl.classList.remove('on', 'big'); return null; } this.pipEl.classList.add('on'); this.pipEl.classList.toggle('big', !!big); const b = this.pipEl.firstChild; if (b.textContent !== label) b.textContent = label; return this.pipEl.getBoundingClientRect(); }
+  pip(label, big = false, k = 1) { this.pipEl.style.setProperty('--k', String(Math.round(k * 100) / 100)); this.root.classList.toggle('has-pip', !!label); if (!label) { this.pipEl.classList.remove('on', 'big'); return null; } this.pipEl.classList.add('on'); this.pipEl.classList.toggle('big', !!big); const b = this.pipEl.firstChild; if (b.textContent !== label) b.textContent = label; return this.pipEl.getBoundingClientRect(); }
 
   /**
    * every frame. ctx: { d, focus, shot, halted, len, track (the circuit: px, pz, n), trackName, stat(car) -> a line of
@@ -166,6 +172,8 @@ export class TVShow {
    */
   update(dt, ctx) {
     const d = ctx.d; if (!d) return; this.rcSay = ctx.rc;
+    // what a key does now (the formation lap, a cutaway): a small tag under the caption's place
+    { const h = ctx.hint || null, k = h ? h.join('|') : ''; if (k !== this.skK) { this.skK = k; if (h) this.sk.innerHTML = `<b>${esc(h[0])}</b>${esc(h[1])}`; this.sk.classList.toggle('in', !!h); } }
     // the caption being said, the next one
     if (this.cur) { this.curT -= dt; if (this.curT <= 0) { this.cur = null; this.cm.classList.remove('in'); } }
     if (!this.cur && this.q.length && !ctx.halted) { const it = this.q.shift(); if (performance.now() - it.at < 9000) { this.cur = it; this.curT = 1.6 + Math.min(4.2, it.text.length * 0.055); this.cm.className = `cm in${it.who ? ' b' : ''}`; this.cm.firstChild.textContent = it.who ? ANALYST : LEAD; this.cm.lastChild.textContent = it.text; this.speak(it); } }
@@ -189,6 +197,9 @@ export class TVShow {
         this.gridg.classList.add('in');
         this.say('grid', { track: ctx.trackName, pole: surname(G0[0]), laps: d.lapsTotal }); const M = (ctx.focus || []); if (M.length) this.say('gridMine', { team: M[0].team, a: `${surname(M[0])} ${ord(G0.indexOf(M[0]) + 1)}`, b: M[1] ? `${surname(M[1])} ${ord(G0.indexOf(M[1]) + 1)}` : '' });
       }
+      // (a formation lap - ctx.form: 'grid' before it, 'away' | 'mid' | 'form' as it runs, 'done' after: the graphic is the grid's before it, the picture's after)
+      const fm = ctx.form || null; this.gridg.classList.toggle('in', !fm || fm === 'grid');
+      if (fm && fm !== this.formPh) { this.formPh = fm; const M = (ctx.focus || []); if (fm === 'away') this.say('form'); else if (fm === 'mid') this.say('formMid', { mine: M[0] ? surname(M[0]) : '' }); else if (fm === 'form') this.say('formEnd', { pole: surname([...P].sort((a, b) => (a.gridPos || 99) - (b.gridPos || 99))[0]) }); }
       return;
     }
     if (this.phase === 'grid') { this.phase = 'race'; this.t0 = d.time; this.infT = 0; this.gridg.classList.remove('in'); this.say('lights'); try { this.o.audio?.play?.('crowd', { gain: 0.5, fadeIn: 0.3 })?.stop?.(5); } catch (e) { /* no sound */ } for (const c of P) { this.stints.set(c, [{ comp: c.tyres?.compound || 'SOFT', from: 0 }]); c._tvGrid = c.gridPos ? c.gridPos - 1 : P.indexOf(c); } }
@@ -210,7 +221,7 @@ export class TVShow {
     // ---- the flag ----------------------------------------------------------------------------------------------------------
     if (d.leaderFinished) {
       const F = P.filter((c) => c.finished && !c.retired);
-      if (!this.flag && F.length) { this.flag = true; this.flagAt = performance.now(); this.inf.classList.remove('in'); this.say('flag', { who: surname(F[0]), team: F[0].team, track: ctx.trackName }); try { this.o.audio?.play?.('crowd', { gain: 0.7, fadeIn: 0.2 })?.stop?.(7); } catch (e) { /* no sound */ } }
+      if (!this.flag && F.length) { this.flag = true; this.flagAt = performance.now(); try { this.o.on?.('flag'); } catch (e) { /* no one listening */ } this.inf.classList.remove('in'); this.say('flag', { who: surname(F[0]), team: F[0].team, track: ctx.trackName }); try { this.o.audio?.play?.('crowd', { gain: 0.7, fadeIn: 0.2 })?.stop?.(7); } catch (e) { /* no sound */ } }
       if (F.length >= 3 && !this.flagA) { this.flagA = true; try { this.o.on?.('podium'); } catch (e) { /* no one listening */ } this.say('flagA', { fact: ctx.fact, second: surname(F[1]), third: surname(F[2]) }); }
       const key = F.length; if (this.clsK !== key && performance.now() - (this.flagAt || 0) > 4200) { this.clsK = key; const w = F[0];   /* (after the flag's own banner has gone) */ this.cls.innerHTML = `<div class="gh">CLASSIFICATION</div>${F.slice(0, 10).map((c, i) => { const dl = (w.lap || 0) - (c.lap || 0), g = i ? (dl > 0 ? `+${dl} LAP${dl > 1 ? 'S' : ''}` : isFinite(c.finishTime) && isFinite(w.finishTime) ? `+${Math.max(0, c.finishTime - w.finishTime).toFixed(3)}` : '') : 'WINNER'; return `<div class="gr${mine(c) ? ' mine' : ''}"><span class="p">${i + 1}</span><span class="tc" style="background:${c.color}"></span><span class="n">${esc(surname(c))}</span><span class="g">${g}</span></div>`; }).join('')}${(() => { const G = P.filter((c) => !c.retired && c._tvGrid != null).map((c) => ({ c, n: c._tvGrid - P.indexOf(c) })).sort((x, y) => y.n - x.n || P.indexOf(x.c) - P.indexOf(y.c))[0]; return G && F.length >= 3 ? `<div class="dotd"><small>DRIVER OF THE DAY</small>${esc(surname(G.c))}<em>${G.n > 0 ? `+${G.n} place${G.n === 1 ? '' : 's'} from P${G.c._tvGrid + 1}` : `led from P${G.c._tvGrid + 1}`}</em></div>` : ''; })()}`; this.cls.classList.add('in'); }
       return;

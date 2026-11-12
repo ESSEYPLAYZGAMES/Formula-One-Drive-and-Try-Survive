@@ -1,3 +1,130 @@
+# V2.51 (2026-11-12): the formation lap, three more cutaways - and the list that came in while they were being built
+
+Two requests. First: "add the formation lap and the missing cutaways (skippable)". Then, while that was being
+verified, a list: cars at Montreal going wide "acting like the grass is a viable line" and ending up stuck behind
+the barrier; safety cars rare in manager mode; replays too slow and not closing on their own; cameras hopping
+between shots of the same kind; defaults for the pit wall; menus with dead space; a strategy screen that only offers
+three near-identical plans.
+
+## Montreal: cars behind the wall after a pit stop (it was the pit exit, not Turn 1)
+
+Measured with AI races and a probe that logs every car beyond a wall. Before: 12 to 17 cars a race were beyond the
+circuit's wall at 585-600 m - every car that had just pitted - and one or two a race stayed there, driving on the
+grass behind the wall to Turn 3 (850 m), Turn 8, the hairpin, some stopping for good.
+- The cause: Montreal's pit exit road comes out onto the exit of the Turn 2 hairpin, and it was driven at its own
+  limits (2 g): cars arrived at 200 km/h, crossed the road at the lane's angle at 118 km/h with the steering full
+  over, slid off its far side through the opening, and were beyond the wall where it starts again 10 m later -
+  where the wall then held them out (a car beyond a barrier stays beyond it).
+- An exit road is now driven for the road it comes out onto: no quicker than four fifths of the racing line's
+  speed over the next 140 m of circuit - where that is a slow piece of road (under 45 m/s; ai/AIDriver.js
+  pitDrive). At Montreal that is the pit limiter's 81 km/h all the way out: the same car joins 4-5 m from the
+  centreline and is at 150 km/h on the road 120 m later. There the lane's own line is also followed until the car is
+  on the road AND pointing along it (it used to be handed to the planner at the merge line, mid-turn). A lane that
+  joins a fast piece of road (Silverstone's) is driven exactly as before.
+- On a walled circuit, where the circuit's wall is open for the lane (the way in, the way out), a car that is NOT
+  in the lane now meets the lane's own outer wall there instead of nothing (Track buildPitLane outerD, Car
+  _barriers; never nearer the road than the circuit's own wall line): missing the last chicane into the escape road
+  no longer lets a car run on into the park behind the wall.
+- After: at the pit exit, 0 cars beyond the wall in six 10-lap races (was 12-17 in each of three).
+- Still there: at Turn 3 one car in two of the last three races ended up behind the left wall (a run-off whose
+  wall line closes in along the lap faster than the car moves in: the wall model is a distance from the centreline
+  per metre of lap, and has no end wall for a pocket). Not fixed here.
+- Silverstone, Austin and Las Vegas checked the same way (two 10-lap races each): no car driving behind a wall;
+  the cars found beyond one had crashed over it or were beached in a run-off.
+
+## Safety cars in manager mode
+
+Not rarer than in the other modes - but two things made them look it:
+- SIM 1 LAP / 5 LAPS / TO FLAG run the race model, which has its safety cars inside it (the field closes up) and
+  shows none. The pit wall now says so afterwards: "A safety car in those laps: the field closed up behind it."
+- Watched live, a car stopped off the road was nearly always a VIRTUAL safety car (three of four neutralisations in
+  the first race measured). Now a car that has CRASHED within seven metres of
+  the road (it wants a crane, marshals at the road's edge) brings the real one out; a car that simply stopped clear
+  of it (engine, gearbox), or a wreck deep in a run-off, is a VSC. All modes.
+
+## Replays
+
+- Real time, slowed to half only through the moment itself (half a second either side) and back up to speed; once
+  through - no second, slow-motion pass - and the window closes itself: it opens and closes over a third of a
+  second (a curtain lifts, the window grows the last tenth) rather than appearing and vanishing. R or Esc still
+  closes it early; you never have to.
+- The highlights at the flag: real time with the same dip in speed, the picture dipping to black between moments.
+  The reel also stopped after its first moment: between two moments nothing held the finished race, and its own
+  frame ran on under the reel. It is held from the first moment to the last now, its safety net counts the reel's own time rather than the clock
+  (the test machine's slow frames ran into a 150 s wall-clock limit), and each moment is cut 2.2 s after it happened.
+  Seen: both moments of a two-moment reel played and it ended by itself.
+
+## Cameras hopping
+
+- A trackside camera now stays with its car for two seconds after it has gone by (70-220 m, by speed) instead of
+  being dropped 45 m past the pole, and is placed a little further up the road: 4-6 s a shot where it was 2-4.
+- After a shot of under four seconds the director does not pick the same kind of camera again.
+- The pit lane: one camera placed 70 m ahead and 7.5 m up, chosen to see the car now and the lane 50 m on; it is
+  placed again only when it has lost the car three looks running and not within 5 s, or the car is 125 m past it
+  (it was looked at every second and moved whenever a gantry crossed the line: a new camera every 30 m). Measured
+  on the build before the last of those rules: 7 placements over a 21 s stop, 3.0 s each. The pit lane in the
+  corner window the same.
+
+## The formation lap (Space or Enter skips it)
+
+Before the lights in a Team Principal race: the field pulls away from the grid in order, is seen half a lap on
+weaving to warm its tyres (from the fence, then onboard with your first car), and comes back round to form up. About
+42 s; "SPACE - skip the formation lap" under the caption.
+- The race itself does not run a step while it plays: the cars are driven round by the lap and put back on their
+  slots exactly as the race director placed them (every car's state compared before and after: identical), so the
+  race that follows is the one there would have been. SIM buttons end it too. A restarted race has none.
+- The tower shows grid order during it (the race director's own order is the entry list's until its first step).
+
+## Three more cutaways (X: back to the race)
+
+- The pit wall: your three at their screens opposite your garage, in your colours, headsets on - calm after a
+  stop, on their feet for a pass into the top three or the lead and when your car comes home in the points, heads
+  down for a retirement or a touch. Seen from a camera on the stand itself.
+- A marshal's post: the yellow flag waved at the post before an incident once the safety car's banner has gone,
+  the green when it clears, the chequered flag on the pit wall at the line. Marshals now stand on the ground where
+  it is not flat (Austin: they stood at sea level).
+- A driver walking away: from a car stopped out on the circuit (not hurt, not in the pits) once it has stood still
+  two seconds - over to the barrier and off along it, the camera on the road's side of the car.
+- At most one cutaway every 20 s unless it is one that must be shown; never while you keep a camera or follow a car.
+  Cutaways asked for together take turns with at least four seconds of the race between them (at the flag: the
+  crowd, the marshal with the chequered flag, your pit wall as your car comes home).
+
+## The pit wall as you left it
+
+SAVE AS MY DEFAULT on the wall (the SET-UP row): both cars' tyre / fuel / ERS modes, every order, who makes the
+calls, and the camera are kept and put back at the start of every race. RESET forgets them. A plan chosen on the
+strategy screen is still followed unless your default is to make the calls yourself.
+
+## The strategy screen
+
+- A fourth plan, D, "your own": the tyre each stint is on (so the start tyre too - hards if you like), the lap of
+  every stop, and the number of stops (0-3). It is timed like the others, says when a set will not last its stint
+  (and cannot be confirmed then) and what the rules will make of it (two dry compounds, the mandatory stop).
+- A, B and C now start on different tyres where each has a plan: the quickest, then the quickest starting on each of
+  the others - not one race with its stop moved.
+
+## The HQ's pages
+
+- Cards are packed into columns (each column filled top to bottom; as many columns as the page has cards for, and
+  of those the count that leaves the page shortest) instead of rows whose height was the tallest card's.
+- A page with little on it is shown larger - up to 130 % - as long as all of it still fits without scrolling.
+- The factory on a wide screen is two columns (the branches and the queue; the branch chosen and its parts) instead
+  of one 860 px column down the left.
+
+## Checked
+
+- A seeded race in the other modes is identical to V2.45-V2.50 (tools/race_probe.mjs 5 1 silverstone) - with the
+  pit exit change scoped to slow merges and the lane's fallback wall to walled circuits; the first version of the
+  fix (every exit road at half its limits) made that race different: two accidents at Silverstone's pit exit.
+- Seen in a browser, in one 12-lap race and a 3-lap one at Silverstone: the formation lap (run through: 42 s, every
+  car's state identical before and after; and skipped with Space), the strategy screen with plan D built and
+  confirmed, the pit wall in three moods, the yellow-flag marshal, the driver walking away, the replay window
+  (6.0 s, closed by itself, gone 0.2 s later, the race 5.6 s further on), the chequered-flag marshal and the pit
+  wall at the flag in turn after the crowd, saved defaults put back at the next race's start and RESET, every page
+  of the HQ at 1366 x 768.
+- Not seen: a cutaway at Austin (the marshals' height fix there is by reading, not by picture); the pit lane's
+  camera after its last rule change; the SIM buttons' safety-car line.
+
 # V2.50 (2026-11-11): the broadcast gets a show - commentary, radio on air, a map, replays in a window, highlights
 
 Asked for: "Add them all, 1-26" - the list of what the Team Principal broadcast was still missing. The list had 21

@@ -1080,7 +1080,7 @@ export class RaceDirector {
       return x;
     });
     const pitLoss = this.world.pitLoss || 21.4, finishers = [];
-    let Tw = Infinity, sc = 0, guard = 0;
+    let Tw = Infinity, sc = 0, guard = 0, scN = 0;
     while (S.some((s) => !s.done && !s.out) && guard++ < 400) {
       if (upTo != null && S.some((s) => !s.out && s.laps >= upTo)) break;   // (as far as asked: the race goes on live from here)
       // the crossing each car is at: the flag falls on the first to complete the distance, everyone after it is done
@@ -1122,10 +1122,11 @@ export class RaceDirector {
       // a safety car: after a crash, now and then otherwise - the field closes up behind it
       if (sc) sc--;
       if (!sc && (crash.length ? rnd() < 0.7 : rnd() < 0.008)) {
-        sc = 2; const g = go.slice().sort((a, b) => a.at2 - b.at2); g.forEach((s, i) => { if (i) s.at2 = Math.max(s.at2, g[0].at2 + i * 0.8); });
+        sc = 2; scN++; const g = go.slice().sort((a, b) => a.at2 - b.at2); g.forEach((s, i) => { if (i) s.at2 = Math.max(s.at2, g[0].at2 + i * 0.8); });
       }
       for (const s of go) { s.times.push(s.at2 - s.at); s.at = s.at2; s.laps++; }
     }
+    this.lastSim = { sc: scN };   // (what the laps not watched held: main.js tpSim tells the pit wall)
     if (upTo != null) { this.simPlace(S, t0, model); return true; }
     // ---- the result onto the cars
     // (8 laps or more: the mandatory stop - a car that has not stopped makes it, its time in the pit lane added)

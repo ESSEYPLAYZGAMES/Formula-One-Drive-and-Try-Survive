@@ -20,7 +20,9 @@ import * as THREE from 'three';
 
 /** the cameras a viewer can keep to (keys 1-6 in the team principal's race) */
 export const TV_CAMS = ['auto', 'track', 'tcam', 'heli', 'rear', 'helmet', 'kerb', 'crane', 'drone'];
-export const TV_CAM_NAME = { auto: 'Director', track: 'Trackside', tcam: 'Onboard', heli: 'Helicopter', rear: 'Rear onboard', pit: 'Pit lane', grid: 'Grid', kerb: 'Kerb camera', crane: 'Crane', drone: 'Drone', helmet: 'Helmet camera', beauty: 'The circuit', crowd: 'The crowd', garage: 'The garage' };
+export const TV_CAM_NAME = { auto: 'Director', track: 'Trackside', tcam: 'Onboard', heli: 'Helicopter', rear: 'Rear onboard', pit: 'Pit lane', grid: 'Grid', kerb: 'Kerb camera', crane: 'Crane', drone: 'Drone', helmet: 'Helmet camera', beauty: 'The circuit', crowd: 'The crowd', garage: 'The garage', wall: 'The pit wall', marshal: 'Marshal post', walk: 'The driver' };
+/** the shots that are not of a car on the road: cutaways (a key skips one - skipAway) */
+export const TV_AWAY = new Set(['crowd', 'garage', 'beauty', 'wall', 'marshal', 'walk']);
 
 const _v = new THREE.Vector3();
 /** where the helicopter may fly, relative to the car: [along its heading (m, - behind), to its left, up] - tried in turn */
@@ -39,14 +41,21 @@ export class TVDirector {
     this.t = 0; this.cuts = 0;
     this._look = new THREE.Vector3(); this._pos = new THREE.Vector3(); this._lookInit = false;
     this.onCut = null;           // (the graphics: a new shot - its car, its story)
-    this.away = null;            // a cutaway asked for: { kind, car, until }
+    this.awayQ = [];             // the cutaways asked for, in turn: [{ kind, car, until, view }]
+    this.awayNext = 0;           // not another before this (a few seconds of the race between two of them)
+    this.forced = null;          // a shot the director is told to hold (the formation lap): { kind, car, other, why }
     this.beautyAt = -99;
   }
-  reset() { this.shot = null; this.followCar = null; this.camKind = 'auto'; this.lastSeen.clear(); this.seenOut.clear(); this.outAt.clear(); this.spinAt.clear(); this.t = 0; this.cuts = 0; }
+  reset() { this.shot = null; this.followCar = null; this.camKind = 'auto'; this.awayQ = []; this.awayNext = 0; this.forced = null; this.lastSeen.clear(); this.seenOut.clear(); this.outAt.clear(); this.spinAt.clear(); this.t = 0; this.cuts = 0; }
   /** follow this car (null: the director chooses again) */
   follow(car) { this.followCar = car || null; this.shot = null; }
   /** a cutaway, at the next cut (for a few seconds from now): kind 'crowd' | 'garage', the car it is about */
-  cutaway(kind, car, within = 6) { if (car && this.camKind === 'auto') this.away = { kind, car, until: this.t + within }; }   /* (a camera you keep to is not cut away from) */
+  /** (view: a cutaway whose camera the caller places - { pos, look: a Vector3 or () => Vector3, fov, dur }: the pit wall's faces, a marshal's post, a driver walking away) */
+  cutaway(kind, car, within = 6, view = null) { if (!car || this.camKind !== 'auto') return; const Q = this.awayQ; if (Q.some((a) => a.kind === kind)) return; Q.push({ kind, car, until: this.t + within, view }); if (Q.length > 3) Q.shift(); }   /* (a camera you keep to is not cut away from; one asked for while another waits takes its turn - at the flag the marshal, the pit wall and the crowd all want the picture) */
+  /** the cutaway on screen is over now (a key: back to the race) -> was there one? */
+  skipAway() { const sh = this.shot; if (!sh || !TV_AWAY.has(sh.kind)) return false; sh.dur = 0; return true; }
+  /** hold this shot until told otherwise (null: the director's own choice again): { kind, car, other, why } */
+  force(st) { this.forced = st || null; if (!st) this.shot = null; }
   /** keep to this camera ('auto': the director's choice) */
   setCam(kind) { this.camKind = TV_CAMS.includes(kind) ? kind : 'auto'; this.shot = null; }
 
@@ -66,7 +75,7 @@ export class TVDirector {
     // the start: the pack off the line, from the drone behind it
     if (d.world.racing && d.mode === 'race' && P[0] && (P.find((c) => !c.retired)?.lap || 0) === 0 && d.time - (d.world.raceStart ?? d.time) < 8 && !(d.sc?.redCount > 0)) out.push({ car: P[0], score: 46, why: 'start' });
     // a cutaway asked for (the crowd, a garage): once, soon, briefly
-    if (this.away && t < this.away.until && this.camKind === 'auto' && !this.followCar) out.push({ car: this.away.car, score: 31, why: this.away.kind, away: true });
+    { const Q = this.awayQ; while (Q.length && t >= Q[0].until) Q.shift(); const A = Q[0]; if (A && t >= this.awayNext && this.camKind === 'auto' && !this.followCar) out.push({ car: A.car, score: 31, why: A.kind, away: true, view: A.view || null }); }
     // the whole circuit from high up: under the safety car, and now and then when nothing is happening
     if (this.camKind === 'auto' && !this.followCar && ctx.center && d.world.racing && t - this.beautyAt > (neutral ? 45 : 170) && (P.find((c) => !c.retired)?.lap || 0) >= 1) out.push({ car: P.find((c) => onTrack(c)) || P[0], score: neutral ? 17 : 7.5, why: 'beauty' });
     // the flag: the leader coming to it, then the cars after it
@@ -104,6 +113,8 @@ export class TVDirector {
   pickKind(st, ctx) {
     // (a camera you keep to stays yours in the pit lane too: the helicopter over it, the onboards on the car - only
     //  the trackside cameras hand over to the pit lane's own)
+    if (st.kind) return st.kind;   // (a shot asked for by name: the formation lap's)
+    if (st.view) return st.why;    // (a cutaway with its own camera)
     if (this.camKind !== 'auto') return st.why === 'pit' && this.camKind === 'track' ? 'pit' : this.camKind;
     if (st.why === 'grid') return 'grid';
     if (st.why === 'start') return 'drone';
@@ -120,13 +131,17 @@ export class TVDirector {
   // ---- a cut ---------------------------------------------------------------------------------------------------------
   cut(ctx, st) {
     let kind = this.pickKind(st, ctx); const tr = ctx.track, car = st.car;
-    if (st.away) this.away = null; if (kind === 'beauty') this.beautyAt = this.t;
+    // (the director's own choice: after a shot that lasted under four seconds, not the same kind of camera again - a
+    //  fence camera then another fence camera two seconds on reads as one shot stuttering)
+    { const was = this.shot; if (was && this.camKind === 'auto' && !st.kind && !st.view && !st.urgent && was.t < 4 && !TV_AWAY.has(kind)) { const fam = (k, s) => (k === 'kerb' || k === 'crane' || (k === 'track' && s) ? 'track' : k), wk = fam(was.kind, true), nk = fam(kind, true); if (wk === nk && (nk === 'track' || nk === 'heli' || nk === 'tcam' || nk === 'helmet' || nk === 'rear')) kind = nk === 'track' ? (this.cuts & 1 ? 'tcam' : 'heli') : 'track'; } }
+    if (st.away) this.awayQ.shift(); if (kind === 'beauty') this.beautyAt = this.t;
     // (a circuit that is not flat - Austin: every camera stands on the ground where it is, and looks at the car where
     //  the car is; heights are above that ground, never above zero)
     const G = (x, z) => (ctx.ground ? ctx.ground(x, z) : 0), cy = (c) => G(c.x, c.z) + ((c.air || c.wreck) && c.p ? Math.max(0, c.p[1]) : 0);
     // (the rear onboard is the car ahead's, the one behind in its mirror)
     const subject = kind === 'rear' && st.other ? st.other : car;
-    const sh = { kind, car: subject, other: kind === 'rear' ? car : st.other || null, why: st.why, t: 0, dur: st.why === 'grid' ? 7 : st.why === 'start' ? 8 : kind === 'crowd' ? 3.2 : kind === 'garage' ? 4.2 : kind === 'beauty' ? 5 : st.urgent ? 7 : 5 + ((this.cuts * 0.3819) % 1) * 4, s0: 0, side: 1, h: 6 };
+    const sh = { kind, car: subject, other: kind === 'rear' ? car : st.other || null, why: st.why, t: 0, dur: st.why === 'grid' ? 7 : st.why === 'start' ? 8 : st.view ? st.view.dur || 4.2 : kind === 'crowd' ? 3.2 : kind === 'garage' ? 4.2 : kind === 'beauty' ? 5 : st.urgent ? 7 : 5 + ((this.cuts * 0.3819) % 1) * 4, s0: 0, side: 1, h: 6 };
+    if (st.away) this.awayNext = this.t + sh.dur + 4;
     // ---- the kerb camera: in the kerb at the apex of the next corner, the cars coming at it. No corner near, or no view
     //      from it (a wall on the kerb): a trackside camera instead
     if (kind === 'kerb') {
@@ -137,7 +152,7 @@ export class TVDirector {
     }
     if (kind === 'track') {
       // a camera along the barrier ahead of the car: it comes toward it, passes, and the shot ends a little after
-      const ahead = st.urgent ? 25 : 90 + ((this.cuts * 0.7548) % 1) * 110, s0 = tr.wrapS(subject.s + Math.max(20, ahead * Math.min(1.6, Math.max(0.5, subject.speed / 55))));
+      const ahead = st.urgent ? 25 : 110 + ((this.cuts * 0.7548) % 1) * 110, s0 = tr.wrapS(subject.s + Math.max(20, ahead * Math.min(1.6, Math.max(0.5, subject.speed / 55))));
       // (two kinds of trackside camera, as at a real circuit: on a pole over the barrier - 10-13 m up, 0.6 m behind the
       //  wall's face: the line down to a car even 1 m off that wall clears the top of a 5.5 m catch fence cranked in over
       //  the road - or in a slot cut in the fence line, the lens just over the concrete, the mesh beside it, none in front)
@@ -170,6 +185,8 @@ export class TVDirector {
       const a = tr.sample(s0, side * (w - 0.8)), b = tr.sample(tr.wrapS(s0 + 14), side * (w + 2.5)), p0 = new THREE.Vector3(a.x, G(a.x, a.z) + 3.2, a.z), p1 = new THREE.Vector3(b.x, G(b.x, b.z) + 13, b.z);
       if (!ctx.clear || (ctx.clear(p1.x, p1.y, p1.z, subject.x, cy(subject) + 0.8, subject.z) && ctx.clear(p0.x, p0.y + 1.5, p0.z, subject.x, cy(subject) + 0.8, subject.z))) { sh.kind = 'track'; sh.s0 = s0; sh.side = side; sh.pos = p0.clone(); sh.pos0 = p0; sh.pos1 = p1; sh.crane = true; }
       else { sh.kind = 'heli'; }
+    } else if (st.view) {
+      sh.view = st.view;   // (placed each frame from it: place())
     } else if (kind === 'crowd' || kind === 'garage' || kind === 'beauty') {
       let ok = false;
       if (kind === 'crowd' && ctx.stands?.length) {
@@ -201,6 +218,8 @@ export class TVDirector {
     this.t += dt;
     const d = ctx.d, sh = this.shot;
     const gone = (c) => !c || (c.hiddenAway && c.retired);
+    // (a shot held by order - the formation lap: cut to once, kept until the order changes)
+    if (this.forced) { const f = this.forced; if (!sh || sh.forced !== f) { this.cut(ctx, { car: f.car, other: f.other || null, why: f.why || 'form', kind: f.kind, score: 99 }); this.shot.forced = f; this.shot.dur = 1e9; } this.shot.t += dt; this.place(dt, ctx); return this.shot.car; }
     let want = null;
     if (this.followCar && !gone(this.followCar)) {
       // a car followed: its own story (in the pits, in a fight) - the cameras still cut round it
@@ -216,7 +235,7 @@ export class TVDirector {
       want = S[0] || null;
     }
     if (!want) return sh?.car || null;
-    const ended = !sh || (gone(sh.car) && sh.kind !== 'garage' && sh.kind !== 'crowd' && sh.kind !== 'beauty') || sh.t > sh.dur || (sh.kind === 'track' && this.passed(ctx, sh)) || (sh.kind === 'pit' && !sh.car.pitLane && !sh.car.inPit && sh.t > 2)
+    const ended = !sh || (gone(sh.car) && !TV_AWAY.has(sh.kind)) || sh.t > sh.dur || (sh.kind === 'track' && this.passed(ctx, sh)) || (sh.kind === 'pit' && !sh.car.pitLane && !sh.car.inPit && sh.t > 2)
       || (sh.why === 'grid' && d.world.racing && sh.t > 3);
     const urgent = (want.urgent && sh && sh.car !== want.car && sh.t > 1.2 && !(sh.why === 'out' || sh.why === 'spin')) || (want.away && sh && sh.why !== want.why && sh.t > 1.5) || (want.why === 'start' && sh && sh.why !== 'start');
     if (ended || urgent || (this.followCar && sh && sh.car !== want.car && sh.other !== want.car && sh.car !== this.followCar)) this.cut(ctx, want);
@@ -227,7 +246,9 @@ export class TVDirector {
   /** a trackside shot: the car has gone by the camera, and on */
   passed(ctx, sh) {
     const L = ctx.track.length; let ds = sh.car.s - sh.s0; if (ds > L / 2) ds -= L; if (ds < -L / 2) ds += L;
-    return ds > 45 || (ds < -400 && sh.t > 3);
+    // (followed on down the road for a couple of seconds - 70 to 220 m - not dropped 45 m past the pole: at speed that
+    //  was a new camera every two seconds; a view lost round the bend ends it sooner - place())
+    return ds > Math.max(70, Math.min(220, Math.abs(sh.car.speed) * 2.3)) || (ds < -400 && sh.t > 3);
   }
 
   // ---- the camera ----------------------------------------------------------------------------------------------------
@@ -246,6 +267,9 @@ export class TVDirector {
       const c = Math.cos(car.th), s = Math.sin(car.th); this._pos.set(car.x - c * 34, carY + 11, car.z - s * 34);
       if (!this._lookInit) cam.position.copy(this._pos); else cam.position.lerp(this._pos, Math.min(1, dt * 4));
       tgt.set(car.x + c * 6, carY + 0.5, car.z + s * 6); fov = 52;
+    } else if (sh.view) {
+      const v = sh.view, vp = typeof v.pos === 'function' ? v.pos() : v.pos, vl = typeof v.look === 'function' ? v.look() : v.look;
+      cam.position.copy(vp); tgt.copy(vl); fov = v.fov || 40;
     } else if (sh.kind === 'crowd' || sh.kind === 'garage' || sh.kind === 'beauty') {
       if (sh.orbit) { const a = sh.orbit.a + sh.t * 0.035; sh.pos.set(sh.lookAt.x + Math.cos(a) * sh.orbit.r, sh.lookAt.y + sh.orbit.h, sh.lookAt.z + Math.sin(a) * sh.orbit.r); }
       cam.position.copy(sh.pos); tgt.copy(sh.lookAt); if (sh.pan) { const u = Math.min(1, sh.t / sh.dur) - 0.5; tgt.x += sh.pan[0] * u; tgt.z += sh.pan[1] * u; }
@@ -293,14 +317,21 @@ export class TVDirector {
           //  building stand at the other edge: a camera "on the garage side" was inside them. The first with a view:
           //  ahead of the car on the wall's side, behind it, high over the middle of the lane)
           const at = (dj, k, h) => { const j = Math.max(0, Math.min(ps.n - 1, bi + Math.round(dj / ps.ds))), off = P.trackSide * P.halfWidth * k; const x = ps.px[j] + ps.nx[j] * off, z = ps.pz[j] + ps.nz[j] * off; return new THREE.Vector3(x, G(x, z) + h, z); };
-          const C = [at(30, 0.75, 5.2), at(-26, 0.75, 5.2), at(22, 0.2, 9), at(-18, 0.2, 9), at(12, 0, 14)];
-          sh.pos = C.find((p) => !ctx.clear || ctx.clear(p.x, p.y, p.z, car.x, carY + 0.9, car.z)) || C[C.length - 1];
+          // (well ahead and high: the car comes all the way to it and on past - one camera for a hundred and fifty metres
+          //  of lane, not one every thirty)
+          const C = [at(70, 0.7, 7.5), at(-60, 0.7, 7.5), at(45, 0.3, 10), at(30, 0.75, 5.2), at(-26, 0.75, 5.2), at(22, 0.2, 9), at(-18, 0.2, 9), at(12, 0, 14)];
+          sh.placedAt = sh.t; sh.lostN = 0;
+          // (one that sees the car now AND the lane fifty metres on: it will still have it in three seconds)
+          const on = at(50, 0, 0.9), seesOn = (p) => !ctx.clear || (ctx.clear(p.x, p.y, p.z, car.x, carY + 0.9, car.z) && ctx.clear(p.x, p.y, p.z, on.x, on.y, on.z));
+          sh.pos = C.find(seesOn) || C.find((p) => !ctx.clear || ctx.clear(p.x, p.y, p.z, car.x, carY + 0.9, car.z)) || C[C.length - 1];
         }
         // (the car moves on down the lane: a camera that has lost it behind a gantry or the next garage's awning is
         //  placed again, a second or so apart)
-        if (ctx.clear && sh.t - (sh.pt ?? 0) > 1.0) { sh.pt = sh.t; if (!ctx.clear(sh.pos.x, sh.pos.y, sh.pos.z, car.x, carY + 0.9, car.z)) { sh.pos = null; this._lookInit = false; return this.place(0, ctx); } }
+        // (placed again only when it has really lost the car - three looks running, and not within five seconds of being
+        //  put there - or the car has gone a long way down the lane from it)
+        if (ctx.clear && sh.t - (sh.pt ?? 0) > 1.0) { sh.pt = sh.t; const far = Math.hypot(car.x - sh.pos.x, car.z - sh.pos.z) > 125; sh.lostN = ctx.clear(sh.pos.x, sh.pos.y, sh.pos.z, car.x, carY + 0.9, car.z) ? 0 : (sh.lostN || 0) + 1; if ((far && sh.t - (sh.placedAt ?? 0) > 3) || (sh.lostN >= 3 && sh.t - (sh.placedAt ?? 0) > 5)) { sh.pos = null; this._lookInit = false; return this.place(0, ctx); } }
         cam.position.copy(sh.pos);
-        fov = Math.max(14, Math.min(50, 900 / Math.max(10, Math.hypot(car.x - sh.pos.x, car.z - sh.pos.z))));
+        fov = Math.max(9, Math.min(50, 900 / Math.max(10, Math.hypot(car.x - sh.pos.x, car.z - sh.pos.z))));
       } else { this.shot.kind = 'track'; return; }
     } else if (sh.kind === 'grid') {
       cam.position.copy(sh.pos); tgt.copy(sh.lookAt); fov = 34;

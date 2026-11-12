@@ -93,7 +93,10 @@ export class SafetyCar {
         break;
       case 'yellow':
         if (this.t > this.yellowT) {
-          if (this.incident.onRoad || this.incident.cars.size > 1) this.deploySC(); else this.deployVSC();
+          // (a car on the road, more than one car, or a car that has crashed within seven metres of it - it wants a crane,
+          //  marshals at the road's edge: the safety car. A car that simply stopped clear of the road - an engine, a
+          //  gearbox - or a wreck deep in a run-off: the virtual one)
+          if (this.incident.onRoad || this.incident.cars.size > 1 || [...this.incident.cars].some((c) => (c.wreck || /accident|damage|crash|rolled|upside/i.test(c.retireReason || '')) && Math.abs(c.d) < d.track.edgeAt(c.trackIdx, Math.sign(c.d) || 1) + 7)) this.deploySC(); else this.deployVSC();
         } else if (this.clear()) { this.phase = 'green'; this.t = 0; this.say('GREEN FLAG · TRACK CLEAR', 'good', 2); }
         break;
       case 'vsc':

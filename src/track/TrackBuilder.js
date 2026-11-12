@@ -1936,8 +1936,18 @@ export function buildPitLane(track, rawPts, boxCount = 12) {
     }
     infield = { poly, inside: inPoly, iA, iB, kA: kD, kB };
   }
+  // (where the circuit's own wall is open for the lane - the way in, the way out - what stands on that side is the
+  //  LANE's outer wall: outerD, per sample of the circuit, how far out it is. A car not in the lane that goes through
+  //  the opening - missing the last chicane into the escape road, arriving too fast at the way out - used to meet
+  //  nothing there, run on, and be beyond the circuit's wall where it started again: vehicle/Car.js _barriers.)
+  const outerD = new Float32Array(track.n).fill(NaN);
+  for (let i = 0; i < n; i++) { const ti = trackI[i], v = trackD[i] + garageW[i] + (escape[i] ? 1.5 : 0); if (!(outerD[ti] >= v)) outerD[ti] = v; }
+  { let prev = NaN; for (let k = entryI, guard = 0; guard < track.n; k = (k + 1) % track.n, guard++) { if (isNaN(outerD[k])) outerD[k] = prev; else prev = outerD[k]; if (k === exitI) break; } }
+  // (never nearer the road than the circuit's own wall would stand there: where the lane runs on the road itself - its
+  //  merge - the lane's "outer wall" is a line a couple of metres off the kerb, and nothing stands on it)
+  for (let k = 0; k < track.n; k++) if (outerD[k] < sideArr[k]) outerD[k] = sideArr[k];
   const pit = {
-    limitFrom, limitTo, garageW, escape, infield,
+    limitFrom, limitTo, garageW, escape, infield, outerD,
     samples, curve, halfWidth, wallOff, entryS: first.s, exitS: last.s, trackSide, sideSign, boxes, boxPitch: pitch * samples.ds, length: samples.length, limiter: 80 / 3.6,
     overlapsTrack, trackD, trackI, laneEdge, laneCovers, wallIn, wallPos, wallStartI, wallEndI, wallD, divergeU: samples.s[divergeI], mergeU: samples.s[mergeI], gapEntry, gapExit, isGapS,
     /** nearest pit-lane sample -> { i, u (distance along), lat (left +), along } */

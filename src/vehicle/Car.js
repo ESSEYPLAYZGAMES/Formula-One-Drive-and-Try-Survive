@@ -927,7 +927,8 @@ export class Car {
       boL = tr.barL[i] ? tr.wallL[i] : Infinity; boR = tr.barR[i] ? tr.wallR[i] : Infinity;
       // pit side: the barrier doubles as pit wall (open where the lane branches / rejoins) - and only where there IS a
       // barrier: on a permanent circuit most of the lap has none on that side either
-      if (this.pit) { const w = this.pit.wallD[i], bar = this.pit.sideSign > 0 ? tr.barL[i] : tr.barR[i]; const v = isNaN(w) || !bar ? Infinity : w; if (this.pit.sideSign > 0) boL = v; else boR = v; }
+      // (open for the lane: the lane's own outer wall is what is there - Track buildPitLane outerD)
+      if (this.pit) { const w = this.pit.wallD[i], bar = this.pit.sideSign > 0 ? tr.barL[i] : tr.barR[i], o = this.pit.outerD && tr.walled ? this.pit.outerD[i] : NaN;   /* (a walled circuit: on an open one what is beyond the opening is grass, as it was) */ const v = isNaN(w) ? (o > 0 ? o : Infinity) : !bar ? Infinity : w; if (this.pit.sideSign > 0) boL = v; else boR = v; }
     }
     const c = Math.cos(this.th), s = Math.sin(this.th);
     // a car whose centre is already beyond a barrier (it went over it) stays on that side: the barrier holds it out.
