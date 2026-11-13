@@ -265,7 +265,7 @@ export function released(ctx) {
       const A = SETS.office(k, T, { cups: ctx.cups || 0, screen: paintTable('This season', ctx.table || [], T.color, { min: 4 }) });
       const you = seated(k.person(youOpts(T, 'sitLean'), [0, 0, -1.85], 0)), dr = seated(k.person(drv(d, T, 'sit', { cap: false }), [0.7, 0, 0.35], PI));
       you.look = { x: 0.7, y: 1.2, z: 0.35 }; dr.look = { x: 0, y: 1.2, z: -1.85 };
-      const hel = k.ball(0.15, k.m(d.helmet || T.color, 0.25, 0.3), 0.7, 0.93, -0.75); hel.scale.set(1.12, 1, 1); void A;
+      const hel = k.helmet(d.helmet || T.color, T.color2 || '#ffffff', [0.7, 0.93, -0.75], 0.7, { driver: d.name, number: d.number }); void hel; void A;
       const shots = [
         { d: 4.4, p: [-3.0, 1.8, 2.8], l: [0.3, 1.0, -0.8], p2: [-2.2, 1.6, 2.4], f: 28, e: 'io', dof: 0.5, sub: say(YOU_, L.open || `Sit down, ${surname(d.name)}. ${ctx.why || 'You know why you are here.'}`, '#ffffff') },
         { ...creep(cu(dr, { ang: 0.35, dist: 2.2, f: 15 }), 0.1), d: 3.4, shake: 0.12, low: { name: d.name, role: T.name }, sub: say(surname(d.name), L.d1 || 'Just say it.'),

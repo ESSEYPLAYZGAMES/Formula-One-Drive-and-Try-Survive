@@ -96,7 +96,6 @@ const open = (c, scene) => c.story.matters.some((m) => m.scene === scene && !m.d
 const since = (c, scene) => { const m = [...c.story.matters].reverse().find((x) => x.scene === scene); return m ? c.story.n - m.gap : 99; };
 /** the matters waiting (most pressing first) */
 export const inboxOf = (c) => storyEnsure(c).matters.filter((m) => !m.done).sort((a, b) => (b.prio || 0) - (a.prio || 0));
-export const archiveOf = (c) => storyEnsure(c).seen;
 /**
  * The scenes that play themselves now (the HQ opened): those that cannot wait, then one more if the budget allows.
  * -> [matter] (0..2)
@@ -108,7 +107,7 @@ export function storyQueue(c) {
   return out;
 }
 /** a matter's scene was shown (the budget counts it) */
-export function storyShown(c, key) { const S = storyEnsure(c), m = S.matters.find((x) => x.key === key); if (!m) return; m.played = true; if (!m.force) S.lastAuto = S.n; if (!S.seen.some((x) => x.key === key)) { S.seen.unshift({ key, scene: m.scene, title: m.title, season: m.season, round: m.round, ctx: m.ctx }); if (S.seen.length > 24) S.seen.length = 24; } c.save(); }
+export function storyShown(c, key) { const S = storyEnsure(c), m = S.matters.find((x) => x.key === key); if (!m) return; m.played = true; if (!m.force) S.lastAuto = S.n; if (!S.seen.some((x) => x.key === key)) { S.seen.unshift({ key }); if (S.seen.length > 24) S.seen.length = 24; }   /* (which have been shown - not kept to be played again) */ c.save(); }
 
 /** five seconds on a driver for the last race: a place lost to the car behind, the points with it -> { d, other } | null */
 function penalise(c, did) {

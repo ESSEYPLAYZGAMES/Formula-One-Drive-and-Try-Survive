@@ -304,7 +304,7 @@ export function seatFit(ctx) {
       k.car({ color: T.color, color2: T.color2, team: T.name, livery: T.livery, number: hurt.number, driver: null }, A.car, 0);
       const eng = k.person(staff(ctx.eng || 'race engineer', T, 'cross'), [-2.0, 0, 2.2], 0.7), c1 = k.crew({ color: T.color, accent: T.color2, pose: 'steady', work: 0.5 }, [1.25, 0, 0.5], -PI / 2), c2 = k.crew({ color: T.color, accent: T.color2, pose: 'wing' }, [-1.2, 0, 0.1], PI / 2);
       const res = C.map((c) => { const p = k.person(drv({ name: c.name }, T, 'hips', { cap: false }), [1.9, 0, 2.6], -0.8); p.g.visible = false; return p; });
-      const helmet = k.ball(0.15, k.m(T.color, 0.25, 0.3), 0.75, 0.83, 0.5); helmet.scale.set(1.12, 1, 1);
+      const helmet = k.helmet(T.color, T.color2 || '#ffffff', [0.75, 0.83, 0.5], 0.6); void helmet;
       const pickOf = (r) => Math.max(0, C.findIndex((c) => c.id === r.picks.who));
       const shots = [
         { d: 4.8, p: [0.9, 1.5, 1.9], l: [0, 0.75, 0.2], p2: [0.5, 1.35, 1.5], f: 22, shake: 0.06, sub: say(ctx.eng || 'Race engineer', L.open || `${surname(hurt.name)} is out for ${ctx.rounds || 2} race${(ctx.rounds || 2) === 1 ? '' : 's'}. ${ctx.why || 'A fracture in the wrist.'} The seat is still warm.`) },

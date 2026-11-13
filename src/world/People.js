@@ -5561,11 +5561,11 @@ function* buildSteps(o) {
   if (o.crewHelmet) {
     // a pit-crew member: an open-face helmet in the team's colour and a dark visor, no face to build (quick: a crew is
     // a dozen people)
-    const shellG = new THREE.SphereGeometry(0.135, 20, 14); shellG.scale(1.02, 1.05, 0.95); shellG.translate(hc.x - 0.01, hc.y + 0.01, hc.z);
+    const shellG = new THREE.SphereGeometry(0.124, 28, 18); shellG.scale(1.03, 1.06, 0.94); shellG.translate(hc.x - 0.01, hc.y + 0.01, hc.z);
     // (the visor across the front - a sphere's angle 0 is its -x, the back of the head: centred on pi, the face's +x - and
     // a chin guard under it in the shell's colour, so it reads as a helmet with someone in it, not a ball)
-    const visorG = new THREE.SphereGeometry(0.139, 24, 10, Math.PI - 1.05, 2.1, Math.PI * 0.34, Math.PI * 0.24); visorG.scale(1.02, 1.05, 0.95); visorG.translate(hc.x - 0.008, hc.y + 0.01, hc.z);
-    const chinG = new THREE.SphereGeometry(0.137, 20, 6, Math.PI - 0.95, 1.9, Math.PI * 0.58, Math.PI * 0.16); chinG.scale(1.04, 1.05, 0.95); chinG.translate(hc.x - 0.006, hc.y + 0.01, hc.z);
+    const visorG = new THREE.SphereGeometry(0.1275, 28, 10, Math.PI - 1.05, 2.1, Math.PI * 0.34, Math.PI * 0.24); visorG.scale(1.03, 1.06, 0.94); visorG.translate(hc.x - 0.008, hc.y + 0.01, hc.z);
+    const chinG = new THREE.SphereGeometry(0.126, 24, 6, Math.PI - 0.95, 1.9, Math.PI * 0.58, Math.PI * 0.16); chinG.scale(1.05, 1.06, 0.94); chinG.translate(hc.x - 0.006, hc.y + 0.01, hc.z);
     mats.visor = new THREE.MeshStandardMaterial({ color: '#0d0f14', roughness: 0.15, metalness: 0.6 });
     head.add(M([shellG, chinG], mats.team), M([visorG], mats.visor));
   } else {
@@ -5985,14 +5985,29 @@ function* buildSteps(o) {
   }
   if (headAcc.length) head.add(M(headAcc, mats.acc));
   if (headMetal.length) head.add(M(headMetal, metalM()));
-  }
-  if (o.cap && !o.crewHelmet) {
-    // a team cap: the crown over the hair, a curved peak to the front
-    const crownG = new THREE.SphereGeometry(0.117, n(28), n(12, 2), 0, Math.PI * 2, 0, Math.PI * 0.5); crownG.scale(1, 0.82, 0.95); crownG.translate(hc.x - 0.008, hc.y + 0.05, hc.z);
-    const peak = new THREE.CylinderGeometry(0.115, 0.115, 0.006, n(28), 1, false, Math.PI * 0.5 - 1.15, 2.3); peak.scale(1.15, 1, 1.02);
-    const pp = peak.attributes.position; for (let i = 0; i < pp.count; i++) { const zz = pp.getZ(i); pp.setY(i, pp.getY(i) - 1.6 * zz * zz); }   // (curved down at the sides)
-    peak.computeVertexNormals(); peak.rotateZ(-0.12); peak.translate(hc.x + 0.03, hc.y + 0.066, hc.z);
+  if (o.cap) {
+    // a team cap, fitted: its crown a shell a few millimetres off the skull itself (HSf: this head's own shape, so it is
+    // never a bowl over it) from a band above the brow round to the back of the head, a little taller at the front
+    // panel; its peak a thin curved plate out from the band's front; the button on top
+    const NA = n(36, 14), NB = n(9, 4), band = (cx) => 0.2 + 0.16 * cx;
+    const capP = (ph, v, out) => { const cx = Math.cos(ph), sz = Math.sin(ph), a0 = Math.asin(band(cx)), a = a0 + (Math.PI / 2 - a0) * v, ny = Math.sin(a), cb = Math.cos(a), [x, y, z] = HSf(cb * cx, ny, cb * sz, false), k = R0 * (1.075 + out + 0.03 * Math.max(0, cx) ** 2 * Math.sin(Math.PI * Math.min(1, v * 1.4))); return [hc.x + x * k, hc.y + y * k, hc.z + z * k]; };
+    const cp = [], ci = [], rows = [[0, -0.09]]; for (let j = 0; j <= NB; j++) rows.push([j / NB, 0]);
+    for (const [v, out] of rows) for (let i = 0; i <= NA; i++) cp.push(...capP((i / NA) * Math.PI * 2, v, out));
+    for (let j = 0; j < rows.length - 1; j++) for (let i = 0; i < NA; i++) { const A = j * (NA + 1) + i, B = A + 1, C = A + NA + 1, D = C + 1; ci.push(A, C, B, B, C, D); }
+    const crownG = new THREE.BufferGeometry(); crownG.setAttribute('position', new THREE.Float32BufferAttribute(cp, 3)); crownG.setIndex(ci); crownG.computeVertexNormals();
+    const NP = n(18, 8), pk = [], pi = [], SEC = [[0, 0.0035], [0.5, 0.0035], [1, 0.003], [1, -0.003], [0, -0.0035]];
+    for (let i = 0; i <= NP; i++) {
+      const u = (i / NP) * 2 - 1, [bx, by, bz] = capP(u * 1.0, 0, 0.004), len = 0.068 * Math.sqrt(Math.max(0, 1 - u * u * u * u));
+      for (const [t, dy] of SEC) pk.push(bx - 0.006 + len * t, by - 0.0045 + dy - 0.014 * t - 0.012 * u * u * t, bz * (1 + 0.06 * t));   /* (from just under the band's edge: the plate never cuts the crown) */
+    }
+    for (let i = 0; i < NP; i++) for (let q = 0; q < SEC.length - 1; q++) { const A = i * SEC.length + q, B = A + SEC.length, C = A + 1, D = B + 1; pi.push(A, B, C, B, D, C); }
+    // (the button: a few more triangles of the peak's own geometry, not a geometry of its own - three.js draws four
+    // random numbers for every object it makes, and a crowd's figures are baked while a seeded race runs: one object
+    // more here and every such race after it is a different race)
+    { const top = capP(0, 1, 0), c0 = pk.length / 3; pk.push(top[0], top[1] + 0.007, top[2]); for (let i = 0; i < 8; i++) pk.push(top[0] + Math.cos(i * Math.PI / 4) * 0.009, top[1] + 0.001, top[2] + Math.sin(i * Math.PI / 4) * 0.009); for (let i = 0; i < 8; i++) pi.push(c0, c0 + 1 + ((i + 1) % 8), c0 + 1 + i); }
+    const peak = new THREE.BufferGeometry(); peak.setAttribute('position', new THREE.Float32BufferAttribute(pk, 3)); peak.setIndex(pi); peak.computeVertexNormals();
     head.add(M([crownG], mats.team), M([peak], mats.accent));
+  }
   }
   body.add(head);
   if (lockBody.length) {

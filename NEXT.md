@@ -1,3 +1,83 @@
+# V2.52 (2026-11-13): the cutscenes rebuilt - dense sets, no title card, no replay list; and the hats
+
+Asked for: "remove the ability to rewatch cutscenes, it makes them feel like a flex by the devs - whereas it should
+just be an integrated thing, and make the title screen way less long ... or remove it altogether and just have some
+overlayed clean text for a small period. Enhance each cutscene to be less low poly, actually dense and interesting
+aestethically - fix all z-fighting". And, while that was being built: "fix the huge hats".
+
+## No list of scenes to play again
+- The STORY page's "Scenes" card (every scene seen, each with an AGAIN button, and WALK THE FACTORY) is gone. A scene
+  is seen once, when it happens. What is left is the trophy room - a room to walk round, not a scene - under "Roll of
+  honour", with how much stands in it. The factory's tour still plays itself when a facility is built up.
+- The career no longer keeps each scene's data to replay it (only which have been shown): smaller saves.
+
+## No title card
+- A scene used to open on black with its title in the middle for a second and a half, then the picture. It opens on
+  its first shot now (out of black in half a second), the title a few small words in the top left corner for three
+  seconds, gone by themselves (ui/Cine.js .ttl). Not over a question, a title between two parts of a scene, or the
+  trophy room.
+- The titles BETWEEN parts of a scene ("Forty minutes later", a documentary's own title) are as they were.
+
+## The sets rebuilt (new: ui/CineKit.js, ui/CineProps.js; ui/CineSets.js rewritten)
+The kit a scene builds with:
+- A box has its edges rounded, a cylinder is round (two to three times the segments), things are turned on a lathe
+  (cups, pots, lampshades, tyres) or run along a curve (cables, hoses, rails).
+- Surfaces have a grain, painted once and tiled by the metre: concrete, epoxy, asphalt, paving, carpet, plaster,
+  wall panels, ceiling tiles, wood, planks, slats, cloth, leather, brushed and perforated metal.
+- A batch: everything standing still in a set is welded into one mesh a material, so a set of some thousands of
+  parts is 50-120 draw calls.
+- The people who are only there (the press, the launch's guests, the paddock, the pit lane) are real figures now
+  (world/Crowd.js, drawn as one mesh a kind) - they were a cylinder with a ball on it.
+- A soft shadow lies under everyone and everything that stands on a floor, and under the car.
+- Through the lens: the picture is smoothed (it was not, with the blur on), and lamps glow (a glow pass that takes
+  only what is brighter than anything a lamp lights: ui/CineKit.js GlowPass).
+- A helmet set down in a scene is the real helmet (the driver's own design), not a ball.
+The twelve sets, each built again where the old one stood (so every scene's marks and cameras still hold):
+- Garage: epoxy floor with the bay marked, panelled walls, the engineers' bench under the screens (laptops,
+  headsets, mugs), cabinets with drawers and casters, tyres in blankets with their cables, a spare wing on its
+  stand, flight cases, gas bottles, tool boards, the light box over the bay, the boom and its guns, the pit lane
+  outside with its lines, the wall, the fence, a grandstand.
+- Pit wall: the stand with stools, desk, screens, button panels, the catch fence either side, the garages behind
+  with lit bays in other teams' colours, people in the lane, the grid's slots, boards on the far wall, a stand.
+- Boardroom, office: carpet / planks, slatted end wall, a skyline in three depths, pedestal table with papers,
+  laptops, glasses, water; high-backed chairs on five-star bases; sideboards, pictures, plants, pendant lamps;
+  the office's shelves of books (and the cups won), sofa, desk lamp, door.
+- Press room: drapes, the board framed, the table in its cloth, microphones, the press seated in rows,
+  photographers down the sides, television cameras on tripods, a truss of lamps.
+- Launch: the rig (two trusses, eighteen lamps, line arrays), the guests behind a barrier, a camera platform.
+- Cool-down room, stewards' room, interview studio (soft boxes, a camera, cases, cables), paddock (two-storey
+  motorhomes with glass, decks and awnings, hedges, flags, parasols, people, trees), factory (trusses, ducts, glass
+  partitions, desks with screens, the mill, the autoclave, the lounge, the simulator, server racks, the bay, the
+  gym), trophy room (cups turned on a lathe under glass, ropes, benches, pictures).
+
+## Z-fighting
+- Causes found in the old sets and removed at the root: lines and mats laid 4-8 mm over a floor (now decals: drawn
+  over what they lie on whatever the depth buffer says - k.floor / k.decal); signs and screens a centimetre or two
+  off their wall (the same); the camera's near plane at 5 cm (10 cm now: twice the depth precision).
+- New tool, tools/cine_zfight.mjs <scenes>: every pair of faces of different materials lying in one plane, facing
+  the same way, one over the other. Run over thirteen scenes (every set): what it found and was real is fixed (a
+  plant's soil level with its pot's floor, a shelf's back panel flush with its sides, the stewards' carpet edge, the
+  motorhomes' fins); what is left in its lists are faces nobody sees (the outsides of walls, tops under a roof).
+
+## The hats
+- A team cap (and a marshal's) was a dome 23 cm across sitting on top of the hair. It is a shell fitted to that
+  head's own skull now, from a band above the brow, with a thin curved peak (world/People.js). Everywhere a cap is
+  worn: scenes, the pit wall, marshals, crowds near the camera.
+- The pit crew's helmet is 8 % smaller (it read as a ball on the shoulders).
+
+## Checked
+- All 23 scenes build and play through their shots with no error (tools/cine_sheet.mjs, the lens on). Pictures looked
+  at for 17 of them and the opening of one as the player sees it (title over the first shot, gone by 4.5 s).
+- A seeded race in the other modes is identical to V2.45-V2.51 (tools/race_probe.mjs 5 1 silverstone).
+- Not checked: a real graphics card. Everything was rendered by a software renderer: the frame rate of the denser
+  sets with the smoothing and the glow is not measured (the "lite" setting turns both off, with the shadows), and the
+  z-fighting is checked by the geometry and by those pictures, not on a 24-bit depth buffer.
+- Fixed on the way: in the paddock scene a flag pole and a chair stood in front of two of the cameras.
+- Found on the way: the first version of the cap changed the seeded race (a retirement that was not there). three.js
+  draws four random numbers for the id of every object it makes, a crowd's figures are baked while a race runs, and
+  the cap had one geometry more than the old one (its button). The button is part of the peak's geometry now and the
+  race is the same again - but any change to how many objects a crowd figure is built from will do this.
+
 # V2.51 (2026-11-12): the formation lap, three more cutaways - and the list that came in while they were being built
 
 Two requests. First: "add the formation lap and the missing cutaways (skippable)". Then, while that was being

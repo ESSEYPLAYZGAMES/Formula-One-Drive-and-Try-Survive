@@ -1,9 +1,10 @@
 // The team principal's HQ, its STORY page (ui/ManagerHub.js draws the frame; career/ManagerStory.js is what it shows):
 // the matters waiting for you - each to watch as its scene (ui/CineIndex.js) or to decide in a line - the mood (the
 // fans, what your word is worth, the feud), your drivers as they are, the other principals, the feed, the rumours, the
-// scenes already seen (to watch again), the trophy room and the factory to walk round. And the pump: the scenes that
+// trophy room (a room to walk round: what the team has won). A scene is seen once, when it happens: there is no list
+// of them to play again. And the pump: the scenes that
 // play themselves when you come back to the HQ (the story's budget decides which: at most one, unless it cannot wait).
-import { inboxOf, archiveOf, storyQueue, storyShown, storyApply, storyLodge, storyRumour, storyEnsure, rivalriesOf, trophiesOf, baseCtx, obeyChance, traitOf, TRAITS } from '../career/ManagerStory.js';
+import { inboxOf, storyQueue, storyShown, storyApply, storyLodge, storyRumour, storyEnsure, rivalriesOf, trophiesOf, baseCtx, obeyChance, traitOf, TRAITS } from '../career/ManagerStory.js';
 import { STYLES } from '../career/StoryLines.js';
 
 export const STORY_TABS = [['story', 'STORY']];
@@ -20,7 +21,7 @@ function matterHTML(c, m) {
 }
 export function storyHTML(c, tab) {
   if (tab !== 'story') return null;
-  const S = storyEnsure(c), box = inboxOf(c), my = c.seatsOf(c.myTeam), seen = archiveOf(c);
+  const S = storyEnsure(c), box = inboxOf(c), my = c.seatsOf(c.myTeam), won = trophiesOf(c);
   const inbox = `<div class="m-card" style="grid-column:1/-1"><h3>Waiting for you${box.length ? ` · ${box.length}` : ''}</h3>${box.length ? box.map((m) => matterHTML(c, m)).join('') : note('Nothing. Enjoy it.')}${note('Watch a matter as its scene and answer in it - what you say along the way counts too - or decide it here in a line. Left alone, each decides itself, the cautious way.')}</div>`;
   const mood = `<div class="m-card"><h3>The mood</h3>
     <div class="m-drv"><div class="m-nm"><b>The fans</b><small>${S.fans >= 65 ? 'With you: the stands are full of your colours.' : S.fans >= 40 ? 'Watching. Waiting.' : 'Restless. They have started to boo.'}</small></div><div style="width:38%">${bar(S.fans / 100)}</div></div>
@@ -32,7 +33,7 @@ export function storyHTML(c, tab) {
     ${riv.length ? `<h3 style="margin-top:14px">On the track</h3>${riv.map((r) => `<div class="m-drv"><div class="m-nm"><b>${esc((r.a || '').split(' ').pop())} v ${esc((r.b || '').split(' ').pop())}</b><small>${r.n} coming-together${r.n === 1 ? '' : 's'}${r.last ? ` · last: ${esc(r.last)}` : ''}</small></div></div>`).join('')}` : ''}</div>`;
   const feed = `<div class="m-card"><h3>The feed</h3>${S.feed.slice(0, 9).map((p) => `<div class="m-drv" style="align-items:flex-start"><div class="m-nm"><b style="font-weight:700">${esc(p.who)} <span style="color:#8a93a0;font-weight:400">${esc(p.h)} · R${p.round}</span></b><small style="color:#2a313c;font-size:13px">${esc(p.text)}</small></div></div>`).join('') || note('Quiet.')}</div>`;
   const rum = `<div class="m-card"><h3>Rumours</h3>${S.rumours.map((r) => `<div class="m-drv" style="align-items:flex-start"><div class="m-nm"><b style="font-weight:600">${esc(r.text)}</b>${r.answered ? `<small>${r.answered === 'deny' ? 'Denied.' : 'Left to run.'}</small>` : `<div style="display:flex;gap:6px;margin-top:6px"><button data-a="strum" data-v="${esc(r.id)}|deny">DENY IT</button><button data-a="strum" data-v="${esc(r.id)}|fuel">LET IT RUN</button></div>`}</div></div>`).join('') || note('Nothing going round. It will, in the second half of the season.')}${note('Deny what is true and it costs your word when it comes out. Let one run and the paddock talks - which is sometimes what you want.')}</div>`;
-  const arch = `<div class="m-card"><h3>Scenes</h3><div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px"><button class="m-dark" data-a="sttrophy">THE TROPHY ROOM</button><button class="m-dark" data-a="sttour">WALK THE FACTORY</button></div>${seen.slice(0, 10).map((x) => `<div class="m-drv"><div class="m-nm"><b>${esc(x.title)}</b><small>Season ${x.season} · round ${x.round}</small></div><button data-a="stagain" data-v="${esc(x.key)}">▶ AGAIN</button></div>`).join('') || note('The scenes you have watched are kept here.')}</div>`;
+  const arch = `<div class="m-card"><h3>Roll of honour</h3><div class="m-drv"><div class="m-nm"><b>${won.length ? `${won.length} on the plinths` : 'An empty room'}</b><small>${won.length ? esc(won[0].title || '') : 'The first plinth is waiting.'}</small></div><button class="m-dark" data-a="sttrophy">THE TROPHY ROOM</button></div></div>`;
   return `<div class="m-grid">${inbox}${mood}${rivals}${feed}${rum}${arch}</div>`;
 }
 /** on the overview: what is waiting */
@@ -42,7 +43,7 @@ export function storyHome(c) {
 }
 /** a click on the page: play(scene, ctx) -> Promise<result> shows a scene. -> Promise<a line to say | ''> | undefined (not ours) */
 export function storyAct(c, a, v, play) {
-  if (!/^st(watch|pick|rum|trophy|tour|again)$/.test(a || '')) return undefined;
+  if (!/^st(watch|pick|rum|trophy)$/.test(a || '')) return undefined;
   const S = storyEnsure(c);
   const watch = async (m) => { const res = await play(m.scene, m.ctx); if (res?.failed) return storyApply(c, m.key, {}) || 'The scene could not be shown; the matter settled itself.'; storyShown(c, m.key); return storyApply(c, m.key, res || {}); };
   return (async () => {
@@ -50,8 +51,6 @@ export function storyAct(c, a, v, play) {
     if (a === 'stpick') { const [key, id] = String(v).split('|'), m = S.matters.find((x) => x.key === key && !x.done); if (!m) return ''; if (m.pre && id === 'lodge') { storyLodge(c, key); return watch(m); } return storyApply(c, key, { choice: id }); }
     if (a === 'strum') { const [id, what] = String(v).split('|'); const t = storyRumour(c, id, what); c.save(); return t; }
     if (a === 'sttrophy') { await play('trophies', { ...baseCtx(c), items: trophiesOf(c) }); return ''; }
-    if (a === 'sttour') { await play('factoryTour', { ...baseCtx(c), lv: Object.fromEntries(Object.entries(c.fac || {}).map(([k, f]) => [k, f.level])), td: { name: c.staff?.td?.name } }); return ''; }
-    if (a === 'stagain') { const x = S.seen.find((q) => q.key === v); if (x) await play(x.scene, x.ctx); return ''; }
     return '';
   })();
 }

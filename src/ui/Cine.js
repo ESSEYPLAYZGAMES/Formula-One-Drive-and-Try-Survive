@@ -4,7 +4,8 @@
 // rig: world/PersonRig.js - they walk, kneel, work), a car in its livery - and returns its shots: each a camera move
 // (a dolly from one framing to another, its lens, an arc, a hand-held tremble), a cut or a dip to black into it, the
 // subtitles spoken over it, a lower third, an overlay (a security camera's stamp, a replay's bug). The picture is
-// letterboxed (2.39:1 where the screen allows), graded, vignetted; a title card opens it while the set is built.
+// letterboxed (2.39:1 where the screen allows), graded, vignetted. It opens on its first shot: the scene's title a
+// few clean words over the picture for its first seconds, gone by themselves (no title card, no black to sit through).
 // Space / Enter / a click: the next shot. Esc or SKIP: the end (a decision the scene asks for is still asked). A scene
 // may end on a choice (the picture holds, the options over it) - playCine resolves with { choice } - or be a room to
 // look round (browse: stations the camera glides between, left and right).
@@ -14,12 +15,13 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { BokehPass } from 'three/addons/postprocessing/BokehPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { makePerson } from '../world/People.js';
+import { makePerson, makeHelmet } from '../world/People.js';
 import { makePersonRig } from '../world/PersonRig.js';
 import { POSE, gait, blendPose } from '../world/CrewRig.js';
 import { CarMesh } from '../vehicle/CarMesh.js';
 import { carModel, loadCarModel } from '../vehicle/CarModel.js';
 import { ensureMotion, reduced } from './Motion.js';
+import { kitShapes, GlowPass } from './CineKit.js';
 
 const CSS = `
 #cine { position: fixed; inset: 0; z-index: 90; background: #000; font-family: 'Segoe UI', Roboto, Arial, sans-serif; color: #fff; user-select: none; }
@@ -33,6 +35,12 @@ const CSS = `
 #cine .card small { font: 700 clamp(10px, 1.1vw, 14px)/1 'Segoe UI', Arial, sans-serif; letter-spacing: .5em; color: var(--acc, #e10600); margin-bottom: 16px; text-transform: uppercase; }
 #cine .card b { font: 300 clamp(26px, 4.6vw, 62px)/1.08 'Segoe UI', Arial, sans-serif; letter-spacing: .14em; text-transform: uppercase; }
 #cine .card span { margin-top: 16px; font: 400 clamp(12px, 1.3vw, 17px)/1.4 'Segoe UI', Arial, sans-serif; letter-spacing: .08em; color: rgba(255,255,255,.72); max-width: 56ch; }
+#cine .ttl { position: absolute; left: 5vw; top: calc(var(--bar, 0px) + 5.5vh); pointer-events: none; opacity: 0; transform: translateY(6px); transition: opacity .7s, transform .9s cubic-bezier(.2,.7,.2,1); text-shadow: 0 1px 14px rgba(0,0,0,.75), 0 0 2px rgba(0,0,0,.6); }
+#cine .ttl.on { opacity: 1; transform: none; }
+#cine .ttl small { display: block; font: 700 clamp(9px, .9vw, 12px)/1 'Segoe UI', Arial, sans-serif; letter-spacing: .34em; color: var(--acc, #e10600); text-transform: uppercase; margin-bottom: 9px; }
+#cine .ttl b { display: block; font: 300 clamp(17px, 2.1vw, 30px)/1.1 'Segoe UI', Arial, sans-serif; letter-spacing: .12em; text-transform: uppercase; }
+#cine .ttl span { display: block; margin-top: 8px; font: 400 clamp(10px, 1vw, 13px)/1.3 'Segoe UI', Arial, sans-serif; letter-spacing: .1em; color: rgba(255,255,255,.75); }
+#cine .ttl span:empty, #cine .ttl small:empty { display: none; }
 #cine .sub { position: absolute; left: 50%; bottom: calc(var(--bar, 0px) + 3.2vh); transform: translateX(-50%); width: min(86vw, 900px); text-align: center; pointer-events: none; opacity: 0; transition: opacity .22s; text-shadow: 0 2px 10px rgba(0,0,0,.9), 0 0 2px rgba(0,0,0,.9); }
 #cine .sub.on { opacity: 1; }
 #cine .sub i { display: block; font: 800 clamp(9px, 1vw, 12px)/1 'Segoe UI', Arial, sans-serif; letter-spacing: .28em; font-style: normal; margin-bottom: 6px; text-transform: uppercase; }
@@ -113,39 +121,34 @@ function makeKit(R, S, cam, def, o) {
   k.add = (x, parent = S) => { parent.add(x); return x; };
   /** a standard material (shared by its look) */
   k.m = (color, rough = 0.7, metal = 0, ex = null) => {
-    const key = ex ? null : `${color}|${rough}|${metal}`;
+    const key = `${color}|${rough}|${metal}|${ex ? JSON.stringify(ex) : ''}`;
     if (key && mats.has(key)) return mats.get(key);
     const m = k.own(new THREE.MeshStandardMaterial({ color, roughness: rough, metalness: metal, ...(ex || {}) })); if (key) mats.set(key, m); return m;
   };
   /** a glowing one (a lamp's face, a strip light): seen whatever the light */
-  k.glow = (color, I = 1) => k.own(new THREE.MeshBasicMaterial({ color: new THREE.Color(color).multiplyScalar(I), toneMapped: I <= 1 }));
-  const mesh = (g, m, x, y, z, sh = true) => { const b = new THREE.Mesh(k.own(g), m); b.position.set(x + k.org.x, y + k.org.y, z + k.org.z); b.castShadow = sh; b.receiveShadow = true; S.add(b); return b; };
-  k.box = (w, h, d, m, x = 0, y = 0, z = 0, ry = 0) => { const b = mesh(new THREE.BoxGeometry(w, h, d), m, x, y, z); b.rotation.y = ry; return b; };
-  k.cyl = (r0, r1, h, m, x = 0, y = 0, z = 0, seg = 20) => mesh(new THREE.CylinderGeometry(r0, r1, h, seg), m, x, y, z);
-  k.ball = (r, m, x = 0, y = 0, z = 0) => mesh(new THREE.SphereGeometry(r, 20, 14), m, x, y, z);
-  /** an upright plane facing `face`; flat: lying on the floor */
-  k.plane = (w, h, m, x = 0, y = 0, z = 0, face = 0, flat = false) => { const b = mesh(new THREE.PlaneGeometry(w, h), m, x, y, z, false); if (flat) b.rotation.x = -Math.PI / 2; else b.rotation.y = face; return b; };
-  k.floor = (w, d, m, y = 0, x = 0, z = 0) => k.plane(w, d, m, x, y, z, 0, true);
+  // (through the lens - not on a light machine - a lamp is brighter than anything it lights, so the glow pass can tell the two apart: GLOW_AT)
+  k.glow = (color, I = 1) => k.own(new THREE.MeshBasicMaterial({ color: new THREE.Color(color).multiplyScalar(I * (o.lite || I <= 1 ? 1 : 1.8)), toneMapped: I <= 1 }));
   /** a painted texture: draw(ctx, W, H) */
   k.tex = (W, H, draw) => { const c = document.createElement('canvas'); c.width = W; c.height = H; const x = c.getContext('2d'); draw(x, W, H); const t = k.own(new THREE.CanvasTexture(c)); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = Math.min(8, R.capabilities.getMaxAnisotropy?.() || 1); return t; };
+  kitShapes(k);
   /** a screen: a painted picture that lights itself (w x h m); bright: how hard it glows */
   k.screen = (w, h, draw, x, y, z, face = 0, bright = 1, px = 640) => {
-    const t = k.tex(px, Math.max(64, Math.round(px * h / w)), draw), m = k.own(new THREE.MeshBasicMaterial({ map: t, color: new THREE.Color(bright, bright, bright), toneMapped: false }));
+    const t = k.tex(px, Math.max(64, Math.round(px * h / w)), draw), m = k.own(new THREE.MeshBasicMaterial({ map: t, color: new THREE.Color(bright, bright, bright), toneMapped: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 }));
     const b = k.plane(w, h, m, x, y, z, face); b.userData.tex = t;
     /** the picture painted again (a replay's next frame, a table's next row) */
     b.redraw = (fn) => { const c = t.image, x2 = c.getContext('2d'); fn(x2, c.width, c.height); t.needsUpdate = true; };
     return b;
   };
   /** a painted sign that takes the room's light (a wall's lettering, a banner, a framed print) */
-  k.sign = (w, h, draw, x, y, z, face = 0, px = 512, ex = null) => k.plane(w, h, k.own(new THREE.MeshStandardMaterial({ map: k.tex(px, Math.max(32, Math.round(px * h / w)), draw), roughness: 0.8, ...(ex || {}) })), x, y, z, face);
+  k.sign = (w, h, draw, x, y, z, face = 0, px = 512, ex = null) => k.plane(w, h, k.own(new THREE.MeshStandardMaterial({ map: k.tex(px, Math.max(32, Math.round(px * h / w)), draw), roughness: 0.8, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4, ...(ex || {}) })), x, y, z, face);
   k.light = {
     hemi: (sky, ground, I) => k.add(new THREE.HemisphereLight(sky, ground, I)),
     key: (color, I, p, t = [0, 1, 0], shadow = true, span = 9) => {
       const L = new THREE.DirectionalLight(color, I); L.position.set(...p).add(k.org); L.target.position.set(...t).add(k.org); S.add(L, L.target);
-      if (shadow && !o.lite) { L.castShadow = true; L.shadow.mapSize.set(1536, 1536); Object.assign(L.shadow.camera, { left: -span, right: span, top: span, bottom: -span, near: 0.5, far: 60 }); L.shadow.bias = -0.0005; L.shadow.radius = 5; }
+      if (shadow && !o.lite) { L.castShadow = true; L.shadow.mapSize.set(2048, 2048); Object.assign(L.shadow.camera, { left: -span, right: span, top: span, bottom: -span, near: 0.5, far: 60 }); L.shadow.bias = -0.0004; L.shadow.normalBias = 0.02 + span * 0.002; L.shadow.radius = 4; }
       return L;
     },
-    spot: (color, I, p, t, angle = 0.5, pen = 0.6, shadow = false) => { const L = new THREE.SpotLight(color, I, 0, angle, pen, 1.6); L.position.set(...p).add(k.org); L.target.position.set(...t).add(k.org); if (shadow && !o.lite) { L.castShadow = true; L.shadow.mapSize.set(1024, 1024); L.shadow.bias = -0.0006; } S.add(L, L.target); return L; },
+    spot: (color, I, p, t, angle = 0.5, pen = 0.6, shadow = false) => { const L = new THREE.SpotLight(color, I, 0, angle, pen, 1.6); L.position.set(...p).add(k.org); L.target.position.set(...t).add(k.org); if (shadow && !o.lite) { L.castShadow = true; L.shadow.mapSize.set(1024, 1024); L.shadow.bias = -0.0006; L.shadow.normalBias = 0.02; } S.add(L, L.target); return L; },
     point: (color, I, p, dist = 0) => { const L = new THREE.PointLight(color, I, dist, 1.8); L.position.set(...p).add(k.org); S.add(L); return L; },
   };
   /** a studio for paint and metal to reflect (soft boxes overhead and to the sides) */
@@ -166,9 +169,10 @@ function makeKit(R, S, cam, def, o) {
     const g = P.group; g.position.set(at[0], at[1], at[2]); g.rotation.y = face - Math.PI / 2; g.userData.person = true;
     g.traverse((m) => { if (m.isMesh) { m.castShadow = true; m.receiveShadow = false; } });
     S.add(g); people.push(P);
-    const a = { g, P, y0: at[1], yaw: face, look: null, bounce: 0, nod: 0, shake: 0, sway: 1, ph: rnd() * 6.28, hy: 0, hz: 0, kind: 'person',
+    const sit = /^sit/.test(opts.pose || ''), bl = opts.blob === false ? null : k.blob(at[0] - k.org.x, at[2] - k.org.z, sit ? 0.42 : 0.3, sit ? 0.42 : 0.3, 0.42, at[1] - k.org.y + 0.004);
+    const a = { g, P, bl, y0: at[1], yaw: face, look: null, bounce: 0, nod: 0, shake: 0, sway: 1, ph: rnd() * 6.28, hy: 0, hz: 0, kind: 'person',
       face(x, z) { this.yaw = Math.atan2(x - g.position.x, z - g.position.z); g.rotation.y = this.yaw - Math.PI / 2; return this; },
-      at(x, y, z) { g.position.set(x, y, z); this.y0 = y; return this; },
+      at(x, y, z) { g.position.set(x, y, z); this.y0 = y; if (bl) bl.position.set(x, y + 0.004, z); return this; },
       get head() { const v = new THREE.Vector3(0, 1.62, 0); return g.localToWorld(v); } };
     actors.push(a); return a;
   };
@@ -179,7 +183,8 @@ function makeKit(R, S, cam, def, o) {
   k.crew = (opts, at = [0, 0, 0], face = 0) => {
     let rig = null; try { rig = makePersonRig({ build: opts.build || 'broad', team: opts.color || '#555b66', accent: opts.accent || '#ffffff' }); } catch (e) { console.warn('[cine] crew', e); return null; }
     const g = new THREE.Group(); g.add(rig.mesh); rig.mesh.castShadow = true; g.position.set(at[0] + k.org.x, at[1] + k.org.y, at[2] + k.org.z); g.rotation.y = face - Math.PI / 2; S.add(g); own.push(rig);
-    const a = { g, rig, kind: 'crew', pose: opts.pose || 'stand', cur: {}, path: null, speed: 1.4, ph: rnd() * 6.28, yaw: face, work: opts.work || 0,
+    const bl = k.blob(at[0], at[2], 0.34, 0.34, 0.45, at[1] + 0.004);
+    const a = { g, rig, bl, kind: 'crew', pose: opts.pose || 'stand', cur: {}, path: null, speed: 1.4, ph: rnd() * 6.28, yaw: face, work: opts.work || 0,
       face(x, z) { this.yaw = Math.atan2(x - g.position.x, z - g.position.z); g.rotation.y = this.yaw - Math.PI / 2; return this; },
       walk(path, speed = 1.4, then = null) { this.path = path.map((p) => [...p]); this.speed = speed; if (then) this.then = then; return this; } };
     blendPose(a.cur, POSE[a.pose] || POSE.stand, 1); rig.apply(a.cur);
@@ -191,7 +196,16 @@ function makeKit(R, S, cam, def, o) {
     let m = null; try { m = new CarMesh(c.color, compound, { color2: c.color2, team: c.team, livery: c.livery || null, helmet: c.helmet, number: c.number, driver: c.driver }); } catch (e) { console.warn('[cine] car', e); return null; }
     m.group.traverse((x) => { if (x.isMesh) { x.castShadow = true; x.frustumCulled = false; } });
     if (m.shadow) m.shadow.visible = false; if (m.shadowFar) m.shadowFar.visible = false;
-    m.group.position.set(at[0] + k.org.x, at[1] + k.org.y, at[2] + k.org.z); m.group.rotation.y = face - Math.PI / 2; S.add(m.group); cars.push(m); return m;
+    m.group.position.set(at[0] + k.org.x, at[1] + k.org.y, at[2] + k.org.z); m.group.rotation.y = face - Math.PI / 2; m.group.userData.car = true; S.add(m.group); cars.push(m);
+    m.blob = k.blob(at[0], at[2], 3.1, 1.25, 0.62, at[1] + 0.005); return m;
+  };
+  /** a racing helmet (the real one: its shell, visor, stripe, a driver's own design - o.driver) set down at `at` (its middle), its front toward `face` */
+  k.helmet = (color, accent, at = [0, 0, 0], face = 0, o = {}) => {
+    let g = null; try { g = makeHelmet(color || '#e10600', accent || '#ffffff', o.number ?? '', o); } catch (e) { console.warn('[cine] helmet', e); }
+    if (!g) { const b = k.ball(0.15, k.m(color || '#e10600', 0.25, 0.3), at[0], at[1], at[2]); b.scale.set(1.12, 1, 1); return b; }
+    g.position.set(at[0] + k.org.x, at[1] + k.org.y, at[2] + k.org.z); g.rotation.y = face - Math.PI / 2;
+    g.traverse((m) => { if (m.isMesh) { m.castShadow = true; own.push(m.geometry); for (const q of [].concat(m.material)) { own.push(q); if (q.map) own.push(q.map); } } });
+    S.add(g); return g;
   };
   /** lettering painted for a sign: lines [[text, size, colour, weight]] centred on a ground colour */
   k.letters = (lines, bg = '#101114', align = 'center') => (x, W, H) => {
@@ -215,6 +229,7 @@ function makeKit(R, S, cam, def, o) {
         hy += Math.sin(t * 7.5 + a.ph) * 0.22 * a.shake + Math.sin(t * 0.45 + a.ph * 2) * 0.03; hz += Math.sin(t * 5.2 + a.ph) * 0.1 * a.nod;
         const f = 1 - Math.exp(-dt * 5); a.hy += (hy - a.hy) * f; a.hz += (hz - a.hz) * f;
         if (a.P.head) { a.P.head.rotation.y = a.hy; a.P.head.rotation.z = a.hz; }
+        if (a.bl) { a.bl.visible = g.visible; a.bl.position.set(g.position.x, a.y0 + 0.004, g.position.z); }
       } else {
         // a crew member: along their path at a walk or a run, then their pose
         if (a.path && a.path.length) {
@@ -226,9 +241,10 @@ function makeKit(R, S, cam, def, o) {
           blendPose(a.cur, POSE[a.pose] || POSE.stand, 1 - Math.exp(-dt * 6));
           if (a.work) { const w = Math.sin(t * 9 + a.ph) * 0.06 * a.work; a.cur.shL = a.cur.shL || [0, 0, 0]; a.cur.shR = a.cur.shR || [0, 0, 0]; a.cur.shL[2] += w; a.cur.shR[2] -= w; }
         }
-        a.rig.apply(a.cur);
+        a.rig.apply(a.cur); if (a.bl) { a.bl.visible = a.g.visible; a.bl.position.x = a.g.position.x; a.bl.position.z = a.g.position.z; }
       }
     }
+    for (const c of cars) if (c.blob) { const g = c.group; c.blob.visible = g.visible; c.blob.position.set(g.position.x, g.position.y + 0.005, g.position.z); c.blob.rotation.z = g.rotation.y; }
     for (const fn of tick) { try { fn(t, dt); } catch (e) { /* (a scene's own flourish: never the scene) */ } }
   };
   k._dispose = () => {
@@ -266,7 +282,7 @@ export function playCine(def, o = {}) {
     if (!document.getElementById('cine-css')) { const st = document.createElement('style'); st.id = 'cine-css'; st.textContent = CSS; document.head.appendChild(st); }
     const el = document.createElement('div'); el.id = 'cine'; el.style.setProperty('--acc', def.accent || '#e10600');
     el.innerHTML = `<canvas></canvas><div class="vig"></div><div class="hud"><div class="tl"></div><div class="tr"></div><div class="bl"></div></div><div class="fade"></div><div class="bar t"></div><div class="bar b"></div>
-      <div class="card"><small></small><b></b><span></span></div><div class="low"><b></b><span></span></div><div class="plq"><small></small><b></b><p></p></div><div class="sub"><i></i><p></p></div>
+      <div class="card"><small></small><b></b><span></span></div><div class="ttl"><small></small><b></b><span></span></div><div class="low"><b></b><span></span></div><div class="plq"><small></small><b></b><p></p></div><div class="sub"><i></i><p></p></div>
       <div class="choice"><h4></h4><div class="ops"></div></div><div class="ask"><h4></h4><div class="ops"></div><div class="tm"><i></i></div></div><div class="qte"><b></b><div class="trk"><div class="zone"></div><div class="fill"></div><div class="mk"></div></div><span class="res"></span></div><div class="nav"><button data-n="-1">◂</button><span></span><button data-n="1">▸</button><button data-n="0">LEAVE</button></div>
       <div class="prog"></div><button class="skip">SKIP ▸</button>`;
     document.body.appendChild(el);
@@ -277,17 +293,17 @@ export function playCine(def, o = {}) {
     R.setPixelRatio(Math.min(o.lite ? 1 : 1.5, devicePixelRatio || 1)); R.toneMapping = THREE.ACESFilmicToneMapping; R.toneMappingExposure = def.exposure ?? 1.0;
     R.shadowMap.enabled = !o.lite; R.shadowMap.type = THREE.PCFSoftShadowMap;
     const S = new THREE.Scene(); S.background = new THREE.Color(def.bg || '#07080b'); if (def.fog) S.fog = new THREE.Fog(def.fogColor || def.bg || '#07080b', def.fog[0], def.fog[1]);
-    const cam = new THREE.PerspectiveCamera(30, 16 / 9, 0.05, 400);
+    const cam = new THREE.PerspectiveCamera(30, 16 / 9, 0.1, 320);   // (the depth buffer's precision is the near plane's: at 0.05 things two centimetres apart fought at the far end of a room)
     const k = makeKit(R, S, cam, def, o);
     // the lens: a shallow depth of field (what the shot looks at is sharp, the room behind it soft) - not on a light
     // machine's setting, nor where the passes cannot be made
-    let comp = null, bokeh = null;
-    if (!o.lite && def.dof !== false) { try { comp = new EffectComposer(R); comp.addPass(new RenderPass(S, cam)); bokeh = new BokehPass(S, cam, { focus: 5, aperture: 0.0008, maxblur: 0.007 }); comp.addPass(bokeh); comp.addPass(new OutputPass()); } catch (e) { comp = null; bokeh = null; } }
+    let comp = null, bokeh = null, glow = null;
+    if (!o.lite && def.dof !== false) { try { comp = new EffectComposer(R, new THREE.WebGLRenderTarget(2, 2, { type: THREE.HalfFloatType, samples: 4 })); comp.addPass(new RenderPass(S, cam));   /* (its own target smoothed: edges through the lens as clean as without it) */ bokeh = new BokehPass(S, cam, { focus: 5, aperture: 0.0008, maxblur: 0.007 }); comp.addPass(bokeh); try { glow = new GlowPass(def.glow ?? 0.5, 3.0); comp.addPass(glow); } catch (e) { glow = null; } comp.addPass(new OutputPass()); } catch (e) { comp = null; bokeh = null; } }
     const focusAt = new THREE.Vector3();
     // (a lamp by the lens: a little light on whatever the shot looks at, so a face in a dim room still reads)
     const eye = new THREE.PointLight(0xfff4e8, 0, 0, 2); S.add(eye);
     const draw = (sh) => {
-      if (!comp || sh?.dof === 0) { R.render(S, cam); return; }
+      if (!comp) { R.render(S, cam); return; }
       // (sharp at what the shot looks at, or at its own focus - pulled from one subject to another over the shot;
       //  a long lens throws the background further out than a wide one)
       const d = cam.position.distanceTo(focusAt), f = cam.fov;
@@ -296,11 +312,11 @@ export function playCine(def, o = {}) {
     };
     const card = $('.card'), sub = $('.sub'), low = $('.low'), hud = $('.hud'), fade = $('.fade'), prog = $('.prog'), plq = $('.plq');
     const showCard = (c) => { if (!c) { card.classList.remove('on'); return; } card.querySelector('small').textContent = c.kicker || ''; card.querySelector('b').textContent = c.title || ''; card.querySelector('span').textContent = c.sub || ''; card.classList.add('on'); };
-    showCard({ kicker: def.kicker, title: def.title, sub: def.sub });
+    const ttl = $('.ttl'); ttl.querySelector('small').textContent = def.kicker || ''; ttl.querySelector('b').textContent = def.title || ''; ttl.querySelector('span').textContent = def.sub || '';
     const amb = def.sound && o.audio?.play ? (() => { try { return o.audio.play(def.sound.name, { gain: def.sound.gain ?? 0.4, loop: true, offset: 'random', fadeIn: 1.2 }); } catch (e) { return null; } })() : null;
 
     const picks = {}, qres = {}, res = { picks, qte: qres }; let askOn = null, qteOn = null, down = false;
-    let shots = [], choice = null, browse = null, built = false, on = true, t = 0, i = -1, t0 = 0, last = performance.now(), held = false, total = 0, station = 0, bFrom = null, bU = 1, picked = null, ending = 0, openT = 0;
+    let shots = [], choice = null, browse = null, built = false, on = true, t = 0, i = -1, t0 = 0, last = performance.now(), held = false, total = 0, station = 0, bFrom = null, bU = 1, picked = null, ending = 0, openT = 0, ttlOn = false;
     const size = () => {
       const w = el.clientWidth || innerWidth, h = el.clientHeight || innerHeight;
       const bar = Math.max(0, Math.round((h - w / (def.aspect || 2.39)) / 2)), b = Math.min(bar, Math.round(h * 0.16));
@@ -380,7 +396,7 @@ export function playCine(def, o = {}) {
       fade.style.transition = 'opacity .55s'; fade.style.opacity = '1'; sub.classList.remove('on'); low.classList.remove('on'); $('.choice').classList.remove('on'); plq.classList.remove('on');
       setTimeout(() => {
         on = false; window.removeEventListener('keydown', key, true); window.removeEventListener('keyup', keyUp, true); window.removeEventListener('resize', size);
-        try { k._dispose(); comp?.dispose?.(); bokeh?.dispose?.(); R.dispose(); R.forceContextLoss?.(); } catch (e) { /* gone */ }
+        try { k._dispose(); comp?.dispose?.(); bokeh?.dispose?.(); glow?.dispose?.(); R.dispose(); R.forceContextLoss?.(); } catch (e) { /* gone */ }
         el.remove(); end({ choice: picked, picks, qte: qres, skipped });
       }, reduced() ? 60 : 600);
     };
@@ -433,6 +449,8 @@ export function playCine(def, o = {}) {
     const step = (dt) => {
       if (!on) return; t += dt; size();
       if (!built) { R.setClearColor(0x000000); return; }
+      // the title: over the first seconds of the picture, then gone (not over a card, a question or a room to look round)
+      { const tt = t - openT, show = !!def.title && !browse && tt > 0.35 && tt < 3.3 && !shots[i]?.card && !askOn && !held && !ending; if (show !== ttlOn) { ttlOn = show; ttl.classList.toggle('on', show); } }
       k._tick(t, dt);
       if (browse) {
         const b = browse[station]; bU = Math.min(1, bU + dt / 1.6);
@@ -481,7 +499,7 @@ export function playCine(def, o = {}) {
     };
     const loop = (now) => { if (!on) return; const dt = Math.min(0.05, (now - last) / 1000); last = now; step(dt); requestAnimationFrame(loop); };
 
-    // the set built behind the title card (a frame first, so the card is up), then the first shot out of black
+    // the set built (a frame of black first), then the first shot out of black
     const build = async () => {
       try {
         if (def.needsCar && !carModel()) await loadCarModel().catch(() => {});
@@ -492,15 +510,15 @@ export function playCine(def, o = {}) {
         total = shots.reduce((s, x) => s + x.d, 0) || 1;
         if (!shots.length && !browse) throw new Error('no shots');
         try { R.compile(S, cam); } catch (e) { /* compiled as drawn */ }
-      } catch (e) { console.error('[cine] scene', def.id, e); on = false; try { k._dispose(); comp?.dispose?.(); bokeh?.dispose?.(); R.dispose(); R.forceContextLoss?.(); } catch (e2) { /* gone */ } window.removeEventListener('keydown', key, true); window.removeEventListener('resize', size); el.remove(); end({ skipped: true, failed: true, error: String(e?.message || e) }); return; }
-      const hold = reduced() || o.fast ? 250 : def.title ? 1500 : 300;
+      } catch (e) { console.error('[cine] scene', def.id, e); on = false; try { k._dispose(); comp?.dispose?.(); bokeh?.dispose?.(); glow?.dispose?.(); R.dispose(); R.forceContextLoss?.(); } catch (e2) { /* gone */ } window.removeEventListener('keydown', key, true); window.removeEventListener('resize', size); el.remove(); end({ skipped: true, failed: true, error: String(e?.message || e) }); return; }
+      const hold = 80;   // (straight in: the set is built, the first shot comes up out of black with its title over it)
       setTimeout(() => {
         if (!on) return; built = true; el.classList.add('live'); showCard(null); size(); openT = t;
         if (browse) { el.classList.add('browse'); $('.skip').style.display = 'none'; prog.style.display = 'none'; station = 0; bU = 1; plaque(); }
         else enter(ok(shots[0]) ? 0 : Math.max(0, after(0)));
       }, hold);
     };
-    window.__cine = { id: def.id, step, next, finish, skip: skipAll, pick: (id) => { picked = id; finish(); }, answer: (id) => pickAsk(id), press, hold: (v) => { down = !!v; }, res, go, get state() { return { built, i, n: shots.length, t, held, ending, browse: browse?.length || 0, station, choice: choice && choice.options ? choice.options.map((x) => x.id) : choice ? ['?'] : null, ask: askOn ? askOn.ask.options.map((x) => x.id) : null, qte: qteOn ? qteOn.qte.kind : null, sub: sub.classList.contains('on') ? sub.querySelector('p').textContent : '', shots: shots.map((s) => s.d) }; }, jump(n, u = 0.5) { if (!built) return; enter(clamp(n, 0, shots.length - 1)); t0 = t - shots[i].d * u; } };
+    window.__cine = { id: def.id, scene: S, step, next, finish, skip: skipAll, pick: (id) => { picked = id; finish(); }, answer: (id) => pickAsk(id), press, hold: (v) => { down = !!v; }, res, go, get state() { return { title: ttlOn, built, i, n: shots.length, t, held, ending, browse: browse?.length || 0, station, choice: choice && choice.options ? choice.options.map((x) => x.id) : choice ? ['?'] : null, ask: askOn ? askOn.ask.options.map((x) => x.id) : null, qte: qteOn ? qteOn.qte.kind : null, sub: sub.classList.contains('on') ? sub.querySelector('p').textContent : '', shots: shots.map((s) => s.d) }; }, jump(n, u = 0.5) { if (!built) return; enter(clamp(n, 0, shots.length - 1)); t0 = t - shots[i].d * u; } };
     size(); requestAnimationFrame((now) => { last = now; requestAnimationFrame(loop); });
     build();
   });
