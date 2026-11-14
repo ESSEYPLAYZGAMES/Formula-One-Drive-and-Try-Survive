@@ -70,6 +70,7 @@ import { radioReplays, stopRadioReplays } from './ui/RadioReplay.js';
 import { TVExtras } from './ui/TVExtras.js';
 import { TVShow, sectorChips } from './ui/TVShow.js';
 import { Theatre } from './ui/Theatre.js';
+import { HelmetView } from './camera/HelmetView.js';
 import { RaceTape, SRC as TAPE_SRC } from './race/RaceTape.js';
 import { SPIN_WRAP } from './race/Replay.js';
 import { TVProps } from './world/TVProps.js';
@@ -1416,6 +1417,10 @@ function renderView() {
 function receiveShadows(g) { g.traverse((m) => { if (m.isMesh && m.material && !m.material.isShaderMaterial && !m.material.isMeshBasicMaterial) m.receiveShadow = true; }); }
 function renderFrame() {
   env.followShadow(camera, TERRAIN.on ? TERRAIN.at(camera.position.x, camera.position.z) : 0);
+  // (inside the helmet this frame? only where the frame's own camera said so - helmetFrame - never under a photo, a replay, the news)
+  const hv = helmetView.on && HV.n === FRAME_N && !PHOTO.on && !(crashCam.on && (crashCam.blur > 0.01 || crashCam.sat > 1.01));
+  if (helmetView.on && !hv) { const was = helmetView.mesh; helmetView.attach(null, POV.on); if (was?.halo && !POV.on) was.halo.visible = S.halo; }
+  if (hv) helmetView.sync(camera, HV.dt, { sunDir: env.sunDir, sun: env.sun, hemi: env.hemi, wet: WXV.r, sunClear: _sunTo, shake: HV.shake });
   carShadowsOff();
   try {
     if (!PHOTO.on && crashCam.on && (crashCam.blur > 0.01 || crashCam.sat > 1.01)) {
@@ -1425,7 +1430,7 @@ function renderFrame() {
     if (PHOTO.on && PHOTO.fx.blur > 0) {
       ensureComposer(); bokeh.uniforms.focus.value = photoFocus(); bokeh.uniforms.aperture.value = PHOTO.fx.blur * 0.00006; bokeh.uniforms.maxblur.value = 0.014;
       composer.render();
-    } else renderer.render(scene, camera);
+    } else { renderer.render(scene, camera); if (hv) helmetView.render(renderer, camera); }
     if (PIP.on && TP.on && !PHOTO.on) pipRender();   // (the picture in the picture: a second camera's view in its frame)
   } finally { carShadowsOn(); }
   if (Gallery.pending) Gallery.grab(renderer.domElement);   // (a moment kept for the loading screen: ui/Gallery.js)
@@ -3373,11 +3378,37 @@ function visor() {
 }
 /** the cockpit view, every frame: the eye-port round it, your car's halo out of the way of the lens */
 function cockpitVisor(p, on) {
+  // (the cockpit view's helmet is real now - helmetFrame, camera/HelmetView.js: this picture of an eye-port is only
+  //  the last seconds' - povStart)
   if (POV.on) return;
-  const v = visor(); v.className = ''; v.style.display = on ? 'block' : 'none';
-  const m = p && S.meshes.get(p); if (m) m.halo.visible = S.halo && !on;
+  if (visorEl) { visorEl.className = ''; visorEl.style.display = 'none'; }
 }
 const POV = { on: false, T: 12 };
+// ---- inside the helmet (camera/HelmetView.js): the cockpit view you drive from and the broadcast's helmet camera -
+// the car round the lens drawn whole from 3 cm, the helmet's lining and its visor's glass lit by the sun and the sky
+// that are really there. Decided once a frame, here, from the camera in use; drawn in renderFrame.
+const helmetView = new HelmetView(scene);
+const HV = { n: -1, dt: 0, car: null, halo: false, shake: [0, 0] };
+let FRAME_N = 0;
+function helmetFrame(dt) {
+  const d = S.director; let car = null, halo = false;
+  if (d && !PHOTO.on && !POV.on && !FINALE.on && !crashCam.on && !TP.rep) {
+    if (TP.on) { const sh = TP.tv?.shot; if (sh && sh.kind === 'helmet' && sh.car && !sh.car.hiddenAway) { car = sh.car; halo = true; } }   // (the broadcast's: the halo's pillar down the middle of it, as it is)
+    else if (S.player && camCtl.mode === 'cockpit' && !d.done && !S.player.hiddenAway) car = S.player;
+  }
+  const m = car ? S.meshes.get(car) || null : null, was = helmetView.mesh;
+  if (was && was !== m && was.halo && !POV.on) was.halo.visible = S.halo;   // (the car let go: its halo as the setting has it)
+  helmetView.attach(m, POV.on);
+  if (m) {
+    m.halo.visible = S.halo && (halo || !!HV.haloAll);   // (haloAll: a test's switch)
+    // (the helmet moves a little on the head: out with the corner's load, a fine buzz with the speed and the kerbs)
+    const sp = Math.min(1, Math.abs(car.speed || 0) / 60), buzz = (car.onKerb ? 0.0016 : car.offTrack ? 0.0022 : 0.0005) * sp;
+    const tx = Math.max(-0.004, Math.min(0.004, -(car.ay || 0) / 9.81 * 0.0011)) + (Math.random() - 0.5) * buzz, ty = (Math.random() - 0.5) * buzz * 1.4;
+    HV.shake[0] += (tx - HV.shake[0]) * Math.min(1, dt * 14); HV.shake[1] += (ty - HV.shake[1]) * Math.min(1, dt * 20);   // (held still while the race is)
+  }
+  HV.n = FRAME_N; HV.dt = dt; HV.car = car;
+}
+const _sunTo = (x, y, z, dir) => tvClear(x, y, z, x + dir.x * 600, y + dir.y * 600, z + dir.z * 600, true);
 const POVV = new THREE.Vector3(), POVO = new THREE.Vector3(), POVQ = new THREE.Quaternion(), POVQ2 = new THREE.Quaternion(), POVE = new THREE.Euler(0, 0, 0, 'YXZ');
 const POVY = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -Math.PI / 2);
 /**
@@ -4749,7 +4780,7 @@ $('replay-file')?.addEventListener('change', (ev) => { const f = ev.target.files
 $('btn-theatre')?.addEventListener('click', () => { if (!theatreOpen()) hud.msg('NO REPLAY OF THIS RACE', '', 2); });
 
 function frame(now) {
-  requestAnimationFrame(frame);
+  requestAnimationFrame(frame); FRAME_N++;
   if (!audioLive) audio?.quiet?.(0.06); audioLive = false;   // (cut, not a long fade)
   const interval = now - last, dt = Math.max(0, Math.min(0.1, interval / 1000)); last = now;   // never negative (tab switches, manual frame calls)
   fitViewport();   // an embedding frame may resize the canvas without a window resize event
@@ -4894,6 +4925,7 @@ function frame(now) {
   input.endFrame();
   sphereFeed(sphereSeen);   // (paused or in photo mode too: the frozen race on the Sphere's screen, not the black of a feed never drawn)
   cullBuildings();
+  helmetFrame(halted ? 0 : dt);
   env.sky.position.copy(camera.position);   // the dome travels with the camera: its far side never crosses the far plane (that showed as a flat "mountain")
   renderView();
   RES.calls = renderer.info.render.calls; RES.tris = renderer.info.render.triangles;
@@ -4944,7 +4976,7 @@ function frame(now) {
       return new Promise((res) => careerHangout(L, res, c));
     },
     /** headless fast-forward (testing/telemetry): advances the active session by `sec` seconds without rendering */
-    get TH() { return TH; }, theatreOpen, theatreClose, endSession, frame, replayFromFile, RaceTape, TVDirector, tvClear,   /* (the theatre; a frame of the game's own loop: test hooks) */
+    get TH() { return TH; }, theatreOpen, theatreClose, endSession, frame, replayFromFile, RaceTape, TVDirector, tvClear, helmetView, HV, env, setTimeOfDay, applyWeather,   /* (the theatre; a frame of the game's own loop: test hooks) */
     stepSim(sec, step = 1 / 60) { const d = S.director; if (!d) return 'no session'; const n = Math.round(sec / step); for (let i = 0; i < n && !d.done; i++) { input.update(step, S.player ? S.player.speed : 0); d.update(step, input); } return d.time; },
     /** render stats: draw calls / triangles of the last frame, average CPU ms per frame since the last call, current render scale */
     perf() { const r = { calls: RES.calls, triangles: RES.tris, avgFrameMs: +(RES.msSum / Math.max(1, RES.frames)).toFixed(2), frames: RES.frames, renderScale: RES.scale, pixelRatio: renderer.getPixelRatio() }; RES.frames = 0; RES.msSum = 0; console.info('[perf]', r); return r; },

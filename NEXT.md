@@ -1,3 +1,48 @@
+# V2.56 (2026-11-14): the helmet camera - the car whole, a real helmet round the lens, a visor that takes the light
+
+Asked for (with a frame of F1's own helmet camera): "fix helmet cam so it doesnt clip thru the car (becoming see-thru)
+add like the realistic visor glare and whatnot so it looks inside of the helmet (not just a png but actual
+environemnt based lighting)".
+
+New: `src/camera/HelmetView.js`; in `src/main.js` helmetFrame (which camera is a helmet camera this frame) and
+renderFrame (its second pass). It is the cockpit view you drive from and the broadcast's HELMET camera.
+
+## The car, whole
+- Why it was see-through: the whole game is drawn with a near plane of 30 cm (nearer than that, the painted lines
+  far down the road flicker in the depth buffer), and from the driver's eyes the halo, the cockpit's rim, the wheel
+  and his own arms are inside 30 cm - cut open wherever they came closer.
+- Now the car the camera sits in is drawn a second time on top of the finished picture, from 3 cm, with the first
+  pass's shadows; the world keeps its own near plane. The driver's own head is taken out of that car while the lens
+  is in it (it used to be cut away by the near plane), and put back the moment the camera leaves.
+- The broadcast's helmet camera has the halo (its pillar down the middle of the picture, as it is); your own cockpit
+  view keeps it hidden, as before.
+
+## The helmet
+- The flat oval that was laid over the cockpit view is gone (it stays only for the last seconds through your
+  driver's eyes). In its place, fixed to the lens, real geometry: the lining round the eye-port - soft at its edge,
+  as a thing 7 cm from the eye is - and the visor's glass, curved about the head.
+- The lining is lit by the light that comes in through the port: the sun when it stands in front of the visor (the
+  chin bar and the brow catch it), the sky's and the ground's own light otherwise; black at night.
+- The glass takes the light that is there:
+  - its haze is the scene's own environment map (the one every car and building is lit with) looked at through the
+    glass and scattered - brighter toward the bright side of the sky, nearly nothing at night;
+  - its sheen where it curves away at the sides is that map reflected;
+  - the sun draws a halo round where it stands and a long streak along the glass's wiping scratches, through the
+    dust on it - by the sun's own colour and strength (weaker under cloud, the moon's faint blue at night), only
+    when the sun is in front of the driver, and not when a grandstand, a bridge or a building stands between
+    (looked for a few times a second, eased in and out);
+  - its coating tints the road a little and turns colour toward the curve; a darker band along its top; rain
+    lifts the haze.
+- The helmet moves a little on the head: out with a corner's load, a fine buzz with speed and over the kerbs.
+
+## Checked
+- In a browser, a car in a race at Silverstone: the cockpit view (no halo), the broadcast's (halo), a low sun put in
+  front of the car (the glare), the head turned to the side, at night; leaving the view puts the head and the halo
+  back and takes the helmet away. No part of the car cut open in any of them.
+- A seeded race in the other modes is identical to V2.45-V2.55 (tools/race_probe.mjs 5 1 silverstone).
+- Not checked: a real graphics card (the second pass is about fifty draw calls: one car); a team principal's race
+  itself (the same switch, on the director's HELMET shot); raindrops on the visor are not drawn.
+
 # V2.55 (2026-11-14): a helicopter that flies, no drone, onboards that stay onboards
 
 Asked for: "remove drone cam, fix helicopter cam so it's natural, not always the same pace as the car like a real
