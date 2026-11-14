@@ -15,11 +15,13 @@ import { ROSTER, RESERVES, F2, POINTS, PERF_GAIN, dayPerf } from '../race/Roster
 import { startLevels, techEffects, devTick, aiDevelopTeam, upgradeName, UP } from './TechTree.js';
 import { crewEnsure, crewRound, crewNewSeason, crewSalaries } from './ManagerCrew.js';
 import { peopleEnsure, peopleAfterRace, peopleSeasonEnd, raceEvent, onExtend, extendBlock, engineerFx, fatigueQ } from './ManagerPeople.js';
-import { carEnsure, trackFit, engineFx, buildCheck, onBuilt, carRound, carNewSeason } from './ManagerCar.js';
+import { carEnsure, trackFit, engineFx, buildCheck, onBuilt, carRound, carNewSeason, rulesChange } from './ManagerCar.js';
 import { storyEnsure, storyAfterRace, storySeasonStart, storyBeforeRace, subOf } from './ManagerStory.js';
 import { opsEnsure, puEffect, sparesPerf, partsAfterRace, partsNewSeason, takePenalties, facFx, facRound, sponsorRace, sponsorsSeasonEnd } from './ManagerOps.js';
 
 const KEY = 'f1sim-manager-v1';
+import { seasonsEnsure, ageDrivers, retireRound, marketRound, marketWinter, contractAsk, academyRound, academyWinter, regsReset, gapsWinter } from './Seasons.js';
+import { rivalsEnsure, rivalFx, rivalDevelop, rivalsLanded, rivalsRound, rivalsWinter } from './Rivals.js';
 export const TRACKS_ALL = ['lasvegas', 'silverstone', 'montreal', 'austin'];
 /** $M a team starts a season with, by tier; the commercial rights every race; the cost cap on development a season */
 export const TIER_BUDGET = [60, 50, 42, 36];
@@ -81,7 +83,7 @@ export class ManagerCareer {
 
   get team() { return this.teams[this.myTeam]; }
   /** every system's state made or brought up to date: parts, facilities and sponsors; the pit crew; the people; the car */
-  ensure() { opsEnsure(this); crewEnsure(this); peopleEnsure(this); carEnsure(this); storyEnsure(this); }
+  ensure() { opsEnsure(this); crewEnsure(this); peopleEnsure(this); carEnsure(this); storyEnsure(this); seasonsEnsure(this); rivalsEnsure(this); }
   /** may this level be started (the cost cap, the tunnel's hours) -> null or why not; a level started (career/ManagerCar.js) */
   buildCheck(id, lvl, cost) { return buildCheck(this, id, lvl, cost); }
   onBuilt(id, lvl) { onBuilt(this, id, lvl); }
@@ -89,7 +91,7 @@ export class ManagerCareer {
   onRaceEvent(what, did) { raceEvent(this, what, did); }
   addNews(text) { this.news.unshift({ season: this.season, round: this.round, text }); if (this.news.length > 60) this.news.length = 60; }
   seatsOf(team) { return (this.teams[team]?.seats || []).map((x) => this.drivers[x]).filter(Boolean); }
-  freeAgents() { return Object.values(this.drivers).filter((d) => !d.team).sort((a, b) => b.rating - a.rating); }
+  freeAgents() { return Object.values(this.drivers).filter((d) => !d.team && !d.retired).sort((a, b) => b.rating - a.rating); }
   /** the constructors' order now (points, then the pecking order) */
   constructors() { return Object.values(this.teams).sort((a, b) => b.points - a.points || a.tier - b.tier || a.garage - b.garage); }
   drivers_() { return Object.values(this.drivers).filter((d) => d.team || d.points > 0).sort((a, b) => b.points - a.points || b.rating - a.rating); }
@@ -128,7 +130,7 @@ export class ManagerCareer {
         // (the power unit's wear - a worn ICE a little down on power, any worn element more likely to fail - and, for your
         //  team, a damaged part raced for want of a spare: career/ManagerOps.js)
         const pu = puEffect(this, t.name, d0.id), sp = t.name === this.myTeam ? sparesPerf(this, t.name) : 1;
-        out.push({ careerId: d.id, name: d.name, short: d.short, team: t.name, color: t.color, color2: t.color2, livery: t.livery, helmet: d.helmet, tier: t.tier, perf: fx.perf * pu.perfMul * sp * fit * eng.perf * (t.name === this.myTeam ? engineerFx(this, d0.id).perf : 1), rating: d.rating, number: d.number, morale: d.morale ?? 60, fx: { ...fx, relMul: (fx.relMul || 1) * pu.relMul * eng.relMul }, garage: t.garage, mine: t.name === this.myTeam, champPts: d.points });
+        out.push({ careerId: d.id, name: d.name, short: d.short, team: t.name, color: t.color, color2: t.color2, livery: t.livery, helmet: d.helmet, tier: t.tier, perf: (fx.perf + (t.gap || 0)) * pu.perfMul * sp * fit * eng.perf * (t.name === this.myTeam ? engineerFx(this, d0.id).perf : 1),   /* (t.gap: the grid's width - career/Seasons.js) */ rating: d.rating, number: d.number, morale: d.morale ?? 60, fx: { ...fx, relMul: (fx.relMul || 1) * pu.relMul * eng.relMul, pitMul: (fx.pitMul || 1) * (t.name === this.myTeam ? 1 : rivalFx(this, t).pitMul) }, garage: t.garage, mine: t.name === this.myTeam, champPts: d.points });
       }
     }
     return out;
@@ -180,7 +182,11 @@ export class ManagerCareer {
       rep.parts.push({ id: x.id, level: x.level, q: x.q });
       this.addNews(`${upgradeName(x.id, x.level)} is on the car: ${Math.round(x.q * 100)}% of what the tunnel promised.`);
     }
-    for (const t of Object.values(this.teams)) if (t.name !== this.myTeam) this.aiDevelop(t);
+    for (const line of rivalsLanded(this, done)) this.addNews(line);
+    for (const t of Object.values(this.teams)) if (t.name !== this.myTeam) rivalDevelop(this, t);   // (each in its own way: career/Rivals.js)
+    // the paddock: who comes for your people, who signs whom for next year, who is stopping; your juniors' round
+    for (const line of [...rivalsRound(this), ...marketRound(this), ...retireRound(this)]) this.addNews(line);
+    academyRound(this);
     // the people and the car: what the team principal's orders did to the drivers; morale, the engineers, fatigue, the
     // press; the pit crew's training; the work on next year's car
     for (const ev of o.events || []) raceEvent(this, ev.what, ev.did);
@@ -208,7 +214,7 @@ export class ManagerCareer {
     const E = this.entries(), g = () => (Math.random() + Math.random() + Math.random() - 1.5) * 1.63, pen = takePenalties(this);
     const rows = E.map((e) => {
       const rel = e.fx.relMul || 1, dnf = Math.random() < (0.035 * rel + 0.03 * wet) * (1.5 - e.rating * 0.5) * this.laps / 10;
-      const score = paceOf({ perf: e.perf + dayPerf(e.team, track), rating: e.rating }) + g() * (0.2 + wet * 0.25) - (pen.get(e.name) || 0) * 0.03;   // (seconds a lap: the car, the driver, the day; a grid penalty: a start further back)
+      const score = paceOf({ perf: e.perf + dayPerf(e.team, track), rating: e.rating }) + g() * (0.15 + wet * 0.25) - (pen.get(e.name) || 0) * 0.03;   // (seconds a lap: the car, the driver, the day; a grid penalty: a start further back)
       return { e, score, dnf };
     }).sort((a, b) => (a.dnf - b.dnf) || b.score - a.score);
     return rows.map((x, i) => ({ pos: i + 1, car: { careerId: x.e.careerId, team: x.e.team, name: x.e.name, retired: x.dnf, retireReason: x.dnf ? (Math.random() < 0.5 ? 'Accident' : 'Mechanical') : null, bestLap: x.dnf ? Infinity : 90 - x.score * 0.05 } }));
@@ -227,14 +233,15 @@ export class ManagerCareer {
   // ---- your decisions ----------------------------------------------------------------------------------------------------
   /** can this part be built under the cost cap -> null (yes) or why not */
   capCheck(cost) { return this.spent() + cost > COST_CAP + 1e-9 ? `Over the cost cap: $${this.spent()}M of $${COST_CAP}M spent this season.` : null; }
-  /** a driver's contract extended by a season: they ask more the better the season has gone -> text */
-  extend(did) {
+  /** a driver's contract extended by `years`: what he asks is his worth, who else wants him, how he feels (career/Seasons.contractAsk) -> text */
+  extend(did, years = 1) {
     const d = this.drivers[did]; if (!d || d.team !== this.myTeam) return 'Not your driver.';
     const no = extendBlock(this, did); if (no) return no;
+    const T = contractAsk(this, d, years); if (T.no) return T.no;
     onExtend(this, did);
-    const ask = r1(Math.max(d.salary * 1.08, askOf(d.rating)));
-    d.until += 1; d.salary = ask; this.addNews(`${d.name} signs on to the end of ${d.until}: $${ask}M a season.`); this.save();
-    return `${d.name} extends to the end of ${d.until} at $${ask}M a season.`;
+    const had = d.offer; d.until = Math.max(d.until, this.season) + years; d.salary = T.salary; delete d.offer;
+    this.addNews(`${d.name} signs on to the end of ${d.until}: $${T.salary}M a season.${had ? ` ${had.team} are turned down.` : ''}`); this.save();
+    return `${d.name} extends to the end of ${d.until} at $${T.salary}M a season.`;
   }
   /** what releasing a driver costs: the rest of this season's salary and the next ones' half */
   releaseCost(d) { const left = (this.rounds - this.round + 1) / this.rounds; return r1(d.salary * left + d.salary * 0.5 * Math.max(0, d.until - this.season)); }
@@ -245,14 +252,15 @@ export class ManagerCareer {
     this.addNews(`${d.name} is released by ${t.name} ($${cost}M paid off).`); this.save();
     return `${d.name} released: $${cost}M paid off. Sign a driver for the empty seat before the next race.`;
   }
-  /** a free agent into your empty seat: their asking salary, a signing fee of half a season's, to the end of next season */
-  sign(did) {
-    const d = this.drivers[did], t = this.team; if (!d || d.team) return 'Not a free agent.';
+  /** a free agent into your empty seat for `years`: his asking salary (career/Seasons.contractAsk), a signing fee of half a season's */
+  sign(did, years = 2) {
+    const d = this.drivers[did], t = this.team; if (!d || d.team || d.retired) return 'Not a free agent.';
     if (t.seats.length >= 2) return 'Both seats are taken: release a driver first.';
-    const sal = askOf(d.rating), fee = r1(sal * 0.5); if (t.budget < fee) return `Not enough money for the signing fee ($${fee}M).`;
-    t.budget = r1(t.budget - fee); d.team = t.name; d.salary = sal; d.until = this.season + 1; t.seats.push(did);
-    this.addNews(`${t.name} sign ${d.name} to the end of ${d.until}: $${sal}M a season.`); this.ensure(); this.save();
-    return `${d.name} signed: $${sal}M a season to the end of ${d.until} (signing fee $${fee}M).`;
+    const T = contractAsk(this, d, years); if (T.no) return `Not signed: ${T.no}`;
+    if (t.budget < T.fee) return `Not enough money for the signing fee ($${T.fee}M).`;
+    t.budget = r1(t.budget - T.fee); d.team = t.name; d.salary = T.salary; d.until = this.season + years - 1; t.seats.push(did); delete d.offer; delete d.next;
+    this.addNews(`${t.name} sign ${d.name} to the end of ${d.until}: $${T.salary}M a season.`); this.ensure(); this.save();
+    return `${d.name} signed: $${T.salary}M a season to the end of ${d.until} (signing fee $${T.fee}M).`;
   }
   /** the staff on the market for each role (drawn once a season, or after a hire) */
   refreshHires() {
@@ -293,28 +301,22 @@ export class ManagerCareer {
   /** the next season: contracts that ran out (the AI teams sign whom they need), the points to zero, the budgets topped up */
   nextSeason(newTeam = null) {
     if (newTeam && this.teams[newTeam]) { this.myTeam = newTeam; this.since = this.season + 1; this.board = { target: 0, conf: 55 }; this.sacked = false; this.offers = []; this.addNews(`You join ${newTeam} as team principal.`); }
+    const order = this.constructors().map((t) => t.name);   // (the season just ended: the rivals' boards judge by it)
     this.season++;
-    // contracts: a driver whose contract has run out leaves (yours too, unless extended) - the AI teams sign the best free
-    for (const d of Object.values(this.drivers)) {
-      if (d.team && d.until != null && d.until < this.season) {
-        const t = this.teams[d.team], stay = d.team !== this.myTeam && d.rating >= 0.86 && Math.random() < 0.75;
-        if (stay) { d.until = this.season + 1 + (Math.random() < 0.4 ? 1 : 0); d.salary = askOf(d.rating); continue; }
-        if (d.team === this.myTeam) this.addNews(`${d.name}'s contract has run out: they leave ${d.team}.`);
-        t.seats = t.seats.filter((x) => x !== d.id); d.team = null; d.until = null;
-      }
-      // (a season older: the young improve, the best hold, a few slip)
-      d.rating = +clamp(d.rating + (d.from === 'F2' || d.rating < 0.86 ? 0.004 + Math.random() * 0.014 : (Math.random() - 0.55) * 0.012), 0.7, 0.975).toFixed(3);
-      d.points = 0;
-    }
-    for (const t of Object.values(this.teams)) {
-      while (t.name !== this.myTeam && t.seats.length < 2) { const f = this.freeAgents()[0]; if (!f) break; f.team = t.name; f.salary = askOf(f.rating); f.until = this.season + 1; t.seats.push(f.id); this.addNews(`${t.name} sign ${f.name}.`); }
-      t.points = 0; t.budget = r1(t.budget + TIER_BUDGET[t.tier] * 0.8);
-    }
+    // the winter (career/Seasons.js, career/Rivals.js): everyone a year older; the retired gone, the contracts run out,
+    // next year's deals in force, the rookies up, the empty seats filled; the rivals' boards, money and people; your academy
+    ageDrivers(this);
+    for (const line of [...marketWinter(this), ...rivalsWinter(this, order), ...academyWinter(this)]) this.addNews(line);
+    for (const t of Object.values(this.teams)) { t.points = 0; t.budget = r1(t.budget + TIER_BUDGET[t.tier] * 0.8); }
     this.round = 1; this.seasonDone = false; this.review = null;
     for (const t of Object.values(this.teams)) t.spendAt = +t.devSpend?.all || 0;   // (the cost cap: every team's spending counted afresh)
-    this.board.target = this.boardTarget();
+    // (the board's target: what the car and the drivers should do - and never more than a place below where the team
+    //  finished last year, however the car looks this morning: a team cannot talk its own target down)
+    { const last = newTeam ? null : this.history[this.history.length - 1]; this.board.target = Math.min(this.boardTarget(), last ? last.pos + 1 : 99); }
     for (const t of Object.values(this.teams)) if (t.name !== this.myTeam) this.aiDevelop(t);
     partsNewSeason(this); this.ensure(); crewNewSeason(this); this.fatigue = 0.15;   // (the winter: everyone rested)
+    // (new regulations: every car a new one, the order drawn again - else the field a little closer than it was)
+    if (rulesChange(this.season)) { for (const line of regsReset(this)) this.addNews(line); } else gapsWinter(this);
     for (const line of carNewSeason(this)) this.addNews(line);
     this.forecast = this.calendar.map(forecastFor); this.newObjective(); this.refreshHires();
     this.addNews(`Season ${this.season} begins. The board expects P${this.board.target}.`);

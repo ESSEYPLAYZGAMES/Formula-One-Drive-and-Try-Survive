@@ -688,6 +688,17 @@ export class CarMesh {
       A.m.position.copy(A.sh).add(g).multiplyScalar(0.5); A.m.quaternion.setFromUnitVectors(_up, d.divideScalar(len)); A.m.scale.set(1, len, 1);
     }
   }
+  /**
+   * Posed from a record (a replay, the theatre): where it was, its attitude (a quaternion), how far its wheels had
+   * turned, how they were steered, its speed, whether it was braking, its DRS. Nothing of the car itself is read.
+   */
+  pose(x, y, z, q, spin, steer, speed, brake = false, drs = false) {
+    this.group.position.set(x, y, z); this.group.quaternion.copy(q); this.spin = spin;
+    const dMax = Math.max(0.055, 0.38 * (1 - Math.abs(speed) / 118));
+    for (const w of this.wheels) { if (w.gone) continue; if (w.front) w.hub.rotation.y = steer * dMax * 1.2; w.spin.rotation.z = -spin; }
+    if (this.wheelSteer) { const a = -steer * 1.5; this.wheelSteer.rotation.x = a; if (this._lvNow === 0) this._arms(a); }
+    this.drs.rotation.z = drs ? -0.42 : 0; this.rearLight.material.emissiveIntensity = brake ? 3 : 0.8;
+  }
   update(car, dt) {
     if (this.wheelSteer) { const a = -(car.steer || 0) * 1.5; this.wheelSteer.rotation.x = a; if (this._lvNow === 0) this._arms(a); this.wheelDisp.emissiveIntensity = car.retired || car.wreck ? 0 : 0.55; }   // (the steering wheel, turned by the driver - arms and all; its display dead with the car)
     // ---- debris from this car's impacts, and the parts it has lost

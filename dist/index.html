@@ -602,7 +602,7 @@ body.tp #hud-msg { top: 30%; }
     <div class="brand-line"></div>
     <h1 id="brand-title">FORMULA 1<span id="brand-sub">SIMULATOR</span></h1>
     <!-- the build's version: +0.01 with every build handed out -->
-    <span id="app-ver" title="Version">V2.52</span>
+    <span id="app-ver" title="Version">V2.53</span>
     <div id="menu-sub">Real circuits built from OpenStreetMap</div>
   </div>
   <div id="loading" class="hidden"><div class="ld"><i></i></div><span>Building the circuit from OpenStreetMap…</span></div>
@@ -748,7 +748,7 @@ body.tp #hud-msg { top: 30%; }
   <h2 id="results-title">RACE RESULT</h2>
   <div id="results-table"></div>
   <div id="champ-table"></div>
-  <div class="row center"><button id="btn-next" class="go">CONTINUE<span>→</span></button><button id="btn-res-tel" class="ghost">TELEMETRY</button><button id="btn-menu" class="ghost">MAIN MENU</button></div>
+  <div class="row center"><button id="btn-next" class="go">CONTINUE<span>→</span></button><button id="btn-res-tel" class="ghost">TELEMETRY</button><button id="btn-theatre" class="ghost" title="The race again: every car, any camera, the moments to jump to, photo mode">REPLAY</button><button id="btn-menu" class="ghost">MAIN MENU</button></div>
 </div>
 
 <div id="pause" class="panel hidden">
@@ -80159,7 +80159,32 @@ class Car {
     //  run-off has its centre past the face, not over the barrier - held out there, it was trapped on its line)
     if (!this.pitLane && !tr.giveL && tr.buildGive) tr.buildGive();
     const dc0 = (this.x - px) * nx + (this.z - pz) * nz, B0 = this.pitLane || !tr.giveL ? null : BARRIER[BAR_KIND[(dc0 > 0 ? tr.giveL : tr.giveR)[this.trackIdx]]];
-    const out0 = !this.pitLane && Math.abs(dc0) > (dc0 > 0 ? boL : boR) + (B0 && !B0.rigid ? B0.D : 0);
+    // (and only a car that WENT over it is beyond it. The barrier is a distance from the centreline at each metre of the
+    //  lap: where its line comes in along the lap - a run-off narrowing, a wall's return - a car rolling along it finds
+    //  the line past its own centre from one step to the next without having crossed anything, and a tyre wall there
+    //  cannot push it back as fast as its line closes. Such a car has met the barrier's face where it turns in: _over
+    //  keeps which side a car is truly beyond, by having been in the air or set down there; else it is stopped at that
+    //  face - cameIn below - and never held out behind a wall it did not get over.)
+    let out0 = false, cameIn = null;
+    if (!this.pitLane) {
+      const side0 = dc0 > 0 ? 1 : -1, wall0 = dc0 > 0 ? boL : boR, beyond = Math.abs(dc0) > wall0 + (B0 && !B0.rigid ? B0.D : 0);
+      const O = this._over || (this._over = { ok: false, side: 0, i: 0, wall: 0, ws: 0, x: 0, z: 0, air: 9 });
+      O.air = this.air || this.wreck ? 0 : O.air + dt;
+      const moved = Math.hypot(this.x - O.x, this.z - O.z) > Math.abs(this.speed || 0) * dt * 3 + 1.5;   // (set down somewhere else: a reset, a flashback, out of the pit lane)
+      if (!O.ok || moved) O.side = beyond ? side0 : 0;
+      else if (!beyond) O.side = 0;
+      else if (O.side !== side0) {
+        if (O.air < 2.5 || !(O.ws === side0 && isFinite(O.wall))) O.side = side0;   // (it flew over it; or there was no barrier here a step ago: it is round the end of one)
+        else cameIn = { side: side0, wall: wall0, m: 0 };
+      }
+      if (cameIn) {
+        const n = tr.n, ds = tr.length / n; let di = this.trackIdx - O.i; if (di > n / 2) di -= n; else if (di < -n / 2) di += n;
+        cameIn.m = Math.abs(di) > 0 ? (wall0 - O.wall) / (di * ds) : 0;   // (the barrier's line where the car met it: metres in per metre of lap, by the way the car was going)
+      }
+      out0 = beyond && O.side === side0;
+      if (this._wallLog) this._wallLog.push({ i: this.trackIdx, dc: +dc0.toFixed(2), wall: isFinite(wall0) ? +wall0.toFixed(2) : null, beyond, side: O.side, air: +O.air.toFixed(2), in: cameIn ? +cameIn.m.toFixed(2) : null, moved, v: +(this.speed || 0).toFixed(1) });   /* (a test's trace: tools/pocket_probe.mjs) */
+      O.ok = true; O.i = this.trackIdx; O.wall = wall0; O.ws = side0; O.x = this.x; O.z = this.z;
+    }
     let maxPen = 0, hitBx = 0, hitBy = 0, hitSide = 0;
     for (let k = 0; k < CORNERS.length; k++) {
       const bx = CORNERS[k][0], by = CORNERS[k][1];
@@ -80169,6 +80194,19 @@ class Car {
       if (pen > maxPen && isFinite(pen)) { maxPen = pen; hitBx = bx; hitBy = by; hitSide = Math.sign(dc) * (out0 ? -1 : 1); }
     }
     const bc = this._bc || (this._bc = { on: 0, rep: 0, code: 0, u0: 0, g: 0, hard: 0, res: 0, E: 0, dvx: 0, dvz: 0, t: 0, bx: 0, by: 0, nx: 0, nz: 0, cx: 0, cz: 0, pen: 0, slot: -1, dm: null, fm: null, inC: null });
+    if (cameIn) {
+      // the face of the barrier where its line turns in: its normal leans back along the lap by that slope (a return
+      // square across the run-off: straight back). The car is put back in front of it, a metre clear, and what speed it
+      // had into it is taken as by a wall - what stands behind the tyres, where there are tyres.
+      if (bc.on) this._barrierDone(world);
+      const i = this.trackIdx, k = 1 / Math.hypot(1, cameIn.m), Nx = (cameIn.m * tr.tx[i] - cameIn.side * nx) * k, Nz = (cameIn.m * tr.tz[i] - cameIn.side * nz) * k;
+      let bx = CORNERS[0][0], by = CORNERS[0][1], deep = Infinity;
+      for (let q = 0; q < CORNERS.length; q++) { const cx = CORNERS[q][0] * c + CORNERS[q][1] * s, cz = CORNERS[q][0] * s - CORNERS[q][1] * c, d = cx * Nx + cz * Nz; if (d < deep) { deep = d; bx = CORNERS[q][0]; by = CORNERS[q][1]; } }
+      const G2 = cameIn.side > 0 ? (tr.giveL || tr.barL) : (tr.giveR || tr.barR), kind = BAR_KIND[G2[i] || 3] || 'wall';
+      this._wallRigid(world, (Math.abs(dc0) - cameIn.wall + 1.0) * k, 1, bx, by, -Nx, -Nz, BARRIER[kind]?.rigid ? kind : (BARRIER[kind]?.back || 'wall'));
+      const O = this._over; O.x = this.x; O.z = this.z;
+      return;
+    }
     if (hitSide === 0) { if (bc.on) this._barrierDone(world); return; }
     // what the barrier is (BARRIER): the pit lane's own walls stay as they were - one rigid impulse, concrete or the
     // tyre wall along its escape (a lane that is a lane: its walls hold the car on its line) - else the circuit's, by the
@@ -145967,6 +146005,17 @@ class CarMesh {
       A.m.position.copy(A.sh).add(g).multiplyScalar(0.5); A.m.quaternion.setFromUnitVectors(_up, d.divideScalar(len)); A.m.scale.set(1, len, 1);
     }
   }
+  /**
+   * Posed from a record (a replay, the theatre): where it was, its attitude (a quaternion), how far its wheels had
+   * turned, how they were steered, its speed, whether it was braking, its DRS. Nothing of the car itself is read.
+   */
+  pose(x, y, z, q, spin, steer, speed, brake = false, drs = false) {
+    this.group.position.set(x, y, z); this.group.quaternion.copy(q); this.spin = spin;
+    const dMax = Math.max(0.055, 0.38 * (1 - Math.abs(speed) / 118));
+    for (const w of this.wheels) { if (w.gone) continue; if (w.front) w.hub.rotation.y = steer * dMax * 1.2; w.spin.rotation.z = -spin; }
+    if (this.wheelSteer) { const a = -steer * 1.5; this.wheelSteer.rotation.x = a; if (this._lvNow === 0) this._arms(a); }
+    this.drs.rotation.z = drs ? -0.42 : 0; this.rearLight.material.emissiveIntensity = brake ? 3 : 0.8;
+  }
   update(car, dt) {
     if (this.wheelSteer) { const a = -(car.steer || 0) * 1.5; this.wheelSteer.rotation.x = a; if (this._lvNow === 0) this._arms(a); this.wheelDisp.emissiveIntensity = car.retired || car.wreck ? 0 : 0.55; }   // (the steering wheel, turned by the driver - arms and all; its display dead with the car)
     // ---- debris from this car's impacts, and the parts it has lost
@@ -146390,7 +146439,7 @@ __m['src/race/Flashback.js'] = (() => {
 // audio, telemetry) is not part of it, and the AI's path plans are not either: they are simply made again.
 const KEEP = 15, RATE = 4;
 /** fields never copied: static data, renderers, callbacks owned elsewhere, scratch objects */
-const SKIP = new Set(['track', 'line', 'profile', 'pit', 'hud', 'audio', 'engineer', 'telemetry', 'obstacles', 'planner', 'flashback', 'replay', 'injuryClip', '_halfTrack',
+const SKIP = new Set(['track', 'line', 'profile', 'pit', 'hud', 'audio', 'engineer', 'telemetry', 'obstacles', 'planner', 'flashback', 'replay', 'tape', 'injuryClip', '_halfTrack',
   'onFinish', 'onPitDone', 'onRedFlag', 'events', 'sectors', 'passes', 'gLog', '_f', '_fr', '_fp', '_q', '_pq', '_po', '_oh', '_t2', '_v2', '_sa', '_sb', '_v3a', '_v3b', '_va', '_vb', '_g', '_texData', '_sorted', 'weather']);
 
 class Ref { constructor(o) { this.o = o; } }
@@ -149148,15 +149197,401 @@ function sponsorsSeasonEnd(c, pos) {
 return { PU, SPARES, allocOf, opsEnsure, puEffect, sparesPerf, fitNew, orderSpare, partsAfterRace, takePenalties, partsNewSeason, FAC, FAC_MAX, facCost, facRounds, facFx, facUpgrade, maintCost, facMaintain, facRound, SPONSOR_SLOTS, marketability, makeOffers, acceptOdds, propose, sponsorRace, sponsorTargets, sponsorsSeasonEnd };
 })();
 
+// ---- src/career/Seasons.js
+__m['src/career/Seasons.js'] = (() => {
+const { UPGRADES, UP, startLevels, techEffects } = __m['src/career/TechTree.js'];
+// The years of a team principal's career (career/Manager.js calls in at each round, at the season's end and in the
+// winter): drivers who are born, grow to what they can be, hold it, fade and retire; rookies who come up to replace
+// them; your academy (prospects scouted, juniors raced up through F4, F3 and F2, promoted or lost); contracts that are
+// asked for by what a driver is worth, who else wants him and what your team is - and a market that moves from the
+// season's half-way: teams renew, sign each other's drivers for next year, and come for yours; the regulations, which
+// change every third season and send every team back to a new car (its place by how good the old one was, its
+// factory, the work it put in early, and luck); and the wide grid itself (t.gap: the gaps between the tiers that the
+// development tree alone does not make). Plain data on the career, saved with it.
+
+const r1 = (x) => Math.round(x * 10) / 10;
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+const rnd = () => Math.random();
+const pick = (a) => a[Math.floor(rnd() * a.length)];
+const sur = (n) => String(n || '').trim().split(/\s+/).pop();
+const idOf = (name) => String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-');
+const ask0 = (rating) => Math.max(0.5, Math.round((rating - 0.72) * 80) / 2);
+/** the manager's grid: how far each tier's car starts behind the front beyond what the tree gives (pace: -0.001 ~ 0.04 s a lap) */
+const TIER_GAP = [0, -0.004, -0.0085, -0.0125];
+const BORN = { norris: 1999, piastri: 2001, leclerc: 1997, hamilton: 1985, verstappen: 1997, hadjar: 2004, russell: 1998, antonelli: 2006, alonso: 1981, stroll: 1998, albon: 1996, sainz: 1994, lawson: 2002, lindblad: 2007, ocon: 1996, bearman: 2005, gasly: 1996, colapinto: 2003, hulkenberg: 1987, bortoleto: 2004, bottas: 1989, perez: 1990,
+  "o'ward": 1999, giovinazzi: 1993, tsunoda: 2000, vesti: 2002, drugovich: 2000, browning: 2002, iwasa: 2001, hirakawa: 1994, maini: 2000, aron: 2004, guanyu: 1999, fornaroli: 2004, verschoor: 2000, crawford: 2005, beganovic: 2004, martins: 2001, durksen: 2003 };
+const FIRST = ['Mateo', 'Luca', 'Noah', 'Kai', 'Elias', 'Hugo', 'Theo', 'Rafael', 'Tomas', 'Jonas', 'Enzo', 'Arjun', 'Kenta', 'Lucas', 'Emil', 'Oskar', 'Diego', 'Felix', 'Milan', 'Sami', 'Ravi', 'Callum', 'Andre', 'Niko', 'Taro', 'Ivan', 'Zane', 'Matteo', 'Julien', 'Aleksi', 'Sofia', 'Maya', 'Lena', 'Chloe', 'Abbi', 'Doriane'];
+const LAST = ['Varga', 'Lindholm', 'Moretti', 'Okonkwo', 'Bauer', 'Castillo', 'Novak', 'Hartley', 'Rossetti', 'Sandoval', 'Kimura', 'Petrov', 'Laurent', 'Mwangi', 'Eriksen', 'Dalton', 'Ferreira', 'Kovac', 'Nakamura', 'Villeneuve', 'Halloran', 'Schreiber', 'Montoya', 'Ilves', 'Marchand', 'Bianchi', 'Raikko', 'Sutherland', 'Zhang', 'Brennan', 'Costa', 'Weiss', 'Aitken', 'Demir'];
+const HELM = ['#e10600', '#0b3d91', '#ffd400', '#00a3e0', '#ffffff', '#1f8f6f', '#ff7a00', '#7a1fa0', '#111318', '#d4af37'];
+const SERIES = { F4: { name: 'Formula 4', ref: 0.69, cost: 0.3 }, F3: { name: 'Formula 3', ref: 0.74, cost: 0.7 }, F2: { name: 'Formula 2', ref: 0.79, cost: 1.6 } };
+const ACADEMY_COST = [2, 4, 7];
+
+// ---- ages --------------------------------------------------------------------------------------------------------------
+const ageOf = (c, d) => c.season - (d.born || c.season - 27);
+function person(c, born, rating, pot, from) {
+  let name, id, k = 0; do { name = `${pick(FIRST)} ${pick(LAST)}`; id = idOf(name); } while (c.drivers[id] && ++k < 40);
+  const short = sur(name).slice(0, 3).toUpperCase();
+  return { id, name, short, rating: +rating.toFixed(3), pot: +pot.toFixed(3), born, number: 2 + ((rnd() * 97) | 0), helmet: pick(HELM), starts: 0, points: 0, wins: 0, podiums: 0, alive: true, from, team: null, until: null, salary: ask0(rating), morale: 60 };
+}
+function seasonsEnsure(c) {
+  for (const d of Object.values(c.drivers)) {
+    if (!d.born) d.born = BORN[sur(d.name).toLowerCase()] || c.season - (d.from === 'F2' ? 20 : 24 + ((rnd() * 9) | 0));
+    if (d.pot == null) { const a = ageOf(c, d); d.pot = +clamp(d.rating + Math.max(0, 27 - a) * (0.004 + rnd() * 0.006), d.rating, 0.975).toFixed(3); }
+  }
+  for (const t of Object.values(c.teams)) if (t.gap == null) t.gap = TIER_GAP[t.tier] ?? 0;
+  if (!c.academy) c.academy = { level: 0, juniors: [], prospects: [], drawn: -1 };
+  if (!c.era) c.era = { log: [] };
+  if (c.academy.drawn !== c.season) { c.academy.drawn = c.season; drawProspects(c); }
+}
+/** a winter older: the young grow toward what they can be, the settled hold, the old fade */
+function ageDrivers(c) {
+  for (const d of Object.values(c.drivers)) {
+    if (d.retired) continue; const a = ageOf(c, d);
+    const dr = a < 27 ? (d.pot - d.rating) * (0.28 + rnd() * 0.14) + (rnd() - 0.4) * 0.004 : a < 33 ? (rnd() - 0.5) * 0.007 : -0.004 - (a - 33) * 0.0028 - rnd() * 0.005;
+    d.rating = +clamp(d.rating + dr, 0.68, 0.975).toFixed(3); d.points = 0;
+  }
+}
+/** three quarters through a season: who has decided this is the last (said now, so a seat can be planned for) -> lines */
+function retireRound(c) {
+  if (c.round !== Math.ceil(c.rounds * 0.7)) return [];
+  const out = [];
+  for (const d of Object.values(c.drivers)) {
+    if (d.retired || d.retiring) continue; const a = ageOf(c, d); if (a < 33) continue;
+    // (from 36 it is a question every year; sooner for one who has slowed or has no seat)
+    const p = Math.max(0, a - 35) * 0.11 + (d.rating < 0.84 ? 0.14 : 0) + (d.team ? 0 : 0.4) - (d.rating > 0.92 ? 0.12 : 0);
+    if (rnd() < p) { d.retiring = true; if (d.team) out.push(`${d.name} (${a}) will retire at the end of the season${d.team === c.myTeam ? ': your seat will be empty' : ''}.`); }
+  }
+  return out;
+}
+
+// ---- contracts -----------------------------------------------------------------------------------------------------------
+/** how much a driver wants to be at a team: where it is in the order, 0 (last) .. 1 (first) */
+function appeal(c, team) {
+  const order = c.constructors().map((t) => t.name), any = order.some((n) => c.teams[n].points > 0), i = any ? order.indexOf(team) : Object.values(c.teams).sort((a, b) => a.tier - b.tier || a.garage - b.garage).findIndex((t) => t.name === team);
+  return 1 - clamp(i, 0, order.length - 1) / Math.max(1, order.length - 1);
+}
+/** what a driver asks of YOUR team for a contract of `years` -> { salary, fee, no (why he will not sign), why } */
+function contractAsk(c, d, years = 2) {
+  const mine = d.team === c.myTeam, ap = appeal(c, c.myTeam), jr = d.academy === c.myTeam;
+  if (d.retiring) return { no: `${d.name} is retiring at the end of the season.` };
+  if (d.next && d.next.team !== c.myTeam) return { no: `${d.name} has signed for ${d.next.team} for next season.` };
+  if (!mine && !jr && d.rating >= 0.92 && ap < 0.3) return { no: `${d.name} will not join a team this far down the order.` };
+  const k = (1.25 - 0.33 * ap) * (d.offer ? 1.15 : 1) * (mine ? 1 + (60 - (d.morale ?? 60)) * 0.004 : 1) * (years === 1 ? 0.97 : years === 3 ? (d.rating > 0.9 ? 1.07 : 0.97) : 1) * (jr ? 0.7 : 1);
+  const salary = r1(Math.max(0.4, ask0(d.rating) * k, mine ? d.salary * 1.04 : 0));
+  return { salary, fee: mine ? 0 : r1(salary * 0.5), why: `${d.offer ? `${d.offer.team} want him too. ` : ''}${ap < 0.4 ? 'Your place in the order costs you. ' : ap > 0.75 ? 'A front-running seat: he takes less. ' : ''}${jr ? 'Your own junior.' : ''}`.trim() };
+}
+
+// ---- the market ----------------------------------------------------------------------------------------------------------
+const planned = (c, t) => c.seatsOf(t.name).filter((d) => !d.retiring && !d.out && !(d.next && d.next.team !== t.name) && (d.until > c.season || d.renew)).length + Object.values(c.drivers).filter((d) => d.next?.team === t.name && d.team !== t.name).length;
+/**
+ * A round of the market, from the season's half-way: each rival team with a seat running out decides once - renew, or
+ * sign someone better for next year (a free agent, another team's man whose contract is ending, one of YOURS: he then
+ * has an offer, and leaves in the winter unless you extend him first) -> lines of news
+ */
+function marketRound(c) {
+  const out = []; if (c.round < Math.ceil(c.rounds * 0.5)) return out;
+  for (const t of Object.values(c.teams)) {
+    if (t.name === c.myTeam) continue;
+    for (const d of c.seatsOf(t.name)) {
+      if (d.dec || (d.until > c.season && !d.retiring)) continue; if (rnd() > 0.45 && c.round < c.rounds) continue;
+      d.dec = true; if (planned(c, t) >= 2 && !d.retiring) { d.renew = true; continue; }
+      const ap = appeal(c, t.name);
+      const cands = Object.values(c.drivers).filter((x) => !x.retired && !x.retiring && !x.next && x !== d && x.team !== t.name && (!x.team || x.until <= c.season) && !(x.academy === c.myTeam && !x.team && (x.hold ?? 0) >= c.season)
+        && x.rating > (d.retiring ? 0 : d.rating + 0.012) && (!x.team || appeal(c, x.team) < ap + 0.12)).sort((a, b) => (b.rating + (b.pot - b.rating) * 0.4) - (a.rating + (a.pot - a.rating) * 0.4));
+      const x = cands[0];
+      if (x && (d.retiring || rnd() < 0.62)) {
+        const deal = { team: t.name, salary: r1(ask0(x.rating) * 1.08), until: c.season + 1 + (rnd() < 0.5 ? 1 : 0) };
+        if (x.team === c.myTeam) { x.offer = { ...deal, round: c.round }; out.push(`${t.name} have made ${x.name} an offer for next season: extend his contract or lose him.`); d.renew = true; d.until = Math.max(d.until, c.season); }   // (their man stays unless yours comes)
+        else { x.next = deal; if (!d.retiring) d.out = true; out.push(`${t.name} sign ${x.name} for ${c.season + 1}${d.retiring ? '' : `: ${sur(d.name)} is out`}.`); }
+      } else if (!d.retiring) { d.renew = true; d.until = c.season + 1 + (rnd() < 0.4 ? 1 : 0); d.salary = r1(Math.max(d.salary, ask0(d.rating))); if (d.rating > 0.88) out.push(`${d.name} stays at ${t.name} to the end of ${d.until}.`); }
+    }
+  }
+  return out;
+}
+/** the winter's moves: the retired go, the contracts run out, next year's deals take effect, the rookies arrive, the empty seats are filled -> lines */
+function marketWinter(c) {
+  const out = [], T = c.teams, leave = (d) => { const t = T[d.team]; if (t) t.seats = t.seats.filter((x) => x !== d.id); d.team = null; d.until = null; };
+  let gone = 0;
+  for (const d of Object.values(c.drivers)) {
+    if (d.retiring) { if (d.team) { out.push(`${d.name} retires after ${d.starts || 0} starts${d.wins ? ` and ${d.wins} win${d.wins === 1 ? '' : 's'}` : ''}.`); gone++; } leave(d); d.retired = true; d.retiring = false; c.era.log.push({ season: c.season - 1, kind: 'retired', name: d.name }); continue; }
+    if (!d.team) continue;
+    if (d.team === c.myTeam && d.until != null && d.until < c.season) { const o = d.offer; out.push(`${d.name}'s contract has run out: he leaves ${d.team}${o ? ` for ${o.team}` : ''}.`); leave(d); if (o) d.next = { team: o.team, salary: o.salary, until: o.until }; }
+    else if (d.team !== c.myTeam && (d.out || (d.until != null && d.until < c.season && !d.renew))) leave(d);
+    else if (d.next && d.next.team !== d.team) leave(d);
+  }
+  for (const d of Object.values(c.drivers)) {
+    const n = d.next; if (n && T[n.team] && !d.retired) { const t = T[n.team]; if (t.seats.length >= 2) { const w = c.seatsOf(t.name).sort((a, b) => a.rating - b.rating)[0]; leave(w); } d.team = t.name; d.salary = n.salary; d.until = n.until; t.seats.push(d.id); }
+    delete d.next; delete d.offer; delete d.dec; delete d.out; delete d.renew;
+  }
+  // (those nobody has wanted for two winters stop looking: the pool is who might still get a seat)
+  for (const d of Object.values(c.drivers)) { if (d.team || d.retired) { d.idle = 0; continue; } d.idle = (d.idle || 0) + 1; if (d.idle >= 3 && !(d.academy === c.myTeam && (d.hold ?? 0) >= c.season) && (ageOf(c, d) > 29 || d.rating < 0.8 || d.idle >= 4)) d.retired = true; }
+  // the rookies: one for each who retired and now and then one more, out of other people's academies
+  const names = Object.keys(T).filter((n) => n !== c.myTeam);
+  // (and enough of them that there is always somebody to sign: eight free drivers or so)
+  const freeNow = Object.values(c.drivers).filter((d) => !d.team && !d.retired).length;
+  for (let i = 0, n = Math.max(gone + (rnd() < 0.6 ? 1 : 0), 8 - freeNow); i < n; i++) { const pot = clamp(0.84 + rnd() * 0.09 + (rnd() < 0.15 ? 0.04 : 0), 0.82, 0.97), d = person(c, c.season - 18 - ((rnd() * 4) | 0), clamp(0.77 + rnd() * 0.06, 0.76, pot), pot, 'F2'); d.academy = pick(names); c.drivers[d.id] = d; out.push(`${d.name} (${ageOf(c, d)}) comes up from Formula 2, a ${d.academy} junior.`); }
+  for (const t of Object.values(T)) while (t.name !== c.myTeam && t.seats.length < 2) {
+    const f = Object.values(c.drivers).filter((d) => !d.team && !d.retired && !(d.academy === c.myTeam && (d.hold ?? 0) >= c.season)).sort((a, b) => (b.rating + (b.academy === t.name ? 0.03 : 0)) - (a.rating + (a.academy === t.name ? 0.03 : 0)))[0]; if (!f) break;
+    f.team = t.name; f.salary = ask0(f.rating); f.until = c.season + 1; t.seats.push(f.id); out.push(`${t.name} sign ${f.name}.`);
+  }
+  return out;
+}
+
+// ---- the academy -----------------------------------------------------------------------------------------------------------
+function drawProspects(c) {
+  const A = c.academy, n = 3 + A.level, acc = 0.07 - A.level * 0.018;
+  A.prospects = Array.from({ length: n }, () => {
+    const star = rnd() < 0.08 + A.level * 0.04, pot = clamp(0.8 + rnd() * 0.1 + (star ? 0.06 : 0), 0.78, 0.97), d = person(c, c.season - 15 - ((rnd() * 4) | 0), 0.6 + rnd() * 0.09, pot, 'Academy'), off = (rnd() - 0.5) * acc;
+    return { ...d, series: 'F4', lo: +clamp(pot + off - acc, 0.7, 0.99).toFixed(2), hi: +clamp(pot + off + acc, 0.7, 0.99).toFixed(2), sign: r1(0.2 + (pot - 0.8) * 4 + rnd() * 0.3), res: [] };
+  });
+}
+/** a prospect signed to your academy -> text */
+function scout(c, i) {
+  const A = c.academy, p = A.prospects[i]; if (!p) return 'No such prospect.';
+  if (A.juniors.length >= 2 + A.level) return `Your academy has room for ${2 + A.level}: build it up, or let someone go.`;
+  if (c.team.budget < p.sign) return `Not enough money: ${p.name} costs $${p.sign}M to sign.`;
+  c.team.budget = r1(c.team.budget - p.sign); A.prospects.splice(i, 1); A.juniors.push(p); c.addNews(`${p.name} (${ageOf(c, p)}) joins the ${c.myTeam} academy.`); c.save();
+  return `${p.name} signed to the academy ($${p.sign}M). ${SERIES.F4.name} this season: $${SERIES.F4.cost}M.`;
+}
+function academyUp(c) {
+  const A = c.academy; if (A.level >= 3) return 'The academy is as big as it gets.';
+  const cost = ACADEMY_COST[A.level]; if (c.team.budget < cost) return `Not enough money: $${cost}M.`;
+  c.team.budget = r1(c.team.budget - cost); A.level++; c.addNews(`${c.myTeam} build up their academy (level ${A.level}).`); c.save();
+  return `Academy level ${A.level}: room for ${2 + A.level}, better scouting, juniors learn faster.`;
+}
+function juniorRelease(c, i) { const A = c.academy, j = A.juniors[i]; if (!j) return 'No such junior.'; A.juniors.splice(i, 1); c.addNews(`${j.name} is released from the ${c.myTeam} academy.`); c.save(); return `${j.name} released.`; }
+/** a junior brought up to Formula 1: yours to sign before anyone else, for this season and the next */
+function promote(c, i) {
+  const A = c.academy, j = A.juniors[i]; if (!j) return 'No such junior.';
+  if (j.rating < 0.755) return `${j.name} has not the results for a super licence yet (needs 76).`;
+  A.juniors.splice(i, 1); const { series, lo, hi, sign, res, ...d } = j; void series; void lo; void hi; void sign; void res;
+  d.from = 'Academy'; d.academy = c.myTeam; d.hold = c.season + 1; d.salary = ask0(d.rating); c.drivers[d.id] = d; c.addNews(`${d.name} graduates from the ${c.myTeam} academy: free to be signed.`); c.save();
+  return `${d.name} is ready for a seat: yours to sign first, until the end of ${d.hold}.`;
+}
+/** a round in the junior series: they learn (faster in a better academy) */
+function academyRound(c) { const A = c.academy, k = (0.024 + 0.007 * A.level) * 8 / Math.max(4, c.rounds); for (const j of A.juniors) j.rating = +clamp(j.rating + (j.pot - j.rating) * k * (0.6 + rnd() * 0.8), 0.55, j.pot).toFixed(3); }
+/** the junior seasons' ends: where each finished, who moves up, what next year costs -> lines */
+function academyWinter(c) {
+  const A = c.academy, out = []; let cost = 0.5 * A.level;
+  for (const j of [...A.juniors]) {
+    const S = SERIES[j.series], pos = clamp(Math.round(1 + (S.ref + 0.03 - j.rating) * 70 + (rnd() - 0.5) * 6), 1, 22); j.res.push({ season: c.season - 1, series: j.series, pos });
+    const up = j.series === 'F4' && j.rating >= 0.71 ? 'F3' : j.series === 'F3' && j.rating >= 0.755 ? 'F2' : null;
+    out.push(`Academy: ${j.name} P${pos} in ${S.name}${up ? `, up to ${SERIES[up].name}` : ''}.`);
+    if (up) j.series = up;
+    else if (j.series === 'F2' && j.res.filter((r) => r.series === 'F2').length >= 3) { A.juniors.splice(A.juniors.indexOf(j), 1); out.push(`Academy: ${j.name} has had three seasons of Formula 2 and no seat: he leaves.`); continue; }
+    cost += SERIES[j.series].cost;
+  }
+  if (cost > 0) { c.team.budget = r1(c.team.budget - cost); out.push(`The academy's season: $${r1(cost)}M.`); }
+  return out;
+}
+
+// ---- the regulations -------------------------------------------------------------------------------------------------------
+const regsNext = (c) => { let s = c.season + 1; while (s % 3 !== 0) s++; return s; };
+/**
+ * New technical regulations (c.season already the new one; before career/ManagerCar.carNewSeason, which adds what each
+ * put into this car early): every car is a new one - its parts back to what a team of its place starts with, the old
+ * advantages gone - and where each stands is drawn again from how good its old car was, its factory, and luck. The
+ * tiers follow the new order. -> lines
+ */
+function regsReset(c) {
+  const T = Object.values(c.teams), tot = (t) => techEffects(t).perf + (t.gap || 0), cur = T.map(tot), lo = Math.min(...cur), hi = Math.max(...cur);
+  const facIds = UPGRADES.filter((u) => u.branch === 'facilities').map((u) => u.id), facOf = (t) => facIds.reduce((s, id) => s + (t.levels?.[id] || 0), 0), fMax = Math.max(1, ...T.map(facOf));
+  const sc = T.map((t, i) => ({ t, s: 0.5 * (cur[i] - lo) / Math.max(1e-6, hi - lo) + 0.2 * facOf(t) / fMax + 0.3 * rnd() })).sort((a, b) => b.s - a.s);
+  const TIERS = [0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3], out = [], before = T.slice().sort((a, b) => tot(b) - tot(a)).map((t) => t.name);
+  sc.forEach(({ t }, i) => {
+    const tier = TIERS[Math.min(i, TIERS.length - 1)], keep = {}; for (const id of facIds) if (t.levels?.[id]) keep[id] = t.levels[id];
+    const st = startLevels(tier), lv = { ...keep }; for (const [id, v] of Object.entries(st)) if (UP[id]?.branch !== 'facilities') lv[id] = v;   /* (the factory is what the team has built, not what its new place would give it) */
+    // (a level only counts when what it needs is there: a team new to the front without the front's factory starts a little short)
+    for (let pass = 0, ch = true; ch && pass < 10; pass++) { ch = false; for (const u of UPGRADES) { if (u.branch === 'facilities') continue; const v = lv[u.id] || 0; let ok = 0; while (ok < v && u.levels[ok].req.every(([r, l]) => (lv[r] || 0) >= l)) ok++; if (ok < v) { ch = true; if (ok) lv[u.id] = ok; else delete lv[u.id]; } } }
+    for (const id of Object.keys(lv)) if (!lv[id]) delete lv[id];
+    t.tier = tier; t.levels = lv; t.perfAdj = 0; t.dev = (t.dev || []).filter((x) => UP[x.id]?.branch === 'facilities');
+    if (t.quality) for (const id of Object.keys(t.quality)) if (UP[id]?.branch !== 'facilities') delete t.quality[id];
+    const want = -0.0135 * (i / Math.max(1, sc.length - 1)) ** 0.9 + (rnd() - 0.5) * 0.0012;
+    t.gap = 0; t.gap = +(want - (techEffects(t).perf - 1)).toFixed(5);
+  });
+  const after = sc.map((x) => x.t.name), me = c.myTeam, a = before.indexOf(me) + 1, b = after.indexOf(me) + 1;
+  out.push(`New technical regulations for ${c.season}: every car is a new one. The order as the new cars roll out: ${after.slice(0, 4).join(', ')} ...`);
+  out.push(`${me}: ${b < a ? `up from ${a}${ord(a)} to ${b}${ord(b)} quickest` : b > a ? `down from ${a}${ord(a)} to ${b}${ord(b)} quickest` : `still ${b}${ord(b)} quickest`} under the new rules. The parts built for the old car are history; the factory is not.`);
+  c.era.log.push({ season: c.season, kind: 'regs', order: after.slice(0, 3) });
+  return out;
+}
+const ord = (n) => ['th', 'st', 'nd', 'rd'][n % 100 > 10 && n % 100 < 14 ? 0 : Math.min(4, n % 10) % 4] || 'th';
+/** a winter under stable rules: the field closes up a little (everybody learns what the fast cars do) */
+function gapsWinter(c) { for (const t of Object.values(c.teams)) t.gap = +((t.gap || 0) * 0.9).toFixed(5); }
+
+return { TIER_GAP, SERIES, ACADEMY_COST, ageOf, seasonsEnsure, ageDrivers, retireRound, appeal, contractAsk, marketRound, marketWinter, scout, academyUp, juniorRelease, promote, academyRound, academyWinter, regsNext, regsReset, gapsWinter };
+})();
+
+// ---- src/career/Rivals.js
+__m['src/career/Rivals.js'] = (() => {
+const { UP, techEffects } = __m['src/career/TechTree.js'];
+const { appeal } = __m['src/career/Seasons.js'];
+// The other ten teams as teams (career/Manager.js calls in each round and each winter): each has a principal under
+// its own board's pressure, a way of building a car (a steady stream of parts, big packages, a gamble on the grey areas
+// of the rules ...), a technical director, a strategist and a crew chief whose ratings are in its cars and its stops,
+// and money that comes and goes. They bring upgrades you hear about, come for your staff (match the offer or lose
+// them), can be raided for theirs, and can be protested when a new part of theirs looks too clever - as they protest
+// yours (career/ManagerStory.js). What you do to them they remember (the story's heat between principals).
+
+
+const r1 = (x) => Math.round(x * 10) / 10;
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+const rnd = () => Math.random();
+const pick = (a) => a[Math.floor(rnd() * a.length)];
+const hash = (s) => { let h = 2166136261; for (const ch of String(s)) h = Math.imul(h ^ ch.charCodeAt(0), 16777619); return (h >>> 0) / 4294967295; };
+/** how a team builds its car: when it spends (every: the rounds it starts work in), how well its parts come out (q), how often a part is in a grey area (grey) */
+const PHIL = {
+  steady: { name: 'A steady stream', what: 'Something new at most races, little of it a surprise.', every: 1, q: 1.0, grey: 0.1 },
+  package: { name: 'Big packages', what: 'Nothing for three races, then half a new car.', every: 3, q: 1.03, grey: 0.2 },
+  gambler: { name: 'The grey areas', what: 'Clever parts that are quick until someone protests them.', every: 1, q: 1.06, grey: 0.6 },
+  frugal: { name: 'Counting the money', what: 'Builds what it can afford, and it works.', every: 2, q: 1.04, grey: 0.05 },
+  late: { name: 'Next year, always', what: 'Holds back for the next car; quicker out of the winter.', every: 2, q: 0.98, grey: 0.1 },
+};
+const PHILS = Object.keys(PHIL);
+const BOSS_F = ['Andrea', 'Laurent', 'Jonathan', 'Ayao', 'Frederic', 'Oliver', 'Mattia', 'Graeme', 'Toto', 'Zak', 'Flavio', 'Otmar', 'Guenther', 'Claire', 'Monisha', 'Susie'], BOSS_L = ['Stella', 'Mekies', 'Wheatley', 'Komatsu', 'Vasseur', 'Oakes', 'Binotto', 'Lowdon', 'Brandt', 'Marsh', 'Ricci', 'Szafnauer', 'Steiner', 'Hale', 'Kalt', 'Wolfe'];
+const STAFF_F = ['James', 'Pierre', 'Hannah', 'Luca', 'Ruth', 'Tom', 'Simone', 'Ben', 'Paul', 'Rob', 'Dan', 'Marta', 'Kenji', 'Sofia', 'Aisha', 'Enrico'], STAFF_L = ['Allison', 'Schmitz', 'Marchetti', 'Collins', 'Fallows', 'Resta', 'Bennett', 'Monaghan', 'Hughes', 'Okafor', 'Nielsen', 'Tanaka', 'Ribeiro', 'Lindqvist', 'Haddad', 'Cardile'];
+const ROLE = { td: 'Technical Director', strat: 'Head of Strategy', crew: 'Pit Crew Chief' };
+const staffer = (rating) => ({ name: `${pick(STAFF_F)} ${pick(STAFF_L)}`, rating: +clamp(rating, 0.55, 0.97).toFixed(2), salary: r1(1 + (clamp(rating, 0.55, 0.97) - 0.6) * 9) });
+const heat = (c, team, k) => { const p = c.story?.pri?.[team]; if (p) p.heat = clamp((p.heat || 0) + k, 0, 100); };
+
+function rivalsEnsure(c) {
+  for (const t of Object.values(c.teams)) {
+    if (t.name === c.myTeam) continue;
+    if (!t.ai) {
+      const base = 0.86 - t.tier * 0.045, h = hash(t.name);
+      t.ai = { phil: PHILS[((t.garage || 0) * 3 + 1) % PHILS.length], boss: c.story?.pri?.[t.name]?.name || `${pick(BOSS_F)} ${pick(BOSS_L)}`, since: c.season, pressure: 0, grey: 0, gains: [], last: null, money: 'steady',
+        staff: { td: staffer(base + (h - 0.5) * 0.1), strat: staffer(base + (hash(t.name + 's') - 0.5) * 0.1), crew: staffer(base + (hash(t.name + 'c') - 0.5) * 0.1) }, raided: {} };
+    }
+    if (c.story?.pri?.[t.name]?.name) t.ai.boss = c.story.pri[t.name].name;
+  }
+  // (no two teams run by a man of the same name: the second is someone else)
+  const seen = new Set();
+  for (const t of Object.values(c.teams)) { const A = t.ai; if (!A) continue; let k = 0; while (seen.has(A.boss) && k++ < 30) A.boss = `${pick(BOSS_F)} ${pick(BOSS_L)}`; seen.add(A.boss); if (c.story?.pri?.[t.name]) c.story.pri[t.name].name = A.boss; }
+  if (!c.rivals) c.rivals = { approaches: [], protestAt: -9 };
+}
+/** what a rival's people do to its cars: its crew chief in its stops (as yours is in yours) */
+function rivalFx(c, t) { const s = t.ai?.staff; return s ? { pitMul: 1.08 - 0.12 * s.crew.rating } : { pitMul: 1 }; }
+/** a rival's round in the factory: when its way of working says so (a package team saves three rounds' money and spends it at once) */
+function rivalDevelop(c, t) {
+  const P = PHIL[t.ai?.phil] || PHIL.steady;
+  if (P.every > 1 && (c.round + Math.floor(hash(t.name) * P.every)) % P.every !== 0) return;
+  for (let i = 0; i < (P.every > 2 ? 2 : 1); i++) c.aiDevelop(t);
+}
+/** what reached the cars this round (TechTree.devTick's list): each rival's technical director in how its parts came out, the news of it, what may not be legal -> lines */
+function rivalsLanded(c, done) {
+  const by = {}, out = [];
+  for (const x of done || []) {
+    const t = c.teams[x.team]; if (!t || t.name === c.myTeam || !t.ai || x.re || UP[x.id]?.branch === 'facilities') continue;
+    const qa = t.quality?.[x.id], k = x.level - 1, P = PHIL[t.ai.phil] || PHIL.steady;
+    if (Array.isArray(qa) && qa[k]) qa[k] = +clamp(qa[k] * (1 + (t.ai.staff.td.rating - 0.75) * 0.25) * P.q, 0.6, 1.14).toFixed(3);
+    by[t.name] = (by[t.name] || 0) + (UP[x.id].levels[k].fx.perf || 0) * (Array.isArray(qa) ? +qa[k] || 1 : 1);
+  }
+  for (const t of Object.values(c.teams)) {
+    if (!t.ai) continue; const g = by[t.name] || 0, P = PHIL[t.ai.phil] || PHIL.steady;
+    t.ai.gains.push(+g.toFixed(5)); if (t.ai.gains.length > 4) t.ai.gains.shift(); t.ai.grey = clamp(t.ai.grey - 0.12, 0, 1);
+    if (g >= 0.0009) { t.ai.last = { round: c.round, season: c.season, perf: +g.toFixed(5) }; if (rnd() < P.grey) t.ai.grey = clamp(t.ai.grey + 0.35 + rnd() * 0.4, 0, 1); out.push(`${t.name} bring ${g >= 0.002 ? 'a major upgrade' : 'new parts'}: about ${(g * 40.5).toFixed(2)} s a lap${t.ai.grey > 0.55 ? ' - and the paddock is asking how' : ''}.`); }
+  }
+  return out;
+}
+/** a round among the teams: who comes for your people -> lines */
+function rivalsRound(c) {
+  const out = [], R = c.rivals;
+  for (const a of [...R.approaches]) if (a.due <= c.round) { R.approaches.splice(R.approaches.indexOf(a), 1); const r = rnd() < 0.65 ? answerApproach(c, a, 'let') : null; out.push(r || `${a.name} turns ${a.team} down and stays.`); }
+  if (c.round > 1 && rnd() < 0.16) {
+    const role = pick(Object.keys(ROLE)), mine = c.staff?.[role]; if (mine && mine.rating >= 0.78 && !R.approaches.some((a) => a.role === role)) {
+      const T = Object.values(c.teams).filter((t) => t.ai && t.ai.staff[role].rating < mine.rating - 0.03 && appeal(c, t.name) > appeal(c, c.myTeam) - 0.25 && (t.budget || 0) > 12);
+      const t = T.sort((a, b) => (c.story?.pri?.[b.name]?.heat || 0) - (c.story?.pri?.[a.name]?.heat || 0) + (rnd() - 0.5) * 30)[0];
+      if (t) { R.approaches.push({ role, team: t.name, name: mine.name, salary: r1(mine.salary * (1.25 + rnd() * 0.25)), due: c.round + 2 }); out.push(`${t.name} have approached your ${ROLE[role]}, ${mine.name}. Match their offer or he may go.`); }
+    }
+  }
+  return out;
+}
+/** your answer to an approach for one of your people: 'match' (their salary: he stays) | 'let' (he goes; they pay you for the notice) -> text */
+function answerApproach(c, a, how) {
+  const R = c.rivals, i = R.approaches.indexOf(a); if (i >= 0) R.approaches.splice(i, 1);
+  const p = c.staff[a.role], t = c.teams[a.team]; if (!p || p.name !== a.name) return `${a.name} is no longer with you.`;
+  if (how === 'match') { p.salary = a.salary; c.addNews(`${p.name} stays at ${c.myTeam} on $${a.salary}M a season.`); return `${p.name} stays: $${a.salary}M a season now.`; }
+  const comp = r1(p.salary * 0.6); c.team.budget = r1(c.team.budget + comp);
+  if (t?.ai) { t.ai.staff[a.role] = { name: p.name, rating: p.rating, salary: a.salary }; t.budget = r1((t.budget || 0) - comp); }
+  c.staff[a.role] = { role: a.role, name: `${pick(STAFF_F)} ${pick(STAFF_L)}`, rating: +clamp(p.rating - 0.1 - rnd() * 0.05, 0.55, 0.9).toFixed(2), salary: r1(p.salary * 0.6) };
+  c.addNews(`${p.name} leaves ${c.myTeam} for ${a.team}. ${c.staff[a.role].name}, the deputy, steps up.`);
+  return `${p.name} goes to ${a.team} ($${comp}M for the notice). ${c.staff[a.role].name} steps up as ${ROLE[a.role]} (${Math.round(c.staff[a.role].rating * 100)}).`;
+}
+/** what going for a rival's man costs and how likely he is to come -> { fee, odds, who, no } */
+function raidTerms(c, team, role) {
+  const t = c.teams[team], who = t?.ai?.staff?.[role]; if (!who) return { no: 'No such person.' };
+  if (t.ai.raided[role] === c.season) return { no: `You have asked ${who.name} once this season already.` };
+  const fee = r1(who.salary * 1.2 + 1), odds = clamp(0.3 + 0.55 * appeal(c, c.myTeam) - 0.4 * appeal(c, team) + (who.rating < 0.75 ? 0.15 : 0), 0.06, 0.85);
+  return { fee, odds, who };
+}
+/** go for a rival's technical director, strategist or crew chief -> { text, ok } */
+function raid(c, team, role) {
+  const T = raidTerms(c, team, role), t = c.teams[team]; if (T.no) return { text: T.no, ok: false };
+  if (c.team.budget < T.fee) return { text: `Not enough money: bringing ${T.who.name} over costs $${T.fee}M.`, ok: false };
+  t.ai.raided[role] = c.season;
+  if (rnd() > T.odds) { heat(c, team, 8); c.team.budget = r1(c.team.budget - 0.2); c.addNews(`${c.myTeam} tried to sign ${T.who.name} from ${team}. He is staying.`); return { text: `${T.who.name} says no, and ${t.ai.boss} knows you asked ($0.2M in fees).`, ok: false }; }
+  const was = c.staff[role]; c.team.budget = r1(c.team.budget - T.fee); heat(c, team, 18);
+  c.staff[role] = { role, name: T.who.name, rating: T.who.rating, salary: r1(T.who.salary * 1.15) }; t.ai.staff[role] = staffer(T.who.rating - 0.07 - rnd() * 0.05);
+  c.addNews(`${T.who.name} leaves ${team} for ${c.myTeam} as ${ROLE[role]}${was ? `, replacing ${was.name}` : ''}. ${t.ai.boss} is not pleased.`); c.save();
+  return { text: `${T.who.name} is your ${ROLE[role]} (${Math.round(T.who.rating * 100)}): $${T.fee}M to bring over, $${c.staff[role].salary}M a season.`, ok: true };
+}
+/** protest a rival's car to the stewards: a deposit, and their last upgrade thrown out if it is found to be what you say -> { text, ok } */
+function protest(c, team) {
+  const t = c.teams[team], A = t?.ai, R = c.rivals; if (!A) return { text: 'No such team.', ok: false };
+  if (c.round - R.protestAt < 3 && R.protestSeason === c.season) return { text: 'The stewards have had a protest from you lately: wait a few races.', ok: false };
+  if (!A.last || A.last.season !== c.season || c.round - A.last.round > 3) return { text: `${team} have brought nothing new lately: there is nothing to protest.`, ok: false };
+  if (c.team.budget < 0.5) return { text: 'The deposit is $0.5M.', ok: false };
+  R.protestAt = c.round; R.protestSeason = c.season; c.team.budget = r1(c.team.budget - 0.5);
+  if (rnd() < 0.08 + 0.8 * A.grey) {
+    const cut = +(A.last.perf * 0.6).toFixed(5); t.perfAdj = +((+t.perfAdj || 0) - cut).toFixed(5); t.budget = r1((t.budget || 0) - 2); A.grey = 0; A.last = null; heat(c, team, 22); c.team.budget = r1(c.team.budget + 0.5);
+    if (c.story) c.story.cred = clamp((c.story.cred ?? 50) + 4, 0, 100);
+    c.addNews(`Protest upheld: ${team}'s new parts are ruled illegal. They lose about ${(cut * 40.5).toFixed(2)} s a lap and $2M.`); c.save();
+    return { text: `Upheld. ${team} lose about ${(cut * 40.5).toFixed(2)} s a lap; your deposit comes back. ${A.boss} will not forget it.`, ok: true };
+  }
+  heat(c, team, 10); if (c.story) c.story.cred = clamp((c.story.cred ?? 50) - 4, 0, 100);
+  c.addNews(`${c.myTeam}'s protest against ${team} is dismissed.`); c.save();
+  return { text: `Dismissed: the parts are legal. The deposit is gone, and so is some of your word.`, ok: false };
+}
+/** the winter among the teams: principals who missed their targets twice go, money comes and goes, people move on -> lines */
+function rivalsWinter(c, order) {
+  const out = [];
+  for (const t of Object.values(c.teams)) {
+    const A = t.ai; if (!A) continue; const pos = order.indexOf(t.name) + 1, want = [2, 5, 8, 10][t.tier] ?? 8;
+    A.pressure = pos > want + 1 ? A.pressure + 1 : Math.max(0, A.pressure - 1); A.raided = {}; A.gains = []; A.last = null; A.grey = 0;
+    if (A.pressure >= 2 && rnd() < 0.7) {
+      const old = A.boss; A.boss = `${pick(BOSS_F)} ${pick(BOSS_L)}`; A.phil = pick(PHILS.filter((p) => p !== A.phil)); A.pressure = 0; A.since = c.season;
+      if (c.story?.pri?.[t.name]) { c.story.pri[t.name].name = A.boss; c.story.pri[t.name].heat = 0; }
+      out.push(`${t.name} sack ${old}: ${A.boss} is the new team principal (${PHIL[A.phil].name.toLowerCase()}).`);
+    }
+    const q = rnd();
+    if (t.tier >= 2 && q < 0.14) { t.budget = r1((t.budget || 0) + 22); A.money = 'flush'; out.push(`${t.name} have a new investor: $22M into the team.`); }
+    else if (q > 0.9) { t.budget = r1(Math.max(4, (t.budget || 0) - 9)); A.money = 'tight'; out.push(`${t.name} lose their title sponsor: $9M gone from the budget.`); }
+    else A.money = 'steady';
+    for (const k of Object.keys(ROLE)) if (rnd() < 0.18) A.staff[k] = staffer(A.staff[k].rating + (rnd() - 0.45) * 0.1);
+  }
+  return out;
+}
+/** every team's car against the quickest, as the timing shows it -> [{ name, s (seconds a lap behind), trend, mine }] quickest first */
+function paceTable(c) {
+  const rows = Object.values(c.teams).map((t) => ({ t, p: techEffects(t).perf + (t.gap || 0) })), best = Math.max(...rows.map((r) => r.p));
+  return rows.sort((a, b) => b.p - a.p).map(({ t, p }) => ({ name: t.name, s: +((best - p) * 40.5).toFixed(2), trend: (t.ai?.gains || []).reduce((a, b) => a + b, 0) * 40.5, mine: t.name === c.myTeam, team: t }));
+}
+const ROLE_NAME = ROLE;
+
+return { PHIL, rivalsEnsure, rivalFx, rivalDevelop, rivalsLanded, rivalsRound, answerApproach, raidTerms, raid, protest, rivalsWinter, paceTable, ROLE_NAME };
+})();
+
 // ---- src/career/Manager.js
 __m['src/career/Manager.js'] = (() => {
 const { ROSTER, RESERVES, F2, POINTS, PERF_GAIN, dayPerf } = __m['src/race/Roster.js'];
 const { startLevels, techEffects, devTick, aiDevelopTeam, upgradeName, UP } = __m['src/career/TechTree.js'];
 const { crewEnsure, crewRound, crewNewSeason, crewSalaries } = __m['src/career/ManagerCrew.js'];
 const { peopleEnsure, peopleAfterRace, peopleSeasonEnd, raceEvent, onExtend, extendBlock, engineerFx, fatigueQ } = __m['src/career/ManagerPeople.js'];
-const { carEnsure, trackFit, engineFx, buildCheck, onBuilt, carRound, carNewSeason } = __m['src/career/ManagerCar.js'];
+const { carEnsure, trackFit, engineFx, buildCheck, onBuilt, carRound, carNewSeason, rulesChange } = __m['src/career/ManagerCar.js'];
 const { storyEnsure, storyAfterRace, storySeasonStart, storyBeforeRace, subOf } = __m['src/career/ManagerStory.js'];
 const { opsEnsure, puEffect, sparesPerf, partsAfterRace, partsNewSeason, takePenalties, facFx, facRound, sponsorRace, sponsorsSeasonEnd } = __m['src/career/ManagerOps.js'];
+const { seasonsEnsure, ageDrivers, retireRound, marketRound, marketWinter, contractAsk, academyRound, academyWinter, regsReset, gapsWinter } = __m['src/career/Seasons.js'];
+const { rivalsEnsure, rivalFx, rivalDevelop, rivalsLanded, rivalsRound, rivalsWinter } = __m['src/career/Rivals.js'];
 // The team principal's career: you run a Formula 1 team, season after season - never a driver. The whole paddock lives
 // on in one save (the browser's): every team develops its car through the tech tree (career/TechTree.js - the AI teams
 // choose their own upgrades, you choose yours, all under the cost cap), every driver has a contract (who drives for
@@ -149178,6 +149613,8 @@ const { opsEnsure, puEffect, sparesPerf, partsAfterRace, partsNewSeason, takePen
 
 
 const KEY = 'f1sim-manager-v1';
+
+
 const TRACKS_ALL = ['lasvegas', 'silverstone', 'montreal', 'austin'];
 /** $M a team starts a season with, by tier; the commercial rights every race; the cost cap on development a season */
 const TIER_BUDGET = [60, 50, 42, 36];
@@ -149239,7 +149676,7 @@ class ManagerCareer {
 
   get team() { return this.teams[this.myTeam]; }
   /** every system's state made or brought up to date: parts, facilities and sponsors; the pit crew; the people; the car */
-  ensure() { opsEnsure(this); crewEnsure(this); peopleEnsure(this); carEnsure(this); storyEnsure(this); }
+  ensure() { opsEnsure(this); crewEnsure(this); peopleEnsure(this); carEnsure(this); storyEnsure(this); seasonsEnsure(this); rivalsEnsure(this); }
   /** may this level be started (the cost cap, the tunnel's hours) -> null or why not; a level started (career/ManagerCar.js) */
   buildCheck(id, lvl, cost) { return buildCheck(this, id, lvl, cost); }
   onBuilt(id, lvl) { onBuilt(this, id, lvl); }
@@ -149247,7 +149684,7 @@ class ManagerCareer {
   onRaceEvent(what, did) { raceEvent(this, what, did); }
   addNews(text) { this.news.unshift({ season: this.season, round: this.round, text }); if (this.news.length > 60) this.news.length = 60; }
   seatsOf(team) { return (this.teams[team]?.seats || []).map((x) => this.drivers[x]).filter(Boolean); }
-  freeAgents() { return Object.values(this.drivers).filter((d) => !d.team).sort((a, b) => b.rating - a.rating); }
+  freeAgents() { return Object.values(this.drivers).filter((d) => !d.team && !d.retired).sort((a, b) => b.rating - a.rating); }
   /** the constructors' order now (points, then the pecking order) */
   constructors() { return Object.values(this.teams).sort((a, b) => b.points - a.points || a.tier - b.tier || a.garage - b.garage); }
   drivers_() { return Object.values(this.drivers).filter((d) => d.team || d.points > 0).sort((a, b) => b.points - a.points || b.rating - a.rating); }
@@ -149286,7 +149723,7 @@ class ManagerCareer {
         // (the power unit's wear - a worn ICE a little down on power, any worn element more likely to fail - and, for your
         //  team, a damaged part raced for want of a spare: career/ManagerOps.js)
         const pu = puEffect(this, t.name, d0.id), sp = t.name === this.myTeam ? sparesPerf(this, t.name) : 1;
-        out.push({ careerId: d.id, name: d.name, short: d.short, team: t.name, color: t.color, color2: t.color2, livery: t.livery, helmet: d.helmet, tier: t.tier, perf: fx.perf * pu.perfMul * sp * fit * eng.perf * (t.name === this.myTeam ? engineerFx(this, d0.id).perf : 1), rating: d.rating, number: d.number, morale: d.morale ?? 60, fx: { ...fx, relMul: (fx.relMul || 1) * pu.relMul * eng.relMul }, garage: t.garage, mine: t.name === this.myTeam, champPts: d.points });
+        out.push({ careerId: d.id, name: d.name, short: d.short, team: t.name, color: t.color, color2: t.color2, livery: t.livery, helmet: d.helmet, tier: t.tier, perf: (fx.perf + (t.gap || 0)) * pu.perfMul * sp * fit * eng.perf * (t.name === this.myTeam ? engineerFx(this, d0.id).perf : 1),   /* (t.gap: the grid's width - career/Seasons.js) */ rating: d.rating, number: d.number, morale: d.morale ?? 60, fx: { ...fx, relMul: (fx.relMul || 1) * pu.relMul * eng.relMul, pitMul: (fx.pitMul || 1) * (t.name === this.myTeam ? 1 : rivalFx(this, t).pitMul) }, garage: t.garage, mine: t.name === this.myTeam, champPts: d.points });
       }
     }
     return out;
@@ -149338,7 +149775,11 @@ class ManagerCareer {
       rep.parts.push({ id: x.id, level: x.level, q: x.q });
       this.addNews(`${upgradeName(x.id, x.level)} is on the car: ${Math.round(x.q * 100)}% of what the tunnel promised.`);
     }
-    for (const t of Object.values(this.teams)) if (t.name !== this.myTeam) this.aiDevelop(t);
+    for (const line of rivalsLanded(this, done)) this.addNews(line);
+    for (const t of Object.values(this.teams)) if (t.name !== this.myTeam) rivalDevelop(this, t);   // (each in its own way: career/Rivals.js)
+    // the paddock: who comes for your people, who signs whom for next year, who is stopping; your juniors' round
+    for (const line of [...rivalsRound(this), ...marketRound(this), ...retireRound(this)]) this.addNews(line);
+    academyRound(this);
     // the people and the car: what the team principal's orders did to the drivers; morale, the engineers, fatigue, the
     // press; the pit crew's training; the work on next year's car
     for (const ev of o.events || []) raceEvent(this, ev.what, ev.did);
@@ -149366,7 +149807,7 @@ class ManagerCareer {
     const E = this.entries(), g = () => (Math.random() + Math.random() + Math.random() - 1.5) * 1.63, pen = takePenalties(this);
     const rows = E.map((e) => {
       const rel = e.fx.relMul || 1, dnf = Math.random() < (0.035 * rel + 0.03 * wet) * (1.5 - e.rating * 0.5) * this.laps / 10;
-      const score = paceOf({ perf: e.perf + dayPerf(e.team, track), rating: e.rating }) + g() * (0.2 + wet * 0.25) - (pen.get(e.name) || 0) * 0.03;   // (seconds a lap: the car, the driver, the day; a grid penalty: a start further back)
+      const score = paceOf({ perf: e.perf + dayPerf(e.team, track), rating: e.rating }) + g() * (0.15 + wet * 0.25) - (pen.get(e.name) || 0) * 0.03;   // (seconds a lap: the car, the driver, the day; a grid penalty: a start further back)
       return { e, score, dnf };
     }).sort((a, b) => (a.dnf - b.dnf) || b.score - a.score);
     return rows.map((x, i) => ({ pos: i + 1, car: { careerId: x.e.careerId, team: x.e.team, name: x.e.name, retired: x.dnf, retireReason: x.dnf ? (Math.random() < 0.5 ? 'Accident' : 'Mechanical') : null, bestLap: x.dnf ? Infinity : 90 - x.score * 0.05 } }));
@@ -149385,14 +149826,15 @@ class ManagerCareer {
   // ---- your decisions ----------------------------------------------------------------------------------------------------
   /** can this part be built under the cost cap -> null (yes) or why not */
   capCheck(cost) { return this.spent() + cost > COST_CAP + 1e-9 ? `Over the cost cap: $${this.spent()}M of $${COST_CAP}M spent this season.` : null; }
-  /** a driver's contract extended by a season: they ask more the better the season has gone -> text */
-  extend(did) {
+  /** a driver's contract extended by `years`: what he asks is his worth, who else wants him, how he feels (career/Seasons.contractAsk) -> text */
+  extend(did, years = 1) {
     const d = this.drivers[did]; if (!d || d.team !== this.myTeam) return 'Not your driver.';
     const no = extendBlock(this, did); if (no) return no;
+    const T = contractAsk(this, d, years); if (T.no) return T.no;
     onExtend(this, did);
-    const ask = r1(Math.max(d.salary * 1.08, askOf(d.rating)));
-    d.until += 1; d.salary = ask; this.addNews(`${d.name} signs on to the end of ${d.until}: $${ask}M a season.`); this.save();
-    return `${d.name} extends to the end of ${d.until} at $${ask}M a season.`;
+    const had = d.offer; d.until = Math.max(d.until, this.season) + years; d.salary = T.salary; delete d.offer;
+    this.addNews(`${d.name} signs on to the end of ${d.until}: $${T.salary}M a season.${had ? ` ${had.team} are turned down.` : ''}`); this.save();
+    return `${d.name} extends to the end of ${d.until} at $${T.salary}M a season.`;
   }
   /** what releasing a driver costs: the rest of this season's salary and the next ones' half */
   releaseCost(d) { const left = (this.rounds - this.round + 1) / this.rounds; return r1(d.salary * left + d.salary * 0.5 * Math.max(0, d.until - this.season)); }
@@ -149403,14 +149845,15 @@ class ManagerCareer {
     this.addNews(`${d.name} is released by ${t.name} ($${cost}M paid off).`); this.save();
     return `${d.name} released: $${cost}M paid off. Sign a driver for the empty seat before the next race.`;
   }
-  /** a free agent into your empty seat: their asking salary, a signing fee of half a season's, to the end of next season */
-  sign(did) {
-    const d = this.drivers[did], t = this.team; if (!d || d.team) return 'Not a free agent.';
+  /** a free agent into your empty seat for `years`: his asking salary (career/Seasons.contractAsk), a signing fee of half a season's */
+  sign(did, years = 2) {
+    const d = this.drivers[did], t = this.team; if (!d || d.team || d.retired) return 'Not a free agent.';
     if (t.seats.length >= 2) return 'Both seats are taken: release a driver first.';
-    const sal = askOf(d.rating), fee = r1(sal * 0.5); if (t.budget < fee) return `Not enough money for the signing fee ($${fee}M).`;
-    t.budget = r1(t.budget - fee); d.team = t.name; d.salary = sal; d.until = this.season + 1; t.seats.push(did);
-    this.addNews(`${t.name} sign ${d.name} to the end of ${d.until}: $${sal}M a season.`); this.ensure(); this.save();
-    return `${d.name} signed: $${sal}M a season to the end of ${d.until} (signing fee $${fee}M).`;
+    const T = contractAsk(this, d, years); if (T.no) return `Not signed: ${T.no}`;
+    if (t.budget < T.fee) return `Not enough money for the signing fee ($${T.fee}M).`;
+    t.budget = r1(t.budget - T.fee); d.team = t.name; d.salary = T.salary; d.until = this.season + years - 1; t.seats.push(did); delete d.offer; delete d.next;
+    this.addNews(`${t.name} sign ${d.name} to the end of ${d.until}: $${T.salary}M a season.`); this.ensure(); this.save();
+    return `${d.name} signed: $${T.salary}M a season to the end of ${d.until} (signing fee $${T.fee}M).`;
   }
   /** the staff on the market for each role (drawn once a season, or after a hire) */
   refreshHires() {
@@ -149451,28 +149894,22 @@ class ManagerCareer {
   /** the next season: contracts that ran out (the AI teams sign whom they need), the points to zero, the budgets topped up */
   nextSeason(newTeam = null) {
     if (newTeam && this.teams[newTeam]) { this.myTeam = newTeam; this.since = this.season + 1; this.board = { target: 0, conf: 55 }; this.sacked = false; this.offers = []; this.addNews(`You join ${newTeam} as team principal.`); }
+    const order = this.constructors().map((t) => t.name);   // (the season just ended: the rivals' boards judge by it)
     this.season++;
-    // contracts: a driver whose contract has run out leaves (yours too, unless extended) - the AI teams sign the best free
-    for (const d of Object.values(this.drivers)) {
-      if (d.team && d.until != null && d.until < this.season) {
-        const t = this.teams[d.team], stay = d.team !== this.myTeam && d.rating >= 0.86 && Math.random() < 0.75;
-        if (stay) { d.until = this.season + 1 + (Math.random() < 0.4 ? 1 : 0); d.salary = askOf(d.rating); continue; }
-        if (d.team === this.myTeam) this.addNews(`${d.name}'s contract has run out: they leave ${d.team}.`);
-        t.seats = t.seats.filter((x) => x !== d.id); d.team = null; d.until = null;
-      }
-      // (a season older: the young improve, the best hold, a few slip)
-      d.rating = +clamp(d.rating + (d.from === 'F2' || d.rating < 0.86 ? 0.004 + Math.random() * 0.014 : (Math.random() - 0.55) * 0.012), 0.7, 0.975).toFixed(3);
-      d.points = 0;
-    }
-    for (const t of Object.values(this.teams)) {
-      while (t.name !== this.myTeam && t.seats.length < 2) { const f = this.freeAgents()[0]; if (!f) break; f.team = t.name; f.salary = askOf(f.rating); f.until = this.season + 1; t.seats.push(f.id); this.addNews(`${t.name} sign ${f.name}.`); }
-      t.points = 0; t.budget = r1(t.budget + TIER_BUDGET[t.tier] * 0.8);
-    }
+    // the winter (career/Seasons.js, career/Rivals.js): everyone a year older; the retired gone, the contracts run out,
+    // next year's deals in force, the rookies up, the empty seats filled; the rivals' boards, money and people; your academy
+    ageDrivers(this);
+    for (const line of [...marketWinter(this), ...rivalsWinter(this, order), ...academyWinter(this)]) this.addNews(line);
+    for (const t of Object.values(this.teams)) { t.points = 0; t.budget = r1(t.budget + TIER_BUDGET[t.tier] * 0.8); }
     this.round = 1; this.seasonDone = false; this.review = null;
     for (const t of Object.values(this.teams)) t.spendAt = +t.devSpend?.all || 0;   // (the cost cap: every team's spending counted afresh)
-    this.board.target = this.boardTarget();
+    // (the board's target: what the car and the drivers should do - and never more than a place below where the team
+    //  finished last year, however the car looks this morning: a team cannot talk its own target down)
+    { const last = newTeam ? null : this.history[this.history.length - 1]; this.board.target = Math.min(this.boardTarget(), last ? last.pos + 1 : 99); }
     for (const t of Object.values(this.teams)) if (t.name !== this.myTeam) this.aiDevelop(t);
     partsNewSeason(this); this.ensure(); crewNewSeason(this); this.fatigue = 0.15;   // (the winter: everyone rested)
+    // (new regulations: every car a new one, the order drawn again - else the field a little closer than it was)
+    if (rulesChange(this.season)) { for (const line of regsReset(this)) this.addNews(line); } else gapsWinter(this);
     for (const line of carNewSeason(this)) this.addNews(line);
     this.forecast = this.calendar.map(forecastFor); this.newObjective(); this.refreshHires();
     this.addNews(`Season ${this.season} begins. The board expects P${this.board.target}.`);
@@ -151460,6 +151897,120 @@ async function storyPump(c, play) {
 return { STORY_TABS, storyHTML, storyHome, storyAct, storyPump };
 })();
 
+// ---- src/ui/ManagerHub4.js
+__m['src/ui/ManagerHub4.js'] = (() => {
+const { PHIL, ROLE_NAME, paceTable, raidTerms, raid, protest, answerApproach } = __m['src/career/Rivals.js'];
+const { SERIES, ACADEMY_COST, ageOf, contractAsk, scout, academyUp, juniorRelease, promote, regsNext } = __m['src/career/Seasons.js'];
+// The team principal's HQ, the pages of the paddock and the years (ui/ManagerHub.js draws the frame and passes the
+// clicks on): RIVALS (every other team - who runs it and how, its car against the quickest, its people, its money,
+// how things stand between you; their approaches for your staff, yours for theirs, a protest), MARKET (next season's
+// grid as it fills, who has an offer, who is stopping, the champions so far), ACADEMY (your juniors, the prospects) -
+// and DRIVERS as it is now: ages, what each asks for one, two or three years, who else wants him.
+
+
+const ERA_TABS = [['rivals', 'RIVALS'], ['market', 'MARKET'], ['academy', 'ACADEMY']];
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const money = (m) => `$${(Math.round(m * 10) / 10).toFixed(1)}M`;
+const sur = (n) => String(n || '').trim().split(/\s+/).pop();
+const bar = (x, col) => `<div class="m-bar" style="--bc:${col || (x > 0.66 ? '#1fae64' : x > 0.4 ? '#e0a100' : '#d4351c')}"><i style="width:${(Math.max(0, Math.min(1, x)) * 100).toFixed(0)}%"></i></div>`;
+const note = (t) => `<details class="m-note"><summary>How this works</summary><p>${t}</p></details>`;
+const sw = (c, team) => `<span class="m-sw" style="background:${c.teams[team]?.color || '#bbb'}"></span>`;
+const arc = (c, d) => { const a = ageOf(c, d); return a < 25 && d.pot - d.rating > 0.02 ? 'still learning' : a < 27 ? 'improving' : a < 33 ? 'at his best' : a < 36 ? 'past his best' : 'near the end'; };
+
+function eraHTML(c, tab) {
+  if (tab === 'rivals') return rivalsHTML(c);
+  if (tab === 'market') return marketHTML(c);
+  if (tab === 'academy') return academyHTML(c);
+  return null;
+}
+function rivalsHTML(c) {
+  const P = paceTable(c), worst = Math.max(0.3, ...P.map((r) => r.s)), R = c.rivals;
+  const rows = P.map((r, i) => {
+    const t = r.team, A = t.ai, heat = c.story?.pri?.[t.name]?.heat || 0;
+    if (r.mine) return `<tr class="m-me"><td>${i + 1}</td><td>${sw(c, t.name)}<b>${esc(t.name)}</b><br><small>you</small></td><td colspan="2"><small>${esc(c.staff.td?.name || '-')} · ${esc(c.staff.strat?.name || '-')} · ${esc(c.staff.crew?.name || '-')}</small></td><td style="width:16%">${bar(1 - r.s / worst, '#2d6cdf')}<small>${r.s ? `+${r.s.toFixed(2)} s` : 'quickest'}</small></td><td><small>TD ${Math.round((c.staff.td?.rating || 0) * 100)} · strategy ${Math.round((c.staff.strat?.rating || 0) * 100)} · crew ${Math.round((c.staff.crew?.rating || 0) * 100)}</small></td><td></td></tr>`;
+    const fresh = A.last && A.last.season === c.season && c.round - A.last.round <= 3;
+    const st = Object.keys(ROLE_NAME).map((k) => { const T = raidTerms(c, t.name, k), p = A.staff[k]; return `<button data-a="rvraid" data-v="${esc(t.name)}|${k}" ${T.no ? 'disabled' : ''} title="${esc(T.no || `${p.name}, ${ROLE_NAME[k]}: ${money(T.fee)} to bring over, about ${Math.round(T.odds * 100)}% that he says yes`)}">${k === 'td' ? 'TD' : k === 'strat' ? 'STRAT' : 'CREW'} ${Math.round(p.rating * 100)}</button>`; }).join('');
+    return `<tr><td>${i + 1}</td><td>${sw(c, t.name)}<b>${esc(t.name)}</b><br><small>${esc(A.boss)}${A.pressure ? ' · under pressure' : ''}</small></td><td><small><b>${esc(PHIL[A.phil]?.name || '')}</b><br>${esc(PHIL[A.phil]?.what || '')}</small></td><td><small>${A.money === 'flush' ? 'New money' : A.money === 'tight' ? 'Short of money' : 'Steady'}<br>${heat >= 40 ? 'No love lost' : heat >= 15 ? 'Needle with you' : 'On terms'}</small></td>
+      <td style="width:16%">${bar(1 - r.s / worst)}<small>${r.s ? `+${r.s.toFixed(2)} s` : 'quickest'}${r.trend > 0.02 ? ` · found ${r.trend.toFixed(2)} s lately` : ''}</small></td>
+      <td><span class="m-acts" style="gap:4px">${st}</span></td><td><button data-a="rvprot" data-v="${esc(t.name)}" ${fresh ? '' : 'disabled'} title="${fresh ? `Their new parts (about ${(A.last.perf * 40.5).toFixed(2)} s a lap) to the stewards: a $0.5M deposit` : 'They have brought nothing new in the last three races'}">PROTEST${fresh && A.grey > 0.55 ? ' ?' : ''}</button></td></tr>`;
+  }).join('');
+  const app = R.approaches.map((a, i) => `<div class="m-drv"><div class="m-nm"><b>${esc(a.team)} want ${esc(a.name)}</b><small>Your ${esc(ROLE_NAME[a.role])} · they offer ${money(a.salary)} a season (he is on ${money(c.staff[a.role]?.salary || 0)}) · decides after round ${a.due}</small></div><div class="m-acts"><button class="m-go" data-a="rvmatch" data-v="${i}">MATCH ${money(a.salary)}</button><button data-a="rvlet" data-v="${i}">LET HIM GO</button></div></div>`).join('');
+  const nx = regsNext(c);
+  return `<div class="m-grid"><div class="m-card" style="grid-column:1/-1"><h3>The grid</h3><table><tr><th>#</th><th>Team</th><th>How they work</th><th>State</th><th>Car, a lap</th><th>Their people (ask one)</th><th></th></tr>${rows}</table>
+    ${note('The car column is the timing: seconds a lap behind the quickest car, drivers apart. A team under pressure has missed its target; twice, and its principal goes - the next one works differently. Asking for one of their people costs a fee and their goodwill, and he may say no. A protest only works on parts in a grey area: the "?" is the paddock wondering.')}</div>
+    <div class="m-card"><h3>They want your people${R.approaches.length ? ` · ${R.approaches.length}` : ''}</h3>${app || '<p>Nobody has been approached.</p>'}${note('Match the offer and he stays on that salary. Let him go and his deputy steps up - a tenth worse - while they pay you for the notice. Left alone, he usually goes.')}</div>
+    <div class="m-card"><h3>The rules</h3><div class="m-big">${nx}</div><p style="font-size:13px;color:#4a5260">The next new technical regulations${nx === c.season + 1 ? ': next season' : ''}. Every car is a new one then: the parts built for this one are gone, the factory is not, and the order is drawn again - from how good each old car was, each factory, the work put into the new car early (CAR page), and luck.</p></div></div>`;
+}
+function marketHTML(c) {
+  const next = Object.values(c.teams).sort((a, b) => a.garage - b.garage).map((t) => {
+    const stay = c.seatsOf(t.name).map((d) => { const gone = d.retiring ? 'retiring' : d.out ? 'out' : d.next && d.next.team !== t.name ? `to ${d.next.team}` : d.until <= c.season && !d.renew && t.name !== c.myTeam ? 'contract ending' : d.until <= c.season && t.name === c.myTeam ? (d.offer ? `offer from ${d.offer.team}` : 'contract ending') : ''; return `<span style="${gone ? 'color:#a33;text-decoration:' + (/retiring|out|to /.test(gone) ? 'line-through' : 'none') : ''}">${esc(sur(d.name))}</span>${gone ? ` <small>(${esc(gone)})</small>` : ` <small>to ${d.until}</small>`}`; });
+    const come = Object.values(c.drivers).filter((d) => d.next?.team === t.name && d.team !== t.name).map((d) => `<b style="color:#1fae64">${esc(sur(d.name))}</b> <small>(signed)</small>`);
+    return `<tr class="${t.name === c.myTeam ? 'm-me' : ''}"><td>${sw(c, t.name)}${esc(t.name)}</td><td>${[...stay, ...come].join(' · ')}</td></tr>`;
+  }).join('');
+  const D = Object.values(c.drivers).filter((d) => !d.retired);
+  const moves = [...D.filter((d) => d.team === c.myTeam && d.offer).map((d) => `<div class="m-drv"><div class="m-nm"><b>${esc(d.name)}</b><small>Offer from ${esc(d.offer.team)}: ${money(d.offer.salary)} a season. Extend him (DRIVERS) or he goes in the winter.</small></div></div>`),
+    ...D.filter((d) => d.retiring).map((d) => `<div class="m-drv"><div class="m-nm"><b>${esc(d.name)} · ${ageOf(c, d)}</b><small>Retiring at the end of the season${d.team ? ` (${esc(d.team)})` : ''}.</small></div></div>`)].join('');
+  const champs = (c.history || []).slice().reverse().map((h) => `<tr><td>${h.season}</td><td>${esc(h.champ || '-')}</td><td>${esc(h.champTeam || '-')}</td><td>P${h.pos}</td></tr>`).join('');
+  const log = (c.era?.log || []).slice(-8).reverse().map((e) => `<div class="m-drv"><div class="m-nm"><b style="font-weight:600">${e.kind === 'regs' ? `${e.season}: new regulations - ${esc(e.order.join(', '))} quickest out of the box` : `${e.season}: ${esc(e.name)} retired`}</b></div></div>`).join('');
+  return `<div class="m-grid"><div class="m-card" style="grid-column:1/-1"><h3>Next season's grid, as it stands</h3><table><tr><th>Team</th><th>Drivers</th></tr>${next}</table>
+    ${note('From the season\'s half-way the teams decide: renew, or sign someone better for next year - a free agent, a man whose contract is ending elsewhere, one of yours. A driver of yours with an offer leaves in the winter unless you extend him first; he asks more while the offer stands.')}</div>
+    <div class="m-card"><h3>On the move</h3>${moves || '<p>Nothing yet. It starts at the season\'s half-way.</p>'}</div>
+    <div class="m-card"><h3>Champions</h3>${champs ? `<table><tr><th>Season</th><th>Driver</th><th>Constructor</th><th>You</th></tr>${champs}</table>` : '<p>The first season is still being raced.</p>'}${log ? `<h3 style="margin-top:14px">The years</h3>${log}` : ''}</div></div>`;
+}
+function academyHTML(c) {
+  const A = c.academy, room = 2 + A.level;
+  const jun = A.juniors.map((j, i) => `<div class="m-drv"><div class="m-rt">${Math.round(j.rating * 100)}</div><div class="m-nm"><b>${esc(j.name)} · ${ageOf(c, j)}</b><small>${esc(SERIES[j.series].name)} · could be ${Math.round(j.lo * 100)}-${Math.round(j.hi * 100)} · ${j.res.length ? j.res.slice(-3).map((r) => `${r.season} ${r.series} P${r.pos}`).join(', ') : 'first season'} · ${money(SERIES[j.series].cost)} a season</small>${bar((j.rating - 0.58) / 0.34, '#2d6cdf')}</div>
+    <div class="m-acts"><button class="${j.rating >= 0.755 ? 'm-go' : ''}" data-a="acprom" data-v="${i}" ${j.rating >= 0.755 ? '' : 'disabled title="Not the results for a super licence yet (76)"'}>PROMOTE</button><button data-a="acrel" data-v="${i}">RELEASE</button></div></div>`).join('');
+  const pro = A.prospects.map((p, i) => `<div class="m-drv"><div class="m-rt">${Math.round(p.rating * 100)}</div><div class="m-nm"><b>${esc(p.name)} · ${ageOf(c, p)}</b><small>The scouts say ${Math.round(p.lo * 100)}-${Math.round(p.hi * 100)} one day · ${money(p.sign)} to sign</small></div><div class="m-acts"><button data-a="acsign" data-v="${i}" ${A.juniors.length >= room ? 'disabled title="The academy is full"' : ''}>SIGN</button></div></div>`).join('');
+  const grads = Object.values(c.drivers).filter((d) => d.academy === c.myTeam && !d.team && !d.retired).map((d) => `<div class="m-drv"><div class="m-rt">${Math.round(d.rating * 100)}</div><div class="m-nm"><b>${esc(d.name)} · ${ageOf(c, d)}</b><small>Graduated: yours to sign first${(d.hold ?? 0) >= c.season ? ` until the end of ${d.hold}` : ' no longer - anyone may'} (DRIVERS). He asks less of the team that brought him up.</small></div></div>`).join('');
+  return `<div class="m-grid"><div class="m-card"><h3>Your academy · level ${A.level}</h3><div class="m-row2"><span>Places</span><b>${A.juniors.length} of ${room}</b></div><div class="m-row2"><span>The scouts' guess is within</span><b>± ${Math.round((0.07 - A.level * 0.018) * 100)}</b></div>
+      ${A.level < 3 ? `<button class="m-dark" data-a="acup" style="margin-top:8px">BUILD IT UP · ${money(ACADEMY_COST[A.level])}</button>` : ''}
+      ${note('A junior races Formula 4, then 3, then 2, a season at a time, getting nearer to what he could be - faster in a better academy. At 76 he can be promoted: he is then a free agent only you may sign, this season and next, and he asks less of you. Three seasons of Formula 2 without a seat and he leaves. Each winter new prospects are scouted.')}</div>
+    <div class="m-card"><h3>Juniors</h3>${jun || '<p>Nobody yet: sign a prospect.</p>'}${grads ? `<h3 style="margin-top:14px">Graduates</h3>${grads}` : ''}</div>
+    <div class="m-card"><h3>Prospects this year</h3>${pro || '<p>All signed. More next winter.</p>'}</div></div>`;
+}
+/** DRIVERS: yours (age, where he is in his career, his contract, who wants him, what he asks to stay) and the free agents (what each asks of YOU) */
+function driversHTML(c) {
+  const D = c.seatsOf(c.myTeam), empty = !c.seatsReady();
+  const F = c.freeAgents().sort((a, b) => ((b.academy === c.myTeam) - (a.academy === c.myTeam)) || b.rating - a.rating).slice(0, 16);
+  const mine = D.map((d) => {
+    const T1 = contractAsk(c, d, 1), T2 = contractAsk(c, d, 2);
+    return `<div class="m-drv"><div class="m-rt">${Math.round(d.rating * 100)}</div><div class="m-nm"><b>${esc(d.name)} · ${ageOf(c, d)}</b><small>#${d.number} · ${arc(c, d)} · ${d.points} pts · ${d.starts || 0} starts, ${d.wins || 0} wins · ${money(d.salary)}/season to the end of ${d.until}${d.retiring ? ' · <b style="color:#a33">retiring at the end of the season</b>' : ''}${d.offer ? ` · <b style="color:#a33">offer from ${esc(d.offer.team)}</b>` : ''}</small></div>
+    <div class="m-acts">${T1.no ? `<button disabled title="${esc(T1.no)}">EXTEND</button>` : `<button data-a="extend" data-v="${d.id}|1" title="${esc(T1.why || '')}">+1 YEAR · ${money(T1.salary)}</button><button data-a="extend" data-v="${d.id}|2" title="${esc(T2.why || '')}">+2 · ${money(T2.salary)}</button>`}<button data-a="release" data-v="${d.id}" title="Paying off the contract: ${money(c.releaseCost(d))}">RELEASE · ${money(c.releaseCost(d))}</button></div></div>`;
+  }).join('');
+  const free = F.map((d) => {
+    const T = [1, 2, 3].map((y) => contractAsk(c, d, y)), no = T[1].no;
+    return `<div class="m-drv"><div class="m-rt">${Math.round(d.rating * 100)}</div><div class="m-nm"><b>${esc(d.name)} · ${ageOf(c, d)}</b><small>${d.academy === c.myTeam ? '<b style="color:#1fae64">your junior</b>' : esc(d.from || '')} · ${arc(c, d)}${no ? ` · <span style="color:#a33">${esc(no)}</span>` : ` · asks ${money(T[1].salary)}/season, ${money(T[1].fee)} to sign${T[1].why ? ` · ${esc(T[1].why)}` : ''}`}</small></div>
+    <div class="m-acts">${no ? '' : [1, 2, 3].map((y) => `<button class="${empty && y === 2 ? 'm-go' : ''}" data-a="sign" data-v="${d.id}|${y}"${empty ? ` title="${y} season${y > 1 ? 's' : ''}: ${money(T[y - 1].salary)} a season"` : ' disabled title="Both seats are taken: release a driver first"'}>${y}Y</button>`).join('')}</div></div>`;
+  }).join('');
+  return `<div class="m-grid"><div class="m-card"><h3>Your drivers</h3>${mine || '<p>No drivers.</p>'}${note('Rating: pace and racecraft out of 100. A driver improves to about 27, holds it into his thirties, then fades; from 36 any season may be his last. A contract that ends this season runs out in the winter - extend to keep him. What he asks depends on what he is worth, where your team is in the order, how he feels, and whether someone else wants him.')}</div>
+    <div class="m-card"><h3>Free agents</h3>${free || '<p>Nobody is free.</p>'}</div></div>`;
+}
+/** on the overview: what the paddock is waiting on you for */
+function eraHome(c) {
+  const a = c.rivals?.approaches || [], off = c.seatsOf(c.myTeam).filter((d) => d.offer), nx = regsNext(c), out = [];
+  for (const x of a) out.push(`${esc(x.team)} want your ${esc(ROLE_NAME[x.role])}, ${esc(x.name)} <button data-tab="rivals" style="margin-left:6px">ANSWER</button>`);
+  for (const d of off) out.push(`${esc(d.name)} has an offer from ${esc(d.offer.team)} <button data-tab="drv" style="margin-left:6px">DRIVERS</button>`);
+  if (nx === c.season + 1) out.push(`New regulations next season: the work on next year's car counts double <button data-tab="car" style="margin-left:6px">CAR</button>`);
+  return out.length ? `<div class="m-card"><h3>The paddock</h3>${out.map((t) => `<div class="m-row2"><span>${t}</span></div>`).join('')}</div>` : '';
+}
+/** a click on one of these pages -> { text, ok } | undefined (not ours) */
+function eraClick(c, a, v) {
+  if (!/^(rv|ac)/.test(a || '')) return undefined;
+  const say = (text, ok = true) => ({ text, ok: ok && !/^(Not|No |Your academy has|The academy is)/.test(text) });
+  if (a === 'rvraid') { const [team, role] = String(v).split('|'); return raid(c, team, role); }
+  if (a === 'rvprot') return protest(c, v);
+  if (a === 'rvmatch' || a === 'rvlet') { const x = c.rivals.approaches[+v]; if (!x) return say('That is settled already.', false); const r = answerApproach(c, x, a === 'rvmatch' ? 'match' : 'let'); c.save(); return say(r); }
+  if (a === 'acsign') return say(scout(c, +v));
+  if (a === 'acup') return say(academyUp(c));
+  if (a === 'acrel') return say(juniorRelease(c, +v));
+  if (a === 'acprom') return say(promote(c, +v));
+  return undefined;
+}
+
+return { ERA_TABS, eraHTML, driversHTML, eraHome, eraClick };
+})();
+
 // ---- src/ui/ManagerHub.js
 __m['src/ui/ManagerHub.js'] = (() => {
 const { TECH_CSS, techHTML, techClick } = __m['src/ui/HubTech.js'];
@@ -151467,6 +152018,7 @@ const { ManagerCareer, TRACKS_ALL, COST_CAP, PRIZE, TIER_NAME, TIER_BUDGET, RACE
 const { techEffects, UP, upgradeName, partsCount } = __m['src/career/TechTree.js'];
 const { EXTRA_TABS, extraHTML, extraClick, homeExtra } = __m['src/ui/ManagerHub2.js'];
 const { STORY_TABS, storyHTML, storyHome, storyAct, storyPump } = __m['src/ui/ManagerHub3.js'];
+const { ERA_TABS, eraHTML, eraHome, eraClick, driversHTML } = __m['src/ui/ManagerHub4.js'];
 const { storySigning, storyReleased, storyShown, storyApply } = __m['src/career/ManagerStory.js'];
 const { PU, SPARES, allocOf, fitNew, orderSpare, FAC, FAC_MAX, facCost, facRounds, facFx, facUpgrade, facMaintain, maintCost, SPONSOR_SLOTS, acceptOdds, propose, sponsorTargets, marketability } = __m['src/career/ManagerOps.js'];
 // The team principal's HQ (career/Manager.js): between the race weekends, the team's home. The header holds what
@@ -151478,6 +152030,7 @@ const { PU, SPARES, allocOf, fitNew, orderSpare, FAC, FAC_MAX, facCost, facRound
 // director, the head of strategy, the pit crew chief: who you have, who you could hire), FINANCES and CALENDAR. A new
 // career starts here too: the team, the season's length, the race distance.
 //   openManagerHub({ career, teams, trackName, onRace(c), onSim(c), onQuick(), onExit() }) / closeManagerHub()
+
 
 
 
@@ -151600,7 +152153,7 @@ function render() {
   el.innerHTML = `<div class="m-mh"><div class="m-tn"><small>Team principal · Season ${c.season}${c.seasonDone ? ' · over' : ` · Round ${c.round} of ${c.rounds}`}</small><b>${esc(t.name)}</b></div>
     <div class="m-kp"><div class="m-k"><small>Budget</small><b class="${t.budget < 5 ? 'm-bad' : ''}">${money(t.budget)}</b></div><div class="m-k"><small>Cost cap left</small><b>${money(c.capLeft())}</b></div>
     <div class="m-k"><small>Constructors</small><b>P${pos}<span style="font-size:11px;color:#8a93a0"> · target P${c.board.target}</span></b></div><div class="m-k"><small>Board</small><b class="${conf < 30 ? 'm-bad' : conf >= 65 ? 'm-ok' : ''}">${conf}%</b></div></div><span class="m-ctas">${ctas}<button data-a="exit">MENU</button></span></div>
-    <div class="m-mn">${[['home', 'OVERVIEW'], ['stand', 'STANDINGS'], ['fac', 'FACTORY'], ['drv', 'DRIVERS'], ['parts', 'PARTS'], ['facil', 'FACILITIES'], ['spons', 'SPONSORS'], ['staff', 'STAFF'], ...EXTRA_TABS, ...STORY_TABS, ['fin', 'FINANCES'], ['cal', 'CALENDAR']].map(([k, n]) => `<button data-tab="${k}" class="${H.tab === k ? 'm-on' : ''}">${n}</button>`).join('')}</div>
+    <div class="m-mn">${[['home', 'OVERVIEW'], ['stand', 'STANDINGS'], ['fac', 'FACTORY'], ['drv', 'DRIVERS'], ['parts', 'PARTS'], ['facil', 'FACILITIES'], ['spons', 'SPONSORS'], ['staff', 'STAFF'], ...EXTRA_TABS, ...ERA_TABS, ...STORY_TABS, ['fin', 'FINANCES'], ['cal', 'CALENDAR']].map(([k, n]) => `<button data-tab="${k}" class="${H.tab === k ? 'm-on' : ''}">${n}</button>`).join('')}</div>
     <div class="m-mb"><div class="m-pg">${H.msg ? `<div class="m-msg ${H.ok ? '' : 'm-no'}">${esc(H.msg)}</div>` : ''}${body(c)}</div></div>`;
   pack();
 }
@@ -151635,7 +152188,7 @@ function body(c) {
       case 'facil': return facilHTML(c);
       case 'spons': return sponsHTML(c);
       case 'cal': return calHTML(c);
-      default: return extraHTML(c, H.tab, H) ?? storyHTML(c, H.tab) ?? homeHTML(c);
+      default: return extraHTML(c, H.tab, H) ?? eraHTML(c, H.tab) ?? storyHTML(c, H.tab) ?? homeHTML(c);
     }
   } catch (e) { console.warn('[manager hub]', e); return '<div class="m-card"><p>This page could not be drawn.</p></div>'; }
 }
@@ -151658,7 +152211,7 @@ function homeHTML(c) {
     <div class="m-row2"><span>Income</span><b>${money(L.income)}${L.sponsor ? ` + sponsor ${money(L.sponsor)}` : ''}</b></div><div class="m-row2"><span>Wages</span><b>-${money(L.wages)}</b></div>
     <div class="m-row2"><span>Board confidence</span><b>${L.conf0}% → ${L.conf}%</b></div>${L.parts.length ? `<div class="m-row2"><span>New on the car</span><b>${L.parts.map((x) => `${esc(UP[x.id]?.short || x.id)} L${x.level} (${Math.round(x.q * 100)}%)`).join(', ')}</b></div>` : ''}</div>` : '';
   const news = `<div class="m-card"><h3>News</h3><div class="m-news">${c.news.slice(0, 10).map((n) => `<div><small>S${n.season} R${n.round}</small>${esc(n.text)}</div>`).join('')}</div></div>`;
-  return `<div class="m-grid">${nextCard}${storyHome(c)}${homeExtra(c)}${lastCard}${drvCard}${carCard}${news}</div>`;
+  return `<div class="m-grid">${nextCard}${storyHome(c)}${eraHome(c)}${homeExtra(c)}${lastCard}${drvCard}${carCard}${news}</div>`;
 }
 function reviewHTML(c) {
   const r = c.review || c.history[c.history.length - 1] || {};
@@ -151675,15 +152228,7 @@ function standHTML(c) {
   return `<div class="m-grid"><div class="m-card"><h3>Constructors</h3><table><tr><th>#</th><th>Team</th><th>Pts</th><th>Budget</th></tr>${T.map((t, i) => `<tr class="${t.name === c.myTeam ? 'm-me' : ''}"><td>${i + 1}</td><td><span class="m-sw" style="background:${t.color}"></span>${esc(t.name)}</td><td>${t.points}</td><td>${money(t.budget)}</td></tr>`).join('')}</table></div>
     <div class="m-card"><h3>Drivers</h3><table><tr><th>#</th><th>Driver</th><th>Team</th><th>Pts</th><th>W</th></tr>${D.map((d, i) => `<tr class="${d.team === c.myTeam ? 'm-me' : ''}"><td>${i + 1}</td><td><span class="m-sw" style="background:${c.teams[d.team]?.color || '#bbb'}"></span>${esc(d.name)}</td><td>${esc(d.team || '-')}</td><td>${d.points}</td><td>${d.wins || 0}</td></tr>`).join('')}</table></div></div>`;
 }
-function drvHTML(c) {
-  const D = c.seatsOf(c.myTeam), F = c.freeAgents().slice(0, 14), empty = !c.seatsReady();
-  const mine = D.map((d) => `<div class="m-drv"><div class="m-rt">${Math.round(d.rating * 100)}</div><div class="m-nm"><b>${esc(d.name)}</b><small>#${d.number} · ${d.points} pts · ${d.starts || 0} starts, ${d.wins || 0} wins · ${money(d.salary)}/season to the end of ${d.until}</small></div>
-    <div class="m-acts"><button data-a="extend" data-v="${d.id}" title="One more season; they will ask ${money(Math.max(d.salary * 1.08, askOf(d.rating)))}">EXTEND</button><button data-a="release" data-v="${d.id}" title="Paying off the contract: ${money(c.releaseCost(d))}">RELEASE · ${money(c.releaseCost(d))}</button></div></div>`).join('');
-  const free = F.map((d) => `<div class="m-drv"><div class="m-rt">${Math.round(d.rating * 100)}</div><div class="m-nm"><b>${esc(d.name)}</b><small>${esc(d.from)} · asks ${money(askOf(d.rating))}/season · signing fee ${money(askOf(d.rating) * 0.5)}</small></div>
-    <div class="m-acts"><button class="${empty ? 'm-go' : ''}" data-a="sign" data-v="${d.id}"${empty ? '' : ' disabled title="Both seats are taken: release a driver first"'}>SIGN</button></div></div>`).join('');
-  return `<div class="m-grid"><div class="m-card"><h3>Your drivers</h3>${mine || '<p>No drivers.</p>'}<p style="font-size:12px;color:#6b7480">Rating: their pace and racecraft (out of 100). A contract that ends this season runs out when the next starts - extend to keep them.</p></div>
-    <div class="m-card"><h3>Free agents</h3>${free || '<p>Nobody is free.</p>'}</div></div>`;
-}
+function drvHTML(c) { return driversHTML(c); }   // (ages, contracts by the year, who else wants him: ui/ManagerHub4.js)
 const pct = (x) => `${Math.round(x * 100)}%`;
 const bar = (x, bad) => `<div class="m-bar" style="--bc:${bad ? '#d4351c' : x > 0.5 ? '#1fae64' : '#e0a100'}"><i style="width:${(Math.max(0, Math.min(1, x)) * 100).toFixed(0)}%"></i></div>`;
 function partsHTML(c) {
@@ -151778,7 +152323,8 @@ function onClick(e) {
   const a = d.a, v = d.v; H.msg = null;
   if (pumping) return;
   if (c && H.o.play) { const p = storyAct(c, a, v, H.o.play); if (p) { scene(p); return; } }   // (the story: ui/ManagerHub3.js)
-  if (c) { const r = extraClick(c, a, v); if (r !== undefined) { if (r) say(r.text, r.ok); render(); return; } }   // (the crew, the people, the car: ui/ManagerHub2.js)
+  if (c) { const r = extraClick(c, a, v); if (r !== undefined) { if (r) say(r.text, r.ok); render(); return; } }
+  if (c) { const r = eraClick(c, a, v); if (r !== undefined) { if (r) say(r.text, r.ok); render(); return; } }   // (the rivals, the market, the academy: ui/ManagerHub4.js)   // (the crew, the people, the car: ui/ManagerHub2.js)
   if (a === 'exit') { H.o.onExit?.(); return; }
   if (a === 'quick') { H.o.onQuick?.(); return; }
   if (a === 'nteam') H.nc.team = v; else if (a === 'nrounds') H.nc.rounds = +v; else if (a === 'nlaps') H.nc.laps = +v;
@@ -151789,9 +152335,9 @@ function onClick(e) {
   else if (a === 'next') { c.nextSeason(); H.tab = 'home'; say(`Season ${c.season}: ${c.rounds} rounds. The board expects P${c.board.target}.`); render(); pump(); return; }
   else if (a === 'join') { c.nextSeason(v); H.tab = 'home'; say(`You are ${v}'s team principal now.`); render(); pump(); return; }
   else if (a === 'erase') { ManagerCareer.erase(); H.c = null; H.tab = 'new'; }
-  else if (a === 'extend') say(c.extend(v));
+  else if (a === 'extend') { const [id, y] = String(v).split('|'); const r = c.extend(id, +y || 1); say(r, /extends to/.test(r)); }
   else if (a === 'release') { const r = c.release(v), ok = !/^Not/.test(r); say(r, ok); if (ok && H.o.play) { const m = storyReleased(c, v); if (m) { scene(H.o.play(m.scene, m.ctx).then((res) => { storyShown(c, m.key); storyApply(c, m.key, res || {}); return r; })); return; } } }
-  else if (a === 'sign') { const r = c.sign(v), ok = !/^(Not|Both)/.test(r); say(r, ok); if (ok && H.o.play) { const m = storySigning(c, v); if (m) { scene(H.o.play(m.scene, m.ctx).then((res) => { storyShown(c, m.key); storyApply(c, m.key, res || {}); return r; })); return; } } }
+  else if (a === 'sign') { const [sid, sy] = String(v).split('|'); const r = c.sign(sid, +sy || 2), ok = !/^(Not|Both)/.test(r); say(r, ok); if (ok && H.o.play) { const m = storySigning(c, sid); if (m) { scene(H.o.play(m.scene, m.ctx).then((res) => { storyShown(c, m.key); storyApply(c, m.key, res || {}); return r; })); return; } } }
   else if (a === 'fit') { const [did, el] = String(v).split('|'); say(fitNew(c, c.myTeam, did, el)); c.save(); }
   else if (a === 'spare') { const r = orderSpare(c, v); say(r, !/^(Not|Over|No )/.test(r)); c.save(); }
   else if (a === 'facup') { const r = facUpgrade(c, v); say(r, !/^(Not|No |.*already|.*highest)/.test(r)); c.save(); }
@@ -154514,7 +155060,8 @@ __m['src/ui/TVShow.js'] = (() => {
 // The broadcast as a show (with ui/TVGraphics.js: the tower and captions, and ui/TVExtras.js: battles, replays, the
 // safety car's feed) - what makes the world feed sound and read like television:
 //   COMMENTARY: two voices, a lead who calls what happens and an analyst who says what it means, as a caption under the
-//     top of the picture and - VOICE on - spoken by the browser's own speech (two of its voices). Fed by events (the
+//     top of the picture - read, not heard: there is no voice (the browser's own speech was taken out in V2.53; a
+//     real one would go in speak()). Fed by events (the
 //     start, a pass, a stop, the safety car, the flag ...); a line worth more cuts in on one worth less.
 //   TEAM RADIO on air: who spoke, the line, a waveform - a driver's words and your orders, not the pit wall's chatter.
 //   THE TRACK MAP: the circuit's outline, a dot a car (yours ringed, the car on screen marked, the safety car yellow).
@@ -154567,14 +155114,12 @@ const CSS = `
 body.tp-hl #hud, body.tp-hl #hud-msg { visibility: hidden !important; }   /* (the highlights at the flag: the picture and its tag, nothing of the driver's own display) */
 #tvg .sk { position: absolute; left: 50%; bottom: calc(var(--pw, 150px) + 86px); transform: translateX(-50%); background: rgba(12,14,20,.78); border-radius: 14px; padding: 5px 12px 5px 6px; font: 700 10px/1 var(--tvf); letter-spacing: .12em; text-transform: uppercase; color: #dfe5ec; opacity: 0; transition: opacity .25s; white-space: nowrap; }
 #tvg .sk.in { opacity: 1; } #tvg .sk b { display: inline-block; background: #fff; color: #111; border-radius: 9px; padding: 3px 7px; margin-right: 8px; font-weight: 900; }
-#tvg .vc { position: absolute; right: 214px; top: 14px; pointer-events: auto; cursor: pointer; background: rgba(12,14,20,.75); color: #b7c0cc; border: 1px solid rgba(255,255,255,.2); border-radius: 4px; font: 800 9px/1 var(--tvf); letter-spacing: .16em; padding: 8px 9px; }
-#tvg .vc:hover { color: #fff; border-color: #fff; }
 #tvg .rain { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 1.2s; overflow: hidden; }
 #tvg .rain.on { opacity: 1; }
 #tvg .rain i { position: absolute; border-radius: 50%; background: radial-gradient(ellipse at 35% 30%, rgba(255,255,255,.5), rgba(190,210,230,.16) 45%, rgba(255,255,255,.04) 70%, transparent 72%); box-shadow: inset 0 -2px 3px rgba(0,0,0,.18); backdrop-filter: blur(2px); }
 #tvg .r .sx { position: absolute; right: 96px; top: 50%; margin-top: -2px; display: flex; gap: 2px; } #tvg .r .sx u { width: 5px; height: 4px; border-radius: 1px; background: rgba(255,255,255,.14); text-decoration: none; }
 #tvg .r .sx u.purple { background: #b45cff; } #tvg .r .sx u.green { background: #3ddc84; } #tvg .r .sx u.yellow { background: #ffd400; }
-#tvg.hl .tower, #tvg.hl .live, #tvg.hl .xr, #tvg.hl .map, #tvg.hl .cap, #tvg.hl .rc, #tvg.hl .cm, #tvg.hl .rad, #tvg.hl .tel, #tvg.hl .cls, #tvg.hl .gridg, #tvg.hl .pip, #tvg.hl .vc, #tvg.hl .rain, #tvg.hl .sting, #tvg.hl .sk { display: none !important; }
+#tvg.hl .tower, #tvg.hl .live, #tvg.hl .xr, #tvg.hl .map, #tvg.hl .cap, #tvg.hl .rc, #tvg.hl .cm, #tvg.hl .rad, #tvg.hl .tel, #tvg.hl .cls, #tvg.hl .gridg, #tvg.hl .pip, #tvg.hl .rain, #tvg.hl .sting, #tvg.hl .sk { display: none !important; }
 @media (max-width: 1000px) { #tvg .map, #tvg .rad { display: none; } #tvg .pip { left: 190px; } }
 `;
 const surname = (c) => { const w = String(c?.name || c || '').trim().split(/\s+/); return w[0] === 'Zhou' ? 'Zhou' : w[w.length - 1]; };
@@ -154634,18 +155179,15 @@ class TVShow {
     this.sk = mk('sk'); this.rain = mk('rain'); root.insertBefore(this.rain, root.firstChild);   /* (the drops are on the lens: under every graphic) */ this.cm = mk('cm', '<small></small><span></span>'); this.rad = mk('rad'); this.gridg = mk('gridg'); this.cls = mk('cls'); this.pipEl = mk('pip', '<b></b><i class="cur"></i>');
     this.mapEl = document.createElement('canvas'); this.mapEl.className = 'map'; this.mapEl.width = 380; this.mapEl.height = 256; root.appendChild(this.mapEl);
     this.inf = document.createElement('div'); this.inf.className = 'xc inf'; (root.querySelector('.xr') || root).appendChild(this.inf);
-    this.voice = false; try { this.voice = localStorage.getItem('f1sim-tv-voice') === '1'; } catch (e) { this.voice = false; }
-    this.vc = document.createElement('button'); this.vc.className = 'vc'; this.vc.title = 'The commentary spoken aloud by the browser (V)'; root.appendChild(this.vc); this.vc.addEventListener('click', () => { this.setVoice(!this.voice); });
-    this.vc.textContent = this.voice ? 'VOICE ON' : 'VOICE OFF'; this.reset();
+    try { localStorage.removeItem('f1sim-tv-voice'); window.speechSynthesis?.cancel(); } catch (e) { /* nothing kept */ }
+    this.reset();
   }
   reset() {
     this.q = []; this.cur = null; this.curT = 0; this.n = 0; this.said = new Map(); this.radT = 0; this.acc = 0; this.mapPts = null; this.mapFor = null;
     this.infT = 99; this.infK = 0; this.stints = new Map(); this.vmax = new Map(); this.tl = new Map(); this.logN = 0; this.notes = []; this.offN = 0;
     this.phase = 'pre'; this.t0 = 0; this.lap1 = false; this.react = false; this.flag = false; this.flagA = false; this.clsK = -1; this.infHold = 0; this.formPh = null; this.rainOn = false; this.rainSaid = -99; this.best = Infinity; this.pb = new Map(); this.drops = 0;
     for (const e of [this.cm, this.rad, this.gridg, this.cls, this.inf]) e.classList.remove('in'); this.rain.classList.remove('on'); this.pipEl.classList.remove('on', 'big'); this.root.classList.remove('hl', 'has-pip', 'tight'); this.skK = ''; this.sk?.classList.remove('in');
-    try { window.speechSynthesis?.cancel(); } catch (e) { /* no speech */ }
   }
-  setVoice(on) { this.voice = !!on; if (this.vc) this.vc.textContent = on ? 'VOICE ON' : 'VOICE OFF'; try { localStorage.setItem('f1sim-tv-voice', on ? '1' : '0'); if (!on) window.speechSynthesis?.cancel(); } catch (e) { /* not kept */ } }
 
   // ---- commentary ------------------------------------------------------------------------------------------------------
   /** something happened: a line for it (kind: LINES' keys; x: its words) - said when its turn comes, or at once if it matters more than what is being said */
@@ -154657,14 +155199,8 @@ class TVShow {
     if (this.cur && it.prio >= 8 && it.prio > this.cur.prio) { this.q = this.q.filter((y) => y.prio >= 6); this.q.unshift(it); this.curT = 0; }
     else { this.q.push(it); this.q.sort((a, b) => b.prio - a.prio || a.at - b.at); if (this.q.length > 4) this.q.length = 4; }
   }
-  speak(it) {
-    if (!this.voice || typeof speechSynthesis === 'undefined' || typeof SpeechSynthesisUtterance === 'undefined') return;
-    try {
-      const V = speechSynthesis.getVoices().filter((v) => /^en/i.test(v.lang)), u = new SpeechSynthesisUtterance(it.text);
-      if (V.length) u.voice = V[it.who ? Math.min(V.length - 1, 1 + ((V.length / 2) | 0)) : 0]; u.rate = it.prio >= 8 ? 1.2 : 1.08; u.pitch = it.who ? 0.9 : 1.05; u.volume = 0.9;
-      if (it.prio >= 8) speechSynthesis.cancel(); speechSynthesis.speak(u);
-    } catch (e) { /* no speech */ }
-  }
+  /** where a commentator's voice would be given a line (it: { who, text, prio }). There is none: the captions are the commentary. */
+  speak() {}
   /** a line on the radio, on air: who (a driver's surname, 'You'), the words, the team's colour */
   radio(who, text, color) {
     if (!text || /^(Pit wall|Strategy|Race control)$/.test(who)) return;
@@ -154800,6 +155336,382 @@ const fmt = (t) => { const m = Math.floor(t / 60), s = t - m * 60; return `${m}:
 function sectorChips(d, c) { const st = d.sectors?.of?.(c); if (!st) return ''; const col = st.k == null || st.cur.every((x) => x == null) ? st.lastCol || st.col : st.col; return [0, 1, 2].map((k) => col?.[k] || '').join(','); }
 
 return { TVShow, sectorChips };
+})();
+
+// ---- src/race/Replay.js
+__m['src/race/Replay.js'] = (() => {
+
+// Crash replays. A rolling record of every car's pose (the last 12 s, 20 times a second, as its mesh is drawn), the
+// hardest crash pulse it took in each twentieth of a second (Car.pulse: the physics' own g, not a guess from the
+// motion) and whether it had been torn in two. When a driver is hurt (RaceDirector.injuries) the stretch around the
+// accident is cut from it - from ~2.5 s before the hardest impact to the car at rest - with the cars that were near
+// it, for the news broadcast after the race (ui/NewsBroadcast.js).
+
+const HZ = 20, KEEP = 12, NEAR = 70;
+/** the wheels' turn is kept modulo this (radians: 64 turns) */
+const SPIN_WRAP = Math.PI * 128;
+const _q = new THREE.Quaternion(), _e = new THREE.Euler(), _v = new THREE.Vector3();
+
+/** the pose car c's mesh is drawn at (as CarMesh.update sets it): position, quaternion -> out[o .. o + 6] */
+function carPose(c, out, o) {
+  if ((c.air || c.wreck) && c.q && c.p) {
+    _q.set(c.q[0], c.q[1], c.q[2], c.q[3]); _v.set(0, 0.48, 0).applyQuaternion(_q);   // (the body turns about its centre)
+    out[o] = c.p[0] - _v.x; out[o + 1] = c.p[1] - _v.y; out[o + 2] = c.p[2] - _v.z;
+  } else {
+    _e.set(c.rl || 0, -c.th, c.pt || 0, 'YZX'); _q.setFromEuler(_e);
+    out[o] = c.x; out[o + 1] = c.hv || 0; out[o + 2] = c.z;
+  }
+  out[o + 3] = _q.x; out[o + 4] = _q.y; out[o + 5] = _q.z; out[o + 6] = _q.w;
+}
+
+class ReplayBuffer {
+  constructor(cars) { this.cars = cars; this.frames = []; this.acc = 0; this.spin = new Float64Array(cars.length); }
+  record(dt, time) {
+    const F = this.frames;
+    while (F.length && F[F.length - 1].t > time + 1e-6) F.pop();   // (after a flashback: what was rewound never happened)
+    // (the wheels: how far each car's have turned - kept within a few dozen turns so a float holds it finely - its
+    //  steering, its speed, whether it is braking: a replay's wheels turn and steer as they did)
+    for (let i = 0; i < this.cars.length; i++) this.spin[i] += (this.cars[i].vLong || 0) / 0.33 * dt;
+    this.acc += dt; if (this.acc < 1 / HZ) return; this.acc %= 1 / HZ;
+    const n = this.cars.length, f = new Float32Array(n * 7), g = new Float32Array(n), split = new Uint8Array(n), w = new Float32Array(n * 4);
+    for (let i = 0; i < n; i++) { const c = this.cars[i]; carPose(c, f, i * 7); g[i] = c.pulseG || 0; c.pulseG = 0; split[i] = c.split ? 1 : 0; w[i * 4] = ((this.spin[i] % SPIN_WRAP) + SPIN_WRAP) % SPIN_WRAP; w[i * 4 + 1] = c.steer || 0; w[i * 4 + 2] = c.vLong || 0; w[i * 4 + 3] = (c.brake > 0.3 ? 1 : 0) + (c.drs ? 2 : 0); }
+    F.push({ t: time, f, g, split, w }); if (F.length > HZ * KEEP) F.shift();
+  }
+  /**
+   * Car c's accident -> { hz, t0 (race time of the first frame), cars, focus (its index in cars), impact: { k, x, z },
+   * frames: [Float32Array poses], pulses: [Float32Array g per car], splitK: [first frame torn in two, or -1] }:
+   * from ~2.5 s before its hardest impact to now, with every car that came within 70 m of it meanwhile.
+   */
+  clip(c) {
+    const i = this.cars.indexOf(c), F = this.frames; if (i < 0 || F.length < 10) return null;
+    const P = (k, j) => F[k].f.subarray(j * 7, j * 7 + 3);
+    // the hardest impact: the biggest crash pulse; with none on record, the biggest loss of speed between two frames
+    let bk = -1, bg = 5;
+    for (let k = 1; k < F.length; k++) if (F[k].g[i] > bg) { bg = F[k].g[i]; bk = k; }
+    if (bk < 0) {
+      const step = (k) => { const a = P(k - 1, i), b = P(k, i); return Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]); };
+      let best = -1; bk = F.length - 1;
+      for (let k = 2; k < F.length; k++) { const dv = step(k - 1) - step(k); if (dv > best) { best = dv; bk = k; } }
+    }
+    // (from 2.5 s before it - and for a car torn in two, from at least 2 s before it split)
+    const ks = F.findIndex((fr) => fr.split[i]);
+    const k0 = Math.max(0, Math.min(bk - Math.round(2.5 * HZ), ks >= 0 ? ks - 2 * HZ : Infinity));
+    const near = [];
+    for (let j = 0; j < this.cars.length; j++) {
+      if (j === i) { near.push(j); continue; }
+      for (let k = k0; k < F.length; k += 2) { const a = P(k, i), b = P(k, j); if ((a[0] - b[0]) ** 2 + (a[2] - b[2]) ** 2 < NEAR * NEAR) { near.push(j); break; } }
+    }
+    const span = F.slice(k0);
+    const frames = span.map((fr) => { const out = new Float32Array(near.length * 7); near.forEach((j, n) => out.set(fr.f.subarray(j * 7, j * 7 + 7), n * 7)); return out; });
+    const pulses = span.map((fr) => Float32Array.from(near, (j) => fr.g[j]));
+    const splitK = near.map((j) => span.findIndex((fr) => fr.split[j]));
+    const ip = P(bk, i);
+    return { hz: HZ, t0: span[0].t, cars: near.map((j) => this.cars[j]), focus: near.indexOf(i), impact: { k: bk - k0, x: ip[0], z: ip[2] }, frames, pulses, splitK };
+  }
+}
+
+return { SPIN_WRAP, carPose, ReplayBuffer };
+})();
+
+// ---- src/race/RaceTape.js
+__m['src/race/RaceTape.js'] = (() => {
+const { carPose } = __m['src/race/Replay.js'];
+// The whole race on tape, for the theatre after the flag (main.js): every car's pose as its mesh is drawn, how far its
+// wheels have turned and how they are steered, its speed, whether it is braking, its DRS, its tyres, whether it is in
+// the pits or out of the race - ten to fifteen times a second from the lights to the end - with the running order
+// each second, the safety car, and the race's moments as they happened (the start, every pass for position, contacts
+// and crashes, stops, retirements, fastest laps, the safety car, the flag) for the timeline and the highlights list.
+// It only reads the race: nothing in it draws a random number or touches a car, so a race with the tape running is
+// the race without it. A flashback winds it back with the race (what was rewound never happened).
+
+const CH = 256, TWO = Math.PI * 2, WRAP = TWO * 64, R_TYRE = 0.33;
+const COMPOUNDS = ['SOFT', 'MEDIUM', 'HARD', 'INTER', 'WET'];
+/** flags of a car in a frame */
+const F = { BRAKE: 1, DRS: 2, PIT: 4, OUT: 8, AIR: 16, HIDE: 32 };
+
+class RaceTape {
+  /** cars: the field (its order is the tape's); o: { hz, laps, lapTime (s, a guess: a long race is taped slower) } */
+  constructor(cars, o = {}) {
+    this.cars = cars; this.n = cars.length + 1;   // (the last slot: the safety car)
+    const dur = (o.laps || 5) * (o.lapTime || 95);
+    this.hz = o.hz || (dur > 4800 ? 7.5 : dur > 2400 ? 10 : 15);
+    this.chunks = []; this.N = 0; this.acc = 0; this.t0 = null; this.events = []; this.order = []; this.tyres = [];
+    this.spin = new Float64Array(this.n); this.lastT = null; this._st = cars.map(() => ({ pos: 0, pit: false, out: false, best: Infinity, hit: -9 })); this._ordT = -9; this._sc = false; this._racing = false; this._flag = false; this._pend = []; this.tStart = null;
+    this.meta = { track: o.track || '', laps: o.laps || 0, names: cars.map((c) => c.name), shorts: cars.map((c) => c.short || c.name.slice(0, 3).toUpperCase()), colors: cars.map((c) => c.color), teams: cars.map((c) => c.team) };
+  }
+  get duration() { return this.N ? this.time(this.N - 1) - this.time(0) : 0; }
+  time(k) { return this.chunks[k >> 8].t[k & 255]; }
+  _chunk() { const n = this.n; return { t: new Float64Array(CH), p: new Float32Array(CH * n * 3), q: new Int16Array(CH * n * 4), w: new Float32Array(CH * n * 2), s: new Int8Array(CH * n), f: new Uint8Array(CH * n), c: new Uint8Array(CH * n) }; }
+  /** a step of the race (d: the director): the wheels turned on, a frame when one is due, the moments noticed */
+  record(dt, d) {
+    const time = d.time, cars = this.cars, n = this.n;
+    if (this.lastT != null && time < this.lastT - 1e-6) this._rewind(time);
+    this.lastT = time;
+    for (let i = 0; i < cars.length; i++) this.spin[i] += (cars[i].vLong || 0) / R_TYRE * dt;
+    this._events(d);
+    this.acc += dt; if (this.acc < 1 / this.hz) return; this.acc %= 1 / this.hz;
+    const k = this.N, ci = k >> 8, o = k & 255; if (!this.chunks[ci]) this.chunks[ci] = this._chunk();
+    const C = this.chunks[ci], tmp = this._tmp || (this._tmp = new Float32Array(7)); C.t[o] = time; if (this.t0 == null) this.t0 = time;
+    for (let i = 0; i < n; i++) {
+      const sc = i === n - 1, c = sc ? (d.sc ? d.sc.car || d.sc.body : null) : cars[i], b = o * n + i;
+      if (!c) { C.f[b] = F.HIDE; continue; }
+      carPose(c, tmp, 0);
+      C.p[b * 3] = tmp[0]; C.p[b * 3 + 1] = tmp[1]; C.p[b * 3 + 2] = tmp[2];
+      C.q[b * 4] = tmp[3] * 32767; C.q[b * 4 + 1] = tmp[4] * 32767; C.q[b * 4 + 2] = tmp[5] * 32767; C.q[b * 4 + 3] = tmp[6] * 32767;
+      if (sc) this.spin[i] += (c.vLong || c.speed || 0) / R_TYRE / this.hz;
+      C.w[b * 2] = ((this.spin[i] % WRAP) + WRAP) % WRAP; C.w[b * 2 + 1] = c.vLong ?? c.speed ?? 0;
+      C.s[b] = Math.max(-127, Math.min(127, Math.round((c.steer || 0) * 100)));
+      C.f[b] = (c.brake > 0.3 ? F.BRAKE : 0) | (c.drs ? F.DRS : 0) | (c.pitLane || c.inPit ? F.PIT : 0) | (c.retired ? F.OUT : 0) | (c.air || c.wreck ? F.AIR : 0) | (sc && !d.sc?.car ? F.HIDE : 0) | (c.hiddenAway ? F.HIDE : 0);
+      C.c[b] = sc ? 0 : Math.max(0, COMPOUNDS.indexOf(c.tyres?.compound));
+    }
+    this.N = k + 1;
+    // the running order, a second apart (the tower in the theatre)
+    if (time - this._ordT >= 1) { this._ordT = time; this.order.push({ t: time, lap: d.leaderLap ?? Math.max(0, ...cars.map((c) => c.lap || 0)), o: Uint8Array.from(d.positions || cars, (c) => cars.indexOf(c)) }); }
+  }
+  /** what happened since the last step: the moments of the race, as they are */
+  _events(d) {
+    const cars = this.cars, P = d.positions || cars, t = d.time, E = this.events, sur = (c) => String(c.name || '').split(' ').pop();
+    if (!this._racing && d.world?.racing) { this._racing = true; this.tStart = t; E.push({ t, kind: 'start', text: 'Lights out', cars: [Math.max(0, cars.indexOf(P[0]))], w: 3 }); }
+    if (!this._racing) return;
+    const scOn = !!d.sc?.active; if (scOn !== this._sc) { this._sc = scOn; const ph = String(d.sc?.phase || ''); E.push({ t, kind: scOn ? 'sc' : 'green', text: scOn ? (ph === 'red' ? 'Red flag' : ph.startsWith('vsc') ? 'Virtual safety car' : 'Safety car') : 'Green flag', cars: [cars.indexOf(P[0])], w: 2 }); }
+    if (!this._flag && d.leaderFinished) { this._flag = true; E.push({ t, kind: 'flag', text: `${sur(P[0])} wins`, cars: [cars.indexOf(P[0])], w: 3 }); }
+    // (the passes noted three seconds ago: the ones that have stood - and not the same two again within twenty seconds)
+    for (const q of [...this._pend]) {
+      if (t - q.t < 4) continue; this._pend.splice(this._pend.indexOf(q), 1);
+      const a = cars[q.i], b = cars[q.j]; if (P.indexOf(a) > P.indexOf(b) || a.retired || b.retired || a.pitLane || a.inPit || b.pitLane || b.inPit) continue;
+      if (E.some((e) => e.kind === 'pass' && q.t - e.t < 20 && e.cars.includes(q.i) && e.cars.includes(q.j))) continue;
+      const pos = P.indexOf(a) + 1; E.push({ t: q.t, kind: 'pass', text: `${sur(a)} passes ${sur(b)} for P${pos}`, cars: [q.i, q.j], pos, w: pos <= 3 ? 3 : pos <= 10 ? 2 : 1 }); E.sort((x, y) => x.t - y.t);
+    }
+    for (let k = 0; k < P.length; k++) {
+      const c = P[k], i = cars.indexOf(c), S = this._st[i]; if (!S) continue; const pos = k + 1, pit = !!(c.pitLane || c.inPit);
+      // a pass for position: one place up on a car that was right ahead a moment ago, neither in the pits nor out -
+      // noted, and a moment of the race only if it still stands three seconds on (two cars side by side swap places
+      // with every metre; the run to the first corner is the start, not twenty passes)
+      if (S.pos && pos === S.pos - 1 && !pit && !c.retired && !c.finished && t - (this.tStart ?? t) > 25) {
+        const o = P[k + 1], j = o ? cars.indexOf(o) : -1, So = j >= 0 ? this._st[j] : null;
+        if (o && So && So.pos === pos && !(o.pitLane || o.inPit) && !o.retired && !So.pit && !o.offTrack && Math.abs(o.speed || 0) > 0.6 * Math.abs(c.speed || 0) && Math.hypot(o.x - c.x, o.z - c.z) < 60 && !this._pend.some((q) => (q.i === i && q.j === j) || (q.i === j && q.j === i))) this._pend.push({ t, i, j, pos });
+      }
+      if (pit && !S.pit) E.push({ t, kind: 'pit', text: `${sur(c)} pits from P${pos}`, cars: [i], w: 1 });
+      if (c.retired && !S.out) E.push({ t, kind: 'out', text: `${sur(c)} is out${c.retireReason ? `: ${String(c.retireReason).toLowerCase()}` : ''}`, cars: [i], w: 2 });
+      const g = c.pulseG || 0;
+      if (g > 7 && t - S.hit > 8) { S.hit = t; E.push({ t, kind: g > 18 ? 'crash' : 'hit', text: g > 18 ? `${sur(c)} crashes (${Math.round(g)} g)` : `${sur(c)}: contact`, cars: [i], w: g > 18 ? 3 : 1 }); }
+      if (isFinite(c.bestLap) && c.bestLap < S.best - 1e-4) { const was = S.best; S.best = c.bestLap; if (isFinite(was) && c.bestLap <= Math.min(...this._st.map((x) => x.best)) + 1e-6) E.push({ t, kind: 'fastest', text: `${sur(c)}: fastest lap`, cars: [i], w: 1 }); }
+      S.pos = pos; S.pit = pit; S.out = !!c.retired;
+    }
+  }
+  /** the race went back to `time` (a flashback): the tape with it */
+  _rewind(time) {
+    let k = this.N; while (k > 0 && this.time(k - 1) > time + 1e-6) k--; this.N = k;
+    this.events = this.events.filter((e) => e.t <= time); this.order = this.order.filter((o) => o.t <= time); this._ordT = this.order.length ? this.order[this.order.length - 1].t : -9;
+    for (const S of this._st) { S.pos = 0; S.hit = Math.min(S.hit, time); } this._pend = [];
+  }
+  /** the frame at or before race time T -> its index (clamped) */
+  seek(T) { let a = 0, b = this.N - 1; if (b < 0) return 0; while (a < b) { const m = (a + b + 1) >> 1; if (this.time(m) <= T) a = m; else b = m - 1; } return a; }
+  /**
+   * Slot i at race time T (between frame k = seek(T) and the next) -> out { x, y, z, qx, qy, qz, qw, spin, v, steer,
+   * flags, tyre }: the pose interpolated, the wheels' turn carried on by the speed
+   */
+  sample(i, T, k, out) {
+    const n = this.n, k1 = Math.min(this.N - 1, k + 1), A = this.chunks[k >> 8], B = this.chunks[k1 >> 8], a = (k & 255) * n + i, b = (k1 & 255) * n + i;
+    const ta = A.t[k & 255], tb = B.t[k1 & 255], u = tb > ta ? Math.max(0, Math.min(1, (T - ta) / (tb - ta))) : 0;
+    out.x = A.p[a * 3] + (B.p[b * 3] - A.p[a * 3]) * u; out.y = A.p[a * 3 + 1] + (B.p[b * 3 + 1] - A.p[a * 3 + 1]) * u; out.z = A.p[a * 3 + 2] + (B.p[b * 3 + 2] - A.p[a * 3 + 2]) * u;
+    // (the attitude: the shorter way round between the two, normalised)
+    let ax = A.q[a * 4], ay = A.q[a * 4 + 1], az = A.q[a * 4 + 2], aw = A.q[a * 4 + 3], bx = B.q[b * 4], by = B.q[b * 4 + 1], bz = B.q[b * 4 + 2], bw = B.q[b * 4 + 3];
+    if (ax * bx + ay * by + az * bz + aw * bw < 0) { bx = -bx; by = -by; bz = -bz; bw = -bw; }
+    const qx = ax + (bx - ax) * u, qy = ay + (by - ay) * u, qz = az + (bz - az) * u, qw = aw + (bw - aw) * u, L = Math.hypot(qx, qy, qz, qw) || 1;
+    out.qx = qx / L; out.qy = qy / L; out.qz = qz / L; out.qw = qw / L;
+    let ds = B.w[b * 2] - A.w[a * 2]; if (ds > WRAP / 2) ds -= WRAP; else if (ds < -WRAP / 2) ds += WRAP;
+    out.spin = A.w[a * 2] + ds * u; out.v = A.w[a * 2 + 1] + (B.w[b * 2 + 1] - A.w[a * 2 + 1]) * u; out.steer = (A.s[a] + (B.s[b] - A.s[a]) * u) / 100;
+    out.flags = A.f[a]; out.tyre = COMPOUNDS[A.c[a]] || 'SOFT';
+    return out;
+  }
+  /** the running order at race time T -> { lap, o: [car indices, first to last] } */
+  orderAt(T) { const O = this.order; if (!O.length) return null; let a = 0, b = O.length - 1; while (a < b) { const m = (a + b + 1) >> 1; if (O[m].t <= T) a = m; else b = m - 1; } return O[a]; }
+  /** megabytes held */
+  get size() { const n = this.n; return this.chunks.length * CH * (8 + n * (12 + 8 + 8 + 1 + 1 + 1)) / 1048576; }
+}
+
+return { COMPOUNDS, F, RaceTape };
+})();
+
+// ---- src/ui/Theatre.js
+__m['src/ui/Theatre.js'] = (() => {
+const { F } = __m['src/race/RaceTape.js'];
+// The theatre: a finished race watched again from its tape (race/RaceTape.js) - the whole of it on a timeline to play,
+// pause, run fast or slow and drag through; any driver to follow, from the fence, behind the car, on board, from the
+// nose, from in front or from the air; the race's moments (the start, every pass for position, contacts and crashes,
+// stops, retirements, the flag) marked on the timeline and listed to jump to, and played one after another as a reel
+// (ALL, OVERTAKES, INCIDENTS); the running order at that moment down the side; and, paused on any frame, the photo
+// mode. main.js owns the world: it gives this the tape, puts the cars where a frame says (host.pose), draws, and takes
+// the screen back when it is closed.
+
+
+const CSS = `
+#theatre { position: fixed; inset: 0; z-index: 40; pointer-events: none; font-family: 'Segoe UI', Roboto, Arial, sans-serif; color: #fff; user-select: none; }
+#theatre.hide > * { opacity: 0; pointer-events: none !important; }
+#theatre > * { transition: opacity .25s; }
+#theatre button { font: 700 11px/1 'Segoe UI', Arial, sans-serif; letter-spacing: .12em; color: #fff; background: rgba(14,16,22,.82); border: 1px solid rgba(255,255,255,.22); border-radius: 6px; padding: 8px 10px; cursor: pointer; pointer-events: auto; }
+#theatre button:hover { border-color: #fff; } #theatre button.on { background: #e10600; border-color: #e10600; }
+#theatre .top { position: absolute; left: 16px; top: 14px; display: flex; gap: 10px; align-items: center; }
+#theatre .tag { font: 800 11px/1 'Segoe UI', Arial, sans-serif; letter-spacing: .3em; background: #e10600; padding: 7px 10px; border-radius: 4px; }
+#theatre .who { font: 300 20px/1 'Segoe UI', Arial, sans-serif; letter-spacing: .1em; text-transform: uppercase; text-shadow: 0 2px 10px rgba(0,0,0,.8); }
+#theatre .who small { font: 600 11px/1 'Segoe UI', Arial, sans-serif; letter-spacing: .2em; opacity: .8; margin-left: 10px; }
+#theatre .cap { position: absolute; left: 50%; top: 58px; transform: translateX(-50%); font: 700 12px/1.2 'Segoe UI', Arial, sans-serif; letter-spacing: .16em; text-transform: uppercase; background: rgba(14,16,22,.82); border-left: 4px solid #e10600; padding: 8px 12px; border-radius: 4px; opacity: 0; }
+#theatre .cap.in { opacity: 1; }
+#theatre .tower { position: absolute; left: 16px; top: 58px; width: 150px; background: rgba(12,14,20,.78); border-radius: 6px; padding: 5px 0; pointer-events: auto; max-height: calc(100vh - 190px); overflow: auto; }
+#theatre .tower div { display: flex; align-items: center; gap: 7px; font: 700 11px/1 'Segoe UI', Arial, sans-serif; letter-spacing: .06em; padding: 3.5px 9px; cursor: pointer; }
+#theatre .tower div:hover { background: rgba(255,255,255,.12); } #theatre .tower div.on { background: rgba(225,6,0,.55); } #theatre .tower div.out { opacity: .4; }
+#theatre .tower i { width: 4px; height: 12px; border-radius: 1px; display: inline-block; } #theatre .tower b { width: 16px; text-align: right; opacity: .75; font-weight: 600; }
+#theatre .list { position: absolute; right: 16px; top: 14px; width: min(300px, 30vw); max-height: calc(100vh - 150px); background: rgba(12,14,20,.84); border-radius: 8px; padding: 10px; pointer-events: auto; display: none; flex-direction: column; gap: 8px; }
+#theatre.moments .list { display: flex; }
+#theatre .list .f { display: flex; gap: 5px; flex-wrap: wrap; } #theatre .list .f button { padding: 6px 8px; font-size: 10px; }
+#theatre .list .rows { overflow: auto; display: flex; flex-direction: column; gap: 2px; }
+#theatre .list .rows div { display: flex; gap: 8px; font: 500 12px/1.25 'Segoe UI', Arial, sans-serif; padding: 6px 7px; border-radius: 5px; cursor: pointer; border-left: 3px solid var(--k, #888); }
+#theatre .list .rows div:hover { background: rgba(255,255,255,.12); } #theatre .list .rows div.now { background: rgba(255,255,255,.16); }
+#theatre .list .rows small { opacity: .7; min-width: 40px; font-variant-numeric: tabular-nums; }
+#theatre .thbar { position: absolute; left: 16px; right: 16px; bottom: 14px; background: rgba(12,14,20,.84); border-radius: 8px; padding: 10px 12px; pointer-events: auto; }
+#theatre .thbar .throw { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+#theatre .thbar .tm { font: 700 13px/1 ui-monospace, Menlo, Consolas, monospace; min-width: 132px; }
+#theatre .thbar .sp { flex: 1; }
+#theatre .thtl { position: relative; height: 22px; margin: 9px 0 2px; cursor: pointer; }
+#theatre .thtl .bg { position: absolute; left: 0; right: 0; top: 9px; height: 4px; background: rgba(255,255,255,.2); border-radius: 2px; }
+#theatre .thtl .fg { position: absolute; left: 0; top: 9px; height: 4px; background: #e10600; border-radius: 2px; }
+#theatre .thtl .hd { position: absolute; top: 4px; width: 4px; height: 14px; margin-left: -2px; background: #fff; border-radius: 2px; box-shadow: 0 0 8px rgba(255,255,255,.8); }
+#theatre .thtl .ev { position: absolute; top: 2px; width: 2px; height: 7px; margin-left: -1px; background: var(--k, #888); opacity: .9; }
+#theatre .thtl .lap { position: absolute; top: 15px; font: 600 9px/1 'Segoe UI', Arial, sans-serif; opacity: .55; transform: translateX(-50%); }
+#theatre .hint { font: 500 10px/1.3 'Segoe UI', Arial, sans-serif; letter-spacing: .06em; opacity: .6; margin-top: 6px; }
+@media (max-width: 900px) { #theatre .tower { display: none; } #theatre .hint { display: none; } }
+`;
+const KIND = { start: '#ffffff', pass: '#39d98a', hit: '#ffd400', crash: '#ff3b30', pit: '#7fb0ff', out: '#ff8a8a', fastest: '#c77dff', sc: '#ffd400', green: '#39d98a', flag: '#ffffff' };
+const CAMS = [['tv', 'TRACKSIDE'], ['chase', 'CHASE'], ['tcam', 'T-CAM'], ['nose', 'NOSE'], ['front', 'FRONT'], ['heli', 'HELICOPTER']];
+const SPEEDS = [0.25, 0.5, 1, 2, 4, 8];
+const FILTERS = { all: ['THE RACE', (e) => e.kind !== 'pit' && e.kind !== 'green' && e.kind !== 'hit' && (e.kind !== 'pass' || e.w >= 2)], pass: ['OVERTAKES', (e) => e.kind === 'pass'], inc: ['INCIDENTS', (e) => e.kind === 'hit' || e.kind === 'crash' || e.kind === 'out' || e.kind === 'sc'], pit: ['STOPS', (e) => e.kind === 'pit'] };
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const clock = (s) => { s = Math.max(0, s); const m = Math.floor(s / 60); return `${m}:${String(Math.floor(s % 60)).padStart(2, '0')}`; };
+
+class Theatre {
+  /**
+   * host: { camera, track, terrain: { at(x, z) }, clear(px, py, pz, tx, ty, tz) (a line of sight), pose(i, sample, T, jumped),
+   *   group(i) (car i's model: an Object3D), render(), photo(on), onClose(), keys: { pressed(code), keys: Set } }
+   */
+  constructor(host, tape, o = {}) {
+    this.h = host; this.tape = tape; this.T0 = tape.N ? tape.time(0) : 0; this.T1 = tape.N ? tape.time(tape.N - 1) : 0;
+    const start = tape.events.find((e) => e.kind === 'start'); this.T = Math.max(this.T0, (start ? start.t : this.T0) - 3);
+    this.k = tape.seek(this.T); this.play = true; this.speed = 1; this.car = Math.max(0, o.car ?? 0); this.cam = 'tv'; this.tv = null; this.filter = 'all'; this.reel = null; this.ui = true; this.jump = true; this.capT = 0;
+    this.s = { x: 0, y: 0, z: 0, qx: 0, qy: 0, qz: 0, qw: 1, spin: 0, v: 0, steer: 0, flags: 0, tyre: 'SOFT' }; this.look = new THREE.Vector3(); this.pos = new THREE.Vector3(); this.first = true; this.drag = false;
+    if (!document.getElementById('theatre-css')) { const st = document.createElement('style'); st.id = 'theatre-css'; st.textContent = CSS; document.head.appendChild(st); }
+    const el = this.el = document.createElement('div'); el.id = 'theatre';
+    el.innerHTML = `<div class="top"><span class="tag">REPLAY</span><span class="who"></span></div><div class="cap"></div><div class="tower"></div>
+      <div class="list"><div class="f">${Object.entries(FILTERS).map(([k, v]) => `<button data-f="${k}">${v[0]}</button>`).join('')}</div><button data-a="reel" class="on">▶ PLAY THESE ONE AFTER ANOTHER</button><div class="rows"></div></div>
+      <div class="thbar"><div class="throw"><button data-a="play">❚❚</button><button data-a="back">◂ 5 s</button><button data-a="fwd">5 s ▸</button><button data-a="slow">−</button><span class="tm"></span><button data-a="fast">+</button>
+        <span class="sp"></span><button data-a="prev">◂ DRIVER</button><button data-a="next">DRIVER ▸</button><button data-a="cam"></button><button data-a="moments">MOMENTS</button><button data-a="photo">PHOTO</button><button data-a="close">CLOSE</button></div>
+        <div class="thtl"><div class="bg"></div><div class="fg"></div><div class="marks"></div><div class="hd"></div></div>
+        <div class="hint">SPACE play · ← → 5 s (SHIFT 30 s) · , . one frame · − + speed · ↑ ↓ driver · C camera · M moments · N / B next / last moment · TAB photo · H hide · ESC close</div></div>`;
+    document.body.appendChild(el);
+    const $ = (q) => el.querySelector(q);
+    this.$who = $('.who'); this.$cap = $('.cap'); this.$tower = $('.tower'); this.$rows = $('.list .rows'); this.$t = $('.thbar .tm'); this.$fg = $('.thtl .fg'); this.$hd = $('.thtl .hd'); this.$tl = $('.thtl'); this.$cam = $('[data-a="cam"]'); this.$play = $('[data-a="play"]');
+    // the timeline's marks: the moments, the laps
+    const dur = Math.max(1, this.T1 - this.T0), M = $('.marks'); let h = '', lap = -1;
+    for (const e of tape.events) if (e.kind !== 'green') h += `<div class="ev" style="left:${((e.t - this.T0) / dur * 100).toFixed(2)}%;--k:${KIND[e.kind] || '#888'}" title="${esc(e.text)}"></div>`;
+    for (const o2 of tape.order) if (o2.lap !== lap && o2.lap > 0) { lap = o2.lap; if (lap > 1) h += `<div class="lap" style="left:${((o2.t - this.T0) / dur * 100).toFixed(2)}%">L${lap}</div>`; }
+    M.innerHTML = h;
+    el.addEventListener('click', (ev) => {
+      const b = ev.target.closest('button'), r = ev.target.closest('.rows div'), tw = ev.target.closest('.tower div');
+      if (tw) { this.follow(+tw.dataset.i); return; }
+      if (r) { this.reel = null; this.toEvent(this.shown[+r.dataset.i]); return; }
+      if (!b) return; const a = b.dataset.a;
+      if (b.dataset.f) { this.filter = b.dataset.f; this.reel = null; this.list(); return; }
+      if (a === 'play') this.toggle(); else if (a === 'back') this.seek(this.T - 5); else if (a === 'fwd') this.seek(this.T + 5); else if (a === 'slow') this.rate(-1); else if (a === 'fast') this.rate(1);
+      else if (a === 'prev') this.step(-1); else if (a === 'next') this.step(1); else if (a === 'cam') this.nextCam(); else if (a === 'moments') el.classList.toggle('moments');
+      else if (a === 'photo') this.h.photo(true); else if (a === 'close') this.h.onClose(); else if (a === 'reel') this.startReel();
+    });
+    const at = (ev) => { const r = this.$tl.getBoundingClientRect(); this.reel = null; this.seek(this.T0 + Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width)) * dur); };
+    this.$tl.addEventListener('pointerdown', (ev) => { this.drag = true; this.$tl.setPointerCapture(ev.pointerId); at(ev); }); this.$tl.addEventListener('pointermove', (ev) => { if (this.drag) at(ev); }); this.$tl.addEventListener('pointerup', () => { this.drag = false; });
+    el.classList.add('moments'); this.list(); this.follow(this.car);
+  }
+  dispose() { this.el.remove(); }
+  toggle() { this.play = !this.play; if (this.play && this.T >= this.T1 - 0.05) this.seek(this.T0); }
+  rate(d) { const i = Math.max(0, Math.min(SPEEDS.length - 1, SPEEDS.indexOf(this.speed) + d)); this.speed = SPEEDS[i]; }
+  seek(T) { this.T = Math.max(this.T0, Math.min(this.T1, T)); this.k = this.tape.seek(this.T); this.jump = true; this.tv = null; }
+  follow(i) { const n = this.tape.cars.length; this.car = ((i % n) + n) % n; this.tv = null; this.first = true; }
+  /** the next driver up or down the running order as it is now */
+  step(d) { const O = this.tape.orderAt(this.T), o = O ? Array.from(O.o) : this.tape.cars.map((_, i) => i), at = Math.max(0, o.indexOf(this.car)); this.follow(o[(at + d + o.length) % o.length]); }
+  nextCam() { const i = CAMS.findIndex((c) => c[0] === this.cam); this.cam = CAMS[(i + 1) % CAMS.length][0]; this.tv = null; this.first = true; }
+  toEvent(e, lead = 4) { if (!e) return; this.seek(e.t - lead); if (e.cars?.length) this.follow(e.cars[0]); this.cam = 'tv'; this.play = true; this.speed = 1; this.caption(e.text); }
+  caption(t, hold = 4.5) { this.$cap.textContent = t; this.$cap.classList.add('in'); this.capT = hold; }
+  startReel() { const L = this.shown.slice().sort((a, b) => a.t - b.t); if (!L.length) return; this.reel = { L, i: 0 }; this.toEvent(L[0]); this.caption(`${FILTERS[this.filter][0]} 1/${L.length} · ${L[0].text}`, 6); }
+  list() {
+    const f = FILTERS[this.filter][1]; this.shown = this.tape.events.filter(f);
+    for (const b of this.el.querySelectorAll('.list .f button')) b.classList.toggle('on', b.dataset.f === this.filter);
+    this.$rows.innerHTML = this.shown.map((e, i) => `<div data-i="${i}" style="--k:${KIND[e.kind] || '#888'}"><small>${clock(e.t - this.T0)}</small><span>${esc(e.text)}</span></div>`).join('') || '<div style="cursor:default;border:none;opacity:.7">Nothing of that kind in this race.</div>';
+  }
+  /** a frame: the keys, the tape moved on, the cars posed, the camera, what is written on the screen, the picture */
+  frame(dt) {
+    const K = this.h.keys, P = (c) => K.pressed(c), shift = K.keys.has('ShiftLeft') || K.keys.has('ShiftRight');
+    if (P('Escape')) { this.h.onClose(); return; }
+    if (P('Space')) this.toggle(); if (P('ArrowLeft')) { this.reel = null; this.seek(this.T - (shift ? 30 : 5)); } if (P('ArrowRight')) { this.reel = null; this.seek(this.T + (shift ? 30 : 5)); }
+    if (P('Comma')) { this.play = false; this.seek(this.T - 1 / this.tape.hz); } if (P('Period')) { this.play = false; this.seek(this.T + 1 / this.tape.hz); }
+    if (P('Minus') || P('NumpadSubtract')) this.rate(-1); if (P('Equal') || P('NumpadAdd')) this.rate(1);
+    if (P('ArrowUp')) this.step(-1); if (P('ArrowDown')) this.step(1); if (P('KeyC')) this.nextCam(); if (P('KeyM')) this.el.classList.toggle('moments');
+    if (P('KeyH')) { this.ui = !this.ui; this.el.classList.toggle('hide', !this.ui); } if (P('Tab')) { this.h.photo(true); return; }
+    if (P('KeyN') || P('KeyB')) { const d = P('KeyN') ? 1 : -1, L = this.shown.slice().sort((a, b) => a.t - b.t), e = d > 0 ? L.find((x) => x.t > this.T + 4.5) : L.slice().reverse().find((x) => x.t < this.T + 2); this.reel = null; if (e) this.toEvent(e); }
+    if (this.play) { this.T += dt * this.speed; if (this.T >= this.T1) { this.T = this.T1; this.play = false; } const tp = this.tape; while (this.k < tp.N - 2 && tp.time(this.k + 1) <= this.T) this.k++; }
+    // a reel: on to the next moment three seconds after this one
+    if (this.reel) { const R = this.reel, e = R.L[R.i]; if (this.T > e.t + 3.2 || !this.play) { R.i++; if (R.i >= R.L.length || !this.play) { this.reel = null; this.play = false; } else { this.toEvent(R.L[R.i]); this.caption(`${FILTERS[this.filter][0]} ${R.i + 1}/${R.L.length} · ${R.L[R.i].text}`, 6); } } }
+    const tp = this.tape, n = tp.n, s = this.s;
+    for (let i = 0; i < n; i++) this.h.pose(i, tp.sample(i, this.T, this.k, s), this.T, this.jump);
+    this.camera(dt); this.jump = false;
+    if (this.capT > 0) { this.capT -= dt; if (this.capT <= 0) this.$cap.classList.remove('in'); }
+    this.draw(); if (!this.noDraw) this.h.render();   /* (noDraw: a test stepping the tape without drawing every frame) */
+  }
+  /** the camera on the car followed (its model is where the frame put it: on the ground, tilted with it) */
+  camera(dt) {
+    const g = this.h.group(this.car), cam = this.h.camera; if (!g) return;
+    const p = g.position, f = _f.set(1, 0, 0).applyQuaternion(g.quaternion), u = _u.set(0, 1, 0).applyQuaternion(g.quaternion), snap = this.first || this.jump, q = snap ? 1 : Math.min(1, dt * 7);
+    let fov = 60; cam.up.set(0, 1, 0);
+    if (this.cam === 'tcam' || this.cam === 'nose') {
+      const nose = this.cam === 'nose'; cam.position.copy(p).addScaledVector(u, nose ? 0.4 : 1.03).addScaledVector(f, nose ? 1.85 : -0.2); cam.up.copy(u);
+      cam.lookAt(_a.copy(cam.position).addScaledVector(f, 10).addScaledVector(u, nose ? 0 : -0.9)); fov = nose ? 82 : 76;
+    } else if (this.cam === 'chase' || this.cam === 'front' || this.cam === 'heli') {
+      const want = this.cam === 'chase' ? _a.copy(p).addScaledVector(f, -6.6).setY(p.y + 2.4) : this.cam === 'front' ? _a.copy(p).addScaledVector(f, 8.5).setY(p.y + 1.35) : _a.copy(p).addScaledVector(f, -30).setY(p.y + 40);
+      const gy = this.h.terrain.at(want.x, want.z) + 0.5; if (want.y < gy) want.y = gy;
+      if (snap) this.pos.copy(want); else this.pos.lerp(want, Math.min(1, dt * (this.cam === 'heli' ? 1.6 : 5.5)));
+      cam.position.copy(this.pos); const lt = this.cam === 'chase' ? _b.copy(p).addScaledVector(f, 5).setY(p.y + 0.9) : _b.copy(p).setY(p.y + 0.6);
+      if (snap) this.look.copy(lt); else this.look.lerp(lt, q); cam.lookAt(this.look); fov = this.cam === 'chase' ? 62 : this.cam === 'front' ? 38 : 26;
+    } else {
+      // from the fence: a camera a little way up the road with a clear sight of the car, kept until the car is well past
+      const tr = this.h.track, tv = this.tv, d = tv ? Math.hypot(tv.x - p.x, tv.z - p.z) : 0;
+      if (tv) { tv.age += dt; if ((d > tv.d0 + 25 && tv.age > 1.2) || d > 330) this.tv = null; else if (d < tv.near) tv.near = d; if (this.tv && d > tv.near + 90 && tv.age > 2) this.tv = null; }
+      if (!this.tv) {
+        const nq = tr.nearest(p.x, p.z, -1, _nq), s0 = nq.s, dir = this.s2 != null && ((s0 - this.s2 + tr.length * 1.5) % tr.length) - tr.length / 2 < -0.5 ? -1 : 1; let best = null;
+        for (const [sd, ah, hh] of [[1, 130, 6], [-1, 130, 6], [1, 70, 5], [-1, 70, 5], [1, 200, 9], [-1, 200, 9], [1, 30, 12], [-1, 30, 12]]) {
+          const sq = tr.wrapS(s0 + ah * dir), iq = tr.idxAtS(sq), w = tr.wallAt(iq, sd), pt = tr.sample(sq, sd * ((isFinite(w) ? Math.min(w, 28) : 14) + 0.6)), y = this.h.terrain.at(pt.x, pt.z) + hh;
+          if (this.h.clear(pt.x, y, pt.z, p.x, p.y + 0.8, p.z)) { best = { x: pt.x, y, z: pt.z }; break; }
+        }
+        if (!best) best = { x: p.x + 20, y: p.y + 45, z: p.z + 20 };
+        this.tv = { ...best, age: 0, d0: Math.hypot(best.x - p.x, best.z - p.z), near: 1e9 }; this.first = true;
+      }
+      this.s2 = tr.nearest(p.x, p.z, -1, _nq).s;
+      const t2 = this.tv; cam.position.set(t2.x, t2.y, t2.z); const lt = _b.copy(p).setY(p.y + 0.7); if (this.first || this.jump) this.look.copy(lt); else this.look.lerp(lt, Math.min(1, dt * 9)); cam.lookAt(this.look);
+      fov = Math.max(7, Math.min(48, 1500 / Math.max(20, Math.hypot(t2.x - p.x, t2.z - p.z))));
+    }
+    this.first = false;
+    if (Math.abs(cam.fov - fov) > 0.01) { cam.fov = snap ? fov : cam.fov + (fov - cam.fov) * Math.min(1, dt * 5); cam.updateProjectionMatrix(); }
+  }
+  draw() {
+    const tp = this.tape, M = tp.meta, O = tp.orderAt(this.T), dur = Math.max(1, this.T1 - this.T0), u = (this.T - this.T0) / dur;
+    this.$fg.style.width = `${u * 100}%`; this.$hd.style.left = `${u * 100}%`;
+    const key = `${Math.floor(this.T)}|${this.speed}|${this.play}|${this.cam}|${this.car}|${O ? O.t : 0}`; if (key === this._key) return; this._key = key;
+    this.$t.textContent = `${clock(this.T - this.T0)} / ${clock(dur)} · ${this.speed}×`; this.$play.textContent = this.play ? '❚❚' : '▶'; this.$cam.textContent = `CAMERA · ${CAMS.find((c) => c[0] === this.cam)[1]}`;
+    const pos = O ? Array.from(O.o).indexOf(this.car) + 1 : 0;
+    this.$who.innerHTML = `${esc(M.names[this.car])}<small>${pos ? `P${pos} · ` : ''}${O && M.laps ? `LAP ${Math.min(M.laps, Math.max(1, O.lap))}/${M.laps}` : ''}</small>`;
+    if (O) { const k2 = tp.seek(this.T), C = tp.chunks[k2 >> 8], b = (k2 & 255) * tp.n; this.$tower.innerHTML = Array.from(O.o).map((i, k) => `<div data-i="${i}" class="${i === this.car ? 'on' : ''}${C.f[b + i] & F.OUT ? ' out' : ''}"><b>${k + 1}</b><i style="background:${M.colors[i]}"></i>${esc(M.shorts[i])}${C.f[b + i] & F.PIT ? ' · PIT' : ''}</div>`).join(''); }
+    const now = this.shown.findIndex((e) => Math.abs(e.t - this.T) < 2.5); for (const r of this.$rows.children) r.classList.toggle('now', +r.dataset.i === now);
+  }
+}
+const _f = new THREE.Vector3(), _u = new THREE.Vector3(), _a = new THREE.Vector3(), _b = new THREE.Vector3(), _nq = {};
+
+return { CAMS, Theatre };
 })();
 
 // ---- src/world/TVProps.js
@@ -190125,76 +191037,6 @@ class Failures {
 return { Failures };
 })();
 
-// ---- src/race/Replay.js
-__m['src/race/Replay.js'] = (() => {
-
-// Crash replays. A rolling record of every car's pose (the last 12 s, 20 times a second, as its mesh is drawn), the
-// hardest crash pulse it took in each twentieth of a second (Car.pulse: the physics' own g, not a guess from the
-// motion) and whether it had been torn in two. When a driver is hurt (RaceDirector.injuries) the stretch around the
-// accident is cut from it - from ~2.5 s before the hardest impact to the car at rest - with the cars that were near
-// it, for the news broadcast after the race (ui/NewsBroadcast.js).
-
-const HZ = 20, KEEP = 12, NEAR = 70;
-const _q = new THREE.Quaternion(), _e = new THREE.Euler(), _v = new THREE.Vector3();
-
-/** the pose car c's mesh is drawn at (as CarMesh.update sets it): position, quaternion -> out[o .. o + 6] */
-function carPose(c, out, o) {
-  if ((c.air || c.wreck) && c.q && c.p) {
-    _q.set(c.q[0], c.q[1], c.q[2], c.q[3]); _v.set(0, 0.48, 0).applyQuaternion(_q);   // (the body turns about its centre)
-    out[o] = c.p[0] - _v.x; out[o + 1] = c.p[1] - _v.y; out[o + 2] = c.p[2] - _v.z;
-  } else {
-    _e.set(c.rl || 0, -c.th, c.pt || 0, 'YZX'); _q.setFromEuler(_e);
-    out[o] = c.x; out[o + 1] = c.hv || 0; out[o + 2] = c.z;
-  }
-  out[o + 3] = _q.x; out[o + 4] = _q.y; out[o + 5] = _q.z; out[o + 6] = _q.w;
-}
-
-class ReplayBuffer {
-  constructor(cars) { this.cars = cars; this.frames = []; this.acc = 0; }
-  record(dt, time) {
-    const F = this.frames;
-    while (F.length && F[F.length - 1].t > time + 1e-6) F.pop();   // (after a flashback: what was rewound never happened)
-    this.acc += dt; if (this.acc < 1 / HZ) return; this.acc %= 1 / HZ;
-    const n = this.cars.length, f = new Float32Array(n * 7), g = new Float32Array(n), split = new Uint8Array(n);
-    for (let i = 0; i < n; i++) { const c = this.cars[i]; carPose(c, f, i * 7); g[i] = c.pulseG || 0; c.pulseG = 0; split[i] = c.split ? 1 : 0; }
-    F.push({ t: time, f, g, split }); if (F.length > HZ * KEEP) F.shift();
-  }
-  /**
-   * Car c's accident -> { hz, t0 (race time of the first frame), cars, focus (its index in cars), impact: { k, x, z },
-   * frames: [Float32Array poses], pulses: [Float32Array g per car], splitK: [first frame torn in two, or -1] }:
-   * from ~2.5 s before its hardest impact to now, with every car that came within 70 m of it meanwhile.
-   */
-  clip(c) {
-    const i = this.cars.indexOf(c), F = this.frames; if (i < 0 || F.length < 10) return null;
-    const P = (k, j) => F[k].f.subarray(j * 7, j * 7 + 3);
-    // the hardest impact: the biggest crash pulse; with none on record, the biggest loss of speed between two frames
-    let bk = -1, bg = 5;
-    for (let k = 1; k < F.length; k++) if (F[k].g[i] > bg) { bg = F[k].g[i]; bk = k; }
-    if (bk < 0) {
-      const step = (k) => { const a = P(k - 1, i), b = P(k, i); return Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]); };
-      let best = -1; bk = F.length - 1;
-      for (let k = 2; k < F.length; k++) { const dv = step(k - 1) - step(k); if (dv > best) { best = dv; bk = k; } }
-    }
-    // (from 2.5 s before it - and for a car torn in two, from at least 2 s before it split)
-    const ks = F.findIndex((fr) => fr.split[i]);
-    const k0 = Math.max(0, Math.min(bk - Math.round(2.5 * HZ), ks >= 0 ? ks - 2 * HZ : Infinity));
-    const near = [];
-    for (let j = 0; j < this.cars.length; j++) {
-      if (j === i) { near.push(j); continue; }
-      for (let k = k0; k < F.length; k += 2) { const a = P(k, i), b = P(k, j); if ((a[0] - b[0]) ** 2 + (a[2] - b[2]) ** 2 < NEAR * NEAR) { near.push(j); break; } }
-    }
-    const span = F.slice(k0);
-    const frames = span.map((fr) => { const out = new Float32Array(near.length * 7); near.forEach((j, n) => out.set(fr.f.subarray(j * 7, j * 7 + 7), n * 7)); return out; });
-    const pulses = span.map((fr) => Float32Array.from(near, (j) => fr.g[j]));
-    const splitK = near.map((j) => span.findIndex((fr) => fr.split[j]));
-    const ip = P(bk, i);
-    return { hz: HZ, t0: span[0].t, cars: near.map((j) => this.cars[j]), focus: near.indexOf(i), impact: { k: bk - k0, x: ip[0], z: ip[2] }, frames, pulses, splitK };
-  }
-}
-
-return { carPose, ReplayBuffer };
-})();
-
 // ---- src/race/Sectors.js
 __m['src/race/Sectors.js'] = (() => {
 
@@ -191010,6 +191852,7 @@ const { DRS } = __m['src/race/DRS.js'];
 const { Failures } = __m['src/race/Failures.js'];
 const { Flashback } = __m['src/race/Flashback.js'];
 const { ReplayBuffer } = __m['src/race/Replay.js'];
+const { RaceTape } = __m['src/race/RaceTape.js'];
 const { Sectors, Passes } = __m['src/race/Sectors.js'];
 const { neutralForm } = __m['src/career/Morale.js'];
 const { setTyreLap, lapLoss, outLapLoss, cliffLaps, RATE_NOM } = __m['src/vehicle/Tyres.js'];
@@ -191018,6 +191861,7 @@ const { TeamOrders } = __m['src/race/TeamOrders.js'];
 const { Weather, weatherPlan } = __m['src/race/Weather.js'];
 // Race director: grid/lights/start protocol, fixed-step world simulation, car-car
 // collisions, slipstream, pit lane autopilot + stops, laps/penalties/classification.
+
 
 
 
@@ -191170,6 +192014,8 @@ class RaceDirector {
     this.flashback = new Flashback(this, s.flashbacks === 'off' ? 0 : Infinity);   // (races only: in qualifying and time trial there is nobody to be within a second of)
     // the last 12 s of every car's pose: a hurt driver's accident is cut from it for the news after the race
     this.replay = this.mode === 'race' ? new ReplayBuffer(this.cars) : null;
+    // the whole race on tape, for the theatre after the flag (race/RaceTape.js: it only reads the race)
+    this.tape = this.mode === 'race' ? new RaceTape(this.cars, { laps: this.lapsTotal || 5, lapTime: lapT0, track: this.track?.def?.id || '' }) : null;
     // every AI car's race plan (standard / early / long / gamble), and the starting tyres that go with it
     if (this.mode === 'race') for (const a of this.ai) { if (a.planRace(this.world, a.car.gridPos || 1, this.cars.length)) this.onPitDone?.(a.car); this.calls.plan(a.car, a.strat?.type, a.car.tyres.compound); }
     // lap telemetry: the player at 30 Hz, every AI car at 10 Hz (reference laps)
@@ -191293,6 +192139,7 @@ class RaceDirector {
       this.collisions();
       if (this.state === 'lights') this.jumpStarts();
     }
+    this.tape?.record(dt, this);   // (before the rolling record: that one takes the crash pulses with it)
     this.replay?.record(dt, this.time);
     if (this.replay) for (const c of this.cars) if (c._clipAt != null && this.time >= c._clipAt) { c._clipAt = null; c.injuryClip = this.replay.clip(c); }
     // (the run to Turn 1 from a standing start: over once a car is past the first corner's apex, or after 25 s)
@@ -194707,6 +195554,8 @@ const { playScene } = __m['src/ui/CineIndex.js'];
 const { radioReplays, stopRadioReplays } = __m['src/ui/RadioReplay.js'];
 const { TVExtras } = __m['src/ui/TVExtras.js'];
 const { TVShow, sectorChips } = __m['src/ui/TVShow.js'];
+const { Theatre } = __m['src/ui/Theatre.js'];
+const { SPIN_WRAP } = __m['src/race/Replay.js'];
 const { TVProps } = __m['src/world/TVProps.js'];
 const { AudioEngine } = __m['src/audio/Audio.js'];
 const { ROSTER, customDriver, POINTS, standIn, dayPerf } = __m['src/race/Roster.js'];
@@ -194756,6 +195605,8 @@ const { buildVegasPaddock } = __m['src/world/VegasPaddock.js'];
 // (the scene's matrices recomputed only where something moved: in place before anything is built)
 
 void FAST_MATRIX;
+
+
 
 
 
@@ -196100,6 +196951,7 @@ function camSubject() {
   const s = SUBJ; s.car = null; s.ride = s.own = s.free = false;
   const at = (v) => (v?.isVector3 ? (s.p.copy(v), s) : null);
   const car = (c) => { if ((c.air || c.wreck) && c.p) s.p.set(c.p[0], c.p[1], c.p[2]); else s.p.set(c.x, 0.55 + (c.hv || 0), c.z); s.car = c; return s; };
+  if (TH.on) return 'world';    // (the theatre: its cameras are placed in the world as it stands)
   if (POV.on) return 'world';   // (inside the helmet: placed off the car model, the replay's ones lifted as it is drawn - povReplay)
   if (NEWS.on) { const n = NEWS.cut, k = n?.seg?.k; if (!at(n?.look)) return null; s.ride = k === 'tcam' || k === 'tcam2'; return s; }   // (ui/NewsBroadcast.js: its shots placed on the flat, aimed at look)
   // (an evening out: the venue's own camera, placed in the world as it stands - the venue is on the ground there: hangoutAnchor)
@@ -196630,6 +197482,7 @@ function endSession() {
   playSession(S.director, { career: !!S.weekend?.career, mode: S.weekend?.mode, track: W.def?.id, len: W.track?.length, crashG: CRASH_G });
   killPre();   // (quit during the build-up)
   if (S.director) S.lastTelemetry = S.director.telemetry;
+  if (S.director?.tape && S.director.mode === 'race') S.tape = S.director.tape.N > 60 ? S.director.tape : null;   // (the race on tape, for the theatre: REPLAY on the results)
   S.crews?.dispose(); S.crews = null; pitTiming.hide(); S.flags?.dispose(); S.flags = null; S.fireworks?.dispose(); S.fireworks = null;   // the report stays available after the session (results, qualifying sheet)
   if (telView.open) telView.close();
   for (const m of S.meshes.values()) { scene.remove(m.group); m.dispose(); }
@@ -196748,6 +197601,7 @@ function startRound() {
 function estimatePace() { let t = 0; for (let i = 0; i < W.track.n; i++) t += W.track.ds / Math.max(8, W.profile[i]); return t * 1.02; }
 
 function makeDirector(mode, cars, player, extra = {}) {
+  if (TH.on) theatreClose(); if (mode === 'race') S.tape = null;   // (a new race: the last one's tape is let go)
   const wk = S.weekend;
   // (the title screen's ambient cars: any frame between two sessions with no director - the results, the build-up, a
   //  career's next session - made them again, and a session started any way but the menu's START left them standing
@@ -197377,8 +198231,11 @@ function tpReplayPose(r) {
   for (let n = 0; n < cars.length; n++) {
     const m = S.meshes.get(cars[n]); if (!m) continue; const q = n * 7;
     const rx = A.f[q] + (B.f[q] - A.f[q]) * u, rz = A.f[q + 2] + (B.f[q + 2] - A.f[q + 2]) * u;
-    m.group.position.set(rx, A.f[q + 1] + (B.f[q + 1] - A.f[q + 1]) * u + TERRAIN.at(rx, rz), rz);
-    _rqa.set(A.f[q + 3], A.f[q + 4], A.f[q + 5], A.f[q + 6]); _rqb.set(B.f[q + 3], B.f[q + 4], B.f[q + 5], B.f[q + 6]); m.group.quaternion.copy(_rqa).slerp(_rqb, u);
+    _rqa.set(A.f[q + 3], A.f[q + 4], A.f[q + 5], A.f[q + 6]); _rqb.set(B.f[q + 3], B.f[q + 4], B.f[q + 5], B.f[q + 6]); _rqa.slerp(_rqb, u);
+    const ry = A.f[q + 1] + (B.f[q + 1] - A.f[q + 1]) * u + TERRAIN.at(rx, rz), wa = A.w, wb = B.w, w = n * 4;
+    // (the wheels as they were: how far they had turned - the record keeps it modulo SPIN_WRAP - the steering, the brake light, the DRS)
+    if (wa && wb) { let ds = wb[w] - wa[w]; if (ds > SPIN_WRAP / 2) ds -= SPIN_WRAP; else if (ds < -SPIN_WRAP / 2) ds += SPIN_WRAP; m.pose(rx, ry, rz, _rqa, wa[w] + ds * u, wa[w + 1] + (wb[w + 1] - wa[w + 1]) * u, wa[w + 2] + (wb[w + 2] - wa[w + 2]) * u, (wa[w + 3] & 1) === 1, (wa[w + 3] & 2) === 2); }
+    else { m.group.position.set(rx, ry, rz); m.group.quaternion.copy(_rqa); }
   }
 }
 /** every car's model back where the car really is */
@@ -197710,7 +198567,6 @@ function tpKeys() {
   // (an instant replay: R takes the one offered; R, Space or Esc ends the one playing)
   if (TP.rep) { if (input.pressed('KeyR') || input.pressed('Escape')) { tpReplayEnd(); return; } }
   else if (input.pressed('KeyR')) TP.fx?.take();
-  if (input.pressed('KeyV') && TP.show) { TP.show.setVoice(!TP.show.voice); TP.gfx.rc(TP.show.voice ? 'the commentary is spoken' : 'the commentary is captions only', '', 'VOICE'); }
   if (input.pressed('Space')) tpAct('pause');
   if (input.pressed('Equal') || input.pressed('NumpadAdd')) tpAct('speed', Math.min(4, TP.speed * 2));
   if (input.pressed('Minus') || input.pressed('NumpadSubtract')) tpAct('speed', Math.max(1, TP.speed / 2));
@@ -199324,6 +200180,70 @@ function cullDetail() {
 /** the engine was heard live this frame (you driving, or the car you watch): any frame it isn't - paused, photo mode, a
  *  flashback, the pit menu, the crash camera, a replay or the news, the menus - it fades out instead of droning on */
 let audioLive = false;
+// ---------------------------------------------------------------------------
+// the theatre (ui/Theatre.js): the race just run, watched again from its tape (race/RaceTape.js) - REPLAY on the
+// results. The cars' models are made again and put where each frame of the tape had them (wheels turned and steered,
+// the damage each had by then), the theatre moves the camera; paused on a frame, TAB or PHOTO opens the photo mode
+// on it. Nothing of a session is running: closing it gives the results back.
+// ---------------------------------------------------------------------------
+const TH = { on: false, th: null, tape: null, photo: false, fov: 60 };
+const _thQ = new THREE.Quaternion();
+function theatreOpen() {
+  const tape = S.tape; if (!tape || TH.on || S.director) return false;
+  $('results').classList.add('hidden'); stopRadioReplays();
+  TH.on = true; TH.tape = tape; TH.photo = false; TH.fov = camera.fov;
+  for (const c of tape.cars) { if (c.events) c.events.length = 0; }
+  spawnMeshes(tape.cars);
+  const last = tape.order[tape.order.length - 1], me = tape.cars.findIndex((c) => c.isPlayer || (settings.mode === 'tp' && c.team === settings.tpTeam));
+  TH.th = new Theatre({ camera, track: W.track, terrain: TERRAIN, clear: (px, py, pz, tx, ty, tz) => tvClear(px, py, pz, tx, ty, tz, true), pose: thPose, group: (i) => S.meshes.get(tape.cars[i])?.group || null,
+    render: renderView, photo: thPhoto, onClose: theatreClose, keys: input }, tape, { car: me >= 0 ? me : last ? last.o[0] : 0 });
+  if (RL.group) RL.group.visible = false; audio.quiet?.(0.2);
+  return true;
+}
+function theatreClose() {
+  if (!TH.on) return;
+  if (PHOTO.on) thPhoto(false);
+  TH.th?.dispose(); TH.th = null; TH.on = false; TH.tape = null;
+  for (const m of S.meshes.values()) { scene.remove(m.group); m.dispose(); } S.meshes.clear();
+  if (scMesh) { scene.remove(scMesh.group); scMesh.dispose(); scMesh = null; }
+  camera.fov = TH.fov; camera.up.set(0, 1, 0); camera.updateProjectionMatrix();
+  $('results').classList.remove('hidden');
+}
+/** slot i of the tape put where the frame has it: a car's model (its wheels, its tyres, the damage it had by then) or the safety car's */
+function thPose(i, s, T, jumped) {
+  const tape = TH.tape;
+  if (i >= tape.cars.length) {
+    const show = !(s.flags & 32); if (show && !scMesh) { scMesh = new SafetyCarMesh(); scene.add(scMesh.group); }
+    if (scMesh) { scMesh.group.visible = show; if (show) { scMesh.group.position.set(s.x, s.y, s.z); scMesh.group.quaternion.set(s.qx, s.qy, s.qz, s.qw); onGround(scMesh.group); } }
+    return;
+  }
+  const c = tape.cars[i]; let m = S.meshes.get(c); if (!m) return;
+  // (wound back to before a car was torn in two: a torn model cannot be made whole - a new one)
+  if (jumped && m._thT != null && T < m._thT - 0.01 && c.split) { respawnMesh(c); m = S.meshes.get(c); if (!m) return; }
+  _thQ.set(s.qx, s.qy, s.qz, s.qw); m.pose(s.x, s.y, s.z, _thQ, s.spin, s.steer, s.v, (s.flags & 1) === 1, (s.flags & 2) === 2); onGround(m.group);
+  m.group.visible = !(s.flags & 32);
+  if (m._thTyre !== s.tyre) { m._thTyre = s.tyre; try { m.setCompound(s.tyre); } catch (e) { /* as it is */ } }
+  if (m._thT == null || jumped || Math.abs(T - m._thT) > 0.5) { m._thT = T; try { m.replay(c, T); } catch (e) { /* as it is */ } }
+}
+/** the photo mode on the frame the theatre is paused at (and back) */
+function thPhoto(on) {
+  if (!TH.on || on === PHOTO.on) return;
+  if (on) {
+    TH.th.play = false; TH.th.el.style.display = 'none';
+    const g = S.meshes.get(TH.tape.cars[TH.th.car])?.group;
+    if (g) { const f = new THREE.Vector3(1, 0, 0).applyQuaternion(g.quaternion), r = new THREE.Vector3(0, 0, 1).applyQuaternion(g.quaternion); camera.position.copy(g.position).addScaledVector(f, 5.2).addScaledVector(r, 3.1); camera.position.y = Math.max(g.position.y + 1.25, TERRAIN.at(camera.position.x, camera.position.z) + 0.6); camera.up.set(0, 1, 0); camera.lookAt(g.position.x, g.position.y + 0.55, g.position.z); camera.fov = 42; camera.updateProjectionMatrix(); }
+    enterPhoto(); S.paused = false; $('photo-play').style.display = 'none'; TH.photo = true;
+  } else { exitPhoto(); $('photo-play').style.display = ''; $('pause').classList.add('hidden'); $('hud').classList.add('hidden'); TH.th.el.style.display = ''; TH.photo = false; TH.th.first = true; S.paused = false; }
+}
+function theatreFrame(dt) {
+  if (PHOTO.on) {
+    if (input.pressed('Escape') || input.pressed('Tab')) thPhoto(false);
+    else { updatePhoto(dt); camera.position.y = Math.max(camera.position.y, TERRAIN.at(camera.position.x, camera.position.z) + 0.3); renderView(); }
+  } else TH.th.frame(dt);
+  input.endFrame();
+}
+$('btn-theatre')?.addEventListener('click', () => { if (!theatreOpen()) hud.msg('NO REPLAY OF THIS RACE', '', 2); });
+
 function frame(now) {
   requestAnimationFrame(frame);
   if (!audioLive) audio?.quiet?.(0.06); audioLive = false;   // (cut, not a long fade)
@@ -199332,6 +200252,7 @@ function frame(now) {
   if (NEWS.on) { newsFrame(dt); return; }   // (the news broadcast has the screen)
   if (PRE.on) { preFrame(dt); return; }     // (the pre-race show: the race waits on the grid)
   if (HANG.on) { hangFrame(dt, interval); return; }   // (an evening out, in the world: ui/Hangout.js drives the camera)
+  if (TH.on) { theatreFrame(dt); return; }            // (the theatre: a race watched again from its tape)
   const d = S.director, p = S.player;
 
   if (PHOTO.on) {
@@ -199518,6 +200439,7 @@ function frame(now) {
       return new Promise((res) => careerHangout(L, res, c));
     },
     /** headless fast-forward (testing/telemetry): advances the active session by `sec` seconds without rendering */
+    get TH() { return TH; }, theatreOpen, theatreClose, endSession, frame,   /* (the theatre; a frame of the game's own loop: test hooks) */
     stepSim(sec, step = 1 / 60) { const d = S.director; if (!d) return 'no session'; const n = Math.round(sec / step); for (let i = 0; i < n && !d.done; i++) { input.update(step, S.player ? S.player.speed : 0); d.update(step, input); } return d.time; },
     /** render stats: draw calls / triangles of the last frame, average CPU ms per frame since the last call, current render scale */
     perf() { const r = { calls: RES.calls, triangles: RES.tris, avgFrameMs: +(RES.msSum / Math.max(1, RES.frames)).toFixed(2), frames: RES.frames, renderScale: RES.scale, pixelRatio: renderer.getPixelRatio() }; RES.frames = 0; RES.msSum = 0; console.info('[perf]', r); return r; },

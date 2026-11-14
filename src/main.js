@@ -69,6 +69,8 @@ import { playScene } from './ui/CineIndex.js';
 import { radioReplays, stopRadioReplays } from './ui/RadioReplay.js';
 import { TVExtras } from './ui/TVExtras.js';
 import { TVShow, sectorChips } from './ui/TVShow.js';
+import { Theatre } from './ui/Theatre.js';
+import { SPIN_WRAP } from './race/Replay.js';
 import { TVProps } from './world/TVProps.js';
 import { AudioEngine } from './audio/Audio.js';
 import { ROSTER, customDriver, POINTS, standIn, dayPerf } from './race/Roster.js';
@@ -1348,6 +1350,7 @@ function camSubject() {
   const s = SUBJ; s.car = null; s.ride = s.own = s.free = false;
   const at = (v) => (v?.isVector3 ? (s.p.copy(v), s) : null);
   const car = (c) => { if ((c.air || c.wreck) && c.p) s.p.set(c.p[0], c.p[1], c.p[2]); else s.p.set(c.x, 0.55 + (c.hv || 0), c.z); s.car = c; return s; };
+  if (TH.on) return 'world';    // (the theatre: its cameras are placed in the world as it stands)
   if (POV.on) return 'world';   // (inside the helmet: placed off the car model, the replay's ones lifted as it is drawn - povReplay)
   if (NEWS.on) { const n = NEWS.cut, k = n?.seg?.k; if (!at(n?.look)) return null; s.ride = k === 'tcam' || k === 'tcam2'; return s; }   // (ui/NewsBroadcast.js: its shots placed on the flat, aimed at look)
   // (an evening out: the venue's own camera, placed in the world as it stands - the venue is on the ground there: hangoutAnchor)
@@ -1878,6 +1881,7 @@ function endSession() {
   playSession(S.director, { career: !!S.weekend?.career, mode: S.weekend?.mode, track: W.def?.id, len: W.track?.length, crashG: CRASH_G });
   killPre();   // (quit during the build-up)
   if (S.director) S.lastTelemetry = S.director.telemetry;
+  if (S.director?.tape && S.director.mode === 'race') S.tape = S.director.tape.N > 60 ? S.director.tape : null;   // (the race on tape, for the theatre: REPLAY on the results)
   S.crews?.dispose(); S.crews = null; pitTiming.hide(); S.flags?.dispose(); S.flags = null; S.fireworks?.dispose(); S.fireworks = null;   // the report stays available after the session (results, qualifying sheet)
   if (telView.open) telView.close();
   for (const m of S.meshes.values()) { scene.remove(m.group); m.dispose(); }
@@ -1996,6 +2000,7 @@ function startRound() {
 function estimatePace() { let t = 0; for (let i = 0; i < W.track.n; i++) t += W.track.ds / Math.max(8, W.profile[i]); return t * 1.02; }
 
 function makeDirector(mode, cars, player, extra = {}) {
+  if (TH.on) theatreClose(); if (mode === 'race') S.tape = null;   // (a new race: the last one's tape is let go)
   const wk = S.weekend;
   // (the title screen's ambient cars: any frame between two sessions with no director - the results, the build-up, a
   //  career's next session - made them again, and a session started any way but the menu's START left them standing
@@ -2625,8 +2630,11 @@ function tpReplayPose(r) {
   for (let n = 0; n < cars.length; n++) {
     const m = S.meshes.get(cars[n]); if (!m) continue; const q = n * 7;
     const rx = A.f[q] + (B.f[q] - A.f[q]) * u, rz = A.f[q + 2] + (B.f[q + 2] - A.f[q + 2]) * u;
-    m.group.position.set(rx, A.f[q + 1] + (B.f[q + 1] - A.f[q + 1]) * u + TERRAIN.at(rx, rz), rz);
-    _rqa.set(A.f[q + 3], A.f[q + 4], A.f[q + 5], A.f[q + 6]); _rqb.set(B.f[q + 3], B.f[q + 4], B.f[q + 5], B.f[q + 6]); m.group.quaternion.copy(_rqa).slerp(_rqb, u);
+    _rqa.set(A.f[q + 3], A.f[q + 4], A.f[q + 5], A.f[q + 6]); _rqb.set(B.f[q + 3], B.f[q + 4], B.f[q + 5], B.f[q + 6]); _rqa.slerp(_rqb, u);
+    const ry = A.f[q + 1] + (B.f[q + 1] - A.f[q + 1]) * u + TERRAIN.at(rx, rz), wa = A.w, wb = B.w, w = n * 4;
+    // (the wheels as they were: how far they had turned - the record keeps it modulo SPIN_WRAP - the steering, the brake light, the DRS)
+    if (wa && wb) { let ds = wb[w] - wa[w]; if (ds > SPIN_WRAP / 2) ds -= SPIN_WRAP; else if (ds < -SPIN_WRAP / 2) ds += SPIN_WRAP; m.pose(rx, ry, rz, _rqa, wa[w] + ds * u, wa[w + 1] + (wb[w + 1] - wa[w + 1]) * u, wa[w + 2] + (wb[w + 2] - wa[w + 2]) * u, (wa[w + 3] & 1) === 1, (wa[w + 3] & 2) === 2); }
+    else { m.group.position.set(rx, ry, rz); m.group.quaternion.copy(_rqa); }
   }
 }
 /** every car's model back where the car really is */
@@ -2958,7 +2966,6 @@ function tpKeys() {
   // (an instant replay: R takes the one offered; R, Space or Esc ends the one playing)
   if (TP.rep) { if (input.pressed('KeyR') || input.pressed('Escape')) { tpReplayEnd(); return; } }
   else if (input.pressed('KeyR')) TP.fx?.take();
-  if (input.pressed('KeyV') && TP.show) { TP.show.setVoice(!TP.show.voice); TP.gfx.rc(TP.show.voice ? 'the commentary is spoken' : 'the commentary is captions only', '', 'VOICE'); }
   if (input.pressed('Space')) tpAct('pause');
   if (input.pressed('Equal') || input.pressed('NumpadAdd')) tpAct('speed', Math.min(4, TP.speed * 2));
   if (input.pressed('Minus') || input.pressed('NumpadSubtract')) tpAct('speed', Math.max(1, TP.speed / 2));
@@ -4572,6 +4579,70 @@ function cullDetail() {
 /** the engine was heard live this frame (you driving, or the car you watch): any frame it isn't - paused, photo mode, a
  *  flashback, the pit menu, the crash camera, a replay or the news, the menus - it fades out instead of droning on */
 let audioLive = false;
+// ---------------------------------------------------------------------------
+// the theatre (ui/Theatre.js): the race just run, watched again from its tape (race/RaceTape.js) - REPLAY on the
+// results. The cars' models are made again and put where each frame of the tape had them (wheels turned and steered,
+// the damage each had by then), the theatre moves the camera; paused on a frame, TAB or PHOTO opens the photo mode
+// on it. Nothing of a session is running: closing it gives the results back.
+// ---------------------------------------------------------------------------
+const TH = { on: false, th: null, tape: null, photo: false, fov: 60 };
+const _thQ = new THREE.Quaternion();
+function theatreOpen() {
+  const tape = S.tape; if (!tape || TH.on || S.director) return false;
+  $('results').classList.add('hidden'); stopRadioReplays();
+  TH.on = true; TH.tape = tape; TH.photo = false; TH.fov = camera.fov;
+  for (const c of tape.cars) { if (c.events) c.events.length = 0; }
+  spawnMeshes(tape.cars);
+  const last = tape.order[tape.order.length - 1], me = tape.cars.findIndex((c) => c.isPlayer || (settings.mode === 'tp' && c.team === settings.tpTeam));
+  TH.th = new Theatre({ camera, track: W.track, terrain: TERRAIN, clear: (px, py, pz, tx, ty, tz) => tvClear(px, py, pz, tx, ty, tz, true), pose: thPose, group: (i) => S.meshes.get(tape.cars[i])?.group || null,
+    render: renderView, photo: thPhoto, onClose: theatreClose, keys: input }, tape, { car: me >= 0 ? me : last ? last.o[0] : 0 });
+  if (RL.group) RL.group.visible = false; audio.quiet?.(0.2);
+  return true;
+}
+function theatreClose() {
+  if (!TH.on) return;
+  if (PHOTO.on) thPhoto(false);
+  TH.th?.dispose(); TH.th = null; TH.on = false; TH.tape = null;
+  for (const m of S.meshes.values()) { scene.remove(m.group); m.dispose(); } S.meshes.clear();
+  if (scMesh) { scene.remove(scMesh.group); scMesh.dispose(); scMesh = null; }
+  camera.fov = TH.fov; camera.up.set(0, 1, 0); camera.updateProjectionMatrix();
+  $('results').classList.remove('hidden');
+}
+/** slot i of the tape put where the frame has it: a car's model (its wheels, its tyres, the damage it had by then) or the safety car's */
+function thPose(i, s, T, jumped) {
+  const tape = TH.tape;
+  if (i >= tape.cars.length) {
+    const show = !(s.flags & 32); if (show && !scMesh) { scMesh = new SafetyCarMesh(); scene.add(scMesh.group); }
+    if (scMesh) { scMesh.group.visible = show; if (show) { scMesh.group.position.set(s.x, s.y, s.z); scMesh.group.quaternion.set(s.qx, s.qy, s.qz, s.qw); onGround(scMesh.group); } }
+    return;
+  }
+  const c = tape.cars[i]; let m = S.meshes.get(c); if (!m) return;
+  // (wound back to before a car was torn in two: a torn model cannot be made whole - a new one)
+  if (jumped && m._thT != null && T < m._thT - 0.01 && c.split) { respawnMesh(c); m = S.meshes.get(c); if (!m) return; }
+  _thQ.set(s.qx, s.qy, s.qz, s.qw); m.pose(s.x, s.y, s.z, _thQ, s.spin, s.steer, s.v, (s.flags & 1) === 1, (s.flags & 2) === 2); onGround(m.group);
+  m.group.visible = !(s.flags & 32);
+  if (m._thTyre !== s.tyre) { m._thTyre = s.tyre; try { m.setCompound(s.tyre); } catch (e) { /* as it is */ } }
+  if (m._thT == null || jumped || Math.abs(T - m._thT) > 0.5) { m._thT = T; try { m.replay(c, T); } catch (e) { /* as it is */ } }
+}
+/** the photo mode on the frame the theatre is paused at (and back) */
+function thPhoto(on) {
+  if (!TH.on || on === PHOTO.on) return;
+  if (on) {
+    TH.th.play = false; TH.th.el.style.display = 'none';
+    const g = S.meshes.get(TH.tape.cars[TH.th.car])?.group;
+    if (g) { const f = new THREE.Vector3(1, 0, 0).applyQuaternion(g.quaternion), r = new THREE.Vector3(0, 0, 1).applyQuaternion(g.quaternion); camera.position.copy(g.position).addScaledVector(f, 5.2).addScaledVector(r, 3.1); camera.position.y = Math.max(g.position.y + 1.25, TERRAIN.at(camera.position.x, camera.position.z) + 0.6); camera.up.set(0, 1, 0); camera.lookAt(g.position.x, g.position.y + 0.55, g.position.z); camera.fov = 42; camera.updateProjectionMatrix(); }
+    enterPhoto(); S.paused = false; $('photo-play').style.display = 'none'; TH.photo = true;
+  } else { exitPhoto(); $('photo-play').style.display = ''; $('pause').classList.add('hidden'); $('hud').classList.add('hidden'); TH.th.el.style.display = ''; TH.photo = false; TH.th.first = true; S.paused = false; }
+}
+function theatreFrame(dt) {
+  if (PHOTO.on) {
+    if (input.pressed('Escape') || input.pressed('Tab')) thPhoto(false);
+    else { updatePhoto(dt); camera.position.y = Math.max(camera.position.y, TERRAIN.at(camera.position.x, camera.position.z) + 0.3); renderView(); }
+  } else TH.th.frame(dt);
+  input.endFrame();
+}
+$('btn-theatre')?.addEventListener('click', () => { if (!theatreOpen()) hud.msg('NO REPLAY OF THIS RACE', '', 2); });
+
 function frame(now) {
   requestAnimationFrame(frame);
   if (!audioLive) audio?.quiet?.(0.06); audioLive = false;   // (cut, not a long fade)
@@ -4580,6 +4651,7 @@ function frame(now) {
   if (NEWS.on) { newsFrame(dt); return; }   // (the news broadcast has the screen)
   if (PRE.on) { preFrame(dt); return; }     // (the pre-race show: the race waits on the grid)
   if (HANG.on) { hangFrame(dt, interval); return; }   // (an evening out, in the world: ui/Hangout.js drives the camera)
+  if (TH.on) { theatreFrame(dt); return; }            // (the theatre: a race watched again from its tape)
   const d = S.director, p = S.player;
 
   if (PHOTO.on) {
@@ -4766,6 +4838,7 @@ function frame(now) {
       return new Promise((res) => careerHangout(L, res, c));
     },
     /** headless fast-forward (testing/telemetry): advances the active session by `sec` seconds without rendering */
+    get TH() { return TH; }, theatreOpen, theatreClose, endSession, frame,   /* (the theatre; a frame of the game's own loop: test hooks) */
     stepSim(sec, step = 1 / 60) { const d = S.director; if (!d) return 'no session'; const n = Math.round(sec / step); for (let i = 0; i < n && !d.done; i++) { input.update(step, S.player ? S.player.speed : 0); d.update(step, input); } return d.time; },
     /** render stats: draw calls / triangles of the last frame, average CPU ms per frame since the last call, current render scale */
     perf() { const r = { calls: RES.calls, triangles: RES.tris, avgFrameMs: +(RES.msSum / Math.max(1, RES.frames)).toFixed(2), frames: RES.frames, renderScale: RES.scale, pixelRatio: renderer.getPixelRatio() }; RES.frames = 0; RES.msSum = 0; console.info('[perf]', r); return r; },

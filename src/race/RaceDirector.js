@@ -11,6 +11,7 @@ import { DRS } from './DRS.js';
 import { Failures } from './Failures.js';
 import { Flashback } from './Flashback.js';
 import { ReplayBuffer } from './Replay.js';
+import { RaceTape } from './RaceTape.js';
 import { Sectors, Passes } from './Sectors.js';
 import { neutralForm } from '../career/Morale.js';
 import { setTyreLap, lapLoss, outLapLoss, cliffLaps, RATE_NOM } from '../vehicle/Tyres.js';
@@ -153,6 +154,8 @@ export class RaceDirector {
     this.flashback = new Flashback(this, s.flashbacks === 'off' ? 0 : Infinity);   // (races only: in qualifying and time trial there is nobody to be within a second of)
     // the last 12 s of every car's pose: a hurt driver's accident is cut from it for the news after the race
     this.replay = this.mode === 'race' ? new ReplayBuffer(this.cars) : null;
+    // the whole race on tape, for the theatre after the flag (race/RaceTape.js: it only reads the race)
+    this.tape = this.mode === 'race' ? new RaceTape(this.cars, { laps: this.lapsTotal || 5, lapTime: lapT0, track: this.track?.def?.id || '' }) : null;
     // every AI car's race plan (standard / early / long / gamble), and the starting tyres that go with it
     if (this.mode === 'race') for (const a of this.ai) { if (a.planRace(this.world, a.car.gridPos || 1, this.cars.length)) this.onPitDone?.(a.car); this.calls.plan(a.car, a.strat?.type, a.car.tyres.compound); }
     // lap telemetry: the player at 30 Hz, every AI car at 10 Hz (reference laps)
@@ -276,6 +279,7 @@ export class RaceDirector {
       this.collisions();
       if (this.state === 'lights') this.jumpStarts();
     }
+    this.tape?.record(dt, this);   // (before the rolling record: that one takes the crash pulses with it)
     this.replay?.record(dt, this.time);
     if (this.replay) for (const c of this.cars) if (c._clipAt != null && this.time >= c._clipAt) { c._clipAt = null; c.injuryClip = this.replay.clip(c); }
     // (the run to Turn 1 from a standing start: over once a car is past the first corner's apex, or after 25 s)

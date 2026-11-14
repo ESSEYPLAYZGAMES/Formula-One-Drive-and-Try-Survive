@@ -938,7 +938,32 @@ export class Car {
     //  run-off has its centre past the face, not over the barrier - held out there, it was trapped on its line)
     if (!this.pitLane && !tr.giveL && tr.buildGive) tr.buildGive();
     const dc0 = (this.x - px) * nx + (this.z - pz) * nz, B0 = this.pitLane || !tr.giveL ? null : BARRIER[BAR_KIND[(dc0 > 0 ? tr.giveL : tr.giveR)[this.trackIdx]]];
-    const out0 = !this.pitLane && Math.abs(dc0) > (dc0 > 0 ? boL : boR) + (B0 && !B0.rigid ? B0.D : 0);
+    // (and only a car that WENT over it is beyond it. The barrier is a distance from the centreline at each metre of the
+    //  lap: where its line comes in along the lap - a run-off narrowing, a wall's return - a car rolling along it finds
+    //  the line past its own centre from one step to the next without having crossed anything, and a tyre wall there
+    //  cannot push it back as fast as its line closes. Such a car has met the barrier's face where it turns in: _over
+    //  keeps which side a car is truly beyond, by having been in the air or set down there; else it is stopped at that
+    //  face - cameIn below - and never held out behind a wall it did not get over.)
+    let out0 = false, cameIn = null;
+    if (!this.pitLane) {
+      const side0 = dc0 > 0 ? 1 : -1, wall0 = dc0 > 0 ? boL : boR, beyond = Math.abs(dc0) > wall0 + (B0 && !B0.rigid ? B0.D : 0);
+      const O = this._over || (this._over = { ok: false, side: 0, i: 0, wall: 0, ws: 0, x: 0, z: 0, air: 9 });
+      O.air = this.air || this.wreck ? 0 : O.air + dt;
+      const moved = Math.hypot(this.x - O.x, this.z - O.z) > Math.abs(this.speed || 0) * dt * 3 + 1.5;   // (set down somewhere else: a reset, a flashback, out of the pit lane)
+      if (!O.ok || moved) O.side = beyond ? side0 : 0;
+      else if (!beyond) O.side = 0;
+      else if (O.side !== side0) {
+        if (O.air < 2.5 || !(O.ws === side0 && isFinite(O.wall))) O.side = side0;   // (it flew over it; or there was no barrier here a step ago: it is round the end of one)
+        else cameIn = { side: side0, wall: wall0, m: 0 };
+      }
+      if (cameIn) {
+        const n = tr.n, ds = tr.length / n; let di = this.trackIdx - O.i; if (di > n / 2) di -= n; else if (di < -n / 2) di += n;
+        cameIn.m = Math.abs(di) > 0 ? (wall0 - O.wall) / (di * ds) : 0;   // (the barrier's line where the car met it: metres in per metre of lap, by the way the car was going)
+      }
+      out0 = beyond && O.side === side0;
+      if (this._wallLog) this._wallLog.push({ i: this.trackIdx, dc: +dc0.toFixed(2), wall: isFinite(wall0) ? +wall0.toFixed(2) : null, beyond, side: O.side, air: +O.air.toFixed(2), in: cameIn ? +cameIn.m.toFixed(2) : null, moved, v: +(this.speed || 0).toFixed(1) });   /* (a test's trace: tools/pocket_probe.mjs) */
+      O.ok = true; O.i = this.trackIdx; O.wall = wall0; O.ws = side0; O.x = this.x; O.z = this.z;
+    }
     let maxPen = 0, hitBx = 0, hitBy = 0, hitSide = 0;
     for (let k = 0; k < CORNERS.length; k++) {
       const bx = CORNERS[k][0], by = CORNERS[k][1];
@@ -948,6 +973,19 @@ export class Car {
       if (pen > maxPen && isFinite(pen)) { maxPen = pen; hitBx = bx; hitBy = by; hitSide = Math.sign(dc) * (out0 ? -1 : 1); }
     }
     const bc = this._bc || (this._bc = { on: 0, rep: 0, code: 0, u0: 0, g: 0, hard: 0, res: 0, E: 0, dvx: 0, dvz: 0, t: 0, bx: 0, by: 0, nx: 0, nz: 0, cx: 0, cz: 0, pen: 0, slot: -1, dm: null, fm: null, inC: null });
+    if (cameIn) {
+      // the face of the barrier where its line turns in: its normal leans back along the lap by that slope (a return
+      // square across the run-off: straight back). The car is put back in front of it, a metre clear, and what speed it
+      // had into it is taken as by a wall - what stands behind the tyres, where there are tyres.
+      if (bc.on) this._barrierDone(world);
+      const i = this.trackIdx, k = 1 / Math.hypot(1, cameIn.m), Nx = (cameIn.m * tr.tx[i] - cameIn.side * nx) * k, Nz = (cameIn.m * tr.tz[i] - cameIn.side * nz) * k;
+      let bx = CORNERS[0][0], by = CORNERS[0][1], deep = Infinity;
+      for (let q = 0; q < CORNERS.length; q++) { const cx = CORNERS[q][0] * c + CORNERS[q][1] * s, cz = CORNERS[q][0] * s - CORNERS[q][1] * c, d = cx * Nx + cz * Nz; if (d < deep) { deep = d; bx = CORNERS[q][0]; by = CORNERS[q][1]; } }
+      const G2 = cameIn.side > 0 ? (tr.giveL || tr.barL) : (tr.giveR || tr.barR), kind = BAR_KIND[G2[i] || 3] || 'wall';
+      this._wallRigid(world, (Math.abs(dc0) - cameIn.wall + 1.0) * k, 1, bx, by, -Nx, -Nz, BARRIER[kind]?.rigid ? kind : (BARRIER[kind]?.back || 'wall'));
+      const O = this._over; O.x = this.x; O.z = this.z;
+      return;
+    }
     if (hitSide === 0) { if (bc.on) this._barrierDone(world); return; }
     // what the barrier is (BARRIER): the pit lane's own walls stay as they were - one rigid impulse, concrete or the
     // tyre wall along its escape (a lane that is a lane: its walls hold the car on its line) - else the circuit's, by the

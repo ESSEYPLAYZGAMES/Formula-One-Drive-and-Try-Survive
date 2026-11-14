@@ -1,3 +1,91 @@
+# V2.53 (2026-11-14): a replay theatre, wheels that turn in replays, a harder manager, rival teams, the years, the walls
+
+Asked for: wheels turning in replays; a harder manager career ("simmed quali as williams and got p3 and p6 first
+race"); deep rival teams; multi-season depth; the commentary's voice gone (captions kept); a post-race highlights /
+replay menu "like in f125" built on the photo mode, flashback and replay that exist; "fix the montreal turn 3 bug and
+similar". Proper race weekends were set aside for later, by request.
+
+## The theatre: the race again (REPLAY on the results)
+New: `src/race/RaceTape.js` (the tape), `src/ui/Theatre.js` (the screen), glue in `src/main.js` (theatre*, thPose).
+- Every race is taped from the lights to the end: each car's position and attitude, how far its wheels have turned,
+  its steering, speed, brake light, DRS, tyres, whether it is in the pits or out, the safety car, the running order
+  each second. 15 frames a second (10 or 7.5 for long races): 2.4 MB for a two-lap race of 22 cars, about 0.7 MB a
+  minute. It only reads the race - a seeded race with it running is the same race.
+- REPLAY on the result screen opens it: a timeline to play, pause, drag, step a frame at a time, run from a quarter
+  speed to eight times; any driver to follow (the tower on the left is the order at that moment: click a name); six
+  cameras (trackside, chase, T-cam, nose, front, helicopter).
+- The race's moments are found as it is taped and marked on the timeline: the start, every pass for position that
+  stood for four seconds (not two cars swapping side by side, not a damaged car being passed), contacts, crashes,
+  stops, retirements, fastest laps, the safety car, the flag. MOMENTS lists them (THE RACE / OVERTAKES / INCIDENTS /
+  STOPS); a click jumps to four seconds before; PLAY THESE ONE AFTER ANOTHER runs them as a reel.
+- PHOTO (or Tab) on any frame opens the photo mode that was already there, on the car being followed.
+- Cars show the damage they had at that moment (the cars' own damage record). Not replayed: pit crews, smoke, fire,
+  debris, the weather as it changed. Kept for the last race only, in memory: not saved to disk, no video export.
+
+## Wheels in replays
+The instant replays (window and highlights) and the theatre pose each car with its wheels turned as far as they had
+turned and steered as they were steered (CarMesh.pose; the rolling record keeps both now), brake light and DRS too.
+
+## The manager is harder
+Measured with careers simulated without a browser (hundreds of first races, seasons on end):
+- The whole grid was within 0.3 s a lap and a Williams 0.14 s off the quickest car: in the race model it finished on
+  the podium in about half its first races. And a lower team gained pace per season far faster than a top one: a
+  Williams that simply developed was the quickest car after four rounds.
+- The manager's grid is wider now (a team's `gap`: 0.16 / 0.34 / 0.5 s a lap by tier on top of what there was), the
+  race model's lap-to-lap luck a quarter smaller. A new Williams: median P8 in its first race, a podium in 8 % of
+  them, top six in a third; McLaren on the podium in 75 %; Haas and Audi never.
+- The board's target can no longer be talked down: never more than a place below last year's finish.
+- Rivals' pit stops carry their crew chief's rating, as yours do.
+- Not run: a simulated qualifying in the 3D game itself (the same car numbers feed it).
+
+## Rival teams (HQ: RIVALS)
+New: `src/career/Rivals.js`, pages in `src/ui/ManagerHub4.js`.
+- Each team has a principal, a way of working (a steady stream, big packages, the grey areas, counting the money,
+  next year always), a technical director, strategist and crew chief with ratings, and money that comes and goes.
+- Their upgrades are news ("Ferrari bring a major upgrade: about 0.09 s a lap"); the page shows every car against
+  the quickest and what each has found lately.
+- They come for your staff: match the offer or lose the man to his deputy. You can go for theirs (a fee, their
+  goodwill, and he may say no).
+- PROTEST a team's new parts: a deposit; upheld (likelier against a team that works in the grey areas) they lose
+  most of the upgrade and $2M; dismissed, you lose the deposit and some of your word.
+- A principal who misses his target two years running is sacked; the new one works differently.
+- Not built: rivals changing their race strategy against you, votes on the rules.
+
+## The years (HQ: MARKET, ACADEMY, DRIVERS)
+New: `src/career/Seasons.js`.
+- Drivers have ages: they improve to about 27, hold it, fade from 33, and from 36 any season may be the last - said
+  three quarters through the season so the seat can be planned. Rookies come up each winter.
+- Contracts: one, two or three years; what a driver asks depends on his worth, your place in the order, his mood and
+  whether someone else wants him. A star will not join a team at the back.
+- The market moves from mid-season: teams renew or sign each other's drivers for next year, and make offers to
+  yours - extend him or he goes in the winter. MARKET shows next season's grid as it fills.
+- The academy: scout prospects, race them up through F4, F3 and F2, promote at 76 (yours to sign first, cheaper).
+- Regulations change every third season: every car is a new one - the parts built are gone, the factory stays - and
+  the order is drawn again from how good the old car was, the factory, the early work on the new car, and luck.
+  Between changes the field closes up a little each winter.
+- Simulated five to nine seasons on end as three different teams: no errors, every team with two drivers at the end.
+
+## Walls that come in (Montreal Turn 3 and the like)
+- The cause: a barrier is a distance from the road at each metre of lap. Where its line closes in (a run-off
+  narrowing, a wall's return), a car rolling along it found the line past its own centre from one step to the next -
+  a tyre wall cannot push it back that fast - and was then held OUT, behind the wall.
+- Now only a car that went over a barrier (in the air) is beyond it; one the line closed on has met the barrier's
+  face where it turns in, and is stopped there (vehicle/Car.js _barriers: _over, cameIn).
+- New test, `tools/pocket_probe.mjs`: a car rolled along every narrowing barrier of a circuit at two speeds, both
+  ways. All four circuits, 146 runs: 9 cars through a barrier before, 1 after (Montreal, a car coasting down an
+  escape road past the START of a wall - a wall that begins has no return; left as it is).
+
+## The commentary's voice
+Removed: no VOICE button, no V key, nothing spoken. The captions are unchanged.
+
+## Checked
+- A seeded race in the other modes is identical to V2.45-V2.52 (tools/race_probe.mjs 5 1 silverstone).
+- In a browser: a two-lap race taped and watched in the theatre (jump to a pass, four cameras, the reel, photo
+  mode, back to the results; wheels measured turning and steering); the HQ's RIVALS, MARKET, ACADEMY and DRIVERS
+  pages and their buttons, no errors.
+- Not checked: a real graphics card; the theatre after a long race (memory by arithmetic only); an old save opened
+  with the new systems (they fill themselves in on load, by reading).
+
 # V2.52 (2026-11-13): the cutscenes rebuilt - dense sets, no title card, no replay list; and the hats
 
 Asked for: "remove the ability to rewatch cutscenes, it makes them feel like a flex by the devs - whereas it should

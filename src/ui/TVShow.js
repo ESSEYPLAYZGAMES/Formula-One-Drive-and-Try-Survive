@@ -1,7 +1,8 @@
 // The broadcast as a show (with ui/TVGraphics.js: the tower and captions, and ui/TVExtras.js: battles, replays, the
 // safety car's feed) - what makes the world feed sound and read like television:
 //   COMMENTARY: two voices, a lead who calls what happens and an analyst who says what it means, as a caption under the
-//     top of the picture and - VOICE on - spoken by the browser's own speech (two of its voices). Fed by events (the
+//     top of the picture - read, not heard: there is no voice (the browser's own speech was taken out in V2.53; a
+//     real one would go in speak()). Fed by events (the
 //     start, a pass, a stop, the safety car, the flag ...); a line worth more cuts in on one worth less.
 //   TEAM RADIO on air: who spoke, the line, a waveform - a driver's words and your orders, not the pit wall's chatter.
 //   THE TRACK MAP: the circuit's outline, a dot a car (yours ringed, the car on screen marked, the safety car yellow).
@@ -54,14 +55,12 @@ const CSS = `
 body.tp-hl #hud, body.tp-hl #hud-msg { visibility: hidden !important; }   /* (the highlights at the flag: the picture and its tag, nothing of the driver's own display) */
 #tvg .sk { position: absolute; left: 50%; bottom: calc(var(--pw, 150px) + 86px); transform: translateX(-50%); background: rgba(12,14,20,.78); border-radius: 14px; padding: 5px 12px 5px 6px; font: 700 10px/1 var(--tvf); letter-spacing: .12em; text-transform: uppercase; color: #dfe5ec; opacity: 0; transition: opacity .25s; white-space: nowrap; }
 #tvg .sk.in { opacity: 1; } #tvg .sk b { display: inline-block; background: #fff; color: #111; border-radius: 9px; padding: 3px 7px; margin-right: 8px; font-weight: 900; }
-#tvg .vc { position: absolute; right: 214px; top: 14px; pointer-events: auto; cursor: pointer; background: rgba(12,14,20,.75); color: #b7c0cc; border: 1px solid rgba(255,255,255,.2); border-radius: 4px; font: 800 9px/1 var(--tvf); letter-spacing: .16em; padding: 8px 9px; }
-#tvg .vc:hover { color: #fff; border-color: #fff; }
 #tvg .rain { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 1.2s; overflow: hidden; }
 #tvg .rain.on { opacity: 1; }
 #tvg .rain i { position: absolute; border-radius: 50%; background: radial-gradient(ellipse at 35% 30%, rgba(255,255,255,.5), rgba(190,210,230,.16) 45%, rgba(255,255,255,.04) 70%, transparent 72%); box-shadow: inset 0 -2px 3px rgba(0,0,0,.18); backdrop-filter: blur(2px); }
 #tvg .r .sx { position: absolute; right: 96px; top: 50%; margin-top: -2px; display: flex; gap: 2px; } #tvg .r .sx u { width: 5px; height: 4px; border-radius: 1px; background: rgba(255,255,255,.14); text-decoration: none; }
 #tvg .r .sx u.purple { background: #b45cff; } #tvg .r .sx u.green { background: #3ddc84; } #tvg .r .sx u.yellow { background: #ffd400; }
-#tvg.hl .tower, #tvg.hl .live, #tvg.hl .xr, #tvg.hl .map, #tvg.hl .cap, #tvg.hl .rc, #tvg.hl .cm, #tvg.hl .rad, #tvg.hl .tel, #tvg.hl .cls, #tvg.hl .gridg, #tvg.hl .pip, #tvg.hl .vc, #tvg.hl .rain, #tvg.hl .sting, #tvg.hl .sk { display: none !important; }
+#tvg.hl .tower, #tvg.hl .live, #tvg.hl .xr, #tvg.hl .map, #tvg.hl .cap, #tvg.hl .rc, #tvg.hl .cm, #tvg.hl .rad, #tvg.hl .tel, #tvg.hl .cls, #tvg.hl .gridg, #tvg.hl .pip, #tvg.hl .rain, #tvg.hl .sting, #tvg.hl .sk { display: none !important; }
 @media (max-width: 1000px) { #tvg .map, #tvg .rad { display: none; } #tvg .pip { left: 190px; } }
 `;
 const surname = (c) => { const w = String(c?.name || c || '').trim().split(/\s+/); return w[0] === 'Zhou' ? 'Zhou' : w[w.length - 1]; };
@@ -121,18 +120,15 @@ export class TVShow {
     this.sk = mk('sk'); this.rain = mk('rain'); root.insertBefore(this.rain, root.firstChild);   /* (the drops are on the lens: under every graphic) */ this.cm = mk('cm', '<small></small><span></span>'); this.rad = mk('rad'); this.gridg = mk('gridg'); this.cls = mk('cls'); this.pipEl = mk('pip', '<b></b><i class="cur"></i>');
     this.mapEl = document.createElement('canvas'); this.mapEl.className = 'map'; this.mapEl.width = 380; this.mapEl.height = 256; root.appendChild(this.mapEl);
     this.inf = document.createElement('div'); this.inf.className = 'xc inf'; (root.querySelector('.xr') || root).appendChild(this.inf);
-    this.voice = false; try { this.voice = localStorage.getItem('f1sim-tv-voice') === '1'; } catch (e) { this.voice = false; }
-    this.vc = document.createElement('button'); this.vc.className = 'vc'; this.vc.title = 'The commentary spoken aloud by the browser (V)'; root.appendChild(this.vc); this.vc.addEventListener('click', () => { this.setVoice(!this.voice); });
-    this.vc.textContent = this.voice ? 'VOICE ON' : 'VOICE OFF'; this.reset();
+    try { localStorage.removeItem('f1sim-tv-voice'); window.speechSynthesis?.cancel(); } catch (e) { /* nothing kept */ }
+    this.reset();
   }
   reset() {
     this.q = []; this.cur = null; this.curT = 0; this.n = 0; this.said = new Map(); this.radT = 0; this.acc = 0; this.mapPts = null; this.mapFor = null;
     this.infT = 99; this.infK = 0; this.stints = new Map(); this.vmax = new Map(); this.tl = new Map(); this.logN = 0; this.notes = []; this.offN = 0;
     this.phase = 'pre'; this.t0 = 0; this.lap1 = false; this.react = false; this.flag = false; this.flagA = false; this.clsK = -1; this.infHold = 0; this.formPh = null; this.rainOn = false; this.rainSaid = -99; this.best = Infinity; this.pb = new Map(); this.drops = 0;
     for (const e of [this.cm, this.rad, this.gridg, this.cls, this.inf]) e.classList.remove('in'); this.rain.classList.remove('on'); this.pipEl.classList.remove('on', 'big'); this.root.classList.remove('hl', 'has-pip', 'tight'); this.skK = ''; this.sk?.classList.remove('in');
-    try { window.speechSynthesis?.cancel(); } catch (e) { /* no speech */ }
   }
-  setVoice(on) { this.voice = !!on; if (this.vc) this.vc.textContent = on ? 'VOICE ON' : 'VOICE OFF'; try { localStorage.setItem('f1sim-tv-voice', on ? '1' : '0'); if (!on) window.speechSynthesis?.cancel(); } catch (e) { /* not kept */ } }
 
   // ---- commentary ------------------------------------------------------------------------------------------------------
   /** something happened: a line for it (kind: LINES' keys; x: its words) - said when its turn comes, or at once if it matters more than what is being said */
@@ -144,14 +140,8 @@ export class TVShow {
     if (this.cur && it.prio >= 8 && it.prio > this.cur.prio) { this.q = this.q.filter((y) => y.prio >= 6); this.q.unshift(it); this.curT = 0; }
     else { this.q.push(it); this.q.sort((a, b) => b.prio - a.prio || a.at - b.at); if (this.q.length > 4) this.q.length = 4; }
   }
-  speak(it) {
-    if (!this.voice || typeof speechSynthesis === 'undefined' || typeof SpeechSynthesisUtterance === 'undefined') return;
-    try {
-      const V = speechSynthesis.getVoices().filter((v) => /^en/i.test(v.lang)), u = new SpeechSynthesisUtterance(it.text);
-      if (V.length) u.voice = V[it.who ? Math.min(V.length - 1, 1 + ((V.length / 2) | 0)) : 0]; u.rate = it.prio >= 8 ? 1.2 : 1.08; u.pitch = it.who ? 0.9 : 1.05; u.volume = 0.9;
-      if (it.prio >= 8) speechSynthesis.cancel(); speechSynthesis.speak(u);
-    } catch (e) { /* no speech */ }
-  }
+  /** where a commentator's voice would be given a line (it: { who, text, prio }). There is none: the captions are the commentary. */
+  speak() {}
   /** a line on the radio, on air: who (a driver's surname, 'You'), the words, the team's colour */
   radio(who, text, color) {
     if (!text || /^(Pit wall|Strategy|Race control)$/.test(who)) return;

@@ -12,6 +12,7 @@ import { ManagerCareer, TRACKS_ALL, COST_CAP, PRIZE, TIER_NAME, TIER_BUDGET, RAC
 import { techEffects, UP, upgradeName, partsCount } from '../career/TechTree.js';
 import { EXTRA_TABS, extraHTML, extraClick, homeExtra } from './ManagerHub2.js';
 import { STORY_TABS, storyHTML, storyHome, storyAct, storyPump } from './ManagerHub3.js';
+import { ERA_TABS, eraHTML, eraHome, eraClick, driversHTML } from './ManagerHub4.js';
 import { storySigning, storyReleased, storyShown, storyApply } from '../career/ManagerStory.js';
 import { PU, SPARES, allocOf, fitNew, orderSpare, FAC, FAC_MAX, facCost, facRounds, facFx, facUpgrade, facMaintain, maintCost, SPONSOR_SLOTS, acceptOdds, propose, sponsorTargets, marketability } from '../career/ManagerOps.js';
 
@@ -130,7 +131,7 @@ function render() {
   el.innerHTML = `<div class="m-mh"><div class="m-tn"><small>Team principal · Season ${c.season}${c.seasonDone ? ' · over' : ` · Round ${c.round} of ${c.rounds}`}</small><b>${esc(t.name)}</b></div>
     <div class="m-kp"><div class="m-k"><small>Budget</small><b class="${t.budget < 5 ? 'm-bad' : ''}">${money(t.budget)}</b></div><div class="m-k"><small>Cost cap left</small><b>${money(c.capLeft())}</b></div>
     <div class="m-k"><small>Constructors</small><b>P${pos}<span style="font-size:11px;color:#8a93a0"> · target P${c.board.target}</span></b></div><div class="m-k"><small>Board</small><b class="${conf < 30 ? 'm-bad' : conf >= 65 ? 'm-ok' : ''}">${conf}%</b></div></div><span class="m-ctas">${ctas}<button data-a="exit">MENU</button></span></div>
-    <div class="m-mn">${[['home', 'OVERVIEW'], ['stand', 'STANDINGS'], ['fac', 'FACTORY'], ['drv', 'DRIVERS'], ['parts', 'PARTS'], ['facil', 'FACILITIES'], ['spons', 'SPONSORS'], ['staff', 'STAFF'], ...EXTRA_TABS, ...STORY_TABS, ['fin', 'FINANCES'], ['cal', 'CALENDAR']].map(([k, n]) => `<button data-tab="${k}" class="${H.tab === k ? 'm-on' : ''}">${n}</button>`).join('')}</div>
+    <div class="m-mn">${[['home', 'OVERVIEW'], ['stand', 'STANDINGS'], ['fac', 'FACTORY'], ['drv', 'DRIVERS'], ['parts', 'PARTS'], ['facil', 'FACILITIES'], ['spons', 'SPONSORS'], ['staff', 'STAFF'], ...EXTRA_TABS, ...ERA_TABS, ...STORY_TABS, ['fin', 'FINANCES'], ['cal', 'CALENDAR']].map(([k, n]) => `<button data-tab="${k}" class="${H.tab === k ? 'm-on' : ''}">${n}</button>`).join('')}</div>
     <div class="m-mb"><div class="m-pg">${H.msg ? `<div class="m-msg ${H.ok ? '' : 'm-no'}">${esc(H.msg)}</div>` : ''}${body(c)}</div></div>`;
   pack();
 }
@@ -165,7 +166,7 @@ function body(c) {
       case 'facil': return facilHTML(c);
       case 'spons': return sponsHTML(c);
       case 'cal': return calHTML(c);
-      default: return extraHTML(c, H.tab, H) ?? storyHTML(c, H.tab) ?? homeHTML(c);
+      default: return extraHTML(c, H.tab, H) ?? eraHTML(c, H.tab) ?? storyHTML(c, H.tab) ?? homeHTML(c);
     }
   } catch (e) { console.warn('[manager hub]', e); return '<div class="m-card"><p>This page could not be drawn.</p></div>'; }
 }
@@ -188,7 +189,7 @@ function homeHTML(c) {
     <div class="m-row2"><span>Income</span><b>${money(L.income)}${L.sponsor ? ` + sponsor ${money(L.sponsor)}` : ''}</b></div><div class="m-row2"><span>Wages</span><b>-${money(L.wages)}</b></div>
     <div class="m-row2"><span>Board confidence</span><b>${L.conf0}% → ${L.conf}%</b></div>${L.parts.length ? `<div class="m-row2"><span>New on the car</span><b>${L.parts.map((x) => `${esc(UP[x.id]?.short || x.id)} L${x.level} (${Math.round(x.q * 100)}%)`).join(', ')}</b></div>` : ''}</div>` : '';
   const news = `<div class="m-card"><h3>News</h3><div class="m-news">${c.news.slice(0, 10).map((n) => `<div><small>S${n.season} R${n.round}</small>${esc(n.text)}</div>`).join('')}</div></div>`;
-  return `<div class="m-grid">${nextCard}${storyHome(c)}${homeExtra(c)}${lastCard}${drvCard}${carCard}${news}</div>`;
+  return `<div class="m-grid">${nextCard}${storyHome(c)}${eraHome(c)}${homeExtra(c)}${lastCard}${drvCard}${carCard}${news}</div>`;
 }
 function reviewHTML(c) {
   const r = c.review || c.history[c.history.length - 1] || {};
@@ -205,15 +206,7 @@ function standHTML(c) {
   return `<div class="m-grid"><div class="m-card"><h3>Constructors</h3><table><tr><th>#</th><th>Team</th><th>Pts</th><th>Budget</th></tr>${T.map((t, i) => `<tr class="${t.name === c.myTeam ? 'm-me' : ''}"><td>${i + 1}</td><td><span class="m-sw" style="background:${t.color}"></span>${esc(t.name)}</td><td>${t.points}</td><td>${money(t.budget)}</td></tr>`).join('')}</table></div>
     <div class="m-card"><h3>Drivers</h3><table><tr><th>#</th><th>Driver</th><th>Team</th><th>Pts</th><th>W</th></tr>${D.map((d, i) => `<tr class="${d.team === c.myTeam ? 'm-me' : ''}"><td>${i + 1}</td><td><span class="m-sw" style="background:${c.teams[d.team]?.color || '#bbb'}"></span>${esc(d.name)}</td><td>${esc(d.team || '-')}</td><td>${d.points}</td><td>${d.wins || 0}</td></tr>`).join('')}</table></div></div>`;
 }
-function drvHTML(c) {
-  const D = c.seatsOf(c.myTeam), F = c.freeAgents().slice(0, 14), empty = !c.seatsReady();
-  const mine = D.map((d) => `<div class="m-drv"><div class="m-rt">${Math.round(d.rating * 100)}</div><div class="m-nm"><b>${esc(d.name)}</b><small>#${d.number} · ${d.points} pts · ${d.starts || 0} starts, ${d.wins || 0} wins · ${money(d.salary)}/season to the end of ${d.until}</small></div>
-    <div class="m-acts"><button data-a="extend" data-v="${d.id}" title="One more season; they will ask ${money(Math.max(d.salary * 1.08, askOf(d.rating)))}">EXTEND</button><button data-a="release" data-v="${d.id}" title="Paying off the contract: ${money(c.releaseCost(d))}">RELEASE · ${money(c.releaseCost(d))}</button></div></div>`).join('');
-  const free = F.map((d) => `<div class="m-drv"><div class="m-rt">${Math.round(d.rating * 100)}</div><div class="m-nm"><b>${esc(d.name)}</b><small>${esc(d.from)} · asks ${money(askOf(d.rating))}/season · signing fee ${money(askOf(d.rating) * 0.5)}</small></div>
-    <div class="m-acts"><button class="${empty ? 'm-go' : ''}" data-a="sign" data-v="${d.id}"${empty ? '' : ' disabled title="Both seats are taken: release a driver first"'}>SIGN</button></div></div>`).join('');
-  return `<div class="m-grid"><div class="m-card"><h3>Your drivers</h3>${mine || '<p>No drivers.</p>'}<p style="font-size:12px;color:#6b7480">Rating: their pace and racecraft (out of 100). A contract that ends this season runs out when the next starts - extend to keep them.</p></div>
-    <div class="m-card"><h3>Free agents</h3>${free || '<p>Nobody is free.</p>'}</div></div>`;
-}
+function drvHTML(c) { return driversHTML(c); }   // (ages, contracts by the year, who else wants him: ui/ManagerHub4.js)
 const pct = (x) => `${Math.round(x * 100)}%`;
 const bar = (x, bad) => `<div class="m-bar" style="--bc:${bad ? '#d4351c' : x > 0.5 ? '#1fae64' : '#e0a100'}"><i style="width:${(Math.max(0, Math.min(1, x)) * 100).toFixed(0)}%"></i></div>`;
 function partsHTML(c) {
@@ -308,7 +301,8 @@ function onClick(e) {
   const a = d.a, v = d.v; H.msg = null;
   if (pumping) return;
   if (c && H.o.play) { const p = storyAct(c, a, v, H.o.play); if (p) { scene(p); return; } }   // (the story: ui/ManagerHub3.js)
-  if (c) { const r = extraClick(c, a, v); if (r !== undefined) { if (r) say(r.text, r.ok); render(); return; } }   // (the crew, the people, the car: ui/ManagerHub2.js)
+  if (c) { const r = extraClick(c, a, v); if (r !== undefined) { if (r) say(r.text, r.ok); render(); return; } }
+  if (c) { const r = eraClick(c, a, v); if (r !== undefined) { if (r) say(r.text, r.ok); render(); return; } }   // (the rivals, the market, the academy: ui/ManagerHub4.js)   // (the crew, the people, the car: ui/ManagerHub2.js)
   if (a === 'exit') { H.o.onExit?.(); return; }
   if (a === 'quick') { H.o.onQuick?.(); return; }
   if (a === 'nteam') H.nc.team = v; else if (a === 'nrounds') H.nc.rounds = +v; else if (a === 'nlaps') H.nc.laps = +v;
@@ -319,9 +313,9 @@ function onClick(e) {
   else if (a === 'next') { c.nextSeason(); H.tab = 'home'; say(`Season ${c.season}: ${c.rounds} rounds. The board expects P${c.board.target}.`); render(); pump(); return; }
   else if (a === 'join') { c.nextSeason(v); H.tab = 'home'; say(`You are ${v}'s team principal now.`); render(); pump(); return; }
   else if (a === 'erase') { ManagerCareer.erase(); H.c = null; H.tab = 'new'; }
-  else if (a === 'extend') say(c.extend(v));
+  else if (a === 'extend') { const [id, y] = String(v).split('|'); const r = c.extend(id, +y || 1); say(r, /extends to/.test(r)); }
   else if (a === 'release') { const r = c.release(v), ok = !/^Not/.test(r); say(r, ok); if (ok && H.o.play) { const m = storyReleased(c, v); if (m) { scene(H.o.play(m.scene, m.ctx).then((res) => { storyShown(c, m.key); storyApply(c, m.key, res || {}); return r; })); return; } } }
-  else if (a === 'sign') { const r = c.sign(v), ok = !/^(Not|Both)/.test(r); say(r, ok); if (ok && H.o.play) { const m = storySigning(c, v); if (m) { scene(H.o.play(m.scene, m.ctx).then((res) => { storyShown(c, m.key); storyApply(c, m.key, res || {}); return r; })); return; } } }
+  else if (a === 'sign') { const [sid, sy] = String(v).split('|'); const r = c.sign(sid, +sy || 2), ok = !/^(Not|Both)/.test(r); say(r, ok); if (ok && H.o.play) { const m = storySigning(c, sid); if (m) { scene(H.o.play(m.scene, m.ctx).then((res) => { storyShown(c, m.key); storyApply(c, m.key, res || {}); return r; })); return; } } }
   else if (a === 'fit') { const [did, el] = String(v).split('|'); say(fitNew(c, c.myTeam, did, el)); c.save(); }
   else if (a === 'spare') { const r = orderSpare(c, v); say(r, !/^(Not|Over|No )/.test(r)); c.save(); }
   else if (a === 'facup') { const r = facUpgrade(c, v); say(r, !/^(Not|No |.*already|.*highest)/.test(r)); c.save(); }

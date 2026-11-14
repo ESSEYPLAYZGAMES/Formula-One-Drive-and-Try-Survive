@@ -6,6 +6,8 @@
 import * as THREE from 'three';
 
 const HZ = 20, KEEP = 12, NEAR = 70;
+/** the wheels' turn is kept modulo this (radians: 64 turns) */
+export const SPIN_WRAP = Math.PI * 128;
 const _q = new THREE.Quaternion(), _e = new THREE.Euler(), _v = new THREE.Vector3();
 
 /** the pose car c's mesh is drawn at (as CarMesh.update sets it): position, quaternion -> out[o .. o + 6] */
@@ -21,14 +23,17 @@ export function carPose(c, out, o) {
 }
 
 export class ReplayBuffer {
-  constructor(cars) { this.cars = cars; this.frames = []; this.acc = 0; }
+  constructor(cars) { this.cars = cars; this.frames = []; this.acc = 0; this.spin = new Float64Array(cars.length); }
   record(dt, time) {
     const F = this.frames;
     while (F.length && F[F.length - 1].t > time + 1e-6) F.pop();   // (after a flashback: what was rewound never happened)
+    // (the wheels: how far each car's have turned - kept within a few dozen turns so a float holds it finely - its
+    //  steering, its speed, whether it is braking: a replay's wheels turn and steer as they did)
+    for (let i = 0; i < this.cars.length; i++) this.spin[i] += (this.cars[i].vLong || 0) / 0.33 * dt;
     this.acc += dt; if (this.acc < 1 / HZ) return; this.acc %= 1 / HZ;
-    const n = this.cars.length, f = new Float32Array(n * 7), g = new Float32Array(n), split = new Uint8Array(n);
-    for (let i = 0; i < n; i++) { const c = this.cars[i]; carPose(c, f, i * 7); g[i] = c.pulseG || 0; c.pulseG = 0; split[i] = c.split ? 1 : 0; }
-    F.push({ t: time, f, g, split }); if (F.length > HZ * KEEP) F.shift();
+    const n = this.cars.length, f = new Float32Array(n * 7), g = new Float32Array(n), split = new Uint8Array(n), w = new Float32Array(n * 4);
+    for (let i = 0; i < n; i++) { const c = this.cars[i]; carPose(c, f, i * 7); g[i] = c.pulseG || 0; c.pulseG = 0; split[i] = c.split ? 1 : 0; w[i * 4] = ((this.spin[i] % SPIN_WRAP) + SPIN_WRAP) % SPIN_WRAP; w[i * 4 + 1] = c.steer || 0; w[i * 4 + 2] = c.vLong || 0; w[i * 4 + 3] = (c.brake > 0.3 ? 1 : 0) + (c.drs ? 2 : 0); }
+    F.push({ t: time, f, g, split, w }); if (F.length > HZ * KEEP) F.shift();
   }
   /**
    * Car c's accident -> { hz, t0 (race time of the first frame), cars, focus (its index in cars), impact: { k, x, z },
