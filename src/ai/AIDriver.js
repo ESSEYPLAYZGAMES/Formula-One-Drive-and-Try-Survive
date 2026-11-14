@@ -90,7 +90,7 @@ export class AIDriver {
     this.gripState();
   }
   /** commitment: by driver rating and difficulty (and a hair of confidence, FORM.pace); a car with a broken rear wing is nursed back to the pits */
-  get vScale() { return (AI_TUNE.vScaleBase + AI_TUNE.vScaleK * this.car.rating) * this.skill * (1 - 0.25 * Math.min(1, this.car.dmg.rw / 0.6)) * (this.car.form || NF).pace * (1 + 0.012 * (this.car.band || 0)) * (this.car.mgrPace || 1); }   // (mgrPace: a team principal's pace mode - main.js PitWall)
+  get vScale() { return (AI_TUNE.vScaleBase + AI_TUNE.vScaleK * this.car.rating) * this.skill * (1 - 0.25 * Math.min(1, this.car.dmg.rw / 0.6)) * (this.car.form || NF).pace * (1 + 0.012 * (this.car.band || 0)) * (this.car.mgrPace || 1) * (this.car.wallPace || 1); }   // (mgrPace: a team principal's pace mode - main.js PitWall; wallPace: a rival pit wall's push - race/RivalWall.js)
   get state() { return this.defend ? 'defend' : this.planner.best.follow ? 'follow' : this.planner.best.spec && this.planner.best.spec.k ? 'lane' : 'race'; }
 
   // ---- what this car can do now ----------------------------------------------------------------------------------

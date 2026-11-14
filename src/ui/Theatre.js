@@ -32,8 +32,9 @@ const CSS = `
 #theatre .list .rows div:hover { background: rgba(255,255,255,.12); } #theatre .list .rows div.now { background: rgba(255,255,255,.16); }
 #theatre .list .rows small { opacity: .7; min-width: 40px; font-variant-numeric: tabular-nums; }
 #theatre .thbar { position: absolute; left: 16px; right: 16px; bottom: 14px; background: rgba(12,14,20,.84); border-radius: 8px; padding: 10px 12px; pointer-events: auto; }
-#theatre .thbar .throw { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-#theatre .thbar .tm { font: 700 13px/1 ui-monospace, Menlo, Consolas, monospace; min-width: 132px; }
+#theatre .thbar .throw { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+#theatre .thbar .throw button { padding: 8px 9px; }
+#theatre .thbar .tm { font: 700 13px/1 ui-monospace, Menlo, Consolas, monospace; min-width: 122px; }
 #theatre .thbar .sp { flex: 1; }
 #theatre .thtl { position: relative; height: 22px; margin: 9px 0 2px; cursor: pointer; }
 #theatre .thtl .bg { position: absolute; left: 0; right: 0; top: 9px; height: 4px; background: rgba(255,255,255,.2); border-radius: 2px; }
@@ -66,12 +67,12 @@ export class Theatre {
     el.innerHTML = `<div class="top"><span class="tag">REPLAY</span><span class="who"></span></div><div class="cap"></div><div class="tower"></div>
       <div class="list"><div class="f">${Object.entries(FILTERS).map(([k, v]) => `<button data-f="${k}">${v[0]}</button>`).join('')}</div><button data-a="reel" class="on">▶ PLAY THESE ONE AFTER ANOTHER</button><div class="rows"></div></div>
       <div class="thbar"><div class="throw"><button data-a="play">❚❚</button><button data-a="back">◂ 5 s</button><button data-a="fwd">5 s ▸</button><button data-a="slow">−</button><span class="tm"></span><button data-a="fast">+</button>
-        <span class="sp"></span><button data-a="prev">◂ DRIVER</button><button data-a="next">DRIVER ▸</button><button data-a="cam"></button><button data-a="moments">MOMENTS</button><button data-a="photo">PHOTO</button><button data-a="close">CLOSE</button></div>
+        <span class="sp"></span><button data-a="prev" title="The driver ahead">◂</button><button data-a="next" title="The driver behind">DRIVER ▸</button><button data-a="cam"></button><button data-a="moments">MOMENTS</button><button data-a="photo">PHOTO</button><button data-a="clip" title="Record what is playing as a video file (R)">● CLIP</button><button data-a="save" title="This replay as a file, to watch again from the home screen">SAVE</button><button data-a="close">CLOSE</button></div>
         <div class="thtl"><div class="bg"></div><div class="fg"></div><div class="marks"></div><div class="hd"></div></div>
-        <div class="hint">SPACE play · ← → 5 s (SHIFT 30 s) · , . one frame · − + speed · ↑ ↓ driver · C camera · M moments · N / B next / last moment · TAB photo · H hide · ESC close</div></div>`;
+        <div class="hint">SPACE play · ← → 5 s (SHIFT 30 s) · , . one frame · − + speed · ↑ ↓ driver · C camera · M moments · N / B next / last moment · TAB photo · R record a clip · H hide · ESC close</div></div>`;
     document.body.appendChild(el);
     const $ = (q) => el.querySelector(q);
-    this.$who = $('.who'); this.$cap = $('.cap'); this.$tower = $('.tower'); this.$rows = $('.list .rows'); this.$t = $('.thbar .tm'); this.$fg = $('.thtl .fg'); this.$hd = $('.thtl .hd'); this.$tl = $('.thtl'); this.$cam = $('[data-a="cam"]'); this.$play = $('[data-a="play"]');
+    this.$who = $('.who'); this.$cap = $('.cap'); this.$tower = $('.tower'); this.$rows = $('.list .rows'); this.$t = $('.thbar .tm'); this.$fg = $('.thtl .fg'); this.$hd = $('.thtl .hd'); this.$tl = $('.thtl'); this.$cam = $('[data-a="cam"]'); this.$play = $('[data-a="play"]'); this.$clip = $('[data-a="clip"]');
     // the timeline's marks: the moments, the laps
     const dur = Math.max(1, this.T1 - this.T0), M = $('.marks'); let h = '', lap = -1;
     for (const e of tape.events) if (e.kind !== 'green') h += `<div class="ev" style="left:${((e.t - this.T0) / dur * 100).toFixed(2)}%;--k:${KIND[e.kind] || '#888'}" title="${esc(e.text)}"></div>`;
@@ -86,12 +87,20 @@ export class Theatre {
       if (a === 'play') this.toggle(); else if (a === 'back') this.seek(this.T - 5); else if (a === 'fwd') this.seek(this.T + 5); else if (a === 'slow') this.rate(-1); else if (a === 'fast') this.rate(1);
       else if (a === 'prev') this.step(-1); else if (a === 'next') this.step(1); else if (a === 'cam') this.nextCam(); else if (a === 'moments') el.classList.toggle('moments');
       else if (a === 'photo') this.h.photo(true); else if (a === 'close') this.h.onClose(); else if (a === 'reel') this.startReel();
+      else if (a === 'clip') this.clip(); else if (a === 'save') { b.textContent = 'SAVING…'; Promise.resolve(this.h.save?.()).then((ok) => { b.textContent = ok === false ? 'NOT SAVED' : 'SAVED ✓'; setTimeout(() => { b.textContent = 'SAVE'; }, 2500); }); }
     });
     const at = (ev) => { const r = this.$tl.getBoundingClientRect(); this.reel = null; this.seek(this.T0 + Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width)) * dur); };
     this.$tl.addEventListener('pointerdown', (ev) => { this.drag = true; this.$tl.setPointerCapture(ev.pointerId); at(ev); }); this.$tl.addEventListener('pointermove', (ev) => { if (this.drag) at(ev); }); this.$tl.addEventListener('pointerup', () => { this.drag = false; });
     el.classList.add('moments'); this.list(); this.follow(this.car);
   }
-  dispose() { this.el.remove(); }
+  dispose() { if (this.rec) this.clip(); this.el.remove(); }
+  /** CLIP: what plays from now recorded as a video (the picture only, none of this screen's buttons); again: stopped and saved */
+  clip() {
+    if (!this.h.clip) return;
+    if (this.rec) { this.rec = null; this.h.clip(false); this.$clip.classList.remove('on'); this.$clip.textContent = '● CLIP'; return; }
+    if (this.h.clip(true) === false) { this.caption('This browser cannot record video', 4); return; }
+    this.rec = { t: 0 }; this.$clip.classList.add('on'); if (!this.play) this.toggle();
+  }
   toggle() { this.play = !this.play; if (this.play && this.T >= this.T1 - 0.05) this.seek(this.T0); }
   rate(d) { const i = Math.max(0, Math.min(SPEEDS.length - 1, SPEEDS.indexOf(this.speed) + d)); this.speed = SPEEDS[i]; }
   seek(T) { this.T = Math.max(this.T0, Math.min(this.T1, T)); this.k = this.tape.seek(this.T); this.jump = true; this.tv = null; }
@@ -115,6 +124,8 @@ export class Theatre {
     if (P('Comma')) { this.play = false; this.seek(this.T - 1 / this.tape.hz); } if (P('Period')) { this.play = false; this.seek(this.T + 1 / this.tape.hz); }
     if (P('Minus') || P('NumpadSubtract')) this.rate(-1); if (P('Equal') || P('NumpadAdd')) this.rate(1);
     if (P('ArrowUp')) this.step(-1); if (P('ArrowDown')) this.step(1); if (P('KeyC')) this.nextCam(); if (P('KeyM')) this.el.classList.toggle('moments');
+    if (P('KeyR')) this.clip();
+    if (this.rec) { this.rec.t += dt; const s = Math.floor(this.rec.t); if (s !== this.rec.s) { this.rec.s = s; this.$clip.textContent = `■ ${clock(s)}`; } if (!this.play || this.rec.t > 600) this.clip(); }   // (a clip ends with the playing, or after ten minutes)
     if (P('KeyH')) { this.ui = !this.ui; this.el.classList.toggle('hide', !this.ui); } if (P('Tab')) { this.h.photo(true); return; }
     if (P('KeyN') || P('KeyB')) { const d = P('KeyN') ? 1 : -1, L = this.shown.slice().sort((a, b) => a.t - b.t), e = d > 0 ? L.find((x) => x.t > this.T + 4.5) : L.slice().reverse().find((x) => x.t < this.T + 2); this.reel = null; if (e) this.toEvent(e); }
     if (this.play) { this.T += dt * this.speed; if (this.T >= this.T1) { this.T = this.T1; this.play = false; } const tp = this.tape; while (this.k < tp.N - 2 && tp.time(this.k + 1) <= this.T) this.k++; }
@@ -122,6 +133,7 @@ export class Theatre {
     if (this.reel) { const R = this.reel, e = R.L[R.i]; if (this.T > e.t + 3.2 || !this.play) { R.i++; if (R.i >= R.L.length || !this.play) { this.reel = null; this.play = false; } else { this.toEvent(R.L[R.i]); this.caption(`${FILTERS[this.filter][0]} ${R.i + 1}/${R.L.length} · ${R.L[R.i].text}`, 6); } } }
     const tp = this.tape, n = tp.n, s = this.s;
     for (let i = 0; i < n; i++) this.h.pose(i, tp.sample(i, this.T, this.k, s), this.T, this.jump);
+    this.h.after?.(this.T, this.play ? dt * this.speed : 0, this.jump);   // (what is round the cars: crews, fire, debris, the weather)
     this.camera(dt); this.jump = false;
     if (this.capT > 0) { this.capT -= dt; if (this.capT <= 0) this.$cap.classList.remove('in'); }
     this.draw(); if (!this.noDraw) this.h.render();   /* (noDraw: a test stepping the tape without drawing every frame) */
@@ -164,7 +176,7 @@ export class Theatre {
     const tp = this.tape, M = tp.meta, O = tp.orderAt(this.T), dur = Math.max(1, this.T1 - this.T0), u = (this.T - this.T0) / dur;
     this.$fg.style.width = `${u * 100}%`; this.$hd.style.left = `${u * 100}%`;
     const key = `${Math.floor(this.T)}|${this.speed}|${this.play}|${this.cam}|${this.car}|${O ? O.t : 0}`; if (key === this._key) return; this._key = key;
-    this.$t.textContent = `${clock(this.T - this.T0)} / ${clock(dur)} · ${this.speed}×`; this.$play.textContent = this.play ? '❚❚' : '▶'; this.$cam.textContent = `CAMERA · ${CAMS.find((c) => c[0] === this.cam)[1]}`;
+    this.$t.textContent = `${clock(this.T - this.T0)} / ${clock(dur)} · ${this.speed}×`; this.$play.textContent = this.play ? '❚❚' : '▶'; this.$cam.textContent = `CAM · ${CAMS.find((c) => c[0] === this.cam)[1]}`;
     const pos = O ? Array.from(O.o).indexOf(this.car) + 1 : 0;
     this.$who.innerHTML = `${esc(M.names[this.car])}<small>${pos ? `P${pos} · ` : ''}${O && M.laps ? `LAP ${Math.min(M.laps, Math.max(1, O.lap))}/${M.laps}` : ''}</small>`;
     if (O) { const k2 = tp.seek(this.T), C = tp.chunks[k2 >> 8], b = (k2 & 255) * tp.n; this.$tower.innerHTML = Array.from(O.o).map((i, k) => `<div data-i="${i}" class="${i === this.car ? 'on' : ''}${C.f[b + i] & F.OUT ? ' out' : ''}"><b>${k + 1}</b><i style="background:${M.colors[i]}"></i>${esc(M.shorts[i])}${C.f[b + i] & F.PIT ? ' · PIT' : ''}</div>`).join(''); }

@@ -174,9 +174,9 @@ body.home .card::after { top: auto; bottom: 22px; margin: 0; }
 body.home .card:hover { transform: translate3d(0, -4px, 0); border-color: rgba(255,255,255,.35); background-color: #0b0d14; }
 body.home .card:hover .ci { transform: scale(1.03); }
 body.home #menu .card:active:not(:disabled) { transform: translate3d(0, -2px, 0) scale(.985); }
-#race-again { display: flex; align-items: center; gap: 12px; height: 44px; padding: 0 22px; font-size: 12px; font-weight: 600; letter-spacing: .06em; color: var(--dim); min-width: 0; }
-#race-again b { color: var(--fg); letter-spacing: .14em; white-space: nowrap; }
-#race-again span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#race-again, #replay-open { display: flex; align-items: center; gap: 12px; height: 44px; padding: 0 22px; font-size: 12px; font-weight: 600; letter-spacing: .06em; color: var(--dim); min-width: 0; }
+#race-again b, #replay-open b { color: var(--fg); letter-spacing: .14em; white-space: nowrap; }
+#race-again span, #replay-open span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 body.home #race-again { align-self: center; }
 .home-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 24px; margin-top: 8px; font-size: 11px; color: var(--dim); }
 .home-foot .memoriam { flex: 1 1 100%; }

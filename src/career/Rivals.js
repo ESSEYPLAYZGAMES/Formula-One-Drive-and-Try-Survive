@@ -43,7 +43,7 @@ export function rivalsEnsure(c) {
   if (!c.rivals) c.rivals = { approaches: [], protestAt: -9 };
 }
 /** what a rival's people do to its cars: its crew chief in its stops (as yours is in yours) */
-export function rivalFx(c, t) { const s = t.ai?.staff; return s ? { pitMul: 1.08 - 0.12 * s.crew.rating } : { pitMul: 1 }; }
+export function rivalFx(c, t) { const s = t.ai?.staff; return s ? { pitMul: 1.08 - 0.12 * s.crew.rating, strat: s.strat?.rating ?? null } : { pitMul: 1 }; }   // (strat: how sharp its pit wall is against you - race/RivalWall.js)
 /** a rival's round in the factory: when its way of working says so (a package team saves three rounds' money and spends it at once) */
 export function rivalDevelop(c, t) {
   const P = PHIL[t.ai?.phil] || PHIL.steady;

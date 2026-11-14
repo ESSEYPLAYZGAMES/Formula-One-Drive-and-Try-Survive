@@ -97,7 +97,7 @@
     <div class="brand-line"></div>
     <h1 id="brand-title">FORMULA 1<span id="brand-sub">SIMULATOR</span></h1>
     <!-- the build's version: +0.01 with every build handed out -->
-    <span id="app-ver" title="Version">V2.53</span>
+    <span id="app-ver" title="Version">V2.54</span>
     <div id="menu-sub">Real circuits built from OpenStreetMap</div>
   </div>
   <div id="loading" class="hidden"><div class="ld"><i></i></div><span>Building the circuit from OpenStreetMap…</span></div>
@@ -115,6 +115,9 @@
     <div class="home-acts">
       <button id="race-again" class="ghost hidden"><b>↻ RACE AGAIN</b><span></span></button>
       <button id="stats-open" class="ghost" title="Stats (S)"><b>∑ STATS</b><span>Every mode, every lap</span></button>
+      <!-- a replay saved from the theatre (SAVE on the replay screen), watched again -->
+      <button id="replay-open" class="ghost" title="Open a replay saved from the replay screen"><b>▶ REPLAY</b><span>A saved replay file</span></button>
+      <input id="replay-file" type="file" accept=".f1replay,application/octet-stream" hidden>
     </div>
     <footer class="home-foot">
       <div id="memoriam-home" class="memoriam hidden"></div>

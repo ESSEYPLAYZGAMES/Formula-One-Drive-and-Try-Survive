@@ -620,7 +620,8 @@ export class CarMesh {
   /** a fire / smoke source on this car (body frame point), alive while the car's mesh is */
   _source(kind, bx, by, k, car) {
     if (!FIRE) return; if (kind === 'fire') car._burned = true;   // (the news replays it: ui/NewsBroadcast.js)
-    FIRE.add((out) => { if (!this.group.parent) return false; this.body.localToWorld(out.set(bx, by, 0)); return true; }, kind, k, () => car.speed < 1 || car.wreck);
+    const e = FIRE.add((out) => { if (!this.group.parent) return false; this.body.localToWorld(out.set(bx, by, 0)); return true; }, kind, k, () => car.speed < 1 || car.wreck);
+    e.car = car; e.bx = bx; e.by = by;   // (which car, where on it: the race's tape - race/RaceTape.js)
   }
   /** the parts of a tyre coming apart, built the first time this wheel punctures (hidden until then) */
   _buildRuin(w) {

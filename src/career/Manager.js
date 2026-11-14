@@ -130,7 +130,7 @@ export class ManagerCareer {
         // (the power unit's wear - a worn ICE a little down on power, any worn element more likely to fail - and, for your
         //  team, a damaged part raced for want of a spare: career/ManagerOps.js)
         const pu = puEffect(this, t.name, d0.id), sp = t.name === this.myTeam ? sparesPerf(this, t.name) : 1;
-        out.push({ careerId: d.id, name: d.name, short: d.short, team: t.name, color: t.color, color2: t.color2, livery: t.livery, helmet: d.helmet, tier: t.tier, perf: (fx.perf + (t.gap || 0)) * pu.perfMul * sp * fit * eng.perf * (t.name === this.myTeam ? engineerFx(this, d0.id).perf : 1),   /* (t.gap: the grid's width - career/Seasons.js) */ rating: d.rating, number: d.number, morale: d.morale ?? 60, fx: { ...fx, relMul: (fx.relMul || 1) * pu.relMul * eng.relMul, pitMul: (fx.pitMul || 1) * (t.name === this.myTeam ? 1 : rivalFx(this, t).pitMul) }, garage: t.garage, mine: t.name === this.myTeam, champPts: d.points });
+        out.push({ careerId: d.id, name: d.name, short: d.short, team: t.name, color: t.color, color2: t.color2, livery: t.livery, helmet: d.helmet, tier: t.tier, perf: (fx.perf + (t.gap || 0)) * pu.perfMul * sp * fit * eng.perf * (t.name === this.myTeam ? engineerFx(this, d0.id).perf : 1),   /* (t.gap: the grid's width - career/Seasons.js) */ rating: d.rating, number: d.number, morale: d.morale ?? 60, fx: { ...fx, relMul: (fx.relMul || 1) * pu.relMul * eng.relMul, pitMul: (fx.pitMul || 1) * (t.name === this.myTeam ? 1 : rivalFx(this, t).pitMul), strat: t.name === this.myTeam ? null : rivalFx(this, t).strat ?? null }, garage: t.garage, mine: t.name === this.myTeam, champPts: d.points });
       }
     }
     return out;

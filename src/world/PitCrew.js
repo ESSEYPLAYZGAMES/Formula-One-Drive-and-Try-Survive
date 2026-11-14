@@ -20,7 +20,7 @@ import { Ragdoll, carTopR } from './Ragdoll.js';
 import { COMPOUNDS } from '../vehicle/Tyres.js';
 
 const NOSE_X = 3.09, REAR_X = -2.31, AXLE = { F: 1.855, R: -1.548 }, HUBW = { F: 0.775, R: 0.736 }, TYRE_W = { F: 0.332, R: 0.414 };   // (the 2026 car model's, about the centre of mass)
-const LIFT_F = 0.085, LIFT_R = 0.08, NEAR = 220, RUN = 3.8, WALK = 1.5, STACK_W = 3.5;   // (STACK_W: the tyres stacked at the garage front)
+const LIFT_F = 0.085, LIFT_R = 0.08, NEAR = 220, CALL_M = 650, RUN = 3.8, WALK = 1.5, STACK_W = 3.5;   // (STACK_W: the tyres stacked at the garage front)
 const WHEELS = [['F', 1], ['F', -1], ['R', 1], ['R', -1]];   // (w side: +1 the garage side)
 const smooth = (a, b, t) => { const u = Math.max(0, Math.min(1, (t - a) / Math.max(1e-6, b - a))); return u * u * (3 - 2 * u); };
 const lerp = (a, b, f) => a + (b - a) * f;
@@ -126,7 +126,7 @@ export class PitCrews {
   constructor(scene, n = 3, meshes = null, night = false) {
     warmPersonRigs();
     this.scene = scene; this.meshes = meshes; this.crews = []; for (let k = 0; k < n; k++) this.crews.push(new Crew(scene, night));
-    this._v = new THREE.Vector3(); this._v2 = new THREE.Vector3(); this.loose = []; this._prev = new Map();
+    this._v = new THREE.Vector3(); this._v2 = new THREE.Vector3(); this.loose = []; this._prev = new Map(); this._far = new Map();
   }
   dispose() { for (const k of this.crews) { this._free(k); k.dispose(this.scene); } this.crews = []; }
 
@@ -137,12 +137,20 @@ export class PitCrews {
       if (c.retired) continue;
       const box = P.boxFor(c.boxIdx ?? c.number + c.id);
       let st = null;
-      if (c.manualPit && c.pitLane) {
+      if (c._crew !== undefined) st = c._crew;   // (the theatre: a stand-in car that says itself where it is in its stop - null, 'stop' or { ahead })
+      else if (c.manualPit && c.pitLane) {
         if (c.pitLaneState === 'stop') st = 'stop';
         else if (c.pitLaneState === 'in' && (c.pitRequested || c.isPlayer)) { const ahead = box.u - c.pitU; if (ahead > -8) st = { ahead }; }
       } else if (c.inPit) {
         const s = d.pitStates?.get(c); if (!s) continue;
         if (s.phase === 'stop') st = 'stop'; else if (s.phase === 'in') st = { ahead: s.boxU - s.u };
+      }
+      // (called in and coming to the pit entry: the crew is out and at its places before the car is in the lane -
+      //  a box near the lane's start is seconds from the speed-limit line)
+      if (!st && c.pitRequested && !c.inPit && !c.finished && !(c.pitLane && c.pitLaneState === 'out')) {
+        const L = d.track?.length || 0; let to = P.entryS - (c.s || 0);
+        if (L) { to = ((to % L) + L) % L; if (to > L - (P.divergeU + 60)) to -= L; }
+        if (to < CALL_M && to + box.u > -8) st = { ahead: to + box.u };
       }
       if (st) out.push({ c, box, stop: st === 'stop', ahead: st === 'stop' ? 0 : st.ahead });
     }
@@ -164,7 +172,10 @@ export class PitCrews {
       k.next = nx || null; for (const q of stops.filter((q) => q.box.i === k.box.i)) stops.splice(stops.indexOf(q), 1);
     }
     const mine = (q) => q.c.isPlayer ? -1e3 : q.ahead;
-    for (const s of stops.filter((q) => Math.hypot(q.box.x - cam.x, q.box.z - cam.z) < NEAR).sort((a, b) => mine(a) - mine(b))) {
+    // (your own stop has its crew wherever the camera is: out as you are called in, not when the box comes into sight)
+    const seen = (q) => q.c.isPlayer || Math.hypot(q.box.x - cam.x, q.box.z - cam.z) < NEAR;
+    for (const q of stops) { q.unseen = this._far.get(q.c) === this.frame - 1 || this._cut === this.frame; if (!seen(q)) this._far.set(q.c, this.frame); }
+    for (const s of stops.filter(seen).sort((a, b) => mine(a) - mine(b))) {
       if (this.crews.some((q) => q.car && q.box.i === s.box.i)) continue;
       let k = this.crews.find((q) => !q.car);
       // (your own stop always has its crew: one sent to a stop out of sight is called back for it)
@@ -190,6 +201,9 @@ export class PitCrews {
     this._loose(cars, dt);
   }
 
+  /** the picture has jumped (the theatre wound to another moment): every crew back inside, the stops of the new moment found as they stand */
+  cut() { for (const k of this.crews) if (k.car) this._free(k); this._prev.clear(); this._far.clear(); this._cut = (this.frame || 0) + 1; }
+
   /** a car into one of the crew: knocked down (a ragdoll from the pose they are in), what they held let go; the ones down, moved */
   _hits(k, cars, dt) {
     const near = cars.filter((q) => Math.hypot(q.x - k.F0.ox, q.z - k.F0.oz) < 16);
@@ -199,7 +213,7 @@ export class PitCrews {
       const p = m.rig.mesh.position;
       for (const q of near) {
         const co = Math.cos(q.th), sn = Math.sin(q.th), dx = p.x - q.x, dz = p.z - q.z, lx = dx * co + dz * sn, lz = -dx * sn + dz * co;
-        if (Math.abs(lx) > 3.5 || Math.abs(lz) > 1.4 || carTopR(lx, lz, 0.2) <= 0 || Math.hypot(q.vx, q.vz) < 2.5) continue;
+        if (this.safe || Math.abs(lx) > 3.5 || Math.abs(lz) > 1.4 || carTopR(lx, lz, 0.2) <= 0 || Math.hypot(q.vx, q.vz) < 2.5) continue;   // (safe: a stop played back - no one was hit then)
         m.rd = new Ragdoll(m.rig); m.rd.start(); this._letGo(k, m, q);
         if (q.c.isPlayer) k.hitBy = q.c;
         break;
@@ -242,6 +256,9 @@ export class PitCrews {
       if (again) { const [x, z] = this._wF(old, m.u, m.w); [m.u, m.w] = this._inv(k, x, z); m.go = 0; m.fetch = m.r === 'on'; m.dump = m.r === 'off' && k.oldT[m.j].visible; return; }
       m.u = (Math.random() - 0.5) * 8; m.w = 4.4 + Math.random() * 2.2; m.go = 0.15 * (n % 7) + Math.random() * 0.4; m.fetch = m.dump = false; if (n === 0) for (const t of k.stackT) t.visible = false;
       m.cur = {}; m.home = { u: m.u, w: m.w }; m.ox = m.oz = 0;
+      // (a stop that was out of sight until this frame - the camera has cut to it - with the car nearly in or in:
+      //  the crew has been out all along, each at his place; one that can be seen coming always runs out)
+      if (s.unseen && (s.stop || s.ahead / Math.max(8, c.speed) < 6)) { const st = this._station(k, m, -1); m.u = st.u; m.w = st.w; m.go = 0; }
     });
     const comp = c.pitPlan?.compound || c.ai?.pitPlan?.compound || c.tyres.compound;
     k.newT.forEach((t) => t.userData.setCompound(comp)); if (!again) k.oldT.forEach((t) => t.userData.setCompound(c.tyres.compound));
@@ -463,7 +480,7 @@ export class PitCrews {
     if (m.r === 'chief') { pose = t >= D - 0.3 && after < 1 ? POSE.release : POSE.stand; fu = t >= D - 0.3 ? -0.2 : -1; fw = t >= D - 0.3 ? -1 : -0.4; }
     // (a crew out late, the car nearly in: whoever's place is on the lane side waits on the garage side of its path
     //  until it has stopped - never across the front of a car still rolling in)
-    if (k.phase === 'approach' && st.w < 0 && m.w > -0.6 && k.stop && !k.stop.stop && k.stop.ahead / Math.max(1, k.car.speed) < 3) { tw_ = Math.max(tw_, 1.7); tu = Math.min(Math.max(tu, REAR_X), NOSE_X); }
+    if (k.phase === 'approach' && st.w < 0 && m.w > -0.6 && k.stop && !k.stop.stop && k.stop.ahead / Math.max(1, k.car.speed) < 1.8) { tw_ = Math.max(tw_, 1.7); tu = Math.min(Math.max(tu, REAR_X), NOSE_X); }
     // (a car coming at them at a walk or a jog - in or out of a box, a team-mate's, a neighbour's - and they are where
     //  it is about to be: out of its way, to whichever side of its path they are on; one much faster (over 40 km/h - the
     //  limiter is 80) gives no time to
@@ -471,10 +488,15 @@ export class PitCrews {
     const [mx, mz] = this._w(k, m.u, m.w);
     for (const q of this._carsNow || []) {
       const sp = Math.hypot(q.vx, q.vz); if (sp < 0.8 || sp > 11) continue;
-      if (q.c === k.car && (k.phase === 'stop' || (k.phase === 'approach' && m.u > NOSE_X + 0.3))) continue;
+      const own = q.c === k.car && k.phase === 'approach';
+      if (q.c === k.car && (k.phase === 'stop' || (own && m.u > NOSE_X + 0.3))) continue;
       const co = Math.cos(q.th), sn = Math.sin(q.th), dx = mx - q.x, dz = mz - q.z, lx = dx * co + dz * sn, lz = -dx * sn + dz * co;
-      if (lx < -2.9 || lx > 3.4 + sp * 0.9 || Math.abs(lz) > 1.3) continue;
-      const side = Math.sign(lz) || 1; [tu, tw_] = this._inv(k, q.x + co * lx - sn * side * 2.2, q.z + sn * lx + co * side * 2.2);
+      // (their own car is turning in to the box as it comes: the line it points along sweeps across the men on the
+      //  garage side, where it will never be - so it is looked at closer in, and whoever is in its way steps back
+      //  from the box on the side he is on, never across in front of it to the other side)
+      if (lx < -2.9 || lx > 3.4 + sp * (own ? 0.35 : 0.9) || Math.abs(lz) > (own ? 1.15 : 1.3)) continue;
+      if (own) { const sd = m.w > 0.3 ? 1 : m.w < -0.3 ? -1 : (Math.sign(st.w) || 1); tu = m.u; tw_ = sd * Math.max(Math.abs(m.w), 2.3); }
+      else { const side = Math.sign(lz) || 1; [tu, tw_] = this._inv(k, q.x + co * lx - sn * side * 2.2, q.z + sn * lx + co * side * 2.2); }
       speed = RUN; pose = POSE.stand; hands = null; holdPos = null; break;
     }
     // ---- move toward where they should be (a run or a walk, the legs going with it)

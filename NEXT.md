@@ -1,3 +1,76 @@
+# V2.54 (2026-11-14): rival pit walls against you, a theatre with everything in it, replays out of the game, the pit crews
+
+Asked for: "Rivals should change race strategy against the player"; "Theatre should keep smoke, fire, debris and
+changing weather and pit crews"; "Fix a glitch where the pitcrew comes out late and all the pitgun people go on one
+side of the car, where they then have to run back to the other side"; "Make theatres exportable".
+
+## The pit crews (the glitch)
+Measured with a car's path into its box traced against where each man stood (30 times a second):
+- The cause of the men on one side: a car turns in to its box from the lane, so the line it points along sweeps
+  across the men waiting on the garage side. They took themselves to be in its way, stepped across in front of it to
+  the lane side, and ran back through the car once it had stopped - the front wheel's three men and a stabiliser,
+  2.9 m from their places as the car stood still. Now their own car is looked at closer in, and whoever is in its way
+  steps back from the box on the side he is on, never across (world/PitCrew.js _man).
+- The cause of the crew out late: in the team principal's x2 / x4 (and the spectator's fast forward) the cars ran at
+  that speed and the crews at x1 - a quarter of the time to get out, every stop. They move in the race's time now.
+- And a crew was only sent out once its car was in the pit lane (a box near the lane's start: a second and a half).
+  It goes out when the car is called in and within 650 m of the pit entry.
+- A stop first seen by a camera cutting to it (the broadcast) has its crew at its places, not running out mid-stop.
+- After: every man at his place when the car stops, three stops of three (the rear jack man waits at the side until
+  the car is in, as before).
+- Your own stop has its crew wherever the camera is (it used to wait for the box to come within 220 m of it).
+
+## The theatre keeps what was round the cars
+The tape (race/RaceTape.js) records, and the theatre (main.js thFx*, thAfter) plays back:
+- Pit crews: every stop's moment, length, tyres and wing change. The crews in the theatre are the race's own
+  (world/PitCrew.js) following that script: out before the car, the wheels off and on, the jacks, back inside.
+- Fire and smoke: what was burning or smoking on which car, each second - and the powder when the marshals put it out.
+- Debris: every burst as it happened (contact, a tyre's strips); wound to a moment, the last 25 s of it is thrown
+  and let fall first, so it lies where it lay.
+- The weather as it changed: the water on the road every four seconds (the road's own texture), the showers where
+  they were (rain where the camera is, the sky darkening), the spray off each car by how wet the road under it was.
+- Not kept: a wheel rim's sparks and a tyre coming apart on the car (the car's damage record shows the tyre gone),
+  the halves of a car torn in two flying (they are where they came to rest).
+
+## Replays out of the game
+- SAVE on the replay screen: the whole replay as one file (.f1replay, about 0.8 MB a minute of race, gzip). 
+  REPLAY on the home screen opens one: its circuit is built, day or night as it was, and the theatre runs on it -
+  every car, camera, moment, the crews, fire, weather, the photo mode.
+- CLIP (or R): what plays from then on is recorded as a video (the picture only, none of the buttons; WebM, or MP4
+  where the browser has no WebM) and saved when you press it again, when the playing stops, or after ten minutes.
+- A saved replay opens in the version that made it or a later one; a circuit rebuilt in a later version would put
+  the cars where the road was.
+
+## Rival pit walls against you (race/RivalWall.js)
+Every car already had its own plan; this is what a rival team does about your car (or your two, from the pit wall):
+- Your crew comes out and the car just ahead is called in on the same lap to cover - one car a team, with your tyre
+  where it reaches the flag. How often: the team's strategist in a team principal's career (their rating, HQ:
+  RIVALS), else the team's tier.
+- Call your stop off (the dummy): a sharp wall calls theirs off too if there is road left before the pit entry; the
+  others stop for nothing, and a wall that has bitten looks twice until you really stop.
+- You stop and a rival close behind stays out and pushes for a lap and a half (the overcut), then takes a tyre a step
+  softer than yours where one reaches the flag.
+- A rival held up behind you for half a minute stops early, sooner than its own plan would (the undercut); its
+  team-mate behind it is left out long.
+- Under the safety car the rival right behind you does the opposite of what you do.
+- Your engineer says each move (the pit wall's radio in a team principal's race).
+- Seen in a 12-lap race with a mid-field car made "yours": an undercut on it, a cover called and called off again
+  when the crew went back in, a second undercut, the real stop covered by one Mercedes and not the other.
+- Not in the simulated laps (SIM): those keep the lap model's own stops.
+
+## Checked
+- A seeded race in the other modes is identical to V2.45-V2.53 (tools/race_probe.mjs 5 1 silverstone).
+- In a browser: a two-lap race with showers, eight stops, a fire, smoke and a forced hit, then the theatre on it
+  (crews at two stops, the fire, the debris, the rain), the tape saved and read back (every array the same), the
+  file opened as from the home screen, closed back to the menu.
+- CLIP: with the recorder on and a dozen frames drawn, a WebM file came out (the software renderer here draws a
+  frame every few seconds on its own, so no clip at a real frame rate was made; a recording that ends with nothing
+  in it says so on screen).
+- The crews at Montreal as at Silverstone; the rival walls in a race you drive (a stand-in car): not in a team
+  principal's race, where the same code answers your two cars.
+- Not checked: a real graphics card; a clip at full frame rate; a replay file from a long race (size by arithmetic:
+  about 50 MB for 60 minutes).
+
 # V2.53 (2026-11-14): a replay theatre, wheels that turn in replays, a harder manager, rival teams, the years, the walls
 
 Asked for: wheels turning in replays; a harder manager career ("simmed quali as williams and got p3 and p6 first
