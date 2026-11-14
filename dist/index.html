@@ -602,7 +602,7 @@ body.tp #hud-msg { top: 30%; }
     <div class="brand-line"></div>
     <h1 id="brand-title">FORMULA 1<span id="brand-sub">SIMULATOR</span></h1>
     <!-- the build's version: +0.01 with every build handed out -->
-    <span id="app-ver" title="Version">V2.54</span>
+    <span id="app-ver" title="Version">V2.55</span>
     <div id="menu-sub">Real circuits built from OpenStreetMap</div>
   </div>
   <div id="loading" class="hidden"><div class="ld"><i></i></div><span>Building the circuit from OpenStreetMap…</span></div>
@@ -83643,6 +83643,8 @@ const TCAM_FOV = 49;   // its vertical field of view (the settings' slider: 30 t
                                //  sides, the city over them, a strip of sky
 const TCAM_RISE = 0.05;   // the forward view's lens 5 cm higher on the pod: the halo's bar low in the frame, the helmet just under it
 
+const _bq = new THREE.Quaternion(), _bv = new THREE.Vector3();
+
 class CockpitCamera {
   constructor(camera) {
     this.cam = camera;
@@ -83666,6 +83668,24 @@ class CockpitCamera {
    *  chase   - the reverse chase: out in front of the car at chase distance, looking back at it and the pack;
    *  TV      - the trackside camera behind the car instead of the one ahead.
    */
+  /**
+   * An onboard on a car that is a rigid body now (in the air, a wreck): the lens where it is mounted on the body, the
+   * body's whole attitude (car.q, as the model is drawn: vehicle/CarMesh.js - it turns about its centre, 0.48 m up).
+   * The T-cam on its pod, forward or rear; the driver's eyes.
+   */
+  _bolted(car) {
+    const q = _bq.set(car.q[0], car.q[1], car.q[2], car.q[3]), tc = this.mode === 'tcam', back = !!this.back;
+    const lx = tc ? TCAM_X : back ? 1.3 : 0.25, ly = (tc ? (back ? 1.30 : TCAM_Y + this.tcam.rise) : back ? 1.25 : 0.77) - 0.48;
+    const pitch = tc && !back ? this.tcam.pitch : 0.02, dir = back ? -1 : 1;
+    _bv.set(lx, ly, 0).applyQuaternion(q); this.cam.position.set(car.p[0] + _bv.x, Math.max(0.12, car.p[1] + _bv.y), car.p[2] + _bv.z);
+    this.cam.up.set(0, 1, 0).applyQuaternion(q);
+    _bv.set(dir * Math.cos(pitch) * 25, -Math.sin(pitch) * 25, 0).applyQuaternion(q); this._look.copy(this.cam.position).add(_bv); this.cam.lookAt(this._look);
+    // (the T-cam's lens is fixed; the driver's eyes keep the widening that speed gives them, eased as the car slows)
+    const sp = car.v ? Math.hypot(car.v[0], car.v[2]) : car.speed || 0, want = back ? (tc ? 60 : 72) : tc ? this.tcam.fov : this.baseFov + 15 * Math.min(1, sp / 95);
+    const fov = tc || back ? want : this.cam.fov + (want - this.cam.fov) * 0.06;
+    if (Math.abs(this.cam.fov - fov) > 0.01) { this.cam.fov = fov; this.cam.updateProjectionMatrix(); }
+    this._wasBack = back;
+  }
   _rear(car, c, s, v, track) {
     let fov = 72;
     if (this.mode === 'cockpit') {
@@ -83695,9 +83715,12 @@ class CockpitCamera {
     this.t += dt;
     this.look += (this.lookIn - this.look) * Math.min(1, dt * 7);
     if (Math.abs(this.look) < 1e-3 && this.lookIn === 0) this.look = 0;
-    // a big accident: the onboard cameras would tumble with the car, so the director cuts to a chase shot from the
-    // direction the car was travelling when it went, off to one side and up a little, following the wreck to rest
-    if (car.air || car.wreck) {
+    // a big accident, a car in the air, a wreck at rest: an onboard camera stays an onboard - it is bolted to the car
+    // and goes where the car goes, over and over with it, and looks out of the wreck afterwards (a broadcast's onboard
+    // never turns into a camera following the car). Only the chase and TV views, which follow the car anyway, take
+    // the wreck from behind and to one side
+    if ((car.air || car.wreck) && (this.mode === 'cockpit' || this.mode === 'tcam') && car.q && car.p) { this._crash = null; this._bolted(car); return; }
+    if ((car.air || car.wreck) && this.mode !== 'cockpit' && this.mode !== 'tcam') {
       if (!this._crash) {
         const [vx, vz] = car.air ? [car.wvx, car.wvz] : [Math.cos(car.th), Math.sin(car.th)]; const l = Math.hypot(vx, vz) || 1;
         this._crash = { dx: vx / l, dz: vz / l, side: Math.random() < 0.5 ? 1 : -1 };
@@ -147029,9 +147052,86 @@ class Input {
 return { Input };
 })();
 
+// ---- src/camera/HeliCam.js
+__m['src/camera/HeliCam.js'] = (() => {
+
+// The TV helicopter: one aircraft with its own place, speed and weight, chasing a car - for the broadcast
+// (camera/TVDirector.js) and the replay theatre (ui/Theatre.js).
+// It is not fixed to the car. It flies toward a place some ninety metres short of the car along the line from where it
+// is - so it comes at the car from wherever it happens to be, never swung round to "behind and left" - at up to about
+// 280 km/h with a helicopter's acceleration: on a straight the car pulls away and the lens goes long; into the braking
+// zone and through the slow corners it catches up, cuts the corner and drifts past. A car standing still is circled
+// slowly. Where something stands between it and the car it climbs and comes in closer over it, and goes back out and
+// down when it has had a clear view for a while: one long shot - it never jumps to another place.
+
+const VMAX = 78, AMAX = 16, R0 = 90, H0 = 62, LEAD = 1.2;   // (LEAD: it flies for where the car will be in a moment - a pilot who knows the circuit)
+/** where it may begin, relative to the car: [bearing off its heading (rad: PI = straight behind), metres away, metres up] */
+const START = [[2.6, R0, H0], [-2.6, R0, H0], [2.1, R0, H0], [-2.1, R0, H0], [3.14, 70, H0 + 22], [2.6, 50, 110], [-2.6, 50, 110], [3.14, 15, 170]];
+let starts = 0;
+
+class HeliCam {
+  constructor() { this.p = new THREE.Vector3(); this.v = new THREE.Vector3(); this.on = false; this.up = 0; this.close = 0; this.chk = 0; this.see = true; this.clearT = 0; this.blockT = 0; this.ux = 1; this.uz = 0; this.t = 0; }
+  /** flying, and within r metres of (x, z): a new subject there is the same flight carried on */
+  near(x, z, r = 320) { return this.on && Math.hypot(this.p.x - x, this.p.z - z) < r; }
+  stop() { this.on = false; }
+  /**
+   * Begin a flight on a car. car: { x, y (the ground under it), z, th, vx, vz }; o: { clear(px, py, pz, tx, ty, tz) -> a
+   * clear line of sight, ground(x, z) -> height }. The first place with a view of it: behind it to one side (the side
+   * taken in turn), behind it higher, nearly overhead.
+   */
+  start(car, o = {}) {
+    const c = Math.cos(car.th), s = Math.sin(car.th), flip = (starts++ & 1) ? -1 : 1; let at = null;
+    for (const [a0, r, h] of START) {
+      const a = a0 * flip, dx = Math.cos(a) * r, dz = Math.sin(a) * r, x = car.x + c * dx - s * dz, z = car.z + s * dx + c * dz, y = Math.max(car.y + h, (o.ground ? o.ground(x, z) : 0) + 35);
+      at = [x, y, z, h, r]; if (!o.clear || o.clear(x, y, z, car.x, car.y + 1, car.z)) break;
+    }
+    this.p.set(at[0], at[1], at[2]);
+    const sp = Math.hypot(car.vx, car.vz), k = 0.85 * (sp > VMAX ? VMAX / sp : 1); this.v.set(car.vx * k, 0, car.vz * k);
+    this.up = Math.max(0, at[3] - H0); this.close = Math.max(0, Math.min(1, (R0 - at[4]) / (R0 - 18)));
+    const d = Math.hypot(car.x - at[0], car.z - at[2]) || 1; this.ux = (car.x - at[0]) / d; this.uz = (car.z - at[2]) / d;
+    this.on = true; this.chk = 0; this.see = true; this.clearT = 0; this.blockT = 0; this.t = 0;
+  }
+  /** dt seconds of flight after the car (o: as start's, and overhead: the car is in the pit lane - from nearly over it) */
+  update(dt, car, o = {}) {
+    if (!this.on) this.start(car, o);
+    if (!(dt > 0)) return;
+    const n = Math.max(1, Math.min(8, Math.ceil(dt / 0.05))), h = dt / n;
+    for (let i = 0; i < n; i++) this._step(h, car, o);
+  }
+  _step(dt, car, o) {
+    const p = this.p, v = this.v; this.t += dt;
+    const dx = car.x - p.x, dz = car.z - p.z, dist = Math.hypot(dx, dz);
+    // (the line it comes in along turns with where the car goes - slowly, and not at all right over the car)
+    if (dist > 30) { const k = Math.min(1, dt * 4); let ux = this.ux + (dx / dist - this.ux) * k, uz = this.uz + (dz / dist - this.uz) * k; const l = Math.hypot(ux, uz) || 1; this.ux = ux / l; this.uz = uz / l; }
+    // ---- can it see the car? looked at a few times a second
+    this.chk -= dt; if (this.chk <= 0) { this.chk = 0.3; this.see = !o.clear || o.clear(p.x, p.y, p.z, car.x, car.y + 1, car.z); }
+    // (something in the way: up, and in closer over the car; a clear view for a while: back out and down, gently)
+    if (!this.see) { this.blockT += dt; this.clearT = 0; this.up = Math.min(125, this.up + 32 * dt); this.close = Math.min(1, this.close + 0.55 * dt); }
+    else { this.blockT = 0; this.clearT += dt; if (o.overhead) { this.close = Math.min(1, this.close + 0.5 * dt); this.up = Math.min(Math.max(this.up, 70), this.up + 25 * dt); } else if (this.clearT > 3) { this.up = Math.max(0, this.up - 5 * dt); this.close = Math.max(0, this.close - 0.07 * dt); } }
+    // ---- the place to be: R short of the car along that line; toward it no faster than it can stop for it
+    const R = R0 + (18 - R0) * this.close, sp = Math.hypot(car.vx, car.vz);
+    const ex = car.x + car.vx * LEAD - this.ux * R - p.x, ez = car.z + car.vz * LEAD - this.uz * R - p.z, e = Math.hypot(ex, ez) || 1e-6, ve = Math.min(0.75 * e, Math.sqrt(1.3 * AMAX * e));
+    let wx = ex / e * ve + car.vx * 0.8, wz = ez / e * ve + car.vz * 0.8;
+    // (a car standing still: a slow circle round it)
+    const still = 1 - Math.min(1, sp / 12); wx += -this.uz * 9 * still; wz += this.ux * 9 * still;
+    // (as fast as it flies - a little more when the car is far down a straight, so it is never lost)
+    const vmax = VMAX + Math.max(0, Math.min(40, (dist - 120) * 0.35)), wl = Math.hypot(wx, wz); if (wl > vmax) { wx *= vmax / wl; wz *= vmax / wl; }
+    let ax = (wx - v.x) / 0.8, az = (wz - v.z) / 0.8; const al = Math.hypot(ax, az); if (al > AMAX) { ax *= AMAX / al; az *= AMAX / al; }
+    v.x += ax * dt; v.z += az * dt; p.x += v.x * dt; p.z += v.z * dt;
+    // ---- its height: over the car's ground, never low over its own; a slow breath of drift
+    const gy = o.ground ? o.ground(p.x, p.z) : 0, want = Math.max(car.y + H0 + this.up + 0.22 * Math.max(0, dist - 100), gy + 35) + Math.sin(this.t * 0.37) * 1.3;   // (the further off, the higher: it looks down the road at the car, not along it)
+    p.y += (want - p.y) * Math.min(1, dt * 0.9);
+  }
+  /** the long lens for the car at (x, y, z): tighter the further off it is (degrees) */
+  fov(x, y, z) { const d = Math.hypot(this.p.x - x, this.p.y - y, this.p.z - z); return Math.max(6, Math.min(34, THREE.MathUtils.radToDeg(2 * Math.atan(21 / Math.max(30, d))))); }
+}
+
+return { HeliCam };
+})();
+
 // ---- src/camera/TVDirector.js
 __m['src/camera/TVDirector.js'] = (() => {
-
+const { HeliCam } = __m['src/camera/HeliCam.js'];
 // The television director: the race as the world feed shows it, cut shot by shot. Every few seconds it picks the story
 // worth watching - a fight for a place (the closer and the higher up the order, the better), an accident or a spin the
 // moment it happens, a stop in the pit lane, the leader at the start and at the flag, and the cars of the team you run
@@ -147042,7 +147142,7 @@ __m['src/camera/TVDirector.js'] = (() => {
 // round it), and / or keep to one camera.
 //   update(dt, ctx) -> the car the shot is of (the game's S.player: the HUD, the sound and the camera's ground follow it)
 // More cameras, as a real feed has: a camera in the kerb at the apex (low, the cars coming at it), a crane that rises
-// and swings as they pass, the driver's eye (the helmet camera), a drone behind the pack off the line, the whole circuit
+// and swings as they pass, the driver's eye (the helmet camera), the whole circuit
 // from high up (under the safety car, now and then), and cutaways - the crowd in a stand when something has happened in
 // front of it (cutaway('crowd', car)), the garage of a car of yours that is out (cutaway('garage', car)).
 //   ctx: { d (RaceDirector), track, pit, focus: [your cars], camCtl (CockpitCamera: the onboard views), stands (the
@@ -147051,15 +147151,14 @@ __m['src/camera/TVDirector.js'] = (() => {
 // (No chase camera: television has none. The trackside cameras stand where real ones do - on platforms high over the
 //  catch fence, looking down past its top, or in slots in the fence line just over the barrier - never behind the mesh.)
 
+
 /** the cameras a viewer can keep to (keys 1-6 in the team principal's race) */
-const TV_CAMS = ['auto', 'track', 'tcam', 'heli', 'rear', 'helmet', 'kerb', 'crane', 'drone'];
-const TV_CAM_NAME = { auto: 'Director', track: 'Trackside', tcam: 'Onboard', heli: 'Helicopter', rear: 'Rear onboard', pit: 'Pit lane', grid: 'Grid', kerb: 'Kerb camera', crane: 'Crane', drone: 'Drone', helmet: 'Helmet camera', beauty: 'The circuit', crowd: 'The crowd', garage: 'The garage', wall: 'The pit wall', marshal: 'Marshal post', walk: 'The driver' };
+const TV_CAMS = ['auto', 'track', 'tcam', 'heli', 'rear', 'helmet', 'kerb', 'crane'];
+const TV_CAM_NAME = { auto: 'Director', track: 'Trackside', tcam: 'Onboard', heli: 'Helicopter', rear: 'Rear onboard', pit: 'Pit lane', grid: 'Grid', kerb: 'Kerb camera', crane: 'Crane', helmet: 'Helmet camera', beauty: 'The circuit', crowd: 'The crowd', garage: 'The garage', wall: 'The pit wall', marshal: 'Marshal post', walk: 'The driver' };
 /** the shots that are not of a car on the road: cutaways (a key skips one - skipAway) */
 const TV_AWAY = new Set(['crowd', 'garage', 'beauty', 'wall', 'marshal', 'walk']);
 
 const _v = new THREE.Vector3();
-/** where the helicopter may fly, relative to the car: [along its heading (m, - behind), to its left, up] - tried in turn */
-const HELI = [[-70, 40, 55], [-70, -40, 55], [-45, 26, 95], [-45, -26, 95], [-20, 12, 140], [-6, 0, 190]];
 
 class TVDirector {
   constructor(camera) {
@@ -147072,7 +147171,7 @@ class TVDirector {
     this.outAt = new Map();      // car -> when it was first seen retired
     this.spinAt = new Map();     // car -> when its incident became the story
     this.t = 0; this.cuts = 0;
-    this._look = new THREE.Vector3(); this._pos = new THREE.Vector3(); this._lookInit = false;
+    this._look = new THREE.Vector3(); this._pos = new THREE.Vector3(); this._lookInit = false; this.heli = new HeliCam(); this.heliAt = null; this.heliLook = false;
     this.onCut = null;           // (the graphics: a new shot - its car, its story)
     this.awayQ = [];             // the cutaways asked for, in turn: [{ kind, car, until, view }]
     this.awayNext = 0;           // not another before this (a few seconds of the race between two of them)
@@ -147105,7 +147204,7 @@ class TVDirector {
     const ph = d.sc?.phase || 'green', neutral = ph === 'sc' || ph === 'scIn' || ph === 'vsc' || ph === 'vscEnd' || ph === 'red';
     if ((ph === 'sc' || ph === 'scIn') && d.sc.car && !d.sc.car.pitLane) out.push({ car: d.sc.car, other: P.find((c) => onTrack(c)) || null, score: 19 + ((this.cuts * 0.618034) % 1) * 6, why: 'sc' });
     if (ph === 'red') { const l0 = P.find((c) => !c.retired); if (l0) out.push({ car: l0, score: 18, why: 'red' }); }
-    // the start: the pack off the line, from the drone behind it
+    // the start: the pack off the line, from the helicopter behind it
     if (d.world.racing && d.mode === 'race' && P[0] && (P.find((c) => !c.retired)?.lap || 0) === 0 && d.time - (d.world.raceStart ?? d.time) < 8 && !(d.sc?.redCount > 0)) out.push({ car: P[0], score: 46, why: 'start' });
     // a cutaway asked for (the crowd, a garage): once, soon, briefly
     { const Q = this.awayQ; while (Q.length && t >= Q[0].until) Q.shift(); const A = Q[0]; if (A && t >= this.awayNext && this.camKind === 'auto' && !this.followCar) out.push({ car: A.car, score: 31, why: A.kind, away: true, view: A.view || null }); }
@@ -147150,7 +147249,7 @@ class TVDirector {
     if (st.view) return st.why;    // (a cutaway with its own camera)
     if (this.camKind !== 'auto') return st.why === 'pit' && this.camKind === 'track' ? 'pit' : this.camKind;
     if (st.why === 'grid') return 'grid';
-    if (st.why === 'start') return 'drone';
+    if (st.why === 'start') return 'heli';
     if (st.why === 'crowd' || st.why === 'garage' || st.why === 'beauty') return st.why;
     if (st.why === 'pit') return 'pit';
     if (st.why === 'out' || st.why === 'spin') return this.cuts % 3 === 2 ? 'heli' : 'track';
@@ -147241,6 +147340,7 @@ class TVDirector {
       const f = tr.sample(tr.wrapS(40), 0), b = tr.sample(tr.wrapS(-160), 0);
       sh.pos = new THREE.Vector3(f.x + (f.x - b.x) * 0.15, G(f.x, f.z) + 22, f.z + (f.z - b.z) * 0.15); sh.lookAt = new THREE.Vector3(b.x, G(b.x, b.z), b.z);
     }
+    this.heliLook = this._lookInit && this.shot?.kind === 'heli';   // (the helicopter on to a new subject near it: its aim pans across, the flight carries on)
     this.shot = sh; this.cuts++; this._lookInit = false;
     this.lastSeen.set(subject, this.t); if (sh.other) this.lastSeen.set(sh.other, this.t);
     if (st.why === 'out') this.seenOut.add(car);
@@ -147295,12 +147395,7 @@ class TVDirector {
     let fov = 40;
     const G = (x, z) => (ctx.ground ? ctx.ground(x, z) : 0), carY = G(car.x, car.z) + ((car.air || car.wreck) && car.p ? Math.max(0, car.p[1]) : 0);   // (the ground the car is on: not flat everywhere)
     const tgt = _v.set(car.x, carY + 0.7, car.z);
-    if (sh.kind === 'drone') {
-      // behind the pack and over it, flying with it
-      const c = Math.cos(car.th), s = Math.sin(car.th); this._pos.set(car.x - c * 34, carY + 11, car.z - s * 34);
-      if (!this._lookInit) cam.position.copy(this._pos); else cam.position.lerp(this._pos, Math.min(1, dt * 4));
-      tgt.set(car.x + c * 6, carY + 0.5, car.z + s * 6); fov = 52;
-    } else if (sh.view) {
+    if (sh.view) {
       const v = sh.view, vp = typeof v.pos === 'function' ? v.pos() : v.pos, vl = typeof v.look === 'function' ? v.look() : v.look;
       cam.position.copy(vp); tgt.copy(vl); fov = v.fov || 40;
     } else if (sh.kind === 'crowd' || sh.kind === 'garage' || sh.kind === 'beauty') {
@@ -147318,27 +147413,23 @@ class TVDirector {
       fov = sh.kerb ? Math.max(24, Math.min(62, 900 / Math.max(10, dist))) : Math.max(9, Math.min(55, 1500 / Math.max(18, dist)));
       if (sh.other) { tgt.x = (car.x * 2 + sh.other.x) / 3; tgt.z = (car.z * 2 + sh.other.z) / 3; tgt.y = (carY * 2 + G(sh.other.x, sh.other.z)) / 3 + 0.7; fov = Math.max(fov, Math.min(55, 2400 / Math.max(18, dist))); }
     } else if (sh.kind === 'heli') {
-      const c = Math.cos(car.th), s = Math.sin(car.th);
-      // (the helicopter flies where it can see the car: behind and to one side - or the other side, or higher and
-      //  closer over it where towers stand along the road; looked at again a few times a second)
-      // (over the pit lane: from nearly overhead - the pit wall, its fence and the garages' roof stand either side of it)
-      if ((car.pitLane || car.inPit) && (sh.hk ?? 0) < 4) sh.hk = 4;
-      const H = HELI[sh.hk || 0];
-      this._pos.set(car.x + c * H[0] - s * H[1], carY + H[2], car.z + s * H[0] + c * H[1]);
-      if (ctx.clear && (sh.hk == null || sh.t - (sh.ht ?? -9) > 0.45)) {
-        sh.ht = sh.t;
-        // (judged from where it would be AND from where it is now - it trails the car a little as it flies)
-        if (sh.hk == null || !ctx.clear(this._pos.x, this._pos.y, this._pos.z, car.x, carY + 1.0, car.z) || (this._lookInit && !ctx.clear(cam.position.x, cam.position.y, cam.position.z, car.x, carY + 1.0, car.z))) {
-          // (over the pit lane only the steep places are tried - the low ones see the pit wall, and trying them set
-          //  the helicopter swinging between a low place and a high one; with no view at all - a car in its box under
-          //  the pit building's roof - it stays overhead)
-          const from = car.pitLane || car.inPit ? 4 : 0, cnt = HELI.length - from, k0 = Math.max(from, sh.hk ?? from);
-          for (let q = 0; q < cnt; q++) { const k = from + ((k0 - from + q) % cnt), Hq = HELI[k], px = car.x + c * Hq[0] - s * Hq[1], pz = car.z + s * Hq[0] + c * Hq[1]; if (ctx.clear(px, carY + Hq[2], pz, car.x, carY + 1.0, car.z)) { sh.hk = k; this._pos.set(px, carY + Hq[2], pz); break; } if (q === cnt - 1) { sh.hk = HELI.length - 1; if (from === 4) { /* (in its box under the pit building's roof: nothing in the air sees it - the pit lane's own camera has it until it is out again) */ sh.kind = 'pit'; sh.pos = null; this._lookInit = false; return this.place(dt, ctx); } } }
-        }
-        if (sh.hk == null) sh.hk = 0;
-      }
-      if (!this._lookInit || cam.position.distanceTo(this._pos) > 160) cam.position.copy(this._pos); else cam.position.lerp(this._pos, Math.min(1, dt * 3.5));   // (it keeps up: a second behind at most; a jump of more than 160 m is a cut)
-      tgt.set(car.x + c * 15, carY, car.z + s * 15); fov = H[2] > 120 ? 16 : H[2] > 80 ? 22 : 30;
+      // (an aircraft of its own - camera/HeliCam.js: it chases the car at a helicopter's pace, drops back down the
+      //  straights and catches up through the corners, climbs where something stands in the way - one long shot,
+      //  never a jump to another side. A new subject near where it is flying is the same flight carried on)
+      const H = this.heli, over = !!(car.pitLane || car.inPit);
+      const vel = car.air ? [car.wvx || 0, car.wvz || 0] : car.worldVel ? car.worldVel() : [Math.cos(car.th) * (car.speed || 0), Math.sin(car.th) * (car.speed || 0)];
+      const sub = this._heliCar || (this._heliCar = {}); sub.x = car.x; sub.y = carY; sub.z = car.z; sub.th = car.th; sub.vx = vel[0] || 0; sub.vz = vel[1] || 0;
+      const env = this._heliEnv || (this._heliEnv = {}); env.clear = ctx.clear || null; env.ground = ctx.ground || null; env.overhead = over;
+      if (!sh.heliOn) { sh.heliOn = true; if (H.near(car.x, car.z) && this.heliAt != null && this.t - this.heliAt < 1.5) this._lookInit = this._lookInit || this.heliLook; else { H.start(sub, env); this.heliLook = false; } }
+      else if (Math.hypot(H.p.x - car.x, H.p.z - car.z) > 700) { H.start(sub, env); this._lookInit = false; }   // (the car is somewhere else altogether - put back on the road: a cut)
+      H.update(dt, sub, env); this.heliAt = this.t;
+      // (in its box under the pit building's roof: nothing in the air sees it - the pit lane's own camera has it until it is out again)
+      if (over && H.blockT > 2.2 && H.up > 60) { sh.kind = 'pit'; sh.pos = null; sh.heliOn = false; this._lookInit = false; return this.place(dt, ctx); }
+      cam.position.copy(H.p);
+      // (the aim: a little ahead of the car, by its speed; two cars fighting: between them)
+      const ld = Math.min(0.22, 14 / Math.max(1, Math.hypot(sub.vx, sub.vz))); tgt.set(car.x + sub.vx * ld, carY + 0.4, car.z + sub.vz * ld);
+      if (sh.other && !sh.other.retired && Math.hypot(sh.other.x - car.x, sh.other.z - car.z) < 70) { tgt.x = (tgt.x * 2 + sh.other.x) / 3; tgt.z = (tgt.z * 2 + sh.other.z) / 3; }
+      fov = H.fov(car.x, carY, car.z);
     } else if (sh.kind === 'pit') {
       const P = ctx.pit;
       if (P && P.samples) {
@@ -147370,9 +147461,9 @@ class TVDirector {
       cam.position.copy(sh.pos); tgt.copy(sh.lookAt); fov = 34;
     }
     // the operator's pan: the aim eases after the car (a long lens never snaps)
-    if (!this._lookInit) { this._look.copy(tgt); this._lookInit = true; } else this._look.lerp(tgt, Math.min(1, dt * (sh.kind === 'track' || sh.kind === 'drone' ? 9 : 4)));
+    if (!this._lookInit) { this._look.copy(tgt); this._lookInit = true; } else this._look.lerp(tgt, Math.min(1, dt * (sh.kind === 'track' ? 9 : sh.kind === 'heli' ? 3 : 4)));
     cam.up.set(0, 1, 0); cam.lookAt(this._look);
-    if (Math.abs(cam.fov - fov) > 0.01) { cam.fov += (fov - cam.fov) * Math.min(1, dt * (sh.t < 0.05 ? 99 : 3)); cam.updateProjectionMatrix(); }
+    if (Math.abs(cam.fov - fov) > 0.01) { cam.fov += (fov - cam.fov) * Math.min(1, dt * (sh.t < 0.05 && !(sh.kind === 'heli' && this.heliLook) ? 99 : sh.kind === 'heli' ? 1.3 : 3)); cam.updateProjectionMatrix(); }   // (the helicopter's zoom is slow: the car grows and shrinks in the picture as it pulls away and is caught)
   }
 }
 
@@ -147835,7 +147926,7 @@ class PitWall {
         <div class="row" data-g="time"><span>TIME</span><button data-a="pause">❚❚</button><button data-a="speed" data-v="1">×1</button><button data-a="speed" data-v="2">×2</button><button data-a="speed" data-v="4">×4</button></div>
         <div class="row" data-g="sim"><span>SIM</span><button data-a="sim" data-v="1">1 LAP</button><button data-a="sim" data-v="5">5 LAPS</button><button data-a="sim" data-v="0">TO FLAG</button></div>
         <div class="row" data-g="cam"><span>CAM</span>${['auto', 'track', 'tcam', 'heli', 'rear'].map((k) => `<button data-a="cam" data-v="${k}" title="${TV_CAM_NAME[k]}">${{ auto: 'DIRECTOR', track: 'TRACK', tcam: 'ONBOARD', heli: 'HELI', rear: 'REAR' }[k]}</button>`).join('')}</div>
-        <div class="row" data-g="cam2"><span></span>${['helmet', 'kerb', 'crane', 'drone'].map((k) => `<button data-a="cam" data-v="${k}" title="${TV_CAM_NAME[k]}">${{ helmet: 'HELMET', kerb: 'KERB', crane: 'CRANE', drone: 'DRONE' }[k]}</button>`).join('')}</div>
+        <div class="row" data-g="cam2"><span></span>${['helmet', 'kerb', 'crane'].map((k) => `<button data-a="cam" data-v="${k}" title="${TV_CAM_NAME[k]}">${{ helmet: 'HELMET', kerb: 'KERB', crane: 'CRANE' }[k]}</button>`).join('')}</div>
         <div class="row" data-g="def"><span>SET-UP</span><button data-a="def" data-v="save" title="Keep the pit wall as it is now - tyres, fuel, ERS, every order, who makes the calls, the camera - for the start of every race from here on">SAVE AS MY DEFAULT</button><button data-a="def" data-v="clear" title="Forget the saved set-up: every race starts on the standard one again">RESET</button></div>
         <div class="row" data-g="order"><span>TEAM</span><button data-a="order" data-v="swap" title="The car ahead lets its team-mate through">SWAP</button><button data-a="order" data-v="hold" title="The car behind stays behind">HOLD</button><button data-a="order" data-v="free" title="Call the order off: race each other">RACE</button></div>
         <div class="radio"></div>
@@ -155642,6 +155733,7 @@ return { COMPOUNDS, F, RaceTape, SRC };
 // ---- src/ui/Theatre.js
 __m['src/ui/Theatre.js'] = (() => {
 const { F } = __m['src/race/RaceTape.js'];
+const { HeliCam } = __m['src/camera/HeliCam.js'];
 // The theatre: a finished race watched again from its tape (race/RaceTape.js) - the whole of it on a timeline to play,
 // pause, run fast or slow and drag through; any driver to follow, from the fence, behind the car, on board, from the
 // nose, from in front or from the air; the race's moments (the start, every pass for position, contacts and crashes,
@@ -155649,6 +155741,7 @@ const { F } = __m['src/race/RaceTape.js'];
 // (ALL, OVERTAKES, INCIDENTS); the running order at that moment down the side; and, paused on any frame, the photo
 // mode. main.js owns the world: it gives this the tape, puts the cars where a frame says (host.pose), draws, and takes
 // the screen back when it is closed.
+
 
 
 const CSS = `
@@ -155785,16 +155878,27 @@ class Theatre {
   camera(dt) {
     const g = this.h.group(this.car), cam = this.h.camera; if (!g) return;
     const p = g.position, f = _f.set(1, 0, 0).applyQuaternion(g.quaternion), u = _u.set(0, 1, 0).applyQuaternion(g.quaternion), snap = this.first || this.jump, q = snap ? 1 : Math.min(1, dt * 7);
-    let fov = 60; cam.up.set(0, 1, 0);
+    let fov = 60, zoom = 5; cam.up.set(0, 1, 0);
     if (this.cam === 'tcam' || this.cam === 'nose') {
       const nose = this.cam === 'nose'; cam.position.copy(p).addScaledVector(u, nose ? 0.4 : 1.03).addScaledVector(f, nose ? 1.85 : -0.2); cam.up.copy(u);
       cam.lookAt(_a.copy(cam.position).addScaledVector(f, 10).addScaledVector(u, nose ? 0 : -0.9)); fov = nose ? 82 : 76;
-    } else if (this.cam === 'chase' || this.cam === 'front' || this.cam === 'heli') {
-      const want = this.cam === 'chase' ? _a.copy(p).addScaledVector(f, -6.6).setY(p.y + 2.4) : this.cam === 'front' ? _a.copy(p).addScaledVector(f, 8.5).setY(p.y + 1.35) : _a.copy(p).addScaledVector(f, -30).setY(p.y + 40);
+    } else if (this.cam === 'heli') {
+      // (the TV helicopter - camera/HeliCam.js: an aircraft of its own chasing the car in the tape's time, not a
+      //  camera fixed behind it; wound to another moment, it begins again there)
+      const H = this.heli || (this.heli = new HeliCam()), rdt = this.play ? dt * this.speed : 0, gy = this.h.terrain.at(p.x, p.z);
+      const sub = this._hs || (this._hs = { x: p.x, z: p.z, vx: 0, vz: 0 }); if (snap || !H.on) { sub.vx = f.x * 40; sub.vz = f.z * 40; } else if (rdt > 0) { const k = Math.min(1, rdt * 6); sub.vx += ((p.x - sub.x) / rdt - sub.vx) * k; sub.vz += ((p.z - sub.z) / rdt - sub.vz) * k; }
+      sub.x = p.x; sub.y = gy; sub.z = p.z; sub.th = Math.atan2(f.z, f.x);
+      const env = this._he || (this._he = { clear: this.h.clear, ground: (x, z) => this.h.terrain.at(x, z), overhead: false }); env.overhead = !!(this.tape.chunks[this.k >> 8].f[(this.k & 255) * this.tape.n + this.car] & F.PIT);
+      if (snap || !H.on || Math.hypot(H.p.x - p.x, H.p.z - p.z) > 700) H.start(sub, env);
+      H.update(rdt, sub, env); cam.position.copy(H.p);
+      const ld = Math.min(0.22, 14 / Math.max(1, Math.hypot(sub.vx, sub.vz))), lt = _b.set(p.x + sub.vx * ld, p.y + 0.4, p.z + sub.vz * ld);
+      if (snap) this.look.copy(lt); else this.look.lerp(lt, Math.min(1, dt * 3)); cam.lookAt(this.look); fov = H.fov(p.x, p.y, p.z); zoom = 1.3;
+    } else if (this.cam === 'chase' || this.cam === 'front') {
+      const want = this.cam === 'chase' ? _a.copy(p).addScaledVector(f, -6.6).setY(p.y + 2.4) : _a.copy(p).addScaledVector(f, 8.5).setY(p.y + 1.35);
       const gy = this.h.terrain.at(want.x, want.z) + 0.5; if (want.y < gy) want.y = gy;
-      if (snap) this.pos.copy(want); else this.pos.lerp(want, Math.min(1, dt * (this.cam === 'heli' ? 1.6 : 5.5)));
+      if (snap) this.pos.copy(want); else this.pos.lerp(want, Math.min(1, dt * 5.5));
       cam.position.copy(this.pos); const lt = this.cam === 'chase' ? _b.copy(p).addScaledVector(f, 5).setY(p.y + 0.9) : _b.copy(p).setY(p.y + 0.6);
-      if (snap) this.look.copy(lt); else this.look.lerp(lt, q); cam.lookAt(this.look); fov = this.cam === 'chase' ? 62 : this.cam === 'front' ? 38 : 26;
+      if (snap) this.look.copy(lt); else this.look.lerp(lt, q); cam.lookAt(this.look); fov = this.cam === 'chase' ? 62 : 38;
     } else {
       // from the fence: a camera a little way up the road with a clear sight of the car, kept until the car is well past
       const tr = this.h.track, tv = this.tv, d = tv ? Math.hypot(tv.x - p.x, tv.z - p.z) : 0;
@@ -155813,7 +155917,7 @@ class Theatre {
       fov = Math.max(7, Math.min(48, 1500 / Math.max(20, Math.hypot(t2.x - p.x, t2.z - p.z))));
     }
     this.first = false;
-    if (Math.abs(cam.fov - fov) > 0.01) { cam.fov = snap ? fov : cam.fov + (fov - cam.fov) * Math.min(1, dt * 5); cam.updateProjectionMatrix(); }
+    if (Math.abs(cam.fov - fov) > 0.01) { cam.fov = snap ? fov : cam.fov + (fov - cam.fov) * Math.min(1, dt * zoom); cam.updateProjectionMatrix(); }
   }
   draw() {
     const tp = this.tape, M = tp.meta, O = tp.orderAt(this.T), dur = Math.max(1, this.T1 - this.T0), u = (this.T - this.T0) / dur;
@@ -198868,7 +198972,7 @@ function tpKeys() {
   if (input.pressed('Space')) tpAct('pause');
   if (input.pressed('Equal') || input.pressed('NumpadAdd')) tpAct('speed', Math.min(4, TP.speed * 2));
   if (input.pressed('Minus') || input.pressed('NumpadSubtract')) tpAct('speed', Math.max(1, TP.speed / 2));
-  if (input.pressed('Tab')) { const P = S.director.positions.filter((c) => !c.retired), i = P.indexOf(TP.tv.followCar); TP.tv.follow(P[(i + 1) % P.length] || null); }
+  if (input.pressed('Tab')) { const P = S.director.positions.filter((c) => !(c.retired && c.hiddenAway)), i = P.indexOf(TP.tv.followCar);   /* (a car out of the race is still a car with cameras on it, where it stands) */ TP.tv.follow(P[(i + 1) % P.length] || null); }
   if (input.pressed('KeyC')) { const k = TV_CAMS[(TV_CAMS.indexOf(TP.cam) + 1) % TV_CAMS.length]; tpAct('cam', k); }
 }
 /** the team principal's career (career/Manager.js) as the HQ has it open (MGR.c) */
@@ -200840,7 +200944,7 @@ function frame(now) {
       return new Promise((res) => careerHangout(L, res, c));
     },
     /** headless fast-forward (testing/telemetry): advances the active session by `sec` seconds without rendering */
-    get TH() { return TH; }, theatreOpen, theatreClose, endSession, frame, replayFromFile, RaceTape,   /* (the theatre; a frame of the game's own loop: test hooks) */
+    get TH() { return TH; }, theatreOpen, theatreClose, endSession, frame, replayFromFile, RaceTape, TVDirector, tvClear,   /* (the theatre; a frame of the game's own loop: test hooks) */
     stepSim(sec, step = 1 / 60) { const d = S.director; if (!d) return 'no session'; const n = Math.round(sec / step); for (let i = 0; i < n && !d.done; i++) { input.update(step, S.player ? S.player.speed : 0); d.update(step, input); } return d.time; },
     /** render stats: draw calls / triangles of the last frame, average CPU ms per frame since the last call, current render scale */
     perf() { const r = { calls: RES.calls, triangles: RES.tris, avgFrameMs: +(RES.msSum / Math.max(1, RES.frames)).toFixed(2), frames: RES.frames, renderScale: RES.scale, pixelRatio: renderer.getPixelRatio() }; RES.frames = 0; RES.msSum = 0; console.info('[perf]', r); return r; },

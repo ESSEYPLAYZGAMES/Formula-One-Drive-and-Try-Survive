@@ -1,3 +1,48 @@
+# V2.55 (2026-11-14): a helicopter that flies, no drone, onboards that stay onboards
+
+Asked for: "remove drone cam, fix helicopter cam so it's natural, not always the same pace as the car like a real
+helicopter shot and it doesnt like switch sides (... it just zooms over to another chopper angle instead of being a
+continuous long shot)"; "after a car DNFs you can still access their onboard, I never want it to cut to the follow
+camera. The point is to have an authentic broadcast cams".
+
+## The helicopter (camera/HeliCam.js, new; the broadcast's and the replay theatre's)
+- What it was: a point fixed to the car - 70 m behind, 40 m to one side, 55 m up, in the car's own frame - so it
+  went at exactly the car's pace and swung round with every turn of the car; and when something stood in the way it
+  was moved to the next place on a list (the other side, higher), the camera sliding across: the "zoom over to
+  another angle".
+- What it is: one aircraft with its own place, speed and weight. It flies for a place ninety metres short of where
+  the car will be in a moment, along the line from where it is - at about 280 km/h, more when the car is far down a
+  straight, with a helicopter's acceleration. On a straight the car pulls away and the lens goes long (and slowly:
+  the car shrinks and grows in the picture); into the braking zones and through the slow corners it catches up,
+  cuts the corner and drifts past. The further off, the higher it sits. A car standing still is circled slowly.
+- It never changes place: with something between it and the car it climbs and comes in closer over it, and goes
+  back out and down after three seconds of clear view. Over the pit lane it comes nearly overhead the same way.
+- The director moving to another car near where it is flying is the same flight: the aim pans across. A car
+  somewhere else on the circuit is a cut, as any camera's.
+- Measured over a lap and a half at Silverstone (the theatre) and 90 s of the broadcast director kept on it: the
+  biggest move in one frame 3.9 m (its own speed - no jump), 16 m/s2 at most, 10 to 370 m from the car (the middle of
+  it about 170 m), a view of the car 96 to 100 % of the time away from the start.
+- The start of the race is the helicopter's now.
+
+## The drone
+Gone: from the director, the pit wall's camera buttons and the C key's round. A pit wall that had remembered it as
+its camera opens on the director's choice.
+
+## Onboards stay onboards (camera/CockpitCamera.js)
+- An onboard on a car in the air or a wreck used to be replaced by a camera following the car from behind and to
+  one side. Now the lens stays where it is bolted: it goes over with the car, and looks out of the wreck afterwards -
+  the T-cam, the rear-facing one, the helmet camera; in the broadcast, the picture-in-picture, and your own car.
+  (The chase and TV views, which follow the car anyway, are as they were.)
+- A car out of the race is still in Tab's round of cars to follow for as long as it stands at the circuit.
+- Checked with a car launched into a roll in a race, the director kept on its onboard: the same camera on the same
+  car through the accident and after it had retired, the lens never more than 0.8 m from the car's centre, the
+  picture upside down where the car came to rest.
+
+## Checked
+- A seeded race in the other modes is identical to V2.45-V2.54 (tools/race_probe.mjs 5 1 silverstone).
+- Not checked: on a real graphics card; the helicopter at the other three circuits (the same code; Las Vegas's
+  towers are where it will climb most).
+
 # V2.54 (2026-11-14): rival pit walls against you, a theatre with everything in it, replays out of the game, the pit crews
 
 Asked for: "Rivals should change race strategy against the player"; "Theatre should keep smoke, fire, debris and

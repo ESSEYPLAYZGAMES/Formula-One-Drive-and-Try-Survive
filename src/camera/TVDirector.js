@@ -8,7 +8,7 @@
 // round it), and / or keep to one camera.
 //   update(dt, ctx) -> the car the shot is of (the game's S.player: the HUD, the sound and the camera's ground follow it)
 // More cameras, as a real feed has: a camera in the kerb at the apex (low, the cars coming at it), a crane that rises
-// and swings as they pass, the driver's eye (the helmet camera), a drone behind the pack off the line, the whole circuit
+// and swings as they pass, the driver's eye (the helmet camera), the whole circuit
 // from high up (under the safety car, now and then), and cutaways - the crowd in a stand when something has happened in
 // front of it (cutaway('crowd', car)), the garage of a car of yours that is out (cutaway('garage', car)).
 //   ctx: { d (RaceDirector), track, pit, focus: [your cars], camCtl (CockpitCamera: the onboard views), stands (the
@@ -17,16 +17,15 @@
 // (No chase camera: television has none. The trackside cameras stand where real ones do - on platforms high over the
 //  catch fence, looking down past its top, or in slots in the fence line just over the barrier - never behind the mesh.)
 import * as THREE from 'three';
+import { HeliCam } from './HeliCam.js';
 
 /** the cameras a viewer can keep to (keys 1-6 in the team principal's race) */
-export const TV_CAMS = ['auto', 'track', 'tcam', 'heli', 'rear', 'helmet', 'kerb', 'crane', 'drone'];
-export const TV_CAM_NAME = { auto: 'Director', track: 'Trackside', tcam: 'Onboard', heli: 'Helicopter', rear: 'Rear onboard', pit: 'Pit lane', grid: 'Grid', kerb: 'Kerb camera', crane: 'Crane', drone: 'Drone', helmet: 'Helmet camera', beauty: 'The circuit', crowd: 'The crowd', garage: 'The garage', wall: 'The pit wall', marshal: 'Marshal post', walk: 'The driver' };
+export const TV_CAMS = ['auto', 'track', 'tcam', 'heli', 'rear', 'helmet', 'kerb', 'crane'];
+export const TV_CAM_NAME = { auto: 'Director', track: 'Trackside', tcam: 'Onboard', heli: 'Helicopter', rear: 'Rear onboard', pit: 'Pit lane', grid: 'Grid', kerb: 'Kerb camera', crane: 'Crane', helmet: 'Helmet camera', beauty: 'The circuit', crowd: 'The crowd', garage: 'The garage', wall: 'The pit wall', marshal: 'Marshal post', walk: 'The driver' };
 /** the shots that are not of a car on the road: cutaways (a key skips one - skipAway) */
 export const TV_AWAY = new Set(['crowd', 'garage', 'beauty', 'wall', 'marshal', 'walk']);
 
 const _v = new THREE.Vector3();
-/** where the helicopter may fly, relative to the car: [along its heading (m, - behind), to its left, up] - tried in turn */
-const HELI = [[-70, 40, 55], [-70, -40, 55], [-45, 26, 95], [-45, -26, 95], [-20, 12, 140], [-6, 0, 190]];
 
 export class TVDirector {
   constructor(camera) {
@@ -39,7 +38,7 @@ export class TVDirector {
     this.outAt = new Map();      // car -> when it was first seen retired
     this.spinAt = new Map();     // car -> when its incident became the story
     this.t = 0; this.cuts = 0;
-    this._look = new THREE.Vector3(); this._pos = new THREE.Vector3(); this._lookInit = false;
+    this._look = new THREE.Vector3(); this._pos = new THREE.Vector3(); this._lookInit = false; this.heli = new HeliCam(); this.heliAt = null; this.heliLook = false;
     this.onCut = null;           // (the graphics: a new shot - its car, its story)
     this.awayQ = [];             // the cutaways asked for, in turn: [{ kind, car, until, view }]
     this.awayNext = 0;           // not another before this (a few seconds of the race between two of them)
@@ -72,7 +71,7 @@ export class TVDirector {
     const ph = d.sc?.phase || 'green', neutral = ph === 'sc' || ph === 'scIn' || ph === 'vsc' || ph === 'vscEnd' || ph === 'red';
     if ((ph === 'sc' || ph === 'scIn') && d.sc.car && !d.sc.car.pitLane) out.push({ car: d.sc.car, other: P.find((c) => onTrack(c)) || null, score: 19 + ((this.cuts * 0.618034) % 1) * 6, why: 'sc' });
     if (ph === 'red') { const l0 = P.find((c) => !c.retired); if (l0) out.push({ car: l0, score: 18, why: 'red' }); }
-    // the start: the pack off the line, from the drone behind it
+    // the start: the pack off the line, from the helicopter behind it
     if (d.world.racing && d.mode === 'race' && P[0] && (P.find((c) => !c.retired)?.lap || 0) === 0 && d.time - (d.world.raceStart ?? d.time) < 8 && !(d.sc?.redCount > 0)) out.push({ car: P[0], score: 46, why: 'start' });
     // a cutaway asked for (the crowd, a garage): once, soon, briefly
     { const Q = this.awayQ; while (Q.length && t >= Q[0].until) Q.shift(); const A = Q[0]; if (A && t >= this.awayNext && this.camKind === 'auto' && !this.followCar) out.push({ car: A.car, score: 31, why: A.kind, away: true, view: A.view || null }); }
@@ -117,7 +116,7 @@ export class TVDirector {
     if (st.view) return st.why;    // (a cutaway with its own camera)
     if (this.camKind !== 'auto') return st.why === 'pit' && this.camKind === 'track' ? 'pit' : this.camKind;
     if (st.why === 'grid') return 'grid';
-    if (st.why === 'start') return 'drone';
+    if (st.why === 'start') return 'heli';
     if (st.why === 'crowd' || st.why === 'garage' || st.why === 'beauty') return st.why;
     if (st.why === 'pit') return 'pit';
     if (st.why === 'out' || st.why === 'spin') return this.cuts % 3 === 2 ? 'heli' : 'track';
@@ -208,6 +207,7 @@ export class TVDirector {
       const f = tr.sample(tr.wrapS(40), 0), b = tr.sample(tr.wrapS(-160), 0);
       sh.pos = new THREE.Vector3(f.x + (f.x - b.x) * 0.15, G(f.x, f.z) + 22, f.z + (f.z - b.z) * 0.15); sh.lookAt = new THREE.Vector3(b.x, G(b.x, b.z), b.z);
     }
+    this.heliLook = this._lookInit && this.shot?.kind === 'heli';   // (the helicopter on to a new subject near it: its aim pans across, the flight carries on)
     this.shot = sh; this.cuts++; this._lookInit = false;
     this.lastSeen.set(subject, this.t); if (sh.other) this.lastSeen.set(sh.other, this.t);
     if (st.why === 'out') this.seenOut.add(car);
@@ -262,12 +262,7 @@ export class TVDirector {
     let fov = 40;
     const G = (x, z) => (ctx.ground ? ctx.ground(x, z) : 0), carY = G(car.x, car.z) + ((car.air || car.wreck) && car.p ? Math.max(0, car.p[1]) : 0);   // (the ground the car is on: not flat everywhere)
     const tgt = _v.set(car.x, carY + 0.7, car.z);
-    if (sh.kind === 'drone') {
-      // behind the pack and over it, flying with it
-      const c = Math.cos(car.th), s = Math.sin(car.th); this._pos.set(car.x - c * 34, carY + 11, car.z - s * 34);
-      if (!this._lookInit) cam.position.copy(this._pos); else cam.position.lerp(this._pos, Math.min(1, dt * 4));
-      tgt.set(car.x + c * 6, carY + 0.5, car.z + s * 6); fov = 52;
-    } else if (sh.view) {
+    if (sh.view) {
       const v = sh.view, vp = typeof v.pos === 'function' ? v.pos() : v.pos, vl = typeof v.look === 'function' ? v.look() : v.look;
       cam.position.copy(vp); tgt.copy(vl); fov = v.fov || 40;
     } else if (sh.kind === 'crowd' || sh.kind === 'garage' || sh.kind === 'beauty') {
@@ -285,27 +280,23 @@ export class TVDirector {
       fov = sh.kerb ? Math.max(24, Math.min(62, 900 / Math.max(10, dist))) : Math.max(9, Math.min(55, 1500 / Math.max(18, dist)));
       if (sh.other) { tgt.x = (car.x * 2 + sh.other.x) / 3; tgt.z = (car.z * 2 + sh.other.z) / 3; tgt.y = (carY * 2 + G(sh.other.x, sh.other.z)) / 3 + 0.7; fov = Math.max(fov, Math.min(55, 2400 / Math.max(18, dist))); }
     } else if (sh.kind === 'heli') {
-      const c = Math.cos(car.th), s = Math.sin(car.th);
-      // (the helicopter flies where it can see the car: behind and to one side - or the other side, or higher and
-      //  closer over it where towers stand along the road; looked at again a few times a second)
-      // (over the pit lane: from nearly overhead - the pit wall, its fence and the garages' roof stand either side of it)
-      if ((car.pitLane || car.inPit) && (sh.hk ?? 0) < 4) sh.hk = 4;
-      const H = HELI[sh.hk || 0];
-      this._pos.set(car.x + c * H[0] - s * H[1], carY + H[2], car.z + s * H[0] + c * H[1]);
-      if (ctx.clear && (sh.hk == null || sh.t - (sh.ht ?? -9) > 0.45)) {
-        sh.ht = sh.t;
-        // (judged from where it would be AND from where it is now - it trails the car a little as it flies)
-        if (sh.hk == null || !ctx.clear(this._pos.x, this._pos.y, this._pos.z, car.x, carY + 1.0, car.z) || (this._lookInit && !ctx.clear(cam.position.x, cam.position.y, cam.position.z, car.x, carY + 1.0, car.z))) {
-          // (over the pit lane only the steep places are tried - the low ones see the pit wall, and trying them set
-          //  the helicopter swinging between a low place and a high one; with no view at all - a car in its box under
-          //  the pit building's roof - it stays overhead)
-          const from = car.pitLane || car.inPit ? 4 : 0, cnt = HELI.length - from, k0 = Math.max(from, sh.hk ?? from);
-          for (let q = 0; q < cnt; q++) { const k = from + ((k0 - from + q) % cnt), Hq = HELI[k], px = car.x + c * Hq[0] - s * Hq[1], pz = car.z + s * Hq[0] + c * Hq[1]; if (ctx.clear(px, carY + Hq[2], pz, car.x, carY + 1.0, car.z)) { sh.hk = k; this._pos.set(px, carY + Hq[2], pz); break; } if (q === cnt - 1) { sh.hk = HELI.length - 1; if (from === 4) { /* (in its box under the pit building's roof: nothing in the air sees it - the pit lane's own camera has it until it is out again) */ sh.kind = 'pit'; sh.pos = null; this._lookInit = false; return this.place(dt, ctx); } } }
-        }
-        if (sh.hk == null) sh.hk = 0;
-      }
-      if (!this._lookInit || cam.position.distanceTo(this._pos) > 160) cam.position.copy(this._pos); else cam.position.lerp(this._pos, Math.min(1, dt * 3.5));   // (it keeps up: a second behind at most; a jump of more than 160 m is a cut)
-      tgt.set(car.x + c * 15, carY, car.z + s * 15); fov = H[2] > 120 ? 16 : H[2] > 80 ? 22 : 30;
+      // (an aircraft of its own - camera/HeliCam.js: it chases the car at a helicopter's pace, drops back down the
+      //  straights and catches up through the corners, climbs where something stands in the way - one long shot,
+      //  never a jump to another side. A new subject near where it is flying is the same flight carried on)
+      const H = this.heli, over = !!(car.pitLane || car.inPit);
+      const vel = car.air ? [car.wvx || 0, car.wvz || 0] : car.worldVel ? car.worldVel() : [Math.cos(car.th) * (car.speed || 0), Math.sin(car.th) * (car.speed || 0)];
+      const sub = this._heliCar || (this._heliCar = {}); sub.x = car.x; sub.y = carY; sub.z = car.z; sub.th = car.th; sub.vx = vel[0] || 0; sub.vz = vel[1] || 0;
+      const env = this._heliEnv || (this._heliEnv = {}); env.clear = ctx.clear || null; env.ground = ctx.ground || null; env.overhead = over;
+      if (!sh.heliOn) { sh.heliOn = true; if (H.near(car.x, car.z) && this.heliAt != null && this.t - this.heliAt < 1.5) this._lookInit = this._lookInit || this.heliLook; else { H.start(sub, env); this.heliLook = false; } }
+      else if (Math.hypot(H.p.x - car.x, H.p.z - car.z) > 700) { H.start(sub, env); this._lookInit = false; }   // (the car is somewhere else altogether - put back on the road: a cut)
+      H.update(dt, sub, env); this.heliAt = this.t;
+      // (in its box under the pit building's roof: nothing in the air sees it - the pit lane's own camera has it until it is out again)
+      if (over && H.blockT > 2.2 && H.up > 60) { sh.kind = 'pit'; sh.pos = null; sh.heliOn = false; this._lookInit = false; return this.place(dt, ctx); }
+      cam.position.copy(H.p);
+      // (the aim: a little ahead of the car, by its speed; two cars fighting: between them)
+      const ld = Math.min(0.22, 14 / Math.max(1, Math.hypot(sub.vx, sub.vz))); tgt.set(car.x + sub.vx * ld, carY + 0.4, car.z + sub.vz * ld);
+      if (sh.other && !sh.other.retired && Math.hypot(sh.other.x - car.x, sh.other.z - car.z) < 70) { tgt.x = (tgt.x * 2 + sh.other.x) / 3; tgt.z = (tgt.z * 2 + sh.other.z) / 3; }
+      fov = H.fov(car.x, carY, car.z);
     } else if (sh.kind === 'pit') {
       const P = ctx.pit;
       if (P && P.samples) {
@@ -337,8 +328,8 @@ export class TVDirector {
       cam.position.copy(sh.pos); tgt.copy(sh.lookAt); fov = 34;
     }
     // the operator's pan: the aim eases after the car (a long lens never snaps)
-    if (!this._lookInit) { this._look.copy(tgt); this._lookInit = true; } else this._look.lerp(tgt, Math.min(1, dt * (sh.kind === 'track' || sh.kind === 'drone' ? 9 : 4)));
+    if (!this._lookInit) { this._look.copy(tgt); this._lookInit = true; } else this._look.lerp(tgt, Math.min(1, dt * (sh.kind === 'track' ? 9 : sh.kind === 'heli' ? 3 : 4)));
     cam.up.set(0, 1, 0); cam.lookAt(this._look);
-    if (Math.abs(cam.fov - fov) > 0.01) { cam.fov += (fov - cam.fov) * Math.min(1, dt * (sh.t < 0.05 ? 99 : 3)); cam.updateProjectionMatrix(); }
+    if (Math.abs(cam.fov - fov) > 0.01) { cam.fov += (fov - cam.fov) * Math.min(1, dt * (sh.t < 0.05 && !(sh.kind === 'heli' && this.heliLook) ? 99 : sh.kind === 'heli' ? 1.3 : 3)); cam.updateProjectionMatrix(); }   // (the helicopter's zoom is slow: the car grows and shrinks in the picture as it pulls away and is caught)
   }
 }

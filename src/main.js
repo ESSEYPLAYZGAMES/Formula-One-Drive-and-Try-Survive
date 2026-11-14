@@ -2972,7 +2972,7 @@ function tpKeys() {
   if (input.pressed('Space')) tpAct('pause');
   if (input.pressed('Equal') || input.pressed('NumpadAdd')) tpAct('speed', Math.min(4, TP.speed * 2));
   if (input.pressed('Minus') || input.pressed('NumpadSubtract')) tpAct('speed', Math.max(1, TP.speed / 2));
-  if (input.pressed('Tab')) { const P = S.director.positions.filter((c) => !c.retired), i = P.indexOf(TP.tv.followCar); TP.tv.follow(P[(i + 1) % P.length] || null); }
+  if (input.pressed('Tab')) { const P = S.director.positions.filter((c) => !(c.retired && c.hiddenAway)), i = P.indexOf(TP.tv.followCar);   /* (a car out of the race is still a car with cameras on it, where it stands) */ TP.tv.follow(P[(i + 1) % P.length] || null); }
   if (input.pressed('KeyC')) { const k = TV_CAMS[(TV_CAMS.indexOf(TP.cam) + 1) % TV_CAMS.length]; tpAct('cam', k); }
 }
 /** the team principal's career (career/Manager.js) as the HQ has it open (MGR.c) */
@@ -4944,7 +4944,7 @@ function frame(now) {
       return new Promise((res) => careerHangout(L, res, c));
     },
     /** headless fast-forward (testing/telemetry): advances the active session by `sec` seconds without rendering */
-    get TH() { return TH; }, theatreOpen, theatreClose, endSession, frame, replayFromFile, RaceTape,   /* (the theatre; a frame of the game's own loop: test hooks) */
+    get TH() { return TH; }, theatreOpen, theatreClose, endSession, frame, replayFromFile, RaceTape, TVDirector, tvClear,   /* (the theatre; a frame of the game's own loop: test hooks) */
     stepSim(sec, step = 1 / 60) { const d = S.director; if (!d) return 'no session'; const n = Math.round(sec / step); for (let i = 0; i < n && !d.done; i++) { input.update(step, S.player ? S.player.speed : 0); d.update(step, input); } return d.time; },
     /** render stats: draw calls / triangles of the last frame, average CPU ms per frame since the last call, current render scale */
     perf() { const r = { calls: RES.calls, triangles: RES.tris, avgFrameMs: +(RES.msSum / Math.max(1, RES.frames)).toFixed(2), frames: RES.frames, renderScale: RES.scale, pixelRatio: renderer.getPixelRatio() }; RES.frames = 0; RES.msSum = 0; console.info('[perf]', r); return r; },

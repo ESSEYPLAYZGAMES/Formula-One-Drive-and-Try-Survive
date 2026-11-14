@@ -7,6 +7,7 @@
 // the screen back when it is closed.
 import * as THREE from 'three';
 import { F } from '../race/RaceTape.js';
+import { HeliCam } from '../camera/HeliCam.js';
 
 const CSS = `
 #theatre { position: fixed; inset: 0; z-index: 40; pointer-events: none; font-family: 'Segoe UI', Roboto, Arial, sans-serif; color: #fff; user-select: none; }
@@ -142,16 +143,27 @@ export class Theatre {
   camera(dt) {
     const g = this.h.group(this.car), cam = this.h.camera; if (!g) return;
     const p = g.position, f = _f.set(1, 0, 0).applyQuaternion(g.quaternion), u = _u.set(0, 1, 0).applyQuaternion(g.quaternion), snap = this.first || this.jump, q = snap ? 1 : Math.min(1, dt * 7);
-    let fov = 60; cam.up.set(0, 1, 0);
+    let fov = 60, zoom = 5; cam.up.set(0, 1, 0);
     if (this.cam === 'tcam' || this.cam === 'nose') {
       const nose = this.cam === 'nose'; cam.position.copy(p).addScaledVector(u, nose ? 0.4 : 1.03).addScaledVector(f, nose ? 1.85 : -0.2); cam.up.copy(u);
       cam.lookAt(_a.copy(cam.position).addScaledVector(f, 10).addScaledVector(u, nose ? 0 : -0.9)); fov = nose ? 82 : 76;
-    } else if (this.cam === 'chase' || this.cam === 'front' || this.cam === 'heli') {
-      const want = this.cam === 'chase' ? _a.copy(p).addScaledVector(f, -6.6).setY(p.y + 2.4) : this.cam === 'front' ? _a.copy(p).addScaledVector(f, 8.5).setY(p.y + 1.35) : _a.copy(p).addScaledVector(f, -30).setY(p.y + 40);
+    } else if (this.cam === 'heli') {
+      // (the TV helicopter - camera/HeliCam.js: an aircraft of its own chasing the car in the tape's time, not a
+      //  camera fixed behind it; wound to another moment, it begins again there)
+      const H = this.heli || (this.heli = new HeliCam()), rdt = this.play ? dt * this.speed : 0, gy = this.h.terrain.at(p.x, p.z);
+      const sub = this._hs || (this._hs = { x: p.x, z: p.z, vx: 0, vz: 0 }); if (snap || !H.on) { sub.vx = f.x * 40; sub.vz = f.z * 40; } else if (rdt > 0) { const k = Math.min(1, rdt * 6); sub.vx += ((p.x - sub.x) / rdt - sub.vx) * k; sub.vz += ((p.z - sub.z) / rdt - sub.vz) * k; }
+      sub.x = p.x; sub.y = gy; sub.z = p.z; sub.th = Math.atan2(f.z, f.x);
+      const env = this._he || (this._he = { clear: this.h.clear, ground: (x, z) => this.h.terrain.at(x, z), overhead: false }); env.overhead = !!(this.tape.chunks[this.k >> 8].f[(this.k & 255) * this.tape.n + this.car] & F.PIT);
+      if (snap || !H.on || Math.hypot(H.p.x - p.x, H.p.z - p.z) > 700) H.start(sub, env);
+      H.update(rdt, sub, env); cam.position.copy(H.p);
+      const ld = Math.min(0.22, 14 / Math.max(1, Math.hypot(sub.vx, sub.vz))), lt = _b.set(p.x + sub.vx * ld, p.y + 0.4, p.z + sub.vz * ld);
+      if (snap) this.look.copy(lt); else this.look.lerp(lt, Math.min(1, dt * 3)); cam.lookAt(this.look); fov = H.fov(p.x, p.y, p.z); zoom = 1.3;
+    } else if (this.cam === 'chase' || this.cam === 'front') {
+      const want = this.cam === 'chase' ? _a.copy(p).addScaledVector(f, -6.6).setY(p.y + 2.4) : _a.copy(p).addScaledVector(f, 8.5).setY(p.y + 1.35);
       const gy = this.h.terrain.at(want.x, want.z) + 0.5; if (want.y < gy) want.y = gy;
-      if (snap) this.pos.copy(want); else this.pos.lerp(want, Math.min(1, dt * (this.cam === 'heli' ? 1.6 : 5.5)));
+      if (snap) this.pos.copy(want); else this.pos.lerp(want, Math.min(1, dt * 5.5));
       cam.position.copy(this.pos); const lt = this.cam === 'chase' ? _b.copy(p).addScaledVector(f, 5).setY(p.y + 0.9) : _b.copy(p).setY(p.y + 0.6);
-      if (snap) this.look.copy(lt); else this.look.lerp(lt, q); cam.lookAt(this.look); fov = this.cam === 'chase' ? 62 : this.cam === 'front' ? 38 : 26;
+      if (snap) this.look.copy(lt); else this.look.lerp(lt, q); cam.lookAt(this.look); fov = this.cam === 'chase' ? 62 : 38;
     } else {
       // from the fence: a camera a little way up the road with a clear sight of the car, kept until the car is well past
       const tr = this.h.track, tv = this.tv, d = tv ? Math.hypot(tv.x - p.x, tv.z - p.z) : 0;
@@ -170,7 +182,7 @@ export class Theatre {
       fov = Math.max(7, Math.min(48, 1500 / Math.max(20, Math.hypot(t2.x - p.x, t2.z - p.z))));
     }
     this.first = false;
-    if (Math.abs(cam.fov - fov) > 0.01) { cam.fov = snap ? fov : cam.fov + (fov - cam.fov) * Math.min(1, dt * 5); cam.updateProjectionMatrix(); }
+    if (Math.abs(cam.fov - fov) > 0.01) { cam.fov = snap ? fov : cam.fov + (fov - cam.fov) * Math.min(1, dt * zoom); cam.updateProjectionMatrix(); }
   }
   draw() {
     const tp = this.tape, M = tp.meta, O = tp.orderAt(this.T), dur = Math.max(1, this.T1 - this.T0), u = (this.T - this.T0) / dur;

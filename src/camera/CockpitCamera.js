@@ -13,6 +13,8 @@ export const TCAM_FOV = 49;   // its vertical field of view (the settings' slide
                                //  sides, the city over them, a strip of sky
 export const TCAM_RISE = 0.05;   // the forward view's lens 5 cm higher on the pod: the halo's bar low in the frame, the helmet just under it
 
+const _bq = new THREE.Quaternion(), _bv = new THREE.Vector3();
+
 export class CockpitCamera {
   constructor(camera) {
     this.cam = camera;
@@ -36,6 +38,24 @@ export class CockpitCamera {
    *  chase   - the reverse chase: out in front of the car at chase distance, looking back at it and the pack;
    *  TV      - the trackside camera behind the car instead of the one ahead.
    */
+  /**
+   * An onboard on a car that is a rigid body now (in the air, a wreck): the lens where it is mounted on the body, the
+   * body's whole attitude (car.q, as the model is drawn: vehicle/CarMesh.js - it turns about its centre, 0.48 m up).
+   * The T-cam on its pod, forward or rear; the driver's eyes.
+   */
+  _bolted(car) {
+    const q = _bq.set(car.q[0], car.q[1], car.q[2], car.q[3]), tc = this.mode === 'tcam', back = !!this.back;
+    const lx = tc ? TCAM_X : back ? 1.3 : 0.25, ly = (tc ? (back ? 1.30 : TCAM_Y + this.tcam.rise) : back ? 1.25 : 0.77) - 0.48;
+    const pitch = tc && !back ? this.tcam.pitch : 0.02, dir = back ? -1 : 1;
+    _bv.set(lx, ly, 0).applyQuaternion(q); this.cam.position.set(car.p[0] + _bv.x, Math.max(0.12, car.p[1] + _bv.y), car.p[2] + _bv.z);
+    this.cam.up.set(0, 1, 0).applyQuaternion(q);
+    _bv.set(dir * Math.cos(pitch) * 25, -Math.sin(pitch) * 25, 0).applyQuaternion(q); this._look.copy(this.cam.position).add(_bv); this.cam.lookAt(this._look);
+    // (the T-cam's lens is fixed; the driver's eyes keep the widening that speed gives them, eased as the car slows)
+    const sp = car.v ? Math.hypot(car.v[0], car.v[2]) : car.speed || 0, want = back ? (tc ? 60 : 72) : tc ? this.tcam.fov : this.baseFov + 15 * Math.min(1, sp / 95);
+    const fov = tc || back ? want : this.cam.fov + (want - this.cam.fov) * 0.06;
+    if (Math.abs(this.cam.fov - fov) > 0.01) { this.cam.fov = fov; this.cam.updateProjectionMatrix(); }
+    this._wasBack = back;
+  }
   _rear(car, c, s, v, track) {
     let fov = 72;
     if (this.mode === 'cockpit') {
@@ -65,9 +85,12 @@ export class CockpitCamera {
     this.t += dt;
     this.look += (this.lookIn - this.look) * Math.min(1, dt * 7);
     if (Math.abs(this.look) < 1e-3 && this.lookIn === 0) this.look = 0;
-    // a big accident: the onboard cameras would tumble with the car, so the director cuts to a chase shot from the
-    // direction the car was travelling when it went, off to one side and up a little, following the wreck to rest
-    if (car.air || car.wreck) {
+    // a big accident, a car in the air, a wreck at rest: an onboard camera stays an onboard - it is bolted to the car
+    // and goes where the car goes, over and over with it, and looks out of the wreck afterwards (a broadcast's onboard
+    // never turns into a camera following the car). Only the chase and TV views, which follow the car anyway, take
+    // the wreck from behind and to one side
+    if ((car.air || car.wreck) && (this.mode === 'cockpit' || this.mode === 'tcam') && car.q && car.p) { this._crash = null; this._bolted(car); return; }
+    if ((car.air || car.wreck) && this.mode !== 'cockpit' && this.mode !== 'tcam') {
       if (!this._crash) {
         const [vx, vz] = car.air ? [car.wvx, car.wvz] : [Math.cos(car.th), Math.sin(car.th)]; const l = Math.hypot(vx, vz) || 1;
         this._crash = { dx: vx / l, dz: vz / l, side: Math.random() < 0.5 ? 1 : -1 };
