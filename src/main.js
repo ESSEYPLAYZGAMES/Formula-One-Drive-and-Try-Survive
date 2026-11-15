@@ -2544,9 +2544,9 @@ function tpStart() {
   if (!TP.wall) { TP.wall = new PitWall({ act: tpAct }); const say0 = TP.wall.radio.bind(TP.wall); TP.wall.radio = (who, text) => { (TP.log || (TP.log = [])).push({ who, text, lap: Math.max(0, ...TP.cars.map((c) => c.lap || 0)) + 1 }); try { if (S.director?.mode === 'race') TP.show?.radio(who, text, (TP.cars.find((c) => surname(c.name) === who) || TP.cars[0])?.color); } catch (e) { /* not on air */ } return say0(who, text); }; }   // (everything said, kept: the replays over the results - ui/RadioReplay.js)
   if (!TP.stw) TP.stw = new TVStewards(TP.gfx.el);   // (the stewards' cards and the tower's marks: ui/TVStewards.js)
   TP.stw.reset(); tpStewardsOpen(d);
-  if (!TP.fx) TP.fx = new TVExtras(TP.gfx.el, { tyreLaps: (c) => TP.gfx.tyreLaps(c), onReplay: (o) => tpReplayStart(o), onSkip: () => tpReplayEnd(), on: (k, x) => tpSay(k, x), onClip: (e) => tpClip(e) });
+  if (!TP.fx) TP.fx = new TVExtras(TP.gfx.el, { tyreLaps: (c) => TP.gfx.tyreLaps(c), onReplay: (o) => tpReplayStart(o), onSkip: () => tpReplayEnd(), on: (k, x) => tpSay(k, x), onMoment: (e) => tpMoment(e) });
   if (!TP.show) { TP.show = new TVShow(TP.gfx.el, { tyreLaps: (c) => TP.gfx.tyreLaps(c), audio, on: (k) => { if (!TP.on || !S.director) return; if (k === 'podium') tpAway('crowd', S.director.positions.find((c) => !c.retired), { within: 22, must: true }); if (k === 'flag') TP.awayWant = { kind: 'marshal', want: 'chequered', from: TP.tv.t + 3.6, until: TP.tv.t + 10 }; } });   /* (the top three home: the stands) */ TP.gfx.onFastest = (c, t) => tpSay('fl', { who: surname(c.name), t }); }   // (commentary, radio on air, the map, the cards, the grid, the flag: ui/TVShow.js)
-  TP.show.reset(); TP.clips = []; PIP.mode = null; PIP.on = false; PIP.k = 0; PIP.label = null;
+  TP.show.reset(); TP.clips = []; TP.moments = []; PIP.mode = null; PIP.on = false; PIP.k = 0; PIP.label = null;
   TP.form = null; TP.formed = false; TP.hl = false; TP.awayAt = -99; TP.awayWant = null; TP.walked = new Set(); TP.stillT = new Map();
   // (what the cutaways look at: your pit wall's three at their screens, a driver walking away - world/TVProps.js)
   try { if (!TP.props) TP.props = new TVProps(scene, (x, z) => TERRAIN.at(x, z)); TP.props.dispose(); const c0 = TP.cars[0]; if (d.mode === 'race' && c0) TP.props.buildWall(W.pit, { name: c0.team, color: c0.color, color2: c0.color2 }, c0.boxIdx ?? 0); } catch (e) { console.warn('[tp] the broadcast\'s people', e); }   // (battles, catching, the stop's clock, the onboard's strip, instant replays: ui/TVExtras.js)
@@ -2570,7 +2570,8 @@ function tpStart() {
 function tpStewardsOpen(d) {
   const St = d?.stewards; TP.caseClips = new Map(); TP.caseSt = new Map(); TP.review = null; if (!St || d.mode !== 'race') return;
   St.deep = true;
-  St.onCase = (k) => { const R = d.replay; if (!R || R.frames.length < 30) return; const F = R.frames.filter((f) => f.t >= k.t0 - 3.6 && f.t <= k.t0 + 2.2); if (F.length >= 24) TP.caseClips.set(k.id, F); if (TP.caseClips.size > 14) TP.caseClips.delete(TP.caseClips.keys().next().value); };
+  St.onCase = (k) => { const mine = (c) => TP.cars.includes(c); tpMoment({ kind: 'hit', cars: [k.a, k.b], t: k.t0, text: `${surname(k.a.name)} and ${surname(k.b.name)} collide${k.where ? ` at ${k.where.charAt(0) + k.where.slice(1).toLowerCase()}` : ''}`, score: 34 + 52 * Math.min(1, k.sev) + (mine(k.a) || mine(k.b) ? 16 : 0) + (k.lap1 ? 8 : 0) });
+    const R = d.replay; if (!R || R.frames.length < 30) return; const F = R.frames.filter((f) => f.t >= k.t0 - 3.6 && f.t <= k.t0 + 2.2); if (F.length >= 24) TP.caseClips.set(k.id, F); if (TP.caseClips.size > 14) TP.caseClips.delete(TP.caseClips.keys().next().value); };
   St.onReview = (k) => { TP.review = { k, until: (TP.tv?.t || 0) + 50 }; };   // (shown when the window is free - not over a battle's onboard)
 }
 function tpStewards() {
@@ -2797,15 +2798,59 @@ function tpReplayEnd() {
   if (!r.win) { TP.fx?.replaying(false); tpReplayRestore(); if (TP.tv) TP.tv.shot = null; }   // (the feed cuts back in on a new shot)
   r.onEnd?.();
 }
-/** a moment offered as a replay is kept (its stretch of the record) for the highlights at the flag */
-function tpClip(e) {
+/**
+ * The race's moments, for the highlights at the flag. Every one comes with what it is worth (ui/TVExtras.js: a pass by
+ * the place it was for - the lead most, tenth little - and more between rivals, team-mates, your cars, in the last
+ * laps; a spin by where the car was running; a crash; a collision the stewards opened a case on, by how bad). Moments
+ * within a few seconds of each other among the same cars, or cars together on the road, are ONE moment and worth more:
+ * a car that takes two or three places in one move, places changing hands all through a group, a pile-up. Its
+ * stretch of the record is cut a couple of seconds after it ends; the ten best are kept, and the six best of those
+ * are the highlights, in the order they happened.
+ */
+function tpMoment(e) {
+  const d = S.director; if (!d || !TP.on || d.mode !== 'race' || !e?.cars?.length) return;
+  const M = TP.moments || (TP.moments = []), L = W.track.length, near = (a, b) => { let x = Math.abs(a.s - b.s) % L; if (x > L / 2) x = L - x; return x < 70; };
+  const g = M.find((m) => !m.cut && e.t - m.t1 < 4.5 && e.t - m.t0 < 6.5 && (e.cars.some((c) => m.cars.includes(c)) || e.cars.some((c) => m.cars.some((o) => near(c, o)))));
+  if (g) { g.ev.push(e); g.t1 = Math.max(g.t1, e.t); for (const c of e.cars) if (!g.cars.includes(c)) g.cars.push(c); return; }
+  M.push({ t0: e.t, t1: e.t, cars: [...e.cars], ev: [e], cut: false });
+}
+/** a moment's words and worth, from what it holds */
+function tpMomentSum(m) {
+  const E = m.ev, P = E.filter((e) => e.kind === 'pass'), H = E.filter((e) => e.kind === 'hit' || e.kind === 'crash'), sn = (c) => surname(c.name), ordn = (n) => `${n}${['th', 'st', 'nd', 'rd'][n % 100 > 10 && n % 100 < 14 ? 0 : Math.min(4, n % 10) % 4]}`;
+  let score = Math.max(...E.map((e) => e.score || 0)) + 13 * (E.length - 1), text = E.slice().sort((a, b) => (b.score || 0) - (a.score || 0))[0].text;
+  const list = (C) => C.length <= 1 ? C.map(sn).join('') : `${C.slice(0, -1).map(sn).join(', ')} and ${sn(C[C.length - 1])}`;
+  const hitCars = [...new Set(H.flatMap((e) => e.cars))];
+  if (hitCars.length >= 3) { score += 34 + 8 * (hitCars.length - 3); text = `a pile-up: ${list(hitCars.slice(0, 5))}`; }
+  else if (H.length && P.length) { const p = P[0]; text = `${sn(p.a)} and ${sn(p.b)}: contact in the fight for ${ordn(p.pos)}`; score += 10; }
+  else if (P.length >= 2) {
+    const by = new Map(); for (const p of P) by.set(p.a, (by.get(p.a) || 0) + 1); const [star, n] = [...by.entries()].sort((a, b) => b[1] - a[1])[0], top = Math.min(...P.map((p) => p.pos));
+    if (n >= 2) { text = `${sn(star)} takes ${n === 2 ? 'two' : n === 3 ? 'three' : n} places in one move, up to ${ordn(Math.min(...P.filter((p) => p.a === star).map((p) => p.pos)))}`; score += 16; }
+    else { text = `${P.length} changes of place in the fight for ${ordn(top)}`; score += 10; }
+  }
+  return { text, score };
+}
+/** the moments that are over: each one's stretch of the record cut and kept (the ten best) */
+function tpMomentsCut(d) {
+  const M = TP.moments; if (!M || !M.length) return; const R = d.replay; if (!R || R.frames.length < 30) return;
+  for (const m of M) {
+    if (m.cut || d.time < m.t1 + 2.3) continue; m.cut = true;
+    const F = R.frames.filter((f) => f.t >= Math.max(R.frames[0].t, m.t0 - 3.4, m.t1 - 6.4) && f.t <= m.t1 + 2.2); if (F.length < 24) continue;
+    const S0 = tpMomentSum(m), lead = m.ev.slice().sort((a, b) => (b.score || 0) - (a.score || 0))[0];
+    const C = TP.clips || (TP.clips = []); C.push({ text: S0.text, cars: [lead.cars[0], lead.cars[1] || m.cars.find((c) => c !== lead.cars[0])].filter(Boolean), t: lead.t, F, score: S0.score });
+    if (C.length > 10) { let lo = 0; for (let i = 1; i < C.length; i++) if (C[i].score < C[lo].score) lo = i; C.splice(lo, 1); }
+  }
+  TP.moments = M.filter((m) => !m.cut);
+}
+/** (a moment offered as a replay: the offer's own business - the highlights are chosen by tpMoment) */
+function tpClipOld(e) {
   const R = S.director?.replay; if (!R || R.frames.length < 30) return;
   const F = R.frames.filter((f) => f.t >= Math.max(R.frames[0].t, e.t - 3.6) && f.t <= e.t + 2.2); if (F.length < 24) return;   // (the moment and a couple of seconds after it: not everything since)
   const L = TP.clips || (TP.clips = []); L.push({ text: e.text, cars: e.cars, t: e.t, F }); if (L.length > 7) L.splice(1, 1);   // (the first is kept: the start's)
 }
 /** the race in a minute, at the flag: the moments kept, one after another, the whole picture (Esc / Space / Enter: on) */
 function tpHighlights(done) {
-  const L = (TP.clips || []).slice(-6); TP.clips = [];
+  // (the six that were worth most, in the order they happened)
+  const L = (TP.clips || []).slice().sort((a, b) => (b.score || 0) - (a.score || 0)).slice(0, 6).sort((a, b) => a.t - b.t); TP.clips = []; TP.moments = [];
   if (L.length < 2 || !S.director?.replay || !TP.gfx || !TP.fx) { done(); return; }
   let k = 0, over = false; const el = TP.gfx.el;
   // (between one moment and the next: the picture dips to black and comes back)
@@ -3060,7 +3105,7 @@ function tpUi(dt) {
   TP.fx?.update(dt, { d, focus: TP.cars, shot: TP.tv.shot, halted: held || !!TP.form || (!!TP.rep && !TP.rep.win), noOffer: !!TP.rep, say: (t, k, h) => TP.gfx.rc(t, k, h), len: W.track?.length });
   TP.show?.update(dt, { d, focus: TP.cars, shot: TP.tv.shot, halted: held, len: W.track?.length, track: W.track, trackName: shortTrack(W.def?.id), stat: tpStat, wet: d.weather?.tyreWet || 0, rc: (t, k, h) => TP.gfx.rc(t, k, h), battle: !!TP.fx?.bt.classList.contains('in'), catching: !!TP.fx?.ct.classList.contains('in'), neutral: !!TP.fx?.neutral, replaying: !!TP.rep, cuts: TP.tv.cuts, form: TP.form ? TP.form.ph : TP.formed ? 'done' : null,
     hint: TP.form && TP.form.ph !== 'grid' ? ['SPACE', 'skip the formation lap'] : TV_AWAY.has(TP.tv.shot?.kind) && !TP.form ? ['X', 'back to the race'] : null });
-  tpStewards(); tpPip(held ? 0 : dt);
+  tpStewards(); tpMomentsCut(d); tpPip(held ? 0 : dt);
   if (d.mode === 'race') { try { TP.props?.update(held ? 0 : dt); tpAways(held ? 0 : dt); } catch (e) { /* a cutaway that could not be: no cutaway */ } }
   const ord = d.orders?.pairOf?.(TP.cars[0])?.order || null;
   TP.wall.update(dt, { d, speed: TP.speed, paused: TP.paused, cam: TP.cam, order: ord, tyreLaps: (c) => TP.gfx.tyreLaps(c),
@@ -3119,7 +3164,7 @@ function tpRadio(d) {
     if (dm > s.dmg + 0.2 && !c.retired) { W2.radio(sur(c), dm > 0.5 ? 'Big damage, I need a new wing!' : "I've hit something. Car feels different."); } s.dmg = Math.max(s.dmg, dm);
     if (c.retired && !s.out) {
       s.out = true; W2.radio('Pit wall', `${sur(c)} is out. ${c.retireReason || ''}`);
-      const C = S.weekend?.mgr; if (C && d.mode === 'race') { try { const f = radioFact(C, 'retire', c.careerId); if (f) W2.radio('Pit wall', f); if (c.injured || /accident|crash|collision|damage/i.test(c.retireReason || '')) storyLive(C, { kind: 'crash', did: c.careerId, g: c.injured ? 45 : 25, hurt: !!c.injured }); } catch (e) { /* no story */ } }
+      const C = S.weekend?.mgr; if (C && d.mode === 'race') { try { const f = radioFact(C, 'retire', c.careerId, { out: TP.cars.filter((x) => x.retired).length }); if (f) W2.radio('Pit wall', f); if (c.injured || /accident|crash|collision|damage/i.test(c.retireReason || '')) storyLive(C, { kind: 'crash', did: c.careerId, g: c.injured ? 45 : 25, hurt: !!c.injured }); } catch (e) { /* no story */ } }
     }
   }
   const done = d.orders?.done || [];

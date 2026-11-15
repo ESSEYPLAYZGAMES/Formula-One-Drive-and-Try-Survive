@@ -92,7 +92,24 @@ const CSS = `
 #strategy .st-eng { flex: none; background: rgba(255,255,255,.05); border-left: 3px solid #e10600; border-radius: 0 8px 8px 0; padding: 9px 12px; font: 500 14.5px/1.45 var(--k-font); }
 #strategy .st-eng b { color: #e10600; letter-spacing: .1em; font-size: 11px; display: block; margin-bottom: 2px; }
 #strategy .st-cards { flex: none; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; align-items: stretch; padding-top: 4px; }
-#strategy .st-cards.one { grid-template-columns: minmax(0, 620px); justify-content: center; } #strategy .st-cards.one .st-nm kbd { display: none; }
+/* (the builder alone: the plan on the left - its bar, its stints to set, what it comes to along its foot - and what there is to know beside it) */
+#strategy .st-cards.one { flex: 1 1 auto; min-height: 0; grid-template-columns: minmax(0, 1.62fr) minmax(0, 1fr); align-items: stretch; } #strategy .st-cards.one .st-nm kbd { display: none; }
+#strategy .st-cards.one .st-card { cursor: default; padding: 18px 22px 16px; transform: none; } #strategy .st-cards.one .st-card:hover { background-color: rgba(225,6,0,.1); }
+#strategy .st-cards.one .st-nm b { font-size: 20px; letter-spacing: .06em; } #strategy .st-cards.one .st-nm span { font-size: 15px; color: #cfd5df; text-align: right; }
+#strategy .st-cards.one .st-bar { height: 34px; margin-top: 14px; border-radius: 7px; } #strategy .st-cards.one .st-bar i { font-size: 14px; }
+#strategy .st-cards.one .st-laps { height: 16px; font-size: 12px; margin-top: 2px; }
+#strategy .st-cards.one .st-own { gap: 9px; margin-top: 18px; } #strategy .st-cards.one .st-row { gap: 9px; font-size: 13.5px; } #strategy .st-cards.one .st-row > span:first-child { width: 64px; font-weight: 700; color: #cfd5df; }
+#strategy .st-cards.one .st-own button { width: 30px; height: 30px; font-size: 14px; border-radius: 8px; } #strategy .st-cards.one .st-own button.cp { border-radius: 50%; font-size: 12px; } #strategy .st-cards.one .st-row b { font-size: 15px; min-width: 30px; } #strategy .st-cards.one .st-row .st-to { gap: 7px; color: #9aa3b2; }
+#strategy .st-cards.one .st-own .st-row:last-child { margin-top: 4px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,.1); }
+#strategy .st-cards.one .st-t { order: 9; margin-top: auto; padding-top: 14px; border-top: 1px solid rgba(255,255,255,.12); display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 18px; align-items: baseline; }
+#strategy .st-cards.one .st-dt { font: 900 19px/1.15 var(--k-font); white-space: nowrap; } #strategy .st-cards.one .st-t small { margin: 0; font-size: 13px; line-height: 1.4; text-align: right; }
+#strategy .st-side { display: flex; flex-direction: column; gap: 9px; min-width: 0; min-height: 0; overflow: hidden; background: rgba(255,255,255,.045); border: 1px solid rgba(255,255,255,.1); border-radius: 12px; padding: 16px 18px; animation: m-in-up var(--m-base) var(--ease-out) both; animation-delay: calc(2.5 * var(--m-stagger)); }
+#strategy .st-side h4 { margin: 6px 0 0; font: 800 10px/1 var(--k-font); letter-spacing: .2em; color: #9aa3b2; } #strategy .st-side h4:first-child { margin-top: 0; }
+#strategy .st-ty { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; gap: 8px 10px; align-items: center; font: 600 13.5px/1 var(--k-font); } #strategy .st-ty i { width: 26px; height: 26px; border-radius: 50%; border: 3px solid var(--c); display: grid; place-items: center; font: 900 11px/1 var(--k-font); font-style: normal; color: var(--c); }
+#strategy .st-ty b { font-weight: 800; } #strategy .st-ty span small { display: block; margin-top: 3px; font: 500 11px/1 var(--k-font); color: #8c93a0; }
+#strategy .st-rule { display: flex; gap: 9px; font: 500 13px/1.4 var(--k-font); color: #dfe4eb; } #strategy .st-rule::before { content: ''; flex: none; width: 6px; height: 6px; margin-top: 6px; border-radius: 2px; background: #e10600; }
+#strategy .st-side .st-field { white-space: normal; line-height: 1.9; } #strategy .st-side .st-field i:first-child { margin-left: 0; }
+@media (max-width: 900px) { #strategy .st-cards.one { grid-template-columns: minmax(0, 1fr); } #strategy .st-body { overflow-y: auto; } }
 #strategy .st-own { display: flex; flex-direction: column; gap: 5px; margin-top: 9px; }
 #strategy .st-row { display: flex; align-items: center; gap: 6px; font: 600 11.5px/1 var(--k-font); color: #b9c0cc; white-space: nowrap; }
 #strategy .st-row > span:first-child { width: 44px; flex: none; }
@@ -126,7 +143,8 @@ const CSS = `
 #strategy .st-stop { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; transform: translate3d(calc(var(--p, 0) * 100%), 0, 0); transition: transform var(--m-base) var(--ease-out); }
 #strategy .st-stop em { position: absolute; left: 0; top: 0; transform: translateX(-50%); font-style: normal; color: #cfd5df; }
 #strategy .st-t { margin-top: 10px; font: 800 16px/1.3 var(--k-font); }
-#strategy .st-t.sw { animation: m-fade 120ms var(--ease-out) both; }
+@keyframes stSw { from { opacity: .4; } }
+#strategy .st-t.st-sw { animation: stSw 160ms var(--ease-out, ease-out); }   /* (st-sw, not sw: the game's own stylesheet has a .sw - a swatch - that took this line out of the card's flow) */
 #strategy .st-t small { display: block; color: #9aa3b2; font-weight: 500; font-size: 12.5px; margin-top: 3px; }
 #strategy .st-adj { display: flex; align-items: center; gap: 8px; margin-top: auto; padding-top: 12px; font: 600 12px/1 var(--k-font); color: #b9c0cc; white-space: nowrap; }
 #strategy .st-adj b { font: 800 13px/1 var(--k-font); color: #fff; min-width: 44px; text-align: center; }
@@ -209,8 +227,9 @@ export function showStrategy(o) {
     <header class="st-head"><div class="st-ttl"><div class="st-h">RACE <span>STRATEGY</span></div><div class="st-sub">${o.who ? `<b style="color:${esc(o.who.color || '#fff')}">${esc(o.who.name)}</b>${o.who.step ? ` (${esc(o.who.step)})` : ''} · ` : ''}${esc(o.trackName)} · ${o.laps} laps · ${cond}${o.night ? ' · night' : ''}${o.gridPos ? ` · starting P${o.gridPos}` : ''}</div></div>
       <ol class="st-rail" aria-label="The weekend"><li class="done"><i></i>Practice</li><li class="done"><i></i>Qualifying</li><li class="on" aria-current="step"><i></i>Strategy</li><li><i></i>Race</li></ol></header>
     <div class="st-body"><div class="st-eng"><b>RACE ENGINEER</b>${esc(advice)}</div>
-      <div class="st-cards one" data-scroll-ok>${plans.map(card).join('')}</div>
-      <div class="st-field">The field starts on:${Object.entries(counts).map(([c, n]) => `<i style="background:${COMPOUNDS[c]?.color || '#888'}"></i>${n} ${c.toLowerCase()}`).join('')}</div></div>
+      <div class="st-cards one" data-scroll-ok>${plans.map(card).join('')}<aside class="st-side"><h4>THE TYRES HERE</h4><div class="st-ty">${R.comps.map((c) => `<i style="--c:${COMPOUNDS[c].color}">${c[0]}</i><span>${c[0] + c.slice(1).toLowerCase()}<small>${c === 'SOFT' ? 'quickest, shortest-lived' : c === 'MEDIUM' ? 'the middle one' : c === 'HARD' ? 'slowest, longest-lived' : c === 'INTER' ? 'for a damp road' : 'for standing water'}</small></span><b>about ${Math.round(R.life(c))} laps</b>`).join('')}</div>
+        <h4>THE RULES</h4>${R.mustStop ? '<div class="st-rule">At least one stop, or 30 seconds at the flag.</div>' : '<div class="st-rule">No stop is required at this distance.</div>'}${R.two ? '<div class="st-rule">Two different dry compounds, or 30 seconds at the flag.</div>' : ''}<div class="st-rule">A stop costs about ${o.pitLoss.toFixed(0)} seconds here.</div>
+        <h4>THE FIELD STARTS ON</h4><div class="st-field">${Object.entries(counts).map(([c, n]) => `<i style="background:${COMPOUNDS[c]?.color || '#888'}"></i>${n} ${c.toLowerCase()}`).join('') || 'not known yet'}</div></aside></div></div>
     <footer class="st-foot"><span class="st-keys"><kbd class="k-kbd">←</kbd><kbd class="k-kbd">→</kbd> first stop · <kbd class="k-kbd">Enter</kbd> confirm</span><button class="st-ok">${esc(o.okText || 'CONFIRM · TO THE GRID ▸')}</button></footer></div>`;
   document.body.appendChild(el);
   const cards = [...el.querySelectorAll('.st-card')], strip = el.querySelector('.st-cards'), t0 = performance.now();
@@ -233,7 +252,7 @@ export function showStrategy(o) {
       const T = C.querySelector('.st-t'); T.classList.toggle('bad', !ok);
       if (T.dataset.k !== dt + pt) {
         T.dataset.k = dt + pt; T.querySelector('.st-dt').textContent = dt; T.querySelector('.st-pt').textContent = pt;
-        if (fadeTimes && !reduced()) { T.classList.remove('sw'); void T.offsetWidth; T.classList.add('sw'); }
+        if (fadeTimes && !reduced()) { T.classList.remove('st-sw'); void T.offsetWidth; T.classList.add('st-sw'); }
       }
       C.classList.toggle('st-sel', i === sel); C.setAttribute('aria-pressed', String(i === sel));
     });
@@ -280,7 +299,7 @@ export function showStrategy(o) {
   const done = () => {
     if (over) return;
     // (a plan whose tyres will not last is not a plan: its card says why)
-    if (!isFinite(plans[sel].time)) { const T = cards[sel].querySelector('.st-t'); T.classList.remove('sw'); void T.offsetWidth; T.classList.add('sw'); return; }
+    if (!isFinite(plans[sel].time)) { const T = cards[sel].querySelector('.st-t'); T.classList.remove('st-sw'); void T.offsetWidth; T.classList.add('st-sw'); return; }
     over = true; unkeys?.();
     close(el, () => el.remove());
     const p = plans[sel]; p.stops = p.stints.length - 1; p.label = p.custom ? `Your own: ${p.stints.map((s) => s.compound.toLowerCase()).join(' → ')}` : label(p); o.onDone?.(p);

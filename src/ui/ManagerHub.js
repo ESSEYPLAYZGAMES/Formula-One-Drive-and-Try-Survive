@@ -17,7 +17,7 @@ import { eraHTML, eraHome, eraClick, driversHTML } from './ManagerHub4.js';
 import { storySigning, storyReleased, storyShown, storyApply, inboxOf } from '../career/ManagerStory.js';
 import { PU, SPARES, allocOf, fitNew, orderSpare, FAC, FAC_MAX, facCost, facRounds, facFx, facUpgrade, facMaintain, maintCost, SPONSOR_SLOTS, acceptOdds, propose, sponsorTargets, marketability } from '../career/ManagerOps.js';
 import { TRACK_MAPS } from './TrackMaps.js';
-import { HQ_CSS, NAV, ICON, esc, money, pct, sur, panel, kv, meter, ring, seg, person, stat, tag, sw, empty, themeApply, themeHTML, themeSet, fitSheet, tween, techSkin } from './HQKit.js';
+import { HQ_CSS, FAC_CSS, NAV, ICON, esc, money, pct, sur, panel, kv, meter, ring, seg, person, stat, tag, sw, empty, themeApply, themeHTML, themeSet, fitSheet, tween, techSkin } from './HQKit.js';
 
 const PAGE_CSS = `
 #mgr .q-page { height: 100%; min-height: 0; }
@@ -55,7 +55,7 @@ let el = null;
 /** the HQ (or, with no career, the new career's set-up) */
 export function openManagerHub(o) {
   H.o = o; H.c = o.career || null; H.msg = null; if (!H.c) H.tab = 'new'; else if (H.tab === 'new') H.tab = 'home';
-  if (!document.getElementById('mgr-css')) { const st = document.createElement('style'); st.id = 'mgr-css'; st.textContent = HQ_CSS + PAGE_CSS + EXTRA_CSS + techSkin(TECH_CSS.replaceAll('#career', '#mgr .fac')); document.head.appendChild(st); }
+  if (!document.getElementById('mgr-css')) { const st = document.createElement('style'); st.id = 'mgr-css'; st.textContent = HQ_CSS + PAGE_CSS + EXTRA_CSS + techSkin(TECH_CSS.replaceAll('#career', '#mgr .fac')) + FAC_CSS; document.head.appendChild(st); }
   if (!el) { el = document.createElement('div'); el.id = 'mgr'; el.addEventListener('click', onClick); document.body.appendChild(el); let rt = 0; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if (managerHubOpen()) { fitSheet(el); rail(); } }, 100); }); }
   el.style.display = 'grid'; H.shown = 0; H._tab = null; el.dataset.mode = ''; render(); pump();
 }

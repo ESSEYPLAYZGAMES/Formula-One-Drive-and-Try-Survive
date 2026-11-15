@@ -107,6 +107,43 @@ export function techSkin(css) {
   return s.replace(/\u0001/g, '#fff');
 }
 
+// ---- the factory: the tech tree (ui/HubTech.js draws it; this lays it out for the stage) ---------------------------------
+// Three columns that fill the screen, nothing scrolling: the nine branches down the left (the car's pace and its parts
+// under them); in the middle the branch that is open - what it has given the car, its upgrades as cards - the
+// factory's development slots under it, and under those the testing allowance and what the factory does; down the
+// right, the upgrade that is picked: its levels, what each is, where the grid is on it, and BUILD.
+export const FAC_CSS = `
+#mgr .q-fac.fac { padding: 0; background: transparent; border: 0; overflow: hidden; }
+#mgr .q-fac .tt-wrap { height: 100%; }
+#mgr .q-fac .tt { height: 100%; display: grid; grid-template-columns: 206px minmax(0, 1fr) 356px; grid-template-rows: auto auto minmax(0, 1fr) auto; grid-template-areas: "brs sec det" "brs q det" "fx atr det" "kp atr det"; gap: 10px 12px; }
+#mgr .q-fac .tt > *, #mgr .q-fac .tt-head > * { animation: none; margin: 0; min-width: 0; min-height: 0; }
+#mgr .q-enter .q-fac .tt > *, #mgr .q-enter .q-fac .tt-kpis { animation: qIn .42s var(--ease) both; }
+#mgr .q-enter .q-fac .tt > .tt-sec { animation-delay: 40ms; } #mgr .q-enter .q-fac .tt > .tt-q { animation-delay: 80ms; } #mgr .q-enter .q-fac .tt > .tt-fac { animation-delay: 120ms; } #mgr .q-enter .q-fac .tt > .tt-det { animation-delay: 160ms; }
+#mgr .q-fac .tt-head { display: contents; } #mgr .q-fac .tt-hl, #mgr .q-fac .tt-msg, #mgr .q-fac .tt-note, #mgr .q-fac .tt-kpi:first-child { display: none; }
+#mgr .q-fac .tt-kpis { grid-area: kp; align-self: end; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; } #mgr .q-fac .tt-kpi { min-width: 0; padding: 9px 10px; border-radius: 10px; box-shadow: none; }
+#mgr .q-fac .tt-brs { grid-area: brs; grid-template-columns: minmax(0, 1fr); gap: 5px; align-content: start; }
+#mgr .q-fac button.tt-br { padding: 6px 8px; gap: 8px; border-radius: 10px; box-shadow: none; } #mgr .q-fac .tt-br .tt-mono { width: 27px; height: 27px; border-radius: 8px; font-size: 9.5px; } #mgr .q-fac .tt-ring { width: 27px; height: 27px; } #mgr .q-fac .tt-ring::before { width: 20px; height: 20px; }
+#mgr .q-fac button.tt-br.on { box-shadow: 0 0 0 1px var(--c), 0 0 16px -4px var(--c); }
+#mgr .q-fac .tt-sec { grid-area: sec; display: flex; flex-direction: column; gap: 9px; }
+#mgr .q-fac .tt-bh { padding: 10px 13px; border-radius: var(--r); gap: 4px 11px; } #mgr .q-fac .tt-bh p { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 12px; line-height: 1.4; } #mgr .q-fac .tt-mt { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px 12px; margin-top: 4px; }
+#mgr .q-fac .tt-ups { margin: 0; gap: 7px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+#mgr .q-fac button.tt-up { min-height: 0; padding: 8px 10px 8px 13px; gap: 5px; border-radius: 11px; box-shadow: none; white-space: normal; } #mgr .q-fac .tt-up .fx { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 11px; } #mgr .q-fac .tt-up .h b { font-size: 12.5px; }
+#mgr .q-fac .tt-q { grid-area: q; padding: 9px 12px 10px; border-radius: var(--r); background: color-mix(in srgb, var(--panel) 92%, transparent); } #mgr .q-fac .tt-qh { margin-bottom: 7px; } #mgr .q-fac .tt-qh .muted { font-size: 11.5px; color: var(--mute); }
+#mgr .q-fac .tt-slots { gap: 6px; } #mgr .q-fac .tt-slot { min-height: 58px; padding: 7px 9px 7px 12px; border-radius: 10px; box-shadow: none; white-space: normal; }
+/* (the factory's own blocks are laid out with the rest: its four figures under the branches, the testing allowance under the development slots - and on the facilities' page, in that place, the table of what they do for each branch) */
+#mgr .q-fac .tt-fac { display: contents; }
+#mgr .q-fac .tt-fac > * { padding: 10px 12px; border-radius: var(--r); background: color-mix(in srgb, var(--panel) 92%, transparent); border: 1px solid var(--line); min-width: 0; min-height: 0; margin: 0; overflow: hidden; }
+#mgr .q-enter .q-fac .tt-fac > * { animation: qIn .42s var(--ease) 120ms both; }
+#mgr .q-fac .tt-fx { grid-area: fx; align-self: end; padding: 9px 10px 10px; } #mgr .q-fac .tt-atr { grid-area: atr; align-self: start; } #mgr .q-fac .tt-mxw { grid-area: atr; align-self: start; }
+#mgr .q-fac .tt-ab > b { font-size: 26px; } #mgr .q-fac .tt-ab span { font-size: 12px; line-height: 1.4; } #mgr .q-fac .tt-scale { margin: 10px 10px 0; height: 38px; }
+#mgr .q-fac .tt-ft { gap: 6px; } #mgr .q-fac .tt-ft div { padding: 6px 8px; min-width: 0; } #mgr .q-fac .tt-ft b { font-size: 15px; margin-top: 3px; } #mgr .q-fac .tt-ft span { display: none; } #mgr .q-fac .tt-fx .lbl, #mgr .q-fac .tt-atr .lbl, #mgr .q-fac .tt-mxw .lbl { display: block; margin: 0 0 7px; }
+#mgr .q-fac .tt-mx { font-size: 11.5px; } #mgr .q-fac .tt-mxw { padding: 8px 12px 6px; } #mgr .q-fac .tt-mx td { padding: 1.5px 6px; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 210px; } #mgr .q-fac .tt-mx th { padding: 3px 6px 5px; }
+#mgr .q-fac .tt:has(.tt-mxw) .tt-atr { display: none; } #mgr .q-fac .tt:has(.tt-mxw) .tt-bh p { -webkit-line-clamp: 1; } #mgr .q-fac .tt:has(.tt-mxw) .tt-slot small { display: none; } #mgr .q-fac .tt:has(.tt-mxw) .tt-slot { min-height: 40px; padding-top: 5px; padding-bottom: 5px; } #mgr .q-fac .tt:has(.tt-mxw) .tt-qh { margin-bottom: 5px; } #mgr .q-fac .tt:has(.tt-mxw) .tt-mxw .lbl { margin-bottom: 4px; }
+#mgr .q-fac .tt-det { grid-area: det; height: 100%; margin: 0; border-radius: var(--r); padding: 15px 14px 13px; box-shadow: none; } #mgr .q-fac .tt-det > .tt-act { flex-direction: column; align-items: stretch; gap: 7px; padding-top: 10px; border-top: 1px dashed var(--line2); }
+#mgr .q-fac .tt-det > .tt-act > button { padding: 11px 12px; white-space: normal; } #mgr .q-fac .tt-why { font-size: 11.5px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+#mgr .q-fac .lbl { font: 800 9px/1 var(--f); letter-spacing: .2em; text-transform: uppercase; color: var(--mute); }
+`;
+
 // ---- the stylesheet ----------------------------------------------------------------------------------------------------
 export const HQ_CSS = `
 #mgr { --bg: #090c13; --bg2: #0d111b; --panel: #121724; --panel2: #1a2030; --line: rgba(255,255,255,.07); --line2: rgba(255,255,255,.14); --ink: #eef1f6; --dim: #a9b2c0; --mute: #717b8c; --inkrgb: 255,255,255; --deep: #fff;

@@ -261,7 +261,9 @@ function makeKit(R, S, cam, def, o) {
 
 const V = (a) => new THREE.Vector3(a[0], a[1], a[2]);
 /** what a subtitle needs to be read (s) */
-const readTime = (s) => 1.1 + String(s || '').split(/\s+/).length * 0.3;
+// (a line's time on the screen: read once, at a reader's pace - it was 1.1 s and 0.3 s a word, which is being read aloud
+//  to; a shot held for it sat still while the line was read three times)
+const readTime = (s) => Math.max(1.2, 0.45 + String(s || '').split(/\s+/).length * 0.155);
 
 /**
  * Play a scene. def: { id, kicker, title, sub (the title card), accent, grade, bg, fog: [near, far], exposure,
@@ -335,7 +337,8 @@ export function playCine(def, o = {}) {
       i = n; t0 = t; const sh = shots[i]; if (!sh) return;
       closeAsk(); closeQte();
       sh._subs = [].concat((typeof sh.sub === 'function' ? sh.sub(res) : sh.sub) || []).filter(Boolean);
-      sh._sd = Math.max(sh.d0 ?? sh.d ?? 3, sh._subs.reduce((a, x) => a + readTime(x.text), 0)); sh.d0 = sh.d0 ?? sh.d ?? 3; sh.d = sh._sd; sh._cut = 0;
+      // (how long the shot is: with words, as long as they take and a beat more - whatever length it was written at; with none, a little over half of that)
+      sh.d0 = sh.d0 ?? sh.d ?? 3; { const rd = sh._subs.reduce((a, x) => a + readTime(x.text), 0); sh._sd = sh._subs.length ? Math.max(1.9, rd + 0.35) : Math.max(1.5, sh.d0 * 0.58); } sh.d = sh._sd; sh._cut = 0;
       if (sh.ask) { sh.ask._at = sh.ask.at ?? Math.max(0.5, sh._subs.reduce((a, x) => a + readTime(x.text), 0)); sh.ask.time = sh.ask.time || 6; sh.d = Math.max(sh.d, sh.ask._at + sh.ask.time + 0.3); sh._asked = false; }
       if (sh.qte) { const Q = sh.qte; Q.from = Q.from ?? 0.6; Q.len = Q.len ?? 2.6; Q._p = 0; Q._n = 0; sh._q = false; sh.d = Math.max(sh.d, Q.from + Q.len + (Q.after ?? 0.9)); }
       showCard(sh.card || null);

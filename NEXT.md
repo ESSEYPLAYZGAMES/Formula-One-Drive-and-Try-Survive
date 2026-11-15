@@ -1,3 +1,55 @@
+# V2.63 (2026-11-15): the factory on one screen, the strategy screen balanced, highlights that matter, quicker cutscenes
+
+Asked for: "rebuild the factory tech tree too so it doesnt scroll"; "fix the strategy screen so it's balanced nicely,
+no clipping of text"; "lots of understatements in cutscenes and dialogue like 'two retirements in two races' whereas
+in reality it was 2 retirements in one race"; "Highlights reel focuses on obscure things, like drivers overtaking
+beached cars for 9th place ... focus on important places, consequential events, big crashes, dramatic driver to
+driver conflict, also group events, like a pile up or triple overtakes, a huge exchange of postiions within a group";
+"each shot of a cutscene takes like 3 times as long as it should".
+
+## The factory (the HQ's FACTORY page: ui/HQKit.js FAC_CSS over ui/HubTech.js)
+- Three columns that fill the screen; nothing scrolls, on any of the nine branches:
+  - left: the nine branches as a list, the factory's four figures (slots, development cost, early arrival,
+    correlation) under them, the car's pace and parts at the foot;
+  - middle: the branch that is open - what it has given the car, its upgrades as cards - the development slots
+    under it, and under those the aerodynamic testing allowance with every team on its scale (on the FACILITIES
+    branch: the table of what the factory does for each branch, in that place);
+  - right, the full height: the upgrade that is picked - its levels, what each one is and costs, about it, where the
+    grid is on it - and BUILD at the foot.
+- The long introduction and the notes are gone from the page; what a click says is the line at the foot of the HQ.
+- The tree's own rules (what needs what, costs, the cost cap, correlation) are unchanged.
+
+## The strategy screen
+- The text that ran down the card in a column a word wide ("+40.0 / s / on / the / engineers' / plan") was a class
+  name shared with something else in the game's stylesheet; it has its own now.
+- With the builder alone the sheet is two panels of equal height: YOUR STRATEGY on the left (the bar, each stint's
+  tyre and its last lap on larger buttons, the stops, and along its foot what it comes to against the engineers'
+  plan and the predicted race time), and beside it what there is to know - how long each tyre lasts here, the rules
+  that apply at this distance, what a stop costs, what the field starts on.
+
+## The highlights at the flag
+- Every moment of the race now has a worth, and the six worth most are the highlights, in the order they happened:
+  - a pass by the place it was for - the lead most, the podium places next, tenth very little - and more between
+    rivals with a grudge, team-mates, your cars, and in the last two laps;
+  - a collision the stewards opened a case on, by how bad; a crash; a spin by where the car was running.
+- Moments within a few seconds of each other among the same cars, or cars together on the road, are ONE moment and
+  worth more: "Hamilton takes three places in one move, up to 4th", "4 changes of place in the fight for 3rd",
+  "a pile-up: Gasly, Lawson, Bearman and Stroll", "Norris and Piastri: contact in the fight for 1st".
+- A place taken from a car that is stopped, off the road, spinning, crawling home on a puncture or with its wing
+  off is not an overtake: no OVERTAKE banner, no replay offered, nothing for the highlights.
+- (They used to be the last six replays that happened to be offered.)
+
+## Said as it was
+- Both cars out of one race is "both cars out of the same race" - and, with earlier ones, "and three retirements in
+  three races" - not "two retirements in two races". The pit wall's line when the second car stops says so too
+  ("Both cars out of the race."), and its count of retirements now counts this race's properly.
+
+## Cutscenes
+- A shot lasts as long as its words take to read once, and a beat more - whatever length it was written at (it was
+  1.1 s and 0.3 s a word for each line, or the shot's own length if longer: a fourteen-word line held 5.3 s, now
+  about 3 s; a shot with nothing said runs a little over half its old length). The time to answer a question in a
+  scene is unchanged.
+
 # V2.62 (2026-11-15): the team principal's HQ, made again for a laptop's screen
 
 Asked for: "go back through the whole manager menu (outside of races) and seriously from the ground up redo all the

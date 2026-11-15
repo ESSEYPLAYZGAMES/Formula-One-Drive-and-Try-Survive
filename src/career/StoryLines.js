@@ -36,7 +36,9 @@ export const traitFor = (id) => pick(Object.keys(TRAITS), `trait|${id}`);
  */
 export function factLine(F, who = 'the team') {
   if (!F) return '';
-  if (F.dnfNow && F.dnfIn4 >= 2) return `${ordw(F.dnfIn4)} retirements in ${F.span} races for ${who}`;
+  // (both cars out of the same race is its own thing - and the worse one: said first, the run of them after it)
+  if (F.dnfLast >= 2) return F.dnfIn4 > F.dnfLast ? `both cars out of the same race, and ${ordw(F.dnfIn4)} retirements in ${ordw(F.span)} races for ${who}` : `both cars out of the same race for ${who}`;
+  if (F.dnfNow && F.dnfIn4 >= 2) return `${ordw(F.dnfIn4)} retirements in ${ordw(Math.max(2, F.span))} races for ${who}`;
   if (F.firstWin) return `the first win for ${who}${F.season ? ' this season' : ''}`;
   if (F.winNow && F.winStreak >= 2) return `${ordw(F.winStreak)} wins in a row for ${who}`;
   if (F.firstPodium) return `the first podium of the season for ${who}`;

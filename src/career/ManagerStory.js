@@ -56,7 +56,7 @@ export function facts(c, did = null) {
   const pts = (r) => ok(r).some((m) => m.pos <= 10), best = (r) => Math.min(99, ...ok(r).map((m) => m.pos)), dn = (r) => of(r).filter((m) => m.dnf).length;
   const last = R[n - 1], prev = R.slice(0, -1), run = (arr, f) => { let k = 0; for (let i = arr.length - 1; i >= 0 && f(arr[i]); i--) k++; return k; };
   const dryBefore = run(prev, (r) => !pts(r)), lp = [...prev].reverse().find(pts);
-  return { season: true, n, span: Math.min(4, n), dnfNow: dn(last) > 0, dnfIn4: R.slice(-4).reduce((s, r) => s + dn(r), 0), double: dn(last) >= 2 && !did, pointsNow: pts(last), dry: run(R, (r) => !pts(r)), dryBefore, lastPointsAt: lp ? trackName(lp.track) : null,
+  return { season: true, n, span: Math.min(4, n), dnfNow: dn(last) > 0, dnfLast: dn(last), dnfIn4: R.slice(-4).reduce((s, r) => s + dn(r), 0), double: dn(last) >= 2 && !did, pointsNow: pts(last), dry: run(R, (r) => !pts(r)), dryBefore, lastPointsAt: lp ? trackName(lp.track) : null,
     pointsStreak: run(R, pts), winNow: best(last) === 1, firstWin: best(last) === 1 && !prev.some((r) => best(r) === 1), winStreak: run(R, (r) => best(r) === 1), podiumNow: best(last) <= 3, firstPodium: best(last) <= 3 && !prev.some((r) => best(r) <= 3), bestNow: prev.length >= 2 && best(last) < Math.min(...prev.map(best)), best: best(last) };
 }
 /** the same, said: "a third retirement in four races for Ferrari" */
@@ -79,9 +79,12 @@ export function storyTrack(c) {
 /** your driver replaced for now by a reserve (an injury): the driver who takes the car this round */
 export function subOf(c, d) { const s = c.story?.sub; return s && s.did === d.id && c.round <= s.until && c.season === s.season && c.drivers[s.sub] ? c.drivers[s.sub] : d; }
 /** a line for the pit wall's radio as it happens ('retire' | 'win' | 'points'), knowing the season */
-export function radioFact(c, kind, did) {
+export function radioFact(c, kind, did, o = {}) {
   const F = facts(c), F1 = facts(c, did), n = sur(c.drivers[did]?.name);
-  if (kind === 'retire') return F && F.dnfIn4 >= 1 ? `That is ${F.dnfIn4 + 1} retirements in ${Math.min(4, (F.n || 0) + 1)} races for us.` : `${n} is out.`;
+  // (o.out: how many of your cars are out of THIS race, this one counted - the season's results do not have it yet. The
+  //  count is of the last four races with this one: the three before it and today)
+  if (kind === 'retire') { const now = Math.max(1, o.out || 1), R = (c.results || []).filter((r) => r.season === c.season).slice(-3), before = R.reduce((s, r) => s + r.mine.filter((m) => m.dnf).length, 0), races = R.length + 1, tot = before + now;
+    return now >= 2 ? `Both cars out of the race.${before ? ` That is ${tot} retirements in ${races} races.` : ''}` : before ? `That is ${tot} retirements in ${races} races for us.` : `${n} is out.`; }
   if (kind === 'win') return F && !(c.results || []).some((r) => r.season === c.season && r.mine.some((m) => !m.dnf && m.pos === 1)) ? 'The first win of the season. Remember this one.' : 'Another one. Do not get used to it.';
   if (kind === 'points') return F1 && F1.dry >= 2 ? `First points for ${n} since ${F1.lastPointsAt || 'a long time'}.` : '';
   return '';

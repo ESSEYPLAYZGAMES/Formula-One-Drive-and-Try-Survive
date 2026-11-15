@@ -602,7 +602,7 @@ body.tp #hud-msg { top: 30%; }
     <div class="brand-line"></div>
     <h1 id="brand-title">FORMULA 1<span id="brand-sub">SIMULATOR</span></h1>
     <!-- the build's version: +0.01 with every build handed out -->
-    <span id="app-ver" title="Version">V2.62</span>
+    <span id="app-ver" title="Version">V2.63</span>
     <div id="menu-sub">Real circuits built from OpenStreetMap</div>
   </div>
   <div id="loading" class="hidden"><div class="ld"><i></i></div><span>Building the circuit from OpenStreetMap…</span></div>
@@ -144812,7 +144812,24 @@ const CSS = `
 #strategy .st-eng { flex: none; background: rgba(255,255,255,.05); border-left: 3px solid #e10600; border-radius: 0 8px 8px 0; padding: 9px 12px; font: 500 14.5px/1.45 var(--k-font); }
 #strategy .st-eng b { color: #e10600; letter-spacing: .1em; font-size: 11px; display: block; margin-bottom: 2px; }
 #strategy .st-cards { flex: none; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; align-items: stretch; padding-top: 4px; }
-#strategy .st-cards.one { grid-template-columns: minmax(0, 620px); justify-content: center; } #strategy .st-cards.one .st-nm kbd { display: none; }
+/* (the builder alone: the plan on the left - its bar, its stints to set, what it comes to along its foot - and what there is to know beside it) */
+#strategy .st-cards.one { flex: 1 1 auto; min-height: 0; grid-template-columns: minmax(0, 1.62fr) minmax(0, 1fr); align-items: stretch; } #strategy .st-cards.one .st-nm kbd { display: none; }
+#strategy .st-cards.one .st-card { cursor: default; padding: 18px 22px 16px; transform: none; } #strategy .st-cards.one .st-card:hover { background-color: rgba(225,6,0,.1); }
+#strategy .st-cards.one .st-nm b { font-size: 20px; letter-spacing: .06em; } #strategy .st-cards.one .st-nm span { font-size: 15px; color: #cfd5df; text-align: right; }
+#strategy .st-cards.one .st-bar { height: 34px; margin-top: 14px; border-radius: 7px; } #strategy .st-cards.one .st-bar i { font-size: 14px; }
+#strategy .st-cards.one .st-laps { height: 16px; font-size: 12px; margin-top: 2px; }
+#strategy .st-cards.one .st-own { gap: 9px; margin-top: 18px; } #strategy .st-cards.one .st-row { gap: 9px; font-size: 13.5px; } #strategy .st-cards.one .st-row > span:first-child { width: 64px; font-weight: 700; color: #cfd5df; }
+#strategy .st-cards.one .st-own button { width: 30px; height: 30px; font-size: 14px; border-radius: 8px; } #strategy .st-cards.one .st-own button.cp { border-radius: 50%; font-size: 12px; } #strategy .st-cards.one .st-row b { font-size: 15px; min-width: 30px; } #strategy .st-cards.one .st-row .st-to { gap: 7px; color: #9aa3b2; }
+#strategy .st-cards.one .st-own .st-row:last-child { margin-top: 4px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,.1); }
+#strategy .st-cards.one .st-t { order: 9; margin-top: auto; padding-top: 14px; border-top: 1px solid rgba(255,255,255,.12); display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 18px; align-items: baseline; }
+#strategy .st-cards.one .st-dt { font: 900 19px/1.15 var(--k-font); white-space: nowrap; } #strategy .st-cards.one .st-t small { margin: 0; font-size: 13px; line-height: 1.4; text-align: right; }
+#strategy .st-side { display: flex; flex-direction: column; gap: 9px; min-width: 0; min-height: 0; overflow: hidden; background: rgba(255,255,255,.045); border: 1px solid rgba(255,255,255,.1); border-radius: 12px; padding: 16px 18px; animation: m-in-up var(--m-base) var(--ease-out) both; animation-delay: calc(2.5 * var(--m-stagger)); }
+#strategy .st-side h4 { margin: 6px 0 0; font: 800 10px/1 var(--k-font); letter-spacing: .2em; color: #9aa3b2; } #strategy .st-side h4:first-child { margin-top: 0; }
+#strategy .st-ty { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; gap: 8px 10px; align-items: center; font: 600 13.5px/1 var(--k-font); } #strategy .st-ty i { width: 26px; height: 26px; border-radius: 50%; border: 3px solid var(--c); display: grid; place-items: center; font: 900 11px/1 var(--k-font); font-style: normal; color: var(--c); }
+#strategy .st-ty b { font-weight: 800; } #strategy .st-ty span small { display: block; margin-top: 3px; font: 500 11px/1 var(--k-font); color: #8c93a0; }
+#strategy .st-rule { display: flex; gap: 9px; font: 500 13px/1.4 var(--k-font); color: #dfe4eb; } #strategy .st-rule::before { content: ''; flex: none; width: 6px; height: 6px; margin-top: 6px; border-radius: 2px; background: #e10600; }
+#strategy .st-side .st-field { white-space: normal; line-height: 1.9; } #strategy .st-side .st-field i:first-child { margin-left: 0; }
+@media (max-width: 900px) { #strategy .st-cards.one { grid-template-columns: minmax(0, 1fr); } #strategy .st-body { overflow-y: auto; } }
 #strategy .st-own { display: flex; flex-direction: column; gap: 5px; margin-top: 9px; }
 #strategy .st-row { display: flex; align-items: center; gap: 6px; font: 600 11.5px/1 var(--k-font); color: #b9c0cc; white-space: nowrap; }
 #strategy .st-row > span:first-child { width: 44px; flex: none; }
@@ -144846,7 +144863,8 @@ const CSS = `
 #strategy .st-stop { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; transform: translate3d(calc(var(--p, 0) * 100%), 0, 0); transition: transform var(--m-base) var(--ease-out); }
 #strategy .st-stop em { position: absolute; left: 0; top: 0; transform: translateX(-50%); font-style: normal; color: #cfd5df; }
 #strategy .st-t { margin-top: 10px; font: 800 16px/1.3 var(--k-font); }
-#strategy .st-t.sw { animation: m-fade 120ms var(--ease-out) both; }
+@keyframes stSw { from { opacity: .4; } }
+#strategy .st-t.st-sw { animation: stSw 160ms var(--ease-out, ease-out); }   /* (st-sw, not sw: the game's own stylesheet has a .sw - a swatch - that took this line out of the card's flow) */
 #strategy .st-t small { display: block; color: #9aa3b2; font-weight: 500; font-size: 12.5px; margin-top: 3px; }
 #strategy .st-adj { display: flex; align-items: center; gap: 8px; margin-top: auto; padding-top: 12px; font: 600 12px/1 var(--k-font); color: #b9c0cc; white-space: nowrap; }
 #strategy .st-adj b { font: 800 13px/1 var(--k-font); color: #fff; min-width: 44px; text-align: center; }
@@ -144929,8 +144947,9 @@ function showStrategy(o) {
     <header class="st-head"><div class="st-ttl"><div class="st-h">RACE <span>STRATEGY</span></div><div class="st-sub">${o.who ? `<b style="color:${esc(o.who.color || '#fff')}">${esc(o.who.name)}</b>${o.who.step ? ` (${esc(o.who.step)})` : ''} · ` : ''}${esc(o.trackName)} · ${o.laps} laps · ${cond}${o.night ? ' · night' : ''}${o.gridPos ? ` · starting P${o.gridPos}` : ''}</div></div>
       <ol class="st-rail" aria-label="The weekend"><li class="done"><i></i>Practice</li><li class="done"><i></i>Qualifying</li><li class="on" aria-current="step"><i></i>Strategy</li><li><i></i>Race</li></ol></header>
     <div class="st-body"><div class="st-eng"><b>RACE ENGINEER</b>${esc(advice)}</div>
-      <div class="st-cards one" data-scroll-ok>${plans.map(card).join('')}</div>
-      <div class="st-field">The field starts on:${Object.entries(counts).map(([c, n]) => `<i style="background:${COMPOUNDS[c]?.color || '#888'}"></i>${n} ${c.toLowerCase()}`).join('')}</div></div>
+      <div class="st-cards one" data-scroll-ok>${plans.map(card).join('')}<aside class="st-side"><h4>THE TYRES HERE</h4><div class="st-ty">${R.comps.map((c) => `<i style="--c:${COMPOUNDS[c].color}">${c[0]}</i><span>${c[0] + c.slice(1).toLowerCase()}<small>${c === 'SOFT' ? 'quickest, shortest-lived' : c === 'MEDIUM' ? 'the middle one' : c === 'HARD' ? 'slowest, longest-lived' : c === 'INTER' ? 'for a damp road' : 'for standing water'}</small></span><b>about ${Math.round(R.life(c))} laps</b>`).join('')}</div>
+        <h4>THE RULES</h4>${R.mustStop ? '<div class="st-rule">At least one stop, or 30 seconds at the flag.</div>' : '<div class="st-rule">No stop is required at this distance.</div>'}${R.two ? '<div class="st-rule">Two different dry compounds, or 30 seconds at the flag.</div>' : ''}<div class="st-rule">A stop costs about ${o.pitLoss.toFixed(0)} seconds here.</div>
+        <h4>THE FIELD STARTS ON</h4><div class="st-field">${Object.entries(counts).map(([c, n]) => `<i style="background:${COMPOUNDS[c]?.color || '#888'}"></i>${n} ${c.toLowerCase()}`).join('') || 'not known yet'}</div></aside></div></div>
     <footer class="st-foot"><span class="st-keys"><kbd class="k-kbd">←</kbd><kbd class="k-kbd">→</kbd> first stop · <kbd class="k-kbd">Enter</kbd> confirm</span><button class="st-ok">${esc(o.okText || 'CONFIRM · TO THE GRID ▸')}</button></footer></div>`;
   document.body.appendChild(el);
   const cards = [...el.querySelectorAll('.st-card')], strip = el.querySelector('.st-cards'), t0 = performance.now();
@@ -144953,7 +144972,7 @@ function showStrategy(o) {
       const T = C.querySelector('.st-t'); T.classList.toggle('bad', !ok);
       if (T.dataset.k !== dt + pt) {
         T.dataset.k = dt + pt; T.querySelector('.st-dt').textContent = dt; T.querySelector('.st-pt').textContent = pt;
-        if (fadeTimes && !reduced()) { T.classList.remove('sw'); void T.offsetWidth; T.classList.add('sw'); }
+        if (fadeTimes && !reduced()) { T.classList.remove('st-sw'); void T.offsetWidth; T.classList.add('st-sw'); }
       }
       C.classList.toggle('st-sel', i === sel); C.setAttribute('aria-pressed', String(i === sel));
     });
@@ -145000,7 +145019,7 @@ function showStrategy(o) {
   const done = () => {
     if (over) return;
     // (a plan whose tyres will not last is not a plan: its card says why)
-    if (!isFinite(plans[sel].time)) { const T = cards[sel].querySelector('.st-t'); T.classList.remove('sw'); void T.offsetWidth; T.classList.add('sw'); return; }
+    if (!isFinite(plans[sel].time)) { const T = cards[sel].querySelector('.st-t'); T.classList.remove('st-sw'); void T.offsetWidth; T.classList.add('st-sw'); return; }
     over = true; unkeys?.();
     close(el, () => el.remove());
     const p = plans[sel]; p.stops = p.stints.length - 1; p.label = p.custom ? `Your own: ${p.stints.map((s) => s.compound.toLowerCase()).join(' → ')}` : label(p); o.onDone?.(p);
@@ -148898,7 +148917,9 @@ const traitFor = (id) => pick(Object.keys(TRAITS), `trait|${id}`);
  */
 function factLine(F, who = 'the team') {
   if (!F) return '';
-  if (F.dnfNow && F.dnfIn4 >= 2) return `${ordw(F.dnfIn4)} retirements in ${F.span} races for ${who}`;
+  // (both cars out of the same race is its own thing - and the worse one: said first, the run of them after it)
+  if (F.dnfLast >= 2) return F.dnfIn4 > F.dnfLast ? `both cars out of the same race, and ${ordw(F.dnfIn4)} retirements in ${ordw(F.span)} races for ${who}` : `both cars out of the same race for ${who}`;
+  if (F.dnfNow && F.dnfIn4 >= 2) return `${ordw(F.dnfIn4)} retirements in ${ordw(Math.max(2, F.span))} races for ${who}`;
   if (F.firstWin) return `the first win for ${who}${F.season ? ' this season' : ''}`;
   if (F.winNow && F.winStreak >= 2) return `${ordw(F.winStreak)} wins in a row for ${who}`;
   if (F.firstPodium) return `the first podium of the season for ${who}`;
@@ -149052,7 +149073,7 @@ function facts(c, did = null) {
   const pts = (r) => ok(r).some((m) => m.pos <= 10), best = (r) => Math.min(99, ...ok(r).map((m) => m.pos)), dn = (r) => of(r).filter((m) => m.dnf).length;
   const last = R[n - 1], prev = R.slice(0, -1), run = (arr, f) => { let k = 0; for (let i = arr.length - 1; i >= 0 && f(arr[i]); i--) k++; return k; };
   const dryBefore = run(prev, (r) => !pts(r)), lp = [...prev].reverse().find(pts);
-  return { season: true, n, span: Math.min(4, n), dnfNow: dn(last) > 0, dnfIn4: R.slice(-4).reduce((s, r) => s + dn(r), 0), double: dn(last) >= 2 && !did, pointsNow: pts(last), dry: run(R, (r) => !pts(r)), dryBefore, lastPointsAt: lp ? trackName(lp.track) : null,
+  return { season: true, n, span: Math.min(4, n), dnfNow: dn(last) > 0, dnfLast: dn(last), dnfIn4: R.slice(-4).reduce((s, r) => s + dn(r), 0), double: dn(last) >= 2 && !did, pointsNow: pts(last), dry: run(R, (r) => !pts(r)), dryBefore, lastPointsAt: lp ? trackName(lp.track) : null,
     pointsStreak: run(R, pts), winNow: best(last) === 1, firstWin: best(last) === 1 && !prev.some((r) => best(r) === 1), winStreak: run(R, (r) => best(r) === 1), podiumNow: best(last) <= 3, firstPodium: best(last) <= 3 && !prev.some((r) => best(r) <= 3), bestNow: prev.length >= 2 && best(last) < Math.min(...prev.map(best)), best: best(last) };
 }
 /** the same, said: "a third retirement in four races for Ferrari" */
@@ -149075,9 +149096,12 @@ function storyTrack(c) {
 /** your driver replaced for now by a reserve (an injury): the driver who takes the car this round */
 function subOf(c, d) { const s = c.story?.sub; return s && s.did === d.id && c.round <= s.until && c.season === s.season && c.drivers[s.sub] ? c.drivers[s.sub] : d; }
 /** a line for the pit wall's radio as it happens ('retire' | 'win' | 'points'), knowing the season */
-function radioFact(c, kind, did) {
+function radioFact(c, kind, did, o = {}) {
   const F = facts(c), F1 = facts(c, did), n = sur(c.drivers[did]?.name);
-  if (kind === 'retire') return F && F.dnfIn4 >= 1 ? `That is ${F.dnfIn4 + 1} retirements in ${Math.min(4, (F.n || 0) + 1)} races for us.` : `${n} is out.`;
+  // (o.out: how many of your cars are out of THIS race, this one counted - the season's results do not have it yet. The
+  //  count is of the last four races with this one: the three before it and today)
+  if (kind === 'retire') { const now = Math.max(1, o.out || 1), R = (c.results || []).filter((r) => r.season === c.season).slice(-3), before = R.reduce((s, r) => s + r.mine.filter((m) => m.dnf).length, 0), races = R.length + 1, tot = before + now;
+    return now >= 2 ? `Both cars out of the race.${before ? ` That is ${tot} retirements in ${races} races.` : ''}` : before ? `That is ${tot} retirements in ${races} races for us.` : `${n} is out.`; }
   if (kind === 'win') return F && !(c.results || []).some((r) => r.season === c.season && r.mine.some((m) => !m.dnf && m.pos === 1)) ? 'The first win of the season. Remember this one.' : 'Another one. Do not get used to it.';
   if (kind === 'points') return F1 && F1.dry >= 2 ? `First points for ${n} since ${F1.lastPointsAt || 'a long time'}.` : '';
   return '';
@@ -152332,6 +152356,43 @@ function techSkin(css) {
   return s.replace(/\u0001/g, '#fff');
 }
 
+// ---- the factory: the tech tree (ui/HubTech.js draws it; this lays it out for the stage) ---------------------------------
+// Three columns that fill the screen, nothing scrolling: the nine branches down the left (the car's pace and its parts
+// under them); in the middle the branch that is open - what it has given the car, its upgrades as cards - the
+// factory's development slots under it, and under those the testing allowance and what the factory does; down the
+// right, the upgrade that is picked: its levels, what each is, where the grid is on it, and BUILD.
+const FAC_CSS = `
+#mgr .q-fac.fac { padding: 0; background: transparent; border: 0; overflow: hidden; }
+#mgr .q-fac .tt-wrap { height: 100%; }
+#mgr .q-fac .tt { height: 100%; display: grid; grid-template-columns: 206px minmax(0, 1fr) 356px; grid-template-rows: auto auto minmax(0, 1fr) auto; grid-template-areas: "brs sec det" "brs q det" "fx atr det" "kp atr det"; gap: 10px 12px; }
+#mgr .q-fac .tt > *, #mgr .q-fac .tt-head > * { animation: none; margin: 0; min-width: 0; min-height: 0; }
+#mgr .q-enter .q-fac .tt > *, #mgr .q-enter .q-fac .tt-kpis { animation: qIn .42s var(--ease) both; }
+#mgr .q-enter .q-fac .tt > .tt-sec { animation-delay: 40ms; } #mgr .q-enter .q-fac .tt > .tt-q { animation-delay: 80ms; } #mgr .q-enter .q-fac .tt > .tt-fac { animation-delay: 120ms; } #mgr .q-enter .q-fac .tt > .tt-det { animation-delay: 160ms; }
+#mgr .q-fac .tt-head { display: contents; } #mgr .q-fac .tt-hl, #mgr .q-fac .tt-msg, #mgr .q-fac .tt-note, #mgr .q-fac .tt-kpi:first-child { display: none; }
+#mgr .q-fac .tt-kpis { grid-area: kp; align-self: end; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; } #mgr .q-fac .tt-kpi { min-width: 0; padding: 9px 10px; border-radius: 10px; box-shadow: none; }
+#mgr .q-fac .tt-brs { grid-area: brs; grid-template-columns: minmax(0, 1fr); gap: 5px; align-content: start; }
+#mgr .q-fac button.tt-br { padding: 6px 8px; gap: 8px; border-radius: 10px; box-shadow: none; } #mgr .q-fac .tt-br .tt-mono { width: 27px; height: 27px; border-radius: 8px; font-size: 9.5px; } #mgr .q-fac .tt-ring { width: 27px; height: 27px; } #mgr .q-fac .tt-ring::before { width: 20px; height: 20px; }
+#mgr .q-fac button.tt-br.on { box-shadow: 0 0 0 1px var(--c), 0 0 16px -4px var(--c); }
+#mgr .q-fac .tt-sec { grid-area: sec; display: flex; flex-direction: column; gap: 9px; }
+#mgr .q-fac .tt-bh { padding: 10px 13px; border-radius: var(--r); gap: 4px 11px; } #mgr .q-fac .tt-bh p { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 12px; line-height: 1.4; } #mgr .q-fac .tt-mt { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px 12px; margin-top: 4px; }
+#mgr .q-fac .tt-ups { margin: 0; gap: 7px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+#mgr .q-fac button.tt-up { min-height: 0; padding: 8px 10px 8px 13px; gap: 5px; border-radius: 11px; box-shadow: none; white-space: normal; } #mgr .q-fac .tt-up .fx { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 11px; } #mgr .q-fac .tt-up .h b { font-size: 12.5px; }
+#mgr .q-fac .tt-q { grid-area: q; padding: 9px 12px 10px; border-radius: var(--r); background: color-mix(in srgb, var(--panel) 92%, transparent); } #mgr .q-fac .tt-qh { margin-bottom: 7px; } #mgr .q-fac .tt-qh .muted { font-size: 11.5px; color: var(--mute); }
+#mgr .q-fac .tt-slots { gap: 6px; } #mgr .q-fac .tt-slot { min-height: 58px; padding: 7px 9px 7px 12px; border-radius: 10px; box-shadow: none; white-space: normal; }
+/* (the factory's own blocks are laid out with the rest: its four figures under the branches, the testing allowance under the development slots - and on the facilities' page, in that place, the table of what they do for each branch) */
+#mgr .q-fac .tt-fac { display: contents; }
+#mgr .q-fac .tt-fac > * { padding: 10px 12px; border-radius: var(--r); background: color-mix(in srgb, var(--panel) 92%, transparent); border: 1px solid var(--line); min-width: 0; min-height: 0; margin: 0; overflow: hidden; }
+#mgr .q-enter .q-fac .tt-fac > * { animation: qIn .42s var(--ease) 120ms both; }
+#mgr .q-fac .tt-fx { grid-area: fx; align-self: end; padding: 9px 10px 10px; } #mgr .q-fac .tt-atr { grid-area: atr; align-self: start; } #mgr .q-fac .tt-mxw { grid-area: atr; align-self: start; }
+#mgr .q-fac .tt-ab > b { font-size: 26px; } #mgr .q-fac .tt-ab span { font-size: 12px; line-height: 1.4; } #mgr .q-fac .tt-scale { margin: 10px 10px 0; height: 38px; }
+#mgr .q-fac .tt-ft { gap: 6px; } #mgr .q-fac .tt-ft div { padding: 6px 8px; min-width: 0; } #mgr .q-fac .tt-ft b { font-size: 15px; margin-top: 3px; } #mgr .q-fac .tt-ft span { display: none; } #mgr .q-fac .tt-fx .lbl, #mgr .q-fac .tt-atr .lbl, #mgr .q-fac .tt-mxw .lbl { display: block; margin: 0 0 7px; }
+#mgr .q-fac .tt-mx { font-size: 11.5px; } #mgr .q-fac .tt-mxw { padding: 8px 12px 6px; } #mgr .q-fac .tt-mx td { padding: 1.5px 6px; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 210px; } #mgr .q-fac .tt-mx th { padding: 3px 6px 5px; }
+#mgr .q-fac .tt:has(.tt-mxw) .tt-atr { display: none; } #mgr .q-fac .tt:has(.tt-mxw) .tt-bh p { -webkit-line-clamp: 1; } #mgr .q-fac .tt:has(.tt-mxw) .tt-slot small { display: none; } #mgr .q-fac .tt:has(.tt-mxw) .tt-slot { min-height: 40px; padding-top: 5px; padding-bottom: 5px; } #mgr .q-fac .tt:has(.tt-mxw) .tt-qh { margin-bottom: 5px; } #mgr .q-fac .tt:has(.tt-mxw) .tt-mxw .lbl { margin-bottom: 4px; }
+#mgr .q-fac .tt-det { grid-area: det; height: 100%; margin: 0; border-radius: var(--r); padding: 15px 14px 13px; box-shadow: none; } #mgr .q-fac .tt-det > .tt-act { flex-direction: column; align-items: stretch; gap: 7px; padding-top: 10px; border-top: 1px dashed var(--line2); }
+#mgr .q-fac .tt-det > .tt-act > button { padding: 11px 12px; white-space: normal; } #mgr .q-fac .tt-why { font-size: 11.5px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+#mgr .q-fac .lbl { font: 800 9px/1 var(--f); letter-spacing: .2em; text-transform: uppercase; color: var(--mute); }
+`;
+
 // ---- the stylesheet ----------------------------------------------------------------------------------------------------
 const HQ_CSS = `
 #mgr { --bg: #090c13; --bg2: #0d111b; --panel: #121724; --panel2: #1a2030; --line: rgba(255,255,255,.07); --line2: rgba(255,255,255,.14); --ink: #eef1f6; --dim: #a9b2c0; --mute: #717b8c; --inkrgb: 255,255,255; --deep: #fff;
@@ -152427,7 +152488,7 @@ ${Array.from({ length: 10 }, (_, i) => `#mgr .q-g > .q-p:nth-child(${i + 1}) { -
 @media (prefers-reduced-motion: reduce) { #mgr *, #mgr *::before, #mgr *::after { animation-duration: .01s !important; transition-duration: .01s !important; } }
 `;
 
-return { esc, money, pct, sur, panel, info, kv, meter, ring, seg, person, stat, tag, sw, empty, NAV, ICON, TONES, ACCENTS, themeOf, themeSet, themeApply, themeHTML, fitSheet, tween, techSkin, HQ_CSS };
+return { esc, money, pct, sur, panel, info, kv, meter, ring, seg, person, stat, tag, sw, empty, NAV, ICON, TONES, ACCENTS, themeOf, themeSet, themeApply, themeHTML, fitSheet, tween, techSkin, FAC_CSS, HQ_CSS };
 })();
 
 // ---- src/ui/ManagerHub2.js
@@ -152735,7 +152796,7 @@ const { eraHTML, eraHome, eraClick, driversHTML } = __m['src/ui/ManagerHub4.js']
 const { storySigning, storyReleased, storyShown, storyApply, inboxOf } = __m['src/career/ManagerStory.js'];
 const { PU, SPARES, allocOf, fitNew, orderSpare, FAC, FAC_MAX, facCost, facRounds, facFx, facUpgrade, facMaintain, maintCost, SPONSOR_SLOTS, acceptOdds, propose, sponsorTargets, marketability } = __m['src/career/ManagerOps.js'];
 const { TRACK_MAPS } = __m['src/ui/TrackMaps.js'];
-const { HQ_CSS, NAV, ICON, esc, money, pct, sur, panel, kv, meter, ring, seg, person, stat, tag, sw, empty, themeApply, themeHTML, themeSet, fitSheet, tween, techSkin } = __m['src/ui/HQKit.js'];
+const { HQ_CSS, FAC_CSS, NAV, ICON, esc, money, pct, sur, panel, kv, meter, ring, seg, person, stat, tag, sw, empty, themeApply, themeHTML, themeSet, fitSheet, tween, techSkin } = __m['src/ui/HQKit.js'];
 // The team principal's HQ (career/Manager.js): between the race weekends, the team's home - made for a laptop's screen
 // (ui/HQKit.js: the sheet, its colours, its parts). A bar across the top holds what matters every day - the team, the
 // season, the budget, what is left under the cost cap, the constructors' place against the board's target, the board's
@@ -152792,7 +152853,7 @@ let el = null;
 /** the HQ (or, with no career, the new career's set-up) */
 function openManagerHub(o) {
   H.o = o; H.c = o.career || null; H.msg = null; if (!H.c) H.tab = 'new'; else if (H.tab === 'new') H.tab = 'home';
-  if (!document.getElementById('mgr-css')) { const st = document.createElement('style'); st.id = 'mgr-css'; st.textContent = HQ_CSS + PAGE_CSS + EXTRA_CSS + techSkin(TECH_CSS.replaceAll('#career', '#mgr .fac')); document.head.appendChild(st); }
+  if (!document.getElementById('mgr-css')) { const st = document.createElement('style'); st.id = 'mgr-css'; st.textContent = HQ_CSS + PAGE_CSS + EXTRA_CSS + techSkin(TECH_CSS.replaceAll('#career', '#mgr .fac')) + FAC_CSS; document.head.appendChild(st); }
   if (!el) { el = document.createElement('div'); el.id = 'mgr'; el.addEventListener('click', onClick); document.body.appendChild(el); let rt = 0; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if (managerHubOpen()) { fitSheet(el); rail(); } }, 100); }); }
   el.style.display = 'grid'; H.shown = 0; H._tab = null; el.dataset.mode = ''; render(); pump();
 }
@@ -153548,7 +153609,9 @@ function makeKit(R, S, cam, def, o) {
 
 const V = (a) => new THREE.Vector3(a[0], a[1], a[2]);
 /** what a subtitle needs to be read (s) */
-const readTime = (s) => 1.1 + String(s || '').split(/\s+/).length * 0.3;
+// (a line's time on the screen: read once, at a reader's pace - it was 1.1 s and 0.3 s a word, which is being read aloud
+//  to; a shot held for it sat still while the line was read three times)
+const readTime = (s) => Math.max(1.2, 0.45 + String(s || '').split(/\s+/).length * 0.155);
 
 /**
  * Play a scene. def: { id, kicker, title, sub (the title card), accent, grade, bg, fog: [near, far], exposure,
@@ -153622,7 +153685,8 @@ function playCine(def, o = {}) {
       i = n; t0 = t; const sh = shots[i]; if (!sh) return;
       closeAsk(); closeQte();
       sh._subs = [].concat((typeof sh.sub === 'function' ? sh.sub(res) : sh.sub) || []).filter(Boolean);
-      sh._sd = Math.max(sh.d0 ?? sh.d ?? 3, sh._subs.reduce((a, x) => a + readTime(x.text), 0)); sh.d0 = sh.d0 ?? sh.d ?? 3; sh.d = sh._sd; sh._cut = 0;
+      // (how long the shot is: with words, as long as they take and a beat more - whatever length it was written at; with none, a little over half of that)
+      sh.d0 = sh.d0 ?? sh.d ?? 3; { const rd = sh._subs.reduce((a, x) => a + readTime(x.text), 0); sh._sd = sh._subs.length ? Math.max(1.9, rd + 0.35) : Math.max(1.5, sh.d0 * 0.58); } sh.d = sh._sd; sh._cut = 0;
       if (sh.ask) { sh.ask._at = sh.ask.at ?? Math.max(0.5, sh._subs.reduce((a, x) => a + readTime(x.text), 0)); sh.ask.time = sh.ask.time || 6; sh.d = Math.max(sh.d, sh.ask._at + sh.ask.time + 0.3); sh._asked = false; }
       if (sh.qte) { const Q = sh.qte; Q.from = Q.from ?? 0.6; Q.len = Q.len ?? 2.6; Q._p = 0; Q._n = 0; sh._q = false; sh.d = Math.max(sh.d, Q.from + Q.len + (Q.after ?? 0.9)); }
       showCard(sh.card || null);
@@ -155745,14 +155809,22 @@ class TVExtras {
     if (this.order && racing && !this.neutral) for (let i = 0; i < Math.min(P.length - 1, 12); i++) {
       const a = P[i], b = P[i + 1], was = this.order;
       if (was.get(a) > was.get(b) && onTrack(a) && onTrack(b) && a.lap === b.lap && d.time - (this.passAt.get(a) ?? -99) > 12 && (a.lap > 0 || a.lapDist > 600)) {
-        this.passAt.set(a, d.time); if (i < 8 || mine(a) || mine(b)) this.o.on?.(i === 0 ? 'passLead' : 'pass', { a: surname(a), b: surname(b), pos: i + 1, mine: mine(a) || mine(b) }); if (i < 10 || mine(a) || mine(b)) { ctx.say?.(`${surname(a)} PASSES ${surname(b)} FOR ${ord(i + 1)}`, mine(a) ? 'good' : mine(b) ? 'bad' : '', 'OVERTAKE'); if (i < 6 || mine(a) || mine(b)) this.event({ text: `${surname(a)} passes ${surname(b)} for ${ord(i + 1).toLowerCase()}`, cars: [a, b], wait: 1.6 }, d); }
+        this.passAt.set(a, d.time);
+        // (a place taken from a car that is stopped, off the road, spinning, crawling home on a puncture or with its nose
+        //  off is not an overtake: no banner, no replay, nothing for the highlights)
+        if (d.sc?.trouble?.(b) || Math.abs(b.speed) < Math.abs(a.speed) * 0.62 || b.offTrack || b.wreck || b.air) continue;
+        { const riv = !!(a.grudge?.has?.(b.careerId) || b.grudge?.has?.(a.careerId)), left = d.lapsTotal - a.lap;
+          this.o.onMoment?.({ kind: 'pass', a, b, pos: i + 1, cars: [a, b], t: d.time, text: `${surname(a)} passes ${surname(b)} for ${ord(i + 1).toLowerCase()}`,
+            score: (i === 0 ? 100 : i <= 2 ? 72 : i <= 5 ? 44 : i <= 9 ? 20 : 6) + (mine(a) || mine(b) ? 16 : 0) + (riv ? 26 : 0) + (a.team === b.team ? 12 : 0) + (left <= 2 ? 22 : 0) }); }
+        if (i < 8 || mine(a) || mine(b)) this.o.on?.(i === 0 ? 'passLead' : 'pass', { a: surname(a), b: surname(b), pos: i + 1, mine: mine(a) || mine(b) }); if (i < 10 || mine(a) || mine(b)) { ctx.say?.(`${surname(a)} PASSES ${surname(b)} FOR ${ord(i + 1)}`, mine(a) ? 'good' : mine(b) ? 'bad' : '', 'OVERTAKE'); if (i < 6 || mine(a) || mine(b)) this.event({ text: `${surname(a)} passes ${surname(b)} for ${ord(i + 1).toLowerCase()}`, cars: [a, b], wait: 1.6 }, d); }
       }
     }
     this.order = idx;
     // a spin, a car out in an accident: a replay offered
     for (const c of P) {
-      if (c.spinning && c.speed > 8 && d.time - (this.spun.get(c) ?? -99) > 20) { this.spun.set(c, d.time); this.o.on?.('spin', { who: surname(c) }); this.event({ text: `${surname(c)} spins`, cars: [c], wait: 2.8 }, d); }
-      if (c.retired && !this.outSeen.has(c)) { this.outSeen.add(c); if (racing) { this.o.on?.('out', { who: surname(c), why: c.retireReason || 'Retired' }); if (mine(c)) this.o.on?.('outMine', { who: surname(c), team: c.team, car: c }); } if (/accident|crash|collision|torn|wall/i.test(c.retireReason || '') && racing) this.event({ text: `${surname(c)} is out: ${String(c.retireReason || 'an accident').toLowerCase()}`, cars: [c], wait: 3.2 }, d); }
+      if (c.spinning && c.speed > 8 && d.time - (this.spun.get(c) ?? -99) > 20) { this.spun.set(c, d.time); this.o.on?.('spin', { who: surname(c) }); { const pi = P.indexOf(c); this.o.onMoment?.({ kind: 'spin', cars: [c], t: d.time, text: `${surname(c)} spins${pi >= 0 && pi < 6 ? ` out of ${ord(pi + 1).toLowerCase()}` : ''}`, score: (pi >= 0 && pi < 3 ? 58 : pi < 6 ? 40 : pi < 10 ? 20 : 8) + (mine(c) ? 16 : 0) }); } this.event({ text: `${surname(c)} spins`, cars: [c], wait: 2.8 }, d); }
+      if (c.retired && !this.outSeen.has(c)) { this.outSeen.add(c); if (racing) { this.o.on?.('out', { who: surname(c), why: c.retireReason || 'Retired' }); if (mine(c)) this.o.on?.('outMine', { who: surname(c), team: c.team, car: c }); } if (/accident|crash|collision|torn|wall|rolled|upside/i.test(c.retireReason || '') && racing) this.o.onMoment?.({ kind: 'crash', cars: [c], t: d.time - 1.5, text: `${surname(c)} is out: ${String(c.retireReason || 'an accident').toLowerCase()}`, score: 66 + (mine(c) ? 18 : 0) + (c.wreck || c.air ? 14 : 0) });
+        if (/accident|crash|collision|torn|wall/i.test(c.retireReason || '') && racing) this.event({ text: `${surname(c)} is out: ${String(c.retireReason || 'an accident').toLowerCase()}`, cars: [c], wait: 3.2 }, d); }
     }
     // the final lap
     const lead = P.find((c) => !c.retired); if (lead && !this.finalSaid && racing && lead.lap >= d.lapsTotal - 1 && d.lapsTotal > 1) { this.finalSaid = true; ctx.say?.(`${surname(lead)} STARTS THE LAST LAP`, 'purple', 'FINAL LAP'); const p2 = P.find((c) => c !== lead && !c.retired), g2 = p2 ? gap(p2, lead) : null; this.o.on?.('final', { who: surname(lead), g: g2 != null && g2 > 0 ? g2.toFixed(1) : '' }); }
@@ -199881,9 +199953,9 @@ function tpStart() {
   if (!TP.wall) { TP.wall = new PitWall({ act: tpAct }); const say0 = TP.wall.radio.bind(TP.wall); TP.wall.radio = (who, text) => { (TP.log || (TP.log = [])).push({ who, text, lap: Math.max(0, ...TP.cars.map((c) => c.lap || 0)) + 1 }); try { if (S.director?.mode === 'race') TP.show?.radio(who, text, (TP.cars.find((c) => surname(c.name) === who) || TP.cars[0])?.color); } catch (e) { /* not on air */ } return say0(who, text); }; }   // (everything said, kept: the replays over the results - ui/RadioReplay.js)
   if (!TP.stw) TP.stw = new TVStewards(TP.gfx.el);   // (the stewards' cards and the tower's marks: ui/TVStewards.js)
   TP.stw.reset(); tpStewardsOpen(d);
-  if (!TP.fx) TP.fx = new TVExtras(TP.gfx.el, { tyreLaps: (c) => TP.gfx.tyreLaps(c), onReplay: (o) => tpReplayStart(o), onSkip: () => tpReplayEnd(), on: (k, x) => tpSay(k, x), onClip: (e) => tpClip(e) });
+  if (!TP.fx) TP.fx = new TVExtras(TP.gfx.el, { tyreLaps: (c) => TP.gfx.tyreLaps(c), onReplay: (o) => tpReplayStart(o), onSkip: () => tpReplayEnd(), on: (k, x) => tpSay(k, x), onMoment: (e) => tpMoment(e) });
   if (!TP.show) { TP.show = new TVShow(TP.gfx.el, { tyreLaps: (c) => TP.gfx.tyreLaps(c), audio, on: (k) => { if (!TP.on || !S.director) return; if (k === 'podium') tpAway('crowd', S.director.positions.find((c) => !c.retired), { within: 22, must: true }); if (k === 'flag') TP.awayWant = { kind: 'marshal', want: 'chequered', from: TP.tv.t + 3.6, until: TP.tv.t + 10 }; } });   /* (the top three home: the stands) */ TP.gfx.onFastest = (c, t) => tpSay('fl', { who: surname(c.name), t }); }   // (commentary, radio on air, the map, the cards, the grid, the flag: ui/TVShow.js)
-  TP.show.reset(); TP.clips = []; PIP.mode = null; PIP.on = false; PIP.k = 0; PIP.label = null;
+  TP.show.reset(); TP.clips = []; TP.moments = []; PIP.mode = null; PIP.on = false; PIP.k = 0; PIP.label = null;
   TP.form = null; TP.formed = false; TP.hl = false; TP.awayAt = -99; TP.awayWant = null; TP.walked = new Set(); TP.stillT = new Map();
   // (what the cutaways look at: your pit wall's three at their screens, a driver walking away - world/TVProps.js)
   try { if (!TP.props) TP.props = new TVProps(scene, (x, z) => TERRAIN.at(x, z)); TP.props.dispose(); const c0 = TP.cars[0]; if (d.mode === 'race' && c0) TP.props.buildWall(W.pit, { name: c0.team, color: c0.color, color2: c0.color2 }, c0.boxIdx ?? 0); } catch (e) { console.warn('[tp] the broadcast\'s people', e); }   // (battles, catching, the stop's clock, the onboard's strip, instant replays: ui/TVExtras.js)
@@ -199907,7 +199979,8 @@ function tpStart() {
 function tpStewardsOpen(d) {
   const St = d?.stewards; TP.caseClips = new Map(); TP.caseSt = new Map(); TP.review = null; if (!St || d.mode !== 'race') return;
   St.deep = true;
-  St.onCase = (k) => { const R = d.replay; if (!R || R.frames.length < 30) return; const F = R.frames.filter((f) => f.t >= k.t0 - 3.6 && f.t <= k.t0 + 2.2); if (F.length >= 24) TP.caseClips.set(k.id, F); if (TP.caseClips.size > 14) TP.caseClips.delete(TP.caseClips.keys().next().value); };
+  St.onCase = (k) => { const mine = (c) => TP.cars.includes(c); tpMoment({ kind: 'hit', cars: [k.a, k.b], t: k.t0, text: `${surname(k.a.name)} and ${surname(k.b.name)} collide${k.where ? ` at ${k.where.charAt(0) + k.where.slice(1).toLowerCase()}` : ''}`, score: 34 + 52 * Math.min(1, k.sev) + (mine(k.a) || mine(k.b) ? 16 : 0) + (k.lap1 ? 8 : 0) });
+    const R = d.replay; if (!R || R.frames.length < 30) return; const F = R.frames.filter((f) => f.t >= k.t0 - 3.6 && f.t <= k.t0 + 2.2); if (F.length >= 24) TP.caseClips.set(k.id, F); if (TP.caseClips.size > 14) TP.caseClips.delete(TP.caseClips.keys().next().value); };
   St.onReview = (k) => { TP.review = { k, until: (TP.tv?.t || 0) + 50 }; };   // (shown when the window is free - not over a battle's onboard)
 }
 function tpStewards() {
@@ -200134,15 +200207,59 @@ function tpReplayEnd() {
   if (!r.win) { TP.fx?.replaying(false); tpReplayRestore(); if (TP.tv) TP.tv.shot = null; }   // (the feed cuts back in on a new shot)
   r.onEnd?.();
 }
-/** a moment offered as a replay is kept (its stretch of the record) for the highlights at the flag */
-function tpClip(e) {
+/**
+ * The race's moments, for the highlights at the flag. Every one comes with what it is worth (ui/TVExtras.js: a pass by
+ * the place it was for - the lead most, tenth little - and more between rivals, team-mates, your cars, in the last
+ * laps; a spin by where the car was running; a crash; a collision the stewards opened a case on, by how bad). Moments
+ * within a few seconds of each other among the same cars, or cars together on the road, are ONE moment and worth more:
+ * a car that takes two or three places in one move, places changing hands all through a group, a pile-up. Its
+ * stretch of the record is cut a couple of seconds after it ends; the ten best are kept, and the six best of those
+ * are the highlights, in the order they happened.
+ */
+function tpMoment(e) {
+  const d = S.director; if (!d || !TP.on || d.mode !== 'race' || !e?.cars?.length) return;
+  const M = TP.moments || (TP.moments = []), L = W.track.length, near = (a, b) => { let x = Math.abs(a.s - b.s) % L; if (x > L / 2) x = L - x; return x < 70; };
+  const g = M.find((m) => !m.cut && e.t - m.t1 < 4.5 && e.t - m.t0 < 6.5 && (e.cars.some((c) => m.cars.includes(c)) || e.cars.some((c) => m.cars.some((o) => near(c, o)))));
+  if (g) { g.ev.push(e); g.t1 = Math.max(g.t1, e.t); for (const c of e.cars) if (!g.cars.includes(c)) g.cars.push(c); return; }
+  M.push({ t0: e.t, t1: e.t, cars: [...e.cars], ev: [e], cut: false });
+}
+/** a moment's words and worth, from what it holds */
+function tpMomentSum(m) {
+  const E = m.ev, P = E.filter((e) => e.kind === 'pass'), H = E.filter((e) => e.kind === 'hit' || e.kind === 'crash'), sn = (c) => surname(c.name), ordn = (n) => `${n}${['th', 'st', 'nd', 'rd'][n % 100 > 10 && n % 100 < 14 ? 0 : Math.min(4, n % 10) % 4]}`;
+  let score = Math.max(...E.map((e) => e.score || 0)) + 13 * (E.length - 1), text = E.slice().sort((a, b) => (b.score || 0) - (a.score || 0))[0].text;
+  const list = (C) => C.length <= 1 ? C.map(sn).join('') : `${C.slice(0, -1).map(sn).join(', ')} and ${sn(C[C.length - 1])}`;
+  const hitCars = [...new Set(H.flatMap((e) => e.cars))];
+  if (hitCars.length >= 3) { score += 34 + 8 * (hitCars.length - 3); text = `a pile-up: ${list(hitCars.slice(0, 5))}`; }
+  else if (H.length && P.length) { const p = P[0]; text = `${sn(p.a)} and ${sn(p.b)}: contact in the fight for ${ordn(p.pos)}`; score += 10; }
+  else if (P.length >= 2) {
+    const by = new Map(); for (const p of P) by.set(p.a, (by.get(p.a) || 0) + 1); const [star, n] = [...by.entries()].sort((a, b) => b[1] - a[1])[0], top = Math.min(...P.map((p) => p.pos));
+    if (n >= 2) { text = `${sn(star)} takes ${n === 2 ? 'two' : n === 3 ? 'three' : n} places in one move, up to ${ordn(Math.min(...P.filter((p) => p.a === star).map((p) => p.pos)))}`; score += 16; }
+    else { text = `${P.length} changes of place in the fight for ${ordn(top)}`; score += 10; }
+  }
+  return { text, score };
+}
+/** the moments that are over: each one's stretch of the record cut and kept (the ten best) */
+function tpMomentsCut(d) {
+  const M = TP.moments; if (!M || !M.length) return; const R = d.replay; if (!R || R.frames.length < 30) return;
+  for (const m of M) {
+    if (m.cut || d.time < m.t1 + 2.3) continue; m.cut = true;
+    const F = R.frames.filter((f) => f.t >= Math.max(R.frames[0].t, m.t0 - 3.4, m.t1 - 6.4) && f.t <= m.t1 + 2.2); if (F.length < 24) continue;
+    const S0 = tpMomentSum(m), lead = m.ev.slice().sort((a, b) => (b.score || 0) - (a.score || 0))[0];
+    const C = TP.clips || (TP.clips = []); C.push({ text: S0.text, cars: [lead.cars[0], lead.cars[1] || m.cars.find((c) => c !== lead.cars[0])].filter(Boolean), t: lead.t, F, score: S0.score });
+    if (C.length > 10) { let lo = 0; for (let i = 1; i < C.length; i++) if (C[i].score < C[lo].score) lo = i; C.splice(lo, 1); }
+  }
+  TP.moments = M.filter((m) => !m.cut);
+}
+/** (a moment offered as a replay: the offer's own business - the highlights are chosen by tpMoment) */
+function tpClipOld(e) {
   const R = S.director?.replay; if (!R || R.frames.length < 30) return;
   const F = R.frames.filter((f) => f.t >= Math.max(R.frames[0].t, e.t - 3.6) && f.t <= e.t + 2.2); if (F.length < 24) return;   // (the moment and a couple of seconds after it: not everything since)
   const L = TP.clips || (TP.clips = []); L.push({ text: e.text, cars: e.cars, t: e.t, F }); if (L.length > 7) L.splice(1, 1);   // (the first is kept: the start's)
 }
 /** the race in a minute, at the flag: the moments kept, one after another, the whole picture (Esc / Space / Enter: on) */
 function tpHighlights(done) {
-  const L = (TP.clips || []).slice(-6); TP.clips = [];
+  // (the six that were worth most, in the order they happened)
+  const L = (TP.clips || []).slice().sort((a, b) => (b.score || 0) - (a.score || 0)).slice(0, 6).sort((a, b) => a.t - b.t); TP.clips = []; TP.moments = [];
   if (L.length < 2 || !S.director?.replay || !TP.gfx || !TP.fx) { done(); return; }
   let k = 0, over = false; const el = TP.gfx.el;
   // (between one moment and the next: the picture dips to black and comes back)
@@ -200397,7 +200514,7 @@ function tpUi(dt) {
   TP.fx?.update(dt, { d, focus: TP.cars, shot: TP.tv.shot, halted: held || !!TP.form || (!!TP.rep && !TP.rep.win), noOffer: !!TP.rep, say: (t, k, h) => TP.gfx.rc(t, k, h), len: W.track?.length });
   TP.show?.update(dt, { d, focus: TP.cars, shot: TP.tv.shot, halted: held, len: W.track?.length, track: W.track, trackName: shortTrack(W.def?.id), stat: tpStat, wet: d.weather?.tyreWet || 0, rc: (t, k, h) => TP.gfx.rc(t, k, h), battle: !!TP.fx?.bt.classList.contains('in'), catching: !!TP.fx?.ct.classList.contains('in'), neutral: !!TP.fx?.neutral, replaying: !!TP.rep, cuts: TP.tv.cuts, form: TP.form ? TP.form.ph : TP.formed ? 'done' : null,
     hint: TP.form && TP.form.ph !== 'grid' ? ['SPACE', 'skip the formation lap'] : TV_AWAY.has(TP.tv.shot?.kind) && !TP.form ? ['X', 'back to the race'] : null });
-  tpStewards(); tpPip(held ? 0 : dt);
+  tpStewards(); tpMomentsCut(d); tpPip(held ? 0 : dt);
   if (d.mode === 'race') { try { TP.props?.update(held ? 0 : dt); tpAways(held ? 0 : dt); } catch (e) { /* a cutaway that could not be: no cutaway */ } }
   const ord = d.orders?.pairOf?.(TP.cars[0])?.order || null;
   TP.wall.update(dt, { d, speed: TP.speed, paused: TP.paused, cam: TP.cam, order: ord, tyreLaps: (c) => TP.gfx.tyreLaps(c),
@@ -200456,7 +200573,7 @@ function tpRadio(d) {
     if (dm > s.dmg + 0.2 && !c.retired) { W2.radio(sur(c), dm > 0.5 ? 'Big damage, I need a new wing!' : "I've hit something. Car feels different."); } s.dmg = Math.max(s.dmg, dm);
     if (c.retired && !s.out) {
       s.out = true; W2.radio('Pit wall', `${sur(c)} is out. ${c.retireReason || ''}`);
-      const C = S.weekend?.mgr; if (C && d.mode === 'race') { try { const f = radioFact(C, 'retire', c.careerId); if (f) W2.radio('Pit wall', f); if (c.injured || /accident|crash|collision|damage/i.test(c.retireReason || '')) storyLive(C, { kind: 'crash', did: c.careerId, g: c.injured ? 45 : 25, hurt: !!c.injured }); } catch (e) { /* no story */ } }
+      const C = S.weekend?.mgr; if (C && d.mode === 'race') { try { const f = radioFact(C, 'retire', c.careerId, { out: TP.cars.filter((x) => x.retired).length }); if (f) W2.radio('Pit wall', f); if (c.injured || /accident|crash|collision|damage/i.test(c.retireReason || '')) storyLive(C, { kind: 'crash', did: c.careerId, g: c.injured ? 45 : 25, hurt: !!c.injured }); } catch (e) { /* no story */ } }
     }
   }
   const done = d.orders?.done || [];
