@@ -34,7 +34,7 @@ export function planRace(o) {
     pre[c] = { sum: a, life: life(c) };
   }
   const stint = (c, n, first) => pre[c].sum[n] + (first ? outLapLoss(c, T0, COMPOUNDS[c].start) : outLapLoss(c, T0));
-  const two = wet < 0.2 && L >= 12;   // (the rule: two dry compounds in a dry race of any length)
+  const two = wet < 0.2 && L >= 8;   // (the rule: two dry compounds in a dry race of any length)
   const out = [];
   // (8 laps or more: a stop is mandatory - RaceDirector adds 30 s at the flag to a car that never made one)
   const add = (stints, time) => { if (!isFinite(time)) return; if (L >= 8 && stints.length < 2) return; if (two && new Set(stints.map((s) => s.compound)).size < 2) return; out.push({ stints, time, stops: stints.length - 1 }); };
@@ -92,6 +92,7 @@ const CSS = `
 #strategy .st-eng { flex: none; background: rgba(255,255,255,.05); border-left: 3px solid #e10600; border-radius: 0 8px 8px 0; padding: 9px 12px; font: 500 14.5px/1.45 var(--k-font); }
 #strategy .st-eng b { color: #e10600; letter-spacing: .1em; font-size: 11px; display: block; margin-bottom: 2px; }
 #strategy .st-cards { flex: none; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; align-items: stretch; padding-top: 4px; }
+#strategy .st-cards.one { grid-template-columns: minmax(0, 620px); justify-content: center; } #strategy .st-cards.one .st-nm kbd { display: none; }
 #strategy .st-own { display: flex; flex-direction: column; gap: 5px; margin-top: 9px; }
 #strategy .st-row { display: flex; align-items: center; gap: 6px; font: 600 11.5px/1 var(--k-font); color: #b9c0cc; white-space: nowrap; }
 #strategy .st-row > span:first-child { width: 44px; flex: none; }
@@ -182,14 +183,16 @@ export function showStrategy(o) {
   const counts = {}; for (const c of o.field || []) counts[c] = (counts[c] || 0) + 1;
   const A = plans[0], softLife = Math.round(R.life(o.wet > 0.2 ? (o.wet > 0.5 ? 'WET' : 'INTER') : 'SOFT'));
   const advice = o.laps < 6 ? `It's a sprint. The tyres will just about last it - nobody should be stopping. Start on what gives you the best first lap.`
-    : `We like Plan A: ${A.label.toLowerCase()}${A.stops ? `, boxing on lap ${A.stints[0].end}` : ''}. The ${o.wet > 0.2 ? 'inters' : 'softs'} are good for about ${softLife} laps before they fall away${R.two ? ', and the rules say two different dry compounds' : ''}. The stop costs us about ${o.pitLoss.toFixed(0)} seconds here.`;
+    : `We would run ${A.label.toLowerCase()}${A.stops ? `, boxing on lap ${A.stints[0].end}` : ''}. The ${o.wet > 0.2 ? 'inters' : 'softs'} are good for about ${softLife} laps before they fall away${R.two ? ', and the rules say two different dry compounds' : ''}. The stop costs us about ${o.pitLoss.toFixed(0)} seconds here.`;
   // (the weather's forecast as the pit wall has it - race/Weather.js, main.js runRace: o.forecast, a sentence)
   const advice2 = o.forecast ? `${advice} ${o.forecast}` : advice;
   // (each card once: the bars, the box-lap labels, the window; sync() changes them in place after that)
   // (the plan you build yourself - D: the tyre it starts on, how many stops, each stint's tyre and its last lap; it
   //  begins as Plan A)
-  const own = { name: 'D', custom: true, laps: plans[0].laps, stints: plans[0].stints.map((s) => ({ ...s })), stops: plans[0].stops, time: plans[0].time };
-  plans.push(own);
+  // (the builder is the screen: no ready-made plans beside it. It opens as the engineers' own plan - A above - and
+  //  every part of it is yours to change; its time is shown against theirs.)
+  const own = { name: 'YOUR STRATEGY', custom: true, laps: plans[0].laps, stints: plans[0].stints.map((s) => ({ ...s })), stops: plans[0].stops, time: plans[0].time };
+  const engT = plans[0].time; plans.length = 0; plans.push(own);
   const ownRows = (p) => `<div class="st-own">${p.stints.map((s, k) => `<div class="st-row"><span>Stint ${k + 1}</span>${R.comps.map((c) => `<button class="cp${s.compound === c ? ' on' : ''}" data-k="${k}" data-c="${c}" style="--c:${COMPOUNDS[c].color}" title="${c[0] + c.slice(1).toLowerCase()}s" aria-label="Stint ${k + 1} on ${c.toLowerCase()}s">${c[0]}</button>`).join('')}${k < p.stints.length - 1 ? `<span class="st-to">to L<button data-k="${k}" data-e="-1" aria-label="Box a lap earlier">−</button><b>${s.end}</b><button data-k="${k}" data-e="1" aria-label="Box a lap later">+</button></span>` : `<span class="st-to">to the flag</span>`}</div>`).join('')}
       <div class="st-row"><span>Stops</span><button data-n="-1" ${p.stints.length <= 1 ? 'disabled' : ''} aria-label="One stop fewer">−</button><b>${p.stints.length - 1}</b><button data-n="1" ${p.stints.length >= 4 || p.stints.length >= p.laps ? 'disabled' : ''} aria-label="One stop more">+</button></div></div>`;
   const inner = (p, i) => {
@@ -206,9 +209,9 @@ export function showStrategy(o) {
     <header class="st-head"><div class="st-ttl"><div class="st-h">RACE <span>STRATEGY</span></div><div class="st-sub">${o.who ? `<b style="color:${esc(o.who.color || '#fff')}">${esc(o.who.name)}</b>${o.who.step ? ` (${esc(o.who.step)})` : ''} · ` : ''}${esc(o.trackName)} · ${o.laps} laps · ${cond}${o.night ? ' · night' : ''}${o.gridPos ? ` · starting P${o.gridPos}` : ''}</div></div>
       <ol class="st-rail" aria-label="The weekend"><li class="done"><i></i>Practice</li><li class="done"><i></i>Qualifying</li><li class="on" aria-current="step"><i></i>Strategy</li><li><i></i>Race</li></ol></header>
     <div class="st-body"><div class="st-eng"><b>RACE ENGINEER</b>${esc(advice)}</div>
-      <div class="st-cards" data-scroll-ok>${plans.map(card).join('')}</div>
+      <div class="st-cards one" data-scroll-ok>${plans.map(card).join('')}</div>
       <div class="st-field">The field starts on:${Object.entries(counts).map(([c, n]) => `<i style="background:${COMPOUNDS[c]?.color || '#888'}"></i>${n} ${c.toLowerCase()}`).join('')}</div></div>
-    <footer class="st-foot"><span class="st-keys"><kbd class="k-kbd">1</kbd>-<kbd class="k-kbd">4</kbd> plan (D: your own) · <kbd class="k-kbd">←</kbd><kbd class="k-kbd">→</kbd> first stop · <kbd class="k-kbd">Enter</kbd> confirm</span><button class="st-ok">${esc(o.okText || 'CONFIRM · TO THE GRID ▸')}</button></footer></div>`;
+    <footer class="st-foot"><span class="st-keys"><kbd class="k-kbd">←</kbd><kbd class="k-kbd">→</kbd> first stop · <kbd class="k-kbd">Enter</kbd> confirm</span><button class="st-ok">${esc(o.okText || 'CONFIRM · TO THE GRID ▸')}</button></footer></div>`;
   document.body.appendChild(el);
   const cards = [...el.querySelectorAll('.st-card')], strip = el.querySelector('.st-cards'), t0 = performance.now();
   // (the entrance comes off once played, so the chosen card's lift can move freely)
@@ -223,7 +226,7 @@ export function showStrategy(o) {
       C.querySelectorAll('.st-bar i').forEach((x, k) => { x.style.flexGrow = String(p.stints[k].end - p.stints[k].start + 1); });
       C.querySelectorAll('.st-stop').forEach((x, k) => { x.style.setProperty('--p', String(p.stints[k].end / p.laps)); x.firstChild.textContent = `box L${p.stints[k].end}`; });
       const lap = C.querySelector('.st-adj b'); if (lap) lap.textContent = `lap ${p.stints[0].end}`;
-      const ok = isFinite(p.time), dt = !ok ? 'Will not last' : d < 0.05 ? 'Quickest' : `+${d.toFixed(1)} s`;
+      const de = p.time - engT, ok = isFinite(p.time), dt = !ok ? 'Will not last' : !isFinite(engT) || Math.abs(de) < 0.05 ? 'The engineers\' plan' : `${de > 0 ? '+' : '−'}${Math.abs(de).toFixed(1)} s on the engineers' plan`; void d;
       // (what the rules will make of it: a dry race of 12 laps or more on one compound, a race of 8 or more without a stop)
       const rule = R.two && new Set(p.stints.map((s) => s.compound)).size < 2 ? ' · the rules want two dry compounds' : R.mustStop && !p.stops ? ' · no stop: 30 s at the flag' : '';
       const pt = !ok ? `A set is worn through before its stint is over: shorten ${p.stints.length > 1 ? 'that stint' : 'it with a stop'} or fit a harder tyre` : `Predicted race time ${fmt(p.time)}${p.stops ? ` · ${p.stops} stop${p.stops > 1 ? 's' : ''}` : ' · no stop'}${p.stints.some((s) => s.end - s.start + 1 > R.life(s.compound) * 0.92) ? ' · on the edge of the tyres' : ''}${rule}`;

@@ -106,6 +106,21 @@ export function storyQueue(c) {
   if (out.length < 2 && !out.some((m) => m.heavy)) { const m = W.find((x) => !x.force && (x.prio || 0) >= (S.lastAuto >= S.n - 1 ? 70 : 42)); if (m) out.push(m); }
   return out;
 }
+/**
+ * A matter that comes up where it belongs: you open the drivers' page and the row in the garage is there, the finances
+ * and the auditors are. No button says so - it begins. Where each scene belongs, by the HQ's pages; and its own budget:
+ * one between two races, none in the same visit as another scene unless it is pressing (the hub keeps the visit's count).
+ * -> a matter, or null
+ */
+const PLACE = { feudRow: ['drv', 'people'], debrief: ['drv', 'people'], seatFit: ['drv'], crewTalk: ['crew'], garageNight: ['crew', 'parts'], poach: ['staff', 'rivals', 'market'], hearing: ['stand', 'story'], scrutineering: ['car', 'parts', 'fac'],
+  audit: ['fin'], sponsorCall: ['spons'], leak: ['fac', 'facil'], factoryTour: ['facil', 'fac'], press: ['story', 'stand'], board: ['home', 'fin'], documentary: ['story'], seasonReview: ['story', 'stand'] };
+export function storyAmbient(c, tab, shownThisVisit = 0) {
+  const S = storyEnsure(c); if (S.ambN === S.n) return null;
+  const m = inboxOf(c).find((x) => !x.played && !x.pre && !x.quiet && x.scene && (PLACE[x.scene] || []).includes(tab)); if (!m) return null;
+  if (shownThisVisit > 0 && (m.prio || 0) < 60) return null;
+  return m;
+}
+export function storyAmbientShown(c) { const S = storyEnsure(c); S.ambN = S.n; }
 /** a matter's scene was shown (the budget counts it) */
 export function storyShown(c, key) { const S = storyEnsure(c), m = S.matters.find((x) => x.key === key); if (!m) return; m.played = true; if (!m.force) S.lastAuto = S.n; if (!S.seen.some((x) => x.key === key)) { S.seen.unshift({ key }); if (S.seen.length > 24) S.seen.length = 24; }   /* (which have been shown - not kept to be played again) */ c.save(); }
 
@@ -267,7 +282,7 @@ export function storyAfterRace(c, rep, rows, live = null) {
     add(c, { scene: 'garageNight', prio: 44, title: 'The car rebuilt overnight', text: `${sur(c.drivers[x.did]?.name)}'s crash: the crew did not go home.`, ctx: { d: dinfo(c, x.did), damage: 'Front wing, floor, the front-left corner', spares: c.spares?.fw ?? c.parts?.spares?.fw ?? 1, track: trackName(rep.track) } });
   }
   // the stewards: someone hit one of yours and nothing was done about it - or one of yours did the hitting
-  const inc = live.contacts.find((x) => { const A = my.some((d) => d.id === x.a), B = my.some((d) => d.id === x.b); return A !== B && (x.sev || 0) >= 0.45; });
+  const inc = live.contacts.find((x) => { if (x.ruled) return false; const A = my.some((d) => d.id === x.a), B = my.some((d) => d.id === x.b); return A !== B && (x.sev || 0) >= 0.45; });
   if (inc && since(c, 'hearing') >= 2 && !c.seasonDone) {
     const mineId = my.some((d) => d.id === inc.a) ? inc.a : inc.b, them = mineId === inc.a ? inc.b : inc.a, td = c.drivers[them], rt = td?.team, pm = posOf(mineId), pt = posOf(them);
     if (rt && S.pri[rt]) {
@@ -360,6 +375,8 @@ export function storyAfterRace(c, rep, rows, live = null) {
 /** before a race is run: what cannot wait for you any longer decides itself (the empty seat) */
 export function storyBeforeRace(c) { const S = storyEnsure(c); for (const m of S.matters) if (!m.done && m.scene === 'seatFit') storyApply(c, m.key, {}); }
 /** what the race kept for the story, taken (the live race's: empty lists if nothing happened) */
+/** a contact the stewards' room has dealt with (decided, or your protest offered there): not a hearing of its own afterwards */
+export function storyRuled(c, a, b) { if (!c || !a || !b) return; for (const x of storyEnsure(c).live?.contacts || []) if ((x.a === a && x.b === b) || (x.a === b && x.b === a)) x.ruled = true; }
 export function storyTakeLive(c) { const S = storyEnsure(c), L = S.live || { contacts: [], orders: [], crashes: [], stops: [], pens: [] }; S.live = null; return L; }
 /** the scene to show at the track after the flag (once): { scene, ctx } | null */
 export function storyTrackScene(c) { const S = storyEnsure(c), t = S.track; S.track = null; return t; }

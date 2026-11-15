@@ -33,6 +33,7 @@ export class Stewards {
     this.scPasses = [];     // places taken under the safety car, awaiting being given back
     this.offPasses = [];    // overtakes made off the track: under investigation, then to be given back
     this.log = [];
+    this.deep = false; this.cases = []; this.caseN = 0; this.onCase = null; this.onReview = null; this.onVerdict = null;   // (deep: investigations that take their time - openCase)
   }
   /** track-limit strikes allowed before the first penalty (and a penalty for every one after) */
   get strikes() { return Math.round(4 - 2 * this.s); }
@@ -45,6 +46,7 @@ export class Stewards {
   award(c, sec, reason) {
     if (this.off || c.retired) return;
     c.penalties += sec; c.penaltyCount = (c.penaltyCount || 0) + 1;
+    if (this.deep && c.finished && c.finishTime != null) c.finishTime += sec;   // (given after the flag: on its time, and its place with it)
     const pts = pointsFor(reason, sec);
     if (pts) { c.penPts = (c.penPts || 0) + pts; c.ppLog = [...(c.ppLog || []), { pts, reason }]; }
     this.log.push({ t: this.d.time, car: c.short, sec, reason, pts });
@@ -121,9 +123,11 @@ export class Stewards {
       // lenient: only putting someone out; harsh: any real damage. Lap 1: more leeway, the pack is a pack. (Standard:
       // spinning someone or real damage; a hard knock that did nothing much is let go)
       const need = 1.0 - 0.7 * this.s + (p.lap1 ? 0.3 * (1 - this.s) : 0);
+      if (this.deep) { if (sev >= 0.32) this.openCase(p, sev, need); return false; }   // (the team principal's race: a case, with its time - openCase; a touch that did nothing is not race control's business)
       if (sev >= need) this.award(p.culprit, sev >= 1 ? 10 : 5, 'causing a collision');
       return false;
     });
+    if (this.deep) this.caseTick();
     this.offTrackPasses(t);
     // ---- safety car / yellows: a place taken has GIVE_BACK seconds to be handed back (the passer is told: `_owes`)
     this.scPasses = this.scPasses.filter((p) => {
@@ -156,7 +160,7 @@ export class Stewards {
       if (o.retired || o.pitLane || o.inPit || o.speed < 15 || d.planDs(c.s, o.s) >= 0) continue;
       if (t - (o._lastSpin ?? -9) < 5 || (o._exT != null && o._exT > ex.t0 - 3)) continue;
       if (this.offPasses.some((p) => p.passer === c && p.passed === o)) continue;
-      this.offPasses.push({ passer: c, passed: o, t, stage: 'inv', decideAt: t + INVESTIGATE[0] + Math.random() * (INVESTIGATE[1] - INVESTIGATE[0]) });
+      this.offPasses.push({ passer: c, passed: o, t, stage: 'inv', decideAt: this.deep ? t + (INVESTIGATE[0] + Math.random() * (INVESTIGATE[1] - INVESTIGATE[0])) * 2.6 : t + INVESTIGATE[0] + Math.random() * (INVESTIGATE[1] - INVESTIGATE[0]) });
       if (c.isPlayer || o.isPlayer) d.hud?.msg(`INCIDENT NOTED · ${c.short} / ${o.short}\nOVERTAKE OFF TRACK`, 'warn', 3);
       this.radioNear(c, o, `${this.last(c)} and ${this.last(o)}, overtake off the track, it's under investigation.`, 1);
     }
@@ -202,6 +206,81 @@ export class Stewards {
       return true;
     });
   }
+  // ---- the stewards' room, as it really is (deep: the team principal's race - main.js sets it) -----------------------
+  // A collision is not judged in the moment. Race control is busy: the incident is NOTED some seconds on (longer on
+  // the first lap, longer the more it has in hand); most are then put UNDER INVESTIGATION - the stewards look at the
+  // pictures (onReview: the broadcast shows them too) - for half a minute or, where it is not clear, a first-lap
+  // tangle, a car put out, two or three minutes; a late one, or one still open at the flag, is INVESTIGATED AFTER THE
+  // RACE. What comes of it: a RACING INCIDENT (nobody wholly or predominantly to blame - the pack into Turn 1, a car
+  // that moved over too, a wet road), NO FURTHER ACTION (to blame, but nothing came of it), five or ten seconds, or a
+  // drive-through for putting a car out with no excuse. `blame` is the stewards' reading of the contact, 0..1.
+  /** a contact whose consequences are known (update: 2.5 s on) -> a case, with its timetable */
+  openCase(p, sev, need) {
+    const d = this.d, t = d.time, a = p.culprit, b = p.victim, U = (x, y) => x + Math.random() * (y - x);
+    // (the same two again while their case is open: one incident, the heavier reading of it)
+    { const q = this.cases.find((k) => !k.done && ((k.a === a && k.b === b) || (k.a === b && k.b === a)) && t - k.t0 < 40); if (q) { if (sev > q.sev && q.a === a) { q.sev = sev; q.need = need; q.into = Math.max(q.into, p.into); } return q; } }
+    let blame = { rear: 0.9, tbone: 0.85, clip: 0.62 }[p.kind] ?? 0.72;
+    if (p.lap1) { const pack = d.cars.filter((c) => c !== a && c !== b && !c.retired && Math.hypot(c.x - a.x, c.z - a.z) < 30).length; blame -= pack >= 2 ? 0.3 : 0.15; }
+    if (p.kind === 'rear' && (p.vAx ?? 0) < -28) blame -= 0.25;            // (the car ahead was hard on its brakes)
+    if (p.moved) blame -= 0.2;                                               // (the other car was coming across too)
+    if ((d.weather?.tyreWet ?? a.wetness ?? 0) > 0.3) blame -= 0.1;
+    if (p.into > 20) blame += 0.1;
+    if ((this.log || []).some((e) => e.car === a.short && /collision/.test(e.reason))) blame += 0.12;   // (not his first today)
+    blame = Math.max(0, Math.min(1, blame));
+    const thr = 0.62 - 0.3 * (this.s - 0.5), busy = this.cases.filter((k) => !k.done).length;
+    const tough = p.lap1 || sev >= 1 || Math.abs(blame - thr) < 0.14 || this.cases.some((k) => !k.done && t - k.t0 < 8 && (k.a === a || k.b === a || k.a === b || k.b === b));
+    const k = { id: ++this.caseN, kind: 'col', a, b, t0: p.t, lap: Math.max(1, (a.lap || 0) + 1), lap1: !!p.lap1, sev, need, blame, thr, into: p.into, tough, stage: 'seen', done: false, verdict: null,
+      noteAt: t + U(6, 15) + (p.lap1 ? U(6, 14) : 0) + busy * 4 };
+    // (plainly nothing in it: noted, and no investigation necessary)
+    k.quick = blame < thr - 0.22 && sev < 1;
+    k.invAt = k.quick ? null : k.noteAt + U(9, 20); k.decideAt = k.quick ? k.noteAt + U(10, 22) : k.invAt + (tough ? U(70, 170) : U(28, 60));
+    try { const z = d.track.inCornerZone?.(d.track.idxAtS(a.s)); k.where = z?.turn != null ? `TURN ${z.turn}` : null; } catch (e) { k.where = null; }
+    this.cases.push(k); this.onCase?.(k);
+    return k;
+  }
+  /** what the stewards make of a case -> { kind: 'racing' | 'nfa' | 'none' | 'pen' | 'dt', sec } */
+  rule(k) {
+    if (k.quick) return { kind: 'none', sec: 0 };
+    if (k.blame < k.thr) return { kind: 'racing', sec: 0 };
+    if (k.sev < k.need) return { kind: 'nfa', sec: 0 };
+    if (k.sev >= 1 && k.blame >= 0.9 && (k.into >= 24 || (this.log || []).some((e) => e.car === k.a.short && /collision/.test(e.reason)))) return { kind: 'dt', sec: 0 };
+    return { kind: 'pen', sec: k.sev >= 1 ? 10 : 5 };
+  }
+  /** a case decided (post: after the flag - a drive-through is twenty seconds then); bump: a protest heard (the blame read again, harder) */
+  decide(k, post = false, bump = 0) {
+    if (bump) { k.blame = Math.min(1, k.blame + bump); k.quick = false; }
+    let v = this.rule(k); if (v.kind === 'dt' && (post || k.a.finished || k.a.retired)) v = { kind: 'pen', sec: 20 };
+    k.verdict = v; k.done = true; k.stage = 'done'; k.doneAt = this.d.time;
+    if (v.kind === 'pen') this.award(k.a, v.sec, 'causing a collision'); else if (v.kind === 'dt') this.driveThrough(k.a, 'causing a collision');
+    this.onVerdict?.(k);
+    return v;
+  }
+  /** the cases as the race goes on: noted, under investigation (the pictures looked at), decided - or left for after the flag */
+  caseTick() {
+    const d = this.d, t = d.time, left = d.lapsTotal - (d.positions[0]?.lap || 0);
+    for (const k of this.cases) {
+      if (k.done || k.stage === 'post') continue;
+      if (k.a.retired && k.stage === 'seen' && !k.b.retired && k.sev < 1) { k.done = true; k.stage = 'done'; k.verdict = { kind: 'gone', sec: 0 }; continue; }   // (out of the race, and nothing much done: not pursued)
+      if (k.stage === 'seen' && t >= k.noteAt) { k.stage = 'noted'; k.notedAt = t; if (!k.quick && (left <= 1.3 || d.leaderFinished)) { k.stage = 'post'; k.postAt = t; } continue; }
+      if (k.stage === 'noted' && !k.quick && t >= k.invAt) { k.stage = 'inv'; k.invAt = t; this.onReview?.(k); continue; }
+      if ((k.stage === 'inv' || (k.quick && k.stage === 'noted')) && t >= k.decideAt) { this.decide(k); continue; }
+      if (k.stage === 'inv' && d.leaderFinished) { k.stage = 'post'; k.postAt = t; }   // (the flag has fallen on it: after the race)
+    }
+    // drive-throughs: three laps to come in, or twenty seconds instead
+    for (const c of d.cars) if (c.driveThrough > 0 && !c.dtRun && (c.finished || (c.lap || 0) > (c.dtBy ?? 1e9))) { c.driveThrough--; c.dtCalled = false; this.award(c, 20, 'drive-through not served'); }
+  }
+  /** the cases still open (at the flag: for the stewards' room after it) */
+  openCases() { return this.cases.filter((k) => !k.done); }
+  /** a drive-through: through the pit lane without stopping, within three laps (an AI car is called in for it at once) */
+  driveThrough(c, reason) {
+    if (this.off || c.retired) return;
+    c.driveThrough = (c.driveThrough || 0) + 1; c.dtBy = (c.lap || 0) + 2;   /* (this lap and the two after it) */ c.penaltyCount = (c.penaltyCount || 0) + 1;
+    const pts = pointsFor(reason, 10); if (pts) { c.penPts = (c.penPts || 0) + pts; c.ppLog = [...(c.ppLog || []), { pts, reason }]; }
+    this.log.push({ t: this.d.time, car: c.short, sec: 0, dt: true, reason, pts });
+    if (c.ai && !c.mgr && !c.isPlayer) { c.pitRequested = true; c.dtCalled = true; c.ai.pitPlan = { compound: c.tyres.compound, repair: 'none' }; c.ai.pitReason = 'penalty'; }
+  }
+  /** it has been through the lane */
+  dtServed(c) { this.log.push({ t: this.d.time, car: c.short, sec: 0, dtServed: true, reason: 'drive-through served', pts: 0 }); }
   last(c) { return c.name.split(' ').pop(); }
   /** a radio call about other cars, when one of them is within three places of the player */
   radioNear(a, b, text, prio) {
@@ -239,7 +318,9 @@ export class Stewards {
     victim._victimT = this.d.time;
     const same = this.pending.find((p) => p.culprit === culprit && p.victim === victim);
     if (same) { same.into = Math.max(same.into, into); return; }
-    this.pending.push({ culprit, victim, kind, into, t: this.d.time, dmg0: victim.damageTotal(), spun: false, lap1: this.d.time - (this.d.world.raceStart ?? 0) < 35 });
+    // (deep: how the other car was moving, for the stewards' reading of it - no part of the judgement in any other race)
+    const moved = this.deep && kind !== 'rear' && kind !== 'tbone' && kind !== 'clip' ? (() => { try { const tr = this.d.track, [vx, vz] = victim.worldVel(), i = victim.trackIdx; return (vx * tr.nx[i] + vz * tr.nz[i]) * Math.sign(culprit.d - victim.d) > 0.25; } catch (e) { return false; } })() : false;
+    this.pending.push({ culprit, victim, kind, into, t: this.d.time, dmg0: victim.damageTotal(), spun: false, lap1: this.d.time - (this.d.world.raceStart ?? 0) < 35, moved, vAx: victim.ax });
   }
 
   /** the safety car is out: a car that went past another running car (not one in the pits, spinning or stopped) */

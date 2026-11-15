@@ -30,6 +30,8 @@ const CSS = `
 #cine .bar.t { top: 0; } #cine .bar.b { bottom: 0; }
 #cine .vig { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 50% 46%, rgba(0,0,0,0) 52%, rgba(0,0,0,.5) 100%); }
 #cine .fade { position: absolute; inset: 0; background: #000; pointer-events: none; opacity: 1; }
+#cine { animation: cineIn .5s ease both; }   /* (it does not cut in over what you were looking at: that dims to black, and the scene comes up out of it) */
+@keyframes cineIn { from { opacity: 0; } to { opacity: 1; } }
 #cine .card { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; pointer-events: none; opacity: 0; transition: opacity .5s; padding: 0 6vw; }
 #cine .card.on { opacity: 1; }
 #cine .card small { font: 700 clamp(10px, 1.1vw, 14px)/1 'Segoe UI', Arial, sans-serif; letter-spacing: .5em; color: var(--acc, #e10600); margin-bottom: 16px; text-transform: uppercase; }

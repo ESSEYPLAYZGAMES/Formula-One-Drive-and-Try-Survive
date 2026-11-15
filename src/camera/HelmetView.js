@@ -153,12 +153,21 @@ export class HelmetView {
     m.group.traverse((o) => { if (on) o.layers.enable(HELMET_LAYER); else o.layers.disable(HELMET_LAYER); });
     if (on) this.scene.traverse((o) => { if (o.isLight) o.layers.enable(HELMET_LAYER); });
   }
+  /**
+   * The driver's arms as his own eyes have them: the model's shoulders sit a hand below the lens and close beside it (right
+   * for a camera outside the car), so each sleeve filled a third of the picture. From inside the helmet they start
+   * where the chin bar hides them - lower and wider, down in the tub - and come up to the wheel as forearms and gloves.
+   */
+  _shoulders(mesh, on) {
+    for (const A of mesh.arms || []) { if (on && !A.sh0) { A.sh0 = A.sh.clone(); A.sh.set(A.sh0.x + 0.05, A.sh0.y - 0.17, A.sh0.z * 1.3); } else if (!on && A.sh0) { A.sh.copy(A.sh0); A.sh0 = null; } }
+    try { mesh._arms?.(mesh.wheelSteer ? mesh.wheelSteer.rotation.x : 0); } catch (e) { /* as they are */ }
+  }
   /** the car whose driver's eyes these are (its model: vehicle/CarMesh.js), or null: no helmet view */
   attach(mesh, keepHead = false) {   // (keepHead: the head stays out of the car let go - the camera is still in it, another way)
     if (mesh === this.mesh) return;
-    if (this.mesh) { this._tag(false); if (this.mesh.helmet && !keepHead) this.mesh.helmet.visible = true; }
+    if (this.mesh) { this._tag(false); if (this.mesh.helmet && !keepHead) this.mesh.helmet.visible = true; this._shoulders(this.mesh, false); }
     this.mesh = mesh || null; this.rig.visible = !!mesh; this.scanT = 0;
-    if (mesh) { this._tag(true); this.vis = this.visWant; }
+    if (mesh) { this._tag(true); this.vis = this.visWant; this._shoulders(mesh, true); }
   }
   /**
    * Before the picture is drawn: the helmet where the camera is, the light as it is now.

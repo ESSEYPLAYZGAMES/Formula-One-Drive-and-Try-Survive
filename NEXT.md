@@ -1,3 +1,132 @@
+# V2.60 (2026-11-15): stewards who take their time, the stewards' room, strategy on the screen, tyre rules, cameras
+
+Asked for: fix the rough edges (rival overcut / safety-car reactions never seen, the helmet camera's sleeves, the
+onboard of an upturned car, old career saves); "strategy made visible"; "deeper stewarding - with the proper visuals
+and drama, not just an out of the blue announcment"; "Make cutscenes intros less unnatrual ... it should just happen,
+but not overloading"; "outlaw follow camera throughout all manager mode"; "penalties were being handed out like 3
+seconds while there was still so much happening - genuinely investigations should be tense, taking many seconds and
+even minutes under tough cases ... at which there should be a replay of the incident"; "Make room for racing
+incidents"; "in the replay/onboards there arent track details like kerbs"; "Stop cutting away from the
+picutreinpicutre onboards right as an overtake is about to happen"; "The cars keep weaving aggresively during SC,
+and sometimes just stay in the grass weaving".
+
+Also asked for while it was being made: the kerb camera "isnt on the [kerb] ... should be stationary to show the speed
+with the wide FOV - the type that switched from looking backwards to forward as the car drives over it"; "Crane cam
+... becoming helicopter cam"; "In replays the fence rule is completely ignored ... must have always 100% visibility,
+allowed to switch cams - not too much"; steward notifications overlapping other cards - "reposition steward notifs to
+top of screen"; "under safety cars, cars keep bunchign and overtaking - leading to huge swaths of confusion to give
+places back"; "Red flags currently dont give the option to change tyres"; "a lot of the times i pit to tyres or edit
+the tyre later it doesnt go to the correct tire but what the AI thinks is better"; "remove all other strategies ...
+except the custom maker"; "a penalty for not using 2 different compounds like in real life (unless wet conditions
+are declared ...) and redflags should count as a pit stop".
+
+## The stewards, as they really work (race/Stewards.js `deep` - the team principal's race only)
+- A collision is a CASE with a timetable, not a verdict 2.5 s later:
+  - race control NOTES it 6-15 s on (another 6-14 s on the first lap, and 4 s more for every case already open);
+  - 9-20 s after that it goes UNDER INVESTIGATION, a clock running on its card - and the broadcast shows the
+    stewards' pictures: STEWARDS' REVIEW, the incident again in the replay window (its stretch of the record is kept
+    when it happens: the rolling record has long moved on by then);
+  - the decision comes 28-60 s later, or 70-170 s for a hard one (the first lap, a car put out, a close call, two
+    cases on the same cars);
+  - with under a lap and a bit to go, or still open at the flag: INVESTIGATION AFTER THE RACE.
+- What they decide, from how the contact reads (who hit whom and where, the pack around them on lap 1, the car ahead
+  hard on its brakes, the other car moving across too, a wet road, a second offence):
+  - RACING INCIDENT - nobody wholly or predominantly to blame: no further action;
+  - NO INVESTIGATION NECESSARY for a plain nothing;
+  - NO FURTHER ACTION - to blame, but nothing came of it;
+  - 5 or 10 seconds; or a DRIVE-THROUGH for putting a car out with no excuse.
+- The pit wall hears each step for a case with one of your cars in it: noted, under investigation, after the race,
+  the decision.
+- Drive-through: three laps to serve it. An AI car is called in at once and runs the lane without stopping (no crew
+  comes out). For yours the pit wall's BOX button becomes SERVE DRIVE-THROUGH (purple, laps left on it); not served
+  in time, it is 20 s instead. DT on the tower, DRIVE-THROUGH PENALTY / SERVED cards.
+- Overtakes off the track are looked at for longer too.
+- Each step of a case is a card of its own at the TOP of the picture, in the middle - RACE CONTROL · INCIDENT NOTED,
+  UNDER INVESTIGATION, the decision - up for seven to nine seconds and away; between them the case is the magnifying
+  glass by the cars on the tower. Two cards at most; the commentary's line and the replay window move down under
+  them. (They were under the map, where the column of cards on the right ran into them.)
+- A touch that did nothing is not a case (26 cases in the first two minutes of a test race became 6 in five), and
+  the same two cars touching again while their case is open are one incident.
+- Under a safety car, VSC or yellows: a place that changes hands in the first six seconds after the flags come out
+  (cars side by side as the board lit, the pack closing up) is not one to give back; a place handed straight back -
+  most are, within three or four seconds - is never a card.
+- Every other mode judges exactly as before (the seeded race is identical).
+
+## The stewards' room (ui/StewardsRoom.js, new)
+- After the flag, if anything is still open: PROVISIONAL CLASSIFICATION on the left, the stewards on the right. Each
+  case comes up as a document - the cars, the lap and corner, the alleged breach - its evidence ticked off, a pause
+  while they deliberate (longer for a hard one), then the decision stamped on it; the classification rearranges
+  itself, the penalised car sliding down, the places gained and lost marked against the provisional order. Up to
+  five are heard; Space / Enter / a click moves on.
+- Your protest: if a rival hit one of yours, the stewards took no action, and your car did not finish or finished
+  behind it, you may lodge a protest there ($0.2M deposit in the career - kept if it is dismissed). It is heard the
+  same way: upheld (a penalty, the result amended) or dismissed. One a race. A contact dealt with here does not come
+  back as a separate hearing in the HQ afterwards.
+- Then FINAL CLASSIFICATION, and the points, podium and results use the amended result.
+
+## Strategy on the screen (ui/TVStrategy.js, new)
+- A purple STRATEGY card in the right-hand column, only when there is something in it for one of your cars (ten
+  seconds, then quiet for that car for most of a minute; never under a safety car, in a replay or before the start):
+  the car ahead, yours and the car behind, each with its tyre and laps on it and a strip of the laps left showing the
+  window in which it is expected to stop (WINDOW OPEN in amber, BOX THIS LAP, TO THE FLAG);
+- and the line that matters: UNDERCUT THREAT (the car behind, within three seconds, its window open), UNDERCUT ON /
+  CHANCE (yours on the car ahead), OVERCUT (the car ahead pits this lap);
+- when a rival pit wall moves against you the card comes up at once with the move: COVERED, UNDERCUT, OVERCUT,
+  SPLIT, DUMMY TAKEN, NOT FOOLED, and under the safety car STAYS OUT / PITS.
+
+## Tyres and the rules
+- BOX FOR is the tyre that goes on. A set chosen on the pit wall is fitted whoever calls the lap - you, the plan or
+  the strategist (who used to bring his own); changed after the stop is called, that stop takes the new choice. If
+  you chose for a dry road and it is raining (or the other way about) the strategist says so and the wall shows what
+  is going on instead - change it back if you disagree. With nothing chosen the wall shows the strategist's tyre.
+- Red flag: the pit wall's tyre row becomes RED FLAG - RESTART ON. The set chosen there is on the car at the
+  restart (nothing chosen: the engineers' choice, as before). START ON still works on the restart's grid.
+- A red flag's change of tyres counts as a pit stop, for every car: nobody who had not stopped yet is made to stop
+  again for the rule, and its set is a compound used.
+- Two different dry compounds in a race of 8 laps or more, or 30 seconds at the flag - unless the car ran an
+  intermediate or wet tyre, or race control declared the race wet (it does only when the road is properly wet:
+  light rain is not enough). The AI takes a different compound at its stop or at a red flag when it still owes one;
+  the pit wall's note says when a car of yours does; the driver's engineer says so with two laps to go.
+- The strategy screen is the builder alone: no ready-made plans beside it. It opens as the engineers' own plan,
+  every part of it yours to change, its predicted time shown against theirs.
+
+## Cameras
+- The kerb camera is a camera in the kerb: fixed (it neither moves nor pans), 30 cm off the kerb on the road's own
+  edge, a wide lens tipped up a little, looking up the road at the cars coming - and, as the car goes over it, its
+  twin looking down the road after them; the shot ends a second and a half later. It no longer asks the walls and
+  fences for a view (that is what turned it into a pole camera at Las Vegas). Chosen as the camera, it reaches up to
+  700 m ahead for the next corner. Measured at Las Vegas: on the kerb in 77 % of the time (the rest: no corner in
+  reach on the Strip), 0 m of movement, 12 of 13 shots made the turn-round.
+- The crane no longer becomes the helicopter: it tries both sides of the road, nearer and further, with a view of
+  the car - or failing that of the road the car is about to come down - and if nowhere will do it is a trackside
+  camera. 100 % crane in the same test.
+- Replays (the window's, the stewards' review, the highlights): cameras on poles 11 m and more up behind the wall,
+  looking over the catch fence, never through it; the car's place at a dozen moments of the clip is looked at from
+  each and the clip is cut between them so that it is in clear view all the way - the camera that sees it longest
+  first, the next only when that one loses it; more than three changes, or a stretch nobody sees: from above.
+  Measured: one camera, 97-100 % of the frames in clear view.
+
+## Fixed
+- The picture-in-picture onboard no longer leaves as the move begins: once up it belongs to the battle, not to the
+  shot - it stays through the feed's cuts while the two cars are together, through the pass and four seconds after.
+- Kerbs, lines and fences were missing in the replay window and the onboard window: the far-off detail is left out
+  by distance from the main camera, and the window's camera is somewhere else. Worked out again for the window.
+- (Measured over the same 170 s of safety car at Silverstone, before / after: 29 spins / 0; 4 retirements / 0; 1735
+  samples of a car weaving on the grass / 0.)
+- The weave behind the safety car: about two thirds of a g at any speed (the same steering lock at 150 km/h as at
+  60 threw cars sideways on cold tyres), less near the edge of the road, and none at all on the grass, on a kerb,
+  with the car already sliding or within 3 m of the edge - a car off the road just steers back onto it.
+- No follow camera anywhere in the team principal's modes: the window keeps its own camera while it closes (it
+  flashed to a camera behind the car), and the camera controller is onboard-only there.
+- The helmet camera: the shoulders and upper sleeves are lowered and narrowed while it is on (they filled the bottom
+  corners).
+- The T-cam of an upturned car moves to a mount on the side of the chassis instead of sitting inside the floor.
+- Rival pit walls: the overcut and both safety-car reactions now happen (the safety-car one was decided after the
+  car had passed the pit entry).
+- Cutscenes in the HQ have no WATCH button: a scene that belongs to a room starts when you walk into that room (one
+  a visit at most), the rest as before.
+- Old career saves (V2.52) load and run on through three seasons.
+
 # V2.59 (2026-11-15): the stewards on the broadcast, a flag by the cars that have finished, the replays in neon
 
 Asked for: "add penalty visuals - not full screen just lil elements like the rest, investigating, delayed penalties

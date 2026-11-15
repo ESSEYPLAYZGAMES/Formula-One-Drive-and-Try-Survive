@@ -636,7 +636,7 @@ export class Car {
     const L = this.lost, h = (k) => (L[k] ? 1 : 0), floor = 1 - 0.05 * (h('floorL') + h('floorR'));
     this.lostK = Object.keys(L).length ? [(1 - 0.12 * h('nose')) * floor, (1 - 0.07 * (h('rwL') + h('rwR'))) * floor, 1 + 0.04 * h('nose') + 0.03 * (h('podL') + h('podR')) + 0.02 * h('cover')] : null;
   }
-  fitTyres(compound) { if (compound === 'INTER' || compound === 'WET') this.usedRain = true; this.tyres = new TyreSet(compound, this.raceLaps, this.track.length); this.tyres.wearMul = this.wearMul || 1; this.tyres.temp = BLANKET; this.punct = null; this.punctP = 0; this.punctShred = false; }
+  fitTyres(compound) { if (compound === 'INTER' || compound === 'WET') this.usedRain = true; else (this.dryUsed || (this.dryUsed = new Set())).add(compound);   /* (the dry compounds it has run in the race - the two-compound rule: RaceDirector, reset at the lights) */ this.tyres = new TyreSet(compound, this.raceLaps, this.track.length); this.tyres.wearMul = this.wearMul || 1; this.tyres.temp = BLANKET; this.punct = null; this.punctP = 0; this.punctShred = false; }
 
   // --------------------------------------------------------------------------
   /** Fixed-step physics. */

@@ -522,6 +522,11 @@ export class SafetyCar {
   /** overtaking while it is not allowed: two running cars that swapped places on the road (the stewards handle it) */
   checkPasses() {
     const d = this.d, cars = d.cars, seen = new Set();
+    // (the team principal's race - Stewards.deep: a place that changes hands in the seconds after the flags come out was
+    //  a move already being made - cars side by side as the board lit, the pack closing up - and is not one to give
+    //  back: nobody is asked to, and the screen is not filled with it)
+    if (d.time - (this._cpT ?? -9) > 1.5) this._npAt = d.time; this._cpT = d.time;
+    const early = !!d.stewards?.deep && d.time - (this._npAt ?? -99) < 6;
     const ok = (c) => !c.retired && !c.finished && !c.pitLane && !c.inPit && !c.spinning && c.speed > 8 && !c.air;
     for (let i = 0; i < cars.length; i++) {
       const a = cars[i]; if (!ok(a)) continue;
@@ -534,7 +539,7 @@ export class SafetyCar {
         if (prev == null || prev === now || now === 0) continue;
         const passer = now < 0 ? a : b, passed = now < 0 ? b : a;   // (x < 0: b is behind a now - a went by)
         if (passed._owes === passer || passer._unlap) continue;   // (a place being given back; a lapped car unlapping itself)
-        if (!this.passBanned(passer, passed)) continue;
+        if (early || !this.passBanned(passer, passed)) continue;
         d.stewards.scPass(passer, passed);
       }
     }

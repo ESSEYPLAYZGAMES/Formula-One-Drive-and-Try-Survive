@@ -8,8 +8,10 @@
 // and the cars (strikes, seconds to serve, seconds served) and tells it. A collision's verdict is held back a few
 // seconds on the screen so the note and the investigation can be read before it.
 const CSS = `
-#tvg.has-map .stw { top: 180px; }
-#tvg .stw { position: absolute; right: 14px; top: 48px; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; pointer-events: none; }
+/* (race control's place on a broadcast: the top of the picture, in the middle - clear of the tower, the map and every card on the right. The commentary's line and the window under it move down by its height: --stwh) */
+#tvg .stw { position: absolute; left: 50%; top: 6px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none; z-index: 3; }
+@media (max-width: 900px) { #tvg .stw { left: 262px; transform: none; align-items: flex-start; } }
+#tvg .xr:has(.xc.stg.in) .xc.inf { display: none; }   /* (the strategy up: the filler cards make room) */
 #tvg .stc { --c: #ffb300; position: relative; display: flex; align-items: stretch; height: 44px; filter: drop-shadow(0 6px 16px rgba(0,0,0,.45)); }
 #tvg .stc .ic { width: 44px; display: flex; align-items: center; justify-content: center; background: linear-gradient(160deg, color-mix(in srgb, var(--c) 34%, #0b0d13), #0b0d13 75%); color: #fff; border: 1px solid var(--c); border-radius: 0 7px 7px 0; box-shadow: inset 0 0 14px color-mix(in srgb, var(--c) 35%, transparent), 0 0 12px color-mix(in srgb, var(--c) 45%, transparent); order: 2; transform: scale(0); transition: transform .28s cubic-bezier(.3,1.5,.5,1), color .3s, border-color .3s, box-shadow .3s; }
 #tvg .stc .ic svg { width: 22px; height: 22px; filter: drop-shadow(0 0 5px var(--c)); }
@@ -18,6 +20,8 @@ const CSS = `
 #tvg .stc.out .bd { clip-path: inset(0 0 0 100%); transition-delay: 0s; transition-duration: .3s; } #tvg .stc.out .ic { transform: scale(0); transition: transform .22s ease-in .26s; }
 #tvg .stc.out { margin-top: -50px; transition: margin-top .3s ease .5s; }
 #tvg .stc .hd { display: flex; align-items: center; gap: 7px; font: 900 9px/1 var(--tvf); letter-spacing: .24em; color: var(--c); text-shadow: 0 0 9px color-mix(in srgb, var(--c) 70%, transparent); white-space: nowrap; transition: color .3s; }
+#tvg .stc .hd .clk { margin-left: auto; padding-left: 10px; font: 800 10px/1 ui-monospace, Menlo, Consolas, monospace; letter-spacing: .06em; color: #fff; text-shadow: none; }
+#tvg .stc[data-st="a"] { --c: #b98cff; }
 #tvg .stc .hd em { font-style: normal; color: #7d8794; letter-spacing: .2em; text-shadow: none; }
 #tvg .stc .ln { display: flex; align-items: center; gap: 7px; margin-top: 6px; font: 800 14px/1 var(--tvf); letter-spacing: .05em; text-transform: uppercase; white-space: nowrap; }
 #tvg .stc .ln i { width: 4px; height: 13px; border-radius: 1px; display: inline-block; } #tvg .stc .ln u { text-decoration: none; color: #7d8794; font-weight: 700; }
@@ -58,8 +62,8 @@ export const STW_ICON = {
   fin: `<svg viewBox="0 0 24 24"><path d="M4 2.5v19" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M5.5 4h15v11h-15z" fill="#f2f4f7"/><path d="M5.5 4h5v3.67h-5zM15.5 4h5v3.67h-5zM10.5 7.67h5v3.66h-5zM5.5 11.33h5V15h-5zM15.5 11.33h5V15h-5z" fill="#0b0d13"/></svg>`,
   flag: `<svg viewBox="0 0 24 24"><path d="M5 3v18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M6 4h14v10H6z" fill="#f2f4f7"/><path d="M6 4h14L6 14z" fill="#0b0d13"/><path d="M6 4h14v10H6z" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>`,
 };
-const HEAD = { n: 'INCIDENT NOTED', i: 'UNDER INVESTIGATION', o: 'GIVE THE POSITION BACK', p: 'TIME PENALTY', c: 'NO FURTHER ACTION', s: 'PENALTY SERVED', t: 'TRACK LIMITS', f: 'BLACK AND WHITE FLAG', r: 'POSITION RETURNED' };
-const ICON_OF = { n: 'noted', i: 'inv', o: 'owe', p: 'pen', c: 'clear', s: 'clear', t: 'limits', f: 'flag' };
+const HEAD = { a: 'INVESTIGATION AFTER THE RACE', x: 'RACING INCIDENT', y: 'NO INVESTIGATION NECESSARY', n: 'INCIDENT NOTED', i: 'UNDER INVESTIGATION', o: 'GIVE THE POSITION BACK', p: 'TIME PENALTY', c: 'NO FURTHER ACTION', s: 'PENALTY SERVED', t: 'TRACK LIMITS', f: 'BLACK AND WHITE FLAG', r: 'POSITION RETURNED' };
+const ICON_OF = { a: 'inv', x: 'clear', y: 'clear', n: 'noted', i: 'inv', o: 'owe', p: 'pen', c: 'clear', s: 'clear', t: 'limits', f: 'flag' };
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const code = (c) => String(c.short || c.name || '???').replace(/[^A-Za-z]/g, '').slice(0, 3).toUpperCase();
 const SHORT = { 'causing a collision': 'CAUSING A COLLISION', 'track limits': 'TRACK LIMITS', 'leaving the track and gaining an advantage': 'GAINING AN ADVANTAGE OFF TRACK', 'a jump start': 'JUMP START', 'overtaking under the safety car': 'OVERTAKING UNDER THE SAFETY CAR',
@@ -71,11 +75,12 @@ export class TVStewards {
     this.root = root; this.el = document.createElement('div'); this.el.className = 'stw'; root.appendChild(this.el);
     this.reset();
   }
-  reset() { this.el.innerHTML = ''; this.cases = []; this.seen = new Map(); this.logN = 0; this.cars = new Map(); this.acc = 0; this.h = -1; }
+  reset() { this.deepCases = null; this._h = 0; this.root.style.setProperty('--stwh', '0px'); this.el.innerHTML = ''; this.cases = []; this.seen = new Map(); this.logN = 0; this.cars = new Map(); this.acc = 0; this.h = -1; }
   /** a car's marks on the tower: 'inv' | 'owe' | 'pen:<s>' | 'flag', the two that matter most, comma-joined ('' none) */
   status(c) {
     const out = [];
-    if (this.cases.some((k) => !k.closed && (k.st === 'n' || k.st === 'i') && k.cars.includes(c))) out.push('inv');
+    if (this.cases.some((k) => !k.closed && (k.st === 'n' || k.st === 'i') && k.cars.includes(c)) || (this.deepCases || []).some((q) => !q.done && q.stage !== 'seen' && (q.a === c || q.b === c))) out.push('inv');
+    if (c.driveThrough > 0 && !c.retired) out.push('dt');
     if (this.cases.some((k) => !k.closed && k.st === 'o' && k.cars[0] === c)) out.push('owe');
     const st = this.cars.get(c); if (st && st.shown > 0 && !c.retired) out.push(`pen:${st.shown}`);
     if (out.length < 2 && st && st.flag && !c.retired) out.push('flag');
@@ -85,26 +90,26 @@ export class TVStewards {
   static marks(key) {
     if (!key) return '';
     return key.split(',').map((k) => k === 'fin' ? `<b class="fin" title="Has taken the chequered flag">${STW_ICON.fin}</b>` : k === 'inv' ? `<b class="inv" title="Under investigation">${STW_ICON.inv}</b>` : k === 'owe' ? `<b class="owe" title="Must give the position back">${STW_ICON.owe}</b>`
-      : k === 'flag' ? `<b class="flag" title="Black and white flag: track limits">${STW_ICON.flag}</b>` : `<b class="pen" title="Time penalty to serve">${esc(k.slice(4))}s</b>`).join('');
+      : k === 'dt' ? '<b class="pen" title="Drive-through penalty to serve">DT</b>' : k === 'flag' ? `<b class="flag" title="Black and white flag: track limits">${STW_ICON.flag}</b>` : `<b class="pen" title="Time penalty to serve">${esc(k.slice(4))}s</b>`).join('');
   }
   _open(o) {
     const k = { st: null, closed: false, until: Infinity, ...o }; const el = k.el = document.createElement('div'); el.className = 'stc';
     el.innerHTML = '<div class="bd"><div class="tx"><div class="hd"></div><div class="ln"></div></div><i class="cd"></i></div><div class="ic"></div>';
     this.el.appendChild(el); this.cases.push(k); void el.offsetWidth; el.classList.add('in');
-    while (this.cases.filter((x) => !x.gone).length > 3) { const old = this.cases.find((x) => !x.gone && x.closed) || this.cases.find((x) => !x.gone); this._gone(old); }
+    while (this.cases.filter((x) => !x.gone).length > 2) { const old = this.cases.find((x) => !x.gone && x.closed) || this.cases.find((x) => !x.gone); this._gone(old); }
     return k;
   }
   _names(k) {
     const [a, b] = k.cars, one = (c) => `<i style="background:${esc(c.color || '#888')}"></i>${code(c)}`;
-    const sec = k.st === 'p' || k.st === 's' ? `<b class="sec">${k.st === 's' ? '' : '+'}${k.sec}s</b>` : '';
+    const sec = k.st === 'p' || k.st === 's' ? `<b class="sec">${k.dt ? 'DRIVE-THROUGH' : `${k.st === 's' ? '' : '+'}${k.sec}s`}</b>` : '';
     const why = k.why ? `<small>${esc(k.why)}</small>` : '';
     if (k.st === 'o' && b) return `${one(a)}<u>→</u>${one(b)}${why}`;
     return `${sec}${one(a)}${b && k.st !== 'p' && k.st !== 's' && k.st !== 't' && k.st !== 'f' ? `<u>·</u>${one(b)}` : ''}${why}`;
   }
   /** a case's stage: its colour, icon and words (changed with a slide and a bar of light) */
   _set(k, st, o = {}) {
-    Object.assign(k, o); const first = k.st == null, el = k.el; k.st = st === 'r' ? 'c' : st; k.head = HEAD[st];
-    const write = () => { el.dataset.st = k.st; el.querySelector('.ic').innerHTML = STW_ICON[ICON_OF[k.st]]; el.querySelector('.hd').innerHTML = `<em>STEWARDS</em>${esc(k.head)}`; el.querySelector('.ln').innerHTML = this._names(k); el.classList.remove('stc-flip'); };
+    Object.assign(k, o); const first = k.st == null, el = k.el; k.st = st === 'r' || st === 'x' || st === 'y' ? 'c' : st; k.head = st === 'p' && k.dt ? 'DRIVE-THROUGH PENALTY' : st === 's' && k.dt ? 'DRIVE-THROUGH SERVED' : HEAD[st];
+    const write = () => { el.dataset.st = k.st; el.querySelector('.ic').innerHTML = STW_ICON[ICON_OF[k.st]]; el.querySelector('.hd').innerHTML = `<em>RACE CONTROL</em>${esc(k.head)}${k.st === 'i' && k.kind === 'case' ? '<span class="clk">0:00</span>' : ''}`; el.querySelector('.ln').innerHTML = this._names(k); el.classList.remove('stc-flip'); };
     if (first) { write(); return; }
     el.classList.add('stc-flip'); el.classList.remove('sweep'); void el.offsetWidth; el.classList.add('sweep'); setTimeout(write, 200);
   }
@@ -113,6 +118,7 @@ export class TVStewards {
 
   update(dt, ctx) {
     const d = ctx.d, S = d?.stewards; if (!d || !S || d.mode !== 'race') { if (this.cases.length) this.reset(); return; }
+    this.deepCases = S.deep ? S.cases : null;
     const t = d.time;
     // (the clocks on the cards run every frame; the rest is looked at a few times a second)
     for (const k of this.cases) if (k.st === 'o' && k.deadline != null && !k.gone) k.el.querySelector('.cd').style.transform = `scaleX(${Math.max(0, Math.min(1, (k.deadline - t) / k.span)).toFixed(3)})`;
@@ -120,6 +126,33 @@ export class TVStewards {
     const log = S.log || [], newLog = log.slice(this.logN); this.logN = log.length;
     const penFor = (c, re) => { const i = newLog.findIndex((e) => e.car === c.short && re.test(e.reason)); return i >= 0 ? newLog.splice(i, 1)[0] : null; };
     const carOf = (short) => d.cars.find((c) => c.short === short);
+    // ---- a collision: the stewards' own cases where the race keeps them (the team principal's: race/Stewards.js openCase -
+    //      noted when race control gets to it, under investigation with its clock running, after the race, the verdict)
+    if (S.deep) {
+      // (each step of a case is a card of its own, up for a few seconds and away - noted; under investigation; after
+      //  the race; the decision. Between them the case is the magnifying glass by the cars on the tower: an
+      //  investigation runs for minutes, and a card does not sit on the picture that long)
+      const clock = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+      for (const q of S.cases || []) {
+        let k = this.seen.get(q);
+        const mk = (st, stg, why) => { const n = this._setNew({ kind: 'case', cars: [q.a, q.b], t0: t, src: q, stg, why }, st); this.seen.set(q, n); return n; };
+        const to = (st, stg, why, hold) => { if (!k || k.gone) k = mk(st, stg, why); else { k.closed = false; this._set(k, st, { why }); k.stg = stg; } this._close(k, t, hold); };
+        const where = q.lap1 ? 'LAP 1' : q.where || '';
+        if (!k) { if (q.stage === 'seen' || q.verdict?.kind === 'gone') continue; to('n', 'noted', `${where ? `${where} · ` : ''}COLLISION`, 7); }
+        if (q.stage === 'inv' && k.stg !== 'inv') to('i', 'inv', `${where ? `${where} · ` : ''}COLLISION`, 9);
+        if (q.stage === 'inv' && !k.gone) { const c = k.el.querySelector('.clk'); if (c) c.textContent = clock(Math.max(0, t - q.invAt)); }
+        if (q.stage === 'post' && k.stg !== 'post') to('a', 'post', 'COLLISION', 7);
+        if (q.done && k.stg !== 'done') {
+          const v = q.verdict || { kind: 'nfa' }; if (v.kind === 'gone') { k.stg = 'done'; this._gone(k); continue; }
+          penFor(q.a, /collision/);   // (its penalty is this card's: not a second one)
+          if (!k || k.gone) k = mk('i', 'done', ''); k.closed = false; k.stg = 'done';
+          if (v.kind === 'pen') { this._set(k, 'p', { sec: v.sec, why: 'CAUSING A COLLISION' }); this._reveal(q.a, v.sec); }
+          else if (v.kind === 'dt') this._set(k, 'p', { dt: true, why: 'CAUSING A COLLISION' });
+          else this._set(k, v.kind === 'racing' ? 'x' : v.kind === 'none' ? 'y' : 'c', { why: v.kind === 'racing' ? 'NO FURTHER ACTION' : 'COLLISION' });
+          this._close(k, t, 8);
+        }
+      }
+    } else {
     // ---- a collision being judged: noted, under investigation, then the verdict - no sooner than it can be read
     for (const p of S.pending || []) if (!this.seen.has(p)) this.seen.set(p, this._setNew({ kind: 'col', cars: [p.culprit, p.victim], t0: t, src: p, why: 'COLLISION' }, 'n'));
     for (const k of this.cases) {
@@ -128,9 +161,12 @@ export class TVStewards {
       if (k.verdict === undefined && !(S.pending || []).includes(k.src)) { const e = penFor(k.cars[0], /collision/); k.verdict = e ? e.sec : 0; }
       if (k.verdict !== undefined && t - k.t0 > 5.5) { if (k.verdict) { this._set(k, 'p', { sec: k.verdict, why: 'CAUSING A COLLISION' }); this._reveal(k.cars[0], k.verdict); } else this._set(k, 'c', { why: 'COLLISION' }); this._close(k, t); }
     }
+    }
     // ---- an overtake off the track: under investigation, the place to go back (its clock), returned - or the penalty
     for (const p of S.offPasses || []) if (!this.seen.has(p)) this.seen.set(p, this._setNew({ kind: 'off', cars: [p.passer, p.passed], t0: t, src: p, why: 'OVERTAKE OFF TRACK' }, 'i'));
-    for (const p of S.scPasses || []) if (!this.seen.has(p)) this.seen.set(p, this._setNew({ kind: 'sc', cars: [p.passer, p.passed], t0: t, src: p, why: '', deadline: p.t + 8, span: 8 }, 'o'));
+    // (the team principal's race: a place that is handed straight back - most are, within three or four seconds - is
+    //  never a card; one that still stands after that is)
+    for (const p of S.scPasses || []) if (!this.seen.has(p) && (!S.deep || t - p.t > 4)) this.seen.set(p, this._setNew({ kind: 'sc', cars: [p.passer, p.passed], t0: t, src: p, why: '', deadline: p.t + 8, span: 8 }, 'o'));
     for (const k of this.cases) {
       if ((k.kind !== 'off' && k.kind !== 'sc') || k.closed) continue;
       const live = (k.kind === 'off' ? S.offPasses : S.scPasses || []).includes(k.src);
@@ -142,7 +178,7 @@ export class TVStewards {
       this._close(k, t);
     }
     // ---- every other penalty (track limits, a jump start, a big cut): its own card
-    for (const e of newLog) { const c = carOf(e.car); if (!c || !e.sec) continue; const k = this._setNew({ kind: 'pen', cars: [c], t0: t, sec: e.sec, why: SHORT[e.reason] || String(e.reason).toUpperCase() }, 'p'); this._reveal(c, e.sec); this._close(k, t); }
+    for (const e of newLog) { const c = carOf(e.car); if (c && e.dtServed) { const k = this._setNew({ kind: 'srv', cars: [c], t0: t, dt: true, why: '' }, 's'); this._close(k, t, 5); continue; } if (!c || !e.sec) continue; const k = this._setNew({ kind: 'pen', cars: [c], t0: t, sec: e.sec, why: SHORT[e.reason] || String(e.reason).toUpperCase() }, 'p'); this._reveal(c, e.sec); this._close(k, t); }
     // ---- each car: its strikes, the flag, what it has served
     const allow = S.strikes ?? 3;
     for (const c of d.cars) {
@@ -157,8 +193,8 @@ export class TVStewards {
       const pen = c.penalties || 0; if (pen < st.shown || (pen > st.shown && !this.cases.some((k) => !k.closed && k.cars[0] === c))) st.shown = pen;
     }
     for (const k of [...this.cases]) if (k.closed && !k.gone && t > k.until) this._gone(k);
+    { const h = this.cases.filter((x) => !x.gone).length * 50; if (h !== this._h) { this._h = h; this.root.style.setProperty('--stwh', `${h}px`); } }
     // (race control's own messages sit under these cards)
-    const h = this.el.offsetHeight; if (h !== this.h) { this.h = h; const rc = this.root.querySelector('.rc'); if (rc) rc.style.top = h ? `${(this.root.classList.contains('has-map') ? 180 : 52) + h + 8}px` : ''; }
   }
   _setNew(o, st) { const k = this._open(o); this._set(k, st); return k; }
   /** a penalty told on the screen: from now the tower shows it (and at the latest a little after it was given, card or no card) */

@@ -16,7 +16,7 @@
 //   RAIN ON THE LENS when the track is wet, on the cameras that stand in it.
 // Plain DOM in the graphics' own layer; main.js draws the picture-in-picture inside the frame this makes for it.
 const CSS = `
-#tvg .cm { position: absolute; left: 50%; top: 50px; transform: translate(-50%, -8px); width: min(600px, 46vw); background: rgba(12,14,20,.86); border-radius: 6px; padding: 7px 12px 8px; opacity: 0; transition: opacity .25s, transform .25s; border-left: 4px solid #e10600; }
+#tvg .cm { position: absolute; left: 50%; top: calc(50px + var(--stwh, 0px)); transform: translate(-50%, -8px); width: min(600px, 46vw); background: rgba(12,14,20,.86); border-radius: 6px; padding: 7px 12px 8px; opacity: 0; transition: opacity .25s, transform .25s, top .3s; border-left: 4px solid #e10600; }
 #tvg .cm.in { opacity: 1; transform: translate(-50%, 0); } #tvg .cm.b { border-left-color: #1f6feb; }
 #tvg .cm small { display: block; font: 800 9px/1 var(--tvf); letter-spacing: .2em; color: #9aa4b2; margin-bottom: 4px; }
 #tvg .cm span { font: 600 14px/1.3 var(--tvf); }
@@ -48,7 +48,7 @@ const CSS = `
 /* the picture in the picture: a window of neon. It opens as a line of light drawn out from its middle, which then
    parts - the picture between the two halves (main.js draws only what is open: pipOpen) - and its tab unrolls; it
    closes the way it came: to a line, the line in to a point. --kx / --ky: how far it is open across and down. */
-#tvg .pip { --n: #19e3ff; position: absolute; left: 272px; top: 126px; width: min(300px, 24vw); aspect-ratio: 16 / 9; display: none; pointer-events: none; }
+#tvg .pip { --n: #19e3ff; position: absolute; left: 272px; top: calc(126px + var(--stwh, 0px)); transition: top .3s; width: min(300px, 24vw); aspect-ratio: 16 / 9; display: none; pointer-events: none; }
 #tvg .pip.big { --n: #ff2d75; width: min(430px, 34vw); }
 #tvg .pip.on { display: block; }
 #tvg .pip .fr { position: absolute; left: calc(50% * (1 - var(--kx, 1))); right: calc(50% * (1 - var(--kx, 1))); top: calc(50% * (1 - var(--ky, 1)) - 1px); bottom: calc(50% * (1 - var(--ky, 1)) - 1px); border: 2px solid var(--n); border-radius: 3px;

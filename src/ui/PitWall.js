@@ -24,6 +24,9 @@ const CSS = `
 #pw button.on { background: #eef1f5; color: #0b0d12; border-color: #eef1f5; }
 #pw button.pbx { background: #e10600; border-color: #e10600; color: #fff; padding: 2px 10px; }
 #pw button.pbx.on { background: #ffb000; border-color: #ffb000; color: #111; }
+#pw .cl.redc { color: #ff2d55; font-weight: 900; animation: pwRed 1s ease-in-out infinite alternate; }
+@keyframes pwRed { from { opacity: .55; } to { opacity: 1; } }
+#pw button.pbx.dt { background: #b98cff; border-color: #b98cff; color: #111; }
 #pw button:disabled { opacity: .35; cursor: default; }
 #pw .car { position: relative; background: rgba(255,255,255,.04); border-radius: 6px; padding: 5px 8px 5px 11px; min-width: 0; overflow: hidden; display: flex; flex-direction: column; gap: 4px; }
 #pw .car::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--c, #888); }
@@ -158,7 +161,7 @@ export class PitWall {
     const a = b.dataset.a, car = b.dataset.k != null ? this.cars[+b.dataset.k] : null;
     if (a === 'cpt') { const on = this.el.classList.toggle('cpt'); b.textContent = on ? 'FULL' : 'COMPACT'; try { localStorage.setItem('f1sim-pw-compact', on ? '1' : '0'); } catch (e) { /* not kept */ } return; }
     if (a === 'min') { this.el.classList.toggle('min'); b.textContent = this.el.classList.contains('min') ? 'PIT WALL ▴' : 'PIT WALL ▾'; return; }
-    if (a === 'cmp') { car.mgr.next = b.dataset.v; if (car.mgr.preRace) this.act('start', car, b.dataset.v); this.acc = 1; return; }
+    if (a === 'cmp') { if (car.mgr.preRace) { car.mgr.next = b.dataset.v; this.act('start', car, b.dataset.v); } else this.act('cmp', car, b.dataset.v); this.acc = 1; return; }
     if (a === 'box') { if (car.pitRequested && !car.pitLane) this.act('stay', car); else this.act('box', car, car.mgr.next); this.acc = 1; return; }
     if (a === 'pg') { b.closest('.car').dataset.pg = b.dataset.v; this.acc = 1; return; }
     if (a === 'ord') this.act('ord', car, b.dataset.g, b.dataset.v);
@@ -235,12 +238,14 @@ export class PitWall {
       card.querySelector('[data-g="fload"]').style.display = m.preRace && c.fuel != null ? '' : 'none';
       this.mark(card, '[data-a="strat"]', (b) => b.dataset.v === (m.calls || (m.manual ? 'you' : 'ai')));
       m.preRace = !racing && !d.leaderFinished;
-      this.setText(card.querySelector('.cl'), m.preRace ? 'START ON' : 'BOX FOR');
-      this.mark(card, '[data-a="cmp"]', (b) => b.dataset.v === (m.preRace ? comp : m.next));
+      const red = d.sc?.phase === 'red' && !d.cancelled;   // (a red flag: a free change of tyres for the restart - main.js tpAct 'cmp')
+      this.setText(card.querySelector('.cl'), red ? 'RED FLAG · RESTART ON' : m.preRace ? 'START ON' : 'BOX FOR'); card.querySelector('.cl').classList.toggle('redc', red);
+      this.mark(card, '[data-a="cmp"]', (b) => b.dataset.v === (red ? m.redTyre : m.preRace ? comp : m.next));
       if (st.sets) { const S = st.sets(c); if (S) for (const b of card.querySelectorAll('[data-a="cmp"]')) { const n = String((S[b.dataset.v] || []).length); if (b.dataset.n !== n) b.dataset.n = n; } }
       const bx = card.querySelector('.bx'), inLane = c.pitLane || c.inPit;
       bx.disabled = c.retired || c.finished || m.preRace || (inLane && !c.pitRequested) || d.done;
-      this.setText(bx, inLane ? 'IN PIT' : c.pitRequested ? 'STAY OUT' : 'BOX');
+      this.setText(bx, inLane ? (c.dtRun ? 'DRIVE-THROUGH' : 'IN PIT') : c.pitRequested ? (c.dtCalled ? 'DT CALLED · CANCEL' : 'STAY OUT') : c.driveThrough > 0 ? `SERVE DRIVE-THROUGH · ${Math.max(0, (c.dtBy ?? c.lap) - c.lap + 1)} LAP${(c.dtBy ?? c.lap) - c.lap + 1 === 1 ? '' : 'S'}` : 'BOX');
+      bx.classList.toggle('dt', c.driveThrough > 0 && !inLane);
       bx.classList.toggle('on', !!c.pitRequested);
       for (const b of card.querySelectorAll('[data-a="mode"],[data-a="ord"],[data-a="strat"],[data-a="cmp"]')) b.disabled = c.retired || c.finished || (b.dataset.a !== 'cmp' && d.done) || (b.dataset.v === 'plan' && !m.plan);
       // the note: what is going on with this car
@@ -252,7 +257,7 @@ export class PitWall {
       const note = c.retired ? `Out of the race · ${c.retireReason || ''}` : c.finished ? 'Finished' : m.preRace ? `Starts on ${comp.toLowerCase()}s · ${who}`
         : inLane ? `In the pit lane${plan ? ` · ${plan.compound.toLowerCase()}s${plan.repair && plan.repair !== 'none' ? ' and repairs' : ''}` : ''}`
         : c.pitRequested ? `Boxing this lap for ${(plan?.compound || m.next).toLowerCase()}s${!m.manual && c.ai?.pitReason && c.ai.pitReason !== 'manager' ? ` · the strategist's call (${c.ai.pitReason})` : ''}`
-        : m.holdLap === c.lap ? 'Staying out this lap' : m.calls === 'plan' && PL ? `${c.pitStops} stop${c.pitStops === 1 ? '' : 's'} · ${planTxt}` : st.mustStop(c) ? `${c.pitStops} stops · the mandatory stop is still to make` : `${c.pitStops} stop${c.pitStops === 1 ? '' : 's'} · tyres ${MODES.tyre[m.modes?.tyre || 'std'].label.toLowerCase()}, fuel ${MODES.fuel[m.modes?.fuel || 'std'].label.toLowerCase()}, ERS ${MODES.ers[m.modes?.ers || 'bal'].label.toLowerCase()}`;
+        : m.holdLap === c.lap ? 'Staying out this lap' : m.calls === 'plan' && PL ? `${c.pitStops} stop${c.pitStops === 1 ? '' : 's'} · ${planTxt}` : st.mustStop(c) ? (c.pitStops ? `${c.pitStops} stop${c.pitStops === 1 ? '' : 's'} · a second dry compound is still to run (30 s)` : `${c.pitStops} stops · the mandatory stop is still to make`) : `${c.pitStops} stop${c.pitStops === 1 ? '' : 's'} · tyres ${MODES.tyre[m.modes?.tyre || 'std'].label.toLowerCase()}, fuel ${MODES.fuel[m.modes?.fuel || 'std'].label.toLowerCase()}, ERS ${MODES.ers[m.modes?.ers || 'bal'].label.toLowerCase()}`;
       this.setText(card.querySelector('.note'), note);
     }
   }

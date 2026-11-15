@@ -144,10 +144,38 @@ export class TVDirector {
     // ---- the kerb camera: in the kerb at the apex of the next corner, the cars coming at it. No corner near, or no view
     //      from it (a wall on the kerb): a trackside camera instead
     if (kind === 'kerb') {
-      let s0 = null, side = 1;
-      for (let ds = 70; ds < 460; ds += 12) { const i = tr.idxAtS(tr.wrapS(subject.s + ds)); if (!tr.inCornerZone(i)) continue; let e = ds; while (e < ds + 220 && tr.inCornerZone(tr.idxAtS(tr.wrapS(subject.s + e)))) e += 12; const sm = tr.wrapS(subject.s + (ds + e) / 2), im = tr.idxAtS(sm), n = tr.n, a = (im - 6 + n) % n, b = (im + 6) % n; side = (tr.tx[b] - tr.tx[a]) * tr.nx[im] + (tr.tz[b] - tr.tz[a]) * tr.nz[im] > 0 ? 1 : -1; s0 = sm; break; }
-      if (s0 != null) { const i = tr.idxAtS(s0), off = side * ((tr.edgeAt ? tr.edgeAt(i, side) : tr.wallAt(i, side) - 2) + (tr.kerbWidth || 1) * 0.6), f = tr.sample(s0, off), p = new THREE.Vector3(f.x, G(f.x, f.z) + 0.55, f.z); if (!ctx.clear || ctx.clear(p.x, p.y, p.z, subject.x, cy(subject) + 0.8, subject.z)) { sh.s0 = s0; sh.side = side; sh.pos = p; sh.kerb = true; } }
-      if (!sh.pos) { kind = 'track'; sh.kind = 'track'; } else sh.kind = 'track';   // (placed: from here it is a trackside camera, a low one)
+      // (a camera set in the kerb itself, as the real ones are: it does not move and it does not pan. A very wide lens
+      //  a hand's height off the kerb, looking up the road at the cars coming - they grow from nothing and go over it -
+      //  and then its twin looking down the road after them. Nothing is asked of the walls and fences: it is inside
+      //  them, on the road's own edge. The next corner within reach - further when the kerb camera is the one asked
+      //  for - or a trackside camera instead.)
+      let s0 = null, side = 1; const reach = this.camKind === 'kerb' ? 720 : 330;
+      for (let ds = 45; ds < reach; ds += 12) { const i = tr.idxAtS(tr.wrapS(subject.s + ds)); if (!tr.inCornerZone(i)) continue; let e = ds; while (e < ds + 220 && tr.inCornerZone(tr.idxAtS(tr.wrapS(subject.s + e)))) e += 12; const sm = tr.wrapS(subject.s + (ds + e) / 2), im = tr.idxAtS(sm), n = tr.n, a = (im - 6 + n) % n, b = (im + 6) % n; side = (tr.tx[b] - tr.tx[a]) * tr.nx[im] + (tr.tz[b] - tr.tz[a]) * tr.nz[im] > 0 ? 1 : -1; s0 = sm; break; }
+      if (s0 != null) {
+        const i = tr.idxAtS(s0), edge = tr.edgeAt ? tr.edgeAt(i, side) : tr.wallAt(i, side) - 2, off = side * Math.min(tr.wallAt(i, side) - 0.5, edge + (tr.kerbWidth || 1) * 0.3), f = tr.sample(s0, off);
+        const a = tr.sample(tr.wrapS(s0 - 28), off * 0.7), b = tr.sample(tr.wrapS(s0 + 28), off * 0.7);   // (along its own side of the road, tipped up a little: the cars come through the middle of the picture, the horizon under it)
+        sh.s0 = s0; sh.side = side; sh.kerb = true; sh.pos = new THREE.Vector3(f.x, G(f.x, f.z) + 0.3, f.z);
+        sh.lookA = new THREE.Vector3(a.x, G(a.x, a.z) + 2.7, a.z); sh.lookB = new THREE.Vector3(b.x, G(b.x, b.z) + 2.7, b.z); sh.dur = 15;
+      }
+      if (!sh.pos) { kind = 'track'; sh.kind = 'track'; } else sh.kind = 'track';   // (placed: from here it is a trackside camera, a fixed one)
+    }
+    // ---- the crane: its head low and near as the car comes, rising and swinging out as it passes. The first place
+    //      with a view - the car now and the road it comes down, then the road alone (the car is round the bend yet:
+    //      it comes into the picture) - on either side, nearer or further; none: a trackside camera, not the helicopter
+    if (kind === 'crane') {
+      const s1 = (this.cuts & 1) ? 1 : -1, base = Math.max(40, 110 * Math.min(1.5, Math.max(0.5, subject.speed / 55)));
+      for (const strict of [true, false]) {
+        for (const [sd, k] of [[s1, 1], [-s1, 1], [s1, 0.6], [-s1, 0.6], [s1, 1.5], [-s1, 1.5]]) {
+          const s0 = tr.wrapS(subject.s + base * k), i = tr.idxAtS(s0), w = tr.wallAt(i, sd);
+          const a = tr.sample(s0, sd * (w - 0.8)), b = tr.sample(tr.wrapS(s0 + 14), sd * (w + 1.2)), p0 = new THREE.Vector3(a.x, G(a.x, a.z) + 3.2, a.z), p1 = new THREE.Vector3(b.x, G(b.x, b.z) + 13, b.z);
+          const m = tr.sample(tr.wrapS(s0 - 25), 0), my = G(m.x, m.z) + 0.8;
+          const ok = !ctx.clear || (ctx.clear(p1.x, p1.y, p1.z, m.x, my, m.z) && ctx.clear(p0.x, p0.y + 1.5, p0.z, m.x, my, m.z) && (!strict || (ctx.clear(p1.x, p1.y, p1.z, subject.x, cy(subject) + 0.8, subject.z) && ctx.clear(p0.x, p0.y + 1.5, p0.z, subject.x, cy(subject) + 0.8, subject.z))));
+          if (ok) { sh.s0 = s0; sh.side = sd; sh.pos = p0.clone(); sh.pos0 = p0; sh.pos1 = p1; sh.crane = true; break; }
+        }
+        if (sh.crane) break;
+      }
+      if (!sh.crane) kind = 'track';
+      sh.kind = 'track';
     }
     if (kind === 'track') {
       // a camera along the barrier ahead of the car: it comes toward it, passes, and the shot ends a little after
@@ -178,12 +206,6 @@ export class TVDirector {
           if (!found) { sh.kind = 'heli'; sh.pos = null; }
         }
       }
-    } else if (kind === 'crane') {
-      // a crane at the fence: its head low and near as the car comes, rising and swinging out as it passes
-      const side = (this.cuts & 1) ? 1 : -1, s0 = tr.wrapS(subject.s + Math.max(40, 110 * Math.min(1.5, Math.max(0.5, subject.speed / 55)))), i = tr.idxAtS(s0), w = tr.wallAt(i, side);
-      const a = tr.sample(s0, side * (w - 0.8)), b = tr.sample(tr.wrapS(s0 + 14), side * (w + 2.5)), p0 = new THREE.Vector3(a.x, G(a.x, a.z) + 3.2, a.z), p1 = new THREE.Vector3(b.x, G(b.x, b.z) + 13, b.z);
-      if (!ctx.clear || (ctx.clear(p1.x, p1.y, p1.z, subject.x, cy(subject) + 0.8, subject.z) && ctx.clear(p0.x, p0.y + 1.5, p0.z, subject.x, cy(subject) + 0.8, subject.z))) { sh.kind = 'track'; sh.s0 = s0; sh.side = side; sh.pos = p0.clone(); sh.pos0 = p0; sh.pos1 = p1; sh.crane = true; }
-      else { sh.kind = 'heli'; }
     } else if (st.view) {
       sh.view = st.view;   // (placed each frame from it: place())
     } else if (kind === 'crowd' || kind === 'garage' || kind === 'beauty') {
@@ -276,8 +298,16 @@ export class TVDirector {
       // (with the circuit's own walls and fences in the ray - clearFull - whatever the walls' arithmetic says)
       // (a camera that stands still is looked through again as the shot runs: the car it has may have spun on, rolled
       //  away behind a fence line, gone round the bend - twice running with something in the way, and the shot is over)
-      if (ctx.clear && !sh.crane) { sh.chk = (sh.chk || 0) + dt; if (sh.chk > 0.55) { sh.chk = 0; if (!(ctx.clearFull || ctx.clear)(sh.pos.x, sh.pos.y, sh.pos.z, car.x, carY + 0.8, car.z)) { sh.lostN = (sh.lostN || 0) + 1; if (sh.lostN >= 2 && sh.t > 1.3) { sh.dur = Math.min(sh.dur, sh.t); this.lostCuts = (this.lostCuts || 0) + 1; } } else sh.lostN = 0; } }
+      if (ctx.clear && !sh.crane && !sh.kerb) { sh.chk = (sh.chk || 0) + dt; if (sh.chk > 0.55) { sh.chk = 0; if (!(ctx.clearFull || ctx.clear)(sh.pos.x, sh.pos.y, sh.pos.z, car.x, carY + 0.8, car.z)) { sh.lostN = (sh.lostN || 0) + 1; if (sh.lostN >= 2 && sh.t > 1.3) { sh.dur = Math.min(sh.dur, sh.t); this.lostCuts = (this.lostCuts || 0) + 1; } } else sh.lostN = 0; } }
       fov = sh.kerb ? Math.max(24, Math.min(62, 900 / Math.max(10, dist))) : Math.max(9, Math.min(55, 1500 / Math.max(18, dist)));
+      // (the kerb's camera: fixed, wide; up the road until the car is over it, then down the road after it - a cut, as
+      //  between two cameras - and the shot ends a second and a half on)
+      if (sh.kerb) {
+        const L = ctx.track.length; let ds = car.s - sh.s0; if (ds > L / 2) ds -= L; if (ds < -L / 2) ds += L;
+        if (ds > 1.2 && sh.pastT == null) { sh.pastT = sh.t; this._lookInit = false; }
+        tgt.copy(sh.pastT != null ? sh.lookB : sh.lookA); fov = 72;
+        if (sh.pastT != null) sh.dur = Math.min(sh.dur, sh.pastT + 1.6); else if (ds < -900 || sh.t > 14) sh.dur = Math.min(sh.dur, sh.t);
+      } else
       if (sh.other) { tgt.x = (car.x * 2 + sh.other.x) / 3; tgt.z = (car.z * 2 + sh.other.z) / 3; tgt.y = (carY * 2 + G(sh.other.x, sh.other.z)) / 3 + 0.7; fov = Math.max(fov, Math.min(55, 2400 / Math.max(18, dist))); }
     } else if (sh.kind === 'heli') {
       // (an aircraft of its own - camera/HeliCam.js: it chases the car at a helicopter's pace, drops back down the

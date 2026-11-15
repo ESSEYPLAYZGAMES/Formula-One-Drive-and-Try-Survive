@@ -134,7 +134,7 @@ export class PitCrews {
   static stops(d) {
     const out = [], P = d.pit; if (!P || d.cancelled) return out;
     for (const c of d.cars) {
-      if (c.retired) continue;
+      if (c.retired || c.dtRun || c.dtCalled) continue;   // (a drive-through: nobody comes out for it)
       const box = P.boxFor(c.boxIdx ?? c.number + c.id);
       let st = null;
       if (c._crew !== undefined) st = c._crew;   // (the theatre: a stand-in car that says itself where it is in its stop - null, 'stop' or { ahead })

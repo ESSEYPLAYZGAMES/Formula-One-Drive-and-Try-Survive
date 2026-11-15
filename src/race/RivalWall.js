@@ -41,7 +41,7 @@ export class RivalWall {
     for (const T of Y) {
       const lapsLeft = W.lapsTotal - T.lap; if (lapsLeft < 1.5) continue;
       // ---- your crew is out: a stop called, the car still on the road
-      const calling = T.pitRequested && !T.pitLane && !T.inPit;
+      const calling = T.pitRequested && !T.pitLane && !T.inPit && !T.dtCalled;   // (not a drive-through: nothing to cover)
       let call = this.calls.get(T);
       if (calling && !call && green) { call = { t: d.time, stops: T.pitStops, took: [], long: [] }; this.calls.set(T, call); this.crewOut(T, call, rivals, toEntry, lapsLeft, lapT); }
       else if (!calling && call) {
@@ -124,7 +124,7 @@ export class RivalWall {
   stopped(T, call, rivals, lapsLeft) {
     const d = this.d, W = d.world, lapT = W.lapT || 90;
     this.bitten.clear();
-    const mine = T.pitPlan?.compound || T._stopPlan?.compound || T.tyres?.compound || null;
+    const mine = T.pitPlan?.compound || T.ai?.pitPlan?.compound || T._stopPlan?.compound || T.tyres?.compound || null;
     for (const c of rivals) {
       if (call.took.includes(c) || c.pitRequested || c.pitStops !== call.stops) continue;
       const g = W.gap?.(c, T);   // (+: you were ahead of it by g) - you are in the lane now: by the order
@@ -144,9 +144,9 @@ export class RivalWall {
     if (this.scN !== sc.neutralT) { this.scN = sc.neutralT; this.scSeen.clear(); }
     const seen = this.scSeen.get(T) || {}; this.scSeen.set(T, seen);
     const te = toEntry(T), inLane = T.pitLane || T.inPit;
-    // (what you do shows when your crew is out near the entry, or when you have gone past it)
     let doing = null;
-    if (inLane || (T.pitRequested && te < 600)) doing = 'pit'; else if (seen.te != null && te > seen.te + 500 && !T.pitRequested) doing = 'stay';
+    // (staying out is read as you come up to the entry with no crew in your box: once you are past it the car behind is past its own chance)
+    if (inLane || (T.pitRequested && te < 600)) doing = 'pit'; else if (!T.pitRequested && te < 270 && te > 50) doing = 'stay';
     seen.te = te; if (!doing || seen.done) return; seen.done = true;
     const P = d.positions, me = P.indexOf(T), c = P.slice(me + 1, me + 3).find((x) => rivals.includes(x));
     if (!c) return; const a = c.ai, t = c.tyres, k = this.sharp(c), left = W.lapsTotal - c.lap;

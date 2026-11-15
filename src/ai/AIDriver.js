@@ -356,8 +356,12 @@ export class AIDriver {
     //  The weave is in the steering itself, under a second a swing: an offset on the path the car steers for came out of
     //  the path follower as no load at all, only a slower car)
     const ph = world.sc?.phase, neutral = !!this.rule?.noPass && (ph === 'sc' || ph === 'scIn' || ph === 'vsc');
+    // (only with the road under it and room either side: a car on the grass, on a kerb or at the road's edge steers
+    //  for the road and nothing else - weaving there it never got back, and spun)
+    const wRoom = Math.min(tr.hwL[c.trackIdx] - c.d, tr.hwR[c.trackIdx] + c.d), wOk = !c.offTrack && !c.onKerb && wRoom > 3.2 && Math.abs(c.vLat) < 2.2 && Math.abs(c.r) < 0.5;
     let wv = 0;
-    if (neutral && T.weave !== false && !zone && v > 12 && v < 75 && (c.tyres.temp < 0.97 || T.weave === 'always') && !this.nextCorner(70)) {
+    if (!wOk) this._wA = 0;
+    if (wOk && neutral && T.weave !== false && !zone && v > 12 && v < 75 && (c.tyres.temp < 0.97 || T.weave === 'always') && !this.nextCorner(70)) {
       wv = 1; for (let r = 0; r < P.nOthers; r++) { const R = P.others[r]; if (Math.abs(R.s0) < 8 && Math.abs(R.car.d - c.d) < 4) { wv = 0; break; } /* (alongside: the queue's 15 m gaps are room enough) */ }
     }
     this._wA = Math.max(0, Math.min(1, (this._wA || 0) + (wv ? 0.6 : -1.5) * dt));
@@ -383,7 +387,9 @@ export class AIDriver {
     const slipR = Math.atan2(c.vLat - c.r * CAR.lr, Math.max(3, Math.abs(c.vLong)));
     steer += slipR * T.csGain * (0.6 + 0.4 * c.rating);   // countersteer when the rear steps out
     if (this.error && this.error.type === 'snap' && this.error.t < 0.4) steer += this.error.sign * 0.4;
-    if (this._wA > 0) { this._wPh = ((this._wPh || 0) + dt * 0.9) % 1; steer += this._wA * 0.3 * Math.sin(2 * Math.PI * this._wPh); }   // (the weave)
+    // (the weave: a swing worth about two thirds of a g at any speed - the same lock at 150 km/h as at 60 threw the car
+    //  sideways on cold tyres - and less of it the nearer the road's edge)
+    if (this._wA > 0) { this._wPh = ((this._wPh || 0) + dt * 0.9) % 1; const amp = Math.min(0.3, 6.5 * 3.6 / (v * v * dMax)) * Math.min(1, (wRoom - 3.2) / 2.5 + 0.35); steer += this._wA * amp * Math.sin(2 * Math.PI * this._wPh); }
     c.steer += (Math.max(-1, Math.min(1, steer)) - c.steer) * Math.min(1, dt * T.steerRate);
 
     // ---- speed: the most the plan allows a moment ahead (the plan is up to 0.1 s old): flat out below it, braking
@@ -486,11 +492,11 @@ export class AIDriver {
     // lane and round again next lap (the request stands), never stopped for good. (Your car, driven in for you -
     // RaceDirector.pitTakeover: boxing - stops whatever its request says: the stop is what the takeover is for)
     const boxing = c.pitRequested || this.boxing;
-    if (boxing && c.pitLaneState === 'in' && !this.missed) {
+    if (boxing && c.pitLaneState === 'in' && !this.missed && !c.dtRun) {
       this._boxWait = v < 0.4 && Math.abs(box.u - u) < 8 ? (this._boxWait || 0) + dt : 0;
       if (u > box.u + 6 || this._boxWait > 2.5) this.missed = true;
     }
-    const stopping = boxing && c.pitLaneState !== 'out' && !this.missed;
+    const stopping = boxing && c.pitLaneState !== 'out' && !this.missed && !c.dtRun;   // (dtRun: a drive-through - the fast lane all the way, no stop)
     // turned round in the lane (a spin at the entry, a tap): it stops and the crew push it round to face down the
     // lane (in the pit lane a car is not reversed under its own power)
     const iL = Math.max(0, Math.min(ps.n - 1, Math.round(u / ps.ds)));
@@ -885,7 +891,7 @@ export class AIDriver {
       //  where it can be, as the rules want two in a dry race)
       let comp = this.nextCompound(lapsLeft);
       if (wxCall) comp = wxCall === 'SLICK' ? this.slickFor(lapsLeft) : wxCall;
-      if (c.pitStops === 0 && comp === t.compound && W < 0.3 && !wxCall) comp = comp === 'HARD' ? 'MEDIUM' : comp === 'MEDIUM' ? 'HARD' : 'MEDIUM';
+      if ((c.pitStops === 0 || (world.lapsTotal >= 8 && c.dryUsed && c.dryUsed.size < 2 && !c.usedRain)) && comp === t.compound && W < 0.3 && !wxCall) comp = comp === 'HARD' ? 'MEDIUM' : comp === 'MEDIUM' ? 'HARD' : 'MEDIUM';
       // (... and now and then a set that will not last: one softer than the race wants, it falls away before the flag)
       const softer = { HARD: 'MEDIUM', MEDIUM: 'SOFT' }[comp];
       if (softer && W < 0.3 && !wxCall && lapsLeft > cliffLaps(softer, c.raceLaps) * 1.15 && rnd() < fp * 0.6) { comp = softer; world.calls?.fault(c, 'tyre', { comp }); }

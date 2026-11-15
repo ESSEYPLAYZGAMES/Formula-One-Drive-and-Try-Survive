@@ -332,6 +332,7 @@ export class RaceDirector {
         }
         if (this.stateT >= this.lightsOutAt) {
           this.state = 'racing'; this.stateT = 0; this.world.racing = true; this.world.raceStart = this.time; this.hud?.setLights(0); this.lightsHideT = 1.2;
+          if (!this._tyres0) { this._tyres0 = true; for (const c of this.cars) { const k = c.tyres?.compound, rain = k === 'INTER' || k === 'WET'; c.dryUsed = new Set(rain || !k ? [] : [k]); c.usedRain = rain; } }   // (not at a red flag's restart: what it ran before it still counts)
           this.hud?.msg('LIGHTS OUT!', 'good', 1.6); this.audio?.beep(1200, 0.25, 0.3);
           this.engineer?.say('Lights out. Clean first lap, look after the tyres, they are cold.', 2);
           for (const c of this.cars) { c.lapStart = this.time; c.startRun = true; }   // (to Turn 1 on even terms: Car.step, speedBands)
@@ -634,12 +635,15 @@ export class RaceDirector {
     order.forEach((c, i) => {
       const a = c.ai;
       c.inPit = false; c.pitLane = false; c.pitLaneState = null; c.pitRequested = false; c.pitPlan = null; c.held = true;
+      c.pitStops++;   // (the red flag's change of tyres counts as a stop: nobody is made to stop again for the rule's sake)
       c.placeOnTrack(this.slots[i].s, this.slots[i].d, 0); c.gridSlot = this.slots[i]; c.lapDist = -(14 + 8 * i); c.jumpStart = false;
       c.repair('full'); c.drs = false; c.drsAvail = null; c.ersEnergy = 1; c.ghost = 0; c._owes = null; c._unlap = false; c._scGreen = true; c.engTemp = 0.3;
       if (a) {
         a.reaction = Infinity; a.rj = null; a.spun = false; a.defend = null; a.error = null; a.pitPlan = null; a.planner.best.n = 0; a.planner.best.spec = null;
         const left = this.lapsTotal - c.lap, soft = left <= 4, wR = this.weather ? this.weather.tyreWet : this.settings.wetness, comp = wR > 0.62 ? 'WET' : wR > 0.27 ? 'INTER' : soft ? 'SOFT' : left <= 9 ? 'MEDIUM' : 'HARD';
-        c.fitTyres(comp); c.tyres.temp = c.tyres.spec.start ?? 0.7; this.onPitDone?.(c);
+        // (a car that has run one dry compound takes another where the road is dry: the rule)
+        const comp2 = this.lapsTotal >= 8 && wR <= 0.27 && c.dryUsed && c.dryUsed.size < 2 && c.dryUsed.has(comp) ? (comp === 'HARD' ? 'MEDIUM' : comp === 'MEDIUM' ? 'HARD' : 'MEDIUM') : comp;
+        c.fitTyres(c.mgr?.redTyre || comp2); if (c.mgr) c.mgr.redTyre = null;   /* (the team principal's car: the set chosen on the pit wall under the red flag) */ c.tyres.temp = c.tyres.spec.start ?? 0.7; this.onPitDone?.(c);
       }
     });
     const p = this.player;
@@ -651,6 +655,8 @@ export class RaceDirector {
     this.engineer?.say('We restart from the grid. New tyres are on, the car is repaired. Good start now.', 3);
   }
 
+  /** the two-compound rule still owed: a race of 8 laps or more, a stop made, one dry compound run, no rain tyre, no wet race declared */
+  owesCompound(c) { return this.mode === 'race' && this.lapsTotal >= 8 && !c.retired && c.pitStops > 0 && !c.usedRain && !this.wetDeclared && !!c.dryUsed && c.dryUsed.size < 2; }
   /** wrapped distance from s=a to s=b along the lap (b ahead: positive) */
   planDs(a, b) { const L = this.track.length; let x = b - a; if (x > L / 2) x -= L; if (x < -L / 2) x += L; return x; }
   /** how far a car has raced (laps and lap distance) */
@@ -705,6 +711,7 @@ export class RaceDirector {
     const now = this.crossTime(c), t = now - c.lapStart; c.lapTimes.push(t); if (t < c.bestLap) c.bestLap = t; c.lapStart = now; c.lap++;
     if (this.mode === 'race') this.calls.lap(c);
     this.sc.onLine(c);
+    if (!this.wetDeclared && this.mode === 'race' && this.lapsTotal >= 8 && (this.weather ? this.weather.tyreWet : this.settings.wetness) > 0.45) { this.wetDeclared = true; this.sc?.say?.('WET RACE DECLARED · TWO COMPOUNDS NOT REQUIRED', 'warn', 4); }
     if (c.isPlayer && !c.finished) this.hud?.msg(`LAP ${fmt(t)}${c.lap + 1 === this.lapsTotal ? '\nFINAL LAP' : ''}`, '', 2.2);
     if (c.isPlayer && !c.finished && this.engineer) {
       const pos = this.positions, i = pos.indexOf(c); const ahead = pos[i - 1], behind = pos[i + 1];
@@ -712,11 +719,15 @@ export class RaceDirector {
       const gap = (a, b) => { const g = this.radio.gap(b, a); return g != null ? Math.abs(g) : Math.abs(a.totalDist - b.totalDist) / Math.max(12, (a.speed + b.speed) / 2); };
       // (8 laps or more: at least one stop is mandatory - reminded with two laps to go if it is still owed)
       if (this.lapsTotal >= 8 && !c.pitStops && c.lap + 2 === this.lapsTotal) this.engineer.say('Box this lap or next. We still owe the mandatory stop.', 3);
+      else if (this.owesCompound(c) && c.lap + 2 === this.lapsTotal) this.engineer.say('We have only run one dry compound. Box this lap or next for a different one, or it is thirty seconds.', 3);
       if (c.lap + 1 === this.lapsTotal) this.engineer.say(`Final lap. ${ahead ? `${ahead.short} is ${gap(ahead, c).toFixed(1)} ahead` : 'You are leading'}${behind ? `, ${behind.short} ${gap(c, behind).toFixed(1)} behind` : ''}. Bring it home.`, 3);
     }
     if (!c.finished && (c.lap >= this.lapsTotal || this.leaderFinished)) {
       // (8 laps or more and never stopped: the mandatory stop missed - 30 s added at the flag)
       if (this.mode === 'race' && this.lapsTotal >= 8 && !c.pitStops && !c.retired) this.stewards.award(c, 30, 'missed mandatory pit stop');
+      // (... and two different dry compounds, as the rules have it - unless the car ran a rain tyre, or race control
+      //  declared the race wet: 30 s too. A red flag's change of tyres is a stop, and its set a compound used.)
+      else if (this.owesCompound(c)) this.stewards.award(c, 30, 'did not use two dry compounds');
       c.finished = true; c.finishTime = this.time + c.penalties; this.finishOrder.push(c);
       if (!this.leaderFinished) { this.leaderFinished = true; this.leaderFinishTime = this.time; }
       if (c.isPlayer && !c.autopilot) { this.hud?.msg('CHEQUERED FLAG', 'good', 4); this.endTimer = 3; this.postRaceRadio(c); }
@@ -802,6 +813,7 @@ export class RaceDirector {
     //  run-off until it passes the pit wall's nose: no "pit entry" for one that cuts across and rejoins)
     if (p.pitEntered && !(P.infield && p.pitLane && p.pitI < P.infield.iB)) {
       p.pitEntered = false; p.pitLaneState = 'in'; p.boxWarned = false; p.missedBox = false;
+      p.dtRun = p.driveThrough > 0 && !!p.dtCalled;   // (in for a drive-through: down the lane and out, no stop - Stewards.driveThrough)
       if (me) p.pitRequested = false;   // (the AI keeps its request until it has stopped: it is what it drives to)
       else if (p.pitRequested) this.radio?.pitCall(p);   // (a rival near you boxing: the engineer says what it means)
       const toLine = P.limitFrom - p.pitU;
@@ -814,7 +826,10 @@ export class RaceDirector {
       else if (!p.pitLimiter && p.pitLane && p.pitU >= P.limitTo) { hud?.msg('LIMITER OFF · PIT EXIT', 'good', 1.5); E?.say('Limiter off, push to the blend line, watch for traffic.', 2); }
       p._limWas = p.pitLimiter;
     }
-    if (p.pitExited) { p.pitExited = false; p.pitEntered = false; if (p.pitLaneState) { p.pitLaneState = null; hud?.msg('REJOIN', 'good', 1.2); } }
+    if (p.pitExited) {
+      p.pitExited = false; p.pitEntered = false; if (p.pitLaneState) { p.pitLaneState = null; hud?.msg('REJOIN', 'good', 1.2); }
+      if (p.dtRun) { p.dtRun = false; p.dtCalled = false; p.driveThrough = Math.max(0, (p.driveThrough || 0) - 1); p.pitRequested = false; if (p.ai) { p.ai.pitPlan = null; p.ai.pitReason = null; } this.stewards.dtServed(p); }
+    }
     if (!p.pitLane) { if (p.pitAuto) { p.pitAuto = null; p._pull = null; } return; }
     // (driven in for you and missed anyway - stopped beside the box, pushed off it: the car is yours again at once, on
     //  down the lane - never an AI driving you on toward the exit with the stop given up)
@@ -826,7 +841,7 @@ export class RaceDirector {
       const ahead = box.u - p.pitU;
       if (!p.boxWarned && ahead < 45 && ahead > 0) { p.boxWarned = true; hud?.msg('BOX AHEAD', 'warn', 1.5); }
       const inBox = Math.abs(ahead) < 7.5 && Math.abs(p.pitLat - box.lat) < 3.2;   // anywhere on the painted box (8.8 m long) counts
-      if (inBox && p.speed < 0.4 && (me || p.pitRequested)) {
+      if (inBox && p.speed < 0.4 && (me || p.pitRequested) && !p.dtRun) {
         let plan = p.pitPlan || p.ai?.pitPlan || { compound: p.tyres.compound, repair: 'none' };
         // (an AI car's repairs are what it needs now it is in the box, not what it needed when the stop was called: a stop
         //  called for tyres under the safety car, the car damaged in the incident, came straight back in for a wing)

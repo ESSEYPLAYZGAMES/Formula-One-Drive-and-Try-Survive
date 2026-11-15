@@ -13,7 +13,7 @@ export const TCAM_FOV = 49;   // its vertical field of view (the settings' slide
                                //  sides, the city over them, a strip of sky
 export const TCAM_RISE = 0.05;   // the forward view's lens 5 cm higher on the pod: the halo's bar low in the frame, the helmet just under it
 
-const _bq = new THREE.Quaternion(), _bv = new THREE.Vector3();
+const _bq = new THREE.Quaternion(), _bv = new THREE.Vector3(), _bv2 = new THREE.Vector3();
 
 export class CockpitCamera {
   constructor(camera) {
@@ -47,7 +47,12 @@ export class CockpitCamera {
     const q = _bq.set(car.q[0], car.q[1], car.q[2], car.q[3]), tc = this.mode === 'tcam', back = !!this.back;
     const lx = tc ? TCAM_X : back ? 1.3 : 0.25, ly = (tc ? (back ? 1.30 : TCAM_Y + this.tcam.rise) : back ? 1.25 : 0.77) - 0.48;
     const pitch = tc && !back ? this.tcam.pitch : 0.02, dir = back ? -1 : 1;
-    _bv.set(lx, ly, 0).applyQuaternion(q); this.cam.position.set(car.p[0] + _bv.x, Math.max(0.12, car.p[1] + _bv.y), car.p[2] + _bv.z);
+    _bv.set(lx, ly, 0).applyQuaternion(q);
+    // (a car on its roof or its side: the T-cam's pod is the highest thing on it, so it is under the car, in the ground -
+    //  held up out of the ground it was inside the engine cover. The picture goes to the car's other camera, on the
+    //  chassis side - whichever side is the upper one - a hand's breadth out from the bodywork, at the car's middle height)
+    if (tc && car.p[1] + _bv.y < 0.22) { const zy = _bv2.set(0, 0, 1).applyQuaternion(q).y; _bv.set(lx + (back ? -0.4 : 0.5), 0, (zy >= 0 ? 1 : -1) * 1.08).applyQuaternion(q); }
+    this.cam.position.set(car.p[0] + _bv.x, Math.max(0.14, car.p[1] + _bv.y), car.p[2] + _bv.z);
     this.cam.up.set(0, 1, 0).applyQuaternion(q);
     _bv.set(dir * Math.cos(pitch) * 25, -Math.sin(pitch) * 25, 0).applyQuaternion(q); this._look.copy(this.cam.position).add(_bv); this.cam.lookAt(this._look);
     // (the T-cam's lens is fixed; the driver's eyes keep the widening that speed gives them, eased as the car slows)
@@ -82,6 +87,8 @@ export class CockpitCamera {
   }
 
   update(car, dt, track) {
+    // (onboardOnly - the team principal's broadcast: there is no camera that follows a car there, whatever asked for one)
+    if (this.onboardOnly && this.mode !== 'cockpit' && this.mode !== 'tcam') this.mode = 'tcam';
     this.t += dt;
     this.look += (this.lookIn - this.look) * Math.min(1, dt * 7);
     if (Math.abs(this.look) < 1e-3 && this.lookIn === 0) this.look = 0;

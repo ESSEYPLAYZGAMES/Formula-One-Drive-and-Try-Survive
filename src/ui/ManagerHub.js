@@ -11,7 +11,7 @@ import { TECH_CSS, techHTML, techClick } from './HubTech.js';
 import { ManagerCareer, TRACKS_ALL, COST_CAP, PRIZE, TIER_NAME, TIER_BUDGET, RACE_INCOME, POINT_INCOME, STAFF_ROLES, askOf } from '../career/Manager.js';
 import { techEffects, UP, upgradeName, partsCount } from '../career/TechTree.js';
 import { EXTRA_TABS, extraHTML, extraClick, homeExtra } from './ManagerHub2.js';
-import { STORY_TABS, storyHTML, storyHome, storyAct, storyPump } from './ManagerHub3.js';
+import { STORY_TABS, storyHTML, storyHome, storyAct, storyPump, storyAmbientPlay } from './ManagerHub3.js';
 import { ERA_TABS, eraHTML, eraHome, eraClick, driversHTML } from './ManagerHub4.js';
 import { storySigning, storyReleased, storyShown, storyApply } from '../career/ManagerStory.js';
 import { PU, SPARES, allocOf, fitNew, orderSpare, FAC, FAC_MAX, facCost, facRounds, facFx, facUpgrade, facMaintain, maintCost, SPONSOR_SLOTS, acceptOdds, propose, sponsorTargets, marketability } from '../career/ManagerOps.js';
@@ -104,13 +104,13 @@ export function openManagerHub(o) {
   H.o = o; H.c = o.career || null; H.msg = null; if (!H.c) H.tab = 'new'; else if (H.tab === 'new') H.tab = 'home';
   if (!document.getElementById('mgr-css')) { const st = document.createElement('style'); st.id = 'mgr-css'; st.textContent = CSS + TECH_CSS.replaceAll('#career', '#mgr .fac'); document.head.appendChild(st); }
   if (!el) { el = document.createElement('div'); el.id = 'mgr'; el.addEventListener('click', onClick); document.body.appendChild(el); let rt = 0; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if (el && !el.classList.contains('hidden')) pack(); }, 120); }); }
-  el.style.display = 'flex'; render(); pump();
+  el.style.display = 'flex'; H.shown = 0; render(); pump();
 }
 /** the story's scenes that play themselves on coming back to the HQ (ui/ManagerHub3.js; o.play shows one) */
 let pumping = false;
 function pump() {
   if (!H.c || !H.o.play || pumping) return; pumping = true;
-  storyPump(H.c, H.o.play).then((lines) => { pumping = false; if (lines.length) say(lines[lines.length - 1]); if (managerHubOpen()) render(); }, () => { pumping = false; });
+  storyPump(H.c, H.o.play).then((lines) => { pumping = false; H.shown = (H.shown || 0) + (lines.n || 0); if (lines.length) say(lines[lines.length - 1]); if (managerHubOpen()) render(); }, () => { pumping = false; });
 }
 /** a scene asked for from a page (a matter watched, a signing): shown, then the page drawn again with what it said */
 function scene(p) { pumping = true; p.then((t) => { pumping = false; if (t) say(t); if (managerHubOpen()) render(); }, () => { pumping = false; }); }
@@ -292,7 +292,12 @@ function say(text, ok = true) { H.msg = text; H.ok = ok; }
 function onClick(e) {
   const b = e.target.closest('button'); if (!b || b.disabled) return;
   const c = H.c, d = b.dataset;
-  if (d.tab) { H.tab = d.tab; H.msg = null; render(); el.querySelector('.m-mb')?.scrollTo(0, 0); return; }
+  if (d.tab) {
+    H.tab = d.tab; H.msg = null; render(); el.querySelector('.m-mb')?.scrollTo(0, 0);
+    // (a matter that belongs to this page comes up here, a moment after the page has: no button asks - ui/ManagerHub3.js storyAmbientPlay)
+    if (H.c && H.o.play && !pumping) { const tab = H.tab; clearTimeout(H.ambT); H.ambT = setTimeout(() => { if (!managerHubOpen() || H.tab !== tab || pumping) return; const p = storyAmbientPlay(H.c, tab, H.o.play, H.shown || 0); if (p) { H.shown = (H.shown || 0) + 1; scene(p); } }, 650); }
+    return;
+  }
   // (the factory: the tech tree's own buttons - ui/HubTech.js)
   if (H.tab === 'fac' && c && Object.keys(d).some((k) => /^t(br|up|dp|lv|dev|re|req)$/.test(k))) {
     const r = techClick(c, d, H.S); if (r) { H.S = r.S || H.S; if (r.S?.tmsg) say(r.S.tmsg, !!r.S.tok); else H.msg = null; render(); }

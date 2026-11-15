@@ -4,7 +4,7 @@
 // trophy room (a room to walk round: what the team has won). A scene is seen once, when it happens: there is no list
 // of them to play again. And the pump: the scenes that
 // play themselves when you come back to the HQ (the story's budget decides which: at most one, unless it cannot wait).
-import { inboxOf, storyQueue, storyShown, storyApply, storyLodge, storyRumour, storyEnsure, rivalriesOf, trophiesOf, baseCtx, obeyChance, traitOf, TRAITS } from '../career/ManagerStory.js';
+import { inboxOf, storyQueue, storyShown, storyApply, storyAmbient, storyAmbientShown, storyLodge, storyRumour, storyEnsure, rivalriesOf, trophiesOf, baseCtx, obeyChance, traitOf, TRAITS } from '../career/ManagerStory.js';
 import { STYLES } from '../career/StoryLines.js';
 
 export const STORY_TABS = [['story', 'STORY']];
@@ -17,12 +17,12 @@ function matterHTML(c, m) {
   const due = m.due != null && m.due < 90 ? (m.due <= c.round ? 'Decides itself at the next race' : `Before round ${m.due + 1}`) : '';
   const ops = (m.options || []).map((o) => `<button data-a="stpick" data-v="${esc(m.key)}|${esc(o.id)}" title="${esc(o.hint || '')}">${esc(o.label)}</button>`).join('');
   return `<div class="m-drv" style="align-items:flex-start"><div class="m-nm"><b>${esc(m.title)}</b><small>${esc(m.text || '')}</small><small style="color:#8a93a0">${esc(SCENE[m.scene] || '')}${due ? ` · ${due}` : ''}</small>
-    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">${m.pre ? '' : `<button class="m-go" data-a="stwatch" data-v="${esc(m.key)}" style="padding:6px 12px">▶ WATCH</button>`}${ops}</div></div></div>`;
+    ${ops ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">${ops}</div>` : ''}</div></div>`;
 }
 export function storyHTML(c, tab) {
   if (tab !== 'story') return null;
   const S = storyEnsure(c), box = inboxOf(c), my = c.seatsOf(c.myTeam), won = trophiesOf(c);
-  const inbox = `<div class="m-card" style="grid-column:1/-1"><h3>Waiting for you${box.length ? ` · ${box.length}` : ''}</h3>${box.length ? box.map((m) => matterHTML(c, m)).join('') : note('Nothing. Enjoy it.')}${note('Watch a matter as its scene and answer in it - what you say along the way counts too - or decide it here in a line. Left alone, each decides itself, the cautious way.')}</div>`;
+  const inbox = `<div class="m-card" style="grid-column:1/-1"><h3>Waiting for you${box.length ? ` · ${box.length}` : ''}</h3>${box.length ? box.map((m) => matterHTML(c, m)).join('') : note('Nothing. Enjoy it.')}${note('A matter comes up in person where it belongs - in the garage, the boardroom, the press room - when you are next there, one at a time; what you say in it counts. Or decide it here in a line. Left alone, each decides itself, the cautious way.')}</div>`;
   const mood = `<div class="m-card"><h3>The mood</h3>
     <div class="m-drv"><div class="m-nm"><b>The fans</b><small>${S.fans >= 65 ? 'With you: the stands are full of your colours.' : S.fans >= 40 ? 'Watching. Waiting.' : 'Restless. They have started to boo.'}</small></div><div style="width:38%">${bar(S.fans / 100)}</div></div>
     <div class="m-drv"><div class="m-nm"><b>Your word</b><small>${S.cred >= 65 ? 'The press believe what you tell them.' : S.cred >= 40 ? 'Taken with a pinch of salt.' : 'Nobody writes down what you say any more.'}</small></div><div style="width:38%">${bar(S.cred / 100)}</div></div>
@@ -54,9 +54,14 @@ export function storyAct(c, a, v, play) {
     return '';
   })();
 }
+/** a matter that belongs to the page just opened, coming up there (the story's own budget: storyAmbient) -> Promise<a line | ''> | null: none */
+export function storyAmbientPlay(c, tab, play, shownThisVisit) {
+  const m = storyAmbient(c, tab, shownThisVisit); if (!m) return null;
+  return (async () => { const res = await play(m.scene, m.ctx); if (res?.failed) return ''; storyShown(c, m.key); storyAmbientShown(c); return storyApply(c, m.key, res || {}) || ''; })();
+}
 /** the scenes that play themselves now, one after another -> Promise<[lines]> */
 export async function storyPump(c, play) {
   const out = [];
-  for (const m of storyQueue(c)) { if (m.done) continue; const res = await play(m.scene, m.ctx); storyShown(c, m.key); const t = storyApply(c, m.key, res?.failed ? {} : res || {}); if (t) out.push(t); }
+  for (const m of storyQueue(c)) { if (m.done) continue; const res = await play(m.scene, m.ctx); storyShown(c, m.key); out.n = (out.n || 0) + 1; const t = storyApply(c, m.key, res?.failed ? {} : res || {}); if (t) out.push(t); }
   return out;
 }
