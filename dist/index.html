@@ -602,7 +602,7 @@ body.tp #hud-msg { top: 30%; }
     <div class="brand-line"></div>
     <h1 id="brand-title">FORMULA 1<span id="brand-sub">SIMULATOR</span></h1>
     <!-- the build's version: +0.01 with every build handed out -->
-    <span id="app-ver" title="Version">V2.71</span>
+    <span id="app-ver" title="Version">V2.72</span>
     <div id="menu-sub">Real circuits built from OpenStreetMap</div>
   </div>
   <div id="loading" class="hidden"><div class="ld"><i></i></div><span>Building the circuit from OpenStreetMap…</span></div>
@@ -156652,9 +156652,10 @@ class TVExtras {
     const P = d.positions, racing = d.world.racing && !d.done, mine = (c) => (ctx.focus || []).includes(c), gap = (a, b) => d.radio?.gap?.(a, b);
     const onTrack = (c) => c && !c.retired && !c.finished && !c.inPit && !c.pitLane && !c.isSC && !c.hiddenAway;
     // the onboard's strip: live, every frame
-    const sh = ctx.shot, ob = sh && (sh.kind === 'tcam' || sh.kind === 'rear') && sh.car && !ctx.halted;
+    // (a camera on the safety car's tail: the strip is the car behind it's - the safety car has no place in the race, no laps, no DRS)
+    const sh = ctx.shot, tc = sh?.car?.isSC ? sh.other : sh?.car, ob = sh && (sh.kind === 'tcam' || sh.kind === 'rear') && tc && !tc.isSC && !ctx.halted;
     this.tel.classList.toggle('on', !!ob);
-    if (ob) { const c = sh.car, k = Math.round(Math.abs(c.speed) * 3.6); const b = this.tel.querySelector('.sp2 b'); if (b.textContent !== String(k)) b.textContent = k; const g = this.tel.querySelector('.gr'); if (g.textContent !== String(c.gear || 1)) g.textContent = c.gear || 1; const I = this.tel.querySelectorAll('.bars i'); I[0].style.transform = `scaleX(${Math.max(0, Math.min(1, c.throttle || 0)).toFixed(2)})`; I[1].style.transform = `scaleX(${Math.max(0, Math.min(1, c.brake || 0)).toFixed(2)})`; this.tel.querySelector('.drs').classList.toggle('on', !!c.drs); }
+    if (ob) { const c = tc, k = Math.round(Math.abs(c.speed) * 3.6); const b = this.tel.querySelector('.sp2 b'); if (b.textContent !== String(k)) b.textContent = k; const g = this.tel.querySelector('.gr'); if (g.textContent !== String(c.gear || 1)) g.textContent = c.gear || 1; const I = this.tel.querySelectorAll('.bars i'); I[0].style.transform = `scaleX(${Math.max(0, Math.min(1, c.throttle || 0)).toFixed(2)})`; I[1].style.transform = `scaleX(${Math.max(0, Math.min(1, c.brake || 0)).toFixed(2)})`; this.tel.querySelector('.drs').classList.toggle('on', !!c.drs); }
     // the replay's offer: its clock
     if (this.offer) { const left = 1 - (performance.now() - this.offer.shown) / 7000; this.rpo.querySelector('i').style.transform = `scaleX(${Math.max(0, left)})`; if (left <= 0) { this.offer = null; this.rpo.classList.remove('in'); } }
     if (ctx.halted) return;

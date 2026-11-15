@@ -1,3 +1,16 @@
+# V2.72 (2026-11-15): the safety car has no place, no laps, no DRS
+
+Asked for: "well it shouldnt have laps or a postion should it now" (the card under the safety car's rear camera read
+P0 · SAFETY CAR · -100 LAPS).
+
+- The card under a camera carried by the safety car is the car behind it's - the leader's place, tyres, best lap
+  (ui/TVGraphics.js; in V2.71's code, but the picture sent with it was taken before it). With nobody behind it:
+  no card.
+- The onboard's speed strip did the same - the safety car's speed, gear and a DRS light: the leader's now, and off
+  when there is no car behind (ui/TVExtras.js).
+- Checked in the game's own loop at Las Vegas: REAR with the leader followed - the card P1 MAX VERSTAPPEN, 0 LAPS,
+  BEST 1:51.154; the strip his 100 km/h (the safety car at 98).
+
 # V2.71 (2026-11-15): the safety car comes out ahead of the leader; its cameras
 
 Asked for: "It does this glitch too where the cars go past the safety car once for no reason and only later catch
