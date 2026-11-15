@@ -95,10 +95,11 @@ export class TVGraphics {
   /** a cut (camera/TVDirector.js): the caption for the car on screen, or the fight */
   cut(sh, d) {
     if (!sh || !d || sh.why === 'grid') return;
-    const c = sh.car, P = d.positions, o = sh.other;
+    // (a camera carried by the safety car - its tail's, looking back: the card is the car behind it's, not the safety car's "P0, -100 laps")
+    const sw = sh.car?.isSC && sh.why !== 'sc' && sh.why !== 'red', c = sw ? sh.other : sh.car, P = d.positions, o = sw ? null : sh.other; if (!c) return;
     const tyre = (x) => { const k = x.tyres?.compound || 'SOFT'; return `<span class="ty2" style="border-color:${COMPOUNDS[k]?.color || '#fff'}">${LETTER[k] || '?'}</span>`; };
     let html;
-    if (sh.why === 'sc' || sh.why === 'red') { this.capEl.innerHTML = `<div class="cp" style="background:${sh.why === 'red' ? '#e10600' : '#ffd400'};color:${sh.why === 'red' ? '#fff' : '#111'}">${sh.why === 'red' ? 'RED' : 'SC'}</div><div class="cn"><b>${sh.why === 'red' ? 'Race suspended' : 'The safety car'}</b><small>${sh.why === 'red' ? 'the field returns to the grid' : o ? `leads ${surname(o)} and the field` : 'on the circuit'}</small></div>`; this.capEl.classList.add('in'); this.capT = 4.5; return; }
+    if (sh.why === 'sc' || sh.why === 'red') { this.capEl.innerHTML = `<div class="cp" style="background:${sh.why === 'red' ? '#e10600' : '#ffd400'};color:${sh.why === 'red' ? '#fff' : '#111'}">${sh.why === 'red' ? 'RED' : 'SC'}</div><div class="cn"><b>${sh.why === 'red' ? 'Race suspended' : 'The safety car'}</b><small>${sh.why === 'red' ? 'the field returns to the grid' : (() => { const l = [o, c].find((x) => x && !x.isSC); return l ? `leads ${surname(l)} and the field` : 'on the circuit'; })()}</small></div>`; this.capEl.classList.add('in'); this.capT = 4.5; return; }
     if (o && sh.why === 'battle') {
       const front = P.indexOf(c) < P.indexOf(o) ? c : o, back = front === c ? o : c, g = d.radio?.gap?.(back, front);
       html = `<div class="cp">P${P.indexOf(front) + 1}</div><div class="cb" style="background:${front.color}"></div><div class="cn"><b>${surname(front)}</b><small>${front.team || ''}</small></div>`

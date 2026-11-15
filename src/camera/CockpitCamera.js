@@ -66,6 +66,13 @@ export class CockpitCamera {
     if (this.mode === 'cockpit') {
       this.cam.position.set(car.x + 1.3 * c, 1.25, car.z + 1.3 * s);
       this.cam.lookAt(car.x - 30 * c, 0.5, car.z - 30 * s);
+    } else if (this.mode === 'tcam' && car.isSC) {
+      // (the safety car: a road car, with no pod over an airbox - there the lens sat inside its tail, behind the
+      //  spoiler. Its rear camera is on the tail itself, just behind the bumper and under the spoiler's line: nothing
+      //  of the car in the frame, the leader filling it)
+      const by = (car.hv || 0) - 2.3 * (car.pt || 0);
+      this.cam.position.set(car.x - 2.48 * c, 0.92 + by, car.z - 2.48 * s);
+      this.cam.lookAt(car.x - 30 * c, 0.72 + by, car.z - 30 * s); fov = 56;
     } else if (this.mode === 'tcam') {
       // the rear-facing lens on the same pod, on its top (1.30 m) and riding with the body: the airbox's top is 1.18 m just
       //  behind the pod and the engine cover 1.06 m from 0.3 m back, so nothing of the car comes inside the 0.3 m near

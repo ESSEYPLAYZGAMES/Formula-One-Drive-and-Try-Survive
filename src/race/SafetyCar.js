@@ -6,11 +6,13 @@
 //  * Then race control decides: a car beside the track is a Virtual Safety Car (everyone holds a delta speed, no
 //    overtaking), a car on the racing surface (or more than one) is a Safety Car.
 //  * The Safety Car is a real car, there all race: parked at the end of the pit lane (in the working lane past the
-//    last garage, facing the exit, lights off), out of the way of anyone leaving the pits. On the call it pulls away at
-//    once, orange lights flashing, and joins the circuit wherever the leader is - it never waits for it. It holds a
-//    steady, slow pace ahead of whatever comes up behind it: a car that is not the leader gets the green lights and is
-//    waved by (it goes past and on at speed to catch the back of the pack); that repeats until the leader is the first
-//    car behind it - then orange again, and nobody passes it.
+//    last garage, facing the exit, lights off), out of the way of anyone leaving the pits. On the call its lights come
+//    on and it WAITS there for the leader (holdTick): it pulls away so as to join the circuit just ahead of him, with
+//    nobody between them - the field is on the delta meanwhile, so nothing is lost - and he is picked up at once.
+//    (It used to leave at once, wherever the leader was: half the field came up behind it first, was waved by, and
+//    only a lap later did the leader arrive - which looked like cars overtaking the safety car for no reason.) If the
+//    leader does not come round in a lap and a bit it goes anyway, and then a car that is not the leader gets the
+//    green lights and is waved by, until the leader is the first car behind it.
 //  * From the call every car runs the Safety Car delta (about a third slower than a racing lap; a car far off the back
 //    of the queue a little quicker) until it has caught the queue, then it simply follows the car ahead: the delta is
 //    quicker than the queue, so the field closes up into one line behind the safety car. No overtaking (a place taken
@@ -56,6 +58,7 @@ export class SafetyCar {
     // body: the safety car itself, there all race (parked at the pit exit, or out on the circuit); car: the same car
     // while it is out - driven, simulated with the field, in world.cars - else null
     this.body = null; this.car = null; this.driver = null; this.parked = false; this.laneMode = null; this.lights = 'off';
+    this.holdOut = false;             // called, its lights on, waiting in its bay for the leader to come round
     this.scanT = 0; this.passT = 0; this.order = new Map();
     this.count = { sc: 0, vsc: 0 };
     this.playerDelta = 0; this.deltaWarned = false;
@@ -81,7 +84,7 @@ export class SafetyCar {
   update(dt) {
     const d = this.d; if (!this.enabled) return;
     if (!this.body && d.pit) this.makeBody();   // (parked at the pit exit from the start)
-    if (!d.world.racing || d.done) { this.lights = this.car ? this.lightState() : 'off'; return; }
+    if (!d.world.racing || d.done) { this.lights = this.car || this.holdOut ? this.lightState() : 'off'; return; }
     this.t += dt;
     this.scanT -= dt; if (this.scanT <= 0) { this.scanT = 0.5; this.scan(); }
     this.clearT = this.incidentLive() ? 0 : (this.clearT || 0) + dt;
@@ -108,6 +111,7 @@ export class SafetyCar {
         break;
       case 'sc': {
         const leader = this.leader(), finalLap = leader && leader.lap + 1 >= d.lapsTotal;
+        if (this.holdOut) this.holdTick(leader);
         const onRoad = this.car && !this.laneMode && !this.car.pitLane;
         const toPit = onRoad ? this.ds(this.car.s, d.pit ? d.pit.entryS : 0) : 0;
         const clear = this.clear();
@@ -138,7 +142,7 @@ export class SafetyCar {
       }
     }
     if (this.car) this.driveCar(dt);
-    this.lights = this.car ? this.lightState() : 'off';
+    this.lights = this.car || this.holdOut ? this.lightState() : 'off';
     if (this.restricted()) { this.passT -= dt; if (this.passT <= 0) { this.passT = 0.25; this.checkPasses(); } } else this.order.clear();
     this.playerRules(dt);
   }
@@ -148,6 +152,7 @@ export class SafetyCar {
    * the car behind it by - that car is not the leader), 'off' (parked, "in this lap", on its way back in)
    */
   lightState() {
+    if (this.holdOut && this.phase === 'sc') return 'amber';   // (called, and waiting in its bay for the leader)
     if (!this.car || this.parked || this.phase !== 'sc') return 'off';
     if (!this.picked && !this.laneMode && !this.car.pitLane && this.behind && this.behindX < 300 && this.behind !== this.leader()) return 'green';
     return 'amber';
@@ -167,6 +172,7 @@ export class SafetyCar {
     this.behind = first; this.behindX = fx;
     if (onRoad && !this._outSaid && this.phase === 'sc') {
       this._outSaid = true; const lead = this.leader();
+      if (this._launchT != null) { this._tOutSeen = d.time - this._launchT; this._launchT = null; }   // (bay to circuit, timed: the next call's wait is set by it)
       this.note(`SC on track ahead of ${first ? first.short : '-'} (${Math.round(fx)} m back), leader ${lead ? lead.short : '-'} ${lead ? Math.round(this.ds(lead.s, c.s)) : '-'} m behind it`);
     }
     // the leader picked up: the first running car behind the safety car (within 400 m) is the leader. Until then the
@@ -316,8 +322,39 @@ export class SafetyCar {
       else this._outSaid = !this.car.pitLane && !this.laneMode;
       return;
     }
-    // it leaves at once, from where it is parked at the end of the pit lane - wherever the leader is
-    if (this.body) this.launch(); else this.spawnCar();
+    // from where it is parked at the end of the pit lane: when the leader is coming (holdTick) - at once, if he is now
+    if (this.body) { this.holdOut = true; this.lights = 'amber'; this.holdTick(this.leader()); } else this.spawnCar();
+  }
+  /**
+   * Called, and waiting in its bay: it pulls away when the LEADER is the next car to reach the pit exit and far enough
+   * back that it joins a couple of hundred metres ahead of him - and every car ahead of him on the road will be past the exit before
+   * it is out (those run on, round to the back of the queue). So the first car behind it is the leader, and nobody
+   * goes by it. A lap and a bit with no such moment (the leader in the pits, a car that will not get out of the
+   * way): it goes anyway, and waves by what it must.
+   */
+  holdTick(lead0) {
+    const d = this.d, P = d.pit, ex = this.exitS(), waited = d.time - this.deployT;
+    // (the leader it waits for is the first car on the road that is STAYING on it: under a safety car the leaders
+    //  dive for the pit lane a few hundred metres short of the exit, one after another - waited for, none of them
+    //  ever arrived. Nobody on the road who is staying out - the whole field stopping: it goes at once, and the first
+    //  car out of the pit lane behind it is the leader)
+    const on = (o) => !o.retired && !o.finished && !o.pitLane && !o.inPit && o.speed > 5, lead = d.positions.find((o) => on(o) && !o.pitRequested) || null;
+    let go = !P || ex == null || !lead || waited > d.track.length / 45 + 25 || d.lapsTotal - (lead0 ? lead0.lap : 0) <= 1;
+    if (!go) {
+      // (how long it takes from its bay to the circuit: on the limiter to the line, then away down the exit road -
+      //  or, once it has done it this race, the time that took)
+      const K = this.parkSpot(), lim = Math.max(8, P.limiter || 22), dA = Math.max(0, Math.min(P.limitTo ?? P.mergeU, P.mergeU) - K.u), dB = Math.max(0, P.mergeU - K.u - dA), vB = Math.min(60, Math.sqrt(lim * lim + 2 * 7 * dB));
+      const tOut = this._tOutSeen ?? 1.2 + dA / lim + dB / ((lim + vB) / 2), x = this.ds(lead.s, ex), need = Math.max(20, lead.speed) * tOut;
+      if (x > need + 90 && x < need + 240) {
+        go = true;
+        for (const o of d.cars) { if (o === lead || !on(o) || o.pitRequested) continue; const xo = this.ds(o.s, ex); if (xo < x && xo > Math.max(20, o.speed) * tOut - 25) { go = false; break; } }
+        // (nor into a car coming down the pit lane to the exit: it would wait for that one in its bay, or follow it out -
+        //  and join behind the leader it was timed for)
+        if (go) for (const o of d.cars) { if (!o.pitLane || o.held || o.retired || o.speed < 4) continue; const qo = P.nearest(o.x, o.z, this._lh || (this._lh = {})); if (qo.u > K.u - 70 && qo.u < P.mergeU + 5) { go = false; break; } }
+      }
+    }
+    if (!go) return;
+    this.holdOut = false; this.note(`SC waited ${Math.round(waited)} s for the leader`); this.launch();
   }
   /** where the pit lane meets the circuit again (track s) */
   exitS() {
@@ -363,7 +400,7 @@ export class SafetyCar {
     const d = this.d, c = this.body; this.parkBody();
     this.parked = false; this.laneMode = 'out'; c.brake = 0;
     c.lapDist = 0; c.lapStart = d.time; c.ghost = 0;
-    this.car = c; this.makeDriver();
+    this.car = c; this.makeDriver(); this._launchT = d.time;
     this.note('SC leaves the pit lane');
   }
   makeDriver() {
@@ -386,6 +423,7 @@ export class SafetyCar {
   }
   /** off the circuit: back in its bay at the pit exit (or, with no pit lane, gone) */
   removeCar() {
+    this.holdOut = false;
     if (!this.car) return;
     const c = this.car; this.car = null; this.driver = null;
     this.d.simCars = null; this.d.world.cars = this.d.cars;

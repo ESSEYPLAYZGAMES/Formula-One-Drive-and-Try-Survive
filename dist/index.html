@@ -602,7 +602,7 @@ body.tp #hud-msg { top: 30%; }
     <div class="brand-line"></div>
     <h1 id="brand-title">FORMULA 1<span id="brand-sub">SIMULATOR</span></h1>
     <!-- the build's version: +0.01 with every build handed out -->
-    <span id="app-ver" title="Version">V2.70</span>
+    <span id="app-ver" title="Version">V2.71</span>
     <div id="menu-sub">Real circuits built from OpenStreetMap</div>
   </div>
   <div id="loading" class="hidden"><div class="ld"><i></i></div><span>Building the circuit from OpenStreetMap…</span></div>
@@ -83742,6 +83742,13 @@ class CockpitCamera {
     if (this.mode === 'cockpit') {
       this.cam.position.set(car.x + 1.3 * c, 1.25, car.z + 1.3 * s);
       this.cam.lookAt(car.x - 30 * c, 0.5, car.z - 30 * s);
+    } else if (this.mode === 'tcam' && car.isSC) {
+      // (the safety car: a road car, with no pod over an airbox - there the lens sat inside its tail, behind the
+      //  spoiler. Its rear camera is on the tail itself, just behind the bumper and under the spoiler's line: nothing
+      //  of the car in the frame, the leader filling it)
+      const by = (car.hv || 0) - 2.3 * (car.pt || 0);
+      this.cam.position.set(car.x - 2.48 * c, 0.92 + by, car.z - 2.48 * s);
+      this.cam.lookAt(car.x - 30 * c, 0.72 + by, car.z - 30 * s); fov = 56;
     } else if (this.mode === 'tcam') {
       // the rear-facing lens on the same pod, on its top (1.30 m) and riding with the body: the airbox's top is 1.18 m just
       //  behind the pod and the engine cover 1.06 m from 0.3 m back, so nothing of the car comes inside the 0.3 m near
@@ -147416,7 +147423,12 @@ class TVDirector {
     // (the safety car's own feed: the car itself at the head of the queue, the stops under it, the wreck that called
     //  it - no "battles": nobody may pass; the red flag's: the cars stopped, the leader, yours)
     const ph = d.sc?.phase || 'green', neutral = ph === 'sc' || ph === 'scIn' || ph === 'vsc' || ph === 'vscEnd' || ph === 'red';
-    if ((ph === 'sc' || ph === 'scIn') && d.sc.car && !d.sc.car.pitLane) out.push({ car: d.sc.car, other: P.find((c) => onTrack(c)) || null, score: 19 + ((this.cuts * 0.618034) % 1) * 6, why: 'sc' });
+    if ((ph === 'sc' || ph === 'scIn') && d.sc.car && !d.sc.car.pitLane) {
+      // (the leader is in its picture only when he is right behind it: before he is picked up the two may be half a
+      //  lap apart, and a camera aimed between them shows neither)
+      const lead = P.find((c) => onTrack(c)) || null, gap = lead ? d.planDs(lead.s, d.sc.car.s) : 1e9;
+      out.push({ car: d.sc.car, other: gap > 0 && gap < 200 ? lead : null, score: 19 + ((this.cuts * 0.618034) % 1) * 6, why: 'sc' });
+    }
     if (ph === 'red') { const l0 = P.find((c) => !c.retired); if (l0) out.push({ car: l0, score: 18, why: 'red' }); }
     // the start: the pack off the line, from the helicopter behind it
     if (d.world.racing && d.mode === 'race' && P[0] && (P.find((c) => !c.retired)?.lap || 0) === 0 && d.time - (d.world.raceStart ?? d.time) < 8 && !(d.sc?.redCount > 0)) out.push({ car: P[0], score: 46, why: 'start' });
@@ -147485,8 +147497,9 @@ class TVDirector {
     //  the car is; heights are above that ground, never above zero)
     const G = (x, z) => (ctx.ground ? ctx.ground(x, z) : 0), cy = (c) => G(c.x, c.z) + ((c.air || c.wreck) && c.p ? Math.max(0, c.p[1]) : 0);
     // (the rear onboard is the car ahead's, the one behind in its mirror)
-    const subject = kind === 'rear' && st.other ? st.other : car;
-    const sh = { kind, car: subject, other: kind === 'rear' ? car : st.other || null, why: st.why, t: 0, dur: st.why === 'grid' ? 7 : st.why === 'start' ? 8 : st.view ? st.view.dur || 4.2 : kind === 'crowd' ? 3.2 : kind === 'garage' ? 4.2 : kind === 'beauty' ? 5 : st.urgent ? 7 : 5 + ((this.cuts * 0.3819) % 1) * 4, s0: 0, side: 1, h: 6 };
+    // (the safety car's story: REAR is from its own tail, the leader behind it; an onboard is the leader's - it has none)
+    const subject = st.why === 'sc' ? ((kind === 'tcam' || kind === 'helmet') && st.other ? st.other : car) : kind === 'rear' && st.other ? st.other : car;
+    const sh = { kind, car: subject, other: st.why === 'sc' ? (subject === car ? st.other || null : car) : kind === 'rear' ? car : st.other || null, why: st.why, t: 0, dur: st.why === 'grid' ? 7 : st.why === 'start' ? 8 : st.view ? st.view.dur || 4.2 : kind === 'crowd' ? 3.2 : kind === 'garage' ? 4.2 : kind === 'beauty' ? 5 : st.urgent ? 7 : 5 + ((this.cuts * 0.3819) % 1) * 4, s0: 0, side: 1, h: 6 };
     if (st.away) this.awayNext = this.t + sh.dur + 4;
     // ---- the kerb camera: in the kerb at the apex of the next corner, the cars coming at it. No corner near, or no view
     //      from it (a wall on the kerb): a trackside camera instead
@@ -147633,8 +147646,12 @@ class TVDirector {
     let want = null;
     if (this.followCar && !gone(this.followCar)) {
       // a car followed: its own story (in the pits, in a fight) - the cameras still cut round it
-      const S = this.stories(ctx).filter((x) => x.car === this.followCar || x.other === this.followCar).sort((a, b) => b.score - a.score);
+      // (not the safety car's story: following the leader behind it put the safety car in the picture and the
+      //  camera between the two. The car followed is the picture; only the REAR camera asked for looks back at it
+      //  from the safety car's tail, when that is the car right ahead)
+      const S = this.stories(ctx).filter((x) => x.why !== 'sc' && (x.car === this.followCar || x.other === this.followCar)).sort((a, b) => b.score - a.score);
       want = S[0] ? { ...S[0], car: this.followCar, other: S[0].car === this.followCar ? S[0].other : S[0].car } : { car: this.followCar, score: 1, why: 'team' };
+      if (!want.other && this.camKind === 'rear') { const sc = d.sc?.car, g = sc && !sc.pitLane ? d.planDs(this.followCar.s, sc.s) : -1; if (g > 0 && g < 160 && !d.cars.some((o) => o !== this.followCar && !o.retired && !o.pitLane && d.planDs(this.followCar.s, o.s) > 0 && d.planDs(this.followCar.s, o.s) < g)) want.other = sc; }
       if (want.why === 'battle' && want.other && d.positions.indexOf(want.other) > d.positions.indexOf(this.followCar)) {
         // (the car followed is the one ahead: the fight is the one behind it attacking)
         want = { ...want, car: want.other, other: this.followCar };
@@ -147651,7 +147668,8 @@ class TVDirector {
     if (ended || urgent || (this.followCar && sh && sh.car !== want.car && sh.other !== want.car && sh.car !== this.followCar)) this.cut(ctx, want);
     this.shot.t += dt;
     this.place(dt, ctx);
-    return this.shot.car;
+    // (the car the picture is ABOUT - the timing under it, the sound: the camera on the safety car's tail is the leader's shot, not the safety car's)
+    return this.shot.car?.isSC && this.shot.other ? this.shot.other : this.shot.car;
   }
   /** a trackside shot: the car has gone by the camera, and on */
   passed(ctx, sh) {
@@ -148175,10 +148193,11 @@ class TVGraphics {
   /** a cut (camera/TVDirector.js): the caption for the car on screen, or the fight */
   cut(sh, d) {
     if (!sh || !d || sh.why === 'grid') return;
-    const c = sh.car, P = d.positions, o = sh.other;
+    // (a camera carried by the safety car - its tail's, looking back: the card is the car behind it's, not the safety car's "P0, -100 laps")
+    const sw = sh.car?.isSC && sh.why !== 'sc' && sh.why !== 'red', c = sw ? sh.other : sh.car, P = d.positions, o = sw ? null : sh.other; if (!c) return;
     const tyre = (x) => { const k = x.tyres?.compound || 'SOFT'; return `<span class="ty2" style="border-color:${COMPOUNDS[k]?.color || '#fff'}">${LETTER[k] || '?'}</span>`; };
     let html;
-    if (sh.why === 'sc' || sh.why === 'red') { this.capEl.innerHTML = `<div class="cp" style="background:${sh.why === 'red' ? '#e10600' : '#ffd400'};color:${sh.why === 'red' ? '#fff' : '#111'}">${sh.why === 'red' ? 'RED' : 'SC'}</div><div class="cn"><b>${sh.why === 'red' ? 'Race suspended' : 'The safety car'}</b><small>${sh.why === 'red' ? 'the field returns to the grid' : o ? `leads ${surname(o)} and the field` : 'on the circuit'}</small></div>`; this.capEl.classList.add('in'); this.capT = 4.5; return; }
+    if (sh.why === 'sc' || sh.why === 'red') { this.capEl.innerHTML = `<div class="cp" style="background:${sh.why === 'red' ? '#e10600' : '#ffd400'};color:${sh.why === 'red' ? '#fff' : '#111'}">${sh.why === 'red' ? 'RED' : 'SC'}</div><div class="cn"><b>${sh.why === 'red' ? 'Race suspended' : 'The safety car'}</b><small>${sh.why === 'red' ? 'the field returns to the grid' : (() => { const l = [o, c].find((x) => x && !x.isSC); return l ? `leads ${surname(l)} and the field` : 'on the circuit'; })()}</small></div>`; this.capEl.classList.add('in'); this.capT = 4.5; return; }
     if (o && sh.why === 'battle') {
       const front = P.indexOf(c) < P.indexOf(o) ? c : o, back = front === c ? o : c, g = d.radio?.gap?.(back, front);
       html = `<div class="cp">P${P.indexOf(front) + 1}</div><div class="cb" style="background:${front.color}"></div><div class="cn"><b>${surname(front)}</b><small>${front.team || ''}</small></div>`
@@ -192717,11 +192736,13 @@ const { AIDriver, AI_TUNE, laneSpeeds } = __m['src/ai/AIDriver.js'];
 //  * Then race control decides: a car beside the track is a Virtual Safety Car (everyone holds a delta speed, no
 //    overtaking), a car on the racing surface (or more than one) is a Safety Car.
 //  * The Safety Car is a real car, there all race: parked at the end of the pit lane (in the working lane past the
-//    last garage, facing the exit, lights off), out of the way of anyone leaving the pits. On the call it pulls away at
-//    once, orange lights flashing, and joins the circuit wherever the leader is - it never waits for it. It holds a
-//    steady, slow pace ahead of whatever comes up behind it: a car that is not the leader gets the green lights and is
-//    waved by (it goes past and on at speed to catch the back of the pack); that repeats until the leader is the first
-//    car behind it - then orange again, and nobody passes it.
+//    last garage, facing the exit, lights off), out of the way of anyone leaving the pits. On the call its lights come
+//    on and it WAITS there for the leader (holdTick): it pulls away so as to join the circuit just ahead of him, with
+//    nobody between them - the field is on the delta meanwhile, so nothing is lost - and he is picked up at once.
+//    (It used to leave at once, wherever the leader was: half the field came up behind it first, was waved by, and
+//    only a lap later did the leader arrive - which looked like cars overtaking the safety car for no reason.) If the
+//    leader does not come round in a lap and a bit it goes anyway, and then a car that is not the leader gets the
+//    green lights and is waved by, until the leader is the first car behind it.
 //  * From the call every car runs the Safety Car delta (about a third slower than a racing lap; a car far off the back
 //    of the queue a little quicker) until it has caught the queue, then it simply follows the car ahead: the delta is
 //    quicker than the queue, so the field closes up into one line behind the safety car. No overtaking (a place taken
@@ -192766,6 +192787,7 @@ class SafetyCar {
     // body: the safety car itself, there all race (parked at the pit exit, or out on the circuit); car: the same car
     // while it is out - driven, simulated with the field, in world.cars - else null
     this.body = null; this.car = null; this.driver = null; this.parked = false; this.laneMode = null; this.lights = 'off';
+    this.holdOut = false;             // called, its lights on, waiting in its bay for the leader to come round
     this.scanT = 0; this.passT = 0; this.order = new Map();
     this.count = { sc: 0, vsc: 0 };
     this.playerDelta = 0; this.deltaWarned = false;
@@ -192791,7 +192813,7 @@ class SafetyCar {
   update(dt) {
     const d = this.d; if (!this.enabled) return;
     if (!this.body && d.pit) this.makeBody();   // (parked at the pit exit from the start)
-    if (!d.world.racing || d.done) { this.lights = this.car ? this.lightState() : 'off'; return; }
+    if (!d.world.racing || d.done) { this.lights = this.car || this.holdOut ? this.lightState() : 'off'; return; }
     this.t += dt;
     this.scanT -= dt; if (this.scanT <= 0) { this.scanT = 0.5; this.scan(); }
     this.clearT = this.incidentLive() ? 0 : (this.clearT || 0) + dt;
@@ -192818,6 +192840,7 @@ class SafetyCar {
         break;
       case 'sc': {
         const leader = this.leader(), finalLap = leader && leader.lap + 1 >= d.lapsTotal;
+        if (this.holdOut) this.holdTick(leader);
         const onRoad = this.car && !this.laneMode && !this.car.pitLane;
         const toPit = onRoad ? this.ds(this.car.s, d.pit ? d.pit.entryS : 0) : 0;
         const clear = this.clear();
@@ -192848,7 +192871,7 @@ class SafetyCar {
       }
     }
     if (this.car) this.driveCar(dt);
-    this.lights = this.car ? this.lightState() : 'off';
+    this.lights = this.car || this.holdOut ? this.lightState() : 'off';
     if (this.restricted()) { this.passT -= dt; if (this.passT <= 0) { this.passT = 0.25; this.checkPasses(); } } else this.order.clear();
     this.playerRules(dt);
   }
@@ -192858,6 +192881,7 @@ class SafetyCar {
    * the car behind it by - that car is not the leader), 'off' (parked, "in this lap", on its way back in)
    */
   lightState() {
+    if (this.holdOut && this.phase === 'sc') return 'amber';   // (called, and waiting in its bay for the leader)
     if (!this.car || this.parked || this.phase !== 'sc') return 'off';
     if (!this.picked && !this.laneMode && !this.car.pitLane && this.behind && this.behindX < 300 && this.behind !== this.leader()) return 'green';
     return 'amber';
@@ -192877,6 +192901,7 @@ class SafetyCar {
     this.behind = first; this.behindX = fx;
     if (onRoad && !this._outSaid && this.phase === 'sc') {
       this._outSaid = true; const lead = this.leader();
+      if (this._launchT != null) { this._tOutSeen = d.time - this._launchT; this._launchT = null; }   // (bay to circuit, timed: the next call's wait is set by it)
       this.note(`SC on track ahead of ${first ? first.short : '-'} (${Math.round(fx)} m back), leader ${lead ? lead.short : '-'} ${lead ? Math.round(this.ds(lead.s, c.s)) : '-'} m behind it`);
     }
     // the leader picked up: the first running car behind the safety car (within 400 m) is the leader. Until then the
@@ -193026,8 +193051,39 @@ class SafetyCar {
       else this._outSaid = !this.car.pitLane && !this.laneMode;
       return;
     }
-    // it leaves at once, from where it is parked at the end of the pit lane - wherever the leader is
-    if (this.body) this.launch(); else this.spawnCar();
+    // from where it is parked at the end of the pit lane: when the leader is coming (holdTick) - at once, if he is now
+    if (this.body) { this.holdOut = true; this.lights = 'amber'; this.holdTick(this.leader()); } else this.spawnCar();
+  }
+  /**
+   * Called, and waiting in its bay: it pulls away when the LEADER is the next car to reach the pit exit and far enough
+   * back that it joins a couple of hundred metres ahead of him - and every car ahead of him on the road will be past the exit before
+   * it is out (those run on, round to the back of the queue). So the first car behind it is the leader, and nobody
+   * goes by it. A lap and a bit with no such moment (the leader in the pits, a car that will not get out of the
+   * way): it goes anyway, and waves by what it must.
+   */
+  holdTick(lead0) {
+    const d = this.d, P = d.pit, ex = this.exitS(), waited = d.time - this.deployT;
+    // (the leader it waits for is the first car on the road that is STAYING on it: under a safety car the leaders
+    //  dive for the pit lane a few hundred metres short of the exit, one after another - waited for, none of them
+    //  ever arrived. Nobody on the road who is staying out - the whole field stopping: it goes at once, and the first
+    //  car out of the pit lane behind it is the leader)
+    const on = (o) => !o.retired && !o.finished && !o.pitLane && !o.inPit && o.speed > 5, lead = d.positions.find((o) => on(o) && !o.pitRequested) || null;
+    let go = !P || ex == null || !lead || waited > d.track.length / 45 + 25 || d.lapsTotal - (lead0 ? lead0.lap : 0) <= 1;
+    if (!go) {
+      // (how long it takes from its bay to the circuit: on the limiter to the line, then away down the exit road -
+      //  or, once it has done it this race, the time that took)
+      const K = this.parkSpot(), lim = Math.max(8, P.limiter || 22), dA = Math.max(0, Math.min(P.limitTo ?? P.mergeU, P.mergeU) - K.u), dB = Math.max(0, P.mergeU - K.u - dA), vB = Math.min(60, Math.sqrt(lim * lim + 2 * 7 * dB));
+      const tOut = this._tOutSeen ?? 1.2 + dA / lim + dB / ((lim + vB) / 2), x = this.ds(lead.s, ex), need = Math.max(20, lead.speed) * tOut;
+      if (x > need + 90 && x < need + 240) {
+        go = true;
+        for (const o of d.cars) { if (o === lead || !on(o) || o.pitRequested) continue; const xo = this.ds(o.s, ex); if (xo < x && xo > Math.max(20, o.speed) * tOut - 25) { go = false; break; } }
+        // (nor into a car coming down the pit lane to the exit: it would wait for that one in its bay, or follow it out -
+        //  and join behind the leader it was timed for)
+        if (go) for (const o of d.cars) { if (!o.pitLane || o.held || o.retired || o.speed < 4) continue; const qo = P.nearest(o.x, o.z, this._lh || (this._lh = {})); if (qo.u > K.u - 70 && qo.u < P.mergeU + 5) { go = false; break; } }
+      }
+    }
+    if (!go) return;
+    this.holdOut = false; this.note(`SC waited ${Math.round(waited)} s for the leader`); this.launch();
   }
   /** where the pit lane meets the circuit again (track s) */
   exitS() {
@@ -193073,7 +193129,7 @@ class SafetyCar {
     const d = this.d, c = this.body; this.parkBody();
     this.parked = false; this.laneMode = 'out'; c.brake = 0;
     c.lapDist = 0; c.lapStart = d.time; c.ghost = 0;
-    this.car = c; this.makeDriver();
+    this.car = c; this.makeDriver(); this._launchT = d.time;
     this.note('SC leaves the pit lane');
   }
   makeDriver() {
@@ -193096,6 +193152,7 @@ class SafetyCar {
   }
   /** off the circuit: back in its bay at the pit exit (or, with no pit lane, gone) */
   removeCar() {
+    this.holdOut = false;
     if (!this.car) return;
     const c = this.car; this.car = null; this.driver = null;
     this.d.simCars = null; this.d.world.cars = this.d.cars;

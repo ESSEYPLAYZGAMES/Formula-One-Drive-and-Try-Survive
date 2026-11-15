@@ -1,3 +1,44 @@
+# V2.71 (2026-11-15): the safety car comes out ahead of the leader; its cameras
+
+Asked for: "It does this glitch too where the cars go past the safety car once for no reason and only later catch
+up to it, and when I try focus the camera on the leader it goes on the safety car instead and then doesn't even
+have the camera near them. Also the SC's rear camera is behind the spoiler, instead have it attached to the rear so
+you get an actual view of the leader".
+
+## Cars going past it (race/SafetyCar.js holdTick)
+- It was the rule, not a slip: the safety car left its bay the moment it was called, wherever the leader was, and
+  waved by every car that came up behind it until the leader did - often half the field, a lap before he arrived.
+- It waits now, lights on, in its bay at the end of the pit lane, and pulls away so as to join a couple of hundred
+  metres AHEAD of the leader, with nobody between them: he is the first car behind it and is picked up at once. The
+  field is on the delta while it waits, so nothing is lost by it.
+  - "The leader" it waits for is the first car on the road that is staying on it: under a safety car the leaders
+    dive for the pit lane a few hundred metres short of the exit. With the whole field stopping it goes at once, and
+    the first car out of the pit lane behind it is the leader.
+  - It does not pull out into a car coming down the pit lane, and it times its own run from the bay to the circuit
+    (the first time it does it in a race) so the next wait is exact.
+  - A lap and a bit with no such moment: it goes anyway, and then - only then - waves by what it must. Cars that
+    come out of the pit lane between it and the leader are still waved by: they have to get round to the queue.
+- Measured, five calls a race at four circuits (twenty calls): no car waved by in any of them; the leader the first
+  car behind it; from the second call of a race it joins 70-240 m ahead of him and picks him up the moment it is
+  on the road (the first call, with the whole field stopping, it goes at once and he catches it after his stop). As it was (five calls at Las Vegas): up to three cars waved by, the leader picked up 61-200 s after
+  the call.
+
+## The camera on the leader (camera/TVDirector.js)
+- Following the leader behind the safety car took the safety car's own story - and aimed the camera at a point
+  between the two, which before the pick-up is a point half a lap from either. A car followed is the picture now:
+  the safety car's story is never its own. Checked: the leader followed for 40 s - the shot his every frame, the
+  camera never more than 340 m from him.
+- The safety car's own shots (nothing followed) have the leader in them only when he is within 200 m behind it.
+- The caption read THE SAFETY CAR LEADS CAR AND THE FIELD when the safety car itself was the "other" car of the
+  shot: it names the leader.
+
+## Its rear camera (camera/CockpitCamera.js)
+- REAR, with the leader behind it, is the safety car's own camera - and that sat where a Formula 1 car's pod is,
+  which on a road car is inside the tail, behind the spoiler. It is on the tail itself now: just behind the bumper,
+  0.9 m up, nothing of the car in the frame, the leader filling it.
+- With the leader followed and REAR asked for, that is the camera you get (when the safety car is the car right
+  ahead of him); the card under the picture and the timing are the leader's, not "P0 SAFETY CAR, -100 LAPS".
+
 # V2.70 (2026-11-15): the loading screen in neon, its line running smoothly; the weekend's shortcuts in the HQ
 
 Asked for: "This vibe is amazing (the race strat menu). Carry this vibe into the currently cool but relatively bland

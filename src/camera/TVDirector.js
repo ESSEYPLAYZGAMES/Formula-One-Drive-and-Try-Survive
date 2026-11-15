@@ -69,7 +69,12 @@ export class TVDirector {
     // (the safety car's own feed: the car itself at the head of the queue, the stops under it, the wreck that called
     //  it - no "battles": nobody may pass; the red flag's: the cars stopped, the leader, yours)
     const ph = d.sc?.phase || 'green', neutral = ph === 'sc' || ph === 'scIn' || ph === 'vsc' || ph === 'vscEnd' || ph === 'red';
-    if ((ph === 'sc' || ph === 'scIn') && d.sc.car && !d.sc.car.pitLane) out.push({ car: d.sc.car, other: P.find((c) => onTrack(c)) || null, score: 19 + ((this.cuts * 0.618034) % 1) * 6, why: 'sc' });
+    if ((ph === 'sc' || ph === 'scIn') && d.sc.car && !d.sc.car.pitLane) {
+      // (the leader is in its picture only when he is right behind it: before he is picked up the two may be half a
+      //  lap apart, and a camera aimed between them shows neither)
+      const lead = P.find((c) => onTrack(c)) || null, gap = lead ? d.planDs(lead.s, d.sc.car.s) : 1e9;
+      out.push({ car: d.sc.car, other: gap > 0 && gap < 200 ? lead : null, score: 19 + ((this.cuts * 0.618034) % 1) * 6, why: 'sc' });
+    }
     if (ph === 'red') { const l0 = P.find((c) => !c.retired); if (l0) out.push({ car: l0, score: 18, why: 'red' }); }
     // the start: the pack off the line, from the helicopter behind it
     if (d.world.racing && d.mode === 'race' && P[0] && (P.find((c) => !c.retired)?.lap || 0) === 0 && d.time - (d.world.raceStart ?? d.time) < 8 && !(d.sc?.redCount > 0)) out.push({ car: P[0], score: 46, why: 'start' });
@@ -138,8 +143,9 @@ export class TVDirector {
     //  the car is; heights are above that ground, never above zero)
     const G = (x, z) => (ctx.ground ? ctx.ground(x, z) : 0), cy = (c) => G(c.x, c.z) + ((c.air || c.wreck) && c.p ? Math.max(0, c.p[1]) : 0);
     // (the rear onboard is the car ahead's, the one behind in its mirror)
-    const subject = kind === 'rear' && st.other ? st.other : car;
-    const sh = { kind, car: subject, other: kind === 'rear' ? car : st.other || null, why: st.why, t: 0, dur: st.why === 'grid' ? 7 : st.why === 'start' ? 8 : st.view ? st.view.dur || 4.2 : kind === 'crowd' ? 3.2 : kind === 'garage' ? 4.2 : kind === 'beauty' ? 5 : st.urgent ? 7 : 5 + ((this.cuts * 0.3819) % 1) * 4, s0: 0, side: 1, h: 6 };
+    // (the safety car's story: REAR is from its own tail, the leader behind it; an onboard is the leader's - it has none)
+    const subject = st.why === 'sc' ? ((kind === 'tcam' || kind === 'helmet') && st.other ? st.other : car) : kind === 'rear' && st.other ? st.other : car;
+    const sh = { kind, car: subject, other: st.why === 'sc' ? (subject === car ? st.other || null : car) : kind === 'rear' ? car : st.other || null, why: st.why, t: 0, dur: st.why === 'grid' ? 7 : st.why === 'start' ? 8 : st.view ? st.view.dur || 4.2 : kind === 'crowd' ? 3.2 : kind === 'garage' ? 4.2 : kind === 'beauty' ? 5 : st.urgent ? 7 : 5 + ((this.cuts * 0.3819) % 1) * 4, s0: 0, side: 1, h: 6 };
     if (st.away) this.awayNext = this.t + sh.dur + 4;
     // ---- the kerb camera: in the kerb at the apex of the next corner, the cars coming at it. No corner near, or no view
     //      from it (a wall on the kerb): a trackside camera instead
@@ -286,8 +292,12 @@ export class TVDirector {
     let want = null;
     if (this.followCar && !gone(this.followCar)) {
       // a car followed: its own story (in the pits, in a fight) - the cameras still cut round it
-      const S = this.stories(ctx).filter((x) => x.car === this.followCar || x.other === this.followCar).sort((a, b) => b.score - a.score);
+      // (not the safety car's story: following the leader behind it put the safety car in the picture and the
+      //  camera between the two. The car followed is the picture; only the REAR camera asked for looks back at it
+      //  from the safety car's tail, when that is the car right ahead)
+      const S = this.stories(ctx).filter((x) => x.why !== 'sc' && (x.car === this.followCar || x.other === this.followCar)).sort((a, b) => b.score - a.score);
       want = S[0] ? { ...S[0], car: this.followCar, other: S[0].car === this.followCar ? S[0].other : S[0].car } : { car: this.followCar, score: 1, why: 'team' };
+      if (!want.other && this.camKind === 'rear') { const sc = d.sc?.car, g = sc && !sc.pitLane ? d.planDs(this.followCar.s, sc.s) : -1; if (g > 0 && g < 160 && !d.cars.some((o) => o !== this.followCar && !o.retired && !o.pitLane && d.planDs(this.followCar.s, o.s) > 0 && d.planDs(this.followCar.s, o.s) < g)) want.other = sc; }
       if (want.why === 'battle' && want.other && d.positions.indexOf(want.other) > d.positions.indexOf(this.followCar)) {
         // (the car followed is the one ahead: the fight is the one behind it attacking)
         want = { ...want, car: want.other, other: this.followCar };
@@ -304,7 +314,8 @@ export class TVDirector {
     if (ended || urgent || (this.followCar && sh && sh.car !== want.car && sh.other !== want.car && sh.car !== this.followCar)) this.cut(ctx, want);
     this.shot.t += dt;
     this.place(dt, ctx);
-    return this.shot.car;
+    // (the car the picture is ABOUT - the timing under it, the sound: the camera on the safety car's tail is the leader's shot, not the safety car's)
+    return this.shot.car?.isSC && this.shot.other ? this.shot.other : this.shot.car;
   }
   /** a trackside shot: the car has gone by the camera, and on */
   passed(ctx, sh) {
