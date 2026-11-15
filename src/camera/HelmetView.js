@@ -13,6 +13,7 @@
 //      and dust) - gone when the sun is behind a grandstand or a bridge, or behind the driver - and by the visor's
 //      own coating, which tints the road and turns colour toward the curve.
 import * as THREE from 'three';
+import { RAIN_GLSL } from './LensRain.js';
 
 export const HELMET_LAYER = 7;
 const AZ = 59 * Math.PI / 180, EL_T = 31 * Math.PI / 180, EL_B = 31 * Math.PI / 180, NPOW = 2.9;   // the eye-port, as the eye sees it
@@ -117,6 +118,17 @@ void main() {
   #include <colorspace_fragment>
 }`;
 
+const RAIN_FRAG = /* glsl */`
+uniform sampler2D tScene; uniform float uTime; uniform float uAmount; uniform float uSeed; uniform float uFlow; uniform vec2 uRes; uniform vec2 uDir;
+varying vec2 vUv;
+${RAIN_GLSL}
+void main() {
+  // (the drops are on the glass - where they are on it - and what they bend is the picture behind them)
+  vec2 q = vUv * vec2(1.55, 0.82), p = vec2(q.x * -uDir.y + q.y * uDir.x, -(q.x * uDir.x + q.y * uDir.y));
+  vec4 d = lensDrops(tScene, gl_FragCoord.xy / uRes, p * 0.8, uTime, uAmount, uSeed, uFlow); if (d.a <= 0.002) discard;
+  gl_FragColor = d;
+}`;
+
 export class HelmetView {
   constructor(scene) {
     this.scene = scene; this.mesh = null; this.scanT = 0; this.vis = 1; this.visT = 0; this.visWant = 1; this.envH = null;
@@ -128,8 +140,11 @@ export class HelmetView {
     this.tint = new THREE.Mesh(glass, new THREE.ShaderMaterial({ ...common, uniforms: {}, vertexShader: VERT, fragmentShader: TINT_FRAG, blending: THREE.MultiplyBlending, toneMapped: false })); this.tint.renderOrder = 9000;
     this.glassMat = new THREE.ShaderMaterial({ ...common, uniforms: U, vertexShader: VERT, fragmentShader: GLASS_FRAG, blending: THREE.AdditiveBlending });
     this.glass = new THREE.Mesh(glass, this.glassMat); this.glass.renderOrder = 9001;
+    // (rain on the glass: camera/LensRain.js's drops, on the visor's own surface, under its tint)
+    this.RU = { tScene: { value: null }, uTime: { value: 0 }, uAmount: { value: 0 }, uSeed: { value: 0 }, uFlow: { value: 0 }, uRes: { value: new THREE.Vector2(1, 1) }, uDir: { value: new THREE.Vector2(0, -1) } };
+    this.rain = new THREE.Mesh(glass, new THREE.ShaderMaterial({ ...common, uniforms: this.RU, vertexShader: VERT, fragmentShader: RAIN_FRAG, toneMapped: false })); this.rain.renderOrder = 8990; this.rain.visible = false; this.rainSrc = null;
     this.lining = new THREE.Mesh(liningGeo(), new THREE.ShaderMaterial({ ...common, uniforms: U, vertexShader: VERT, fragmentShader: LINING_FRAG })); this.lining.renderOrder = 9002;
-    for (const m of [this.tint, this.glass, this.lining]) { m.frustumCulled = false; m.layers.set(HELMET_LAYER); rig.add(m); }
+    for (const m of [this.rain, this.tint, this.glass, this.lining]) { m.frustumCulled = false; m.layers.set(HELMET_LAYER); rig.add(m); }
     this._m4 = new THREE.Matrix4(); this._v = new THREE.Vector3();
   }
   get on() { return !!this.mesh; }
@@ -148,7 +163,8 @@ export class HelmetView {
   /**
    * Before the picture is drawn: the helmet where the camera is, the light as it is now.
    * o: { sunDir (world, toward the sun), sun, hemi (the scene's lights), wet 0..1, sunClear(x, y, z, dir) -> is the sun in
-   *      sight from there, shake: [x, y] metres (the helmet moving on the head) }
+   *      sight from there, shake: [x, y] metres (the helmet moving on the head),
+ *      rain: { src (a LensRain: its copy of the picture, its clock and amount), dir: [x, y], flow } | null }
    */
   sync(camera, dt, o = {}) {
     const m = this.mesh; if (!m) return;
@@ -163,6 +179,8 @@ export class HelmetView {
     if (o.sun) U.uSunCol.value.copy(o.sun.color).multiplyScalar(o.sun.visible === false ? 0 : o.sun.intensity);
     if (o.hemi) { U.uSky.value.copy(o.hemi.color).multiplyScalar(o.hemi.intensity); U.uGround.value.copy(o.hemi.groundColor).multiplyScalar(o.hemi.intensity); }
     U.uWet.value = o.wet || 0; U.uToWorld.value.setFromMatrix4(camera.matrixWorld);
+    const rn = o.rain && o.rain.src.amount > 0.02 ? o.rain : null; this.rainSrc = rn ? rn.src : null; this.rain.visible = !!rn;
+    if (rn) { const RU = this.RU, L = rn.src; RU.uTime.value = L.time; RU.uAmount.value = L.amount; RU.uSeed.value = L.seed % 977; RU.uFlow.value = rn.flow; RU.uDir.value.set(rn.dir[0], rn.dir[1]); }
     // (is the sun in sight? asked a few times a second, eased: into a grandstand's shadow the glare dies away)
     this.visT -= dt; if (this.visT <= 0 && sd) { this.visT = 0.22; this.visWant = sd.y < 0.02 ? 0.25 : o.sunClear ? (o.sunClear(camera.position.x, camera.position.y, camera.position.z, sd) ? 1 : 0) : 1; }
     this.vis += (this.visWant - this.vis) * Math.min(1, dt * 5); U.uVis.value = this.vis;
@@ -178,6 +196,7 @@ export class HelmetView {
   /** after the world: the car round the lens and the helmet, from 3 cm (call only when the plain picture was just drawn) */
   render(renderer, camera) {
     if (!this.mesh) return;
+    if (this.rainSrc) { const L = this.rainSrc; this.RU.tScene.value = L.tex; this.RU.uRes.value.copy(L.size); this.rain.visible = !!L.tex; }
     const scene = this.scene, near = camera.near, far = camera.far, mask = camera.layers.mask, bg = scene.background, ac = renderer.autoClear, su = renderer.shadowMap.autoUpdate;
     camera.near = 0.03; camera.far = 60; camera.updateProjectionMatrix(); camera.layers.set(HELMET_LAYER);
     scene.background = null; renderer.autoClear = false; renderer.shadowMap.autoUpdate = false;

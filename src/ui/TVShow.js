@@ -173,9 +173,8 @@ export class TVShow {
     const onTrack = (c) => c && !c.retired && !c.finished && !c.inPit && !c.pitLane && !c.isSC && !c.hiddenAway, gap = (a, b) => d.radio?.gap?.(a, b);
     this.map(d, ctx, mine);
     { const xr = this.inf.parentElement, on = xr && xr.querySelector('.xc.in'); this.root.classList.toggle('tight', !!on && xr.getBoundingClientRect().top - this.root.getBoundingClientRect().top < 182); }
-    // rain on the lens of a camera that stands in it
+    // (rain on the lens: drawn in the picture now, with the frame it belongs to - camera/LensRain.js)
     const wet = ctx.wet || 0, lens = wet > 0.12 && ctx.shot && ctx.shot.kind !== 'heli';
-    if (lens !== this.rainOn || (lens && this.drops !== ctx.cuts)) { this.rainOn = lens; this.drops = ctx.cuts; if (lens) { const n = Math.round(10 + wet * 34); this.rain.innerHTML = Array.from({ length: n }, () => { const s = 8 + Math.random() * 30 * (0.5 + wet); return `<i style="left:${(Math.random() * 100).toFixed(1)}%;top:${(Math.random() * 100).toFixed(1)}%;width:${s.toFixed(0)}px;height:${(s * (1.1 + Math.random() * 0.5)).toFixed(0)}px"></i>`; }).join(''); } this.rain.classList.toggle('on', !!lens); }
     if (!race) { this.gridg.classList.remove('in'); this.cls.classList.remove('in'); this.quali(d, ctx); return; }
     // ---- before the lights: the grid --------------------------------------------------------------------------------------
     const pre = !d.world.racing && !d.leaderFinished && (lead?.lap || 0) === 0 && !(d.sc?.redCount > 0);

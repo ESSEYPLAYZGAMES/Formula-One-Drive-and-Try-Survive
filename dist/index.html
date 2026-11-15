@@ -602,7 +602,7 @@ body.tp #hud-msg { top: 30%; }
     <div class="brand-line"></div>
     <h1 id="brand-title">FORMULA 1<span id="brand-sub">SIMULATOR</span></h1>
     <!-- the build's version: +0.01 with every build handed out -->
-    <span id="app-ver" title="Version">V2.56</span>
+    <span id="app-ver" title="Version">V2.57</span>
     <div id="menu-sub">Real circuits built from OpenStreetMap</div>
   </div>
   <div id="loading" class="hidden"><div class="ld"><i></i></div><span>Building the circuit from OpenStreetMap…</span></div>
@@ -155349,9 +155349,8 @@ class TVShow {
     const onTrack = (c) => c && !c.retired && !c.finished && !c.inPit && !c.pitLane && !c.isSC && !c.hiddenAway, gap = (a, b) => d.radio?.gap?.(a, b);
     this.map(d, ctx, mine);
     { const xr = this.inf.parentElement, on = xr && xr.querySelector('.xc.in'); this.root.classList.toggle('tight', !!on && xr.getBoundingClientRect().top - this.root.getBoundingClientRect().top < 182); }
-    // rain on the lens of a camera that stands in it
+    // (rain on the lens: drawn in the picture now, with the frame it belongs to - camera/LensRain.js)
     const wet = ctx.wet || 0, lens = wet > 0.12 && ctx.shot && ctx.shot.kind !== 'heli';
-    if (lens !== this.rainOn || (lens && this.drops !== ctx.cuts)) { this.rainOn = lens; this.drops = ctx.cuts; if (lens) { const n = Math.round(10 + wet * 34); this.rain.innerHTML = Array.from({ length: n }, () => { const s = 8 + Math.random() * 30 * (0.5 + wet); return `<i style="left:${(Math.random() * 100).toFixed(1)}%;top:${(Math.random() * 100).toFixed(1)}%;width:${s.toFixed(0)}px;height:${(s * (1.1 + Math.random() * 0.5)).toFixed(0)}px"></i>`; }).join(''); } this.rain.classList.toggle('on', !!lens); }
     if (!race) { this.gridg.classList.remove('in'); this.cls.classList.remove('in'); this.quali(d, ctx); return; }
     // ---- before the lights: the grid --------------------------------------------------------------------------------------
     const pre = !d.world.racing && !d.leaderFinished && (lead?.lap || 0) === 0 && !(d.sc?.redCount > 0);
@@ -155935,9 +155934,113 @@ const _f = new THREE.Vector3(), _u = new THREE.Vector3(), _a = new THREE.Vector3
 return { CAMS, Theatre };
 })();
 
+// ---- src/camera/LensRain.js
+__m['src/camera/LensRain.js'] = (() => {
+
+// Rain on the glass in front of a camera: a broadcast camera's lens, the helmet's visor (camera/HelmetView.js).
+// Drawn in the picture itself, after the world: the finished frame is copied to a texture and every drop is a small
+// lens on it - the scene behind it bent and turned over inside the drop, a glint on its shoulder, a dark foot. Beads
+// that sit where they landed, grow and are gone; runners that go where the water is pushed (down a camera that stands
+// still, up and back over an onboard's lens and a visor at speed), each leaving a beaded tail.
+// Every camera has its own drops (a seed: the same trackside camera has the same ones when the director comes back to
+// it) and they are the drops of the frame being drawn: a cut changes them with the picture, not a moment after (they
+// used to be HTML laid over the picture, looked at five times a second, faded in over a second).
+
+/** GLSL: lensWater(p, t, amount, seed, flowSpeed) -> the water's height at p (p.y up the flow: runners go toward -y) */
+const RAIN_GLSL = /* glsl */`
+float rh11(float p) { p = fract(p * 0.1031); p *= p + 33.33; p *= p + p; return fract(p); }
+vec3 rh23(vec2 p) { vec3 q = fract(vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973)); q += dot(q, q.yxz + 33.33); return fract((q.xxy + q.yzz) * q.zyx); }
+float rBeads(vec2 p, float scale, float t, float amount, float seed) {
+  vec2 g = p * scale, id = floor(g), f = fract(g) - 0.5; vec3 r = rh23(id + seed);
+  float life = fract(t * (0.025 + 0.05 * r.x) + r.z);
+  float rad = (0.09 + 0.24 * r.x * r.x) * smoothstep(0.0, 0.06, life) * (1.0 - smoothstep(0.8, 1.0, life));
+  vec2 c = (r.xz - 0.5) * 0.52; f.y *= 0.88;
+  return step(r.y, amount) * smoothstep(rad, rad * 0.3, length(f - c));
+}
+float rRunners(vec2 p, float scale, float t, float amount, float seed) {
+  float gx = p.x * scale, col = floor(gx), sp = 0.45 + 0.9 * rh11(col + seed);
+  float gy = p.y * scale * 0.2 + t * sp + 10.0 * rh11(col * 7.31 + seed);
+  vec3 r = rh23(vec2(col, floor(gy)) + seed + 3.17); if (r.y > amount) return 0.0;
+  float fx = fract(gx) - 0.5, fy = fract(gy);
+  float x = (r.x - 0.5) * 0.46 + 0.07 * sin(gy * 5.0 + r.z * 6.2831);
+  float dx = fx - x, dy = (fy - 0.16) * 5.0;
+  float head = smoothstep(0.30, 0.04, length(vec2(dx, dy * (dy < 0.0 ? 1.0 : 0.7))));
+  float tail = smoothstep(0.085, 0.01, abs(dx)) * smoothstep(0.16, 0.24, fy) * (1.0 - smoothstep(0.3, 0.95, fy)) * (0.3 + 0.25 * sin(fy * 44.0 + r.z * 9.0));
+  return max(head, max(tail, 0.0));
+}
+float lensWater(vec2 p, float t, float amount, float seed, float flow) {
+  float a = clamp(amount, 0.0, 1.0);
+  // (at speed the beads are blown off sooner: fewer of them, more of the water running)
+  float beads = max(rBeads(p, 9.0, t, a * 0.55 / (1.0 + flow), seed), rBeads(p + 3.7, 21.0, t * 1.6, a * 0.7 / (1.0 + 0.5 * flow), seed + 11.0));
+  float run = max(rRunners(p, 11.0, t * (0.35 + flow), a * 0.5, seed + 23.0), rRunners(p * 1.7 + 1.3, 11.0, t * (0.5 + 1.3 * flow), a * 0.4, seed + 41.0));
+  return max(beads, run);
+}
+/** the picture seen through the water at p (screen uv suv): rgb, and how much of it is water */
+vec4 lensDrops(sampler2D scene, vec2 suv, vec2 p, float t, float amount, float seed, float flow) {
+  float h = lensWater(p, t, amount, seed, flow); if (h <= 0.001) return vec4(0.0);
+  const float E = 0.004;
+  vec2 g = (vec2(lensWater(p + vec2(E, 0.0), t, amount, seed, flow), lensWater(p + vec2(0.0, E), t, amount, seed, flow)) - h) / E;
+  vec2 off = -g * 0.0006; float ol = length(off); if (ol > 0.035) off *= 0.035 / ol;
+  // (a drop is a short lens: what is behind it, bent toward its middle and a little out of focus)
+  vec3 c = texture2D(scene, clamp(suv + off, 0.001, 0.999)).rgb * 0.4 + 0.15 * (texture2D(scene, clamp(suv + off + vec2(0.004, 0.0), 0.001, 0.999)).rgb + texture2D(scene, clamp(suv + off - vec2(0.004, 0.0), 0.001, 0.999)).rgb
+    + texture2D(scene, clamp(suv + off + vec2(0.0, 0.005), 0.001, 0.999)).rgb + texture2D(scene, clamp(suv + off - vec2(0.0, 0.005), 0.001, 0.999)).rgb);
+  vec3 n = normalize(vec3(-g * 0.02, 1.0));
+  float glint = pow(max(dot(n, normalize(vec3(-0.45, 0.6, 0.66))), 0.0), 26.0), foot = smoothstep(0.0, 0.35, h) * (1.0 - smoothstep(0.35, 0.9, h)) * max(0.0, -n.y);
+  // (water is clear: what is behind it a little brighter, the unbent picture still in it, a faint dark foot, a glint)
+  c = mix(c, texture2D(scene, suv).rgb, 0.3) * (1.14 - 0.14 * foot) + vec3(0.03) + vec3(0.5) * glint * smoothstep(0.2, 0.6, h);
+  return vec4(c, smoothstep(0.03, 0.2, h) * 0.9);
+}`;
+
+const VERT = /* glsl */`varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`;
+const FRAG = /* glsl */`
+uniform sampler2D tScene; uniform float uTime; uniform float uAmount; uniform float uSeed; uniform float uFlow; uniform float uAspect; uniform vec2 uDir;
+varying vec2 vUv;
+${RAIN_GLSL}
+void main() {
+  // (the water goes along uDir on the screen: the drops' own frame has that as its -y)
+  vec2 q = (vUv - 0.5) * vec2(uAspect, 1.0), p = vec2(q.x * -uDir.y + q.y * uDir.x, -(q.x * uDir.x + q.y * uDir.y));
+  vec4 d = lensDrops(tScene, vUv, p, uTime, uAmount, uSeed, uFlow); if (d.a <= 0.002) discard;
+  gl_FragColor = d;
+}`;
+
+class LensRain {
+  constructor() {
+    this.tex = null; this.size = new THREE.Vector2(); this._s = new THREE.Vector2(); this.time = 0; this.amount = 0; this.seed = -1; this.grabbed = false;
+    this.U = { tScene: { value: null }, uTime: { value: 0 }, uAmount: { value: 0 }, uSeed: { value: 0 }, uFlow: { value: 0 }, uAspect: { value: 16 / 9 }, uDir: { value: new THREE.Vector2(0, -1) } };
+    this.scene = new THREE.Scene(); this.cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+    const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderMaterial({ uniforms: this.U, vertexShader: VERT, fragmentShader: FRAG, transparent: true, depthTest: false, depthWrite: false, toneMapped: false }));
+    quad.frustumCulled = false; this.scene.add(quad);
+  }
+  /**
+   * A frame's water: how hard it rains on this glass now (0..1), which glass (seed: a new one has the water of a glass
+   * that has stood in that rain - at once), dt of the race. -> the amount on the glass
+   */
+  step(dt, rain, seed) {
+    if (seed !== this.seed) { this.seed = seed; this.amount = rain; }
+    else this.amount += (rain - this.amount) * Math.min(1, dt * (rain > this.amount ? 0.9 : 0.22));   // (wet in a moment, dry in a while)
+    this.time += dt; return this.amount;
+  }
+  /** the picture as drawn so far, kept for the drops to look through (call when there is water, after the world is drawn) */
+  grab(renderer) {
+    renderer.getDrawingBufferSize(this._s); const w = Math.max(2, Math.floor(this._s.x)), h = Math.max(2, Math.floor(this._s.y));
+    if (!this.tex || this.size.x !== w || this.size.y !== h) { this.tex?.dispose(); this.tex = new THREE.FramebufferTexture(w, h); this.tex.minFilter = THREE.LinearFilter; this.tex.magFilter = THREE.LinearFilter; this.size.set(w, h); }
+    renderer.copyFramebufferToTexture(this.tex); this.U.tScene.value = this.tex; this.grabbed = true;
+  }
+  /** the drops on a camera's lens, over the whole picture. dir: where the water goes on the screen ([0, -1]: down); flow: how hard it is pushed (0 a camera standing, 1+ an onboard at speed) */
+  draw(renderer, dir, flow) {
+    if (!this.grabbed || this.amount < 0.02) return;
+    const U = this.U; U.uTime.value = this.time; U.uAmount.value = this.amount; U.uSeed.value = this.seed % 977; U.uFlow.value = flow; U.uAspect.value = this.size.x / this.size.y; U.uDir.value.set(dir[0], dir[1]);
+    const ac = renderer.autoClear, su = renderer.shadowMap.autoUpdate; renderer.autoClear = false; renderer.shadowMap.autoUpdate = false;
+    try { renderer.render(this.scene, this.cam); } finally { renderer.autoClear = ac; renderer.shadowMap.autoUpdate = su; }
+  }
+}
+
+return { RAIN_GLSL, LensRain };
+})();
+
 // ---- src/camera/HelmetView.js
 __m['src/camera/HelmetView.js'] = (() => {
-
+const { RAIN_GLSL } = __m['src/camera/LensRain.js'];
 // The view from inside the helmet (the helmet camera: your own cockpit view, the broadcast's driver's-eye shot).
 // Two things, both real geometry in the scene rather than a picture laid over it:
 //   1. The car round the lens, whole. The world is drawn with the game's ordinary near plane (30 cm: nearer, the
@@ -155952,6 +156055,7 @@ __m['src/camera/HelmetView.js'] = (() => {
 //      the sheen where it curves away), by the sun (its halo, and the streaks it draws along the glass's scratches
 //      and dust) - gone when the sun is behind a grandstand or a bridge, or behind the driver - and by the visor's
 //      own coating, which tints the road and turns colour toward the curve.
+
 
 const HELMET_LAYER = 7;
 const AZ = 59 * Math.PI / 180, EL_T = 31 * Math.PI / 180, EL_B = 31 * Math.PI / 180, NPOW = 2.9;   // the eye-port, as the eye sees it
@@ -156056,6 +156160,17 @@ void main() {
   #include <colorspace_fragment>
 }`;
 
+const RAIN_FRAG = /* glsl */`
+uniform sampler2D tScene; uniform float uTime; uniform float uAmount; uniform float uSeed; uniform float uFlow; uniform vec2 uRes; uniform vec2 uDir;
+varying vec2 vUv;
+${RAIN_GLSL}
+void main() {
+  // (the drops are on the glass - where they are on it - and what they bend is the picture behind them)
+  vec2 q = vUv * vec2(1.55, 0.82), p = vec2(q.x * -uDir.y + q.y * uDir.x, -(q.x * uDir.x + q.y * uDir.y));
+  vec4 d = lensDrops(tScene, gl_FragCoord.xy / uRes, p * 0.8, uTime, uAmount, uSeed, uFlow); if (d.a <= 0.002) discard;
+  gl_FragColor = d;
+}`;
+
 class HelmetView {
   constructor(scene) {
     this.scene = scene; this.mesh = null; this.scanT = 0; this.vis = 1; this.visT = 0; this.visWant = 1; this.envH = null;
@@ -156067,8 +156182,11 @@ class HelmetView {
     this.tint = new THREE.Mesh(glass, new THREE.ShaderMaterial({ ...common, uniforms: {}, vertexShader: VERT, fragmentShader: TINT_FRAG, blending: THREE.MultiplyBlending, toneMapped: false })); this.tint.renderOrder = 9000;
     this.glassMat = new THREE.ShaderMaterial({ ...common, uniforms: U, vertexShader: VERT, fragmentShader: GLASS_FRAG, blending: THREE.AdditiveBlending });
     this.glass = new THREE.Mesh(glass, this.glassMat); this.glass.renderOrder = 9001;
+    // (rain on the glass: camera/LensRain.js's drops, on the visor's own surface, under its tint)
+    this.RU = { tScene: { value: null }, uTime: { value: 0 }, uAmount: { value: 0 }, uSeed: { value: 0 }, uFlow: { value: 0 }, uRes: { value: new THREE.Vector2(1, 1) }, uDir: { value: new THREE.Vector2(0, -1) } };
+    this.rain = new THREE.Mesh(glass, new THREE.ShaderMaterial({ ...common, uniforms: this.RU, vertexShader: VERT, fragmentShader: RAIN_FRAG, toneMapped: false })); this.rain.renderOrder = 8990; this.rain.visible = false; this.rainSrc = null;
     this.lining = new THREE.Mesh(liningGeo(), new THREE.ShaderMaterial({ ...common, uniforms: U, vertexShader: VERT, fragmentShader: LINING_FRAG })); this.lining.renderOrder = 9002;
-    for (const m of [this.tint, this.glass, this.lining]) { m.frustumCulled = false; m.layers.set(HELMET_LAYER); rig.add(m); }
+    for (const m of [this.rain, this.tint, this.glass, this.lining]) { m.frustumCulled = false; m.layers.set(HELMET_LAYER); rig.add(m); }
     this._m4 = new THREE.Matrix4(); this._v = new THREE.Vector3();
   }
   get on() { return !!this.mesh; }
@@ -156087,7 +156205,8 @@ class HelmetView {
   /**
    * Before the picture is drawn: the helmet where the camera is, the light as it is now.
    * o: { sunDir (world, toward the sun), sun, hemi (the scene's lights), wet 0..1, sunClear(x, y, z, dir) -> is the sun in
-   *      sight from there, shake: [x, y] metres (the helmet moving on the head) }
+   *      sight from there, shake: [x, y] metres (the helmet moving on the head),
+ *      rain: { src (a LensRain: its copy of the picture, its clock and amount), dir: [x, y], flow } | null }
    */
   sync(camera, dt, o = {}) {
     const m = this.mesh; if (!m) return;
@@ -156102,6 +156221,8 @@ class HelmetView {
     if (o.sun) U.uSunCol.value.copy(o.sun.color).multiplyScalar(o.sun.visible === false ? 0 : o.sun.intensity);
     if (o.hemi) { U.uSky.value.copy(o.hemi.color).multiplyScalar(o.hemi.intensity); U.uGround.value.copy(o.hemi.groundColor).multiplyScalar(o.hemi.intensity); }
     U.uWet.value = o.wet || 0; U.uToWorld.value.setFromMatrix4(camera.matrixWorld);
+    const rn = o.rain && o.rain.src.amount > 0.02 ? o.rain : null; this.rainSrc = rn ? rn.src : null; this.rain.visible = !!rn;
+    if (rn) { const RU = this.RU, L = rn.src; RU.uTime.value = L.time; RU.uAmount.value = L.amount; RU.uSeed.value = L.seed % 977; RU.uFlow.value = rn.flow; RU.uDir.value.set(rn.dir[0], rn.dir[1]); }
     // (is the sun in sight? asked a few times a second, eased: into a grandstand's shadow the glare dies away)
     this.visT -= dt; if (this.visT <= 0 && sd) { this.visT = 0.22; this.visWant = sd.y < 0.02 ? 0.25 : o.sunClear ? (o.sunClear(camera.position.x, camera.position.y, camera.position.z, sd) ? 1 : 0) : 1; }
     this.vis += (this.visWant - this.vis) * Math.min(1, dt * 5); U.uVis.value = this.vis;
@@ -156117,6 +156238,7 @@ class HelmetView {
   /** after the world: the car round the lens and the helmet, from 3 cm (call only when the plain picture was just drawn) */
   render(renderer, camera) {
     if (!this.mesh) return;
+    if (this.rainSrc) { const L = this.rainSrc; this.RU.tScene.value = L.tex; this.RU.uRes.value.copy(L.size); this.rain.visible = !!L.tex; }
     const scene = this.scene, near = camera.near, far = camera.far, mask = camera.layers.mask, bg = scene.background, ac = renderer.autoClear, su = renderer.shadowMap.autoUpdate;
     camera.near = 0.03; camera.far = 60; camera.updateProjectionMatrix(); camera.layers.set(HELMET_LAYER);
     scene.background = null; renderer.autoClear = false; renderer.shadowMap.autoUpdate = false;
@@ -196147,6 +196269,7 @@ const { TVExtras } = __m['src/ui/TVExtras.js'];
 const { TVShow, sectorChips } = __m['src/ui/TVShow.js'];
 const { Theatre } = __m['src/ui/Theatre.js'];
 const { HelmetView } = __m['src/camera/HelmetView.js'];
+const { LensRain } = __m['src/camera/LensRain.js'];
 const { RaceTape, SRC: TAPE_SRC } = __m['src/race/RaceTape.js'];
 const { SPIN_WRAP } = __m['src/race/Replay.js'];
 const { TVProps } = __m['src/world/TVProps.js'];
@@ -196198,6 +196321,7 @@ const { buildVegasPaddock } = __m['src/world/VegasPaddock.js'];
 // (the scene's matrices recomputed only where something moved: in place before anything is built)
 
 void FAST_MATRIX;
+
 
 
 
@@ -197614,7 +197738,8 @@ function renderFrame() {
   // (inside the helmet this frame? only where the frame's own camera said so - helmetFrame - never under a photo, a replay, the news)
   const hv = helmetView.on && HV.n === FRAME_N && !PHOTO.on && !(crashCam.on && (crashCam.blur > 0.01 || crashCam.sat > 1.01));
   if (helmetView.on && !hv) { const was = helmetView.mesh; helmetView.attach(null, POV.on); if (was?.halo && !POV.on) was.halo.visible = S.halo; }
-  if (hv) helmetView.sync(camera, HV.dt, { sunDir: env.sunDir, sun: env.sun, hemi: env.hemi, wet: WXV.r, sunClear: _sunTo, shake: HV.shake });
+  const lr = LR.n === FRAME_N && !!LR.kind && lensRain.amount > 0.02 && !PHOTO.on;   // (water on this frame's glass)
+  if (hv) helmetView.sync(camera, HV.dt, { sunDir: env.sunDir, sun: env.sun, hemi: env.hemi, wet: WXV.r, sunClear: _sunTo, shake: HV.shake, rain: lr && LR.kind === 'visor' ? { src: lensRain, dir: LR.dir, flow: LR.flow } : null });
   carShadowsOff();
   try {
     if (!PHOTO.on && crashCam.on && (crashCam.blur > 0.01 || crashCam.sat > 1.01)) {
@@ -197624,7 +197749,11 @@ function renderFrame() {
     if (PHOTO.on && PHOTO.fx.blur > 0) {
       ensureComposer(); bokeh.uniforms.focus.value = photoFocus(); bokeh.uniforms.aperture.value = PHOTO.fx.blur * 0.00006; bokeh.uniforms.maxblur.value = 0.014;
       composer.render();
-    } else { renderer.render(scene, camera); if (hv) helmetView.render(renderer, camera); }
+    } else {
+      renderer.render(scene, camera);
+      if (lr) lensRain.grab(renderer);   // (the picture so far: what the drops bend)
+      if (hv) helmetView.render(renderer, camera); else if (lr && LR.kind === 'lens') lensRain.draw(renderer, LR.dir, LR.flow);
+    }
     if (PIP.on && TP.on && !PHOTO.on) pipRender();   // (the picture in the picture: a second camera's view in its frame)
   } finally { carShadowsOn(); }
   if (Gallery.pending) Gallery.grab(renderer.domElement);   // (a moment kept for the loading screen: ui/Gallery.js)
@@ -197843,11 +197972,12 @@ float wxN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f)
  * the camera is (a shower in one corner, dry in the next), the sky darker under the clouds, the spray off the cars
  */
 function wxFrame(dt, wx = S.director?.weather, cars = S.cars, snap = false) {
-  if (!wx) { if (WXU.uWxOn.value) WXU.uWxOn.value = 0; spray.update(dt, null, camera.position, renderer.domElement.height); return; }
+  if (!wx) { WXV.raw = 0; if (WXU.uWxOn.value) WXU.uWxOn.value = 0; spray.update(dt, null, camera.position, renderer.domElement.height); return; }
   WXU.uWx.value = wx.tex; WXU.uWxOn.value = 1;
   const x = camera.position.x, z = camera.position.z;
   let r = wx.rainAt(x, z), cl = Math.max(r, wx.cloudAt(x, z));
   if (wx.fixed) { r = wx.avgOff > 0.5 ? 0.85 : wx.avgOff > 0.2 ? 0.35 : 0; cl = r ? 0.9 : 0; }
+  WXV.raw = r;   // (the rain where the camera is, this frame: a lens there has stood in it)
   WXV.r += (r - WXV.r) * (snap ? 1 : Math.min(1, dt * 0.9)); WXV.c += (cl - WXV.c) * (snap ? 1 : Math.min(1, dt * 0.4));   // (snap: the theatre wound to another moment)
   rain.setIntensity(Math.min(1, WXV.r * 1.3));
   const B = W.sky0;
@@ -199602,6 +199732,31 @@ function helmetFrame(dt) {
   }
   HV.n = FRAME_N; HV.dt = dt; HV.car = car;
 }
+// ---- rain on the glass in front of the camera (camera/LensRain.js): a broadcast camera's lens, the helmet's visor.
+// Which glass this frame's camera looks through, its own drops (a seed), where the water is pushed; drawn in renderFrame
+// with the picture - a cut has its own drops on its first frame.
+const lensRain = new LensRain();
+const LR = { n: -1, kind: null, dir: [0, -1], flow: 0 };
+const LENS_KINDS = new Set(['track', 'pit', 'grid', 'tcam', 'rear', 'crowd', 'marshal', 'walk']);   // (the helicopter's ball and the cameras under a roof stay dry)
+function lensFrame(dt) {
+  const d = S.director; let kind = null, seed = 0, flow = 0; const dir = LR.dir; dir[0] = 0; dir[1] = -1;
+  if (d && !PHOTO.on && !POV.on && !FINALE.on && !crashCam.on && !TP.rep) {
+    if (helmetView.on && HV.car) {
+      // (the visor: at speed the air pushes the water up and back over it)
+      const sp = Math.min(1, Math.abs(HV.car.speed || 0) / 55); kind = 'visor'; seed = 5000 + (HV.car.id || 0) * 7; flow = 0.15 + 1.7 * sp; if (sp > 0.12) dir[1] = 1;
+    } else if (TP.on) {
+      const sh = TP.tv?.shot;
+      if (sh && LENS_KINDS.has(sh.kind) && sh.car) {
+        kind = 'lens';
+        if (sh.kind === 'tcam' || sh.kind === 'rear') { const sp = Math.min(1, Math.abs(sh.car.speed || 0) / 55); seed = 3000 + (sh.car.id || 0) * 13 + (sh.kind === 'rear' ? 5 : 0); flow = 0.1 + 1.5 * sp; if (sp > 0.12) dir[1] = 1; }
+        else seed = sh.pos ? 100 + Math.abs(Math.round(sh.pos.x * 0.37 + sh.pos.z * 0.91)) % 2000 : 2500 + (TP.tv.cuts % 97);   // (a camera that stands: the same drops when the director comes back to it)
+      }
+    }
+  }
+  if (LR.test && d && !helmetView.on) { kind = 'lens'; seed = LR.test.seed; flow = LR.test.flow || 0; dir[1] = LR.test.up ? 1 : -1; }   // (a test's camera)
+  if (kind) lensRain.step(dt, Math.max(0, Math.min(1, (WXV.raw ?? WXV.r) * 1.25)), seed); else { lensRain.seed = -1; lensRain.amount = 0; }
+  LR.kind = kind; LR.flow = flow; LR.n = FRAME_N;
+}
 const _sunTo = (x, y, z, dir) => tvClear(x, y, z, x + dir.x * 600, y + dir.y * 600, z + dir.z * 600, true);
 const POVV = new THREE.Vector3(), POVO = new THREE.Vector3(), POVQ = new THREE.Quaternion(), POVQ2 = new THREE.Quaternion(), POVE = new THREE.Euler(0, 0, 0, 'YXZ');
 const POVY = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -Math.PI / 2);
@@ -201119,7 +201274,7 @@ function frame(now) {
   input.endFrame();
   sphereFeed(sphereSeen);   // (paused or in photo mode too: the frozen race on the Sphere's screen, not the black of a feed never drawn)
   cullBuildings();
-  helmetFrame(halted ? 0 : dt);
+  helmetFrame(halted ? 0 : dt); lensFrame(halted ? 0 : dt);
   env.sky.position.copy(camera.position);   // the dome travels with the camera: its far side never crosses the far plane (that showed as a flat "mountain")
   renderView();
   RES.calls = renderer.info.render.calls; RES.tris = renderer.info.render.triangles;
@@ -201170,7 +201325,7 @@ function frame(now) {
       return new Promise((res) => careerHangout(L, res, c));
     },
     /** headless fast-forward (testing/telemetry): advances the active session by `sec` seconds without rendering */
-    get TH() { return TH; }, theatreOpen, theatreClose, endSession, frame, replayFromFile, RaceTape, TVDirector, tvClear, helmetView, HV, env, setTimeOfDay, applyWeather,   /* (the theatre; a frame of the game's own loop: test hooks) */
+    get TH() { return TH; }, theatreOpen, theatreClose, endSession, frame, replayFromFile, RaceTape, TVDirector, tvClear, helmetView, HV, lensRain, LR, WXV, env, setTimeOfDay, applyWeather,   /* (the theatre; a frame of the game's own loop: test hooks) */
     stepSim(sec, step = 1 / 60) { const d = S.director; if (!d) return 'no session'; const n = Math.round(sec / step); for (let i = 0; i < n && !d.done; i++) { input.update(step, S.player ? S.player.speed : 0); d.update(step, input); } return d.time; },
     /** render stats: draw calls / triangles of the last frame, average CPU ms per frame since the last call, current render scale */
     perf() { const r = { calls: RES.calls, triangles: RES.tris, avgFrameMs: +(RES.msSum / Math.max(1, RES.frames)).toFixed(2), frames: RES.frames, renderScale: RES.scale, pixelRatio: renderer.getPixelRatio() }; RES.frames = 0; RES.msSum = 0; console.info('[perf]', r); return r; },

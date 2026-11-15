@@ -71,6 +71,7 @@ import { TVExtras } from './ui/TVExtras.js';
 import { TVShow, sectorChips } from './ui/TVShow.js';
 import { Theatre } from './ui/Theatre.js';
 import { HelmetView } from './camera/HelmetView.js';
+import { LensRain } from './camera/LensRain.js';
 import { RaceTape, SRC as TAPE_SRC } from './race/RaceTape.js';
 import { SPIN_WRAP } from './race/Replay.js';
 import { TVProps } from './world/TVProps.js';
@@ -1420,7 +1421,8 @@ function renderFrame() {
   // (inside the helmet this frame? only where the frame's own camera said so - helmetFrame - never under a photo, a replay, the news)
   const hv = helmetView.on && HV.n === FRAME_N && !PHOTO.on && !(crashCam.on && (crashCam.blur > 0.01 || crashCam.sat > 1.01));
   if (helmetView.on && !hv) { const was = helmetView.mesh; helmetView.attach(null, POV.on); if (was?.halo && !POV.on) was.halo.visible = S.halo; }
-  if (hv) helmetView.sync(camera, HV.dt, { sunDir: env.sunDir, sun: env.sun, hemi: env.hemi, wet: WXV.r, sunClear: _sunTo, shake: HV.shake });
+  const lr = LR.n === FRAME_N && !!LR.kind && lensRain.amount > 0.02 && !PHOTO.on;   // (water on this frame's glass)
+  if (hv) helmetView.sync(camera, HV.dt, { sunDir: env.sunDir, sun: env.sun, hemi: env.hemi, wet: WXV.r, sunClear: _sunTo, shake: HV.shake, rain: lr && LR.kind === 'visor' ? { src: lensRain, dir: LR.dir, flow: LR.flow } : null });
   carShadowsOff();
   try {
     if (!PHOTO.on && crashCam.on && (crashCam.blur > 0.01 || crashCam.sat > 1.01)) {
@@ -1430,7 +1432,11 @@ function renderFrame() {
     if (PHOTO.on && PHOTO.fx.blur > 0) {
       ensureComposer(); bokeh.uniforms.focus.value = photoFocus(); bokeh.uniforms.aperture.value = PHOTO.fx.blur * 0.00006; bokeh.uniforms.maxblur.value = 0.014;
       composer.render();
-    } else { renderer.render(scene, camera); if (hv) helmetView.render(renderer, camera); }
+    } else {
+      renderer.render(scene, camera);
+      if (lr) lensRain.grab(renderer);   // (the picture so far: what the drops bend)
+      if (hv) helmetView.render(renderer, camera); else if (lr && LR.kind === 'lens') lensRain.draw(renderer, LR.dir, LR.flow);
+    }
     if (PIP.on && TP.on && !PHOTO.on) pipRender();   // (the picture in the picture: a second camera's view in its frame)
   } finally { carShadowsOn(); }
   if (Gallery.pending) Gallery.grab(renderer.domElement);   // (a moment kept for the loading screen: ui/Gallery.js)
@@ -1649,11 +1655,12 @@ float wxN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f)
  * the camera is (a shower in one corner, dry in the next), the sky darker under the clouds, the spray off the cars
  */
 function wxFrame(dt, wx = S.director?.weather, cars = S.cars, snap = false) {
-  if (!wx) { if (WXU.uWxOn.value) WXU.uWxOn.value = 0; spray.update(dt, null, camera.position, renderer.domElement.height); return; }
+  if (!wx) { WXV.raw = 0; if (WXU.uWxOn.value) WXU.uWxOn.value = 0; spray.update(dt, null, camera.position, renderer.domElement.height); return; }
   WXU.uWx.value = wx.tex; WXU.uWxOn.value = 1;
   const x = camera.position.x, z = camera.position.z;
   let r = wx.rainAt(x, z), cl = Math.max(r, wx.cloudAt(x, z));
   if (wx.fixed) { r = wx.avgOff > 0.5 ? 0.85 : wx.avgOff > 0.2 ? 0.35 : 0; cl = r ? 0.9 : 0; }
+  WXV.raw = r;   // (the rain where the camera is, this frame: a lens there has stood in it)
   WXV.r += (r - WXV.r) * (snap ? 1 : Math.min(1, dt * 0.9)); WXV.c += (cl - WXV.c) * (snap ? 1 : Math.min(1, dt * 0.4));   // (snap: the theatre wound to another moment)
   rain.setIntensity(Math.min(1, WXV.r * 1.3));
   const B = W.sky0;
@@ -3408,6 +3415,31 @@ function helmetFrame(dt) {
   }
   HV.n = FRAME_N; HV.dt = dt; HV.car = car;
 }
+// ---- rain on the glass in front of the camera (camera/LensRain.js): a broadcast camera's lens, the helmet's visor.
+// Which glass this frame's camera looks through, its own drops (a seed), where the water is pushed; drawn in renderFrame
+// with the picture - a cut has its own drops on its first frame.
+const lensRain = new LensRain();
+const LR = { n: -1, kind: null, dir: [0, -1], flow: 0 };
+const LENS_KINDS = new Set(['track', 'pit', 'grid', 'tcam', 'rear', 'crowd', 'marshal', 'walk']);   // (the helicopter's ball and the cameras under a roof stay dry)
+function lensFrame(dt) {
+  const d = S.director; let kind = null, seed = 0, flow = 0; const dir = LR.dir; dir[0] = 0; dir[1] = -1;
+  if (d && !PHOTO.on && !POV.on && !FINALE.on && !crashCam.on && !TP.rep) {
+    if (helmetView.on && HV.car) {
+      // (the visor: at speed the air pushes the water up and back over it)
+      const sp = Math.min(1, Math.abs(HV.car.speed || 0) / 55); kind = 'visor'; seed = 5000 + (HV.car.id || 0) * 7; flow = 0.15 + 1.7 * sp; if (sp > 0.12) dir[1] = 1;
+    } else if (TP.on) {
+      const sh = TP.tv?.shot;
+      if (sh && LENS_KINDS.has(sh.kind) && sh.car) {
+        kind = 'lens';
+        if (sh.kind === 'tcam' || sh.kind === 'rear') { const sp = Math.min(1, Math.abs(sh.car.speed || 0) / 55); seed = 3000 + (sh.car.id || 0) * 13 + (sh.kind === 'rear' ? 5 : 0); flow = 0.1 + 1.5 * sp; if (sp > 0.12) dir[1] = 1; }
+        else seed = sh.pos ? 100 + Math.abs(Math.round(sh.pos.x * 0.37 + sh.pos.z * 0.91)) % 2000 : 2500 + (TP.tv.cuts % 97);   // (a camera that stands: the same drops when the director comes back to it)
+      }
+    }
+  }
+  if (LR.test && d && !helmetView.on) { kind = 'lens'; seed = LR.test.seed; flow = LR.test.flow || 0; dir[1] = LR.test.up ? 1 : -1; }   // (a test's camera)
+  if (kind) lensRain.step(dt, Math.max(0, Math.min(1, (WXV.raw ?? WXV.r) * 1.25)), seed); else { lensRain.seed = -1; lensRain.amount = 0; }
+  LR.kind = kind; LR.flow = flow; LR.n = FRAME_N;
+}
 const _sunTo = (x, y, z, dir) => tvClear(x, y, z, x + dir.x * 600, y + dir.y * 600, z + dir.z * 600, true);
 const POVV = new THREE.Vector3(), POVO = new THREE.Vector3(), POVQ = new THREE.Quaternion(), POVQ2 = new THREE.Quaternion(), POVE = new THREE.Euler(0, 0, 0, 'YXZ');
 const POVY = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -Math.PI / 2);
@@ -4925,7 +4957,7 @@ function frame(now) {
   input.endFrame();
   sphereFeed(sphereSeen);   // (paused or in photo mode too: the frozen race on the Sphere's screen, not the black of a feed never drawn)
   cullBuildings();
-  helmetFrame(halted ? 0 : dt);
+  helmetFrame(halted ? 0 : dt); lensFrame(halted ? 0 : dt);
   env.sky.position.copy(camera.position);   // the dome travels with the camera: its far side never crosses the far plane (that showed as a flat "mountain")
   renderView();
   RES.calls = renderer.info.render.calls; RES.tris = renderer.info.render.triangles;
@@ -4976,7 +5008,7 @@ function frame(now) {
       return new Promise((res) => careerHangout(L, res, c));
     },
     /** headless fast-forward (testing/telemetry): advances the active session by `sec` seconds without rendering */
-    get TH() { return TH; }, theatreOpen, theatreClose, endSession, frame, replayFromFile, RaceTape, TVDirector, tvClear, helmetView, HV, env, setTimeOfDay, applyWeather,   /* (the theatre; a frame of the game's own loop: test hooks) */
+    get TH() { return TH; }, theatreOpen, theatreClose, endSession, frame, replayFromFile, RaceTape, TVDirector, tvClear, helmetView, HV, lensRain, LR, WXV, env, setTimeOfDay, applyWeather,   /* (the theatre; a frame of the game's own loop: test hooks) */
     stepSim(sec, step = 1 / 60) { const d = S.director; if (!d) return 'no session'; const n = Math.round(sec / step); for (let i = 0; i < n && !d.done; i++) { input.update(step, S.player ? S.player.speed : 0); d.update(step, input); } return d.time; },
     /** render stats: draw calls / triangles of the last frame, average CPU ms per frame since the last call, current render scale */
     perf() { const r = { calls: RES.calls, triangles: RES.tris, avgFrameMs: +(RES.msSum / Math.max(1, RES.frames)).toFixed(2), frames: RES.frames, renderScale: RES.scale, pixelRatio: renderer.getPixelRatio() }; RES.frames = 0; RES.msSum = 0; console.info('[perf]', r); return r; },

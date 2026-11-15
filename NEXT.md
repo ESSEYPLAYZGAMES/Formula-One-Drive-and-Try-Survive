@@ -1,3 +1,42 @@
+# V2.57 (2026-11-15): rain on the glass - the visor's, and every camera's own with the cut
+
+Asked for: "yeah add raindrops, also when switching cams there's a lil delay between the updated raindrops (cool
+detail that each camera has different raindrops) but the delay breaks immersion".
+
+New: `src/camera/LensRain.js`; in `src/main.js` lensFrame (which glass this frame's camera looks through) and
+renderFrame; the visor's drops in `src/camera/HelmetView.js`.
+
+## The delay
+- What it was: the drops on a broadcast camera's lens were HTML laid over the picture, made again by the graphics'
+  own update - which runs five times a second (up to 0.2 s after the cut) - and faded in or out over 1.2 s whenever
+  the helicopter (which has none) was on either side of the cut. They also followed how wet the track was, not
+  whether it was raining where the camera stood.
+- Now the drops are drawn in the picture, in the same frame: the finished frame is copied and every drop is a small
+  lens on it. Each camera has its own (a trackside camera by where it stands - the same drops when the director
+  comes back to it; an onboard by its car), and a camera cut to has them on its first frame, as wet as a glass that
+  has stood in that rain: checked - one frame after a change of camera, different drops, at full strength.
+- They follow the rain where the camera is. A glass in a shower wets in a moment and dries over a few seconds.
+
+## The drops
+- Beads that sit where they landed, grow and go; runners that go where the water is pushed, each with a beaded
+  tail: down a camera that stands still, up and back over an onboard's lens at speed (and fewer beads there: the
+  air takes them).
+- Each bends the picture behind it toward its middle, a little out of focus, with a glint on its shoulder.
+- The helicopter's camera and the cameras under a roof (the garage, the pit wall) stay dry.
+
+## The visor
+- The same water on the helmet's glass (both the cockpit view you drive from and the broadcast's helmet camera),
+  on the visor's own surface, under its tint and inside the helmet's lining: run down it standing still, pushed up
+  and back over it at speed.
+
+## Checked
+- In a browser, a wet race at Silverstone with the rain held on: the visor at 220 km/h, a camera's lens with the
+  water running down, a second camera one frame after the cut (its own drops, the water pushed up), and the visor
+  dry again with the rain off.
+- A seeded race in the other modes is identical to V2.45-V2.56 (tools/race_probe.mjs 5 1 silverstone).
+- Not checked: a real graphics card (one copy of the frame and one full-screen pass, only while there is water on
+  the glass); a team principal's race itself (the test switched cameras by hand).
+
 # V2.56 (2026-11-14): the helmet camera - the car whole, a real helmet round the lens, a visor that takes the light
 
 Asked for (with a frame of F1's own helmet camera): "fix helmet cam so it doesnt clip thru the car (becoming see-thru)
