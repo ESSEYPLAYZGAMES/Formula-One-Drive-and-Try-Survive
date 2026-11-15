@@ -7,6 +7,7 @@
 // camera's name. Plain DOM, built once and only written where a value changed.
 import { COMPOUNDS } from '../vehicle/Tyres.js';
 import { TVStewards } from './TVStewards.js';
+import { neonOn } from './TVNeon.js';
 
 const CSS = `
 #tvg { --tvf: "Segoe UI Variable", "Segoe UI", Inter, system-ui, Roboto, sans-serif; position: fixed; inset: 0; pointer-events: none; z-index: 22; font-family: "Segoe UI Variable", "Segoe UI", Inter, system-ui, Roboto, sans-serif; color: #fff; }
@@ -63,7 +64,7 @@ export class TVGraphics {
   constructor(o = {}) {
     this.onPick = o.onPick || null;
     if (!document.getElementById('tvg-css')) { const st = document.createElement('style'); st.id = 'tvg-css'; st.textContent = CSS; document.head.appendChild(st); }
-    const el = this.el = document.createElement('div'); el.id = 'tvg'; el.className = 'hidden';
+    const el = this.el = document.createElement('div'); el.id = 'tvg'; el.className = 'hidden'; neonOn(el);   // (every element's way in and out: ui/TVNeon.js)
     el.innerHTML = '<div class="tower"><div class="th"><b class="lap">LAP 0/0</b><small class="trk"></small></div><div class="flag"></div><div class="mode">INTERVAL</div><div class="rows"></div></div>'
       + '<div class="live"><i></i>LIVE<em class="cam"></em></div><div class="banner"></div><div class="rc"></div><div class="cap"></div>';
     document.body.appendChild(el);
@@ -80,7 +81,7 @@ export class TVGraphics {
   rc(text, kind = '', head = 'RACE CONTROL') {
     const d = document.createElement('div'); d.className = kind; d.innerHTML = `<small>${head}</small>`; d.appendChild(document.createTextNode(text));
     this.rcEl.appendChild(d); while (this.rcEl.children.length > 4) this.rcEl.firstChild.remove();
-    setTimeout(() => d.remove(), 6500);
+    setTimeout(() => d.classList.add('out'), 6150); setTimeout(() => d.remove(), 6500);   // (folded away, then taken off: ui/TVNeon.js)
   }
   /** a cut (camera/TVDirector.js): the caption for the car on screen, or the fight */
   cut(sh, d) {

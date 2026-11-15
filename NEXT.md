@@ -1,3 +1,30 @@
+# V2.61 (2026-11-15): every broadcast graphic arrives and leaves in neon
+
+Asked for: "ensure all of the hud icons/notifs/visuals like undercuts and all of that have cool similarly neon
+appearing transitions and exit".
+
+## One way in and out (ui/TVNeon.js, new - put on by ui/TVGraphics.js)
+- Every element of the team principal's broadcast that comes and goes is now drawn the way the stewards' cards and
+  the replay window already were: a line of light in the element's own colour runs across, the element opens behind
+  it, it flares once like a tube catching, and a soft glow of that colour stays round it; it leaves the way it came -
+  closed back to the line - and only then gives up its place.
+  - the right-hand column's cards (BATTLE, the car catching, the pit stop's clock, SAFETY CAR / RED FLAG, the info
+    cards, STRATEGY with its undercut line): wiped open from the right edge behind a running white line; a card
+    that is away now takes no height in the column (it used to jump to the corner and fade);
+  - the caption under the picture: drawn out from its middle, a line of light along its foot;
+  - the commentary's line and the team radio: unrolled from their coloured edge;
+  - race control's lines: wiped in behind their colour (yellow, red, green, purple), folded away before they are
+    taken off;
+  - the SAFETY CAR pill: a tube of its colour that flickers on and pulses, moved beside the tower (the middle of the
+    top is race control's now);
+  - the grid and the classification: let down from their heading; the telemetry strip and the key hint: opened
+    from their middle;
+  - the stingers (SAFETY CAR, RED FLAG, GREEN, CHEQUERED FLAG): a line across the picture that opens into the band
+    and closes back to a line that runs off;
+  - what is always there arrives too when the feed comes up: the tower let down, the LIVE tag and the map wiped in;
+    a place gained or lost flares on the tower.
+- Reduced-motion setting respected. Nothing of what the graphics say or when they show has changed.
+
 # V2.60 (2026-11-15): stewards who take their time, the stewards' room, strategy on the screen, tyre rules, cameras
 
 Asked for: fix the rough edges (rival overcut / safety-car reactions never seen, the helmet camera's sleeves, the
