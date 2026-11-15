@@ -7,39 +7,38 @@
 import { inboxOf, storyQueue, storyShown, storyApply, storyAmbient, storyAmbientShown, storyLodge, storyRumour, storyEnsure, rivalriesOf, trophiesOf, baseCtx, obeyChance, traitOf, TRAITS } from '../career/ManagerStory.js';
 import { STYLES } from '../career/StoryLines.js';
 
-export const STORY_TABS = [['story', 'STORY']];
-const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const bar = (x, col) => `<div class="m-bar" style="--bc:${col || (x > 0.66 ? '#1fae64' : x > 0.4 ? '#e0a100' : '#d4351c')}"><i style="width:${(Math.max(0, Math.min(1, x)) * 100).toFixed(0)}%"></i></div>`;
-const note = (t) => `<details class="m-note"><summary>How this works</summary><p>${t}</p></details>`;   // (folded away: the page reads without it)
+import { esc, panel, meter, person, tag, empty } from './HQKit.js';
 const SCENE = { feudRow: 'The garage', debrief: 'Your office', poach: 'The paddock', hearing: 'The stewards', scrutineering: 'Scrutineering', audit: 'The auditors', sponsorCall: 'A call', leak: 'The factory, at night', seatFit: 'The garage', crewTalk: 'The garage', press: 'The press room', board: 'The boardroom', launch: 'Launch night', seasonReview: 'A film', documentary: 'A film', factoryTour: 'The factory', garageNight: 'The garage', sacked: 'The boardroom', signing: 'The press room', released: 'Your office' };
+const HOW = 'A matter comes up in person where it belongs - in the garage, the boardroom, the press room - when you are next there, one at a time; what you say in it counts. Or decide it here in a line. Left alone, each decides itself, the cautious way.';
 
+/** a matter: what it is, where it will come up and by when, and its answers to give here in a line */
 function matterHTML(c, m) {
-  const due = m.due != null && m.due < 90 ? (m.due <= c.round ? 'Decides itself at the next race' : `Before round ${m.due + 1}`) : '';
+  const due = m.due != null && m.due < 90 ? (m.due <= c.round ? 'decides itself at the next race' : `before round ${m.due + 1}`) : '';
   const ops = (m.options || []).map((o) => `<button data-a="stpick" data-v="${esc(m.key)}|${esc(o.id)}" title="${esc(o.hint || '')}">${esc(o.label)}</button>`).join('');
-  return `<div class="m-drv" style="align-items:flex-start"><div class="m-nm"><b>${esc(m.title)}</b><small>${esc(m.text || '')}</small><small style="color:#8a93a0">${esc(SCENE[m.scene] || '')}${due ? ` · ${due}` : ''}</small>
-    ${ops ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">${ops}</div>` : ''}</div></div>`;
+  return person({ cls: 'top', name: esc(m.title), sub: `${esc(m.text || '')}<br>${tag(esc(SCENE[m.scene] || 'A matter'))}${due ? ` ${tag(due, m.due <= c.round ? 'warn' : '')}` : ''}`, under: ops ? `<div class="q-acts l">${ops}</div>` : '' });
 }
+/** a mood on a line: its name, what it means now, how full */
+const mood = (name, text, x) => person({ name, sub: text, under: meter(x) });
+/** INBOX: what is waiting for you down the left (the whole height); the mood and the other principals; the feed and the rumours */
 export function storyHTML(c, tab) {
   if (tab !== 'story') return null;
   const S = storyEnsure(c), box = inboxOf(c), my = c.seatsOf(c.myTeam), won = trophiesOf(c);
-  const inbox = `<div class="m-card" style="grid-column:1/-1"><h3>Waiting for you${box.length ? ` · ${box.length}` : ''}</h3>${box.length ? box.map((m) => matterHTML(c, m)).join('') : note('Nothing. Enjoy it.')}${note('A matter comes up in person where it belongs - in the garage, the boardroom, the press room - when you are next there, one at a time; what you say in it counts. Or decide it here in a line. Left alone, each decides itself, the cautious way.')}</div>`;
-  const mood = `<div class="m-card"><h3>The mood</h3>
-    <div class="m-drv"><div class="m-nm"><b>The fans</b><small>${S.fans >= 65 ? 'With you: the stands are full of your colours.' : S.fans >= 40 ? 'Watching. Waiting.' : 'Restless. They have started to boo.'}</small></div><div style="width:38%">${bar(S.fans / 100)}</div></div>
-    <div class="m-drv"><div class="m-nm"><b>Your word</b><small>${S.cred >= 65 ? 'The press believe what you tell them.' : S.cred >= 40 ? 'Taken with a pinch of salt.' : 'Nobody writes down what you say any more.'}</small></div><div style="width:38%">${bar(S.cred / 100)}</div></div>
-    ${my.length === 2 ? `<div class="m-drv"><div class="m-nm"><b>${esc(my[0].name.split(' ').pop())} and ${esc(my[1].name.split(' ').pop())}</b><small>${S.feud.level >= 70 ? 'At war. They will race each other before anyone else.' : S.feud.level >= 45 ? 'Not speaking. An order may be ignored.' : S.feud.level >= 20 ? 'An edge between them.' : 'Getting on.'}</small></div><div style="width:38%">${bar(1 - S.feud.level / 100)}</div></div>` : ''}
-    ${my.map((d) => { const t = TRAITS[traitOf(c, d.id)]; return `<div class="m-drv"><div class="m-nm"><b>${esc(d.name)} · ${esc(t.name)}</b><small>${esc(t.what)} Takes an order: ${Math.round(obeyChance(c, d.id) * 100)}%.</small></div></div>`; }).join('')}</div>`;
+  const inbox = panel(`Waiting for you${box.length ? ` · ${box.length}` : ''}`, box.length ? box.map((m) => matterHTML(c, m)).join('') : empty('Nothing. Enjoy it.'), { w: 5, h: 2, k: 'inbox', cls: box.length ? 'hero' : '', info: HOW });
+  const md = panel('The mood', `${mood('The fans', S.fans >= 65 ? 'With you: the stands are full of your colours.' : S.fans >= 40 ? 'Watching. Waiting.' : 'Restless. They have started to boo.', S.fans / 100)}
+    ${mood('Your word', S.cred >= 65 ? 'The press believe what you tell them.' : S.cred >= 40 ? 'Taken with a pinch of salt.' : 'Nobody writes down what you say any more.', S.cred / 100)}
+    ${my.length === 2 ? mood(`${esc(my[0].name.split(' ').pop())} and ${esc(my[1].name.split(' ').pop())}`, S.feud.level >= 70 ? 'At war. They will race each other before anyone else.' : S.feud.level >= 45 ? 'Not speaking. An order may be ignored.' : S.feud.level >= 20 ? 'An edge between them.' : 'Getting on.', 1 - S.feud.level / 100) : ''}
+    ${my.map((d) => { const t = TRAITS[traitOf(c, d.id)]; return person({ name: `${esc(d.name)} ${tag(esc(t.name), 'ac')}`, sub: `${esc(t.what)} Takes an order: ${Math.round(obeyChance(c, d.id) * 100)}%.` }); }).join('')}`, { w: 4, k: 'mood' });
   const pri = Object.entries(S.pri).sort((a, b) => b[1].heat - a[1].heat).slice(0, 4), riv = rivalriesOf(c);
-  const rivals = `<div class="m-card"><h3>The others</h3>${pri.map(([t, p]) => `<div class="m-drv"><div class="m-nm"><b>${esc(p.name)}</b><small>${esc(t)} · ${esc(STYLES[p.style]?.name || '')}${p.heat >= 40 ? ' · no love lost' : p.heat >= 15 ? ' · needle' : ''}</small></div><div style="width:30%">${bar(1 - p.heat / 100)}</div></div>`).join('')}
-    ${riv.length ? `<h3 style="margin-top:14px">On the track</h3>${riv.map((r) => `<div class="m-drv"><div class="m-nm"><b>${esc((r.a || '').split(' ').pop())} v ${esc((r.b || '').split(' ').pop())}</b><small>${r.n} coming-together${r.n === 1 ? '' : 's'}${r.last ? ` · last: ${esc(r.last)}` : ''}</small></div></div>`).join('')}` : ''}</div>`;
-  const feed = `<div class="m-card"><h3>The feed</h3>${S.feed.slice(0, 9).map((p) => `<div class="m-drv" style="align-items:flex-start"><div class="m-nm"><b style="font-weight:700">${esc(p.who)} <span style="color:#8a93a0;font-weight:400">${esc(p.h)} · R${p.round}</span></b><small style="color:#2a313c;font-size:13px">${esc(p.text)}</small></div></div>`).join('') || note('Quiet.')}</div>`;
-  const rum = `<div class="m-card"><h3>Rumours</h3>${S.rumours.map((r) => `<div class="m-drv" style="align-items:flex-start"><div class="m-nm"><b style="font-weight:600">${esc(r.text)}</b>${r.answered ? `<small>${r.answered === 'deny' ? 'Denied.' : 'Left to run.'}</small>` : `<div style="display:flex;gap:6px;margin-top:6px"><button data-a="strum" data-v="${esc(r.id)}|deny">DENY IT</button><button data-a="strum" data-v="${esc(r.id)}|fuel">LET IT RUN</button></div>`}</div></div>`).join('') || note('Nothing going round. It will, in the second half of the season.')}${note('Deny what is true and it costs your word when it comes out. Let one run and the paddock talks - which is sometimes what you want.')}</div>`;
-  const arch = `<div class="m-card"><h3>Roll of honour</h3><div class="m-drv"><div class="m-nm"><b>${won.length ? `${won.length} on the plinths` : 'An empty room'}</b><small>${won.length ? esc(won[0].title || '') : 'The first plinth is waiting.'}</small></div><button class="m-dark" data-a="sttrophy">THE TROPHY ROOM</button></div></div>`;
-  return `<div class="m-grid">${inbox}${mood}${rivals}${feed}${rum}${arch}</div>`;
+  const others = panel('The others', `${pri.map(([t, p]) => person({ name: esc(p.name), sub: `${esc(t)} · ${esc(STYLES[p.style]?.name || '')}${p.heat >= 40 ? ' · no love lost' : p.heat >= 15 ? ' · needle' : ''}`, under: meter(1 - p.heat / 100, null, { thin: true }) })).join('')}
+    ${riv.map((r) => person({ name: `${esc((r.a || '').split(' ').pop())} v ${esc((r.b || '').split(' ').pop())}`, sub: `${r.n} coming-together${r.n === 1 ? '' : 's'} on track${r.last ? ` · last: ${esc(r.last)}` : ''}` })).join('')}`, { w: 3, k: 'oth', act: `<button class="ghost" data-a="sttrophy" title="${won.length ? `${won.length} on the plinths` : 'The first plinth is waiting'}">TROPHY ROOM${won.length ? ` · ${won.length}` : ''}</button>` });
+  const feed = panel('The feed', S.feed.slice(0, 12).map((p) => person({ cls: 'top', name: `${esc(p.who)} <span style="color:var(--mute);font-weight:500">${esc(p.h)} · R${p.round}</span>`, sub: `<span style="color:var(--dim);font-size:12px">${esc(p.text)}</span>` })).join('') || empty('Quiet.'), { w: 4, k: 'feed' });
+  const rum = panel('Rumours', S.rumours.map((r) => person({ cls: 'top', name: esc(r.text), sub: r.answered ? (r.answered === 'deny' ? 'Denied.' : 'Left to run.') : '', under: r.answered ? '' : `<div class="q-acts l"><button data-a="strum" data-v="${esc(r.id)}|deny">DENY IT</button><button data-a="strum" data-v="${esc(r.id)}|fuel">LET IT RUN</button></div>` })).join('') || empty('Nothing going round. It will, in the second half of the season.'), { w: 3, k: 'rum', info: 'Deny what is true and it costs your word when it comes out. Let one run and the paddock talks - which is sometimes what you want.' });
+  return `<div class="q-g">${inbox}${md}${others}${feed}${rum}</div>`;
 }
-/** on the overview: what is waiting */
+/** on the overview's NEEDS YOU: what is waiting (the first of them, and how many more) */
 export function storyHome(c) {
   const box = inboxOf(c); if (!box.length) return '';
-  return `<div class="m-card"><h3>Waiting for you · ${box.length}</h3><div class="m-big">${esc(box[0].title)}</div><p style="font-size:13px;color:#4a5260">${esc(box[0].text || '')}</p><button class="m-go" data-tab="story" style="padding:8px 14px">OPEN STORY →</button></div>`;
+  return person({ cls: 'top', name: `${tag(`Inbox · ${box.length}`, 'ac')} ${esc(box[0].title)}`, sub: esc(box[0].text || ''), act: '<button class="go" data-tab="story">OPEN →</button>' });
 }
 /** a click on the page: play(scene, ctx) -> Promise<result> shows a scene. -> Promise<a line to say | ''> | undefined (not ours) */
 export function storyAct(c, a, v, play) {

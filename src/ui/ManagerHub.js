@@ -1,110 +1,63 @@
-// The team principal's HQ (career/Manager.js): between the race weekends, the team's home. The header holds what
-// matters every day - the budget, what is left under the cost cap, the board's confidence, where the team stands - and
-// the next weekend (RACE: watched on the feed and run from the pit wall; SIMULATE: the result at once). The tabs:
-// OVERVIEW (the next round, its forecast and the sponsor's target, your drivers, the last race, the news; at the
-// season's end, its review and the board's verdict), STANDINGS (both championships), FACTORY (the tech tree - ui/
-// HubTech.js, where you BUILD), DRIVERS (your two: extend, release; the free agents: sign), STAFF (the technical
-// director, the head of strategy, the pit crew chief: who you have, who you could hire), FINANCES and CALENDAR. A new
-// career starts here too: the team, the season's length, the race distance.
-//   openManagerHub({ career, teams, trackName, onRace(c), onSim(c), onQuick(), onExit() }) / closeManagerHub()
+// The team principal's HQ (career/Manager.js): between the race weekends, the team's home - made for a laptop's screen
+// (ui/HQKit.js: the sheet, its colours, its parts). A bar across the top holds what matters every day - the team, the
+// season, the budget, what is left under the cost cap, the constructors' place against the board's target, the board's
+// confidence - and the weekend (RACE: watched on the feed and run from the pit wall; SIMULATE: the result at once). A
+// rail down the left has every page in five groups: TEAM (overview, inbox, standings, calendar), CAR (factory - the
+// tech tree, ui/HubTech.js - design, parts), PEOPLE (drivers, morale, staff, pit crew, academy), BUSINESS (finances,
+// sponsors, facilities), PADDOCK (rivals, market). A page is a grid of panels that fills the screen: nothing scrolls
+// but the inside of a panel with a long list; what a click says comes back as a line at the foot; the colours are the
+// team's (the button by the menu: accent and ground, kept for each team). A new career starts here too.
+//   openManagerHub({ career, teams, trackName, onRace(c), onSim(c), onQuick(), onExit(), play }) / closeManagerHub()
 import { TECH_CSS, techHTML, techClick } from './HubTech.js';
-import { ManagerCareer, TRACKS_ALL, COST_CAP, PRIZE, TIER_NAME, TIER_BUDGET, RACE_INCOME, POINT_INCOME, STAFF_ROLES, askOf } from '../career/Manager.js';
-import { techEffects, UP, upgradeName, partsCount } from '../career/TechTree.js';
-import { EXTRA_TABS, extraHTML, extraClick, homeExtra } from './ManagerHub2.js';
-import { STORY_TABS, storyHTML, storyHome, storyAct, storyPump, storyAmbientPlay } from './ManagerHub3.js';
-import { ERA_TABS, eraHTML, eraHome, eraClick, driversHTML } from './ManagerHub4.js';
-import { storySigning, storyReleased, storyShown, storyApply } from '../career/ManagerStory.js';
+import { ManagerCareer, TRACKS_ALL, COST_CAP, PRIZE, TIER_NAME, TIER_BUDGET, RACE_INCOME, POINT_INCOME, STAFF_ROLES } from '../career/Manager.js';
+import { techEffects, UP, partsCount } from '../career/TechTree.js';
+import { extraHTML, extraClick, homeExtra, EXTRA_CSS } from './ManagerHub2.js';
+import { storyHTML, storyHome, storyAct, storyPump, storyAmbientPlay } from './ManagerHub3.js';
+import { eraHTML, eraHome, eraClick, driversHTML } from './ManagerHub4.js';
+import { storySigning, storyReleased, storyShown, storyApply, inboxOf } from '../career/ManagerStory.js';
 import { PU, SPARES, allocOf, fitNew, orderSpare, FAC, FAC_MAX, facCost, facRounds, facFx, facUpgrade, facMaintain, maintCost, SPONSOR_SLOTS, acceptOdds, propose, sponsorTargets, marketability } from '../career/ManagerOps.js';
+import { TRACK_MAPS } from './TrackMaps.js';
+import { HQ_CSS, NAV, ICON, esc, money, pct, sur, panel, kv, meter, ring, seg, person, stat, tag, sw, empty, themeApply, themeHTML, themeSet, fitSheet, tween, techSkin } from './HQKit.js';
 
-const CSS = `
-#mgr { position: fixed; inset: 0; z-index: 60; background: #eef1f5; color: #151a22; font-family: "Segoe UI Variable", "Segoe UI", Inter, system-ui, Roboto, sans-serif; display: flex; flex-direction: column; overflow: hidden; }
-#mgr button { font: inherit; cursor: pointer; border-radius: 9px; border: 1px solid rgba(21,26,34,.14); background: #fff; color: #151a22; padding: 7px 12px; font-size: 12px; font-weight: 700; letter-spacing: .04em; }
-#mgr button:hover:not(:disabled) { border-color: rgba(21,26,34,.35); }
-#mgr button:disabled { opacity: .45; cursor: default; }
-#mgr button.m-go { background: #e10600; border-color: #e10600; color: #fff; }
-#mgr button.m-dark { background: #151a22; border-color: #151a22; color: #fff; }
-#mgr .m-mh { display: flex; flex-wrap: wrap; row-gap: 8px; align-items: center; gap: 16px; padding: 12px 20px; background: #fff; border-bottom: 1px solid rgba(21,26,34,.08); position: relative; }
-#mgr .m-mh::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 6px; background: var(--tc, #888); }
-#mgr .m-mh .m-tn { display: flex; flex-direction: column; min-width: 0; }
-#mgr .m-mh .m-tn small { font-size: 10px; font-weight: 700; letter-spacing: .18em; color: #6b7480; text-transform: uppercase; }
-#mgr .m-mh .m-tn b { font-size: 22px; font-weight: 900; letter-spacing: .01em; white-space: nowrap; }
-#mgr .m-kp { display: flex; gap: 8px; margin-left: auto; flex-wrap: wrap; }
-#mgr .m-k { background: #f4f6f9; border-radius: 10px; padding: 6px 10px; min-width: 78px; }
-#mgr .m-k small { display: block; font-size: 9px; font-weight: 700; letter-spacing: .16em; color: #6b7480; text-transform: uppercase; }
-#mgr .m-k b { display: block; font-size: 16px; font-weight: 800; margin-top: 3px; white-space: nowrap; }
-#mgr .m-k b.m-bad { color: #d4351c; } #mgr .m-k b.m-ok { color: #1d8a4e; }
-#mgr .m-mn { display: flex; gap: 2px; padding: 0 16px; background: #fff; border-bottom: 1px solid rgba(21,26,34,.08); overflow-x: auto; }
-#mgr .m-mn button { border: 0; border-radius: 0; background: none; padding: 11px 9px; font-size: 10.5px; letter-spacing: .1em; color: #6b7480; border-bottom: 3px solid transparent; }
-#mgr .m-mn button.m-on { color: #151a22; border-bottom-color: var(--tc, #e10600); }
-#mgr .m-mn .m-sp { flex: 1; }
-#mgr .m-ctas { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
-#mgr .m-ctas button { border: 1px solid rgba(21,26,34,.14); border-radius: 9px; background: #fff; color: #151a22; padding: 7px 12px; font-size: 11px; letter-spacing: .08em; }
-#mgr .m-ctas button.m-go { background: #e10600; border-color: #e10600; color: #fff; }
-#mgr .m-ctas button.m-dark { background: #151a22; border-color: #151a22; color: #fff; }
-#mgr .m-mb { flex: 1; overflow-y: auto; padding: 18px 20px 30px; }
-/* (a page's cards packed into columns - pack(): each column filled top to bottom, no card waiting under a taller
-   neighbour for the next row to start, and as many columns as the page has cards for, so they reach both edges) */
-#mgr .m-grid { display: block; column-gap: 14px; column-fill: balance; }
-#mgr .m-grid > * { break-inside: avoid; -webkit-column-break-inside: avoid; margin: 0 0 14px; }
-#mgr .m-grid > [style*="grid-column"] { column-span: all; }
-#mgr .m-card { background: #fff; border-radius: 14px; padding: 14px 16px; box-shadow: 0 2px 12px rgba(25,35,60,.05); border: 1px solid rgba(21,26,34,.06); }
-#mgr .m-card h3 { margin: 0 0 10px; font-size: 11px; letter-spacing: .18em; color: #6b7480; text-transform: uppercase; }
-#mgr .m-card .m-big { font-size: 20px; font-weight: 900; margin-bottom: 4px; }
-#mgr .m-card p { margin: 6px 0; font-size: 13px; line-height: 1.45; color: #303846; }
-#mgr .m-row2 { display: flex; justify-content: space-between; gap: 10px; padding: 5px 0; font-size: 13px; border-bottom: 1px solid rgba(21,26,34,.05); }
-#mgr .m-row2 span { color: #6b7480; } #mgr .m-row2 b { text-align: right; }
-#mgr table { width: 100%; border-collapse: collapse; font-size: 13px; }
-#mgr th { text-align: left; font-size: 10px; letter-spacing: .14em; color: #6b7480; text-transform: uppercase; padding: 6px 6px; border-bottom: 1px solid rgba(21,26,34,.1); }
-#mgr td { padding: 6px; border-bottom: 1px solid rgba(21,26,34,.05); white-space: nowrap; }
-#mgr tr.m-me td { background: #fff7e6; font-weight: 700; }
-#mgr .m-sw { display: inline-block; width: 4px; height: 14px; border-radius: 2px; margin-right: 7px; vertical-align: -2px; }
-#mgr .m-news div { padding: 6px 0; font-size: 13px; border-bottom: 1px solid rgba(21,26,34,.05); line-height: 1.4; }
-#mgr .m-news small { color: #8a93a0; font-weight: 700; margin-right: 6px; }
-#mgr .m-msg { margin: 0 0 12px; padding: 10px 13px; border-radius: 10px; font-size: 13px; background: #effaf3; border: 1px solid #bfe8cf; color: #1d5e3c; }
-#mgr .m-msg.m-no { background: #fff4f2; border-color: #ffc9c1; color: #8f2a20; }
-#mgr .m-bar { height: 7px; border-radius: 4px; background: #e6e9ee; overflow: hidden; margin-top: 6px; } #mgr .m-bar i { display: block; height: 100%; background: var(--bc, #1fae64); }
-#mgr .m-drv { display: flex; align-items: center; gap: 12px; padding: 9px 0; border-bottom: 1px solid rgba(21,26,34,.06); }
-#mgr .m-drv .m-nm { flex: 1; min-width: 0; } #mgr .m-drv .m-nm b { display: block; font-size: 15px; } #mgr .m-drv .m-nm small { color: #6b7480; font-size: 12px; }
-#mgr .m-drv .m-rt { font: 900 20px/1 inherit; width: 44px; text-align: center; }
-#mgr .m-acts { display: flex; gap: 6px; flex-wrap: wrap; }
-#mgr .m-teams { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
-#mgr .m-teams button { text-align: left; padding: 10px 12px; border-left: 5px solid var(--c); }
-#mgr .m-teams button.m-on { outline: 2px solid #151a22; }
-#mgr .m-teams button small { display: block; color: #6b7480; font-weight: 600; font-size: 11px; margin-top: 3px; letter-spacing: 0; }
-#mgr .m-seg { display: inline-flex; gap: 4px; flex-wrap: wrap; } #mgr .m-seg button.m-on { background: #151a22; color: #fff; border-color: #151a22; }
-#mgr .fac { max-width: 860px; }
-/* (the factory on a wide screen: the branches and the queue on the left, the branch chosen beside them - not one
-   narrow column down the left of the page with the rest of it empty and twice the scrolling) */
-@media (min-width: 1180px) {
-  #mgr .fac { max-width: none; }
-  #mgr .fac .tt { columns: 2; column-gap: 22px; }
-  #mgr .fac .tt > * { break-inside: avoid; -webkit-column-break-inside: avoid; }
-  #mgr .fac .tt > .tt-sec { break-before: column; margin-top: 0; }
-}
-#mgr .m-verdict { font-size: 26px; font-weight: 900; margin: 4px 0 8px; } #mgr .m-verdict.m-bad { color: #d4351c; } #mgr .m-verdict.m-good { color: #1d8a4e; }
-@media (max-width: 700px) { #mgr .m-mh { flex-wrap: wrap; } #mgr .m-kp { margin-left: 0; } }
-/* less to read at a glance: a row's explanation is one line until the row is pointed at; the long notes fold away */
-#mgr .m-drv .m-nm small:not([style]) { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; overflow: hidden; }
-#mgr .m-drv:hover .m-nm small:not([style]), #mgr .m-drv:focus-within .m-nm small:not([style]) { -webkit-line-clamp: 8; }
-#mgr details.m-note { margin-top: 8px; font-size: 12px; color: #6b7480; }
-#mgr details.m-note summary { cursor: pointer; list-style: none; font: 700 10px/1.4 inherit; letter-spacing: .1em; text-transform: uppercase; color: #8a93a0; user-select: none; }
-#mgr details.m-note summary::-webkit-details-marker { display: none; } #mgr details.m-note summary::before { content: 'ⓘ  '; } #mgr details.m-note summary:hover { color: #151a22; }
-#mgr details.m-note p { margin: 6px 0 0; }
-/* a laptop's height: the header and the cards drawn tighter, more of the page on the screen */
-@media (max-height: 860px) { #mgr .m-mh { padding: 7px 16px; gap: 10px; row-gap: 5px; } #mgr .m-mh .m-tn b { font-size: 17px; } #mgr .m-mh .m-tn small { font-size: 9px; } #mgr .m-k { padding: 4px 9px; } #mgr .m-k b { font-size: 14px; } #mgr .m-mn button { padding: 8px 9px; } #mgr .m-mb { padding: 12px 14px 20px; } #mgr .m-card { padding: 10px 12px; } #mgr .m-drv { padding: 6px 0; gap: 9px; } #mgr .m-grid { gap: 10px; } #mgr .m-card h3 { margin-bottom: 6px; } #mgr .m-go, #mgr .m-dark { padding-top: 7px; padding-bottom: 7px; } }
+const PAGE_CSS = `
+#mgr .q-page { height: 100%; min-height: 0; }
+#mgr .q-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 9px 0 10px; }
+#mgr .q-map { position: absolute; right: 8px; top: 6px; bottom: 6px; width: 46%; opacity: .5; pointer-events: none; } #mgr .q-map svg { width: 100%; height: 100%; } #mgr .q-map path { fill: none; stroke: var(--ac); stroke-width: 9; stroke-linejoin: round; stroke-linecap: round; filter: drop-shadow(0 0 10px var(--ac)); stroke-dasharray: 1; stroke-dashoffset: 0; } #mgr .q-enter .q-map path { animation: qDraw 1.4s var(--ease) .15s both; }
+#mgr .q-p.hero { position: relative; } #mgr .q-p.hero .q-pb { position: relative; }
+#mgr .q-duo { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; height: 100%; } #mgr .q-dc { display: flex; flex-direction: column; gap: 7px; min-width: 0; padding: 10px 11px; border-radius: 10px; background: color-mix(in srgb, var(--ink) 4%, transparent); border: 1px solid var(--line); }
+#mgr .q-dc .hd { display: flex; align-items: center; gap: 10px; min-width: 0; } #mgr .q-dc .hd b { display: block; font: 800 14px/1.15 var(--f); } #mgr .q-dc .hd small { display: block; margin-top: 3px; font-size: 10.5px; color: var(--mute); }
+#mgr .q-dc .no { font: 900 26px/1 var(--f); font-style: italic; color: color-mix(in srgb, var(--ac) 80%, var(--ink)); opacity: .9; margin-left: auto; }
+#mgr .q-news > div { padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 12px; line-height: 1.4; color: var(--dim); } #mgr .q-news > div:last-child { border: 0; } #mgr .q-news small { display: block; margin-bottom: 2px; font: 800 9px/1 var(--f); letter-spacing: .14em; color: var(--mute); }
+#mgr .q-res { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--line); } #mgr .q-res i { flex: none; width: 46px; text-align: center; font: 900 20px/1 var(--f); font-style: normal; } #mgr .q-res i.dnf { font-size: 13px; color: var(--bad); } #mgr .q-res b { flex: 1; } #mgr .q-res em { font-style: normal; font-weight: 800; color: var(--ac); }
+#mgr .q-verdict { margin: 4px 0 10px; padding: 12px 14px; border-radius: 10px; font: 800 19px/1.1 var(--f); } #mgr .q-verdict.good { background: color-mix(in srgb, var(--good) 16%, transparent); color: var(--good); } #mgr .q-verdict.bad { background: color-mix(in srgb, var(--bad) 16%, transparent); color: var(--bad); }
+#mgr .q-cal { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-auto-rows: minmax(0, 1fr); gap: 12px; height: 100%; }
+#mgr .q-rc { position: relative; display: flex; flex-direction: column; gap: 4px; min-height: 0; padding: 11px 13px; border-radius: var(--r); background: var(--panel); border: 1px solid var(--line); overflow: hidden; animation: qIn .42s var(--ease) both; animation-delay: calc(var(--i) * 30ms); }
+#mgr .q-rc.now { border-color: var(--ac); box-shadow: 0 0 0 1px var(--ac), 0 12px 30px -14px var(--ac); background: linear-gradient(135deg, color-mix(in srgb, var(--ac) 22%, var(--panel)), var(--panel) 70%); } #mgr .q-rc.done { opacity: .78; }
+#mgr .q-rc .rn { font: 800 9px/1 var(--f); letter-spacing: .2em; color: var(--mute); } #mgr .q-rc.now .rn { color: var(--ac); } #mgr .q-rc h4 { margin: 2px 0 0; font: 800 16px/1.1 var(--f); } #mgr .q-rc small { font-size: 11px; color: var(--mute); } #mgr .q-rc .ft { margin-top: auto; font-size: 11.5px; } #mgr .q-rc .ft b { font-weight: 800; }
+#mgr .q-rc svg { position: absolute; right: 6px; top: 8px; width: 34%; height: 62%; opacity: .32; } #mgr .q-rc svg path { fill: none; stroke: var(--ink); stroke-width: 14; stroke-linejoin: round; } #mgr .q-rc.now svg { opacity: .7; } #mgr .q-rc.now svg path { stroke: var(--ac); }
+#mgr .q-pips { display: flex; gap: 4px; margin: 6px 0 8px; } #mgr .q-pips i { flex: 1; height: 5px; border-radius: 3px; background: color-mix(in srgb, var(--ink) 10%, transparent); } #mgr .q-pips i.on { background: var(--ac); box-shadow: 0 0 8px color-mix(in srgb, var(--ac) 60%, transparent); } #mgr .q-pips i.bd { background: repeating-linear-gradient(90deg, var(--ac) 0 4px, transparent 4px 8px); }
+#mgr .q-col { display: flex; flex-direction: column; gap: 8px; height: 100%; } #mgr .q-col .sp { margin-top: auto; } #mgr .q-col .q-acts { max-width: none; } #mgr .q-col .q-acts button { flex: 1; }
+#mgr .q-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; align-content: start; } #mgr .q-card { padding: 11px 12px; border-radius: 10px; background: color-mix(in srgb, var(--ink) 4%, transparent); border: 1px solid var(--line); } #mgr .q-card.open { grid-column: 1 / -1; border-color: color-mix(in srgb, var(--ac) 50%, var(--line)); }
+#mgr .q-card h4 { margin: 0 0 2px; font: 800 9px/1 var(--f); letter-spacing: .18em; color: var(--mute); text-transform: uppercase; }
+#mgr .q-spr { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; height: 100%; } #mgr .q-sp { display: flex; flex-direction: column; gap: 6px; padding: 11px 12px; border-radius: 10px; background: color-mix(in srgb, var(--ink) 4%, transparent); border: 1px solid var(--line); } #mgr .q-sp h4 { margin: 0; font: 800 13px/1 var(--f); } #mgr .q-sp button { margin-top: auto; }
+#mgr .q-prz { display: grid; grid-template-columns: 26px 1fr 56px; gap: 6px 8px; align-items: center; font-size: 11.5px; } #mgr .q-prz b { text-align: right; font-variant-numeric: tabular-nums; } #mgr .q-prz span { color: var(--mute); font-weight: 700; } #mgr .q-prz .me { color: var(--ac); }
+/* ---- a new career */
+#mgr[data-mode="new"] { grid-template-columns: minmax(0, 1fr); } #mgr[data-mode="new"] .q-rail { display: none; } #mgr[data-mode="new"] .q-toast { left: 50%; }
+#mgr .q-teams { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-auto-rows: minmax(0, 1fr); gap: 9px; height: 100%; }
+#mgr .q-teams button { position: relative; display: flex; flex-direction: column; justify-content: flex-end; gap: 3px; height: 100%; padding: 10px 12px; text-align: left; border-radius: 11px; letter-spacing: 0; white-space: normal; overflow: hidden; background: linear-gradient(150deg, color-mix(in srgb, var(--c) 34%, var(--panel)), var(--panel) 74%); border: 1px solid color-mix(in srgb, var(--c) 30%, var(--line)); animation: qIn .4s var(--ease) both; animation-delay: calc(var(--i) * 24ms); }
+#mgr .q-teams button::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--c); } #mgr .q-teams button b { font: 800 14px/1.1 var(--f); } #mgr .q-teams button small { font: 600 10.5px/1.25 var(--f); color: var(--mute); }
+#mgr .q-teams button:hover:not(:disabled) { background: linear-gradient(150deg, color-mix(in srgb, var(--c) 46%, var(--panel)), var(--panel) 80%); border-color: var(--c); } #mgr .q-teams button.on { border-color: var(--c); box-shadow: 0 0 0 2px var(--c), 0 14px 30px -14px var(--c); }
+@keyframes qDraw { from { stroke-dashoffset: 1; opacity: 0; } 20% { opacity: 1; } to { stroke-dashoffset: 0; } }
 `;
-const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const money = (m) => `$${(Math.round(m * 10) / 10).toFixed(1)}M`;
-const sur = (n) => String(n || '').split(' ').pop();
-const H = { tab: 'home', S: {}, msg: null, ok: true, o: null, c: null, nc: { team: null, rounds: 8, laps: 5 } };
+const H = { tab: 'home', S: {}, msg: null, ok: true, o: null, c: null, nc: { team: null, rounds: 8, laps: 5 }, kp: {} };
 let el = null;
 
 /** the HQ (or, with no career, the new career's set-up) */
 export function openManagerHub(o) {
   H.o = o; H.c = o.career || null; H.msg = null; if (!H.c) H.tab = 'new'; else if (H.tab === 'new') H.tab = 'home';
-  if (!document.getElementById('mgr-css')) { const st = document.createElement('style'); st.id = 'mgr-css'; st.textContent = CSS + TECH_CSS.replaceAll('#career', '#mgr .fac'); document.head.appendChild(st); }
-  if (!el) { el = document.createElement('div'); el.id = 'mgr'; el.addEventListener('click', onClick); document.body.appendChild(el); let rt = 0; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if (el && !el.classList.contains('hidden')) pack(); }, 120); }); }
-  el.style.display = 'flex'; H.shown = 0; render(); pump();
+  if (!document.getElementById('mgr-css')) { const st = document.createElement('style'); st.id = 'mgr-css'; st.textContent = HQ_CSS + PAGE_CSS + EXTRA_CSS + techSkin(TECH_CSS.replaceAll('#career', '#mgr .fac')); document.head.appendChild(st); }
+  if (!el) { el = document.createElement('div'); el.id = 'mgr'; el.addEventListener('click', onClick); document.body.appendChild(el); let rt = 0; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if (managerHubOpen()) { fitSheet(el); rail(); } }, 100); }); }
+  el.style.display = 'grid'; H.shown = 0; H._tab = null; el.dataset.mode = ''; render(); pump();
 }
 /** the story's scenes that play themselves on coming back to the HQ (ui/ManagerHub3.js; o.play shows one) */
 let pumping = false;
@@ -112,54 +65,75 @@ function pump() {
   if (!H.c || !H.o.play || pumping) return; pumping = true;
   storyPump(H.c, H.o.play).then((lines) => { pumping = false; H.shown = (H.shown || 0) + (lines.n || 0); if (lines.length) say(lines[lines.length - 1]); if (managerHubOpen()) render(); }, () => { pumping = false; });
 }
-/** a scene asked for from a page (a matter watched, a signing): shown, then the page drawn again with what it said */
+/** a scene asked for from a page (a matter decided, a signing): shown, then the page drawn again with what it said */
 function scene(p) { pumping = true; p.then((t) => { pumping = false; if (t) say(t); if (managerHubOpen()) render(); }, () => { pumping = false; }); }
 export function closeManagerHub() { if (el) el.style.display = 'none'; }
 export function managerHubOpen() { return !!el && el.style.display !== 'none'; }
+const trackName = (k) => H.o.trackName?.(k) || k;
+/** a circuit's outline (ui/TrackMaps.js), as one path in a box */
+function outline(id) { const M = TRACK_MAPS[id]; if (!M) return ''; const P = M.pts; let d = ''; for (let i = 0; i < P.length; i += 3) d += `${i ? 'L' : 'M'}${P[i][0]} ${P[i][1]}`; return `<svg viewBox="-30 -30 ${M.w + 60} ${M.h + 60}" preserveAspectRatio="xMidYMid meet"><path pathLength="1" d="${d}Z"/></svg>`; }
 
 function render() {
-  const c = H.c;
-  // (the page stays where it was scrolled to when a button on it redraws it - only a change of page starts at the top)
-  const mb0 = el.querySelector('.m-mb'), keep = mb0 && H._tab === H.tab ? mb0.scrollTop : 0; H._tab = H.tab;
-  requestAnimationFrame(() => { const mb = el.querySelector('.m-mb'); if (mb && keep) mb.scrollTop = keep; }); queueMicrotask(() => { const mb = el.querySelector('.m-mb'); if (mb && keep) mb.scrollTop = keep; });
-  if (!c) { el.innerHTML = newHTML(); el.style.setProperty('--tc', '#e10600'); return; }
-  const t = c.team, pos = c.posOf(c.myTeam), conf = c.board.conf;
-  el.style.setProperty('--tc', t.color);
-  const trk = H.o.trackName?.(c.track) || c.track, ready = c.seatsReady();
-  const ctas = c.seasonDone ? (c.sacked ? '' : '<button class="m-go" data-a="next">START NEXT SEASON →</button>')
-    : `<button class="m-dark" data-a="sim"${ready ? '' : ' disabled'} title="The weekend's result at once">SIMULATE</button><button class="m-go" data-a="race"${ready ? '' : ' disabled title="Both seats need a driver"'}>RACE · ${esc(trk.toUpperCase())} →</button>`;
-  el.innerHTML = `<div class="m-mh"><div class="m-tn"><small>Team principal · Season ${c.season}${c.seasonDone ? ' · over' : ` · Round ${c.round} of ${c.rounds}`}</small><b>${esc(t.name)}</b></div>
-    <div class="m-kp"><div class="m-k"><small>Budget</small><b class="${t.budget < 5 ? 'm-bad' : ''}">${money(t.budget)}</b></div><div class="m-k"><small>Cost cap left</small><b>${money(c.capLeft())}</b></div>
-    <div class="m-k"><small>Constructors</small><b>P${pos}<span style="font-size:11px;color:#8a93a0"> · target P${c.board.target}</span></b></div><div class="m-k"><small>Board</small><b class="${conf < 30 ? 'm-bad' : conf >= 65 ? 'm-ok' : ''}">${conf}%</b></div></div><span class="m-ctas">${ctas}<button data-a="exit">MENU</button></span></div>
-    <div class="m-mn">${[['home', 'OVERVIEW'], ['stand', 'STANDINGS'], ['fac', 'FACTORY'], ['drv', 'DRIVERS'], ['parts', 'PARTS'], ['facil', 'FACILITIES'], ['spons', 'SPONSORS'], ['staff', 'STAFF'], ...EXTRA_TABS, ...ERA_TABS, ...STORY_TABS, ['fin', 'FINANCES'], ['cal', 'CALENDAR']].map(([k, n]) => `<button data-tab="${k}" class="${H.tab === k ? 'm-on' : ''}">${n}</button>`).join('')}</div>
-    <div class="m-mb"><div class="m-pg">${H.msg ? `<div class="m-msg ${H.ok ? '' : 'm-no'}">${esc(H.msg)}</div>` : ''}${body(c)}</div></div>`;
-  pack();
+  const c = H.c; if (!el) return;
+  fitSheet(el);
+  const mode = c ? 'hq' : 'new';
+  if (el.dataset.mode !== mode) { el.dataset.mode = mode; el.innerHTML = '<div class="q-top"></div><nav class="q-rail"></nav><main class="q-stage"></main><div class="q-toast"></div><div class="q-theme"></div>'; H._tab = null; H.kp = {}; }
+  if (!c) { const T = (H.o.teams || []).find((t) => t.name === H.nc.team); themeApply(el, T?.name || null, T?.color || '#e10600', T?.color2); topNew(); stage(newHTML()); toast(); return; }
+  themeApply(el, c.myTeam, c.team.color, c.team.color2);
+  top(c); rail(); stage(body(c)); toast();
+  el.querySelector('.q-theme').innerHTML = themeHTML(c.myTeam, c.team.color, c.team.color2);
 }
-/**
- * A page's cards packed into columns: as many columns as fit the width and as the page has cards for, and of those
- * the count that leaves the page shortest (three cards on a wide screen are three columns edge to edge, not two and a
- * hole; a tall card beside two short ones is two columns, not three with half of them empty).
- */
-function pack() {
-  const mb = el?.querySelector('.m-mb'), pg = mb?.querySelector('.m-pg'); if (!mb || !pg) return;
-  const grids = () => {
-    for (const g of pg.querySelectorAll('.m-grid')) {
-      const n = [...g.children].filter((c) => !c.style.gridColumn).length, max = Math.max(1, Math.min(n, Math.floor((g.clientWidth + 14) / 334)));
-      let best = max, bh = Infinity;
-      for (let k = max; k >= 1; k--) { g.style.columnCount = String(k); const h = g.offsetHeight; if (h < bh - 8) { bh = h; best = k; } }
-      g.style.columnCount = String(best);
-    }
-  };
-  // (a page with little on it is shown larger - up to 130 % - as long as all of it still fits without scrolling: a
-  //  quarter of a laptop's screen in small type and the rest of it blank was most of these pages)
-  for (const z of [1.3, 1.2, 1.1, 1]) { pg.style.zoom = z === 1 ? '' : String(z); grids(); if (z === 1 || mb.scrollHeight <= mb.clientHeight + 2) break; }
+/** the bar: the team, the season, the four figures (a figure that has changed counts to its new value), the weekend */
+function top(c) {
+  const t = c.team, pos = c.posOf(c.myTeam), conf = c.board.conf, trk = trackName(c.track), ready = c.seatsReady(), cap = c.capLeft();
+  const ctas = c.seasonDone ? (c.sacked ? '' : '<button class="go" data-a="next">START NEXT SEASON →</button>')
+    : `<button class="sim" data-a="sim"${ready ? '' : ' disabled'} title="The weekend's result at once">SIMULATE</button><button class="go" data-a="race"${ready ? '' : ' disabled title="Both seats need a driver"'}>RACE · ${esc(trk.toUpperCase())} →</button>`;
+  const ini = t.name.replace(/[^A-Za-z ]/g, '').split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase() || t.name.slice(0, 2).toUpperCase();
+  el.querySelector('.q-top').innerHTML = `<div class="q-brand"><i class="q-mark">${esc(ini)}</i><div style="min-width:0"><b>${esc(t.name)}</b><small>${c.season}${c.seasonDone ? ' · season over' : ` · Round ${c.round} / ${c.rounds}`}</small></div></div>
+    <div class="q-kpis"><div class="q-kpi${t.budget < 5 ? ' bad' : ''}"><small>Budget</small><b data-kp="budget"></b>${meter(Math.min(1, t.budget / 60), 'var(--ac)', { thin: true })}</div>
+      <div class="q-kpi"><small>Cost cap left</small><b data-kp="cap"></b>${meter(Math.max(0, cap / COST_CAP), cap < COST_CAP * 0.15 ? 'var(--bad)' : 'var(--ac)', { thin: true })}</div>
+      <div class="q-kpi${pos <= c.board.target ? ' ok' : ''}"><small>Constructors</small><b>P${pos}<em>target P${c.board.target}</em></b>${meter(1 - (pos - 1) / Math.max(1, Object.keys(c.teams).length - 1), pos <= c.board.target ? 'var(--good)' : 'var(--warn)', { thin: true })}</div>
+      <div class="q-kpi${conf < 30 ? ' bad' : conf >= 65 ? ' ok' : ''}"><small>Board confidence</small><b data-kp="conf"></b>${meter(conf / 100, null, { thin: true })}</div></div>
+    <span class="q-cta">${ctas}<button class="ic ghost" data-a="theme" title="Colours" aria-label="Colours"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.6"/><path d="M8 2.400v11.200M8 2.400a5.600 5.600 0 0 1 0 11.200" fill="currentColor" stroke="none" opacity=".55"/></svg></button><button class="ghost" data-a="exit">MENU</button></span>`;
+  const K = { budget: [t.budget, money], cap: [cap, money], conf: [conf, (v) => `${Math.round(v)}%`] };
+  for (const [k, [v, f]] of Object.entries(K)) { tween(el.querySelector(`[data-kp="${k}"]`), v, f, H.kp[k]); H.kp[k] = v; }
+}
+function topNew() {
+  el.querySelector('.q-top').innerHTML = `<div class="q-brand"><i class="q-mark">TP</i><div><b>A new career</b><small>Team principal</small></div></div><div class="q-kpis"></div>
+    <span class="q-cta"><button data-a="quick">A SINGLE RACE WEEKEND INSTEAD →</button><button class="ghost" data-a="exit">BACK</button></span>`;
+}
+/** the rail: made once; the page that is open lit, its light slid to it; what is waiting counted beside INBOX */
+function rail() {
+  const R = el.querySelector('.q-rail'), c = H.c; if (!R || !c) return;
+  if (!R.firstChild) R.innerHTML = `<i class="q-ind"></i>${NAV.map(([g, items]) => `<h5>${g}</h5>${items.map(([k, n]) => `<button data-tab="${k}">${ICON[k] || ''}<span>${n}</span></button>`).join('')}`).join('')}`;
+  let on = null; for (const b of R.querySelectorAll('button')) { const is = b.dataset.tab === H.tab; b.classList.toggle('on', is); if (is) on = b; }
+  const ind = R.querySelector('.q-ind'); if (on) { ind.style.transform = `translateY(${on.offsetTop}px)`; ind.style.opacity = '1'; } else ind.style.opacity = '0';
+  let n = 0; try { n = inboxOf(c).length + (c.press && !c.press.done ? 1 : 0); } catch (e) { n = 0; }
+  const ib = R.querySelector('[data-tab="story"]'), old = ib.querySelector('.bdg'); if (n) { if (!old) ib.insertAdjacentHTML('beforeend', `<i class="bdg">${n}</i>`); else if (old.textContent !== String(n)) old.textContent = n; } else old?.remove();
+  const ap = c.rivals?.approaches?.length || 0, rb = R.querySelector('[data-tab="rivals"]'), ob = rb.querySelector('.bdg'); if (ap) { if (!ob) rb.insertAdjacentHTML('beforeend', `<i class="bdg">${ap}</i>`); else ob.textContent = ap; } else ob?.remove();
+}
+/** the stage: a page that has just been turned to arrives (its panels one after another); the same page drawn again
+ *  after a click stays as it was - each list where it had been scrolled to */
+function stage(html) {
+  const st = el.querySelector('.q-stage'), same = H._tab === H.tab, keep = {};
+  if (same) for (const s of st.querySelectorAll('[data-k], .q-fac')) keep[s.dataset.k || '_fac'] = s.scrollTop;
+  st.innerHTML = `<div class="q-page${same ? '' : ' q-enter'}">${html}</div>`; H._tab = H.tab;
+  if (same) for (const s of st.querySelectorAll('[data-k], .q-fac')) { const y = keep[s.dataset.k || '_fac']; if (y) s.scrollTop = y; }
+}
+/** what the last click said: a line at the foot, gone after a few seconds */
+let toastT = 0;
+function toast() {
+  const T = el.querySelector('.q-toast'); if (!T) return; clearTimeout(toastT);
+  if (!H.msg) { T.classList.remove('in'); return; }
+  T.className = `q-toast in${H.ok ? '' : ' no'}`; T.innerHTML = `<i>${H.ok ? '✓' : '!'}</i><span>${esc(H.msg)}</span>`;
+  toastT = setTimeout(() => T.classList.remove('in'), 7000);
 }
 function body(c) {
   try {
     switch (H.tab) {
       case 'stand': return standHTML(c);
-      case 'fac': return `<div class="fac"><div class="tt-wrap">${techHTML(c, H.S, {})}</div></div>`;
-      case 'drv': return drvHTML(c);
+      case 'fac': return `<div class="q-fac fac"><div class="tt-wrap">${techHTML(c, H.S, {})}</div></div>`;
+      case 'drv': return driversHTML(c);
       case 'staff': return staffHTML(c);
       case 'fin': return finHTML(c);
       case 'parts': return partsHTML(c);
@@ -168,132 +142,146 @@ function body(c) {
       case 'cal': return calHTML(c);
       default: return extraHTML(c, H.tab, H) ?? eraHTML(c, H.tab) ?? storyHTML(c, H.tab) ?? homeHTML(c);
     }
-  } catch (e) { console.warn('[manager hub]', e); return '<div class="m-card"><p>This page could not be drawn.</p></div>'; }
+  } catch (e) { console.warn('[manager hub]', e); return `<div class="q-g">${panel('This page', empty('It could not be drawn.'), { w: 12 })}</div>`; }
 }
 
 // ---- the pages -----------------------------------------------------------------------------------------------------------
+/** OVERVIEW: the next race (and its circuit), your two drivers side by side, the car; what needs you, the last race, the news */
 function homeHTML(c) {
-  const t = c.team, D = c.seatsOf(c.myTeam), trk = H.o.trackName?.(c.track) || c.track, fc = c.fc, L = c.last;
+  const t = c.team, D = c.seatsOf(c.myTeam), trk = trackName(c.track), fc = c.fc, L = c.last;
   if (c.seasonDone) return reviewHTML(c);
-  const nextCard = `<div class="m-card"><h3>Next · Round ${c.round}</h3><div class="m-big">${esc(trk)}</div>
-    <div class="m-row2"><span>Forecast</span><b>${esc({ dry: 'Dry', changeable: 'Changeable', damp: 'Damp', wet: 'Wet' }[fc.weather] || fc.weather)} · ${fc.time === 'night' ? 'night' : 'day'}</b></div>
-    <div class="m-row2"><span>Distance</span><b>${c.laps} laps</b></div>
-    ${sponsorTargets(c).map((x) => `<div class="m-row2"><span>${esc(x.brand)}'s target</span><b>${esc(x.text)} · ${money(x.bonus)}</b></div>`).join('') || '<div class="m-row2"><span>Sponsors</span><b>none signed - SPONSORS</b></div>'}
-    <div class="m-row2"><span>The board expects</span><b>P${c.board.target} in the constructors'</b></div>
-    ${c.seatsReady() ? '' : '<p style="color:#d4351c"><b>A seat is empty:</b> sign a driver (DRIVERS) before the race.</p>'}</div>`;
+  const wx = { dry: 'Dry', changeable: 'Changeable', damp: 'Damp', wet: 'Wet' }[fc.weather] || fc.weather, ST = sponsorTargets(c);
+  // (before the race: what is ready and what is not - each not-ready line with its page)
+  const short = Object.values(t.short || {}).reduce((a, b) => a + (b || 0), 0), worn = D.reduce((n, d) => n + Object.values(t.pu?.[d.id] || {}).filter((u) => (u?.wear || 0) > 0.8).length, 0);
+  const chk = (ok, yes, no, tab, btn) => `<div class="q-chk${ok ? '' : ' no'}"><i>${ok ? '✓' : '!'}</i>${ok ? yes : no}${ok ? '' : `<button data-tab="${tab}">${btn}</button>`}</div>`;
+  const next = panel(`Round ${c.round} of ${c.rounds} · next`, `<div class="q-map">${outline(c.track)}</div><div class="q-huge">${esc(trk)}</div>
+    <div class="q-chips">${tag(`${esc(wx)} · ${fc.time === 'night' ? 'night' : 'day'}`)}${tag(`${c.laps} laps`)}${tag(`Board expects P${c.board.target}`, 'ac')}</div>
+    <div style="max-width:56%">${ST.map((x) => kv(`${esc(x.brand)} wants`, `${esc(x.text)} · ${money(x.bonus)}`)).join('') || kv('Sponsors', 'none signed')}
+    <div style="margin-top:8px">${chk(c.seatsReady(), 'Both seats filled', 'A seat is empty', 'drv', 'DRIVERS')}${chk(!short, 'Spares in stock', `${short} part${short === 1 ? '' : 's'} raced damaged`, 'parts', 'PARTS')}${chk(!worn, 'Power units healthy', `${worn} element${worn === 1 ? '' : 's'} worn out`, 'parts', 'PARTS')}${chk((t.dev || []).length > 0, `${(t.dev || []).length} part${(t.dev || []).length === 1 ? '' : 's'} in development`, 'The factory is idle', 'fac', 'FACTORY')}</div></div>`, { w: 5, cls: 'hero', scroll: false });
+  const drv = panel('Your drivers', `<div class="q-duo">${D.map((d) => `<div class="q-dc"><div class="hd">${ring(d.rating)}<div style="min-width:0"><b>${esc(d.name)}</b><small>${d.points} pts · ${d.wins || 0} wins</small></div><span class="no">${d.number}</span></div>
+      <div>${kv('Morale', `${d.morale ?? 60}`)}${meter((d.morale ?? 60) / 100)}</div>${kv('Contract', `to ${d.until}`, d.until <= c.season ? 'bad' : '')}${kv('Salary', `${money(d.salary)}`)}</div>`).join('') || empty('No drivers.')}</div>`, { w: 4, scroll: false, act: '<button class="ghost" data-tab="drv">MANAGE</button>' });
   const fx = techEffects(t), best = Math.max(...Object.values(c.teams).map((x) => techEffects(x).perf)), gap = (best - fx.perf) * 90, P = partsCount(t);
-  const carCard = `<div class="m-card"><h3>The car</h3><div class="m-row2"><span>Pace</span><b>${gap < 0.005 ? 'the fastest car' : `+${gap.toFixed(2)} s a lap to the fastest`}</b></div>
-    <div class="m-row2"><span>Parts</span><b>${P.have} / ${P.total}</b></div><div class="m-row2"><span>In the factory</span><b>${(t.dev || []).length ? t.dev.map((x) => `${esc(UP[x.id]?.short || x.id)} L${x.level} (${x.left})`).join(', ') : 'nothing - FACTORY to build'}</b></div></div>`;
-  const drvCard = `<div class="m-card"><h3>Your drivers</h3>${D.map((d) => `<div class="m-drv"><div class="m-rt">${Math.round(d.rating * 100)}</div><div class="m-nm"><b>${esc(d.name)}</b><small>#${d.number} · ${d.points} pts · contract to ${d.until} · ${money(d.salary)}/season</small></div></div>`).join('') || '<p>No drivers.</p>'}</div>`;
-  const lastCard = L ? `<div class="m-card"><h3>Last race · Round ${L.round}</h3>${L.mine.map((m) => `<div class="m-row2"><span>${esc(m.name)}</span><b>${m.dnf ? `DNF${m.why ? ` · ${esc(m.why)}` : ''}` : `P${m.pos} · ${m.pts} pts`}</b></div>`).join('')}
-    <div class="m-row2"><span>Income</span><b>${money(L.income)}${L.sponsor ? ` + sponsor ${money(L.sponsor)}` : ''}</b></div><div class="m-row2"><span>Wages</span><b>-${money(L.wages)}</b></div>
-    <div class="m-row2"><span>Board confidence</span><b>${L.conf0}% → ${L.conf}%</b></div>${L.parts.length ? `<div class="m-row2"><span>New on the car</span><b>${L.parts.map((x) => `${esc(UP[x.id]?.short || x.id)} L${x.level} (${Math.round(x.q * 100)}%)`).join(', ')}</b></div>` : ''}</div>` : '';
-  const news = `<div class="m-card"><h3>News</h3><div class="m-news">${c.news.slice(0, 10).map((n) => `<div><small>S${n.season} R${n.round}</small>${esc(n.text)}</div>`).join('')}</div></div>`;
-  return `<div class="m-grid">${nextCard}${storyHome(c)}${eraHome(c)}${homeExtra(c)}${lastCard}${drvCard}${carCard}${news}</div>`;
+  const car = panel('The car', `<div class="q-huge">${gap < 0.005 ? 'Fastest' : `+${gap.toFixed(2)}<small style="font-size:13px;color:var(--mute);margin-left:4px">s</small>`}</div><p class="q-fine" style="margin:3px 0 9px">${gap < 0.005 ? 'the quickest car on the grid' : 'a lap to the fastest car'}</p>
+    ${kv('Parts', `${P.have} / ${P.total}`)}${meter(P.have / Math.max(1, P.total), 'var(--ac)')}
+    <div style="margin-top:8px">${(t.dev || []).length ? t.dev.map((x) => kv(`${esc(UP[x.id]?.short || x.id)} L${x.level}`, `${x.left} race${x.left === 1 ? '' : 's'}`)).join('') : kv('In the factory', 'nothing')}</div>`, { w: 3, act: '<button class="ghost" data-tab="fac">FACTORY</button>' });
+  const need = storyHome(c) + eraHome(c) + homeExtra(c);
+  const needs = panel('Needs you', need || empty('Nothing is waiting for you. The next race is.'), { w: 5, k: 'need' });
+  const last = panel(L ? `Last race · round ${L.round}` : 'Last race', L ? `${L.mine.map((m) => `<div class="q-res"><i class="${m.dnf ? 'dnf' : ''}">${m.dnf ? 'DNF' : `P${m.pos}`}</i><b>${esc(m.name)}</b>${m.dnf ? `<small>${esc(m.why || '')}</small>` : `<em>${m.pts} pts</em>`}</div>`).join('')}
+    ${kv('Income', `${money(L.income)}${L.sponsor ? ` + ${money(L.sponsor)} sponsors` : ''}`, 'good')}${kv('Wages', `−${money(L.wages)}`)}${kv('Board confidence', `${L.conf0}% → ${L.conf}%`, L.conf > L.conf0 ? 'good' : L.conf < L.conf0 ? 'bad' : '')}
+    ${L.parts.length ? kv('New on the car', L.parts.map((x) => `${esc(UP[x.id]?.short || x.id)} L${x.level} (${Math.round(x.q * 100)}%)`).join(', ')) : ''}` : empty('The season has not started.'), { w: 4, k: 'last' });
+  const news = panel('News', `<div class="q-news">${c.news.slice(0, 14).map((n) => `<div><small>S${n.season} · R${n.round}</small>${esc(n.text)}</div>`).join('') || empty('Nothing yet.')}</div>`, { w: 3, k: 'news' });
+  return `<div class="q-g">${next}${drv}${car}${needs}${last}${news}</div>`;
 }
 function reviewHTML(c) {
   const r = c.review || c.history[c.history.length - 1] || {};
-  const head = r.verdict === 'sacked' ? '<div class="m-verdict m-bad">The board has let you go.</div>' : r.verdict === 'beaten' ? '<div class="m-verdict m-good">Target beaten.</div>' : r.verdict === 'met' ? '<div class="m-verdict m-good">Target met.</div>' : '<div class="m-verdict m-bad">Target missed.</div>';
-  const offers = c.sacked ? `<div class="m-card"><h3>Offers</h3>${c.offers.length ? `<p>Not everyone has given up on you.</p><div class="m-acts">${c.offers.map((n) => `<button class="m-go" data-a="join" data-v="${esc(n)}">JOIN ${esc(n.toUpperCase())}</button>`).join('')}</div>` : '<p>Nobody calls.</p>'}<p><button data-a="erase">END THIS CAREER</button></p></div>` : '';
-  return `<div class="m-grid"><div class="m-card"><h3>Season ${r.season} review</h3>${head}
-    <div class="m-row2"><span>Constructors' championship</span><b>P${r.pos} (target P${r.target})</b></div><div class="m-row2"><span>Prize money</span><b>${money(r.prize || 0)}</b></div>
-    <div class="m-row2"><span>Drivers' champion</span><b>${esc(r.champ || '-')}</b></div><div class="m-row2"><span>Constructors' champions</span><b>${esc(r.champTeam || '-')}</b></div>
-    <div class="m-row2"><span>Board confidence</span><b>${c.board.conf}%</b></div>
-    ${c.sacked ? '' : `<p>Contracts that end this season run out when the next one starts: extend the ones you want to keep (DRIVERS) before you start it.</p>`}</div>${offers}${standHTML(c)}</div>`;
+  const head = r.verdict === 'sacked' ? '<div class="q-verdict bad">The board has let you go.</div>' : r.verdict === 'beaten' ? '<div class="q-verdict good">Target beaten.</div>' : r.verdict === 'met' ? '<div class="q-verdict good">Target met.</div>' : '<div class="q-verdict bad">Target missed.</div>';
+  const offers = c.sacked ? `<h3 style="margin:14px 0 6px;font:800 10px/1 var(--f);letter-spacing:.2em;color:var(--dim)">OFFERS</h3>${c.offers.length ? `<p>Not everyone has given up on you.</p><div class="q-acts l">${c.offers.map((n) => `<button class="go" data-a="join" data-v="${esc(n)}">JOIN ${esc(n.toUpperCase())}</button>`).join('')}</div>` : empty('Nobody calls.')}<p><button data-a="erase">END THIS CAREER</button></p>` : '';
+  const rev = panel(`Season ${r.season} review`, `${head}${kv('Constructors\' championship', `P${r.pos} (target P${r.target})`)}${kv('Prize money', money(r.prize || 0), 'good')}${kv('Drivers\' champion', esc(r.champ || '-'))}${kv('Constructors\' champions', esc(r.champTeam || '-'))}${kv('Board confidence', `${c.board.conf}%`)}
+    ${c.sacked ? '' : '<p class="q-fine">Contracts that end this season run out when the next one starts: extend the ones you want to keep (DRIVERS) before you start it.</p>'}${offers}`, { w: 4, cls: 'hero' });
+  return `<div class="q-g">${rev}${conTable(c, 4)}${drvTable(c, 4)}</div>`;
 }
-function standHTML(c) {
-  const T = c.constructors(), D = c.drivers_().slice(0, 22);
-  return `<div class="m-grid"><div class="m-card"><h3>Constructors</h3><table><tr><th>#</th><th>Team</th><th>Pts</th><th>Budget</th></tr>${T.map((t, i) => `<tr class="${t.name === c.myTeam ? 'm-me' : ''}"><td>${i + 1}</td><td><span class="m-sw" style="background:${t.color}"></span>${esc(t.name)}</td><td>${t.points}</td><td>${money(t.budget)}</td></tr>`).join('')}</table></div>
-    <div class="m-card"><h3>Drivers</h3><table><tr><th>#</th><th>Driver</th><th>Team</th><th>Pts</th><th>W</th></tr>${D.map((d, i) => `<tr class="${d.team === c.myTeam ? 'm-me' : ''}"><td>${i + 1}</td><td><span class="m-sw" style="background:${c.teams[d.team]?.color || '#bbb'}"></span>${esc(d.name)}</td><td>${esc(d.team || '-')}</td><td>${d.points}</td><td>${d.wins || 0}</td></tr>`).join('')}</table></div></div>`;
+function conTable(c, w) {
+  const T = c.constructors(), mx = Math.max(1, ...T.map((t) => t.points));
+  return panel('Constructors', `<table><thead><tr><th class="n">#</th><th>Team</th><th style="width:28%"></th><th class="n">Pts</th><th class="n">Budget</th></tr></thead><tbody>${T.map((t, i) => `<tr class="${t.name === c.myTeam ? 'me' : ''}"><td class="n">${i + 1}</td><td>${sw(t.color)}<b>${esc(t.name)}</b></td><td>${meter(t.points / mx, t.color, { thin: true })}</td><td class="n"><b>${t.points}</b></td><td class="n">${money(t.budget)}</td></tr>`).join('')}</tbody></table>`, { w, pad: false, k: 'con' });
 }
-function drvHTML(c) { return driversHTML(c); }   // (ages, contracts by the year, who else wants him: ui/ManagerHub4.js)
-const pct = (x) => `${Math.round(x * 100)}%`;
-const bar = (x, bad) => `<div class="m-bar" style="--bc:${bad ? '#d4351c' : x > 0.5 ? '#1fae64' : '#e0a100'}"><i style="width:${(Math.max(0, Math.min(1, x)) * 100).toFixed(0)}%"></i></div>`;
+function drvTable(c, w) {
+  const D = c.drivers_().slice(0, 22), mx = Math.max(1, ...D.map((d) => d.points));
+  return panel('Drivers', `<table><thead><tr><th class="n">#</th><th>Driver</th><th>Team</th><th style="width:22%"></th><th class="n">Pts</th><th class="n">Wins</th></tr></thead><tbody>${D.map((d, i) => `<tr class="${d.team === c.myTeam ? 'me' : ''}"><td class="n">${i + 1}</td><td>${sw(c.teams[d.team]?.color)}<b>${esc(d.name)}</b></td><td><small>${esc(d.team || '-')}</small></td><td>${meter(d.points / mx, c.teams[d.team]?.color, { thin: true })}</td><td class="n"><b>${d.points}</b></td><td class="n">${d.wins || 0}</td></tr>`).join('')}</tbody></table>`, { w, pad: false, k: 'drv' });
+}
+function standHTML(c) { return `<div class="q-g">${conTable(c, 5)}${drvTable(c, 7)}</div>`; }
+/** CALENDAR: every round a card - its circuit, the forecast, what your cars did there, who won */
+function calHTML(c) {
+  const R = c.results.filter((r) => r.season === c.season);
+  return `<div class="q-cal" style="grid-template-columns:repeat(${c.calendar.length > 8 ? 4 : c.calendar.length > 4 ? 4 : c.calendar.length}, minmax(0, 1fr))">${c.calendar.map((k, i) => {
+    const r = R.find((x) => x.round === i + 1), w = r ? c.drivers[r.top[0]] : null, fc = c.forecast[i] || {}, now = i + 1 === c.round && !c.seasonDone;
+    return `<div class="q-rc${now ? ' now' : r ? ' done' : ''}" style="--i:${i}">${outline(k)}<span class="rn">ROUND ${i + 1}${now ? ' · NEXT' : ''}</span><h4>${esc(trackName(k))}</h4><small>${esc(fc.weather || '')}${fc.time ? ` · ${esc(fc.time)}` : ''}</small>
+      <div class="ft">${r ? `${r.mine.map((m) => `<b>${esc(sur(c.drivers[m.id]?.name))}</b> ${m.dnf ? '<span class="bad">DNF</span>' : `P${m.pos}`}`).join(' · ')}<br><small>Won by ${w ? esc(w.name) : '-'}</small>` : now ? `<button class="go" data-a="race"${c.seatsReady() ? '' : ' disabled'}>RACE →</button>` : '<small>to come</small>'}</div></div>`;
+  }).join('')}</div>`;
+}
+/** PARTS: each driver's power unit side by side, the spares under them */
 function partsHTML(c) {
   const t = c.team, D = c.seatsOf(c.myTeam), fx = facFx(c, 'factory');
   const pu = D.map((d) => {
     const p = t.pu?.[d.id] || {};
-    return `<div class="m-card"><h3>${esc(d.name)} · power unit</h3><table><tr><th>Element</th><th>Wear</th><th>Used</th><th></th></tr>${Object.entries(PU).map(([k, P]) => {
+    return panel(`${esc(sur(d.name))} · power unit`, `<table><thead><tr><th>Element</th><th style="width:38%">Wear</th><th class="n">Used</th><th></th></tr></thead><tbody>${Object.entries(PU).map(([k, U]) => {
       const u = p[k] || { used: 1, wear: 0 }, al = allocOf(c, k), over = u.used >= al;
-      return `<tr><td>${esc(P.short)}</td><td style="width:40%">${bar(1 - u.wear, u.wear > 0.8)}<small style="color:#6b7480">${pct(u.wear)} worn${u.wear > 0.7 ? ' · failure risk up' : ''}</small></td><td>${u.used} / ${al}</td>
-        <td><button data-a="fit" data-v="${d.id}|${k}" title="${over ? `Beyond the allocation: a ${Object.keys(PU).some((x) => x !== k && (p[x]?.used || 0) > allocOf(c, x)) ? 5 : 10}-place grid penalty next race` : 'A new unit from the season\'s allocation'}">${over ? 'NEW · PENALTY' : 'FIT NEW'}</button></td></tr>`;
-    }).join('')}</table></div>`;
+      return `<tr><td><b>${esc(U.short)}</b></td><td>${meter(1 - u.wear, u.wear > 0.8 ? 'var(--bad)' : u.wear > 0.55 ? 'var(--warn)' : 'var(--good)')}<small>${pct(u.wear)} worn${u.wear > 0.7 ? ' · failure risk up' : ''}</small></td><td class="n">${u.used} / ${al}</td>
+        <td class="n"><button data-a="fit" data-v="${d.id}|${k}" title="${over ? `Beyond the allocation: a ${Object.keys(PU).some((x) => x !== k && (p[x]?.used || 0) > allocOf(c, x)) ? 5 : 10}-place grid penalty next race` : 'A new unit from the season\'s allocation'}">${over ? 'NEW · PENALTY' : 'FIT NEW'}</button></td></tr>`;
+    }).join('')}</tbody></table>`, { w: 6, pad: false, info: 'Each element wears every race weekend - a push fuel mixture wears the ICE faster. A worn unit fails more often (and a worn ICE loses a little power). The allocation per driver per season is the rules\': fit one beyond it and the next race\'s grid costs 10 places (5 for every further element).' });
   }).join('');
-  const sp = `<div class="m-card"><h3>Spares</h3><table><tr><th>Part</th><th>In stock</th><th>Racing damaged</th><th>Being made</th><th></th></tr>${Object.entries(SPARES).map(([k, S]) => `<tr><td>${esc(S.name)}</td><td>${t.spares?.[k] ?? 0}</td><td style="color:${t.short?.[k] ? '#d4351c' : 'inherit'}">${t.short?.[k] || 0}</td><td>${(t.making || []).filter((x) => x.part === k).length}</td><td><button data-a="spare" data-v="${k}">BUILD · ${money(S.cost * fx.costMul)}</button></td></tr>`).join('')}</table>
-    <p style="font-size:12px;color:#6b7480">Damage and crashes use spares up. A car that needs one with none in stock races the damaged part (a little slower) until the factory has made one. The factory makes ${fx.perRound} a round (FACILITIES); spares count against the cost cap.</p></div>`;
-  return `<div class="m-grid">${pu}${sp}</div><p style="font-size:12px;color:#6b7480;margin-top:12px">Each element wears every race weekend - a push fuel mixture wears the ICE faster. A worn unit fails more often (and a worn ICE loses a little power). The allocation per driver per season is the rules': fit one beyond it and the next race's grid costs 10 places (5 for every further element).</p>`;
+  const sp = panel('Spares', `<div class="q-spr">${Object.entries(SPARES).map(([k, S]) => `<div class="q-sp"><h4>${esc(S.name)}</h4><div class="q-sts" style="--n:3">${stat('In stock', t.spares?.[k] ?? 0)}${stat('Damaged', t.short?.[k] || 0, '', t.short?.[k] ? 'bad' : '')}${stat('Being made', (t.making || []).filter((x) => x.part === k).length)}</div><button data-a="spare" data-v="${k}">BUILD · ${money(S.cost * fx.costMul)}</button></div>`).join('')}</div>`, { w: 12, scroll: false, sub: `the factory makes ${fx.perRound} a round`, info: 'Damage and crashes use spares up. A car that needs one with none in stock races the damaged part (a little slower) until the factory has made one. Spares count against the cost cap.' });
+  return `<div class="q-g" style="grid-template-rows:minmax(0,1.5fr) minmax(0,1fr)">${pu}${sp}</div>`;
 }
+/** FACILITIES: the four side by side - its level, its condition, what it does now, what to do with it */
 function facilHTML(c) {
-  const cards = Object.entries(FAC).map(([k, F]) => {
+  const E = Object.entries(FAC);
+  return `<div class="q-g">${E.map(([k, F]) => {
     const f = c.fac[k], nx = f.level + 1, fx = facFx(c, k), eff = k === 'factory' ? `${fx.perRound} spares a round at ${pct(fx.costMul)} of the price` : k === 'hosp' ? `sponsors pay ${pct(fx.sponsorMul)}` : k === 'dil' ? `practice feedback ${pct(fx.setupK)}` : `stops at ${pct(fx.pitMul)} of their time`;
-    return `<div class="m-card"><h3>${esc(F.name)}</h3><div class="m-big">Level ${f.level}<span style="font-size:13px;color:#6b7480;font-weight:600"> of ${FAC_MAX}${f.building ? ` · level ${f.building.to} in ${f.building.left} round${f.building.left === 1 ? '' : 's'}` : ''}</span></div>
-      <div class="m-row2"><span>Condition</span><b>${pct(f.cond)}</b></div>${bar(f.cond, f.cond < 0.5)}<div class="m-row2"><span>Effect now</span><b>${eff}</b></div>
-      <p style="font-size:12px;color:#6b7480">${esc(F.what)}</p><div class="m-acts"><button data-a="facup" data-v="${k}"${f.building || f.level >= FAC_MAX ? ' disabled' : ''}>UPGRADE · ${money(facCost(k, nx))} · ${facRounds(nx)} rounds</button><button data-a="facmt" data-v="${k}"${f.cond > 0.995 ? ' disabled' : ''}>MAINTAIN · ${money(maintCost(c, k))}</button></div></div>`;
-  }).join('');
-  return `<div class="m-grid">${cards}</div><p style="font-size:12px;color:#6b7480;margin-top:12px">A facility wears every round it is used: its effect runs from half (worn out) to full (maintained). An upgrade is capital spending, outside the cost cap; while it is built the facility works at 80 %. The wind tunnel, CFD and the rest that develop the car are in the FACTORY's tech tree.</p>`;
+    return panel(esc(F.name), `<div class="q-col"><div><div class="q-huge">${f.level}<small style="font-size:13px;color:var(--mute);margin-left:6px">of ${FAC_MAX}</small></div><div class="q-pips">${Array.from({ length: FAC_MAX }, (_, i) => `<i class="${i < f.level ? 'on' : f.building && i < f.building.to ? 'bd' : ''}"></i>`).join('')}</div>
+      ${f.building ? `<p>${tag(`level ${f.building.to} in ${f.building.left} round${f.building.left === 1 ? '' : 's'}`, 'ac')}</p>` : ''}</div>
+      <div>${kv('Condition', pct(f.cond), f.cond < 0.5 ? 'bad' : '')}${meter(f.cond)}</div>${kv('Effect now', eff)}<p class="q-fine">${esc(F.what)}</p>
+      <div class="q-acts sp"><button data-a="facup" data-v="${k}"${f.building || f.level >= FAC_MAX ? ' disabled' : ''}>UPGRADE · ${money(facCost(k, nx))} · ${facRounds(nx)} rounds</button><button data-a="facmt" data-v="${k}"${f.cond > 0.995 ? ' disabled' : ''}>MAINTAIN · ${money(maintCost(c, k))}</button></div></div>`, { w: 12 / E.length, scroll: false, info: 'A facility wears every round it is used: its effect runs from half (worn out) to full (maintained). An upgrade is capital spending, outside the cost cap; while it is built the facility works at 80 %. The wind tunnel, CFD and the rest that develop the car are in the FACTORY.' });
+  }).join('')}</div>`;
 }
+/** SPONSORS: the contracts you hold on the left, the offers - each to negotiate where it stands - on the right */
 function sponsHTML(c) {
-  const T = sponsorTargets(c), m = marketability(c);
+  const T = sponsorTargets(c), m = marketability(c), N = H.neg;
   const cur = Object.entries(SPONSOR_SLOTS).map(([k, S]) => { const s = c.sponsors?.[k], tg = T.find((x) => x.slot === k);
-    return `<tr><td>${esc(S.name)}</td><td>${s ? `<b>${esc(s.brand)}</b>` : '<span style="color:#d4351c">empty</span>'}</td><td>${s ? money(s.base) : ''}</td><td>${s && tg ? `${esc(tg.text)} · ${money(s.bonus)}` : ''}</td><td>${s ? `to the end of ${s.until}` : ''}</td></tr>`; }).join('');
-  const N = H.neg;
+    return person({ mark: `<i class="q-mark" style="width:30px;height:30px;font-size:10px;${s ? '' : 'background:color-mix(in srgb, var(--ink) 10%, transparent);box-shadow:none'}">${s ? esc(s.brand.slice(0, 2).toUpperCase()) : '–'}</i>`, name: s ? esc(s.brand) : '<span class="bad">Empty</span>', sub: `${esc(S.name)}${s ? ` · ${money(s.base)} a race · to the end of ${s.until}${tg ? `<br>This weekend: ${esc(tg.text)} · ${money(s.bonus)}` : ''}` : ' · take an offer'}` }); }).join('');
   const offers = (c.spOffers || []).map((o) => {
     const open = N && N.id === o.id, terms = open ? N : { base: 1, bonus: 1, years: o.years }, od = acceptOdds(o, terms);
-    return `<div class="m-card"><h3>${esc(SPONSOR_SLOTS[o.slot].name)} · offer</h3><div class="m-big">${esc(o.brand)}</div>
-      <div class="m-row2"><span>A race</span><b>${money(o.base * terms.base)}</b></div><div class="m-row2"><span>On signing</span><b>${money(o.sign * terms.base)}</b></div>
-      <div class="m-row2"><span>Race target bonus</span><b>${money(o.bonus * terms.bonus)} · ${o.kind === 'best' ? 'a car near the front' : 'both cars in the points'}</b></div>
-      <div class="m-row2"><span>Season bonus (constructors within one of the board's target)</span><b>${money(o.seasonBonus)}</b></div><div class="m-row2"><span>Seasons</span><b>${terms.years}</b></div>
-      ${open ? `<div class="m-row2"><span>Fee</span><span class="m-seg">${[0.9, 1, 1.1, 1.2, 1.35].map((x) => `<button data-a="ng" data-v="base|${x}" class="${Math.abs(N.base - x) < 1e-6 ? 'm-on' : ''}">${pct(x)}</button>`).join('')}</span></div>
-        <div class="m-row2"><span>Bonus</span><span class="m-seg">${[0.8, 1, 1.2, 1.4].map((x) => `<button data-a="ng" data-v="bonus|${x}" class="${Math.abs(N.bonus - x) < 1e-6 ? 'm-on' : ''}">${pct(x)}</button>`).join('')}</span></div>
-        <div class="m-row2"><span>Seasons</span><span class="m-seg">${[1, 2, 3].map((x) => `<button data-a="ng" data-v="years|${x}" class="${N.years === x ? 'm-on' : ''}">${x}</button>`).join('')}</span></div>
-        <div class="m-row2"><span>Their answer</span><b style="color:${od.p > 0.6 ? '#1d8a4e' : od.p > 0.4 ? '#b07b00' : '#d4351c'}">${od.word}</b></div>
-        <div class="m-acts"><button class="m-go" data-a="prop" data-v="${o.id}"${c.sponsors?.[o.slot] ? ' disabled' : ''}>PROPOSE</button><button data-a="ngx">CLOSE</button></div><p style="font-size:12px;color:#6b7480">${o.patience} more proposal${o.patience === 1 ? '' : 's'} before they walk away.</p>`
-      : `<div class="m-acts"><button data-a="neg" data-v="${o.id}"${c.sponsors?.[o.slot] ? ' disabled title="That slot is taken"' : ''}>NEGOTIATE</button></div>`}</div>`;
+    return `<div class="q-card${open ? ' open' : ''}"><h4>${esc(SPONSOR_SLOTS[o.slot].name)}</h4><div class="q-big" style="margin-bottom:6px">${esc(o.brand)}</div>
+      ${open ? `<div class="q-sts" style="--n:4;margin-bottom:8px">${stat('A race', money(o.base * terms.base))}${stat('On signing', money(o.sign * terms.base))}${stat('Race bonus', money(o.bonus * terms.bonus), o.kind === 'best' ? 'a car near the front' : 'both cars in the points')}${stat('Season bonus', money(o.seasonBonus), 'within one of the target')}</div>
+        ${kv('Fee', seg('ng', `base|${N.base}`, [0.9, 1, 1.1, 1.2, 1.35].map((x) => [`base|${x}`, pct(x)])))}${kv('Bonus', seg('ng', `bonus|${N.bonus}`, [0.8, 1, 1.2, 1.4].map((x) => [`bonus|${x}`, pct(x)])))}${kv('Seasons', seg('ng', `years|${N.years}`, [1, 2, 3].map((x) => [`years|${x}`, String(x)])))}
+        ${kv('Their answer', od.word, od.p > 0.6 ? 'good' : od.p > 0.4 ? '' : 'bad')}<div class="q-acts l"><button class="go" data-a="prop" data-v="${o.id}"${c.sponsors?.[o.slot] ? ' disabled' : ''}>PROPOSE</button><button data-a="ngx">CLOSE</button><span class="q-fine" style="align-self:center">${o.patience} more proposal${o.patience === 1 ? '' : 's'} before they walk away</span></div>`
+      : `${kv('A race', money(o.base))}${kv('On signing', money(o.sign))}${kv('Race bonus', `${money(o.bonus)} · ${o.kind === 'best' ? 'near the front' : 'both in the points'}`)}${kv('Seasons', o.years)}<div class="q-acts l"><button data-a="neg" data-v="${o.id}"${c.sponsors?.[o.slot] ? ' disabled title="That slot is taken"' : ''}>NEGOTIATE</button></div>`}</div>`;
   }).join('');
-  return `<div class="m-card"><h3>Contracts · marketability ${pct(m / 1.7)}</h3><table><tr><th>Slot</th><th>Sponsor</th><th>A race</th><th>This weekend's target</th><th></th></tr>${cur}</table></div>
-    <h3 style="margin:16px 0 8px;font-size:11px;letter-spacing:.18em;color:#6b7480">OFFERS</h3><div class="m-grid">${offers || '<div class="m-card"><p>No offers now: new ones come when a slot is empty at the season\'s end.</p></div>'}</div>`;
+  return `<div class="q-g">${panel('Contracts', `<div style="margin-bottom:8px">${kv('Marketability', pct(m / 1.7))}${meter(m / 1.7, 'var(--ac)')}</div>${cur}`, { w: 5, k: 'spc' })}${panel('Offers', offers ? `<div class="q-cards">${offers}</div>` : empty('No offers now: new ones come when a slot is empty at the season\'s end.'), { w: 7, k: 'spo' })}</div>`;
 }
+/** STAFF: the three jobs side by side - who has it, who could */
 function staffHTML(c) {
-  const cards = Object.entries(STAFF_ROLES).map(([k, R]) => {
+  const E = Object.entries(STAFF_ROLES);
+  return `<div class="q-g">${E.map(([k, R]) => {
     const p = c.staff[k], hires = c.hires?.[k] || [];
-    return `<div class="m-card"><h3>${esc(R.name)}</h3><div class="m-drv"><div class="m-rt">${Math.round((p?.rating || 0) * 100)}</div><div class="m-nm"><b>${esc(p?.name || 'Nobody')}</b><small>${money(p?.salary || 0)}/season</small></div></div>
-      <p style="font-size:12px;color:#6b7480">${esc(R.what)}</p>${hires.map((h, i) => `<div class="m-drv"><div class="m-rt" style="font-size:16px">${Math.round(h.rating * 100)}</div><div class="m-nm"><b>${esc(h.name)}</b><small>${money(h.salary)}/season · ${money(h.salary * 0.6)} to bring in</small></div><button data-a="hire" data-v="${k}|${i}">HIRE</button></div>`).join('')}</div>`;
-  }).join('');
-  return `<div class="m-grid">${cards}</div>`;
+    return panel(esc(R.name), `<div class="q-dc" style="margin-bottom:10px"><div class="hd">${ring(p?.rating || 0, { big: true })}<div><b>${esc(p?.name || 'Nobody')}</b><small>${money(p?.salary || 0)} a season</small></div></div><p class="q-fine" style="margin:0">${esc(R.what)}</p></div>
+      <h3 style="margin:0 0 2px;font:800 9px/1 var(--f);letter-spacing:.2em;color:var(--mute)">AVAILABLE</h3>${hires.map((h, i) => person({ rt: h.rating, sm: true, col: h.rating > (p?.rating || 0) ? 'var(--good)' : 'var(--mute)', name: esc(h.name), sub: `${money(h.salary)} a season · ${money(h.salary * 0.6)} to bring in`, act: `<button data-a="hire" data-v="${k}|${i}">HIRE</button>` })).join('') || empty('Nobody on the market.')}`, { w: 12 / E.length, k: `st${k}` });
+  }).join('')}</div>`;
 }
+/** FINANCES: the season's figures, the cost cap as a ring, the prize money by the constructors' order (yours lit) */
 function finHTML(c) {
-  const t = c.team, sal = c.salaries(), st = c.staffCost(), spent = c.spent(), pos = c.posOf(c.myTeam);
-  return `<div class="m-grid"><div class="m-card"><h3>This season</h3><div class="m-row2"><span>Budget</span><b>${money(t.budget)}</b></div>
-    <div class="m-row2"><span>Commercial rights (a race)</span><b>${money(RACE_INCOME[t.tier])} + ${money(POINT_INCOME)} a point</b></div>
-    <div class="m-row2"><span>Drivers' salaries (a season)</span><b>${money(sal)}</b></div><div class="m-row2"><span>Staff salaries (a season)</span><b>${money(st)}</b></div>
-    <div class="m-row2"><span>Prize money now (P${pos})</span><b>${money(PRIZE[pos - 1] ?? 1)}</b></div></div>
-    <div class="m-card"><h3>Cost cap</h3><div class="m-row2"><span>Development spent this season</span><b>${money(spent)} of ${money(COST_CAP)}</b></div><div class="m-bar" style="--bc:${spent > COST_CAP * 0.85 ? '#d4351c' : '#1fae64'}"><i style="width:${Math.min(100, (spent / COST_CAP) * 100).toFixed(1)}%"></i></div>
-    <p style="font-size:12px;color:#6b7480">Every part and facility built counts against the cap. The prize money by the constructors' order comes at the season's end: ${PRIZE.slice(0, 5).map((p, i) => `P${i + 1} ${money(p)}`).join(', ')} …</p></div></div>`;
+  const t = c.team, sal = c.salaries(), st = c.staffCost(), spent = c.spent(), pos = c.posOf(c.myTeam), mxp = Math.max(...PRIZE);
+  const season = panel('This season', `<div class="q-sts" style="--n:4">${stat('Budget', money(t.budget), '', t.budget < 5 ? 'bad' : '')}${stat('A race pays', money(RACE_INCOME[t.tier]), `+ ${money(POINT_INCOME)} a point`)}${stat('Drivers', money(sal), 'salaries, a season')}${stat('Staff', money(st), 'salaries, a season')}</div>
+    <div style="margin-top:14px">${kv('Wages a round', `−${money((sal + st) / Math.max(1, c.rounds))}`)}${kv('Prize money as it stands', `P${pos} · ${money(PRIZE[pos - 1] ?? 1)}`, 'good')}${kv('Rounds left', c.seasonDone ? 0 : c.rounds - c.round + 1)}</div>`, { w: 7, scroll: false });
+  const cap = panel('Cost cap', `<div style="display:flex;gap:16px;align-items:center">${ring(Math.min(1, spent / COST_CAP), { big: true, col: spent > COST_CAP * 0.85 ? 'var(--bad)' : 'var(--ac)', text: pct(spent / COST_CAP) })}<div><div class="q-big">${money(spent)}<small>of ${money(COST_CAP)}</small></div><p class="q-fine">Every part and facility built counts against the cap.</p></div></div>
+    <div style="margin-top:10px">${kv('Left to spend on development', money(c.capLeft()), c.capLeft() < COST_CAP * 0.15 ? 'bad' : '')}</div>`, { w: 5, scroll: false });
+  const prize = panel('Prize money · by the constructors\' order', `<div class="q-prz">${PRIZE.map((p, i) => `<span class="${i + 1 === pos ? 'me' : ''}">P${i + 1}</span>${meter(p / mxp, i + 1 === pos ? 'var(--ac)' : 'color-mix(in srgb, var(--ink) 30%, transparent)')}<b class="${i + 1 === pos ? 'me' : ''}">${money(p)}</b>`).join('')}</div>`, { w: 7, k: 'prz', sub: 'paid at the season\'s end' });
+  const out = panel('Where it goes', `${c.seatsOf(c.myTeam).map((d) => kv(esc(d.name), `${money(d.salary)} a season`)).join('')}${Object.entries(STAFF_ROLES).map(([k, R]) => kv(esc(R.name), `${money(c.staff[k]?.salary || 0)} a season`)).join('')}${kv('Development this season', money(spent))}`, { w: 5, k: 'out' });
+  return `<div class="q-g">${season}${cap}${prize}${out}</div>`;
 }
-function calHTML(c) {
-  const R = c.results.filter((r) => r.season === c.season);
-  return `<div class="m-card"><h3>Season ${c.season}</h3><table><tr><th>Round</th><th>Circuit</th><th>Forecast</th><th>Your cars</th><th>Winner</th></tr>${c.calendar.map((k, i) => {
-    const r = R.find((x) => x.round === i + 1), w = r ? c.drivers[r.top[0]] : null, fc = c.forecast[i] || {};
-    return `<tr class="${i + 1 === c.round && !c.seasonDone ? 'm-me' : ''}"><td>${i + 1}</td><td>${esc(H.o.trackName?.(k) || k)}</td><td>${esc(fc.weather || '')} · ${esc(fc.time || '')}</td><td>${r ? r.mine.map((m) => `${esc(sur(c.drivers[m.id]?.name))} ${m.dnf ? 'DNF' : `P${m.pos}`}`).join(', ') : ''}</td><td>${w ? esc(w.name) : ''}</td></tr>`;
-  }).join('')}</table></div>`;
-}
+/** A NEW CAREER: the teams as tiles in their colours (the HQ takes the colours of the one picked), the season, START */
 function newHTML() {
-  const T = H.o.teams || [], nc = H.nc;
-  return `<div class="m-mh"><div class="m-tn"><small>Team principal</small><b>A new career</b></div><div class="m-kp"><button data-a="quick">A SINGLE RACE WEEKEND INSTEAD →</button><button data-a="exit">BACK</button></div></div>
-    <div class="m-mb"><div class="m-card" style="max-width:980px"><h3>The team you will run</h3><div class="m-teams">${T.map((t) => `<button data-a="nteam" data-v="${esc(t.name)}" class="${nc.team === t.name ? 'm-on' : ''}" style="--c:${t.color}">${esc(t.name)}<small>${TIER_NAME[t.tier]} · ${money(TIER_BUDGET[t.tier])} to start</small><small>${esc(t.drivers.join(' & '))}</small></button>`).join('')}</div>
-    <h3 style="margin-top:18px">The season</h3><div class="m-row2"><span>Rounds</span><span class="m-seg">${[4, 8, 12].map((n) => `<button data-a="nrounds" data-v="${n}" class="${nc.rounds === n ? 'm-on' : ''}">${n}</button>`).join('')}</span></div>
-    <div class="m-row2"><span>Race distance</span><span class="m-seg">${[3, 5, 8, 13].map((n) => `<button data-a="nlaps" data-v="${n}" class="${nc.laps === n ? 'm-on' : ''}">${n} laps</button>`).join('')}</span></div>
-    <p>The calendar cycles ${TRACKS_ALL.map((k) => esc(H.o.trackName?.(k) || k)).join(', ')}. Every team develops its car through the season; you choose what yours builds, who drives it and who runs it - and the board watches the constructors' table.</p>
-    <p><button class="m-go" data-a="create"${nc.team ? '' : ' disabled'}>${nc.team ? `START WITH ${esc(nc.team.toUpperCase())} →` : 'CHOOSE A TEAM'}</button></p></div></div>`;
+  const T = H.o.teams || [], nc = H.nc, cols = T.length > 9 ? 4 : 3;
+  const teams = panel('The team you will run', `<div class="q-teams" style="grid-template-columns:repeat(${cols}, minmax(0, 1fr))">${T.map((t, i) => `<button data-a="nteam" data-v="${esc(t.name)}" class="${nc.team === t.name ? 'on' : ''}" style="--c:${t.color};--i:${i}"><b>${esc(t.name)}</b><small>${TIER_NAME[t.tier]} · ${money(TIER_BUDGET[t.tier])} to start</small><small>${esc(t.drivers.join(' & '))}</small></button>`).join('')}</div>`, { w: 8, scroll: false });
+  const season = panel('The season', `<div class="q-col">${kv('Rounds', seg('nrounds', nc.rounds, [4, 8, 12].map((n) => [n, String(n)])))}${kv('Race distance', seg('nlaps', nc.laps, [3, 5, 8, 13].map((n) => [n, `${n} laps`])))}
+    <p class="q-fine">The calendar cycles ${TRACKS_ALL.map((k) => esc(trackName(k))).join(', ')}. Every team develops its car through the season; you choose what yours builds, who drives it and who runs it - and the board watches the constructors' table.</p>
+    <p class="q-fine">Races of 8 laps or more need a pit stop and two dry compounds.</p>
+    <button class="go sp" style="padding:14px" data-a="create"${nc.team ? '' : ' disabled'}>${nc.team ? `START WITH ${esc(nc.team.toUpperCase())} →` : 'CHOOSE A TEAM'}</button></div>`, { w: 4, cls: nc.team ? 'hero' : '', scroll: false });
+  return `<div class="q-g">${teams}${season}</div>`;
 }
 
 // ---- the clicks --------------------------------------------------------------------------------------------------------
 function say(text, ok = true) { H.msg = text; H.ok = ok; }
 function onClick(e) {
-  const b = e.target.closest('button'); if (!b || b.disabled) return;
+  const b = e.target.closest('button'), th = el.querySelector('.q-theme');
+  if (th?.classList.contains('in') && !e.target.closest('.q-theme') && b?.dataset.a !== 'theme') th.classList.remove('in');   // (a click anywhere else puts the colours' panel away)
+  if (!b || b.disabled) return;
   const c = H.c, d = b.dataset;
+  // (the colours: the panel, and a choice in it - the HQ takes it at once)
+  if (d.a === 'theme') { th?.classList.toggle('in'); return; }
+  if (d.th) { const [k, v] = d.th.split('|'); themeSet(c?.myTeam || null, k, v); if (c) { themeApply(el, c.myTeam, c.team.color, c.team.color2); th.innerHTML = themeHTML(c.myTeam, c.team.color, c.team.color2); } return; }
   if (d.tab) {
-    H.tab = d.tab; H.msg = null; render(); el.querySelector('.m-mb')?.scrollTo(0, 0);
+    if (d.tab === H.tab) return;
+    H.tab = d.tab; H.msg = null; render();
     // (a matter that belongs to this page comes up here, a moment after the page has: no button asks - ui/ManagerHub3.js storyAmbientPlay)
     if (H.c && H.o.play && !pumping) { const tab = H.tab; clearTimeout(H.ambT); H.ambT = setTimeout(() => { if (!managerHubOpen() || H.tab !== tab || pumping) return; const p = storyAmbientPlay(H.c, tab, H.o.play, H.shown || 0); if (p) { H.shown = (H.shown || 0) + 1; scene(p); } }, 650); }
     return;
@@ -306,22 +294,22 @@ function onClick(e) {
   const a = d.a, v = d.v; H.msg = null;
   if (pumping) return;
   if (c && H.o.play) { const p = storyAct(c, a, v, H.o.play); if (p) { scene(p); return; } }   // (the story: ui/ManagerHub3.js)
-  if (c) { const r = extraClick(c, a, v); if (r !== undefined) { if (r) say(r.text, r.ok); render(); return; } }
-  if (c) { const r = eraClick(c, a, v); if (r !== undefined) { if (r) say(r.text, r.ok); render(); return; } }   // (the rivals, the market, the academy: ui/ManagerHub4.js)   // (the crew, the people, the car: ui/ManagerHub2.js)
+  if (c) { const r = extraClick(c, a, v); if (r !== undefined) { if (r) say(r.text, r.ok); render(); return; } }   // (the crew, the people, the car: ui/ManagerHub2.js)
+  if (c) { const r = eraClick(c, a, v); if (r !== undefined) { if (r) say(r.text, r.ok); render(); return; } }   // (the rivals, the market, the academy: ui/ManagerHub4.js)
   if (a === 'exit') { H.o.onExit?.(); return; }
   if (a === 'quick') { H.o.onQuick?.(); return; }
   if (a === 'nteam') H.nc.team = v; else if (a === 'nrounds') H.nc.rounds = +v; else if (a === 'nlaps') H.nc.laps = +v;
   else if (a === 'create') { H.c = ManagerCareer.create({ team: H.nc.team, rounds: H.nc.rounds, laps: H.nc.laps }); H.tab = 'home'; H.o.onCreate?.(H.c); render(); pump(); return; }
   else if (!c) { /* nothing */ }
   else if (a === 'race') { H.o.onRace?.(c); return; }
-  else if (a === 'sim') { const rep = H.o.onSim?.(c); if (rep) say(`Round ${rep.round} simulated: ${rep.mine.map((m) => `${sur(m.name)} ${m.dnf ? 'DNF' : `P${m.pos}`}`).join(', ')}.`); H.tab = 'home'; render(); pump(); return; }
-  else if (a === 'next') { c.nextSeason(); H.tab = 'home'; say(`Season ${c.season}: ${c.rounds} rounds. The board expects P${c.board.target}.`); render(); pump(); return; }
-  else if (a === 'join') { c.nextSeason(v); H.tab = 'home'; say(`You are ${v}'s team principal now.`); render(); pump(); return; }
+  else if (a === 'sim') { const rep = H.o.onSim?.(c); if (rep) say(`Round ${rep.round} simulated: ${rep.mine.map((m) => `${sur(m.name)} ${m.dnf ? 'DNF' : `P${m.pos}`}`).join(', ')}.`); H.tab = 'home'; H._tab = null; render(); pump(); return; }
+  else if (a === 'next') { c.nextSeason(); H.tab = 'home'; H._tab = null; say(`Season ${c.season}: ${c.rounds} rounds. The board expects P${c.board.target}.`); render(); pump(); return; }
+  else if (a === 'join') { c.nextSeason(v); H.tab = 'home'; H._tab = null; say(`You are ${v}'s team principal now.`); el.dataset.mode = ''; render(); pump(); return; }
   else if (a === 'erase') { ManagerCareer.erase(); H.c = null; H.tab = 'new'; }
   else if (a === 'extend') { const [id, y] = String(v).split('|'); const r = c.extend(id, +y || 1); say(r, /extends to/.test(r)); }
   else if (a === 'release') { const r = c.release(v), ok = !/^Not/.test(r); say(r, ok); if (ok && H.o.play) { const m = storyReleased(c, v); if (m) { scene(H.o.play(m.scene, m.ctx).then((res) => { storyShown(c, m.key); storyApply(c, m.key, res || {}); return r; })); return; } } }
   else if (a === 'sign') { const [sid, sy] = String(v).split('|'); const r = c.sign(sid, +sy || 2), ok = !/^(Not|Both)/.test(r); say(r, ok); if (ok && H.o.play) { const m = storySigning(c, sid); if (m) { scene(H.o.play(m.scene, m.ctx).then((res) => { storyShown(c, m.key); storyApply(c, m.key, res || {}); return r; })); return; } } }
-  else if (a === 'fit') { const [did, el] = String(v).split('|'); say(fitNew(c, c.myTeam, did, el)); c.save(); }
+  else if (a === 'fit') { const [did, pe] = String(v).split('|'); say(fitNew(c, c.myTeam, did, pe)); c.save(); }
   else if (a === 'spare') { const r = orderSpare(c, v); say(r, !/^(Not|Over|No )/.test(r)); c.save(); }
   else if (a === 'facup') { const r = facUpgrade(c, v); say(r, !/^(Not|No |.*already|.*highest)/.test(r)); c.save(); }
   else if (a === 'facmt') { const r = facMaintain(c, v); say(r, !/^Not/.test(r)); c.save(); }

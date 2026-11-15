@@ -3172,7 +3172,7 @@ const MGR = { c: null };
 function openMgrHub() {
   MGR.c = ManagerCareer.load();
   openManagerHub({ career: MGR.c, trackName: (k) => shortTrack(k),
-    teams: TEAMS.map((t) => ({ name: t.name, color: t.color, tier: t.drivers[0]?.tier ?? 2, drivers: seats(t).map((d) => d.name) })),
+    teams: TEAMS.map((t) => ({ name: t.name, color: t.color, color2: t.color2, tier: t.drivers[0]?.tier ?? 2, drivers: seats(t).map((d) => d.name) })),
     onCreate: (c) => { MGR.c = c; },
     onRace: (c) => mgrRace(c),
     onSim: (c) => { const rep = c.applyRace(c.simRace(), c.track); storyTrackScene(c); refreshHome(); return rep; },   // (a simulated weekend: no scene at the track)

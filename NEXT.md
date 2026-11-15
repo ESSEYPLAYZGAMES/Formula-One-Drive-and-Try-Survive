@@ -1,3 +1,64 @@
+# V2.62 (2026-11-15): the team principal's HQ, made again for a laptop's screen
+
+Asked for: "go back through the whole manager menu (outside of races) and seriously from the ground up redo all the
+user interface and arrangement of buttons and stuff, dont just move around preexisting blocks but remake them
+specifically for the laptop aspecrt ratio for minimal scrolling and optimized symetry, also more fluid, nice
+transitions, slick colors - customizable to the team".
+
+## The sheet (ui/HQKit.js, new; ui/ManagerHub.js and its three page files written again on it)
+- The whole HQ is laid out on a 1366 x 768 sheet and scaled to the window, so every page is designed once and is the
+  same on any laptop. Nothing scrolls but the inside of a panel that holds a long list (the news, the free agents,
+  the rival grid): checked on all 17 pages - no page scroll, nothing off the screen, nothing cut off.
+- A bar across the top: the team's mark and name, the season and round, the four figures that matter every day -
+  budget, cost cap left, constructors' place against the board's target, the board's confidence - each with its own
+  small meter, and a figure that changes counts to its new value; SIMULATE and RACE; the colours; MENU.
+- A rail down the left instead of 17 tabs in a row: TEAM (Overview, Inbox, Standings, Calendar), CAR (Factory,
+  Design, Parts), PEOPLE (Drivers, Morale, Staff, Pit crew, Academy), BUSINESS (Finances, Sponsors, Facilities),
+  PADDOCK (Rivals, Market). The page that is open has a light that slides to it; what is waiting is counted beside
+  Inbox and Rivals.
+- The stage: a twelve-column grid whose rows share the height, so a page fills the screen exactly and its panels
+  line up in equal columns. A page turned to arrives with its panels one after another; a page drawn again after a
+  click stays as it was, each list where it had been scrolled to.
+- What a click says comes back as a line at the foot of the screen (green or red), gone after a few seconds - it
+  no longer pushes the page down.
+- "How this works" is an (i) in a panel's corner, shown on hover: the notes take no room on the page.
+
+## The colours, yours
+- The HQ takes the team's colours: the accent (buttons, meters, lights, the glow behind the page) is the team's
+  first colour, lifted where it would be too dark to read. The button by MENU opens the colours: the accent - the
+  team's first colour, its second, or one of eight - and the ground: MIDNIGHT, CARBON or DAYLIGHT. Kept for each team.
+- A new career's screen takes the colours of the team as you pick it.
+
+## Every page, made again
+- OVERVIEW: the next race with its circuit drawn behind it, what the sponsors want there and a check of what is
+  ready (seats, spares, power units, the factory - each not-ready line with a button to its page); your two drivers
+  side by side (rating ring, number, morale, contract, salary); the car (the gap to the fastest, parts, what is
+  being built); NEEDS YOU (the inbox's first matter, the paddock's approaches and offers, the press's question with
+  its answers on the spot - one panel where three cards were); the last race; the news.
+- STANDINGS: both tables the height of the page, each team's points as a bar in its colour.
+- CALENDAR: every round a card with its circuit's outline - forecast, what your cars did, who won; the next one lit.
+- FACTORY: the tech tree in the stage, put onto the same colours (it was drawn for a white page).
+- DESIGN: the power unit down the middle; the design focus (and how the car suits each circuit) over the factory's
+  work on its left; the wind tunnel's hours (a ring) over next year's car on its right.
+- PARTS: the two power units side by side - each element's wear as a bar - and the spares as four tiles under them.
+- DRIVERS: your two as cards (rating, age, career, points, starts, salary, contract, morale, engineer, what he asks
+  to stay, extend and release) beside the free agents the height of the page.
+- MORALE: the two drivers and the team side by side, each with a ring; the talks as a grid of buttons; the race
+  engineers and who is available under them.
+- STAFF: the three jobs as three equal columns - who has it, who could.
+- PIT CREW: the whole crew down the left with speed, consistency and freshness as bars; the stop, the training plan
+  and the market stacked on the right.
+- ACADEMY: the academy, the juniors, the prospects - three columns.
+- FINANCES: the season's figures; the cost cap as a ring; the prize money by the constructors' order as bars, your
+  place lit; where the money goes.
+- SPONSORS: the contracts on the left; the offers as cards on the right, each opening where it stands to negotiate.
+- FACILITIES: the four side by side - level as pips, condition, effect, upgrade and maintain.
+- RIVALS: the grid as one table (how each works, its car's gap as a bar in its colour, its people to ask for,
+  protest); who wants your people and the rules beside it.
+- MARKET: next season's grid the height of the page; who is on the move; the champions.
+- INBOX: what is waiting down the left; the mood and the other principals; the feed and the rumours.
+- Every button does what it did: the actions and the career underneath are unchanged.
+
 # V2.61 (2026-11-15): every broadcast graphic arrives and leaves in neon
 
 Asked for: "ensure all of the hud icons/notifs/visuals like undercuts and all of that have cool similarly neon
