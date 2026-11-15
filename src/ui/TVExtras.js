@@ -206,7 +206,8 @@ export class TVExtras {
         { const riv = !!(a.grudge?.has?.(b.careerId) || b.grudge?.has?.(a.careerId)), left = d.lapsTotal - a.lap;
           this.o.onMoment?.({ kind: 'pass', a, b, pos: i + 1, cars: [a, b], t: d.time, text: `${surname(a)} passes ${surname(b)} for ${i === 0 ? 'the lead' : ord(i + 1)}`,
             score: (i === 0 ? 100 : i <= 2 ? 72 : i <= 5 ? 44 : i <= 9 ? 20 : 6) + (mine(a) || mine(b) ? 16 : 0) + (riv ? 26 : 0) + (a.team === b.team ? 12 : 0) + (left <= 2 ? 22 : 0) }); }
-        if (i < 8 || mine(a) || mine(b)) this.o.on?.(i === 0 ? 'passLead' : 'pass', { a: surname(a), b: surname(b), pos: i + 1, mine: mine(a) || mine(b) }); if (i < 10 || mine(a) || mine(b)) { ctx.say?.(`${surname(a)} PASSES ${surname(b)} FOR ${ord(i + 1)}`, mine(a) ? 'good' : mine(b) ? 'bad' : '', 'OVERTAKE'); if (i < 6 || mine(a) || mine(b)) this.event({ text: `${surname(a)} passes ${surname(b)} for ${ord(i + 1).toLowerCase()}`, cars: [a, b], wait: 1.6 }, d); }
+        // (no OVERTAKE line in race control's column: there was one for every place changing hands. The commentary has the ones that matter - the lead, the podium, your cars - and the replay's chip the first six places)
+        if (i < 3 || mine(a) || mine(b)) this.o.on?.(i === 0 ? 'passLead' : 'pass', { a: surname(a), b: surname(b), pos: i + 1, mine: mine(a) || mine(b) }); if (i < 10 || mine(a) || mine(b)) { if (i < 6 || mine(a) || mine(b)) this.event({ text: `${surname(a)} passes ${surname(b)} for ${ord(i + 1).toLowerCase()}`, cars: [a, b], wait: 1.6 }, d); }
       }
     }
     this.order = idx;

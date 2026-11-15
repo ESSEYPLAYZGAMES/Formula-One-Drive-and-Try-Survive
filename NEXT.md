@@ -1,3 +1,24 @@
+# V2.66 (2026-11-15): the right-hand side as one column with a queue; no OVERTAKE lines
+
+Asked for: "add a que so things stop overlapping on the right side of the screen - but not overwhelmingly so there's
+constantly a new notification, and some things can go at the same time - remove the overtake alerts altogether (x
+overtakes y)".
+
+## One column, with a budget (ui/TVQueue.js, new)
+- Race control's lines hung from the top right and the cards stood up from the bottom right, each knowing nothing of
+  the other. They are one column now - the lines above the cards - and it has the height between the map and the
+  pit wall to use, no more.
+- Each card still decides when it has something to show; the queue decides which of those are up: the most
+  important first - the safety car's card, the pit stop's clock, STRATEGY, the battle, the car catching, the info
+  cards - as many as fit together, the rest held until there is room. A card that is up stays up while it is wanted;
+  a held one comes up once room has been there for a second. The map is never squeezed.
+- Race control's lines keep their own pace: two up at most, three and a half seconds between two, a flag or a
+  retirement ahead of the rest, and a line that has waited ten seconds is dropped rather than shown late.
+
+## No OVERTAKE lines
+- "X PASSES Y FOR 7TH" is gone from the column altogether. The commentary's line still has a pass for the lead, the
+  podium places or one of your cars; the replay's chip (R) still comes for the first six places.
+
 # V2.65 (2026-11-15): the window stays put; replays chosen - small ones on request, big ones played, the whole picture when the race is quiet
 
 Asked for: "The picture in picture is constantly swerving out of the way of the penalties and whatnot, let it have

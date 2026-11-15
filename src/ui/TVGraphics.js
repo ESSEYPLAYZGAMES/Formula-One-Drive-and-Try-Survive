@@ -73,14 +73,23 @@ export class TVGraphics {
     this.cars = []; this.acc = 1; this.modeT = 0; this.gapMode = 'INTERVAL'; this.capT = 0; this.capKey = '';
     this.age = new Map(); this.prev = new Map(); this.best = Infinity; this.phase = 'green'; this.rcQ = [];
   }
-  show(on) { this.el.classList.toggle('hidden', !on); if (!on) { this.capEl.classList.remove('in'); this.rcEl.innerHTML = ''; } }
+  show(on) { this.el.classList.toggle('hidden', !on); if (!on) { this.capEl.classList.remove('in'); this.rcEl.innerHTML = ''; this.rcQ = []; } }
   reset() { this.pidx = new Map(); this.pfl = new Map(); this.age.clear(); this.prev.clear(); this.best = Infinity; this.phase = 'green'; this.rcEl.innerHTML = ''; this.capEl.classList.remove('in'); this.capT = 0; this.acc = 1; }
   /** laps on this car's set of tyres */
   tyreLaps(c) { const a = this.age.get(c); return a ? Math.max(0, c.lap - a.lap) : c.lap; }
   /** a message from race control (kind: '' | warn | bad | good | purple) */
-  rc(text, kind = '', head = 'RACE CONTROL') {
+  /** a line for race control's column: it waits its turn (rcPump) - a flag or a retirement ahead of the rest */
+  rc(text, kind = '', head = 'RACE CONTROL') { const q = this.rcQ || (this.rcQ = []), e = { text, kind, head, t: performance.now() }; if (kind === 'bad' || kind === 'warn') { const i = q.findIndex((x) => x.kind !== 'bad' && x.kind !== 'warn'); if (i < 0) q.push(e); else q.splice(i, 0, e); } else q.push(e); if (q.length > 6) q.splice(q.findIndex((x) => x.kind !== 'bad' && x.kind !== 'warn') >= 0 ? q.findIndex((x) => x.kind !== 'bad' && x.kind !== 'warn') : 0, 1); }
+  /** the next line, when it is its turn: two up at most, three and a half seconds between two, one that has waited ten seconds dropped */
+  rcPump() {
+    const q = this.rcQ; if (!q || !q.length) return; const now = performance.now();
+    while (q.length && now - q[0].t > 10000) q.shift();
+    if (!q.length || now - (this.rcAt || 0) < 3500 || [...this.rcEl.children].filter((x) => !x.classList.contains('out')).length >= 2) return;
+    const e = q.shift(); this.rcAt = now; this.rcShow(e.text, e.kind, e.head);
+  }
+  rcShow(text, kind, head) {
     const d = document.createElement('div'); d.className = kind; d.innerHTML = `<small>${head}</small>`; d.appendChild(document.createTextNode(text));
-    this.rcEl.appendChild(d); while (this.rcEl.children.length > 4) this.rcEl.firstChild.remove();
+    this.rcEl.appendChild(d); while (this.rcEl.children.length > 3) this.rcEl.firstChild.remove();
     setTimeout(() => d.classList.add('out'), 6150); setTimeout(() => d.remove(), 6500);   // (folded away, then taken off: ui/TVNeon.js)
   }
   /** a cut (camera/TVDirector.js): the caption for the car on screen, or the fight */
@@ -104,6 +113,7 @@ export class TVGraphics {
   }
   /** the race control banner, the tower, the events: every frame (the tower rewritten 4 times a second) */
   update(dt, ctx) {
+    this.rcPump();
     const d = ctx.d; if (!d) return;
     if (this.capT > 0) { this.capT -= dt; if (this.capT <= 0) this.capEl.classList.remove('in'); }
     this.events(d);

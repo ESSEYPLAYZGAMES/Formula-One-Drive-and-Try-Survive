@@ -69,6 +69,7 @@ import { playScene } from './ui/CineIndex.js';
 import { radioReplays, stopRadioReplays } from './ui/RadioReplay.js';
 import { TVExtras } from './ui/TVExtras.js';
 import { TVStrategy } from './ui/TVStrategy.js';
+import { TVQueue } from './ui/TVQueue.js';
 import { TVShow, sectorChips, pipOpen } from './ui/TVShow.js';
 import { Theatre } from './ui/Theatre.js';
 import { TVStewards } from './ui/TVStewards.js';
@@ -2546,6 +2547,8 @@ function tpStart() {
   TP.stw.reset(); tpStewardsOpen(d);
   if (!TP.fx) TP.fx = new TVExtras(TP.gfx.el, { tyreLaps: (c) => TP.gfx.tyreLaps(c), onReplay: (o) => tpReplayStart(o), onSkip: () => tpReplayEnd(), on: (k, x) => tpSay(k, x), onMoment: (e) => tpMoment(e) });
   if (!TP.show) { TP.show = new TVShow(TP.gfx.el, { tyreLaps: (c) => TP.gfx.tyreLaps(c), audio, on: (k) => { if (!TP.on || !S.director) return; if (k === 'podium') tpAway('crowd', S.director.positions.find((c) => !c.retired), { within: 22, must: true }); if (k === 'flag') TP.awayWant = { kind: 'marshal', want: 'chequered', from: TP.tv.t + 3.6, until: TP.tv.t + 10 }; } });   /* (the top three home: the stands) */ TP.gfx.onFastest = (c, t) => tpSay('fl', { who: surname(c.name), t }); }   // (commentary, radio on air, the map, the cards, the grid, the flag: ui/TVShow.js)
+  if (!TP.q) TP.q = new TVQueue(TP.gfx.el);   // (the right-hand side as one column, with a budget: ui/TVQueue.js)
+  TP.q.reset();
   TP.show.reset(); TP.clips = []; TP.moments = []; TP.autoRep = null; TP.boreT = 0; TP.fullAt = -999; TP.winAt = -99; TP.wiping = false; TP.scPh = null; PIP.mode = null; PIP.on = false; PIP.k = 0; PIP.label = null;
   TP.form = null; TP.formed = false; TP.hl = false; TP.awayAt = -99; TP.awayWant = null; TP.walked = new Set(); TP.stillT = new Map();
   // (what the cutaways look at: your pit wall's three at their screens, a driver walking away - world/TVProps.js)
@@ -3144,6 +3147,7 @@ function tpUi(dt) {
   TP.fx?.update(dt, { d, focus: TP.cars, shot: TP.tv.shot, halted: held || !!TP.form || (!!TP.rep && !TP.rep.win), noOffer: !!TP.rep, say: (t, k, h) => TP.gfx.rc(t, k, h), len: W.track?.length });
   TP.show?.update(dt, { d, focus: TP.cars, shot: TP.tv.shot, halted: held, len: W.track?.length, track: W.track, trackName: shortTrack(W.def?.id), stat: tpStat, wet: d.weather?.tyreWet || 0, rc: (t, k, h) => TP.gfx.rc(t, k, h), battle: !!TP.fx?.bt.classList.contains('in'), catching: !!TP.fx?.ct.classList.contains('in'), neutral: !!TP.fx?.neutral, replaying: !!TP.rep, cuts: TP.tv.cuts, form: TP.form ? TP.form.ph : TP.formed ? 'done' : null,
     hint: TP.form && TP.form.ph !== 'grid' ? ['SPACE', 'skip the formation lap'] : TV_AWAY.has(TP.tv.shot?.kind) && !TP.form ? ['X', 'back to the race'] : null });
+  TP.q?.update(dt);
   tpStewards(); tpMomentsCut(d); tpReplays(d, held ? 0 : dt); tpPip(held ? 0 : dt);
   if (d.mode === 'race') { try { TP.props?.update(held ? 0 : dt); tpAways(held ? 0 : dt); } catch (e) { /* a cutaway that could not be: no cutaway */ } }
   const ord = d.orders?.pairOf?.(TP.cars[0])?.order || null;
