@@ -164,13 +164,22 @@ export class TVDirector {
     //      it comes into the picture) - on either side, nearer or further; none: a trackside camera, not the helicopter
     if (kind === 'crane') {
       const s1 = (this.cuts & 1) ? 1 : -1, base = Math.max(40, 110 * Math.min(1.5, Math.max(0.5, subject.speed / 55)));
-      for (const strict of [true, false]) {
+      // (first the places whose lines stay on the road's side of the fences - ins - then any; and how far past the
+      //  crane the road stays in clear view - a tree, the bend - is kept: the shot ends there)
+      for (const [ins, strict] of [[true, true], [true, false], [false, true], [false, false]]) {
+        const see = (p, py, x, y, z) => ctx.clear(p.x, py, p.z, x, y, z) && (!ins || !ctx.inside || ctx.inside(p.x, py, p.z, x, y, z));
         for (const [sd, k] of [[s1, 1], [-s1, 1], [s1, 0.6], [-s1, 0.6], [s1, 1.5], [-s1, 1.5]]) {
           const s0 = tr.wrapS(subject.s + base * k), i = tr.idxAtS(s0), w = tr.wallAt(i, sd);
-          const a = tr.sample(s0, sd * (w - 0.8)), b = tr.sample(tr.wrapS(s0 + 14), sd * (w + 1.2)), p0 = new THREE.Vector3(a.x, G(a.x, a.z) + 3.2, a.z), p1 = new THREE.Vector3(b.x, G(b.x, b.z) + 13, b.z);
+          const a = tr.sample(s0, sd * (w - 0.8)), b = tr.sample(tr.wrapS(s0 + 14), sd * (w - 1.2)) /* (the head stays on the road's side of the fence as it rises: the mesh is never seen from behind) */, p0 = new THREE.Vector3(a.x, G(a.x, a.z) + 3.2, a.z), p1 = new THREE.Vector3(b.x, G(b.x, b.z) + 13, b.z);
           const m = tr.sample(tr.wrapS(s0 - 25), 0), my = G(m.x, m.z) + 0.8;
-          const ok = !ctx.clear || (ctx.clear(p1.x, p1.y, p1.z, m.x, my, m.z) && ctx.clear(p0.x, p0.y + 1.5, p0.z, m.x, my, m.z) && (!strict || (ctx.clear(p1.x, p1.y, p1.z, subject.x, cy(subject) + 0.8, subject.z) && ctx.clear(p0.x, p0.y + 1.5, p0.z, subject.x, cy(subject) + 0.8, subject.z))));
-          if (ok) { sh.s0 = s0; sh.side = sd; sh.pos = p0.clone(); sh.pos0 = p0; sh.pos1 = p1; sh.crane = true; break; }
+          let ok = !ctx.clear || (see(p1, p1.y, m.x, my, m.z) && see(p0, p0.y + 1.5, m.x, my, m.z) && (!strict || (see(p1, p1.y, subject.x, cy(subject) + 0.8, subject.z) && see(p0, p0.y + 1.5, subject.x, cy(subject) + 0.8, subject.z)))), end = null;
+          if (ok && ctx.clear) {   // (how far past it: by arithmetic every 14 m - walls, trees, the fence line - and the meshes' ray at the end of that)
+            const lt = ctx.lite || ctx.clear; end = 0;
+            for (let x = 6; x <= 300; x += 14) { const q = tr.sample(tr.wrapS(s0 + x), 0), qy = G(q.x, q.z) + 0.8; if (!lt(p1.x, p1.y, p1.z, q.x, qy, q.z) || (ins && ctx.inside && !ctx.inside(p1.x, p1.y, p1.z, q.x, qy, q.z))) break; end = x; }
+            while (end >= 22) { const q = tr.sample(tr.wrapS(s0 + end), 0); if (ctx.clear(p1.x, p1.y, p1.z, q.x, G(q.x, q.z) + 0.8, q.z)) break; end = Math.floor(end * 0.5); }
+            if (end < 22) ok = false;
+          }
+          if (ok) { sh.s0 = s0; sh.side = sd; sh.pos = p0.clone(); sh.pos0 = p0; sh.pos1 = p1; sh.crane = true; sh.endAt = end != null && end < 300 ? end : null; break; }
         }
         if (sh.crane) break;
       }
@@ -180,31 +189,63 @@ export class TVDirector {
     if (kind === 'track') {
       // a camera along the barrier ahead of the car: it comes toward it, passes, and the shot ends a little after
       const ahead = st.urgent ? 25 : 110 + ((this.cuts * 0.7548) % 1) * 110, s0 = tr.wrapS(subject.s + Math.max(20, ahead * Math.min(1.6, Math.max(0.5, subject.speed / 55))));
-      // (two kinds of trackside camera, as at a real circuit: on a pole over the barrier - 10-13 m up, 0.6 m behind the
-      //  wall's face: the line down to a car even 1 m off that wall clears the top of a 5.5 m catch fence cranked in over
-      //  the road - or in a slot cut in the fence line, the lens just over the concrete, the mesh beside it, none in front)
-      const side = (this.cuts & 1) ? 1 : -1, i = tr.idxAtS(s0), slot = !st.urgent && ((this.cuts * 0.4142) % 1) < 0.4;
-      const off = slot ? 0.05 : 0.6, f = tr.sample(s0, side * (tr.wallAt(i, side) + off));
-      sh.s0 = s0; sh.side = side; sh.slot = slot;
-      sh.h = slot ? Math.max(1.9, (tr.barrierHeight?.(i, side) > 2 ? 1.3 : tr.barrierHeight?.(i, side) || 1.2) + 0.7) : 10 + ((this.cuts * 0.271) % 1) * 3;
-      sh.pos = new THREE.Vector3(f.x, G(f.x, f.z) + sh.h, f.z);
-      // (the camera must SEE the car: from where it stands to the car now and to the road it will pass on, nothing
-      //  in the way - a wall or a fence where the track bends, a building, a stand. The first of a few places that
-      //  does: this one, the other side of the road, a pole instead of a slot, nearer, further, higher)
+      // (two kinds of trackside camera, as at a real circuit: on a pole 10-13 m up, or in a slot cut in the fence
+      //  line, the lens just over the concrete, the mesh beside it, none in front)
+      // (the pole stands on the ROAD'S side of the wall - a metre and a half in, over the verge: the catch fence is
+      //  behind the lens, never between it and a car, and never seen from behind. The slot is in the fence line itself.)
+      const side = (this.cuts & 1) ? 1 : -1, slot = !st.urgent && ((this.cuts * 0.4142) % 1) < 0.4, kv = Math.min(1.6, Math.max(0.5, subject.speed / 55));
+      const at = (k, sd, sl, hh) => {
+        const sq = tr.wrapS(subject.s + Math.max(20, ahead * k * kv)), iq = tr.idxAtS(sq), fq = tr.sample(sq, sd * (tr.wallAt(iq, sd) + (sl ? 0.05 : -1.5)));
+        const h = sl ? Math.max(1.9, (tr.barrierHeight?.(iq, sd) > 2 ? 1.3 : tr.barrierHeight?.(iq, sd) || 1.2) + 0.7) : hh;
+        return { p: new THREE.Vector3(fq.x, G(fq.x, fq.z) + h, fq.z), sq, sd, sl, h };
+      };
+      const use = (c, end) => { sh.pos = c.p; sh.s0 = c.sq; sh.side = c.sd; sh.slot = c.sl; sh.h = c.h; sh.endAt = end; };
+      const h0 = 10 + ((this.cuts * 0.271) % 1) * 3, first = at(1, side, slot, h0);
+      use(first, null);
+      // (the camera must SEE the car - and go on seeing it. Its whole sweep is looked along before it is taken: from
+      //  the car now, down the road to the camera, and on past it - a wall or a fence where the track bends, a
+      //  building, a stand, a TREE (a shot that began clean and ended behind one). A place whose view of the road up
+      //  to it is not clear is not taken; how far past it the view holds is kept (endAt) and the shot is cut there,
+      //  with the car still in clear sight. First the places whose every line stays on the road's side of the fences
+      //  (inside: no fence from behind), then any with a clear view; none - between buildings, under a bridge: the
+      //  helicopter has it.)
       if (ctx.clear) {
-        // (a slot in the fence line: the fence's own mesh in the ray too - on a bend the line along the wall leaves through it a metre from the lens)
-        const cl = sh.slot && ctx.clearFull ? ctx.clearFull : ctx.clear;
-        const sees = (p) => { const m = tr.sample(tr.wrapS(s0 - 22), 0); return cl(p.x, p.y, p.z, subject.x, cy(subject) + 0.8, subject.z) && ctx.clear(p.x, p.y, p.z, m.x, G(m.x, m.z) + 0.8, m.z); };
-        if (!sees(sh.pos)) {
-          let found = false;
-          for (const [sd, sl, k, hh] of [[-side, false, 1, 11], [side, false, 1, 12.5], [side, false, 0.55, 11], [-side, false, 0.55, 12], [side, false, 1.5, 13], [-side, false, 1.5, 13], [side, false, 1, 17], [-side, false, 1, 17]]) {
-            const sq = tr.wrapS(subject.s + Math.max(20, ahead * k * Math.min(1.6, Math.max(0.5, subject.speed / 55)))), iq = tr.idxAtS(sq), fq = tr.sample(sq, sd * (tr.wallAt(iq, sd) + 0.6)), p = new THREE.Vector3(fq.x, G(fq.x, fq.z) + hh, fq.z);
-            const m = tr.sample(tr.wrapS(sq - 22), 0);
-            if (ctx.clear(p.x, p.y, p.z, subject.x, cy(subject) + 0.8, subject.z) && ctx.clear(p.x, p.y, p.z, m.x, G(m.x, m.z) + 0.8, m.z)) { sh.pos = p; sh.s0 = sq; sh.side = sd; sh.slot = sl; sh.h = hh; found = true; break; }
-          }
-          // (nowhere along here has a view - between buildings, under a bridge: the helicopter has it)
-          if (!found) { sh.kind = 'heli'; sh.pos = null; }
+        const fwd = (a, b2) => { let x = b2 - a; if (x < 0) x += tr.length; return x; };
+        // (a place's sweep, looked along in two steps. First by arithmetic alone, every 16 m of it - the walls and
+        //  fences of the road, the trees, and whether the line stays inside the fence line: ok / end, okIn / endIn.
+        //  Then the ray against the buildings and the stands - which costs - at a few points only: the car, half
+        //  way down the road to the camera, and the far end of what the arithmetic allowed. A cut must not hold
+        //  the picture up.)
+        const lite = ctx.lite || ctx.clear, dS = (subject.d || 0) * 0.6;
+        const pre = (c) => {
+          const p = c.p, r = { ok: false, end: 0, okIn: false, endIn: 0 }, ins = (x, y, z) => !ctx.inside || ctx.inside(p.x, p.y, p.z, x, y, z);
+          const sy = cy(subject) + 0.8; if (!lite(p.x, p.y, p.z, subject.x, sy, subject.z)) return r;
+          let allIn = ins(subject.x, sy, subject.z);
+          const a = fwd(subject.s, c.sq);
+          for (let x = 16; x < a - 6; x += 16) { const m = tr.sample(tr.wrapS(subject.s + x), dS), y = G(m.x, m.z) + 0.8; if (!lite(p.x, p.y, p.z, m.x, y, m.z)) return r; if (allIn && !ins(m.x, y, m.z)) allIn = false; }
+          r.ok = true; r.okIn = allIn;
+          for (let x = 8; x <= 264; x += 16) { const m = tr.sample(tr.wrapS(c.sq + x), 0), y = G(m.x, m.z) + 0.8; if (!lite(p.x, p.y, p.z, m.x, y, m.z)) break; r.end = x; if (allIn && ins(m.x, y, m.z)) r.endIn = x; else allIn = false; }
+          return r;
+        };
+        const verify = (c, end) => {   // -> how far past the camera the view holds with the meshes in the ray too (0: not at all)
+          const p = c.p, cl = c.sl && ctx.clearFull ? ctx.clearFull : ctx.clear, at = (sv, d) => { const m = tr.sample(tr.wrapS(sv), d); return cl(p.x, p.y, p.z, m.x, G(m.x, m.z) + 0.8, m.z); };
+          if (!cl(p.x, p.y, p.z, subject.x, cy(subject) + 0.8, subject.z)) return 0;
+          const a = fwd(subject.s, c.sq); if (a > 90 && !at(subject.s + a * 0.5, dS)) return 0;
+          for (const k of [1, 0.55, 0.25]) { const e = Math.max(24, end * k); if (at(c.sq + e, 0)) return e; if (e <= 24) break; }
+          return 0;
+        };
+        const C = [first];
+        for (const [k, sd, hh] of [[1, -side, 11], [1, side, 12.5], [0.55, side, 11], [0.55, -side, 12], [1.5, side, 13], [1.5, -side, 13], [0.3, side, 11.5], [0.3, -side, 11.5], [2.1, side, 14], [2.1, -side, 14], [1, side, 17], [1, -side, 17], [0.75, side, 15], [0.75, -side, 15]]) C.push(at(k, sd, false, hh));
+        // (inside the fences with a long view past it: taken at once. Else the best of the rest - the ones inside
+        //  the fences first, then any with a clear view - the first few of them that the rays bear out.)
+        let found = false; const rest = [];
+        for (const c of C) {
+          const e = pre(c);
+          if (e.okIn && e.endIn >= 72) { const v = verify(c, e.endIn); if (v >= 24) { use(c, v < 264 ? v : null); found = true; break; } continue; }
+          if (e.okIn && e.endIn >= 24) rest.push({ c, end: e.endIn, k: 1000 + e.endIn }); else if (e.ok && e.end >= 24) rest.push({ c, end: e.end, k: e.end });
         }
+        if (!found) { rest.sort((x, y) => y.k - x.k); for (const o of rest.slice(0, 5)) { const v = verify(o.c, o.end); if (v >= 24) { use(o.c, v < 264 ? v : null); found = true; break; } } }
+        if (!found) { sh.kind = 'heli'; sh.pos = null; }
       }
     } else if (st.view) {
       sh.view = st.view;   // (placed each frame from it: place())
@@ -298,6 +339,10 @@ export class TVDirector {
       // (with the circuit's own walls and fences in the ray - clearFull - whatever the walls' arithmetic says)
       // (a camera that stands still is looked through again as the shot runs: the car it has may have spun on, rolled
       //  away behind a fence line, gone round the bend - twice running with something in the way, and the shot is over)
+      // (the view past the camera holds only so far - a tree, the bend: the shot ends there, the car still in sight)
+      if (sh.endAt != null && !sh.kerb && sh.t > 1.2) { const L = ctx.track.length; let ds = car.s - sh.s0; if (ds > L / 2) ds -= L; if (ds < -L / 2) ds += L; if (ds > sh.endAt - Math.max(4, car.speed * 0.25)) sh.dur = Math.min(sh.dur, sh.t); }
+      // (and a tree between the lens and the car - it left the road, the crane's head swung behind one: over at once)
+      if (ctx.tree && !sh.kerb && sh.t > 1) { sh.tchk = (sh.tchk || 0) + dt; if (sh.tchk > 0.25) { sh.tchk = 0; if (ctx.tree(sh.pos.x, sh.pos.y, sh.pos.z, car.x, carY + 0.8, car.z)) sh.dur = Math.min(sh.dur, sh.t); } }
       if (ctx.clear && !sh.crane && !sh.kerb) { sh.chk = (sh.chk || 0) + dt; if (sh.chk > 0.55) { sh.chk = 0; if (!(ctx.clearFull || ctx.clear)(sh.pos.x, sh.pos.y, sh.pos.z, car.x, carY + 0.8, car.z)) { sh.lostN = (sh.lostN || 0) + 1; if (sh.lostN >= 2 && sh.t > 1.3) { sh.dur = Math.min(sh.dur, sh.t); this.lostCuts = (this.lostCuts || 0) + 1; } } else sh.lostN = 0; } }
       fov = sh.kerb ? Math.max(24, Math.min(62, 900 / Math.max(10, dist))) : Math.max(9, Math.min(55, 1500 / Math.max(18, dist)));
       // (the kerb's camera: fixed, wide; up the road until the car is over it, then down the road after it - a cut, as

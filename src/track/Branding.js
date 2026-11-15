@@ -360,6 +360,49 @@ export function barrierAtlas() {
 export const atlasU = (k, u) => (k + 0.03 + u * 0.94) / PANELS.length;   // a few texels in from each tile edge (no bleed from the neighbours)
 
 // ---------------------------------------------------------------------------
+// the reverse of a board
+// ---------------------------------------------------------------------------
+/**
+ * A banner or a board is one sheet drawn from both sides - and from behind it showed its advertisement again, in
+ * mirror writing. A real one is blank on its back: the plain reverse of the vinyl, greyed and streaked by a few
+ * seasons outdoors. With this its back is that: no picture, no glow of its own.
+ *   bySide: 0 - the back is the sheet's own back face (a plane turned to face its readers).
+ *           +1 / -1 - a barrier's panels (TrackBuilder: one ribbon winding for both sides of the road, the side read
+ *           from the sign of v, which runs backwards on the left): the back is the face turned away from the road.
+ *   along: which of the texture's coordinates runs along the board ('y' the panels, 'x' a plane); per, up: how many
+ *           of its units make a sheet's length, and its height.
+ */
+export function blankBack(mat, { bySide = 0, along = 'x', per = 1, up = 1 } = {}) {
+  if (!mat || mat.userData.blankBack) return mat; mat.userData.blankBack = true;
+  const prev = mat.onBeforeCompile, pk = mat.customProgramCacheKey, a = along === 'y' ? 'vMapUv.y' : 'vMapUv.x', u = along === 'y' ? 'vMapUv.x' : 'vMapUv.y';
+  const back = bySide ? `((gl_FrontFacing ? 1.0 : -1.0) * (vMapUv.y < 0.0 ? 1.0 : -1.0) * ${bySide.toFixed(1)} > 0.0)` : '(!gl_FrontFacing)';
+  mat.onBeforeCompile = (sh, r) => {
+    prev?.(sh, r);
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', `#include <common>
+        float bbH(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+        float bbN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(bbH(i), bbH(i + vec2(1.0, 0.0)), f.x), mix(bbH(i + vec2(0.0, 1.0)), bbH(i + vec2(1.0, 1.0)), f.x), f.y); }`)
+      .replace('#include <map_fragment>', `#include <map_fragment>
+        bool bbBack = false;
+        #ifdef USE_MAP
+        bbBack = ${back};
+        if (bbBack) {
+          vec2 bq = vec2(abs(${a}) * ${(1 / per).toFixed(4)}, fract(${u} * ${(1 / up).toFixed(4)}));
+          float seam = smoothstep(0.0, 0.014, min(fract(bq.x), 1.0 - fract(bq.x)));
+          float blot = bbN(bq * vec2(5.0, 3.0)) * 0.6 + bbN(bq * vec2(23.0, 11.0)) * 0.4;
+          float streak = smoothstep(0.6, 0.92, bbN(vec2(bq.x * 64.0, bq.y * 2.2 + 3.0))) * (1.0 - bq.y);
+          float grime = smoothstep(0.4, 0.0, bq.y);
+          diffuseColor.rgb = vec3(0.56, 0.57, 0.58) * (0.8 + 0.24 * blot) * (1.0 - 0.3 * streak) * (1.0 - 0.32 * grime) * (0.7 + 0.3 * seam);
+        }
+        #endif`)
+      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n        if (bbBack) totalEmissiveRadiance *= 0.0;');
+  };
+  mat.customProgramCacheKey = () => `${pk ? pk.call(mat) : ''}bb${bySide}${along}${per}${up}`;
+  mat.needsUpdate = true;
+  return mat;
+}
+
+// ---------------------------------------------------------------------------
 // paint on the run-off strips (never on the racing surface)
 // ---------------------------------------------------------------------------
 export const RUNOFF_DECAL_LEN = 22;   // metres of run-off one "LAS VEGAS" occupies (the strip is ~2.8 m wide)

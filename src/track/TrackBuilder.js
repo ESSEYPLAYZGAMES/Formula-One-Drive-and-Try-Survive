@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { giveMaterial } from '../world/BarrierGive.js';
-import { kerbTexture, barrierAtlas, atlasU, runoffTextTexture, RUNOFF_DECAL_LEN, ZONE_SEQ, ZONE_LEN, PANEL_LEN } from './Branding.js';
+import { kerbTexture, barrierAtlas, atlasU, runoffTextTexture, RUNOFF_DECAL_LEN, ZONE_SEQ, ZONE_LEN, PANEL_LEN, PANEL_COUNT, blankBack } from './Branding.js';
 
 const DS = 2.0;              // sample spacing (m)
 const CELL = 24;             // spatial hash cell (m)
@@ -1244,7 +1244,7 @@ function tecproBlocks(tr, side, wallAt, mask) {
           const p0 = SEC[q], p1 = SEC[q + 1], front = q === 0;
           const u0 = 0, u1 = 1, v0 = front ? 0 : PLAIN[1], v1 = front ? (T.h - T.bevel) / T.h : PLAIN[1];
           const a = [E0, p0, front ? u0 : PLAIN[0], v0], bb = [E1, p0, front ? u1 : PLAIN[0], v0], c = [E1, p1, front ? u1 : PLAIN[0], v1], d = [E0, p1, front ? u0 : PLAIN[0], v1];
-          for (const [E, pp, u, v] of [a, bb, c, a, c, d]) vert(E, pp[0], pp[1], pp[2], side > 0 ? u : 1 - u, v, rgb);
+          for (const [E, pp, u, v] of [a, bb, c, a, c, d]) vert(E, pp[0], pp[1], pp[2], u, v, rgb);   // (the ends are already swapped on the right-hand side: turning u round as well put the block's lettering back in mirror writing there)
         }
         // the two ends: the cross-section, fanned
         for (const [E, flip] of [[E0, false], [E1, true]]) for (let q = 1; q < 4; q++) {
@@ -1519,6 +1519,9 @@ export function buildTrackMeshes(track, pit, gridSlots) {
   const atlas = barrierAtlas();
   const panelMat = new THREE.MeshStandardMaterial({ map: atlas, emissive: 0xffffff, emissiveMap: atlas, emissiveIntensity: 0.55, roughness: 0.55, side: THREE.DoubleSide });
   giveMaterial(panelMat);   // (pushed back round a car pressing into a barrier that gives: world/BarrierGive.js)
+  // (from behind - over the wall, from the grass beyond it - a panel is blank: Branding.js blankBack. The ribbon's
+  //  front face looks along t x up; which way that is against the road's left normal says which side's fronts look in)
+  blankBack(panelMat, { bySide: (-tr.tz[0] * tr.nx[0] + tr.tx[0] * tr.nz[0]) >= 0 ? 1 : -1, along: 'y', per: 1, up: 1 / PANEL_COUNT });
   const zoneOf = (i) => Math.floor(tr.s[i] / ZONE_LEN);
   const nZones = Math.ceil(tr.length / ZONE_LEN);
   const panelGeos = []; const tecproGeos = [];

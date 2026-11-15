@@ -2573,6 +2573,7 @@ function tpStart() {
 function tpStewardsOpen(d) {
   const St = d?.stewards; TP.caseClips = new Map(); TP.caseSt = new Map(); TP.review = null; if (!St || d.mode !== 'race') return;
   St.deep = true;
+  if (d.replay) d.replay.keep = 18;
   St.onCase = (k) => { const mine = (c) => TP.cars.includes(c); k.big = 34 + 52 * Math.min(1, k.sev) + (mine(k.a) || mine(k.b) ? 16 : 0) + (k.lap1 ? 8 : 0) >= 80;
     if (!k.big) { try { TP.fx?.event({ text: `contact: ${surname(k.a.name)} and ${surname(k.b.name)}`, cars: [k.a, k.b], wait: 0.4 }, d); } catch (e) { /* no chip */ } }   // (a small one: yours to ask for - R)
     tpMoment({ kind: 'hit', cars: [k.a, k.b], t: k.t0, text: `${surname(k.a.name)} and ${surname(k.b.name)} collide${k.where ? ` at ${k.where.charAt(0) + k.where.slice(1).toLowerCase()}` : ''}`, score: 34 + 52 * Math.min(1, k.sev) + (mine(k.a) || mine(k.b) ? 16 : 0) + (k.lap1 ? 8 : 0) });
@@ -2679,7 +2680,68 @@ function tvOccludersFull() {
   for (const g of [W.trackMesh, W.fences]) { if (!g) continue; g.traverse((o) => { if (!o.isMesh || o.isInstancedMesh || o.isSkinnedMesh || !o.visible || !o.geometry) return; const n = o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position?.count || 0; if (n < 6 || n > 1500000) return; if (!o.geometry.boundingSphere) o.geometry.computeBoundingSphere(); out.push(o); }); }
   W._tvOccF = out; W._tvOccFor2 = W.track; return out;
 }
-function tvClear(px, py, pz, tx, ty, tz, full = false) {   // (full: the circuit's own meshes in the ray whatever the target - a camera already standing, looked through again)
+/**
+ * The trees, as a camera sees them. A circuit's own scenery plants them by the thousand as instances (Montreal's
+ * islands, Austin's oaks, Silverstone's woods) - never in the ray against the meshes (a ray against every instance is
+ * ruinous), so a camera could stand, or end its sweep, behind one. Here each is its crown - a cylinder from a fifth
+ * of its height up, a little wider than the tree - in a grid of 40 m cells, and a line of sight is tested against
+ * the ones along it (tvClear).
+ */
+function tvTrees() {
+  if (W._tvTrees && W._tvTreesFor === W.track) return W._tvTrees;
+  const cells = new Map(), out = { cells, n: 0 }, v = new THREE.Vector3();
+  W.scenery?.group?.updateMatrixWorld?.(true);
+  W.scenery?.group?.traverse((o) => {
+    if (!o.isInstancedMesh || !(/:(tree|far|pine|oak|elm|juniper|mesquite)$/.test(o.name) || o.parent?.name === 'mtl:trees')) return;
+    const geo = o.geometry; if (!geo.boundingBox) geo.computeBoundingBox(); const bb = geo.boundingBox, rr = Math.max(bb.max.x, -bb.min.x, bb.max.z, -bb.min.z), hh = bb.max.y, a = o.instanceMatrix.array;
+    for (let i = 0; i < o.count; i++) {
+      const k = i * 16, h = hh * Math.hypot(a[k + 4], a[k + 5], a[k + 6]); if (h < 3.5) continue;
+      v.set(a[k + 12], a[k + 13], a[k + 14]).applyMatrix4(o.matrixWorld);
+      const r = rr * Math.hypot(a[k], a[k + 1], a[k + 2]), key = Math.floor(v.x / 40) * 100003 + Math.floor(v.z / 40);
+      let c = cells.get(key); if (!c) cells.set(key, (c = [])); c.push(v.x, v.z, r * 1.1 + 0.7, h, TERRAIN.at(v.x, v.z)); out.n++;
+    }
+  });
+  W._tvTrees = out; W._tvTreesFor = W.track; return out;
+}
+const _tvSeen = new Set();
+function tvTreeHit(px, py, pz, tx, ty, tz) {
+  const T = tvTrees(); if (!T.n || W._tvNoTrees) return false;   // (_tvNoTrees: a test's switch)
+  const dx = tx - px, dz = tz - pz, L2 = dx * dx + dz * dz, L = Math.sqrt(L2); if (L < 2) return false;
+  _tvSeen.clear();
+  for (let d = 0; ; d += 20) {
+    const f = Math.min(1, d / L), cx = Math.floor((px + dx * f) / 40), cz = Math.floor((pz + dz * f) / 40);
+    for (let ix = -1; ix <= 1; ix++) for (let iz = -1; iz <= 1; iz++) {
+      const key = (cx + ix) * 100003 + cz + iz; if (_tvSeen.has(key)) continue; _tvSeen.add(key);
+      const c = T.cells.get(key); if (!c) continue;
+      for (let k = 0; k < c.length; k += 5) {
+        const x = c[k], z = c[k + 1], r = c[k + 2], u = Math.max(0, Math.min(1, ((x - px) * dx + (z - pz) * dz) / L2));
+        const ex = px + dx * u - x, ez = pz + dz * u - z, d2 = ex * ex + ez * ez; if (d2 >= r * r) continue;
+        const half = Math.sqrt(r * r - d2) / L, u0 = Math.max(0, u - half), u1 = Math.min(1, u + half);
+        const ya = py + (ty - py) * u0, yb = py + (ty - py) * u1, y0 = c[k + 4], h = c[k + 3];
+        if (Math.max(ya, yb) > y0 + 0.2 * h && Math.min(ya, yb) < y0 + 0.97 * h) return true;
+      }
+    }
+    if (f >= 1) break;
+  }
+  return false;
+}
+/**
+ * Is the whole line of sight on the circuit's side of its fences? A camera high on a pole sees over a catch fence -
+ * and shows the back of it: the mesh from behind, the boards' reverse. Real cameras stand inside the fence line and
+ * look along the road and across it. -> false when the line leaves the road's corridor past a wall with a fence on
+ * it (a low wall or Armco - looked over as at any circuit - does not count).
+ */
+function tvInside(px, py, pz, tx, ty, tz) {
+  const tr = W.track; if (!tr) return true;
+  const dx = tx - px, dz = tz - pz, L = Math.hypot(dx, dz); let hint = -1;
+  for (let d = 3; d < L - 2; d += 4) {
+    const f = d / L, x = px + dx * f, z = pz + dz * f; tr.nearest(x, z, hint, _tvq); hint = _tvq.i;
+    const sd = _tvq.d > 0 ? 1 : -1, w = tr.wallAt(_tvq.i, sd), o = Math.abs(_tvq.d) - w;
+    if (o > 0.5 && o < 60 && (tr.barrierHeight?.(_tvq.i, sd) || 1.1) > 1.7) return false;
+  }
+  return true;
+}
+function tvClear(px, py, pz, tx, ty, tz, full = false, lite = false) {   // (lite: the arithmetic alone - the road's walls and fences, the trees - no ray against the meshes: many points of a camera's sweep, cheaply)   // (full: the circuit's own meshes in the ray whatever the target - a camera already standing, looked through again)
   const tr = W.track; if (!tr) return true;
   const dx = tx - px, dy = ty - py, dz = tz - pz, L = Math.hypot(dx, dy, dz); if (L < 3) return true;
   // the road's walls and fences along the line (not the first metres - the camera stands at its own wall - nor the last)
@@ -2698,6 +2760,9 @@ function tvClear(px, py, pz, tx, ty, tz, full = false) {   // (full: the circuit
     if (low) return false;
     const bh = tr.barrierHeight?.(_tvq.i, sd) || 1.1; if (y < bh + 0.3) return false;
   }
+  // the trees (not for a camera high over them - the helicopter: it looks down between them)
+  if (py - ty < 45 && tvTreeHit(px, py, pz, tx, ty, tz)) return false;
+  if (lite) return true;
   // buildings, the pit building, stands, landmarks
   // (a target off the road - the pit lane: the circuit's own mesh in the ray too - the pit wall, its fence, a gantry)
   const occ = onRoad && !full ? tvOccluders() : tvOccludersFull(); if (!occ.length) return true;
@@ -2729,29 +2794,35 @@ function tpReplayCams(F, i, tEv) {
   for (const q of [qe, Math.round(K * 0.2), Math.round(K * 0.8)]) {
     const p = pts[Math.min(K - 1, q)]; tr.nearest(p[0], p[2], -1, _tvq); const s = _tvq.s;
     for (const [sd, ah, h] of [[1, 32, 11.5], [-1, 32, 11.5], [1, -26, 11.5], [-1, -26, 11.5], [1, 62, 15], [-1, 62, 15]]) {
-      const sq = tr.wrapS(s + ah), iq = tr.idxAtS(sq), f = tr.sample(sq, sd * (tr.wallAt(iq, sd) + 0.6));
-      C.push({ pos: new THREE.Vector3(f.x, TERRAIN.at(f.x, f.z) + h, f.z), vis: new Array(K) });
+      const sq = tr.wrapS(s + ah), iq = tr.idxAtS(sq), f = tr.sample(sq, sd * (tr.wallAt(iq, sd) - 1.5));   // (on the road's side of its own fence: the mesh is never between the lens and the car, nor its back in the picture)
+      C.push({ pos: new THREE.Vector3(f.x, TERRAIN.at(f.x, f.z) + h, f.z), vis: new Array(K), ins: new Array(K) });
     }
   }
-  const see = (c, q) => { if (c.vis[q] === undefined) { const p = pts[q], dd = Math.hypot(p[0] - c.pos.x, p[2] - c.pos.z); c.vis[q] = dd < 330 && dd > 6 && tvClear(c.pos.x, c.pos.y, c.pos.z, p[0], p[1], p[2], true); } return c.vis[q]; };
-  const segs = []; let q = 0;
-  while (q < K) {
-    // (a new camera takes over a moment early, where it too has the car - the cut is not onto a car half hidden)
-    let best = null, bl = 0, from = q;
-    for (const q0 of q > 0 ? [q - 1, q] : [q]) {
-      for (const c of C) { let l = 0; while (q0 + l < K && see(c, q0 + l)) l++; if (q0 + l > q && l > bl) { bl = l; best = c; from = q0; if (q0 + l >= K) break; } }
-      if (best) break;
+  const see0 = (c, q) => { if (c.vis[q] === undefined) { const p = pts[q], dd = Math.hypot(p[0] - c.pos.x, p[2] - c.pos.z); c.vis[q] = dd < 330 && dd > 6 && tvClear(c.pos.x, c.pos.y, c.pos.z, p[0], p[1], p[2], true); } return c.vis[q]; };
+  // (first with every line of sight on the road's side of the fences - no fence seen from behind; if that leaves
+  //  more than three changes of camera or a stretch nobody sees, over the fences as before)
+  const seeIn = (c, q) => { if (!see0(c, q)) return false; if (c.ins[q] === undefined) { const p = pts[q]; c.ins[q] = tvInside(c.pos.x, c.pos.y, c.pos.z, p[0], p[1], p[2]); } return c.ins[q]; };
+  const cut = (see, strict) => {
+    const segs = []; let q = 0;
+    while (q < K) {
+      // (a new camera takes over a moment early, where it too has the car - the cut is not onto a car half hidden)
+      let best = null, bl = 0, from = q;
+      for (const q0 of q > 0 ? [q - 1, q] : [q]) {
+        for (const c of C) { let l = 0; while (q0 + l < K && see(c, q0 + l)) l++; if (q0 + l > q && l > bl) { bl = l; best = c; from = q0; if (q0 + l >= K) break; } }
+        if (best) break;
+      }
+      if (!best) { if (strict) return null; if (!segs.length || !segs[segs.length - 1].top) segs.push({ t: F[ks[q]].t - F[0].t, top: true }); q++; continue; }
+      segs.push({ t: segs.length ? F[ks[from]].t - F[0].t : 0, pos: best.pos }); q = from + bl;
     }
-    if (!best) { if (!segs.length || !segs[segs.length - 1].top) segs.push({ t: F[ks[q]].t - F[0].t, top: true }); q++; continue; }
-    segs.push({ t: segs.length ? F[ks[from]].t - F[0].t : 0, pos: best.pos }); q = from + bl;
-  }
-  if (segs.length > 4 || !segs.length) return [{ t: 0, top: true }];
-  segs[0].t = 0;
-  return segs;
+    if (segs.length > 4 || !segs.length) return strict ? null : [{ t: 0, top: true }];
+    segs[0].t = 0;
+    return segs;
+  };
+  return cut(seeIn, true) || cut(see0, false);
 }
 function tpReplayStart(o, opts = {}) {
   const d = S.director, R = d?.replay; if (!R || TP.rep || S.simming) return false;
-  const F = opts.F || (R.frames.length < 30 ? null : R.frames.filter((f) => f.t >= Math.max(R.frames[0].t, o.t - 3.4))); if (!F || F.length < 24) return false;
+  const F = opts.F || (R.frames.length < 30 ? null : R.frames.filter((f) => f.t >= Math.max(R.frames[0].t, o.t - 3.4) && f.t <= o.t + 8.6)); if (!F || F.length < 24) return false;
   const i = R.cars.indexOf(o.cars[0]), j = o.cars[1] ? R.cars.indexOf(o.cars[1]) : -1; if (i < 0) return false;
   const ke = Math.max(0, Math.min(F.length - 1, F.findIndex((f) => f.t >= o.t))), ex = F[ke].f[i * 7], ez = F[ke].f[i * 7 + 2], ey = F[ke].f[i * 7 + 1] + TERRAIN.at(ex, ez), tr = W.track;
   const segs = tpReplayCams(F, i, o.t), top = new THREE.Vector3(ex + 18, ey + 40, ez + 18);
@@ -2849,7 +2920,7 @@ function tpReplays(d, dt) {
 function tpMoment(e) {
   const d = S.director; if (!d || !TP.on || d.mode !== 'race' || !e?.cars?.length) return;
   const M = TP.moments || (TP.moments = []), L = W.track.length, near = (a, b) => { let x = Math.abs(a.s - b.s) % L; if (x > L / 2) x = L - x; return x < 70; };
-  const g = M.find((m) => !m.cut && e.t - m.t1 < 4.5 && e.t - m.t0 < 6.5 && (e.cars.some((c) => m.cars.includes(c)) || e.cars.some((c) => m.cars.some((o) => near(c, o)))));
+  const g = M.find((m) => !m.cut && e.t - m.t0 < 10 && (e.t - m.t1 < 4.5 || e.t - (m.tb ?? -99) < 2) && (e.cars.some((c) => m.cars.includes(c)) || e.cars.some((c) => m.cars.some((o) => near(c, o)))));
   if (g) { g.ev.push(e); g.t1 = Math.max(g.t1, e.t); for (const c of e.cars) if (!g.cars.includes(c)) g.cars.push(c); return; }
   M.push({ t0: e.t, t1: e.t, cars: [...e.cars], ev: [e], cut: false });
 }
@@ -2869,12 +2940,27 @@ function tpMomentSum(m) {
   }
   return { text, score };
 }
+/**
+ * Is a moment still going on? A clip was cut a fixed two seconds after its last event - after the touch and before
+ * the car it sent off reached the wall, after the place changed hands and with the two of them still wheel to
+ * wheel. It is held now for as long as a car of it is spinning, in the air, a wreck still moving or off the road
+ * at speed, or two that have swapped places still overlap.
+ */
+function tpMomentBusy(m, d) {
+  for (const c of m.cars) if (c.spinning || c.air || ((c.wreck || c.retired) && c.speed > 2.5) || (c.offTrack && c.speed > 10)) return true;
+  for (const e of m.ev) if (e.kind === 'pass' && e.a && e.b && !e.a.retired && !e.b.retired && !e.a.pitLane && !e.b.pitLane && Math.abs(d.planDs(e.a.s, e.b.s)) < 6.5 && Math.abs(e.a.d - e.b.d) < 5) return true;
+  return false;
+}
 /** the moments that are over: each one's stretch of the record cut and kept (the ten best) */
 function tpMomentsCut(d) {
   const M = TP.moments; if (!M || !M.length) return; const R = d.replay; if (!R || R.frames.length < 30) return;
   for (const m of M) {
-    if (m.cut || d.time < m.t1 + 2.3) continue; m.cut = true;
-    const F = R.frames.filter((f) => f.t >= Math.max(R.frames[0].t, m.t0 - 3.4, m.t1 - 6.4) && f.t <= m.t1 + 2.2); if (F.length < 24) continue;
+    if (m.cut) continue;
+    // (over when nothing of it has been going on for a second and a half - and never longer than eleven seconds
+    //  from its first event: the record holds eighteen)
+    if (tpMomentBusy(m, d)) m.tb = d.time;
+    if (d.time < Math.min(Math.max(m.t1 + 2.4, (m.tb ?? -99) + 1.6), m.t0 + 11)) continue; m.cut = true;
+    const F = R.frames.filter((f) => f.t >= Math.max(R.frames[0].t, m.t0 - 3.4) && f.t <= d.time); if (F.length < 24) continue;
     const S0 = tpMomentSum(m), lead = m.ev.slice().sort((a, b) => (b.score || 0) - (a.score || 0))[0];
     const C = TP.clips || (TP.clips = []); C.push({ text: S0.text, cars: (m.pair || [lead.cars[0], lead.cars[1] || m.cars.find((c) => c !== lead.cars[0])]).filter(Boolean), t: lead.t, F, score: S0.score });
     // (a big moment is played again in the window - a collision's is the stewards' review, when they open it)
@@ -3126,7 +3212,7 @@ function tpStat(car) {
 function tpCamera(dt) {
   const d = S.director;
   if (W._tvCFor !== W.track) { const tr = W.track; let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity; for (let i = 0; i < tr.n; i += 8) { x0 = Math.min(x0, tr.px[i]); x1 = Math.max(x1, tr.px[i]); z0 = Math.min(z0, tr.pz[i]); z1 = Math.max(z1, tr.pz[i]); } W._tvC = { x: (x0 + x1) / 2, z: (z0 + z1) / 2, r: Math.hypot(x1 - x0, z1 - z0) / 2 }; W._tvCFor = tr; }   // (the circuit's middle and its reach: the view of all of it)
-  const car = TP.tv.update(dt, { d, track: W.track, pit: W.pit, focus: TP.cars, camCtl, clear: tvClear, clearFull: (a, b, c, d2, e, f) => tvClear(a, b, c, d2, e, f, true), ground: (x, z) => TERRAIN.at(x, z), stands: W.stands?.stands || null, center: W._tvC });
+  const car = TP.tv.update(dt, { d, track: W.track, pit: W.pit, focus: TP.cars, camCtl, clear: tvClear, lite: (a, b, c, d2, e, f) => tvClear(a, b, c, d2, e, f, false, true), inside: tvInside, tree: tvTreeHit, clearFull: (a, b, c, d2, e, f) => tvClear(a, b, c, d2, e, f, true), ground: (x, z) => TERRAIN.at(x, z), stands: W.stands?.stands || null, center: W._tvC });
   if (car) S.player = car;
   cockpitVisor(S.player, false);
 }
@@ -5244,7 +5330,7 @@ function frame(now) {
     /** (tests: the crash director, and the camera as drawn - terrainLift() lifts it for the frame and returns the undo; renderView() draws a frame through it) */
     crashCam, terrainLift, renderView,
     /** (tests: the team principal's race - main.js TP; the circuit built ahead in the menus) */
-    TP, PIP, tpReplayCams, cullBuildings, tpAct, tpFormStart, tpFormEnd, tpAway, tpAwayWall, PRE_TRACK, preloadWanted, playScene, tvClear, tvRay: _tvRay, tvGround: (x, z) => TERRAIN.at(x, z),
+    TP, PIP, tpReplayCams, cullBuildings, tpAct, tpFormStart, tpFormEnd, tpAway, tpAwayWall, PRE_TRACK, preloadWanted, playScene, tvClear, tvTreeHit, tvInside, tvTrees, tpMoment, tpMomentsCut, tvRay: _tvRay, tvGround: (x, z) => TERRAIN.at(x, z),
     /** (tests - tools/regress.mjs: the optimisations that must not change a pixel, switched off and on) */
     fastMatrix, SHADOW_CULL,
     /** (tests: the show clock - simTime - set, so the Sphere's loop can be put on any show) */
