@@ -602,7 +602,7 @@ body.tp #hud-msg { top: 30%; }
     <div class="brand-line"></div>
     <h1 id="brand-title">FORMULA 1<span id="brand-sub">SIMULATOR</span></h1>
     <!-- the build's version: +0.01 with every build handed out -->
-    <span id="app-ver" title="Version">V2.66</span>
+    <span id="app-ver" title="Version">V2.67</span>
     <div id="menu-sub">Real circuits built from OpenStreetMap</div>
   </div>
   <div id="loading" class="hidden"><div class="ld"><i></i></div><span>Building the circuit from OpenStreetMap…</span></div>
@@ -190705,22 +190705,25 @@ class AIDriver {
     // (a feud, alongside you: it squeezes you - steers onto your line and leans on you; the stewards may have a view)
     if (this._feudD != null && this._feudCar) { const me = this._feudCar, ds = P.ds(c.s, me.s); if (ds > -8 && ds < 8) dT += (me.d - dT) * Math.min(1, 0.95 * (this.ctx.feudK || 0)); }
     const sc2 = this.error?.type === 'scrape' && !this.error.wall ? 2 : 0;
-    const limL = kiss ? tr.wallAt(c.trackIdx, kiss) - 0.9 : tr.hwL[iA] - 0.9 + sc2, limR = kiss ? tr.wallAt(c.trackIdx, kiss) - 0.9 : tr.hwR[iA] - 0.9 + sc2;
+    let limL = kiss ? tr.wallAt(c.trackIdx, kiss) - 0.9 : tr.hwL[iA] - 0.9 + sc2, limR = kiss ? tr.wallAt(c.trackIdx, kiss) - 0.9 : tr.hwR[iA] - 0.9 + sc2;
     // (behind the safety car or under the VSC: on a straight, with its tyres short of their window and nobody alongside,
     //  it weaves to put heat back in - the lateral load is what warms them, vehicle/Tyres.js - and stops for the corners.
     //  The weave is in the steering itself, under a second a swing: an offset on the path the car steers for came out of
     //  the path follower as no load at all, only a slower car)
     const ph = world.sc?.phase, neutral = !!this.rule?.noPass && (ph === 'sc' || ph === 'scIn' || ph === 'vsc');
+    // (and in the queue nobody needs the last of the road: the line it steers for keeps all four wheels on the asphalt,
+    //  half a metre in from the edge - at racing speed it runs to the kerb)
+    if (neutral && !kiss && !sc2) { const hwA = tr.hwL[iA] + tr.hwR[iA]; if (hwA > 7) { limL = Math.min(limL, tr.hwL[iA] - 1.5); limR = Math.min(limR, tr.hwR[iA] - 1.5); } }
     // (only with the road under it and room either side: a car on the grass, on a kerb or at the road's edge steers
     //  for the road and nothing else - weaving there it never got back, and spun)
-    const wRoom = Math.min(tr.hwL[c.trackIdx] - c.d, tr.hwR[c.trackIdx] + c.d), wOk = !c.offTrack && !c.onKerb && wRoom > 3.2 && Math.abs(c.vLat) < 2.2 && Math.abs(c.r) < 0.5;
+    const wRoom = Math.min(tr.hwL[c.trackIdx] - c.d, tr.hwR[c.trackIdx] + c.d), wOk = !c.offTrack && !c.onKerb && wRoom > 3.2 && Math.abs(c.vLat) < 2.2 && Math.abs(c.r) < 0.5 && c.dmg.susp < 0.08 && c.punct == null;   // (nor a car with bent suspension or a puncture: it is nursed round)
     let wv = 0;
     if (!wOk) this._wA = 0;
     if (wOk && neutral && T.weave !== false && !zone && v > 12 && v < 75 && (c.tyres.temp < 0.97 || T.weave === 'always') && !this.nextCorner(70)) {
       wv = 1; for (let r = 0; r < P.nOthers; r++) { const R = P.others[r]; if (Math.abs(R.s0) < 8 && Math.abs(R.car.d - c.d) < 4) { wv = 0; break; } /* (alongside: the queue's 15 m gaps are room enough) */ }
     }
     this._wA = Math.max(0, Math.min(1, (this._wA || 0) + (wv ? 0.6 : -1.5) * dt));
-    dT = Math.max(-limR, Math.min(limL, dT));
+    dT = Math.max(-limR, Math.min(limL, dT)); this._dT = dT;
     const f = tr.sample(sA, dT, this._f || (this._f = {}));
     const dx = f.x - c.x, dz = f.z - c.z, cth = Math.cos(c.th), sth = Math.sin(c.th);
     const fwd = dx * cth + dz * sth, lft = dx * sth - dz * cth, Ld = Math.hypot(dx, dz) || 1;
@@ -190738,7 +190741,12 @@ class AIDriver {
       const cs = T.csGain * (0.6 + 0.4 * c.rating) * dMax;
       ff = wFF * (aF - aR * (1 - 2 * CAR.wheelbase / Ld - cs) - 2 * CAR.wheelbase * CAR.lr / Ld * kl);
     }
-    let steer = (delta + ff) / dMax;
+    // (bent suspension pulls the car to one side - vehicle/Car.js: the angle is added at the wheels. The driver holds
+    //  the wheel against it: without that the car sat a metre and more off the line it steered for, all the way round -
+    //  on the kerbs and the grass wherever the line ran along the road's edge, most of all in a safety car's queue,
+    //  which is when the damaged cars are still out. The grip the damage costs is still lost.)
+    const pull = c.dmg.susp * 0.06 * c.suspSide;
+    let steer = (delta + ff - pull) / dMax;
     const slipR = Math.atan2(c.vLat - c.r * CAR.lr, Math.max(3, Math.abs(c.vLong)));
     steer += slipR * T.csGain * (0.6 + 0.4 * c.rating);   // countersteer when the rear steps out
     if (this.error && this.error.type === 'snap' && this.error.t < 0.4) steer += this.error.sign * 0.4;
@@ -190771,6 +190779,9 @@ class AIDriver {
     if (T.edgeGuard && !flat && wide && Math.abs(c.d) > tr.edgeAt(c.trackIdx, Math.sign(c.d) || 1) - 1.6 && Math.sign(dDot) === Math.sign(c.d) && Math.abs(dDot) > 0.6) { vT = Math.min(vT, v * 0.94 * guardV); lift = true; }
     if (T.satLift && (c.satF || 0) > 1.04 && v > 15) { vT = Math.min(vT, v * 0.97 * guardV); lift = true; }
     if (c.offTrack) vT = Math.min(vT, 32);
+    // (a puncture is nursed to the pits: no faster than 150 km/h - 110 on the rim - and gently on the throttle. At full
+    //  throttle out of a slow corner the flat rear tyre let go and the car spun across the road onto the grass)
+    if (c.punct != null) vT = Math.min(vT, c.punctShred ? 30 : 42);
     if (spinning) vT = 0;
 
     // ---- pedals
@@ -190791,6 +190802,7 @@ class AIDriver {
     } else { c.throttle = 0.35; c.brake = 0; }
     if (T.slipLift > 0 && v > 10) c.throttle *= Math.max(0.15, Math.min(1, 1 - (Math.abs(c.slipR || 0) - 0.05) * T.slipLift));
     if (lift) c.throttle = Math.min(c.throttle, 0.1);
+    if (c.punct != null) c.throttle = Math.min(c.throttle, c.punctShred ? 0.35 : 0.5);
     if (this.error && this.error.type === 'snap' && this.error.t < 0.4) c.throttle = Math.max(c.throttle, 0.7);
     // ERS, managed over the lap: deployed on the straights from 270 km/h (where the battery runs out at the end of a
     // straight, not on the way out of every corner), and from lower down only to attack or defend a place on a
@@ -190878,7 +190890,7 @@ class AIDriver {
     const dx = tx - c.x, dz = tz - c.z, cth = Math.cos(c.th), sth = Math.sin(c.th);
     const fwd = dx * cth + dz * sth, lft = dx * sth - dz * cth, Ld = Math.hypot(dx, dz) || 1;
     const dMax = Math.max(0.055, 0.38 * (1 - v / 118));
-    let steer = Math.atan(2 * 3.6 * Math.sin(Math.atan2(lft, fwd)) / Ld) / dMax;
+    let steer = (Math.atan(2 * 3.6 * Math.sin(Math.atan2(lft, fwd)) / Ld) - c.dmg.susp * 0.06 * c.suspSide) / dMax;   // (held against a bent suspension's pull, as on the road)
     steer += Math.atan2(c.vLat - c.r * CAR.lr, Math.max(3, Math.abs(c.vLong))) * T.csGain * 0.8;
     c.steer += (Math.max(-1, Math.min(1, steer)) - c.steer) * Math.min(1, dt * T.steerRate);
     // speed: the entry road at speed (its bends) and down to the limiter by the speed line, the limiter to the exit line

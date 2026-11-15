@@ -1,3 +1,29 @@
+# V2.67 (2026-11-15): cars keep to the road behind the safety car
+
+Asked for: "cars are still driving thru the grass on straight and corners in safety cars".
+
+## What it was
+- Measured behind a safety car with damaged cars in the queue (which is when one comes out): the cars on the grass
+  were the ones with bent suspension. Bent suspension pulls the car to one side (vehicle/Car.js: an angle added at the
+  wheels) and the AI did not hold the wheel against it - so the car sat 1.0-1.4 m off the line it steered for, all
+  the way round. Wherever that line ran along the road's edge it was on the kerb and the grass: one car 117 s of a
+  240 s safety car beyond the white line, another 110 s, 20 s of it right out on the grass, with spins from there.
+- A car with a rear puncture went to full throttle out of the slow corners and spun across the road.
+
+## What changed (ai/AIDriver.js)
+- The AI holds the wheel against the pull (on the road and in the pit lane). The grip the damage costs is still lost.
+- In the queue (safety car, virtual safety car) the line a car steers for keeps all four wheels on the asphalt: half
+  a metre in from the edge, where at racing speed it runs to the kerb.
+- A car with bent suspension or a puncture does not weave for tyre heat.
+- A puncture is nursed to the pits: 150 km/h at most (110 on the rim), half throttle.
+
+## Measured after (240 s behind the safety car, five cars with bent suspension)
+- Silverstone: 0 s on the grass, 0.1-0.2 s a car on a kerb. Austin: the damaged cars 0 s on the grass, 0.5 s on a
+  kerb (before: 20 s / 76 s the worst). Montreal: 1 car-second on the grass in 4090 (a spin at the hairpin as the
+  safety car was called).
+- The seeded regression race (tools/race_probe.mjs 5 1 silverstone) is no longer identical to V2.60's - cars that
+  touch now steer differently afterwards - same race time (636 s), no retirements, no wall hits. New baseline.
+
 # V2.66 (2026-11-15): the right-hand side as one column with a queue; no OVERTAKE lines
 
 Asked for: "add a que so things stop overlapping on the right side of the screen - but not overwhelmingly so there's
