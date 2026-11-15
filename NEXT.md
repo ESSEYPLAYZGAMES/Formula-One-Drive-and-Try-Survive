@@ -1,3 +1,95 @@
+# V2.69 (2026-11-15): answers take time - the team principal's mail
+
+Asked for: "change a lot of features in manager mode to have like a week delay for turnaround, eg - approaching a
+rival's pit chief shouldn't be an instant response - go thru the whole features and find others where this would
+work, and you get your update the next week or in a few weeks in email (proper well made menu for this)".
+
+## How it works now (career/ManagerMail.js, new)
+- What you ask of people outside your own office is not answered on the spot. You ask - from the same buttons on
+  the same pages as before - and it is a mail sent: it sits under AWAITING REPLY and the answer comes after the next
+  race (a race weekend is the career's week), sometimes the one after.
+- Some answers settle it. Others are TERMS - and the signing is a button in the mail, good for two races, then the
+  offer lapses. A thing asked can be withdrawn before it is answered.
+- Asked by mail now:
+  - an approach to a rival's technical director, head of strategy or pit crew chief (through an intermediary, $0.2M;
+    one or two races; he says no - and sometimes his principal writes too - or names his terms, signed from the mail)
+  - a protest against a rival's car (the stewards rule after the next race, on the parts as they were)
+  - a technical director / strategist / crew chief from the market (he may have signed elsewhere, or want 10% more)
+  - a pit crew member (joins, or has gone elsewhere), a race engineer (may ask for the cost of the move)
+  - a driver's contract extension (his management answers: the terms, sometimes dearer if he is unhappy or wanted)
+  - a sponsor's terms (their board meets: two races for a title sponsor)
+  - a prospect for the academy (the family answers), the academy's next stage (two races to build)
+  - a power unit from another maker (the manufacturer's board, two races)
+- Not delayed, on purpose: signing a free agent into an empty seat (a race cannot start with one), and what is
+  yours alone to decide - a release, a talk with your own driver, the factory's orders (which take time already).
+- At the season's end everything still out is answered at once, so there is the winter to sign in; an offer from
+  last year's market left unsigned is gone when the new season starts.
+
+## What else reaches the desk
+- The team manager's report after every race (the result, the points, the money in and out).
+- The technical director when new parts are on the car; Operations when a building is finished.
+- One of your own people when a rival has made him an offer - MATCH IT / LET HIM GO are in his mail.
+- A driver's management when another team has put an offer in front of him.
+- The chairman when the board's confidence moves by seven points or more.
+
+## The page (ui/ManagerMail.js, new; MAIL in the rail, with the count)
+- A mail client on the sheet: the list on the left - INBOX, AWAITING REPLY, DECISIONS (the story's matters, the same
+  ones as before) - and the open letter on the right: who, when, what they say, the terms on a card, the buttons.
+  Unread marked; what needs an answer first; a tracker on each thing asked (sent - being considered - reply due).
+- While an answer is out, the button that asked for it on its own page shows ASKED.
+- The old INBOX page is PADDOCK TALK (the mood, the other principals, the feed, the rumours, the matters).
+- An old save gets its mail the first time it is opened (nothing else in it changes).
+
+## Checked
+- In a browser: eleven things asked from their pages, the answers after one and two races, three offers signed from
+  the mail; no page scroll at 1366 x 768, the rail fits. Three seasons with everything asked every round: 129
+  asked, 57 offers answered, no errors; the mail is about 40 KB of the save at its fullest (eighty kept).
+
+# V2.68 (2026-11-15): no camera behind a tree, no fence from behind, highlights that hold
+
+Asked for: "I'm still constantly getting behind tree cameras, like it may start out clean then as it sweeps it ends
+behind a tree ... Same goes with fencing ... you never see the reverse side of a fence in real broadcasts - and fix
+the texture to be just a generic blank texture (but still with some weathering) rather than the reversed
+advertisements. In the highlights it constantly cuts away right as a big crash is about to happen, or as a fight is
+still sidebyside - fix".
+
+## Trees (main.js tvTrees / tvTreeHit, camera/TVDirector.js)
+- The trees were never in a camera's line-of-sight test: they are drawn as instances by the thousand (Montreal 5,500,
+  Silverstone 30,000, Austin 59,000) and the ray skips instances. Each is now a crown in a grid, and every line of
+  sight is tested against the ones along it.
+- A trackside camera is no longer taken on its first view alone. Its whole sweep is looked along first: from the
+  car, down the road to the camera, and on past it. A place with something in the way before the camera is not
+  taken; how far past it the view holds is kept, and the shot is cut there - with the car still in clear sight. The
+  crane the same. Fifteen places are tried (both sides, nearer, further, higher).
+- In a shot, a tree between lens and car ends it within a quarter of a second (a car that has left the road).
+
+## Fences
+- The pole cameras, the crane's head and the replays' cameras stand on the ROAD'S side of the wall now (1.5 m in,
+  over the verge), not behind it: the catch fence is never between the lens and a car.
+- A place is preferred when every line of its sweep stays inside the fence line (main.js tvInside): no looking
+  across a fence at the track beyond, so no fence seen from behind. Only if no such place exists is one over a
+  fence used.
+- From behind, a barrier's panels are a blank weathered sheet (track/Branding.js blankBack) - no mirror-written
+  advertisement, no glow at night. And the TecPro blocks on the right-hand side of the road had their lettering in
+  mirror writing from the road itself: fixed.
+
+## Measured (trackside camera only, 7 minutes a circuit; the car on screen behind a tree / seen across a fence)
+- Montreal: 2.2% of frames and 9 shots of 95 behind a tree before; 0% and none of 107 after. Across a fence: 7.5%
+  before, 0.04% after. Austin: 0% behind a tree, 0.3% across a fence. Silverstone: 0% and 0.07%. Las Vegas (no
+  trees): 0.02% across a fence.
+- The helicopter takes over no more often than before. Choosing a camera costs 12-51 ms at a cut (the sweep is
+  looked along by arithmetic - walls, fences, trees - and the ray against the buildings is cast at a few points of it).
+
+## Highlights (main.js tpMomentBusy / tpMomentsCut, race/Replay.js)
+- Checked with cars tipped into a spin at 230-330 km/h: the clips ran to 5.5, 7.5 and 9.0 s after the moment - 1.6 s
+  after the car stopped spinning each time (the old cut, at 2.2 s, was mid-spin at 180 km/h).
+- A clip was cut a fixed 2.2 s after its last event: after the touch and before the car reached the wall, after the
+  place changed hands with the two still wheel to wheel. And an event more than 2.3 s later could not join it - the
+  touch and the crash it caused were two clips, the first ending as the second began.
+- A moment is held open now while a car of it is spinning, in the air, a wreck still moving or off the road at
+  speed, or two that swapped places still overlap; it is cut 1.6 s after all that is over (never more than 11 s from
+  its first event). What follows joins it. The record the clips are cut from is 18 s long in this mode (was 12).
+
 # V2.67 (2026-11-15): cars keep to the road behind the safety car
 
 Asked for: "cars are still driving thru the grass on straight and corners in safety cars".

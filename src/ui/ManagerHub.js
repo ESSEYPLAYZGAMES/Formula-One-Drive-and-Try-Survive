@@ -8,6 +8,8 @@
 // but the inside of a panel with a long list; what a click says comes back as a line at the foot; the colours are the
 // team's (the button by the menu: accent and ground, kept for each team). A new career starts here too.
 //   openManagerHub({ career, teams, trackName, onRace(c), onSim(c), onQuick(), onExit(), play }) / closeManagerHub()
+import { mailHTML, mailClick, mailHome, mailMark, MAIL_CSS } from './ManagerMail.js';
+import { mailBadge } from '../career/ManagerMail.js';
 import { TECH_CSS, techHTML, techClick } from './HubTech.js';
 import { ManagerCareer, TRACKS_ALL, COST_CAP, PRIZE, TIER_NAME, TIER_BUDGET, RACE_INCOME, POINT_INCOME, STAFF_ROLES } from '../career/Manager.js';
 import { techEffects, UP, partsCount } from '../career/TechTree.js';
@@ -55,7 +57,7 @@ let el = null;
 /** the HQ (or, with no career, the new career's set-up) */
 export function openManagerHub(o) {
   H.o = o; H.c = o.career || null; H.msg = null; if (!H.c) H.tab = 'new'; else if (H.tab === 'new') H.tab = 'home';
-  if (!document.getElementById('mgr-css')) { const st = document.createElement('style'); st.id = 'mgr-css'; st.textContent = HQ_CSS + PAGE_CSS + EXTRA_CSS + techSkin(TECH_CSS.replaceAll('#career', '#mgr .fac')) + FAC_CSS; document.head.appendChild(st); }
+  if (!document.getElementById('mgr-css')) { const st = document.createElement('style'); st.id = 'mgr-css'; st.textContent = HQ_CSS + PAGE_CSS + EXTRA_CSS + MAIL_CSS + techSkin(TECH_CSS.replaceAll('#career', '#mgr .fac')) + FAC_CSS; document.head.appendChild(st); }
   if (!el) { el = document.createElement('div'); el.id = 'mgr'; el.addEventListener('click', onClick); document.body.appendChild(el); let rt = 0; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if (managerHubOpen()) { fitSheet(el); rail(); } }, 100); }); }
   el.style.display = 'grid'; H.shown = 0; H._tab = null; el.dataset.mode = ''; render(); pump();
 }
@@ -80,7 +82,7 @@ function render() {
   if (el.dataset.mode !== mode) { el.dataset.mode = mode; el.innerHTML = '<div class="q-top"></div><nav class="q-rail"></nav><main class="q-stage"></main><div class="q-toast"></div><div class="q-theme"></div>'; H._tab = null; H.kp = {}; }
   if (!c) { const T = (H.o.teams || []).find((t) => t.name === H.nc.team); themeApply(el, T?.name || null, T?.color || '#e10600', T?.color2); topNew(); stage(newHTML()); toast(); return; }
   themeApply(el, c.myTeam, c.team.color, c.team.color2);
-  top(c); rail(); stage(body(c)); toast();
+  top(c); rail(); stage(body(c)); toast(); mailMark(el, c);
   el.querySelector('.q-theme').innerHTML = themeHTML(c.myTeam, c.team.color, c.team.color2);
 }
 /** the bar: the team, the season, the four figures (a figure that has changed counts to its new value), the weekend */
@@ -108,8 +110,8 @@ function rail() {
   if (!R.firstChild) R.innerHTML = `<i class="q-ind"></i>${NAV.map(([g, items]) => `<h5>${g}</h5>${items.map(([k, n]) => `<button data-tab="${k}">${ICON[k] || ''}<span>${n}</span></button>`).join('')}`).join('')}`;
   let on = null; for (const b of R.querySelectorAll('button')) { const is = b.dataset.tab === H.tab; b.classList.toggle('on', is); if (is) on = b; }
   const ind = R.querySelector('.q-ind'); if (on) { ind.style.transform = `translateY(${on.offsetTop}px)`; ind.style.opacity = '1'; } else ind.style.opacity = '0';
-  let n = 0; try { n = inboxOf(c).length + (c.press && !c.press.done ? 1 : 0); } catch (e) { n = 0; }
-  const ib = R.querySelector('[data-tab="story"]'), old = ib.querySelector('.bdg'); if (n) { if (!old) ib.insertAdjacentHTML('beforeend', `<i class="bdg">${n}</i>`); else if (old.textContent !== String(n)) old.textContent = n; } else old?.remove();
+  let n = 0; try { n = inboxOf(c).length + (c.press && !c.press.done ? 1 : 0) + mailBadge(c); } catch (e) { n = 0; }
+  const ib = R.querySelector('[data-tab="mail"]'), old = ib.querySelector('.bdg'); if (n) { if (!old) ib.insertAdjacentHTML('beforeend', `<i class="bdg">${n}</i>`); else if (old.textContent !== String(n)) old.textContent = n; } else old?.remove();
   const ap = c.rivals?.approaches?.length || 0, rb = R.querySelector('[data-tab="rivals"]'), ob = rb.querySelector('.bdg'); if (ap) { if (!ob) rb.insertAdjacentHTML('beforeend', `<i class="bdg">${ap}</i>`); else ob.textContent = ap; } else ob?.remove();
 }
 /** the stage: a page that has just been turned to arrives (its panels one after another); the same page drawn again
@@ -140,7 +142,7 @@ function body(c) {
       case 'facil': return facilHTML(c);
       case 'spons': return sponsHTML(c);
       case 'cal': return calHTML(c);
-      default: return extraHTML(c, H.tab, H) ?? eraHTML(c, H.tab) ?? storyHTML(c, H.tab) ?? homeHTML(c);
+      default: return mailHTML(c, H.tab, H) ?? extraHTML(c, H.tab, H) ?? eraHTML(c, H.tab) ?? storyHTML(c, H.tab) ?? homeHTML(c);
     }
   } catch (e) { console.warn('[manager hub]', e); return `<div class="q-g">${panel('This page', empty('It could not be drawn.'), { w: 12 })}</div>`; }
 }
@@ -164,7 +166,7 @@ function homeHTML(c) {
   const car = panel('The car', `<div class="q-huge">${gap < 0.005 ? 'Fastest' : `+${gap.toFixed(2)}<small style="font-size:13px;color:var(--mute);margin-left:4px">s</small>`}</div><p class="q-fine" style="margin:3px 0 9px">${gap < 0.005 ? 'the quickest car on the grid' : 'a lap to the fastest car'}</p>
     ${kv('Parts', `${P.have} / ${P.total}`)}${meter(P.have / Math.max(1, P.total), 'var(--ac)')}
     <div style="margin-top:8px">${(t.dev || []).length ? t.dev.map((x) => kv(`${esc(UP[x.id]?.short || x.id)} L${x.level}`, `${x.left} race${x.left === 1 ? '' : 's'}`)).join('') : kv('In the factory', 'nothing')}</div>`, { w: 3, act: '<button class="ghost" data-tab="fac">FACTORY</button>' });
-  const need = storyHome(c) + eraHome(c) + homeExtra(c);
+  const need = mailHome(c) + storyHome(c) + eraHome(c) + homeExtra(c);
   const needs = panel('Needs you', need || empty('Nothing is waiting for you. The next race is.'), { w: 5, k: 'need' });
   const last = panel(L ? `Last race · round ${L.round}` : 'Last race', L ? `${L.mine.map((m) => `<div class="q-res"><i class="${m.dnf ? 'dnf' : ''}">${m.dnf ? 'DNF' : `P${m.pos}`}</i><b>${esc(m.name)}</b>${m.dnf ? `<small>${esc(m.why || '')}</small>` : `<em>${m.pts} pts</em>`}</div>`).join('')}
     ${kv('Income', `${money(L.income)}${L.sponsor ? ` + ${money(L.sponsor)} sponsors` : ''}`, 'good')}${kv('Wages', `−${money(L.wages)}`)}${kv('Board confidence', `${L.conf0}% → ${L.conf}%`, L.conf > L.conf0 ? 'good' : L.conf < L.conf0 ? 'bad' : '')}
@@ -294,6 +296,7 @@ function onClick(e) {
   const a = d.a, v = d.v; H.msg = null;
   if (pumping) return;
   if (c && H.o.play) { const p = storyAct(c, a, v, H.o.play); if (p) { scene(p); return; } }   // (the story: ui/ManagerHub3.js)
+  if (c) { const r = mailClick(c, a, v, H); if (r !== undefined) { if (r) say(r.text, r.ok); render(); return; } }   // (the mail, and everything that is asked by mail - an approach, a hire, terms: ui/ManagerMail.js)
   if (c) { const r = extraClick(c, a, v); if (r !== undefined) { if (r) say(r.text, r.ok); render(); return; } }   // (the crew, the people, the car: ui/ManagerHub2.js)
   if (c) { const r = eraClick(c, a, v); if (r !== undefined) { if (r) say(r.text, r.ok); render(); return; } }   // (the rivals, the market, the academy: ui/ManagerHub4.js)
   if (a === 'exit') { H.o.onExit?.(); return; }

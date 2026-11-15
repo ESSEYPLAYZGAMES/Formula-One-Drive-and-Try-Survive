@@ -38,7 +38,7 @@ export const empty = (t) => `<p class="q-em">${t}</p>`;
 
 // ---- the rail: every page, in its group --------------------------------------------------------------------------------
 export const NAV = [
-  ['TEAM', [['home', 'Overview'], ['story', 'Inbox'], ['stand', 'Standings'], ['cal', 'Calendar']]],
+  ['TEAM', [['home', 'Overview'], ['mail', 'Mail'], ['story', 'Paddock talk'], ['stand', 'Standings'], ['cal', 'Calendar']]],
   ['CAR', [['fac', 'Factory'], ['car', 'Design'], ['parts', 'Parts']]],
   ['PEOPLE', [['drv', 'Drivers'], ['people', 'Morale'], ['staff', 'Staff'], ['crew', 'Pit crew'], ['academy', 'Academy']]],
   ['BUSINESS', [['fin', 'Finances'], ['spons', 'Sponsors'], ['facil', 'Facilities']]],
@@ -46,7 +46,7 @@ export const NAV = [
 ];
 const P = (d) => `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="${d}"/></svg>`;
 export const ICON = {
-  home: P('M2 7.5 8 2.5l6 5M3.5 6.5V13h3.2V9.5h2.6V13h3.2V6.5'), story: P('M2 4h12v8H2zM2 4.5l6 4.2 6-4.2'), stand: P('M3 13V8.5M8 13V3M13 13V6'), cal: P('M2.5 4h11v9h-11zM2.5 7h11M5.5 2.5v3M10.5 2.5v3'),
+  home: P('M2 7.5 8 2.5l6 5M3.5 6.5V13h3.2V9.5h2.6V13h3.2V6.5'), mail: P('M2 4h12v8H2zM2 4.5l6 4.2 6-4.2'), story: P('M2.5 3.5h11v7H7.5l-3 2.5v-2.5h-2z'), stand: P('M3 13V8.5M8 13V3M13 13V6'), cal: P('M2.5 4h11v9h-11zM2.5 7h11M5.5 2.5v3M10.5 2.5v3'),
   fac: P('M2 13V7l3.5 2V7L9 9V4h4.5v9z'), car: P('M2 10.5h12M3.5 10.5 5 6.5h6l1.5 4M4.5 12.5v-2M11.5 12.5v-2'), parts: P('M8 5.2a2.8 2.8 0 1 0 0 5.6 2.8 2.8 0 0 0 0-5.6zM8 1.8v2M8 12.2v2M1.8 8h2M12.2 8h2M3.6 3.6 5 5M11 11l1.4 1.4M12.4 3.6 11 5M5 11l-1.4 1.4'),
   drv: P('M8 2.5a5.5 5.5 0 0 0-5.5 5.5v2.5h11V8A5.5 5.5 0 0 0 8 2.5zM6 8h7.4M2.5 10.5v1.5h8'), people: P('M8 13.2s-5-2.9-5-6.4a2.7 2.7 0 0 1 5-1.4 2.7 2.7 0 0 1 5 1.4c0 3.5-5 6.4-5 6.4z'), staff: P('M5.5 7.2a2.2 2.2 0 1 0 0-4.4 2.2 2.2 0 0 0 0 4.4zM1.8 13c.3-2.4 1.8-3.6 3.7-3.6S8.9 10.600 9.2 13M11 7.6a1.8 1.8 0 1 0 0-3.600M11.300 9.600c1.600.2 2.600 1.300 2.900 3.400'),
   crew: P('M4 2.5 6.5 5 5 6.5 2.500 4a3 3 0 0 0 4 3.600l5.200 5.200 1.500-1.500L8 6.100A3 3 0 0 0 4 2.500z'), academy: P('M1.500 6 8 3l6.500 3L8 9zM4 7.300V11c1 .900 2.400 1.400 4 1.400s3-.500 4-1.400V7.300M14.500 6v4'),

@@ -22,6 +22,7 @@ import { opsEnsure, puEffect, sparesPerf, partsAfterRace, partsNewSeason, takePe
 const KEY = 'f1sim-manager-v1';
 import { seasonsEnsure, ageDrivers, retireRound, marketRound, marketWinter, contractAsk, academyRound, academyWinter, regsReset, gapsWinter } from './Seasons.js';
 import { rivalsEnsure, rivalFx, rivalDevelop, rivalsLanded, rivalsRound, rivalsWinter } from './Rivals.js';
+import { mailEnsure, mailRound, mailWinter, mailNewSeason } from './ManagerMail.js';
 export const TRACKS_ALL = ['lasvegas', 'silverstone', 'montreal', 'austin'];
 /** $M a team starts a season with, by tier; the commercial rights every race; the cost cap on development a season */
 export const TIER_BUDGET = [60, 50, 42, 36];
@@ -83,7 +84,7 @@ export class ManagerCareer {
 
   get team() { return this.teams[this.myTeam]; }
   /** every system's state made or brought up to date: parts, facilities and sponsors; the pit crew; the people; the car */
-  ensure() { opsEnsure(this); crewEnsure(this); peopleEnsure(this); carEnsure(this); storyEnsure(this); seasonsEnsure(this); rivalsEnsure(this); }
+  ensure() { opsEnsure(this); crewEnsure(this); peopleEnsure(this); carEnsure(this); storyEnsure(this); seasonsEnsure(this); rivalsEnsure(this); mailEnsure(this); }
   /** may this level be started (the cost cap, the tunnel's hours) -> null or why not; a level started (career/ManagerCar.js) */
   buildCheck(id, lvl, cost) { return buildCheck(this, id, lvl, cost); }
   onBuilt(id, lvl) { onBuilt(this, id, lvl); }
@@ -201,6 +202,8 @@ export class ManagerCareer {
     this.results.push({ season: this.season, round: this.round, track: trackId, top: rows.slice(0, 3).map((r) => r.car.careerId), mine: rep.mine.map((m) => ({ id: m.id, pos: m.pos, dnf: m.dnf })), fl: fl?.car.careerId || null });
     if (rep.mine.length) this.addNews(`Round ${this.round}: ${rep.mine.map((m) => `${m.name.split(' ').pop()} ${m.dnf ? 'DNF' : `P${m.pos}`}`).join(', ')} - ${got} point${got === 1 ? '' : 's'}. ${this.teams[this.myTeam].name} P${pos} in the constructors'.`);
     this.last = rep;
+    // (the mail: the answers that are due after this race, and what reaches the desk by itself - career/ManagerMail.js)
+    try { mailRound(this, rep); } catch (e) { console.error('[manager] the mail', e); }
     this.round++;
     if (this.round > this.rounds) this.endSeason(); else this.newObjective();
     try { storyAfterRace(this, rep, rows, o.live || null); } catch (e) { console.error('[manager] the story', e); }   // (the drama out of the race: career/ManagerStory.js)
@@ -280,6 +283,7 @@ export class ManagerCareer {
   // ---- the season's end ------------------------------------------------------------------------------------------------
   endSeason() {
     this.seasonDone = true;
+    try { mailWinter(this); } catch (e) { console.error('[manager] the mail', e); }   // (what is still out is answered before the winter)
     const order = this.constructors(), pos = order.findIndex((t) => t.name === this.myTeam) + 1, tgt = this.board.target;
     const rev = { season: this.season, pos, target: tgt, prize: PRIZE[pos - 1] ?? 1, champ: this.drivers_()[0]?.name, champTeam: order[0].name, conf: this.board.conf };
     for (const t of order) { const i = order.indexOf(t); t.budget = r1(t.budget + (PRIZE[i] ?? 1) + (t.name === this.myTeam && i + 1 < tgt ? 5 : 0)); }
@@ -302,6 +306,7 @@ export class ManagerCareer {
   nextSeason(newTeam = null) {
     if (newTeam && this.teams[newTeam]) { this.myTeam = newTeam; this.since = this.season + 1; this.board = { target: 0, conf: 55 }; this.sacked = false; this.offers = []; this.addNews(`You join ${newTeam} as team principal.`); }
     const order = this.constructors().map((t) => t.name);   // (the season just ended: the rivals' boards judge by it)
+    try { mailNewSeason(this); } catch (e) { console.error('[manager] the mail', e); }
     this.season++;
     // the winter (career/Seasons.js, career/Rivals.js): everyone a year older; the retired gone, the contracts run out,
     // next year's deals in force, the rookies up, the empty seats filled; the rivals' boards, money and people; your academy

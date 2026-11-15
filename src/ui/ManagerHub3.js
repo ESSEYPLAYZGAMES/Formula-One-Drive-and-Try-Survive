@@ -38,7 +38,7 @@ export function storyHTML(c, tab) {
 /** on the overview's NEEDS YOU: what is waiting (the first of them, and how many more) */
 export function storyHome(c) {
   const box = inboxOf(c); if (!box.length) return '';
-  return person({ cls: 'top', name: `${tag(`Inbox · ${box.length}`, 'ac')} ${esc(box[0].title)}`, sub: esc(box[0].text || ''), act: '<button class="go" data-tab="story">OPEN →</button>' });
+  return person({ cls: 'top', name: `${tag(`Decisions · ${box.length}`, 'ac')} ${esc(box[0].title)}`, sub: esc(box[0].text || ''), act: '<button class="go" data-tab="story">OPEN →</button>' });
 }
 /** a click on the page: play(scene, ctx) -> Promise<result> shows a scene. -> Promise<a line to say | ''> | undefined (not ours) */
 export function storyAct(c, a, v, play) {

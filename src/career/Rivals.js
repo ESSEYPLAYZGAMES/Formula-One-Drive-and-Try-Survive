@@ -108,6 +108,47 @@ export function raid(c, team, role) {
   c.addNews(`${T.who.name} leaves ${team} for ${c.myTeam} as ${ROLE[role]}${was ? `, replacing ${was.name}` : ''}. ${t.ai.boss} is not pleased.`); c.save();
   return { text: `${T.who.name} is your ${ROLE[role]} (${Math.round(T.who.rating * 100)}): $${T.fee}M to bring over, $${c.staff[role].salary}M a season.`, ok: true };
 }
+// ---- the same two, in the steps a reply by mail takes (career/ManagerMail.js): the asking now, the answer a race or two later ----
+/** the approach itself: an intermediary's fee, and you have asked him for this season -> { no } | { who, fee, odds } */
+export function raidAsk(c, team, role) {
+  const T = raidTerms(c, team, role), t = c.teams[team]; if (T.no) return { no: T.no };
+  if (c.team.budget < 0.2) return { no: 'Not enough money: the intermediary wants $0.2M to carry the message.' };
+  t.ai.raided[role] = c.season; c.team.budget = r1(c.team.budget - 0.2);
+  return { who: { ...T.who }, fee: T.fee, odds: T.odds };
+}
+/** he says no: his principal hears of it */
+export function raidRefused(c, team, name) { heat(c, team, 8); c.addNews(`${c.myTeam} tried to sign ${name} from ${team}. He is staying.`); }
+/** he said yes and you sign him: the buy-out paid, he is yours, his old team finds a deputy -> { text, ok } */
+export function raidSign(c, team, role, name, fee) {
+  const t = c.teams[team], who = t?.ai?.staff?.[role]; if (!who || who.name !== name) return { text: `${name} is no longer at ${team}: the offer is dead.`, ok: false };
+  if (c.team.budget < fee) return { text: `Not enough money: bringing ${name} over costs $${fee}M.`, ok: false };
+  const was = c.staff[role]; c.team.budget = r1(c.team.budget - fee); heat(c, team, 18);
+  c.staff[role] = { role, name: who.name, rating: who.rating, salary: r1(who.salary * 1.15) }; t.ai.staff[role] = staffer(who.rating - 0.07 - rnd() * 0.05);
+  c.addNews(`${who.name} leaves ${team} for ${c.myTeam} as ${ROLE[role]}${was ? `, replacing ${was.name}` : ''}. ${t.ai.boss} is not pleased.`); c.save();
+  return { text: `${who.name} is your ${ROLE[role]} (${Math.round(who.rating * 100)}): $${fee}M to bring over, $${c.staff[role].salary}M a season.`, ok: true };
+}
+/** a protest lodged: the deposit paid, the stewards have it -> { no } | { last, grey } (what they will rule on) */
+export function protestLodge(c, team) {
+  const t = c.teams[team], A = t?.ai, R = c.rivals; if (!A) return { no: 'No such team.' };
+  if (c.round - R.protestAt < 3 && R.protestSeason === c.season) return { no: 'The stewards have had a protest from you lately: wait a few races.' };
+  if (!A.last || A.last.season !== c.season || c.round - A.last.round > 3) return { no: `${team} have brought nothing new lately: there is nothing to protest.` };
+  if (c.team.budget < 0.5) return { no: 'The deposit is $0.5M.' };
+  R.protestAt = c.round; R.protestSeason = c.season; c.team.budget = r1(c.team.budget - 0.5);
+  return { last: { ...A.last }, grey: A.grey };
+}
+/** the stewards' ruling on it (on the parts as they were when you protested) -> { text, ok } */
+export function protestRule(c, team, last, grey) {
+  const t = c.teams[team], A = t?.ai; if (!A) return { text: 'The protest lapses.', ok: false };
+  if (rnd() < 0.08 + 0.8 * (grey || 0)) {
+    const cut = +((last?.perf || 0) * 0.6).toFixed(5); t.perfAdj = +((+t.perfAdj || 0) - cut).toFixed(5); t.budget = r1((t.budget || 0) - 2); A.grey = 0; if (A.last && A.last.round === last?.round) A.last = null; heat(c, team, 22); c.team.budget = r1(c.team.budget + 0.5);
+    if (c.story) c.story.cred = clamp((c.story.cred ?? 50) + 4, 0, 100);
+    c.addNews(`Protest upheld: ${team}'s new parts are ruled illegal. They lose about ${(cut * 40.5).toFixed(2)} s a lap and $2M.`); c.save();
+    return { text: `Upheld. ${team} lose about ${(cut * 40.5).toFixed(2)} s a lap; your deposit comes back. ${A.boss} will not forget it.`, ok: true };
+  }
+  heat(c, team, 10); if (c.story) c.story.cred = clamp((c.story.cred ?? 50) - 4, 0, 100);
+  c.addNews(`${c.myTeam}'s protest against ${team} is dismissed.`); c.save();
+  return { text: `Dismissed: the stewards find ${team}'s car legal. The deposit is kept, and ${A.boss} has noted who asked.`, ok: false };
+}
 /** protest a rival's car to the stewards: a deposit, and their last upgrade thrown out if it is found to be what you say -> { text, ok } */
 export function protest(c, team) {
   const t = c.teams[team], A = t?.ai, R = c.rivals; if (!A) return { text: 'No such team.', ok: false };
