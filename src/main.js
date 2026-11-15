@@ -2546,7 +2546,7 @@ function tpStart() {
   TP.stw.reset(); tpStewardsOpen(d);
   if (!TP.fx) TP.fx = new TVExtras(TP.gfx.el, { tyreLaps: (c) => TP.gfx.tyreLaps(c), onReplay: (o) => tpReplayStart(o), onSkip: () => tpReplayEnd(), on: (k, x) => tpSay(k, x), onMoment: (e) => tpMoment(e) });
   if (!TP.show) { TP.show = new TVShow(TP.gfx.el, { tyreLaps: (c) => TP.gfx.tyreLaps(c), audio, on: (k) => { if (!TP.on || !S.director) return; if (k === 'podium') tpAway('crowd', S.director.positions.find((c) => !c.retired), { within: 22, must: true }); if (k === 'flag') TP.awayWant = { kind: 'marshal', want: 'chequered', from: TP.tv.t + 3.6, until: TP.tv.t + 10 }; } });   /* (the top three home: the stands) */ TP.gfx.onFastest = (c, t) => tpSay('fl', { who: surname(c.name), t }); }   // (commentary, radio on air, the map, the cards, the grid, the flag: ui/TVShow.js)
-  TP.show.reset(); TP.clips = []; TP.moments = []; PIP.mode = null; PIP.on = false; PIP.k = 0; PIP.label = null;
+  TP.show.reset(); TP.clips = []; TP.moments = []; TP.autoRep = null; TP.boreT = 0; TP.fullAt = -999; TP.winAt = -99; TP.wiping = false; TP.scPh = null; PIP.mode = null; PIP.on = false; PIP.k = 0; PIP.label = null;
   TP.form = null; TP.formed = false; TP.hl = false; TP.awayAt = -99; TP.awayWant = null; TP.walked = new Set(); TP.stillT = new Map();
   // (what the cutaways look at: your pit wall's three at their screens, a driver walking away - world/TVProps.js)
   try { if (!TP.props) TP.props = new TVProps(scene, (x, z) => TERRAIN.at(x, z)); TP.props.dispose(); const c0 = TP.cars[0]; if (d.mode === 'race' && c0) TP.props.buildWall(W.pit, { name: c0.team, color: c0.color, color2: c0.color2 }, c0.boxIdx ?? 0); } catch (e) { console.warn('[tp] the broadcast\'s people', e); }   // (battles, catching, the stop's clock, the onboard's strip, instant replays: ui/TVExtras.js)
@@ -2570,9 +2570,11 @@ function tpStart() {
 function tpStewardsOpen(d) {
   const St = d?.stewards; TP.caseClips = new Map(); TP.caseSt = new Map(); TP.review = null; if (!St || d.mode !== 'race') return;
   St.deep = true;
-  St.onCase = (k) => { const mine = (c) => TP.cars.includes(c); tpMoment({ kind: 'hit', cars: [k.a, k.b], t: k.t0, text: `${surname(k.a.name)} and ${surname(k.b.name)} collide${k.where ? ` at ${k.where.charAt(0) + k.where.slice(1).toLowerCase()}` : ''}`, score: 34 + 52 * Math.min(1, k.sev) + (mine(k.a) || mine(k.b) ? 16 : 0) + (k.lap1 ? 8 : 0) });
+  St.onCase = (k) => { const mine = (c) => TP.cars.includes(c); k.big = 34 + 52 * Math.min(1, k.sev) + (mine(k.a) || mine(k.b) ? 16 : 0) + (k.lap1 ? 8 : 0) >= 80;
+    if (!k.big) { try { TP.fx?.event({ text: `contact: ${surname(k.a.name)} and ${surname(k.b.name)}`, cars: [k.a, k.b], wait: 0.4 }, d); } catch (e) { /* no chip */ } }   // (a small one: yours to ask for - R)
+    tpMoment({ kind: 'hit', cars: [k.a, k.b], t: k.t0, text: `${surname(k.a.name)} and ${surname(k.b.name)} collide${k.where ? ` at ${k.where.charAt(0) + k.where.slice(1).toLowerCase()}` : ''}`, score: 34 + 52 * Math.min(1, k.sev) + (mine(k.a) || mine(k.b) ? 16 : 0) + (k.lap1 ? 8 : 0) });
     const R = d.replay; if (!R || R.frames.length < 30) return; const F = R.frames.filter((f) => f.t >= k.t0 - 3.6 && f.t <= k.t0 + 2.2); if (F.length >= 24) TP.caseClips.set(k.id, F); if (TP.caseClips.size > 14) TP.caseClips.delete(TP.caseClips.keys().next().value); };
-  St.onReview = (k) => { TP.review = { k, until: (TP.tv?.t || 0) + 50 }; };   // (shown when the window is free - not over a battle's onboard)
+  St.onReview = (k) => { if (k.big) TP.review = { k, until: (TP.tv?.t || 0) + 50 }; };   // (shown when the window is free - not over a battle's onboard)
 }
 function tpStewards() {
   const d = S.director, St = d?.stewards; if (!St?.deep || !TP.wall) return;
@@ -2799,6 +2801,40 @@ function tpReplayEnd() {
   r.onEnd?.();
 }
 /**
+ * Which replays the broadcast plays, and when. Not every incident is shown again: a small one has the chip (R) and is
+ * yours to ask for. A BIG one - a moment worth 80 and more: a change of the lead, a car put out, a pile-up, a crash -
+ * is played: once in the window soon after it (a collision's is the stewards' review, when they open it), and then
+ * again as the whole picture when the race can spare it - a quiet stretch (nobody of the first eight or of yours in
+ * the pit lane or called in, none of them within nine tenths of the car ahead, no flags), or behind a safety car once
+ * the queue has formed, where the best of the race so far is shown too. The race holds for a whole-picture replay
+ * (nothing is missed), there is at least a minute and a quarter between two of them under green, and R or Esc ends
+ * one.
+ */
+function tpBoring(d) {
+  if (!d.world.racing || d.done || d.leaderFinished || TP.rep || TP.hl || TP.form || TP.paused || S.simming || PIP.onb || TP.wiping) return false;
+  const P = d.positions.filter((c) => !c.retired && !c.finished), ph = d.sc?.phase || 'green', lead = P[0]; if (!lead || lead.lap < 1 || d.lapsTotal - lead.lap <= 1) return false;
+  const watch = [...new Set([...P.slice(0, 8), ...TP.cars.filter((c) => !c.retired)])];
+  if (watch.some((c) => c.pitLane || c.inPit || c.pitRequested || c.spinning || c.offTrack)) return false;
+  if (ph === 'sc') return d.time - (TP.scAt ?? d.time) > 28;   // (the queue has formed: everyone is waiting for the restart)
+  if (ph !== 'green') return false;
+  for (const c of watch) { const i = P.indexOf(c), a = P[i - 1]; if (a) { const g = d.world.gap?.(c, a); if (g != null && Math.abs(g) < 0.9) return false; } }
+  return true;
+}
+function tpReplays(d, dt) {
+  if (!TP.on || d.mode !== 'race' || !TP.fx) return;
+  const ph = d.sc?.phase || 'green'; if (ph === 'sc' && TP.scPh !== 'sc') { TP.scAt = d.time; TP.scFull = 0; } TP.scPh = ph;
+  // (a big moment, again in the window - once, when the window is free; not one over another)
+  const a = TP.autoRep;
+  if (a) { if (d.time - a.t > 26 || d.done || d.leaderFinished) TP.autoRep = null; else if (!TP.rep && !TP.hl && !PIP.onb && d.time - (TP.winAt ?? -99) > 16 && tpReplayStart({ text: a.text, cars: a.cars, t: a.t }, { F: a.F })) { TP.autoRep = null; TP.winAt = d.time; } }
+  // (the whole picture, when the race can spare it)
+  TP.boreT = tpBoring(d) ? (TP.boreT || 0) + dt : 0;
+  const sc = ph === 'sc', since = d.time - (TP.fullAt ?? -999);
+  if (TP.boreT < (sc ? 3 : 5) || since < (sc ? 20 : 75) || (sc && (TP.scFull || 0) >= 3)) return;
+  const C = (TP.clips || []).filter((c) => !c.full && d.time - c.t > 14 && c.score >= (sc ? 55 : 80)).sort((x, y) => y.score - x.score)[0]; if (!C) return;
+  C.full = true; TP.fullAt = d.time; TP.boreT = 0; TP.wiping = true; if (sc) TP.scFull = (TP.scFull || 0) + 1;
+  TP.fx.wipe('REPLAY', String(C.text).toUpperCase(), () => { TP.wiping = false; if (!TP.on || S.director !== d || d.done) return; tpReplayStart({ text: C.text, cars: C.cars, t: C.t }, { full: true, F: C.F, label: `REPLAY · ${C.text}`, onEnd: () => { try { if (TP.on && !TP.hl) TP.fx.wipe('LIVE', '', () => {}); } catch (e) { /* the feed is gone */ } } }); });
+}
+/**
  * The race's moments, for the highlights at the flag. Every one comes with what it is worth (ui/TVExtras.js: a pass by
  * the place it was for - the lead most, tenth little - and more between rivals, team-mates, your cars, in the last
  * laps; a spin by where the car was running; a crash; a collision the stewards opened a case on, by how bad). Moments
@@ -2838,6 +2874,8 @@ function tpMomentsCut(d) {
     const F = R.frames.filter((f) => f.t >= Math.max(R.frames[0].t, m.t0 - 3.4, m.t1 - 6.4) && f.t <= m.t1 + 2.2); if (F.length < 24) continue;
     const S0 = tpMomentSum(m), lead = m.ev.slice().sort((a, b) => (b.score || 0) - (a.score || 0))[0];
     const C = TP.clips || (TP.clips = []); C.push({ text: S0.text, cars: (m.pair || [lead.cars[0], lead.cars[1] || m.cars.find((c) => c !== lead.cars[0])]).filter(Boolean), t: lead.t, F, score: S0.score });
+    // (a big moment is played again in the window - a collision's is the stewards' review, when they open it)
+    if (S0.score >= 80 && !m.ev.some((e) => e.kind === 'hit')) TP.autoRep = C[C.length - 1];
     if (C.length > 10) { let lo = 0; for (let i = 1; i < C.length; i++) if (C[i].score < C[lo].score) lo = i; C.splice(lo, 1); }
   }
   TP.moments = M.filter((m) => !m.cut);
@@ -3106,7 +3144,7 @@ function tpUi(dt) {
   TP.fx?.update(dt, { d, focus: TP.cars, shot: TP.tv.shot, halted: held || !!TP.form || (!!TP.rep && !TP.rep.win), noOffer: !!TP.rep, say: (t, k, h) => TP.gfx.rc(t, k, h), len: W.track?.length });
   TP.show?.update(dt, { d, focus: TP.cars, shot: TP.tv.shot, halted: held, len: W.track?.length, track: W.track, trackName: shortTrack(W.def?.id), stat: tpStat, wet: d.weather?.tyreWet || 0, rc: (t, k, h) => TP.gfx.rc(t, k, h), battle: !!TP.fx?.bt.classList.contains('in'), catching: !!TP.fx?.ct.classList.contains('in'), neutral: !!TP.fx?.neutral, replaying: !!TP.rep, cuts: TP.tv.cuts, form: TP.form ? TP.form.ph : TP.formed ? 'done' : null,
     hint: TP.form && TP.form.ph !== 'grid' ? ['SPACE', 'skip the formation lap'] : TV_AWAY.has(TP.tv.shot?.kind) && !TP.form ? ['X', 'back to the race'] : null });
-  tpStewards(); tpMomentsCut(d); tpPip(held ? 0 : dt);
+  tpStewards(); tpMomentsCut(d); tpReplays(d, held ? 0 : dt); tpPip(held ? 0 : dt);
   if (d.mode === 'race') { try { TP.props?.update(held ? 0 : dt); tpAways(held ? 0 : dt); } catch (e) { /* a cutaway that could not be: no cutaway */ } }
   const ord = d.orders?.pairOf?.(TP.cars[0])?.order || null;
   TP.wall.update(dt, { d, speed: TP.speed, paused: TP.paused, cam: TP.cam, order: ord, tyreLaps: (c) => TP.gfx.tyreLaps(c),

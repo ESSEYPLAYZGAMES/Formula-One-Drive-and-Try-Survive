@@ -9,16 +9,16 @@
 // seconds on the screen so the note and the investigation can be read before it.
 const CSS = `
 /* (race control's place on a broadcast: the top of the picture, in the middle - clear of the tower, the map and every card on the right. The commentary's line and the window under it move down by its height: --stwh) */
-#tvg .stw { position: absolute; left: 50%; top: 6px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none; z-index: 3; }
-@media (max-width: 900px) { #tvg .stw { left: 262px; transform: none; align-items: flex-start; } }
+#tvg .stw { position: absolute; left: 50%; top: 6px; transform: translateX(-50%); display: flex; flex-direction: row; justify-content: center; align-items: flex-start; gap: 8px; max-width: calc(100% - 520px); pointer-events: none; z-index: 3; }   /* (side by side in the strip above the commentary's line: the window under it is the action's, and nothing here moves it) */
+@media (max-width: 900px) { #tvg .stw { left: 262px; transform: none; justify-content: flex-start; max-width: calc(100% - 270px); } }
 #tvg .xr:has(.xc.stg.in) .xc.inf { display: none; }   /* (the strategy up: the filler cards make room) */
-#tvg .stc { --c: #ffb300; position: relative; display: flex; align-items: stretch; height: 44px; filter: drop-shadow(0 6px 16px rgba(0,0,0,.45)); }
+#tvg .stc { --c: #ffb300; position: relative; display: flex; align-items: stretch; height: 44px; min-width: 0; max-width: 380px; filter: drop-shadow(0 6px 16px rgba(0,0,0,.45)); }
 #tvg .stc .ic { width: 44px; display: flex; align-items: center; justify-content: center; background: linear-gradient(160deg, color-mix(in srgb, var(--c) 34%, #0b0d13), #0b0d13 75%); color: #fff; border: 1px solid var(--c); border-radius: 0 7px 7px 0; box-shadow: inset 0 0 14px color-mix(in srgb, var(--c) 35%, transparent), 0 0 12px color-mix(in srgb, var(--c) 45%, transparent); order: 2; transform: scale(0); transition: transform .28s cubic-bezier(.3,1.5,.5,1), color .3s, border-color .3s, box-shadow .3s; }
 #tvg .stc .ic svg { width: 22px; height: 22px; filter: drop-shadow(0 0 5px var(--c)); }
-#tvg .stc .bd { position: relative; order: 1; min-width: 196px; max-width: 330px; padding: 6px 12px 6px 14px; background: linear-gradient(90deg, rgba(9,11,17,.78), rgba(9,11,17,.95)); border: 1px solid color-mix(in srgb, var(--c) 55%, transparent); border-right: 0; border-radius: 7px 0 0 7px; overflow: hidden; clip-path: inset(0 0 0 100%); transition: clip-path .42s cubic-bezier(.2,.8,.2,1) .12s, border-color .3s; }
+#tvg .stc .bd { position: relative; order: 1; min-width: 150px; max-width: 330px; padding: 6px 12px 6px 14px; background: linear-gradient(90deg, rgba(9,11,17,.78), rgba(9,11,17,.95)); border: 1px solid color-mix(in srgb, var(--c) 55%, transparent); border-right: 0; border-radius: 7px 0 0 7px; overflow: hidden; clip-path: inset(0 0 0 100%); transition: clip-path .42s cubic-bezier(.2,.8,.2,1) .12s, border-color .3s; }
 #tvg .stc.in .ic { transform: none; } #tvg .stc.in .bd { clip-path: inset(0 0 0 0); }
 #tvg .stc.out .bd { clip-path: inset(0 0 0 100%); transition-delay: 0s; transition-duration: .3s; } #tvg .stc.out .ic { transform: scale(0); transition: transform .22s ease-in .26s; }
-#tvg .stc.out { margin-top: -50px; transition: margin-top .3s ease .5s; }
+#tvg .stc.out { max-width: 0; margin-left: -8px; transition: max-width .3s ease .5s, margin-left .3s ease .5s; }
 #tvg .stc .hd { display: flex; align-items: center; gap: 7px; font: 900 9px/1 var(--tvf); letter-spacing: .24em; color: var(--c); text-shadow: 0 0 9px color-mix(in srgb, var(--c) 70%, transparent); white-space: nowrap; transition: color .3s; }
 #tvg .stc .hd .clk { margin-left: auto; padding-left: 10px; font: 800 10px/1 ui-monospace, Menlo, Consolas, monospace; letter-spacing: .06em; color: #fff; text-shadow: none; }
 #tvg .stc[data-st="a"] { --c: #b98cff; }
@@ -193,7 +193,6 @@ export class TVStewards {
       const pen = c.penalties || 0; if (pen < st.shown || (pen > st.shown && !this.cases.some((k) => !k.closed && k.cars[0] === c))) st.shown = pen;
     }
     for (const k of [...this.cases]) if (k.closed && !k.gone && t > k.until) this._gone(k);
-    { const h = this.cases.filter((x) => !x.gone).length * 50; if (h !== this._h) { this._h = h; this.root.style.setProperty('--stwh', `${h}px`); } }
     // (race control's own messages sit under these cards)
   }
   _setNew(o, st) { const k = this._open(o); this._set(k, st); return k; }

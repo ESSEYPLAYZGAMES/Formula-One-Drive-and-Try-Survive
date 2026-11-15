@@ -1,3 +1,33 @@
+# V2.65 (2026-11-15): the window stays put; replays chosen - small ones on request, big ones played, the whole picture when the race is quiet
+
+Asked for: "The picture in picture is constantly swerving out of the way of the penalties and whatnot, let it have
+priority ... move the notifs around a lil so they dont block it"; "Instead of overloading the broadcast with many
+replays, let minor incidents go on with an optional replay - same system of clicking r - whereas the larger incidents
+are proper and play - but can leave the PiP and take the main broadcast DURING BORING PARTS OF THE RACE where no
+front runner is pitting or close to an overtake ... or during a SC where everyone is stable ... This allows past,
+already replayed moments or recent highlights to replay in all their glory".
+
+## The window has priority
+- The picture-in-picture (and the commentary's line) no longer move when race control's notices come and go. The
+  notices sit side by side in the strip along the top of the picture, above the commentary's line, and fold away
+  sideways.
+
+## Which replays play, and when (main.js tpReplays / tpBoring)
+- A small incident is not replayed for you: it has the chip, and R shows it - a contact the stewards will look at
+  but that put nobody out now gets a chip of its own ("contact: Lawson and Sainz"); the stewards' review of it is no
+  longer shown unasked.
+- A big one - a moment worth 80 and more: a change of the lead, a car put out, a pile-up, a crash - is played, once,
+  in the window soon after it (a collision's replay is the stewards' review, when they open their investigation), at
+  least sixteen seconds after the last one.
+- And it is shown again as the WHOLE PICTURE when the race can spare it:
+  - a quiet stretch under green: from lap 2, not on the last lap, none of the first eight nor your cars in the pit
+    lane, called in, spinning or off the road, none of them within nine tenths of the car ahead, no flags - for five
+    seconds; then the best big moment not yet shown this way, at least a minute and a quarter after the last;
+  - behind the safety car once the queue has formed (28 s in): up to three, twenty seconds apart, and here the best
+    of the race so far is shown too (a moment worth 55 and more), not only the big ones.
+- A whole-picture replay comes in and goes out behind the neon wipe (REPLAY ... LIVE); the race holds while it
+  plays, so nothing is missed; R or Esc ends it.
+
 # V2.64 (2026-11-15): VICE - the HQ and the strategy screen in neon
 
 Asked for: "give it a little touch up so it's all cool and neon, not overkill ut effective highlights ... vice city

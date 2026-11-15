@@ -602,7 +602,7 @@ body.tp #hud-msg { top: 30%; }
     <div class="brand-line"></div>
     <h1 id="brand-title">FORMULA 1<span id="brand-sub">SIMULATOR</span></h1>
     <!-- the build's version: +0.01 with every build handed out -->
-    <span id="app-ver" title="Version">V2.64</span>
+    <span id="app-ver" title="Version">V2.65</span>
     <div id="menu-sub">Real circuits built from OpenStreetMap</div>
   </div>
   <div id="loading" class="hidden"><div class="ld"><i></i></div><span>Building the circuit from OpenStreetMap…</span></div>
@@ -147558,16 +147558,16 @@ __m['src/ui/TVStewards.js'] = (() => {
 // seconds on the screen so the note and the investigation can be read before it.
 const CSS = `
 /* (race control's place on a broadcast: the top of the picture, in the middle - clear of the tower, the map and every card on the right. The commentary's line and the window under it move down by its height: --stwh) */
-#tvg .stw { position: absolute; left: 50%; top: 6px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none; z-index: 3; }
-@media (max-width: 900px) { #tvg .stw { left: 262px; transform: none; align-items: flex-start; } }
+#tvg .stw { position: absolute; left: 50%; top: 6px; transform: translateX(-50%); display: flex; flex-direction: row; justify-content: center; align-items: flex-start; gap: 8px; max-width: calc(100% - 520px); pointer-events: none; z-index: 3; }   /* (side by side in the strip above the commentary's line: the window under it is the action's, and nothing here moves it) */
+@media (max-width: 900px) { #tvg .stw { left: 262px; transform: none; justify-content: flex-start; max-width: calc(100% - 270px); } }
 #tvg .xr:has(.xc.stg.in) .xc.inf { display: none; }   /* (the strategy up: the filler cards make room) */
-#tvg .stc { --c: #ffb300; position: relative; display: flex; align-items: stretch; height: 44px; filter: drop-shadow(0 6px 16px rgba(0,0,0,.45)); }
+#tvg .stc { --c: #ffb300; position: relative; display: flex; align-items: stretch; height: 44px; min-width: 0; max-width: 380px; filter: drop-shadow(0 6px 16px rgba(0,0,0,.45)); }
 #tvg .stc .ic { width: 44px; display: flex; align-items: center; justify-content: center; background: linear-gradient(160deg, color-mix(in srgb, var(--c) 34%, #0b0d13), #0b0d13 75%); color: #fff; border: 1px solid var(--c); border-radius: 0 7px 7px 0; box-shadow: inset 0 0 14px color-mix(in srgb, var(--c) 35%, transparent), 0 0 12px color-mix(in srgb, var(--c) 45%, transparent); order: 2; transform: scale(0); transition: transform .28s cubic-bezier(.3,1.5,.5,1), color .3s, border-color .3s, box-shadow .3s; }
 #tvg .stc .ic svg { width: 22px; height: 22px; filter: drop-shadow(0 0 5px var(--c)); }
-#tvg .stc .bd { position: relative; order: 1; min-width: 196px; max-width: 330px; padding: 6px 12px 6px 14px; background: linear-gradient(90deg, rgba(9,11,17,.78), rgba(9,11,17,.95)); border: 1px solid color-mix(in srgb, var(--c) 55%, transparent); border-right: 0; border-radius: 7px 0 0 7px; overflow: hidden; clip-path: inset(0 0 0 100%); transition: clip-path .42s cubic-bezier(.2,.8,.2,1) .12s, border-color .3s; }
+#tvg .stc .bd { position: relative; order: 1; min-width: 150px; max-width: 330px; padding: 6px 12px 6px 14px; background: linear-gradient(90deg, rgba(9,11,17,.78), rgba(9,11,17,.95)); border: 1px solid color-mix(in srgb, var(--c) 55%, transparent); border-right: 0; border-radius: 7px 0 0 7px; overflow: hidden; clip-path: inset(0 0 0 100%); transition: clip-path .42s cubic-bezier(.2,.8,.2,1) .12s, border-color .3s; }
 #tvg .stc.in .ic { transform: none; } #tvg .stc.in .bd { clip-path: inset(0 0 0 0); }
 #tvg .stc.out .bd { clip-path: inset(0 0 0 100%); transition-delay: 0s; transition-duration: .3s; } #tvg .stc.out .ic { transform: scale(0); transition: transform .22s ease-in .26s; }
-#tvg .stc.out { margin-top: -50px; transition: margin-top .3s ease .5s; }
+#tvg .stc.out { max-width: 0; margin-left: -8px; transition: max-width .3s ease .5s, margin-left .3s ease .5s; }
 #tvg .stc .hd { display: flex; align-items: center; gap: 7px; font: 900 9px/1 var(--tvf); letter-spacing: .24em; color: var(--c); text-shadow: 0 0 9px color-mix(in srgb, var(--c) 70%, transparent); white-space: nowrap; transition: color .3s; }
 #tvg .stc .hd .clk { margin-left: auto; padding-left: 10px; font: 800 10px/1 ui-monospace, Menlo, Consolas, monospace; letter-spacing: .06em; color: #fff; text-shadow: none; }
 #tvg .stc[data-st="a"] { --c: #b98cff; }
@@ -147742,7 +147742,6 @@ class TVStewards {
       const pen = c.penalties || 0; if (pen < st.shown || (pen > st.shown && !this.cases.some((k) => !k.closed && k.cars[0] === c))) st.shown = pen;
     }
     for (const k of [...this.cases]) if (k.closed && !k.gone && t > k.until) this._gone(k);
-    { const h = this.cases.filter((x) => !x.gone).length * 50; if (h !== this._h) { this._h = h; this.root.style.setProperty('--stwh', `${h}px`); } }
     // (race control's own messages sit under these cards)
   }
   _setNew(o, st) { const k = this._open(o); this._set(k, st); return k; }
@@ -156075,7 +156074,7 @@ __m['src/ui/TVShow.js'] = (() => {
 //   RAIN ON THE LENS when the track is wet, on the cameras that stand in it.
 // Plain DOM in the graphics' own layer; main.js draws the picture-in-picture inside the frame this makes for it.
 const CSS = `
-#tvg .cm { position: absolute; left: 50%; top: calc(50px + var(--stwh, 0px)); transform: translate(-50%, -8px); width: min(600px, 46vw); background: rgba(12,14,20,.86); border-radius: 6px; padding: 7px 12px 8px; opacity: 0; transition: opacity .25s, transform .25s, top .3s; border-left: 4px solid #e10600; }
+#tvg .cm { position: absolute; left: 50%; top: 54px; transform: translate(-50%, -8px); width: min(600px, 46vw); background: rgba(12,14,20,.86); border-radius: 6px; padding: 7px 12px 8px; opacity: 0; transition: opacity .25s, transform .25s, top .3s; border-left: 4px solid #e10600; }
 #tvg .cm.in { opacity: 1; transform: translate(-50%, 0); } #tvg .cm.b { border-left-color: #1f6feb; }
 #tvg .cm small { display: block; font: 800 9px/1 var(--tvf); letter-spacing: .2em; color: #9aa4b2; margin-bottom: 4px; }
 #tvg .cm span { font: 600 14px/1.3 var(--tvf); }
@@ -156107,7 +156106,7 @@ const CSS = `
 /* the picture in the picture: a window of neon. It opens as a line of light drawn out from its middle, which then
    parts - the picture between the two halves (main.js draws only what is open: pipOpen) - and its tab unrolls; it
    closes the way it came: to a line, the line in to a point. --kx / --ky: how far it is open across and down. */
-#tvg .pip { --n: #19e3ff; position: absolute; left: 272px; top: calc(126px + var(--stwh, 0px)); transition: top .3s; width: min(300px, 24vw); aspect-ratio: 16 / 9; display: none; pointer-events: none; }
+#tvg .pip { --n: #19e3ff; position: absolute; left: 272px; top: 128px; width: min(300px, 24vw); aspect-ratio: 16 / 9; display: none; pointer-events: none; }
 #tvg .pip.big { --n: #ff2d75; width: min(430px, 34vw); }
 #tvg .pip.on { display: block; }
 #tvg .pip .fr { position: absolute; left: calc(50% * (1 - var(--kx, 1))); right: calc(50% * (1 - var(--kx, 1))); top: calc(50% * (1 - var(--ky, 1)) - 1px); bottom: calc(50% * (1 - var(--ky, 1)) - 1px); border: 2px solid var(--n); border-radius: 3px;
@@ -200027,7 +200026,7 @@ function tpStart() {
   TP.stw.reset(); tpStewardsOpen(d);
   if (!TP.fx) TP.fx = new TVExtras(TP.gfx.el, { tyreLaps: (c) => TP.gfx.tyreLaps(c), onReplay: (o) => tpReplayStart(o), onSkip: () => tpReplayEnd(), on: (k, x) => tpSay(k, x), onMoment: (e) => tpMoment(e) });
   if (!TP.show) { TP.show = new TVShow(TP.gfx.el, { tyreLaps: (c) => TP.gfx.tyreLaps(c), audio, on: (k) => { if (!TP.on || !S.director) return; if (k === 'podium') tpAway('crowd', S.director.positions.find((c) => !c.retired), { within: 22, must: true }); if (k === 'flag') TP.awayWant = { kind: 'marshal', want: 'chequered', from: TP.tv.t + 3.6, until: TP.tv.t + 10 }; } });   /* (the top three home: the stands) */ TP.gfx.onFastest = (c, t) => tpSay('fl', { who: surname(c.name), t }); }   // (commentary, radio on air, the map, the cards, the grid, the flag: ui/TVShow.js)
-  TP.show.reset(); TP.clips = []; TP.moments = []; PIP.mode = null; PIP.on = false; PIP.k = 0; PIP.label = null;
+  TP.show.reset(); TP.clips = []; TP.moments = []; TP.autoRep = null; TP.boreT = 0; TP.fullAt = -999; TP.winAt = -99; TP.wiping = false; TP.scPh = null; PIP.mode = null; PIP.on = false; PIP.k = 0; PIP.label = null;
   TP.form = null; TP.formed = false; TP.hl = false; TP.awayAt = -99; TP.awayWant = null; TP.walked = new Set(); TP.stillT = new Map();
   // (what the cutaways look at: your pit wall's three at their screens, a driver walking away - world/TVProps.js)
   try { if (!TP.props) TP.props = new TVProps(scene, (x, z) => TERRAIN.at(x, z)); TP.props.dispose(); const c0 = TP.cars[0]; if (d.mode === 'race' && c0) TP.props.buildWall(W.pit, { name: c0.team, color: c0.color, color2: c0.color2 }, c0.boxIdx ?? 0); } catch (e) { console.warn('[tp] the broadcast\'s people', e); }   // (battles, catching, the stop's clock, the onboard's strip, instant replays: ui/TVExtras.js)
@@ -200051,9 +200050,11 @@ function tpStart() {
 function tpStewardsOpen(d) {
   const St = d?.stewards; TP.caseClips = new Map(); TP.caseSt = new Map(); TP.review = null; if (!St || d.mode !== 'race') return;
   St.deep = true;
-  St.onCase = (k) => { const mine = (c) => TP.cars.includes(c); tpMoment({ kind: 'hit', cars: [k.a, k.b], t: k.t0, text: `${surname(k.a.name)} and ${surname(k.b.name)} collide${k.where ? ` at ${k.where.charAt(0) + k.where.slice(1).toLowerCase()}` : ''}`, score: 34 + 52 * Math.min(1, k.sev) + (mine(k.a) || mine(k.b) ? 16 : 0) + (k.lap1 ? 8 : 0) });
+  St.onCase = (k) => { const mine = (c) => TP.cars.includes(c); k.big = 34 + 52 * Math.min(1, k.sev) + (mine(k.a) || mine(k.b) ? 16 : 0) + (k.lap1 ? 8 : 0) >= 80;
+    if (!k.big) { try { TP.fx?.event({ text: `contact: ${surname(k.a.name)} and ${surname(k.b.name)}`, cars: [k.a, k.b], wait: 0.4 }, d); } catch (e) { /* no chip */ } }   // (a small one: yours to ask for - R)
+    tpMoment({ kind: 'hit', cars: [k.a, k.b], t: k.t0, text: `${surname(k.a.name)} and ${surname(k.b.name)} collide${k.where ? ` at ${k.where.charAt(0) + k.where.slice(1).toLowerCase()}` : ''}`, score: 34 + 52 * Math.min(1, k.sev) + (mine(k.a) || mine(k.b) ? 16 : 0) + (k.lap1 ? 8 : 0) });
     const R = d.replay; if (!R || R.frames.length < 30) return; const F = R.frames.filter((f) => f.t >= k.t0 - 3.6 && f.t <= k.t0 + 2.2); if (F.length >= 24) TP.caseClips.set(k.id, F); if (TP.caseClips.size > 14) TP.caseClips.delete(TP.caseClips.keys().next().value); };
-  St.onReview = (k) => { TP.review = { k, until: (TP.tv?.t || 0) + 50 }; };   // (shown when the window is free - not over a battle's onboard)
+  St.onReview = (k) => { if (k.big) TP.review = { k, until: (TP.tv?.t || 0) + 50 }; };   // (shown when the window is free - not over a battle's onboard)
 }
 function tpStewards() {
   const d = S.director, St = d?.stewards; if (!St?.deep || !TP.wall) return;
@@ -200280,6 +200281,40 @@ function tpReplayEnd() {
   r.onEnd?.();
 }
 /**
+ * Which replays the broadcast plays, and when. Not every incident is shown again: a small one has the chip (R) and is
+ * yours to ask for. A BIG one - a moment worth 80 and more: a change of the lead, a car put out, a pile-up, a crash -
+ * is played: once in the window soon after it (a collision's is the stewards' review, when they open it), and then
+ * again as the whole picture when the race can spare it - a quiet stretch (nobody of the first eight or of yours in
+ * the pit lane or called in, none of them within nine tenths of the car ahead, no flags), or behind a safety car once
+ * the queue has formed, where the best of the race so far is shown too. The race holds for a whole-picture replay
+ * (nothing is missed), there is at least a minute and a quarter between two of them under green, and R or Esc ends
+ * one.
+ */
+function tpBoring(d) {
+  if (!d.world.racing || d.done || d.leaderFinished || TP.rep || TP.hl || TP.form || TP.paused || S.simming || PIP.onb || TP.wiping) return false;
+  const P = d.positions.filter((c) => !c.retired && !c.finished), ph = d.sc?.phase || 'green', lead = P[0]; if (!lead || lead.lap < 1 || d.lapsTotal - lead.lap <= 1) return false;
+  const watch = [...new Set([...P.slice(0, 8), ...TP.cars.filter((c) => !c.retired)])];
+  if (watch.some((c) => c.pitLane || c.inPit || c.pitRequested || c.spinning || c.offTrack)) return false;
+  if (ph === 'sc') return d.time - (TP.scAt ?? d.time) > 28;   // (the queue has formed: everyone is waiting for the restart)
+  if (ph !== 'green') return false;
+  for (const c of watch) { const i = P.indexOf(c), a = P[i - 1]; if (a) { const g = d.world.gap?.(c, a); if (g != null && Math.abs(g) < 0.9) return false; } }
+  return true;
+}
+function tpReplays(d, dt) {
+  if (!TP.on || d.mode !== 'race' || !TP.fx) return;
+  const ph = d.sc?.phase || 'green'; if (ph === 'sc' && TP.scPh !== 'sc') { TP.scAt = d.time; TP.scFull = 0; } TP.scPh = ph;
+  // (a big moment, again in the window - once, when the window is free; not one over another)
+  const a = TP.autoRep;
+  if (a) { if (d.time - a.t > 26 || d.done || d.leaderFinished) TP.autoRep = null; else if (!TP.rep && !TP.hl && !PIP.onb && d.time - (TP.winAt ?? -99) > 16 && tpReplayStart({ text: a.text, cars: a.cars, t: a.t }, { F: a.F })) { TP.autoRep = null; TP.winAt = d.time; } }
+  // (the whole picture, when the race can spare it)
+  TP.boreT = tpBoring(d) ? (TP.boreT || 0) + dt : 0;
+  const sc = ph === 'sc', since = d.time - (TP.fullAt ?? -999);
+  if (TP.boreT < (sc ? 3 : 5) || since < (sc ? 20 : 75) || (sc && (TP.scFull || 0) >= 3)) return;
+  const C = (TP.clips || []).filter((c) => !c.full && d.time - c.t > 14 && c.score >= (sc ? 55 : 80)).sort((x, y) => y.score - x.score)[0]; if (!C) return;
+  C.full = true; TP.fullAt = d.time; TP.boreT = 0; TP.wiping = true; if (sc) TP.scFull = (TP.scFull || 0) + 1;
+  TP.fx.wipe('REPLAY', String(C.text).toUpperCase(), () => { TP.wiping = false; if (!TP.on || S.director !== d || d.done) return; tpReplayStart({ text: C.text, cars: C.cars, t: C.t }, { full: true, F: C.F, label: `REPLAY · ${C.text}`, onEnd: () => { try { if (TP.on && !TP.hl) TP.fx.wipe('LIVE', '', () => {}); } catch (e) { /* the feed is gone */ } } }); });
+}
+/**
  * The race's moments, for the highlights at the flag. Every one comes with what it is worth (ui/TVExtras.js: a pass by
  * the place it was for - the lead most, tenth little - and more between rivals, team-mates, your cars, in the last
  * laps; a spin by where the car was running; a crash; a collision the stewards opened a case on, by how bad). Moments
@@ -200319,6 +200354,8 @@ function tpMomentsCut(d) {
     const F = R.frames.filter((f) => f.t >= Math.max(R.frames[0].t, m.t0 - 3.4, m.t1 - 6.4) && f.t <= m.t1 + 2.2); if (F.length < 24) continue;
     const S0 = tpMomentSum(m), lead = m.ev.slice().sort((a, b) => (b.score || 0) - (a.score || 0))[0];
     const C = TP.clips || (TP.clips = []); C.push({ text: S0.text, cars: (m.pair || [lead.cars[0], lead.cars[1] || m.cars.find((c) => c !== lead.cars[0])]).filter(Boolean), t: lead.t, F, score: S0.score });
+    // (a big moment is played again in the window - a collision's is the stewards' review, when they open it)
+    if (S0.score >= 80 && !m.ev.some((e) => e.kind === 'hit')) TP.autoRep = C[C.length - 1];
     if (C.length > 10) { let lo = 0; for (let i = 1; i < C.length; i++) if (C[i].score < C[lo].score) lo = i; C.splice(lo, 1); }
   }
   TP.moments = M.filter((m) => !m.cut);
@@ -200587,7 +200624,7 @@ function tpUi(dt) {
   TP.fx?.update(dt, { d, focus: TP.cars, shot: TP.tv.shot, halted: held || !!TP.form || (!!TP.rep && !TP.rep.win), noOffer: !!TP.rep, say: (t, k, h) => TP.gfx.rc(t, k, h), len: W.track?.length });
   TP.show?.update(dt, { d, focus: TP.cars, shot: TP.tv.shot, halted: held, len: W.track?.length, track: W.track, trackName: shortTrack(W.def?.id), stat: tpStat, wet: d.weather?.tyreWet || 0, rc: (t, k, h) => TP.gfx.rc(t, k, h), battle: !!TP.fx?.bt.classList.contains('in'), catching: !!TP.fx?.ct.classList.contains('in'), neutral: !!TP.fx?.neutral, replaying: !!TP.rep, cuts: TP.tv.cuts, form: TP.form ? TP.form.ph : TP.formed ? 'done' : null,
     hint: TP.form && TP.form.ph !== 'grid' ? ['SPACE', 'skip the formation lap'] : TV_AWAY.has(TP.tv.shot?.kind) && !TP.form ? ['X', 'back to the race'] : null });
-  tpStewards(); tpMomentsCut(d); tpPip(held ? 0 : dt);
+  tpStewards(); tpMomentsCut(d); tpReplays(d, held ? 0 : dt); tpPip(held ? 0 : dt);
   if (d.mode === 'race') { try { TP.props?.update(held ? 0 : dt); tpAways(held ? 0 : dt); } catch (e) { /* a cutaway that could not be: no cutaway */ } }
   const ord = d.orders?.pairOf?.(TP.cars[0])?.order || null;
   TP.wall.update(dt, { d, speed: TP.speed, paused: TP.paused, cam: TP.cam, order: ord, tyreLaps: (c) => TP.gfx.tyreLaps(c),
