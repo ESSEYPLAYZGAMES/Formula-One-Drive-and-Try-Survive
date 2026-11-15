@@ -2821,7 +2821,8 @@ function tpMomentSum(m) {
   const list = (C) => C.length <= 1 ? C.map(sn).join('') : `${C.slice(0, -1).map(sn).join(', ')} and ${sn(C[C.length - 1])}`;
   const hitCars = [...new Set(H.flatMap((e) => e.cars))];
   if (hitCars.length >= 3) { score += 34 + 8 * (hitCars.length - 3); text = `a pile-up: ${list(hitCars.slice(0, 5))}`; }
-  else if (H.length && P.length) { const p = P[0]; text = `${sn(p.a)} and ${sn(p.b)}: contact in the fight for ${ordn(p.pos)}`; score += 10; }
+  // (a pass and a contact between the same two: the fight it was, and its cars the picture's)
+  else if (H.length && P.some((p) => H.some((h) => h.cars.includes(p.a) && h.cars.includes(p.b)))) { const p = P.find((q) => H.some((h) => h.cars.includes(q.a) && h.cars.includes(q.b))); text = `${sn(p.a)} and ${sn(p.b)}: contact in the fight for ${ordn(p.pos)}`; score += 10; m.pair = [p.a, p.b]; }
   else if (P.length >= 2) {
     const by = new Map(); for (const p of P) by.set(p.a, (by.get(p.a) || 0) + 1); const [star, n] = [...by.entries()].sort((a, b) => b[1] - a[1])[0], top = Math.min(...P.map((p) => p.pos));
     if (n >= 2) { text = `${sn(star)} takes ${n === 2 ? 'two' : n === 3 ? 'three' : n} places in one move, up to ${ordn(Math.min(...P.filter((p) => p.a === star).map((p) => p.pos)))}`; score += 16; }
@@ -2836,7 +2837,7 @@ function tpMomentsCut(d) {
     if (m.cut || d.time < m.t1 + 2.3) continue; m.cut = true;
     const F = R.frames.filter((f) => f.t >= Math.max(R.frames[0].t, m.t0 - 3.4, m.t1 - 6.4) && f.t <= m.t1 + 2.2); if (F.length < 24) continue;
     const S0 = tpMomentSum(m), lead = m.ev.slice().sort((a, b) => (b.score || 0) - (a.score || 0))[0];
-    const C = TP.clips || (TP.clips = []); C.push({ text: S0.text, cars: [lead.cars[0], lead.cars[1] || m.cars.find((c) => c !== lead.cars[0])].filter(Boolean), t: lead.t, F, score: S0.score });
+    const C = TP.clips || (TP.clips = []); C.push({ text: S0.text, cars: (m.pair || [lead.cars[0], lead.cars[1] || m.cars.find((c) => c !== lead.cars[0])]).filter(Boolean), t: lead.t, F, score: S0.score });
     if (C.length > 10) { let lo = 0; for (let i = 1; i < C.length; i++) if (C[i].score < C[lo].score) lo = i; C.splice(lo, 1); }
   }
   TP.moments = M.filter((m) => !m.cut);

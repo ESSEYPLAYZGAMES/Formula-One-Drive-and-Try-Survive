@@ -204,7 +204,7 @@ export class TVExtras {
         //  off is not an overtake: no banner, no replay, nothing for the highlights)
         if (d.sc?.trouble?.(b) || Math.abs(b.speed) < Math.abs(a.speed) * 0.62 || b.offTrack || b.wreck || b.air) continue;
         { const riv = !!(a.grudge?.has?.(b.careerId) || b.grudge?.has?.(a.careerId)), left = d.lapsTotal - a.lap;
-          this.o.onMoment?.({ kind: 'pass', a, b, pos: i + 1, cars: [a, b], t: d.time, text: `${surname(a)} passes ${surname(b)} for ${ord(i + 1).toLowerCase()}`,
+          this.o.onMoment?.({ kind: 'pass', a, b, pos: i + 1, cars: [a, b], t: d.time, text: `${surname(a)} passes ${surname(b)} for ${i === 0 ? 'the lead' : ord(i + 1)}`,
             score: (i === 0 ? 100 : i <= 2 ? 72 : i <= 5 ? 44 : i <= 9 ? 20 : 6) + (mine(a) || mine(b) ? 16 : 0) + (riv ? 26 : 0) + (a.team === b.team ? 12 : 0) + (left <= 2 ? 22 : 0) }); }
         if (i < 8 || mine(a) || mine(b)) this.o.on?.(i === 0 ? 'passLead' : 'pass', { a: surname(a), b: surname(b), pos: i + 1, mine: mine(a) || mine(b) }); if (i < 10 || mine(a) || mine(b)) { ctx.say?.(`${surname(a)} PASSES ${surname(b)} FOR ${ord(i + 1)}`, mine(a) ? 'good' : mine(b) ? 'bad' : '', 'OVERTAKE'); if (i < 6 || mine(a) || mine(b)) this.event({ text: `${surname(a)} passes ${surname(b)} for ${ord(i + 1).toLowerCase()}`, cars: [a, b], wait: 1.6 }, d); }
       }
@@ -212,7 +212,7 @@ export class TVExtras {
     this.order = idx;
     // a spin, a car out in an accident: a replay offered
     for (const c of P) {
-      if (c.spinning && c.speed > 8 && d.time - (this.spun.get(c) ?? -99) > 20) { this.spun.set(c, d.time); this.o.on?.('spin', { who: surname(c) }); { const pi = P.indexOf(c); this.o.onMoment?.({ kind: 'spin', cars: [c], t: d.time, text: `${surname(c)} spins${pi >= 0 && pi < 6 ? ` out of ${ord(pi + 1).toLowerCase()}` : ''}`, score: (pi >= 0 && pi < 3 ? 58 : pi < 6 ? 40 : pi < 10 ? 20 : 8) + (mine(c) ? 16 : 0) }); } this.event({ text: `${surname(c)} spins`, cars: [c], wait: 2.8 }, d); }
+      if (c.spinning && c.speed > 8 && d.time - (this.spun.get(c) ?? -99) > 20) { this.spun.set(c, d.time); this.o.on?.('spin', { who: surname(c) }); { const pi = P.indexOf(c); this.o.onMoment?.({ kind: 'spin', cars: [c], t: d.time, text: `${surname(c)} spins${pi >= 0 && pi < 6 ? ` out of ${ord(pi + 1)}` : ''}`, score: (pi >= 0 && pi < 3 ? 58 : pi < 6 ? 40 : pi < 10 ? 20 : 8) + (mine(c) ? 16 : 0) }); } this.event({ text: `${surname(c)} spins`, cars: [c], wait: 2.8 }, d); }
       if (c.retired && !this.outSeen.has(c)) { this.outSeen.add(c); if (racing) { this.o.on?.('out', { who: surname(c), why: c.retireReason || 'Retired' }); if (mine(c)) this.o.on?.('outMine', { who: surname(c), team: c.team, car: c }); } if (/accident|crash|collision|torn|wall|rolled|upside/i.test(c.retireReason || '') && racing) this.o.onMoment?.({ kind: 'crash', cars: [c], t: d.time - 1.5, text: `${surname(c)} is out: ${String(c.retireReason || 'an accident').toLowerCase()}`, score: 66 + (mine(c) ? 18 : 0) + (c.wreck || c.air ? 14 : 0) });
         if (/accident|crash|collision|torn|wall/i.test(c.retireReason || '') && racing) this.event({ text: `${surname(c)} is out: ${String(c.retireReason || 'an accident').toLowerCase()}`, cars: [c], wait: 3.2 }, d); }
     }
