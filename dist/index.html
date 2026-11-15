@@ -602,7 +602,7 @@ body.tp #hud-msg { top: 30%; }
     <div class="brand-line"></div>
     <h1 id="brand-title">FORMULA 1<span id="brand-sub">SIMULATOR</span></h1>
     <!-- the build's version: +0.01 with every build handed out -->
-    <span id="app-ver" title="Version">V2.63</span>
+    <span id="app-ver" title="Version">V2.64</span>
     <div id="menu-sub">Real circuits built from OpenStreetMap</div>
   </div>
   <div id="loading" class="hidden"><div class="ld"><i></i></div><span>Building the circuit from OpenStreetMap…</span></div>
@@ -144830,6 +144830,21 @@ const CSS = `
 #strategy .st-rule { display: flex; gap: 9px; font: 500 13px/1.4 var(--k-font); color: #dfe4eb; } #strategy .st-rule::before { content: ''; flex: none; width: 6px; height: 6px; margin-top: 6px; border-radius: 2px; background: #e10600; }
 #strategy .st-side .st-field { white-space: normal; line-height: 1.9; } #strategy .st-side .st-field i:first-child { margin-left: 0; }
 @media (max-width: 900px) { #strategy .st-cards.one { grid-template-columns: minmax(0, 1fr); } #strategy .st-body { overflow-y: auto; } }
+/* (a little neon, as the HQ has: the sheet's edge from pink to cyan, the plan's card lit, the tyres' rings and the bar glowing) */
+#strategy .st-box { border: 1px solid transparent; background: linear-gradient(180deg, rgba(20,11,45,.96), rgba(12,6,32,.97)) padding-box, linear-gradient(140deg, rgba(255,63,164,.7), rgba(155,92,255,.2) 40%, rgba(35,229,255,.65)) border-box; box-shadow: 0 30px 80px -30px rgba(0,0,0,.9), 0 0 60px -30px #ff3fa4, 0 0 70px -36px #23e5ff; }
+#strategy .st-h { text-shadow: 0 0 18px rgba(255,255,255,.25); } #strategy .st-h span { color: #ff3f6e; text-shadow: 0 0 16px rgba(255,63,110,.8), 0 0 34px rgba(255,63,164,.5); }
+#strategy .st-head { border-bottom-color: transparent; box-shadow: 0 1px 0 rgba(255,255,255,.04); position: relative; } #strategy .st-head::after { content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 1px; background: linear-gradient(90deg, #ff3fa4, #9b5cff 50%, #23e5ff); box-shadow: 0 0 10px rgba(255,63,164,.6); }
+#strategy .st-rail li.on i { box-shadow: 0 0 0 3px rgba(255,63,110,.3), 0 0 12px #ff3f6e; }
+#strategy .st-eng { background: rgba(155,92,255,.10); border-left-color: #ff3fa4; box-shadow: -3px 0 14px -4px #ff3fa4; } #strategy .st-eng b { color: #ff6fb8; text-shadow: 0 0 10px rgba(255,63,164,.7); }
+#strategy .st-cards.one .st-card, #strategy .st-cards.one .st-card.st-sel { border: 1px solid transparent; background: linear-gradient(160deg, rgba(70,16,52,.75), rgba(27,16,58,.9) 60%) padding-box, linear-gradient(140deg, #ff3f6e, rgba(255,63,164,.35) 50%, rgba(155,92,255,.3)) border-box; box-shadow: 0 0 34px -14px #ff3f6e; }
+#strategy .st-cards.one .st-card:hover { background: linear-gradient(160deg, rgba(70,16,52,.75), rgba(27,16,58,.9) 60%) padding-box, linear-gradient(140deg, #ff3f6e, rgba(255,63,164,.35) 50%, rgba(155,92,255,.3)) border-box; }
+#strategy .st-cards.one .st-nm b { color: #ff4f7c; text-shadow: 0 0 14px rgba(255,63,110,.75); }
+#strategy .st-cards.one .st-bar { background: #0c0620; box-shadow: 0 0 18px -6px rgba(255,255,255,.35); } #strategy .st-cards.one .st-bar i { box-shadow: inset 0 0 12px rgba(255,255,255,.25); }
+#strategy .st-own button.cp.on { box-shadow: 0 0 12px -1px var(--c); } #strategy .st-own button:hover:not(:disabled) { border-color: #23e5ff; box-shadow: 0 0 12px -3px #23e5ff; }
+#strategy .st-cards.one .st-dt { text-shadow: 0 0 14px rgba(35,229,255,.55); }
+#strategy .st-side { border: 1px solid transparent; background: linear-gradient(180deg, rgba(27,16,58,.9), rgba(20,11,45,.9)) padding-box, linear-gradient(140deg, rgba(155,92,255,.35), rgba(35,229,255,.55)) border-box; box-shadow: 0 0 34px -16px #23e5ff; }
+#strategy .st-side h4 { color: #8fdcf0; text-shadow: 0 0 10px rgba(35,229,255,.5); } #strategy .st-ty i { box-shadow: 0 0 10px -2px var(--c), inset 0 0 8px -3px var(--c); text-shadow: 0 0 8px var(--c); } #strategy .st-rule::before { background: #ff3fa4; box-shadow: 0 0 8px #ff3fa4; }
+#strategy .st-foot { border-top-color: rgba(200,165,255,.16); } #strategy .st-ok { background: linear-gradient(100deg, #ff2d55, #ff3fa4); box-shadow: 0 0 24px -6px #ff3f6e, 0 10px 26px -12px #ff3fa4; text-shadow: 0 1px 1px rgba(0,0,0,.3); } #strategy .st-ok:hover { box-shadow: 0 0 32px -4px #ff3f6e, 0 0 40px -10px #ff3fa4; }
 #strategy .st-own { display: flex; flex-direction: column; gap: 5px; margin-top: 9px; }
 #strategy .st-row { display: flex; align-items: center; gap: 6px; font: 600 11.5px/1 var(--k-font); color: #b9c0cc; white-space: nowrap; }
 #strategy .st-row > span:first-child { width: 44px; flex: none; }
@@ -152255,7 +152270,8 @@ __m['src/ui/HQKit.js'] = (() => {
 // scrolls but the inside of a panel that holds a long list.
 //   panel / kv / meter / ring / seg / person / stat / tag / info: the parts.   NAV, ICON: the rail.
 //   themeOf / themeSet / themeApply: the colours - the accent from the team's own (its first or second colour, or one
-//   picked), on one of three grounds (MIDNIGHT, CARBON, DAYLIGHT), remembered for each team.
+//   picked), on one of four grounds (VICE - the neon one, and the one it opens on - MIDNIGHT, CARBON, DAYLIGHT),
+//   remembered for each team.
 //   techSkin(css): the factory's tech tree (ui/HubTech.js, drawn for a white page) put onto the same colours.
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const money = (m) => `$${(Math.round(m * 10) / 10).toFixed(1)}M`;
@@ -152304,11 +152320,11 @@ const ICON = {
 
 // ---- the colours ------------------------------------------------------------------------------------------------------
 const KEY = 'f1sim-hq-theme';
-const TONES = { midnight: 'Midnight', carbon: 'Carbon', daylight: 'Daylight' };
+const TONES = { vice: 'Vice', midnight: 'Midnight', carbon: 'Carbon', daylight: 'Daylight' };
 const ACCENTS = ['#ff2d55', '#ff8a00', '#ffd400', '#2ee6a6', '#19c8ff', '#4d7cff', '#b98cff', '#ffffff'];
 const all = () => { try { return JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { return {}; } };
 /** the theme kept for a team -> { accent: 'team' | 'team2' | '#rrggbb', tone } */
-function themeOf(team) { const t = all()[team || '_'] || {}; return { accent: t.accent || 'team', tone: TONES[t.tone] ? t.tone : 'midnight' }; }
+function themeOf(team) { const t = all()[team || '_'] || {}; return { accent: t.accent || 'team', tone: TONES[t.tone] ? t.tone : 'vice' }; }
 function themeSet(team, k, v) { const A = all(), t = A[team || '_'] || {}; t[k] = v; A[team || '_'] = t; try { localStorage.setItem(KEY, JSON.stringify(A)); } catch (e) { /* not kept */ } }
 const rgb = (h) => { const m = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(String(h || '').trim()); if (!m) return [136, 136, 136]; let x = m[1]; if (x.length === 3) x = x.replace(/./g, '$&$&'); return [0, 2, 4].map((i) => parseInt(x.slice(i, i + 2), 16)); };
 const hex = (c) => `#${c.map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('')}`;
@@ -152411,6 +152427,62 @@ const HQ_CSS = `
 #mgr button.go { background: var(--ac); border-color: var(--ac); color: var(--ac-ink); box-shadow: 0 6px 18px -6px color-mix(in srgb, var(--ac) 70%, transparent); }
 #mgr button.go:hover:not(:disabled) { background: color-mix(in srgb, var(--ac) 86%, #fff); box-shadow: 0 8px 24px -6px color-mix(in srgb, var(--ac) 85%, transparent); }
 #mgr button.ghost { background: transparent; }
+/* ---- VICE: the ground the HQ opens on. A city at dusk - indigo going to violet, a pink sun low behind the page, cyan
+   in the haze - and neon where it does some good: a line of light along the bar, a pink-to-cyan edge on every
+   panel, a glow under the figures that matter, the rail's light as a tube. The accent is still the team's. */
+#mgr[data-tone="vice"] { --bg: #0c0620; --bg2: #130a2c; --panel: #170d33; --panel2: #231546; --line: rgba(190,150,255,.11); --line2: rgba(200,165,255,.24); --ink: #f6f0ff; --dim: #c5b8e4; --mute: #8a7bb3; --inkrgb: 225,205,255;
+  --n1: #ff3fa4; --n2: #23e5ff; --n3: #9b5cff; --good: #2ff3b0; --warn: #ffc233; --bad: #ff4d7d; }
+#mgr[data-tone="vice"]::before { background:
+  radial-gradient(60% 46% at 50% 108%, rgba(255,63,164,.34), rgba(255,120,80,.10) 45%, transparent 72%),
+  radial-gradient(46% 60% at 100% 0, rgba(35,229,255,.16), transparent 70%),
+  radial-gradient(50% 60% at 0 12%, rgba(155,92,255,.24), transparent 72%),
+  linear-gradient(180deg, #0c0620 0%, #150a33 55%, #2a0f45 100%); }
+/* (the floor: a grid running to the horizon, barely there) */
+#mgr[data-tone="vice"]::after { content: ''; position: absolute; left: -20%; right: -20%; bottom: 0; height: 34%; pointer-events: none; z-index: 0; opacity: .5;
+  background-image: linear-gradient(rgba(255,63,164,.22) 1px, transparent 1px), linear-gradient(90deg, rgba(35,229,255,.16) 1px, transparent 1px); background-size: 100% 26px, 64px 100%;
+  transform: perspective(420px) rotateX(62deg); transform-origin: 50% 100%; -webkit-mask-image: linear-gradient(180deg, transparent, #000 85%); mask-image: linear-gradient(180deg, transparent, #000 85%); }
+#mgr[data-tone="vice"] > * { z-index: 1; } #mgr[data-tone="vice"] .q-top { z-index: 3; }
+#mgr[data-tone="vice"] .q-top { border-bottom-color: transparent; box-shadow: 0 1px 0 rgba(255,255,255,.04); }
+#mgr[data-tone="vice"] .q-top::after { content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: linear-gradient(90deg, var(--n1), var(--n3) 45%, var(--n2)); box-shadow: 0 0 12px rgba(255,63,164,.7), 0 0 26px rgba(35,229,255,.35); opacity: .9; }
+#mgr[data-tone="vice"] .q-brand { background: linear-gradient(100deg, color-mix(in srgb, var(--tc) 34%, transparent), rgba(155,92,255,.10) 70%, transparent); }
+#mgr[data-tone="vice"] .q-mark { box-shadow: 0 0 0 1px rgba(255,255,255,.22) inset, 0 0 18px -2px var(--tc), 0 0 0 1px rgba(255,63,164,.35); }
+#mgr[data-tone="vice"] .q-brand b { text-shadow: 0 0 14px rgba(255,255,255,.35); }
+#mgr[data-tone="vice"] .q-kpi { background: linear-gradient(180deg, rgba(35,21,70,.78), rgba(23,13,51,.78)); border-color: rgba(200,165,255,.2); } #mgr[data-tone="vice"] .q-kpi b { text-shadow: 0 0 12px color-mix(in srgb, var(--ac) 55%, transparent); }
+#mgr[data-tone="vice"] .q-kpi.ok b { text-shadow: 0 0 12px rgba(47,243,176,.6); } #mgr[data-tone="vice"] .q-kpi.bad b { text-shadow: 0 0 12px rgba(255,77,125,.6); }
+/* (a panel: the edge runs from pink to cyan, brighter under the pointer) */
+#mgr[data-tone="vice"] .q-p, #mgr[data-tone="vice"] .q-rc { border: 1px solid transparent; background: linear-gradient(180deg, rgba(27,16,58,.93), rgba(20,11,45,.9)) padding-box, linear-gradient(140deg, rgba(255,63,164,.55), rgba(155,92,255,.16) 38%, rgba(155,92,255,.12) 62%, rgba(35,229,255,.5)) border-box; box-shadow: 0 14px 34px -20px rgba(0,0,0,.8), 0 0 22px -14px var(--n1); transition: box-shadow .3s; }
+#mgr[data-tone="vice"] .q-p:hover, #mgr[data-tone="vice"] .q-rc:hover { box-shadow: 0 14px 34px -20px rgba(0,0,0,.8), 0 0 26px -8px rgba(255,63,164,.55), 0 0 30px -12px rgba(35,229,255,.45); }
+#mgr[data-tone="vice"] .q-p.flat { background: transparent; box-shadow: none; }
+#mgr[data-tone="vice"] .q-p.hero, #mgr[data-tone="vice"] .q-rc.now { background: linear-gradient(135deg, color-mix(in srgb, var(--ac) 30%, #1b103a), rgba(40,18,74,.92) 55%, rgba(20,11,45,.92)) padding-box, linear-gradient(140deg, var(--ac), rgba(255,63,164,.5) 45%, rgba(35,229,255,.65)) border-box; box-shadow: 0 16px 36px -20px rgba(0,0,0,.8), 0 0 30px -10px var(--ac); }
+#mgr[data-tone="vice"] .q-p > header h3 { color: #d9ccff; text-shadow: 0 0 10px rgba(155,92,255,.55); } #mgr[data-tone="vice"] .q-p > header h3::before { background: var(--n1); box-shadow: 0 0 8px var(--n1), 0 0 16px var(--n1); }
+#mgr[data-tone="vice"] .q-huge { text-shadow: 0 0 22px color-mix(in srgb, var(--ac) 60%, transparent), 0 0 2px rgba(255,255,255,.4); } #mgr[data-tone="vice"] .q-big { text-shadow: 0 0 16px rgba(155,92,255,.4); }
+#mgr[data-tone="vice"] .q-map path { stroke: var(--n2); filter: drop-shadow(0 0 6px var(--n2)) drop-shadow(0 0 16px var(--n1)); } #mgr[data-tone="vice"] .q-map { opacity: .62; } #mgr[data-tone="vice"] .q-rc.now svg path { stroke: var(--n2); filter: drop-shadow(0 0 5px var(--n2)); }
+/* (the rail: its light is a tube - pink at the edge, fading across) */
+#mgr[data-tone="vice"] .q-rail { background: linear-gradient(180deg, rgba(19,10,44,.82), rgba(28,12,58,.7)); border-right-color: rgba(200,165,255,.14); } #mgr[data-tone="vice"] .q-rail h5 { color: #8f7cc4; }
+#mgr[data-tone="vice"] .q-ind { background: linear-gradient(90deg, rgba(255,63,164,.3), rgba(155,92,255,.12) 60%, transparent); box-shadow: inset 2px 0 0 var(--n1), -2px 0 14px rgba(255,63,164,.8), 0 0 18px -6px rgba(255,63,164,.6); }
+#mgr[data-tone="vice"] .q-rail button.on { text-shadow: 0 0 12px rgba(255,160,215,.75); } #mgr[data-tone="vice"] .q-rail button.on svg { color: var(--n2); filter: drop-shadow(0 0 5px var(--n2)); } #mgr[data-tone="vice"] .q-rail .bdg { background: var(--n1); color: #fff; box-shadow: 0 0 10px var(--n1); }
+/* (buttons: the edge lights under the pointer; the one that does the thing glows) */
+#mgr[data-tone="vice"] button { background: rgba(40,24,80,.6); border-color: rgba(200,165,255,.28); }
+#mgr[data-tone="vice"] button:hover:not(:disabled) { border-color: var(--n2); background: rgba(35,229,255,.10); box-shadow: 0 0 14px -4px var(--n2), inset 0 0 12px -8px var(--n2); color: #fff; }
+#mgr[data-tone="vice"] button.go { background: linear-gradient(100deg, var(--ac), color-mix(in srgb, var(--ac) 62%, var(--n1))); border-color: color-mix(in srgb, var(--ac) 70%, #fff); box-shadow: 0 0 18px -4px var(--ac), 0 8px 22px -10px var(--n1); text-shadow: 0 1px 1px rgba(0,0,0,.25); }
+#mgr[data-tone="vice"] button.go:hover:not(:disabled) { background: linear-gradient(100deg, color-mix(in srgb, var(--ac) 86%, #fff), color-mix(in srgb, var(--ac) 55%, var(--n1))); box-shadow: 0 0 26px -2px var(--ac), 0 0 34px -8px var(--n1); border-color: #fff; }
+#mgr[data-tone="vice"] .q-rail button, #mgr[data-tone="vice"] .q-seg button, #mgr[data-tone="vice"] .q-thc button { box-shadow: none; } #mgr[data-tone="vice"] .q-rail button { background: transparent; border: 0; } #mgr[data-tone="vice"] .q-rail button:hover:not(:disabled) { background: rgba(155,92,255,.14); box-shadow: none; }
+#mgr[data-tone="vice"] .q-seg { background: rgba(12,6,32,.6); border-color: rgba(200,165,255,.2); } #mgr[data-tone="vice"] .q-seg button { background: transparent; border: 0; } #mgr[data-tone="vice"] .q-seg button.on { background: linear-gradient(100deg, var(--ac), color-mix(in srgb, var(--ac) 65%, var(--n1))); box-shadow: 0 0 14px -3px var(--ac); }
+#mgr[data-tone="vice"] .q-seg button:hover:not(.on):not(:disabled) { background: rgba(155,92,255,.2); box-shadow: none; }
+#mgr[data-tone="vice"] .q-m { background: rgba(200,165,255,.13); } #mgr[data-tone="vice"] .q-m i { background: linear-gradient(90deg, color-mix(in srgb, var(--mc, var(--ac)) 78%, #000), var(--mc, var(--ac))); box-shadow: 0 0 10px color-mix(in srgb, var(--mc, var(--ac)) 80%, transparent); }
+#mgr[data-tone="vice"] .q-ring { filter: drop-shadow(0 0 7px color-mix(in srgb, var(--rc) 65%, transparent)); background: conic-gradient(var(--rc) calc(var(--p) * 1%), rgba(200,165,255,.14) 0); }
+#mgr[data-tone="vice"] .q-tag.ac { box-shadow: 0 0 10px -3px var(--ac); } #mgr[data-tone="vice"] .q-dc, #mgr[data-tone="vice"] .q-card, #mgr[data-tone="vice"] .q-sp { background: rgba(155,92,255,.08); border-color: rgba(200,165,255,.16); }
+#mgr[data-tone="vice"] .q-dc .no { color: var(--n2); text-shadow: 0 0 14px rgba(35,229,255,.7); opacity: 1; } #mgr[data-tone="vice"] .q-res em, #mgr[data-tone="vice"] .q-prz .me { text-shadow: 0 0 10px var(--ac); }
+#mgr[data-tone="vice"] tr.me td { background: linear-gradient(90deg, color-mix(in srgb, var(--ac) 22%, transparent), rgba(255,63,164,.06)); } #mgr[data-tone="vice"] tr.me td:first-child { box-shadow: inset 2px 0 0 var(--n1), -2px 0 12px rgba(255,63,164,.6); } #mgr[data-tone="vice"] th { background: #170d33; color: #9b8cc8; }
+#mgr[data-tone="vice"] .q-pips i.on { background: linear-gradient(90deg, var(--n1), var(--n2)); box-shadow: 0 0 10px rgba(255,63,164,.6); }
+#mgr[data-tone="vice"] .q-toast, #mgr[data-tone="vice"] .q-theme, #mgr[data-tone="vice"] .q-tip { background: #20123f; } #mgr[data-tone="vice"] .q-theme { border-color: rgba(35,229,255,.4); box-shadow: 0 24px 50px -16px rgba(0,0,0,.8), 0 0 26px -10px var(--n2); }
+#mgr[data-tone="vice"] .q-chk i { box-shadow: 0 0 9px -1px currentColor; } #mgr[data-tone="vice"] .q-verdict.good { box-shadow: 0 0 24px -8px var(--good); } #mgr[data-tone="vice"] .q-verdict.bad { box-shadow: 0 0 24px -8px var(--bad); }
+#mgr[data-tone="vice"] .q-teams button { border: 1px solid transparent; background: linear-gradient(150deg, color-mix(in srgb, var(--c) 40%, #1b103a), #170d33 74%) padding-box, linear-gradient(140deg, var(--c), rgba(155,92,255,.2) 50%, rgba(35,229,255,.4)) border-box; box-shadow: none; } #mgr[data-tone="vice"] .q-teams button.on { box-shadow: 0 0 0 2px var(--c), 0 0 28px -4px var(--c); } #mgr[data-tone="vice"] .q-teams button:hover:not(:disabled) { box-shadow: 0 0 22px -6px var(--c); background: linear-gradient(150deg, color-mix(in srgb, var(--c) 52%, #1b103a), #170d33 80%) padding-box, linear-gradient(140deg, var(--c), rgba(35,229,255,.5)) border-box; }
+/* (the factory: its own cards take the same edge; the branch that is open and the upgrade picked glow in the branch's colour) */
+#mgr[data-tone="vice"] .q-fac .tt-bh, #mgr[data-tone="vice"] .q-fac .tt-q, #mgr[data-tone="vice"] .q-fac .tt-det, #mgr[data-tone="vice"] .q-fac .tt-fac > * { border: 1px solid transparent; background: linear-gradient(180deg, rgba(27,16,58,.93), rgba(20,11,45,.9)) padding-box, linear-gradient(140deg, rgba(255,63,164,.45), rgba(155,92,255,.14) 40%, rgba(35,229,255,.42)) border-box; }
+#mgr[data-tone="vice"] .q-fac .tt-bh { background: linear-gradient(135deg, color-mix(in srgb, var(--c) 22%, #1b103a), rgba(20,11,45,.92) 70%) padding-box, linear-gradient(140deg, var(--c), rgba(155,92,255,.2) 50%, rgba(35,229,255,.45)) border-box; }
+#mgr[data-tone="vice"] .q-fac button.tt-br.on, #mgr[data-tone="vice"] .q-fac button.tt-up.sel { box-shadow: 0 0 0 1px var(--c), 0 0 20px -4px var(--c); } #mgr[data-tone="vice"] .q-fac .tt-pp i.on, #mgr[data-tone="vice"] .q-fac .tt-prog i { box-shadow: 0 0 8px color-mix(in srgb, var(--c) 70%, transparent); }
+#mgr[data-tone="vice"] .q-fac button.tt-br:hover, #mgr[data-tone="vice"] .q-fac button.tt-up:hover, #mgr[data-tone="vice"] .q-fac button.tt-sp:hover { box-shadow: 0 0 16px -5px var(--c); border-color: var(--c); background-color: transparent; }
 /* ---- the bar */
 #mgr .q-top { grid-column: 1 / -1; display: flex; align-items: center; gap: 18px; padding: 0 16px 0 0; background: color-mix(in srgb, var(--bg2) 86%, transparent); border-bottom: 1px solid var(--line); backdrop-filter: blur(8px); z-index: 3; }
 #mgr .q-brand { width: 196px; flex: none; height: 100%; display: flex; align-items: center; gap: 10px; padding: 0 14px; background: linear-gradient(100deg, color-mix(in srgb, var(--tc) 30%, transparent), transparent); border-right: 1px solid var(--line); min-width: 0; }

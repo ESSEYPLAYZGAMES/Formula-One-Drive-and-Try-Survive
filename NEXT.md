@@ -1,3 +1,23 @@
+# V2.64 (2026-11-15): VICE - the HQ and the strategy screen in neon
+
+Asked for: "give it a little touch up so it's all cool and neon, not overkill ut effective highlights ... vice city
+vibes".
+
+## VICE (ui/HQKit.js: a fourth ground, and the one the HQ now opens on)
+- A city at dusk behind the page: indigo going to violet, a pink sun low under it, cyan in the haze at the top
+  right, and a grid floor running to the horizon that is barely there.
+- Neon where it does some good, and no more: a line of light (pink to violet to cyan) under the top bar; every
+  panel's edge running from pink to cyan, brighter under the pointer; the next race's circuit drawn as a cyan tube
+  with a pink glow; the rail's light as a pink tube; the big figures, the ratings' rings and the meters with a soft
+  glow of their own colour; your row in a table lit from its edge; the button that does the thing glowing.
+- The accent is still the team's (buttons, meters, the hero panel); VICE adds the pink and cyan round it.
+- The factory's tree takes the same edges, the open branch and the picked upgrade glowing in the branch's colour.
+- MIDNIGHT, CARBON and DAYLIGHT are still in the colours panel; a ground you had already chosen is kept.
+
+## The strategy screen
+- The same touch: the sheet's edge from pink to cyan, the plan's card lit in red-pink, the tyre chosen for each
+  stint glowing, the tyres' rings and the headings in neon.
+
 # V2.63 (2026-11-15): the factory on one screen, the strategy screen balanced, highlights that matter, quicker cutscenes
 
 Asked for: "rebuild the factory tech tree too so it doesnt scroll"; "fix the strategy screen so it's balanced nicely,

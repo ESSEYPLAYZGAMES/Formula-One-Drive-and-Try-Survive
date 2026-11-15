@@ -110,6 +110,21 @@ const CSS = `
 #strategy .st-rule { display: flex; gap: 9px; font: 500 13px/1.4 var(--k-font); color: #dfe4eb; } #strategy .st-rule::before { content: ''; flex: none; width: 6px; height: 6px; margin-top: 6px; border-radius: 2px; background: #e10600; }
 #strategy .st-side .st-field { white-space: normal; line-height: 1.9; } #strategy .st-side .st-field i:first-child { margin-left: 0; }
 @media (max-width: 900px) { #strategy .st-cards.one { grid-template-columns: minmax(0, 1fr); } #strategy .st-body { overflow-y: auto; } }
+/* (a little neon, as the HQ has: the sheet's edge from pink to cyan, the plan's card lit, the tyres' rings and the bar glowing) */
+#strategy .st-box { border: 1px solid transparent; background: linear-gradient(180deg, rgba(20,11,45,.96), rgba(12,6,32,.97)) padding-box, linear-gradient(140deg, rgba(255,63,164,.7), rgba(155,92,255,.2) 40%, rgba(35,229,255,.65)) border-box; box-shadow: 0 30px 80px -30px rgba(0,0,0,.9), 0 0 60px -30px #ff3fa4, 0 0 70px -36px #23e5ff; }
+#strategy .st-h { text-shadow: 0 0 18px rgba(255,255,255,.25); } #strategy .st-h span { color: #ff3f6e; text-shadow: 0 0 16px rgba(255,63,110,.8), 0 0 34px rgba(255,63,164,.5); }
+#strategy .st-head { border-bottom-color: transparent; box-shadow: 0 1px 0 rgba(255,255,255,.04); position: relative; } #strategy .st-head::after { content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 1px; background: linear-gradient(90deg, #ff3fa4, #9b5cff 50%, #23e5ff); box-shadow: 0 0 10px rgba(255,63,164,.6); }
+#strategy .st-rail li.on i { box-shadow: 0 0 0 3px rgba(255,63,110,.3), 0 0 12px #ff3f6e; }
+#strategy .st-eng { background: rgba(155,92,255,.10); border-left-color: #ff3fa4; box-shadow: -3px 0 14px -4px #ff3fa4; } #strategy .st-eng b { color: #ff6fb8; text-shadow: 0 0 10px rgba(255,63,164,.7); }
+#strategy .st-cards.one .st-card, #strategy .st-cards.one .st-card.st-sel { border: 1px solid transparent; background: linear-gradient(160deg, rgba(70,16,52,.75), rgba(27,16,58,.9) 60%) padding-box, linear-gradient(140deg, #ff3f6e, rgba(255,63,164,.35) 50%, rgba(155,92,255,.3)) border-box; box-shadow: 0 0 34px -14px #ff3f6e; }
+#strategy .st-cards.one .st-card:hover { background: linear-gradient(160deg, rgba(70,16,52,.75), rgba(27,16,58,.9) 60%) padding-box, linear-gradient(140deg, #ff3f6e, rgba(255,63,164,.35) 50%, rgba(155,92,255,.3)) border-box; }
+#strategy .st-cards.one .st-nm b { color: #ff4f7c; text-shadow: 0 0 14px rgba(255,63,110,.75); }
+#strategy .st-cards.one .st-bar { background: #0c0620; box-shadow: 0 0 18px -6px rgba(255,255,255,.35); } #strategy .st-cards.one .st-bar i { box-shadow: inset 0 0 12px rgba(255,255,255,.25); }
+#strategy .st-own button.cp.on { box-shadow: 0 0 12px -1px var(--c); } #strategy .st-own button:hover:not(:disabled) { border-color: #23e5ff; box-shadow: 0 0 12px -3px #23e5ff; }
+#strategy .st-cards.one .st-dt { text-shadow: 0 0 14px rgba(35,229,255,.55); }
+#strategy .st-side { border: 1px solid transparent; background: linear-gradient(180deg, rgba(27,16,58,.9), rgba(20,11,45,.9)) padding-box, linear-gradient(140deg, rgba(155,92,255,.35), rgba(35,229,255,.55)) border-box; box-shadow: 0 0 34px -16px #23e5ff; }
+#strategy .st-side h4 { color: #8fdcf0; text-shadow: 0 0 10px rgba(35,229,255,.5); } #strategy .st-ty i { box-shadow: 0 0 10px -2px var(--c), inset 0 0 8px -3px var(--c); text-shadow: 0 0 8px var(--c); } #strategy .st-rule::before { background: #ff3fa4; box-shadow: 0 0 8px #ff3fa4; }
+#strategy .st-foot { border-top-color: rgba(200,165,255,.16); } #strategy .st-ok { background: linear-gradient(100deg, #ff2d55, #ff3fa4); box-shadow: 0 0 24px -6px #ff3f6e, 0 10px 26px -12px #ff3fa4; text-shadow: 0 1px 1px rgba(0,0,0,.3); } #strategy .st-ok:hover { box-shadow: 0 0 32px -4px #ff3f6e, 0 0 40px -10px #ff3fa4; }
 #strategy .st-own { display: flex; flex-direction: column; gap: 5px; margin-top: 9px; }
 #strategy .st-row { display: flex; align-items: center; gap: 6px; font: 600 11.5px/1 var(--k-font); color: #b9c0cc; white-space: nowrap; }
 #strategy .st-row > span:first-child { width: 44px; flex: none; }
