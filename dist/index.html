@@ -602,7 +602,7 @@ body.tp #hud-msg { top: 30%; }
     <div class="brand-line"></div>
     <h1 id="brand-title">FORMULA 1<span id="brand-sub">SIMULATOR</span></h1>
     <!-- the build's version: +0.01 with every build handed out -->
-    <span id="app-ver" title="Version">V2.57</span>
+    <span id="app-ver" title="Version">V2.58</span>
     <div id="menu-sub">Real circuits built from OpenStreetMap</div>
   </div>
   <div id="loading" class="hidden"><div class="ld"><i></i></div><span>Building the circuit from OpenStreetMap…</span></div>
@@ -197843,7 +197843,7 @@ function exitPhoto() {
   PHOTO.on = false; PHOTO.drag = false; canvas.style.cursor = ''; showPhotoPanel(false);
   // (the racing line as the race has it now - your setting, a session running, no crash view or news on the screen -
   //  never a state remembered from before: it cannot stay hidden after a photo)
-  if (RL.group) RL.group.visible = RL.on && !!S.director && !POV.on && !NEWS.on;
+  if (RL.group) RL.group.visible = lineShown() && !!S.director && !POV.on && !NEWS.on;
   $('photo-hint').classList.add('hidden'); $('hud').classList.remove('hidden'); $('pause').classList.remove('hidden');
   // the camera goes back to the car - where it is now, looking the way it is pointing - so the paused view shows where
   // you are going (with no car to follow, back where it was)
@@ -198356,7 +198356,7 @@ function makeDirector(mode, cars, player, extra = {}) {
   if (player && W.pitBoxes) W.pitBoxes.setPlayer(player.boxIdx ?? 0, player.name);   // your garage: cyan box + marker
   if (S.spectating && wk?.mode !== 'tp') hud.msg(`${wk?.career?.noSeat ? 'NO SEAT THIS WEEKEND' : 'STOOD DOWN'} · WATCHING ${S.player.name.toUpperCase()}\nEnter: fast-forward · Tab: next car`, 'warn', 6);
   else if (player?.standInFor) hud.msg(standInBanner(player), 'warn', 6);   // (your driver hurt, or banned: you race their stand-in)
-  ensureRacingLine(); RL.group.visible = RL.on;
+  ensureRacingLine(); RL.group.visible = wk?.mode === 'tp' ? false : RL.on;   // (the broadcast has no racing line painted on its road unless you ask for it: L - tpStart)
   S.crews?.dispose(); S.crews = W.pit ? new PitCrews(scene, 5, S.meshes, W.time === 'night') : null;   // (the crews: a whole stop, choreographed - world/PitCrew.js)
   S.fireworks?.dispose(); S.fireworks = W.def.id === 'lasvegas' && mode === 'race' ? new Fireworks(scene) : null;   // (the Strip's fireworks for the winner)
   S.flags?.dispose(); S.flags = new Marshals(scene, W.track, W.pit);       // (the marshal posts' flags: an incident, blue flags, the chequered flag)
@@ -198818,7 +198818,7 @@ function tpPeople(what, car) { const C = S.weekend?.mgr; if (C?.onRaceEvent) try
 /** a session of the weekend starts: your cars taken over, the feed's graphics and the pit wall up */
 function tpStart() {
   const d = S.director; if (!d) return;
-  TP.on = true; TP.speed = 1; TP.paused = false; TP.cam = 'auto'; TP.seen = new Map(); TP.orderSeen = 0; TP.wxState = {}; TP.scWas = false; TP.alertT = 0;
+  TP.on = true; TP.line = false; if (RL.group) RL.group.visible = false; TP.speed = 1; TP.paused = false; TP.cam = 'auto'; TP.seen = new Map(); TP.orderSeen = 0; TP.wxState = {}; TP.scWas = false; TP.alertT = 0;
   TP.cars = tpCars(S.cars);
   const story = d.mode === 'race' && S.weekend?.mgr ? (() => { try { return storyTrack(S.weekend.mgr); } catch (e) { return null; } })() : null;   // (the feud, the grudges, the fans: career/ManagerStory.js)
   TP.touch = new Map(); if (d.mode === 'race') TP.log = [];
@@ -199905,7 +199905,7 @@ function endFlashbackIfOpen() { if (S.fb) endFlashback(false); }
 function cancelScreen() {
   if (POV.on) povEnd();
   blackout().style.opacity = '0'; if (visorEl) visorEl.style.display = 'none';
-  hud.show(); $('hud').classList.remove('hidden'); input.enabled = true; if (RL.group) RL.group.visible = RL.on;
+  hud.show(); $('hud').classList.remove('hidden'); input.enabled = true; if (RL.group) RL.group.visible = lineShown();
 }
 /**
  * A flashback out of a cancelled race: the state is back to before the accident (RaceDirector stops recording once a
@@ -200707,8 +200707,10 @@ function colourLine(mesh, sFn, car, gripF, forceRed = null) {
   }
   col.needsUpdate = true;
 }
+/** is the racing line drawn on the road? driving: your setting (L); the team principal's broadcast: off unless asked for there (L) */
+function lineShown() { return TP.on ? !!TP.line : RL.on; }
 function updateRacingLine(car) {
-  if (!RL.on || !RL.group || !car) return;
+  if (!lineShown() || !RL.group || !car) return;
   const now = performance.now(); if (now - (RL.lastT || 0) < 50) return; RL.lastT = now;   // recolouring ~3000 points: 20 Hz is enough
   const tr = W.track, L = tr.length;
   const aB = Math.sqrt(car.tyres.grip(car.wetness) / 1.0) * (1 - 0.1 * car.wetness);   // corner speeds scale with the root of the grip (cold, worn or wet tyres: slower)
@@ -201158,7 +201160,10 @@ function frame(now) {
     else if (d && !S.paused && !d.done && !hud.pit.open && !FINALE.on && !NEWS.fading && input.pressed('Backspace')) startFlashback();   // (a red flag too: back to before the accident, and it never happened)
     if (input.pressed('KeyV')) camCtl.toggle();
     camCtl.lookIn = input.look; camCtl.back = input.lookBack;   // Q / E look left / right, C look back (updated with the input below)
-    if (input.pressed('KeyL') && d) {
+    if (input.pressed('KeyL') && d && TP.on) {
+      // (the broadcast's own switch: it never comes on by itself - not with the session, not when the formation lap ends - and it is not your driving setting)
+      TP.line = !TP.line; ensureRacingLine(); RL.group.visible = TP.line; RL.lastT = 0; hud.msg(TP.line ? 'RACING LINE ON' : 'RACING LINE OFF', '', 1.2);
+    } else if (input.pressed('KeyL') && d) {
       RL.on = !RL.on; ensureRacingLine(); RL.group.visible = RL.on; hud.msg(RL.on ? 'RACING LINE ON' : 'RACING LINE OFF', '', 1.2);
       for (const b of document.querySelectorAll('#opt-line button')) b.classList.toggle('sel', b.dataset.v === (RL.on ? 'on' : 'off'));   // the setup option follows
     }

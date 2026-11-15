@@ -1,3 +1,17 @@
+# V2.58 (2026-11-15): no racing line on the broadcast unless asked for
+
+Asked for: "stop racing line automatically going on when the formation lap ends".
+
+- Why it did: the team principal's broadcast took the racing line from your driving setting (on, unless you had
+  turned it off). During the formation lap the race is held, so the line was never coloured in and could not be
+  seen; the moment the lap ended and the race ran, it was.
+- Now the broadcast has its own switch, off at the start of every session: nothing is painted on the road when the
+  session begins or when the formation lap ends. L puts it on and takes it off there (RACING LINE ON / OFF), and
+  does not change the setting you drive with. (main.js lineShown, tpStart, the L key.)
+- Driving is as it was: your setting, L to change it.
+- Checked: by reading (the three places that showed the line now ask lineShown); a seeded race in the other modes
+  identical to V2.45-V2.57. Not run: a team principal's race in a browser.
+
 # V2.57 (2026-11-15): rain on the glass - the visor's, and every camera's own with the cut
 
 Asked for: "yeah add raindrops, also when switching cams there's a lil delay between the updated raindrops (cool
