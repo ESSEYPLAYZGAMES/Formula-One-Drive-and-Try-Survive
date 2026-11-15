@@ -6,11 +6,12 @@
 // gap); race control's messages (the safety car, a retirement, a stop and its time, the fastest lap, a penalty); and the
 // camera's name. Plain DOM, built once and only written where a value changed.
 import { COMPOUNDS } from '../vehicle/Tyres.js';
+import { TVStewards } from './TVStewards.js';
 
 const CSS = `
 #tvg { --tvf: "Segoe UI Variable", "Segoe UI", Inter, system-ui, Roboto, sans-serif; position: fixed; inset: 0; pointer-events: none; z-index: 22; font-family: "Segoe UI Variable", "Segoe UI", Inter, system-ui, Roboto, sans-serif; color: #fff; }
 #tvg.hidden { display: none; }
-#tvg .tower { position: absolute; left: 14px; top: 14px; width: 214px; background: rgba(12,14,20,.86); border-radius: 6px; overflow: hidden; pointer-events: auto; box-shadow: 0 6px 22px rgba(0,0,0,.35); }
+#tvg .tower { position: absolute; left: 14px; top: 14px; width: 242px; background: rgba(12,14,20,.86); border-radius: 6px; overflow: hidden; pointer-events: auto; box-shadow: 0 6px 22px rgba(0,0,0,.35); }
 #tvg .th { display: flex; align-items: center; justify-content: space-between; padding: 7px 10px 6px; background: #e10600; font: 800 13px/1 var(--tvf); letter-spacing: .06em; }
 #tvg .th b { font-weight: 900; } #tvg .th small { font-weight: 700; font-size: 10px; letter-spacing: .14em; opacity: .9; }
 #tvg .flag { height: 4px; background: transparent; transition: background .3s; }
@@ -119,8 +120,8 @@ export class TVGraphics {
     // the rows
     while (this.rows.length < P.length) {
       const r = document.createElement('div'); r.className = 'r'; r.dataset.i = this.rows.length;
-      r.innerHTML = '<span class="p"></span><span class="tc"></span><span class="cd"></span><span class="g"></span><span class="ty"></span><span class="sx"><u></u><u></u><u></u></span>';
-      this.rowsEl.appendChild(r); this.rows.push({ el: r, p: r.children[0], tc: r.children[1], cd: r.children[2], g: r.children[3], ty: r.children[4], sx: r.children[5], k: '' });
+      r.innerHTML = '<span class="p"></span><span class="tc"></span><span class="cd"></span><span class="g"></span><span class="ty"></span><span class="sx"><u></u><u></u><u></u></span><span class="st"></span>';
+      this.rowsEl.appendChild(r); this.rows.push({ el: r, p: r.children[0], tc: r.children[1], cd: r.children[2], g: r.children[3], ty: r.children[4], sx: r.children[5], st: r.children[6], k: '', stk: '' });
     }
     this.cars = P.slice();
     const nowMs = performance.now(); if (!this.pidx) { this.pidx = new Map(); this.pfl = new Map(); }
@@ -140,12 +141,16 @@ export class TVGraphics {
       }
       const k = c.tyres?.compound || 'SOFT';
       const sxk = ctx.sectors ? ctx.sectors(c) : '';   // (its sectors' colours: purple, green, yellow - ui/TVShow.js sectorChips)
-      const key = `${i}|${c.name}|${g}|${gc}|${k}|${focus.includes(c) ? 1 : 0}|${c === on ? 1 : 0}|${c.retired ? 1 : 0}|${fd}|${sxk}`;
+      // (a car that has taken the chequered flag: marked - who is still racing and who is done)
+      const fin = c.finished && !c.retired && d.mode === 'race';
+      const s0 = ctx.status ? ctx.status(c) : '', stk = fin ? ['fin', ...s0.split(',').filter(Boolean)].slice(0, 2).join(',') : s0;   // (the stewards' marks: under investigation, a place to give back, seconds to serve, the flag - ui/TVStewards.js)
+      if (stk !== R.stk) { R.stk = stk; R.st.innerHTML = TVStewards.marks(stk); }
+      const key = `${i}|${c.name}|${g}|${gc}|${k}|${focus.includes(c) ? 1 : 0}|${c === on ? 1 : 0}|${c.retired ? 1 : 0}|${fd}|${sxk}|${fin ? 1 : 0}`;
       if (key === R.k) continue; R.k = key;
       R.p.textContent = fd === 'up' ? '▲' : fd === 'dn' ? '▼' : i + 1; R.p.className = `p ${fd}`; R.tc.style.background = c.color; R.cd.textContent = code(c); R.g.textContent = g; R.g.className = `g ${gc}`;
       R.ty.style.borderColor = COMPOUNDS[k]?.color || '#fff'; R.ty.textContent = c.retired ? '' : LETTER[k] || '';
       { const S3 = sxk.split(','); for (let q = 0; q < 3; q++) R.sx.children[q].className = c.retired ? '' : S3[q] || ''; }
-      R.el.className = `r${focus.includes(c) ? ' mine' : ''}${c === on ? ' on' : ''}${c.retired ? ' dnf' : ''}`;
+      R.el.className = `r${focus.includes(c) ? ' mine' : ''}${c === on ? ' on' : ''}${c.retired ? ' dnf' : ''}${fin ? ' fin' : ''}`;
     }
     for (let i = P.length; i < this.rows.length; i++) this.rows[i].el.style.display = 'none';
   }
@@ -163,7 +168,7 @@ export class TVGraphics {
         p.stops = c.pitStops;
       }
       if (c.retired && !p.retired) { p.retired = true; if (racing) this.rc(`${c.name} · ${c.retireReason || 'retired'}`, 'bad', 'RETIREMENT'); }
-      const pen = c.penalties || 0; if (pen > p.pen) this.rc(`${c.name} · ${pen - p.pen} s time penalty`, 'warn', 'PENALTY'); p.pen = pen;
+      p.pen = c.penalties || 0;   // (a penalty is the stewards' card now: ui/TVStewards.js)
       if (racing && isFinite(c.bestLap) && c.bestLap < this.best - 1e-6 && c.lapTimes?.length >= 2) {
         const first = this.best === Infinity; this.best = c.bestLap;
         if (!first) { this.rc(`${c.name} · ${fmtLap(c.bestLap)}`, 'purple', 'FASTEST LAP'); this.onFastest?.(c, fmtLap(c.bestLap)); }

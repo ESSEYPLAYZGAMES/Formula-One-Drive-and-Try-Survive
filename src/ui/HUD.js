@@ -291,7 +291,7 @@ export class HUD {
         // the tyre: compound letter in its colour; penalties still to serve (+5s / +10s / drive-through) beside the name
         const cmp = COMPOUNDS[c.tyres.compound], letter = c.tyres.compound[0];
         const pen = c.dsq ? '<span class="pen dsq">DSQ</span>' : c.penalties > 0 ? `<span class="pen">+${Math.round(c.penalties)}s</span>` : c.driveThrough ? '<span class="pen">DT</span>' : '';
-        html += `<div class="srow${c === p ? ' me' : ''}"><span>${i + 1}</span><span class="sw" style="background:${c.color}"></span><span>${c.short}${c.inPit || c.pitLane ? ' ⛽' : ''}${pen}</span><span class="tyre" style="color:${cmp.color}">${letter}</span><span style="text-align:right">${g}</span></div>`;
+        html += `<div class="srow${c === p ? ' me' : ''}"><span>${i + 1}</span><span class="sw" style="background:${c.color}"></span><span>${c.short}${c.finished && !c.retired ? ' 🏁' : c.inPit || c.pitLane ? ' ⛽' : ''}${pen}</span><span class="tyre" style="color:${cmp.color}">${letter}</span><span style="text-align:right">${g}</span></div>`;
       });
       if (html !== this._stHTML) { this._stHTML = html; $('standings').innerHTML = html; }   // (the DOM only touched when it changed)
     } else if (mode !== 'race' && this._stHTML !== '') { this._stHTML = ''; $('standings').innerHTML = ''; }

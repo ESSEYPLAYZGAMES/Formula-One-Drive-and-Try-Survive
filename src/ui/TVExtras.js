@@ -38,14 +38,40 @@ const CSS = `
 #tvg .xc .sp { display: flex; align-items: flex-end; gap: 2px; height: 16px; padding: 0 10px 8px; background: rgba(255,255,255,.06); }
 #tvg .xc .sp i { flex: 1; background: #1f6feb; border-radius: 1px; min-height: 2px; }
 #tvg .xc.pst .xg b { font-size: 30px; } #tvg .xc.pst.done .xg b { color: #3ddc84; }
-#tvg .rpo { pointer-events: auto; cursor: pointer; display: flex; align-items: center; gap: 10px; background: rgba(12,14,20,.94); border: 1px solid rgba(255,255,255,.25); border-left: 4px solid #ffd400; border-radius: 6px; padding: 8px 12px; font: 700 12px/1.25 var(--tvf); max-width: 300px; position: relative; overflow: hidden; transform: translateX(24px); opacity: 0; transition: opacity .25s, transform .3s; }
-#tvg .rpo.in { transform: none; opacity: 1; } #tvg .rpo:hover { border-color: #fff; }
-#tvg .rpo kbd { font: 900 11px/1 var(--tvf); border: 1.5px solid #ffd400; color: #ffd400; border-radius: 4px; padding: 3px 6px; }
-#tvg .rpo small { display: block; font: 800 9px/1 var(--tvf); letter-spacing: .2em; color: #ffd400; margin-bottom: 3px; }
-#tvg .rpo i { position: absolute; left: 0; bottom: 0; height: 2px; width: 100%; background: #ffd400; transform-origin: 0 50%; }
-#tvg .rbug { position: absolute; left: 50%; top: 14px; transform: translateX(-50%); display: none; align-items: center; gap: 10px; background: #e10600; padding: 8px 16px; font: 900 14px/1 var(--tvf); letter-spacing: .3em; border-radius: 4px; pointer-events: auto; cursor: pointer; }
-#tvg .rbug.on { display: flex; } #tvg .rbug small { font: 700 10px/1 var(--tvf); letter-spacing: .12em; opacity: .9; }
-#tvg .rbug::before { content: ''; width: 9px; height: 9px; border-radius: 50%; background: #fff; animation: tvgBlink 1s infinite; }
+/* the replay's offer: a chip of neon - its key pops, its words unroll from it, its clock a line of light running out;
+   taken, it flares and folds; left, it folds away */
+#tvg .rpo { --n: #ffd400; pointer-events: auto; cursor: pointer; display: flex; align-items: center; gap: 10px; background: linear-gradient(90deg, rgba(9,11,17,.95), rgba(9,11,17,.8)); border: 1px solid color-mix(in srgb, var(--n) 60%, transparent); border-radius: 7px; padding: 8px 14px 9px 10px; font: 700 12px/1.25 var(--tvf); max-width: 310px; position: relative; overflow: hidden;
+  box-shadow: 0 0 14px color-mix(in srgb, var(--n) 35%, transparent), inset 0 0 16px color-mix(in srgb, var(--n) 12%, transparent); clip-path: inset(0 0 0 100%); opacity: 0; transition: clip-path .4s cubic-bezier(.2,.8,.2,1), opacity .15s, box-shadow .2s, border-color .2s; }
+#tvg .rpo.in { clip-path: inset(0 0 0 0); opacity: 1; } #tvg .rpo:hover { --n: #fff; }
+#tvg .rpo.took { --n: #ff2d75; animation: rpoTook .45s ease-out forwards; }
+#tvg .rpo kbd { font: 900 12px/1 var(--tvf); border: 1.5px solid var(--n); color: var(--n); border-radius: 5px; padding: 5px 8px; box-shadow: 0 0 10px color-mix(in srgb, var(--n) 60%, transparent), inset 0 0 8px color-mix(in srgb, var(--n) 30%, transparent); text-shadow: 0 0 8px var(--n); transform: scale(0); transition: transform .3s cubic-bezier(.3,1.6,.5,1) .22s; }
+#tvg .rpo.in kbd { transform: none; }
+#tvg .rpo small { display: block; font: 900 9px/1 var(--tvf); letter-spacing: .24em; color: var(--n); text-shadow: 0 0 9px color-mix(in srgb, var(--n) 70%, transparent); margin-bottom: 4px; }
+#tvg .rpo i { position: absolute; left: 0; bottom: 0; height: 2px; width: 100%; background: var(--n); box-shadow: 0 0 9px var(--n); transform-origin: 0 50%; }
+#tvg .rpo::after { content: ''; position: absolute; top: 0; bottom: 0; left: -40%; width: 30%; background: linear-gradient(90deg, transparent, rgba(255,255,255,.22), transparent); transform: skewX(-18deg); }
+#tvg .rpo.in::after { animation: rpoSheen 2.4s ease-in-out .5s infinite; }
+@keyframes rpoSheen { 0% { left: -40%; } 45%, 100% { left: 120%; } }
+@keyframes rpoTook { 0% { clip-path: inset(0 0 0 0); opacity: 1; filter: brightness(2.2); } 40% { clip-path: inset(0 0 0 0); opacity: 1; filter: brightness(1.2); } 100% { clip-path: inset(48% 0 48% 0); opacity: 0; } }
+/* the bug over a replay that has the whole picture: a bar of neon drawn out from its middle, its words lit a moment after */
+#tvg .rbug { --n: #ff2d75; position: absolute; left: 50%; top: 14px; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; background: rgba(9,11,17,.9); border: 1.5px solid var(--n); padding: 8px 18px; font: 900 14px/1 var(--tvf); letter-spacing: .3em; border-radius: 5px; pointer-events: none; cursor: pointer; white-space: nowrap;
+  box-shadow: 0 0 18px color-mix(in srgb, var(--n) 65%, transparent), inset 0 0 18px color-mix(in srgb, var(--n) 25%, transparent); text-shadow: 0 0 10px var(--n); clip-path: inset(46% 50% 46% 50%); opacity: 0; transition: clip-path .5s cubic-bezier(.2,.8,.2,1), opacity .12s ease .38s; }
+#tvg .rbug.on { clip-path: inset(0 0 0 0); opacity: 1; pointer-events: auto; transition: clip-path .5s cubic-bezier(.2,.8,.2,1), opacity .1s; animation: rbugLit .7s steps(1) .15s 1; }
+#tvg .rbug small { font: 800 10px/1 var(--tvf); letter-spacing: .14em; color: #e9edf2; text-shadow: none; }
+#tvg .rbug::before { content: '◀◀'; color: var(--n); letter-spacing: -.14em; animation: pipRew 1s steps(2) infinite; }
+@keyframes rbugLit { 0% { color: transparent; text-shadow: none; } 30% { color: #fff; } 42% { color: transparent; } 55%, 100% { color: #fff; } }
+/* the wipe between one picture and the next (into the highlights, between two of them, back out): slats of dark glass
+   edged in neon close over the picture from above and below by turns, a word lit on them, and open the other way */
+#tvg .rwipe { position: absolute; inset: 0; display: flex; pointer-events: none; visibility: hidden; }
+#tvg .rwipe.rw-on { visibility: visible; }
+#tvg .rwipe s { flex: 1; text-decoration: none; margin: 0 -1px; transform: scaleY(0); background: linear-gradient(180deg, #06070b, #0c0f18 50%, #06070b); border-left: 2px solid #19e3ff; border-right: 2px solid #ff2d75; box-shadow: 0 0 22px rgba(25,227,255,.45), 0 0 22px rgba(255,45,117,.35); }
+#tvg .rwipe.rw-on s { animation: rwSlat 1.1s cubic-bezier(.6,0,.3,1) both; } #tvg .rwipe.rw-on s:nth-child(even) { animation-name: rwSlat2; }
+#tvg .rwipe s:nth-child(2) { animation-delay: .025s; } #tvg .rwipe s:nth-child(3) { animation-delay: .05s; } #tvg .rwipe s:nth-child(4) { animation-delay: .075s; } #tvg .rwipe s:nth-child(5) { animation-delay: .1s; } #tvg .rwipe s:nth-child(6) { animation-delay: .125s; } #tvg .rwipe s:nth-child(7) { animation-delay: .15s; }
+#tvg .rwipe b { position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%); text-align: center; font: 900 clamp(28px, 6vw, 76px)/1 var(--tvf); letter-spacing: .32em; color: transparent; -webkit-text-stroke: 2px #fff; text-shadow: 0 0 18px #19e3ff, 0 0 44px #ff2d75; opacity: 0; }
+#tvg .rwipe b small { display: block; margin-top: 14px; font: 800 clamp(10px, 1.3vw, 16px)/1 var(--tvf); letter-spacing: .34em; color: #e9edf2; -webkit-text-stroke: 0; text-shadow: 0 0 12px #19e3ff; }
+#tvg .rwipe.rw-on b { animation: rwWord 1.25s ease both; }
+@keyframes rwSlat { 0% { transform: scaleY(0); transform-origin: 50% 0; } 30% { transform: scaleY(1); transform-origin: 50% 0; } 66% { transform: scaleY(1); transform-origin: 50% 100%; } 100% { transform: scaleY(0); transform-origin: 50% 100%; } }
+@keyframes rwSlat2 { 0% { transform: scaleY(0); transform-origin: 50% 100%; } 30% { transform: scaleY(1); transform-origin: 50% 100%; } 66% { transform: scaleY(1); transform-origin: 50% 0; } 100% { transform: scaleY(0); transform-origin: 50% 0; } }
+@keyframes rwWord { 0%, 24% { opacity: 0; letter-spacing: .7em; } 36% { opacity: 1; letter-spacing: .32em; } 41% { opacity: .35; } 46%, 60% { opacity: 1; } 70%, 100% { opacity: 0; letter-spacing: .26em; } }
 #tvg .tel { position: absolute; left: 50%; bottom: calc(var(--pw, 150px) + 84px); transform: translateX(-50%); display: none; align-items: center; gap: 14px; background: rgba(12,14,20,.82); border-radius: 6px; padding: 7px 14px; font: 800 12px/1 var(--tvf); }
 #tvg .tel.on { display: flex; }
 #tvg .tel .sp2 b { font: 900 26px/1 var(--tvf); font-variant-numeric: tabular-nums; } #tvg .tel .sp2 small { font: 700 9px/1 var(--tvf); letter-spacing: .14em; color: #b7c0cc; margin-left: 4px; }
@@ -87,6 +113,7 @@ export class TVExtras {
     this.tel = document.createElement('div'); this.tel.className = 'tel'; this.tel.innerHTML = '<span class="sp2"><b>0</b><small>KM/H</small></span><span class="gr">1</span><span class="bars"><div><i style="background:#3ddc84"></i></div><div><i style="background:#e10600"></i></div></span><span class="drs">DRS</span>'; root.appendChild(this.tel);
     this.root = root; this.frame = document.createElement('div'); this.frame.className = 'frame'; root.appendChild(this.frame);
     this.sting = document.createElement('div'); this.sting.className = 'sting'; root.appendChild(this.sting);
+    this.rw = document.createElement('div'); this.rw.className = 'rwipe'; this.rw.innerHTML = '<s></s><s></s><s></s><s></s><s></s><s></s><s></s><b></b>'; root.appendChild(this.rw);
     this.scc = document.createElement('div'); this.scc.className = 'xc scc'; col.appendChild(this.scc);
     this.rpo.addEventListener('click', () => this.take()); this.bug.addEventListener('click', () => this.o.onSkip?.());
     this.reset();
@@ -103,7 +130,15 @@ export class TVExtras {
   /** something worth a replay: { text, cars: [a, b?], t (race time) } - offered a moment later, once what followed is on record */
   event(e, d) { if (!d || d.time - this.lastOffer < 14 || this.pending || this.offer) return; this.pending = { ...e, t: d.time, due: d.time + (e.wait ?? 2.4) }; }
   /** the offer taken (R, a click) */
-  take() { const o = this.offer; if (!o) return false; this.offer = null; this.rpo.classList.remove('in'); this.o.on?.('replay', {}); this.o.onReplay?.(o); return true; }
+  take() { const o = this.offer; if (!o) return false; this.offer = null; const c = this.rpo; c.classList.add('took'); setTimeout(() => c.classList.remove('in', 'took'), 460); this.o.on?.('replay', {}); this.o.onReplay?.(o); return true; }
+  /**
+   * The wipe across the whole picture: the slats close (all shut from 0.48 s to 0.72 s: `mid` is called at 0.56 s - change what is under them)
+   * and open again. word / sub: what is lit on them while they are shut.
+   */
+  wipe(word, sub, mid) {
+    const w = this.rw; clearTimeout(this._rwT); clearTimeout(this._rwM); w.classList.remove('rw-on'); w.lastChild.innerHTML = `${word || ''}${sub ? `<small>${sub}</small>` : ''}`; void w.offsetWidth; w.classList.add('rw-on');
+    this._rwM = setTimeout(() => { try { mid?.(); } catch (e) { console.warn('[tv] wipe', e); } }, 560); this._rwT = setTimeout(() => w.classList.remove('rw-on'), 1400);
+  }
   /** a replay is playing (main.js): the bug up, the cards away */
   replaying(on, text = '') { this.bug.classList.toggle('on', !!on); this.bug.querySelector('small').textContent = on ? text : ''; this.col.style.visibility = on ? 'hidden' : ''; if (on) { this.tel.classList.remove('on'); this.root.querySelector('.cap')?.classList.remove('in'); } this.root.querySelector('.live')?.classList.toggle('rp', !!on); }
 

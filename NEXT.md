@@ -1,3 +1,56 @@
+# V2.59 (2026-11-15): the stewards on the broadcast, a flag by the cars that have finished, the replays in neon
+
+Asked for: "add penalty visuals - not full screen just lil elements like the rest, investigating, delayed penalties
+and whatnot - with icons to identify if smths being investigated on the leaderboard or if someoone has a penalty to
+serve"; "put an icon for each car that's passed the chequered flag ... so its obvious who's racing and who isnt";
+"Revamp all the replay transitions and all that to be way cooler ... with neon and smart appearances and removals".
+
+## The stewards (ui/TVStewards.js, new - the team principal's broadcast)
+- A small card for each case, on the right under the track map, that changes as the case does - its colour, its
+  icon and its words, with a slide and a bar of light across it:
+  - a collision: INCIDENT NOTED (the two cars) -> UNDER INVESTIGATION -> a TIME PENALTY (+5s / +10s, the car, why)
+    or NO FURTHER ACTION. The verdict is held on the screen until the note and the investigation can be read (5.5 s
+    from the contact; the race itself decides after 2.5 s, as before - nothing of the race is changed);
+  - an overtake off the track: UNDER INVESTIGATION -> GIVE THE POSITION BACK (who to whom, its thirty seconds
+    running out along the card's foot) -> POSITION RETURNED, or the penalty;
+  - a place taken under the safety car or yellows: GIVE THE POSITION BACK with its eight seconds -> returned, or the
+    penalty;
+  - track limits: a strike (STRIKE 2 OF 3), the BLACK AND WHITE FLAG at the last warning, the penalty after it;
+  - a jump start, a big cut, no mandatory stop: the penalty's own card;
+  - PENALTY SERVED when a car has stood its seconds at a stop.
+- Three cards at most; a closed case leaves after about six seconds (it folds to its icon, the icon goes). Race
+  control's own lines sit under them. The old lines of text for these are gone.
+- On the timing tower, by the car's name: a magnifying glass (pulsing) while it is noted or under investigation,
+  two arrows while it has a place to give back, the seconds it has still to serve in a red tag (from the moment the
+  broadcast has announced them, gone when served), the black and white flag once it has been shown it.
+
+## Who has finished
+- A chequered flag by every car that has taken the flag, on the broadcast's tower (its name and gap dimmed a
+  little) and on the driving HUD's standings.
+
+## The replays
+- The replay's window (and the picture-in-picture's): a frame of neon. It opens as a line of light drawn out from
+  its middle, which then parts with the picture between the two halves (only what is open is drawn), corner marks,
+  its tab unrolling along its top; a flash when it is fully open. A replay's has its place in the clip along its
+  foot and SLO-MO through the slow stretch. It closes the way it came - to a line, the line in to a point - and the
+  LIVE tag pulses.
+- The offer (R): a chip of neon, its key popping, its words unrolling, its clock a line of light; taken, it flares
+  and folds shut.
+- The highlights at the flag: into the reel, between two moments and back out, slats of dark glass edged in cyan
+  and magenta close over the picture from above and below by turns, a word lit on them (HIGHLIGHTS, REPLAY 3 / 5,
+  LIVE), and open the other way - the picture changes while every slat is shut. The dip to black is gone.
+- The bug over a full-picture replay: a bar of neon drawn out from its middle, its words lit a moment after.
+
+## Checked
+- In a browser, on a real race's director with the stewards' state set by hand: every card and its changes, the
+  tower's marks, the finished cars' flags; the chip, the window at three points of its opening and closing, the
+  bug, the wipe held at three moments of itself (every slat shut when the picture changes).
+- Three of the new graphics' state names clashed with styles the menus already had (one made the wipe a red bar):
+  found in those pictures and renamed.
+- A seeded race in the other modes is identical to V2.45-V2.58 (tools/race_probe.mjs 5 1 silverstone).
+- Not checked: a team principal's race itself (the cards against the stewards' real timing, the highlights reel
+  end to end); a real graphics card.
+
 # V2.58 (2026-11-15): no racing line on the broadcast unless asked for
 
 Asked for: "stop racing line automatically going on when the formation lap ends".

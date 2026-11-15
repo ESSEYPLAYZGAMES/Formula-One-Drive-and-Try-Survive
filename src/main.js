@@ -68,8 +68,9 @@ import { driverLine } from './career/StoryLines.js';
 import { playScene } from './ui/CineIndex.js';
 import { radioReplays, stopRadioReplays } from './ui/RadioReplay.js';
 import { TVExtras } from './ui/TVExtras.js';
-import { TVShow, sectorChips } from './ui/TVShow.js';
+import { TVShow, sectorChips, pipOpen } from './ui/TVShow.js';
 import { Theatre } from './ui/Theatre.js';
+import { TVStewards } from './ui/TVStewards.js';
 import { HelmetView } from './camera/HelmetView.js';
 import { LensRain } from './camera/LensRain.js';
 import { RaceTape, SRC as TAPE_SRC } from './race/RaceTape.js';
@@ -2526,6 +2527,8 @@ function tpStart() {
   if (!TP.tv) { TP.tv = new TVDirector(camera); TP.tv.onCut = (sh) => TP.gfx?.cut(sh, S.director); }
   if (!TP.gfx) TP.gfx = new TVGraphics({ onPick: (c) => { if (c && TP.on) TP.tv.follow(TP.tv.followCar === c ? null : c); } });
   if (!TP.wall) { TP.wall = new PitWall({ act: tpAct }); const say0 = TP.wall.radio.bind(TP.wall); TP.wall.radio = (who, text) => { (TP.log || (TP.log = [])).push({ who, text, lap: Math.max(0, ...TP.cars.map((c) => c.lap || 0)) + 1 }); try { if (S.director?.mode === 'race') TP.show?.radio(who, text, (TP.cars.find((c) => surname(c.name) === who) || TP.cars[0])?.color); } catch (e) { /* not on air */ } return say0(who, text); }; }   // (everything said, kept: the replays over the results - ui/RadioReplay.js)
+  if (!TP.stw) TP.stw = new TVStewards(TP.gfx.el);   // (the stewards' cards and the tower's marks: ui/TVStewards.js)
+  TP.stw.reset();
   if (!TP.fx) TP.fx = new TVExtras(TP.gfx.el, { tyreLaps: (c) => TP.gfx.tyreLaps(c), onReplay: (o) => tpReplayStart(o), onSkip: () => tpReplayEnd(), on: (k, x) => tpSay(k, x), onClip: (e) => tpClip(e) });
   if (!TP.show) { TP.show = new TVShow(TP.gfx.el, { tyreLaps: (c) => TP.gfx.tyreLaps(c), audio, on: (k) => { if (!TP.on || !S.director) return; if (k === 'podium') tpAway('crowd', S.director.positions.find((c) => !c.retired), { within: 22, must: true }); if (k === 'flag') TP.awayWant = { kind: 'marshal', want: 'chequered', from: TP.tv.t + 3.6, until: TP.tv.t + 10 }; } });   /* (the top three home: the stands) */ TP.gfx.onFastest = (c, t) => tpSay('fl', { who: surname(c.name), t }); }   // (commentary, radio on air, the map, the cards, the grid, the flag: ui/TVShow.js)
   TP.show.reset(); TP.clips = []; PIP.mode = null; PIP.on = false; PIP.k = 0; PIP.label = null;
@@ -2676,10 +2679,12 @@ function tpHighlights(done) {
   const fd = $('fade'), dip = (on) => { if (!fd) return; fd.style.transition = 'opacity .22s ease'; fd.style.opacity = on ? '1' : '0'; };
   const end = () => { if (over) return; over = true; TP.hl = false; TP.hlEnd = null; dip(false); removeEventListener('keydown', key, true); if (TP.rep) { TP.rep.onEnd = null; tpReplayEnd(); } el.classList.remove('hl'); el.classList.add('hidden'); document.body.classList.remove('tp-hl'); TP.fx.replaying(false); done(); };
   const key = (ev) => { if (ev.code === 'Escape' || ev.code === 'Enter' || ev.code === 'Space') { ev.preventDefault(); ev.stopPropagation(); end(); } };
-  const next = () => { if (over) return; if (k >= L.length) { end(); return; } const c = L[k++]; el.classList.remove('hidden'); el.classList.add('hl'); if (!tpReplayStart(c, { full: true, F: c.F, speed: 1, label: `HIGHLIGHTS ${k}/${L.length} · ${c.text}`, onEnd: () => { dip(true); setTimeout(() => { next(); dip(false); }, 240); } })) next(); };
+  // (between one moment and the next, into the first and out of the last: the slats close over the picture, the next is under them when they open - ui/TVExtras.js wipe)
+  const next = () => { if (over) return; if (k >= L.length) { TP.fx.wipe('LIVE', 'THE RESULT', () => end()); return; } const c = L[k++]; el.classList.remove('hidden'); el.classList.add('hl'); if (!tpReplayStart(c, { full: true, F: c.F, speed: 1, label: `HIGHLIGHTS ${k}/${L.length} · ${c.text}`, onEnd: () => { if (over) return; if (k >= L.length) next(); else TP.fx.wipe('REPLAY', `${k + 1} / ${L.length}`, () => next()); } })) next(); };
   // (TP.hl: the race stays held from the first moment to the last - between two of them too, or the finished race's own frame runs on under the reel)
   // (a net under it - never held here for good: ninety seconds of the reel's own time, counted by the frames it is drawn in, not by the clock on the wall)
-  TP.hl = true; TP.hlT = 0; TP.hlEnd = end; document.body.classList.add('tp-hl'); addEventListener('keydown', key, true); next();
+  TP.hl = true; TP.hlT = 0; TP.hlEnd = end; document.body.classList.add('tp-hl'); addEventListener('keydown', key, true);
+  el.classList.remove('hidden'); el.classList.add('hl'); TP.fx.wipe('HIGHLIGHTS', `${L.length} MOMENTS`, () => next());
 }
 /**
  * The picture in the picture: a second camera's view drawn in a frame over the feed (ui/TVShow.js makes the frame) -
@@ -2708,16 +2713,19 @@ function tpPip(dt) {
   } else PIP.mode = null;
   // (the window comes and goes over a third of a second: its curtain lifts, it grows the last tenth - and falls again)
   if (label) { PIP.label = label; PIP.big = big; }
-  PIP.k = Math.max(0, Math.min(1, (PIP.k || 0) + (label ? 1 : -1) * Math.min(0.2, (dt || 0.016) * 3.4)));
+  PIP.k = Math.max(0, Math.min(1, (PIP.k || 0) + (label ? 1 : -1) * Math.min(0.2, (dt || 0.016) * 2.5)));
   const shown = PIP.k > 0.02 && PIP.label;
-  PIP.on = !!shown; PIP.rect = TP.show ? TP.show.pip(shown ? PIP.label : null, PIP.big, PIP.k) : null; if (!shown) PIP.label = null;
+  const rp = TP.rep && TP.rep.win ? TP.rep : null, rpF = rp ? rp.F : null;
+  PIP.on = !!shown; PIP.rect = TP.show ? TP.show.pip(shown ? PIP.label : null, PIP.big, PIP.k, rpF ? { p: rp.t / Math.max(0.1, rpF[rpF.length - 1].t - rpF[0].t), slow: !!rp.slow } : null) : null; if (!shown) PIP.label = null;
 }
 function pipRender() {
   const r = PIP.rect, cv = renderer.domElement, cr = cv.getBoundingClientRect(); if (!r || r.width < 60 || !cr.width) return;
   const x = r.left - cr.left + 2, y = cr.bottom - r.bottom + 2, w = r.width - 4, h = r.height - 4, rep = TP.rep && TP.rep.win ? TP.rep : null;
+  // (the window opens from a line: only what is between its two halves is drawn - ui/TVShow.js pipOpen, the same numbers as its frame)
+  const [kx, ky] = pipOpen(PIP.k ?? 1), sw = Math.max(0, w * kx), sh = Math.max(0, h * ky - 2); if (sw < 2 || sh < 2) return;
   if (rep) tpReplayPose(rep);
   PIP.cam.near = camera.near; PIP.cam.far = camera.far; PIP.cam.aspect = w / h; PIP.cam.updateProjectionMatrix();
-  renderer.setScissorTest(true); renderer.setScissor(x, y, w, h); renderer.setViewport(x, y, w, h);
+  renderer.setScissorTest(true); renderer.setScissor(x + (w - sw) / 2, y + (h - sh) / 2, sw, sh); renderer.setViewport(x, y, w, h);
   try { renderer.render(scene, PIP.cam); } finally { renderer.setScissorTest(false); renderer.setViewport(0, 0, cr.width, cr.height); if (rep) tpReplayRestore(); }
 }
 /**
@@ -2888,7 +2896,8 @@ function tpUi(dt) {
   if (hud.msgTimer > 0) { hud.msgTimer -= dt; if (hud.msgTimer <= 0) hud.msgEl.textContent = ''; }
   if (!show) return;
   document.documentElement.style.setProperty('--pw', `${TP.wall.height()}px`);
-  TP.gfx.update(dt, { d, focus: TP.cars, shot: TP.tv.shot, track: shortTrack(W.def?.id), camName: TP.form && TP.form.ph !== 'grid' ? 'Formation lap' : (TP.tv.shot?.kerb ? TV_CAM_NAME.kerb : TP.tv.shot?.crane ? TV_CAM_NAME.crane : TV_CAM_NAME[TP.tv.shot?.kind]) || '', speed: TP.paused ? 0 : TP.speed, sectors: (c) => sectorChips(d, c) });
+  TP.gfx.update(dt, { d, focus: TP.cars, shot: TP.tv.shot, track: shortTrack(W.def?.id), camName: TP.form && TP.form.ph !== 'grid' ? 'Formation lap' : (TP.tv.shot?.kerb ? TV_CAM_NAME.kerb : TP.tv.shot?.crane ? TV_CAM_NAME.crane : TV_CAM_NAME[TP.tv.shot?.kind]) || '', speed: TP.paused ? 0 : TP.speed, sectors: (c) => sectorChips(d, c), status: TP.stw ? (c) => TP.stw.status(c) : null });
+  TP.stw?.update(dt, { d });
   const held = TP.paused || S.paused || !!S.simming;
   TP.fx?.update(dt, { d, focus: TP.cars, shot: TP.tv.shot, halted: held || !!TP.form || (!!TP.rep && !TP.rep.win), noOffer: !!TP.rep, say: (t, k, h) => TP.gfx.rc(t, k, h), len: W.track?.length });
   TP.show?.update(dt, { d, focus: TP.cars, shot: TP.tv.shot, halted: held, len: W.track?.length, track: W.track, trackName: shortTrack(W.def?.id), stat: tpStat, wet: d.weather?.tyreWet || 0, rc: (t, k, h) => TP.gfx.rc(t, k, h), battle: !!TP.fx?.bt.classList.contains('in'), catching: !!TP.fx?.ct.classList.contains('in'), neutral: !!TP.fx?.neutral, replaying: !!TP.rep, cuts: TP.tv.cuts, form: TP.form ? TP.form.ph : TP.formed ? 'done' : null,

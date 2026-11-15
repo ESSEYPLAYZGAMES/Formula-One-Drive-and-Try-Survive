@@ -20,7 +20,7 @@ const CSS = `
 #tvg .cm.in { opacity: 1; transform: translate(-50%, 0); } #tvg .cm.b { border-left-color: #1f6feb; }
 #tvg .cm small { display: block; font: 800 9px/1 var(--tvf); letter-spacing: .2em; color: #9aa4b2; margin-bottom: 4px; }
 #tvg .cm span { font: 600 14px/1.3 var(--tvf); }
-#tvg .rad { position: absolute; left: 244px; bottom: calc(var(--pw, 150px) + 84px); width: min(330px, 30vw); background: rgba(12,14,20,.9); border-left: 4px solid var(--rc, #fff); border-radius: 6px; padding: 7px 11px 9px; opacity: 0; transform: translateX(-16px); transition: opacity .25s, transform .3s; }
+#tvg .rad { position: absolute; left: 272px; bottom: calc(var(--pw, 150px) + 84px); width: min(330px, 30vw); background: rgba(12,14,20,.9); border-left: 4px solid var(--rc, #fff); border-radius: 6px; padding: 7px 11px 9px; opacity: 0; transform: translateX(-16px); transition: opacity .25s, transform .3s; }
 #tvg .rad.in { opacity: 1; transform: none; }
 #tvg .rad small { font: 800 9px/1 var(--tvf); letter-spacing: .22em; color: var(--rc, #fff); } #tvg .rad b { display: block; font: 800 12px/1 var(--tvf); letter-spacing: .1em; text-transform: uppercase; margin: 6px 0 3px; }
 #tvg .rad p { margin: 0; font: 500 13px/1.3 var(--tvf); } #tvg .rad .w { float: right; display: flex; gap: 2px; height: 12px; align-items: center; } #tvg .rad .w i { width: 3px; height: 3px; background: var(--rc, #fff); border-radius: 1px; animation: tvsW .4s ease-in-out infinite alternate; }
@@ -41,14 +41,32 @@ const CSS = `
 #tvg .gridg .gr .p { text-align: right; color: #c9d1db; font-weight: 900; } #tvg .gridg .gr .tc { height: 13px; border-radius: 2px; } #tvg .gridg .gr .n { text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #tvg .gridg .gr.odd { grid-column: 1; } #tvg .gridg .gr.even { grid-column: 2; margin-top: 6px; }
 #tvg .gridg .gf { padding: 6px 12px 8px; font: 700 10px/1.3 var(--tvf); letter-spacing: .1em; color: #b7c0cc; border-top: 1px solid rgba(255,255,255,.1); }
-#tvg .cls { position: absolute; left: 244px; top: 96px; width: 300px; background: rgba(12,14,20,.9); border-radius: 6px; overflow: hidden; opacity: 0; transform: translateX(-16px); transition: opacity .3s, transform .35s; }
+#tvg .cls { position: absolute; left: 272px; top: 96px; width: 300px; background: rgba(12,14,20,.9); border-radius: 6px; overflow: hidden; opacity: 0; transform: translateX(-16px); transition: opacity .3s, transform .35s; }
 #tvg .cls.in { opacity: 1; transform: none; } #tvg.has-pip .cls.in { opacity: 0; } #tvg .cls .gh { padding: 7px 10px; background: repeating-conic-gradient(#fff 0 25%, #111 0 50%) 0 0 / 14px 14px; color: #111; font: 900 12px/1 var(--tvf); letter-spacing: .18em; text-shadow: 0 0 6px #fff, 0 0 6px #fff, 0 0 6px #fff; }
 #tvg .cls .gr { display: grid; grid-template-columns: 22px 4px 1fr auto; gap: 0 7px; align-items: center; height: 22px; padding: 0 10px; font: 700 12px/1 var(--tvf); } #tvg .cls .gr.mine { background: rgba(255,255,255,.12); }
 #tvg .cls .gr .p { text-align: right; font-weight: 900; color: #c9d1db; } #tvg .cls .gr .tc { height: 13px; border-radius: 2px; } #tvg .cls .gr .n { text-transform: uppercase; } #tvg .cls .gr .g { font-variant-numeric: tabular-nums; color: #dfe5ec; }
-#tvg .pip { position: absolute; left: 244px; top: 126px; width: min(300px, 24vw); aspect-ratio: 16 / 9; border: 2px solid #fff; border-radius: 4px; box-shadow: 0 8px 26px rgba(0,0,0,.5); display: none; }
-#tvg .pip.on { display: block; transform-origin: left top; transform: scale(calc(.9 + .1 * var(--k, 1))); opacity: calc(var(--k, 1) * 2); }
-#tvg .pip .cur { position: absolute; inset: 0; background: #07080b; opacity: calc(1 - var(--k, 1)); pointer-events: none; }   /* (the window's curtain: over the picture drawn in it, lifted as it opens) */ #tvg .pip.big { width: min(430px, 34vw); border-color: #e10600; }
-#tvg .pip b { position: absolute; left: -2px; top: -22px; background: #fff; color: #111; font: 900 10px/1 var(--tvf); letter-spacing: .16em; padding: 5px 8px; border-radius: 4px 4px 0 0; white-space: nowrap; } #tvg .pip.big b { background: #e10600; color: #fff; }
+/* the picture in the picture: a window of neon. It opens as a line of light drawn out from its middle, which then
+   parts - the picture between the two halves (main.js draws only what is open: pipOpen) - and its tab unrolls; it
+   closes the way it came: to a line, the line in to a point. --kx / --ky: how far it is open across and down. */
+#tvg .pip { --n: #19e3ff; position: absolute; left: 272px; top: 126px; width: min(300px, 24vw); aspect-ratio: 16 / 9; display: none; pointer-events: none; }
+#tvg .pip.big { --n: #ff2d75; width: min(430px, 34vw); }
+#tvg .pip.on { display: block; }
+#tvg .pip .fr { position: absolute; left: calc(50% * (1 - var(--kx, 1))); right: calc(50% * (1 - var(--kx, 1))); top: calc(50% * (1 - var(--ky, 1)) - 1px); bottom: calc(50% * (1 - var(--ky, 1)) - 1px); border: 2px solid var(--n); border-radius: 3px;
+  box-shadow: 0 0 0 1px rgba(0,0,0,.55), 0 0 16px color-mix(in srgb, var(--n) 75%, transparent), inset 0 0 18px color-mix(in srgb, var(--n) 28%, transparent), 0 10px 30px rgba(0,0,0,.5); }
+#tvg .pip .fr::before, #tvg .pip .fr::after { content: ''; position: absolute; width: 16px; height: 16px; border: 3px solid #fff; opacity: calc(var(--ky, 1) * var(--ky, 1)); filter: drop-shadow(0 0 5px var(--n)); }
+#tvg .pip .fr::before { left: -4px; top: -4px; border-right: 0; border-bottom: 0; } #tvg .pip .fr::after { right: -4px; bottom: -4px; border-left: 0; border-top: 0; }
+#tvg .pip.open .fr { animation: pipFlash .5s ease-out; }
+#tvg .pip b { position: absolute; left: 0; top: calc(50% * (1 - var(--ky, 1)) - 26px); height: 19px; display: flex; align-items: center; gap: 7px; padding: 0 10px 0 8px; background: rgba(9,11,17,.92); color: #fff; font: 900 10px/1 var(--tvf); letter-spacing: .16em; white-space: nowrap;
+  border-left: 3px solid var(--n); box-shadow: 0 0 12px color-mix(in srgb, var(--n) 45%, transparent); text-shadow: 0 0 8px color-mix(in srgb, var(--n) 80%, transparent); clip-path: inset(0 calc(100% * (1 - var(--ky, 1))) 0 0); max-width: 100%; overflow: hidden; }
+#tvg .pip.big b::before { content: '◀◀'; color: var(--n); letter-spacing: -.12em; animation: pipRew 1s steps(2) infinite; }
+#tvg .pip .pg { position: absolute; left: 2px; right: 2px; bottom: 1px; height: 3px; text-decoration: none; opacity: 0; background: rgba(255,255,255,.14); }
+#tvg .pip.big.open .pg { opacity: 1; } #tvg .pip .pg::after { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: calc(100% * var(--p, 0)); background: var(--n); box-shadow: 0 0 8px var(--n); }
+#tvg .pip .tg { position: absolute; right: 8px; top: 8px; font: 900 10px/1 var(--tvf); font-style: normal; letter-spacing: .2em; color: #fff; background: color-mix(in srgb, var(--n) 85%, #000); padding: 4px 7px; border-radius: 3px; box-shadow: 0 0 12px var(--n); opacity: 0; transform: translateY(-6px); transition: opacity .18s, transform .18s; }
+#tvg .pip.big.open.slow .tg { opacity: 1; transform: none; animation: tvgBlink .9s infinite; }
+@keyframes pipFlash { 0% { box-shadow: 0 0 0 1px rgba(0,0,0,.55), 0 0 46px 6px var(--n), inset 0 0 60px color-mix(in srgb, var(--n) 70%, transparent); border-color: #fff; } 100% { border-color: var(--n); } }
+@keyframes pipRew { 50% { opacity: .35; } }
+/* (the replay over: LIVE says so) */
+#tvg .live.live-back { animation: liveBack 1.1s ease-out; } @keyframes liveBack { 0% { box-shadow: 0 0 0 0 #e10600, 0 0 30px 6px #e10600; background: #e10600; } 100% { box-shadow: 0 0 0 16px rgba(225,6,0,0), 0 0 0 0 rgba(225,6,0,0); } }
 #tvg .cls .dotd { margin-top: 6px; padding: 7px 10px; background: rgba(255,212,0,.14); border-left: 3px solid #ffd400; font: 800 13px/1.2 var(--tvf); color: #fff; }
 #tvg .cls .dotd small { display: block; font-size: 9px; letter-spacing: .16em; color: #ffd400; margin-bottom: 3px; }
 #tvg .cls .dotd em { display: block; font: 600 10px/1.3 var(--tvf); color: #b7c0cc; font-style: normal; }
@@ -61,7 +79,7 @@ body.tp-hl #hud, body.tp-hl #hud-msg { visibility: hidden !important; }   /* (th
 #tvg .r .sx { position: absolute; right: 96px; top: 50%; margin-top: -2px; display: flex; gap: 2px; } #tvg .r .sx u { width: 5px; height: 4px; border-radius: 1px; background: rgba(255,255,255,.14); text-decoration: none; }
 #tvg .r .sx u.purple { background: #b45cff; } #tvg .r .sx u.green { background: #3ddc84; } #tvg .r .sx u.yellow { background: #ffd400; }
 #tvg.hl .tower, #tvg.hl .live, #tvg.hl .xr, #tvg.hl .map, #tvg.hl .cap, #tvg.hl .rc, #tvg.hl .cm, #tvg.hl .rad, #tvg.hl .tel, #tvg.hl .cls, #tvg.hl .gridg, #tvg.hl .pip, #tvg.hl .rain, #tvg.hl .sting, #tvg.hl .sk { display: none !important; }
-@media (max-width: 1000px) { #tvg .map, #tvg .rad { display: none; } #tvg .pip { left: 190px; } }
+@media (max-width: 1000px) { #tvg .map, #tvg .rad { display: none; } #tvg .pip { left: 212px; } }
 `;
 const surname = (c) => { const w = String(c?.name || c || '').trim().split(/\s+/); return w[0] === 'Zhou' ? 'Zhou' : w[w.length - 1]; };
 const LETTER = { SOFT: 'S', MEDIUM: 'M', HARD: 'H', INTER: 'I', WET: 'W' }, TCOL = { SOFT: '#e8322e', MEDIUM: '#ffd400', HARD: '#f2f2f2', INTER: '#3ddc84', WET: '#3d8bff' };
@@ -111,13 +129,16 @@ const LINES = {
   pole: [6, 0, (x) => [`${x.who} goes fastest! ${x.t}.`]],
 };
 
+/** the window's opening at k 0..1 -> [across, down] 0..1: a line drawn out from the middle (the first two fifths), then parted (eased) */
+export function pipOpen(k) { const e = (x) => { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); }; return [e(k / 0.4), e((k - 0.34) / 0.66)]; }
+
 export class TVShow {
   /** root: #tvg; o: { tyreLaps(car), audio } */
   constructor(root, o = {}) {
     this.root = root; this.o = o;
     if (!document.getElementById('tvs-css')) { const st = document.createElement('style'); st.id = 'tvs-css'; st.textContent = CSS; document.head.appendChild(st); }
     const mk = (cls, html = '') => { const e = document.createElement('div'); e.className = cls; e.innerHTML = html; root.appendChild(e); return e; };
-    this.sk = mk('sk'); this.rain = mk('rain'); root.insertBefore(this.rain, root.firstChild);   /* (the drops are on the lens: under every graphic) */ this.cm = mk('cm', '<small></small><span></span>'); this.rad = mk('rad'); this.gridg = mk('gridg'); this.cls = mk('cls'); this.pipEl = mk('pip', '<b></b><i class="cur"></i>');
+    this.sk = mk('sk'); this.rain = mk('rain'); root.insertBefore(this.rain, root.firstChild);   /* (the drops are on the lens: under every graphic) */ this.cm = mk('cm', '<small></small><span></span>'); this.rad = mk('rad'); this.gridg = mk('gridg'); this.cls = mk('cls'); this.pipEl = mk('pip', '<i class="fr"></i><b><span></span></b><u class="pg"></u><em class="tg">SLO-MO</em>');
     this.mapEl = document.createElement('canvas'); this.mapEl.className = 'map'; this.mapEl.width = 380; this.mapEl.height = 256; root.appendChild(this.mapEl);
     this.inf = document.createElement('div'); this.inf.className = 'xc inf'; (root.querySelector('.xr') || root).appendChild(this.inf);
     try { localStorage.removeItem('f1sim-tv-voice'); window.speechSynthesis?.cancel(); } catch (e) { /* nothing kept */ }
@@ -127,7 +148,7 @@ export class TVShow {
     this.q = []; this.cur = null; this.curT = 0; this.n = 0; this.said = new Map(); this.radT = 0; this.acc = 0; this.mapPts = null; this.mapFor = null;
     this.infT = 99; this.infK = 0; this.stints = new Map(); this.vmax = new Map(); this.tl = new Map(); this.logN = 0; this.notes = []; this.offN = 0;
     this.phase = 'pre'; this.t0 = 0; this.lap1 = false; this.react = false; this.flag = false; this.flagA = false; this.clsK = -1; this.infHold = 0; this.formPh = null; this.rainOn = false; this.rainSaid = -99; this.best = Infinity; this.pb = new Map(); this.drops = 0;
-    for (const e of [this.cm, this.rad, this.gridg, this.cls, this.inf]) e.classList.remove('in'); this.rain.classList.remove('on'); this.pipEl.classList.remove('on', 'big'); this.root.classList.remove('hl', 'has-pip', 'tight'); this.skK = ''; this.sk?.classList.remove('in');
+    for (const e of [this.cm, this.rad, this.gridg, this.cls, this.inf]) e.classList.remove('in'); this.rain.classList.remove('on'); this.pipEl.classList.remove('on', 'big', 'open', 'slow'); this.root.classList.remove('hl', 'has-pip', 'tight'); this.skK = ''; this.sk?.classList.remove('in');
   }
 
   // ---- commentary ------------------------------------------------------------------------------------------------------
@@ -151,9 +172,21 @@ export class TVShow {
     try { this.o.audio?.beep?.(1320, 0.06, 0.1); } catch (e) { /* no sound */ }
   }
   /** the stewards have seen a contact: noted - and, if no penalty follows, no further action */
-  noted(a, b, d) { if (!d || this.notes.some((n) => n.a === a && n.b === b && d.time - n.t < 30)) return; this.notes.push({ a, b, t: d.time, pen: (a.penalties || 0) + (b.penalties || 0) }); this.rcSay?.(`${surname(a)} · ${surname(b)} · incident noted`, 'warn', 'STEWARDS'); this.say('noted', { a: surname(a), b: surname(b) }); }
+  noted(a, b, d) { if (!d || this.notes.some((n) => n.a === a && n.b === b && d.time - n.t < 30)) return; this.notes.push({ a, b, t: d.time, pen: (a.penalties || 0) + (b.penalties || 0) }); this.say('noted', { a: surname(a), b: surname(b) }); }
   /** the picture-in-picture's frame: label (null: off), big (a replay's window) -> its rectangle on the page, or null */
-  pip(label, big = false, k = 1) { this.pipEl.style.setProperty('--k', String(Math.round(k * 100) / 100)); this.root.classList.toggle('has-pip', !!label); if (!label) { this.pipEl.classList.remove('on', 'big'); return null; } this.pipEl.classList.add('on'); this.pipEl.classList.toggle('big', !!big); const b = this.pipEl.firstChild; if (b.textContent !== label) b.textContent = label; return this.pipEl.getBoundingClientRect(); }
+  /**
+   * The picture-in-picture's window: label (null: off), big (a replay's), k 0..1 how far through its opening (or its
+   * closing), o: { p: how far through the replay 0..1, slow: in its slow stretch } -> its rectangle on the page, or null
+   */
+  pip(label, big = false, k = 1, o = null) {
+    const el = this.pipEl, [kx, ky] = pipOpen(k); el.style.setProperty('--kx', kx.toFixed(3)); el.style.setProperty('--ky', ky.toFixed(3));
+    this.root.classList.toggle('has-pip', !!label);
+    if (!label) { if (el.classList.contains('big') && el.classList.contains('on')) { const lv = this.root.querySelector('.live'); if (lv) { lv.classList.remove('live-back'); void lv.offsetWidth; lv.classList.add('live-back'); } } el.classList.remove('on', 'big', 'open', 'slow'); return null; }
+    el.classList.add('on'); el.classList.toggle('big', !!big); el.classList.toggle('open', k >= 0.995); el.classList.toggle('slow', !!o?.slow);
+    if (o && o.p != null) el.style.setProperty('--p', Math.max(0, Math.min(1, o.p)).toFixed(3));
+    const b = el.children[1].firstChild; if (b.textContent !== label) b.textContent = label;
+    return el.getBoundingClientRect();
+  }
 
   /**
    * every frame. ctx: { d, focus, shot, halted, len, track (the circuit: px, pz, n), trackName, stat(car) -> a line of
@@ -200,11 +233,11 @@ export class TVShow {
     for (const c of P) {
       const S0 = this.stints.get(c); if (S0) { const k = c.tyres?.compound; if (k && S0[S0.length - 1].comp !== k) { S0[S0.length - 1].to = c.lap; S0.push({ comp: k, from: c.lap }); } else if (S0[S0.length - 1].n !== c.pitStops && c.pitStops > (S0[S0.length - 1].n ?? 0) && S0[S0.length - 1].from !== c.lap) { S0[S0.length - 1].to = c.lap; S0.push({ comp: k, from: c.lap, n: c.pitStops }); } S0[S0.length - 1].n = c.pitStops; }
       if (onTrack(c)) { const v = Math.abs(c.speed) * 3.6; if (v > (this.vmax.get(c) || 0)) this.vmax.set(c, v); }
-      const tl = c.tlStrikes || 0, was = this.tl.get(c) || 0; if (tl > was) { this.tl.set(c, tl); const allow = d.stewards?.strikes ?? 3; ctx.rc?.(`${surname(c)} · track limits · strike ${tl}${tl <= allow ? ` of ${allow}` : ''}`, tl >= allow ? 'bad' : 'warn', tl === allow ? 'BLACK AND WHITE FLAG' : 'TRACK LIMITS'); if (mine(c) || P.indexOf(c) < 6) this.say('tl', { who: surname(c), n: tl, left: allow - tl }); }
+      const tl = c.tlStrikes || 0, was = this.tl.get(c) || 0; if (tl > was) { this.tl.set(c, tl); const allow = d.stewards?.strikes ?? 3; if (mine(c) || P.indexOf(c) < 6) this.say('tl', { who: surname(c), n: tl, left: allow - tl }); }
     }
     const SL = d.stewards?.log || []; for (; this.logN < SL.length; this.logN++) { const e = SL[this.logN], c = P.find((x) => x.short === e.car); if (c && e.sec) this.say('pen', { who: surname(c), sec: e.sec }); }
-    const OP = d.stewards?.offPasses || []; if (OP.length > this.offN) { this.offN = OP.length; ctx.rc?.('overtake off the track · under investigation', 'warn', 'STEWARDS'); } else this.offN = OP.length;
-    this.notes = this.notes.filter((n) => { if (d.time - n.t < 9) return true; if ((n.a.penalties || 0) + (n.b.penalties || 0) <= n.pen) { ctx.rc?.(`${surname(n.a)} · ${surname(n.b)} · no further action`, '', 'STEWARDS'); this.say('nfa'); } return false; });
+    const OP = d.stewards?.offPasses || []; this.offN = OP.length;
+    this.notes = this.notes.filter((n) => { if (d.time - n.t < 9) return true; if ((n.a.penalties || 0) + (n.b.penalties || 0) <= n.pen) this.say('nfa'); return false; });
     // rain on the radar
     const O = d.weather?.outlook?.(); if (O && O.p > 0.45 && O.eta != null && O.eta > 0 && O.eta < 300 && d.time - this.rainSaid > 240 && racing) { this.rainSaid = d.time; this.say('rain', { eta: O.eta }); this.card('inf wx', 'RAIN RADAR', `${Math.round(O.p * 100)}%`, `<div class="big">${O.eta < 45 ? 'NOW' : `${Math.max(1, Math.round(O.eta / 60))} MIN`}<small>UNTIL IT ARRIVES</small></div><div class="ln"><small>HOW HARD</small><span>${O.peak > 0.6 ? 'heavy' : O.peak > 0.3 ? 'steady' : 'light'}</span></div>`, 9); }
     // ---- the flag ----------------------------------------------------------------------------------------------------------
