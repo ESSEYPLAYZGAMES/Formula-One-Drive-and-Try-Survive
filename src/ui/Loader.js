@@ -6,6 +6,12 @@
 // It tells the menus when it is up and when it goes: body[data-loader="on"] while it shows, and a 'loader:hiding' event
 // the moment it starts to fade, so an overlay waiting behind it (Motion.open: the weekend sheet) arrives as it lifts.
 // No frosted glass (the laptop's GPU): its cards are near-solid fills over the pictures.
+// Its look is the strategy screen's and the HQ's: deep purple, an edge from pink to cyan, the headings lit.
+// The progress - the red line round the map, its head, the bar - is drawn by a WORKER on its own canvases (PROG): the
+// build holds the page for a second and more between its stages, and anything the page itself animates stands still
+// for that long and then jumps. The worker is not held: it is told the new figure and runs up to it - pulling away,
+// then easing in - sixty times a second whatever the page is doing. (No worker, or reduced motion: the page draws it,
+// as before.)
 import { Gallery } from './Gallery.js';
 import { BUILTIN_SHOTS } from './LoadingShots.js';
 import { TRACK_MAPS } from './TrackMaps.js';
@@ -83,7 +89,43 @@ const CSS = `
 @media (prefers-reduced-motion: reduce) { #loader .ld-slide.on, #loader .ld-side, #loader .ld-item, #loader .ld-kick, #loader h1, #loader .ld-sub { animation: none; } #loader.off { transform: none; } }
 html.m-off #loader .ld-slide.on, html.m-off #loader .ld-side, html.m-off #loader .ld-item, html.m-off #loader .ld-kick, html.m-off #loader h1, html.m-off #loader .ld-sub { animation: none; }
 html.m-off #loader.off { transform: none; }
-`;
+/* ---- the look of the strategy screen and the HQ */
+#loader { background: #07030f; }
+#loader .ld-slide { background-color: #07030f; }
+#loader .ld-shade { background: radial-gradient(110% 85% at 0% 100%, rgba(255,63,164,.22), rgba(255,63,164,0) 55%), radial-gradient(85% 75% at 100% 0%, rgba(35,229,255,.15), rgba(35,229,255,0) 60%), linear-gradient(90deg, rgba(10,5,28,.9) 0%, rgba(12,6,32,.56) 36%, rgba(12,6,32,.22) 60%, rgba(12,6,32,.62) 100%), linear-gradient(0deg, rgba(9,4,24,.96) 0%, rgba(9,4,24,0) 42%), linear-gradient(180deg, rgba(9,4,24,.68) 0%, rgba(9,4,24,0) 18%); }
+#loader .ld-brand b { color: #ff3f6e; text-shadow: 0 0 14px rgba(255,63,110,.85), 0 0 30px rgba(255,63,164,.5); }
+#loader .ld-card { border: 1px solid transparent; border-radius: 14px; background: linear-gradient(180deg, rgba(27,16,58,.9), rgba(16,9,40,.93)) padding-box, linear-gradient(140deg, rgba(255,63,164,.78), rgba(155,92,255,.25) 42%, rgba(35,229,255,.72)) border-box; box-shadow: 0 24px 60px -30px rgba(0,0,0,.9), 0 0 46px -22px #ff3fa4, 0 0 54px -26px #23e5ff; }
+#loader .ld-mapcard h4, #loader .ld-news h4 { color: #8fdcf0; text-shadow: 0 0 10px rgba(35,229,255,.55); }
+#loader .ld-map { position: relative; }
+#loader .ld-map svg, #loader .ld-map canvas { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+#loader .ld-map canvas { display: none; pointer-events: none; }
+#loader .ld-map .cas { stroke: rgba(8,3,22,.78); }
+#loader .ld-map .pit { stroke: rgba(143,220,240,.5); }
+#loader .ld-map .run { stroke: #ff2d55; filter: drop-shadow(0 0 8px rgba(255,63,164,.85)); }
+#loader .ld-map .head { filter: drop-shadow(0 0 9px #ff3fa4); }
+#loader .ld-map .dir { fill: #ff3f6e; }
+#loader .ld-map .t circle { fill: rgba(20,11,45,.96); stroke: rgba(143,220,240,.7); }
+#loader .ld-stats { border-top: 0; position: relative; } #loader .ld-stats::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 1px; background: linear-gradient(90deg, #ff3fa4, #9b5cff 50%, #23e5ff); box-shadow: 0 0 10px rgba(255,63,164,.55); }
+#loader .ld-stats b { text-shadow: 0 0 14px rgba(35,229,255,.5); } #loader .ld-stats small { color: #9aa6c8; }
+#loader .ld-item { background: linear-gradient(90deg, rgba(60,18,70,.8), rgba(22,12,50,.88)); border-left-color: var(--c, #ff3fa4); border-radius: 0 9px 9px 0; box-shadow: -3px 0 14px -5px var(--c, #ff3fa4); }
+#loader .ld-item small { color: #ff8fc4; }
+#loader .ld-kick { color: #ff4f7c; text-shadow: 0 0 14px rgba(255,63,110,.75); }
+#loader h1 { text-shadow: 0 0 22px rgba(255,255,255,.2), 0 4px 30px rgba(0,0,0,.6); }
+#loader h1 span { white-space: nowrap; color: #ff3f6e; text-shadow: 0 0 18px rgba(255,63,110,.8), 0 0 44px rgba(255,63,164,.5), 0 4px 30px rgba(0,0,0,.6); }
+#loader .ld-sub { color: rgba(232,226,255,.86); } #loader .ld-sub span + span::before { color: #23e5ff; text-shadow: 0 0 8px #23e5ff; }
+#loader .ld-fact { font: 500 14px/1.55 var(--k-font, 'Segoe UI', Arial, sans-serif); color: rgba(236,232,255,.86); }
+#loader .ld-fact b { color: #ff6fb8; text-shadow: 0 0 10px rgba(255,63,164,.7); }
+#loader .ld-cap { color: rgba(190,200,235,.6); }
+#loader .ld-bar { position: relative; background: rgba(200,165,255,.16); }
+#loader .ld-bar i { background: linear-gradient(90deg, #ff3f6e, #ff3fa4 40%, #9b5cff 72%, #23e5ff); box-shadow: 0 0 14px rgba(255,63,164,.7); }
+#loader .ld-barc { position: absolute; left: -14px; top: -12px; width: calc(100% + 28px); height: 27px; display: none; pointer-events: none; }
+#loader .ld-stage { color: rgba(214,208,245,.7); } #loader .ld-stage b { text-shadow: 0 0 12px rgba(35,229,255,.65); }
+#loader .ld-err button { border-color: rgba(35,229,255,.6); border-radius: 8px; }
+/* (the worker's canvases in place of the page's own line, head and bar) */
+#loader.ld-w .ld-map canvas, #loader.ld-w .ld-barc { display: block; }
+#loader.ld-w .ld-map .run, #loader.ld-w .ld-map .head { display: none; }
+#loader.ld-w .ld-bar { overflow: visible; background: none; } #loader.ld-w .ld-bar i { display: none; }
+`.replaceAll("'Segoe UI', Arial, sans-serif", "var(--k-font, 'Segoe UI', Arial, sans-serif)").replaceAll("'Segoe UI', Arial;", "var(--k-font, 'Segoe UI', Arial, sans-serif);");
 
 /** true things about the circuits and the sport (checked), and the game's own keys */
 const FACTS = {
@@ -156,9 +198,88 @@ function mapSVG(id) {
   const [sx, sy] = pts[0], c = Math.cos(M.dir), s = Math.sin(M.dir), L = 30;
   const sf = `<line class="sf" x1="${sx + s * L}" y1="${sy - c * L}" x2="${sx - s * L}" y2="${sy + c * L}"/><line class="sf2" x1="${sx + s * L}" y1="${sy - c * L}" x2="${sx - s * L}" y2="${sy + c * L}"/>`;
   const ax = sx + c * 62, ay = sy + s * 62, arrow = `<path class="dir" d="M${ax + c * 22} ${ay + s * 22}L${ax - c * 10 + s * 16} ${ay - s * 10 - c * 16}L${ax - c * 10 - s * 16} ${ay - s * 10 + c * 16}Z"/>`;
-  return `<svg viewBox="${-P} ${-P} ${M.w + 2 * P} ${M.h + 2 * P}" preserveAspectRatio="xMidYMid meet" aria-label="Circuit map">
-    <path class="cas" d="${d}"/>${M.pit.length ? `<path class="pit" d="M${M.pit.map((p) => p.join(' ')).join('L')}"/>` : ''}<path class="trk" d="${d}"/>
-    <path class="run" d="${d}" pathLength="1000"/>${sf}${arrow}${labels}<circle class="head" r="15" cx="${sx}" cy="${sy}"/></svg>`;
+  // (three layers: the road; the progress - the worker's canvas, or the page's own line and head where there is no worker; the start line, the arrow and the numbers over it)
+  const vbx = `viewBox="${-P} ${-P} ${M.w + 2 * P} ${M.h + 2 * P}" preserveAspectRatio="xMidYMid meet"`;
+  return `<svg ${vbx} aria-label="Circuit map"><path class="cas" d="${d}"/>${M.pit.length ? `<path class="pit" d="M${M.pit.map((p) => p.join(' ')).join('L')}"/>` : ''}<path class="trk" d="${d}"/>
+    <path class="run" d="${d}" pathLength="1000"/></svg><canvas></canvas><svg ${vbx} aria-hidden="true">${sf}${arrow}${labels}<circle class="head" r="15" cx="${sx}" cy="${sy}"/></svg>`;
+}
+/**
+ * The progress, drawn off the page (a worker with the two canvases handed to it). It is told a figure (pct) and runs
+ * the shown one up to it as a damped spring does: away slowly, quickly through the middle, easing in - and while the
+ * next figure is awaited it creeps on a little (never past what the next stage will bring), so the line is never
+ * quite still. Messages: { map, pts, vb, bar } once; { mapSize, barSize, dpr }; { pct }. It posts { shown } back for
+ * the figure in the corner.
+ */
+const PROG = `
+let map = null, bar = null, mc = null, bc = null, pts = [], cum = [0], total = 1, vb = [0, 0, 1, 1], dpr = 1;
+let target = 0, shown = 0, vel = 0, tT = 0, last = 0, drawn = -1, posted = 0, dirty = true;
+const raf = self.requestAnimationFrame ? (f) => self.requestAnimationFrame(f) : (f) => setTimeout(() => f(performance.now()), 16);
+onmessage = (e) => {
+  const m = e.data;
+  if (m.map) { map = m.map; mc = map.getContext('2d'); pts = m.pts; vb = m.vb; cum = [0]; for (let i = 1; i <= pts.length; i++) { const a = pts[i - 1], b = pts[i % pts.length]; cum.push(cum[i - 1] + Math.hypot(b[0] - a[0], b[1] - a[1])); } total = cum[cum.length - 1] || 1; }
+  if (m.bar) { bar = m.bar; bc = bar.getContext('2d'); }
+  if (m.dpr) dpr = m.dpr;
+  if (m.mapSize && map) { map.width = m.mapSize[0]; map.height = m.mapSize[1]; dirty = true; }
+  if (m.barSize && bar) { bar.width = m.barSize[0]; bar.height = m.barSize[1]; dirty = true; }
+  if (m.pct != null && m.pct > target) { target = m.pct; tT = performance.now(); }
+};
+function draw() {
+  const f = Math.max(0, Math.min(1, shown / 100));
+  if (mc && map.width > 2) {
+    const W = map.width, H = map.height, s = Math.min(W / vb[2], H / vb[3]), ox = (W - vb[2] * s) / 2 - vb[0] * s, oy = (H - vb[3] * s) / 2 - vb[1] * s, len = total * f;
+    mc.setTransform(1, 0, 0, 1, 0, 0); mc.clearRect(0, 0, W, H); mc.setTransform(s, 0, 0, s, ox, oy);
+    let hx = pts[0][0], hy = pts[0][1];
+    if (len > 0.5) {
+      mc.beginPath(); mc.moveTo(hx, hy); let i = 1;
+      for (; i < cum.length && cum[i] <= len; i++) { const p = pts[i % pts.length]; mc.lineTo(p[0], p[1]); hx = p[0]; hy = p[1]; }
+      if (i < cum.length) { const a = pts[i - 1], b = pts[i % pts.length], u = (len - cum[i - 1]) / Math.max(1e-6, cum[i] - cum[i - 1]); hx = a[0] + (b[0] - a[0]) * u; hy = a[1] + (b[1] - a[1]) * u; mc.lineTo(hx, hy); }
+      mc.lineJoin = 'round'; mc.lineCap = 'round';
+      mc.shadowColor = 'rgba(255,63,164,.95)'; mc.shadowBlur = 11 * dpr; mc.strokeStyle = '#ff2d55'; mc.lineWidth = 13; mc.stroke();
+      mc.shadowBlur = 0; mc.strokeStyle = 'rgba(255,190,214,.5)'; mc.lineWidth = 3.5; mc.stroke();
+    }
+    mc.beginPath(); mc.arc(hx, hy, 15, 0, 6.2832); mc.shadowColor = '#ff3fa4'; mc.shadowBlur = 13 * dpr; mc.fillStyle = '#fff'; mc.fill(); mc.shadowBlur = 0;
+  }
+  if (bc && bar.width > 2) {
+    const W = bar.width, H = bar.height, pad = 14 * dpr, x0 = pad, x1 = W - pad, y = H / 2, h = Math.max(2, 3 * dpr), xe = x0 + (x1 - x0) * f;
+    bc.setTransform(1, 0, 0, 1, 0, 0); bc.clearRect(0, 0, W, H);
+    bc.fillStyle = 'rgba(200,165,255,.16)'; bc.fillRect(x0, y - h / 2, x1 - x0, h);
+    if (xe > x0 + 0.5) {
+      const g = bc.createLinearGradient(x0, 0, x1, 0); g.addColorStop(0, '#ff3f6e'); g.addColorStop(0.4, '#ff3fa4'); g.addColorStop(0.72, '#9b5cff'); g.addColorStop(1, '#23e5ff');
+      bc.shadowColor = 'rgba(255,63,164,.85)'; bc.shadowBlur = 8 * dpr; bc.fillStyle = g; bc.fillRect(x0, y - h / 2, xe - x0, h);
+      bc.shadowColor = '#fff'; bc.shadowBlur = 7 * dpr; bc.fillStyle = '#fff'; bc.beginPath(); bc.arc(xe, y, h * 0.9, 0, 6.2832); bc.fill(); bc.shadowBlur = 0;
+    }
+  }
+}
+function step(now) {
+  const dt = Math.min(0.05, Math.max(0, (now - (last || now)) / 1000)); last = now;
+  const end = target >= 100, idle = (now - tT) / 1000, creep = end || target <= 0 ? 0 : Math.min(4.5, 0.9 * idle);
+  const goal = Math.max(shown, end ? 100 : Math.min(99, target + creep)), k = end ? 70 : 20, c = 2 * Math.sqrt(k);
+  vel += (k * (goal - shown) - c * vel) * dt; if (vel < 0) vel = 0;
+  shown = Math.min(goal, shown + vel * dt); if (end && goal - shown < 0.3) shown = goal;
+  if (dirty || Math.abs(shown - drawn) > 0.02) { draw(); drawn = shown; dirty = false; }
+  if (now - posted > 110) { posted = now; postMessage({ shown }); }
+  raf(step);
+}
+raf(step);
+`;
+/** the worker started on this loading screen's canvases -> { w, ro, url } | null (no worker here: the page draws the progress itself) */
+function progress(el, track, fig) {
+  try {
+    const bcv = el.querySelector('.ld-barc'), cv = el.querySelector('.ld-map canvas'), box = el.querySelector('.ld-map'), M = TRACK_MAPS[track];
+    if (reduced() || typeof Worker === 'undefined' || !bcv || typeof bcv.transferControlToOffscreen !== 'function') return null;
+    const url = URL.createObjectURL(new Blob([PROG], { type: 'text/javascript' })), w = new Worker(url), dpr = Math.min(2, window.devicePixelRatio || 1), P = 76;
+    el.classList.add('ld-w');   // (its canvases shown - they are measured next - and the page's own line and bar put away)
+    const sizes = () => { const m = { dpr }; if (cv && box) { const r = box.getBoundingClientRect(); if (r.width > 4 && r.height > 4) m.mapSize = [Math.round(r.width * dpr), Math.round(r.height * dpr)]; } const b = bcv.getBoundingClientRect(); if (b.width > 4) m.barSize = [Math.round(b.width * dpr), Math.round(b.height * dpr)]; return m; };
+    const init = { dpr }, give = [];
+    if (M && cv && box) { const o = cv.transferControlToOffscreen(); init.map = o; init.pts = M.pts; init.vb = [-P, -P, M.w + 2 * P, M.h + 2 * P]; give.push(o); }
+    { const o = bcv.transferControlToOffscreen(); init.bar = o; give.push(o); }
+    w.postMessage(init, give); w.postMessage(sizes());
+    const P0 = { w, url, ro: null, dead: false };
+    w.onmessage = (e) => { if (!P0.dead && fig && e.data && e.data.shown != null) fig.textContent = `${Math.round(e.data.shown)}%`; };
+    w.onerror = () => { P0.dead = true; el.classList.remove('ld-w'); try { w.terminate(); } catch (e) { /* gone */ } };   // (it would not start - a browser that will not run a worker from the page itself: the page draws the progress)
+    if (typeof ResizeObserver !== 'undefined') { P0.ro = new ResizeObserver(() => { if (!P0.dead) w.postMessage(sizes()); }); if (box) P0.ro.observe(box); P0.ro.observe(bcv); }
+    return P0;
+  } catch (e) { el.classList.remove('ld-w'); return null; }
 }
 const TAGS = { pole: 'Pole position', winner: 'Race winner', grid: 'The grid', crowd: 'The crowd', photo: 'Your photo', aerial: 'Race day' };
 const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; [a[i], a[j]] = [a[j], a[i]]; } return a; };
@@ -194,11 +315,12 @@ export const Loader = {
             <div class="ld-stats">${stats.map(([v, k]) => `<div><b>${esc(v)}</b><small>${esc(k)}</small></div>`).join('')}</div></div>` : ''}
           ${o.news?.length ? `<div class="ld-news"><h4>LATEST</h4>${o.news.slice(0, 4).map((n, i) => `<div class="ld-item" style="animation-delay:${0.45 + i * 0.12}s;${n.color ? `--c:${esc(n.color)}` : ''}">${n.tag ? `<small>${esc(n.tag)}</small>` : ''}${esc(n.text)}</div>`).join('')}</div>` : ''}
         </div>
-        <div class="ld-main"><div class="ld-kick">${esc(o.kicker || '')}</div><h1>${esc(GP[o.track] || o.title || 'Grand Prix')}</h1><div class="ld-sub">${(o.sub || []).filter(Boolean).map((s) => `<span>${esc(s)}</span>`).join('')}</div><div class="ld-err"></div></div>
-        <div class="ld-foot"><div class="ld-row"><div class="ld-fact"></div><div class="ld-cap"></div></div><div class="ld-bar"><i></i></div><div class="ld-stage"><span>Getting ready</span><b>0%</b></div></div>
+        <div class="ld-main"><div class="ld-kick">${esc(o.kicker || '')}</div><h1>${esc(GP[o.track] || o.title || 'Grand Prix').replace(/ (Grand Prix)$/, ' <span>$1</span>')}</h1><div class="ld-sub">${(o.sub || []).filter(Boolean).map((s) => `<span>${esc(s)}</span>`).join('')}</div><div class="ld-err"></div></div>
+        <div class="ld-foot"><div class="ld-row"><div class="ld-fact"></div><div class="ld-cap"></div></div><div class="ld-bar"><i></i><canvas class="ld-barc"></canvas></div><div class="ld-stage"><span>Getting ready</span><b>0%</b></div></div>
       </div>`;
     document.body.appendChild(el);
-    L = { el, t0: performance.now(), slides: [], k: -1, timers: [], urls: [], pct: 0, shown: 0, raf: 0 };
+    L = { el, t0: performance.now(), slides: [], k: -1, timers: [], urls: [], pct: 0, shown: 0, raf: 0, prog: null };
+    L.prog = progress(el, o.track, el.querySelector('.ld-stage b'));
     document.body.dataset.loader = 'on';
     requestAnimationFrame(() => el.classList.add('on')); setTimeout(() => el.classList.add('on'), 30);
     // (opaque once the 260 ms fade has played, from the frame it began on)
@@ -244,6 +366,7 @@ export const Loader = {
     if (!L) return;
     if (pct != null) L.pct = Math.max(L.pct, pct);
     L.el.querySelector('.ld-stage span').textContent = text || '';
+    if (L.prog && !L.prog.dead) { L.prog.w.postMessage({ pct: L.pct }); return; }   // (the worker runs up to it)
     if (!L.raf) { const mine = L, tick = () => { if (L !== mine) return; const d = mine.pct - mine.shown; mine.shown = Math.abs(d) < 0.05 ? mine.pct : mine.shown + d * 0.18; this._draw(mine); mine.raf = mine.shown !== mine.pct ? requestAnimationFrame(tick) : 0; }; L.raf = requestAnimationFrame(tick); }
     if (pct >= 100) { L.shown = L.pct; this._draw(L); }
   },
@@ -275,6 +398,7 @@ export const Loader = {
   kill(which = L, quiet = false) {
     if (!which) return;
     for (const t of which.timers) clearInterval(t); if (which.raf) cancelAnimationFrame(which.raf);
+    if (which.prog) { which.prog.dead = true; try { which.prog.ro?.disconnect(); which.prog.w.terminate(); URL.revokeObjectURL(which.prog.url); } catch (e) { /* gone */ } }
     which.el.remove(); for (const u of which.urls) URL.revokeObjectURL(u);
     // (gone without a fade - a failed build, a scene of its own: nothing may go on waiting for it)
     if (L === which) { L = null; if (!quiet) lifting(); }

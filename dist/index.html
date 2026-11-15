@@ -602,7 +602,7 @@ body.tp #hud-msg { top: 30%; }
     <div class="brand-line"></div>
     <h1 id="brand-title">FORMULA 1<span id="brand-sub">SIMULATOR</span></h1>
     <!-- the build's version: +0.01 with every build handed out -->
-    <span id="app-ver" title="Version">V2.69</span>
+    <span id="app-ver" title="Version">V2.70</span>
     <div id="menu-sub">Real circuits built from OpenStreetMap</div>
   </div>
   <div id="loading" class="hidden"><div class="ld"><i></i></div><span>Building the circuit from OpenStreetMap…</span></div>
@@ -107125,6 +107125,12 @@ const { ensureMotion, reduced } = __m['src/ui/Motion.js'];
 // It tells the menus when it is up and when it goes: body[data-loader="on"] while it shows, and a 'loader:hiding' event
 // the moment it starts to fade, so an overlay waiting behind it (Motion.open: the weekend sheet) arrives as it lifts.
 // No frosted glass (the laptop's GPU): its cards are near-solid fills over the pictures.
+// Its look is the strategy screen's and the HQ's: deep purple, an edge from pink to cyan, the headings lit.
+// The progress - the red line round the map, its head, the bar - is drawn by a WORKER on its own canvases (PROG): the
+// build holds the page for a second and more between its stages, and anything the page itself animates stands still
+// for that long and then jumps. The worker is not held: it is told the new figure and runs up to it - pulling away,
+// then easing in - sixty times a second whatever the page is doing. (No worker, or reduced motion: the page draws it,
+// as before.)
 
 
 
@@ -107201,7 +107207,43 @@ const CSS = `
 @media (prefers-reduced-motion: reduce) { #loader .ld-slide.on, #loader .ld-side, #loader .ld-item, #loader .ld-kick, #loader h1, #loader .ld-sub { animation: none; } #loader.off { transform: none; } }
 html.m-off #loader .ld-slide.on, html.m-off #loader .ld-side, html.m-off #loader .ld-item, html.m-off #loader .ld-kick, html.m-off #loader h1, html.m-off #loader .ld-sub { animation: none; }
 html.m-off #loader.off { transform: none; }
-`;
+/* ---- the look of the strategy screen and the HQ */
+#loader { background: #07030f; }
+#loader .ld-slide { background-color: #07030f; }
+#loader .ld-shade { background: radial-gradient(110% 85% at 0% 100%, rgba(255,63,164,.22), rgba(255,63,164,0) 55%), radial-gradient(85% 75% at 100% 0%, rgba(35,229,255,.15), rgba(35,229,255,0) 60%), linear-gradient(90deg, rgba(10,5,28,.9) 0%, rgba(12,6,32,.56) 36%, rgba(12,6,32,.22) 60%, rgba(12,6,32,.62) 100%), linear-gradient(0deg, rgba(9,4,24,.96) 0%, rgba(9,4,24,0) 42%), linear-gradient(180deg, rgba(9,4,24,.68) 0%, rgba(9,4,24,0) 18%); }
+#loader .ld-brand b { color: #ff3f6e; text-shadow: 0 0 14px rgba(255,63,110,.85), 0 0 30px rgba(255,63,164,.5); }
+#loader .ld-card { border: 1px solid transparent; border-radius: 14px; background: linear-gradient(180deg, rgba(27,16,58,.9), rgba(16,9,40,.93)) padding-box, linear-gradient(140deg, rgba(255,63,164,.78), rgba(155,92,255,.25) 42%, rgba(35,229,255,.72)) border-box; box-shadow: 0 24px 60px -30px rgba(0,0,0,.9), 0 0 46px -22px #ff3fa4, 0 0 54px -26px #23e5ff; }
+#loader .ld-mapcard h4, #loader .ld-news h4 { color: #8fdcf0; text-shadow: 0 0 10px rgba(35,229,255,.55); }
+#loader .ld-map { position: relative; }
+#loader .ld-map svg, #loader .ld-map canvas { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+#loader .ld-map canvas { display: none; pointer-events: none; }
+#loader .ld-map .cas { stroke: rgba(8,3,22,.78); }
+#loader .ld-map .pit { stroke: rgba(143,220,240,.5); }
+#loader .ld-map .run { stroke: #ff2d55; filter: drop-shadow(0 0 8px rgba(255,63,164,.85)); }
+#loader .ld-map .head { filter: drop-shadow(0 0 9px #ff3fa4); }
+#loader .ld-map .dir { fill: #ff3f6e; }
+#loader .ld-map .t circle { fill: rgba(20,11,45,.96); stroke: rgba(143,220,240,.7); }
+#loader .ld-stats { border-top: 0; position: relative; } #loader .ld-stats::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 1px; background: linear-gradient(90deg, #ff3fa4, #9b5cff 50%, #23e5ff); box-shadow: 0 0 10px rgba(255,63,164,.55); }
+#loader .ld-stats b { text-shadow: 0 0 14px rgba(35,229,255,.5); } #loader .ld-stats small { color: #9aa6c8; }
+#loader .ld-item { background: linear-gradient(90deg, rgba(60,18,70,.8), rgba(22,12,50,.88)); border-left-color: var(--c, #ff3fa4); border-radius: 0 9px 9px 0; box-shadow: -3px 0 14px -5px var(--c, #ff3fa4); }
+#loader .ld-item small { color: #ff8fc4; }
+#loader .ld-kick { color: #ff4f7c; text-shadow: 0 0 14px rgba(255,63,110,.75); }
+#loader h1 { text-shadow: 0 0 22px rgba(255,255,255,.2), 0 4px 30px rgba(0,0,0,.6); }
+#loader h1 span { white-space: nowrap; color: #ff3f6e; text-shadow: 0 0 18px rgba(255,63,110,.8), 0 0 44px rgba(255,63,164,.5), 0 4px 30px rgba(0,0,0,.6); }
+#loader .ld-sub { color: rgba(232,226,255,.86); } #loader .ld-sub span + span::before { color: #23e5ff; text-shadow: 0 0 8px #23e5ff; }
+#loader .ld-fact { font: 500 14px/1.55 var(--k-font, 'Segoe UI', Arial, sans-serif); color: rgba(236,232,255,.86); }
+#loader .ld-fact b { color: #ff6fb8; text-shadow: 0 0 10px rgba(255,63,164,.7); }
+#loader .ld-cap { color: rgba(190,200,235,.6); }
+#loader .ld-bar { position: relative; background: rgba(200,165,255,.16); }
+#loader .ld-bar i { background: linear-gradient(90deg, #ff3f6e, #ff3fa4 40%, #9b5cff 72%, #23e5ff); box-shadow: 0 0 14px rgba(255,63,164,.7); }
+#loader .ld-barc { position: absolute; left: -14px; top: -12px; width: calc(100% + 28px); height: 27px; display: none; pointer-events: none; }
+#loader .ld-stage { color: rgba(214,208,245,.7); } #loader .ld-stage b { text-shadow: 0 0 12px rgba(35,229,255,.65); }
+#loader .ld-err button { border-color: rgba(35,229,255,.6); border-radius: 8px; }
+/* (the worker's canvases in place of the page's own line, head and bar) */
+#loader.ld-w .ld-map canvas, #loader.ld-w .ld-barc { display: block; }
+#loader.ld-w .ld-map .run, #loader.ld-w .ld-map .head { display: none; }
+#loader.ld-w .ld-bar { overflow: visible; background: none; } #loader.ld-w .ld-bar i { display: none; }
+`.replaceAll("'Segoe UI', Arial, sans-serif", "var(--k-font, 'Segoe UI', Arial, sans-serif)").replaceAll("'Segoe UI', Arial;", "var(--k-font, 'Segoe UI', Arial, sans-serif);");
 
 /** true things about the circuits and the sport (checked), and the game's own keys */
 const FACTS = {
@@ -107274,9 +107316,88 @@ function mapSVG(id) {
   const [sx, sy] = pts[0], c = Math.cos(M.dir), s = Math.sin(M.dir), L = 30;
   const sf = `<line class="sf" x1="${sx + s * L}" y1="${sy - c * L}" x2="${sx - s * L}" y2="${sy + c * L}"/><line class="sf2" x1="${sx + s * L}" y1="${sy - c * L}" x2="${sx - s * L}" y2="${sy + c * L}"/>`;
   const ax = sx + c * 62, ay = sy + s * 62, arrow = `<path class="dir" d="M${ax + c * 22} ${ay + s * 22}L${ax - c * 10 + s * 16} ${ay - s * 10 - c * 16}L${ax - c * 10 - s * 16} ${ay - s * 10 + c * 16}Z"/>`;
-  return `<svg viewBox="${-P} ${-P} ${M.w + 2 * P} ${M.h + 2 * P}" preserveAspectRatio="xMidYMid meet" aria-label="Circuit map">
-    <path class="cas" d="${d}"/>${M.pit.length ? `<path class="pit" d="M${M.pit.map((p) => p.join(' ')).join('L')}"/>` : ''}<path class="trk" d="${d}"/>
-    <path class="run" d="${d}" pathLength="1000"/>${sf}${arrow}${labels}<circle class="head" r="15" cx="${sx}" cy="${sy}"/></svg>`;
+  // (three layers: the road; the progress - the worker's canvas, or the page's own line and head where there is no worker; the start line, the arrow and the numbers over it)
+  const vbx = `viewBox="${-P} ${-P} ${M.w + 2 * P} ${M.h + 2 * P}" preserveAspectRatio="xMidYMid meet"`;
+  return `<svg ${vbx} aria-label="Circuit map"><path class="cas" d="${d}"/>${M.pit.length ? `<path class="pit" d="M${M.pit.map((p) => p.join(' ')).join('L')}"/>` : ''}<path class="trk" d="${d}"/>
+    <path class="run" d="${d}" pathLength="1000"/></svg><canvas></canvas><svg ${vbx} aria-hidden="true">${sf}${arrow}${labels}<circle class="head" r="15" cx="${sx}" cy="${sy}"/></svg>`;
+}
+/**
+ * The progress, drawn off the page (a worker with the two canvases handed to it). It is told a figure (pct) and runs
+ * the shown one up to it as a damped spring does: away slowly, quickly through the middle, easing in - and while the
+ * next figure is awaited it creeps on a little (never past what the next stage will bring), so the line is never
+ * quite still. Messages: { map, pts, vb, bar } once; { mapSize, barSize, dpr }; { pct }. It posts { shown } back for
+ * the figure in the corner.
+ */
+const PROG = `
+let map = null, bar = null, mc = null, bc = null, pts = [], cum = [0], total = 1, vb = [0, 0, 1, 1], dpr = 1;
+let target = 0, shown = 0, vel = 0, tT = 0, last = 0, drawn = -1, posted = 0, dirty = true;
+const raf = self.requestAnimationFrame ? (f) => self.requestAnimationFrame(f) : (f) => setTimeout(() => f(performance.now()), 16);
+onmessage = (e) => {
+  const m = e.data;
+  if (m.map) { map = m.map; mc = map.getContext('2d'); pts = m.pts; vb = m.vb; cum = [0]; for (let i = 1; i <= pts.length; i++) { const a = pts[i - 1], b = pts[i % pts.length]; cum.push(cum[i - 1] + Math.hypot(b[0] - a[0], b[1] - a[1])); } total = cum[cum.length - 1] || 1; }
+  if (m.bar) { bar = m.bar; bc = bar.getContext('2d'); }
+  if (m.dpr) dpr = m.dpr;
+  if (m.mapSize && map) { map.width = m.mapSize[0]; map.height = m.mapSize[1]; dirty = true; }
+  if (m.barSize && bar) { bar.width = m.barSize[0]; bar.height = m.barSize[1]; dirty = true; }
+  if (m.pct != null && m.pct > target) { target = m.pct; tT = performance.now(); }
+};
+function draw() {
+  const f = Math.max(0, Math.min(1, shown / 100));
+  if (mc && map.width > 2) {
+    const W = map.width, H = map.height, s = Math.min(W / vb[2], H / vb[3]), ox = (W - vb[2] * s) / 2 - vb[0] * s, oy = (H - vb[3] * s) / 2 - vb[1] * s, len = total * f;
+    mc.setTransform(1, 0, 0, 1, 0, 0); mc.clearRect(0, 0, W, H); mc.setTransform(s, 0, 0, s, ox, oy);
+    let hx = pts[0][0], hy = pts[0][1];
+    if (len > 0.5) {
+      mc.beginPath(); mc.moveTo(hx, hy); let i = 1;
+      for (; i < cum.length && cum[i] <= len; i++) { const p = pts[i % pts.length]; mc.lineTo(p[0], p[1]); hx = p[0]; hy = p[1]; }
+      if (i < cum.length) { const a = pts[i - 1], b = pts[i % pts.length], u = (len - cum[i - 1]) / Math.max(1e-6, cum[i] - cum[i - 1]); hx = a[0] + (b[0] - a[0]) * u; hy = a[1] + (b[1] - a[1]) * u; mc.lineTo(hx, hy); }
+      mc.lineJoin = 'round'; mc.lineCap = 'round';
+      mc.shadowColor = 'rgba(255,63,164,.95)'; mc.shadowBlur = 11 * dpr; mc.strokeStyle = '#ff2d55'; mc.lineWidth = 13; mc.stroke();
+      mc.shadowBlur = 0; mc.strokeStyle = 'rgba(255,190,214,.5)'; mc.lineWidth = 3.5; mc.stroke();
+    }
+    mc.beginPath(); mc.arc(hx, hy, 15, 0, 6.2832); mc.shadowColor = '#ff3fa4'; mc.shadowBlur = 13 * dpr; mc.fillStyle = '#fff'; mc.fill(); mc.shadowBlur = 0;
+  }
+  if (bc && bar.width > 2) {
+    const W = bar.width, H = bar.height, pad = 14 * dpr, x0 = pad, x1 = W - pad, y = H / 2, h = Math.max(2, 3 * dpr), xe = x0 + (x1 - x0) * f;
+    bc.setTransform(1, 0, 0, 1, 0, 0); bc.clearRect(0, 0, W, H);
+    bc.fillStyle = 'rgba(200,165,255,.16)'; bc.fillRect(x0, y - h / 2, x1 - x0, h);
+    if (xe > x0 + 0.5) {
+      const g = bc.createLinearGradient(x0, 0, x1, 0); g.addColorStop(0, '#ff3f6e'); g.addColorStop(0.4, '#ff3fa4'); g.addColorStop(0.72, '#9b5cff'); g.addColorStop(1, '#23e5ff');
+      bc.shadowColor = 'rgba(255,63,164,.85)'; bc.shadowBlur = 8 * dpr; bc.fillStyle = g; bc.fillRect(x0, y - h / 2, xe - x0, h);
+      bc.shadowColor = '#fff'; bc.shadowBlur = 7 * dpr; bc.fillStyle = '#fff'; bc.beginPath(); bc.arc(xe, y, h * 0.9, 0, 6.2832); bc.fill(); bc.shadowBlur = 0;
+    }
+  }
+}
+function step(now) {
+  const dt = Math.min(0.05, Math.max(0, (now - (last || now)) / 1000)); last = now;
+  const end = target >= 100, idle = (now - tT) / 1000, creep = end || target <= 0 ? 0 : Math.min(4.5, 0.9 * idle);
+  const goal = Math.max(shown, end ? 100 : Math.min(99, target + creep)), k = end ? 70 : 20, c = 2 * Math.sqrt(k);
+  vel += (k * (goal - shown) - c * vel) * dt; if (vel < 0) vel = 0;
+  shown = Math.min(goal, shown + vel * dt); if (end && goal - shown < 0.3) shown = goal;
+  if (dirty || Math.abs(shown - drawn) > 0.02) { draw(); drawn = shown; dirty = false; }
+  if (now - posted > 110) { posted = now; postMessage({ shown }); }
+  raf(step);
+}
+raf(step);
+`;
+/** the worker started on this loading screen's canvases -> { w, ro, url } | null (no worker here: the page draws the progress itself) */
+function progress(el, track, fig) {
+  try {
+    const bcv = el.querySelector('.ld-barc'), cv = el.querySelector('.ld-map canvas'), box = el.querySelector('.ld-map'), M = TRACK_MAPS[track];
+    if (reduced() || typeof Worker === 'undefined' || !bcv || typeof bcv.transferControlToOffscreen !== 'function') return null;
+    const url = URL.createObjectURL(new Blob([PROG], { type: 'text/javascript' })), w = new Worker(url), dpr = Math.min(2, window.devicePixelRatio || 1), P = 76;
+    el.classList.add('ld-w');   // (its canvases shown - they are measured next - and the page's own line and bar put away)
+    const sizes = () => { const m = { dpr }; if (cv && box) { const r = box.getBoundingClientRect(); if (r.width > 4 && r.height > 4) m.mapSize = [Math.round(r.width * dpr), Math.round(r.height * dpr)]; } const b = bcv.getBoundingClientRect(); if (b.width > 4) m.barSize = [Math.round(b.width * dpr), Math.round(b.height * dpr)]; return m; };
+    const init = { dpr }, give = [];
+    if (M && cv && box) { const o = cv.transferControlToOffscreen(); init.map = o; init.pts = M.pts; init.vb = [-P, -P, M.w + 2 * P, M.h + 2 * P]; give.push(o); }
+    { const o = bcv.transferControlToOffscreen(); init.bar = o; give.push(o); }
+    w.postMessage(init, give); w.postMessage(sizes());
+    const P0 = { w, url, ro: null, dead: false };
+    w.onmessage = (e) => { if (!P0.dead && fig && e.data && e.data.shown != null) fig.textContent = `${Math.round(e.data.shown)}%`; };
+    w.onerror = () => { P0.dead = true; el.classList.remove('ld-w'); try { w.terminate(); } catch (e) { /* gone */ } };   // (it would not start - a browser that will not run a worker from the page itself: the page draws the progress)
+    if (typeof ResizeObserver !== 'undefined') { P0.ro = new ResizeObserver(() => { if (!P0.dead) w.postMessage(sizes()); }); if (box) P0.ro.observe(box); P0.ro.observe(bcv); }
+    return P0;
+  } catch (e) { el.classList.remove('ld-w'); return null; }
 }
 const TAGS = { pole: 'Pole position', winner: 'Race winner', grid: 'The grid', crowd: 'The crowd', photo: 'Your photo', aerial: 'Race day' };
 const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; [a[i], a[j]] = [a[j], a[i]]; } return a; };
@@ -107312,11 +107433,12 @@ const Loader = {
             <div class="ld-stats">${stats.map(([v, k]) => `<div><b>${esc(v)}</b><small>${esc(k)}</small></div>`).join('')}</div></div>` : ''}
           ${o.news?.length ? `<div class="ld-news"><h4>LATEST</h4>${o.news.slice(0, 4).map((n, i) => `<div class="ld-item" style="animation-delay:${0.45 + i * 0.12}s;${n.color ? `--c:${esc(n.color)}` : ''}">${n.tag ? `<small>${esc(n.tag)}</small>` : ''}${esc(n.text)}</div>`).join('')}</div>` : ''}
         </div>
-        <div class="ld-main"><div class="ld-kick">${esc(o.kicker || '')}</div><h1>${esc(GP[o.track] || o.title || 'Grand Prix')}</h1><div class="ld-sub">${(o.sub || []).filter(Boolean).map((s) => `<span>${esc(s)}</span>`).join('')}</div><div class="ld-err"></div></div>
-        <div class="ld-foot"><div class="ld-row"><div class="ld-fact"></div><div class="ld-cap"></div></div><div class="ld-bar"><i></i></div><div class="ld-stage"><span>Getting ready</span><b>0%</b></div></div>
+        <div class="ld-main"><div class="ld-kick">${esc(o.kicker || '')}</div><h1>${esc(GP[o.track] || o.title || 'Grand Prix').replace(/ (Grand Prix)$/, ' <span>$1</span>')}</h1><div class="ld-sub">${(o.sub || []).filter(Boolean).map((s) => `<span>${esc(s)}</span>`).join('')}</div><div class="ld-err"></div></div>
+        <div class="ld-foot"><div class="ld-row"><div class="ld-fact"></div><div class="ld-cap"></div></div><div class="ld-bar"><i></i><canvas class="ld-barc"></canvas></div><div class="ld-stage"><span>Getting ready</span><b>0%</b></div></div>
       </div>`;
     document.body.appendChild(el);
-    L = { el, t0: performance.now(), slides: [], k: -1, timers: [], urls: [], pct: 0, shown: 0, raf: 0 };
+    L = { el, t0: performance.now(), slides: [], k: -1, timers: [], urls: [], pct: 0, shown: 0, raf: 0, prog: null };
+    L.prog = progress(el, o.track, el.querySelector('.ld-stage b'));
     document.body.dataset.loader = 'on';
     requestAnimationFrame(() => el.classList.add('on')); setTimeout(() => el.classList.add('on'), 30);
     // (opaque once the 260 ms fade has played, from the frame it began on)
@@ -107362,6 +107484,7 @@ const Loader = {
     if (!L) return;
     if (pct != null) L.pct = Math.max(L.pct, pct);
     L.el.querySelector('.ld-stage span').textContent = text || '';
+    if (L.prog && !L.prog.dead) { L.prog.w.postMessage({ pct: L.pct }); return; }   // (the worker runs up to it)
     if (!L.raf) { const mine = L, tick = () => { if (L !== mine) return; const d = mine.pct - mine.shown; mine.shown = Math.abs(d) < 0.05 ? mine.pct : mine.shown + d * 0.18; this._draw(mine); mine.raf = mine.shown !== mine.pct ? requestAnimationFrame(tick) : 0; }; L.raf = requestAnimationFrame(tick); }
     if (pct >= 100) { L.shown = L.pct; this._draw(L); }
   },
@@ -107393,6 +107516,7 @@ const Loader = {
   kill(which = L, quiet = false) {
     if (!which) return;
     for (const t of which.timers) clearInterval(t); if (which.raf) cancelAnimationFrame(which.raf);
+    if (which.prog) { which.prog.dead = true; try { which.prog.ro?.disconnect(); which.prog.w.terminate(); URL.revokeObjectURL(which.prog.url); } catch (e) { /* gone */ } }
     which.el.remove(); for (const u of which.urls) URL.revokeObjectURL(u);
     // (gone without a fade - a failed build, a scene of its own: nothing may go on waiting for it)
     if (L === which) { L = null; if (!quiet) lifting(); }
@@ -153549,6 +153673,17 @@ const { HQ_CSS, FAC_CSS, NAV, ICON, esc, money, pct, sur, panel, kv, meter, ring
 
 
 const PAGE_CSS = `
+#mgr .q-rmw { position: relative; display: inline-flex; }
+#mgr .q-rm { position: absolute; right: 0; top: calc(100% + 10px); z-index: 46; width: 336px; padding: 10px; border-radius: 14px; background: var(--panel2); border: 1px solid var(--line2); box-shadow: 0 26px 54px -16px rgba(0,0,0,.85); opacity: 0; transform: translateY(-8px) scale(.98); transform-origin: 100% 0; pointer-events: none; transition: opacity .16s, transform .24s var(--ease); }
+#mgr .q-rm.in { opacity: 1; transform: none; pointer-events: auto; }
+#mgr .q-rm h4 { margin: 4px 8px 8px; font: 800 9px/1 var(--f); letter-spacing: .2em; color: var(--mute); }
+#mgr button.q-rmi { all: unset; box-sizing: border-box; display: block; width: 100%; padding: 10px 12px; border-radius: 9px; cursor: pointer; font-family: var(--f); transition: background .16s var(--ease), transform .16s var(--ease); }
+#mgr button.q-rmi + .q-rmi { margin-top: 2px; }
+#mgr button.q-rmi b { display: block; font: 800 13px/1.2 var(--f); color: var(--ink); } #mgr button.q-rmi small { display: block; margin-top: 3px; font: 500 11.5px/1.35 var(--f); color: var(--mute); }
+#mgr button.q-rmi:hover, #mgr button.q-rmi:focus-visible { background: color-mix(in srgb, var(--ac) 16%, transparent); transform: translateX(2px); } #mgr button.q-rmi:hover b { color: #fff; }
+#mgr[data-tone="vice"] .q-rm { background: linear-gradient(180deg, rgba(27,16,58,.98), rgba(20,11,45,.98)) padding-box, linear-gradient(140deg, rgba(255,63,164,.7), rgba(155,92,255,.3) 45%, rgba(35,229,255,.6)) border-box; border-color: transparent; box-shadow: 0 26px 54px -16px rgba(0,0,0,.9), 0 0 40px -18px #ff3fa4; }
+#mgr[data-tone="vice"] .q-rm h4 { color: #8fdcf0; text-shadow: 0 0 10px rgba(35,229,255,.5); }
+
 #mgr .q-page { height: 100%; min-height: 0; }
 #mgr .q-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 9px 0 10px; }
 #mgr .q-map { position: absolute; right: 8px; top: 6px; bottom: 6px; width: 46%; opacity: .5; pointer-events: none; } #mgr .q-map svg { width: 100%; height: 100%; } #mgr .q-map path { fill: none; stroke: var(--ac); stroke-width: 9; stroke-linejoin: round; stroke-linecap: round; filter: drop-shadow(0 0 10px var(--ac)); stroke-dasharray: 1; stroke-dashoffset: 0; } #mgr .q-enter .q-map path { animation: qDraw 1.4s var(--ease) .15s both; }
@@ -153616,7 +153751,12 @@ function render() {
 function top(c) {
   const t = c.team, pos = c.posOf(c.myTeam), conf = c.board.conf, trk = trackName(c.track), ready = c.seatsReady(), cap = c.capLeft();
   const ctas = c.seasonDone ? (c.sacked ? '' : '<button class="go" data-a="next">START NEXT SEASON →</button>')
-    : `<button class="sim" data-a="sim"${ready ? '' : ' disabled'} title="The weekend's result at once">SIMULATE</button><button class="go" data-a="race"${ready ? '' : ' disabled title="Both seats need a driver"'}>RACE · ${esc(trk.toUpperCase())} →</button>`;
+    : `<button class="sim" data-a="sim"${ready ? '' : ' disabled'} title="The weekend's result at once">SIMULATE</button><span class="q-rmw"><button class="go" data-a="racemenu"${ready ? '' : ' disabled title="Both seats need a driver"'} aria-haspopup="menu" aria-expanded="${H.rm ? 'true' : 'false'}">RACE · ${esc(trk.toUpperCase())} ▾</button>
+      <div class="q-rm${H.rm && ready ? ' in' : ''}" role="menu"><h4>ROUND ${c.round} · ${esc(trk.toUpperCase())}</h4>
+        <button class="q-rmi" data-a="race" data-v=""><b>The full weekend</b><small>Practice and set-up, qualifying, the race</small></button>
+        <button class="q-rmi" data-a="race" data-v="quali"><b>Skip practice · qualifying</b><small>Load the circuit and go straight to qualifying on the feed</small></button>
+        <button class="q-rmi" data-a="race" data-v="race"><b>Sim qualifying · race</b><small>Qualifying simulated as the circuit loads, then the strategy and the race</small></button>
+        <button class="q-rmi" data-a="sim"><b>Sim the whole weekend</b><small>Qualifying and the race simulated here: nothing to load</small></button></div></span>`;
   const ini = t.name.replace(/[^A-Za-z ]/g, '').split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase() || t.name.slice(0, 2).toUpperCase();
   el.querySelector('.q-top').innerHTML = `<div class="q-brand"><i class="q-mark">${esc(ini)}</i><div style="min-width:0"><b>${esc(t.name)}</b><small>${c.season}${c.seasonDone ? ' · season over' : ` · Round ${c.round} / ${c.rounds}`}</small></div></div>
     <div class="q-kpis"><div class="q-kpi${t.budget < 5 ? ' bad' : ''}"><small>Budget</small><b data-kp="budget"></b>${meter(Math.min(1, t.budget / 60), 'var(--ac)', { thin: true })}</div>
@@ -153803,8 +153943,11 @@ function say(text, ok = true) { H.msg = text; H.ok = ok; }
 function onClick(e) {
   const b = e.target.closest('button'), th = el.querySelector('.q-theme');
   if (th?.classList.contains('in') && !e.target.closest('.q-theme') && b?.dataset.a !== 'theme') th.classList.remove('in');   // (a click anywhere else puts the colours' panel away)
+  // (the RACE menu: opened by its button, put away by a click anywhere else)
+  if (H.rm && b?.dataset.a !== 'racemenu') { H.rm = false; el.querySelector('.q-rm')?.classList.remove('in'); }
   if (!b || b.disabled) return;
   const c = H.c, d = b.dataset;
+  if (d.a === 'racemenu') { H.rm = !H.rm; el.querySelector('.q-rm')?.classList.toggle('in', H.rm); b.setAttribute('aria-expanded', H.rm ? 'true' : 'false'); return; }
   // (the colours: the panel, and a choice in it - the HQ takes it at once)
   if (d.a === 'theme') { th?.classList.toggle('in'); return; }
   if (d.th) { const [k, v] = d.th.split('|'); themeSet(c?.myTeam || null, k, v); if (c) { themeApply(el, c.myTeam, c.team.color, c.team.color2); th.innerHTML = themeHTML(c.myTeam, c.team.color, c.team.color2); } return; }
@@ -153831,7 +153974,7 @@ function onClick(e) {
   if (a === 'nteam') H.nc.team = v; else if (a === 'nrounds') H.nc.rounds = +v; else if (a === 'nlaps') H.nc.laps = +v;
   else if (a === 'create') { H.c = ManagerCareer.create({ team: H.nc.team, rounds: H.nc.rounds, laps: H.nc.laps }); H.tab = 'home'; H.o.onCreate?.(H.c); render(); pump(); return; }
   else if (!c) { /* nothing */ }
-  else if (a === 'race') { H.o.onRace?.(c); return; }
+  else if (a === 'race') { H.o.onRace?.(c, v || null); return; }
   else if (a === 'sim') { const rep = H.o.onSim?.(c); if (rep) say(`Round ${rep.round} simulated: ${rep.mine.map((m) => `${sur(m.name)} ${m.dnf ? 'DNF' : `P${m.pos}`}`).join(', ')}.`); H.tab = 'home'; H._tab = null; render(); pump(); return; }
   else if (a === 'next') { c.nextSeason(); H.tab = 'home'; H._tab = null; say(`Season ${c.season}: ${c.rounds} rounds. The board expects P${c.board.target}.`); render(); pump(); return; }
   else if (a === 'join') { c.nextSeason(v); H.tab = 'home'; H._tab = null; say(`You are ${v}'s team principal now.`); el.dataset.mode = ''; render(); pump(); return; }
@@ -200353,7 +200496,7 @@ function runQuali() {
       wk.cars = buildField(wk.lapsTotal); wk.player = wk.cars.find((c) => c.isPlayer) || null;
       wk.gridOrder = names.map((n) => wk.cars.find((c) => c.name === n)).filter(Boolean);
       for (const c of wk.cars) if (!wk.gridOrder.includes(c)) wk.gridOrder.push(c);
-      startFinale(all[0].car, 'POLE POSITION', () => {
+      (S.director?.simAll ? (car, title, then) => then() : startFinale)(all[0].car, 'POLE POSITION', () => {
         let html = '<table class="res"><tr><th>#</th><th>Driver</th><th>Time</th><th>Gap</th></tr>';
         all.forEach((e, i) => { html += `<tr class="${e.car.isPlayer ? 'me' : ''}"><td>${i + 1}</td><td><span class="sw" style="background:${e.car.color}"></span>${e.car.name}</td><td>${fmtTime(e.time)}</td><td>${i === 0 ? '' : isFinite(e.time) ? '+' + (e.time - all[0].time).toFixed(3) : 'no time'}</td></tr>`; });
         $('quali-results').innerHTML = html + '</table>';
@@ -200474,7 +200617,9 @@ function beginRace() {
       //  room - before the podium; at most one, and often none: career/ManagerStory.js)
       const podium = () => { let ts = null; try { ts = wk.mgr && !NEWS.cancelled ? storyTrackScene(wk.mgr) : null; } catch (e) { ts = null; } if (!ts && wk.cine && !wk.cine.after) { ts = wk.cine; wk.cine = null; } if (ts) playScene(ts.scene, { ...ts.ctx, night: W.time === 'night' }, { audio }).then(podium0, podium0); else podium0(); };
       // (the team principal's race: the moments kept, played once more before the winner's lap of honour)
-      if (wk.mode === 'tp') tpHighlights(() => startFinale(winner.car, 'RACE WINNER', podium)); else startFinale(winner.car, 'RACE WINNER', podium);
+      // (a race simulated to the flag: no lap of honour on the Sphere - nobody watched him win it)
+      const lap = S.director?.simmed ? podium : () => startFinale(winner.car, 'RACE WINNER', podium);
+      if (wk.mode === 'tp') tpHighlights(lap); else lap();
     }),
   });
   if (wk.mode === 'tp' && S.director) { tpStart(); if (!S.skipIntro) tpFormStart(); }   // (the formation lap before the lights: tpFormStart - Space skips it)
@@ -200561,6 +200706,7 @@ let simEl = null;
 function simToEnd() {
   const d = S.director; if (!d || d.done || S.simming || NEWS.cancel) return;
   if (d.player && !d.player.autopilot) d.handOver();
+  d.simmed = true; if ((d.time || 0) < 5) d.simAll = true;   // (simmed: the rest of it was; simAll: all of it - nobody watched: no lap of honour on the Sphere for it)
   S.simming = true; endCrash();
   if (!simEl) { simEl = document.createElement('div'); simEl.style.cssText = 'position:fixed;inset:0;z-index:48;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;background:rgba(4,6,10,.72);color:#eef1f5;font:600 14px/1.4 "Segoe UI",Arial,sans-serif;letter-spacing:.2em;text-align:center;transition:opacity .3s'; document.body.appendChild(simEl); }
   simEl.innerHTML = `SIMULATING THE REST OF THE ${d.mode === 'quali' ? 'SESSION' : 'RACE'}<small style="color:#9aa4b2;letter-spacing:.1em">every car from where it is now</small>`;
@@ -201558,14 +201704,16 @@ function openMgrHub() {
   openManagerHub({ career: MGR.c, trackName: (k) => shortTrack(k),
     teams: TEAMS.map((t) => ({ name: t.name, color: t.color, color2: t.color2, tier: t.drivers[0]?.tier ?? 2, drivers: seats(t).map((d) => d.name) })),
     onCreate: (c) => { MGR.c = c; },
-    onRace: (c) => mgrRace(c),
+    onRace: (c, sim) => mgrRace(c, sim),
     onSim: (c) => { const rep = c.applyRace(c.simRace(), c.track); storyTrackScene(c); refreshHome(); return rep; },   // (a simulated weekend: no scene at the track)
     play: (scene, ctx) => playScene(scene, ctx, { audio }),   // (the story's cutscenes: ui/CineIndex.js)
     onQuick: () => { closeManagerHub(); openSetup('tp'); },
     onExit: () => { closeManagerHub(); refreshHome(); } });
 }
-/** RACE from the HQ: the round's circuit, its forecast and distance - the team principal's weekend (qualifying, the race) */
-async function mgrRace(c) {
+/** RACE from the HQ: the round's circuit, its forecast and distance - the team principal's weekend (qualifying, the race).
+ *  sim (the HQ's shortcuts, as a driver's career has them): 'quali' - no practice, straight to qualifying on the feed;
+ *  'race' - qualifying simulated behind the loading screen, straight to the strategy for the race */
+async function mgrRace(c, sim = null) {
   if (W.loading || Loader.on || swapping || !c.seatsReady()) return;
   closeManagerHub(); S.mgr = c; MGR.c = c;
   try { storyBeforeRace(c); } catch (e) { console.warn('[manager] story', e); }   // (an empty seat nobody chose a driver for: the first reserve)
@@ -201585,6 +201733,11 @@ async function mgrRace(c) {
   $('menu').classList.add('hidden');
   Loader.stage('Preparing the weekend', 90); await paint();
   startWeekend();
+  if (sim === 'quali' && !$('quali-panel').classList.contains('hidden') && !$('btn-quali-go').classList.contains('hidden')) $('btn-quali-go').click();
+  else if (sim === 'race' && !$('quali-panel').classList.contains('hidden') && !$('btn-quali-sim').classList.contains('hidden')) {
+    Loader.stage('Qualifying, simulated', 95); await paint();
+    await new Promise((res) => { let done = false; const f = () => { if (!done) { done = true; res(); } }; S.weekend.autoRace = f; $('btn-quali-sim').click(); setTimeout(f, 12000); });
+  }
   Loader.hide();
 }
 /**
@@ -201734,8 +201887,11 @@ function tpQuali(watch) {
         wk.gridOrder = wk.gridOrder.map((c, i) => ({ c, k: key(c, i) })).sort((a, b) => a.k - b.k).map((x) => x.c);
         wk.penText = ` Grid penalties: ${[...pen].map(([n, k]) => `${surname(n)} +${k}`).join(', ')}.`;
       }
+      const simmed = !watch || !!S.director?.simmed;
       tpStop();
-      startFinale(all[0].car, 'POLE POSITION', () => {
+      // (the hub's SIM QUALIFYING - RACE: no table to read - the strategy screen says where each car starts - straight on)
+      if (wk.autoRace) { const f = wk.autoRace; wk.autoRace = null; endSession(); $('quali-panel').classList.add('hidden'); runRace(); f(); return; }
+      (simmed ? (car, title, then) => then() : startFinale)(all[0].car, 'POLE POSITION', () => {
         let html = '<table class="res"><tr><th>#</th><th>Driver</th><th>Time</th><th>Gap</th></tr>';
         all.forEach((e, i) => { html += `<tr class="${e.car.team === settings.tpTeam ? 'me' : ''}"><td>${i + 1}</td><td><span class="sw" style="background:${e.car.color}"></span>${htmlEsc(e.car.name)}</td><td>${fmtTime(e.time)}</td><td>${i === 0 ? '' : isFinite(e.time) ? '+' + (e.time - all[0].time).toFixed(3) : 'no time'}</td></tr>`; });
         $('quali-results').innerHTML = html + '</table>';
@@ -203540,7 +203696,7 @@ function frame(now) {
     /** (tests: the crash director, and the camera as drawn - terrainLift() lifts it for the frame and returns the undo; renderView() draws a frame through it) */
     crashCam, terrainLift, renderView,
     /** (tests: the team principal's race - main.js TP; the circuit built ahead in the menus) */
-    TP, PIP, tpReplayCams, cullBuildings, tpAct, tpFormStart, tpFormEnd, tpAway, tpAwayWall, PRE_TRACK, preloadWanted, playScene, tvClear, tvTreeHit, tvInside, tvTrees, tpMoment, tpMomentsCut, tvRay: _tvRay, tvGround: (x, z) => TERRAIN.at(x, z),
+    TP, PIP, tpReplayCams, cullBuildings, tpAct, tpFormStart, tpFormEnd, tpAway, tpAwayWall, PRE_TRACK, preloadWanted, playScene, tvClear, tvTreeHit, tvInside, tvTrees, tpMoment, tpMomentsCut, mgrRace, FINALE, ManagerCareer, tvRay: _tvRay, tvGround: (x, z) => TERRAIN.at(x, z),
     /** (tests - tools/regress.mjs: the optimisations that must not change a pixel, switched off and on) */
     fastMatrix, SHADOW_CULL,
     /** (tests: the show clock - simTime - set, so the Sphere's loop can be put on any show) */

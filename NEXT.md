@@ -1,3 +1,37 @@
+# V2.70 (2026-11-15): the loading screen in neon, its line running smoothly; the weekend's shortcuts in the HQ
+
+Asked for: "This vibe is amazing (the race strat menu). Carry this vibe into the currently cool but relatively bland
+loading screen, make the red track outline more smoothly filling - rather than just jumping to the new loading
+percentage it should smoothly accelerate to the new loading status. Add the same options from career mode to
+manager mode for simming to race or simming to quali - also remove the post quali las vegas sphere shot (the one
+that says who had pole position) if Quali is simmed, same for if the race is simmed dont show the race sphere shot".
+
+## The loading screen (ui/Loader.js)
+- The strategy screen's look: deep purple under the pictures with a pink glow from one corner and a cyan one from
+  the other; the cards edged from pink to cyan; headings lit cyan; the Grand Prix's name in two tones (GRAND PRIX in
+  hot pink, kept on one line); the news with lit edges; the bar a pink-to-cyan gradient with a bright tip; the menus'
+  own typeface throughout.
+- The line round the map, its head and the bar no longer jump. They jumped because the build holds the page for a
+  second and more between its seven stages - anything the page animates stands still that long. They are drawn now
+  by a worker on its own canvases, which the build does not hold: told the new figure, it runs up to it as a damped
+  spring does - away slowly, quickly through the middle, easing in - and creeps on a little while the next figure is
+  awaited, so the line is never quite still. The figure in the corner follows it.
+- Where a worker cannot be had (or with reduced motion) the page draws the progress itself, as before.
+- Checked with the page held for 1.3, 1.5 and 0.9 s after figures of 22, 55 and 74: the worker went on drawing
+  through each hold (0, 1, 3, 6, 11, 17, 22, 31, 39, 44, 48 ... 68), never backwards.
+
+## The weekend from the HQ (ui/ManagerHub.js, main.js mgrRace)
+- RACE in the HQ's bar opens the ways into the weekend, as a driver's career has them:
+  the full weekend · skip practice - qualifying · sim qualifying - race · sim the whole weekend.
+- SIM QUALIFYING - RACE simulates qualifying as the circuit loads and goes straight to the strategy screen (which
+  says where each car starts).
+
+## The Sphere's shot
+- A qualifying session that was simulated has no POLE POSITION shot on the Sphere; a race simulated to the flag has
+  no RACE WINNER shot. (In a driver's own qualifying the shot is left out only when all of it was simulated.)
+- Checked at Las Vegas: simulated qualifying to the strategy with no shot; the race simulated to the flag, the
+  results up, no shot.
+
 # V2.69 (2026-11-15): answers take time - the team principal's mail
 
 Asked for: "change a lot of features in manager mode to have like a week delay for turnaround, eg - approaching a

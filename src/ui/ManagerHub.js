@@ -22,6 +22,17 @@ import { TRACK_MAPS } from './TrackMaps.js';
 import { HQ_CSS, FAC_CSS, NAV, ICON, esc, money, pct, sur, panel, kv, meter, ring, seg, person, stat, tag, sw, empty, themeApply, themeHTML, themeSet, fitSheet, tween, techSkin } from './HQKit.js';
 
 const PAGE_CSS = `
+#mgr .q-rmw { position: relative; display: inline-flex; }
+#mgr .q-rm { position: absolute; right: 0; top: calc(100% + 10px); z-index: 46; width: 336px; padding: 10px; border-radius: 14px; background: var(--panel2); border: 1px solid var(--line2); box-shadow: 0 26px 54px -16px rgba(0,0,0,.85); opacity: 0; transform: translateY(-8px) scale(.98); transform-origin: 100% 0; pointer-events: none; transition: opacity .16s, transform .24s var(--ease); }
+#mgr .q-rm.in { opacity: 1; transform: none; pointer-events: auto; }
+#mgr .q-rm h4 { margin: 4px 8px 8px; font: 800 9px/1 var(--f); letter-spacing: .2em; color: var(--mute); }
+#mgr button.q-rmi { all: unset; box-sizing: border-box; display: block; width: 100%; padding: 10px 12px; border-radius: 9px; cursor: pointer; font-family: var(--f); transition: background .16s var(--ease), transform .16s var(--ease); }
+#mgr button.q-rmi + .q-rmi { margin-top: 2px; }
+#mgr button.q-rmi b { display: block; font: 800 13px/1.2 var(--f); color: var(--ink); } #mgr button.q-rmi small { display: block; margin-top: 3px; font: 500 11.5px/1.35 var(--f); color: var(--mute); }
+#mgr button.q-rmi:hover, #mgr button.q-rmi:focus-visible { background: color-mix(in srgb, var(--ac) 16%, transparent); transform: translateX(2px); } #mgr button.q-rmi:hover b { color: #fff; }
+#mgr[data-tone="vice"] .q-rm { background: linear-gradient(180deg, rgba(27,16,58,.98), rgba(20,11,45,.98)) padding-box, linear-gradient(140deg, rgba(255,63,164,.7), rgba(155,92,255,.3) 45%, rgba(35,229,255,.6)) border-box; border-color: transparent; box-shadow: 0 26px 54px -16px rgba(0,0,0,.9), 0 0 40px -18px #ff3fa4; }
+#mgr[data-tone="vice"] .q-rm h4 { color: #8fdcf0; text-shadow: 0 0 10px rgba(35,229,255,.5); }
+
 #mgr .q-page { height: 100%; min-height: 0; }
 #mgr .q-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 9px 0 10px; }
 #mgr .q-map { position: absolute; right: 8px; top: 6px; bottom: 6px; width: 46%; opacity: .5; pointer-events: none; } #mgr .q-map svg { width: 100%; height: 100%; } #mgr .q-map path { fill: none; stroke: var(--ac); stroke-width: 9; stroke-linejoin: round; stroke-linecap: round; filter: drop-shadow(0 0 10px var(--ac)); stroke-dasharray: 1; stroke-dashoffset: 0; } #mgr .q-enter .q-map path { animation: qDraw 1.4s var(--ease) .15s both; }
@@ -89,7 +100,12 @@ function render() {
 function top(c) {
   const t = c.team, pos = c.posOf(c.myTeam), conf = c.board.conf, trk = trackName(c.track), ready = c.seatsReady(), cap = c.capLeft();
   const ctas = c.seasonDone ? (c.sacked ? '' : '<button class="go" data-a="next">START NEXT SEASON →</button>')
-    : `<button class="sim" data-a="sim"${ready ? '' : ' disabled'} title="The weekend's result at once">SIMULATE</button><button class="go" data-a="race"${ready ? '' : ' disabled title="Both seats need a driver"'}>RACE · ${esc(trk.toUpperCase())} →</button>`;
+    : `<button class="sim" data-a="sim"${ready ? '' : ' disabled'} title="The weekend's result at once">SIMULATE</button><span class="q-rmw"><button class="go" data-a="racemenu"${ready ? '' : ' disabled title="Both seats need a driver"'} aria-haspopup="menu" aria-expanded="${H.rm ? 'true' : 'false'}">RACE · ${esc(trk.toUpperCase())} ▾</button>
+      <div class="q-rm${H.rm && ready ? ' in' : ''}" role="menu"><h4>ROUND ${c.round} · ${esc(trk.toUpperCase())}</h4>
+        <button class="q-rmi" data-a="race" data-v=""><b>The full weekend</b><small>Practice and set-up, qualifying, the race</small></button>
+        <button class="q-rmi" data-a="race" data-v="quali"><b>Skip practice · qualifying</b><small>Load the circuit and go straight to qualifying on the feed</small></button>
+        <button class="q-rmi" data-a="race" data-v="race"><b>Sim qualifying · race</b><small>Qualifying simulated as the circuit loads, then the strategy and the race</small></button>
+        <button class="q-rmi" data-a="sim"><b>Sim the whole weekend</b><small>Qualifying and the race simulated here: nothing to load</small></button></div></span>`;
   const ini = t.name.replace(/[^A-Za-z ]/g, '').split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase() || t.name.slice(0, 2).toUpperCase();
   el.querySelector('.q-top').innerHTML = `<div class="q-brand"><i class="q-mark">${esc(ini)}</i><div style="min-width:0"><b>${esc(t.name)}</b><small>${c.season}${c.seasonDone ? ' · season over' : ` · Round ${c.round} / ${c.rounds}`}</small></div></div>
     <div class="q-kpis"><div class="q-kpi${t.budget < 5 ? ' bad' : ''}"><small>Budget</small><b data-kp="budget"></b>${meter(Math.min(1, t.budget / 60), 'var(--ac)', { thin: true })}</div>
@@ -276,8 +292,11 @@ function say(text, ok = true) { H.msg = text; H.ok = ok; }
 function onClick(e) {
   const b = e.target.closest('button'), th = el.querySelector('.q-theme');
   if (th?.classList.contains('in') && !e.target.closest('.q-theme') && b?.dataset.a !== 'theme') th.classList.remove('in');   // (a click anywhere else puts the colours' panel away)
+  // (the RACE menu: opened by its button, put away by a click anywhere else)
+  if (H.rm && b?.dataset.a !== 'racemenu') { H.rm = false; el.querySelector('.q-rm')?.classList.remove('in'); }
   if (!b || b.disabled) return;
   const c = H.c, d = b.dataset;
+  if (d.a === 'racemenu') { H.rm = !H.rm; el.querySelector('.q-rm')?.classList.toggle('in', H.rm); b.setAttribute('aria-expanded', H.rm ? 'true' : 'false'); return; }
   // (the colours: the panel, and a choice in it - the HQ takes it at once)
   if (d.a === 'theme') { th?.classList.toggle('in'); return; }
   if (d.th) { const [k, v] = d.th.split('|'); themeSet(c?.myTeam || null, k, v); if (c) { themeApply(el, c.myTeam, c.team.color, c.team.color2); th.innerHTML = themeHTML(c.myTeam, c.team.color, c.team.color2); } return; }
@@ -304,7 +323,7 @@ function onClick(e) {
   if (a === 'nteam') H.nc.team = v; else if (a === 'nrounds') H.nc.rounds = +v; else if (a === 'nlaps') H.nc.laps = +v;
   else if (a === 'create') { H.c = ManagerCareer.create({ team: H.nc.team, rounds: H.nc.rounds, laps: H.nc.laps }); H.tab = 'home'; H.o.onCreate?.(H.c); render(); pump(); return; }
   else if (!c) { /* nothing */ }
-  else if (a === 'race') { H.o.onRace?.(c); return; }
+  else if (a === 'race') { H.o.onRace?.(c, v || null); return; }
   else if (a === 'sim') { const rep = H.o.onSim?.(c); if (rep) say(`Round ${rep.round} simulated: ${rep.mine.map((m) => `${sur(m.name)} ${m.dnf ? 'DNF' : `P${m.pos}`}`).join(', ')}.`); H.tab = 'home'; H._tab = null; render(); pump(); return; }
   else if (a === 'next') { c.nextSeason(); H.tab = 'home'; H._tab = null; say(`Season ${c.season}: ${c.rounds} rounds. The board expects P${c.board.target}.`); render(); pump(); return; }
   else if (a === 'join') { c.nextSeason(v); H.tab = 'home'; H._tab = null; say(`You are ${v}'s team principal now.`); el.dataset.mode = ''; render(); pump(); return; }

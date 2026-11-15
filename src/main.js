@@ -2143,7 +2143,7 @@ function runQuali() {
       wk.cars = buildField(wk.lapsTotal); wk.player = wk.cars.find((c) => c.isPlayer) || null;
       wk.gridOrder = names.map((n) => wk.cars.find((c) => c.name === n)).filter(Boolean);
       for (const c of wk.cars) if (!wk.gridOrder.includes(c)) wk.gridOrder.push(c);
-      startFinale(all[0].car, 'POLE POSITION', () => {
+      (S.director?.simAll ? (car, title, then) => then() : startFinale)(all[0].car, 'POLE POSITION', () => {
         let html = '<table class="res"><tr><th>#</th><th>Driver</th><th>Time</th><th>Gap</th></tr>';
         all.forEach((e, i) => { html += `<tr class="${e.car.isPlayer ? 'me' : ''}"><td>${i + 1}</td><td><span class="sw" style="background:${e.car.color}"></span>${e.car.name}</td><td>${fmtTime(e.time)}</td><td>${i === 0 ? '' : isFinite(e.time) ? '+' + (e.time - all[0].time).toFixed(3) : 'no time'}</td></tr>`; });
         $('quali-results').innerHTML = html + '</table>';
@@ -2264,7 +2264,9 @@ function beginRace() {
       //  room - before the podium; at most one, and often none: career/ManagerStory.js)
       const podium = () => { let ts = null; try { ts = wk.mgr && !NEWS.cancelled ? storyTrackScene(wk.mgr) : null; } catch (e) { ts = null; } if (!ts && wk.cine && !wk.cine.after) { ts = wk.cine; wk.cine = null; } if (ts) playScene(ts.scene, { ...ts.ctx, night: W.time === 'night' }, { audio }).then(podium0, podium0); else podium0(); };
       // (the team principal's race: the moments kept, played once more before the winner's lap of honour)
-      if (wk.mode === 'tp') tpHighlights(() => startFinale(winner.car, 'RACE WINNER', podium)); else startFinale(winner.car, 'RACE WINNER', podium);
+      // (a race simulated to the flag: no lap of honour on the Sphere - nobody watched him win it)
+      const lap = S.director?.simmed ? podium : () => startFinale(winner.car, 'RACE WINNER', podium);
+      if (wk.mode === 'tp') tpHighlights(lap); else lap();
     }),
   });
   if (wk.mode === 'tp' && S.director) { tpStart(); if (!S.skipIntro) tpFormStart(); }   // (the formation lap before the lights: tpFormStart - Space skips it)
@@ -2351,6 +2353,7 @@ let simEl = null;
 function simToEnd() {
   const d = S.director; if (!d || d.done || S.simming || NEWS.cancel) return;
   if (d.player && !d.player.autopilot) d.handOver();
+  d.simmed = true; if ((d.time || 0) < 5) d.simAll = true;   // (simmed: the rest of it was; simAll: all of it - nobody watched: no lap of honour on the Sphere for it)
   S.simming = true; endCrash();
   if (!simEl) { simEl = document.createElement('div'); simEl.style.cssText = 'position:fixed;inset:0;z-index:48;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;background:rgba(4,6,10,.72);color:#eef1f5;font:600 14px/1.4 "Segoe UI",Arial,sans-serif;letter-spacing:.2em;text-align:center;transition:opacity .3s'; document.body.appendChild(simEl); }
   simEl.innerHTML = `SIMULATING THE REST OF THE ${d.mode === 'quali' ? 'SESSION' : 'RACE'}<small style="color:#9aa4b2;letter-spacing:.1em">every car from where it is now</small>`;
@@ -3348,14 +3351,16 @@ function openMgrHub() {
   openManagerHub({ career: MGR.c, trackName: (k) => shortTrack(k),
     teams: TEAMS.map((t) => ({ name: t.name, color: t.color, color2: t.color2, tier: t.drivers[0]?.tier ?? 2, drivers: seats(t).map((d) => d.name) })),
     onCreate: (c) => { MGR.c = c; },
-    onRace: (c) => mgrRace(c),
+    onRace: (c, sim) => mgrRace(c, sim),
     onSim: (c) => { const rep = c.applyRace(c.simRace(), c.track); storyTrackScene(c); refreshHome(); return rep; },   // (a simulated weekend: no scene at the track)
     play: (scene, ctx) => playScene(scene, ctx, { audio }),   // (the story's cutscenes: ui/CineIndex.js)
     onQuick: () => { closeManagerHub(); openSetup('tp'); },
     onExit: () => { closeManagerHub(); refreshHome(); } });
 }
-/** RACE from the HQ: the round's circuit, its forecast and distance - the team principal's weekend (qualifying, the race) */
-async function mgrRace(c) {
+/** RACE from the HQ: the round's circuit, its forecast and distance - the team principal's weekend (qualifying, the race).
+ *  sim (the HQ's shortcuts, as a driver's career has them): 'quali' - no practice, straight to qualifying on the feed;
+ *  'race' - qualifying simulated behind the loading screen, straight to the strategy for the race */
+async function mgrRace(c, sim = null) {
   if (W.loading || Loader.on || swapping || !c.seatsReady()) return;
   closeManagerHub(); S.mgr = c; MGR.c = c;
   try { storyBeforeRace(c); } catch (e) { console.warn('[manager] story', e); }   // (an empty seat nobody chose a driver for: the first reserve)
@@ -3375,6 +3380,11 @@ async function mgrRace(c) {
   $('menu').classList.add('hidden');
   Loader.stage('Preparing the weekend', 90); await paint();
   startWeekend();
+  if (sim === 'quali' && !$('quali-panel').classList.contains('hidden') && !$('btn-quali-go').classList.contains('hidden')) $('btn-quali-go').click();
+  else if (sim === 'race' && !$('quali-panel').classList.contains('hidden') && !$('btn-quali-sim').classList.contains('hidden')) {
+    Loader.stage('Qualifying, simulated', 95); await paint();
+    await new Promise((res) => { let done = false; const f = () => { if (!done) { done = true; res(); } }; S.weekend.autoRace = f; $('btn-quali-sim').click(); setTimeout(f, 12000); });
+  }
   Loader.hide();
 }
 /**
@@ -3524,8 +3534,11 @@ function tpQuali(watch) {
         wk.gridOrder = wk.gridOrder.map((c, i) => ({ c, k: key(c, i) })).sort((a, b) => a.k - b.k).map((x) => x.c);
         wk.penText = ` Grid penalties: ${[...pen].map(([n, k]) => `${surname(n)} +${k}`).join(', ')}.`;
       }
+      const simmed = !watch || !!S.director?.simmed;
       tpStop();
-      startFinale(all[0].car, 'POLE POSITION', () => {
+      // (the hub's SIM QUALIFYING - RACE: no table to read - the strategy screen says where each car starts - straight on)
+      if (wk.autoRace) { const f = wk.autoRace; wk.autoRace = null; endSession(); $('quali-panel').classList.add('hidden'); runRace(); f(); return; }
+      (simmed ? (car, title, then) => then() : startFinale)(all[0].car, 'POLE POSITION', () => {
         let html = '<table class="res"><tr><th>#</th><th>Driver</th><th>Time</th><th>Gap</th></tr>';
         all.forEach((e, i) => { html += `<tr class="${e.car.team === settings.tpTeam ? 'me' : ''}"><td>${i + 1}</td><td><span class="sw" style="background:${e.car.color}"></span>${htmlEsc(e.car.name)}</td><td>${fmtTime(e.time)}</td><td>${i === 0 ? '' : isFinite(e.time) ? '+' + (e.time - all[0].time).toFixed(3) : 'no time'}</td></tr>`; });
         $('quali-results').innerHTML = html + '</table>';
@@ -5330,7 +5343,7 @@ function frame(now) {
     /** (tests: the crash director, and the camera as drawn - terrainLift() lifts it for the frame and returns the undo; renderView() draws a frame through it) */
     crashCam, terrainLift, renderView,
     /** (tests: the team principal's race - main.js TP; the circuit built ahead in the menus) */
-    TP, PIP, tpReplayCams, cullBuildings, tpAct, tpFormStart, tpFormEnd, tpAway, tpAwayWall, PRE_TRACK, preloadWanted, playScene, tvClear, tvTreeHit, tvInside, tvTrees, tpMoment, tpMomentsCut, tvRay: _tvRay, tvGround: (x, z) => TERRAIN.at(x, z),
+    TP, PIP, tpReplayCams, cullBuildings, tpAct, tpFormStart, tpFormEnd, tpAway, tpAwayWall, PRE_TRACK, preloadWanted, playScene, tvClear, tvTreeHit, tvInside, tvTrees, tpMoment, tpMomentsCut, mgrRace, FINALE, ManagerCareer, tvRay: _tvRay, tvGround: (x, z) => TERRAIN.at(x, z),
     /** (tests - tools/regress.mjs: the optimisations that must not change a pixel, switched off and on) */
     fastMatrix, SHADOW_CULL,
     /** (tests: the show clock - simTime - set, so the Sphere's loop can be put on any show) */
