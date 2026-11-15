@@ -3100,7 +3100,7 @@ const _wkLook = new THREE.Vector3();
 /** what the commentary and the director are told happened (ui/TVShow.js LINES): a line, and what goes with it - the crowd's roar, a cutaway */
 function tpSay(k, x = {}) {
   const d = S.director; if (!TP.show || !d) return;
-  TP.show.say(k, x);
+  if (k !== 'pass' && k !== 'passLead') TP.show.say(k, x);   // (a pass is not announced anywhere now - no line in the column, none from the commentary; the picture has it)
   try {
     const mineOf = (n) => TP.cars.find((c) => surname(c.name) === n) || null;
     if (k === 'passLead') { const m = x.mine && mineOf(x.a); if (!(m && tpAwayWall(m, 'good'))) tpAway('crowd', d.positions.find((c) => !c.retired), { within: 7 }); }

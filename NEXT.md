@@ -16,8 +16,9 @@ overtakes y)".
   retirement ahead of the rest, and a line that has waited ten seconds is dropped rather than shown late.
 
 ## No OVERTAKE lines
-- "X PASSES Y FOR 7TH" is gone from the column altogether. The commentary's line still has a pass for the lead, the
-  podium places or one of your cars; the replay's chip (R) still comes for the first six places.
+- "X PASSES Y FOR 7TH" is gone from the column altogether, and the commentary no longer announces a pass either
+  ("...is past ... for P7!"). The replay's chip (R) still comes for the first six places, and the cutaways a big pass
+  earns (the crowd for a new leader, your pit wall for a podium place) are still taken.
 
 # V2.65 (2026-11-15): the window stays put; replays chosen - small ones on request, big ones played, the whole picture when the race is quiet
 
