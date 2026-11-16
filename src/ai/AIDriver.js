@@ -737,11 +737,32 @@ export class AIDriver {
     //  it is a gamble of its own, not the default)
     const type = this.strat.type, O = ['SOFT', 'MEDIUM', 'HARD'];
     let comp = type === 'gamble' ? 'HARD' : c.tyres.compound;
-    if (type !== 'gamble') try {
+    // (and the whole race from them, not only its first tyre: the plan's stints - each one's tyre and the lap it ends on
+    //  - are what it runs (strategy: box on the plan's lap for the plan's next tyre). It used to take the plan's first
+    //  tyre only and then stop on a wear threshold - and by the rule of a stop by 45 % distance, every car at half
+    //  distance - so the race the strategy screen predicted was never the race that was run. The standard plan is the
+    //  quickest, now and then the second or third (the field is not one strategy); the undercut takes the softest start
+    //  and stops a lap early, the overcut the hardest and a lap late; the gamble has none - it waits for a safety car)
+    this.plan = null;
+    // (a sprint - under eight laps, no stop to make: the plan's first tyre only, as it always was)
+    if (type !== 'gamble' && world.lapsTotal < 8) try {
       const R = planStints({ laps: world.lapsTotal, trackLength: this.track.length, pace: world.lapT || tyreLap(this.track.length), pitLoss: world.pitLoss || 22, wet: c.wetness });
       const st = R.plans.map((p) => p.stints[0].compound).filter((k) => O.includes(k));
       if (st.length) comp = type === 'early' ? st.reduce((a, b) => (O.indexOf(b) < O.indexOf(a) ? b : a)) : type === 'long' ? st.reduce((a, b) => (O.indexOf(b) > O.indexOf(a) ? b : a)) : rnd() < 0.7 || st.length < 2 ? st[0] : st[1];
     } catch (e) { /* (the plans could not be made: the tyre it has) */ }
+    else if (type !== 'gamble') try {
+      const R = planStints({ laps: world.lapsTotal, trackLength: this.track.length, pace: world.lapT || tyreLap(this.track.length), pitLoss: world.pitLoss || 22, wet: c.wetness });
+      const P = R.plans.filter((p) => p.stints.every((x) => O.includes(x.compound)));
+      if (P.length) {
+        const soft = (p) => O.indexOf(p.stints[0].compound);
+        const pk = type === 'early' ? P.reduce((a, b) => (soft(b) < soft(a) ? b : a)) : type === 'long' ? P.reduce((a, b) => (soft(b) > soft(a) ? b : a)) : (() => { const r = rnd(); return P[r < 0.6 || P.length < 2 ? 0 : r < 0.85 || P.length < 3 ? 1 : 2]; })();
+        const sh = type === 'early' ? -1 : type === 'long' ? 1 : rnd() < 0.2 ? (rnd() < 0.5 ? -1 : 1) : 0;
+        const st = pk.stints.map((x) => ({ ...x }));
+        if (st.length > 1 && sh) { const e = Math.max(2, Math.min(world.lapsTotal - 2, st[0].end + sh)); if (st.length < 3 || e < st[1].end - 1) { st[0].end = e; st[1].start = e + 1; } }
+        this.plan = { stints: st, name: pk.label || pk.name };
+        comp = st[0].compound;
+      }
+    } catch (e) { /* (the plans could not be made: the tyre it has, and the stops by the wear) */ }
     if (comp === c.tyres.compound) return false;
     c.fitTyres(comp); c.tyres.temp = c.tyres.spec.start ?? 0.7; c.tyres.work = 0.45;   // (on the grid: as the formation lap leaves them)
     return true;
@@ -874,7 +895,10 @@ export class AIDriver {
     // a rival's stop (checked twice a second)
     this._rivalT = (this._rivalT || 0) - 1 / 60;
     let cover = false, under = null;
-    if (this._rivalT <= 0) { this._rivalT = 0.5; cover = lapsLeft >= 2 && this.watchRivals(world, lapsLeft); if (!cover) under = this.undercutOn(world, lapsLeft); }
+    // (a car on a plan moves its stop for a rival's - to cover it, or to undercut - only by a lap: past that it
+    //  is not the plan's stop any more but an extra one)
+    const PL0 = this.plan && !c.usedRain && !c.mgr ? this.plan : null, near = !PL0 || (c.pitStops < PL0.stints.length - 1 && PL0.stints[c.pitStops].end - (c.lap + 1) <= 1);   // (on the plan's last set: no stop for a rival's)
+    if (this._rivalT <= 0) { this._rivalT = 0.5; cover = near && lapsLeft >= 2 && this.watchRivals(world, lapsLeft); if (!cover && near) under = this.undercutOn(world, lapsLeft); }
     const wxCall = this.weatherCall(world, lapsLeft), wetMismatch = !!wxCall, W = world.weather ? world.weather.tyreWet : c.wetness;
     // the pit entry comes once a lap: if the tyres would go over the cliff (70 % wear) before the one after this,
     // box at this one - a lap on worn-out tyres costs far more than the stop. The wear of the last full lap says how
@@ -883,27 +907,37 @@ export class AIDriver {
     //  reach the next lap", and the car came straight back in, lap after lap)
     if (c.lap !== this._wLap) { this._wPerLap = this._wLap != null && this._wTyres === t ? t.wear - this._wStart : 0; this._wLap = c.lap; this._wStart = t.wear; this._wTyres = t; }
     // (the plan's wear target instead of the cliff: an early stopper boxes at half wear, a gambler at the cliff)
-    const toPit = 1 - c.s / this.track.length, cliffSoon = this._wPerLap > 0 && this._wTyres === t && t.wear + this._wPerLap * (toPit + 1) > S.wear;
+    // (a car on a plan: its stops are the plan's - the wear only brings one forward when the set is going off sooner
+    //  than the sums said: about to wear through, not at the wear target)
+    const PL = this.plan && !c.usedRain && W < 0.2 && !world.weather?.everWet && !c.mgr ? this.plan : null, wLim = PL ? (c.pitStops >= PL.stints.length - 1 ? 1.0 : 0.95) : S.wear;   // (the plan's own sums run a set to the edge of worn through - ui/Strategy.js planRace: not past it. On its last stint, to the flag: a stop more costs more than the last laps on a tired set)
+    const toPit = 1 - c.s / this.track.length, cliffSoon = this._wPerLap > 0 && this._wTyres === t && t.wear + this._wPerLap * (toPit + 1) > wLim;
     // (with two laps or less to go a stop for tyres never pays back - unless they are truly finished)
-    const wornOut = (cliffSoon || t.wear > S.wear + 0.05) && (lapsLeft >= 2.5 || t.wear > 0.85);
+    const lastStint = !!PL && c.pitStops >= PL.stints.length - 1;   // (on its plan's last set: to the flag on it, unless it is truly finished - it wears a little faster than the sums say, and an extra stop costs more than the last laps)
+    const wornOut = (lastStint ? t.wear > 0.99 : cliffSoon || t.wear > wLim + 0.05) && (lapsLeft >= 2.5 || t.wear > 0.85);
+    // (the plan's stop: on the lap its stint ends - the pit entry comes at the end of it)
+    const due = !!PL && c.pitStops < PL.stints.length - 1 && c.lap + 1 >= PL.stints[c.pitStops].end && lapsLeft >= 0.6;
     // (a front wing that has lost real downforce is changed: a lap understeering on it costs more than the stop)
     const damaged = (c.dmg.fwL + c.dmg.fwR) > 0.45 || c.dmg.rw > 0.35 || c.dmg.susp > 0.55;
     // (8 laps or more: one stop is mandatory - in a short race it is made whatever the wear, and never left too late; a
     //  gambler holds out for a safety car to the last lap, and makes it there)
     // (and none in a wet race: the rule is for dry ones - a car that has run a rain tyre, or a track that has been wet)
-    const mustStop = world.lapsTotal >= 8 && c.pitStops === 0 && lapsLeft >= 0.6 && !c.usedRain && !world.weather?.everWet && (S.type === 'gamble' ? lapsLeft <= 2.05
+    const mustStop = world.lapsTotal >= 8 && c.pitStops === 0 && lapsLeft >= 0.6 && !c.usedRain && !world.weather?.everWet && (S.type === 'gamble' || PL ? lapsLeft <= 2.05
       : lapsLeft <= Math.ceil(world.lapsTotal * 0.45) && (t.wear > 0.45 || world.lapsTotal < 13 || lapsLeft <= 2.5));
     // (the pit wall gets it wrong now and then - the more often the smaller the team: race/Calls.js FAULT_P. A stop for
     //  worn tyres alone left a lap too late, once a stint; it stays out to the next lap's entry, on the cliff's edge)
-    const fp = (FAULT_P[c.tier] ?? FAULT_P[2]) * (c.faultMul ?? 1), onlyTyres = wornOut && !damaged && !wetMismatch && !mustStop && !cheap && !cover && !under;
+    const fp = (FAULT_P[c.tier] ?? FAULT_P[2]) * (c.faultMul ?? 1), onlyTyres = wornOut && !due && !damaged && !wetMismatch && !mustStop && !cheap && !cover && !under;
     if (onlyTyres && this._lateStint !== c.pitStops && lapsLeft >= 3) { this._lateStint = c.pitStops; if (rnd() < fp) { this._lateLap = c.lap; world.calls?.fault(c, 'late'); } }
     if (onlyTyres && this._lateLap === c.lap) return;
-    if (wornOut || damaged || wetMismatch || mustStop || cheap || cover || under) {
-      this.pitReason = cheap ? 'cheap' : cover ? 'cover' : under ? 'undercut' : damaged ? 'damage' : wetMismatch ? 'weather' : 'tyres';
+    if (wornOut || due || damaged || wetMismatch || mustStop || cheap || cover || under) {
+      this.pitReason = cheap ? 'cheap' : cover ? 'cover' : under ? 'undercut' : damaged ? 'damage' : wetMismatch ? 'weather' : due ? 'plan' : 'tyres';
       c.pitRequested = true;
       // (the set for the rest of the race: the softest that reaches the flag - a different one from the first stint's,
       //  where it can be, as the rules want two in a dry race)
       let comp = this.nextCompound(lapsLeft);
+      // (the plan's next tyre - if it reaches the flag from here, or the plan has another stop after it; off the plan -
+      //  a repair, the rain - the plan is given up: the stops by the wear from here)
+      if (PL && (damaged || wetMismatch)) this.plan = null;
+      else if (PL && PL.stints[c.pitStops + 1]) { const nx = PL.stints[c.pitStops + 1].compound, last = c.pitStops + 2 >= PL.stints.length; comp = !last || cliffLaps(nx, c.raceLaps) * 1.35 >= world.lapsTotal - (c.lap + 1) - 0.3 ? nx : this.nextCompound(lapsLeft); }   /* (the laps after this one: the set goes on at the end of it) */   // (a stop come early - for a rival's, the wear: the plan's last tyre if it still reaches the flag, else one that does)
       if (wxCall) comp = wxCall === 'SLICK' ? this.slickFor(lapsLeft) : wxCall;
       if ((c.pitStops === 0 || (world.lapsTotal >= 8 && c.dryUsed && c.dryUsed.size < 2 && !c.usedRain)) && comp === t.compound && W < 0.3 && !wxCall) comp = comp === 'HARD' ? 'MEDIUM' : comp === 'MEDIUM' ? 'HARD' : 'MEDIUM';
       // (... and now and then a set that will not last: one softer than the race wants, it falls away before the flag)

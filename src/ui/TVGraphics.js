@@ -49,7 +49,7 @@ const CSS = `
 #tvg .live i { width: 8px; height: 8px; border-radius: 50%; background: #e10600; animation: tvgBlink 1.6s infinite; }
 #tvg .live em { font-style: normal; color: #b7c0cc; }
 #tvg .banner { position: absolute; left: 50%; top: 14px; transform: translateX(-50%); padding: 8px 22px; font: 900 15px/1 var(--tvf); letter-spacing: .2em; color: #111; background: #ffd400; border-radius: 4px; display: none; }
-#tvg .banner.red { background: #e10600; color: #fff; } #tvg .banner.on { display: block; }
+#tvg .banner.red { background: #e10600; color: #fff; } #tvg .banner.on { display: block; pointer-events: auto; }
 @keyframes tvgIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: none; } }
 @keyframes tvgBlink { 50% { opacity: .25; } }
 @media (max-width: 640px) { #tvg .tower { width: 168px; transform: scale(.85); transform-origin: top left; } #tvg .rc { display: none; } }
@@ -70,6 +70,9 @@ export class TVGraphics {
     document.body.appendChild(el);
     this.rowsEl = el.querySelector('.rows'); this.rows = []; this.capEl = el.querySelector('.cap'); this.rcEl = el.querySelector('.rc');
     this.rowsEl.addEventListener('click', (e) => { const r = e.target.closest('.r'); if (r && this.onPick) this.onPick(this.cars[+r.dataset.i]); });
+    // (the race control banner - SAFETY CAR, VSC, RED FLAG - is a button too, unmarked: the cameras on the safety car)
+    el.querySelector('.banner').addEventListener('click', (e) => { const b = e.currentTarget; if (b.classList.contains('on')) this.onPick?.('SC'); });
+    this.rowsEl.addEventListener('dblclick', (e) => { const r = e.target.closest('.r'); if (r && this.onPick) this.onPick(this.cars[+r.dataset.i], { solo: true }); });   // (a double click: that car alone)
     this.cars = []; this.acc = 1; this.modeT = 0; this.gapMode = 'INTERVAL'; this.capT = 0; this.capKey = '';
     this.age = new Map(); this.prev = new Map(); this.best = Infinity; this.phase = 'green'; this.rcQ = [];
   }

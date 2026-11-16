@@ -16,7 +16,7 @@
 //   RAIN ON THE LENS when the track is wet, on the cameras that stand in it.
 // Plain DOM in the graphics' own layer; main.js draws the picture-in-picture inside the frame this makes for it.
 const CSS = `
-#tvg .cm { position: absolute; left: 50%; top: 54px; transform: translate(-50%, -8px); width: min(600px, 46vw); background: rgba(12,14,20,.86); border-radius: 6px; padding: 7px 12px 8px; opacity: 0; transition: opacity .25s, transform .25s, top .3s; border-left: 4px solid #e10600; }
+#tvg .cm { display: none !important; position: absolute; left: 50%; top: 54px; transform: translate(-50%, -8px); width: min(600px, 46vw); background: rgba(12,14,20,.86); border-radius: 6px; padding: 7px 12px 8px; opacity: 0; transition: opacity .25s, transform .25s, top .3s; border-left: 4px solid #e10600; }
 #tvg .cm.in { opacity: 1; transform: translate(-50%, 0); } #tvg .cm.b { border-left-color: #1f6feb; }
 #tvg .cm small { display: block; font: 800 9px/1 var(--tvf); letter-spacing: .2em; color: #9aa4b2; margin-bottom: 4px; }
 #tvg .cm span { font: 600 14px/1.3 var(--tvf); }
@@ -48,6 +48,9 @@ const CSS = `
 /* the picture in the picture: a window of neon. It opens as a line of light drawn out from its middle, which then
    parts - the picture between the two halves (main.js draws only what is open: pipOpen) - and its tab unrolls; it
    closes the way it came: to a line, the line in to a point. --kx / --ky: how far it is open across and down. */
+#tvg .pip .pfs { position: absolute; right: 7px; bottom: 9px; z-index: 2; display: none; align-items: center; gap: 5px; padding: 5px 8px 5px 7px; border-radius: 6px; border: 1px solid rgba(35,229,255,.7); background: rgba(10,6,28,.82); color: #fff; font: 900 9.5px/1 var(--tvf); letter-spacing: .14em; cursor: pointer; pointer-events: auto; box-shadow: 0 0 12px -3px #23e5ff; opacity: 0; transition: opacity .25s ease .2s, background .15s, box-shadow .15s; }
+#tvg .pip .pfs svg { width: 11px; height: 11px; fill: none; stroke: currentColor; stroke-width: 1.8; }
+#tvg .pip.rp.open .pfs { display: inline-flex; opacity: 1; } #tvg .pip .pfs:hover { background: rgba(255,63,164,.85); box-shadow: 0 0 18px -2px #ff3fa4; border-color: #fff; }
 #tvg .pip { --n: #19e3ff; position: absolute; left: 272px; top: 128px; width: min(300px, 24vw); aspect-ratio: 16 / 9; display: none; pointer-events: none; }
 #tvg .pip.big { --n: #ff2d75; width: min(430px, 34vw); }
 #tvg .pip.on { display: block; }
@@ -132,13 +135,14 @@ const LINES = {
 /** the window's opening at k 0..1 -> [across, down] 0..1: a line drawn out from the middle (the first two fifths), then parted (eased) */
 export function pipOpen(k) { const e = (x) => { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); }; return [e(k / 0.4), e((k - 0.34) / 0.66)]; }
 
+const SAY = false;   // (the commentary's captions: off)
 export class TVShow {
   /** root: #tvg; o: { tyreLaps(car), audio } */
   constructor(root, o = {}) {
     this.root = root; this.o = o;
     if (!document.getElementById('tvs-css')) { const st = document.createElement('style'); st.id = 'tvs-css'; st.textContent = CSS; document.head.appendChild(st); }
     const mk = (cls, html = '') => { const e = document.createElement('div'); e.className = cls; e.innerHTML = html; root.appendChild(e); return e; };
-    this.sk = mk('sk'); this.rain = mk('rain'); root.insertBefore(this.rain, root.firstChild);   /* (the drops are on the lens: under every graphic) */ this.cm = mk('cm', '<small></small><span></span>'); this.rad = mk('rad'); this.gridg = mk('gridg'); this.cls = mk('cls'); this.pipEl = mk('pip', '<i class="fr"></i><b><span></span></b><u class="pg"></u><em class="tg">SLO-MO</em>');
+    this.sk = mk('sk'); this.rain = mk('rain'); root.insertBefore(this.rain, root.firstChild);   /* (the drops are on the lens: under every graphic) */ this.cm = mk('cm', '<small></small><span></span>'); this.rad = mk('rad'); this.gridg = mk('gridg'); this.cls = mk('cls'); this.pipEl = mk('pip', '<i class="fr"></i><b><span></span></b><u class="pg"></u><em class="tg">SLO-MO</em><button class="pfs" type="button" title="Watch this replay on the whole screen (from the start)"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4"/></svg>FULL SCREEN</button>'); this.pipEl.querySelector('.pfs').addEventListener('click', (e) => { e.stopPropagation(); this.o.onPipFull?.(); });
     this.mapEl = document.createElement('canvas'); this.mapEl.className = 'map'; this.mapEl.width = 380; this.mapEl.height = 256; root.appendChild(this.mapEl);
     this.inf = document.createElement('div'); this.inf.className = 'xc inf'; (root.querySelector('.xr') || root).appendChild(this.inf);
     try { localStorage.removeItem('f1sim-tv-voice'); window.speechSynthesis?.cancel(); } catch (e) { /* nothing kept */ }
@@ -151,9 +155,12 @@ export class TVShow {
     for (const e of [this.cm, this.rad, this.gridg, this.cls, this.inf]) e.classList.remove('in'); this.rain.classList.remove('on'); this.pipEl.classList.remove('on', 'big', 'open', 'slow'); this.root.classList.remove('hl', 'has-pip', 'tight'); this.skK = ''; this.sk?.classList.remove('in');
   }
 
-  // ---- commentary ------------------------------------------------------------------------------------------------------
+  // ---- commentary (off: SAY) ------------------------------------------------------------------------------------------------------
   /** something happened: a line for it (kind: LINES' keys; x: its words) - said when its turn comes, or at once if it matters more than what is being said */
+  // (there is no commentary on the broadcast any more - asked for: the picture, the graphics and the team radio tell
+  //  the race. The lines are kept in LINES; nothing is said)
   say(kind, x = {}) {
+    if (!SAY) return;
     const L = LINES[kind]; if (!L) return;
     const key = `${kind}|${x.a || x.who || ''}|${x.b || ''}`, now = performance.now(); if (now - (this.said.get(key) ?? -1e9) < (L[0] >= 8 ? 4000 : 24000)) return; this.said.set(key, now);
     const v = L[2](x), text = Array.isArray(v) ? v[(this.n++ + (x.pos || 0)) % v.length] : v; if (!text) return;
@@ -182,7 +189,7 @@ export class TVShow {
     const el = this.pipEl, [kx, ky] = pipOpen(k); el.style.setProperty('--kx', kx.toFixed(3)); el.style.setProperty('--ky', ky.toFixed(3));
     this.root.classList.toggle('has-pip', !!label);
     if (!label) { if (el.classList.contains('big') && el.classList.contains('on')) { const lv = this.root.querySelector('.live'); if (lv) { lv.classList.remove('live-back'); void lv.offsetWidth; lv.classList.add('live-back'); } } el.classList.remove('on', 'big', 'open', 'slow'); return null; }
-    el.classList.add('on'); el.classList.toggle('big', !!big); el.classList.toggle('open', k >= 0.995); el.classList.toggle('slow', !!o?.slow);
+    el.classList.add('on'); el.classList.toggle('big', !!big); el.classList.toggle('open', k >= 0.995); el.classList.toggle('slow', !!o?.slow); el.classList.toggle('rp', o?.p != null);   /* (rp: a replay in the window - its FULL SCREEN button) */
     if (o && o.p != null) el.style.setProperty('--p', Math.max(0, Math.min(1, o.p)).toFixed(3));
     const b = el.children[1].firstChild; if (b.textContent !== label) b.textContent = label;
     return el.getBoundingClientRect();

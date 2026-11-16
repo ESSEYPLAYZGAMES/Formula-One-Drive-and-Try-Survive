@@ -10,6 +10,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { corridorSigned, ribbon, paintRGB, paintTexture } from '../track/TrackBuilder.js';
+import { blankBack } from '../track/Branding.js';
 import { footprintInfo } from '../core/GeoLoader.js';
 import { makeWindowMaterial } from './Buildings.js';
 import { TERRAIN } from './Terrain.js';
@@ -848,7 +849,7 @@ export function buildAustin(geo, track, def, pit) {
         p.translate(0, 1.2, 0); p.rotateY(Math.atan2(-f.tx, -f.tz)); p.translate(x, 0, z); boards.push(p);
       });
     }
-    if (boards.length) group.add(new THREE.Mesh(mergeGeometries(boards), new THREE.MeshBasicMaterial({ map: btex, side: THREE.DoubleSide })));
+    if (boards.length) { const bm = new THREE.Mesh(mergeGeometries(boards), blankBack(new THREE.MeshBasicMaterial({ map: btex, side: THREE.DoubleSide }), { bySide: 'mirror', per: 1 / 3 })); bm.name = 'austin:brakeboards'; group.add(bm); }   // (the brake boards' backs: blank)
     // the cranes: a yellow boom over the fence with the camera on its end (Turn 1, the Esses, the stadium)
     const yel = new THREE.MeshStandardMaterial({ color: 0xf2b417, roughness: 0.5, metalness: 0.4 }), crane = [];
     for (const [n, a, side] of [[1, -120, 1], [4, 0, -1], [15, 0, 1]]) {

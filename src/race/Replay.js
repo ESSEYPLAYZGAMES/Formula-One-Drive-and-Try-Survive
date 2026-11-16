@@ -33,7 +33,9 @@ export class ReplayBuffer {
     this.acc += dt; if (this.acc < 1 / HZ) return; this.acc %= 1 / HZ;
     const n = this.cars.length, f = new Float32Array(n * 7), g = new Float32Array(n), split = new Uint8Array(n), w = new Float32Array(n * 4);
     for (let i = 0; i < n; i++) { const c = this.cars[i]; carPose(c, f, i * 7); g[i] = c.pulseG || 0; c.pulseG = 0; split[i] = c.split ? 1 : 0; w[i * 4] = ((this.spin[i] % SPIN_WRAP) + SPIN_WRAP) % SPIN_WRAP; w[i * 4 + 1] = c.steer || 0; w[i * 4 + 2] = c.vLong || 0; w[i * 4 + 3] = (c.brake > 0.3 ? 1 : 0) + (c.drs ? 2 : 0); }
-    F.push({ t: time, f, g, split, w }); while (F.length > HZ * (this.keep || KEEP)) F.shift();   // (keep: a longer record where one is wanted - the team principal's highlights hold a moment until it is over)
+    // (the safety car too, while it is out on the circuit - sc: its pose, or null: a replay draws it where it was, or not at all)
+    const S0 = this.sc?.(), sc = S0 && !S0.pitLane ? new Float32Array(7) : null; if (sc) carPose(S0, sc, 0);
+    F.push({ t: time, f, g, split, w, sc }); while (F.length > HZ * (this.keep || KEEP)) F.shift();   // (keep: a longer record where one is wanted - the team principal's highlights hold a moment until it is over)
   }
   /**
    * Car c's accident -> { hz, t0 (race time of the first frame), cars, focus (its index in cars), impact: { k, x, z },

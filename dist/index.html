@@ -602,7 +602,7 @@ body.tp #hud-msg { top: 30%; }
     <div class="brand-line"></div>
     <h1 id="brand-title">FORMULA 1<span id="brand-sub">SIMULATOR</span></h1>
     <!-- the build's version: +0.01 with every build handed out -->
-    <span id="app-ver" title="Version">V2.74</span>
+    <span id="app-ver" title="Version">V2.75</span>
     <div id="menu-sub">Real circuits built from OpenStreetMap</div>
   </div>
   <div id="loading" class="hidden"><div class="ld"><i></i></div><span>Building the circuit from OpenStreetMap…</span></div>
@@ -81142,6 +81142,9 @@ const atlasU = (k, u) => (k + 0.03 + u * 0.94) / PANELS.length;   // a few texel
  * mirror writing. A real one is blank on its back: the plain reverse of the vinyl, greyed and streaked by a few
  * seasons outdoors. With this its back is that: no picture, no glow of its own.
  *   bySide: 0 - the back is the sheet's own back face (a plane turned to face its readers).
+ *           'mirror' - the back is wherever the picture reads mirrored on the screen (its texture's u and v, as
+ *           the screen sees them, turned over): for sheets laid out whichever way round - each board of a set
+ *           its own way (Silverstone's), so no one face is the readable one for all of them.
  *           +1 / -1 - a barrier's panels (TrackBuilder: one ribbon winding for both sides of the road, the side read
  *           from the sign of v, which runs backwards on the left): the back is the face turned away from the road.
  *   along: which of the texture's coordinates runs along the board ('y' the panels, 'x' a plane); per, up: how many
@@ -81150,7 +81153,7 @@ const atlasU = (k, u) => (k + 0.03 + u * 0.94) / PANELS.length;   // a few texel
 function blankBack(mat, { bySide = 0, along = 'x', per = 1, up = 1 } = {}) {
   if (!mat || mat.userData.blankBack) return mat; mat.userData.blankBack = true;
   const prev = mat.onBeforeCompile, pk = mat.customProgramCacheKey, a = along === 'y' ? 'vMapUv.y' : 'vMapUv.x', u = along === 'y' ? 'vMapUv.x' : 'vMapUv.y';
-  const back = bySide ? `((gl_FrontFacing ? 1.0 : -1.0) * (vMapUv.y < 0.0 ? 1.0 : -1.0) * ${bySide.toFixed(1)} > 0.0)` : '(!gl_FrontFacing)';
+  const back = bySide === 'mirror' ? '((dFdx(vMapUv).x * dFdy(vMapUv).y - dFdy(vMapUv).x * dFdx(vMapUv).y) < 0.0)' : bySide ? `((gl_FrontFacing ? 1.0 : -1.0) * (vMapUv.y < 0.0 ? 1.0 : -1.0) * ${bySide.toFixed(1)} > 0.0)` : '(!gl_FrontFacing)';
   mat.onBeforeCompile = (sh, r) => {
     prev?.(sh, r);
     sh.fragmentShader = sh.fragmentShader
@@ -81172,7 +81175,7 @@ function blankBack(mat, { bySide = 0, along = 'x', per = 1, up = 1 } = {}) {
         #endif`)
       .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n        if (bbBack) totalEmissiveRadiance *= 0.0;');
   };
-  mat.customProgramCacheKey = () => `${pk ? pk.call(mat) : ''}bb${bySide}${along}${per}${up}`;
+  mat.customProgramCacheKey = () => `${pk ? pk.call(mat) : ''}bb${bySide}${along}${per}${up}`;   // (bySide 'mirror' names its own program)
   mat.needsUpdate = true;
   return mat;
 }
@@ -96528,6 +96531,7 @@ return { buildMontreal };
 // ---- src/world/CotaLife.js
 __m['src/world/CotaLife.js'] = (() => {
 const { corridorSigned } = __m['src/track/TrackBuilder.js'];
+const { blankBack } = __m['src/track/Branding.js'];
 const { TERRAIN } = __m['src/world/Terrain.js'];
 const { fanMesh, walkerMesh, walkerMaterial, STANDING } = __m['src/world/FanCutouts.js'];
 // The Circuit of the Americas on a race weekend, alive: what world/Austin.js lays out (the circuit's buildings, the
@@ -96551,6 +96555,7 @@ const { fanMesh, walkerMesh, walkerMaterial, STANDING } = __m['src/world/FanCuto
 //     F1 Fan Zone round the Grand Plaza (simulators, merchandise, food);
 //   * the free internal tram along the outer perimeter between the Grand Plaza, the Main Grandstand and Turn 1;
 //   * the TV helicopters: one over the action (it keeps station near the camera, circling), one high over the circuit.
+
 
 
 
@@ -96670,7 +96675,7 @@ function buildTrackside(C) {
     for (const sd of k++ % 2 ? [side, -side] : [-side, side]) { if (pr && sd === pit.sideSign && inR(s, ...pr)) continue; const bar = sd > 0 ? tr.barL[i] : tr.barR[i]; if (bar && bar !== 3 && platform(s, i, sd, 8.5)) break; }
   }
   if (parts.length) { const m = new THREE.Mesh(mergeGeometries(parts), VMAT()); m.name = 'cota:trackside'; group.add(m); }
-  if (boards.length) group.add(new THREE.Mesh(mergeGeometries(boards), new THREE.MeshBasicMaterial({ map: btex, side: THREE.DoubleSide })));
+  if (boards.length) group.add(new THREE.Mesh(mergeGeometries(boards), blankBack(new THREE.MeshBasicMaterial({ map: btex, side: THREE.DoubleSide }), { bySide: 'mirror', per: 1 / cols, up: 1 / rows })));   // (the post numbers' backs: blank)
   if (panels.length) {
     const lit = panels.map(([x, z, ang, side, f]) => new THREE.PlaneGeometry(0.9, 0.12).translate(0, 2.25, 0).rotateY(Math.atan2(-f.nx * side, -f.nz * side)).translate(x - f.nx * side * 0.1, 0, z - f.nz * side * 0.1));
     group.add(new THREE.Mesh(mergeGeometries(lit), new THREE.MeshBasicMaterial({ color: 0x3dff6a, side: THREE.DoubleSide })));
@@ -97223,6 +97228,7 @@ return { unguardedGround, buildTrackside, buildCotaLife, FLAGART, buildHelicopte
 // ---- src/world/Austin.js
 __m['src/world/Austin.js'] = (() => {
 const { corridorSigned, ribbon, paintRGB, paintTexture } = __m['src/track/TrackBuilder.js'];
+const { blankBack } = __m['src/track/Branding.js'];
 const { footprintInfo } = __m['src/core/GeoLoader.js'];
 const { makeWindowMaterial } = __m['src/world/Buildings.js'];
 const { TERRAIN } = __m['src/world/Terrain.js'];
@@ -97237,6 +97243,7 @@ const { buildTrackside, buildCotaLife, unguardedGround } = __m['src/world/CotaLi
 // parks in the fields; the live oaks, cedar elms and mesquite of the Texas prairie; and the stars on the blue of the
 // Turn 1 run-off (its red and white stripes: tracks.js runoffPaint). Built flat like the rest of the world and raised
 // onto the ground's height with it (world/Terrain.js elevateWorld).
+
 
 
 
@@ -98077,7 +98084,7 @@ function buildAustin(geo, track, def, pit) {
         p.translate(0, 1.2, 0); p.rotateY(Math.atan2(-f.tx, -f.tz)); p.translate(x, 0, z); boards.push(p);
       });
     }
-    if (boards.length) group.add(new THREE.Mesh(mergeGeometries(boards), new THREE.MeshBasicMaterial({ map: btex, side: THREE.DoubleSide })));
+    if (boards.length) { const bm = new THREE.Mesh(mergeGeometries(boards), blankBack(new THREE.MeshBasicMaterial({ map: btex, side: THREE.DoubleSide }), { bySide: 'mirror', per: 1 / 3 })); bm.name = 'austin:brakeboards'; group.add(bm); }   // (the brake boards' backs: blank)
     // the cranes: a yellow boom over the fence with the camera on its end (Turn 1, the Esses, the stadium)
     const yel = new THREE.MeshStandardMaterial({ color: 0xf2b417, roughness: 0.5, metalness: 0.4 }), crane = [];
     for (const [n, a, side] of [[1, -120, 1], [4, 0, -1], [15, 0, 1]]) {
@@ -98384,6 +98391,7 @@ return { vnoise, fbm, austinCrowdZones, ringRoad, buildAustin };
 // ---- src/world/Silverstone.js
 __m['src/world/Silverstone.js'] = (() => {
 const { corridorSigned, ribbon, fenceTexture } = __m['src/track/TrackBuilder.js'];
+const { blankBack } = __m['src/track/Branding.js'];
 const { footprintInfo } = __m['src/core/GeoLoader.js'];
 const { fitRingOutsideCorridor } = __m['src/world/Landmarks.js'];
 const { standFootprints } = __m['src/world/Venue.js'];
@@ -98412,6 +98420,7 @@ const { extrudeFootprint } = __m['src/world/Buildings.js'];
 // world/Grandstands.js (which builds their tiers and their crowds; the roofs and the rest are dressed on here, in the same
 // frame). Nothing here moves the road, the kerbs, the run-offs or a barrier: the crowds' own fences stand well behind the
 // run-offs' and verges' caps (track.wallAt), so a car that leaves the road still runs out onto open grass.
+
 
 
 
@@ -98658,7 +98667,7 @@ function buildSilverstone(geo, track, def, pit) {
   const darkGlass = new THREE.MeshStandardMaterial({ color: 0x10161c, roughness: 0.07, metalness: 0.85, envMapIntensity: 1.3, emissive: 0x0b1116, emissiveIntensity: 0.6 });
   const railMat = new THREE.MeshStandardMaterial({ color: 0xa9c3d3, roughness: 0.05, metalness: 0.3, transparent: true, opacity: 0.38, side: THREE.DoubleSide, depthWrite: false });
   const vmat = VMAT(), vmatD = VMAT({ side: THREE.DoubleSide, roughness: 0.55 });
-  const boardMat = new THREE.MeshStandardMaterial({ map: boardAtlas(), roughness: 0.55, side: THREE.DoubleSide, emissive: 0xffffff, emissiveMap: boardAtlas(), emissiveIntensity: 0.16 });
+  const boardMat = blankBack(new THREE.MeshStandardMaterial({ map: boardAtlas(), roughness: 0.55, side: THREE.DoubleSide, emissive: 0xffffff, emissiveMap: boardAtlas(), emissiveIntensity: 0.16 }), { bySide: 'mirror', along: 'x', per: 1, up: 1 / ROWS });   // (from behind: a blank weathered sheet - track/Branding.js)
   const screenMat = new THREE.MeshStandardMaterial({ color: 0x0b1a2e, emissive: 0x2a5aa8, emissiveIntensity: 0.9, roughness: 0.3, side: THREE.DoubleSide });
   const fansMat = fanMaterial(), flagMat = flagMaterial();
   const sheets = [];    // the cut-out people standing about: [x, y, z, ang, variant]
@@ -147394,6 +147403,7 @@ const TV_CAM_NAME = { auto: 'Director', track: 'Trackside', tcam: 'Onboard', hel
 const TV_AWAY = new Set(['crowd', 'garage', 'beauty', 'wall', 'marshal', 'walk']);
 
 const _v = new THREE.Vector3(), _mv = new THREE.Vector3();
+const d0pos = (ctx, c) => ctx.d.positions.indexOf(c);
 /**
  * Where the barrier a camera stands at really is, on that side of the road (m from its centre). Along the pit lane
  * it is the PIT WALL (pit.wallD): Track.wallAt there is past it, in the lane - a camera put by that stood in the pit
@@ -147421,9 +147431,10 @@ class TVDirector {
     this.forced = null;          // a shot the director is told to hold (the formation lap): { kind, car, other, why }
     this.beautyAt = -99;
   }
-  reset() { this.shot = null; this.followCar = null; this.camKind = 'auto'; this.awayQ = []; this.awayNext = 0; this.forced = null; this.lastSeen.clear(); this.seenOut.clear(); this.outAt.clear(); this.spinAt.clear(); this.t = 0; this.cuts = 0; }
+  reset() { this.shot = null; this.followCar = null; this.solo = false; this.camKind = 'auto'; this.awayQ = []; this.awayNext = 0; this.forced = null; this.lastSeen.clear(); this.seenOut.clear(); this.outAt.clear(); this.spinAt.clear(); this.t = 0; this.cuts = 0; }
   /** follow this car (null: the director chooses again) */
-  follow(car) { this.followCar = car || null; this.shot = null; }
+  /** follow a car (o.solo: that car alone - no fight's partner in its picture) */
+  follow(car, o = {}) { this.followCar = car || null; this.solo = !!(car && o.solo); this.shot = null; }
   /** a cutaway, at the next cut (for a few seconds from now): kind 'crowd' | 'garage', the car it is about */
   /** (view: a cutaway whose camera the caller places - { pos, look: a Vector3 or () => Vector3, fov, dur }: the pit wall's faces, a marshal's post, a driver walking away) */
   cutaway(kind, car, within = 6, view = null) { if (!car || this.camKind !== 'auto') return; const Q = this.awayQ; if (Q.some((a) => a.kind === kind)) return; Q.push({ kind, car, until: this.t + within, view }); if (Q.length > 3) Q.shift(); }   /* (a camera you keep to is not cut away from; one asked for while another waits takes its turn - at the flag the marshal, the pit wall and the crowd all want the picture) */
@@ -147520,8 +147531,9 @@ class TVDirector {
     const G = (x, z) => (ctx.ground ? ctx.ground(x, z) : 0), cy = (c) => G(c.x, c.z) + ((c.air || c.wreck) && c.p ? Math.max(0, c.p[1]) : 0);
     // (the rear onboard is the car ahead's, the one behind in its mirror)
     // (the safety car's story: REAR is from its own tail, the leader behind it; an onboard is the leader's - it has none)
-    const subject = st.why === 'sc' ? ((kind === 'tcam' || kind === 'helmet') && st.other ? st.other : car) : kind === 'rear' && st.other ? st.other : car;
-    const sh = { kind, car: subject, other: st.why === 'sc' ? (subject === car ? st.other || null : car) : kind === 'rear' ? car : st.other || null, why: st.why, t: 0, dur: st.why === 'grid' ? 7 : st.why === 'start' ? 8 : st.view ? st.view.dur || 4.2 : kind === 'crowd' ? 3.2 : kind === 'garage' ? 4.2 : kind === 'beauty' ? 5 : st.urgent ? 7 : 5 + ((this.cuts * 0.3819) % 1) * 4, s0: 0, side: 1, h: 6 };
+    if (st.followed && kind === 'rear' && !(st.other && d0pos(ctx, st.other) > d0pos(ctx, car))) kind = 'tcam';   // (its rear camera only with the car attacking it behind)
+    const subject = st.why === 'sc' ? ((kind === 'tcam' || kind === 'helmet') && st.other ? st.other : car) : st.followed ? car : kind === 'rear' && st.other ? st.other : car;
+    const sh = { kind, car: subject, other: st.why === 'sc' ? (subject === car ? st.other || null : car) : st.followed ? st.other || null : kind === 'rear' ? car : st.other || null, third: st.followed ? st.third || null : null, followed: !!st.followed, why: st.why, t: 0, dur: st.why === 'grid' ? 7 : st.why === 'start' ? 8 : st.view ? st.view.dur || 4.2 : kind === 'crowd' ? 3.2 : kind === 'garage' ? 4.2 : kind === 'beauty' ? 5 : st.urgent ? 7 : 5 + ((this.cuts * 0.3819) % 1) * 4, s0: 0, side: 1, h: 6 };
     if (st.away) this.awayNext = this.t + sh.dur + 4;
     // ---- the kerb camera: in the kerb at the apex of the next corner, the cars coming at it. No corner near, or no view
     //      from it (a wall on the kerb): a trackside camera instead
@@ -147666,18 +147678,23 @@ class TVDirector {
     // (a shot held by order - the formation lap: cut to once, kept until the order changes)
     if (this.forced) { const f = this.forced; if (!sh || sh.forced !== f) { this.cut(ctx, { car: f.car, other: f.other || null, why: f.why || 'form', kind: f.kind, score: 99 }); this.shot.forced = f; this.shot.dur = 1e9; } this.shot.t += dt; this.place(dt, ctx); return this.shot.car; }
     let want = null;
+    if (this.followCar?.isSC && d.sc?.car !== this.followCar) { this.followCar = null; this.solo = false; }   // (the safety car followed: until it is back in its bay)
     if (this.followCar && !gone(this.followCar)) {
       // a car followed: its own story (in the pits, in a fight) - the cameras still cut round it
       // (not the safety car's story: following the leader behind it put the safety car in the picture and the
       //  camera between the two. The car followed is the picture; only the REAR camera asked for looks back at it
       //  from the safety car's tail, when that is the car right ahead)
-      const S = this.stories(ctx).filter((x) => x.why !== 'sc' && (x.car === this.followCar || x.other === this.followCar)).sort((a, b) => b.score - a.score);
-      want = S[0] ? { ...S[0], car: this.followCar, other: S[0].car === this.followCar ? S[0].other : S[0].car } : { car: this.followCar, score: 1, why: 'team' };
+      // (the car followed IS the picture - never swapped for the car fighting it. Its partner is the nearer of the
+      //  car it is attacking and the car attacking it, the one ahead when it is close; both within a second: the
+      //  three of them, framed wide. Solo - picked twice, or a double click - it alone)
+      const F = this.followCar, S = this.stories(ctx).filter((x) => x.why !== 'sc' && x.why !== 'battle' && (x.car === F || x.other === F)).sort((a, b) => b.score - a.score);
+      const B = this.stories(ctx).filter((x) => x.why === 'battle' && (x.car === F || x.other === F)).map((x) => ({ x, o: x.car === F ? x.other : x.car, ahead: x.car === F, g: d.radio?.gap?.(x.car, x.other) ?? 1 })).sort((p, q) => (p.g - (p.ahead ? 0.15 : 0)) - (q.g - (q.ahead ? 0.15 : 0)));
+      if (S[0] && S[0].score >= (B[0]?.x.score ?? 0)) want = { ...S[0], car: F, other: S[0].car === F ? S[0].other : S[0].car };
+      else if (B[0]) want = { ...B[0].x, car: F, other: B[0].o, third: B[1] ? B[1].o : null, followed: true };
+      else want = { car: F, score: 1, why: 'team' };
+      if (this.solo) { want.other = null; want.third = null; }
+      want.followed = true;
       if (!want.other && this.camKind === 'rear') { const sc = d.sc?.car, g = sc && !sc.pitLane ? d.planDs(this.followCar.s, sc.s) : -1; if (g > 0 && g < 160 && !d.cars.some((o) => o !== this.followCar && !o.retired && !o.pitLane && d.planDs(this.followCar.s, o.s) > 0 && d.planDs(this.followCar.s, o.s) < g)) want.other = sc; }
-      if (want.why === 'battle' && want.other && d.positions.indexOf(want.other) > d.positions.indexOf(this.followCar)) {
-        // (the car followed is the one ahead: the fight is the one behind it attacking)
-        want = { ...want, car: want.other, other: this.followCar };
-      }
     } else {
       if (this.followCar) this.followCar = null;
       const S = this.stories(ctx).sort((a, b) => b.score - a.score);
@@ -147687,7 +147704,8 @@ class TVDirector {
     const ended = !sh || (gone(sh.car) && !TV_AWAY.has(sh.kind)) || sh.t > sh.dur || (sh.kind === 'track' && this.passed(ctx, sh)) || (sh.kind === 'pit' && !sh.car.pitLane && !sh.car.inPit && sh.t > 2)
       || (sh.why === 'grid' && d.world.racing && sh.t > 3);
     const urgent = (want.urgent && sh && sh.car !== want.car && sh.t > 1.2 && !(sh.why === 'out' || sh.why === 'spin')) || (want.away && sh && sh.why !== want.why && sh.t > 1.5) || (want.why === 'start' && sh && sh.why !== 'start');
-    if (ended || urgent || (this.followCar && sh && sh.car !== want.car && sh.other !== want.car && sh.car !== this.followCar)) this.cut(ctx, want);
+    if (!ended && !urgent && sh && this.followCar && sh.followed && sh.car === this.followCar && want.car === sh.car) { sh.other = want.other || null; sh.third = want.third || null; }   // (the same car's picture: who is in it with him follows the fight)
+    if (ended || urgent || (this.followCar && sh && sh.car !== this.followCar)) this.cut(ctx, want);
     this.shot.t += dt;
     this.place(dt, ctx);
     // (the car the picture is ABOUT - the timing under it, the sound: the camera on the safety car's tail is the leader's shot, not the safety car's)
@@ -147744,11 +147762,13 @@ class TVDirector {
         // (two cars: the picture's middle is half way between them and it is as wide as they are apart, with room
         //  either side - both in it. Further apart than seventy metres it is the one car's shot: aimed between two
         //  cars that far apart it showed the road between them and neither)
-        const o = sh.other, gap = Math.hypot(car.x - o.x, car.z - o.z);
-        if (gap < 70) {
-          tgt.x = (car.x + o.x) / 2; tgt.z = (car.z + o.z) / 2; tgt.y = (carY + G(o.x, o.z)) / 2 + 0.7;
-          const dm = Math.max(14, Math.hypot(tgt.x - sh.pos.x, tgt.z - sh.pos.z)), fit = 2 * Math.atan((gap / 2 + 8) / (dm * 1.3)) * 57.2958;
-          fov = Math.max(fov, Math.min(58, Math.max(fit, 1900 / dm)));
+        const o = sh.other, th = sh.third && Math.hypot(car.x - sh.third.x, car.z - sh.third.z) < 70 ? sh.third : null, Q = th ? [car, o, th] : [car, o];
+        let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity; for (const q of Q) { x0 = Math.min(x0, q.x); x1 = Math.max(x1, q.x); z0 = Math.min(z0, q.z); z1 = Math.max(z1, q.z); }
+        const gap = Math.hypot(x1 - x0, z1 - z0);
+        if (gap < (th ? 90 : 70)) {
+          tgt.x = (x0 + x1) / 2; tgt.z = (z0 + z1) / 2; tgt.y = (carY + G(o.x, o.z)) / 2 + 0.7;
+          const dm = Math.max(14, Math.hypot(tgt.x - sh.pos.x, tgt.z - sh.pos.z)), fit = 2 * Math.atan((gap / 2 + (th ? 15 : 8)) / (dm * (th ? 1.1 : 1.3))) * 57.2958;
+          fov = Math.max(fov, Math.min(th ? 66 : 58, Math.max(fit, 1900 / dm)));
         }
       }
     } else if (sh.kind === 'heli') {
@@ -148190,7 +148210,7 @@ const CSS = `
 #tvg .live i { width: 8px; height: 8px; border-radius: 50%; background: #e10600; animation: tvgBlink 1.6s infinite; }
 #tvg .live em { font-style: normal; color: #b7c0cc; }
 #tvg .banner { position: absolute; left: 50%; top: 14px; transform: translateX(-50%); padding: 8px 22px; font: 900 15px/1 var(--tvf); letter-spacing: .2em; color: #111; background: #ffd400; border-radius: 4px; display: none; }
-#tvg .banner.red { background: #e10600; color: #fff; } #tvg .banner.on { display: block; }
+#tvg .banner.red { background: #e10600; color: #fff; } #tvg .banner.on { display: block; pointer-events: auto; }
 @keyframes tvgIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: none; } }
 @keyframes tvgBlink { 50% { opacity: .25; } }
 @media (max-width: 640px) { #tvg .tower { width: 168px; transform: scale(.85); transform-origin: top left; } #tvg .rc { display: none; } }
@@ -148211,6 +148231,9 @@ class TVGraphics {
     document.body.appendChild(el);
     this.rowsEl = el.querySelector('.rows'); this.rows = []; this.capEl = el.querySelector('.cap'); this.rcEl = el.querySelector('.rc');
     this.rowsEl.addEventListener('click', (e) => { const r = e.target.closest('.r'); if (r && this.onPick) this.onPick(this.cars[+r.dataset.i]); });
+    // (the race control banner - SAFETY CAR, VSC, RED FLAG - is a button too, unmarked: the cameras on the safety car)
+    el.querySelector('.banner').addEventListener('click', (e) => { const b = e.currentTarget; if (b.classList.contains('on')) this.onPick?.('SC'); });
+    this.rowsEl.addEventListener('dblclick', (e) => { const r = e.target.closest('.r'); if (r && this.onPick) this.onPick(this.cars[+r.dataset.i], { solo: true }); });   // (a double click: that car alone)
     this.cars = []; this.acc = 1; this.modeT = 0; this.gapMode = 'INTERVAL'; this.capT = 0; this.capKey = '';
     this.age = new Map(); this.prev = new Map(); this.best = Infinity; this.phase = 'green'; this.rcQ = [];
   }
@@ -156997,7 +157020,7 @@ __m['src/ui/TVShow.js'] = (() => {
 //   RAIN ON THE LENS when the track is wet, on the cameras that stand in it.
 // Plain DOM in the graphics' own layer; main.js draws the picture-in-picture inside the frame this makes for it.
 const CSS = `
-#tvg .cm { position: absolute; left: 50%; top: 54px; transform: translate(-50%, -8px); width: min(600px, 46vw); background: rgba(12,14,20,.86); border-radius: 6px; padding: 7px 12px 8px; opacity: 0; transition: opacity .25s, transform .25s, top .3s; border-left: 4px solid #e10600; }
+#tvg .cm { display: none !important; position: absolute; left: 50%; top: 54px; transform: translate(-50%, -8px); width: min(600px, 46vw); background: rgba(12,14,20,.86); border-radius: 6px; padding: 7px 12px 8px; opacity: 0; transition: opacity .25s, transform .25s, top .3s; border-left: 4px solid #e10600; }
 #tvg .cm.in { opacity: 1; transform: translate(-50%, 0); } #tvg .cm.b { border-left-color: #1f6feb; }
 #tvg .cm small { display: block; font: 800 9px/1 var(--tvf); letter-spacing: .2em; color: #9aa4b2; margin-bottom: 4px; }
 #tvg .cm span { font: 600 14px/1.3 var(--tvf); }
@@ -157029,6 +157052,9 @@ const CSS = `
 /* the picture in the picture: a window of neon. It opens as a line of light drawn out from its middle, which then
    parts - the picture between the two halves (main.js draws only what is open: pipOpen) - and its tab unrolls; it
    closes the way it came: to a line, the line in to a point. --kx / --ky: how far it is open across and down. */
+#tvg .pip .pfs { position: absolute; right: 7px; bottom: 9px; z-index: 2; display: none; align-items: center; gap: 5px; padding: 5px 8px 5px 7px; border-radius: 6px; border: 1px solid rgba(35,229,255,.7); background: rgba(10,6,28,.82); color: #fff; font: 900 9.5px/1 var(--tvf); letter-spacing: .14em; cursor: pointer; pointer-events: auto; box-shadow: 0 0 12px -3px #23e5ff; opacity: 0; transition: opacity .25s ease .2s, background .15s, box-shadow .15s; }
+#tvg .pip .pfs svg { width: 11px; height: 11px; fill: none; stroke: currentColor; stroke-width: 1.8; }
+#tvg .pip.rp.open .pfs { display: inline-flex; opacity: 1; } #tvg .pip .pfs:hover { background: rgba(255,63,164,.85); box-shadow: 0 0 18px -2px #ff3fa4; border-color: #fff; }
 #tvg .pip { --n: #19e3ff; position: absolute; left: 272px; top: 128px; width: min(300px, 24vw); aspect-ratio: 16 / 9; display: none; pointer-events: none; }
 #tvg .pip.big { --n: #ff2d75; width: min(430px, 34vw); }
 #tvg .pip.on { display: block; }
@@ -157113,13 +157139,14 @@ const LINES = {
 /** the window's opening at k 0..1 -> [across, down] 0..1: a line drawn out from the middle (the first two fifths), then parted (eased) */
 function pipOpen(k) { const e = (x) => { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); }; return [e(k / 0.4), e((k - 0.34) / 0.66)]; }
 
+const SAY = false;   // (the commentary's captions: off)
 class TVShow {
   /** root: #tvg; o: { tyreLaps(car), audio } */
   constructor(root, o = {}) {
     this.root = root; this.o = o;
     if (!document.getElementById('tvs-css')) { const st = document.createElement('style'); st.id = 'tvs-css'; st.textContent = CSS; document.head.appendChild(st); }
     const mk = (cls, html = '') => { const e = document.createElement('div'); e.className = cls; e.innerHTML = html; root.appendChild(e); return e; };
-    this.sk = mk('sk'); this.rain = mk('rain'); root.insertBefore(this.rain, root.firstChild);   /* (the drops are on the lens: under every graphic) */ this.cm = mk('cm', '<small></small><span></span>'); this.rad = mk('rad'); this.gridg = mk('gridg'); this.cls = mk('cls'); this.pipEl = mk('pip', '<i class="fr"></i><b><span></span></b><u class="pg"></u><em class="tg">SLO-MO</em>');
+    this.sk = mk('sk'); this.rain = mk('rain'); root.insertBefore(this.rain, root.firstChild);   /* (the drops are on the lens: under every graphic) */ this.cm = mk('cm', '<small></small><span></span>'); this.rad = mk('rad'); this.gridg = mk('gridg'); this.cls = mk('cls'); this.pipEl = mk('pip', '<i class="fr"></i><b><span></span></b><u class="pg"></u><em class="tg">SLO-MO</em><button class="pfs" type="button" title="Watch this replay on the whole screen (from the start)"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4"/></svg>FULL SCREEN</button>'); this.pipEl.querySelector('.pfs').addEventListener('click', (e) => { e.stopPropagation(); this.o.onPipFull?.(); });
     this.mapEl = document.createElement('canvas'); this.mapEl.className = 'map'; this.mapEl.width = 380; this.mapEl.height = 256; root.appendChild(this.mapEl);
     this.inf = document.createElement('div'); this.inf.className = 'xc inf'; (root.querySelector('.xr') || root).appendChild(this.inf);
     try { localStorage.removeItem('f1sim-tv-voice'); window.speechSynthesis?.cancel(); } catch (e) { /* nothing kept */ }
@@ -157132,9 +157159,12 @@ class TVShow {
     for (const e of [this.cm, this.rad, this.gridg, this.cls, this.inf]) e.classList.remove('in'); this.rain.classList.remove('on'); this.pipEl.classList.remove('on', 'big', 'open', 'slow'); this.root.classList.remove('hl', 'has-pip', 'tight'); this.skK = ''; this.sk?.classList.remove('in');
   }
 
-  // ---- commentary ------------------------------------------------------------------------------------------------------
+  // ---- commentary (off: SAY) ------------------------------------------------------------------------------------------------------
   /** something happened: a line for it (kind: LINES' keys; x: its words) - said when its turn comes, or at once if it matters more than what is being said */
+  // (there is no commentary on the broadcast any more - asked for: the picture, the graphics and the team radio tell
+  //  the race. The lines are kept in LINES; nothing is said)
   say(kind, x = {}) {
+    if (!SAY) return;
     const L = LINES[kind]; if (!L) return;
     const key = `${kind}|${x.a || x.who || ''}|${x.b || ''}`, now = performance.now(); if (now - (this.said.get(key) ?? -1e9) < (L[0] >= 8 ? 4000 : 24000)) return; this.said.set(key, now);
     const v = L[2](x), text = Array.isArray(v) ? v[(this.n++ + (x.pos || 0)) % v.length] : v; if (!text) return;
@@ -157163,7 +157193,7 @@ class TVShow {
     const el = this.pipEl, [kx, ky] = pipOpen(k); el.style.setProperty('--kx', kx.toFixed(3)); el.style.setProperty('--ky', ky.toFixed(3));
     this.root.classList.toggle('has-pip', !!label);
     if (!label) { if (el.classList.contains('big') && el.classList.contains('on')) { const lv = this.root.querySelector('.live'); if (lv) { lv.classList.remove('live-back'); void lv.offsetWidth; lv.classList.add('live-back'); } } el.classList.remove('on', 'big', 'open', 'slow'); return null; }
-    el.classList.add('on'); el.classList.toggle('big', !!big); el.classList.toggle('open', k >= 0.995); el.classList.toggle('slow', !!o?.slow);
+    el.classList.add('on'); el.classList.toggle('big', !!big); el.classList.toggle('open', k >= 0.995); el.classList.toggle('slow', !!o?.slow); el.classList.toggle('rp', o?.p != null);   /* (rp: a replay in the window - its FULL SCREEN button) */
     if (o && o.p != null) el.style.setProperty('--p', Math.max(0, Math.min(1, o.p)).toFixed(3));
     const b = el.children[1].firstChild; if (b.textContent !== label) b.textContent = label;
     return el.getBoundingClientRect();
@@ -157329,7 +157359,9 @@ class ReplayBuffer {
     this.acc += dt; if (this.acc < 1 / HZ) return; this.acc %= 1 / HZ;
     const n = this.cars.length, f = new Float32Array(n * 7), g = new Float32Array(n), split = new Uint8Array(n), w = new Float32Array(n * 4);
     for (let i = 0; i < n; i++) { const c = this.cars[i]; carPose(c, f, i * 7); g[i] = c.pulseG || 0; c.pulseG = 0; split[i] = c.split ? 1 : 0; w[i * 4] = ((this.spin[i] % SPIN_WRAP) + SPIN_WRAP) % SPIN_WRAP; w[i * 4 + 1] = c.steer || 0; w[i * 4 + 2] = c.vLong || 0; w[i * 4 + 3] = (c.brake > 0.3 ? 1 : 0) + (c.drs ? 2 : 0); }
-    F.push({ t: time, f, g, split, w }); while (F.length > HZ * (this.keep || KEEP)) F.shift();   // (keep: a longer record where one is wanted - the team principal's highlights hold a moment until it is over)
+    // (the safety car too, while it is out on the circuit - sc: its pose, or null: a replay draws it where it was, or not at all)
+    const S0 = this.sc?.(), sc = S0 && !S0.pitLane ? new Float32Array(7) : null; if (sc) carPose(S0, sc, 0);
+    F.push({ t: time, f, g, split, w, sc }); while (F.length > HZ * (this.keep || KEEP)) F.shift();   // (keep: a longer record where one is wanted - the team principal's highlights hold a moment until it is over)
   }
   /**
    * Car c's accident -> { hz, t0 (race time of the first frame), cars, focus (its index in cars), impact: { k, x, z },
@@ -191949,11 +191981,32 @@ class AIDriver {
     //  it is a gamble of its own, not the default)
     const type = this.strat.type, O = ['SOFT', 'MEDIUM', 'HARD'];
     let comp = type === 'gamble' ? 'HARD' : c.tyres.compound;
-    if (type !== 'gamble') try {
+    // (and the whole race from them, not only its first tyre: the plan's stints - each one's tyre and the lap it ends on
+    //  - are what it runs (strategy: box on the plan's lap for the plan's next tyre). It used to take the plan's first
+    //  tyre only and then stop on a wear threshold - and by the rule of a stop by 45 % distance, every car at half
+    //  distance - so the race the strategy screen predicted was never the race that was run. The standard plan is the
+    //  quickest, now and then the second or third (the field is not one strategy); the undercut takes the softest start
+    //  and stops a lap early, the overcut the hardest and a lap late; the gamble has none - it waits for a safety car)
+    this.plan = null;
+    // (a sprint - under eight laps, no stop to make: the plan's first tyre only, as it always was)
+    if (type !== 'gamble' && world.lapsTotal < 8) try {
       const R = planStints({ laps: world.lapsTotal, trackLength: this.track.length, pace: world.lapT || tyreLap(this.track.length), pitLoss: world.pitLoss || 22, wet: c.wetness });
       const st = R.plans.map((p) => p.stints[0].compound).filter((k) => O.includes(k));
       if (st.length) comp = type === 'early' ? st.reduce((a, b) => (O.indexOf(b) < O.indexOf(a) ? b : a)) : type === 'long' ? st.reduce((a, b) => (O.indexOf(b) > O.indexOf(a) ? b : a)) : rnd() < 0.7 || st.length < 2 ? st[0] : st[1];
     } catch (e) { /* (the plans could not be made: the tyre it has) */ }
+    else if (type !== 'gamble') try {
+      const R = planStints({ laps: world.lapsTotal, trackLength: this.track.length, pace: world.lapT || tyreLap(this.track.length), pitLoss: world.pitLoss || 22, wet: c.wetness });
+      const P = R.plans.filter((p) => p.stints.every((x) => O.includes(x.compound)));
+      if (P.length) {
+        const soft = (p) => O.indexOf(p.stints[0].compound);
+        const pk = type === 'early' ? P.reduce((a, b) => (soft(b) < soft(a) ? b : a)) : type === 'long' ? P.reduce((a, b) => (soft(b) > soft(a) ? b : a)) : (() => { const r = rnd(); return P[r < 0.6 || P.length < 2 ? 0 : r < 0.85 || P.length < 3 ? 1 : 2]; })();
+        const sh = type === 'early' ? -1 : type === 'long' ? 1 : rnd() < 0.2 ? (rnd() < 0.5 ? -1 : 1) : 0;
+        const st = pk.stints.map((x) => ({ ...x }));
+        if (st.length > 1 && sh) { const e = Math.max(2, Math.min(world.lapsTotal - 2, st[0].end + sh)); if (st.length < 3 || e < st[1].end - 1) { st[0].end = e; st[1].start = e + 1; } }
+        this.plan = { stints: st, name: pk.label || pk.name };
+        comp = st[0].compound;
+      }
+    } catch (e) { /* (the plans could not be made: the tyre it has, and the stops by the wear) */ }
     if (comp === c.tyres.compound) return false;
     c.fitTyres(comp); c.tyres.temp = c.tyres.spec.start ?? 0.7; c.tyres.work = 0.45;   // (on the grid: as the formation lap leaves them)
     return true;
@@ -192086,7 +192139,10 @@ class AIDriver {
     // a rival's stop (checked twice a second)
     this._rivalT = (this._rivalT || 0) - 1 / 60;
     let cover = false, under = null;
-    if (this._rivalT <= 0) { this._rivalT = 0.5; cover = lapsLeft >= 2 && this.watchRivals(world, lapsLeft); if (!cover) under = this.undercutOn(world, lapsLeft); }
+    // (a car on a plan moves its stop for a rival's - to cover it, or to undercut - only by a lap: past that it
+    //  is not the plan's stop any more but an extra one)
+    const PL0 = this.plan && !c.usedRain && !c.mgr ? this.plan : null, near = !PL0 || (c.pitStops < PL0.stints.length - 1 && PL0.stints[c.pitStops].end - (c.lap + 1) <= 1);   // (on the plan's last set: no stop for a rival's)
+    if (this._rivalT <= 0) { this._rivalT = 0.5; cover = near && lapsLeft >= 2 && this.watchRivals(world, lapsLeft); if (!cover && near) under = this.undercutOn(world, lapsLeft); }
     const wxCall = this.weatherCall(world, lapsLeft), wetMismatch = !!wxCall, W = world.weather ? world.weather.tyreWet : c.wetness;
     // the pit entry comes once a lap: if the tyres would go over the cliff (70 % wear) before the one after this,
     // box at this one - a lap on worn-out tyres costs far more than the stop. The wear of the last full lap says how
@@ -192095,27 +192151,37 @@ class AIDriver {
     //  reach the next lap", and the car came straight back in, lap after lap)
     if (c.lap !== this._wLap) { this._wPerLap = this._wLap != null && this._wTyres === t ? t.wear - this._wStart : 0; this._wLap = c.lap; this._wStart = t.wear; this._wTyres = t; }
     // (the plan's wear target instead of the cliff: an early stopper boxes at half wear, a gambler at the cliff)
-    const toPit = 1 - c.s / this.track.length, cliffSoon = this._wPerLap > 0 && this._wTyres === t && t.wear + this._wPerLap * (toPit + 1) > S.wear;
+    // (a car on a plan: its stops are the plan's - the wear only brings one forward when the set is going off sooner
+    //  than the sums said: about to wear through, not at the wear target)
+    const PL = this.plan && !c.usedRain && W < 0.2 && !world.weather?.everWet && !c.mgr ? this.plan : null, wLim = PL ? (c.pitStops >= PL.stints.length - 1 ? 1.0 : 0.95) : S.wear;   // (the plan's own sums run a set to the edge of worn through - ui/Strategy.js planRace: not past it. On its last stint, to the flag: a stop more costs more than the last laps on a tired set)
+    const toPit = 1 - c.s / this.track.length, cliffSoon = this._wPerLap > 0 && this._wTyres === t && t.wear + this._wPerLap * (toPit + 1) > wLim;
     // (with two laps or less to go a stop for tyres never pays back - unless they are truly finished)
-    const wornOut = (cliffSoon || t.wear > S.wear + 0.05) && (lapsLeft >= 2.5 || t.wear > 0.85);
+    const lastStint = !!PL && c.pitStops >= PL.stints.length - 1;   // (on its plan's last set: to the flag on it, unless it is truly finished - it wears a little faster than the sums say, and an extra stop costs more than the last laps)
+    const wornOut = (lastStint ? t.wear > 0.99 : cliffSoon || t.wear > wLim + 0.05) && (lapsLeft >= 2.5 || t.wear > 0.85);
+    // (the plan's stop: on the lap its stint ends - the pit entry comes at the end of it)
+    const due = !!PL && c.pitStops < PL.stints.length - 1 && c.lap + 1 >= PL.stints[c.pitStops].end && lapsLeft >= 0.6;
     // (a front wing that has lost real downforce is changed: a lap understeering on it costs more than the stop)
     const damaged = (c.dmg.fwL + c.dmg.fwR) > 0.45 || c.dmg.rw > 0.35 || c.dmg.susp > 0.55;
     // (8 laps or more: one stop is mandatory - in a short race it is made whatever the wear, and never left too late; a
     //  gambler holds out for a safety car to the last lap, and makes it there)
     // (and none in a wet race: the rule is for dry ones - a car that has run a rain tyre, or a track that has been wet)
-    const mustStop = world.lapsTotal >= 8 && c.pitStops === 0 && lapsLeft >= 0.6 && !c.usedRain && !world.weather?.everWet && (S.type === 'gamble' ? lapsLeft <= 2.05
+    const mustStop = world.lapsTotal >= 8 && c.pitStops === 0 && lapsLeft >= 0.6 && !c.usedRain && !world.weather?.everWet && (S.type === 'gamble' || PL ? lapsLeft <= 2.05
       : lapsLeft <= Math.ceil(world.lapsTotal * 0.45) && (t.wear > 0.45 || world.lapsTotal < 13 || lapsLeft <= 2.5));
     // (the pit wall gets it wrong now and then - the more often the smaller the team: race/Calls.js FAULT_P. A stop for
     //  worn tyres alone left a lap too late, once a stint; it stays out to the next lap's entry, on the cliff's edge)
-    const fp = (FAULT_P[c.tier] ?? FAULT_P[2]) * (c.faultMul ?? 1), onlyTyres = wornOut && !damaged && !wetMismatch && !mustStop && !cheap && !cover && !under;
+    const fp = (FAULT_P[c.tier] ?? FAULT_P[2]) * (c.faultMul ?? 1), onlyTyres = wornOut && !due && !damaged && !wetMismatch && !mustStop && !cheap && !cover && !under;
     if (onlyTyres && this._lateStint !== c.pitStops && lapsLeft >= 3) { this._lateStint = c.pitStops; if (rnd() < fp) { this._lateLap = c.lap; world.calls?.fault(c, 'late'); } }
     if (onlyTyres && this._lateLap === c.lap) return;
-    if (wornOut || damaged || wetMismatch || mustStop || cheap || cover || under) {
-      this.pitReason = cheap ? 'cheap' : cover ? 'cover' : under ? 'undercut' : damaged ? 'damage' : wetMismatch ? 'weather' : 'tyres';
+    if (wornOut || due || damaged || wetMismatch || mustStop || cheap || cover || under) {
+      this.pitReason = cheap ? 'cheap' : cover ? 'cover' : under ? 'undercut' : damaged ? 'damage' : wetMismatch ? 'weather' : due ? 'plan' : 'tyres';
       c.pitRequested = true;
       // (the set for the rest of the race: the softest that reaches the flag - a different one from the first stint's,
       //  where it can be, as the rules want two in a dry race)
       let comp = this.nextCompound(lapsLeft);
+      // (the plan's next tyre - if it reaches the flag from here, or the plan has another stop after it; off the plan -
+      //  a repair, the rain - the plan is given up: the stops by the wear from here)
+      if (PL && (damaged || wetMismatch)) this.plan = null;
+      else if (PL && PL.stints[c.pitStops + 1]) { const nx = PL.stints[c.pitStops + 1].compound, last = c.pitStops + 2 >= PL.stints.length; comp = !last || cliffLaps(nx, c.raceLaps) * 1.35 >= world.lapsTotal - (c.lap + 1) - 0.3 ? nx : this.nextCompound(lapsLeft); }   /* (the laps after this one: the set goes on at the end of it) */   // (a stop come early - for a rival's, the wear: the plan's last tyre if it still reaches the flag, else one that does)
       if (wxCall) comp = wxCall === 'SLICK' ? this.slickFor(lapsLeft) : wxCall;
       if ((c.pitStops === 0 || (world.lapsTotal >= 8 && c.dryUsed && c.dryUsed.size < 2 && !c.usedRain)) && comp === t.compound && W < 0.3 && !wxCall) comp = comp === 'HARD' ? 'MEDIUM' : comp === 'MEDIUM' ? 'HARD' : 'MEDIUM';
       // (... and now and then a set that will not last: one softer than the race wants, it falls away before the flag)
@@ -193114,8 +193180,17 @@ class SafetyCar {
     //  ever arrived. Nobody on the road who is staying out - the whole field stopping: it goes at once, and the first
     //  car out of the pit lane behind it is the leader)
     const on = (o) => !o.retired && !o.finished && !o.pitLane && !o.inPit && o.speed > 5, lead = d.positions.find((o) => on(o) && !o.pitRequested) || null;
-    let go = !P || ex == null || !lead || waited > d.track.length / 45 + 25 || d.lapsTotal - (lead0 ? lead0.lap : 0) <= 1;
-    if (!go) {
+    let go = !P || ex == null || waited > d.track.length / 45 + 25 || d.lapsTotal - (lead0 ? lead0.lap : 0) <= 1;
+    // (the whole field coming in: it goes as the leader is stopped in his box - a few seconds of his stop and the way
+    //  down the lane put it out on the circuit just ahead of him. It used to go at once, half a lap ahead of a field
+    //  that was all in the pit lane, and the leader took two minutes to catch it)
+    if (!go && !lead) {
+      const L0 = d.positions.find((o) => !o.retired && !o.finished) || null;
+      const ph = L0 ? d.pitStates?.get(L0)?.phase : null;   // (race/RaceDirector.js: 'in' down the lane, 'stop' in the box, 'out' away)
+      const K = this.parkSpot(), boxed = L0 && L0.pitLane && L0.speed < 1.5 && (L0.pitU ?? 0) < K.u - 5;   // (driven down the lane and stopped in his box, short of the bay)
+      go = !L0 || boxed || ph === 'stop' || ph === 'out' || (!L0.inPit && !L0.pitLane && !L0.pitRequested);
+    }
+    if (!go && lead) {
       // (how long it takes from its bay to the circuit: on the limiter to the line, then away down the exit road -
       //  or, once it has done it this race, the time that took)
       const K = this.parkSpot(), lim = Math.max(8, P.limiter || 22), dA = Math.max(0, Math.min(P.limitTo ?? P.mergeU, P.mergeU) - K.u), dB = Math.max(0, P.mergeU - K.u - dA), vB = Math.min(60, Math.sqrt(lim * lim + 2 * 7 * dB));
@@ -194845,6 +194920,7 @@ class RaceDirector {
     this.flashback = new Flashback(this, s.flashbacks === 'off' ? 0 : Infinity);   // (races only: in qualifying and time trial there is nobody to be within a second of)
     // the last 12 s of every car's pose: a hurt driver's accident is cut from it for the news after the race
     this.replay = this.mode === 'race' ? new ReplayBuffer(this.cars) : null;
+    if (this.replay) this.replay.sc = () => this.sc?.car || null;   // (the safety car in the record: replays draw it where it was)
     this.rivalWall = this.mode === 'race' ? new RivalWall(this) : null;
     // the whole race on tape, for the theatre after the flag (race/RaceTape.js: it only reads the race)
     this.tape = this.mode === 'race' ? new RaceTape(this.cars, { laps: this.lapsTotal || 5, lapTime: lapT0, track: this.track?.def?.id || '', time: o.timeOfDay || '', sources: o.fireSources || null }) : null;
@@ -201019,12 +201095,17 @@ function tpStart() {
     c.mgr.next = plan?.stints[1]?.compound || (c.tyres.compound === 'MEDIUM' ? 'HARD' : 'MEDIUM');
   }
   if (!TP.tv) { TP.tv = new TVDirector(camera); TP.tv.onCut = (sh) => TP.gfx?.cut(sh, S.director); }
-  if (!TP.gfx) TP.gfx = new TVGraphics({ onPick: (c) => { if (c && TP.on) TP.tv.follow(TP.tv.followCar === c ? null : c); } });
+  // (a car picked on the tower: followed - it is the picture, the fight it is in round it. Picked again: that car alone
+  //  (solo); once more: the director's choice again. A double click: solo at once)
+  if (!TP.gfx) TP.gfx = new TVGraphics({ onPick: (c, o) => { if (!c || !TP.on) return; const tv = TP.tv;
+    // (the SAFETY CAR banner: the safety car followed - the camera on it, again: back to the director's choice)
+    if (c === 'SC') { const sc = S.director?.sc?.car; if (!sc || sc.pitLane) return; tv.follow(tv.followCar === sc ? null : sc, { solo: true }); return; }
+ if (o?.solo) tv.follow(c, { solo: true }); else if (tv.followCar !== c) tv.follow(c); else if (!tv.solo) tv.follow(c, { solo: true }); else tv.follow(null); } });
   if (!TP.wall) { TP.wall = new PitWall({ act: tpAct }); const say0 = TP.wall.radio.bind(TP.wall); TP.wall.radio = (who, text) => { (TP.log || (TP.log = [])).push({ who, text, lap: Math.max(0, ...TP.cars.map((c) => c.lap || 0)) + 1 }); try { if (S.director?.mode === 'race') TP.show?.radio(who, text, (TP.cars.find((c) => surname(c.name) === who) || TP.cars[0])?.color); } catch (e) { /* not on air */ } return say0(who, text); }; }   // (everything said, kept: the replays over the results - ui/RadioReplay.js)
   if (!TP.stw) TP.stw = new TVStewards(TP.gfx.el);   // (the stewards' cards and the tower's marks: ui/TVStewards.js)
   TP.stw.reset(); tpStewardsOpen(d);
   if (!TP.fx) TP.fx = new TVExtras(TP.gfx.el, { tyreLaps: (c) => TP.gfx.tyreLaps(c), onReplay: (o) => tpReplayStart(o), onSkip: () => tpReplayEnd(), on: (k, x) => tpSay(k, x), onMoment: (e) => tpMoment(e) });
-  if (!TP.show) { TP.show = new TVShow(TP.gfx.el, { tyreLaps: (c) => TP.gfx.tyreLaps(c), audio, on: (k) => { if (!TP.on || !S.director) return; if (k === 'podium') tpAway('crowd', S.director.positions.find((c) => !c.retired), { within: 22, must: true }); if (k === 'flag') TP.awayWant = { kind: 'marshal', want: 'chequered', from: TP.tv.t + 3.6, until: TP.tv.t + 10 }; } });   /* (the top three home: the stands) */ TP.gfx.onFastest = (c, t) => tpSay('fl', { who: surname(c.name), t }); }   // (commentary, radio on air, the map, the cards, the grid, the flag: ui/TVShow.js)
+  if (!TP.show) { TP.show = new TVShow(TP.gfx.el, { tyreLaps: (c) => TP.gfx.tyreLaps(c), audio, onPipFull: () => tpReplayFull(), on: (k) => { if (!TP.on || !S.director) return; if (k === 'podium') tpAway('crowd', S.director.positions.find((c) => !c.retired), { within: 22, must: true }); if (k === 'flag') TP.awayWant = { kind: 'marshal', want: 'chequered', from: TP.tv.t + 3.6, until: TP.tv.t + 10 }; } });   /* (the top three home: the stands) */ TP.gfx.onFastest = (c, t) => tpSay('fl', { who: surname(c.name), t }); }   // (commentary, radio on air, the map, the cards, the grid, the flag: ui/TVShow.js)
   if (!TP.q) TP.q = new TVQueue(TP.gfx.el);   // (the right-hand side as one column, with a budget: ui/TVQueue.js)
   TP.q.reset();
   TP.show.reset(); TP.clips = []; TP.moments = []; TP.autoRep = null; TP.boreT = 0; TP.fullAt = -999; TP.winAt = -99; TP.wiping = false; TP.scPh = null; PIP.mode = null; PIP.on = false; PIP.k = 0; PIP.label = null;
@@ -201308,7 +201389,7 @@ function tpReplayStart(o, opts = {}) {
   const i = R.cars.indexOf(o.cars[0]), j = o.cars[1] ? R.cars.indexOf(o.cars[1]) : -1; if (i < 0) return false;
   const ke = Math.max(0, Math.min(F.length - 1, F.findIndex((f) => f.t >= o.t))), ex = F[ke].f[i * 7], ez = F[ke].f[i * 7 + 2], ey = F[ke].f[i * 7 + 1] + TERRAIN.at(ex, ez), tr = W.track;
   const segs = tpReplayCams(F, i, o.t), top = new THREE.Vector3(ex + 18, ey + 40, ez + 18);
-  TP.rep = { F, i, j, t: 0, k: 0, speed: opts.speed ?? 1, at: o.t, pos: (segs[0].pos || top).clone(), segs, sg: 0, look: new THREE.Vector3(ex, ey + 0.7, ez), init: false, win: !opts.full, pass: 0, text: String(o.text || ''), label: !opts.full && opts.label ? String(opts.label) : null, onEnd: opts.onEnd || null, cam: opts.full ? camera : PIP.cam };
+  TP.rep = { F, i, j, t: 0, k: 0, hold: !!opts.full, speed: opts.speed ?? 1, at: o.t, pos: (segs[0].pos || top).clone(), segs, sg: 0, look: new THREE.Vector3(ex, ey + 0.7, ez), init: false, win: !opts.full, pass: 0, text: String(o.text || ''), label: !opts.full && opts.label ? String(opts.label) : null, onEnd: opts.onEnd || null, cam: opts.full ? camera : PIP.cam };
   if (opts.full) { TP.fx.replaying(true, String(opts.label || o.text || '').toUpperCase()); audio.quiet?.(); }
   return true;
 }
@@ -201319,7 +201400,14 @@ function tpReplayStep(dt) {
   //  once through, and it is over)
   const F = r.F, T0 = F[0].t + r.t, sl = 1 - 0.5 * Math.exp(-(((T0 - r.at) / 0.55) ** 2));
   r.t += Math.min(0.05, dt) * r.speed * sl; const T = F[0].t + r.t; r.slow = sl < 0.8;
-  if (T >= F[F.length - 1].t) { tpReplayEnd(); return false; }
+  // (a whole-picture replay's end: its last frame held while the wipe closes over it - the live picture, the cars
+  //  where they are now, comes in under the closed slats; it used to come in first, the cars gone before the wipe)
+  if (T >= F[F.length - 1].t) {
+    if (!(r.hold && !r.win)) { tpReplayEnd(); return false; }
+    if (!r.ending) { r.ending = performance.now(); const f = r.onEnd; r.onEnd = null; try { f?.(); } catch (e) { console.warn('[replay] its end', e); } if (TP.rep !== r) return false; }
+    if (performance.now() - r.ending > 2600) { tpReplayEnd(); return false; }   // (no wipe came to take it: away)
+    r.t = F[F.length - 1].t - F[0].t;
+  }
   while (r.k < F.length - 2 && F[r.k + 1].t < T) r.k++;
   const A = F[r.k], B = F[r.k + 1], u = Math.max(0, Math.min(1, (T - A.t) / Math.max(1e-3, B.t - A.t))); r.A = A; r.B = B; r.u = u;
   const at = (n) => [A.f[n * 7] + (B.f[n * 7] - A.f[n * 7]) * u, A.f[n * 7 + 2] + (B.f[n * 7 + 2] - A.f[n * 7 + 2]) * u], a = at(r.i), b = r.j >= 0 ? at(r.j) : a;
@@ -201335,10 +201423,21 @@ function tpReplayStep(dt) {
   return true;
 }
 /** the record's cars put where they were at the replay's moment (the record is above the ground: the ground under it added, as CarMesh does) */
+/** has car c been damaged since race time T (a dent, a part off, a piece, torn in two)? */
+const _later = (c, T) => (c.dents || []).some((d) => d[8] > T) || Object.values(c.lost || {}).some((l) => l && l.t > T) || (c.pieces || []).some((p) => p.t0 > T) || (c.split && (c.splitT ?? 0) > T);
 function tpReplayPose(r) {
   const cars = S.director?.replay?.cars, A = r.A, B = r.B, u = r.u; if (!cars || !A) return;
+  // (the safety car: where it was in the record, or out of the picture - it was not on the circuit then. It used to
+  //  stand where it is now, and the cars of the replay drove through it)
+  if (scMesh) {
+    const g = scMesh.group; if (!r._scSave) r._scSave = { p: g.position.clone(), q: g.quaternion.clone(), v: g.visible };
+    const a = A.sc, b = B.sc || A.sc; g.visible = !!a || (r._scSave.v && !S.director?.sc?.car);   // (parked in its bay then and now: where it stands)
+    if (a) { _rqa.set(a[3], a[4], a[5], a[6]); _rqb.set(b[3], b[4], b[5], b[6]); _rqa.slerp(_rqb, u); g.position.set(a[0] + (b[0] - a[0]) * u, 0, a[2] + (b[2] - a[2]) * u); g.quaternion.copy(_rqa); onGround(g); }
+  }
+  const T = A.t + (B.t - A.t) * u;   // (the race time of the picture: each car's damage as it was then - whole before its crash, not as it is now: CarMesh.replay)
   for (let n = 0; n < cars.length; n++) {
     const m = S.meshes.get(cars[n]); if (!m) continue; const q = n * 7;
+    if (m._rew || _later(cars[n], T)) { m.replay(cars[n], T); m._rew = true; }
     const rx = A.f[q] + (B.f[q] - A.f[q]) * u, rz = A.f[q + 2] + (B.f[q + 2] - A.f[q + 2]) * u;
     _rqa.set(A.f[q + 3], A.f[q + 4], A.f[q + 5], A.f[q + 6]); _rqb.set(B.f[q + 3], B.f[q + 4], B.f[q + 5], B.f[q + 6]); _rqa.slerp(_rqb, u);
     const ry = A.f[q + 1] + (B.f[q + 1] - A.f[q + 1]) * u + TERRAIN.at(rx, rz), wa = A.w, wb = B.w, w = n * 4;
@@ -201348,12 +201447,28 @@ function tpReplayPose(r) {
   }
 }
 /** every car's model back where the car really is */
-function tpReplayRestore() { for (const c of S.cars) { const m = S.meshes.get(c); if (m) { m.update(c, 0); if (c.hiddenAway || c._povHide) m.group.visible = false; } } }
+function tpReplayRestore(r = TP.rep) { if (r?._scSave && scMesh) { const g = scMesh.group, s0 = r._scSave; g.position.copy(s0.p); g.quaternion.copy(s0.q); g.visible = s0.v; r._scSave = null; } for (const c of S.cars) { const m = S.meshes.get(c); if (m) { if (m._rew) { m._rew = false; m._dentVer = -1; m.replay(c, Infinity); } m.update(c, 0); if (c.hiddenAway || c._povHide) m.group.visible = false; } } }
+/**
+ * The replay in the window, taken to the whole picture (its FULL SCREEN button - ui/TVShow.js): the same clip from its
+ * start, on the broadcast's own camera, the race held while it plays (as a full replay always is), and the feed
+ * back to live after it.
+ */
+function tpReplayFull() {
+  const r = TP.rep; if (!r || !r.win || !TP.on || TP.hl) return;
+  const label = r.label || `REPLAY · ${r.text}`;
+  TP.wiping = true;
+  TP.fx.wipe('REPLAY', String(r.text || '').toUpperCase(), () => {
+    TP.wiping = false; if (TP.rep !== r) return;
+    r.win = false; r.cam = camera; r.t = 0; r.k = 0; r.init = false; r.snap = true; r.sg = 0; r.label = null; TP.fullAt = S.director?.time ?? TP.fullAt;
+    r.hold = true; const was = r.onEnd; r.onEnd = () => { const fin = () => { if (TP.rep === r) { r.onEnd = null; tpReplayEnd(); } }; try { was?.(); } catch (e) { /* the window's own end */ } try { if (TP.on && !TP.hl) TP.fx.wipe('LIVE', '', fin); else fin(); } catch (e) { fin(); } };
+    TP.fx.replaying(true, String(label).toUpperCase()); audio.quiet?.();
+  });
+}
 /** the whole picture a replay (the highlights): the race held */
 function tpReplayFrame(dt) { if (tpReplayStep(dt) && TP.rep) tpReplayPose(TP.rep); }
 function tpReplayEnd() {
   const r = TP.rep; if (!r) return; TP.rep = null;
-  if (!r.win) { TP.fx?.replaying(false); tpReplayRestore(); if (TP.tv) TP.tv.shot = null; }   // (the feed cuts back in on a new shot)
+  if (!r.win) { TP.fx?.replaying(false); tpReplayRestore(r); if (TP.tv) TP.tv.shot = null; }   // (the feed cuts back in on a new shot)
   r.onEnd?.();
 }
 /**
@@ -201388,7 +201503,7 @@ function tpReplays(d, dt) {
   if (TP.boreT < (sc ? 3 : 5) || since < (sc ? 20 : 75) || (sc && (TP.scFull || 0) >= 3)) return;
   const C = (TP.clips || []).filter((c) => !c.full && d.time - c.t > 14 && c.score >= (sc ? 55 : 80)).sort((x, y) => y.score - x.score)[0]; if (!C) return;
   C.full = true; TP.fullAt = d.time; TP.boreT = 0; TP.wiping = true; if (sc) TP.scFull = (TP.scFull || 0) + 1;
-  TP.fx.wipe('REPLAY', String(C.text).toUpperCase(), () => { TP.wiping = false; if (!TP.on || S.director !== d || d.done) return; tpReplayStart({ text: C.text, cars: C.cars, t: C.t }, { full: true, F: C.F, label: `REPLAY · ${C.text}`, onEnd: () => { try { if (TP.on && !TP.hl) TP.fx.wipe('LIVE', '', () => {}); } catch (e) { /* the feed is gone */ } } }); });
+  TP.fx.wipe('REPLAY', String(C.text).toUpperCase(), () => { TP.wiping = false; if (!TP.on || S.director !== d || d.done) return; tpReplayStart({ text: C.text, cars: C.cars, t: C.t }, { full: true, F: C.F, label: `REPLAY · ${C.text}`, onEnd: () => { const rr = TP.rep, fin = () => { if (rr && TP.rep === rr) { rr.onEnd = null; tpReplayEnd(); } }; try { if (TP.on && !TP.hl) TP.fx.wipe('LIVE', '', fin); else fin(); } catch (e) { fin(); } } }); });
 }
 /**
  * The race's moments, for the highlights at the flag. Every one comes with what it is worth (ui/TVExtras.js: a pass by
@@ -201468,7 +201583,7 @@ function tpHighlights(done) {
   const end = () => { if (over) return; over = true; TP.hl = false; TP.hlEnd = null; dip(false); removeEventListener('keydown', key, true); if (TP.rep) { TP.rep.onEnd = null; tpReplayEnd(); } el.classList.remove('hl'); el.classList.add('hidden'); document.body.classList.remove('tp-hl'); TP.fx.replaying(false); done(); };
   const key = (ev) => { if (ev.code === 'Escape' || ev.code === 'Enter' || ev.code === 'Space') { ev.preventDefault(); ev.stopPropagation(); end(); } };
   // (between one moment and the next, into the first and out of the last: the slats close over the picture, the next is under them when they open - ui/TVExtras.js wipe)
-  const next = () => { if (over) return; if (k >= L.length) { TP.fx.wipe('LIVE', 'THE RESULT', () => end()); return; } const c = L[k++]; el.classList.remove('hidden'); el.classList.add('hl'); if (!tpReplayStart(c, { full: true, F: c.F, speed: 1, label: `HIGHLIGHTS ${k}/${L.length} · ${c.text}`, onEnd: () => { if (over) return; if (k >= L.length) next(); else TP.fx.wipe('REPLAY', `${k + 1} / ${L.length}`, () => next()); } })) next(); };
+  const next = () => { if (over) return; if (k >= L.length) { TP.fx.wipe('LIVE', 'THE RESULT', () => end()); return; } if (TP.rep) { TP.rep.onEnd = null; tpReplayEnd(); }   /* (the clip before, held to here under the closed wipe: ended now - the last one by end(), under its own) */ const c = L[k++]; el.classList.remove('hidden'); el.classList.add('hl'); if (!tpReplayStart(c, { full: true, F: c.F, speed: 1, label: `HIGHLIGHTS ${k}/${L.length} · ${c.text}`, onEnd: () => { if (over) return; if (k >= L.length) next(); else TP.fx.wipe('REPLAY', `${k + 1} / ${L.length}`, () => next()); } })) next(); };
   // (TP.hl: the race stays held from the first moment to the last - between two of them too, or the finished race's own frame runs on under the reel)
   // (a net under it - never held here for good: ninety seconds of the reel's own time, counted by the frames it is drawn in, not by the clock on the wall)
   TP.hl = true; TP.hlT = 0; TP.hlEnd = end; document.body.classList.add('tp-hl'); addEventListener('keydown', key, true);
@@ -203822,7 +203937,7 @@ function frame(now) {
     /** (tests: the crash director, and the camera as drawn - terrainLift() lifts it for the frame and returns the undo; renderView() draws a frame through it) */
     crashCam, terrainLift, renderView,
     /** (tests: the team principal's race - main.js TP; the circuit built ahead in the menus) */
-    TP, PIP, tpReplayCams, cullBuildings, tpAct, tpFormStart, tpFormEnd, tpAway, tpAwayWall, PRE_TRACK, preloadWanted, playScene, tvClear, tvTreeHit, tvInside, tvTrees, tpMoment, tpMomentsCut, mgrRace, FINALE, ManagerCareer, tvRay: _tvRay, tvGround: (x, z) => TERRAIN.at(x, z),
+    TP, PIP, tpReplayCams, cullBuildings, tpAct, tpFormStart, tpFormEnd, tpAway, tpAwayWall, PRE_TRACK, preloadWanted, playScene, tvClear, tvTreeHit, tvInside, tvTrees, tpMoment, tpMomentsCut, mgrRace, FINALE, ManagerCareer, tpReplayStart, tpReplayFull, tpHighlights, get scMesh() { return scMesh; }, tvRay: _tvRay, tvGround: (x, z) => TERRAIN.at(x, z),
     /** (tests - tools/regress.mjs: the optimisations that must not change a pixel, switched off and on) */
     fastMatrix, SHADOW_CULL,
     /** (tests: the show clock - simTime - set, so the Sphere's loop can be put on any show) */

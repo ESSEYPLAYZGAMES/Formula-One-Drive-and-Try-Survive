@@ -339,8 +339,17 @@ export class SafetyCar {
     //  ever arrived. Nobody on the road who is staying out - the whole field stopping: it goes at once, and the first
     //  car out of the pit lane behind it is the leader)
     const on = (o) => !o.retired && !o.finished && !o.pitLane && !o.inPit && o.speed > 5, lead = d.positions.find((o) => on(o) && !o.pitRequested) || null;
-    let go = !P || ex == null || !lead || waited > d.track.length / 45 + 25 || d.lapsTotal - (lead0 ? lead0.lap : 0) <= 1;
-    if (!go) {
+    let go = !P || ex == null || waited > d.track.length / 45 + 25 || d.lapsTotal - (lead0 ? lead0.lap : 0) <= 1;
+    // (the whole field coming in: it goes as the leader is stopped in his box - a few seconds of his stop and the way
+    //  down the lane put it out on the circuit just ahead of him. It used to go at once, half a lap ahead of a field
+    //  that was all in the pit lane, and the leader took two minutes to catch it)
+    if (!go && !lead) {
+      const L0 = d.positions.find((o) => !o.retired && !o.finished) || null;
+      const ph = L0 ? d.pitStates?.get(L0)?.phase : null;   // (race/RaceDirector.js: 'in' down the lane, 'stop' in the box, 'out' away)
+      const K = this.parkSpot(), boxed = L0 && L0.pitLane && L0.speed < 1.5 && (L0.pitU ?? 0) < K.u - 5;   // (driven down the lane and stopped in his box, short of the bay)
+      go = !L0 || boxed || ph === 'stop' || ph === 'out' || (!L0.inPit && !L0.pitLane && !L0.pitRequested);
+    }
+    if (!go && lead) {
       // (how long it takes from its bay to the circuit: on the limiter to the line, then away down the exit road -
       //  or, once it has done it this race, the time that took)
       const K = this.parkSpot(), lim = Math.max(8, P.limiter || 22), dA = Math.max(0, Math.min(P.limitTo ?? P.mergeU, P.mergeU) - K.u), dB = Math.max(0, P.mergeU - K.u - dA), vB = Math.min(60, Math.sqrt(lim * lim + 2 * 7 * dB));

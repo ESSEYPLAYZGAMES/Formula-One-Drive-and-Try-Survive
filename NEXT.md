@@ -1,3 +1,52 @@
+# V2.75 (2026-11-16): the AI races its plan; the follow camera; replays as it was; the leftovers
+
+Asked for: "Yes I meant all commentary, do all of the 'small leftovers', do number 1" (the AI to plan its race from
+the day's tyres); "when I click, lets say leclerc in P3, it takes me to his battle against sainz in P4 ... have a
+double click override - or just zoom the camera out on 3-car battles"; "in PiP replays of incidents, cars drive in
+their post-crash state"; "add a button to make PiP replays fullscreen"; "discretely make the big SAFETY CAR
+notification a hidden button to make the cameras follow it"; "SC doesnt dissapear during highlights so they phase
+thru it, also during highlights when it transitions out of a replay the cars dissapear before the transition is over".
+
+## The AI races its plan (ai/AIDriver.js planRace, strategy)
+- It took only the first tyre of the strategy screen's plan, then stopped on a wear threshold - and, by a rule of a
+  stop by 45 % distance, nearly every car stopped at half distance. Now it takes the whole plan from the same sums
+  the strategy screen shows: each stint's tyre and the lap it ends on. Most of the field runs the quickest plan,
+  some the second or third; the undercut cars take the softest start and stop a lap early, the overcut cars the
+  hardest and a lap late (a first stint never under two laps); the gamblers still wait for a safety car.
+- Following it: it boxes on the plan's lap for the plan's next tyre. A rival's stop (to cover it, or an undercut)
+  moves it by a lap, no more, and never on the plan's last set; the wear brings a stop forward only when the set is
+  about to wear through, and on the last set only when it is finished; a stop come early fits a last tyre that still
+  reaches the flag; a repair or the rain ends the plan (the old stops by the wear from there). Sprints (under eight
+  laps, no stop) are as they were.
+- Measured, eight laps at Las Vegas and twelve at Silverstone on a hard, an average and a kind tyre day: 13/14,
+  12/13, 16/18 and 9/10, 9/11, 16/17 of the cars with a plan ran its tyres; the field over five to ten different
+  races each time, almost all of them one stop. (Before: 4-12 of 13-18, and two-stops the plan never had.)
+
+## The follow camera (camera/TVDirector.js, ui/TVGraphics.js)
+- A car picked on the tower stays the picture. It used to be swapped for the car attacking it - Sainz behind
+  Leclerc - and picking Leclerc again stopped following him altogether, so the director put Sainz back.
+- Its partner in the shot is the nearer of the car it is attacking and the car attacking it (the one ahead when it is
+  close). Close to both: all three, framed wide.
+- Picked a second time - or a double click - it is that car alone. Once more: the director's choice again.
+- The SAFETY CAR banner by the tower is a button, unmarked: the cameras on the safety car (again: off it).
+
+## Replays (main.js tpReplayPose, race/Replay.js)
+- The cars are drawn as they were at that moment: whole before the crash, losing their parts in it - not as they are
+  now (the car's own record of its damage, by race time: CarMesh.replay). Back to now after.
+- The safety car is in the record: a replay draws it where it was, or not at all - it used to stand where it is
+  now, and the cars of the replay drove through it.
+- A whole-picture replay holds its last frame while the wipe closes over it; the live picture comes in under the
+  closed slats. (The cars disappeared before the wipe was over.)
+- FULL SCREEN on the window replay: the same clip from its start on the whole picture, the race held, live after.
+
+## The leftovers
+- No commentary at all on the broadcast (the captions too).
+- The free-standing boards at Silverstone, the brake-marker boards at Austin and the marshals' post numbers are a
+  blank weathered sheet from behind (where the picture would read mirrored).
+- The safety car when the whole field is coming in: it goes as the leader stops in his box and joins just ahead of him
+  (the leader picked up 81 s after the call at Las Vegas; it was 140-213 s).
+- The seeded regression race is identical to V2.67's.
+
 # V2.74 (2026-11-16): the trackside camera's aim goes with the cars
 
 Asked for: "during battles i go to track cam and it just focuses on like random ground around the cars, like where

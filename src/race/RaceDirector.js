@@ -155,6 +155,7 @@ export class RaceDirector {
     this.flashback = new Flashback(this, s.flashbacks === 'off' ? 0 : Infinity);   // (races only: in qualifying and time trial there is nobody to be within a second of)
     // the last 12 s of every car's pose: a hurt driver's accident is cut from it for the news after the race
     this.replay = this.mode === 'race' ? new ReplayBuffer(this.cars) : null;
+    if (this.replay) this.replay.sc = () => this.sc?.car || null;   // (the safety car in the record: replays draw it where it was)
     this.rivalWall = this.mode === 'race' ? new RivalWall(this) : null;
     // the whole race on tape, for the theatre after the flag (race/RaceTape.js: it only reads the race)
     this.tape = this.mode === 'race' ? new RaceTape(this.cars, { laps: this.lapsTotal || 5, lapTime: lapT0, track: this.track?.def?.id || '', time: o.timeOfDay || '', sources: o.fireSources || null }) : null;

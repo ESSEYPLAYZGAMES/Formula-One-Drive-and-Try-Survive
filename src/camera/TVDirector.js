@@ -26,6 +26,7 @@ export const TV_CAM_NAME = { auto: 'Director', track: 'Trackside', tcam: 'Onboar
 export const TV_AWAY = new Set(['crowd', 'garage', 'beauty', 'wall', 'marshal', 'walk']);
 
 const _v = new THREE.Vector3(), _mv = new THREE.Vector3();
+const d0pos = (ctx, c) => ctx.d.positions.indexOf(c);
 /**
  * Where the barrier a camera stands at really is, on that side of the road (m from its centre). Along the pit lane
  * it is the PIT WALL (pit.wallD): Track.wallAt there is past it, in the lane - a camera put by that stood in the pit
@@ -53,9 +54,10 @@ export class TVDirector {
     this.forced = null;          // a shot the director is told to hold (the formation lap): { kind, car, other, why }
     this.beautyAt = -99;
   }
-  reset() { this.shot = null; this.followCar = null; this.camKind = 'auto'; this.awayQ = []; this.awayNext = 0; this.forced = null; this.lastSeen.clear(); this.seenOut.clear(); this.outAt.clear(); this.spinAt.clear(); this.t = 0; this.cuts = 0; }
+  reset() { this.shot = null; this.followCar = null; this.solo = false; this.camKind = 'auto'; this.awayQ = []; this.awayNext = 0; this.forced = null; this.lastSeen.clear(); this.seenOut.clear(); this.outAt.clear(); this.spinAt.clear(); this.t = 0; this.cuts = 0; }
   /** follow this car (null: the director chooses again) */
-  follow(car) { this.followCar = car || null; this.shot = null; }
+  /** follow a car (o.solo: that car alone - no fight's partner in its picture) */
+  follow(car, o = {}) { this.followCar = car || null; this.solo = !!(car && o.solo); this.shot = null; }
   /** a cutaway, at the next cut (for a few seconds from now): kind 'crowd' | 'garage', the car it is about */
   /** (view: a cutaway whose camera the caller places - { pos, look: a Vector3 or () => Vector3, fov, dur }: the pit wall's faces, a marshal's post, a driver walking away) */
   cutaway(kind, car, within = 6, view = null) { if (!car || this.camKind !== 'auto') return; const Q = this.awayQ; if (Q.some((a) => a.kind === kind)) return; Q.push({ kind, car, until: this.t + within, view }); if (Q.length > 3) Q.shift(); }   /* (a camera you keep to is not cut away from; one asked for while another waits takes its turn - at the flag the marshal, the pit wall and the crowd all want the picture) */
@@ -152,8 +154,9 @@ export class TVDirector {
     const G = (x, z) => (ctx.ground ? ctx.ground(x, z) : 0), cy = (c) => G(c.x, c.z) + ((c.air || c.wreck) && c.p ? Math.max(0, c.p[1]) : 0);
     // (the rear onboard is the car ahead's, the one behind in its mirror)
     // (the safety car's story: REAR is from its own tail, the leader behind it; an onboard is the leader's - it has none)
-    const subject = st.why === 'sc' ? ((kind === 'tcam' || kind === 'helmet') && st.other ? st.other : car) : kind === 'rear' && st.other ? st.other : car;
-    const sh = { kind, car: subject, other: st.why === 'sc' ? (subject === car ? st.other || null : car) : kind === 'rear' ? car : st.other || null, why: st.why, t: 0, dur: st.why === 'grid' ? 7 : st.why === 'start' ? 8 : st.view ? st.view.dur || 4.2 : kind === 'crowd' ? 3.2 : kind === 'garage' ? 4.2 : kind === 'beauty' ? 5 : st.urgent ? 7 : 5 + ((this.cuts * 0.3819) % 1) * 4, s0: 0, side: 1, h: 6 };
+    if (st.followed && kind === 'rear' && !(st.other && d0pos(ctx, st.other) > d0pos(ctx, car))) kind = 'tcam';   // (its rear camera only with the car attacking it behind)
+    const subject = st.why === 'sc' ? ((kind === 'tcam' || kind === 'helmet') && st.other ? st.other : car) : st.followed ? car : kind === 'rear' && st.other ? st.other : car;
+    const sh = { kind, car: subject, other: st.why === 'sc' ? (subject === car ? st.other || null : car) : st.followed ? st.other || null : kind === 'rear' ? car : st.other || null, third: st.followed ? st.third || null : null, followed: !!st.followed, why: st.why, t: 0, dur: st.why === 'grid' ? 7 : st.why === 'start' ? 8 : st.view ? st.view.dur || 4.2 : kind === 'crowd' ? 3.2 : kind === 'garage' ? 4.2 : kind === 'beauty' ? 5 : st.urgent ? 7 : 5 + ((this.cuts * 0.3819) % 1) * 4, s0: 0, side: 1, h: 6 };
     if (st.away) this.awayNext = this.t + sh.dur + 4;
     // ---- the kerb camera: in the kerb at the apex of the next corner, the cars coming at it. No corner near, or no view
     //      from it (a wall on the kerb): a trackside camera instead
@@ -298,18 +301,23 @@ export class TVDirector {
     // (a shot held by order - the formation lap: cut to once, kept until the order changes)
     if (this.forced) { const f = this.forced; if (!sh || sh.forced !== f) { this.cut(ctx, { car: f.car, other: f.other || null, why: f.why || 'form', kind: f.kind, score: 99 }); this.shot.forced = f; this.shot.dur = 1e9; } this.shot.t += dt; this.place(dt, ctx); return this.shot.car; }
     let want = null;
+    if (this.followCar?.isSC && d.sc?.car !== this.followCar) { this.followCar = null; this.solo = false; }   // (the safety car followed: until it is back in its bay)
     if (this.followCar && !gone(this.followCar)) {
       // a car followed: its own story (in the pits, in a fight) - the cameras still cut round it
       // (not the safety car's story: following the leader behind it put the safety car in the picture and the
       //  camera between the two. The car followed is the picture; only the REAR camera asked for looks back at it
       //  from the safety car's tail, when that is the car right ahead)
-      const S = this.stories(ctx).filter((x) => x.why !== 'sc' && (x.car === this.followCar || x.other === this.followCar)).sort((a, b) => b.score - a.score);
-      want = S[0] ? { ...S[0], car: this.followCar, other: S[0].car === this.followCar ? S[0].other : S[0].car } : { car: this.followCar, score: 1, why: 'team' };
+      // (the car followed IS the picture - never swapped for the car fighting it. Its partner is the nearer of the
+      //  car it is attacking and the car attacking it, the one ahead when it is close; both within a second: the
+      //  three of them, framed wide. Solo - picked twice, or a double click - it alone)
+      const F = this.followCar, S = this.stories(ctx).filter((x) => x.why !== 'sc' && x.why !== 'battle' && (x.car === F || x.other === F)).sort((a, b) => b.score - a.score);
+      const B = this.stories(ctx).filter((x) => x.why === 'battle' && (x.car === F || x.other === F)).map((x) => ({ x, o: x.car === F ? x.other : x.car, ahead: x.car === F, g: d.radio?.gap?.(x.car, x.other) ?? 1 })).sort((p, q) => (p.g - (p.ahead ? 0.15 : 0)) - (q.g - (q.ahead ? 0.15 : 0)));
+      if (S[0] && S[0].score >= (B[0]?.x.score ?? 0)) want = { ...S[0], car: F, other: S[0].car === F ? S[0].other : S[0].car };
+      else if (B[0]) want = { ...B[0].x, car: F, other: B[0].o, third: B[1] ? B[1].o : null, followed: true };
+      else want = { car: F, score: 1, why: 'team' };
+      if (this.solo) { want.other = null; want.third = null; }
+      want.followed = true;
       if (!want.other && this.camKind === 'rear') { const sc = d.sc?.car, g = sc && !sc.pitLane ? d.planDs(this.followCar.s, sc.s) : -1; if (g > 0 && g < 160 && !d.cars.some((o) => o !== this.followCar && !o.retired && !o.pitLane && d.planDs(this.followCar.s, o.s) > 0 && d.planDs(this.followCar.s, o.s) < g)) want.other = sc; }
-      if (want.why === 'battle' && want.other && d.positions.indexOf(want.other) > d.positions.indexOf(this.followCar)) {
-        // (the car followed is the one ahead: the fight is the one behind it attacking)
-        want = { ...want, car: want.other, other: this.followCar };
-      }
     } else {
       if (this.followCar) this.followCar = null;
       const S = this.stories(ctx).sort((a, b) => b.score - a.score);
@@ -319,7 +327,8 @@ export class TVDirector {
     const ended = !sh || (gone(sh.car) && !TV_AWAY.has(sh.kind)) || sh.t > sh.dur || (sh.kind === 'track' && this.passed(ctx, sh)) || (sh.kind === 'pit' && !sh.car.pitLane && !sh.car.inPit && sh.t > 2)
       || (sh.why === 'grid' && d.world.racing && sh.t > 3);
     const urgent = (want.urgent && sh && sh.car !== want.car && sh.t > 1.2 && !(sh.why === 'out' || sh.why === 'spin')) || (want.away && sh && sh.why !== want.why && sh.t > 1.5) || (want.why === 'start' && sh && sh.why !== 'start');
-    if (ended || urgent || (this.followCar && sh && sh.car !== want.car && sh.other !== want.car && sh.car !== this.followCar)) this.cut(ctx, want);
+    if (!ended && !urgent && sh && this.followCar && sh.followed && sh.car === this.followCar && want.car === sh.car) { sh.other = want.other || null; sh.third = want.third || null; }   // (the same car's picture: who is in it with him follows the fight)
+    if (ended || urgent || (this.followCar && sh && sh.car !== this.followCar)) this.cut(ctx, want);
     this.shot.t += dt;
     this.place(dt, ctx);
     // (the car the picture is ABOUT - the timing under it, the sound: the camera on the safety car's tail is the leader's shot, not the safety car's)
@@ -376,11 +385,13 @@ export class TVDirector {
         // (two cars: the picture's middle is half way between them and it is as wide as they are apart, with room
         //  either side - both in it. Further apart than seventy metres it is the one car's shot: aimed between two
         //  cars that far apart it showed the road between them and neither)
-        const o = sh.other, gap = Math.hypot(car.x - o.x, car.z - o.z);
-        if (gap < 70) {
-          tgt.x = (car.x + o.x) / 2; tgt.z = (car.z + o.z) / 2; tgt.y = (carY + G(o.x, o.z)) / 2 + 0.7;
-          const dm = Math.max(14, Math.hypot(tgt.x - sh.pos.x, tgt.z - sh.pos.z)), fit = 2 * Math.atan((gap / 2 + 8) / (dm * 1.3)) * 57.2958;
-          fov = Math.max(fov, Math.min(58, Math.max(fit, 1900 / dm)));
+        const o = sh.other, th = sh.third && Math.hypot(car.x - sh.third.x, car.z - sh.third.z) < 70 ? sh.third : null, Q = th ? [car, o, th] : [car, o];
+        let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity; for (const q of Q) { x0 = Math.min(x0, q.x); x1 = Math.max(x1, q.x); z0 = Math.min(z0, q.z); z1 = Math.max(z1, q.z); }
+        const gap = Math.hypot(x1 - x0, z1 - z0);
+        if (gap < (th ? 90 : 70)) {
+          tgt.x = (x0 + x1) / 2; tgt.z = (z0 + z1) / 2; tgt.y = (carY + G(o.x, o.z)) / 2 + 0.7;
+          const dm = Math.max(14, Math.hypot(tgt.x - sh.pos.x, tgt.z - sh.pos.z)), fit = 2 * Math.atan((gap / 2 + (th ? 15 : 8)) / (dm * (th ? 1.1 : 1.3))) * 57.2958;
+          fov = Math.max(fov, Math.min(th ? 66 : 58, Math.max(fit, 1900 / dm)));
         }
       }
     } else if (sh.kind === 'heli') {

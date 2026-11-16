@@ -22,6 +22,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { corridorSigned } from '../track/TrackBuilder.js';
+import { blankBack } from '../track/Branding.js';
 import { TERRAIN } from './Terrain.js';
 import { fanMesh, walkerMesh, walkerMaterial, STANDING } from './FanCutouts.js';
 
@@ -139,7 +140,7 @@ export function buildTrackside(C) {
     for (const sd of k++ % 2 ? [side, -side] : [-side, side]) { if (pr && sd === pit.sideSign && inR(s, ...pr)) continue; const bar = sd > 0 ? tr.barL[i] : tr.barR[i]; if (bar && bar !== 3 && platform(s, i, sd, 8.5)) break; }
   }
   if (parts.length) { const m = new THREE.Mesh(mergeGeometries(parts), VMAT()); m.name = 'cota:trackside'; group.add(m); }
-  if (boards.length) group.add(new THREE.Mesh(mergeGeometries(boards), new THREE.MeshBasicMaterial({ map: btex, side: THREE.DoubleSide })));
+  if (boards.length) group.add(new THREE.Mesh(mergeGeometries(boards), blankBack(new THREE.MeshBasicMaterial({ map: btex, side: THREE.DoubleSide }), { bySide: 'mirror', per: 1 / cols, up: 1 / rows })));   // (the post numbers' backs: blank)
   if (panels.length) {
     const lit = panels.map(([x, z, ang, side, f]) => new THREE.PlaneGeometry(0.9, 0.12).translate(0, 2.25, 0).rotateY(Math.atan2(-f.nx * side, -f.nz * side)).translate(x - f.nx * side * 0.1, 0, z - f.nz * side * 0.1));
     group.add(new THREE.Mesh(mergeGeometries(lit), new THREE.MeshBasicMaterial({ color: 0x3dff6a, side: THREE.DoubleSide })));

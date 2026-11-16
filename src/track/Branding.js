@@ -367,6 +367,9 @@ export const atlasU = (k, u) => (k + 0.03 + u * 0.94) / PANELS.length;   // a fe
  * mirror writing. A real one is blank on its back: the plain reverse of the vinyl, greyed and streaked by a few
  * seasons outdoors. With this its back is that: no picture, no glow of its own.
  *   bySide: 0 - the back is the sheet's own back face (a plane turned to face its readers).
+ *           'mirror' - the back is wherever the picture reads mirrored on the screen (its texture's u and v, as
+ *           the screen sees them, turned over): for sheets laid out whichever way round - each board of a set
+ *           its own way (Silverstone's), so no one face is the readable one for all of them.
  *           +1 / -1 - a barrier's panels (TrackBuilder: one ribbon winding for both sides of the road, the side read
  *           from the sign of v, which runs backwards on the left): the back is the face turned away from the road.
  *   along: which of the texture's coordinates runs along the board ('y' the panels, 'x' a plane); per, up: how many
@@ -375,7 +378,7 @@ export const atlasU = (k, u) => (k + 0.03 + u * 0.94) / PANELS.length;   // a fe
 export function blankBack(mat, { bySide = 0, along = 'x', per = 1, up = 1 } = {}) {
   if (!mat || mat.userData.blankBack) return mat; mat.userData.blankBack = true;
   const prev = mat.onBeforeCompile, pk = mat.customProgramCacheKey, a = along === 'y' ? 'vMapUv.y' : 'vMapUv.x', u = along === 'y' ? 'vMapUv.x' : 'vMapUv.y';
-  const back = bySide ? `((gl_FrontFacing ? 1.0 : -1.0) * (vMapUv.y < 0.0 ? 1.0 : -1.0) * ${bySide.toFixed(1)} > 0.0)` : '(!gl_FrontFacing)';
+  const back = bySide === 'mirror' ? '((dFdx(vMapUv).x * dFdy(vMapUv).y - dFdy(vMapUv).x * dFdx(vMapUv).y) < 0.0)' : bySide ? `((gl_FrontFacing ? 1.0 : -1.0) * (vMapUv.y < 0.0 ? 1.0 : -1.0) * ${bySide.toFixed(1)} > 0.0)` : '(!gl_FrontFacing)';
   mat.onBeforeCompile = (sh, r) => {
     prev?.(sh, r);
     sh.fragmentShader = sh.fragmentShader
@@ -397,7 +400,7 @@ export function blankBack(mat, { bySide = 0, along = 'x', per = 1, up = 1 } = {}
         #endif`)
       .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n        if (bbBack) totalEmissiveRadiance *= 0.0;');
   };
-  mat.customProgramCacheKey = () => `${pk ? pk.call(mat) : ''}bb${bySide}${along}${per}${up}`;
+  mat.customProgramCacheKey = () => `${pk ? pk.call(mat) : ''}bb${bySide}${along}${per}${up}`;   // (bySide 'mirror' names its own program)
   mat.needsUpdate = true;
   return mat;
 }

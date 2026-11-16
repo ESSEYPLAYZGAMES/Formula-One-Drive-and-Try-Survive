@@ -21,6 +21,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { corridorSigned, ribbon, fenceTexture } from '../track/TrackBuilder.js';
+import { blankBack } from '../track/Branding.js';
 import { footprintInfo } from '../core/GeoLoader.js';
 import { fitRingOutsideCorridor } from './Landmarks.js';
 import { standFootprints } from './Venue.js';
@@ -265,7 +266,7 @@ export function buildSilverstone(geo, track, def, pit) {
   const darkGlass = new THREE.MeshStandardMaterial({ color: 0x10161c, roughness: 0.07, metalness: 0.85, envMapIntensity: 1.3, emissive: 0x0b1116, emissiveIntensity: 0.6 });
   const railMat = new THREE.MeshStandardMaterial({ color: 0xa9c3d3, roughness: 0.05, metalness: 0.3, transparent: true, opacity: 0.38, side: THREE.DoubleSide, depthWrite: false });
   const vmat = VMAT(), vmatD = VMAT({ side: THREE.DoubleSide, roughness: 0.55 });
-  const boardMat = new THREE.MeshStandardMaterial({ map: boardAtlas(), roughness: 0.55, side: THREE.DoubleSide, emissive: 0xffffff, emissiveMap: boardAtlas(), emissiveIntensity: 0.16 });
+  const boardMat = blankBack(new THREE.MeshStandardMaterial({ map: boardAtlas(), roughness: 0.55, side: THREE.DoubleSide, emissive: 0xffffff, emissiveMap: boardAtlas(), emissiveIntensity: 0.16 }), { bySide: 'mirror', along: 'x', per: 1, up: 1 / ROWS });   // (from behind: a blank weathered sheet - track/Branding.js)
   const screenMat = new THREE.MeshStandardMaterial({ color: 0x0b1a2e, emissive: 0x2a5aa8, emissiveIntensity: 0.9, roughness: 0.3, side: THREE.DoubleSide });
   const fansMat = fanMaterial(), flagMat = flagMaterial();
   const sheets = [];    // the cut-out people standing about: [x, y, z, ang, variant]
