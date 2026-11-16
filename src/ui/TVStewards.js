@@ -9,6 +9,8 @@
 // seconds on the screen so the note and the investigation can be read before it.
 const CSS = `
 /* (race control's place on a broadcast: the top of the picture, in the middle - clear of the tower, the map and every card on the right. The commentary's line and the window under it move down by its height: --stwh) */
+/* (not over a replay - the whole picture's, the highlights at the flag: what is on screen is the past, and a decision reached now is not part of it) */
+#tvg.hl .stw, #tvg.rpf .stw { display: none !important; }
 #tvg .stw { position: absolute; left: 50%; top: 6px; transform: translateX(-50%); display: flex; flex-direction: row; justify-content: center; align-items: flex-start; gap: 8px; max-width: calc(100% - 520px); pointer-events: none; z-index: 3; }   /* (side by side in the strip above the commentary's line: the window under it is the action's, and nothing here moves it) */
 @media (max-width: 900px) { #tvg .stw { left: 262px; transform: none; justify-content: flex-start; max-width: calc(100% - 270px); } }
 #tvg .xr:has(.xc.stg.in) .xc.inf { display: none; }   /* (the strategy up: the filler cards make room) */
@@ -120,6 +122,9 @@ export class TVStewards {
     const d = ctx.d, S = d?.stewards; if (!d || !S || d.mode !== 'race') { if (this.cases.length) this.reset(); return; }
     this.deepCases = S.deep ? S.cases : null;
     const t = d.time;
+    // (the flag has fallen: what is still open is settled in the stewards' room afterwards, where it is read out - no
+    //  notice on the broadcast for it, over the slowing-down lap, the highlights, the podium)
+    if (d.done || d.leaderFinished) { for (const k of [...this.cases]) this._gone(k); this.logN = (S.log || []).length; return; }
     // (the clocks on the cards run every frame; the rest is looked at a few times a second)
     for (const k of this.cases) if (k.st === 'o' && k.deadline != null && !k.gone) k.el.querySelector('.cd').style.transform = `scaleX(${Math.max(0, Math.min(1, (k.deadline - t) / k.span)).toFixed(3)})`;
     this.acc += dt; if (this.acc < 0.15) return; this.acc = 0;

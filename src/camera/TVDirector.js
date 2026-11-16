@@ -26,6 +26,14 @@ export const TV_CAM_NAME = { auto: 'Director', track: 'Trackside', tcam: 'Onboar
 export const TV_AWAY = new Set(['crowd', 'garage', 'beauty', 'wall', 'marshal', 'walk']);
 
 const _v = new THREE.Vector3();
+/**
+ * Where the barrier a camera stands at really is, on that side of the road (m from its centre). Along the pit lane
+ * it is the PIT WALL (pit.wallD): Track.wallAt there is past it, in the lane - a camera put by that stood in the pit
+ * lane behind the pit wall's fence, and showed the grid through the mesh.
+ */
+const barD = (tr, pit, i, sd) => { const w = tr.wallAt(i, sd); if (pit && pit.wallD && sd === pit.sideSign) { const p = pit.wallD[i]; if (p > 0 && p < w) return p; } return w; };
+/** how far in from that barrier a pole stands: a metre and a half where there is the room, never over the white line */
+const poleIn = (tr, pit, i, sd) => { const w = barD(tr, pit, i, sd), e = tr.edgeAt ? tr.edgeAt(i, sd) : w - 3; return Math.max(0.25, Math.min(1.5, w - e - 0.3)); };
 
 export class TVDirector {
   constructor(camera) {
@@ -158,7 +166,7 @@ export class TVDirector {
       let s0 = null, side = 1; const reach = this.camKind === 'kerb' ? 720 : 330;
       for (let ds = 45; ds < reach; ds += 12) { const i = tr.idxAtS(tr.wrapS(subject.s + ds)); if (!tr.inCornerZone(i)) continue; let e = ds; while (e < ds + 220 && tr.inCornerZone(tr.idxAtS(tr.wrapS(subject.s + e)))) e += 12; const sm = tr.wrapS(subject.s + (ds + e) / 2), im = tr.idxAtS(sm), n = tr.n, a = (im - 6 + n) % n, b = (im + 6) % n; side = (tr.tx[b] - tr.tx[a]) * tr.nx[im] + (tr.tz[b] - tr.tz[a]) * tr.nz[im] > 0 ? 1 : -1; s0 = sm; break; }
       if (s0 != null) {
-        const i = tr.idxAtS(s0), edge = tr.edgeAt ? tr.edgeAt(i, side) : tr.wallAt(i, side) - 2, off = side * Math.min(tr.wallAt(i, side) - 0.5, edge + (tr.kerbWidth || 1) * 0.3), f = tr.sample(s0, off);
+        const i = tr.idxAtS(s0), wK = barD(tr, ctx.pit, i, side), edge = tr.edgeAt ? tr.edgeAt(i, side) : wK - 2, off = side * Math.min(wK - 0.5, edge + (tr.kerbWidth || 1) * 0.3), f = tr.sample(s0, off);
         const a = tr.sample(tr.wrapS(s0 - 28), off * 0.7), b = tr.sample(tr.wrapS(s0 + 28), off * 0.7);   // (along its own side of the road, tipped up a little: the cars come through the middle of the picture, the horizon under it)
         sh.s0 = s0; sh.side = side; sh.kerb = true; sh.pos = new THREE.Vector3(f.x, G(f.x, f.z) + 0.3, f.z);
         sh.lookA = new THREE.Vector3(a.x, G(a.x, a.z) + 2.7, a.z); sh.lookB = new THREE.Vector3(b.x, G(b.x, b.z) + 2.7, b.z); sh.dur = 15;
@@ -175,7 +183,7 @@ export class TVDirector {
       for (const [ins, strict] of [[true, true], [true, false], [false, true], [false, false]]) {
         const see = (p, py, x, y, z) => ctx.clear(p.x, py, p.z, x, y, z) && (!ins || !ctx.inside || ctx.inside(p.x, py, p.z, x, y, z));
         for (const [sd, k] of [[s1, 1], [-s1, 1], [s1, 0.6], [-s1, 0.6], [s1, 1.5], [-s1, 1.5]]) {
-          const s0 = tr.wrapS(subject.s + base * k), i = tr.idxAtS(s0), w = tr.wallAt(i, sd);
+          const s0 = tr.wrapS(subject.s + base * k), i = tr.idxAtS(s0), w = barD(tr, ctx.pit, i, sd);
           const a = tr.sample(s0, sd * (w - 0.8)), b = tr.sample(tr.wrapS(s0 + 14), sd * (w - 1.2)) /* (the head stays on the road's side of the fence as it rises: the mesh is never seen from behind) */, p0 = new THREE.Vector3(a.x, G(a.x, a.z) + 3.2, a.z), p1 = new THREE.Vector3(b.x, G(b.x, b.z) + 13, b.z);
           const m = tr.sample(tr.wrapS(s0 - 25), 0), my = G(m.x, m.z) + 0.8;
           let ok = !ctx.clear || (see(p1, p1.y, m.x, my, m.z) && see(p0, p0.y + 1.5, m.x, my, m.z) && (!strict || (see(p1, p1.y, subject.x, cy(subject) + 0.8, subject.z) && see(p0, p0.y + 1.5, subject.x, cy(subject) + 0.8, subject.z)))), end = null;
@@ -201,7 +209,7 @@ export class TVDirector {
       //  behind the lens, never between it and a car, and never seen from behind. The slot is in the fence line itself.)
       const side = (this.cuts & 1) ? 1 : -1, slot = !st.urgent && ((this.cuts * 0.4142) % 1) < 0.4, kv = Math.min(1.6, Math.max(0.5, subject.speed / 55));
       const at = (k, sd, sl, hh) => {
-        const sq = tr.wrapS(subject.s + Math.max(20, ahead * k * kv)), iq = tr.idxAtS(sq), fq = tr.sample(sq, sd * (tr.wallAt(iq, sd) + (sl ? 0.05 : -1.5)));
+        const sq = tr.wrapS(subject.s + Math.max(20, ahead * k * kv)), iq = tr.idxAtS(sq), fq = tr.sample(sq, sd * (barD(tr, ctx.pit, iq, sd) + (sl ? 0.05 : -poleIn(tr, ctx.pit, iq, sd))));
         const h = sl ? Math.max(1.9, (tr.barrierHeight?.(iq, sd) > 2 ? 1.3 : tr.barrierHeight?.(iq, sd) || 1.2) + 0.7) : hh;
         return { p: new THREE.Vector3(fq.x, G(fq.x, fq.z) + h, fq.z), sq, sd, sl, h };
       };

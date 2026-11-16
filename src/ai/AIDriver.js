@@ -879,7 +879,9 @@ export class AIDriver {
     // the pit entry comes once a lap: if the tyres would go over the cliff (70 % wear) before the one after this,
     // box at this one - a lap on worn-out tyres costs far more than the stop. The wear of the last full lap says how
     // fast this set is going (a team watches exactly that)
-    if (c.lap !== this._wLap) { if (this._wLap != null && this._wTyres === t) this._wPerLap = t.wear - this._wStart; this._wLap = c.lap; this._wStart = t.wear; this._wTyres = t; }
+    // (a new set has no lap of its own yet: the rate is not the last set's - a hard read at a soft's rate "would not
+    //  reach the next lap", and the car came straight back in, lap after lap)
+    if (c.lap !== this._wLap) { this._wPerLap = this._wLap != null && this._wTyres === t ? t.wear - this._wStart : 0; this._wLap = c.lap; this._wStart = t.wear; this._wTyres = t; }
     // (the plan's wear target instead of the cliff: an early stopper boxes at half wear, a gambler at the cliff)
     const toPit = 1 - c.s / this.track.length, cliffSoon = this._wPerLap > 0 && this._wTyres === t && t.wear + this._wPerLap * (toPit + 1) > S.wear;
     // (with two laps or less to go a stop for tyres never pays back - unless they are truly finished)

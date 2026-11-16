@@ -140,7 +140,7 @@ export class TVExtras {
     this._rwM = setTimeout(() => { try { mid?.(); } catch (e) { console.warn('[tv] wipe', e); } }, 560); this._rwT = setTimeout(() => w.classList.remove('rw-on'), 1400);
   }
   /** a replay is playing (main.js): the bug up, the cards away */
-  replaying(on, text = '') { this.bug.classList.toggle('on', !!on); this.bug.querySelector('small').textContent = on ? text : ''; this.col.style.visibility = on ? 'hidden' : ''; if (on) { this.tel.classList.remove('on'); this.root.querySelector('.cap')?.classList.remove('in'); } this.root.querySelector('.live')?.classList.toggle('rp', !!on); }
+  replaying(on, text = '') { this.root.classList.toggle('rpf', !!on);   /* (a whole-picture replay: race control's notices are not for it - ui/TVStewards.js) */ this.bug.classList.toggle('on', !!on); this.bug.querySelector('small').textContent = on ? text : ''; this.col.style.visibility = on ? 'hidden' : ''; if (on) { this.tel.classList.remove('on'); this.root.querySelector('.cap')?.classList.remove('in'); } this.root.querySelector('.live')?.classList.toggle('rp', !!on); }
 
   /** every frame. ctx: { d, focus, shot (the director's), halted, say(text, kind, head) (race control's line) } */
   update(dt, ctx) {

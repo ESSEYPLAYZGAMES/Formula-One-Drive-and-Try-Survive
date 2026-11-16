@@ -1,8 +1,13 @@
 // Tyre compounds, wear/temperature model and grip mapping.
 //
-// Life: a soft reaches its cliff (70 % wear) at half the race distance, a medium at 75 %, a hard at 110 % - so a hard
-// can run a race through, waiting for a safety car (COMPOUNDS.life: the cliff against a soft's). The same for every
-// driver, you and the AI alike (the rate barely depends on style; only real sliding wears a set faster).
+// Life: it is the DAY's (setTyreDay - main.js rolls it for each race): a soft reaches its cliff (70 % wear) at between
+// 25 % and 40 % of the race distance, and a medium and a hard last as much longer than it as they always did - a
+// quarter of the race more, and six tenths of it (50-65 % and 85-100 %). So no race has the plan the last one had:
+// a soft that is gone in a quarter of the distance makes it a medium-hard race, or two stops; one good for four
+// tenths, a soft-medium one. (It was fixed at 50 / 75 / 110 %: every race was a soft to half distance and a medium
+// home.) The same for every car, you and the AI alike - before a team's own tyre development (wearMul) - and the
+// rate barely depends on style; only real sliding wears a set faster. With no day set (a time trial, a test): the
+// old 50 / 75 / 110.
 //
 // Degradation is set in lap time: every lap of normal wear costs a soft a second, a medium 0.75 s, a hard 0.5 s
 // (COMPOUNDS.deg) - in a race of up to ten laps. A longer race's tyres last longer, and lose what a ten-lap race's do at
@@ -39,10 +44,19 @@ const LAP = { t: null };
 export function setTyreLap(t) { LAP.t = t > 20 && t < 400 ? t : null; }
 export const tyreLap = (trackLength) => LAP.t || trackLength / 62;
 
+/** the day: where a soft's cliff falls, as a share of the race distance (null: SOFT_LIFE, as it always was) */
+const DAY = { soft: null };
+export const TYRE_DAY = [0.25, 0.40];
+export function setTyreDay(share) { DAY.soft = share > 0.1 && share < 0.9 ? share : null; }
+export const tyreDay = () => DAY.soft ?? SOFT_LIFE;
+/** a compound's cliff as a share of the race distance today: the dry ones all come down by what the soft has (the rain tyres are as they were) */
+export const lifeShare = (comp) => { const base = SOFT_LIFE * (COMPOUNDS[comp]?.life || 1); return DAY.soft != null && (comp === 'SOFT' || comp === 'MEDIUM' || comp === 'HARD') ? Math.max(0.1, base - (SOFT_LIFE - DAY.soft)) : base; };
 /** laps to a compound's cliff in a race of `raceLaps` */
-export const cliffLaps = (comp, raceLaps) => Math.max(0.6, SOFT_LIFE * (COMPOUNDS[comp]?.life || 1) * raceLaps);
-/** seconds a lap of normal wear costs */
-export const degPerLap = (comp, raceLaps) => (COMPOUNDS[comp]?.deg ?? 0.75) * Math.min(1, DEG_REF_LAPS / Math.max(1, raceLaps));
+export const cliffLaps = (comp, raceLaps) => Math.max(0.6, lifeShare(comp) * raceLaps);
+/** seconds a lap of normal wear costs. (On a day when the tyres last less, each lap costs more: a set has lost at its
+ *  cliff what it always had by then - a soft that is gone in two laps instead of four is as far gone. With the old
+ *  second a lap it had lost two seconds at its "cliff" and was worth running three laps past it.) */
+export const degPerLap = (comp, raceLaps) => (COMPOUNDS[comp]?.deg ?? 0.75) * Math.min(1, DEG_REF_LAPS / Math.max(1, raceLaps)) * (SOFT_LIFE * (COMPOUNDS[comp]?.life || 1)) / lifeShare(comp);
 /** lap time lost to wear (s) at wear w: linear to the cliff, then ramping */
 export function lapLoss(comp, w, raceLaps) {
   const cl = cliffLaps(comp, raceLaps), dpl = degPerLap(comp, raceLaps), perW = cl / CLIFF;   // (laps per unit of wear)

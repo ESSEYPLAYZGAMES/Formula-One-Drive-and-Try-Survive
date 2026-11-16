@@ -1,3 +1,47 @@
+# V2.73 (2026-11-15): tyres by the day; the pit straight's cameras; no race control over a replay
+
+Asked for: "softs should vary between 25 and 40 percent per race, and reduce mediums and hards by the same amount -
+should be the same for all cars (before you consider their upgrades)"; "fix this vegas camera it is genuinely hell"
+(a trackside shot from inside the pit lane, the grid seen through the pit wall's fence); "The post race decisions
+overlay onto the replay, they shouldnt even appear".
+
+## The tyres (vehicle/Tyres.js setTyreDay, main.js startRound)
+- A soft's life was half the race, a medium's three quarters, a hard's 110 % - always. So every race was the same
+  race: a soft to half distance, a medium home.
+- Each race of eight laps or more (one with a stop in it) has its DAY now: the soft is good for between 25 % and 40 % of the distance, and the medium and the hard
+  come down by exactly what the soft has (medium 50-65 %, hard 85-100 %). The same for every car - before a team's
+  own tyre development. A career's round has its own day, the same each time that round is begun; any other race
+  rolls one. The strategy screen says which it is (HARD ON THEM TODAY / AVERAGE WEAR / KIND TO THEM TODAY) beside
+  the laps each compound is good for.
+- A set has lost at its cliff what it always had by then: on a day when it lasts half as long, each lap costs twice
+  as much. (With the old second a lap, a soft "gone" in two laps had lost two seconds and was worth running three
+  laps past its cliff - the plan did not change at all.)
+- What the field starts on follows the day: mostly mediums and hards on a hard day, softs and mediums on a kind one.
+- A fault this uncovered (ai/AIDriver.js): for a lap after a stop the AI read its new set at the OLD set's rate of
+  wear. Harmless before; with a soft wearing a third of itself a lap, a new hard "would not reach the next lap" and
+  the car came straight back in, lap after lap. A new set has no rate until it has done a lap.
+- Eight laps at Las Vegas and at Silverstone, a hard day (25 %), an average one (32 %) and a kind one (40 %): the
+  field split over five to fifteen different races each time (hard-medium, soft-hard, medium-hard, soft-medium, two
+  stops), eleven to twenty of twenty-one on one stop, the winners on soft-hard, hard-medium, medium-hard, soft-hard;
+  nobody stopping on new tyres. The planner's own best: hard-medium at 25 %, medium-soft at 30-40 % with a hard
+  start within 1-3 s of it.
+- A sprint (under eight laps: no stop, the tyres just about last it) is as it was - on a quarter-distance soft it was
+  a race of worn-out tyres (11 spins for 6 in the five-lap test race). The seeded regression race, a five-lap one,
+  is identical to V2.67's.
+
+## The pit straight's cameras (camera/TVDirector.js barD, main.js tvWall)
+- Along the pit lane the track's own "wall" on that side is the lane's FAR side, not the pit wall. So a camera
+  "at the wall" stood in the pit lane behind the pit wall's fence, and the line-of-sight test - reading the same
+  number - saw nothing between it and the grid.
+- Cameras (pole, slot, crane, kerb, the replays') stand by the real barrier now - the pit wall where there is one -
+  and the sight-line and inside-the-fences tests use it too. A pole stands in from it by what room there is, never
+  over the white line.
+- Las Vegas, 9 minutes of trackside, crane and kerb shots: 63 on the pit wall's stretch, none behind it.
+
+## Race control and replays (ui/TVStewards.js)
+- Race control's cards are not shown over a whole-picture replay or the highlights.
+- Once the flag has fallen there are none at all: what is still open is settled in the stewards' room afterwards.
+
 # V2.72 (2026-11-15): the safety car has no place, no laps, no DRS
 
 Asked for: "well it shouldnt have laps or a postion should it now" (the card under the safety car's rear camera read

@@ -35,6 +35,7 @@ import { GridWalk } from './ui/GridWalk.js';
 import { PitTiming } from './ui/PitTiming.js';
 import { showStrategy } from './ui/Strategy.js';
 import { Car, CAR } from './vehicle/Car.js';
+import { setTyreDay, tyreDay, TYRE_DAY } from './vehicle/Tyres.js';
 import { CarMesh, setDebris, setFire, setChunks, prewarmParts } from './vehicle/CarMesh.js';
 import { loadCarModel, carModel } from './vehicle/CarModel.js';
 import { Fire } from './world/Fire.js';
@@ -1703,7 +1704,14 @@ function onTheDay(team) {
 /** an AI car's starting tyre: wet weather, or by the race length and the car's pace */
 function aiCompound(e, lapsTotal) {
   const wet = S.weekend?.wet ?? weatherWetness(settings.weather);
-  return wet > 0.5 ? 'WET' : wet > 0.2 ? 'INTER' : lapsTotal >= 13 ? (e.tier <= 1 ? (Math.random() < 0.5 ? 'MEDIUM' : 'SOFT') : (Math.random() < 0.6 ? 'SOFT' : 'MEDIUM')) : (Math.random() < 0.85 ? 'SOFT' : 'MEDIUM');
+  if (wet > 0.5) return 'WET'; if (wet > 0.2) return 'INTER';
+  if (!S.weekend?.tyreOn) return lapsTotal >= 13 ? (e.tier <= 1 ? (Math.random() < 0.5 ? 'MEDIUM' : 'SOFT') : (Math.random() < 0.6 ? 'SOFT' : 'MEDIUM')) : (Math.random() < 0.85 ? 'SOFT' : 'MEDIUM');   // (a sprint: as it was)
+  // (by the day's tyres: a soft that is gone in a quarter of the race is not what most of the field starts on -
+  //  mediums, a few hards going long, the softs the gamblers'; one good for four tenths: mostly softs, as before)
+  const day = tyreDay(), r = Math.random(), front = e.tier <= 1 ? 0.08 : 0;
+  if (day < 0.30) return r < 0.12 ? 'SOFT' : r < 0.60 + front ? 'MEDIUM' : 'HARD';
+  if (day < 0.36) return r < 0.40 - front ? 'SOFT' : r < 0.90 ? 'MEDIUM' : 'HARD';
+  return r < 0.58 - front ? 'SOFT' : 'MEDIUM';
 }
 /** why the seat-holder a stand-in replaces is out (an entry without outWhy: from the driver's record) -> 'ban' | 'injury' */
 function outWhyOf(C, name) { const d = Object.values(C.drivers || {}).find((x) => x.name === name); return d && isBanned(C, d) ? 'ban' : 'injury'; }
@@ -1962,7 +1970,7 @@ function resetTransient() {
   input.enabled = true; audio.setMuffle?.(0); audio.silence?.(false);
 }
 function startWeekend() {
-  S.choosing = false;
+  S.choosing = false; setTyreDay(null);   // (the day's tyres: a race's round sets its own - startRound; a time trial has none)
   resetTransient();
   $('menu').classList.add('hidden'); $('shot-label').classList.add('hidden'); $('fade').style.opacity = '0'; CINE.i = -1; clearAmbient();
   const lapsTotal = settings.len;
@@ -1981,6 +1989,16 @@ function startWeekend() {
 }
 function startRound() {
   const wk = S.weekend; strings(false); NEWS.cancelled = false;
+  // (the day's tyres - vehicle/Tyres.js: how long a soft lasts today, 25-40 % of the distance, the medium and the
+  //  hard with it; the same for every car. A career's round has its own, the same each time that round is begun -
+  //  it is the circuit's and the day's, not the dice's; any other race rolls one)
+  // (a race of eight laps or more - one with a stop in it. A sprint is as it was: its tyres just about last it, nobody
+  //  stops; on a quarter-distance soft it would be a race of worn-out tyres)
+  wk.tyreOn = wk.mode !== 'tt' && wk.lapsTotal >= 8;
+  if (wk.tyreOn) { const C = wk.career || wk.mgr || null; let u;
+    if (typeof window !== 'undefined' && window.__tyreDay > 0) u = (window.__tyreDay - TYRE_DAY[0]) / (TYRE_DAY[1] - TYRE_DAY[0]);   // (a test's own day)
+    else if (C) { let h = 2166136261; for (const ch of `${C.season}|${C.round}|${W.def?.id}`) h = Math.imul(h ^ ch.charCodeAt(0), 16777619); u = ((h >>> 0) % 10007) / 10006; } else u = Math.random();
+    wk.tyreDay = TYRE_DAY[0] + (TYRE_DAY[1] - TYRE_DAY[0]) * u; setTyreDay(wk.tyreDay); } else setTyreDay(null);
   if (wk.mode === 'champ' && !wk.career && wk.round > 1) { // vary the weather round to round
     const r = Math.random(); wk.wx = weatherPlan(r < 0.45 ? 'dry' : r < 0.7 ? 'changeable' : r < 0.87 ? 'damp' : 'wet', { night: settings.time === 'night' }); wk.wet = wk.wx.start; setTimeOfDay(settings.time); applyWeather(wk.wet);
   }
@@ -2707,6 +2725,10 @@ function tvTrees() {
   W._tvTrees = out; W._tvTreesFor = W.track; return out;
 }
 const _tvSeen = new Set();
+/** where the barrier really stands on that side of the road, for a line of sight: along the pit lane the pit wall
+ *  (pit.wallD), not Track.wallAt - which is past it, in the lane: a camera in the pit lane "saw" the grid through
+ *  the pit wall and its fence */
+function tvWall(i, sd) { const tr = W.track, w = tr.wallAt(i, sd), P = W.pit; if (P && P.wallD && sd === P.sideSign) { const p = P.wallD[i]; if (p > 0 && p < w) return p; } return w; }
 function tvTreeHit(px, py, pz, tx, ty, tz) {
   const T = tvTrees(); if (!T.n || W._tvNoTrees) return false;   // (_tvNoTrees: a test's switch)
   const dx = tx - px, dz = tz - pz, L2 = dx * dx + dz * dz, L = Math.sqrt(L2); if (L < 2) return false;
@@ -2739,7 +2761,7 @@ function tvInside(px, py, pz, tx, ty, tz) {
   const dx = tx - px, dz = tz - pz, L = Math.hypot(dx, dz); let hint = -1;
   for (let d = 3; d < L - 2; d += 4) {
     const f = d / L, x = px + dx * f, z = pz + dz * f; tr.nearest(x, z, hint, _tvq); hint = _tvq.i;
-    const sd = _tvq.d > 0 ? 1 : -1, w = tr.wallAt(_tvq.i, sd), o = Math.abs(_tvq.d) - w;
+    const sd = _tvq.d > 0 ? 1 : -1, w = tvWall(_tvq.i, sd), o = Math.abs(_tvq.d) - w;
     if (o > 0.5 && o < 60 && (tr.barrierHeight?.(_tvq.i, sd) || 1.1) > 1.7) return false;
   }
   return true;
@@ -2750,7 +2772,7 @@ function tvClear(px, py, pz, tx, ty, tz, full = false, lite = false) {   // (lit
   // the road's walls and fences along the line (not the first metres - the camera stands at its own wall - nor the last)
   // (a target off the road itself - a car in the pit lane, in a run-off behind the wall's line: the walls' test is
   //  not for it; the ray still is)
-  tr.nearest(tx, tz, -1, _tvq); const onRoad = Math.abs(_tvq.d) <= tr.wallAt(_tvq.i, _tvq.d > 0 ? 1 : -1) + 0.4;
+  tr.nearest(tx, tz, -1, _tvq); const onRoad = Math.abs(_tvq.d) <= tvWall(_tvq.i, _tvq.d > 0 ? 1 : -1) + 0.4;
   // (heights above the ground where each point is: the circuit is not flat everywhere. A low camera - a slot in the
   //  fence line, under 4.5 m - may not look across the wall's line at all: beside it the wall and its mesh run on)
   let hint = -1; const low = py - TERRAIN.at(px, pz) < 4.5;
@@ -2758,7 +2780,7 @@ function tvClear(px, py, pz, tx, ty, tz, full = false, lite = false) {   // (lit
     const f = d / L, x = px + dx * f, z = pz + dz * f, y = py + dy * f - TERRAIN.at(x, z); if (y > 7.5) continue;
     if (y < 0.15) return false;   // (the ground itself: a crest between the camera and the car)
     tr.nearest(x, z, hint, _tvq); hint = _tvq.i;
-    const sd = _tvq.d > 0 ? 1 : -1, w = tr.wallAt(_tvq.i, sd); if (!(Math.abs(_tvq.d) > w + (low ? -0.2 : 0.4))) continue;
+    const sd = _tvq.d > 0 ? 1 : -1, w = tvWall(_tvq.i, sd); if (!(Math.abs(_tvq.d) > w + (low ? -0.2 : 0.4))) continue;
     if (Math.abs(_tvq.d) > w + 60) continue;   // (far outside the circuit: not this stretch's wall - the buildings' ray answers)
     if (low) return false;
     const bh = tr.barrierHeight?.(_tvq.i, sd) || 1.1; if (y < bh + 0.3) return false;
@@ -2797,7 +2819,7 @@ function tpReplayCams(F, i, tEv) {
   for (const q of [qe, Math.round(K * 0.2), Math.round(K * 0.8)]) {
     const p = pts[Math.min(K - 1, q)]; tr.nearest(p[0], p[2], -1, _tvq); const s = _tvq.s;
     for (const [sd, ah, h] of [[1, 32, 11.5], [-1, 32, 11.5], [1, -26, 11.5], [-1, -26, 11.5], [1, 62, 15], [-1, 62, 15]]) {
-      const sq = tr.wrapS(s + ah), iq = tr.idxAtS(sq), f = tr.sample(sq, sd * (tr.wallAt(iq, sd) - 1.5));   // (on the road's side of its own fence: the mesh is never between the lens and the car, nor its back in the picture)
+      const sq = tr.wrapS(s + ah), iq = tr.idxAtS(sq), f = tr.sample(sq, sd * (tvWall(iq, sd) - Math.max(0.25, Math.min(1.5, tvWall(iq, sd) - (tr.edgeAt ? tr.edgeAt(iq, sd) : tvWall(iq, sd) - 3) - 0.3))));   // (on the road's side of its own fence: the mesh is never between the lens and the car, nor its back in the picture)
       C.push({ pos: new THREE.Vector3(f.x, TERRAIN.at(f.x, f.z) + h, f.z), vis: new Array(K), ins: new Array(K) });
     }
   }

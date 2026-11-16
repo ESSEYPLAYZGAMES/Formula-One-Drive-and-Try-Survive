@@ -6,7 +6,7 @@
 // stint bars, the predicted race time against A, the box laps (the first stop's lap can be moved), and what the rest
 // of the field is starting on. Chosen, it is yours for the race: you start on its tyre and the engineer calls each
 // stop on its lap (main.js strategyCalls) - box this lap, the next compound already set; P stays out.
-import { COMPOUNDS, cliffLaps, lapLoss, outLapLoss } from '../vehicle/Tyres.js';
+import { COMPOUNDS, cliffLaps, lapLoss, outLapLoss, tyreDay } from '../vehicle/Tyres.js';
 import { ensureMotion, reduced, keys, open, close } from './Motion.js';
 
 const DRY = ['SOFT', 'MEDIUM', 'HARD'];
@@ -242,7 +242,7 @@ export function showStrategy(o) {
     <header class="st-head"><div class="st-ttl"><div class="st-h">RACE <span>STRATEGY</span></div><div class="st-sub">${o.who ? `<b style="color:${esc(o.who.color || '#fff')}">${esc(o.who.name)}</b>${o.who.step ? ` (${esc(o.who.step)})` : ''} · ` : ''}${esc(o.trackName)} · ${o.laps} laps · ${cond}${o.night ? ' · night' : ''}${o.gridPos ? ` · starting P${o.gridPos}` : ''}</div></div>
       <ol class="st-rail" aria-label="The weekend"><li class="done"><i></i>Practice</li><li class="done"><i></i>Qualifying</li><li class="on" aria-current="step"><i></i>Strategy</li><li><i></i>Race</li></ol></header>
     <div class="st-body"><div class="st-eng"><b>RACE ENGINEER</b>${esc(advice)}</div>
-      <div class="st-cards one" data-scroll-ok>${plans.map(card).join('')}<aside class="st-side"><h4>THE TYRES HERE</h4><div class="st-ty">${R.comps.map((c) => `<i style="--c:${COMPOUNDS[c].color}">${c[0]}</i><span>${c[0] + c.slice(1).toLowerCase()}<small>${c === 'SOFT' ? 'quickest, shortest-lived' : c === 'MEDIUM' ? 'the middle one' : c === 'HARD' ? 'slowest, longest-lived' : c === 'INTER' ? 'for a damp road' : 'for standing water'}</small></span><b>about ${Math.round(R.life(c))} laps</b>`).join('')}</div>
+      <div class="st-cards one" data-scroll-ok>${plans.map(card).join('')}<aside class="st-side"><h4>THE TYRES HERE${o.wet > 0.2 || tyreDay() >= 0.45 ? '' : ` · ${tyreDay() < 0.30 ? 'HARD ON THEM TODAY' : tyreDay() < 0.36 ? 'AVERAGE WEAR' : 'KIND TO THEM TODAY'}`}</h4><div class="st-ty">${R.comps.map((c) => `<i style="--c:${COMPOUNDS[c].color}">${c[0]}</i><span>${c[0] + c.slice(1).toLowerCase()}<small>${c === 'SOFT' ? 'quickest, shortest-lived' : c === 'MEDIUM' ? 'the middle one' : c === 'HARD' ? 'slowest, longest-lived' : c === 'INTER' ? 'for a damp road' : 'for standing water'}</small></span><b>about ${Math.round(R.life(c))} laps</b>`).join('')}</div>
         <h4>THE RULES</h4>${R.mustStop ? '<div class="st-rule">At least one stop, or 30 seconds at the flag.</div>' : '<div class="st-rule">No stop is required at this distance.</div>'}${R.two ? '<div class="st-rule">Two different dry compounds, or 30 seconds at the flag.</div>' : ''}<div class="st-rule">A stop costs about ${o.pitLoss.toFixed(0)} seconds here.</div>
         <h4>THE FIELD STARTS ON</h4><div class="st-field">${Object.entries(counts).map(([c, n]) => `<i style="background:${COMPOUNDS[c]?.color || '#888'}"></i>${n} ${c.toLowerCase()}`).join('') || 'not known yet'}</div></aside></div></div>
     <footer class="st-foot"><span class="st-keys"><kbd class="k-kbd">←</kbd><kbd class="k-kbd">→</kbd> first stop · <kbd class="k-kbd">Enter</kbd> confirm</span><button class="st-ok">${esc(o.okText || 'CONFIRM · TO THE GRID ▸')}</button></footer></div>`;

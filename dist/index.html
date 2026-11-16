@@ -602,7 +602,7 @@ body.tp #hud-msg { top: 30%; }
     <div class="brand-line"></div>
     <h1 id="brand-title">FORMULA 1<span id="brand-sub">SIMULATOR</span></h1>
     <!-- the build's version: +0.01 with every build handed out -->
-    <span id="app-ver" title="Version">V2.72</span>
+    <span id="app-ver" title="Version">V2.73</span>
     <div id="menu-sub">Real circuits built from OpenStreetMap</div>
   </div>
   <div id="loading" class="hidden"><div class="ld"><i></i></div><span>Building the circuit from OpenStreetMap…</span></div>
@@ -77450,9 +77450,14 @@ __m['src/vehicle/Tyres.js'] = (() => {
 
 // Tyre compounds, wear/temperature model and grip mapping.
 //
-// Life: a soft reaches its cliff (70 % wear) at half the race distance, a medium at 75 %, a hard at 110 % - so a hard
-// can run a race through, waiting for a safety car (COMPOUNDS.life: the cliff against a soft's). The same for every
-// driver, you and the AI alike (the rate barely depends on style; only real sliding wears a set faster).
+// Life: it is the DAY's (setTyreDay - main.js rolls it for each race): a soft reaches its cliff (70 % wear) at between
+// 25 % and 40 % of the race distance, and a medium and a hard last as much longer than it as they always did - a
+// quarter of the race more, and six tenths of it (50-65 % and 85-100 %). So no race has the plan the last one had:
+// a soft that is gone in a quarter of the distance makes it a medium-hard race, or two stops; one good for four
+// tenths, a soft-medium one. (It was fixed at 50 / 75 / 110 %: every race was a soft to half distance and a medium
+// home.) The same for every car, you and the AI alike - before a team's own tyre development (wearMul) - and the
+// rate barely depends on style; only real sliding wears a set faster. With no day set (a time trial, a test): the
+// old 50 / 75 / 110.
 //
 // Degradation is set in lap time: every lap of normal wear costs a soft a second, a medium 0.75 s, a hard 0.5 s
 // (COMPOUNDS.deg) - in a race of up to ten laps. A longer race's tyres last longer, and lose what a ten-lap race's do at
@@ -77489,10 +77494,19 @@ const LAP = { t: null };
 function setTyreLap(t) { LAP.t = t > 20 && t < 400 ? t : null; }
 const tyreLap = (trackLength) => LAP.t || trackLength / 62;
 
+/** the day: where a soft's cliff falls, as a share of the race distance (null: SOFT_LIFE, as it always was) */
+const DAY = { soft: null };
+const TYRE_DAY = [0.25, 0.40];
+function setTyreDay(share) { DAY.soft = share > 0.1 && share < 0.9 ? share : null; }
+const tyreDay = () => DAY.soft ?? SOFT_LIFE;
+/** a compound's cliff as a share of the race distance today: the dry ones all come down by what the soft has (the rain tyres are as they were) */
+const lifeShare = (comp) => { const base = SOFT_LIFE * (COMPOUNDS[comp]?.life || 1); return DAY.soft != null && (comp === 'SOFT' || comp === 'MEDIUM' || comp === 'HARD') ? Math.max(0.1, base - (SOFT_LIFE - DAY.soft)) : base; };
 /** laps to a compound's cliff in a race of `raceLaps` */
-const cliffLaps = (comp, raceLaps) => Math.max(0.6, SOFT_LIFE * (COMPOUNDS[comp]?.life || 1) * raceLaps);
-/** seconds a lap of normal wear costs */
-const degPerLap = (comp, raceLaps) => (COMPOUNDS[comp]?.deg ?? 0.75) * Math.min(1, DEG_REF_LAPS / Math.max(1, raceLaps));
+const cliffLaps = (comp, raceLaps) => Math.max(0.6, lifeShare(comp) * raceLaps);
+/** seconds a lap of normal wear costs. (On a day when the tyres last less, each lap costs more: a set has lost at its
+ *  cliff what it always had by then - a soft that is gone in two laps instead of four is as far gone. With the old
+ *  second a lap it had lost two seconds at its "cliff" and was worth running three laps past it.) */
+const degPerLap = (comp, raceLaps) => (COMPOUNDS[comp]?.deg ?? 0.75) * Math.min(1, DEG_REF_LAPS / Math.max(1, raceLaps)) * (SOFT_LIFE * (COMPOUNDS[comp]?.life || 1)) / lifeShare(comp);
 /** lap time lost to wear (s) at wear w: linear to the cliff, then ramping */
 function lapLoss(comp, w, raceLaps) {
   const cl = cliffLaps(comp, raceLaps), dpl = degPerLap(comp, raceLaps), perW = cl / CLIFF;   // (laps per unit of wear)
@@ -77585,7 +77599,7 @@ class TyreSet {
   }
 }
 
-return { COMPOUNDS, SOFT_LIFE, CLIFF, RATE_NOM, DEG_REF_LAPS, BLANKET, setTyreLap, tyreLap, cliffLaps, degPerLap, lapLoss, lossToGrip, coldLoss, WARM_T, outLapLoss, TyreSet };
+return { COMPOUNDS, SOFT_LIFE, CLIFF, RATE_NOM, DEG_REF_LAPS, BLANKET, setTyreLap, tyreLap, TYRE_DAY, setTyreDay, tyreDay, lifeShare, cliffLaps, degPerLap, lapLoss, lossToGrip, coldLoss, WARM_T, outLapLoss, TyreSet };
 })();
 
 // ---- src/vehicle/Chassis.js
@@ -144894,7 +144908,7 @@ return { PitTiming };
 
 // ---- src/ui/Strategy.js
 __m['src/ui/Strategy.js'] = (() => {
-const { COMPOUNDS, cliffLaps, lapLoss, outLapLoss } = __m['src/vehicle/Tyres.js'];
+const { COMPOUNDS, cliffLaps, lapLoss, outLapLoss, tyreDay } = __m['src/vehicle/Tyres.js'];
 const { ensureMotion, reduced, keys, open, close } = __m['src/ui/Motion.js'];
 // Race strategy, before the start: the plans worked out from the same tyre model the cars race on (vehicle/Tyres.js -
 // each compound's life for this race distance, the seconds it loses a lap as it wears, the cliff, its pace, and the cold
@@ -145139,7 +145153,7 @@ function showStrategy(o) {
     <header class="st-head"><div class="st-ttl"><div class="st-h">RACE <span>STRATEGY</span></div><div class="st-sub">${o.who ? `<b style="color:${esc(o.who.color || '#fff')}">${esc(o.who.name)}</b>${o.who.step ? ` (${esc(o.who.step)})` : ''} · ` : ''}${esc(o.trackName)} · ${o.laps} laps · ${cond}${o.night ? ' · night' : ''}${o.gridPos ? ` · starting P${o.gridPos}` : ''}</div></div>
       <ol class="st-rail" aria-label="The weekend"><li class="done"><i></i>Practice</li><li class="done"><i></i>Qualifying</li><li class="on" aria-current="step"><i></i>Strategy</li><li><i></i>Race</li></ol></header>
     <div class="st-body"><div class="st-eng"><b>RACE ENGINEER</b>${esc(advice)}</div>
-      <div class="st-cards one" data-scroll-ok>${plans.map(card).join('')}<aside class="st-side"><h4>THE TYRES HERE</h4><div class="st-ty">${R.comps.map((c) => `<i style="--c:${COMPOUNDS[c].color}">${c[0]}</i><span>${c[0] + c.slice(1).toLowerCase()}<small>${c === 'SOFT' ? 'quickest, shortest-lived' : c === 'MEDIUM' ? 'the middle one' : c === 'HARD' ? 'slowest, longest-lived' : c === 'INTER' ? 'for a damp road' : 'for standing water'}</small></span><b>about ${Math.round(R.life(c))} laps</b>`).join('')}</div>
+      <div class="st-cards one" data-scroll-ok>${plans.map(card).join('')}<aside class="st-side"><h4>THE TYRES HERE${o.wet > 0.2 || tyreDay() >= 0.45 ? '' : ` · ${tyreDay() < 0.30 ? 'HARD ON THEM TODAY' : tyreDay() < 0.36 ? 'AVERAGE WEAR' : 'KIND TO THEM TODAY'}`}</h4><div class="st-ty">${R.comps.map((c) => `<i style="--c:${COMPOUNDS[c].color}">${c[0]}</i><span>${c[0] + c.slice(1).toLowerCase()}<small>${c === 'SOFT' ? 'quickest, shortest-lived' : c === 'MEDIUM' ? 'the middle one' : c === 'HARD' ? 'slowest, longest-lived' : c === 'INTER' ? 'for a damp road' : 'for standing water'}</small></span><b>about ${Math.round(R.life(c))} laps</b>`).join('')}</div>
         <h4>THE RULES</h4>${R.mustStop ? '<div class="st-rule">At least one stop, or 30 seconds at the flag.</div>' : '<div class="st-rule">No stop is required at this distance.</div>'}${R.two ? '<div class="st-rule">Two different dry compounds, or 30 seconds at the flag.</div>' : ''}<div class="st-rule">A stop costs about ${o.pitLoss.toFixed(0)} seconds here.</div>
         <h4>THE FIELD STARTS ON</h4><div class="st-field">${Object.entries(counts).map(([c, n]) => `<i style="background:${COMPOUNDS[c]?.color || '#888'}"></i>${n} ${c.toLowerCase()}`).join('') || 'not known yet'}</div></aside></div></div>
     <footer class="st-foot"><span class="st-keys"><kbd class="k-kbd">←</kbd><kbd class="k-kbd">→</kbd> first stop · <kbd class="k-kbd">Enter</kbd> confirm</span><button class="st-ok">${esc(o.okText || 'CONFIRM · TO THE GRID ▸')}</button></footer></div>`;
@@ -147380,6 +147394,14 @@ const TV_CAM_NAME = { auto: 'Director', track: 'Trackside', tcam: 'Onboard', hel
 const TV_AWAY = new Set(['crowd', 'garage', 'beauty', 'wall', 'marshal', 'walk']);
 
 const _v = new THREE.Vector3();
+/**
+ * Where the barrier a camera stands at really is, on that side of the road (m from its centre). Along the pit lane
+ * it is the PIT WALL (pit.wallD): Track.wallAt there is past it, in the lane - a camera put by that stood in the pit
+ * lane behind the pit wall's fence, and showed the grid through the mesh.
+ */
+const barD = (tr, pit, i, sd) => { const w = tr.wallAt(i, sd); if (pit && pit.wallD && sd === pit.sideSign) { const p = pit.wallD[i]; if (p > 0 && p < w) return p; } return w; };
+/** how far in from that barrier a pole stands: a metre and a half where there is the room, never over the white line */
+const poleIn = (tr, pit, i, sd) => { const w = barD(tr, pit, i, sd), e = tr.edgeAt ? tr.edgeAt(i, sd) : w - 3; return Math.max(0.25, Math.min(1.5, w - e - 0.3)); };
 
 class TVDirector {
   constructor(camera) {
@@ -147512,7 +147534,7 @@ class TVDirector {
       let s0 = null, side = 1; const reach = this.camKind === 'kerb' ? 720 : 330;
       for (let ds = 45; ds < reach; ds += 12) { const i = tr.idxAtS(tr.wrapS(subject.s + ds)); if (!tr.inCornerZone(i)) continue; let e = ds; while (e < ds + 220 && tr.inCornerZone(tr.idxAtS(tr.wrapS(subject.s + e)))) e += 12; const sm = tr.wrapS(subject.s + (ds + e) / 2), im = tr.idxAtS(sm), n = tr.n, a = (im - 6 + n) % n, b = (im + 6) % n; side = (tr.tx[b] - tr.tx[a]) * tr.nx[im] + (tr.tz[b] - tr.tz[a]) * tr.nz[im] > 0 ? 1 : -1; s0 = sm; break; }
       if (s0 != null) {
-        const i = tr.idxAtS(s0), edge = tr.edgeAt ? tr.edgeAt(i, side) : tr.wallAt(i, side) - 2, off = side * Math.min(tr.wallAt(i, side) - 0.5, edge + (tr.kerbWidth || 1) * 0.3), f = tr.sample(s0, off);
+        const i = tr.idxAtS(s0), wK = barD(tr, ctx.pit, i, side), edge = tr.edgeAt ? tr.edgeAt(i, side) : wK - 2, off = side * Math.min(wK - 0.5, edge + (tr.kerbWidth || 1) * 0.3), f = tr.sample(s0, off);
         const a = tr.sample(tr.wrapS(s0 - 28), off * 0.7), b = tr.sample(tr.wrapS(s0 + 28), off * 0.7);   // (along its own side of the road, tipped up a little: the cars come through the middle of the picture, the horizon under it)
         sh.s0 = s0; sh.side = side; sh.kerb = true; sh.pos = new THREE.Vector3(f.x, G(f.x, f.z) + 0.3, f.z);
         sh.lookA = new THREE.Vector3(a.x, G(a.x, a.z) + 2.7, a.z); sh.lookB = new THREE.Vector3(b.x, G(b.x, b.z) + 2.7, b.z); sh.dur = 15;
@@ -147529,7 +147551,7 @@ class TVDirector {
       for (const [ins, strict] of [[true, true], [true, false], [false, true], [false, false]]) {
         const see = (p, py, x, y, z) => ctx.clear(p.x, py, p.z, x, y, z) && (!ins || !ctx.inside || ctx.inside(p.x, py, p.z, x, y, z));
         for (const [sd, k] of [[s1, 1], [-s1, 1], [s1, 0.6], [-s1, 0.6], [s1, 1.5], [-s1, 1.5]]) {
-          const s0 = tr.wrapS(subject.s + base * k), i = tr.idxAtS(s0), w = tr.wallAt(i, sd);
+          const s0 = tr.wrapS(subject.s + base * k), i = tr.idxAtS(s0), w = barD(tr, ctx.pit, i, sd);
           const a = tr.sample(s0, sd * (w - 0.8)), b = tr.sample(tr.wrapS(s0 + 14), sd * (w - 1.2)) /* (the head stays on the road's side of the fence as it rises: the mesh is never seen from behind) */, p0 = new THREE.Vector3(a.x, G(a.x, a.z) + 3.2, a.z), p1 = new THREE.Vector3(b.x, G(b.x, b.z) + 13, b.z);
           const m = tr.sample(tr.wrapS(s0 - 25), 0), my = G(m.x, m.z) + 0.8;
           let ok = !ctx.clear || (see(p1, p1.y, m.x, my, m.z) && see(p0, p0.y + 1.5, m.x, my, m.z) && (!strict || (see(p1, p1.y, subject.x, cy(subject) + 0.8, subject.z) && see(p0, p0.y + 1.5, subject.x, cy(subject) + 0.8, subject.z)))), end = null;
@@ -147555,7 +147577,7 @@ class TVDirector {
       //  behind the lens, never between it and a car, and never seen from behind. The slot is in the fence line itself.)
       const side = (this.cuts & 1) ? 1 : -1, slot = !st.urgent && ((this.cuts * 0.4142) % 1) < 0.4, kv = Math.min(1.6, Math.max(0.5, subject.speed / 55));
       const at = (k, sd, sl, hh) => {
-        const sq = tr.wrapS(subject.s + Math.max(20, ahead * k * kv)), iq = tr.idxAtS(sq), fq = tr.sample(sq, sd * (tr.wallAt(iq, sd) + (sl ? 0.05 : -1.5)));
+        const sq = tr.wrapS(subject.s + Math.max(20, ahead * k * kv)), iq = tr.idxAtS(sq), fq = tr.sample(sq, sd * (barD(tr, ctx.pit, iq, sd) + (sl ? 0.05 : -poleIn(tr, ctx.pit, iq, sd))));
         const h = sl ? Math.max(1.9, (tr.barrierHeight?.(iq, sd) > 2 ? 1.3 : tr.barrierHeight?.(iq, sd) || 1.2) + 0.7) : hh;
         return { p: new THREE.Vector3(fq.x, G(fq.x, fq.z) + h, fq.z), sq, sd, sl, h };
       };
@@ -147791,6 +147813,8 @@ __m['src/ui/TVStewards.js'] = (() => {
 // seconds on the screen so the note and the investigation can be read before it.
 const CSS = `
 /* (race control's place on a broadcast: the top of the picture, in the middle - clear of the tower, the map and every card on the right. The commentary's line and the window under it move down by its height: --stwh) */
+/* (not over a replay - the whole picture's, the highlights at the flag: what is on screen is the past, and a decision reached now is not part of it) */
+#tvg.hl .stw, #tvg.rpf .stw { display: none !important; }
 #tvg .stw { position: absolute; left: 50%; top: 6px; transform: translateX(-50%); display: flex; flex-direction: row; justify-content: center; align-items: flex-start; gap: 8px; max-width: calc(100% - 520px); pointer-events: none; z-index: 3; }   /* (side by side in the strip above the commentary's line: the window under it is the action's, and nothing here moves it) */
 @media (max-width: 900px) { #tvg .stw { left: 262px; transform: none; justify-content: flex-start; max-width: calc(100% - 270px); } }
 #tvg .xr:has(.xc.stg.in) .xc.inf { display: none; }   /* (the strategy up: the filler cards make room) */
@@ -147902,6 +147926,9 @@ class TVStewards {
     const d = ctx.d, S = d?.stewards; if (!d || !S || d.mode !== 'race') { if (this.cases.length) this.reset(); return; }
     this.deepCases = S.deep ? S.cases : null;
     const t = d.time;
+    // (the flag has fallen: what is still open is settled in the stewards' room afterwards, where it is read out - no
+    //  notice on the broadcast for it, over the slowing-down lap, the highlights, the podium)
+    if (d.done || d.leaderFinished) { for (const k of [...this.cases]) this._gone(k); this.logN = (S.log || []).length; return; }
     // (the clocks on the cards run every frame; the rest is looked at a few times a second)
     for (const k of this.cases) if (k.st === 'o' && k.deadline != null && !k.gone) k.el.querySelector('.cd').style.transform = `scaleX(${Math.max(0, Math.min(1, (k.deadline - t) / k.span)).toFixed(3)})`;
     this.acc += dt; if (this.acc < 0.15) return; this.acc = 0;
@@ -156644,7 +156671,7 @@ class TVExtras {
     this._rwM = setTimeout(() => { try { mid?.(); } catch (e) { console.warn('[tv] wipe', e); } }, 560); this._rwT = setTimeout(() => w.classList.remove('rw-on'), 1400);
   }
   /** a replay is playing (main.js): the bug up, the cards away */
-  replaying(on, text = '') { this.bug.classList.toggle('on', !!on); this.bug.querySelector('small').textContent = on ? text : ''; this.col.style.visibility = on ? 'hidden' : ''; if (on) { this.tel.classList.remove('on'); this.root.querySelector('.cap')?.classList.remove('in'); } this.root.querySelector('.live')?.classList.toggle('rp', !!on); }
+  replaying(on, text = '') { this.root.classList.toggle('rpf', !!on);   /* (a whole-picture replay: race control's notices are not for it - ui/TVStewards.js) */ this.bug.classList.toggle('on', !!on); this.bug.querySelector('small').textContent = on ? text : ''; this.col.style.visibility = on ? 'hidden' : ''; if (on) { this.tel.classList.remove('on'); this.root.querySelector('.cap')?.classList.remove('in'); } this.root.querySelector('.live')?.classList.toggle('rp', !!on); }
 
   /** every frame. ctx: { d, focus, shot (the director's), halted, say(text, kind, head) (race control's line) } */
   update(dt, ctx) {
@@ -192048,7 +192075,9 @@ class AIDriver {
     // the pit entry comes once a lap: if the tyres would go over the cliff (70 % wear) before the one after this,
     // box at this one - a lap on worn-out tyres costs far more than the stop. The wear of the last full lap says how
     // fast this set is going (a team watches exactly that)
-    if (c.lap !== this._wLap) { if (this._wLap != null && this._wTyres === t) this._wPerLap = t.wear - this._wStart; this._wLap = c.lap; this._wStart = t.wear; this._wTyres = t; }
+    // (a new set has no lap of its own yet: the rate is not the last set's - a hard read at a soft's rate "would not
+    //  reach the next lap", and the car came straight back in, lap after lap)
+    if (c.lap !== this._wLap) { this._wPerLap = this._wLap != null && this._wTyres === t ? t.wear - this._wStart : 0; this._wLap = c.lap; this._wStart = t.wear; this._wTyres = t; }
     // (the plan's wear target instead of the cliff: an early stopper boxes at half wear, a gambler at the cliff)
     const toPit = 1 - c.s / this.track.length, cliffSoon = this._wPerLap > 0 && this._wTyres === t && t.wear + this._wPerLap * (toPit + 1) > S.wear;
     // (with two laps or less to go a stop for tyres never pays back - unless they are truly finished)
@@ -198328,6 +198357,7 @@ const { GridWalk } = __m['src/ui/GridWalk.js'];
 const { PitTiming } = __m['src/ui/PitTiming.js'];
 const { showStrategy } = __m['src/ui/Strategy.js'];
 const { Car, CAR } = __m['src/vehicle/Car.js'];
+const { setTyreDay, tyreDay, TYRE_DAY } = __m['src/vehicle/Tyres.js'];
 const { CarMesh, setDebris, setFire, setChunks, prewarmParts } = __m['src/vehicle/CarMesh.js'];
 const { loadCarModel, carModel } = __m['src/vehicle/CarModel.js'];
 const { Fire } = __m['src/world/Fire.js'];
@@ -198415,6 +198445,7 @@ const { buildVegasPaddock } = __m['src/world/VegasPaddock.js'];
 // (the scene's matrices recomputed only where something moved: in place before anything is built)
 
 void FAST_MATRIX;
+
 
 
 
@@ -200114,7 +200145,14 @@ function onTheDay(team) {
 /** an AI car's starting tyre: wet weather, or by the race length and the car's pace */
 function aiCompound(e, lapsTotal) {
   const wet = S.weekend?.wet ?? weatherWetness(settings.weather);
-  return wet > 0.5 ? 'WET' : wet > 0.2 ? 'INTER' : lapsTotal >= 13 ? (e.tier <= 1 ? (Math.random() < 0.5 ? 'MEDIUM' : 'SOFT') : (Math.random() < 0.6 ? 'SOFT' : 'MEDIUM')) : (Math.random() < 0.85 ? 'SOFT' : 'MEDIUM');
+  if (wet > 0.5) return 'WET'; if (wet > 0.2) return 'INTER';
+  if (!S.weekend?.tyreOn) return lapsTotal >= 13 ? (e.tier <= 1 ? (Math.random() < 0.5 ? 'MEDIUM' : 'SOFT') : (Math.random() < 0.6 ? 'SOFT' : 'MEDIUM')) : (Math.random() < 0.85 ? 'SOFT' : 'MEDIUM');   // (a sprint: as it was)
+  // (by the day's tyres: a soft that is gone in a quarter of the race is not what most of the field starts on -
+  //  mediums, a few hards going long, the softs the gamblers'; one good for four tenths: mostly softs, as before)
+  const day = tyreDay(), r = Math.random(), front = e.tier <= 1 ? 0.08 : 0;
+  if (day < 0.30) return r < 0.12 ? 'SOFT' : r < 0.60 + front ? 'MEDIUM' : 'HARD';
+  if (day < 0.36) return r < 0.40 - front ? 'SOFT' : r < 0.90 ? 'MEDIUM' : 'HARD';
+  return r < 0.58 - front ? 'SOFT' : 'MEDIUM';
 }
 /** why the seat-holder a stand-in replaces is out (an entry without outWhy: from the driver's record) -> 'ban' | 'injury' */
 function outWhyOf(C, name) { const d = Object.values(C.drivers || {}).find((x) => x.name === name); return d && isBanned(C, d) ? 'ban' : 'injury'; }
@@ -200373,7 +200411,7 @@ function resetTransient() {
   input.enabled = true; audio.setMuffle?.(0); audio.silence?.(false);
 }
 function startWeekend() {
-  S.choosing = false;
+  S.choosing = false; setTyreDay(null);   // (the day's tyres: a race's round sets its own - startRound; a time trial has none)
   resetTransient();
   $('menu').classList.add('hidden'); $('shot-label').classList.add('hidden'); $('fade').style.opacity = '0'; CINE.i = -1; clearAmbient();
   const lapsTotal = settings.len;
@@ -200392,6 +200430,16 @@ function startWeekend() {
 }
 function startRound() {
   const wk = S.weekend; strings(false); NEWS.cancelled = false;
+  // (the day's tyres - vehicle/Tyres.js: how long a soft lasts today, 25-40 % of the distance, the medium and the
+  //  hard with it; the same for every car. A career's round has its own, the same each time that round is begun -
+  //  it is the circuit's and the day's, not the dice's; any other race rolls one)
+  // (a race of eight laps or more - one with a stop in it. A sprint is as it was: its tyres just about last it, nobody
+  //  stops; on a quarter-distance soft it would be a race of worn-out tyres)
+  wk.tyreOn = wk.mode !== 'tt' && wk.lapsTotal >= 8;
+  if (wk.tyreOn) { const C = wk.career || wk.mgr || null; let u;
+    if (typeof window !== 'undefined' && window.__tyreDay > 0) u = (window.__tyreDay - TYRE_DAY[0]) / (TYRE_DAY[1] - TYRE_DAY[0]);   // (a test's own day)
+    else if (C) { let h = 2166136261; for (const ch of `${C.season}|${C.round}|${W.def?.id}`) h = Math.imul(h ^ ch.charCodeAt(0), 16777619); u = ((h >>> 0) % 10007) / 10006; } else u = Math.random();
+    wk.tyreDay = TYRE_DAY[0] + (TYRE_DAY[1] - TYRE_DAY[0]) * u; setTyreDay(wk.tyreDay); } else setTyreDay(null);
   if (wk.mode === 'champ' && !wk.career && wk.round > 1) { // vary the weather round to round
     const r = Math.random(); wk.wx = weatherPlan(r < 0.45 ? 'dry' : r < 0.7 ? 'changeable' : r < 0.87 ? 'damp' : 'wet', { night: settings.time === 'night' }); wk.wet = wk.wx.start; setTimeOfDay(settings.time); applyWeather(wk.wet);
   }
@@ -201118,6 +201166,10 @@ function tvTrees() {
   W._tvTrees = out; W._tvTreesFor = W.track; return out;
 }
 const _tvSeen = new Set();
+/** where the barrier really stands on that side of the road, for a line of sight: along the pit lane the pit wall
+ *  (pit.wallD), not Track.wallAt - which is past it, in the lane: a camera in the pit lane "saw" the grid through
+ *  the pit wall and its fence */
+function tvWall(i, sd) { const tr = W.track, w = tr.wallAt(i, sd), P = W.pit; if (P && P.wallD && sd === P.sideSign) { const p = P.wallD[i]; if (p > 0 && p < w) return p; } return w; }
 function tvTreeHit(px, py, pz, tx, ty, tz) {
   const T = tvTrees(); if (!T.n || W._tvNoTrees) return false;   // (_tvNoTrees: a test's switch)
   const dx = tx - px, dz = tz - pz, L2 = dx * dx + dz * dz, L = Math.sqrt(L2); if (L < 2) return false;
@@ -201150,7 +201202,7 @@ function tvInside(px, py, pz, tx, ty, tz) {
   const dx = tx - px, dz = tz - pz, L = Math.hypot(dx, dz); let hint = -1;
   for (let d = 3; d < L - 2; d += 4) {
     const f = d / L, x = px + dx * f, z = pz + dz * f; tr.nearest(x, z, hint, _tvq); hint = _tvq.i;
-    const sd = _tvq.d > 0 ? 1 : -1, w = tr.wallAt(_tvq.i, sd), o = Math.abs(_tvq.d) - w;
+    const sd = _tvq.d > 0 ? 1 : -1, w = tvWall(_tvq.i, sd), o = Math.abs(_tvq.d) - w;
     if (o > 0.5 && o < 60 && (tr.barrierHeight?.(_tvq.i, sd) || 1.1) > 1.7) return false;
   }
   return true;
@@ -201161,7 +201213,7 @@ function tvClear(px, py, pz, tx, ty, tz, full = false, lite = false) {   // (lit
   // the road's walls and fences along the line (not the first metres - the camera stands at its own wall - nor the last)
   // (a target off the road itself - a car in the pit lane, in a run-off behind the wall's line: the walls' test is
   //  not for it; the ray still is)
-  tr.nearest(tx, tz, -1, _tvq); const onRoad = Math.abs(_tvq.d) <= tr.wallAt(_tvq.i, _tvq.d > 0 ? 1 : -1) + 0.4;
+  tr.nearest(tx, tz, -1, _tvq); const onRoad = Math.abs(_tvq.d) <= tvWall(_tvq.i, _tvq.d > 0 ? 1 : -1) + 0.4;
   // (heights above the ground where each point is: the circuit is not flat everywhere. A low camera - a slot in the
   //  fence line, under 4.5 m - may not look across the wall's line at all: beside it the wall and its mesh run on)
   let hint = -1; const low = py - TERRAIN.at(px, pz) < 4.5;
@@ -201169,7 +201221,7 @@ function tvClear(px, py, pz, tx, ty, tz, full = false, lite = false) {   // (lit
     const f = d / L, x = px + dx * f, z = pz + dz * f, y = py + dy * f - TERRAIN.at(x, z); if (y > 7.5) continue;
     if (y < 0.15) return false;   // (the ground itself: a crest between the camera and the car)
     tr.nearest(x, z, hint, _tvq); hint = _tvq.i;
-    const sd = _tvq.d > 0 ? 1 : -1, w = tr.wallAt(_tvq.i, sd); if (!(Math.abs(_tvq.d) > w + (low ? -0.2 : 0.4))) continue;
+    const sd = _tvq.d > 0 ? 1 : -1, w = tvWall(_tvq.i, sd); if (!(Math.abs(_tvq.d) > w + (low ? -0.2 : 0.4))) continue;
     if (Math.abs(_tvq.d) > w + 60) continue;   // (far outside the circuit: not this stretch's wall - the buildings' ray answers)
     if (low) return false;
     const bh = tr.barrierHeight?.(_tvq.i, sd) || 1.1; if (y < bh + 0.3) return false;
@@ -201208,7 +201260,7 @@ function tpReplayCams(F, i, tEv) {
   for (const q of [qe, Math.round(K * 0.2), Math.round(K * 0.8)]) {
     const p = pts[Math.min(K - 1, q)]; tr.nearest(p[0], p[2], -1, _tvq); const s = _tvq.s;
     for (const [sd, ah, h] of [[1, 32, 11.5], [-1, 32, 11.5], [1, -26, 11.5], [-1, -26, 11.5], [1, 62, 15], [-1, 62, 15]]) {
-      const sq = tr.wrapS(s + ah), iq = tr.idxAtS(sq), f = tr.sample(sq, sd * (tr.wallAt(iq, sd) - 1.5));   // (on the road's side of its own fence: the mesh is never between the lens and the car, nor its back in the picture)
+      const sq = tr.wrapS(s + ah), iq = tr.idxAtS(sq), f = tr.sample(sq, sd * (tvWall(iq, sd) - Math.max(0.25, Math.min(1.5, tvWall(iq, sd) - (tr.edgeAt ? tr.edgeAt(iq, sd) : tvWall(iq, sd) - 3) - 0.3))));   // (on the road's side of its own fence: the mesh is never between the lens and the car, nor its back in the picture)
       C.push({ pos: new THREE.Vector3(f.x, TERRAIN.at(f.x, f.z) + h, f.z), vis: new Array(K), ins: new Array(K) });
     }
   }
