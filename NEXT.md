@@ -1,3 +1,27 @@
+# V2.74 (2026-11-16): the trackside camera's aim goes with the cars
+
+Asked for: "during battles i go to track cam and it just focuses on like random ground around the cars, like where
+they were in the past or a bit ahead/behind so i miss all the action".
+
+## What it was (camera/TVDirector.js place)
+- The aim EASED after its subject (a ninth of a second behind it). At 300 km/h that is the centre of a long lens
+  nine metres behind the car - and the easing ran on the frame's own time while the cars, at x2 and x4, cover two and
+  four frames' ground in one: the aim twenty to thirty-five metres behind them.
+- A fight was aimed a third of the way from the attacking car to the one ahead - and with the lag, behind both.
+
+## Now
+- The aim moves WITH its subject: what the subject has moved since the last frame, the aim has moved too. Only what
+  is left over is eased - the picture's weight shifting between two cars, a new subject near the old one.
+- Two cars: the picture's middle is half way between them, and it is as wide as they are apart with room either
+  side. More than seventy metres apart it is the one car's shot (not the road between them).
+- The lens opens quickly as a car comes past - it must not outgrow the picture - and closes in slowly.
+
+## Measured (the trackside camera kept to, cars in fights followed)
+- How far the picture's centre was from the middle of the fight: 7.3 m at x1 and 19.8 m at x4 (35 m at worst)
+  before; 0 m at both now.
+- Both cars in the picture: 89 % of frames before, 96 % now at Las Vegas (98 % at Montreal); at x4, 83 % before,
+  90-92 % now.
+
 # V2.73 (2026-11-15): tyres by the day; the pit straight's cameras; no race control over a replay
 
 Asked for: "softs should vary between 25 and 40 percent per race, and reduce mediums and hards by the same amount -
