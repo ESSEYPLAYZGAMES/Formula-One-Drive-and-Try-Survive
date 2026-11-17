@@ -1,3 +1,70 @@
+# V2.77 (2026-11-17): the sound of it; the broadcast camera's pans
+
+Asked for: "go thru the whole game repolishing audio, are the engine sounds at the best of their ability? like is there
+no way for them to be more realistic"; "Implement this notification sound for anytime there is an optional replay so I
+don't miss them" (a team radio beep); "the rear cam just refuses to work, and camera movement keeps teleporting to the
+correct frame, rather than clean, smooth sweeps and zooms".
+
+## The engines (audio/EngineWorklet.js, audio/Audio.js)
+- They were two saw-tooth oscillators and a square through a lowpass, pitched 40 to 300 Hz - a truck, an octave and
+  more below the real thing, the same buzz for every car, and only one car ever heard.
+- Now each engine is synthesised firing by firing in an AudioWorklet: a 1.6 litre V6 fires three times a revolution,
+  600 Hz at 12 000 rpm. Every firing is a pressure pulse into the exhaust - its bark, a burst of turbulent noise riding
+  it, and the pipe's resonances it rings (fixed: the harmonics sweep through them as the revs rise). Each cylinder
+  fires a little differently, a few per cent of jitter every time: the rasp.
+- On the throttle: hard and bright. Off it: softer, duller, the odd pop of unburnt fuel. An upshift: a crack and 40 ms
+  of ignition cut. A downshift: a blip and a crackle. The rev limiter's 18 Hz stutter; the pit-lane limiter's burble.
+- Over it: the turbo's whistle with the boost and the wastegate's breath when the throttle shuts; the MGU-K's whine
+  deploying and, louder, harvesting under braking; the straight-cut gears.
+- On board (cockpit, T-cam, the broadcast's onboards): the airbox's roar over the driver's head, the block under him.
+- The safety car is a V8: four firings a revolution, lower, rounder.
+- Where a browser cannot run the worklet, the old oscillators are still there. (Opened from disk, the single file
+  loads it from a data: URL - a blob: URL from a page with no origin will not load as a worklet.)
+
+## Every car heard
+- Up to eight cars at once, the loudest: their engines by their distance, duller with it (the air), quieter from in
+  front (the exhaust is at the back), left or right in the stereo, and Doppler-shifted - the rise and fall of a car
+  going past at 300 km/h (measured: 733 Hz coming, 440 going for a 550 Hz note at 85 m/s).
+- Driving: the field round you - a car alongside, one closing behind.
+- The broadcast: the cars round the picture, not one car wherever the picture was. A helicopter's picture is heard
+  from a microphone by the track near the car (as a broadcast is mixed). Full-screen replays and the highlights have
+  their sound: the replayed cars' engines from how they move in the record.
+
+## The rest of the sound
+- The team radio's beep (your recording) every time a replay is offered.
+- Tyres squeal when they slide; the kerbs drum through the chassis at the stripes' rate; gravel and grass crunch.
+- The wheel guns in a pit stop: each nut undone and done up, heard from where the car is.
+- Collisions are heard where the microphone is (the broadcast's included), with a crunch for a hard one - they were
+  only heard near your own car.
+- The rain hisses (louder on a visor).
+
+## The broadcast camera (camera/TVDirector.js)
+- REAR on the pit wall while following a car turned itself into the forward onboard unless a car was attacking right
+  behind - the button seemed to do nothing. Asked for, it is the rear camera now.
+- The aim carried every change of its target in one frame: a partner joining the picture or leaving it, two cars
+  becoming three, a pair splitting up - each a jump, and over 45 m a snap. Now only the subject's own movement is
+  carried exactly; a change of what the picture is of is a pan, eased over a third of a second. Only a cut is a cut.
+- The lens opens and closes more gently.
+
+## The window replay to full screen (main.js tpReplayFull, ui/TVShow.js, ui/TVExtras.js)
+- Asked for: "the full screen prompt is way too big - infact remove it"; "instead scale the PiP smoothly larger until it
+  takes the whole screen, in one smooth transition ... the neon box ... can scale with it"; "when leaving the
+  fullscreen highlight it returns to the real broadcast before the closing transition is finished".
+- No FULL SCREEN button on the window any more: F.
+- F: the window itself grows to the whole picture in three quarters of a second, eased, its neon frame growing with it
+  and fading over the last of it, the clip from its start. There the broadcast's own camera takes the window's exact
+  view and the replay plays on - no wipe over the whole feed while the window sat in it.
+- The wipe's middle (where what is under it changes - the live picture back) waited a fixed 560 ms; on a heavy frame
+  its slats start late and the live picture came in under slats still closing. Now it waits until every slat IS
+  closed, and the wipe comes off when their animation has ended, not on a clock.
+
+## A decision with nothing to decide (career/ManagerStory.js, ui/ManagerMail.js)
+- "The car rebuilt overnight" came to the inbox as a decision with no choices (it was only a scene). Now it asks what
+  you do for the crew that worked through the night: a bonus ($0.2M: less fatigue, steadier stops), send them home to
+  sleep (the most rest), or thank them yourself (free). A save with it already waiting gets the choices too.
+- The Decisions list (and the Mail badge) holds only matters with choices to make there; the scenes that are only
+  played in person (the board, the launch, the documentary) come up where they belong, as before.
+
 # V2.76 (2026-11-16): replays run on into the wipe; race pace; the pit wall fits a laptop
 
 Asked for: "have the replay continue playing as it transitions out (do this by extending the replay slightly - dont

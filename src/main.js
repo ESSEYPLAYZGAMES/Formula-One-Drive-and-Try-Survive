@@ -2062,7 +2062,7 @@ function makeDirector(mode, cars, player, extra = {}) {
   if (S.spectating && wk?.mode !== 'tp') hud.msg(`${wk?.career?.noSeat ? 'NO SEAT THIS WEEKEND' : 'STOOD DOWN'} · WATCHING ${S.player.name.toUpperCase()}\nEnter: fast-forward · Tab: next car`, 'warn', 6);
   else if (player?.standInFor) hud.msg(standInBanner(player), 'warn', 6);   // (your driver hurt, or banned: you race their stand-in)
   ensureRacingLine(); RL.group.visible = wk?.mode === 'tp' ? false : RL.on;   // (the broadcast has no racing line painted on its road unless you ask for it: L - tpStart)
-  S.crews?.dispose(); S.crews = W.pit ? new PitCrews(scene, 5, S.meshes, W.time === 'night') : null;   // (the crews: a whole stop, choreographed - world/PitCrew.js)
+  S.crews?.dispose(); S.crews = W.pit ? new PitCrews(scene, 5, S.meshes, W.time === 'night') : null; if (S.crews) S.crews.onGun = (x, z, dur) => audio.gun(x, z, dur);   // (the wheel guns heard)   // (the crews: a whole stop, choreographed - world/PitCrew.js)
   S.fireworks?.dispose(); S.fireworks = W.def.id === 'lasvegas' && mode === 'race' ? new Fireworks(scene) : null;   // (the Strip's fireworks for the winner)
   S.flags?.dispose(); S.flags = new Marshals(scene, W.track, W.pit);       // (the marshal posts' flags: an incident, blue flags, the chequered flag)
   floodlitAll(scene); precompile();
@@ -2572,7 +2572,7 @@ function tpStart() {
   if (!TP.wall) { TP.wall = new PitWall({ act: tpAct }); const say0 = TP.wall.radio.bind(TP.wall); TP.wall.radio = (who, text) => { (TP.log || (TP.log = [])).push({ who, text, lap: Math.max(0, ...TP.cars.map((c) => c.lap || 0)) + 1 }); try { if (S.director?.mode === 'race') TP.show?.radio(who, text, (TP.cars.find((c) => surname(c.name) === who) || TP.cars[0])?.color); } catch (e) { /* not on air */ } return say0(who, text); }; }   // (everything said, kept: the replays over the results - ui/RadioReplay.js)
   if (!TP.stw) TP.stw = new TVStewards(TP.gfx.el);   // (the stewards' cards and the tower's marks: ui/TVStewards.js)
   TP.stw.reset(); tpStewardsOpen(d);
-  if (!TP.fx) TP.fx = new TVExtras(TP.gfx.el, { tyreLaps: (c) => TP.gfx.tyreLaps(c), onReplay: (o) => tpReplayStart(o), onSkip: () => tpReplayEnd(), on: (k, x) => tpSay(k, x), onMoment: (e) => tpMoment(e) });
+  if (!TP.fx) TP.fx = new TVExtras(TP.gfx.el, { audio, tyreLaps: (c) => TP.gfx.tyreLaps(c), onReplay: (o) => tpReplayStart(o), onSkip: () => tpReplayEnd(), on: (k, x) => tpSay(k, x), onMoment: (e) => tpMoment(e) });
   if (!TP.show) { TP.show = new TVShow(TP.gfx.el, { tyreLaps: (c) => TP.gfx.tyreLaps(c), audio, onPipFull: () => tpReplayFull(), on: (k) => { if (!TP.on || !S.director) return; if (k === 'podium') tpAway('crowd', S.director.positions.find((c) => !c.retired), { within: 22, must: true }); if (k === 'flag') TP.awayWant = { kind: 'marshal', want: 'chequered', from: TP.tv.t + 3.6, until: TP.tv.t + 10 }; } });   /* (the top three home: the stands) */ TP.gfx.onFastest = (c, t) => tpSay('fl', { who: surname(c.name), t }); }   // (commentary, radio on air, the map, the cards, the grid, the flag: ui/TVShow.js)
   if (!TP.q) TP.q = new TVQueue(TP.gfx.el);   // (the right-hand side as one column, with a budget: ui/TVQueue.js)
   TP.q.reset();
@@ -2929,16 +2929,40 @@ function tpReplayRestore(r = TP.rep) { if (r?._scSave && scMesh) { const g = scM
  */
 function tpReplayFull() {
   const r = TP.rep; if (!r || !r.win || !TP.on || TP.hl) return;
+  if (PIP.grow) return;
+  // (no wipe over it: the window itself grows to the whole picture, its frame with it - three quarters of a second -
+  //  playing the clip from its start; there the broadcast's own camera takes the window's view and the replay goes on.
+  //  The wipe closing over the whole feed while the window sat in it was two transitions at once)
+  const el = TP.show?.pipEl, root = TP.gfx?.el, a = el?.getBoundingClientRect(), rr = root?.getBoundingClientRect(), cr = renderer.domElement.getBoundingClientRect();
+  r.t = 0; r.k = 0; r.sg = 0; r.init = false; r.snap = true; r.ending = 0;
+  if (!el || !a || !a.width) { tpReplayFullNow(r); return; }
+  PIP.grow = { r, t0: performance.now(), dur: 750, g: 0, from: { left: a.left - rr.left, top: a.top - rr.top, width: a.width, height: a.height }, full: { left: cr.left - rr.left, top: cr.top - rr.top, width: cr.width, height: cr.height } };
+}
+/** the window has grown to the whole picture: the replay on the broadcast's own camera from here - the same view */
+function tpReplayFullNow(r) {
+  PIP.grow = null; if (TP.rep !== r) { TP.show?.pipReset(); return; }
   const label = r.label || `REPLAY · ${r.text}`;
-  TP.wiping = true;
-  TP.fx.wipe('REPLAY', String(r.text || '').toUpperCase(), () => {
-    TP.wiping = false; if (TP.rep !== r) return;
-    r.win = false; r.cam = camera; r.t = 0; r.k = 0; r.init = false; r.snap = true; r.sg = 0; r.label = null; TP.fullAt = S.director?.time ?? TP.fullAt;
-    r.hold = true; const was = r.onEnd; r.onEnd = () => { const fin = () => { if (TP.rep === r) { r.onEnd = null; tpReplayEnd(); } }; try { was?.(); } catch (e) { /* the window's own end */ } try { if (TP.on && !TP.hl) TP.fx.wipe('LIVE', '', fin); else fin(); } catch (e) { fin(); } };
-    TP.fx.replaying(true, String(label).toUpperCase()); audio.quiet?.();
-  });
+  camera.position.copy(PIP.cam.position); camera.quaternion.copy(PIP.cam.quaternion); camera.fov = PIP.cam.fov; camera.updateProjectionMatrix();
+  r.win = false; r.cam = camera; r.label = null; TP.fullAt = S.director?.time ?? TP.fullAt;
+  r.hold = true; const was = r.onEnd; r.onEnd = () => { const fin = () => { if (TP.rep === r) { r.onEnd = null; tpReplayEnd(); } }; try { was?.(); } catch (e) { /* the window's own end */ } try { if (TP.on && !TP.hl) TP.fx.wipe('LIVE', '', fin); else fin(); } catch (e) { fin(); } };
+  TP.fx.replaying(true, String(label).toUpperCase()); audio.quiet?.();
+  PIP.k = 0; PIP.label = null; PIP.on = false; PIP.rect = null; TP.show?.pipReset();
 }
 /** the whole picture a replay (the highlights): the race held */
+/**
+ * The broadcast's sound: the cars round the picture (audio/Audio.js listen). An onboard shot: that car from its airbox,
+ * the others round it. A trackside shot: the microphone at the camera. A helicopter's, or a camera far from its car:
+ * a microphone by the track, near the car - as a broadcast is mixed, from the trackside microphones, not from the air.
+ * A replay (motion): the cars' engines from how they move in it.
+ */
+function tpListen(dt, motion = false) {
+  const d = S.director; if (!d) return;
+  const sh = TP.tv?.shot, k = sh?.kind; let own = null, inside = false, mic = null;
+  if (!motion && sh?.car && (k === 'tcam' || k === 'helmet' || k === 'rear')) { own = sh.car; inside = true; }
+  let subj = motion ? (TP.rep?.cars?.[0] || null) : sh?.car || null;
+  if (!inside && subj) { const dx = camera.position.x - subj.x, dz = camera.position.z - subj.z, dd = Math.hypot(dx, dz) || 1; if (dd > 70 || k === 'heli') mic = { x: subj.x + dx / dd * 28, y: (subj.y || 0) + 3, z: subj.z + dz / dd * 28 }; }
+  audio.listen({ cam: camera, cars: S.cars, own, inside, mic, sc: d.sc?.car, motion, rain: d.weather?.rainAt?.(camera.position.x, camera.position.z) || 0, dt });
+}
 function tpReplayFrame(dt) { if (tpReplayStep(dt) && TP.rep) tpReplayPose(TP.rep); }
 function tpReplayEnd() {
   const r = TP.rep; if (!r) return; TP.rep = null;
@@ -3077,6 +3101,8 @@ function tpHighlights(done) {
 const PIP = { cam: new THREE.PerspectiveCamera(40, 16 / 9, 0.3, 4000), ctl: null, on: false, rect: null, mode: null, car: null, pos: null, look: new THREE.Vector3() };
 function tpPip(dt) {
   const d = S.director, sh = TP.tv?.shot, r = TP.rep; let label = null, big = false;
+  // (growing to the whole picture - tpReplayFull: eased in and out; there, the broadcast's camera takes over)
+  if (PIP.grow) { const G = PIP.grow; if (TP.rep !== G.r || !G.r.win) { PIP.grow = null; TP.show?.pipReset(); } else { const u = Math.min(1, (performance.now() - G.t0) / G.dur); G.g = u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2; if (u >= 1) { tpReplayFullNow(G.r); return; } } }
   if (r && r.win) { if (tpReplayStep(dt) && TP.rep) { label = (TP.rep.label || `REPLAY · ${TP.rep.text}`).toUpperCase(); big = true; PIP.mode = 'rep'; } }
   else if (d && d.mode === 'race' && !d.done && d.world.racing && !d.leaderFinished && sh && TP.show) {
     const pc = TP.cars.find((c) => (c.pitLane || c.inPit) && !c.retired && sh.car !== c), ps = W.pit?.samples;
@@ -3120,7 +3146,7 @@ function tpPip(dt) {
   PIP.k = Math.max(0, Math.min(1, (PIP.k || 0) + (label ? 1 : -1) * Math.min(0.2, (dt || 0.016) * 2.5)));
   const shown = PIP.k > 0.02 && PIP.label;
   const rp = TP.rep && TP.rep.win ? TP.rep : null, rpF = rp ? rp.F : null;
-  PIP.on = !!shown; PIP.rect = TP.show ? TP.show.pip(shown ? PIP.label : null, PIP.big, PIP.k, rpF ? { p: rp.t / Math.max(0.1, rpF[rpF.length - 1].t - rpF[0].t), slow: !!rp.slow } : null) : null; if (!shown) PIP.label = null;
+  PIP.on = !!shown; PIP.rect = TP.show ? TP.show.pip(shown ? PIP.label : null, PIP.big, PIP.k, rpF ? { p: rp.t / Math.max(0.1, rpF[rpF.length - 1].t - rpF[0].t), slow: !!rp.slow, grow: PIP.grow && PIP.grow.r === rp ? PIP.grow : null } : null) : null; if (!shown) PIP.label = null;
 }
 function pipRender() {
   const r = PIP.rect, cv = renderer.domElement, cr = cv.getBoundingClientRect(); if (!r || r.width < 60 || !cr.width) return;
@@ -3200,7 +3226,7 @@ function tpFormFrame(dt) {
   }
   for (const c of S.cars) { const m = S.meshes.get(c); if (m) m.update(c, dt); }
   tpCamera(dt);
-  { const k = TP.tv.shot?.kind, sp = S.player; audio.update(sp, dt, sp && k && k !== 'tcam' && k !== 'rear' && k !== 'helmet' ? Math.hypot(camera.position.x - sp.x, camera.position.z - sp.z) + 1 : 0); audioLive = true; }
+  tpListen(dt); audioLive = true;
 }
 /** the formation lap over (run out, or skipped): every car back on its slot as the race director placed it; the lights next */
 function tpFormEnd() {
@@ -3472,7 +3498,7 @@ function tpKeys() {
   if (input.pressed('KeyX')) TP.tv.skipAway();
   // (an instant replay: R takes the one offered; R, Space or Esc ends the one playing)
   // (F: the replay in the window on the whole screen, from its start - its FULL SCREEN button)
-  if (TP.rep && TP.rep.win && !TP.wiping && input.pressed('KeyF')) { tpReplayFull(); return; }
+  if (TP.rep && TP.rep.win && !TP.wiping && !PIP.grow && input.pressed('KeyF')) { tpReplayFull(); return; }
   if (TP.rep) { if (input.pressed('KeyR') || input.pressed('Escape')) { tpReplayEnd(); return; } }
   else if (input.pressed('KeyR')) TP.fx?.take();
   if (input.pressed('Space')) tpAct('pause');
@@ -5442,8 +5468,8 @@ function frame(now) {
     }
     if (FINALE.on) { updateFinale(dt); cockpitVisor(p, false); }
     else if (POV.on) povFrame(dt);
-    else if (TP.on && p && !PHOTO.on) { tpCamera(dt); { const k = TP.tv.shot?.kind, sp = S.player; audio.update(sp, dt, sp && k && k !== 'tcam' && k !== 'rear' && k !== 'helmet' ? Math.hypot(camera.position.x - sp.x, camera.position.z - sp.z) + 1 : 0); } audioLive = true; }   // (the team principal's race: the world feed - camera/TVDirector.js)
-    else if (p && !PHOTO.on) { if (crashCam.on) crashCam.update(dt, dt * crashCam.timeScale); else camCtl.update(p, dt, W.track); cockpitVisor(p, camCtl.mode === 'cockpit' && !crashCam.on && !d.done); hud.update(p, { mode: d.mode, lapsTotal: d.lapsTotal, positions: d.positions, time: d.time, qualiStarted: d.qualiStarted, sectors: d.sectors, delta: (c) => d.telemetry?.liveDelta(c, d.time), sc: d.sc?.hudState(), gap: (a, b) => d.radio?.gap(a, b), drs: (c) => d.drs?.state(c) }, dt); hud.drawMinimap(S.cars, p); audio.update(p, dt); audioLive = true; }
+    else if (TP.on && p && !PHOTO.on) { tpCamera(dt); tpListen(dt); audioLive = true; }   // (the team principal's race: the world feed - camera/TVDirector.js)
+    else if (p && !PHOTO.on) { if (crashCam.on) crashCam.update(dt, dt * crashCam.timeScale); else camCtl.update(p, dt, W.track); cockpitVisor(p, camCtl.mode === 'cockpit' && !crashCam.on && !d.done); hud.update(p, { mode: d.mode, lapsTotal: d.lapsTotal, positions: d.positions, time: d.time, qualiStarted: d.qualiStarted, sectors: d.sectors, delta: (c) => d.telemetry?.liveDelta(c, d.time), sc: d.sc?.hudState(), gap: (a, b) => d.radio?.gap(a, b), drs: (c) => d.drs?.state(c) }, dt); hud.drawMinimap(S.cars, p); audio.listen({ cam: camera, cars: S.cars, own: p, inside: !crashCam.on && (camCtl.mode === 'cockpit' || camCtl.mode === 'tcam'), sc: d.sc?.car, rain: d.weather?.rainAt?.(camera.position.x, camera.position.z) || 0, dt }); audioLive = true; }   // (every car near you heard: audio/Audio.js listen)
     else if (p && PHOTO.hud) { hud.update(p, { mode: d.mode, lapsTotal: d.lapsTotal, positions: d.positions, time: d.time, qualiStarted: d.qualiStarted, sectors: d.sectors, delta: (c) => d.telemetry?.liveDelta(c, d.time), sc: d.sc?.hudState(), gap: (a, b) => d.radio?.gap(a, b), drs: (c) => d.drs?.state(c) }, dt); hud.drawMinimap(S.cars, p); }
   } else if (d && hud.pit.open && p) {
     hud.update(p, { mode: d.mode, lapsTotal: d.lapsTotal, positions: d.positions, time: d.time, qualiStarted: d.qualiStarted, sectors: d.sectors, delta: (c) => d.telemetry?.liveDelta(c, d.time), sc: d.sc?.hudState(), gap: (a, b) => d.radio?.gap(a, b), drs: (c) => d.drs?.state(c) }, dt);
@@ -5453,7 +5479,7 @@ function frame(now) {
   }
   if (TP.hl) { TP.hlT = (TP.hlT || 0) + dt; if (TP.hlT > 90) TP.hlEnd?.(); }
   if (TP.on && TP.form && d && !PHOTO.on && !FINALE.on) tpFormFrame(S.paused || TP.paused || S.simming ? 0 : dt);   // (the formation lap: the cars driven round by it, the director's cameras on them)
-  else if (d && TP.rep && !TP.rep.win && !PHOTO.on && !FINALE.on) tpReplayFrame(dt);   // (the highlights: the cars and the camera from the record)
+  else if (d && TP.rep && !TP.rep.win && !PHOTO.on && !FINALE.on) { tpReplayFrame(dt); if (TP.rep) { tpListen(dt, true); audioLive = true; } }   // (the replay's cars heard as they move in it)   // (the highlights: the cars and the camera from the record)
   else if (TP.on && d && halted && !PHOTO.on && !FINALE.on && !POV.on) tpCamera(0);   // (paused: a camera chosen still cuts)
   if (TP.on) tpUi(dt);
   if (d && S.ambient) clearAmbient();
@@ -5481,7 +5507,7 @@ function frame(now) {
 // ---------------------------------------------------------------------------
 {
   document.body.classList.add('home');   // (also in index.html; an Artifact host supplies its own <body>)
-  window.__F1 = { PRE, W, S, settings, scene, camera, renderer, input, hud, camCtl, spray, show, AIDriver, AI_TUNE, AI_CAL, applyCalibration, chunks, debris, fire, respawnMesh,
+  window.__F1 = { PRE, W, S, settings, scene, camera, renderer, input, hud, camCtl, spray, show, audio, AIDriver, AI_TUNE, AI_CAL, applyCalibration, chunks, debris, fire, respawnMesh,
     /** (tests: one frame drawn as the crash camera draws it - through its composer - and the programs that compiled) */
     crashFrame() { const n0 = renderer.info.programs.length; ensureCrashComposer(); crashPass.uniforms.uBlur.value = 0.6; crashPass.uniforms.uSat.value = 1.5; crashComposer.render(); return renderer.info.programs.length - n0; },
     /** (tests: the crash director, and the camera as drawn - terrainLift() lifts it for the frame and returns the undo; renderView() draws a frame through it) */

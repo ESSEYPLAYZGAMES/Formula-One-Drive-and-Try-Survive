@@ -47,7 +47,7 @@ export class TVDirector {
     this.outAt = new Map();      // car -> when it was first seen retired
     this.spinAt = new Map();     // car -> when its incident became the story
     this.t = 0; this.cuts = 0;
-    this._look = new THREE.Vector3(); this._tgt0 = new THREE.Vector3(); this._pos = new THREE.Vector3(); this._lookInit = false; this.heli = new HeliCam(); this.heliAt = null; this.heliLook = false;
+    this._look = new THREE.Vector3(); this._tgt0 = new THREE.Vector3(); this._sub0 = new THREE.Vector3(); this._subCar = null; this._lookShot = null; this._pos = new THREE.Vector3(); this._lookInit = false; this.heli = new HeliCam(); this.heliAt = null; this.heliLook = false;
     this.onCut = null;           // (the graphics: a new shot - its car, its story)
     this.awayQ = [];             // the cutaways asked for, in turn: [{ kind, car, until, view }]
     this.awayNext = 0;           // not another before this (a few seconds of the race between two of them)
@@ -154,7 +154,9 @@ export class TVDirector {
     const G = (x, z) => (ctx.ground ? ctx.ground(x, z) : 0), cy = (c) => G(c.x, c.z) + ((c.air || c.wreck) && c.p ? Math.max(0, c.p[1]) : 0);
     // (the rear onboard is the car ahead's, the one behind in its mirror)
     // (the safety car's story: REAR is from its own tail, the leader behind it; an onboard is the leader's - it has none)
-    if (st.followed && kind === 'rear' && !(st.other && d0pos(ctx, st.other) > d0pos(ctx, car))) kind = 'tcam';   // (its rear camera only with the car attacking it behind)
+    // (the director's own REAR on a car followed: only with the car attacking it behind - REAR asked for on the pit wall
+    //  is the REAR camera, whatever is behind: it was turned into the forward onboard, and the button seemed to do nothing)
+    if (st.followed && kind === 'rear' && this.camKind !== 'rear' && !(st.other && d0pos(ctx, st.other) > d0pos(ctx, car))) kind = 'tcam';
     const subject = st.why === 'sc' ? ((kind === 'tcam' || kind === 'helmet') && st.other ? st.other : car) : st.followed ? car : kind === 'rear' && st.other ? st.other : car;
     const sh = { kind, car: subject, other: st.why === 'sc' ? (subject === car ? st.other || null : car) : st.followed ? st.other || null : kind === 'rear' ? car : st.other || null, third: st.followed ? st.third || null : null, followed: !!st.followed, why: st.why, t: 0, dur: st.why === 'grid' ? 7 : st.why === 'start' ? 8 : st.view ? st.view.dur || 4.2 : kind === 'crowd' ? 3.2 : kind === 'garage' ? 4.2 : kind === 'beauty' ? 5 : st.urgent ? 7 : 5 + ((this.cuts * 0.3819) % 1) * 4, s0: 0, side: 1, h: 6 };
     if (st.away) this.awayNext = this.t + sh.dur + 4;
@@ -402,7 +404,7 @@ export class TVDirector {
       const vel = car.air ? [car.wvx || 0, car.wvz || 0] : car.worldVel ? car.worldVel() : [Math.cos(car.th) * (car.speed || 0), Math.sin(car.th) * (car.speed || 0)];
       const sub = this._heliCar || (this._heliCar = {}); sub.x = car.x; sub.y = carY; sub.z = car.z; sub.th = car.th; sub.vx = vel[0] || 0; sub.vz = vel[1] || 0;
       const env = this._heliEnv || (this._heliEnv = {}); env.clear = ctx.clear || null; env.ground = ctx.ground || null; env.overhead = over;
-      if (!sh.heliOn) { sh.heliOn = true; if (H.near(car.x, car.z) && this.heliAt != null && this.t - this.heliAt < 1.5) this._lookInit = this._lookInit || this.heliLook; else { H.start(sub, env); this.heliLook = false; } }
+      if (!sh.heliOn) { sh.heliOn = true; if (H.near(car.x, car.z) && this.heliAt != null && this.t - this.heliAt < 1.5) { this._lookInit = this._lookInit || this.heliLook; sh.heliCont = this._lookInit; } else { H.start(sub, env); this.heliLook = false; } }
       else if (Math.hypot(H.p.x - car.x, H.p.z - car.z) > 700) { H.start(sub, env); this._lookInit = false; }   // (the car is somewhere else altogether - put back on the road: a cut)
       H.update(dt, sub, env); this.heliAt = this.t;
       // (in its box under the pit building's roof: nothing in the air sees it - the pit lane's own camera has it until it is out again)
@@ -447,10 +449,19 @@ export class TVDirector {
     // the old) is eased. It used to ease after the car itself: at 300 km/h that is the aim nine metres behind it on
     // a long lens - more at x2 and x4, where the cars cover two and four frames' ground in one - and a fight was a
     // picture of the road it had just left.
-    if (!this._lookInit) { this._look.copy(tgt); this._lookInit = true; }
-    else { _mv.subVectors(tgt, this._tgt0); if (_mv.lengthSq() > 45 * 45) this._look.copy(tgt); else { this._look.add(_mv); this._look.lerp(tgt, Math.min(1, dt * (sh.kind === 'heli' ? 3 : 5))); } }
-    this._tgt0.copy(tgt);
+    // (only the SUBJECT's own movement is carried exactly - a change of what the picture is of (a partner joining it or
+    //  leaving it, two cars becoming three, the pair splitting up) is a pan, eased over a third of a second. The whole
+    //  change of the aim used to be carried, so every such change was a jump - and over 45 m, a snap: the picture
+    //  "teleported to the right frame". Only a cut is a cut)
+    const cutNow = this._lookShot !== sh; this._lookShot = sh;
+    if (!this._lookInit || (cutNow && !sh.heliCont)) { this._look.copy(tgt); this._lookInit = true; }   // (the same flight carried on into a new shot: the aim carries on too)
+    else {
+      _mv.set(car.x - this._sub0.x, carY + 0.7 - this._sub0.y, car.z - this._sub0.z);
+      if (this._subCar === car && _mv.lengthSq() < 60 * 60) this._look.add(_mv);
+      this._look.lerp(tgt, 1 - Math.exp(-dt * (sh.kind === 'heli' ? 2.2 : 3.2)));
+    }
+    this._sub0.set(car.x, carY + 0.7, car.z); this._subCar = car; this._tgt0.copy(tgt);
     cam.up.set(0, 1, 0); cam.lookAt(this._look);
-    if (Math.abs(cam.fov - fov) > 0.01) { cam.fov += (fov - cam.fov) * Math.min(1, dt * (sh.t < 0.05 && !(sh.kind === 'heli' && this.heliLook) ? 99 : sh.kind === 'heli' ? 1.3 : fov > cam.fov ? 9 : 3)); cam.updateProjectionMatrix(); }   /* (the trackside lens opens quickly - a car coming past must not outgrow the picture - and closes in slowly) */   // (the helicopter's zoom is slow: the car grows and shrinks in the picture as it pulls away and is caught)
+    if (Math.abs(cam.fov - fov) > 0.01) { cam.fov += (fov - cam.fov) * Math.min(1, dt * (sh.t < 0.05 && !(sh.kind === 'heli' && this.heliLook) ? 99 : sh.kind === 'heli' ? 1.3 : fov > cam.fov ? 5 : 2.2)); cam.updateProjectionMatrix(); }   /* (the trackside lens opens quickly - a car coming past must not outgrow the picture - and closes in slowly) */   // (the helicopter's zoom is slow: the car grows and shrinks in the picture as it pulls away and is caught)
   }
 }

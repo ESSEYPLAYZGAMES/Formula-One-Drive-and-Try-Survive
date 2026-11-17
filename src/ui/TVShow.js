@@ -48,11 +48,11 @@ const CSS = `
 /* the picture in the picture: a window of neon. It opens as a line of light drawn out from its middle, which then
    parts - the picture between the two halves (main.js draws only what is open: pipOpen) - and its tab unrolls; it
    closes the way it came: to a line, the line in to a point. --kx / --ky: how far it is open across and down. */
-#tvg .pip .pfs { position: absolute; right: 7px; bottom: 9px; z-index: 2; display: none; align-items: center; gap: 5px; padding: 5px 8px 5px 7px; border-radius: 6px; border: 1px solid rgba(35,229,255,.7); background: rgba(10,6,28,.82); color: #fff; font: 900 9.5px/1 var(--tvf); letter-spacing: .14em; cursor: pointer; pointer-events: auto; box-shadow: 0 0 12px -3px #23e5ff; opacity: 0; transition: opacity .25s ease .2s, background .15s, box-shadow .15s; }
-#tvg .pip .pfs svg { width: 11px; height: 11px; fill: none; stroke: currentColor; stroke-width: 1.8; }
-#tvg .pip.rp.open .pfs { display: inline-flex; opacity: 1; } #tvg .pip .pfs:hover { background: rgba(255,63,164,.85); box-shadow: 0 0 18px -2px #ff3fa4; border-color: #fff; }
 #tvg .pip { --n: #19e3ff; position: absolute; left: 272px; top: 128px; width: min(300px, 24vw); aspect-ratio: 16 / 9; display: none; pointer-events: none; }
 #tvg .pip.big { --n: #ff2d75; width: min(430px, 34vw); }
+/* (growing to the whole picture - F: its place and size set as it goes, its frame and words fading out over the last of it) */
+#tvg .pip.grow { aspect-ratio: auto; z-index: 1; }
+#tvg .pip.grow .fr, #tvg .pip.grow b, #tvg .pip.grow .tg, #tvg .pip.grow .pg { opacity: var(--fade, 1) !important; transition: none !important; }
 #tvg .pip.on { display: block; }
 #tvg .pip .fr { position: absolute; left: calc(50% * (1 - var(--kx, 1))); right: calc(50% * (1 - var(--kx, 1))); top: calc(50% * (1 - var(--ky, 1)) - 1px); bottom: calc(50% * (1 - var(--ky, 1)) - 1px); border: 2px solid var(--n); border-radius: 3px;
   box-shadow: 0 0 0 1px rgba(0,0,0,.55), 0 0 16px color-mix(in srgb, var(--n) 75%, transparent), inset 0 0 18px color-mix(in srgb, var(--n) 28%, transparent), 0 10px 30px rgba(0,0,0,.5); }
@@ -142,7 +142,7 @@ export class TVShow {
     this.root = root; this.o = o;
     if (!document.getElementById('tvs-css')) { const st = document.createElement('style'); st.id = 'tvs-css'; st.textContent = CSS; document.head.appendChild(st); }
     const mk = (cls, html = '') => { const e = document.createElement('div'); e.className = cls; e.innerHTML = html; root.appendChild(e); return e; };
-    this.sk = mk('sk'); this.rain = mk('rain'); root.insertBefore(this.rain, root.firstChild);   /* (the drops are on the lens: under every graphic) */ this.cm = mk('cm', '<small></small><span></span>'); this.rad = mk('rad'); this.gridg = mk('gridg'); this.cls = mk('cls'); this.pipEl = mk('pip', '<i class="fr"></i><b><span></span></b><u class="pg"></u><em class="tg">SLO-MO</em><button class="pfs" type="button" title="Watch this replay on the whole screen, from the start (key: F)"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4"/></svg>FULL SCREEN · F</button>'); this.pipEl.querySelector('.pfs').addEventListener('click', (e) => { e.stopPropagation(); this.o.onPipFull?.(); });
+    this.sk = mk('sk'); this.rain = mk('rain'); root.insertBefore(this.rain, root.firstChild);   /* (the drops are on the lens: under every graphic) */ this.cm = mk('cm', '<small></small><span></span>'); this.rad = mk('rad'); this.gridg = mk('gridg'); this.cls = mk('cls'); this.pipEl = mk('pip', '<i class="fr"></i><b><span></span></b><u class="pg"></u><em class="tg">SLO-MO</em>');   /* (no FULL SCREEN button on it: F - main.js tpReplayFull - the window grows to the whole picture) */
     this.mapEl = document.createElement('canvas'); this.mapEl.className = 'map'; this.mapEl.width = 380; this.mapEl.height = 256; root.appendChild(this.mapEl);
     this.inf = document.createElement('div'); this.inf.className = 'xc inf'; (root.querySelector('.xr') || root).appendChild(this.inf);
     try { localStorage.removeItem('f1sim-tv-voice'); window.speechSynthesis?.cancel(); } catch (e) { /* nothing kept */ }
@@ -185,12 +185,18 @@ export class TVShow {
    * The picture-in-picture's window: label (null: off), big (a replay's), k 0..1 how far through its opening (or its
    * closing), o: { p: how far through the replay 0..1, slow: in its slow stretch } -> its rectangle on the page, or null
    */
+  /** the window back to its own place and size (after growing to the whole picture), and off */
+  pipReset() { const el = this.pipEl; el.classList.remove('grow', 'on', 'big', 'open', 'slow', 'rp'); for (const p of ['left', 'top', 'width', 'height']) el.style[p] = ''; el.style.removeProperty('--fade'); }
   pip(label, big = false, k = 1, o = null) {
     const el = this.pipEl, [kx, ky] = pipOpen(k); el.style.setProperty('--kx', kx.toFixed(3)); el.style.setProperty('--ky', ky.toFixed(3));
     this.root.classList.toggle('has-pip', !!label);
     if (!label) { if (el.classList.contains('big') && el.classList.contains('on')) { const lv = this.root.querySelector('.live'); if (lv) { lv.classList.remove('live-back'); void lv.offsetWidth; lv.classList.add('live-back'); } } el.classList.remove('on', 'big', 'open', 'slow'); return null; }
     el.classList.add('on'); el.classList.toggle('big', !!big); el.classList.toggle('open', k >= 0.995); el.classList.toggle('slow', !!o?.slow); el.classList.toggle('rp', o?.p != null);   /* (rp: a replay in the window - its FULL SCREEN button) */
     if (o && o.p != null) el.style.setProperty('--p', Math.max(0, Math.min(1, o.p)).toFixed(3));
+    // (growing to the whole picture: from where it was to the canvas, eased; its frame and words fade over the last 45 %)
+    const G = o?.grow;
+    if (G) { const g = G.g, L = (k) => (G.from[k] + (G.full[k] - G.from[k]) * g).toFixed(1) + 'px'; el.classList.add('grow'); el.style.left = L('left'); el.style.top = L('top'); el.style.width = L('width'); el.style.height = L('height'); const f = Math.max(0, Math.min(1, (g - 0.55) / 0.45)); el.style.setProperty('--fade', (1 - f * f * (3 - 2 * f)).toFixed(3)); }
+    else if (el.classList.contains('grow')) this.pipReset();
     const b = el.children[1].firstChild; if (b.textContent !== label) b.textContent = label;
     return el.getBoundingClientRect();
   }

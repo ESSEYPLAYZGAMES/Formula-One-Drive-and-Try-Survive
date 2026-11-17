@@ -4,7 +4,7 @@
 // trophy room (a room to walk round: what the team has won). A scene is seen once, when it happens: there is no list
 // of them to play again. And the pump: the scenes that
 // play themselves when you come back to the HQ (the story's budget decides which: at most one, unless it cannot wait).
-import { inboxOf, storyQueue, storyShown, storyApply, storyAmbient, storyAmbientShown, storyLodge, storyRumour, storyEnsure, rivalriesOf, trophiesOf, baseCtx, obeyChance, traitOf, TRAITS } from '../career/ManagerStory.js';
+import { inboxOf, decisionsOf, storyQueue, storyShown, storyApply, storyAmbient, storyAmbientShown, storyLodge, storyRumour, storyEnsure, rivalriesOf, trophiesOf, baseCtx, obeyChance, traitOf, TRAITS } from '../career/ManagerStory.js';
 import { STYLES } from '../career/StoryLines.js';
 
 import { esc, panel, meter, person, tag, empty } from './HQKit.js';
@@ -37,7 +37,7 @@ export function storyHTML(c, tab) {
 }
 /** on the overview's NEEDS YOU: what is waiting (the first of them, and how many more) */
 export function storyHome(c) {
-  const box = inboxOf(c); if (!box.length) return '';
+  const box = decisionsOf(c); if (!box.length) return '';
   return person({ cls: 'top', name: `${tag(`Decisions · ${box.length}`, 'ac')} ${esc(box[0].title)}`, sub: esc(box[0].text || ''), act: '<button class="go" data-tab="story">OPEN →</button>' });
 }
 /** a click on the page: play(scene, ctx) -> Promise<result> shows a scene. -> Promise<a line to say | ''> | undefined (not ours) */

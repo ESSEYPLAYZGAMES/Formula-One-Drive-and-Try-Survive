@@ -22,11 +22,16 @@ export const trackName = (id) => TRACK[id] || cap1(String(id || ''));
 const rnd = () => Math.random();
 const pick = (a) => a[(rnd() * a.length) | 0];
 
+// (the crew that rebuilt the car overnight: what you do for them)
+const GN_ASK = 'They are on their feet for the next race - what do you do for them?';
+const GN_OPTS = [{ id: 'bonus', label: 'A bonus for the crew ($0.2M)', hint: 'They come back fresher and sharper: less fatigue, steadier stops' }, { id: 'rest', label: 'Send them home to sleep', hint: 'The most rest - but no extra practice this week' }, { id: 'thank', label: 'Thank them yourself', hint: 'Free: a little goes a long way' }];
 export function storyEnsure(c) {
   if (!c.story) c.story = { v: 1, feud: { level: 0, last: -9, fav: null }, riv: {}, pri: {}, press: { said: [], last: -9 }, cred: 50, fans: 55, matters: [], feed: [], rumours: [], seen: [], board: { stage: 0 }, obey: {}, spMiss: {}, flags: {}, lastAuto: -9, lastTrack: -9, n: 0, ep: 0, live: null, fac: null, sub: null, lastRows: [], track: null, mole: false };
   const S = c.story;
   for (const t of Object.keys(c.teams)) if (t !== c.myTeam && !S.pri[t]) S.pri[t] = principalOf(t);
   if (!S.fac && c.fac) S.fac = Object.fromEntries(Object.entries(c.fac).map(([k, f]) => [k, f.level]));
+  // (a save from before: the overnight rebuild came as a decision with nothing to decide - its choices given to it now)
+  for (const m of S.matters) if (m.scene === 'garageNight' && !m.done && !(m.options || []).length) { m.options = GN_OPTS.map((o) => ({ ...o })); m.def = m.def || 'thank'; if (!/what do you do/.test(m.text || '')) m.text = `${m.text || ''} ${GN_ASK}`.trim(); }
   return S;
 }
 export const traitOf = (c, did) => traitFor(did);
@@ -99,6 +104,9 @@ const open = (c, scene) => c.story.matters.some((m) => m.scene === scene && !m.d
 const since = (c, scene) => { const m = [...c.story.matters].reverse().find((x) => x.scene === scene); return m ? c.story.n - m.gap : 99; };
 /** the matters waiting (most pressing first) */
 export const inboxOf = (c) => storyEnsure(c).matters.filter((m) => !m.done).sort((a, b) => (b.prio || 0) - (a.prio || 0));
+/** the matters you can decide from the inbox: those with choices to make there (the rest - the board's meeting, the launch, the
+ *  documentary - are scenes played in person, with nothing to pick from a letter: a "decision" with no buttons) */
+export const decisionsOf = (c) => inboxOf(c).filter((m) => (m.options || []).length > 0);
 /**
  * The scenes that play themselves now (the HQ opened): those that cannot wait, then one more if the budget allows.
  * -> [matter] (0..2)
@@ -203,6 +211,12 @@ export function storyApply(c, key, res = {}) {
     case 'seatFit': {
       const id = P.who || ch || D.cands?.[0]; S.sub = { did: D.did, sub: id, until: D.until, season: c.season };
       out = `${c.drivers[id]?.name || 'A reserve'} drives ${sur(c.drivers[D.did]?.name)}'s car until round ${D.until}.`; break; }
+    case 'garageNight': {
+      const M = c.crew?.members || [];
+      if (ch === 'bonus') { money(c, -0.2); for (const x of M) { x.fat = clamp((x.fat || 0) - 0.08, 0, 1); x.cons = +clamp((x.cons ?? 0.7) + 0.01, 0.4, 0.97).toFixed(2); } out = 'A bonus for the crew who rebuilt the car overnight.'; }
+      else if (ch === 'rest') { for (const x of M) x.fat = clamp((x.fat || 0) - 0.12, 0, 1); out = 'The crew who rebuilt the car are sent home to sleep.'; }
+      else { for (const x of M) x.fat = clamp((x.fat || 0) - 0.03, 0, 1); out = 'You thank the crew who rebuilt the car, one by one.'; }
+      break; }
     case 'crewTalk': {
       const M = c.crew?.members || [], who = M.find((x) => x.name === D.name);
       if (D.what === 'retire') { if (ch === 'role') { money(c, -0.2); for (const x of M) x.speed = +clamp(x.speed + 0.01, 0.4, 0.97).toFixed(2); out = `${D.name} will run the crew centre next season.`; } else { for (const x of M) x.cons = +clamp(x.cons + 0.01, 0.4, 0.97).toFixed(2); out = `${D.name} gets the last stop of the year.`; } }
@@ -282,7 +296,9 @@ export function storyAfterRace(c, rep, rows, live = null) {
       options: cands.map((x) => ({ id: x.id, label: x.name })), ctx: { hurt: dinfo(c, hurt.did), rounds: n, why: pick(['A fracture in the wrist.', 'Concussion: the doctors will not sign him off.', 'Two cracked ribs.']), cands: cands.map((x) => ({ id: x.id, name: x.name, note: `${x.from === 'F2' ? 'F2' : 'Reserve'} · ${Math.round(x.rating * 100)}` })), lines: { res: driverLine(traitFor(cands[0].id), 'seat') } } });
   } else if (live.crashes.some((x) => my.some((d) => d.id === x.did)) && since(c, 'garageNight') >= 3) {
     const x = live.crashes.find((q) => my.some((d) => d.id === q.did));
-    add(c, { scene: 'garageNight', prio: 44, title: 'The car rebuilt overnight', text: `${sur(c.drivers[x.did]?.name)}'s crash: the crew did not go home.`, ctx: { d: dinfo(c, x.did), damage: 'Front wing, floor, the front-left corner', spares: c.spares?.fw ?? c.parts?.spares?.fw ?? 1, track: trackName(rep.track) } });
+    // (a decision, not only a scene: what you do for the crew that worked through the night - it came to the inbox as a
+    //  "decision" with nothing in it to decide)
+    add(c, { scene: 'garageNight', prio: 44, title: 'The car rebuilt overnight', text: `${sur(c.drivers[x.did]?.name)}'s crash: the crew did not go home. ${GN_ASK}`, def: 'thank', options: GN_OPTS.map((o) => ({ ...o })), ctx: { d: dinfo(c, x.did), damage: 'Front wing, floor, the front-left corner', spares: c.spares?.fw ?? c.parts?.spares?.fw ?? 1, track: trackName(rep.track) } });
   }
   // the stewards: someone hit one of yours and nothing was done about it - or one of yours did the hitting
   const inc = live.contacts.find((x) => { if (x.ruled) return false; const A = my.some((d) => d.id === x.a), B = my.some((d) => d.id === x.b); return A !== B && (x.sev || 0) >= 0.45; });

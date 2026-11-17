@@ -7,7 +7,7 @@
 // extension, a sponsor's terms, a prospect, the academy's building, an engine) come through here - mailClick - and
 // become a mail sent instead of an answer on the spot; while one is out its button on its page shows as asked.
 import { mailEnsure, mailAsk, mailAct, mailWithdraw, mailRead, mailReadAll, mailMarks, mailUnread, dueWords } from '../career/ManagerMail.js';
-import { inboxOf } from '../career/ManagerStory.js';
+import { inboxOf, decisionsOf } from '../career/ManagerStory.js';
 import { esc, panel, seg, tag, kv, person, empty } from './HQKit.js';
 
 const SCENE = { feudRow: 'The garage', debrief: 'Your office', poach: 'The paddock', hearing: 'The stewards', scrutineering: 'Scrutineering', audit: 'The auditors', sponsorCall: 'A call', leak: 'The factory, at night', seatFit: 'The garage', crewTalk: 'The garage', press: 'The press room', board: 'The boardroom', launch: 'Launch night', seasonReview: 'A film', documentary: 'A film', factoryTour: 'The factory', garageNight: 'The garage', sacked: 'The boardroom', signing: 'The press room', released: 'Your office' };
@@ -50,7 +50,7 @@ function matter(c, m) {
 
 export function mailHTML(c, tab, H) {
   if (tab !== 'mail') return null;
-  const M = mailEnsure(c), S = H.ml || (H.ml = { f: 'in', sel: null }), dec = inboxOf(c);
+  const M = mailEnsure(c), S = H.ml || (H.ml = { f: 'in', sel: null }), dec = decisionsOf(c);
   const box = M.box.slice().sort((a, b) => (open(b) ? 1 : 0) - (open(a) ? 1 : 0)), un = mailUnread(c);
   const f = S.f, items = f === 'out' ? M.out.slice().reverse() : f === 'dec' ? dec : box, idOf = (x) => (f === 'dec' ? x.key : x.id);
   let cur = items.find((x) => idOf(x) === S.sel) || items[0] || null;

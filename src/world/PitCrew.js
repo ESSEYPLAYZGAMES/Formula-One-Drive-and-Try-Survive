@@ -359,6 +359,11 @@ export class PitCrews {
       const extra = j === 3 ? slow : 0;
       return { gunOn: 0.1 * q, loose: [0.12 * q, 0.4 * q], off: [0.4 * q, 0.74 * q], on: [0.7 * q, 1.02 * q], tight: [1.02 * q, 1.3 * q + extra], up: 1.33 * q + extra };
     });
+    // (the guns heard: each wheel's nut undone and done up - onGun(x, z, seconds), the sound's to make)
+    if (k.phase === 'stop' && this.onGun && tw > 0) {
+      const G = k._g || (k._g = new Array(8).fill(false));
+      tl.forEach((T, j) => { for (const [h, a, b] of [[0, T.loose[0], T.loose[1]], [1, T.tight[0], T.tight[1]]]) if (tw >= a && !G[j * 2 + h]) { G[j * 2 + h] = true; if (tw < b) try { this.onGun(c.x, c.z, Math.min(0.45, b - a)); } catch (e) { /* no sound */ } } });
+    } else if (k.phase !== 'stop') k._g = null;
     if (mesh && k.phase === 'stop') {
       WHEELS.forEach(([a, s], j) => {
         const mw = mesh.wheels.find((w) => w.front === (a === 'F') && w.side === s * k.gz); if (!mw || mw.gone) return;

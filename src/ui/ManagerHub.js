@@ -16,7 +16,7 @@ import { techEffects, UP, partsCount } from '../career/TechTree.js';
 import { extraHTML, extraClick, homeExtra, EXTRA_CSS } from './ManagerHub2.js';
 import { storyHTML, storyHome, storyAct, storyPump, storyAmbientPlay } from './ManagerHub3.js';
 import { eraHTML, eraHome, eraClick, driversHTML } from './ManagerHub4.js';
-import { storySigning, storyReleased, storyShown, storyApply, inboxOf } from '../career/ManagerStory.js';
+import { storySigning, storyReleased, storyShown, storyApply, inboxOf, decisionsOf } from '../career/ManagerStory.js';
 import { PU, SPARES, allocOf, fitNew, orderSpare, FAC, FAC_MAX, facCost, facRounds, facFx, facUpgrade, facMaintain, maintCost, SPONSOR_SLOTS, acceptOdds, propose, sponsorTargets, marketability } from '../career/ManagerOps.js';
 import { TRACK_MAPS } from './TrackMaps.js';
 import { HQ_CSS, FAC_CSS, NAV, ICON, esc, money, pct, sur, panel, kv, meter, ring, seg, person, stat, tag, sw, empty, themeApply, themeHTML, themeSet, fitSheet, tween, techSkin } from './HQKit.js';
@@ -126,7 +126,7 @@ function rail() {
   if (!R.firstChild) R.innerHTML = `<i class="q-ind"></i>${NAV.map(([g, items]) => `<h5>${g}</h5>${items.map(([k, n]) => `<button data-tab="${k}">${ICON[k] || ''}<span>${n}</span></button>`).join('')}`).join('')}`;
   let on = null; for (const b of R.querySelectorAll('button')) { const is = b.dataset.tab === H.tab; b.classList.toggle('on', is); if (is) on = b; }
   const ind = R.querySelector('.q-ind'); if (on) { ind.style.transform = `translateY(${on.offsetTop}px)`; ind.style.opacity = '1'; } else ind.style.opacity = '0';
-  let n = 0; try { n = inboxOf(c).length + (c.press && !c.press.done ? 1 : 0) + mailBadge(c); } catch (e) { n = 0; }
+  let n = 0; try { n = decisionsOf(c).length + (c.press && !c.press.done ? 1 : 0) + mailBadge(c); } catch (e) { n = 0; }
   const ib = R.querySelector('[data-tab="mail"]'), old = ib.querySelector('.bdg'); if (n) { if (!old) ib.insertAdjacentHTML('beforeend', `<i class="bdg">${n}</i>`); else if (old.textContent !== String(n)) old.textContent = n; } else old?.remove();
   const ap = c.rivals?.approaches?.length || 0, rb = R.querySelector('[data-tab="rivals"]'), ob = rb.querySelector('.bdg'); if (ap) { if (!ob) rb.insertAdjacentHTML('beforeend', `<i class="bdg">${ap}</i>`); else ob.textContent = ap; } else ob?.remove();
 }

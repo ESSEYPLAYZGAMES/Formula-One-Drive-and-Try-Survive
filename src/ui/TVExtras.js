@@ -137,7 +137,22 @@ export class TVExtras {
    */
   wipe(word, sub, mid) {
     const w = this.rw; clearTimeout(this._rwT); clearTimeout(this._rwM); w.classList.remove('rw-on'); w.lastChild.innerHTML = `${word || ''}${sub ? `<small>${sub}</small>` : ''}`; void w.offsetWidth; w.classList.add('rw-on');
-    this._rwM = setTimeout(() => { try { mid?.(); } catch (e) { console.warn('[tv] wipe', e); } }, 560); this._rwT = setTimeout(() => w.classList.remove('rw-on'), 1400);
+    // (its middle - what is under it changed - when every slat IS closed, by their own animation, not at a fixed 560 ms:
+    //  on a heavy frame the animation starts late and the live picture came in under slats still closing. Off when the
+    //  last slat's animation has ended - the picture under them never shown before they have opened)
+    clearInterval(this._rwP); const S = [...w.querySelectorAll('s')], t0 = performance.now(); let fired = false;
+    const fire = () => { if (fired) return; fired = true; clearInterval(this._rwP); try { mid?.(); } catch (e) { console.warn('[tv] wipe', e); } };
+    // (each slat's own animation clock: closed from 30 % of its 1.1 s, after its delay - however late it started; a
+    //  browser without the animations' API: the slat's drawn height)
+    const shut = () => S.every((s) => {
+      const A = s.getAnimations?.()[0];
+      if (A) { const t = A.currentTime, dl = A.effect?.getTiming?.().delay || 0; return t != null && A.playState !== 'pending' && t - dl >= 345; }
+      const m = /matrix\(([^)]+)\)/.exec(getComputedStyle(s).transform || ''); return !!m && Math.abs(+m[1].split(',')[3]) > 0.985;
+    });
+    this._rwP = setInterval(() => { const el = performance.now() - t0; if (el > 3000 || (el > 250 && shut())) fire(); }, 15);
+    const last = S[S.length - 1], off = () => { clearTimeout(this._rwT); if (!fired) fire(); w.classList.remove('rw-on'); };
+    if (this._rwOff) this._rwOff[0].removeEventListener('animationend', this._rwOff[1]); this._rwOff = [last, off];
+    last.addEventListener('animationend', off, { once: true }); this._rwT = setTimeout(off, 2600);
   }
   /** a replay is playing (main.js): the bug up, the cards away */
   replaying(on, text = '') { this.root.classList.toggle('rpf', !!on);   /* (a whole-picture replay: race control's notices are not for it - ui/TVStewards.js) */ this.bug.classList.toggle('on', !!on); this.bug.querySelector('small').textContent = on ? text : ''; this.col.style.visibility = on ? 'hidden' : ''; if (on) { this.tel.classList.remove('on'); this.root.querySelector('.cap')?.classList.remove('in'); } this.root.querySelector('.live')?.classList.toggle('rp', !!on); }
@@ -156,7 +171,7 @@ export class TVExtras {
     if (this.offer) { const left = 1 - (performance.now() - this.offer.shown) / 7000; this.rpo.querySelector('i').style.transform = `scaleX(${Math.max(0, left)})`; if (left <= 0) { this.offer = null; this.rpo.classList.remove('in'); } }
     if (ctx.halted) return;
     if (this.pending && d.time >= this.pending.due) { const e = this.pending; this.pending = null; if (racing || d.leaderFinished) { try { this.o.onClip?.(e); } catch (er) { /* no clip */ } if (ctx.noOffer) return;   /* (a replay is in its window: this one is kept for the highlights, not offered) */
-      this.offer = { ...e, shown: performance.now() }; this.lastOffer = d.time; this.rpo.querySelector('span').textContent = e.text; this.rpo.classList.add('in'); } }
+      this.offer = { ...e, shown: performance.now() }; this.lastOffer = d.time; this.rpo.querySelector('span').textContent = e.text; this.rpo.classList.add('in'); try { this.o.audio?.play?.('radio', { gain: 0.9 }); } catch (er) { /* no sound */ } } }   // (the radio's beep: a replay on offer - not to be missed)
     this.acc += dt; if (this.acc < 0.2) return; this.acc = 0;
     // ---- the safety car's and the red flag's own feed ------------------------------------------------------------
     const ph = d.sc?.phase || 'green', lead0 = P.find((c) => !c.retired), neutral = ph === 'sc' || ph === 'scIn' || ph === 'vsc' || ph === 'vscEnd';

@@ -770,7 +770,7 @@ export class RaceDirector {
     // Montreal's Wall of Champions (Track.pinWall): a car that touches it out of the last chicane has kissed it (once a
     // race, the first time; the career keeps the season it happened in - the trophy for winning the title anyway)
     if (type === 'wall' && !c.wocKiss && this.mode === 'race') { const pin = this.track.pinAt?.(c.s, c.d); if (pin?.name === 'Wall of Champions') { c.wocKiss = { lap: c.lap, sev: +sev.toFixed(2), t: +this.time.toFixed(1) }; if (c.isPlayer) this.hud?.msg('WALL OF CHAMPIONS', sev > 0.25 ? 'bad' : 'warn', 2.4); } }
-    if (!c.isPlayer) { if (this.player && Math.hypot(c.x - this.player.x, c.z - this.player.z) < 60) this.audio?.impact(sev * 0.5); return; }
+    if (!c.isPlayer) { if (this.audio?.impactAt) this.audio.impactAt(c.x, c.z, sev); else if (this.player && Math.hypot(c.x - this.player.x, c.z - this.player.z) < 60) this.audio?.impact(sev * 0.5); return; }   // (heard where the microphone is: the car you are in, the broadcast's camera)
     this.audio?.impact(sev);
     if (sev > 0.12) {
       const d = c.dmg; const worst = Object.entries(d).sort((a, b) => b[1] - a[1])[0];
