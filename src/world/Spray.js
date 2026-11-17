@@ -5,9 +5,9 @@
 import * as THREE from 'three';
 
 const VS = `attribute float size; attribute float alpha; uniform float uScale; varying float vA;
-void main() { vA = alpha; vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_PointSize = min(380.0, size * uScale / max(0.1, -mv.z)); gl_Position = projectionMatrix * mv; }`;
+void main() { vec4 mv = modelViewMatrix * vec4(position, 1.0); float z = -mv.z; vA = alpha * smoothstep(1.2, 4.5, z); gl_PointSize = vA < 0.004 ? 0.0 : min(220.0, size * uScale / max(0.1, z)); gl_Position = projectionMatrix * mv; }`;   // (no sprite filling the screen at the lens - the cost of the spray was there: overdraw)
 const FS = `uniform vec3 uColor; varying float vA;
-void main() { vec2 d = gl_PointCoord - 0.5; float r = length(d); if (r > 0.5) discard; gl_FragColor = vec4(uColor, vA * smoothstep(0.5, 0.0, r)); }`;
+void main() { if (vA < 0.004) discard; vec2 d = gl_PointCoord - 0.5; float r = length(d); if (r > 0.5) discard; gl_FragColor = vec4(uColor, vA * smoothstep(0.5, 0.0, r)); }`;
 
 export class Spray {
   constructor(scene, n = 9000) {
@@ -41,18 +41,19 @@ export class Spray {
       // (a wall of it, as it is: a car in the wet at speed throws a cloud the height of a house that hangs on the road
       //  behind it for seconds - the car following sees almost nothing. Three parts: the rooster tails off the rear
       //  tyres, the plume rising behind the diffuser, and the mist it leaves hanging over the road)
-      const ww = Math.min(1, (w - 0.08) * 1.5), rate = 300 * ww * Math.min(1.5, v / 60);
+      const dist = Math.sqrt(dx * dx + dz * dz), lod = dist < 70 ? 1 : Math.max(0.3, 70 / dist);   // (a car far off: fewer, it is small in the picture)
+      const ww = Math.min(1, (w - 0.08) * 1.5), rate = 220 * ww * Math.min(1.5, v / 60) * lod;
       let k = (this.acc.get(c) || 0) + rate * dt; const fx = Math.cos(th), fz = Math.sin(th);
       for (; k >= 1; k--) {
         const side = Math.random() < 0.5 ? -1 : 1, back = 2.0 + Math.random() * 0.6, lat = side * (0.7 + Math.random() * 0.25);
         const x = cx - fx * back - fz * lat, z = cz - fz * back + fx * lat;
         const kind = Math.random();
         if (kind < 0.55) this.spawn(x, 0.35 + Math.random() * 0.2, z, fx * v * 0.4 + (Math.random() - 0.5) * 4 - fz * side * 2, 1.6 + Math.random() * 2.4, fz * v * 0.4 + (Math.random() - 0.5) * 4 + fx * side * 2,
-          1.1 + Math.random() * 0.8, 3.5 + 5 * w + Math.random() * 2, Math.min(0.6, (0.24 + 0.36 * w) * (0.7 + 0.3 * Math.random())));   // (the plume)
+          1.1 + Math.random() * 0.8, 3.5 + 5 * w + Math.random() * 2, Math.min(0.66, (0.28 + 0.4 * w) * (0.7 + 0.3 * Math.random())));   // (the plume)
         else if (kind < 0.8) this.spawn(x, 0.25, z, fx * v * 0.55 + (Math.random() - 0.5) * 2 - fz * side * 3.5, 0.8 + Math.random(), fz * v * 0.55 + (Math.random() - 0.5) * 2 + fx * side * 3.5,
           0.6 + Math.random() * 0.4, 1.6 + 1.6 * w, Math.min(0.7, 0.3 + 0.35 * w));   // (the rooster tails: low, quick, dense)
         else this.spawn(x - fx * 3, 0.8 + Math.random() * 1.2, z - fz * 3, fx * v * 0.2 + (Math.random() - 0.5) * 2, 0.5 + Math.random() * 0.8, fz * v * 0.2 + (Math.random() - 0.5) * 2,
-          3 + Math.random() * 2.5, 9 + 7 * w + Math.random() * 4, (0.07 + 0.09 * w) * (0.7 + 0.3 * Math.random()));   // (the mist left hanging over the road)
+          3 + Math.random() * 2.5, 9 + 7 * w + Math.random() * 4, (0.08 + 0.11 * w) * (0.7 + 0.3 * Math.random()));   // (the mist left hanging over the road)
       }
       this.acc.set(c, k);
     }

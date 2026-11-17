@@ -181,12 +181,16 @@ export class AIDriver {
     // (running hot from following in dirty air: drop back a few car lengths to cool it, as a driver is told to; the
     //  following gap itself by racecraft - a sharp driver sits a little closer, FORM.gap - before race control's minimum)
     ctx.gap = (T.gapBase + v * T.gapK * (1 - 0.3 * this.aggression)) * (1 + 0.3 * lap1) * F.gap + 25 * Math.max(0, c.engTemp - 0.75) + (c.mgrGap || 0);
+    // (in the wet, the spray: a driver who cannot see the car ahead - or the corner past it - hangs back, brakes early
+    //  and does not throw it up the inside blind. By the water ahead on its line: nothing of it below a fifth wet)
+    const sprayK = Math.max(0, Math.min(1, ((this.wPlan ?? c.wetness) - 0.2) / 0.5)); this.sprayK = sprayK;
+    if (sprayK > 0) ctx.gap += sprayK * (8 + 0.15 * v);
     if (rule && rule.gap) ctx.gap = Math.max(ctx.gap, rule.gap + 0.15 * v);
     ctx.lap1 = lap1;
     // (racecraft: how much it means a move - by the driver's aggression, half of it on the opening lap, none under race
     //  control: Planner reads it)
-    ctx.bold = rule ? 0 : T.bold * Math.min(1.2, this.aggression) * (lap1 ? 0.5 : 1);
-    ctx.boldAI = rule || lap1 ? 0 : T.boldAI * Math.min(1.2, this.aggression);
+    ctx.bold = rule ? 0 : T.bold * Math.min(1.2, this.aggression) * (lap1 ? 0.5 : 1) * (1 - 0.6 * sprayK);
+    ctx.boldAI = rule || lap1 ? 0 : T.boldAI * Math.min(1.2, this.aggression) * (1 - 0.6 * sprayK);
     // (a circuit's calibration fitted to a car on its own - ai/Calibration.js `pack`, Austin's from a driver's laps - spun
     //  the field in the pack: the opening lap is driven on the physics, and so is any stretch in traffic - fading back
     //  in from 25 m to 100 m behind the nearest car ahead, none with a car alongside)
@@ -409,9 +413,9 @@ export class AIDriver {
     // a car right in front, closing hard (between two plans): don't run into it
     const ahead = this.closestAhead();
     if (ahead) {
-      const { o, gap } = ahead, room = gap - 6.0 - 0.08 * v;   // (a car length and a bit, more with speed)
+      const sk = this.sprayK || 0, { o, gap } = ahead, room = gap - 6.0 - (0.08 + 0.08 * sk) * v;   // (a car length and a bit, more with speed - and in the spray more again)
       const vo = o.rigid || (o.retired && o.speed < 1) ? 0 : o.speed;
-      vT = Math.min(vT, room > 0 ? Math.sqrt(vo * vo + 2 * 0.7 * BRAKE_A * room) : Math.max(0, vo + room * 2));
+      vT = Math.min(vT, room > 0 ? Math.sqrt(vo * vo + 2 * (0.7 - 0.2 * sk) * BRAKE_A * room) : Math.max(0, vo + room * 2));
     }
     // track-edge guard (drifting out near the edge) and understeer guard: lift
     const dDot = (c.d - (this.prevD ?? c.d)) / dt; this.prevD = c.d;

@@ -1,3 +1,34 @@
+# V2.82 (2026-11-17): a sick engine heard; the crowd; driving blind in the spray; the spray's cost; the safety car heard
+
+Asked for: "all of them except 6" - engine failure sounds, the crowd, the AI in the spray, the wet race's frame rate,
+the safety car and the VSC heard.
+
+## A sick engine (audio/EngineWorklet.js, audio/Audio.js)
+- Damaged (a hit to the engine, a power unit losing its power): it misfires - firings missed, its rhythm broken, the
+  odd bang of unburnt fuel in the pipe - and rattles. Blown: a deep thump and a tearing burst, then it sputters out over
+  two and a half seconds, the revs falling. A gearbox or the hydraulics: the revs fall away.
+
+## The crowd (audio/Audio.js, main.js)
+- A crowd by the stands near the microphone - louder by a grandstand, faint at the far end of the circuit, little of it
+  on board - that rises: the lead changing hands, a crash (and its gasp), the restart after a safety car, a place gained
+  for your car, every moment the broadcast keeps by what it was worth, and the flag most of all.
+
+## Driving blind in the spray (ai/AIDriver.js)
+- In the wet the AI drives as a driver who cannot see: following a car through its spray it hangs back (a longer gap,
+  more with speed), brakes earlier for the car in front, and makes fewer late moves up the inside. By the water on the
+  road ahead - nothing of it below a fifth wet: the dry races are as they were.
+
+## The spray's cost (world/Spray.js)
+- Measured onboard half a second behind a car in the wet, drawing the spray made the frame some 60 % longer: thousands
+  of big see-through sprites filling the lens. Now no sprite is drawn over 220 pixels, those at the lens fade out, a
+  car far off throws fewer (it is small in the picture), and fewer in all, each a little thicker: half the particles,
+  a third of the sprite's area at most, the look kept.
+
+## The safety car and the VSC heard (main.js, audio/Audio.js)
+- Race control's tones on the radio: three falling as a safety car, a VSC or a red flag comes out, two rising as it
+  ends. Behind the safety car the field warms its tyres: a stab of throttle now and then, each car its own rhythm. The
+  crowd rises at the restart.
+
 # V2.81 (2026-11-17): the theatre heard; each maker's engine; the mix; the last films ready; the kerb the line takes
 
 Asked for: "do 1, 2, 3, 4, 5" - the theatre's sound, engine makers' voices, the mix sliders, the last cutscenes made

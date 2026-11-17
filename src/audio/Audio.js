@@ -164,7 +164,7 @@ export class AudioEngine {
   resume() { if (this.ctx && this.ctx.state === 'suspended' && !document.hidden) this.ctx.resume(); }   // (not while the tab is in the background)
   toggleMute() { this.muted = !this.muted; if (this.master) this.master.gain.value = this.muted ? 0 : 0.35; if (this.fx) this.fx.gain.value = this.muted ? 0 : 0.45; if (this.sfx) this.sfx.gain.value = this.muted ? 0 : 0.6; if (this.radio) this.radio.gain.value = this.muted ? 0 : 0.6; return this.muted; }
   /** the car's engine and wind noise faded out (a cut-away, a pause): tc the fade's time constant (s) */
-  quiet(tc = 0.3) { if (!this.ready) return; const t = this.ctx.currentTime; for (const g of [this.engGain, this.noiseGain, this.engBus, this.sqG, this.kbG, this.grG, this.rnG]) g.gain.setTargetAtTime(0, t, tc); }
+  quiet(tc = 0.3) { if (!this.ready) return; const t = this.ctx.currentTime; for (const g of [this.engGain, this.noiseGain, this.engBus, this.sqG, this.kbG, this.grG, this.rnG]) g.gain.setTargetAtTime(0, t, tc); this._crowd?.to(0, tc * 3); }
   /** everything silent (the mourning screen), or back */
   silence(on) { if (!this.ready) return; const t = this.ctx.currentTime; this.master.gain.setTargetAtTime(on || this.muted ? 0 : 0.35, t, 0.4); this.fx.gain.setTargetAtTime(on || this.muted ? 0 : 0.45, t, 0.4); }
   /** the world muffled (0: clear .. 1: under water) */
@@ -252,7 +252,7 @@ export class AudioEngine {
    */
   listen(o) {
     if (!this.ready) return;
-    const ctx = this.ctx, t = ctx.currentTime, cam = o.cam, P = o.mic || cam.position, dt = Math.max(1e-3, o.dt || 0.016);
+    const ctx = this.ctx, t = ctx.currentTime, cam = o.cam, P = o.mic || cam.position, dt = Math.max(1e-3, o.dt || 0.016); this._scWarm = !!o.scWarm;
     if (!this.wk) {   // (no worklet: the old engine, for the car you are in or the nearest)
       let c = o.own, d = 0; if (!c || !o.inside) { let best = Infinity; for (const x of o.cars) { if (!x) continue; const dd = Math.hypot(x.x - P.x, x.z - P.z); if (dd < best) { best = dd; c = x; } } d = best + 1; }
       this.update(c, dt, o.inside ? 0 : d); return;
@@ -296,8 +296,8 @@ export class AudioEngine {
         dop = Math.max(0.55, Math.min(1.7, (343 + vr) / (343 - Math.min(300, vs))));
         if (x.own) ob = Math.max(0, 0.45 - d / 30);   // (a chase camera: some of the airbox still)
       }
-      if (c.engineDead || c.retired && !(M.spd > 2)) gain = 0;
-      msgs.push({ i: sl.i, seed: sl.seed, kind: sl.kind, rpm: M.rpm, thr: M.thr, gain, pan, lp, ob, dop, ers: M.ers, lim: M.lim ? 1 : 0, plim: M.plim ? 1 : 0, up: sl.up, down: sl.down });
+      if ((c.engineDead && !(M.dying > 0)) || c.retired && !(M.spd > 2) && !(M.dying > 0)) gain = 0;
+      msgs.push({ i: sl.i, seed: sl.seed, kind: sl.kind, rpm: M.rpm, thr: M.thr, gain: gain * (M.dying != null && M.dying > 0 ? 0.4 + 0.6 * M.dying : 1), pan, lp, ob, dop, ers: M.ers, lim: M.lim ? 1 : 0, plim: M.plim ? 1 : 0, up: sl.up, down: sl.down, mis: M.mis || 0, boom: M.boom || 0 });
     }
     if (msgs.length) this.wk.port.postMessage({ v: msgs });
     // the tyres and the road: the car you are in, or one the camera is right by
@@ -322,9 +322,16 @@ export class AudioEngine {
     const spd0 = m.spd; m.vx = vx; m.vz = vz; m.spd = Math.hypot(vx, vz);
     if (!motion && c.rpm != null) {
       m.rpm = c.rpm; m.thr = c.throttle || 0; m.gear = c.gear || 1;
+      if (this._scWarm && !c.isSC && !c.pitLane) { const ph = Math.sin(performance.now() / 1000 * 1.9 + (c.number || 0) * 1.7); if (ph > 0.82) m.thr = Math.max(m.thr, 0.85); }   // (behind the safety car: a stab of throttle now and then, warming the tyres - each car its own rhythm)
       m.ers = c.ersDeploying ? 1 : c.ersHarvesting && (c.brake || 0) > 0.3 ? -1 : 0;
-      m.lim = c.gear < 8 && c.rpm >= 12050 && m.thr > 0.5;   // (on the limiter in a gear held too long - not flat out in top at top speed: there the car is held by the air, and it stuttered all down every straight) m.plim = !!c.pitLane && m.spd > 17 && !c.inPit;
+      m.lim = c.gear < 8 && c.rpm >= 12050 && m.thr > 0.5;
+      // (a sick engine: damaged - a hit, a power unit losing its power - it misfires and rattles; a failure: a blown
+      //  engine bangs and sputters out over two seconds and a half, revs falling; a gearbox or the hydraulics: the drive
+      //  gone, the revs fall away)
+      m.mis = Math.min(1, (c.puLoss ? 0.45 : 0) + Math.max(0, (c.dmg?.eng || 0) - 0.08) * 1.1);
+      if (c.failed && !m.failSeen) { m.failSeen = c.failed; m.failAt = performance.now(); if (c.failed === 'engine') m.boom = (m.boom || 0) + 1; }   // (on the limiter in a gear held too long - not flat out in top at top speed: there the car is held by the air, and it stuttered all down every straight) m.plim = !!c.pitLane && m.spd > 17 && !c.inPit;
       m.alive = !c.engineDead && !(c.retired && m.spd < 2);
+      if (c.engineDead && m.failAt != null) { const k = (performance.now() - m.failAt) / 1000; if (k < 2.6) { m.alive = true; m.thr = 0; m.rpm = Math.max(3500, 9000 * Math.exp(-k * 0.9)); m.mis = m.failSeen === 'engine' ? 1 : 0.4; m.lim = false; m.ers = 0; m.dying = 1 - k / 2.6; } else m.dying = 0; }
     } else {
       // (from the motion: the gear the speed is in, the revs in it; the throttle from the acceleration)
       const kmh = m.spd * 3.6, T = [68, 104, 140, 176, 212, 248, 290, 348]; let g = 0; while (g < 7 && kmh > T[g] * 0.97) g++;
@@ -351,6 +358,27 @@ export class AudioEngine {
     const of = ctx.createBiquadFilter(); of.type = 'bandpass'; of.frequency.value = 1500; of.Q.value = 2;
     const og = ctx.createGain(); og.gain.setValueAtTime(0, t); og.gain.linearRampToValueAtTime(0.08 * k, t + 0.03); og.gain.setValueAtTime(0.08 * k, e); og.gain.exponentialRampToValueAtTime(0.001, e + 0.05);
     o.connect(of); of.connect(og); og.connect(this.fxMix); o.start(t); o.stop(e + 0.08);
+  }
+  /**
+   * The crowd (every frame of a race): a bed by the stands near the microphone - base: the level it is at (0..1), near:
+   * how near the stands are (0..1), inside: on board (a helmet, an airbox: little of it) - and its swells (cheer)
+   */
+  crowdUpdate(dt, base, near, inside) {
+    if (!this.ready) return;
+    if (!this._crowd && base > 0.005) this._crowd = this.play('crowd', { loop: true, gain: 0, offset: 'random', fadeIn: 1.5 });
+    if (!this._crowd) return;
+    this._sw = (this._sw || 0) * Math.exp(-dt / 2.4);   // (a swell dies away over a few seconds)
+    const g = Math.min(1.2, (base + this._sw * (0.22 + 0.7 * near)) * (inside ? 0.3 : 1));
+    this._crowd.to(this.muted ? 0 : g, this._sw > 0.05 ? 0.12 : 0.6);
+  }
+  /** the crowd rises: k its size (an overtake 0.3-0.6, the lead 0.9, the flag 1.6) */
+  cheer(k = 0.5) { this._sw = Math.min(1.8, (this._sw || 0) + k); }
+  /** the crowd's gasp (a crash): louder by the stands */
+  gaspAt(near = 0.5) { if (!this.ready || this.muted) return; this.play('gasp', { gain: 0.15 + 0.45 * near }); }
+  /** race control's tones on the radio: 'out' (a safety car, a VSC, a red flag: three falling) | 'end' (it ends: two rising) */
+  alert(kind = 'out') {
+    if (!this.ready || this.muted) return; const F = kind === 'out' ? [988, 784, 659] : [659, 988];
+    F.forEach((f, i) => setTimeout(() => this.beep(f, 0.16, 0.22), i * 170));
   }
   /** a car hitting something at (x, z): its thud (and a crunch, a hard one) by the distance from the microphone */
   impactAt(x, z, sev) {

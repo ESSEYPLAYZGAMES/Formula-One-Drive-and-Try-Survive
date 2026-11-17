@@ -67,8 +67,9 @@ class Engines extends AudioWorkletProcessor {
       const L = e.data && e.data.v; if (!L) return;
       for (const m of L) {
         let v = this.V.get(m.i);
-        if (!v || v.kind !== (m.kind | 0) || v.seed !== m.seed) { v = new Voice(m.seed | 0, m.kind | 0); v.seed = m.seed; v.up = m.up; v.down = m.down; v.c.rpm = m.rpm; v.c.dop = m.dop || 1; v.c.pan = m.pan || 0; v.c.lp = m.lp || 12000; v.c.ob = m.ob || 0; this.V.set(m.i, v); }
-        const t = v.t; t.rpm = m.rpm; t.thr = m.thr; t.gain = m.gain; t.pan = m.pan; t.lp = m.lp; t.ob = m.ob; t.dop = m.dop; t.ers = m.ers; t.lim = m.lim; t.plim = m.plim;
+        if (!v || v.kind !== (m.kind | 0) || v.seed !== m.seed) { v = new Voice(m.seed | 0, m.kind | 0); v.seed = m.seed; v.up = m.up; v.down = m.down; v.boomN = m.boom | 0; v.c.rpm = m.rpm; v.c.dop = m.dop || 1; v.c.pan = m.pan || 0; v.c.lp = m.lp || 12000; v.c.ob = m.ob || 0; this.V.set(m.i, v); }
+        const t = v.t; t.rpm = m.rpm; t.thr = m.thr; t.gain = m.gain; t.pan = m.pan; t.lp = m.lp; t.ob = m.ob; t.dop = m.dop; t.ers = m.ers; t.lim = m.lim; t.plim = m.plim; t.mis = m.mis || 0;
+        if ((m.boom | 0) !== v.boomN) { if ((m.boom | 0) > v.boomN) { v.boomE = 1; v.pop = 1.4; } v.boomN = m.boom | 0; }   // (a blow-up: the bang)
         if (m.up !== v.up) { if (v.up >= 0 && m.up > v.up) v.cut = 0.042 * SR | 0; v.up = m.up; }
         if (m.down !== v.down) { if (v.down >= 0 && m.down > v.down) { v.blip = 0.07 * SR | 0; v.popWin = 0.35 * SR | 0; } v.down = m.down; }
       }
@@ -112,6 +113,8 @@ class Engines extends AudioWorkletProcessor {
           if (v.blip > 0) a *= 1.35;
           if ((overrun || plOn) && rN > 0.25 && r() < (v.popWin > 0 ? 0.012 : plOn ? 0.02 : 0.0007)) v.pop = Math.max(v.pop, 0.6 + r() * 0.8);   // (unburnt fuel lighting in the pipe)
           if (overrun) a *= 0.6;
+          // (a sick engine: firings missed - its rhythm broken - and now and then the unburnt charge going off in the pipe)
+          const ms = t.mis || 0; if (ms > 0 && r() < ms * 0.38) { a *= 0.05; if (r() < ms * 0.025) v.pop = Math.max(v.pop, 0.5 + r() * 0.5); }
           ex += a * Math.min(1, frac); v.carry += a * Math.max(0, 1 - frac);
         }
         if (v.cut > 0) v.cut--; if (v.blip > 0) v.blip--; if (v.popWin > 0) v.popWin--;
@@ -119,7 +122,7 @@ class Engines extends AudioWorkletProcessor {
         v.pulse = v.pulse * shapeA + ex;
         v.noiseEnv = v.noiseEnv * 0.9965 + ex * 0.6;
         const wn = r() * 2 - 1, turb = wn * v.noiseEnv * 0.2 * v.P.noise;   // (not more off the throttle: under braking it was a crackle of foil)
-        const x = v.pulse * 0.5 + turb;
+        const x = v.pulse * 0.5 + turb + (t.mis ? wn * v.noiseEnv * t.mis * 0.3 : 0);   // (and a damaged one rattles)
         // the pipe (outside) and the airbox and block (on board)
         let yo = 0, yi = 0;
         for (let i = 0; i < v.res.length; i++) { const z = v.res[i], y = z.b0 * (x - z.x2) - z.a1 * z.y1 - z.a2 * z.y2; z.x2 = z.x1; z.x1 = x; z.y2 = z.y1; z.y1 = y; yo += y * z.g * (i >= 4 ? bright : 1); }
@@ -137,6 +140,8 @@ class Engines extends AudioWorkletProcessor {
           if (e > 0.01) s += (Math.sin(TAU * v.mph) + 0.4 * Math.sin(TAU * v.mph * 1.5)) * e * (c.ers < 0 ? 0.03 : 0.018) * v.P.mgu * (0.35 + 0.65 * ob);
           v.gph += gearF / SR; if (v.gph > 1) v.gph -= 1; s += Math.sin(TAU * v.gph) * 0.006 * (0.3 + ob);
         }
+        // (the blow-up: a deep thump and a tearing burst, gone in half a second)
+        if (v.boomE > 0.001) { v.bph = (v.bph || 0) + 46 / SR; if (v.bph > 1) v.bph -= 1; s += (Math.sin(TAU * v.bph) * 0.9 + wn * 0.8 * v.boomE) * v.boomE * 3; v.boomE *= 0.99988; }
         // DC out, the air's lowpass (two poles), the level and the place
         const hp = s - v.lp0x + hpA * v.hpy; v.lp0x = s; v.hpy = hp;
         v.lp1 = v.lp1 * lpA + hp * (1 - lpA); v.lp2 = v.lp2 * lpA + v.lp1 * (1 - lpA);

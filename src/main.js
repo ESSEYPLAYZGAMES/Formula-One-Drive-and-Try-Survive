@@ -3002,7 +3002,33 @@ function tpListen(dt, motion = false) {
   // (the subject - in a replay its model, where the record has it)
   const rc = motion ? d.replay?.cars?.[TP.rep?.i] : null, subj = motion ? (rc ? S.meshes.get(rc)?.group.position || null : null) : sh?.car || null;
   if (!inside && subj) { const dx = camera.position.x - subj.x, dz = camera.position.z - subj.z, dd = Math.hypot(dx, dz) || 1; if (dd > 70 || (!motion && k === 'heli')) mic = { x: subj.x + dx / dd * 28, y: (subj.y || 0) + 3, z: subj.z + dz / dd * 28 }; }
-  audio.listen({ cam: camera, cars: S.cars, own, inside, mic, sc: d.sc?.car, engineOf, motion, posOf: motion ? (c) => S.meshes.get(c)?.group.position || null : null, rain: d.weather?.rainAt?.(camera.position.x, camera.position.z) || 0, dt });
+  if (!motion) crowdFrame(dt, d, mic || camera.position, inside);
+  audio.listen({ cam: camera, cars: S.cars, own, inside, mic, sc: d.sc?.car, scWarm: !motion && d.sc?.phase === 'sc', engineOf, motion, posOf: motion ? (c) => S.meshes.get(c)?.group.position || null : null, rain: d.weather?.rainAt?.(camera.position.x, camera.position.z) || 0, dt });
+}
+/**
+ * The crowd and race control's tones (every frame of a race, live): the crowd by the stands near the microphone, its
+ * swells - the lead changing hands, a crash (and its gasp), the restart after a safety car, a place gained for your car,
+ * the flag (the broadcast's moments too: tpMoment); race control's tones as a safety car or a VSC comes out, and ends.
+ */
+const CROWD = { d: null };
+function crowdFrame(dt, d, at, inside) {
+  if (!d || d.mode !== 'race') { audio.crowdUpdate?.(dt, 0, 0, inside); return; }
+  let near = 0; const st = W.stands?.stands;
+  if (st && st.length) { let best = Infinity; for (const s of st) { const dd = Math.hypot(s.x - at.x, s.z - at.z) - (s.len || 40) / 2; if (dd < best) best = dd; } near = Math.max(0, Math.min(1, 1 - best / 220)); }
+  const P = d.positions, lead = P.find((c) => !c.retired), ph = d.sc?.phase || 'green';
+  if (CROWD.d !== d) { CROWD.d = d; CROWD.lead = lead; CROWD.ph = ph; CROWD.out = new Set(d.cars.filter((c) => c.retired)); CROWD.flag = false; CROWD.pos = null; }
+  if (lead && CROWD.lead && lead !== CROWD.lead && d.world.racing && !d.leaderFinished) audio.cheer(0.9);
+  CROWD.lead = lead;
+  if (ph !== CROWD.ph) {
+    if ((ph === 'sc' || ph === 'vsc' || ph === 'red') && CROWD.ph !== ph) audio.alert('out');
+    else if (ph === 'scIn' || ph === 'vscEnd') audio.alert('end');
+    if (ph === 'green' && CROWD.ph !== 'green') audio.cheer(0.7);   // (the restart)
+    CROWD.ph = ph;
+  }
+  for (const c of d.cars) if (c.retired && !CROWD.out.has(c)) { CROWD.out.add(c); if (/accident|crash|collision|rolled|torn|wall/i.test(c.retireReason || '')) { audio.cheer(0.4); audio.gaspAt(near); } }
+  if (d.leaderFinished && !CROWD.flag) { CROWD.flag = true; audio.cheer(1.6); }
+  const p = d.player; if (p && !S.spectating) { const i = P.indexOf(p); if (CROWD.pos != null && i >= 0 && i < CROWD.pos && d.world.racing) audio.cheer(0.35); CROWD.pos = i; }
+  audio.crowdUpdate(dt, d.world.racing || d.leaderFinished ? 0.05 + 0.2 * Math.pow(near, 1.5) : 0.04 + 0.1 * near, near, inside);
 }
 function tpReplayFrame(dt) { if (tpReplayStep(dt) && TP.rep) tpReplayPose(TP.rep); }
 function tpReplayEnd() {
@@ -3055,6 +3081,7 @@ function tpReplays(d, dt) {
  */
 function tpMoment(e) {
   const d = S.director; if (!d || !TP.on || d.mode !== 'race' || !e?.cars?.length) return;
+  if (!TP.skip) audio.cheer?.((e.score || 0) >= 80 ? 0.8 : (e.score || 0) >= 40 ? 0.45 : 0.2);   // (the crowd: an overtake, a spin, a crash - by what it was worth)
   // (not one the skip has stopped for already: its cars in trouble when the skip began - the broadcast's line for a
   //  spin comes a moment after the spin)
   if (TP.skip && e.kind === 'pass' && (e.score || 0) < 60 && e.cars.some((c) => d.time - (TP.skipCool?.get(c) ?? -99) < 30)) { /* (the same fight's pass: on) */ }
@@ -5515,7 +5542,7 @@ function frame(now) {
     if (FINALE.on) { updateFinale(dt); cockpitVisor(p, false); }
     else if (POV.on) povFrame(dt);
     else if (TP.on && p && !PHOTO.on) { tpCamera(dt); tpListen(dt); audioLive = true; }   // (the team principal's race: the world feed - camera/TVDirector.js)
-    else if (p && !PHOTO.on) { if (crashCam.on) crashCam.update(dt, dt * crashCam.timeScale); else camCtl.update(p, dt, W.track); cockpitVisor(p, camCtl.mode === 'cockpit' && !crashCam.on && !d.done); hud.update(p, { mode: d.mode, lapsTotal: d.lapsTotal, positions: d.positions, time: d.time, qualiStarted: d.qualiStarted, sectors: d.sectors, delta: (c) => d.telemetry?.liveDelta(c, d.time), sc: d.sc?.hudState(), gap: (a, b) => d.radio?.gap(a, b), drs: (c) => d.drs?.state(c) }, dt); hud.drawMinimap(S.cars, p); audio.listen({ cam: camera, cars: S.cars, own: p, inside: !crashCam.on && (camCtl.mode === 'cockpit' || camCtl.mode === 'tcam'), sc: d.sc?.car, engineOf, rain: d.weather?.rainAt?.(camera.position.x, camera.position.z) || 0, dt }); audioLive = true; }   // (every car near you heard: audio/Audio.js listen)
+    else if (p && !PHOTO.on) { if (crashCam.on) crashCam.update(dt, dt * crashCam.timeScale); else camCtl.update(p, dt, W.track); cockpitVisor(p, camCtl.mode === 'cockpit' && !crashCam.on && !d.done); hud.update(p, { mode: d.mode, lapsTotal: d.lapsTotal, positions: d.positions, time: d.time, qualiStarted: d.qualiStarted, sectors: d.sectors, delta: (c) => d.telemetry?.liveDelta(c, d.time), sc: d.sc?.hudState(), gap: (a, b) => d.radio?.gap(a, b), drs: (c) => d.drs?.state(c) }, dt); hud.drawMinimap(S.cars, p); crowdFrame(dt, d, camera.position, !crashCam.on && (camCtl.mode === 'cockpit' || camCtl.mode === 'tcam')); audio.listen({ cam: camera, cars: S.cars, own: p, inside: !crashCam.on && (camCtl.mode === 'cockpit' || camCtl.mode === 'tcam'), sc: d.sc?.car, scWarm: d.sc?.phase === 'sc', engineOf, rain: d.weather?.rainAt?.(camera.position.x, camera.position.z) || 0, dt }); audioLive = true; }   // (every car near you heard: audio/Audio.js listen)
     else if (p && PHOTO.hud) { hud.update(p, { mode: d.mode, lapsTotal: d.lapsTotal, positions: d.positions, time: d.time, qualiStarted: d.qualiStarted, sectors: d.sectors, delta: (c) => d.telemetry?.liveDelta(c, d.time), sc: d.sc?.hudState(), gap: (a, b) => d.radio?.gap(a, b), drs: (c) => d.drs?.state(c) }, dt); hud.drawMinimap(S.cars, p); }
   } else if (d && hud.pit.open && p) {
     hud.update(p, { mode: d.mode, lapsTotal: d.lapsTotal, positions: d.positions, time: d.time, qualiStarted: d.qualiStarted, sectors: d.sectors, delta: (c) => d.telemetry?.liveDelta(c, d.time), sc: d.sc?.hudState(), gap: (a, b) => d.radio?.gap(a, b), drs: (c) => d.drs?.state(c) }, dt);

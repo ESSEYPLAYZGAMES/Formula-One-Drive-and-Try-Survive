@@ -602,7 +602,7 @@ body.tp #hud-msg { top: 30%; }
     <div class="brand-line"></div>
     <h1 id="brand-title">FORMULA 1<span id="brand-sub">SIMULATOR</span></h1>
     <!-- the build's version: +0.01 with every build handed out -->
-    <span id="app-ver" title="Version">V2.81</span>
+    <span id="app-ver" title="Version">V2.82</span>
     <div id="menu-sub">Real circuits built from OpenStreetMap</div>
   </div>
   <div id="loading" class="hidden"><div class="ld"><i></i></div><span>Building the circuit from OpenStreetMap…</span></div>
@@ -158673,8 +158673,9 @@ class Engines extends AudioWorkletProcessor {
       const L = e.data && e.data.v; if (!L) return;
       for (const m of L) {
         let v = this.V.get(m.i);
-        if (!v || v.kind !== (m.kind | 0) || v.seed !== m.seed) { v = new Voice(m.seed | 0, m.kind | 0); v.seed = m.seed; v.up = m.up; v.down = m.down; v.c.rpm = m.rpm; v.c.dop = m.dop || 1; v.c.pan = m.pan || 0; v.c.lp = m.lp || 12000; v.c.ob = m.ob || 0; this.V.set(m.i, v); }
-        const t = v.t; t.rpm = m.rpm; t.thr = m.thr; t.gain = m.gain; t.pan = m.pan; t.lp = m.lp; t.ob = m.ob; t.dop = m.dop; t.ers = m.ers; t.lim = m.lim; t.plim = m.plim;
+        if (!v || v.kind !== (m.kind | 0) || v.seed !== m.seed) { v = new Voice(m.seed | 0, m.kind | 0); v.seed = m.seed; v.up = m.up; v.down = m.down; v.boomN = m.boom | 0; v.c.rpm = m.rpm; v.c.dop = m.dop || 1; v.c.pan = m.pan || 0; v.c.lp = m.lp || 12000; v.c.ob = m.ob || 0; this.V.set(m.i, v); }
+        const t = v.t; t.rpm = m.rpm; t.thr = m.thr; t.gain = m.gain; t.pan = m.pan; t.lp = m.lp; t.ob = m.ob; t.dop = m.dop; t.ers = m.ers; t.lim = m.lim; t.plim = m.plim; t.mis = m.mis || 0;
+        if ((m.boom | 0) !== v.boomN) { if ((m.boom | 0) > v.boomN) { v.boomE = 1; v.pop = 1.4; } v.boomN = m.boom | 0; }   // (a blow-up: the bang)
         if (m.up !== v.up) { if (v.up >= 0 && m.up > v.up) v.cut = 0.042 * SR | 0; v.up = m.up; }
         if (m.down !== v.down) { if (v.down >= 0 && m.down > v.down) { v.blip = 0.07 * SR | 0; v.popWin = 0.35 * SR | 0; } v.down = m.down; }
       }
@@ -158718,6 +158719,8 @@ class Engines extends AudioWorkletProcessor {
           if (v.blip > 0) a *= 1.35;
           if ((overrun || plOn) && rN > 0.25 && r() < (v.popWin > 0 ? 0.012 : plOn ? 0.02 : 0.0007)) v.pop = Math.max(v.pop, 0.6 + r() * 0.8);   // (unburnt fuel lighting in the pipe)
           if (overrun) a *= 0.6;
+          // (a sick engine: firings missed - its rhythm broken - and now and then the unburnt charge going off in the pipe)
+          const ms = t.mis || 0; if (ms > 0 && r() < ms * 0.38) { a *= 0.05; if (r() < ms * 0.025) v.pop = Math.max(v.pop, 0.5 + r() * 0.5); }
           ex += a * Math.min(1, frac); v.carry += a * Math.max(0, 1 - frac);
         }
         if (v.cut > 0) v.cut--; if (v.blip > 0) v.blip--; if (v.popWin > 0) v.popWin--;
@@ -158725,7 +158728,7 @@ class Engines extends AudioWorkletProcessor {
         v.pulse = v.pulse * shapeA + ex;
         v.noiseEnv = v.noiseEnv * 0.9965 + ex * 0.6;
         const wn = r() * 2 - 1, turb = wn * v.noiseEnv * 0.2 * v.P.noise;   // (not more off the throttle: under braking it was a crackle of foil)
-        const x = v.pulse * 0.5 + turb;
+        const x = v.pulse * 0.5 + turb + (t.mis ? wn * v.noiseEnv * t.mis * 0.3 : 0);   // (and a damaged one rattles)
         // the pipe (outside) and the airbox and block (on board)
         let yo = 0, yi = 0;
         for (let i = 0; i < v.res.length; i++) { const z = v.res[i], y = z.b0 * (x - z.x2) - z.a1 * z.y1 - z.a2 * z.y2; z.x2 = z.x1; z.x1 = x; z.y2 = z.y1; z.y1 = y; yo += y * z.g * (i >= 4 ? bright : 1); }
@@ -158743,6 +158746,8 @@ class Engines extends AudioWorkletProcessor {
           if (e > 0.01) s += (Math.sin(TAU * v.mph) + 0.4 * Math.sin(TAU * v.mph * 1.5)) * e * (c.ers < 0 ? 0.03 : 0.018) * v.P.mgu * (0.35 + 0.65 * ob);
           v.gph += gearF / SR; if (v.gph > 1) v.gph -= 1; s += Math.sin(TAU * v.gph) * 0.006 * (0.3 + ob);
         }
+        // (the blow-up: a deep thump and a tearing burst, gone in half a second)
+        if (v.boomE > 0.001) { v.bph = (v.bph || 0) + 46 / SR; if (v.bph > 1) v.bph -= 1; s += (Math.sin(TAU * v.bph) * 0.9 + wn * 0.8 * v.boomE) * v.boomE * 3; v.boomE *= 0.99988; }
         // DC out, the air's lowpass (two poles), the level and the place
         const hp = s - v.lp0x + hpA * v.hpy; v.lp0x = s; v.hpy = hp;
         v.lp1 = v.lp1 * lpA + hp * (1 - lpA); v.lp2 = v.lp2 * lpA + v.lp1 * (1 - lpA);
@@ -158929,7 +158934,7 @@ class AudioEngine {
   resume() { if (this.ctx && this.ctx.state === 'suspended' && !document.hidden) this.ctx.resume(); }   // (not while the tab is in the background)
   toggleMute() { this.muted = !this.muted; if (this.master) this.master.gain.value = this.muted ? 0 : 0.35; if (this.fx) this.fx.gain.value = this.muted ? 0 : 0.45; if (this.sfx) this.sfx.gain.value = this.muted ? 0 : 0.6; if (this.radio) this.radio.gain.value = this.muted ? 0 : 0.6; return this.muted; }
   /** the car's engine and wind noise faded out (a cut-away, a pause): tc the fade's time constant (s) */
-  quiet(tc = 0.3) { if (!this.ready) return; const t = this.ctx.currentTime; for (const g of [this.engGain, this.noiseGain, this.engBus, this.sqG, this.kbG, this.grG, this.rnG]) g.gain.setTargetAtTime(0, t, tc); }
+  quiet(tc = 0.3) { if (!this.ready) return; const t = this.ctx.currentTime; for (const g of [this.engGain, this.noiseGain, this.engBus, this.sqG, this.kbG, this.grG, this.rnG]) g.gain.setTargetAtTime(0, t, tc); this._crowd?.to(0, tc * 3); }
   /** everything silent (the mourning screen), or back */
   silence(on) { if (!this.ready) return; const t = this.ctx.currentTime; this.master.gain.setTargetAtTime(on || this.muted ? 0 : 0.35, t, 0.4); this.fx.gain.setTargetAtTime(on || this.muted ? 0 : 0.45, t, 0.4); }
   /** the world muffled (0: clear .. 1: under water) */
@@ -159017,7 +159022,7 @@ class AudioEngine {
    */
   listen(o) {
     if (!this.ready) return;
-    const ctx = this.ctx, t = ctx.currentTime, cam = o.cam, P = o.mic || cam.position, dt = Math.max(1e-3, o.dt || 0.016);
+    const ctx = this.ctx, t = ctx.currentTime, cam = o.cam, P = o.mic || cam.position, dt = Math.max(1e-3, o.dt || 0.016); this._scWarm = !!o.scWarm;
     if (!this.wk) {   // (no worklet: the old engine, for the car you are in or the nearest)
       let c = o.own, d = 0; if (!c || !o.inside) { let best = Infinity; for (const x of o.cars) { if (!x) continue; const dd = Math.hypot(x.x - P.x, x.z - P.z); if (dd < best) { best = dd; c = x; } } d = best + 1; }
       this.update(c, dt, o.inside ? 0 : d); return;
@@ -159061,8 +159066,8 @@ class AudioEngine {
         dop = Math.max(0.55, Math.min(1.7, (343 + vr) / (343 - Math.min(300, vs))));
         if (x.own) ob = Math.max(0, 0.45 - d / 30);   // (a chase camera: some of the airbox still)
       }
-      if (c.engineDead || c.retired && !(M.spd > 2)) gain = 0;
-      msgs.push({ i: sl.i, seed: sl.seed, kind: sl.kind, rpm: M.rpm, thr: M.thr, gain, pan, lp, ob, dop, ers: M.ers, lim: M.lim ? 1 : 0, plim: M.plim ? 1 : 0, up: sl.up, down: sl.down });
+      if ((c.engineDead && !(M.dying > 0)) || c.retired && !(M.spd > 2) && !(M.dying > 0)) gain = 0;
+      msgs.push({ i: sl.i, seed: sl.seed, kind: sl.kind, rpm: M.rpm, thr: M.thr, gain: gain * (M.dying != null && M.dying > 0 ? 0.4 + 0.6 * M.dying : 1), pan, lp, ob, dop, ers: M.ers, lim: M.lim ? 1 : 0, plim: M.plim ? 1 : 0, up: sl.up, down: sl.down, mis: M.mis || 0, boom: M.boom || 0 });
     }
     if (msgs.length) this.wk.port.postMessage({ v: msgs });
     // the tyres and the road: the car you are in, or one the camera is right by
@@ -159087,9 +159092,16 @@ class AudioEngine {
     const spd0 = m.spd; m.vx = vx; m.vz = vz; m.spd = Math.hypot(vx, vz);
     if (!motion && c.rpm != null) {
       m.rpm = c.rpm; m.thr = c.throttle || 0; m.gear = c.gear || 1;
+      if (this._scWarm && !c.isSC && !c.pitLane) { const ph = Math.sin(performance.now() / 1000 * 1.9 + (c.number || 0) * 1.7); if (ph > 0.82) m.thr = Math.max(m.thr, 0.85); }   // (behind the safety car: a stab of throttle now and then, warming the tyres - each car its own rhythm)
       m.ers = c.ersDeploying ? 1 : c.ersHarvesting && (c.brake || 0) > 0.3 ? -1 : 0;
-      m.lim = c.gear < 8 && c.rpm >= 12050 && m.thr > 0.5;   // (on the limiter in a gear held too long - not flat out in top at top speed: there the car is held by the air, and it stuttered all down every straight) m.plim = !!c.pitLane && m.spd > 17 && !c.inPit;
+      m.lim = c.gear < 8 && c.rpm >= 12050 && m.thr > 0.5;
+      // (a sick engine: damaged - a hit, a power unit losing its power - it misfires and rattles; a failure: a blown
+      //  engine bangs and sputters out over two seconds and a half, revs falling; a gearbox or the hydraulics: the drive
+      //  gone, the revs fall away)
+      m.mis = Math.min(1, (c.puLoss ? 0.45 : 0) + Math.max(0, (c.dmg?.eng || 0) - 0.08) * 1.1);
+      if (c.failed && !m.failSeen) { m.failSeen = c.failed; m.failAt = performance.now(); if (c.failed === 'engine') m.boom = (m.boom || 0) + 1; }   // (on the limiter in a gear held too long - not flat out in top at top speed: there the car is held by the air, and it stuttered all down every straight) m.plim = !!c.pitLane && m.spd > 17 && !c.inPit;
       m.alive = !c.engineDead && !(c.retired && m.spd < 2);
+      if (c.engineDead && m.failAt != null) { const k = (performance.now() - m.failAt) / 1000; if (k < 2.6) { m.alive = true; m.thr = 0; m.rpm = Math.max(3500, 9000 * Math.exp(-k * 0.9)); m.mis = m.failSeen === 'engine' ? 1 : 0.4; m.lim = false; m.ers = 0; m.dying = 1 - k / 2.6; } else m.dying = 0; }
     } else {
       // (from the motion: the gear the speed is in, the revs in it; the throttle from the acceleration)
       const kmh = m.spd * 3.6, T = [68, 104, 140, 176, 212, 248, 290, 348]; let g = 0; while (g < 7 && kmh > T[g] * 0.97) g++;
@@ -159116,6 +159128,27 @@ class AudioEngine {
     const of = ctx.createBiquadFilter(); of.type = 'bandpass'; of.frequency.value = 1500; of.Q.value = 2;
     const og = ctx.createGain(); og.gain.setValueAtTime(0, t); og.gain.linearRampToValueAtTime(0.08 * k, t + 0.03); og.gain.setValueAtTime(0.08 * k, e); og.gain.exponentialRampToValueAtTime(0.001, e + 0.05);
     o.connect(of); of.connect(og); og.connect(this.fxMix); o.start(t); o.stop(e + 0.08);
+  }
+  /**
+   * The crowd (every frame of a race): a bed by the stands near the microphone - base: the level it is at (0..1), near:
+   * how near the stands are (0..1), inside: on board (a helmet, an airbox: little of it) - and its swells (cheer)
+   */
+  crowdUpdate(dt, base, near, inside) {
+    if (!this.ready) return;
+    if (!this._crowd && base > 0.005) this._crowd = this.play('crowd', { loop: true, gain: 0, offset: 'random', fadeIn: 1.5 });
+    if (!this._crowd) return;
+    this._sw = (this._sw || 0) * Math.exp(-dt / 2.4);   // (a swell dies away over a few seconds)
+    const g = Math.min(1.2, (base + this._sw * (0.22 + 0.7 * near)) * (inside ? 0.3 : 1));
+    this._crowd.to(this.muted ? 0 : g, this._sw > 0.05 ? 0.12 : 0.6);
+  }
+  /** the crowd rises: k its size (an overtake 0.3-0.6, the lead 0.9, the flag 1.6) */
+  cheer(k = 0.5) { this._sw = Math.min(1.8, (this._sw || 0) + k); }
+  /** the crowd's gasp (a crash): louder by the stands */
+  gaspAt(near = 0.5) { if (!this.ready || this.muted) return; this.play('gasp', { gain: 0.15 + 0.45 * near }); }
+  /** race control's tones on the radio: 'out' (a safety car, a VSC, a red flag: three falling) | 'end' (it ends: two rising) */
+  alert(kind = 'out') {
+    if (!this.ready || this.muted) return; const F = kind === 'out' ? [988, 784, 659] : [659, 988];
+    F.forEach((f, i) => setTimeout(() => this.beep(f, 0.16, 0.22), i * 170));
   }
   /** a car hitting something at (x, z): its thud (and a crunch, a hard one) by the distance from the microphone */
   impactAt(x, z, sev) {
@@ -191956,12 +191989,16 @@ class AIDriver {
     // (running hot from following in dirty air: drop back a few car lengths to cool it, as a driver is told to; the
     //  following gap itself by racecraft - a sharp driver sits a little closer, FORM.gap - before race control's minimum)
     ctx.gap = (T.gapBase + v * T.gapK * (1 - 0.3 * this.aggression)) * (1 + 0.3 * lap1) * F.gap + 25 * Math.max(0, c.engTemp - 0.75) + (c.mgrGap || 0);
+    // (in the wet, the spray: a driver who cannot see the car ahead - or the corner past it - hangs back, brakes early
+    //  and does not throw it up the inside blind. By the water ahead on its line: nothing of it below a fifth wet)
+    const sprayK = Math.max(0, Math.min(1, ((this.wPlan ?? c.wetness) - 0.2) / 0.5)); this.sprayK = sprayK;
+    if (sprayK > 0) ctx.gap += sprayK * (8 + 0.15 * v);
     if (rule && rule.gap) ctx.gap = Math.max(ctx.gap, rule.gap + 0.15 * v);
     ctx.lap1 = lap1;
     // (racecraft: how much it means a move - by the driver's aggression, half of it on the opening lap, none under race
     //  control: Planner reads it)
-    ctx.bold = rule ? 0 : T.bold * Math.min(1.2, this.aggression) * (lap1 ? 0.5 : 1);
-    ctx.boldAI = rule || lap1 ? 0 : T.boldAI * Math.min(1.2, this.aggression);
+    ctx.bold = rule ? 0 : T.bold * Math.min(1.2, this.aggression) * (lap1 ? 0.5 : 1) * (1 - 0.6 * sprayK);
+    ctx.boldAI = rule || lap1 ? 0 : T.boldAI * Math.min(1.2, this.aggression) * (1 - 0.6 * sprayK);
     // (a circuit's calibration fitted to a car on its own - ai/Calibration.js `pack`, Austin's from a driver's laps - spun
     //  the field in the pack: the opening lap is driven on the physics, and so is any stretch in traffic - fading back
     //  in from 25 m to 100 m behind the nearest car ahead, none with a car alongside)
@@ -192184,9 +192221,9 @@ class AIDriver {
     // a car right in front, closing hard (between two plans): don't run into it
     const ahead = this.closestAhead();
     if (ahead) {
-      const { o, gap } = ahead, room = gap - 6.0 - 0.08 * v;   // (a car length and a bit, more with speed)
+      const sk = this.sprayK || 0, { o, gap } = ahead, room = gap - 6.0 - (0.08 + 0.08 * sk) * v;   // (a car length and a bit, more with speed - and in the spray more again)
       const vo = o.rigid || (o.retired && o.speed < 1) ? 0 : o.speed;
-      vT = Math.min(vT, room > 0 ? Math.sqrt(vo * vo + 2 * 0.7 * BRAKE_A * room) : Math.max(0, vo + room * 2));
+      vT = Math.min(vT, room > 0 ? Math.sqrt(vo * vo + 2 * (0.7 - 0.2 * sk) * BRAKE_A * room) : Math.max(0, vo + room * 2));
     }
     // track-edge guard (drifting out near the edge) and understeer guard: lift
     const dDot = (c.d - (this.prevD ?? c.d)) / dt; this.prevD = c.d;
@@ -197448,9 +197485,9 @@ __m['src/world/Spray.js'] = (() => {
 // off it through the wet a wall of it - which is the view a car following through a wet patch gets.
 
 const VS = `attribute float size; attribute float alpha; uniform float uScale; varying float vA;
-void main() { vA = alpha; vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_PointSize = min(380.0, size * uScale / max(0.1, -mv.z)); gl_Position = projectionMatrix * mv; }`;
+void main() { vec4 mv = modelViewMatrix * vec4(position, 1.0); float z = -mv.z; vA = alpha * smoothstep(1.2, 4.5, z); gl_PointSize = vA < 0.004 ? 0.0 : min(220.0, size * uScale / max(0.1, z)); gl_Position = projectionMatrix * mv; }`;   // (no sprite filling the screen at the lens - the cost of the spray was there: overdraw)
 const FS = `uniform vec3 uColor; varying float vA;
-void main() { vec2 d = gl_PointCoord - 0.5; float r = length(d); if (r > 0.5) discard; gl_FragColor = vec4(uColor, vA * smoothstep(0.5, 0.0, r)); }`;
+void main() { if (vA < 0.004) discard; vec2 d = gl_PointCoord - 0.5; float r = length(d); if (r > 0.5) discard; gl_FragColor = vec4(uColor, vA * smoothstep(0.5, 0.0, r)); }`;
 
 class Spray {
   constructor(scene, n = 9000) {
@@ -197484,18 +197521,19 @@ class Spray {
       // (a wall of it, as it is: a car in the wet at speed throws a cloud the height of a house that hangs on the road
       //  behind it for seconds - the car following sees almost nothing. Three parts: the rooster tails off the rear
       //  tyres, the plume rising behind the diffuser, and the mist it leaves hanging over the road)
-      const ww = Math.min(1, (w - 0.08) * 1.5), rate = 300 * ww * Math.min(1.5, v / 60);
+      const dist = Math.sqrt(dx * dx + dz * dz), lod = dist < 70 ? 1 : Math.max(0.3, 70 / dist);   // (a car far off: fewer, it is small in the picture)
+      const ww = Math.min(1, (w - 0.08) * 1.5), rate = 220 * ww * Math.min(1.5, v / 60) * lod;
       let k = (this.acc.get(c) || 0) + rate * dt; const fx = Math.cos(th), fz = Math.sin(th);
       for (; k >= 1; k--) {
         const side = Math.random() < 0.5 ? -1 : 1, back = 2.0 + Math.random() * 0.6, lat = side * (0.7 + Math.random() * 0.25);
         const x = cx - fx * back - fz * lat, z = cz - fz * back + fx * lat;
         const kind = Math.random();
         if (kind < 0.55) this.spawn(x, 0.35 + Math.random() * 0.2, z, fx * v * 0.4 + (Math.random() - 0.5) * 4 - fz * side * 2, 1.6 + Math.random() * 2.4, fz * v * 0.4 + (Math.random() - 0.5) * 4 + fx * side * 2,
-          1.1 + Math.random() * 0.8, 3.5 + 5 * w + Math.random() * 2, Math.min(0.6, (0.24 + 0.36 * w) * (0.7 + 0.3 * Math.random())));   // (the plume)
+          1.1 + Math.random() * 0.8, 3.5 + 5 * w + Math.random() * 2, Math.min(0.66, (0.28 + 0.4 * w) * (0.7 + 0.3 * Math.random())));   // (the plume)
         else if (kind < 0.8) this.spawn(x, 0.25, z, fx * v * 0.55 + (Math.random() - 0.5) * 2 - fz * side * 3.5, 0.8 + Math.random(), fz * v * 0.55 + (Math.random() - 0.5) * 2 + fx * side * 3.5,
           0.6 + Math.random() * 0.4, 1.6 + 1.6 * w, Math.min(0.7, 0.3 + 0.35 * w));   // (the rooster tails: low, quick, dense)
         else this.spawn(x - fx * 3, 0.8 + Math.random() * 1.2, z - fz * 3, fx * v * 0.2 + (Math.random() - 0.5) * 2, 0.5 + Math.random() * 0.8, fz * v * 0.2 + (Math.random() - 0.5) * 2,
-          3 + Math.random() * 2.5, 9 + 7 * w + Math.random() * 4, (0.07 + 0.09 * w) * (0.7 + 0.3 * Math.random()));   // (the mist left hanging over the road)
+          3 + Math.random() * 2.5, 9 + 7 * w + Math.random() * 4, (0.08 + 0.11 * w) * (0.7 + 0.3 * Math.random()));   // (the mist left hanging over the road)
       }
       this.acc.set(c, k);
     }
@@ -202095,7 +202133,33 @@ function tpListen(dt, motion = false) {
   // (the subject - in a replay its model, where the record has it)
   const rc = motion ? d.replay?.cars?.[TP.rep?.i] : null, subj = motion ? (rc ? S.meshes.get(rc)?.group.position || null : null) : sh?.car || null;
   if (!inside && subj) { const dx = camera.position.x - subj.x, dz = camera.position.z - subj.z, dd = Math.hypot(dx, dz) || 1; if (dd > 70 || (!motion && k === 'heli')) mic = { x: subj.x + dx / dd * 28, y: (subj.y || 0) + 3, z: subj.z + dz / dd * 28 }; }
-  audio.listen({ cam: camera, cars: S.cars, own, inside, mic, sc: d.sc?.car, engineOf, motion, posOf: motion ? (c) => S.meshes.get(c)?.group.position || null : null, rain: d.weather?.rainAt?.(camera.position.x, camera.position.z) || 0, dt });
+  if (!motion) crowdFrame(dt, d, mic || camera.position, inside);
+  audio.listen({ cam: camera, cars: S.cars, own, inside, mic, sc: d.sc?.car, scWarm: !motion && d.sc?.phase === 'sc', engineOf, motion, posOf: motion ? (c) => S.meshes.get(c)?.group.position || null : null, rain: d.weather?.rainAt?.(camera.position.x, camera.position.z) || 0, dt });
+}
+/**
+ * The crowd and race control's tones (every frame of a race, live): the crowd by the stands near the microphone, its
+ * swells - the lead changing hands, a crash (and its gasp), the restart after a safety car, a place gained for your car,
+ * the flag (the broadcast's moments too: tpMoment); race control's tones as a safety car or a VSC comes out, and ends.
+ */
+const CROWD = { d: null };
+function crowdFrame(dt, d, at, inside) {
+  if (!d || d.mode !== 'race') { audio.crowdUpdate?.(dt, 0, 0, inside); return; }
+  let near = 0; const st = W.stands?.stands;
+  if (st && st.length) { let best = Infinity; for (const s of st) { const dd = Math.hypot(s.x - at.x, s.z - at.z) - (s.len || 40) / 2; if (dd < best) best = dd; } near = Math.max(0, Math.min(1, 1 - best / 220)); }
+  const P = d.positions, lead = P.find((c) => !c.retired), ph = d.sc?.phase || 'green';
+  if (CROWD.d !== d) { CROWD.d = d; CROWD.lead = lead; CROWD.ph = ph; CROWD.out = new Set(d.cars.filter((c) => c.retired)); CROWD.flag = false; CROWD.pos = null; }
+  if (lead && CROWD.lead && lead !== CROWD.lead && d.world.racing && !d.leaderFinished) audio.cheer(0.9);
+  CROWD.lead = lead;
+  if (ph !== CROWD.ph) {
+    if ((ph === 'sc' || ph === 'vsc' || ph === 'red') && CROWD.ph !== ph) audio.alert('out');
+    else if (ph === 'scIn' || ph === 'vscEnd') audio.alert('end');
+    if (ph === 'green' && CROWD.ph !== 'green') audio.cheer(0.7);   // (the restart)
+    CROWD.ph = ph;
+  }
+  for (const c of d.cars) if (c.retired && !CROWD.out.has(c)) { CROWD.out.add(c); if (/accident|crash|collision|rolled|torn|wall/i.test(c.retireReason || '')) { audio.cheer(0.4); audio.gaspAt(near); } }
+  if (d.leaderFinished && !CROWD.flag) { CROWD.flag = true; audio.cheer(1.6); }
+  const p = d.player; if (p && !S.spectating) { const i = P.indexOf(p); if (CROWD.pos != null && i >= 0 && i < CROWD.pos && d.world.racing) audio.cheer(0.35); CROWD.pos = i; }
+  audio.crowdUpdate(dt, d.world.racing || d.leaderFinished ? 0.05 + 0.2 * Math.pow(near, 1.5) : 0.04 + 0.1 * near, near, inside);
 }
 function tpReplayFrame(dt) { if (tpReplayStep(dt) && TP.rep) tpReplayPose(TP.rep); }
 function tpReplayEnd() {
@@ -202148,6 +202212,7 @@ function tpReplays(d, dt) {
  */
 function tpMoment(e) {
   const d = S.director; if (!d || !TP.on || d.mode !== 'race' || !e?.cars?.length) return;
+  if (!TP.skip) audio.cheer?.((e.score || 0) >= 80 ? 0.8 : (e.score || 0) >= 40 ? 0.45 : 0.2);   // (the crowd: an overtake, a spin, a crash - by what it was worth)
   // (not one the skip has stopped for already: its cars in trouble when the skip began - the broadcast's line for a
   //  spin comes a moment after the spin)
   if (TP.skip && e.kind === 'pass' && (e.score || 0) < 60 && e.cars.some((c) => d.time - (TP.skipCool?.get(c) ?? -99) < 30)) { /* (the same fight's pass: on) */ }
@@ -204608,7 +204673,7 @@ function frame(now) {
     if (FINALE.on) { updateFinale(dt); cockpitVisor(p, false); }
     else if (POV.on) povFrame(dt);
     else if (TP.on && p && !PHOTO.on) { tpCamera(dt); tpListen(dt); audioLive = true; }   // (the team principal's race: the world feed - camera/TVDirector.js)
-    else if (p && !PHOTO.on) { if (crashCam.on) crashCam.update(dt, dt * crashCam.timeScale); else camCtl.update(p, dt, W.track); cockpitVisor(p, camCtl.mode === 'cockpit' && !crashCam.on && !d.done); hud.update(p, { mode: d.mode, lapsTotal: d.lapsTotal, positions: d.positions, time: d.time, qualiStarted: d.qualiStarted, sectors: d.sectors, delta: (c) => d.telemetry?.liveDelta(c, d.time), sc: d.sc?.hudState(), gap: (a, b) => d.radio?.gap(a, b), drs: (c) => d.drs?.state(c) }, dt); hud.drawMinimap(S.cars, p); audio.listen({ cam: camera, cars: S.cars, own: p, inside: !crashCam.on && (camCtl.mode === 'cockpit' || camCtl.mode === 'tcam'), sc: d.sc?.car, engineOf, rain: d.weather?.rainAt?.(camera.position.x, camera.position.z) || 0, dt }); audioLive = true; }   // (every car near you heard: audio/Audio.js listen)
+    else if (p && !PHOTO.on) { if (crashCam.on) crashCam.update(dt, dt * crashCam.timeScale); else camCtl.update(p, dt, W.track); cockpitVisor(p, camCtl.mode === 'cockpit' && !crashCam.on && !d.done); hud.update(p, { mode: d.mode, lapsTotal: d.lapsTotal, positions: d.positions, time: d.time, qualiStarted: d.qualiStarted, sectors: d.sectors, delta: (c) => d.telemetry?.liveDelta(c, d.time), sc: d.sc?.hudState(), gap: (a, b) => d.radio?.gap(a, b), drs: (c) => d.drs?.state(c) }, dt); hud.drawMinimap(S.cars, p); crowdFrame(dt, d, camera.position, !crashCam.on && (camCtl.mode === 'cockpit' || camCtl.mode === 'tcam')); audio.listen({ cam: camera, cars: S.cars, own: p, inside: !crashCam.on && (camCtl.mode === 'cockpit' || camCtl.mode === 'tcam'), sc: d.sc?.car, scWarm: d.sc?.phase === 'sc', engineOf, rain: d.weather?.rainAt?.(camera.position.x, camera.position.z) || 0, dt }); audioLive = true; }   // (every car near you heard: audio/Audio.js listen)
     else if (p && PHOTO.hud) { hud.update(p, { mode: d.mode, lapsTotal: d.lapsTotal, positions: d.positions, time: d.time, qualiStarted: d.qualiStarted, sectors: d.sectors, delta: (c) => d.telemetry?.liveDelta(c, d.time), sc: d.sc?.hudState(), gap: (a, b) => d.radio?.gap(a, b), drs: (c) => d.drs?.state(c) }, dt); hud.drawMinimap(S.cars, p); }
   } else if (d && hud.pit.open && p) {
     hud.update(p, { mode: d.mode, lapsTotal: d.lapsTotal, positions: d.positions, time: d.time, qualiStarted: d.qualiStarted, sectors: d.sectors, delta: (c) => d.telemetry?.liveDelta(c, d.time), sc: d.sc?.hudState(), gap: (a, b) => d.radio?.gap(a, b), drs: (c) => d.drs?.state(c) }, dt);
