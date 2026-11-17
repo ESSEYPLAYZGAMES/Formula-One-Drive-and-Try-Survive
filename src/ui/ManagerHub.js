@@ -94,6 +94,8 @@ function render() {
   if (!c) { const T = (H.o.teams || []).find((t) => t.name === H.nc.team); themeApply(el, T?.name || null, T?.color || '#e10600', T?.color2); topNew(); stage(newHTML()); toast(); return; }
   themeApply(el, c.myTeam, c.team.color, c.team.color2);
   top(c); rail(); stage(body(c)); toast(); mailMark(el, c);
+  // (the scenes waiting to be played - those that come up as you go round the HQ - made ready while you read: they start at once)
+  if (H.o.prepare) { clearTimeout(H.prepT); H.prepT = setTimeout(() => { try { for (const m of inboxOf(c).filter((x) => !x.played && !x.done && x.scene).slice(0, 2)) H.o.prepare(m.scene, m.ctx); } catch (e) { /* played from scratch */ } }, 700); }
   el.querySelector('.q-theme').innerHTML = themeHTML(c.myTeam, c.team.color, c.team.color2);
 }
 /** the bar: the team, the season, the four figures (a figure that has changed counts to its new value), the weekend */

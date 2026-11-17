@@ -602,7 +602,7 @@ body.tp #hud-msg { top: 30%; }
     <div class="brand-line"></div>
     <h1 id="brand-title">FORMULA 1<span id="brand-sub">SIMULATOR</span></h1>
     <!-- the build's version: +0.01 with every build handed out -->
-    <span id="app-ver" title="Version">V2.77</span>
+    <span id="app-ver" title="Version">V2.78</span>
     <div id="menu-sub">Real circuits built from OpenStreetMap</div>
   </div>
   <div id="loading" class="hidden"><div class="ld"><i></i></div><span>Building the circuit from OpenStreetMap…</span></div>
@@ -107279,6 +107279,11 @@ html.m-off #loader.off { transform: none; }
 #loader.ld-w .ld-map canvas, #loader.ld-w .ld-barc { display: block; }
 #loader.ld-w .ld-map .run, #loader.ld-w .ld-map .head { display: none; }
 #loader.ld-w .ld-bar { overflow: visible; background: none; } #loader.ld-w .ld-bar i { display: none; }
+/* (the figure drawn by the worker too, with the bar and the line: the page's own number could not change while the build held the page - the bar ran on to 94 %, the figure said 0) */
+#loader .ld-fig { font-style: normal; }
+#loader .ld-stage b { position: relative; display: inline-block; min-width: 5ch; text-align: right; }
+#loader .ld-figc { display: none; position: absolute; right: -6px; top: -6px; width: calc(100% + 12px); height: calc(100% + 12px); pointer-events: none; }
+#loader.ld-w.ld-wf .ld-figc { display: block; } #loader.ld-w.ld-wf .ld-stage b { color: transparent; text-shadow: none; }
 `.replaceAll("'Segoe UI', Arial, sans-serif", "var(--k-font, 'Segoe UI', Arial, sans-serif)").replaceAll("'Segoe UI', Arial;", "var(--k-font, 'Segoe UI', Arial, sans-serif);");
 
 /** true things about the circuits and the sport (checked), and the game's own keys */
@@ -107365,13 +107370,15 @@ function mapSVG(id) {
  * the figure in the corner.
  */
 const PROG = `
-let map = null, bar = null, mc = null, bc = null, pts = [], cum = [0], total = 1, vb = [0, 0, 1, 1], dpr = 1;
+let fig = null, fc = null, figDrawn = -1, map = null, bar = null, mc = null, bc = null, pts = [], cum = [0], total = 1, vb = [0, 0, 1, 1], dpr = 1;
 let target = 0, shown = 0, vel = 0, tT = 0, last = 0, drawn = -1, posted = 0, dirty = true;
 const raf = self.requestAnimationFrame ? (f) => self.requestAnimationFrame(f) : (f) => setTimeout(() => f(performance.now()), 16);
 onmessage = (e) => {
   const m = e.data;
   if (m.map) { map = m.map; mc = map.getContext('2d'); pts = m.pts; vb = m.vb; cum = [0]; for (let i = 1; i <= pts.length; i++) { const a = pts[i - 1], b = pts[i % pts.length]; cum.push(cum[i - 1] + Math.hypot(b[0] - a[0], b[1] - a[1])); } total = cum[cum.length - 1] || 1; }
   if (m.bar) { bar = m.bar; bc = bar.getContext('2d'); }
+  if (m.fig) { fig = m.fig; fc = fig.getContext('2d'); }
+  if (m.figSize && fig) { fig.width = m.figSize[0]; fig.height = m.figSize[1]; figDrawn = -1; dirty = true; }
   if (m.dpr) dpr = m.dpr;
   if (m.mapSize && map) { map.width = m.mapSize[0]; map.height = m.mapSize[1]; dirty = true; }
   if (m.barSize && bar) { bar.width = m.barSize[0]; bar.height = m.barSize[1]; dirty = true; }
@@ -107379,6 +107386,14 @@ onmessage = (e) => {
 };
 function draw() {
   const f = Math.max(0, Math.min(1, shown / 100));
+  // (the figure: the same value as the bar and the line, drawn with them)
+  if (fc && fig.width > 2 && Math.round(shown) !== figDrawn) {
+    figDrawn = Math.round(shown); const W = fig.width, H = fig.height, pad = 6 * dpr;
+    fc.setTransform(1, 0, 0, 1, 0, 0); fc.clearRect(0, 0, W, H);
+    fc.font = '600 ' + (11 * dpr) + 'px "Segoe UI", Roboto, Arial, sans-serif'; try { fc.letterSpacing = (1.5 * dpr) + 'px'; } catch (e) { /* old */ }
+    fc.textAlign = 'right'; fc.textBaseline = 'middle'; fc.shadowColor = 'rgba(35,229,255,.65)'; fc.shadowBlur = 12 * dpr; fc.fillStyle = '#fff';
+    fc.fillText(figDrawn + '%', W - pad, H / 2 + 0.5 * dpr);
+  }
   if (mc && map.width > 2) {
     const W = map.width, H = map.height, s = Math.min(W / vb[2], H / vb[3]), ox = (W - vb[2] * s) / 2 - vb[0] * s, oy = (H - vb[3] * s) / 2 - vb[1] * s, len = total * f;
     mc.setTransform(1, 0, 0, 1, 0, 0); mc.clearRect(0, 0, W, H); mc.setTransform(s, 0, 0, s, ox, oy);
@@ -107406,8 +107421,9 @@ function draw() {
 }
 function step(now) {
   const dt = Math.min(0.05, Math.max(0, (now - (last || now)) / 1000)); last = now;
-  const end = target >= 100, idle = (now - tT) / 1000, creep = end || target <= 0 ? 0 : Math.min(4.5, 0.9 * idle);
-  const goal = Math.max(shown, end ? 100 : Math.min(99, target + creep)), k = end ? 70 : 20, c = 2 * Math.sqrt(k);
+  // (to the figure it has been told and no further - it used to creep on past it while the next was awaited, and the bar
+  //  said more than had been done. A critically damped spring: away from rest, quickest in the middle, easing in)
+  const end = target >= 100, goal = Math.max(shown, end ? 100 : target), k = end ? 70 : 20, c = 2 * Math.sqrt(k);
   vel += (k * (goal - shown) - c * vel) * dt; if (vel < 0) vel = 0;
   shown = Math.min(goal, shown + vel * dt); if (end && goal - shown < 0.3) shown = goal;
   if (dirty || Math.abs(shown - drawn) > 0.02) { draw(); drawn = shown; dirty = false; }
@@ -107423,14 +107439,15 @@ function progress(el, track, fig) {
     if (reduced() || typeof Worker === 'undefined' || !bcv || typeof bcv.transferControlToOffscreen !== 'function') return null;
     const url = URL.createObjectURL(new Blob([PROG], { type: 'text/javascript' })), w = new Worker(url), dpr = Math.min(2, window.devicePixelRatio || 1), P = 76;
     el.classList.add('ld-w');   // (its canvases shown - they are measured next - and the page's own line and bar put away)
-    const sizes = () => { const m = { dpr }; if (cv && box) { const r = box.getBoundingClientRect(); if (r.width > 4 && r.height > 4) m.mapSize = [Math.round(r.width * dpr), Math.round(r.height * dpr)]; } const b = bcv.getBoundingClientRect(); if (b.width > 4) m.barSize = [Math.round(b.width * dpr), Math.round(b.height * dpr)]; return m; };
+    const sizes = () => { const m = { dpr }; if (cv && box) { const r = box.getBoundingClientRect(); if (r.width > 4 && r.height > 4) m.mapSize = [Math.round(r.width * dpr), Math.round(r.height * dpr)]; } const fz = el.querySelector('.ld-figc')?.getBoundingClientRect(); if (fz && fz.width > 4) m.figSize = [Math.round(fz.width * dpr), Math.round(fz.height * dpr)]; const b = bcv.getBoundingClientRect(); if (b.width > 4) m.barSize = [Math.round(b.width * dpr), Math.round(b.height * dpr)]; return m; };
     const init = { dpr }, give = [];
     if (M && cv && box) { const o = cv.transferControlToOffscreen(); init.map = o; init.pts = M.pts; init.vb = [-P, -P, M.w + 2 * P, M.h + 2 * P]; give.push(o); }
     { const o = bcv.transferControlToOffscreen(); init.bar = o; give.push(o); }
+    const fcv = el.querySelector('.ld-figc'); if (fcv && typeof fcv.transferControlToOffscreen === 'function') { const o = fcv.transferControlToOffscreen(); init.fig = o; give.push(o); el.classList.add('ld-wf'); }
     w.postMessage(init, give); w.postMessage(sizes());
     const P0 = { w, url, ro: null, dead: false };
     w.onmessage = (e) => { if (!P0.dead && fig && e.data && e.data.shown != null) fig.textContent = `${Math.round(e.data.shown)}%`; };
-    w.onerror = () => { P0.dead = true; el.classList.remove('ld-w'); try { w.terminate(); } catch (e) { /* gone */ } };   // (it would not start - a browser that will not run a worker from the page itself: the page draws the progress)
+    w.onerror = () => { P0.dead = true; el.classList.remove('ld-w', 'ld-wf'); try { w.terminate(); } catch (e) { /* gone */ } };   // (it would not start - a browser that will not run a worker from the page itself: the page draws the progress)
     if (typeof ResizeObserver !== 'undefined') { P0.ro = new ResizeObserver(() => { if (!P0.dead) w.postMessage(sizes()); }); if (box) P0.ro.observe(box); P0.ro.observe(bcv); }
     return P0;
   } catch (e) { el.classList.remove('ld-w'); return null; }
@@ -107470,11 +107487,11 @@ const Loader = {
           ${o.news?.length ? `<div class="ld-news"><h4>LATEST</h4>${o.news.slice(0, 4).map((n, i) => `<div class="ld-item" style="animation-delay:${0.45 + i * 0.12}s;${n.color ? `--c:${esc(n.color)}` : ''}">${n.tag ? `<small>${esc(n.tag)}</small>` : ''}${esc(n.text)}</div>`).join('')}</div>` : ''}
         </div>
         <div class="ld-main"><div class="ld-kick">${esc(o.kicker || '')}</div><h1>${esc(GP[o.track] || o.title || 'Grand Prix').replace(/ (Grand Prix)$/, ' <span>$1</span>')}</h1><div class="ld-sub">${(o.sub || []).filter(Boolean).map((s) => `<span>${esc(s)}</span>`).join('')}</div><div class="ld-err"></div></div>
-        <div class="ld-foot"><div class="ld-row"><div class="ld-fact"></div><div class="ld-cap"></div></div><div class="ld-bar"><i></i><canvas class="ld-barc"></canvas></div><div class="ld-stage"><span>Getting ready</span><b>0%</b></div></div>
+        <div class="ld-foot"><div class="ld-row"><div class="ld-fact"></div><div class="ld-cap"></div></div><div class="ld-bar"><i></i><canvas class="ld-barc"></canvas></div><div class="ld-stage"><span>Getting ready</span><b><i class="ld-fig">0%</i><canvas class="ld-figc"></canvas></b></div></div>
       </div>`;
     document.body.appendChild(el);
     L = { el, t0: performance.now(), slides: [], k: -1, timers: [], urls: [], pct: 0, shown: 0, raf: 0, prog: null };
-    L.prog = progress(el, o.track, el.querySelector('.ld-stage b'));
+    L.prog = progress(el, o.track, el.querySelector('.ld-stage .ld-fig'));
     document.body.dataset.loader = 'on';
     requestAnimationFrame(() => el.classList.add('on')); setTimeout(() => el.classList.add('on'), 30);
     // (opaque once the 260 ms fade has played, from the frame it began on)
@@ -107521,12 +107538,12 @@ const Loader = {
     if (pct != null) L.pct = Math.max(L.pct, pct);
     L.el.querySelector('.ld-stage span').textContent = text || '';
     if (L.prog && !L.prog.dead) { L.prog.w.postMessage({ pct: L.pct }); return; }   // (the worker runs up to it)
-    if (!L.raf) { const mine = L, tick = () => { if (L !== mine) return; const d = mine.pct - mine.shown; mine.shown = Math.abs(d) < 0.05 ? mine.pct : mine.shown + d * 0.18; this._draw(mine); mine.raf = mine.shown !== mine.pct ? requestAnimationFrame(tick) : 0; }; L.raf = requestAnimationFrame(tick); }
+    if (!L.raf) { const mine = L; let last = performance.now(); mine.vel = mine.vel || 0; const tick = (now) => { if (L !== mine) return; const dt = Math.min(0.05, Math.max(0, (now - last) / 1000)); last = now; const k = mine.pct >= 100 ? 70 : 20; mine.vel += (k * (mine.pct - mine.shown) - 2 * Math.sqrt(k) * mine.vel) * dt; if (mine.vel < 0) mine.vel = 0; mine.shown = Math.min(mine.pct, mine.shown + mine.vel * dt); if (mine.pct - mine.shown < 0.05) { mine.shown = mine.pct; mine.vel = 0; } this._draw(mine); mine.raf = mine.shown !== mine.pct ? requestAnimationFrame(tick) : 0; }; L.raf = requestAnimationFrame(tick); }
     if (pct >= 100) { L.shown = L.pct; this._draw(L); }
   },
   _draw(l) {
     const f = Math.min(1, l.shown / 100);
-    l.el.querySelector('.ld-stage b').textContent = `${Math.round(l.shown)}%`;
+    l.el.querySelector('.ld-stage .ld-fig').textContent = `${Math.round(l.shown)}%`;
     l.el.querySelector('.ld-bar i').style.transform = `scaleX(${f.toFixed(4)})`;
     // (the map: the red line round the lap as far as the bar, its head at the end of it - the same fraction of the lap)
     const run = l.el.querySelector('.ld-map .run'), trk = l.el.querySelector('.ld-map .trk'), head = l.el.querySelector('.ld-map .head');
@@ -147551,13 +147568,17 @@ class TVDirector {
       //  and then its twin looking down the road after them. Nothing is asked of the walls and fences: it is inside
       //  them, on the road's own edge. The next corner within reach - further when the kerb camera is the one asked
       //  for - or a trackside camera instead.)
-      let s0 = null, side = 1; const reach = this.camKind === 'kerb' ? 720 : 330;
-      for (let ds = 45; ds < reach; ds += 12) { const i = tr.idxAtS(tr.wrapS(subject.s + ds)); if (!tr.inCornerZone(i)) continue; let e = ds; while (e < ds + 220 && tr.inCornerZone(tr.idxAtS(tr.wrapS(subject.s + e)))) e += 12; const sm = tr.wrapS(subject.s + (ds + e) / 2), im = tr.idxAtS(sm), n = tr.n, a = (im - 6 + n) % n, b = (im + 6) % n; side = (tr.tx[b] - tr.tx[a]) * tr.nx[im] + (tr.tz[b] - tr.tz[a]) * tr.nz[im] > 0 ? 1 : -1; s0 = sm; break; }
+      let s0 = null, sE = null, side = 1; const reach = this.camKind === 'kerb' ? 720 : 330;
+      for (let ds = 45; ds < reach; ds += 12) { const i = tr.idxAtS(tr.wrapS(subject.s + ds)); if (!tr.inCornerZone(i)) continue; let e = ds; while (e < ds + 220 && tr.inCornerZone(tr.idxAtS(tr.wrapS(subject.s + e)))) e += 12; const sm = tr.wrapS(subject.s + (ds + e) / 2), im = tr.idxAtS(sm), n = tr.n, a = (im - 6 + n) % n, b = (im + 6) % n; side = (tr.tx[b] - tr.tx[a]) * tr.nx[im] + (tr.tz[b] - tr.tz[a]) * tr.nz[im] > 0 ? 1 : -1; s0 = sm; sE = e - ds > 30 ? tr.wrapS(subject.s + e - 10) : null; break; }
+      // (STATIC: one place, one aim, one lens, the whole shot - in the kerb the car is about to run over: the apex kerb
+      //  on the inside, or (every other time) the exit kerb on the outside where the corner opens out - looking back up
+      //  the road at the car coming over it. It used to zoom with the car and then swing round after it)
       if (s0 != null) {
-        const i = tr.idxAtS(s0), wK = barD(tr, ctx.pit, i, side), edge = tr.edgeAt ? tr.edgeAt(i, side) : wK - 2, off = side * Math.min(wK - 0.5, edge + (tr.kerbWidth || 1) * 0.3), f = tr.sample(s0, off);
-        const a = tr.sample(tr.wrapS(s0 - 28), off * 0.7), b = tr.sample(tr.wrapS(s0 + 28), off * 0.7);   // (along its own side of the road, tipped up a little: the cars come through the middle of the picture, the horizon under it)
-        sh.s0 = s0; sh.side = side; sh.kerb = true; sh.pos = new THREE.Vector3(f.x, G(f.x, f.z) + 0.3, f.z);
-        sh.lookA = new THREE.Vector3(a.x, G(a.x, a.z) + 2.7, a.z); sh.lookB = new THREE.Vector3(b.x, G(b.x, b.z) + 2.7, b.z); sh.dur = 15;
+        const exit = (this.cuts & 1) === 1 && sE != null, sK = exit ? sE : s0, sd = exit ? -side : side;
+        const i = tr.idxAtS(sK), wK = barD(tr, ctx.pit, i, sd), edge = tr.edgeAt ? tr.edgeAt(i, sd) : wK - 2, off = sd * Math.min(wK - 0.5, edge + (tr.kerbWidth || 1) * 0.3), f = tr.sample(sK, off);
+        const a = tr.sample(tr.wrapS(sK - (exit ? 34 : 30)), off * 0.35);   // (up the road, toward the middle of it: the car comes through the picture and over the lens)
+        sh.s0 = sK; sh.side = sd; sh.kerb = true; sh.kerbExit = exit; sh.pos = new THREE.Vector3(f.x, G(f.x, f.z) + 0.3, f.z);
+        sh.lookA = new THREE.Vector3(a.x, G(a.x, a.z) + 1.5, a.z); sh.dur = 15;
       }
       if (!sh.pos) { kind = 'track'; sh.kind = 'track'; } else sh.kind = 'track';   // (placed: from here it is a trackside camera, a fixed one)
     }
@@ -147762,9 +147783,9 @@ class TVDirector {
       //  between two cameras - and the shot ends a second and a half on)
       if (sh.kerb) {
         const L = ctx.track.length; let ds = car.s - sh.s0; if (ds > L / 2) ds -= L; if (ds < -L / 2) ds += L;
-        if (ds > 1.2 && sh.pastT == null) { sh.pastT = sh.t; this._lookInit = false; }
-        tgt.copy(sh.pastT != null ? sh.lookB : sh.lookA); fov = 72;
-        if (sh.pastT != null) sh.dur = Math.min(sh.dur, sh.pastT + 1.6); else if (ds < -900 || sh.t > 14) sh.dur = Math.min(sh.dur, sh.t);
+        if (ds > 1.2 && sh.pastT == null) sh.pastT = sh.t;
+        tgt.copy(sh.lookA); fov = 62;   // (never moves: not the aim, not the lens)
+        if (sh.pastT != null) sh.dur = Math.min(sh.dur, sh.pastT + 1.2); else if (ds < -900 || sh.t > 14) sh.dur = Math.min(sh.dur, sh.t);
       } else
       if (sh.other) {
         // (two cars: the picture's middle is half way between them and it is as wide as they are apart, with room
@@ -147840,12 +147861,13 @@ class TVDirector {
     if (!this._lookInit || (cutNow && !sh.heliCont)) { this._look.copy(tgt); this._lookInit = true; }   // (the same flight carried on into a new shot: the aim carries on too)
     else {
       _mv.set(car.x - this._sub0.x, carY + 0.7 - this._sub0.y, car.z - this._sub0.z);
-      if (this._subCar === car && _mv.lengthSq() < 60 * 60) this._look.add(_mv);
+      const follows = !sh.view && !sh.kerb && sh.kind !== 'grid' && !TV_AWAY.has(sh.kind);   // (a fixed view - the kerb's, a cutaway's, the grid's - looks where it looks)
+      if (follows && this._subCar === car && _mv.lengthSq() < 60 * 60) this._look.add(_mv);
       this._look.lerp(tgt, 1 - Math.exp(-dt * (sh.kind === 'heli' ? 2.2 : 3.2)));
     }
     this._sub0.set(car.x, carY + 0.7, car.z); this._subCar = car; this._tgt0.copy(tgt);
     cam.up.set(0, 1, 0); cam.lookAt(this._look);
-    if (Math.abs(cam.fov - fov) > 0.01) { cam.fov += (fov - cam.fov) * Math.min(1, dt * (sh.t < 0.05 && !(sh.kind === 'heli' && this.heliLook) ? 99 : sh.kind === 'heli' ? 1.3 : fov > cam.fov ? 5 : 2.2)); cam.updateProjectionMatrix(); }   /* (the trackside lens opens quickly - a car coming past must not outgrow the picture - and closes in slowly) */   // (the helicopter's zoom is slow: the car grows and shrinks in the picture as it pulls away and is caught)
+    if (Math.abs(cam.fov - fov) > 0.01) { cam.fov += (fov - cam.fov) * Math.min(1, dt * (sh.kerb || sh.t < 0.05 && !(sh.kind === 'heli' && this.heliLook) ? 99 : sh.kind === 'heli' ? 1.3 : fov > cam.fov ? 5 : 2.2)); cam.updateProjectionMatrix(); }   /* (the trackside lens opens quickly - a car coming past must not outgrow the picture - and closes in slowly) */   // (the helicopter's zoom is slow: the car grows and shrinks in the picture as it pulls away and is caught)
   }
 }
 
@@ -153871,6 +153893,8 @@ function render() {
   if (!c) { const T = (H.o.teams || []).find((t) => t.name === H.nc.team); themeApply(el, T?.name || null, T?.color || '#e10600', T?.color2); topNew(); stage(newHTML()); toast(); return; }
   themeApply(el, c.myTeam, c.team.color, c.team.color2);
   top(c); rail(); stage(body(c)); toast(); mailMark(el, c);
+  // (the scenes waiting to be played - those that come up as you go round the HQ - made ready while you read: they start at once)
+  if (H.o.prepare) { clearTimeout(H.prepT); H.prepT = setTimeout(() => { try { for (const m of inboxOf(c).filter((x) => !x.played && !x.done && x.scene).slice(0, 2)) H.o.prepare(m.scene, m.ctx); } catch (e) { /* played from scratch */ } }, 700); }
   el.querySelector('.q-theme').innerHTML = themeHTML(c.myTeam, c.team.color, c.team.color2);
 }
 /** the bar: the team, the season, the four figures (a figure that has changed counts to its new value), the weekend */
@@ -154612,7 +154636,81 @@ const V = (a) => new THREE.Vector3(a[0], a[1], a[2]);
 /** what a subtitle needs to be read (s) */
 // (a line's time on the screen: read once, at a reader's pace - it was 1.1 s and 0.3 s a word, which is being read aloud
 //  to; a shot held for it sat still while the line was read three times)
-const readTime = (s) => Math.max(1.2, 0.45 + String(s || '').split(/\s+/).length * 0.155);
+// (and a third shorter again: the scenes' talk sat a beat too long on every line - asked for, 1.5x too long)
+const readTime = (s) => Math.max(0.8, 0.3 + String(s || '').split(/\s+/).length * 0.103);
+
+/**
+ * The one renderer every scene draws with, kept between them (it was made for each scene and thrown away after - the
+ * context, every shader compiled again: the wait before each scene). Its canvas is put into the scene's overlay.
+ */
+let SHR = null;
+function sharedR() {
+  if (SHR && !SHR.lost) return SHR;
+  const cv = document.createElement('canvas'), R = new THREE.WebGLRenderer({ canvas: cv, antialias: true, powerPreference: 'high-performance' });
+  R.toneMapping = THREE.ACESFilmicToneMapping; R.shadowMap.type = THREE.PCFSoftShadowMap;
+  SHR = { R, cv, lost: false }; cv.addEventListener('webglcontextlost', () => { if (SHR && SHR.cv === cv) SHR.lost = true; });
+  return SHR;
+}
+/**
+ * A scene's stage: its scene, camera and kit made now; its set built and its shaders compiled (without holding the page
+ * up: compileAsync) in .ready -> { shots, choice, browse }. Made when the scene is asked for - or before (cinePrepare),
+ * so that it starts at once.
+ */
+function stageOf(def, o) {
+  const { R } = sharedR(); R.shadowMap.enabled = !o.lite;
+  const S = new THREE.Scene(); S.background = new THREE.Color(def.bg || '#07080b'); if (def.fog) S.fog = new THREE.Fog(def.fogColor || def.bg || '#07080b', def.fog[0], def.fog[1]);
+  const cam = new THREE.PerspectiveCamera(30, 16 / 9, 0.1, 320);   // (the depth buffer's precision is the near plane's: at 0.05 things two centimetres apart fought at the far end of a room)
+  const k = makeKit(R, S, cam, def, o);
+  // (a lamp by the lens: a little light on whatever the shot looks at, so a face in a dim room still reads)
+  const eye = new THREE.PointLight(0xfff4e8, 0, 0, 2); S.add(eye);
+  const st = { S, cam, k, eye, def, o, used: false };
+  st.ready = (async () => {
+    if (def.needsCar && !carModel()) await loadCarModel().catch(() => {});
+    await new Promise((r) => setTimeout(r, 20));
+    const out = def.build(k, o.ctx || {}) || {};
+    const shots = (out.shots || []).filter(Boolean); if (!shots.length && !out.browse) throw new Error('no shots');
+    R.shadowMap.enabled = !o.lite;
+    try { if (R.compileAsync) await R.compileAsync(S, cam); else R.compile(S, cam); } catch (e) { /* compiled as drawn */ }
+    return { shots, choice: out.choice || def.choice || null, browse: out.browse || null };
+  })();
+  st.ready.catch(() => {});
+  return st;
+}
+const PREP = new Map();
+/** a scene made ready before it is played (key: what it is - CineIndex.js): the set built, the shaders compiled */
+function cinePrepare(key, def, o = {}) {
+  if (PREP.has(key)) return PREP.get(key);
+  if (PREP.size >= 3) { const [k0, v0] = PREP.entries().next().value; PREP.delete(k0); v0.ready.then(() => { if (!v0.used) v0.k._dispose(); }, () => {}); }
+  let st = null; try { st = stageOf(def, o); } catch (e) { return null; }
+  PREP.set(key, st); return st;
+}
+/** a prepared scene taken to be played (null: none ready for that key) */
+function cineTake(key) { const st = PREP.get(key) || null; if (st) PREP.delete(key); return st; }
+/** the cutscenes made ready to start without a wait: the renderer, the car's model (in the menus, before any scene) */
+function cineWarm() { try { sharedR(); } catch (e) { return; } if (!carModel()) loadCarModel().catch(() => {}); }
+/**
+ * The edit: a scene as few pictures as tell it. Every shot with words, a question or a moment to catch is kept; of the
+ * shots with nothing said, ONE (three seconds) - the first that is not the same thing again; never two angles of one
+ * thing: a shot looking where the shot before looked is left out, and a line said to the same place as the line
+ * before is said in that shot. (The scenes were written as many angles of each moment: a dozen shots to sit through
+ * for a line or two.) A shot left out still does what it does to the set (its on) as the next one starts.
+ */
+function edit(list) {
+  const talk = (s) => !!(s.sub || s.ask || s.qte || s.low), L = (s) => (s.l ? new THREE.Vector3(s.l[0], s.l[1], s.l[2]) : null);
+  const out = [], pend = []; let vis = 0, last = null;
+  for (const s of list) {
+    const l = L(s), same = !!(l && last && l.distanceTo(last.l || l) < 3 && last.l);
+    if (talk(s)) {
+      const prev = out[out.length - 1];
+      if (prev && talk(prev) && same && !s.ask && !s.qte && !s.when && !prev.ask && !prev.qte && !prev.when && !s.cut) { (prev._more || (prev._more = [])).push(s); continue; }
+      if (pend.length) s._pre = pend.splice(0); out.push(s); last = { l }; continue;
+    }
+    if (s.card || vis >= 1 || same) { pend.push(s); continue; }
+    vis++; s._vis = true; if (pend.length) s._pre = pend.splice(0); out.push(s); last = { l };
+  }
+  if (!out.length) { const s = list.find((x) => !x.card) || list[0]; if (s) { s._vis = true; out.push(s); } }
+  return out;
+}
 
 /**
  * Play a scene. def: { id, kicker, title, sub (the title card), accent, grade, bg, fog: [near, far], exposure,
@@ -154634,27 +154732,24 @@ function playCine(def, o = {}) {
     ensureMotion();
     if (!document.getElementById('cine-css')) { const st = document.createElement('style'); st.id = 'cine-css'; st.textContent = CSS; document.head.appendChild(st); }
     const el = document.createElement('div'); el.id = 'cine'; el.style.setProperty('--acc', def.accent || '#e10600');
-    el.innerHTML = `<canvas></canvas><div class="vig"></div><div class="hud"><div class="tl"></div><div class="tr"></div><div class="bl"></div></div><div class="fade"></div><div class="bar t"></div><div class="bar b"></div>
+    el.innerHTML = `<div class="vig"></div><div class="hud"><div class="tl"></div><div class="tr"></div><div class="bl"></div></div><div class="fade"></div><div class="bar t"></div><div class="bar b"></div>
       <div class="card"><small></small><b></b><span></span></div><div class="ttl"><small></small><b></b><span></span></div><div class="low"><b></b><span></span></div><div class="plq"><small></small><b></b><p></p></div><div class="sub"><i></i><p></p></div>
       <div class="choice"><h4></h4><div class="ops"></div></div><div class="ask"><h4></h4><div class="ops"></div><div class="tm"><i></i></div></div><div class="qte"><b></b><div class="trk"><div class="zone"></div><div class="fill"></div><div class="mk"></div></div><span class="res"></span></div><div class="nav"><button data-n="-1">◂</button><span></span><button data-n="1">▸</button><button data-n="0">LEAVE</button></div>
       <div class="prog"></div><button class="skip">SKIP ▸</button>`;
     document.body.appendChild(el);
-    const $ = (s) => el.querySelector(s), cv = $('canvas');
+    const $ = (s) => el.querySelector(s);
     const end = (res) => { if (!LIVE) return; LIVE = null; window.__cine = null; resolve(res); };
-    let R; try { R = new THREE.WebGLRenderer({ canvas: cv, antialias: true, powerPreference: 'high-performance' }); } catch (e) { el.remove(); resolve({ skipped: true, failed: true }); return; }
+    // (the one renderer, kept between scenes; the stage made ready before if it was - cinePrepare - else now)
+    let ST; try { ST = o.stage || stageOf(def, o); } catch (e) { el.remove(); resolve({ skipped: true, failed: true }); return; }
+    ST.used = true; const R = SHR.R, cv = SHR.cv; el.insertBefore(cv, el.firstChild);
     LIVE = { id: def.id };
-    R.setPixelRatio(Math.min(o.lite ? 1 : 1.5, devicePixelRatio || 1)); R.toneMapping = THREE.ACESFilmicToneMapping; R.toneMappingExposure = def.exposure ?? 1.0;
-    R.shadowMap.enabled = !o.lite; R.shadowMap.type = THREE.PCFSoftShadowMap;
-    const S = new THREE.Scene(); S.background = new THREE.Color(def.bg || '#07080b'); if (def.fog) S.fog = new THREE.Fog(def.fogColor || def.bg || '#07080b', def.fog[0], def.fog[1]);
-    const cam = new THREE.PerspectiveCamera(30, 16 / 9, 0.1, 320);   // (the depth buffer's precision is the near plane's: at 0.05 things two centimetres apart fought at the far end of a room)
-    const k = makeKit(R, S, cam, def, o);
+    R.setPixelRatio(Math.min(o.lite ? 1 : 1.5, devicePixelRatio || 1)); R.toneMappingExposure = def.exposure ?? 1.0; R.shadowMap.enabled = !o.lite;
+    const { S, cam, k, eye } = ST;
     // the lens: a shallow depth of field (what the shot looks at is sharp, the room behind it soft) - not on a light
     // machine's setting, nor where the passes cannot be made
     let comp = null, bokeh = null, glow = null;
     if (!o.lite && def.dof !== false) { try { comp = new EffectComposer(R, new THREE.WebGLRenderTarget(2, 2, { type: THREE.HalfFloatType, samples: 4 })); comp.addPass(new RenderPass(S, cam));   /* (its own target smoothed: edges through the lens as clean as without it) */ bokeh = new BokehPass(S, cam, { focus: 5, aperture: 0.0008, maxblur: 0.007 }); comp.addPass(bokeh); try { glow = new GlowPass(def.glow ?? 0.5, 3.0); comp.addPass(glow); } catch (e) { glow = null; } comp.addPass(new OutputPass()); } catch (e) { comp = null; bokeh = null; } }
     const focusAt = new THREE.Vector3();
-    // (a lamp by the lens: a little light on whatever the shot looks at, so a face in a dim room still reads)
-    const eye = new THREE.PointLight(0xfff4e8, 0, 0, 2); S.add(eye);
     const draw = (sh) => {
       if (!comp) { R.render(S, cam); return; }
       // (sharp at what the shot looks at, or at its own focus - pulled from one subject to another over the shot;
@@ -154678,6 +154773,17 @@ function playCine(def, o = {}) {
       cam.aspect = w / h;
     };
     const subs = (sh) => (sh.sub ? [].concat(sh.sub) : []);
+    /** a shot's lines (its own, and those of the shots said in it - edit) */
+    const subsOf = (sh) => [sh, ...(sh._more || [])].flatMap((x) => [].concat((typeof x.sub === 'function' ? x.sub(res) : x.sub) || [])).filter(Boolean);
+    /** how long a shot is: its lines read once and a beat; a picture with nothing said, three seconds; a question or a
+     *  moment to catch, as long as they need */
+    const durOf = (sh) => {
+      const L = sh === shots[i] && sh._subs ? sh._subs : subsOf(sh), rd = L.reduce((a, x) => a + readTime(x.text), 0);
+      let d = L.length ? Math.max(1.3, rd + 0.25) : sh.card ? 1.6 : 3.0;
+      if (sh.ask) { sh.ask._at = sh.ask.at ?? Math.max(0.4, rd); sh.ask.time = sh.ask.time || 6; d = Math.max(d, sh.ask._at + sh.ask.time + 0.3); }
+      if (sh.qte) { const Q = sh.qte; Q.from = Q.from ?? 0.6; Q.len = Q.len ?? 2.6; d = Math.max(d, Q.from + Q.len + (Q.after ?? 0.9)); }
+      return d;
+    };
     const setSub = (s) => { if (!s) { sub.classList.remove('on'); return; } sub.querySelector('i').textContent = s.who || ''; sub.querySelector('i').style.color = s.c || def.accent || '#ffd76a'; sub.querySelector('p').textContent = s.text || ''; sub.classList.add('on'); };
     const ok = (sh) => { try { return !sh.when || !!sh.when(res); } catch (e) { return true; } };
     /** the next shot after n that this telling of the scene has (a shot may depend on what was answered); -1: none */
@@ -154685,17 +154791,18 @@ function playCine(def, o = {}) {
     const enter = (n) => {
       i = n; t0 = t; const sh = shots[i]; if (!sh) return;
       closeAsk(); closeQte();
-      sh._subs = [].concat((typeof sh.sub === 'function' ? sh.sub(res) : sh.sub) || []).filter(Boolean);
-      // (how long the shot is: with words, as long as they take and a beat more - whatever length it was written at; with none, a little over half of that)
-      sh.d0 = sh.d0 ?? sh.d ?? 3; { const rd = sh._subs.reduce((a, x) => a + readTime(x.text), 0); sh._sd = sh._subs.length ? Math.max(1.9, rd + 0.35) : Math.max(1.5, sh.d0 * 0.58); } sh.d = sh._sd; sh._cut = 0;
-      if (sh.ask) { sh.ask._at = sh.ask.at ?? Math.max(0.5, sh._subs.reduce((a, x) => a + readTime(x.text), 0)); sh.ask.time = sh.ask.time || 6; sh.d = Math.max(sh.d, sh.ask._at + sh.ask.time + 0.3); sh._asked = false; }
-      if (sh.qte) { const Q = sh.qte; Q.from = Q.from ?? 0.6; Q.len = Q.len ?? 2.6; Q._p = 0; Q._n = 0; sh._q = false; sh.d = Math.max(sh.d, Q.from + Q.len + (Q.after ?? 0.9)); }
+      // (the shots the edit left out before this one: what they did to the set, done now - edit)
+      for (const x of sh._pre || []) if (ok(x)) { try { x.on?.(k, res); } catch (e) { /* its flourish */ } }
+      sh._subs = subsOf(sh); sh.d = durOf(sh); sh._sd = sh.d - (sh.ask ? 0 : 0); sh._cut = 0;
+      if (sh.ask) { sh._sd = Math.max(1.3, sh._subs.reduce((a, x) => a + readTime(x.text), 0) + 0.25); sh._asked = false; }
+      if (sh.qte) { const Q = sh.qte; Q._p = 0; Q._n = 0; sh._q = false; sh._sd = sh._subs.length ? Math.max(1.3, sh._subs.reduce((a, x) => a + readTime(x.text), 0) + 0.25) : sh.d; }
       showCard(sh.card || null);
       if (sh.low) { low.style.setProperty('--lc', sh.low.c || def.accent || '#e10600'); low.querySelector('b').textContent = sh.low.name || ''; low.querySelector('span').textContent = sh.low.role || ''; low.classList.add('on'); } else low.classList.remove('on');
       hud.className = 'hud' + (sh.hud ? ` on ${sh.hud}` : '');
       if (sh.hud) { const T = sh.hudText || {}; hud.querySelector('.tl').innerHTML = sh.hud === 'cctv' ? `<span class="rec">REC</span> ${esc(T.tl || 'CAM 04')}` : esc(T.tl || 'REPLAY'); hud.querySelector('.tr').textContent = T.tr || ''; hud.querySelector('.bl').textContent = T.bl || ''; }
       cv.style.filter = GRADE[sh.grade || def.grade || 'neutral'] || 'none';
       try { sh.on?.(k, res); } catch (e) { console.warn('[cine] shot', e); }
+      for (const x of sh._more || []) { try { x.on?.(k, res); } catch (e) { /* its flourish */ } }
       if (sh.sfx && o.audio) { try { sh.sfx(o.audio); } catch (e) { /* no sound */ } }
     };
     const askEl = $('.ask'), qEl = $('.qte');
@@ -154750,7 +154857,7 @@ function playCine(def, o = {}) {
       fade.style.transition = 'opacity .55s'; fade.style.opacity = '1'; sub.classList.remove('on'); low.classList.remove('on'); $('.choice').classList.remove('on'); plq.classList.remove('on');
       setTimeout(() => {
         on = false; window.removeEventListener('keydown', key, true); window.removeEventListener('keyup', keyUp, true); window.removeEventListener('resize', size);
-        try { k._dispose(); comp?.dispose?.(); bokeh?.dispose?.(); glow?.dispose?.(); R.dispose(); R.forceContextLoss?.(); } catch (e) { /* gone */ }
+        try { k._dispose(); comp?.dispose?.(); bokeh?.dispose?.(); glow?.dispose?.(); R.setRenderTarget(null); } catch (e) { /* gone */ }   // (the renderer kept for the next scene)
         el.remove(); end({ choice: picked, picks, qte: qres, skipped });
       }, reduced() ? 60 : 600);
     };
@@ -154848,7 +154955,9 @@ function playCine(def, o = {}) {
       if (!held && nx && nx.cut === 'dip') fo = Math.max(fo, 1 - left / 0.4);
       if (sh.card) fo = 1;
       if (!ending) { fade.style.transition = 'none'; fade.style.opacity = String(clamp(fo, 0, 1)); }
-      prog.style.width = `${clamp((shots.slice(0, i).reduce((s, x) => s + x.d, 0) + Math.min(into, sh.d)) / total, 0, 1) * 100}%`;
+      // (the bar: the time gone over the time gone and the time still to come - the shots this telling of it will still
+      //  play, as long as they will be. It was the shots' written lengths, which none of them is played at)
+      { let rest = Math.max(0, (sh._cut ? sh._cut - t : sh.d - into)); for (let j = after(i); j >= 0; j = after(j)) rest += durOf(shots[j]); const gone = t - openT; prog.style.width = `${(held || ending ? 1 : clamp(gone / Math.max(0.01, gone + rest), 0, 1)) * 100}%`; }
       if (!sh.card) draw(sh);
     };
     const loop = (now) => { if (!on) return; const dt = Math.min(0.05, (now - last) / 1000); last = now; step(dt); requestAnimationFrame(loop); };
@@ -154856,15 +154965,11 @@ function playCine(def, o = {}) {
     // the set built (a frame of black first), then the first shot out of black
     const build = async () => {
       try {
-        if (def.needsCar && !carModel()) await loadCarModel().catch(() => {});
-        await new Promise((r) => setTimeout(r, 60));
-        const out = def.build(k, o.ctx || {}) || {};
-        shots = (out.shots || []).filter(Boolean); choice = out.choice || def.choice || null; browse = out.browse || null;
-        for (const sh of shots) { sh.d = sh.d || 3; sh.d0 = sh.d; }
-        total = shots.reduce((s, x) => s + x.d, 0) || 1;
-        if (!shots.length && !browse) throw new Error('no shots');
-        try { R.compile(S, cam); } catch (e) { /* compiled as drawn */ }
-      } catch (e) { console.error('[cine] scene', def.id, e); on = false; try { k._dispose(); comp?.dispose?.(); bokeh?.dispose?.(); glow?.dispose?.(); R.dispose(); R.forceContextLoss?.(); } catch (e2) { /* gone */ } window.removeEventListener('keydown', key, true); window.removeEventListener('resize', size); el.remove(); end({ skipped: true, failed: true, error: String(e?.message || e) }); return; }
+        const out = await ST.ready;
+        for (const sh of out.shots) { sh.d = sh.d || 3; sh.d0 = sh.d; }
+        shots = edit(out.shots); choice = out.choice; browse = out.browse; if (window.__cine) window.__cine.raw = out.shots.length;
+        total = 1;
+      } catch (e) { console.error('[cine] scene', def.id, e); on = false; try { k._dispose(); comp?.dispose?.(); bokeh?.dispose?.(); glow?.dispose?.(); } catch (e2) { /* gone */ } window.removeEventListener('keydown', key, true); window.removeEventListener('resize', size); el.remove(); end({ skipped: true, failed: true, error: String(e?.message || e) }); return; }
       const hold = 80;   // (straight in: the set is built, the first shot comes up out of black with its title over it)
       setTimeout(() => {
         if (!on) return; built = true; el.classList.add('live'); showCard(null); size(); openT = t;
@@ -154872,7 +154977,7 @@ function playCine(def, o = {}) {
         else enter(ok(shots[0]) ? 0 : Math.max(0, after(0)));
       }, hold);
     };
-    window.__cine = { id: def.id, scene: S, step, next, finish, skip: skipAll, pick: (id) => { picked = id; finish(); }, answer: (id) => pickAsk(id), press, hold: (v) => { down = !!v; }, res, go, get state() { return { title: ttlOn, built, i, n: shots.length, t, held, ending, browse: browse?.length || 0, station, choice: choice && choice.options ? choice.options.map((x) => x.id) : choice ? ['?'] : null, ask: askOn ? askOn.ask.options.map((x) => x.id) : null, qte: qteOn ? qteOn.qte.kind : null, sub: sub.classList.contains('on') ? sub.querySelector('p').textContent : '', shots: shots.map((s) => s.d) }; }, jump(n, u = 0.5) { if (!built) return; enter(clamp(n, 0, shots.length - 1)); t0 = t - shots[i].d * u; } };
+    window.__cine = { id: def.id, scene: S, step, next, finish, skip: skipAll, plan: () => shots.filter(ok).map((sh) => ({ d: +durOf(sh).toFixed(2), lines: subsOf(sh).length, vis: !!sh._vis, ask: !!sh.ask, qte: !!sh.qte })), pick: (id) => { picked = id; finish(); }, answer: (id) => pickAsk(id), press, hold: (v) => { down = !!v; }, res, go, get state() { return { title: ttlOn, built, i, n: shots.length, t, held, ending, browse: browse?.length || 0, station, choice: choice && choice.options ? choice.options.map((x) => x.id) : choice ? ['?'] : null, ask: askOn ? askOn.ask.options.map((x) => x.id) : null, qte: qteOn ? qteOn.qte.kind : null, sub: sub.classList.contains('on') ? sub.querySelector('p').textContent : '', shots: shots.map((s) => s.d) }; }, jump(n, u = 0.5) { if (!built) return; enter(clamp(n, 0, shots.length - 1)); t0 = t - shots[i].d * u; } };
     size(); requestAnimationFrame((now) => { last = now; requestAnimationFrame(loop); });
     build();
   });
@@ -154881,7 +154986,7 @@ function playCine(def, o = {}) {
 /** scenes one after another (each a def, its options): the results in order */
 async function playCines(list) { const out = []; for (const [def, o] of list) out.push(await playCine(def, o)); return out; }
 
-return { hash, rng, cineLive, playCine, playCines };
+return { hash, rng, cineLive, cinePrepare, cineTake, cineWarm, playCine, playCines };
 })();
 
 // ---- src/ui/CineProps.js
@@ -156548,23 +156653,35 @@ return { board, boardOutcome, feudRow, debrief, poach, poachOutcome, hearingOutc
 
 // ---- src/ui/CineIndex.js
 __m['src/ui/CineIndex.js'] = (() => {
-const { playCine, cineLive } = __m['src/ui/Cine.js'];
+const { playCine, cineLive, cinePrepare, cineTake, cineWarm } = __m['src/ui/Cine.js'];
 const { SET_PIECES } = __m['src/ui/CineScenes.js'];
 const { DRAMA } = __m['src/ui/CineScenes2.js'];
 // Every cutscene by its name (ui/CineScenes.js: the set pieces; ui/CineScenes2.js: the drama's) and the one way to
-// play one: playScene(name, ctx, o) -> Promise<{ choice, picks, qte, skipped }>.
+// play one: playScene(name, ctx, o) -> Promise<{ choice, picks, qte, skipped }>. A scene known to be coming (a matter
+// waiting at the HQ, the film a race earned) is made ready before it is asked for - prepareScene: its set built and its
+// shaders compiled while the menus are up - and then starts at once.
 
 
 
 const SCENES = { ...SET_PIECES, ...DRAMA };
 
+const keyOf = (name, ctx) => { let s = ''; try { s = JSON.stringify(ctx); } catch (e) { s = String(Math.random()); } return `${name}|${s}`; };
+const optsOf = (ctx, o) => ({ ...o, ctx, lite: o.lite ?? !!globalThis.__cineLite, seed: o.seed ?? `${ctx.season || ''}|${ctx.round || ''}` });   // (__cineLite: a test's - no shadows, no lens blur)
+/** a scene made ready now, to be played later with the same name and ctx (quietly nothing if it cannot be) */
+function prepareScene(name, ctx = {}, o = {}) {
+  const make = SCENES[name]; if (!make || cineLive()) return;
+  let def = null; try { def = make(ctx); } catch (e) { return; }
+  try { cinePrepare(keyOf(name, ctx), def, optsOf(ctx, o)); } catch (e) { /* played from scratch */ }
+}
 function playScene(name, ctx = {}, o = {}) {
   const make = SCENES[name]; if (!make) return Promise.resolve({ skipped: true, failed: true });
+  const st = cineTake(keyOf(name, ctx));
+  if (st) return playCine(st.def, { ...optsOf(ctx, o), stage: st });
   let def = null; try { def = make(ctx); } catch (e) { console.error('[cine]', name, e); return Promise.resolve({ skipped: true, failed: true }); }
-  return playCine(def, { ...o, ctx, lite: o.lite ?? !!globalThis.__cineLite, seed: o.seed ?? `${ctx.season || ''}|${ctx.round || ''}` });   // (__cineLite: a test's - no shadows, no lens blur)
+  return playCine(def, optsOf(ctx, o));
 }
 
-return { SCENES, playScene, cineLive };
+return { SCENES, prepareScene, playScene, cineLive, cineWarm };
 })();
 
 // ---- src/ui/RadioReplay.js
@@ -198826,7 +198943,7 @@ const { replan, alerts } = __m['src/race/TeamStrategy.js'];
 const { openManagerHub, closeManagerHub, managerHubOpen } = __m['src/ui/ManagerHub.js'];
 const { storyRuled, storyLive, storyTakeLive, storyTrack, storyTrackScene, storyBeforeRace, storyPreRace, obeyChance, radioFact, traitOf } = __m['src/career/ManagerStory.js'];
 const { driverLine } = __m['src/career/StoryLines.js'];
-const { playScene } = __m['src/ui/CineIndex.js'];
+const { playScene, prepareScene, cineWarm } = __m['src/ui/CineIndex.js'];
 const { radioReplays, stopRadioReplays } = __m['src/ui/RadioReplay.js'];
 const { TVExtras } = __m['src/ui/TVExtras.js'];
 const { TVStrategy } = __m['src/ui/TVStrategy.js'];
@@ -201139,7 +201256,8 @@ function beginRace() {
         C.applyRace(rows, W.def.id, contacts, table, extra);
         wk.interview = C.me?.alive && pc && !pc.injured && !pc.standInFor ? interviewCtx(C, rows, contacts, upgrade, { grave: extra.grave, seen, strat: strategy.find((x) => x.mine) || null, orders: orders.find((x) => x.mine && x.sub) || null }) : null;   // (standing in: the stand-in's media pen, not yours)   // (hurt: in the medical centre, not the media pen)
         wk.incident = S.cars.some((c) => c.injured);   // (the interview after it: under the strings)
-        try { wk.cine = careerScene(C, rows, me, !!extra.grave); } catch (e) { wk.cine = null; console.warn('[career] scene', e); }   // (the scene this race earned, if any)
+        try { wk.cine = careerScene(C, rows, me, !!extra.grave); } catch (e) { wk.cine = null; console.warn('[career] scene', e); }
+        if (wk.cine) setTimeout(() => { try { prepareScene(wk.cine.scene, wk.cine.ctx); } catch (e) { /* played from scratch */ } }, 400);   // (made ready while the results are read)   // (the scene this race earned, if any)
       } else if (wk.mode !== 'tp') {
         rememberResult(rows, me);   // (for the loading screen's news)
         // (your licence, a quick race's: the stewards' points from this race - none for one you sat out on a ban - then
@@ -202403,6 +202521,7 @@ function openMgrHub() {
     onRace: (c, sim) => mgrRace(c, sim),
     onSim: (c) => { const rep = c.applyRace(c.simRace(), c.track); storyTrackScene(c); refreshHome(); return rep; },   // (a simulated weekend: no scene at the track)
     play: (scene, ctx) => playScene(scene, ctx, { audio }),   // (the story's cutscenes: ui/CineIndex.js)
+    prepare: (scene, ctx) => prepareScene(scene, ctx),   // (and the ones waiting, made ready before they come up)
     onQuick: () => { closeManagerHub(); openSetup('tp'); },
     onExit: () => { closeManagerHub(); refreshHome(); } });
 }
@@ -204438,6 +204557,8 @@ function frame(now) {
     perf() { const r = { calls: RES.calls, triangles: RES.tris, avgFrameMs: +(RES.msSum / Math.max(1, RES.frames)).toFixed(2), frames: RES.frames, renderScale: RES.scale, pixelRatio: renderer.getPixelRatio() }; RES.frames = 0; RES.msSum = 0; console.info('[perf]', r); return r; },
   };
   requestAnimationFrame(frame);
+  // (the cutscenes' renderer and the car's model ready a few seconds into the menus: no scene waits for them - ui/Cine.js)
+  setTimeout(() => { try { cineWarm(); } catch (e) { /* made when first needed */ } }, 5000);
 }
 
 return {  };

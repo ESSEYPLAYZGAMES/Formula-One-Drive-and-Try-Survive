@@ -125,6 +125,11 @@ html.m-off #loader.off { transform: none; }
 #loader.ld-w .ld-map canvas, #loader.ld-w .ld-barc { display: block; }
 #loader.ld-w .ld-map .run, #loader.ld-w .ld-map .head { display: none; }
 #loader.ld-w .ld-bar { overflow: visible; background: none; } #loader.ld-w .ld-bar i { display: none; }
+/* (the figure drawn by the worker too, with the bar and the line: the page's own number could not change while the build held the page - the bar ran on to 94 %, the figure said 0) */
+#loader .ld-fig { font-style: normal; }
+#loader .ld-stage b { position: relative; display: inline-block; min-width: 5ch; text-align: right; }
+#loader .ld-figc { display: none; position: absolute; right: -6px; top: -6px; width: calc(100% + 12px); height: calc(100% + 12px); pointer-events: none; }
+#loader.ld-w.ld-wf .ld-figc { display: block; } #loader.ld-w.ld-wf .ld-stage b { color: transparent; text-shadow: none; }
 `.replaceAll("'Segoe UI', Arial, sans-serif", "var(--k-font, 'Segoe UI', Arial, sans-serif)").replaceAll("'Segoe UI', Arial;", "var(--k-font, 'Segoe UI', Arial, sans-serif);");
 
 /** true things about the circuits and the sport (checked), and the game's own keys */
@@ -211,13 +216,15 @@ function mapSVG(id) {
  * the figure in the corner.
  */
 const PROG = `
-let map = null, bar = null, mc = null, bc = null, pts = [], cum = [0], total = 1, vb = [0, 0, 1, 1], dpr = 1;
+let fig = null, fc = null, figDrawn = -1, map = null, bar = null, mc = null, bc = null, pts = [], cum = [0], total = 1, vb = [0, 0, 1, 1], dpr = 1;
 let target = 0, shown = 0, vel = 0, tT = 0, last = 0, drawn = -1, posted = 0, dirty = true;
 const raf = self.requestAnimationFrame ? (f) => self.requestAnimationFrame(f) : (f) => setTimeout(() => f(performance.now()), 16);
 onmessage = (e) => {
   const m = e.data;
   if (m.map) { map = m.map; mc = map.getContext('2d'); pts = m.pts; vb = m.vb; cum = [0]; for (let i = 1; i <= pts.length; i++) { const a = pts[i - 1], b = pts[i % pts.length]; cum.push(cum[i - 1] + Math.hypot(b[0] - a[0], b[1] - a[1])); } total = cum[cum.length - 1] || 1; }
   if (m.bar) { bar = m.bar; bc = bar.getContext('2d'); }
+  if (m.fig) { fig = m.fig; fc = fig.getContext('2d'); }
+  if (m.figSize && fig) { fig.width = m.figSize[0]; fig.height = m.figSize[1]; figDrawn = -1; dirty = true; }
   if (m.dpr) dpr = m.dpr;
   if (m.mapSize && map) { map.width = m.mapSize[0]; map.height = m.mapSize[1]; dirty = true; }
   if (m.barSize && bar) { bar.width = m.barSize[0]; bar.height = m.barSize[1]; dirty = true; }
@@ -225,6 +232,14 @@ onmessage = (e) => {
 };
 function draw() {
   const f = Math.max(0, Math.min(1, shown / 100));
+  // (the figure: the same value as the bar and the line, drawn with them)
+  if (fc && fig.width > 2 && Math.round(shown) !== figDrawn) {
+    figDrawn = Math.round(shown); const W = fig.width, H = fig.height, pad = 6 * dpr;
+    fc.setTransform(1, 0, 0, 1, 0, 0); fc.clearRect(0, 0, W, H);
+    fc.font = '600 ' + (11 * dpr) + 'px "Segoe UI", Roboto, Arial, sans-serif'; try { fc.letterSpacing = (1.5 * dpr) + 'px'; } catch (e) { /* old */ }
+    fc.textAlign = 'right'; fc.textBaseline = 'middle'; fc.shadowColor = 'rgba(35,229,255,.65)'; fc.shadowBlur = 12 * dpr; fc.fillStyle = '#fff';
+    fc.fillText(figDrawn + '%', W - pad, H / 2 + 0.5 * dpr);
+  }
   if (mc && map.width > 2) {
     const W = map.width, H = map.height, s = Math.min(W / vb[2], H / vb[3]), ox = (W - vb[2] * s) / 2 - vb[0] * s, oy = (H - vb[3] * s) / 2 - vb[1] * s, len = total * f;
     mc.setTransform(1, 0, 0, 1, 0, 0); mc.clearRect(0, 0, W, H); mc.setTransform(s, 0, 0, s, ox, oy);
@@ -252,8 +267,9 @@ function draw() {
 }
 function step(now) {
   const dt = Math.min(0.05, Math.max(0, (now - (last || now)) / 1000)); last = now;
-  const end = target >= 100, idle = (now - tT) / 1000, creep = end || target <= 0 ? 0 : Math.min(4.5, 0.9 * idle);
-  const goal = Math.max(shown, end ? 100 : Math.min(99, target + creep)), k = end ? 70 : 20, c = 2 * Math.sqrt(k);
+  // (to the figure it has been told and no further - it used to creep on past it while the next was awaited, and the bar
+  //  said more than had been done. A critically damped spring: away from rest, quickest in the middle, easing in)
+  const end = target >= 100, goal = Math.max(shown, end ? 100 : target), k = end ? 70 : 20, c = 2 * Math.sqrt(k);
   vel += (k * (goal - shown) - c * vel) * dt; if (vel < 0) vel = 0;
   shown = Math.min(goal, shown + vel * dt); if (end && goal - shown < 0.3) shown = goal;
   if (dirty || Math.abs(shown - drawn) > 0.02) { draw(); drawn = shown; dirty = false; }
@@ -269,14 +285,15 @@ function progress(el, track, fig) {
     if (reduced() || typeof Worker === 'undefined' || !bcv || typeof bcv.transferControlToOffscreen !== 'function') return null;
     const url = URL.createObjectURL(new Blob([PROG], { type: 'text/javascript' })), w = new Worker(url), dpr = Math.min(2, window.devicePixelRatio || 1), P = 76;
     el.classList.add('ld-w');   // (its canvases shown - they are measured next - and the page's own line and bar put away)
-    const sizes = () => { const m = { dpr }; if (cv && box) { const r = box.getBoundingClientRect(); if (r.width > 4 && r.height > 4) m.mapSize = [Math.round(r.width * dpr), Math.round(r.height * dpr)]; } const b = bcv.getBoundingClientRect(); if (b.width > 4) m.barSize = [Math.round(b.width * dpr), Math.round(b.height * dpr)]; return m; };
+    const sizes = () => { const m = { dpr }; if (cv && box) { const r = box.getBoundingClientRect(); if (r.width > 4 && r.height > 4) m.mapSize = [Math.round(r.width * dpr), Math.round(r.height * dpr)]; } const fz = el.querySelector('.ld-figc')?.getBoundingClientRect(); if (fz && fz.width > 4) m.figSize = [Math.round(fz.width * dpr), Math.round(fz.height * dpr)]; const b = bcv.getBoundingClientRect(); if (b.width > 4) m.barSize = [Math.round(b.width * dpr), Math.round(b.height * dpr)]; return m; };
     const init = { dpr }, give = [];
     if (M && cv && box) { const o = cv.transferControlToOffscreen(); init.map = o; init.pts = M.pts; init.vb = [-P, -P, M.w + 2 * P, M.h + 2 * P]; give.push(o); }
     { const o = bcv.transferControlToOffscreen(); init.bar = o; give.push(o); }
+    const fcv = el.querySelector('.ld-figc'); if (fcv && typeof fcv.transferControlToOffscreen === 'function') { const o = fcv.transferControlToOffscreen(); init.fig = o; give.push(o); el.classList.add('ld-wf'); }
     w.postMessage(init, give); w.postMessage(sizes());
     const P0 = { w, url, ro: null, dead: false };
     w.onmessage = (e) => { if (!P0.dead && fig && e.data && e.data.shown != null) fig.textContent = `${Math.round(e.data.shown)}%`; };
-    w.onerror = () => { P0.dead = true; el.classList.remove('ld-w'); try { w.terminate(); } catch (e) { /* gone */ } };   // (it would not start - a browser that will not run a worker from the page itself: the page draws the progress)
+    w.onerror = () => { P0.dead = true; el.classList.remove('ld-w', 'ld-wf'); try { w.terminate(); } catch (e) { /* gone */ } };   // (it would not start - a browser that will not run a worker from the page itself: the page draws the progress)
     if (typeof ResizeObserver !== 'undefined') { P0.ro = new ResizeObserver(() => { if (!P0.dead) w.postMessage(sizes()); }); if (box) P0.ro.observe(box); P0.ro.observe(bcv); }
     return P0;
   } catch (e) { el.classList.remove('ld-w'); return null; }
@@ -316,11 +333,11 @@ export const Loader = {
           ${o.news?.length ? `<div class="ld-news"><h4>LATEST</h4>${o.news.slice(0, 4).map((n, i) => `<div class="ld-item" style="animation-delay:${0.45 + i * 0.12}s;${n.color ? `--c:${esc(n.color)}` : ''}">${n.tag ? `<small>${esc(n.tag)}</small>` : ''}${esc(n.text)}</div>`).join('')}</div>` : ''}
         </div>
         <div class="ld-main"><div class="ld-kick">${esc(o.kicker || '')}</div><h1>${esc(GP[o.track] || o.title || 'Grand Prix').replace(/ (Grand Prix)$/, ' <span>$1</span>')}</h1><div class="ld-sub">${(o.sub || []).filter(Boolean).map((s) => `<span>${esc(s)}</span>`).join('')}</div><div class="ld-err"></div></div>
-        <div class="ld-foot"><div class="ld-row"><div class="ld-fact"></div><div class="ld-cap"></div></div><div class="ld-bar"><i></i><canvas class="ld-barc"></canvas></div><div class="ld-stage"><span>Getting ready</span><b>0%</b></div></div>
+        <div class="ld-foot"><div class="ld-row"><div class="ld-fact"></div><div class="ld-cap"></div></div><div class="ld-bar"><i></i><canvas class="ld-barc"></canvas></div><div class="ld-stage"><span>Getting ready</span><b><i class="ld-fig">0%</i><canvas class="ld-figc"></canvas></b></div></div>
       </div>`;
     document.body.appendChild(el);
     L = { el, t0: performance.now(), slides: [], k: -1, timers: [], urls: [], pct: 0, shown: 0, raf: 0, prog: null };
-    L.prog = progress(el, o.track, el.querySelector('.ld-stage b'));
+    L.prog = progress(el, o.track, el.querySelector('.ld-stage .ld-fig'));
     document.body.dataset.loader = 'on';
     requestAnimationFrame(() => el.classList.add('on')); setTimeout(() => el.classList.add('on'), 30);
     // (opaque once the 260 ms fade has played, from the frame it began on)
@@ -367,12 +384,12 @@ export const Loader = {
     if (pct != null) L.pct = Math.max(L.pct, pct);
     L.el.querySelector('.ld-stage span').textContent = text || '';
     if (L.prog && !L.prog.dead) { L.prog.w.postMessage({ pct: L.pct }); return; }   // (the worker runs up to it)
-    if (!L.raf) { const mine = L, tick = () => { if (L !== mine) return; const d = mine.pct - mine.shown; mine.shown = Math.abs(d) < 0.05 ? mine.pct : mine.shown + d * 0.18; this._draw(mine); mine.raf = mine.shown !== mine.pct ? requestAnimationFrame(tick) : 0; }; L.raf = requestAnimationFrame(tick); }
+    if (!L.raf) { const mine = L; let last = performance.now(); mine.vel = mine.vel || 0; const tick = (now) => { if (L !== mine) return; const dt = Math.min(0.05, Math.max(0, (now - last) / 1000)); last = now; const k = mine.pct >= 100 ? 70 : 20; mine.vel += (k * (mine.pct - mine.shown) - 2 * Math.sqrt(k) * mine.vel) * dt; if (mine.vel < 0) mine.vel = 0; mine.shown = Math.min(mine.pct, mine.shown + mine.vel * dt); if (mine.pct - mine.shown < 0.05) { mine.shown = mine.pct; mine.vel = 0; } this._draw(mine); mine.raf = mine.shown !== mine.pct ? requestAnimationFrame(tick) : 0; }; L.raf = requestAnimationFrame(tick); }
     if (pct >= 100) { L.shown = L.pct; this._draw(L); }
   },
   _draw(l) {
     const f = Math.min(1, l.shown / 100);
-    l.el.querySelector('.ld-stage b').textContent = `${Math.round(l.shown)}%`;
+    l.el.querySelector('.ld-stage .ld-fig').textContent = `${Math.round(l.shown)}%`;
     l.el.querySelector('.ld-bar i').style.transform = `scaleX(${f.toFixed(4)})`;
     // (the map: the red line round the lap as far as the bar, its head at the end of it - the same fraction of the lap)
     const run = l.el.querySelector('.ld-map .run'), trk = l.el.querySelector('.ld-map .trk'), head = l.el.querySelector('.ld-map .head');

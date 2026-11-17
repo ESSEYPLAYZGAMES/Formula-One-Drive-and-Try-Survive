@@ -263,7 +263,81 @@ const V = (a) => new THREE.Vector3(a[0], a[1], a[2]);
 /** what a subtitle needs to be read (s) */
 // (a line's time on the screen: read once, at a reader's pace - it was 1.1 s and 0.3 s a word, which is being read aloud
 //  to; a shot held for it sat still while the line was read three times)
-const readTime = (s) => Math.max(1.2, 0.45 + String(s || '').split(/\s+/).length * 0.155);
+// (and a third shorter again: the scenes' talk sat a beat too long on every line - asked for, 1.5x too long)
+const readTime = (s) => Math.max(0.8, 0.3 + String(s || '').split(/\s+/).length * 0.103);
+
+/**
+ * The one renderer every scene draws with, kept between them (it was made for each scene and thrown away after - the
+ * context, every shader compiled again: the wait before each scene). Its canvas is put into the scene's overlay.
+ */
+let SHR = null;
+function sharedR() {
+  if (SHR && !SHR.lost) return SHR;
+  const cv = document.createElement('canvas'), R = new THREE.WebGLRenderer({ canvas: cv, antialias: true, powerPreference: 'high-performance' });
+  R.toneMapping = THREE.ACESFilmicToneMapping; R.shadowMap.type = THREE.PCFSoftShadowMap;
+  SHR = { R, cv, lost: false }; cv.addEventListener('webglcontextlost', () => { if (SHR && SHR.cv === cv) SHR.lost = true; });
+  return SHR;
+}
+/**
+ * A scene's stage: its scene, camera and kit made now; its set built and its shaders compiled (without holding the page
+ * up: compileAsync) in .ready -> { shots, choice, browse }. Made when the scene is asked for - or before (cinePrepare),
+ * so that it starts at once.
+ */
+function stageOf(def, o) {
+  const { R } = sharedR(); R.shadowMap.enabled = !o.lite;
+  const S = new THREE.Scene(); S.background = new THREE.Color(def.bg || '#07080b'); if (def.fog) S.fog = new THREE.Fog(def.fogColor || def.bg || '#07080b', def.fog[0], def.fog[1]);
+  const cam = new THREE.PerspectiveCamera(30, 16 / 9, 0.1, 320);   // (the depth buffer's precision is the near plane's: at 0.05 things two centimetres apart fought at the far end of a room)
+  const k = makeKit(R, S, cam, def, o);
+  // (a lamp by the lens: a little light on whatever the shot looks at, so a face in a dim room still reads)
+  const eye = new THREE.PointLight(0xfff4e8, 0, 0, 2); S.add(eye);
+  const st = { S, cam, k, eye, def, o, used: false };
+  st.ready = (async () => {
+    if (def.needsCar && !carModel()) await loadCarModel().catch(() => {});
+    await new Promise((r) => setTimeout(r, 20));
+    const out = def.build(k, o.ctx || {}) || {};
+    const shots = (out.shots || []).filter(Boolean); if (!shots.length && !out.browse) throw new Error('no shots');
+    R.shadowMap.enabled = !o.lite;
+    try { if (R.compileAsync) await R.compileAsync(S, cam); else R.compile(S, cam); } catch (e) { /* compiled as drawn */ }
+    return { shots, choice: out.choice || def.choice || null, browse: out.browse || null };
+  })();
+  st.ready.catch(() => {});
+  return st;
+}
+const PREP = new Map();
+/** a scene made ready before it is played (key: what it is - CineIndex.js): the set built, the shaders compiled */
+export function cinePrepare(key, def, o = {}) {
+  if (PREP.has(key)) return PREP.get(key);
+  if (PREP.size >= 3) { const [k0, v0] = PREP.entries().next().value; PREP.delete(k0); v0.ready.then(() => { if (!v0.used) v0.k._dispose(); }, () => {}); }
+  let st = null; try { st = stageOf(def, o); } catch (e) { return null; }
+  PREP.set(key, st); return st;
+}
+/** a prepared scene taken to be played (null: none ready for that key) */
+export function cineTake(key) { const st = PREP.get(key) || null; if (st) PREP.delete(key); return st; }
+/** the cutscenes made ready to start without a wait: the renderer, the car's model (in the menus, before any scene) */
+export function cineWarm() { try { sharedR(); } catch (e) { return; } if (!carModel()) loadCarModel().catch(() => {}); }
+/**
+ * The edit: a scene as few pictures as tell it. Every shot with words, a question or a moment to catch is kept; of the
+ * shots with nothing said, ONE (three seconds) - the first that is not the same thing again; never two angles of one
+ * thing: a shot looking where the shot before looked is left out, and a line said to the same place as the line
+ * before is said in that shot. (The scenes were written as many angles of each moment: a dozen shots to sit through
+ * for a line or two.) A shot left out still does what it does to the set (its on) as the next one starts.
+ */
+function edit(list) {
+  const talk = (s) => !!(s.sub || s.ask || s.qte || s.low), L = (s) => (s.l ? new THREE.Vector3(s.l[0], s.l[1], s.l[2]) : null);
+  const out = [], pend = []; let vis = 0, last = null;
+  for (const s of list) {
+    const l = L(s), same = !!(l && last && l.distanceTo(last.l || l) < 3 && last.l);
+    if (talk(s)) {
+      const prev = out[out.length - 1];
+      if (prev && talk(prev) && same && !s.ask && !s.qte && !s.when && !prev.ask && !prev.qte && !prev.when && !s.cut) { (prev._more || (prev._more = [])).push(s); continue; }
+      if (pend.length) s._pre = pend.splice(0); out.push(s); last = { l }; continue;
+    }
+    if (s.card || vis >= 1 || same) { pend.push(s); continue; }
+    vis++; s._vis = true; if (pend.length) s._pre = pend.splice(0); out.push(s); last = { l };
+  }
+  if (!out.length) { const s = list.find((x) => !x.card) || list[0]; if (s) { s._vis = true; out.push(s); } }
+  return out;
+}
 
 /**
  * Play a scene. def: { id, kicker, title, sub (the title card), accent, grade, bg, fog: [near, far], exposure,
@@ -285,27 +359,24 @@ export function playCine(def, o = {}) {
     ensureMotion();
     if (!document.getElementById('cine-css')) { const st = document.createElement('style'); st.id = 'cine-css'; st.textContent = CSS; document.head.appendChild(st); }
     const el = document.createElement('div'); el.id = 'cine'; el.style.setProperty('--acc', def.accent || '#e10600');
-    el.innerHTML = `<canvas></canvas><div class="vig"></div><div class="hud"><div class="tl"></div><div class="tr"></div><div class="bl"></div></div><div class="fade"></div><div class="bar t"></div><div class="bar b"></div>
+    el.innerHTML = `<div class="vig"></div><div class="hud"><div class="tl"></div><div class="tr"></div><div class="bl"></div></div><div class="fade"></div><div class="bar t"></div><div class="bar b"></div>
       <div class="card"><small></small><b></b><span></span></div><div class="ttl"><small></small><b></b><span></span></div><div class="low"><b></b><span></span></div><div class="plq"><small></small><b></b><p></p></div><div class="sub"><i></i><p></p></div>
       <div class="choice"><h4></h4><div class="ops"></div></div><div class="ask"><h4></h4><div class="ops"></div><div class="tm"><i></i></div></div><div class="qte"><b></b><div class="trk"><div class="zone"></div><div class="fill"></div><div class="mk"></div></div><span class="res"></span></div><div class="nav"><button data-n="-1">◂</button><span></span><button data-n="1">▸</button><button data-n="0">LEAVE</button></div>
       <div class="prog"></div><button class="skip">SKIP ▸</button>`;
     document.body.appendChild(el);
-    const $ = (s) => el.querySelector(s), cv = $('canvas');
+    const $ = (s) => el.querySelector(s);
     const end = (res) => { if (!LIVE) return; LIVE = null; window.__cine = null; resolve(res); };
-    let R; try { R = new THREE.WebGLRenderer({ canvas: cv, antialias: true, powerPreference: 'high-performance' }); } catch (e) { el.remove(); resolve({ skipped: true, failed: true }); return; }
+    // (the one renderer, kept between scenes; the stage made ready before if it was - cinePrepare - else now)
+    let ST; try { ST = o.stage || stageOf(def, o); } catch (e) { el.remove(); resolve({ skipped: true, failed: true }); return; }
+    ST.used = true; const R = SHR.R, cv = SHR.cv; el.insertBefore(cv, el.firstChild);
     LIVE = { id: def.id };
-    R.setPixelRatio(Math.min(o.lite ? 1 : 1.5, devicePixelRatio || 1)); R.toneMapping = THREE.ACESFilmicToneMapping; R.toneMappingExposure = def.exposure ?? 1.0;
-    R.shadowMap.enabled = !o.lite; R.shadowMap.type = THREE.PCFSoftShadowMap;
-    const S = new THREE.Scene(); S.background = new THREE.Color(def.bg || '#07080b'); if (def.fog) S.fog = new THREE.Fog(def.fogColor || def.bg || '#07080b', def.fog[0], def.fog[1]);
-    const cam = new THREE.PerspectiveCamera(30, 16 / 9, 0.1, 320);   // (the depth buffer's precision is the near plane's: at 0.05 things two centimetres apart fought at the far end of a room)
-    const k = makeKit(R, S, cam, def, o);
+    R.setPixelRatio(Math.min(o.lite ? 1 : 1.5, devicePixelRatio || 1)); R.toneMappingExposure = def.exposure ?? 1.0; R.shadowMap.enabled = !o.lite;
+    const { S, cam, k, eye } = ST;
     // the lens: a shallow depth of field (what the shot looks at is sharp, the room behind it soft) - not on a light
     // machine's setting, nor where the passes cannot be made
     let comp = null, bokeh = null, glow = null;
     if (!o.lite && def.dof !== false) { try { comp = new EffectComposer(R, new THREE.WebGLRenderTarget(2, 2, { type: THREE.HalfFloatType, samples: 4 })); comp.addPass(new RenderPass(S, cam));   /* (its own target smoothed: edges through the lens as clean as without it) */ bokeh = new BokehPass(S, cam, { focus: 5, aperture: 0.0008, maxblur: 0.007 }); comp.addPass(bokeh); try { glow = new GlowPass(def.glow ?? 0.5, 3.0); comp.addPass(glow); } catch (e) { glow = null; } comp.addPass(new OutputPass()); } catch (e) { comp = null; bokeh = null; } }
     const focusAt = new THREE.Vector3();
-    // (a lamp by the lens: a little light on whatever the shot looks at, so a face in a dim room still reads)
-    const eye = new THREE.PointLight(0xfff4e8, 0, 0, 2); S.add(eye);
     const draw = (sh) => {
       if (!comp) { R.render(S, cam); return; }
       // (sharp at what the shot looks at, or at its own focus - pulled from one subject to another over the shot;
@@ -329,6 +400,17 @@ export function playCine(def, o = {}) {
       cam.aspect = w / h;
     };
     const subs = (sh) => (sh.sub ? [].concat(sh.sub) : []);
+    /** a shot's lines (its own, and those of the shots said in it - edit) */
+    const subsOf = (sh) => [sh, ...(sh._more || [])].flatMap((x) => [].concat((typeof x.sub === 'function' ? x.sub(res) : x.sub) || [])).filter(Boolean);
+    /** how long a shot is: its lines read once and a beat; a picture with nothing said, three seconds; a question or a
+     *  moment to catch, as long as they need */
+    const durOf = (sh) => {
+      const L = sh === shots[i] && sh._subs ? sh._subs : subsOf(sh), rd = L.reduce((a, x) => a + readTime(x.text), 0);
+      let d = L.length ? Math.max(1.3, rd + 0.25) : sh.card ? 1.6 : 3.0;
+      if (sh.ask) { sh.ask._at = sh.ask.at ?? Math.max(0.4, rd); sh.ask.time = sh.ask.time || 6; d = Math.max(d, sh.ask._at + sh.ask.time + 0.3); }
+      if (sh.qte) { const Q = sh.qte; Q.from = Q.from ?? 0.6; Q.len = Q.len ?? 2.6; d = Math.max(d, Q.from + Q.len + (Q.after ?? 0.9)); }
+      return d;
+    };
     const setSub = (s) => { if (!s) { sub.classList.remove('on'); return; } sub.querySelector('i').textContent = s.who || ''; sub.querySelector('i').style.color = s.c || def.accent || '#ffd76a'; sub.querySelector('p').textContent = s.text || ''; sub.classList.add('on'); };
     const ok = (sh) => { try { return !sh.when || !!sh.when(res); } catch (e) { return true; } };
     /** the next shot after n that this telling of the scene has (a shot may depend on what was answered); -1: none */
@@ -336,17 +418,18 @@ export function playCine(def, o = {}) {
     const enter = (n) => {
       i = n; t0 = t; const sh = shots[i]; if (!sh) return;
       closeAsk(); closeQte();
-      sh._subs = [].concat((typeof sh.sub === 'function' ? sh.sub(res) : sh.sub) || []).filter(Boolean);
-      // (how long the shot is: with words, as long as they take and a beat more - whatever length it was written at; with none, a little over half of that)
-      sh.d0 = sh.d0 ?? sh.d ?? 3; { const rd = sh._subs.reduce((a, x) => a + readTime(x.text), 0); sh._sd = sh._subs.length ? Math.max(1.9, rd + 0.35) : Math.max(1.5, sh.d0 * 0.58); } sh.d = sh._sd; sh._cut = 0;
-      if (sh.ask) { sh.ask._at = sh.ask.at ?? Math.max(0.5, sh._subs.reduce((a, x) => a + readTime(x.text), 0)); sh.ask.time = sh.ask.time || 6; sh.d = Math.max(sh.d, sh.ask._at + sh.ask.time + 0.3); sh._asked = false; }
-      if (sh.qte) { const Q = sh.qte; Q.from = Q.from ?? 0.6; Q.len = Q.len ?? 2.6; Q._p = 0; Q._n = 0; sh._q = false; sh.d = Math.max(sh.d, Q.from + Q.len + (Q.after ?? 0.9)); }
+      // (the shots the edit left out before this one: what they did to the set, done now - edit)
+      for (const x of sh._pre || []) if (ok(x)) { try { x.on?.(k, res); } catch (e) { /* its flourish */ } }
+      sh._subs = subsOf(sh); sh.d = durOf(sh); sh._sd = sh.d - (sh.ask ? 0 : 0); sh._cut = 0;
+      if (sh.ask) { sh._sd = Math.max(1.3, sh._subs.reduce((a, x) => a + readTime(x.text), 0) + 0.25); sh._asked = false; }
+      if (sh.qte) { const Q = sh.qte; Q._p = 0; Q._n = 0; sh._q = false; sh._sd = sh._subs.length ? Math.max(1.3, sh._subs.reduce((a, x) => a + readTime(x.text), 0) + 0.25) : sh.d; }
       showCard(sh.card || null);
       if (sh.low) { low.style.setProperty('--lc', sh.low.c || def.accent || '#e10600'); low.querySelector('b').textContent = sh.low.name || ''; low.querySelector('span').textContent = sh.low.role || ''; low.classList.add('on'); } else low.classList.remove('on');
       hud.className = 'hud' + (sh.hud ? ` on ${sh.hud}` : '');
       if (sh.hud) { const T = sh.hudText || {}; hud.querySelector('.tl').innerHTML = sh.hud === 'cctv' ? `<span class="rec">REC</span> ${esc(T.tl || 'CAM 04')}` : esc(T.tl || 'REPLAY'); hud.querySelector('.tr').textContent = T.tr || ''; hud.querySelector('.bl').textContent = T.bl || ''; }
       cv.style.filter = GRADE[sh.grade || def.grade || 'neutral'] || 'none';
       try { sh.on?.(k, res); } catch (e) { console.warn('[cine] shot', e); }
+      for (const x of sh._more || []) { try { x.on?.(k, res); } catch (e) { /* its flourish */ } }
       if (sh.sfx && o.audio) { try { sh.sfx(o.audio); } catch (e) { /* no sound */ } }
     };
     const askEl = $('.ask'), qEl = $('.qte');
@@ -401,7 +484,7 @@ export function playCine(def, o = {}) {
       fade.style.transition = 'opacity .55s'; fade.style.opacity = '1'; sub.classList.remove('on'); low.classList.remove('on'); $('.choice').classList.remove('on'); plq.classList.remove('on');
       setTimeout(() => {
         on = false; window.removeEventListener('keydown', key, true); window.removeEventListener('keyup', keyUp, true); window.removeEventListener('resize', size);
-        try { k._dispose(); comp?.dispose?.(); bokeh?.dispose?.(); glow?.dispose?.(); R.dispose(); R.forceContextLoss?.(); } catch (e) { /* gone */ }
+        try { k._dispose(); comp?.dispose?.(); bokeh?.dispose?.(); glow?.dispose?.(); R.setRenderTarget(null); } catch (e) { /* gone */ }   // (the renderer kept for the next scene)
         el.remove(); end({ choice: picked, picks, qte: qres, skipped });
       }, reduced() ? 60 : 600);
     };
@@ -499,7 +582,9 @@ export function playCine(def, o = {}) {
       if (!held && nx && nx.cut === 'dip') fo = Math.max(fo, 1 - left / 0.4);
       if (sh.card) fo = 1;
       if (!ending) { fade.style.transition = 'none'; fade.style.opacity = String(clamp(fo, 0, 1)); }
-      prog.style.width = `${clamp((shots.slice(0, i).reduce((s, x) => s + x.d, 0) + Math.min(into, sh.d)) / total, 0, 1) * 100}%`;
+      // (the bar: the time gone over the time gone and the time still to come - the shots this telling of it will still
+      //  play, as long as they will be. It was the shots' written lengths, which none of them is played at)
+      { let rest = Math.max(0, (sh._cut ? sh._cut - t : sh.d - into)); for (let j = after(i); j >= 0; j = after(j)) rest += durOf(shots[j]); const gone = t - openT; prog.style.width = `${(held || ending ? 1 : clamp(gone / Math.max(0.01, gone + rest), 0, 1)) * 100}%`; }
       if (!sh.card) draw(sh);
     };
     const loop = (now) => { if (!on) return; const dt = Math.min(0.05, (now - last) / 1000); last = now; step(dt); requestAnimationFrame(loop); };
@@ -507,15 +592,11 @@ export function playCine(def, o = {}) {
     // the set built (a frame of black first), then the first shot out of black
     const build = async () => {
       try {
-        if (def.needsCar && !carModel()) await loadCarModel().catch(() => {});
-        await new Promise((r) => setTimeout(r, 60));
-        const out = def.build(k, o.ctx || {}) || {};
-        shots = (out.shots || []).filter(Boolean); choice = out.choice || def.choice || null; browse = out.browse || null;
-        for (const sh of shots) { sh.d = sh.d || 3; sh.d0 = sh.d; }
-        total = shots.reduce((s, x) => s + x.d, 0) || 1;
-        if (!shots.length && !browse) throw new Error('no shots');
-        try { R.compile(S, cam); } catch (e) { /* compiled as drawn */ }
-      } catch (e) { console.error('[cine] scene', def.id, e); on = false; try { k._dispose(); comp?.dispose?.(); bokeh?.dispose?.(); glow?.dispose?.(); R.dispose(); R.forceContextLoss?.(); } catch (e2) { /* gone */ } window.removeEventListener('keydown', key, true); window.removeEventListener('resize', size); el.remove(); end({ skipped: true, failed: true, error: String(e?.message || e) }); return; }
+        const out = await ST.ready;
+        for (const sh of out.shots) { sh.d = sh.d || 3; sh.d0 = sh.d; }
+        shots = edit(out.shots); choice = out.choice; browse = out.browse; if (window.__cine) window.__cine.raw = out.shots.length;
+        total = 1;
+      } catch (e) { console.error('[cine] scene', def.id, e); on = false; try { k._dispose(); comp?.dispose?.(); bokeh?.dispose?.(); glow?.dispose?.(); } catch (e2) { /* gone */ } window.removeEventListener('keydown', key, true); window.removeEventListener('resize', size); el.remove(); end({ skipped: true, failed: true, error: String(e?.message || e) }); return; }
       const hold = 80;   // (straight in: the set is built, the first shot comes up out of black with its title over it)
       setTimeout(() => {
         if (!on) return; built = true; el.classList.add('live'); showCard(null); size(); openT = t;
@@ -523,7 +604,7 @@ export function playCine(def, o = {}) {
         else enter(ok(shots[0]) ? 0 : Math.max(0, after(0)));
       }, hold);
     };
-    window.__cine = { id: def.id, scene: S, step, next, finish, skip: skipAll, pick: (id) => { picked = id; finish(); }, answer: (id) => pickAsk(id), press, hold: (v) => { down = !!v; }, res, go, get state() { return { title: ttlOn, built, i, n: shots.length, t, held, ending, browse: browse?.length || 0, station, choice: choice && choice.options ? choice.options.map((x) => x.id) : choice ? ['?'] : null, ask: askOn ? askOn.ask.options.map((x) => x.id) : null, qte: qteOn ? qteOn.qte.kind : null, sub: sub.classList.contains('on') ? sub.querySelector('p').textContent : '', shots: shots.map((s) => s.d) }; }, jump(n, u = 0.5) { if (!built) return; enter(clamp(n, 0, shots.length - 1)); t0 = t - shots[i].d * u; } };
+    window.__cine = { id: def.id, scene: S, step, next, finish, skip: skipAll, plan: () => shots.filter(ok).map((sh) => ({ d: +durOf(sh).toFixed(2), lines: subsOf(sh).length, vis: !!sh._vis, ask: !!sh.ask, qte: !!sh.qte })), pick: (id) => { picked = id; finish(); }, answer: (id) => pickAsk(id), press, hold: (v) => { down = !!v; }, res, go, get state() { return { title: ttlOn, built, i, n: shots.length, t, held, ending, browse: browse?.length || 0, station, choice: choice && choice.options ? choice.options.map((x) => x.id) : choice ? ['?'] : null, ask: askOn ? askOn.ask.options.map((x) => x.id) : null, qte: qteOn ? qteOn.qte.kind : null, sub: sub.classList.contains('on') ? sub.querySelector('p').textContent : '', shots: shots.map((s) => s.d) }; }, jump(n, u = 0.5) { if (!built) return; enter(clamp(n, 0, shots.length - 1)); t0 = t - shots[i].d * u; } };
     size(); requestAnimationFrame((now) => { last = now; requestAnimationFrame(loop); });
     build();
   });

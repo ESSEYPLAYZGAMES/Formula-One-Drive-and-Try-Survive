@@ -1,3 +1,39 @@
+# V2.78 (2026-11-17): cutscenes cut down and ready; a loading screen that tells the truth; the kerb camera
+
+Asked for: "The cutscenes are still so unnatural, mostly due to long loading screens (preload them) and unnecesarily
+long segments ... all I need to see is one 3 second visual for most and I dont need 50 different angles, and speech
+scenes are still 1.5x too long. the progress bar isn't accurate. never show multiple angles of the same thing"; "fix
+the pre-race loading screen to not lie ... make it accurate to the loading% but between each updated progress smooth
+acceleration/decceleration"; "Kerb cam should be a static shot, from the kerb at which the car will run over, either
+apex or exit kerb".
+
+## Cutscenes (ui/Cine.js, ui/CineIndex.js)
+- Ready before they are asked for. Every scene made its own renderer (a new graphics context, every shader compiled
+  again) and built its set after it was called: the wait. Now one renderer is kept for all of them, made a few
+  seconds into the menus with the car's model; and a scene known to be coming - the matters waiting at the HQ, the
+  film a race earned (made ready while the results are read) - has its set built and its shaders compiled before it
+  is played (measured: about a second to the first picture where it was thirty and more on the test machine).
+- The edit: every shot with words, a question or a moment to catch is kept; of the shots with nothing said, ONE, of
+  three seconds; never two angles of the same thing - a shot looking where the shot before looked is left out, and a
+  line said to the same place as the line before is said in that shot. (garageNight: 6 shots to 3, 8 s; seasonReview
+  6 to 3, 4 s; pitwallReact 4 to 1; decider 6 to 3.) A shot left out still does what it did to the set.
+- The lines read a third quicker (each 1.5x shorter than it was).
+- The progress bar: the time gone over the time gone and the time still to come - the shots this telling of the
+  scene will still play, as long as each will be. It was the shots' written lengths, which none was played at.
+
+## The loading screen (ui/Loader.js)
+- The bar and the line round the map are drawn off the page (a worker), so they go on while the build holds the
+  page; the figure was the page's, and stood at 0 % while the bar ran on - and the bar crept on past the figure it had
+  been told, toward the next one, before that stage was done. Now it goes to the figure it is told and no further,
+  eased (away from rest, quickest in the middle, easing in), and the worker draws the figure too: the three are one.
+
+## The kerb camera (camera/TVDirector.js)
+- Static: one place, one aim, one lens for the whole shot, in the kerb the car is about to run over - the apex kerb
+  on the inside or, every other time, the exit kerb on the outside - looking back up the road at the car coming over
+  it. It zoomed with the car and then swung round after it. Over a second after the car has gone by.
+- (And the aim's new smoothing - V2.77 - carries the car's movement only in a picture that follows a car: a fixed
+  view - the kerb's, a cutaway's, the grid's - looks where it looks.)
+
 # V2.77 (2026-11-17): the sound of it; the broadcast camera's pans
 
 Asked for: "go thru the whole game repolishing audio, are the engine sounds at the best of their ability? like is there

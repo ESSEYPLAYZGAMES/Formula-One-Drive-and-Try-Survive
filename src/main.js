@@ -66,7 +66,7 @@ import { replan, alerts } from './race/TeamStrategy.js';
 import { openManagerHub, closeManagerHub, managerHubOpen } from './ui/ManagerHub.js';
 import { storyRuled, storyLive, storyTakeLive, storyTrack, storyTrackScene, storyBeforeRace, storyPreRace, obeyChance, radioFact, traitOf } from './career/ManagerStory.js';
 import { driverLine } from './career/StoryLines.js';
-import { playScene } from './ui/CineIndex.js';
+import { playScene, prepareScene, cineWarm } from './ui/CineIndex.js';
 import { radioReplays, stopRadioReplays } from './ui/RadioReplay.js';
 import { TVExtras } from './ui/TVExtras.js';
 import { TVStrategy } from './ui/TVStrategy.js';
@@ -2255,7 +2255,8 @@ function beginRace() {
         C.applyRace(rows, W.def.id, contacts, table, extra);
         wk.interview = C.me?.alive && pc && !pc.injured && !pc.standInFor ? interviewCtx(C, rows, contacts, upgrade, { grave: extra.grave, seen, strat: strategy.find((x) => x.mine) || null, orders: orders.find((x) => x.mine && x.sub) || null }) : null;   // (standing in: the stand-in's media pen, not yours)   // (hurt: in the medical centre, not the media pen)
         wk.incident = S.cars.some((c) => c.injured);   // (the interview after it: under the strings)
-        try { wk.cine = careerScene(C, rows, me, !!extra.grave); } catch (e) { wk.cine = null; console.warn('[career] scene', e); }   // (the scene this race earned, if any)
+        try { wk.cine = careerScene(C, rows, me, !!extra.grave); } catch (e) { wk.cine = null; console.warn('[career] scene', e); }
+        if (wk.cine) setTimeout(() => { try { prepareScene(wk.cine.scene, wk.cine.ctx); } catch (e) { /* played from scratch */ } }, 400);   // (made ready while the results are read)   // (the scene this race earned, if any)
       } else if (wk.mode !== 'tp') {
         rememberResult(rows, me);   // (for the loading screen's news)
         // (your licence, a quick race's: the stewards' points from this race - none for one you sat out on a ban - then
@@ -3519,6 +3520,7 @@ function openMgrHub() {
     onRace: (c, sim) => mgrRace(c, sim),
     onSim: (c) => { const rep = c.applyRace(c.simRace(), c.track); storyTrackScene(c); refreshHome(); return rep; },   // (a simulated weekend: no scene at the track)
     play: (scene, ctx) => playScene(scene, ctx, { audio }),   // (the story's cutscenes: ui/CineIndex.js)
+    prepare: (scene, ctx) => prepareScene(scene, ctx),   // (and the ones waiting, made ready before they come up)
     onQuick: () => { closeManagerHub(); openSetup('tp'); },
     onExit: () => { closeManagerHub(); refreshHome(); } });
 }
@@ -5554,4 +5556,6 @@ function frame(now) {
     perf() { const r = { calls: RES.calls, triangles: RES.tris, avgFrameMs: +(RES.msSum / Math.max(1, RES.frames)).toFixed(2), frames: RES.frames, renderScale: RES.scale, pixelRatio: renderer.getPixelRatio() }; RES.frames = 0; RES.msSum = 0; console.info('[perf]', r); return r; },
   };
   requestAnimationFrame(frame);
+  // (the cutscenes' renderer and the car's model ready a few seconds into the menus: no scene waits for them - ui/Cine.js)
+  setTimeout(() => { try { cineWarm(); } catch (e) { /* made when first needed */ } }, 5000);
 }

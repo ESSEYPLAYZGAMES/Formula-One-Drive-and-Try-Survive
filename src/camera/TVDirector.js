@@ -168,13 +168,17 @@ export class TVDirector {
       //  and then its twin looking down the road after them. Nothing is asked of the walls and fences: it is inside
       //  them, on the road's own edge. The next corner within reach - further when the kerb camera is the one asked
       //  for - or a trackside camera instead.)
-      let s0 = null, side = 1; const reach = this.camKind === 'kerb' ? 720 : 330;
-      for (let ds = 45; ds < reach; ds += 12) { const i = tr.idxAtS(tr.wrapS(subject.s + ds)); if (!tr.inCornerZone(i)) continue; let e = ds; while (e < ds + 220 && tr.inCornerZone(tr.idxAtS(tr.wrapS(subject.s + e)))) e += 12; const sm = tr.wrapS(subject.s + (ds + e) / 2), im = tr.idxAtS(sm), n = tr.n, a = (im - 6 + n) % n, b = (im + 6) % n; side = (tr.tx[b] - tr.tx[a]) * tr.nx[im] + (tr.tz[b] - tr.tz[a]) * tr.nz[im] > 0 ? 1 : -1; s0 = sm; break; }
+      let s0 = null, sE = null, side = 1; const reach = this.camKind === 'kerb' ? 720 : 330;
+      for (let ds = 45; ds < reach; ds += 12) { const i = tr.idxAtS(tr.wrapS(subject.s + ds)); if (!tr.inCornerZone(i)) continue; let e = ds; while (e < ds + 220 && tr.inCornerZone(tr.idxAtS(tr.wrapS(subject.s + e)))) e += 12; const sm = tr.wrapS(subject.s + (ds + e) / 2), im = tr.idxAtS(sm), n = tr.n, a = (im - 6 + n) % n, b = (im + 6) % n; side = (tr.tx[b] - tr.tx[a]) * tr.nx[im] + (tr.tz[b] - tr.tz[a]) * tr.nz[im] > 0 ? 1 : -1; s0 = sm; sE = e - ds > 30 ? tr.wrapS(subject.s + e - 10) : null; break; }
+      // (STATIC: one place, one aim, one lens, the whole shot - in the kerb the car is about to run over: the apex kerb
+      //  on the inside, or (every other time) the exit kerb on the outside where the corner opens out - looking back up
+      //  the road at the car coming over it. It used to zoom with the car and then swing round after it)
       if (s0 != null) {
-        const i = tr.idxAtS(s0), wK = barD(tr, ctx.pit, i, side), edge = tr.edgeAt ? tr.edgeAt(i, side) : wK - 2, off = side * Math.min(wK - 0.5, edge + (tr.kerbWidth || 1) * 0.3), f = tr.sample(s0, off);
-        const a = tr.sample(tr.wrapS(s0 - 28), off * 0.7), b = tr.sample(tr.wrapS(s0 + 28), off * 0.7);   // (along its own side of the road, tipped up a little: the cars come through the middle of the picture, the horizon under it)
-        sh.s0 = s0; sh.side = side; sh.kerb = true; sh.pos = new THREE.Vector3(f.x, G(f.x, f.z) + 0.3, f.z);
-        sh.lookA = new THREE.Vector3(a.x, G(a.x, a.z) + 2.7, a.z); sh.lookB = new THREE.Vector3(b.x, G(b.x, b.z) + 2.7, b.z); sh.dur = 15;
+        const exit = (this.cuts & 1) === 1 && sE != null, sK = exit ? sE : s0, sd = exit ? -side : side;
+        const i = tr.idxAtS(sK), wK = barD(tr, ctx.pit, i, sd), edge = tr.edgeAt ? tr.edgeAt(i, sd) : wK - 2, off = sd * Math.min(wK - 0.5, edge + (tr.kerbWidth || 1) * 0.3), f = tr.sample(sK, off);
+        const a = tr.sample(tr.wrapS(sK - (exit ? 34 : 30)), off * 0.35);   // (up the road, toward the middle of it: the car comes through the picture and over the lens)
+        sh.s0 = sK; sh.side = sd; sh.kerb = true; sh.kerbExit = exit; sh.pos = new THREE.Vector3(f.x, G(f.x, f.z) + 0.3, f.z);
+        sh.lookA = new THREE.Vector3(a.x, G(a.x, a.z) + 1.5, a.z); sh.dur = 15;
       }
       if (!sh.pos) { kind = 'track'; sh.kind = 'track'; } else sh.kind = 'track';   // (placed: from here it is a trackside camera, a fixed one)
     }
@@ -379,9 +383,9 @@ export class TVDirector {
       //  between two cameras - and the shot ends a second and a half on)
       if (sh.kerb) {
         const L = ctx.track.length; let ds = car.s - sh.s0; if (ds > L / 2) ds -= L; if (ds < -L / 2) ds += L;
-        if (ds > 1.2 && sh.pastT == null) { sh.pastT = sh.t; this._lookInit = false; }
-        tgt.copy(sh.pastT != null ? sh.lookB : sh.lookA); fov = 72;
-        if (sh.pastT != null) sh.dur = Math.min(sh.dur, sh.pastT + 1.6); else if (ds < -900 || sh.t > 14) sh.dur = Math.min(sh.dur, sh.t);
+        if (ds > 1.2 && sh.pastT == null) sh.pastT = sh.t;
+        tgt.copy(sh.lookA); fov = 62;   // (never moves: not the aim, not the lens)
+        if (sh.pastT != null) sh.dur = Math.min(sh.dur, sh.pastT + 1.2); else if (ds < -900 || sh.t > 14) sh.dur = Math.min(sh.dur, sh.t);
       } else
       if (sh.other) {
         // (two cars: the picture's middle is half way between them and it is as wide as they are apart, with room
@@ -457,11 +461,12 @@ export class TVDirector {
     if (!this._lookInit || (cutNow && !sh.heliCont)) { this._look.copy(tgt); this._lookInit = true; }   // (the same flight carried on into a new shot: the aim carries on too)
     else {
       _mv.set(car.x - this._sub0.x, carY + 0.7 - this._sub0.y, car.z - this._sub0.z);
-      if (this._subCar === car && _mv.lengthSq() < 60 * 60) this._look.add(_mv);
+      const follows = !sh.view && !sh.kerb && sh.kind !== 'grid' && !TV_AWAY.has(sh.kind);   // (a fixed view - the kerb's, a cutaway's, the grid's - looks where it looks)
+      if (follows && this._subCar === car && _mv.lengthSq() < 60 * 60) this._look.add(_mv);
       this._look.lerp(tgt, 1 - Math.exp(-dt * (sh.kind === 'heli' ? 2.2 : 3.2)));
     }
     this._sub0.set(car.x, carY + 0.7, car.z); this._subCar = car; this._tgt0.copy(tgt);
     cam.up.set(0, 1, 0); cam.lookAt(this._look);
-    if (Math.abs(cam.fov - fov) > 0.01) { cam.fov += (fov - cam.fov) * Math.min(1, dt * (sh.t < 0.05 && !(sh.kind === 'heli' && this.heliLook) ? 99 : sh.kind === 'heli' ? 1.3 : fov > cam.fov ? 5 : 2.2)); cam.updateProjectionMatrix(); }   /* (the trackside lens opens quickly - a car coming past must not outgrow the picture - and closes in slowly) */   // (the helicopter's zoom is slow: the car grows and shrinks in the picture as it pulls away and is caught)
+    if (Math.abs(cam.fov - fov) > 0.01) { cam.fov += (fov - cam.fov) * Math.min(1, dt * (sh.kerb || sh.t < 0.05 && !(sh.kind === 'heli' && this.heliLook) ? 99 : sh.kind === 'heli' ? 1.3 : fov > cam.fov ? 5 : 2.2)); cam.updateProjectionMatrix(); }   /* (the trackside lens opens quickly - a car coming past must not outgrow the picture - and closes in slowly) */   // (the helicopter's zoom is slow: the car grows and shrinks in the picture as it pulls away and is caught)
   }
 }
