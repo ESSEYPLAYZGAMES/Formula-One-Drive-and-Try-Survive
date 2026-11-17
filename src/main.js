@@ -1629,7 +1629,7 @@ function weatherWetness(w) { return w === 'wet' ? 0.75 : w === 'damp' ? 0.35 : 0
  * session's weather (the menus, the venues) one wetness for the whole road (uWxStatic).
  */
 const WXU = { uWx: { value: null }, uWxLen: { value: 1000 }, uWxOn: { value: 0 }, uWxStatic: { value: 0 } };
-const WXV = { r: 0, c: 0 };
+const WXV = { r: 0, c: 0, m: 0 };   // (m: the wet race's mist - the spray hanging over the whole circuit)
 function wetRoad(mat, L) {
   if (!WXU.uWx.value) { WXU.uWx.value = new THREE.DataTexture(new Uint8Array(4), 1, 1, THREE.RGBAFormat); WXU.uWx.value.needsUpdate = true; }
   WXU.uWxLen.value = L;
@@ -1659,8 +1659,8 @@ float wxN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f)
  * The weather on screen in a session (every frame): the road reading the session's water, the drops falling where
  * the camera is (a shower in one corner, dry in the next), the sky darker under the clouds, the spray off the cars
  */
-function wxFrame(dt, wx = S.director?.weather, cars = S.cars, snap = false) {
-  if (!wx) { WXV.raw = 0; if (WXU.uWxOn.value) WXU.uWxOn.value = 0; spray.update(dt, null, camera.position, renderer.domElement.height); return; }
+function wxFrame(dt, wx = S.director?.weather, cars = S.cars, snap = false, posOf = null) {
+  if (!wx) { WXV.raw = 0; WXV.m = 0; if (WXU.uWxOn.value) WXU.uWxOn.value = 0; spray.update(dt, null, camera.position, renderer.domElement.height); return; }
   WXU.uWx.value = wx.tex; WXU.uWxOn.value = 1;
   const x = camera.position.x, z = camera.position.z;
   let r = wx.rainAt(x, z), cl = Math.max(r, wx.cloudAt(x, z));
@@ -1670,12 +1670,24 @@ function wxFrame(dt, wx = S.director?.weather, cars = S.cars, snap = false) {
   rain.setIntensity(Math.min(1, WXV.r * 1.3));
   const B = W.sky0;
   if (B && B.time === W.time) {
-    scene.fog.density = B.fog + WXV.c * 0.0008; scene.fog.color.copy(B.col).lerp(W.time === 'day' ? WX_GREY_DAY : WX_GREY_NIGHT, 0.65 * WXV.c);
+    // (and the mist of a wet race: twenty cars' spray hanging over the whole circuit, with the rain - nothing is seen
+    //  far, a car ahead or none: half of what stands 150 m off is gone in it on a wet track in the rain)
+    const wet = Math.max(wx.avgOff || 0, wx.avgLine || 0), mist = Math.min(1, wet * 0.8 + WXV.r * 0.5);
+    WXV.m += (mist - WXV.m) * (snap ? 1 : Math.min(1, dt * 0.25));
+    scene.fog.density = B.fog + WXV.c * 0.0008 + WXV.m * 0.0052; scene.fog.color.copy(B.col).lerp(W.time === 'day' ? WX_GREY_DAY : WX_GREY_NIGHT, Math.min(1, 0.65 * WXV.c + 0.35 * WXV.m));
     env.sun.intensity = B.sun * (1 - 0.45 * WXV.c); env.hemi.intensity = B.hemi * (1 - 0.2 * WXV.c);
   }
   skyCloud(WXV.c);
   const rm = W.trackMesh?.userData.roadMat; if (rm) { rm.roughness = 0.62; rm.metalness = 0.06; rm.envMapIntensity = 0.55 + 1.4 * Math.max(wx.avgOff, WXV.r); }
-  spray.setNight(W.time !== 'day'); spray.update(dt, cars, camera.position, renderer.domElement.height);
+  spray.setNight(W.time !== 'day'); spray.update(dt, cars, camera.position, renderer.domElement.height, posOf);
+}
+/** a car as a replay draws it, for its spray: its model's place and heading, its speed from how the model moves */
+const SPRP = new Map(), _sprE = new THREE.Euler();
+function sprayPosOf(c) {
+  const m = S.meshes.get(c); if (!m || !m.group.visible) return null; const p = m.group.position, now = performance.now();
+  let s = SPRP.get(c); if (!s) { s = { x: p.x, z: p.z, t: now, v: 0 }; SPRP.set(c, s); }
+  const dt = (now - s.t) / 1000; if (dt > 0.001) { const v = Math.hypot(p.x - s.x, p.z - s.z) / dt; if (v < 150) s.v += (v - s.v) * Math.min(1, dt * 8); s.x = p.x; s.z = p.z; s.t = now; }
+  _sprE.setFromQuaternion(m.group.quaternion, 'YZX'); return { x: p.x, z: p.z, th: -_sprE.y, v: s.v };
 }
 const WX_GREY_DAY = new THREE.Color(0x8a929c), WX_GREY_NIGHT = new THREE.Color(0x0d0f16);
 /** the sky dome overcast by `k` (0 clear .. 1 a grey rain sky; at night a near-black one, no stars) */
@@ -2859,7 +2871,7 @@ function tpReplayStart(o, opts = {}) {
   const ke = Math.max(0, Math.min(F.length - 1, F.findIndex((f) => f.t >= o.t))), ex = F[ke].f[i * 7], ez = F[ke].f[i * 7 + 2], ey = F[ke].f[i * 7 + 1] + TERRAIN.at(ex, ez), tr = W.track;
   const segs = tpReplayCams(F, i, o.t), top = new THREE.Vector3(ex + 18, ey + 40, ez + 18);
   TP.rep = { F, i, j, t: 0, k: 0, hold: !!opts.full, speed: opts.speed ?? 1, at: o.t, pos: (segs[0].pos || top).clone(), segs, sg: 0, look: new THREE.Vector3(ex, ey + 0.7, ez), init: false, win: !opts.full, pass: 0, text: String(o.text || ''), label: !opts.full && opts.label ? String(opts.label) : null, onEnd: opts.onEnd || null, cam: opts.full ? camera : PIP.cam };
-  if (opts.full) { TP.fx.replaying(true, String(opts.label || o.text || '').toUpperCase()); audio.quiet?.(); }
+  if (opts.full) { TP.fx.replaying(true, String(opts.label || o.text || '').toUpperCase()); audio.quiet?.(); spray.clear(); SPRP.clear(); }
   return true;
 }
 /** the replay moved on by dt: where in the record it is, its camera placed and aimed -> false when it has ended */
@@ -2919,6 +2931,10 @@ function tpReplayPose(r) {
     // (the wheels as they were: how far they had turned - the record keeps it modulo SPIN_WRAP - the steering, the brake light, the DRS)
     if (wa && wb) { let ds = wb[w] - wa[w]; if (ds > SPIN_WRAP / 2) ds -= SPIN_WRAP; else if (ds < -SPIN_WRAP / 2) ds += SPIN_WRAP; m.pose(rx, ry, rz, _rqa, wa[w] + ds * u, wa[w + 1] + (wb[w + 1] - wa[w + 1]) * u, wa[w + 2] + (wb[w + 2] - wa[w + 2]) * u, (wa[w + 3] & 1) === 1, (wa[w + 3] & 2) === 2); }
     else { m.group.position.set(rx, ry, rz); m.group.quaternion.copy(_rqa); }
+    // (on a circuit that is not flat - Austin: tilted with the ground under it, nose up the slope, leaning with the camber,
+    //  as it is drawn live. The record is on the flat: the height of the ground was added, its angle was not - the cars
+    //  sat level on the hills. Not a car in the air or a wreck: its whole attitude is in the record)
+    if (TERRAIN.on && !((wa ? wa[w + 3] : 0) & 4)) { const gr = TERRAIN.grad(rx, rz, _gndG); m.group.quaternion.premultiply(_gndQ.setFromUnitVectors(_camUp, _gndN.set(-gr[0], 1, -gr[1]).normalize())); }
   }
 }
 /** every car's model back where the car really is */
@@ -2946,7 +2962,7 @@ function tpReplayFullNow(r) {
   camera.position.copy(PIP.cam.position); camera.quaternion.copy(PIP.cam.quaternion); camera.fov = PIP.cam.fov; camera.updateProjectionMatrix();
   r.win = false; r.cam = camera; r.label = null; TP.fullAt = S.director?.time ?? TP.fullAt;
   r.hold = true; const was = r.onEnd; r.onEnd = () => { const fin = () => { if (TP.rep === r) { r.onEnd = null; tpReplayEnd(); } }; try { was?.(); } catch (e) { /* the window's own end */ } try { if (TP.on && !TP.hl) TP.fx.wipe('LIVE', '', fin); else fin(); } catch (e) { fin(); } };
-  TP.fx.replaying(true, String(label).toUpperCase()); audio.quiet?.();
+  TP.fx.replaying(true, String(label).toUpperCase()); audio.quiet?.(); spray.clear(); SPRP.clear();
   PIP.k = 0; PIP.label = null; PIP.on = false; PIP.rect = null; TP.show?.pipReset();
 }
 /** the whole picture a replay (the highlights): the race held */
@@ -2960,14 +2976,15 @@ function tpListen(dt, motion = false) {
   const d = S.director; if (!d) return;
   const sh = TP.tv?.shot, k = sh?.kind; let own = null, inside = false, mic = null;
   if (!motion && sh?.car && (k === 'tcam' || k === 'helmet' || k === 'rear')) { own = sh.car; inside = true; }
-  let subj = motion ? (TP.rep?.cars?.[0] || null) : sh?.car || null;
-  if (!inside && subj) { const dx = camera.position.x - subj.x, dz = camera.position.z - subj.z, dd = Math.hypot(dx, dz) || 1; if (dd > 70 || k === 'heli') mic = { x: subj.x + dx / dd * 28, y: (subj.y || 0) + 3, z: subj.z + dz / dd * 28 }; }
-  audio.listen({ cam: camera, cars: S.cars, own, inside, mic, sc: d.sc?.car, motion, rain: d.weather?.rainAt?.(camera.position.x, camera.position.z) || 0, dt });
+  // (the subject - in a replay its model, where the record has it)
+  const rc = motion ? d.replay?.cars?.[TP.rep?.i] : null, subj = motion ? (rc ? S.meshes.get(rc)?.group.position || null : null) : sh?.car || null;
+  if (!inside && subj) { const dx = camera.position.x - subj.x, dz = camera.position.z - subj.z, dd = Math.hypot(dx, dz) || 1; if (dd > 70 || (!motion && k === 'heli')) mic = { x: subj.x + dx / dd * 28, y: (subj.y || 0) + 3, z: subj.z + dz / dd * 28 }; }
+  audio.listen({ cam: camera, cars: S.cars, own, inside, mic, sc: d.sc?.car, motion, posOf: motion ? (c) => S.meshes.get(c)?.group.position || null : null, rain: d.weather?.rainAt?.(camera.position.x, camera.position.z) || 0, dt });
 }
 function tpReplayFrame(dt) { if (tpReplayStep(dt) && TP.rep) tpReplayPose(TP.rep); }
 function tpReplayEnd() {
   const r = TP.rep; if (!r) return; TP.rep = null;
-  if (!r.win) { TP.fx?.replaying(false); tpReplayRestore(r); if (TP.tv) TP.tv.shot = null; }   // (the feed cuts back in on a new shot)
+  if (!r.win) { TP.fx?.replaying(false); tpReplayRestore(r); if (TP.tv) TP.tv.shot = null; spray.clear(); SPRP.clear(); }   // (the feed cuts back in on a new shot)
   r.onEnd?.();
 }
 /**
@@ -5487,7 +5504,7 @@ function frame(now) {
   if (d && S.ambient) clearAmbient();
   standsHD(FINALE.on || (!d && !W.home), dt, simTime);   // (the finale's shots, the title shots behind the menus: the stands full of people)
   if (W.home || !W.track) { input.endFrame(); return; }   // home screen / building: no 3D scene to draw
-  wxFrame(halted ? 0 : dt);
+  { const rp = !!TP.rep && !TP.rep.win && !PHOTO.on; wxFrame(halted && !rp ? 0 : dt, undefined, undefined, false, rp ? sprayPosOf : null); }   // (a whole-picture replay: the weather goes on, the spray off the replayed cars)
   rain.update(camera, halted ? 0 : dt);
   if (W.lights) W.lights.update(camera.position, simTime);
   for (const m of S.meshes.values()) m.detail(camera.position, carZoom());
@@ -5515,7 +5532,7 @@ function frame(now) {
     /** (tests: the crash director, and the camera as drawn - terrainLift() lifts it for the frame and returns the undo; renderView() draws a frame through it) */
     crashCam, terrainLift, renderView,
     /** (tests: the team principal's race - main.js TP; the circuit built ahead in the menus) */
-    TP, PIP, tpReplayCams, cullBuildings, tpAct, tpFormStart, tpFormEnd, tpAway, tpAwayWall, PRE_TRACK, preloadWanted, playScene, tvClear, tvTreeHit, tvInside, tvTrees, tpMoment, tpMomentsCut, mgrRace, FINALE, ManagerCareer, tpReplayStart, tpReplayFull, tpHighlights, get scMesh() { return scMesh; }, tvRay: _tvRay, tvGround: (x, z) => TERRAIN.at(x, z),
+    TP, PIP, tpReplayCams, cullBuildings, tpAct, tpFormStart, tpFormEnd, tpAway, tpAwayWall, PRE_TRACK, preloadWanted, playScene, tvClear, tvTreeHit, tvInside, tvTrees, tpMoment, tpMomentsCut, mgrRace, FINALE, ManagerCareer, tpReplayStart, tpReplayFull, tpHighlights, tpReplayPose, tpReplayRestore, get scMesh() { return scMesh; }, tvRay: _tvRay, tvGround: (x, z) => TERRAIN.at(x, z),
     /** (tests - tools/regress.mjs: the optimisations that must not change a pixel, switched off and on) */
     fastMatrix, SHADOW_CULL,
     /** (tests: the show clock - simTime - set, so the Sphere's loop can be put on any show) */

@@ -61,8 +61,10 @@ export class AudioEngine {
     // the tyres and the road, for the car you are in (or the shot's subject, close to the camera): a squeal when they
     // slide, the kerb's stripes drummed through the chassis, the gravel's crunch
     const loop = (q) => { const s = ctx.createBufferSource(); s.buffer = buf; s.loop = true; s.loopStart = Math.random(); s.start(0, q); return s; };
-    this.sqF = ctx.createBiquadFilter(); this.sqF.type = 'bandpass'; this.sqF.frequency.value = 1250; this.sqF.Q.value = 9;
-    this.sqG = ctx.createGain(); this.sqG.gain.value = 0; loop(0.3).connect(this.sqF); this.sqF.connect(this.sqG); this.sqG.connect(this.master);
+    // (the squeal a tone - a rubber's howl, wavering - not filtered noise: under braking that was a hiss of foil)
+    this.sqO = ctx.createOscillator(); this.sqO.type = 'triangle'; this.sqO.frequency.value = 1050; this.sqO.start();
+    this.sqF = ctx.createBiquadFilter(); this.sqF.type = 'bandpass'; this.sqF.frequency.value = 1250; this.sqF.Q.value = 3;
+    this.sqG = ctx.createGain(); this.sqG.gain.value = 0; this.sqO.connect(this.sqF); this.sqF.connect(this.sqG); this.sqG.connect(this.master);
     this.kb = ctx.createOscillator(); this.kb.type = 'square'; this.kb.frequency.value = 40;
     this.kbF = ctx.createBiquadFilter(); this.kbF.type = 'lowpass'; this.kbF.frequency.value = 260; this.kbG = ctx.createGain(); this.kbG.gain.value = 0;
     this.kb.connect(this.kbF); this.kbF.connect(this.kbG); this.kbG.connect(this.master); this.kb.start();
@@ -250,9 +252,12 @@ export class AudioEngine {
     const C = [], all = o.sc ? [...o.cars, o.sc] : o.cars;
     for (const c of all) {
       if (!c || c.hiddenAway || c._povHide) continue;
-      const own = c === o.own, dx = c.x - P.x, dy = (c.y ?? 0) + 0.45 - P.y, dz = c.z - P.z, d = Math.hypot(dx, dy, dz);
+      // (posOf: where the car is drawn, if not where it is - a replay poses its models from the record, the cars
+      //  themselves stand where the held race has them: it was heard there, still, at idle - a silent replay)
+      const X = o.posOf ? o.posOf(c) : null, cx = X ? X.x : c.x, cz = X ? X.z : c.z, cy = X ? X.y + 0.45 : (c.y ?? 0) + 0.45;
+      const own = c === o.own, dx = cx - P.x, dy = cy - P.y, dz = cz - P.z, d = Math.hypot(dx, dy, dz);
       if (!own && d > 420) continue;
-      const M = this._move(c, dt, o.motion); if (!M.alive && !own) continue;
+      const M = this._move(c, dt, o.motion, cx, cz); if (!M.alive && !own) continue;
       C.push({ c, own, dx, dy, dz, d, M, loud: own && o.inside ? 1e9 : (0.3 + M.thr) * 40 / (d + 6) + (own ? 1 : 0) });
     }
     C.sort((a, b) => b.loud - a.loud); const take = C.slice(0, 8), on = new Set(take.map((x) => x.c)), msgs = [];
@@ -268,7 +273,7 @@ export class AudioEngine {
       if (x.own && o.inside) { gain = 0.62; lp = 9500; ob = 1; }
       else {
         const d = Math.max(1.5, x.d), ux = -x.dx / d, uy = -x.dy / d, uz = -x.dz / d;   // (from the car to the microphone)
-        const fx = Math.cos(c.th || 0), fz = Math.sin(c.th || 0), hd = Math.hypot(ux, uz) || 1, front = (fx * ux + fz * uz) / hd;   // (+1: the microphone in front of it)
+        const th = o.motion ? Math.atan2(M.vz, M.vx) : c.th || 0, fx = Math.cos(th), fz = Math.sin(th), hd = Math.hypot(ux, uz) || 1, front = (fx * ux + fz * uz) / hd;   // (+1: the microphone in front of it)
         gain = 1.25 * 9 / (d + 9) * (0.78 - 0.22 * front);
         lp = (1600 + 16500 * Math.exp(-d / 170)) * (1 - 0.3 * Math.max(0, front));
         pan = Math.max(-0.75, Math.min(0.75, -(ux * rx + uz * rz) * Math.min(1, d / 4)));
@@ -283,8 +288,8 @@ export class AudioEngine {
     // the tyres and the road: the car you are in, or one the camera is right by
     const near = o.inside ? C.find((x) => x.own) : C.filter((x) => x.d < 25).sort((a, b) => a.d - b.d)[0], nc = near?.c;
     const far = near ? (o.inside ? 1 : Math.min(1, 6 / (near.d + 1))) : 0, spd = nc ? near.M.spd : 0;
-    const sq = nc && !o.motion ? Math.max(0, Math.min(1, ((nc.slip || 0) - 0.75) * 0.9)) * Math.min(1, spd / 12) * (nc.surf >= 3 ? 0.2 : 1) : 0;
-    this.sqG.gain.setTargetAtTime(sq * 0.16 * far, t, 0.06); this.sqF.frequency.setTargetAtTime(1050 + 500 * Math.min(1, sq) + 120 * Math.sin(t * 7), t, 0.05);
+    const sq = nc && !o.motion ? Math.max(0, Math.min(1, ((nc.slip || 0) - 1.0) * 0.8)) * Math.min(1, spd / 12) * (nc.surf >= 3 ? 0.2 : 1) : 0;
+    this.sqG.gain.setTargetAtTime(sq * 0.07 * far, t, 0.08); { const fq = 980 + 260 * Math.min(1, sq) + 35 * Math.sin(t * 6.3) + 18 * Math.sin(t * 17); this.sqO.frequency.setTargetAtTime(fq, t, 0.05); this.sqF.frequency.setTargetAtTime(fq * 1.1, t, 0.05); }
     const kerb = nc && nc.onKerb && spd > 4 ? 1 : 0; this.kbG.gain.setTargetAtTime(kerb * 0.12 * far, t, 0.02); if (kerb) this.kb.frequency.setTargetAtTime(Math.max(12, spd / 1.1), t, 0.03);
     const gr = nc && nc.offTrack && nc.surf >= 3 && spd > 2 ? Math.min(1, spd / 30) : 0; this.grG.gain.setTargetAtTime(gr * (nc?.surf === 4 ? 0.22 : 0.1) * far * (0.7 + 0.6 * Math.random()), t, 0.03);
     // the wind: the car you are in
@@ -293,17 +298,17 @@ export class AudioEngine {
     this.rnG.gain.setTargetAtTime(Math.min(1, o.rain || 0) * (o.inside ? 0.11 : 0.06), t, 0.4);
   }
   /** a car's engine as it is now - from its state, or (motion) from how it moves: revs, throttle, gear, ERS, limiters */
-  _move(c, dt, motion) {
+  _move(c, dt, motion, cx = c.x, cz = c.z) {
     let m = this.motion.get(c); const vw = !motion && c.worldVel ? c.worldVel() : null;
-    if (!m) { m = { x: c.x, z: c.z, vx: 0, vz: 0, spd: 0, gear: 1, rpm: 4000, thr: 0, ers: 0, lim: false, plim: false, alive: true }; this.motion.set(c, m); }
-    let vx = (c.x - m.x) / dt, vz = (c.z - m.z) / dt; m.x = c.x; m.z = c.z;
+    if (!m) { m = { x: cx, z: cz, vx: 0, vz: 0, spd: 0, gear: 1, rpm: 4000, thr: 0, ers: 0, lim: false, plim: false, alive: true }; this.motion.set(c, m); }
+    let vx = (cx - m.x) / dt, vz = (cz - m.z) / dt; m.x = cx; m.z = cz;
     if (Math.hypot(vx, vz) > 140) { vx = m.vx; vz = m.vz; }   // (a car put somewhere else - a replay's first frame: not a speed)
     if (vw) { vx = vw[0]; vz = vw[1]; } else { const k = Math.min(1, dt * 10); vx = m.vx + (vx - m.vx) * k; vz = m.vz + (vz - m.vz) * k; }
     const spd0 = m.spd; m.vx = vx; m.vz = vz; m.spd = Math.hypot(vx, vz);
     if (!motion && c.rpm != null) {
       m.rpm = c.rpm; m.thr = c.throttle || 0; m.gear = c.gear || 1;
       m.ers = c.ersDeploying ? 1 : c.ersHarvesting && (c.brake || 0) > 0.3 ? -1 : 0;
-      m.lim = c.gear === 8 && c.rpm >= 11950 && m.thr > 0.5; m.plim = !!c.pitLane && m.spd > 17 && !c.inPit;
+      m.lim = c.gear < 8 && c.rpm >= 12050 && m.thr > 0.5;   // (on the limiter in a gear held too long - not flat out in top at top speed: there the car is held by the air, and it stuttered all down every straight) m.plim = !!c.pitLane && m.spd > 17 && !c.inPit;
       m.alive = !c.engineDead && !(c.retired && m.spd < 2);
     } else {
       // (from the motion: the gear the speed is in, the revs in it; the throttle from the acceleration)

@@ -98,7 +98,7 @@ class Engines extends AudioWorkletProcessor {
           let a = amp * v.cyl[k] * (1 + (r() - 0.5) * 0.09) * gateK;
           if (v.cut > 0) a *= v.cut > 0.036 * SR ? 2.6 : 0.1;          // (the cut: one crack, then near nothing)
           if (v.blip > 0) a *= 1.35;
-          if ((overrun || plOn) && rN > 0.25 && r() < (v.popWin > 0 ? 0.07 : plOn ? 0.035 : 0.003)) v.pop = Math.max(v.pop, 0.6 + r() * 0.8);   // (unburnt fuel lighting in the pipe)
+          if ((overrun || plOn) && rN > 0.25 && r() < (v.popWin > 0 ? 0.012 : plOn ? 0.02 : 0.0007)) v.pop = Math.max(v.pop, 0.6 + r() * 0.8);   // (unburnt fuel lighting in the pipe)
           if (overrun) a *= 0.6;
           ex += a * Math.min(1, frac); v.carry += a * Math.max(0, 1 - frac);
         }
@@ -106,7 +106,7 @@ class Engines extends AudioWorkletProcessor {
         // the pulse (its bark) and the noise that rides it
         v.pulse = v.pulse * shapeA + ex;
         v.noiseEnv = v.noiseEnv * 0.9965 + ex * 0.6;
-        const wn = r() * 2 - 1, turb = wn * v.noiseEnv * (0.22 + 0.3 * (1 - thr));
+        const wn = r() * 2 - 1, turb = wn * v.noiseEnv * 0.2;   // (not more off the throttle: under braking it was a crackle of foil)
         const x = v.pulse * 0.5 + turb;
         // the pipe (outside) and the airbox and block (on board)
         let yo = 0, yi = 0;
@@ -116,7 +116,7 @@ class Engines extends AudioWorkletProcessor {
         v.intake = v.intake * 0.995 + Math.abs(ex) * 0.02;
         let s = (yo * 3.2 + v.pulse * 0.35 * bright) * (1 - ob * 0.55) + (yi * 3.4 + wn * v.intake * 1.6 * thr) * ob * (V8k ? 0 : 1) + (V8k ? yi * 2.2 * ob : 0);
         // the pop: a bang of noise, dulled
-        if (v.pop > 0.002) { v.popLp += ((r() * 2 - 1) * v.pop - v.popLp) * 0.25; s += v.popLp * 1.4; v.pop *= 0.9975; }
+        if (v.pop > 0.002) { v.popLp += ((r() * 2 - 1) * v.pop - v.popLp) * 0.07; v.popLp2 = (v.popLp2 || 0) + (v.popLp - (v.popLp2 || 0)) * 0.07; s += v.popLp2 * 2.6; v.pop *= 0.996; }   // (a dull thump in the pipe, not a crackle: two poles low)
         // the turbo's whistle, the wastegate's breath, the MGU-K, the gears
         if (turbF > 0) { v.tph += turbF / SR; if (v.tph > 1) v.tph -= 1; s += Math.sin(TAU * v.tph) * 0.018 * v.boost * (0.4 + 0.6 * ob); }
         if (v.gate > 0.002) { v.hp1 = wn - v.hp0 + 0.9 * v.hp1; v.hp0 = wn; s += v.hp1 * v.gate * 0.05; v.gate *= 0.99985; }

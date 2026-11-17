@@ -1,3 +1,35 @@
+# V2.79 (2026-11-17): replays heard, tilted and in the spray; a wet race you cannot see through; the engine's crackle and stutter
+
+Asked for: "at austin, in replays the cars dont follow the angle of track"; "The new engine sounds are amazing! but there
+is a tinfoil type crackling during breaking"; "Give replays and highlights sound"; "spray doesnt match up with the cars
+in replay, and spray in general should be way worse and very hard to see, plus in real wet races you cant see far
+anyway even without a car infront, add that misty spray fog"; "at top speeds the cars have an annoying stutter sound".
+
+## Replays
+- On a circuit that is not flat (Austin) the replayed cars sat level on the hills: the record is kept on the flat and
+  the ground's height was added to it, not its angle. Now they are tilted with the ground under them - nose up the
+  slope, leaning with the camber - as they are drawn live (measured: within half a degree of the live car). Not a car
+  in the air or a wreck: its whole attitude is in the record (a flag in it now).
+- Their sound: a replay poses the cars' models from the record while the race is held, and the engines were listened
+  to where the held cars stood - still, at idle. Now they are heard where they are drawn, their speed, revs and
+  Doppler from how the models move: the replays and the highlights have the race's sound.
+- The spray in a whole-picture replay comes off the replayed cars, as they move in it - it came off the held cars,
+  where nothing was, and stood frozen while the race was held.
+
+## The wet
+- The spray is three times what it was and stays: the rooster tails off the rear tyres, a plume the height of a house
+  behind the car, and a mist it leaves hanging over the road for seconds. Following a car in the wet you see little.
+- The mist of a wet race: the spray of the whole field and the rain hanging over the circuit - with no car ahead you
+  still do not see far. Half of what stands 150 m off is lost in it on a wet track in the rain; it thickens as the
+  track gets wetter and clears as it dries.
+
+## The engines
+- Braking: the crackle of foil was the overrun's pops - a burst of them after every downshift, bright ones - with the
+  turbulent noise turned up off the throttle, and a tyre squeal of filtered hiss. Now an odd dull thump in the pipe,
+  the noise steady, and the squeal a tone (a rubber's howl) and only when the tyres really slide.
+- Top speed: every car flat out in top gear at its top speed sat on the rev limiter's 18 Hz cut - a stutter down
+  every straight. The limiter is heard only on the limiter in a lower gear; at top speed the car is held by the air.
+
 # V2.78 (2026-11-17): cutscenes cut down and ready; a loading screen that tells the truth; the kerb camera
 
 Asked for: "The cutscenes are still so unnatural, mostly due to long loading screens (preload them) and unnecesarily

@@ -602,7 +602,7 @@ body.tp #hud-msg { top: 30%; }
     <div class="brand-line"></div>
     <h1 id="brand-title">FORMULA 1<span id="brand-sub">SIMULATOR</span></h1>
     <!-- the build's version: +0.01 with every build handed out -->
-    <span id="app-ver" title="Version">V2.78</span>
+    <span id="app-ver" title="Version">V2.79</span>
     <div id="menu-sub">Real circuits built from OpenStreetMap</div>
   </div>
   <div id="loading" class="hidden"><div class="ld"><i></i></div><span>Building the circuit from OpenStreetMap…</span></div>
@@ -157537,7 +157537,7 @@ class ReplayBuffer {
     for (let i = 0; i < this.cars.length; i++) this.spin[i] += (this.cars[i].vLong || 0) / 0.33 * dt;
     this.acc += dt; if (this.acc < 1 / HZ) return; this.acc %= 1 / HZ;
     const n = this.cars.length, f = new Float32Array(n * 7), g = new Float32Array(n), split = new Uint8Array(n), w = new Float32Array(n * 4);
-    for (let i = 0; i < n; i++) { const c = this.cars[i]; carPose(c, f, i * 7); g[i] = c.pulseG || 0; c.pulseG = 0; split[i] = c.split ? 1 : 0; w[i * 4] = ((this.spin[i] % SPIN_WRAP) + SPIN_WRAP) % SPIN_WRAP; w[i * 4 + 1] = c.steer || 0; w[i * 4 + 2] = c.vLong || 0; w[i * 4 + 3] = (c.brake > 0.3 ? 1 : 0) + (c.drs ? 2 : 0); }
+    for (let i = 0; i < n; i++) { const c = this.cars[i]; carPose(c, f, i * 7); g[i] = c.pulseG || 0; c.pulseG = 0; split[i] = c.split ? 1 : 0; w[i * 4] = ((this.spin[i] % SPIN_WRAP) + SPIN_WRAP) % SPIN_WRAP; w[i * 4 + 1] = c.steer || 0; w[i * 4 + 2] = c.vLong || 0; w[i * 4 + 3] = (c.brake > 0.3 ? 1 : 0) + (c.drs ? 2 : 0) + (c.air || c.wreck ? 4 : 0); /* (4: in the air or a wreck - its whole attitude recorded, not tilted onto the ground again) */ }
     // (the safety car too, while it is out on the circuit - sc: its pose, or null: a replay draws it where it was, or not at all)
     const S0 = this.sc?.(), sc = S0 && !S0.pitLane ? new Float32Array(7) : null; if (sc) carPose(S0, sc, 0);
     F.push({ t: time, f, g, split, w, sc }); while (F.length > HZ * (this.keep || KEEP)) F.shift();   // (keep: a longer record where one is wanted - the team principal's highlights hold a moment until it is over)
@@ -158673,7 +158673,7 @@ class Engines extends AudioWorkletProcessor {
           let a = amp * v.cyl[k] * (1 + (r() - 0.5) * 0.09) * gateK;
           if (v.cut > 0) a *= v.cut > 0.036 * SR ? 2.6 : 0.1;          // (the cut: one crack, then near nothing)
           if (v.blip > 0) a *= 1.35;
-          if ((overrun || plOn) && rN > 0.25 && r() < (v.popWin > 0 ? 0.07 : plOn ? 0.035 : 0.003)) v.pop = Math.max(v.pop, 0.6 + r() * 0.8);   // (unburnt fuel lighting in the pipe)
+          if ((overrun || plOn) && rN > 0.25 && r() < (v.popWin > 0 ? 0.012 : plOn ? 0.02 : 0.0007)) v.pop = Math.max(v.pop, 0.6 + r() * 0.8);   // (unburnt fuel lighting in the pipe)
           if (overrun) a *= 0.6;
           ex += a * Math.min(1, frac); v.carry += a * Math.max(0, 1 - frac);
         }
@@ -158681,7 +158681,7 @@ class Engines extends AudioWorkletProcessor {
         // the pulse (its bark) and the noise that rides it
         v.pulse = v.pulse * shapeA + ex;
         v.noiseEnv = v.noiseEnv * 0.9965 + ex * 0.6;
-        const wn = r() * 2 - 1, turb = wn * v.noiseEnv * (0.22 + 0.3 * (1 - thr));
+        const wn = r() * 2 - 1, turb = wn * v.noiseEnv * 0.2;   // (not more off the throttle: under braking it was a crackle of foil)
         const x = v.pulse * 0.5 + turb;
         // the pipe (outside) and the airbox and block (on board)
         let yo = 0, yi = 0;
@@ -158691,7 +158691,7 @@ class Engines extends AudioWorkletProcessor {
         v.intake = v.intake * 0.995 + Math.abs(ex) * 0.02;
         let s = (yo * 3.2 + v.pulse * 0.35 * bright) * (1 - ob * 0.55) + (yi * 3.4 + wn * v.intake * 1.6 * thr) * ob * (V8k ? 0 : 1) + (V8k ? yi * 2.2 * ob : 0);
         // the pop: a bang of noise, dulled
-        if (v.pop > 0.002) { v.popLp += ((r() * 2 - 1) * v.pop - v.popLp) * 0.25; s += v.popLp * 1.4; v.pop *= 0.9975; }
+        if (v.pop > 0.002) { v.popLp += ((r() * 2 - 1) * v.pop - v.popLp) * 0.07; v.popLp2 = (v.popLp2 || 0) + (v.popLp - (v.popLp2 || 0)) * 0.07; s += v.popLp2 * 2.6; v.pop *= 0.996; }   // (a dull thump in the pipe, not a crackle: two poles low)
         // the turbo's whistle, the wastegate's breath, the MGU-K, the gears
         if (turbF > 0) { v.tph += turbF / SR; if (v.tph > 1) v.tph -= 1; s += Math.sin(TAU * v.tph) * 0.018 * v.boost * (0.4 + 0.6 * ob); }
         if (v.gate > 0.002) { v.hp1 = wn - v.hp0 + 0.9 * v.hp1; v.hp0 = wn; s += v.hp1 * v.gate * 0.05; v.gate *= 0.99985; }
@@ -158783,8 +158783,10 @@ class AudioEngine {
     // the tyres and the road, for the car you are in (or the shot's subject, close to the camera): a squeal when they
     // slide, the kerb's stripes drummed through the chassis, the gravel's crunch
     const loop = (q) => { const s = ctx.createBufferSource(); s.buffer = buf; s.loop = true; s.loopStart = Math.random(); s.start(0, q); return s; };
-    this.sqF = ctx.createBiquadFilter(); this.sqF.type = 'bandpass'; this.sqF.frequency.value = 1250; this.sqF.Q.value = 9;
-    this.sqG = ctx.createGain(); this.sqG.gain.value = 0; loop(0.3).connect(this.sqF); this.sqF.connect(this.sqG); this.sqG.connect(this.master);
+    // (the squeal a tone - a rubber's howl, wavering - not filtered noise: under braking that was a hiss of foil)
+    this.sqO = ctx.createOscillator(); this.sqO.type = 'triangle'; this.sqO.frequency.value = 1050; this.sqO.start();
+    this.sqF = ctx.createBiquadFilter(); this.sqF.type = 'bandpass'; this.sqF.frequency.value = 1250; this.sqF.Q.value = 3;
+    this.sqG = ctx.createGain(); this.sqG.gain.value = 0; this.sqO.connect(this.sqF); this.sqF.connect(this.sqG); this.sqG.connect(this.master);
     this.kb = ctx.createOscillator(); this.kb.type = 'square'; this.kb.frequency.value = 40;
     this.kbF = ctx.createBiquadFilter(); this.kbF.type = 'lowpass'; this.kbF.frequency.value = 260; this.kbG = ctx.createGain(); this.kbG.gain.value = 0;
     this.kb.connect(this.kbF); this.kbF.connect(this.kbG); this.kbG.connect(this.master); this.kb.start();
@@ -158972,9 +158974,12 @@ class AudioEngine {
     const C = [], all = o.sc ? [...o.cars, o.sc] : o.cars;
     for (const c of all) {
       if (!c || c.hiddenAway || c._povHide) continue;
-      const own = c === o.own, dx = c.x - P.x, dy = (c.y ?? 0) + 0.45 - P.y, dz = c.z - P.z, d = Math.hypot(dx, dy, dz);
+      // (posOf: where the car is drawn, if not where it is - a replay poses its models from the record, the cars
+      //  themselves stand where the held race has them: it was heard there, still, at idle - a silent replay)
+      const X = o.posOf ? o.posOf(c) : null, cx = X ? X.x : c.x, cz = X ? X.z : c.z, cy = X ? X.y + 0.45 : (c.y ?? 0) + 0.45;
+      const own = c === o.own, dx = cx - P.x, dy = cy - P.y, dz = cz - P.z, d = Math.hypot(dx, dy, dz);
       if (!own && d > 420) continue;
-      const M = this._move(c, dt, o.motion); if (!M.alive && !own) continue;
+      const M = this._move(c, dt, o.motion, cx, cz); if (!M.alive && !own) continue;
       C.push({ c, own, dx, dy, dz, d, M, loud: own && o.inside ? 1e9 : (0.3 + M.thr) * 40 / (d + 6) + (own ? 1 : 0) });
     }
     C.sort((a, b) => b.loud - a.loud); const take = C.slice(0, 8), on = new Set(take.map((x) => x.c)), msgs = [];
@@ -158990,7 +158995,7 @@ class AudioEngine {
       if (x.own && o.inside) { gain = 0.62; lp = 9500; ob = 1; }
       else {
         const d = Math.max(1.5, x.d), ux = -x.dx / d, uy = -x.dy / d, uz = -x.dz / d;   // (from the car to the microphone)
-        const fx = Math.cos(c.th || 0), fz = Math.sin(c.th || 0), hd = Math.hypot(ux, uz) || 1, front = (fx * ux + fz * uz) / hd;   // (+1: the microphone in front of it)
+        const th = o.motion ? Math.atan2(M.vz, M.vx) : c.th || 0, fx = Math.cos(th), fz = Math.sin(th), hd = Math.hypot(ux, uz) || 1, front = (fx * ux + fz * uz) / hd;   // (+1: the microphone in front of it)
         gain = 1.25 * 9 / (d + 9) * (0.78 - 0.22 * front);
         lp = (1600 + 16500 * Math.exp(-d / 170)) * (1 - 0.3 * Math.max(0, front));
         pan = Math.max(-0.75, Math.min(0.75, -(ux * rx + uz * rz) * Math.min(1, d / 4)));
@@ -159005,8 +159010,8 @@ class AudioEngine {
     // the tyres and the road: the car you are in, or one the camera is right by
     const near = o.inside ? C.find((x) => x.own) : C.filter((x) => x.d < 25).sort((a, b) => a.d - b.d)[0], nc = near?.c;
     const far = near ? (o.inside ? 1 : Math.min(1, 6 / (near.d + 1))) : 0, spd = nc ? near.M.spd : 0;
-    const sq = nc && !o.motion ? Math.max(0, Math.min(1, ((nc.slip || 0) - 0.75) * 0.9)) * Math.min(1, spd / 12) * (nc.surf >= 3 ? 0.2 : 1) : 0;
-    this.sqG.gain.setTargetAtTime(sq * 0.16 * far, t, 0.06); this.sqF.frequency.setTargetAtTime(1050 + 500 * Math.min(1, sq) + 120 * Math.sin(t * 7), t, 0.05);
+    const sq = nc && !o.motion ? Math.max(0, Math.min(1, ((nc.slip || 0) - 1.0) * 0.8)) * Math.min(1, spd / 12) * (nc.surf >= 3 ? 0.2 : 1) : 0;
+    this.sqG.gain.setTargetAtTime(sq * 0.07 * far, t, 0.08); { const fq = 980 + 260 * Math.min(1, sq) + 35 * Math.sin(t * 6.3) + 18 * Math.sin(t * 17); this.sqO.frequency.setTargetAtTime(fq, t, 0.05); this.sqF.frequency.setTargetAtTime(fq * 1.1, t, 0.05); }
     const kerb = nc && nc.onKerb && spd > 4 ? 1 : 0; this.kbG.gain.setTargetAtTime(kerb * 0.12 * far, t, 0.02); if (kerb) this.kb.frequency.setTargetAtTime(Math.max(12, spd / 1.1), t, 0.03);
     const gr = nc && nc.offTrack && nc.surf >= 3 && spd > 2 ? Math.min(1, spd / 30) : 0; this.grG.gain.setTargetAtTime(gr * (nc?.surf === 4 ? 0.22 : 0.1) * far * (0.7 + 0.6 * Math.random()), t, 0.03);
     // the wind: the car you are in
@@ -159015,17 +159020,17 @@ class AudioEngine {
     this.rnG.gain.setTargetAtTime(Math.min(1, o.rain || 0) * (o.inside ? 0.11 : 0.06), t, 0.4);
   }
   /** a car's engine as it is now - from its state, or (motion) from how it moves: revs, throttle, gear, ERS, limiters */
-  _move(c, dt, motion) {
+  _move(c, dt, motion, cx = c.x, cz = c.z) {
     let m = this.motion.get(c); const vw = !motion && c.worldVel ? c.worldVel() : null;
-    if (!m) { m = { x: c.x, z: c.z, vx: 0, vz: 0, spd: 0, gear: 1, rpm: 4000, thr: 0, ers: 0, lim: false, plim: false, alive: true }; this.motion.set(c, m); }
-    let vx = (c.x - m.x) / dt, vz = (c.z - m.z) / dt; m.x = c.x; m.z = c.z;
+    if (!m) { m = { x: cx, z: cz, vx: 0, vz: 0, spd: 0, gear: 1, rpm: 4000, thr: 0, ers: 0, lim: false, plim: false, alive: true }; this.motion.set(c, m); }
+    let vx = (cx - m.x) / dt, vz = (cz - m.z) / dt; m.x = cx; m.z = cz;
     if (Math.hypot(vx, vz) > 140) { vx = m.vx; vz = m.vz; }   // (a car put somewhere else - a replay's first frame: not a speed)
     if (vw) { vx = vw[0]; vz = vw[1]; } else { const k = Math.min(1, dt * 10); vx = m.vx + (vx - m.vx) * k; vz = m.vz + (vz - m.vz) * k; }
     const spd0 = m.spd; m.vx = vx; m.vz = vz; m.spd = Math.hypot(vx, vz);
     if (!motion && c.rpm != null) {
       m.rpm = c.rpm; m.thr = c.throttle || 0; m.gear = c.gear || 1;
       m.ers = c.ersDeploying ? 1 : c.ersHarvesting && (c.brake || 0) > 0.3 ? -1 : 0;
-      m.lim = c.gear === 8 && c.rpm >= 11950 && m.thr > 0.5; m.plim = !!c.pitLane && m.spd > 17 && !c.inPit;
+      m.lim = c.gear < 8 && c.rpm >= 12050 && m.thr > 0.5;   // (on the limiter in a gear held too long - not flat out in top at top speed: there the car is held by the air, and it stuttered all down every straight) m.plim = !!c.pitLane && m.spd > 17 && !c.inPit;
       m.alive = !c.engineDead && !(c.retired && m.spd < 2);
     } else {
       // (from the motion: the gear the speed is in, the revs in it; the throttle from the acceleration)
@@ -197377,7 +197382,7 @@ const FS = `uniform vec3 uColor; varying float vA;
 void main() { vec2 d = gl_PointCoord - 0.5; float r = length(d); if (r > 0.5) discard; gl_FragColor = vec4(uColor, vA * smoothstep(0.5, 0.0, r)); }`;
 
 class Spray {
-  constructor(scene, n = 2600) {
+  constructor(scene, n = 9000) {
     this.n = n; this.next = 0;
     const g = new THREE.BufferGeometry();
     this.pos = new Float32Array(n * 3); this.size = new Float32Array(n); this.alpha = new Float32Array(n);
@@ -197392,19 +197397,34 @@ class Spray {
   }
   setNight(night) { this.u.uColor.value.setRGB(night ? 0.5 : 0.8, night ? 0.52 : 0.82, night ? 0.58 : 0.86); }
   /** the spray behind every car near `cam` for this frame (dt s); heightPx: the canvas's height (point sizes) */
-  update(dt, cars, cam, heightPx) {
+  /**
+   * posOf(c) -> { x, z, th, v } | null: where the car is drawn and how fast it goes there, if not where it is - a
+   * replay poses its models from the record while the race is held: the spray came off the held cars, not the ones on
+   * the screen
+   */
+  update(dt, cars, cam, heightPx, posOf = null) {
     this.u.uScale.value = heightPx * 0.9;
     if (dt > 0 && cars) for (const c of cars) {
       if (c.retired || c.inPit || c.parked) continue;
-      const w = c.wetness || 0, v = c.speed || 0; if (w < 0.12 || v < 18) continue;
-      const dx = c.x - cam.x, dz = c.z - cam.z; if (dx * dx + dz * dz > 330 * 330) continue;
-      const rate = 95 * Math.min(1, (w - 0.08) * 1.6) * Math.min(1.4, v / 70);
-      let k = (this.acc.get(c) || 0) + rate * dt; const fx = Math.cos(c.th), fz = Math.sin(c.th);
+      const P = posOf ? posOf(c) : null; if (posOf && !P) continue;
+      const cx = P ? P.x : c.x, cz = P ? P.z : c.z, th = P ? P.th : c.th;
+      const w = c.wetness || 0, v = P ? P.v : c.speed || 0; if (w < 0.12 || v < 14) continue;
+      const dx = cx - cam.x, dz = cz - cam.z; if (dx * dx + dz * dz > 380 * 380) continue;
+      // (a wall of it, as it is: a car in the wet at speed throws a cloud the height of a house that hangs on the road
+      //  behind it for seconds - the car following sees almost nothing. Three parts: the rooster tails off the rear
+      //  tyres, the plume rising behind the diffuser, and the mist it leaves hanging over the road)
+      const ww = Math.min(1, (w - 0.08) * 1.5), rate = 300 * ww * Math.min(1.5, v / 60);
+      let k = (this.acc.get(c) || 0) + rate * dt; const fx = Math.cos(th), fz = Math.sin(th);
       for (; k >= 1; k--) {
         const side = Math.random() < 0.5 ? -1 : 1, back = 2.0 + Math.random() * 0.6, lat = side * (0.7 + Math.random() * 0.25);
-        const x = c.x - fx * back - fz * lat, z = c.z - fz * back + fx * lat;
-        this.spawn(x, 0.35 + Math.random() * 0.2, z, fx * v * 0.35 + (Math.random() - 0.5) * 3 - fz * side * 1.5, 1.2 + Math.random() * 1.6, fz * v * 0.35 + (Math.random() - 0.5) * 3 + fx * side * 1.5,
-          0.7 + Math.random() * 0.5, 2.6 + 2.6 * w + Math.random() * 1.5, (0.16 + 0.22 * Math.min(1, w)) * (0.7 + 0.3 * Math.random()));
+        const x = cx - fx * back - fz * lat, z = cz - fz * back + fx * lat;
+        const kind = Math.random();
+        if (kind < 0.55) this.spawn(x, 0.35 + Math.random() * 0.2, z, fx * v * 0.4 + (Math.random() - 0.5) * 4 - fz * side * 2, 1.6 + Math.random() * 2.4, fz * v * 0.4 + (Math.random() - 0.5) * 4 + fx * side * 2,
+          1.1 + Math.random() * 0.8, 3.5 + 5 * w + Math.random() * 2, Math.min(0.6, (0.24 + 0.36 * w) * (0.7 + 0.3 * Math.random())));   // (the plume)
+        else if (kind < 0.8) this.spawn(x, 0.25, z, fx * v * 0.55 + (Math.random() - 0.5) * 2 - fz * side * 3.5, 0.8 + Math.random(), fz * v * 0.55 + (Math.random() - 0.5) * 2 + fx * side * 3.5,
+          0.6 + Math.random() * 0.4, 1.6 + 1.6 * w, Math.min(0.7, 0.3 + 0.35 * w));   // (the rooster tails: low, quick, dense)
+        else this.spawn(x - fx * 3, 0.8 + Math.random() * 1.2, z - fz * 3, fx * v * 0.2 + (Math.random() - 0.5) * 2, 0.5 + Math.random() * 0.8, fz * v * 0.2 + (Math.random() - 0.5) * 2,
+          3 + Math.random() * 2.5, 9 + 7 * w + Math.random() * 4, (0.07 + 0.09 * w) * (0.7 + 0.3 * Math.random()));   // (the mist left hanging over the road)
       }
       this.acc.set(c, k);
     }
@@ -197412,9 +197432,9 @@ class Spray {
     for (let i = 0; i < this.n; i++) {
       if (this.age[i] >= this.life[i]) { if (this.alpha[i] !== 0) { this.alpha[i] = 0; this.size[i] = 0; } continue; }
       live++; this.age[i] += dt; const t = Math.min(1, this.age[i] / this.life[i]), j = i * 3, dr = Math.max(0, 1 - 2.2 * dt);
-      this.v[j] *= dr; this.v[j + 2] *= dr; this.v[j + 1] -= 1.2 * dt;
+      this.v[j] *= dr; this.v[j + 2] *= dr; this.v[j + 1] = this.v[j + 1] * Math.max(0, 1 - 1.4 * dt) - 0.35 * dt;   // (fine water: it hangs, it barely falls)
       this.pos[j] += this.v[j] * dt; this.pos[j + 1] = Math.max(0.2, this.pos[j + 1] + this.v[j + 1] * dt); this.pos[j + 2] += this.v[j + 2] * dt;
-      this.size[i] = 0.7 + (this.s1[i] - 0.7) * Math.sqrt(t); this.alpha[i] = this.a0[i] * (t < 0.12 ? t / 0.12 : 1 - (t - 0.12) / 0.88);
+      this.size[i] = 0.7 + (this.s1[i] - 0.7) * Math.sqrt(t); this.alpha[i] = this.a0[i] * (t < 0.08 ? t / 0.08 : Math.pow(1 - (t - 0.08) / 0.92, 1.4));
     }
     this.points.visible = live > 0;
     if (live || this._dirty) { for (const a of ['position', 'size', 'alpha']) this.g.attributes[a].needsUpdate = true; this._dirty = live > 0; }
@@ -200630,7 +200650,7 @@ function weatherWetness(w) { return w === 'wet' ? 0.75 : w === 'damp' ? 0.35 : 0
  * session's weather (the menus, the venues) one wetness for the whole road (uWxStatic).
  */
 const WXU = { uWx: { value: null }, uWxLen: { value: 1000 }, uWxOn: { value: 0 }, uWxStatic: { value: 0 } };
-const WXV = { r: 0, c: 0 };
+const WXV = { r: 0, c: 0, m: 0 };   // (m: the wet race's mist - the spray hanging over the whole circuit)
 function wetRoad(mat, L) {
   if (!WXU.uWx.value) { WXU.uWx.value = new THREE.DataTexture(new Uint8Array(4), 1, 1, THREE.RGBAFormat); WXU.uWx.value.needsUpdate = true; }
   WXU.uWxLen.value = L;
@@ -200660,8 +200680,8 @@ float wxN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f)
  * The weather on screen in a session (every frame): the road reading the session's water, the drops falling where
  * the camera is (a shower in one corner, dry in the next), the sky darker under the clouds, the spray off the cars
  */
-function wxFrame(dt, wx = S.director?.weather, cars = S.cars, snap = false) {
-  if (!wx) { WXV.raw = 0; if (WXU.uWxOn.value) WXU.uWxOn.value = 0; spray.update(dt, null, camera.position, renderer.domElement.height); return; }
+function wxFrame(dt, wx = S.director?.weather, cars = S.cars, snap = false, posOf = null) {
+  if (!wx) { WXV.raw = 0; WXV.m = 0; if (WXU.uWxOn.value) WXU.uWxOn.value = 0; spray.update(dt, null, camera.position, renderer.domElement.height); return; }
   WXU.uWx.value = wx.tex; WXU.uWxOn.value = 1;
   const x = camera.position.x, z = camera.position.z;
   let r = wx.rainAt(x, z), cl = Math.max(r, wx.cloudAt(x, z));
@@ -200671,12 +200691,24 @@ function wxFrame(dt, wx = S.director?.weather, cars = S.cars, snap = false) {
   rain.setIntensity(Math.min(1, WXV.r * 1.3));
   const B = W.sky0;
   if (B && B.time === W.time) {
-    scene.fog.density = B.fog + WXV.c * 0.0008; scene.fog.color.copy(B.col).lerp(W.time === 'day' ? WX_GREY_DAY : WX_GREY_NIGHT, 0.65 * WXV.c);
+    // (and the mist of a wet race: twenty cars' spray hanging over the whole circuit, with the rain - nothing is seen
+    //  far, a car ahead or none: half of what stands 150 m off is gone in it on a wet track in the rain)
+    const wet = Math.max(wx.avgOff || 0, wx.avgLine || 0), mist = Math.min(1, wet * 0.8 + WXV.r * 0.5);
+    WXV.m += (mist - WXV.m) * (snap ? 1 : Math.min(1, dt * 0.25));
+    scene.fog.density = B.fog + WXV.c * 0.0008 + WXV.m * 0.0052; scene.fog.color.copy(B.col).lerp(W.time === 'day' ? WX_GREY_DAY : WX_GREY_NIGHT, Math.min(1, 0.65 * WXV.c + 0.35 * WXV.m));
     env.sun.intensity = B.sun * (1 - 0.45 * WXV.c); env.hemi.intensity = B.hemi * (1 - 0.2 * WXV.c);
   }
   skyCloud(WXV.c);
   const rm = W.trackMesh?.userData.roadMat; if (rm) { rm.roughness = 0.62; rm.metalness = 0.06; rm.envMapIntensity = 0.55 + 1.4 * Math.max(wx.avgOff, WXV.r); }
-  spray.setNight(W.time !== 'day'); spray.update(dt, cars, camera.position, renderer.domElement.height);
+  spray.setNight(W.time !== 'day'); spray.update(dt, cars, camera.position, renderer.domElement.height, posOf);
+}
+/** a car as a replay draws it, for its spray: its model's place and heading, its speed from how the model moves */
+const SPRP = new Map(), _sprE = new THREE.Euler();
+function sprayPosOf(c) {
+  const m = S.meshes.get(c); if (!m || !m.group.visible) return null; const p = m.group.position, now = performance.now();
+  let s = SPRP.get(c); if (!s) { s = { x: p.x, z: p.z, t: now, v: 0 }; SPRP.set(c, s); }
+  const dt = (now - s.t) / 1000; if (dt > 0.001) { const v = Math.hypot(p.x - s.x, p.z - s.z) / dt; if (v < 150) s.v += (v - s.v) * Math.min(1, dt * 8); s.x = p.x; s.z = p.z; s.t = now; }
+  _sprE.setFromQuaternion(m.group.quaternion, 'YZX'); return { x: p.x, z: p.z, th: -_sprE.y, v: s.v };
 }
 const WX_GREY_DAY = new THREE.Color(0x8a929c), WX_GREY_NIGHT = new THREE.Color(0x0d0f16);
 /** the sky dome overcast by `k` (0 clear .. 1 a grey rain sky; at night a near-black one, no stars) */
@@ -201860,7 +201892,7 @@ function tpReplayStart(o, opts = {}) {
   const ke = Math.max(0, Math.min(F.length - 1, F.findIndex((f) => f.t >= o.t))), ex = F[ke].f[i * 7], ez = F[ke].f[i * 7 + 2], ey = F[ke].f[i * 7 + 1] + TERRAIN.at(ex, ez), tr = W.track;
   const segs = tpReplayCams(F, i, o.t), top = new THREE.Vector3(ex + 18, ey + 40, ez + 18);
   TP.rep = { F, i, j, t: 0, k: 0, hold: !!opts.full, speed: opts.speed ?? 1, at: o.t, pos: (segs[0].pos || top).clone(), segs, sg: 0, look: new THREE.Vector3(ex, ey + 0.7, ez), init: false, win: !opts.full, pass: 0, text: String(o.text || ''), label: !opts.full && opts.label ? String(opts.label) : null, onEnd: opts.onEnd || null, cam: opts.full ? camera : PIP.cam };
-  if (opts.full) { TP.fx.replaying(true, String(opts.label || o.text || '').toUpperCase()); audio.quiet?.(); }
+  if (opts.full) { TP.fx.replaying(true, String(opts.label || o.text || '').toUpperCase()); audio.quiet?.(); spray.clear(); SPRP.clear(); }
   return true;
 }
 /** the replay moved on by dt: where in the record it is, its camera placed and aimed -> false when it has ended */
@@ -201920,6 +201952,10 @@ function tpReplayPose(r) {
     // (the wheels as they were: how far they had turned - the record keeps it modulo SPIN_WRAP - the steering, the brake light, the DRS)
     if (wa && wb) { let ds = wb[w] - wa[w]; if (ds > SPIN_WRAP / 2) ds -= SPIN_WRAP; else if (ds < -SPIN_WRAP / 2) ds += SPIN_WRAP; m.pose(rx, ry, rz, _rqa, wa[w] + ds * u, wa[w + 1] + (wb[w + 1] - wa[w + 1]) * u, wa[w + 2] + (wb[w + 2] - wa[w + 2]) * u, (wa[w + 3] & 1) === 1, (wa[w + 3] & 2) === 2); }
     else { m.group.position.set(rx, ry, rz); m.group.quaternion.copy(_rqa); }
+    // (on a circuit that is not flat - Austin: tilted with the ground under it, nose up the slope, leaning with the camber,
+    //  as it is drawn live. The record is on the flat: the height of the ground was added, its angle was not - the cars
+    //  sat level on the hills. Not a car in the air or a wreck: its whole attitude is in the record)
+    if (TERRAIN.on && !((wa ? wa[w + 3] : 0) & 4)) { const gr = TERRAIN.grad(rx, rz, _gndG); m.group.quaternion.premultiply(_gndQ.setFromUnitVectors(_camUp, _gndN.set(-gr[0], 1, -gr[1]).normalize())); }
   }
 }
 /** every car's model back where the car really is */
@@ -201947,7 +201983,7 @@ function tpReplayFullNow(r) {
   camera.position.copy(PIP.cam.position); camera.quaternion.copy(PIP.cam.quaternion); camera.fov = PIP.cam.fov; camera.updateProjectionMatrix();
   r.win = false; r.cam = camera; r.label = null; TP.fullAt = S.director?.time ?? TP.fullAt;
   r.hold = true; const was = r.onEnd; r.onEnd = () => { const fin = () => { if (TP.rep === r) { r.onEnd = null; tpReplayEnd(); } }; try { was?.(); } catch (e) { /* the window's own end */ } try { if (TP.on && !TP.hl) TP.fx.wipe('LIVE', '', fin); else fin(); } catch (e) { fin(); } };
-  TP.fx.replaying(true, String(label).toUpperCase()); audio.quiet?.();
+  TP.fx.replaying(true, String(label).toUpperCase()); audio.quiet?.(); spray.clear(); SPRP.clear();
   PIP.k = 0; PIP.label = null; PIP.on = false; PIP.rect = null; TP.show?.pipReset();
 }
 /** the whole picture a replay (the highlights): the race held */
@@ -201961,14 +201997,15 @@ function tpListen(dt, motion = false) {
   const d = S.director; if (!d) return;
   const sh = TP.tv?.shot, k = sh?.kind; let own = null, inside = false, mic = null;
   if (!motion && sh?.car && (k === 'tcam' || k === 'helmet' || k === 'rear')) { own = sh.car; inside = true; }
-  let subj = motion ? (TP.rep?.cars?.[0] || null) : sh?.car || null;
-  if (!inside && subj) { const dx = camera.position.x - subj.x, dz = camera.position.z - subj.z, dd = Math.hypot(dx, dz) || 1; if (dd > 70 || k === 'heli') mic = { x: subj.x + dx / dd * 28, y: (subj.y || 0) + 3, z: subj.z + dz / dd * 28 }; }
-  audio.listen({ cam: camera, cars: S.cars, own, inside, mic, sc: d.sc?.car, motion, rain: d.weather?.rainAt?.(camera.position.x, camera.position.z) || 0, dt });
+  // (the subject - in a replay its model, where the record has it)
+  const rc = motion ? d.replay?.cars?.[TP.rep?.i] : null, subj = motion ? (rc ? S.meshes.get(rc)?.group.position || null : null) : sh?.car || null;
+  if (!inside && subj) { const dx = camera.position.x - subj.x, dz = camera.position.z - subj.z, dd = Math.hypot(dx, dz) || 1; if (dd > 70 || (!motion && k === 'heli')) mic = { x: subj.x + dx / dd * 28, y: (subj.y || 0) + 3, z: subj.z + dz / dd * 28 }; }
+  audio.listen({ cam: camera, cars: S.cars, own, inside, mic, sc: d.sc?.car, motion, posOf: motion ? (c) => S.meshes.get(c)?.group.position || null : null, rain: d.weather?.rainAt?.(camera.position.x, camera.position.z) || 0, dt });
 }
 function tpReplayFrame(dt) { if (tpReplayStep(dt) && TP.rep) tpReplayPose(TP.rep); }
 function tpReplayEnd() {
   const r = TP.rep; if (!r) return; TP.rep = null;
-  if (!r.win) { TP.fx?.replaying(false); tpReplayRestore(r); if (TP.tv) TP.tv.shot = null; }   // (the feed cuts back in on a new shot)
+  if (!r.win) { TP.fx?.replaying(false); tpReplayRestore(r); if (TP.tv) TP.tv.shot = null; spray.clear(); SPRP.clear(); }   // (the feed cuts back in on a new shot)
   r.onEnd?.();
 }
 /**
@@ -204488,7 +204525,7 @@ function frame(now) {
   if (d && S.ambient) clearAmbient();
   standsHD(FINALE.on || (!d && !W.home), dt, simTime);   // (the finale's shots, the title shots behind the menus: the stands full of people)
   if (W.home || !W.track) { input.endFrame(); return; }   // home screen / building: no 3D scene to draw
-  wxFrame(halted ? 0 : dt);
+  { const rp = !!TP.rep && !TP.rep.win && !PHOTO.on; wxFrame(halted && !rp ? 0 : dt, undefined, undefined, false, rp ? sprayPosOf : null); }   // (a whole-picture replay: the weather goes on, the spray off the replayed cars)
   rain.update(camera, halted ? 0 : dt);
   if (W.lights) W.lights.update(camera.position, simTime);
   for (const m of S.meshes.values()) m.detail(camera.position, carZoom());
@@ -204516,7 +204553,7 @@ function frame(now) {
     /** (tests: the crash director, and the camera as drawn - terrainLift() lifts it for the frame and returns the undo; renderView() draws a frame through it) */
     crashCam, terrainLift, renderView,
     /** (tests: the team principal's race - main.js TP; the circuit built ahead in the menus) */
-    TP, PIP, tpReplayCams, cullBuildings, tpAct, tpFormStart, tpFormEnd, tpAway, tpAwayWall, PRE_TRACK, preloadWanted, playScene, tvClear, tvTreeHit, tvInside, tvTrees, tpMoment, tpMomentsCut, mgrRace, FINALE, ManagerCareer, tpReplayStart, tpReplayFull, tpHighlights, get scMesh() { return scMesh; }, tvRay: _tvRay, tvGround: (x, z) => TERRAIN.at(x, z),
+    TP, PIP, tpReplayCams, cullBuildings, tpAct, tpFormStart, tpFormEnd, tpAway, tpAwayWall, PRE_TRACK, preloadWanted, playScene, tvClear, tvTreeHit, tvInside, tvTrees, tpMoment, tpMomentsCut, mgrRace, FINALE, ManagerCareer, tpReplayStart, tpReplayFull, tpHighlights, tpReplayPose, tpReplayRestore, get scMesh() { return scMesh; }, tvRay: _tvRay, tvGround: (x, z) => TERRAIN.at(x, z),
     /** (tests - tools/regress.mjs: the optimisations that must not change a pixel, switched off and on) */
     fastMatrix, SHADOW_CULL,
     /** (tests: the show clock - simTime - set, so the Sphere's loop can be put on any show) */
