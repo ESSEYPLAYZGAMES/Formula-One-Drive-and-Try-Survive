@@ -602,7 +602,7 @@ body.tp #hud-msg { top: 30%; }
     <div class="brand-line"></div>
     <h1 id="brand-title">FORMULA 1<span id="brand-sub">SIMULATOR</span></h1>
     <!-- the build's version: +0.01 with every build handed out -->
-    <span id="app-ver" title="Version">V2.79</span>
+    <span id="app-ver" title="Version">V2.80</span>
     <div id="menu-sub">Real circuits built from OpenStreetMap</div>
   </div>
   <div id="loading" class="hidden"><div class="ld"><i></i></div><span>Building the circuit from OpenStreetMap…</span></div>
@@ -148559,6 +148559,7 @@ const CSS = `
 @keyframes pwRed { from { opacity: .55; } to { opacity: 1; } }
 #pw button.pbx.dt { background: #b98cff; border-color: #b98cff; color: #111; }
 #pw button:disabled { opacity: .35; cursor: default; }
+#pw button.rtb { border-color: rgba(255,80,80,.55); color: #ff9b9b; } #pw button.rtb.arm { background: #e10600; border-color: #e10600; color: #fff; } #pw button.rtb.on { background: #ffb000; border-color: #ffb000; color: #111; }
 #pw .car { position: relative; background: rgba(255,255,255,.04); border-radius: 6px; padding: 5px 8px 5px 11px; min-width: 0; overflow: hidden; display: flex; flex-direction: column; gap: 4px; }
 #pw .car::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--c, #888); }
 #pw .hd { display: flex; align-items: center; gap: 7px; white-space: nowrap; min-width: 0; }
@@ -148600,7 +148601,7 @@ const CSS = `
 #pw .tog.tg2 { right: 96px; }
 /* COMPACT (the default on a laptop's screen): each instruction shows only what it is set to - point at it and its
    choices open; the box-for tyres and the fuel load stay as they are. Less to read while the race runs. */
-#pw.cpt .grp:not(.cmp):not(.fl):not([data-g="replan"]):not(:hover):not(:focus-within) button:not(.on) { display: none; }
+#pw.cpt .grp:not(.cmp):not(.fl):not([data-g="replan"]):not([data-g="retire"]):not(:hover):not(:focus-within) button:not(.on) { display: none; }
 #pw.cpt .ctl { gap: 3px 10px; }
 #pw.cpt .st .lt { display: none; }
 #pw-sim { position: fixed; inset: 0; z-index: 48; display: none; align-items: center; justify-content: center; flex-direction: column; gap: 10px; background: rgba(4,6,10,.72); color: #eef1f5; font: 600 14px/1.4 "Segoe UI", Arial, sans-serif; letter-spacing: .2em; text-align: center; }
@@ -148665,7 +148666,7 @@ class PitWall {
       <div class="st"><span class="tyre"><i></i><span class="tl"></span><span class="wear"><u></u></span><span class="wp"></span></span><span class="lt"></span><span class="fu"></span><span class="dm dmg"></span></div>
       <div class="alert"><span></span><button data-a="alert" data-k="${k}" data-v="yes">YES</button><button data-a="alert" data-k="${k}" data-v="no">NO</button></div>
       <div class="ctl pg-race">${ordRow('race')}</div>
-      <div class="ctl pg-car">${ordRow('car')}<span class="grp" data-g="replan"><button data-a="replan" data-k="${k}" title="Work the strategy out again from here: the stops still worth making">RE-PLAN</button></span></div>
+      <div class="ctl pg-car">${ordRow('car')}<span class="grp" data-g="replan"><button data-a="replan" data-k="${k}" title="Work the strategy out again from here: the stops still worth making">RE-PLAN</button></span><span class="grp" data-g="retire"><button class="rtb" data-a="retire" data-k="${k}" title="Call the car in and retire it in the garage (a second click to confirm; while it is coming in: STAY OUT calls it off)">BOX TO RETIRE</button></span></div>
       <div class="ctl pg-drive">
         ${['tyre', 'fuel', 'ers'].map((g) => `<span class="grp" data-g="${g}"><span>${g === 'tyre' ? 'TYRES' : g.toUpperCase()}</span>${Object.entries(MODES[g]).map(([m, p]) => `<button data-a="mode" data-g="${g}" data-k="${k}" data-v="${m}" title="${esc(p.title)}">${p.short}</button>`).join('')}</span>`).join('')}
         <span class="grp" data-g="strat"><span>CALLS</span><button data-a="strat" data-k="${k}" data-v="ai" title="The AI strategist boxes the car when it should - you can still call a stop or keep it out">AI</button><button data-a="strat" data-k="${k}" data-v="plan" title="The plan chosen before the race: the pit wall boxes the car on its laps (STAY OUT on a call: a lap later)">PLAN</button><button data-a="strat" data-k="${k}" data-v="you" title="Nothing happens unless you call it">YOU</button></span>
@@ -148703,6 +148704,13 @@ class PitWall {
     if (a === 'ord') this.act('ord', car, b.dataset.g, b.dataset.v);
     else if (a === 'alert') this.act('alert', car, b.dataset.v);
     else if (a === 'replan') this.act('replan', car);
+    else if (a === 'retire') {
+      // (two clicks: BOX TO RETIRE - CONFIRM? - and in it comes; on its way in, STAY OUT calls it off)
+      if (car.retired || car.finished) return;
+      if (car.boxRetire) { this.act('unretire', car); this.acc = 1; return; }
+      if (b.dataset.arm && performance.now() - +b.dataset.arm < 3000) { delete b.dataset.arm; this.act('retire', car); this.acc = 1; return; }
+      b.dataset.arm = String(performance.now()); b.textContent = 'CONFIRM?'; b.classList.add('arm'); setTimeout(() => { if (b.dataset.arm) { delete b.dataset.arm; b.classList.remove('arm'); this.acc = 1; } }, 3000); return;
+    }
     else if (a === 'mode') this.act('mode', car, b.dataset.g, b.dataset.v);
     else if (a === 'fuel') this.act('fuel', car, +b.dataset.v);
     else if (a === 'strat') this.act('strat', car, b.dataset.v);
@@ -148747,6 +148755,7 @@ class PitWall {
       const c = this.cars[k], card = this.el.querySelector(`.car[data-k="${k}"]`); if (!card) continue;
       const i = P.indexOf(c), m = c.mgr;
       this.setText(card.querySelector('.ps'), c.retired ? 'OUT' : `P${i + 1}`);
+      { const rb = card.querySelector('.rtb'); if (rb && !rb.dataset.arm) { const t = c.retired ? 'RETIRED' : c.boxRetire ? 'STAY OUT' : 'BOX TO RETIRE'; this.setText(rb, t); rb.classList.toggle('on', !!c.boxRetire && !c.retired); rb.disabled = !!c.retired || !!c.finished; rb.title = c.boxRetire ? 'Coming in to retire - click: stay out and race on' : rb.title; } }
       const ahead = i > 0 ? P[i - 1] : null, behind = P[i + 1];
       const ga = ahead && !c.retired ? d.radio?.gap?.(c, ahead) : null, gb = behind && !behind.retired && !c.retired ? d.radio?.gap?.(behind, c) : null;
       this.setText(card.querySelector('.gp'), c.retired ? (c.retireReason || 'Retired') : `${ahead ? `▲ ${ga != null && ga > 0 ? ga.toFixed(1) : '-'} ${surname(ahead)}` : 'LEADING'}${behind ? `   ▼ ${gb != null && gb > 0 ? gb.toFixed(1) : '-'} ${surname(behind)}` : ''}`);
@@ -195799,6 +195808,17 @@ class RaceDirector {
     c.parkMove = { t: 0, x0, z0, x1: f.x, z1: f.z, y0: c.rigid && c.p ? c.p[1] : 0 };
   }
   /** a car stopped for good in the pit lane: the crews push it into the nearest garage, out of the lane (false: not beside the garages) */
+  /**
+   * A car called in to retire (the team principal's BOX TO RETIRE), at its box: out of the race - and its crew push it
+   * back into the garage. Out of the pit lane's queue at once: its team-mate's stop is not held up behind it.
+   */
+  retireInBox(c, st = null) {
+    c.boxRetire = false; c.retired = true; c.retireReason = 'Retired (team decision)'; c.pitRequested = false; c.pitPlan = null;
+    c.throttle = 0; c.brake = 1; c.vLong = 0; c.vLat = 0; c.held = true;
+    if (st) { this.pitStates.delete(c); c.inPit = false; }
+    c.pitLane = true; c.clearT = 0;
+    if (!this.pushToGarage(c)) c.clearT = 0;   // (not by the garages: the marshals' way, as any car stopped in the lane)
+  }
   pushToGarage(c) {
     const P = this.pit, ps = P.samples, q = P.nearest(c.x, c.z, {}), i = Math.max(0, Math.min(ps.n - 1, Math.round(q.u / ps.ds)));
     if (i < P.wallStartI + 4 || i > P.wallEndI - 4 || c.rigid) return false;
@@ -196080,6 +196100,7 @@ class RaceDirector {
       const ahead = box.u - p.pitU;
       if (!p.boxWarned && ahead < 45 && ahead > 0) { p.boxWarned = true; hud?.msg('BOX AHEAD', 'warn', 1.5); }
       const inBox = Math.abs(ahead) < 7.5 && Math.abs(p.pitLat - box.lat) < 3.2;   // anywhere on the painted box (8.8 m long) counts
+      if (inBox && p.speed < 0.4 && (me || p.pitRequested) && !p.dtRun && p.boxRetire) { this.retireInBox(p); return; }   // (called in to retire: in the garage)
       if (inBox && p.speed < 0.4 && (me || p.pitRequested) && !p.dtRun) {
         let plan = p.pitPlan || p.ai?.pitPlan || { compound: p.tyres.compound, repair: 'none' };
         // (an AI car's repairs are what it needs now it is in the box, not what it needed when the stop was called: a stop
@@ -196245,6 +196266,7 @@ class RaceDirector {
       if (queued) { if (rem < 0.4) st.v = 0; }
       else if (rem < 0.4 || (rem < 3 && st.v < 0.3)) {
         st.phase = 'stop'; st.v = 0;
+        if (c.boxRetire) { this.retireInBox(c, st); return; }   // (called in to retire: in the garage)
         if (this.mode === 'race') this.calls.stop(c, { reason: c.ai?.pitReason, to: st.plan?.compound, rival: c.ai?.pitReason === 'undercut' ? c.ai.lastUndercut?.on : null });
         st.stopT = this.stopTime(c, st.plan) + c.penalties; st.serve = c.penalties; st.at = this.time; c.penaltyServed += c.penalties; c.penalties = 0;
         c._stopAt = this.time; c._stopDur = st.stopT; c._stopPlan = st.plan; c._stopServe = st.serve;
@@ -201441,7 +201463,18 @@ function tpAct(a, x, y, z) {
     const O = ORDERS[y]?.opts[z]; if (!O) return; x.mgr.orders[y] = z; tpModes(x);
     wall.radio('Engineer', `${sur(x)}: ${ORDERS[y].name.toLowerCase()} - ${O.label.toLowerCase()}.`);
   }
-  else if (a === 'replan') {
+  else if (a === 'retire') {
+    // (box to retire: called in now, whatever lap it is - at its box it is retired and pushed into the garage: RaceDirector.retireInBox)
+    if (d.mode !== 'race' || x.retired || x.finished) return;
+    x.boxRetire = true; x.mgr.holdLap = null; const plan = { compound: x.tyres.compound, repair: 'none' };
+    x.pitPlan = plan; if (x.ai) { x.ai.pitPlan = plan; x.ai.pitReason = 'retire'; }
+    if (!x.pitRequested && !x.pitLane && !x.inPit) d.requestPit(x, plan);
+    wall.radio('You', `${sur(x)}, box this lap, box. We are retiring the car.`);
+  } else if (a === 'unretire') {
+    if (x.retired || !x.boxRetire) return; x.boxRetire = false;
+    if (!x.pitLane && !x.inPit) { x.pitRequested = false; x.pitPlan = null; if (x.ai) { x.ai.pitPlan = null; x.ai.pitReason = null; } }
+    wall.radio('You', `${sur(x)}, stay out, stay out. We race on.`);
+  } else if (a === 'replan') {
     // (the rest of the race worked out again - race/TeamStrategy.js: the options offered one after another)
     if (d.mode !== 'race' || !d.world.racing || x.retired || x.finished) return;
     const P0 = W.pit, pace = estimatePace(), laneLen = P0 ? P0.samples.length : 400, pitLoss = d.world.pitLoss || (P0 ? Math.max(12, laneLen / P0.limiter - laneLen / (W.track.length / pace) + 4.6) : 22);
@@ -202361,6 +202394,8 @@ function tpCamera(dt) {
 /** the graphics, the pit wall and the radio (every frame, paused too) */
 function tpUi(dt) {
   const d = S.director; if (!d || !TP.on) return;
+  // (a car called in to retire stays called in - whatever else would keep it out - until it is at its box)
+  for (const c of TP.cars || []) if (c.boxRetire && !c.retired && !c.pitRequested && !c.pitLane && !c.inPit && d.world.racing) d.requestPit(c, c.pitPlan || { compound: c.tyres.compound, repair: 'none' });
   const show = !FINALE.on && !PRE.on && !NEWS.on && !POV.on;
   TP.gfx.el.classList.toggle('hidden', !show); TP.wall.el.classList.toggle('hidden', !show || d.done);
   // (the HUD's messages - LINE ON / OFF, the safety car's, race control's - run out here: the HUD's own update, which

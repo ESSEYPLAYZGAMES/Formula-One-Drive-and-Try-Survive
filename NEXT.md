@@ -1,3 +1,15 @@
+# V2.80 (2026-11-17): box to retire
+
+Asked for: "add a box to retire option in the 'car' menu of the pitwall".
+
+## The pit wall's CAR page (ui/PitWall.js, main.js, race/RaceDirector.js)
+- BOX TO RETIRE, by RE-PLAN: a click asks CONFIRM? (three seconds), a second calls the car in - this lap, on the
+  radio ("box this lap, box. We are retiring the car"). On its way in the button is STAY OUT: a click calls it off
+  and it races on. Called in to retire it stays called in - whatever else would keep it out - until it is at its box.
+- At its box it is out of the race ("Retired (team decision)", classified as a retirement) and its crew push it back
+  into the garage; it is out of the pit lane's queue at once, so its team-mate's stop is not held up behind it.
+  The button then reads RETIRED.
+
 # V2.79 (2026-11-17): replays heard, tilted and in the spray; a wet race you cannot see through; the engine's crackle and stutter
 
 Asked for: "at austin, in replays the cars dont follow the angle of track"; "The new engine sounds are amazing! but there

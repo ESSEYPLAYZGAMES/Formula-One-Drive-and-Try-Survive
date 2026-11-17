@@ -561,6 +561,17 @@ export class RaceDirector {
     c.parkMove = { t: 0, x0, z0, x1: f.x, z1: f.z, y0: c.rigid && c.p ? c.p[1] : 0 };
   }
   /** a car stopped for good in the pit lane: the crews push it into the nearest garage, out of the lane (false: not beside the garages) */
+  /**
+   * A car called in to retire (the team principal's BOX TO RETIRE), at its box: out of the race - and its crew push it
+   * back into the garage. Out of the pit lane's queue at once: its team-mate's stop is not held up behind it.
+   */
+  retireInBox(c, st = null) {
+    c.boxRetire = false; c.retired = true; c.retireReason = 'Retired (team decision)'; c.pitRequested = false; c.pitPlan = null;
+    c.throttle = 0; c.brake = 1; c.vLong = 0; c.vLat = 0; c.held = true;
+    if (st) { this.pitStates.delete(c); c.inPit = false; }
+    c.pitLane = true; c.clearT = 0;
+    if (!this.pushToGarage(c)) c.clearT = 0;   // (not by the garages: the marshals' way, as any car stopped in the lane)
+  }
   pushToGarage(c) {
     const P = this.pit, ps = P.samples, q = P.nearest(c.x, c.z, {}), i = Math.max(0, Math.min(ps.n - 1, Math.round(q.u / ps.ds)));
     if (i < P.wallStartI + 4 || i > P.wallEndI - 4 || c.rigid) return false;
@@ -842,6 +853,7 @@ export class RaceDirector {
       const ahead = box.u - p.pitU;
       if (!p.boxWarned && ahead < 45 && ahead > 0) { p.boxWarned = true; hud?.msg('BOX AHEAD', 'warn', 1.5); }
       const inBox = Math.abs(ahead) < 7.5 && Math.abs(p.pitLat - box.lat) < 3.2;   // anywhere on the painted box (8.8 m long) counts
+      if (inBox && p.speed < 0.4 && (me || p.pitRequested) && !p.dtRun && p.boxRetire) { this.retireInBox(p); return; }   // (called in to retire: in the garage)
       if (inBox && p.speed < 0.4 && (me || p.pitRequested) && !p.dtRun) {
         let plan = p.pitPlan || p.ai?.pitPlan || { compound: p.tyres.compound, repair: 'none' };
         // (an AI car's repairs are what it needs now it is in the box, not what it needed when the stop was called: a stop
@@ -1007,6 +1019,7 @@ export class RaceDirector {
       if (queued) { if (rem < 0.4) st.v = 0; }
       else if (rem < 0.4 || (rem < 3 && st.v < 0.3)) {
         st.phase = 'stop'; st.v = 0;
+        if (c.boxRetire) { this.retireInBox(c, st); return; }   // (called in to retire: in the garage)
         if (this.mode === 'race') this.calls.stop(c, { reason: c.ai?.pitReason, to: st.plan?.compound, rival: c.ai?.pitReason === 'undercut' ? c.ai.lastUndercut?.on : null });
         st.stopT = this.stopTime(c, st.plan) + c.penalties; st.serve = c.penalties; st.at = this.time; c.penaltyServed += c.penalties; c.penalties = 0;
         c._stopAt = this.time; c._stopDur = st.stopT; c._stopPlan = st.plan; c._stopServe = st.serve;

@@ -28,6 +28,7 @@ const CSS = `
 @keyframes pwRed { from { opacity: .55; } to { opacity: 1; } }
 #pw button.pbx.dt { background: #b98cff; border-color: #b98cff; color: #111; }
 #pw button:disabled { opacity: .35; cursor: default; }
+#pw button.rtb { border-color: rgba(255,80,80,.55); color: #ff9b9b; } #pw button.rtb.arm { background: #e10600; border-color: #e10600; color: #fff; } #pw button.rtb.on { background: #ffb000; border-color: #ffb000; color: #111; }
 #pw .car { position: relative; background: rgba(255,255,255,.04); border-radius: 6px; padding: 5px 8px 5px 11px; min-width: 0; overflow: hidden; display: flex; flex-direction: column; gap: 4px; }
 #pw .car::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--c, #888); }
 #pw .hd { display: flex; align-items: center; gap: 7px; white-space: nowrap; min-width: 0; }
@@ -69,7 +70,7 @@ const CSS = `
 #pw .tog.tg2 { right: 96px; }
 /* COMPACT (the default on a laptop's screen): each instruction shows only what it is set to - point at it and its
    choices open; the box-for tyres and the fuel load stay as they are. Less to read while the race runs. */
-#pw.cpt .grp:not(.cmp):not(.fl):not([data-g="replan"]):not(:hover):not(:focus-within) button:not(.on) { display: none; }
+#pw.cpt .grp:not(.cmp):not(.fl):not([data-g="replan"]):not([data-g="retire"]):not(:hover):not(:focus-within) button:not(.on) { display: none; }
 #pw.cpt .ctl { gap: 3px 10px; }
 #pw.cpt .st .lt { display: none; }
 #pw-sim { position: fixed; inset: 0; z-index: 48; display: none; align-items: center; justify-content: center; flex-direction: column; gap: 10px; background: rgba(4,6,10,.72); color: #eef1f5; font: 600 14px/1.4 "Segoe UI", Arial, sans-serif; letter-spacing: .2em; text-align: center; }
@@ -134,7 +135,7 @@ export class PitWall {
       <div class="st"><span class="tyre"><i></i><span class="tl"></span><span class="wear"><u></u></span><span class="wp"></span></span><span class="lt"></span><span class="fu"></span><span class="dm dmg"></span></div>
       <div class="alert"><span></span><button data-a="alert" data-k="${k}" data-v="yes">YES</button><button data-a="alert" data-k="${k}" data-v="no">NO</button></div>
       <div class="ctl pg-race">${ordRow('race')}</div>
-      <div class="ctl pg-car">${ordRow('car')}<span class="grp" data-g="replan"><button data-a="replan" data-k="${k}" title="Work the strategy out again from here: the stops still worth making">RE-PLAN</button></span></div>
+      <div class="ctl pg-car">${ordRow('car')}<span class="grp" data-g="replan"><button data-a="replan" data-k="${k}" title="Work the strategy out again from here: the stops still worth making">RE-PLAN</button></span><span class="grp" data-g="retire"><button class="rtb" data-a="retire" data-k="${k}" title="Call the car in and retire it in the garage (a second click to confirm; while it is coming in: STAY OUT calls it off)">BOX TO RETIRE</button></span></div>
       <div class="ctl pg-drive">
         ${['tyre', 'fuel', 'ers'].map((g) => `<span class="grp" data-g="${g}"><span>${g === 'tyre' ? 'TYRES' : g.toUpperCase()}</span>${Object.entries(MODES[g]).map(([m, p]) => `<button data-a="mode" data-g="${g}" data-k="${k}" data-v="${m}" title="${esc(p.title)}">${p.short}</button>`).join('')}</span>`).join('')}
         <span class="grp" data-g="strat"><span>CALLS</span><button data-a="strat" data-k="${k}" data-v="ai" title="The AI strategist boxes the car when it should - you can still call a stop or keep it out">AI</button><button data-a="strat" data-k="${k}" data-v="plan" title="The plan chosen before the race: the pit wall boxes the car on its laps (STAY OUT on a call: a lap later)">PLAN</button><button data-a="strat" data-k="${k}" data-v="you" title="Nothing happens unless you call it">YOU</button></span>
@@ -172,6 +173,13 @@ export class PitWall {
     if (a === 'ord') this.act('ord', car, b.dataset.g, b.dataset.v);
     else if (a === 'alert') this.act('alert', car, b.dataset.v);
     else if (a === 'replan') this.act('replan', car);
+    else if (a === 'retire') {
+      // (two clicks: BOX TO RETIRE - CONFIRM? - and in it comes; on its way in, STAY OUT calls it off)
+      if (car.retired || car.finished) return;
+      if (car.boxRetire) { this.act('unretire', car); this.acc = 1; return; }
+      if (b.dataset.arm && performance.now() - +b.dataset.arm < 3000) { delete b.dataset.arm; this.act('retire', car); this.acc = 1; return; }
+      b.dataset.arm = String(performance.now()); b.textContent = 'CONFIRM?'; b.classList.add('arm'); setTimeout(() => { if (b.dataset.arm) { delete b.dataset.arm; b.classList.remove('arm'); this.acc = 1; } }, 3000); return;
+    }
     else if (a === 'mode') this.act('mode', car, b.dataset.g, b.dataset.v);
     else if (a === 'fuel') this.act('fuel', car, +b.dataset.v);
     else if (a === 'strat') this.act('strat', car, b.dataset.v);
@@ -216,6 +224,7 @@ export class PitWall {
       const c = this.cars[k], card = this.el.querySelector(`.car[data-k="${k}"]`); if (!card) continue;
       const i = P.indexOf(c), m = c.mgr;
       this.setText(card.querySelector('.ps'), c.retired ? 'OUT' : `P${i + 1}`);
+      { const rb = card.querySelector('.rtb'); if (rb && !rb.dataset.arm) { const t = c.retired ? 'RETIRED' : c.boxRetire ? 'STAY OUT' : 'BOX TO RETIRE'; this.setText(rb, t); rb.classList.toggle('on', !!c.boxRetire && !c.retired); rb.disabled = !!c.retired || !!c.finished; rb.title = c.boxRetire ? 'Coming in to retire - click: stay out and race on' : rb.title; } }
       const ahead = i > 0 ? P[i - 1] : null, behind = P[i + 1];
       const ga = ahead && !c.retired ? d.radio?.gap?.(c, ahead) : null, gb = behind && !behind.retired && !c.retired ? d.radio?.gap?.(behind, c) : null;
       this.setText(card.querySelector('.gp'), c.retired ? (c.retireReason || 'Retired') : `${ahead ? `▲ ${ga != null && ga > 0 ? ga.toFixed(1) : '-'} ${surname(ahead)}` : 'LEADING'}${behind ? `   ▼ ${gb != null && gb > 0 ? gb.toFixed(1) : '-'} ${surname(behind)}` : ''}`);

@@ -2420,7 +2420,18 @@ function tpAct(a, x, y, z) {
     const O = ORDERS[y]?.opts[z]; if (!O) return; x.mgr.orders[y] = z; tpModes(x);
     wall.radio('Engineer', `${sur(x)}: ${ORDERS[y].name.toLowerCase()} - ${O.label.toLowerCase()}.`);
   }
-  else if (a === 'replan') {
+  else if (a === 'retire') {
+    // (box to retire: called in now, whatever lap it is - at its box it is retired and pushed into the garage: RaceDirector.retireInBox)
+    if (d.mode !== 'race' || x.retired || x.finished) return;
+    x.boxRetire = true; x.mgr.holdLap = null; const plan = { compound: x.tyres.compound, repair: 'none' };
+    x.pitPlan = plan; if (x.ai) { x.ai.pitPlan = plan; x.ai.pitReason = 'retire'; }
+    if (!x.pitRequested && !x.pitLane && !x.inPit) d.requestPit(x, plan);
+    wall.radio('You', `${sur(x)}, box this lap, box. We are retiring the car.`);
+  } else if (a === 'unretire') {
+    if (x.retired || !x.boxRetire) return; x.boxRetire = false;
+    if (!x.pitLane && !x.inPit) { x.pitRequested = false; x.pitPlan = null; if (x.ai) { x.ai.pitPlan = null; x.ai.pitReason = null; } }
+    wall.radio('You', `${sur(x)}, stay out, stay out. We race on.`);
+  } else if (a === 'replan') {
     // (the rest of the race worked out again - race/TeamStrategy.js: the options offered one after another)
     if (d.mode !== 'race' || !d.world.racing || x.retired || x.finished) return;
     const P0 = W.pit, pace = estimatePace(), laneLen = P0 ? P0.samples.length : 400, pitLoss = d.world.pitLoss || (P0 ? Math.max(12, laneLen / P0.limiter - laneLen / (W.track.length / pace) + 4.6) : 22);
@@ -3340,6 +3351,8 @@ function tpCamera(dt) {
 /** the graphics, the pit wall and the radio (every frame, paused too) */
 function tpUi(dt) {
   const d = S.director; if (!d || !TP.on) return;
+  // (a car called in to retire stays called in - whatever else would keep it out - until it is at its box)
+  for (const c of TP.cars || []) if (c.boxRetire && !c.retired && !c.pitRequested && !c.pitLane && !c.inPit && d.world.racing) d.requestPit(c, c.pitPlan || { compound: c.tyres.compound, repair: 'none' });
   const show = !FINALE.on && !PRE.on && !NEWS.on && !POV.on;
   TP.gfx.el.classList.toggle('hidden', !show); TP.wall.el.classList.toggle('hidden', !show || d.done);
   // (the HUD's messages - LINE ON / OFF, the safety car's, race control's - run out here: the HUD's own update, which
