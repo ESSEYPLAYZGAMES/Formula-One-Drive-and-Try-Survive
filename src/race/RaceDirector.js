@@ -280,6 +280,7 @@ export class RaceDirector {
       }
       if (this.sc.car) this.sc.car.step(SUB, this.world);   // (the safety car: not one of the race's cars, on the same road)
       this.collisions();
+      for (const c of this.cars) { if (c.spinning && !c._spW) c.spins = (c.spins || 0) + 1; c._spW = !!c.spinning; }   // (the spins counted - race/Ratings.js; nothing else reads them)
       if (this.state === 'lights') this.jumpStarts();
     }
     this.rivalWall?.update(dt);   // (the rival pit walls against you: race/RivalWall.js)

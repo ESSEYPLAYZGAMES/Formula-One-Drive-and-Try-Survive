@@ -5,6 +5,7 @@
 // the points, a penalty, Driver of the Day, a ban), up to three pages - the classification in two columns, the race
 // story (the fans' vote and the race in numbers), the championship - and a footer with the way on. Pages turn with the
 // tabs, left/right, Q/E or 1-3; Enter carries on.
+import { rateCol } from '../race/Ratings.js';
 import { COMPOUNDS } from '../vehicle/Tyres.js';
 import { ensureMotion, open, close, page, keys, countUp } from './Motion.js';
 
@@ -46,7 +47,7 @@ const HUD_CSS = `
 #results { --rh: clamp(26px, calc((100vh - 300px) / 12), 34px); }
 #results .rr-list { display: grid; grid-template-columns: minmax(0,1fr); align-content: start; }
 #results .rr-list.c2 { grid-auto-flow: column; grid-template-rows: repeat(var(--rn), var(--rh)); grid-template-columns: repeat(2, minmax(0,1fr)); column-gap: 28px; }
-#results .rr { display: grid; grid-template-columns: 26px 10px minmax(0,1fr) 112px 72px 42px 32px; column-gap: 6px; align-items: center; height: var(--rh); padding: 0 8px; border-radius: 6px;
+#results .rr { display: grid; grid-template-columns: 26px 10px minmax(0,1fr) 112px 72px 42px 32px 34px; column-gap: 6px; align-items: center; height: var(--rh); padding: 0 8px; border-radius: 6px;
   border-bottom: 1px solid rgba(255,255,255,.04); font-size: 12.5px; font-variant-numeric: tabular-nums; min-width: 0; }
 #results .rr > * { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #results .rr .sw { width: 10px; height: 10px; margin: 0; border-radius: 2px; }
@@ -436,11 +437,11 @@ export class HUD {
       + `${pen > 0 ? `<span class="res-chip warn">+${Math.round(pen)}s PEN</span>` : ''}${dotd ? '<span class="res-chip gold">DRIVER OF THE DAY</span>' : ''}`
       + `${ban ? `<span class="res-chip down" title="${esc(ban)}">SUSPENDED NEXT RACE</span>` : ''}`;
     // the classification: two columns of eleven when the field is bigger than one
-    const HEAD = '<span>#</span><span></span><span>DRIVER</span><span class="g">TIME / GAP</span><span class="b">BEST</span><span class="s">STOPS</span><span class="pt">PTS</span>';
+    const HEAD = '<span>#</span><span></span><span>DRIVER</span><span class="g">TIME / GAP</span><span class="b">BEST</span><span class="s">STOPS</span><span class="pt">PTS</span><span class="pt" title="Driver rating, 1-10 (point at a mark for the reasons)">RTG</span>';
     const two = rows.length > 11, half = Math.ceil(rows.length / 2);
     const row = (r, i) => `<div class="rr${r.me ? ' me' : ''}${r.car?.retired ? ' out' : ''}${i < 7 ? ' a' : ''}" style="--i:${i}" title="${esc(`P${r.pos} ${r.name} · ${r.team} · ${r.gap}`)}">`
       + `<span>${r.pos}</span><i class="sw" style="background:${esc(r.color)}"></i><span class="n"><b>${esc(r.name)}</b><small>${esc(r.team)}</small></span>`
-      + `<span class="g">${esc(r.gap)}</span><span class="b">${esc(r.best)}</span><span class="s">${r.stops ?? ''}</span><span class="pt">${r.pts ?? ''}</span></div>`;
+      + `<span class="g">${esc(r.gap)}</span><span class="b">${esc(r.best)}</span><span class="s">${r.stops ?? ''}</span><span class="pt">${r.pts ?? ''}</span><span class="pt" style="color:${rateCol(r.rtg)};font-weight:800" title="${esc((r.rtgWhy || []).join(' · '))}">${r.rtg ?? (r.rtgWhy ? '-' : '')}</span></div>`;
     R.tbl.innerHTML = `<div class="rr-list${two ? ' c2' : ''}" style="--rn:${two ? half + 1 : rows.length + 1}"><div class="rr rh">${HEAD}</div>`
       + rows.map((r, i) => (two && i === half ? `<div class="rr rh rh2">${HEAD}</div>` : '') + row(r, i)).join('') + '</div>';
     // (narrow sheets only - one column, below 900 px - let the pages scroll; on a laptop they fit)

@@ -43,6 +43,7 @@ const CSS = `
 #pw .wear { width: 54px; height: 5px; border-radius: 3px; background: rgba(255,255,255,.12); overflow: hidden; display: inline-block; }
 #pw .wear u { display: block; height: 100%; background: #2fbf4f; transform-origin: left; }
 #pw .dmg { color: #ff8a80; } #pw .warnc { color: #ffd400; }
+#pw .rj { color: #7fe3ff; font-weight: 700; white-space: nowrap; } #pw .rj.warn { color: #ffd166; }
 #pw .ctl { display: flex; flex-wrap: wrap; gap: 3px 9px; align-items: center; }
 #pw .grp { display: inline-flex; gap: 2px; align-items: center; }
 #pw .grp > span { font: 700 8.5px/1 var(--tvf); letter-spacing: .14em; color: #8b95a3; margin-right: 3px; }
@@ -132,7 +133,7 @@ export class PitWall {
     const card = (c, k) => { k0 = k; return `<div class="car" data-k="${k}" data-pg="drive" style="--c:${esc(c.color)}">
       <div class="hd"><span class="ps">P-</span><span class="nm">${esc(c.name)}</span><span class="pgs"><button data-a="pg" data-k="${k}" data-v="drive" title="Tyres, fuel, ERS, the stops">DRIVE</button><button data-a="pg" data-k="${k}" data-v="race" title="How the car is raced">RACECRAFT</button><button data-a="pg" data-k="${k}" data-v="car" title="Brake bias, differential, cooling">CAR</button></span><span class="gp"></span><button class="fw" data-a="follow" data-k="${k}" title="Watch this car">◉</button></div>
       <div class="body">
-      <div class="st"><span class="tyre"><i></i><span class="tl"></span><span class="wear"><u></u></span><span class="wp"></span></span><span class="lt"></span><span class="fu"></span><span class="dm dmg"></span></div>
+      <div class="st"><span class="tyre"><i></i><span class="tl"></span><span class="wear"><u></u></span><span class="wp"></span></span><span class="lt"></span><span class="fu"></span><span class="dm dmg"></span><span class="rj" title="If the car boxed now: where it would rejoin, the car ahead of it then and the gap - the ghost on the map"></span></div>
       <div class="alert"><span></span><button data-a="alert" data-k="${k}" data-v="yes">YES</button><button data-a="alert" data-k="${k}" data-v="no">NO</button></div>
       <div class="ctl pg-race">${ordRow('race')}</div>
       <div class="ctl pg-car">${ordRow('car')}<span class="grp" data-g="replan"><button data-a="replan" data-k="${k}" title="Work the strategy out again from here: the stops still worth making">RE-PLAN</button></span><span class="grp" data-g="retire"><button class="rtb" data-a="retire" data-k="${k}" title="Call the car in and retire it in the garage (a second click to confirm; while it is coming in: STAY OUT calls it off)">BOX TO RETIRE</button></span></div>
@@ -239,6 +240,7 @@ export class PitWall {
       card.querySelector('.wp').className = `wp${wear > 0.6 ? ' warnc' : ''}`;
       const last = c.lapTimes?.[c.lapTimes.length - 1];
       this.setText(card.querySelector('.lt'), `LAST ${fmtLap(last)} · BEST ${fmtLap(c.bestLap)}`);
+      { const rj = card.querySelector('.rj'), R = st.rejoin?.(c); this.setText(rj, R ? R.text : ''); rj.classList.toggle('warn', !!R?.warn); }   // (pit now: where it rejoins)
       const dm = c.dmg || {}, worst = Math.max(dm.fwL || 0, dm.fwR || 0, dm.rw || 0, dm.susp || 0, dm.eng || 0);
       this.setText(card.querySelector('.dm'), worst > 0.12 ? `DAMAGE ${[(dm.fwL || 0) + (dm.fwR || 0) > 0.2 ? 'front wing' : null, dm.rw > 0.12 ? 'rear wing' : null, dm.susp > 0.12 ? 'suspension' : null, dm.eng > 0.12 ? 'engine' : null].filter(Boolean).join(', ')}` : c.punct != null ? 'PUNCTURE' : '');
       this.mark(card, '[data-a="mode"]', (b) => b.dataset.v === m.modes?.[b.dataset.g]);

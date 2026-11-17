@@ -1,3 +1,29 @@
+# V2.83 (2026-11-17): the stop worked out on the pit wall; sprint weekends; the drivers rated after every race
+
+Asked for: "do 1,3,5 - affects their OVR" - a pit-now rejoin prediction, sprint weekends, driver ratings that move
+the drivers' ratings.
+
+## Pit now: where it would put you (main.js, ui/PitWall.js, ui/TVShow.js)
+- Each car's line on the pit wall: PIT NOW -> the place it would come out in, how far behind the car in front, and,
+  in amber, the car right behind if it is closer than 1.2 s (traffic). On the track map a dashed ring in the car's
+  colour where it would rejoin. The stop's cost is the lane as the cars drive it - braking to the speed line, the
+  limiter, away again - against the same distance at racing speed, plus the time stood in the box (some 22 s at
+  Silverstone); about half that under a safety car or a VSC. The gaps are the timing loops' own.
+
+## Sprint weekends (career/Sprint.js, main.js, career/Career.js)
+- Both careers: every third round of a season of four or more is a sprint weekend. Saturday's sprint first - a third
+  of the race's distance, from a sprint shoot-out grid, no stop to make - points to the first eight, 8-7-6-5-4-3-2-1,
+  for the drivers and the teams; then qualifying and the Grand Prix as any weekend. Simulated weekends run the sprint
+  too.
+
+## The drivers rated (race/Ratings.js, career/Manager.js, career/Career.js, ui/HUD.js, ui/ManagerHub.js)
+- After every race each driver gets a mark out of ten - against what his car could do (the place its pace was worth),
+  the places from the grid, the passes, the team-mate, a win, a podium, the fastest lap; spins and penalties cost.
+  Crashed out: low; out with a failure of the car: not rated. The results sheet has a RTG column (point at a mark for
+  the reasons), the HQ's driver card the last mark and the form.
+- The mark moves the driver's rating, so his OVR: a 9 some +0.4, a 4 some -0.4, a 6.3 nothing. Every driver in the
+  field, both careers; in the driver career your own mark is on the race report.
+
 # V2.82 (2026-11-17): a sick engine heard; the crowd; driving blind in the spray; the spray's cost; the safety car heard
 
 Asked for: "all of them except 6" - engine failure sounds, the crowd, the AI in the spray, the wet race's frame rate,

@@ -12,6 +12,7 @@
 // moves with every result, and a season far short of the target with the board's patience gone is the end - another
 // team, a smaller one, may offer you a way back.
 import { ROSTER, RESERVES, F2, POINTS, PERF_GAIN, dayPerf } from '../race/Roster.js';
+import { rateRace } from '../race/Ratings.js';
 import { startLevels, techEffects, devTick, aiDevelopTeam, upgradeName, UP } from './TechTree.js';
 import { crewEnsure, crewRound, crewNewSeason, crewSalaries } from './ManagerCrew.js';
 import { peopleEnsure, peopleAfterRace, peopleSeasonEnd, raceEvent, onExtend, extendBlock, engineerFx, fatigueQ } from './ManagerPeople.js';
@@ -159,6 +160,16 @@ export class ManagerCareer {
       t.points += pts; byTeam[t.name] = (byTeam[t.name] || 0) + pts;
       if (t.name === this.myTeam) rep.mine.push({ id: d.id, name: d.name, pos: r.pos, pts, dnf: !!r.car.retired, why: r.car.retireReason || null });
     }
+    // the drivers rated (race/Ratings.js) - every one on the grid - and each one's rating (OVR) moved by it: a 9 some
+    // +0.4, a 4 some -0.4; out with the car's failure, not rated. Against what the car could do: the race's own cars'
+    // pace where it was raced, the entries' where it was simulated
+    { const exp = rows.every((r) => r.car.perf != null) ? null : (() => { const o = {}; [...this.entries()].sort((a, b) => b.perf - a.perf).forEach((e, i) => { o[e.careerId] = i + 1; }); return o; })();
+      const marks = rateRace(rows, exp ? { exp } : {}); rep.ratings = []; this.lastRatings = { season: this.season, round: this.round, by: {} };
+      for (const r of rows) { const m = marks.get(r.car), d = this.drivers[r.car.careerId]; if (!m || !d) continue; this.lastRatings.by[d.id] = { score: m.score, why: m.why };
+        if (m.d) d.rating = +clamp(d.rating + m.d, 0.6, 0.985).toFixed(4);
+        d.marks = [...(d.marks || []), m.score].filter((x) => x != null).slice(-10);
+        if (r.car.team === this.myTeam) rep.ratings.push({ id: d.id, name: d.name, score: m.score, why: m.why, d: m.d }); }
+      if (rep.ratings.length) this.addNews(`Driver ratings: ${rep.ratings.map((x) => `${x.name.split(' ').pop()} ${x.score ?? '-'}${x.why.length ? ` (${x.why.slice(0, 2).join(', ')})` : ''}`).join(' · ')}.`); }
     // the money: the commercial rights and a share by the points; the salaries; your sponsor's target and your staff
     for (const t of Object.values(this.teams)) {
       const inc = RACE_INCOME[t.tier] + (byTeam[t.name] || 0) * POINT_INCOME, wages = this.seatsOf(t.name).reduce((s, d) => s + (d.salary || 0), 0) / this.rounds;

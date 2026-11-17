@@ -14,6 +14,8 @@
 // hurt in an accident misses the next round or two, and a driver who reaches twelve penalty points misses the next
 // one: a stand-in in their seat either way.
 import { ROSTER, RESERVES, F2, PERF_GAIN, dayPerf } from '../race/Roster.js';
+import { rateRace } from '../race/Ratings.js';
+import { isSprintRound, sprintRun, applySprint, simSprintRows } from './Sprint.js';
 import { BRANCHES, UP, startLevels, techEffects, upgradeState, develop, devTick, aiDevelop, migrateTeam, upgradeName, branchMaxed } from './TechTree.js';
 import { moraleInit, moodOf, shiftMorale, moraleFromRace, moraleFromQuali, moraleRoundTick, moraleNewSeason, formOf, moraleSimBonus } from './Morale.js';
 import { LICENCE_MAX, pointsFor, licenceInit, activePoints, isBanned, banText, addPoints, licenceRoundTick } from './Licence.js';
@@ -401,7 +403,7 @@ export class Career {
     return out;
   }
   /** the whole weekend simulated: qualifying, then the race */
-  simWeekend() { this.simQuali(); return this.simRace(); }
+  simWeekend() { if (isSprintRound(this) && !sprintRun(this)) applySprint(this, simSprintRows(this)); this.simQuali(); return this.simRace(); }   // (a sprint weekend: its sprint simulated with it - career/Sprint.js)
 
   // ---- the grid for a race: every team's seats (a stand-in for anyone out), each car as its team has developed it ----
   /**
@@ -795,11 +797,15 @@ export class Career {
       const d = this.drivers[r.car.careerId], k = d?.contract; if (!d || !k || d.team !== this.myTeam || d.id === this.playerId) continue;
       if (k.role === 'support' && meRow && !r.car.retired && (meRow.car.retired || r.pos < meRow.pos)) this.relate(d.id, -2);
     }
-    // the drivers develop: form against what the car promised, the young ones learning race by race
+    // the drivers develop: rated on the race (race/Ratings.js - against what the car could do, the passes, the spins,
+    // the penalties, the team-mate), the rating moved by the mark; the young ones learning race by race
+    const marks = rateRace(rows, rows.every((r) => r.car.perf != null) ? {} : { exp }); this.lastRatings = { season: S0, round: R0, by: {} };
     for (const r of rows) {
       const d = this.drivers[r.car.careerId]; if (!d || !d.alive) continue;
-      const young = isYoung(d), e = exp[d.id] || r.pos;
-      let dv = r.car.retired ? (young ? 0.0006 : -0.0004) : Math.max(-0.004, Math.min(0.004, (e - r.pos) * 0.00035)) + (young ? 0.0012 : 0.0002);
+      const young = isYoung(d), m = marks.get(r.car); this.lastRatings.by[d.id] = { score: m?.score ?? null, why: m?.why || [] };
+      if (m?.score != null) d.marks = [...(d.marks || []), m.score].slice(-10);
+      if (d.id === this.playerId) { report.mark = m?.score ?? null; report.markWhy = m?.why || []; }
+      let dv = m?.score == null ? (young ? 0.0006 : -0.0004) : m.d + (young ? 0.0012 : 0.0002);
       dv = Math.round(dv * 10000) / 10000; d.rating = Math.max(0.6, Math.min(0.995, Math.round((d.rating + dv) * 10000) / 10000)); d.lastDelta = dv;
       if (d.id === this.playerId) report.rating = dv;
     }

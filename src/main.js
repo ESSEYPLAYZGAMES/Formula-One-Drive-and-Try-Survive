@@ -68,6 +68,8 @@ import { storyRuled, storyLive, storyTakeLive, storyTrack, storyTrackScene, stor
 import { driverLine } from './career/StoryLines.js';
 import { playScene, prepareScene, cineWarm } from './ui/CineIndex.js';
 import { DEFAULT_SUP } from './career/ManagerCar.js';
+import { rateRace } from './race/Ratings.js';
+import { isSprintRound, sprintRun, applySprint, simSprintRows, sprintLaps, SPRINT_PTS } from './career/Sprint.js';
 /** a car's engine maker (its sound - audio/EngineWorklet.js): the manager career's own choice for its team, else the team's usual */
 const engineOf = (c) => { const t = c?.team; return (S.mgr && S.mgr.teams?.[t]?.engine) || DEFAULT_SUP[t] || 'ferrari'; };
 import { radioReplays, stopRadioReplays } from './ui/RadioReplay.js';
@@ -114,7 +116,7 @@ import * as People from './world/People.js';
 import * as BrawlMod from './ui/Brawl.js';
 import { makeHelmet, bloodPool } from './world/People.js';
 import { RaceDirector } from './race/RaceDirector.js';
-import { AIDriver, AI_TUNE } from './ai/AIDriver.js';
+import { AIDriver, AI_TUNE, laneSpeeds } from './ai/AIDriver.js';
 import { AI_CAL, applyCalibration } from './ai/Calibration.js';
 import { HUD, fmtTime } from './ui/HUD.js';
 import { TelemetryView } from './ui/TelemetryView.js';
@@ -2006,11 +2008,30 @@ function startWeekend() {
     const C = S.career, wk = S.weekend; wk.career = C; wk.round = C.round; wk.rounds = C.rounds;
     wk.points = new Map(C.driverStandings().map((d) => [d.name, { name: d.name, color: C.teams[d.team]?.color || '#555', points: d.points, me: d.id === C.playerId }]));
   }
+  // (a career's sprint weekend - career/Sprint.js: the sprint first, a third of the distance, then qualifying and the race)
+  { const C = S.weekend.career || S.weekend.mgr; if (C && isSprintRound(C) && !sprintRun(C) && lapsTotal >= 6) S.weekend.sprint = { laps: sprintLaps(lapsTotal), gp: lapsTotal, done: false }; }
   if (settings.mode === 'tt') return runTimeTrial();
   startRound();
 }
+/**
+ * A sprint weekend's first page: the sprint shoot-out's grid (simulated: the cars by their pace, a little of the day in
+ * it - the same for this round each time it is begun), the sprint's terms, and RACE THE SPRINT (the quali panel's own
+ * TO THE GRID: the strategy and the race as any race)
+ */
+function sprintPanel() {
+  const wk = S.weekend, C = wk.career || wk.mgr; let h = 2166136261; for (const ch of `${C?.season}|${C?.round}|sprint`) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
+  const rnd = () => { h = Math.imul(h ^ (h >>> 15), 2246822507) >>> 0; h = Math.imul(h ^ (h >>> 13), 3266489909) >>> 0; return ((h ^= h >>> 16) >>> 0) / 4294967296; };
+  wk.gridOrder = wk.cars.map((c) => ({ c, k: -((c.perf || 0) + (c.rating || 0.8) * 0.02) + (rnd() - 0.5) * 0.014 })).sort((a, b) => a.k - b.k).map((x) => x.c);
+  const mine = wk.mode === 'tp' ? tpCars(wk.cars) : [wk.player].filter(Boolean);
+  $('quali-results').innerHTML = '';
+  $('quali-info').textContent = `SPRINT WEEKEND · Round ${(wk.career || wk.mgr)?.round ?? wk.round}/${(wk.career || wk.mgr)?.rounds ?? wk.rounds} · ${W.track.def.name} · the sprint first: ${wk.lapsTotal} laps, no stop, points ${SPRINT_PTS.join('-')} · from the sprint shoot-out: ${mine.map((c) => `${c.name.split(' ').pop()} P${wk.gridOrder.indexOf(c) + 1}`).join(', ')}. Then qualifying and the Grand Prix.`;
+  for (const id of ['btn-practice', 'btn-quali-go', 'btn-quali-sim']) $(id).classList.add('hidden');
+  const b = $('btn-quali-done'); b.classList.remove('hidden'); b.firstChild.textContent = 'RACE THE SPRINT'; b.dataset.sprint = '1';
+  $('quali-panel').classList.remove('hidden');
+}
 function startRound() {
   const wk = S.weekend; strings(false); NEWS.cancelled = false;
+  if (wk.sprint) wk.lapsTotal = wk.sprint.done ? wk.sprint.gp : wk.sprint.laps;   // (the sprint's distance, then the race's)
   // (the day's tyres - vehicle/Tyres.js: how long a soft lasts today, 25-40 % of the distance, the medium and the
   //  hard with it; the same for every car. A career's round has its own, the same each time that round is begun -
   //  it is the circuit's and the day's, not the dice's; any other race rolls one)
@@ -2025,6 +2046,7 @@ function startRound() {
     const r = Math.random(); wk.wx = weatherPlan(r < 0.45 ? 'dry' : r < 0.7 ? 'changeable' : r < 0.87 ? 'damp' : 'wet', { night: settings.time === 'night' }); wk.wet = wk.wx.start; setTimeOfDay(settings.time); applyWeather(wk.wet);
   }
   wk.cars = buildField(wk.lapsTotal); wk.player = wk.cars.find((c) => c.isPlayer) || null;
+  if (wk.sprint && !wk.sprint.done) { sprintPanel(); return; }
   const C = wk.career, sg = C?.savedGrid;
   if (settings.grid === 'quali' && wk.player && sg && sg.season === C.season && sg.round === C.round) {
     // (qualifying already done for this round - you left after it: straight to the grid you qualified for)
@@ -2233,12 +2255,24 @@ function strategyCalls(d, p) {
     engineer.say(`Box this lap, box this lap. ${nm.charAt(0).toUpperCase() + nm.slice(1)}s.`, 3);
   }
 }
+/** the sprint's flag: its points (career/Sprint.js), the drivers rated, its sheet; NEXT: qualifying and the Grand Prix */
+function sprintFinish(rows) {
+  const wk = S.weekend, C = wk.career || wk.mgr; wk.sprint.done = true;
+  rows.forEach((r) => { r.pts = r.car.retired ? 0 : (SPRINT_PTS[r.pos - 1] || 0); wk.points.set(r.name, { name: r.name, color: r.color, points: (wk.points.get(r.name)?.points || 0) + r.pts, me: r.me }); });
+  try { const mk = rateRace(rows); for (const r of rows) { const m = mk.get(r.car); if (m) { r.rtg = m.score; r.rtgWhy = m.why; } } } catch (e) { /* unrated */ }
+  if (wk.mode === 'tp') { for (const r of rows) r.me = r.car.team === settings.tpTeam; tpStop(); }
+  try { if (C) applySprint(C, rows); } catch (e) { console.warn('[sprint]', e); }
+  input.enabled = false; const me = rows.filter((r) => r.me);
+  hud.results(`ROUND ${(wk.career || wk.mgr)?.round ?? wk.round}/${(wk.career || wk.mgr)?.rounds ?? wk.rounds} · SPRINT${me.length ? ` · ${me.map((r) => (r.car.retired ? 'DNF' : `P${r.pos}`)).join(' & ')}` : ''}`, rows, null);
+  $('btn-next').firstChild.textContent = 'QUALIFYING'; wk.afterSprint = true;
+}
 function beginRace() {
   const wk = S.weekend;
   if (wk.mode === 'tp') wk.spectate = tpCars(wk.cars)[0] || null;   // (the team principal's race: the feed opens on your car)
   makeDirector('race', wk.cars, wk.player, {
     gridOrder: wk.gridOrder, spectate: wk.spectate,
     onFinish: (rows0) => stewardsAfter(rows0, (rows) => {
+      if (wk.sprint && !wk.sprint.done) { sprintFinish(rows); return; }   // (the sprint: its points, its sheet - then qualifying)
       // a race stopped by an accident and not resumed: points by how much of it was run (the FIA's scale for a shortened
       // race - none under two laps; 6-4-3-2-1 to a quarter; to half; to three-quarters; full beyond)
       const led = Math.max(0, ...rows.map((r) => r.car.lap)), frac = led / Math.max(1, wk.lapsTotal);
@@ -2246,6 +2280,8 @@ function beginRace() {
       const table = !short || frac > 0.75 ? POINTS : led < 2 ? [] : frac <= 0.25 ? [6, 4, 3, 2, 1] : frac <= 0.5 ? [13, 10, 8, 6, 5, 4, 3, 2, 1] : [19, 14, 12, 9, 8, 6, 5, 3, 2, 1];
       wk.pointsNote = short ? (table === POINTS ? 'full points' : !table.length ? 'no points: under two laps run' : 'reduced points') : null;
       rows.forEach((r) => { r.pts = r.car.retired ? 0 : (table[r.pos - 1] || 0); wk.points.set(r.name, { name: r.name, color: r.color, points: (wk.points.get(r.name)?.points || 0) + r.pts, me: r.me }); });
+      // (every driver rated, 1-10: the sheet's RTG column, the reasons on it - race/Ratings.js; the careers move each one's OVR by it)
+      try { const mk = rateRace(rows); for (const r of rows) { const m = mk.get(r.car); if (m) { r.rtg = m.score; r.rtgWhy = m.why; } } } catch (e) { console.warn('[ratings]', e); }
       const champ = wk.mode === 'champ' ? [...wk.points.values()].sort((a, b) => b.points - a.points) : null;
       const me = rows.find((r) => r.me);
       const facts = NEWS.cancelled ? null : raceFacts(S.director, rows);   // (Driver of the Day and the race in numbers; not for a race stopped by a death - first: the career wants the fans' vote)
@@ -3388,6 +3424,43 @@ function tpCamera(dt) {
   cockpitVisor(S.player, false);
 }
 /** the graphics, the pit wall and the radio (every frame, paused too) */
+/**
+ * PIT NOW: where a car of yours would rejoin if it boxed this moment - each car's time behind the leader from the gaps
+ * between neighbours, the stop's whole cost (the lane at its limit against the road at speed, the stop, in and out;
+ * a little over half of it under a safety car or a VSC) added to its own: the place it comes out in, the car ahead of
+ * it then and by how much, a warning when one would be right behind it as it rejoins - and its ghost on the map.
+ * Every half second. -> { text, warn, ghost: { x, z, color } } | null
+ */
+const RJ = new Map();
+// (what a stop costs here: the lane driven as the cars drive it - braking in to the speed line, the limiter to the line
+//  out, then away again at some 8 m/s2 - against the same distance at the lap's average speed, and the car stood in its
+//  box; the director's own figure - the whole lane at the limiter - only when the lane cannot be read)
+function tpLaneLoss(d, lapT) {
+  const P = d.pit || W.pit; if (!P?.samples?.n) return d.world.pitLoss || 22;
+  try {
+    const ps = P.samples, sp = laneSpeeds(P), lim = P.limiter; let t = 0;
+    for (let i = 0; i < ps.n; i++) { const u = i * ps.ds, v = u < P.limitFrom ? sp.vIn[i] : u <= P.limitTo ? lim : Math.min(sp.vOut[i], Math.sqrt(lim * lim + 16 * (u - P.limitTo))); t += ps.ds / Math.max(5, v); }
+    const loss = t - ps.length / (d.track.length / Math.max(30, lapT)) + 2.6;
+    return isFinite(loss) ? Math.max(12, Math.min(d.world.pitLoss || 40, loss)) : (d.world.pitLoss || 22);
+  } catch (e) { return d.world.pitLoss || 22; }
+}
+function tpRejoin(c) {
+  const d = S.director; if (!d || d.mode !== 'race' || !d.world.racing || d.leaderFinished || !c || c.retired || c.finished || c.pitLane || c.inPit) return null;
+  const now = performance.now(), k = RJ.get(c); if (k && now - k.at < 500 && k.d === d) return k.r;
+  const P = d.positions.filter((o) => !o.retired && !o.finished), i = P.indexOf(c); if (i < 0) return null;
+  const gL = [0]; for (let j = 1; j < P.length; j++) { const g = d.radio?.gap?.(P[j], P[j - 1]); gL.push(gL[j - 1] + (g != null && g > 0 && g < 120 ? g : 1)); }
+  if (!TP.pitLoss || TP.pitLossFor !== d) { const pace = d.lapT || estimatePace(); TP.pitLoss = tpLaneLoss(d, pace); TP.pitLossFor = d; TP.lapPace = pace; }
+  const ph = d.sc?.phase || 'green', loss = TP.pitLoss * (ph === 'sc' || ph === 'vsc' || ph === 'scIn' || ph === 'vscEnd' ? 0.55 : 1), t = gL[i] + loss;
+  let pos = 1, ahead = null, behind = null, dA = 0, dB = 0;
+  for (let j = 0; j < P.length; j++) { if (j === i) continue; if (gL[j] < t) { pos++; if (!ahead || gL[j] > gL[P.indexOf(ahead)]) ahead = P[j]; } else if (!behind || gL[j] < gL[P.indexOf(behind)]) behind = P[j]; }
+  if (ahead) dA = t - gL[P.indexOf(ahead)]; if (behind) dB = gL[P.indexOf(behind)] - t;
+  const sur = (o) => surname(o.name), warn = !!behind && dB < 1.2;
+  const text = `PIT NOW → P${pos}${ahead ? ` · ${dA.toFixed(1)}s behind ${sur(ahead)}` : ' · in the lead'}${warn ? ` · ${sur(behind)} ${dB.toFixed(1)}s behind` : ''}`;
+  // (the ghost: on the road where it would be - by the car ahead of it then, back by the gap at the lap's pace)
+  const v = W.track.length / Math.max(30, TP.lapPace || 90), sG = ahead ? ahead.s - dA * v : c.s - loss * v, f = W.track.sample(W.track.wrapS(sG), 0);
+  const r = { text, warn, ghost: { x: f.x, z: f.z, color: c.color || '#7fe3ff' } };
+  RJ.set(c, { at: now, d, r }); return r;
+}
 function tpUi(dt) {
   const d = S.director; if (!d || !TP.on) return;
   // (a car called in to retire stays called in - whatever else would keep it out - until it is at its box)
@@ -3404,13 +3477,13 @@ function tpUi(dt) {
   const held = TP.paused || S.paused || !!S.simming;
   TP.strat?.update(held ? 0 : dt, { d, focus: TP.cars, halted: held || !!TP.form || (!!TP.rep && !TP.rep.win) || !!TP.hl });
   TP.fx?.update(dt, { d, focus: TP.cars, shot: TP.tv.shot, halted: held || !!TP.form || (!!TP.rep && !TP.rep.win), noOffer: !!TP.rep, say: (t, k, h) => TP.gfx.rc(t, k, h), len: W.track?.length });
-  TP.show?.update(dt, { d, focus: TP.cars, shot: TP.tv.shot, halted: held, len: W.track?.length, track: W.track, trackName: shortTrack(W.def?.id), stat: tpStat, wet: d.weather?.tyreWet || 0, rc: (t, k, h) => TP.gfx.rc(t, k, h), battle: !!TP.fx?.bt.classList.contains('in'), catching: !!TP.fx?.ct.classList.contains('in'), neutral: !!TP.fx?.neutral, replaying: !!TP.rep, cuts: TP.tv.cuts, form: TP.form ? TP.form.ph : TP.formed ? 'done' : null,
+  TP.show?.update(dt, { d, focus: TP.cars, shot: TP.tv.shot, halted: held, ghosts: TP.cars.map((c) => tpRejoin(c)?.ghost).filter(Boolean), len: W.track?.length, track: W.track, trackName: shortTrack(W.def?.id), stat: tpStat, wet: d.weather?.tyreWet || 0, rc: (t, k, h) => TP.gfx.rc(t, k, h), battle: !!TP.fx?.bt.classList.contains('in'), catching: !!TP.fx?.ct.classList.contains('in'), neutral: !!TP.fx?.neutral, replaying: !!TP.rep, cuts: TP.tv.cuts, form: TP.form ? TP.form.ph : TP.formed ? 'done' : null,
     hint: TP.form && TP.form.ph !== 'grid' ? ['SPACE', 'skip the formation lap'] : TV_AWAY.has(TP.tv.shot?.kind) && !TP.form ? ['X', 'back to the race'] : null });
   TP.q?.update(dt);
   tpStewards(); tpMomentsCut(d); tpReplays(d, held ? 0 : dt); tpPip(held ? 0 : dt);
   if (d.mode === 'race') { try { TP.props?.update(held ? 0 : dt); tpAways(held ? 0 : dt); } catch (e) { /* a cutaway that could not be: no cutaway */ } }
   const ord = d.orders?.pairOf?.(TP.cars[0])?.order || null;
-  TP.wall.update(dt, { d, speed: TP.speed, skip: !!TP.skip, paused: TP.paused, cam: TP.cam, order: ord, tyreLaps: (c) => TP.gfx.tyreLaps(c),
+  TP.wall.update(dt, { d, speed: TP.speed, skip: !!TP.skip, rejoin: (c) => tpRejoin(c), paused: TP.paused, cam: TP.cam, order: ord, tyreLaps: (c) => TP.gfx.tyreLaps(c),
     mustStop: (c) => d.mode === 'race' && d.lapsTotal >= 8 && ((c.pitStops === 0 && !c.usedRain && !d.weather?.everWet) || d.owesCompound(c)), fuelDelta: (c) => tpFuelDelta(c, d),
     sets: (c) => (d.mode === 'race' ? tpSetsOf(c) : null), lifeK: (c) => (d.mode === 'race' ? tpLifeK(c) : 1), fuelSure: (c) => !!c.mgr?.fuelSure });
   if (d.mode === 'race') {
@@ -3587,7 +3660,7 @@ function openMgrHub() {
     teams: TEAMS.map((t) => ({ name: t.name, color: t.color, color2: t.color2, tier: t.drivers[0]?.tier ?? 2, drivers: seats(t).map((d) => d.name) })),
     onCreate: (c) => { MGR.c = c; },
     onRace: (c, sim) => mgrRace(c, sim),
-    onSim: (c) => { const rep = c.applyRace(c.simRace(), c.track); storyTrackScene(c); refreshHome(); return rep; },   // (a simulated weekend: no scene at the track)
+    onSim: (c) => { if (isSprintRound(c) && !sprintRun(c)) applySprint(c, simSprintRows(c)); const rep = c.applyRace(c.simRace(), c.track); storyTrackScene(c); refreshHome(); return rep; },   // (a simulated weekend: no scene at the track)
     play: (scene, ctx) => playScene(scene, ctx, { audio }),   // (the story's cutscenes: ui/CineIndex.js)
     prepare: (scene, ctx) => prepareScene(scene, ctx),   // (and the ones waiting, made ready before they come up)
     onQuick: () => { closeManagerHub(); openSetup('tp'); },
@@ -4895,6 +4968,7 @@ function afterResults() {
   const wk = S.weekend, next = wk && wk.mode === 'champ' && wk.round < wk.rounds;
   NEWS.abandoned = false; NEWS.results = null; NEWS.cancelled = false;
   endSession();
+  if (wk?.afterSprint) { wk.afterSprint = false; const b = $('btn-quali-done'); delete b.dataset.sprint; b.firstChild.textContent = 'TO THE GRID'; startRound(); return; }   // (the sprint run: qualifying and the race)
   if (wk?.mgr) { S.weekend = null; S.mgr = null; restoreSettings(); $('menu').classList.remove('hidden'); $('step-setup').classList.add('hidden'); $('step-mode').classList.remove('hidden'); openMgrHub(); return; }   // (the team principal's career: back to the HQ)
   if (wk?.career) {   // (a career: the interview, then back to the hub)
     const C = wk.career, ctx = wk.interview; S.weekend = null;

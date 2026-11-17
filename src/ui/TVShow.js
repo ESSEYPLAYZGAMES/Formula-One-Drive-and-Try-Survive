@@ -315,6 +315,8 @@ export class TVShow {
     for (const c of d.positions) { if (c.retired || c.hiddenAway || mine(c) || c === on) continue; dot(c, 5, c.color || '#aaa', null); }
     if (d.sc?.car && !d.sc.car.pitLane) dot(d.sc.car, 6, '#ffd400', '#111');
     for (const c of d.positions) if (!c.retired && !c.hiddenAway && (mine(c) || c === on)) dot(c, mine(c) ? 8 : 7, c.color || '#fff', c === on ? '#ffffff' : '#111');
+    // (your cars' ghosts: where each would be if it boxed now - main.js tpRejoin)
+    for (const G of ctx.ghosts || []) { const [x, y] = this.mapT(G.x, G.z); g.setLineDash([3, 3]); g.lineWidth = 2.5; g.strokeStyle = G.color || '#7fe3ff'; g.beginPath(); g.arc(x, y, 8, 0, 6.3); g.stroke(); g.setLineDash([]); }
   }
 }
 const fmt = (t) => { const m = Math.floor(t / 60), s = t - m * 60; return `${m}:${s < 10 ? '0' : ''}${s.toFixed(3)}`; };
