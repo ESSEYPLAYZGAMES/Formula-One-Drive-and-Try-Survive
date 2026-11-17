@@ -171,7 +171,7 @@ export class TVExtras {
     if (this.offer) { const left = 1 - (performance.now() - this.offer.shown) / 7000; this.rpo.querySelector('i').style.transform = `scaleX(${Math.max(0, left)})`; if (left <= 0) { this.offer = null; this.rpo.classList.remove('in'); } }
     if (ctx.halted) return;
     if (this.pending && d.time >= this.pending.due) { const e = this.pending; this.pending = null; if (racing || d.leaderFinished) { try { this.o.onClip?.(e); } catch (er) { /* no clip */ } if (ctx.noOffer) return;   /* (a replay is in its window: this one is kept for the highlights, not offered) */
-      this.offer = { ...e, shown: performance.now() }; this.lastOffer = d.time; this.rpo.querySelector('span').textContent = e.text; this.rpo.classList.add('in'); try { this.o.audio?.play?.('radio', { gain: 0.9 }); } catch (er) { /* no sound */ } } }   // (the radio's beep: a replay on offer - not to be missed)
+      this.offer = { ...e, shown: performance.now() }; this.lastOffer = d.time; this.rpo.querySelector('span').textContent = e.text; this.rpo.classList.add('in'); try { this.o.audio?.play?.('radio', { gain: 0.9, bus: 'radio' }); } catch (er) { /* no sound */ } } }   // (the radio's beep: a replay on offer - not to be missed)
     this.acc += dt; if (this.acc < 0.2) return; this.acc = 0;
     // ---- the safety car's and the red flag's own feed ------------------------------------------------------------
     const ph = d.sc?.phase || 'green', lead0 = P.find((c) => !c.retired), neutral = ph === 'sc' || ph === 'scIn' || ph === 'vsc' || ph === 'vscEnd';

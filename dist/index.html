@@ -602,7 +602,7 @@ body.tp #hud-msg { top: 30%; }
     <div class="brand-line"></div>
     <h1 id="brand-title">FORMULA 1<span id="brand-sub">SIMULATOR</span></h1>
     <!-- the build's version: +0.01 with every build handed out -->
-    <span id="app-ver" title="Version">V2.80</span>
+    <span id="app-ver" title="Version">V2.81</span>
     <div id="menu-sub">Real circuits built from OpenStreetMap</div>
   </div>
   <div id="loading" class="hidden"><div class="ld"><i></i></div><span>Building the circuit from OpenStreetMap…</span></div>
@@ -693,6 +693,10 @@ body.tp #hud-msg { top: 30%; }
               <div class="opt drv-only"><div class="lbl">Racing line (L)</div><div class="seg k-seg" id="opt-line"><button data-v="on" class="sel">On</button><button data-v="off">Off</button></div></div>
               <div class="opt drv-only"><div class="lbl">Flashbacks</div><div class="seg k-seg" id="opt-fb"><button data-v="off">Off</button><button data-v="inf" class="sel">Unlimited</button></div></div>
               <div class="opt"><div class="lbl">Volume</div><div class="vol-row"><input type="range" id="vol-menu" class="vol" min="0" max="100" step="1"><span class="vol-val"></span></div></div>
+              <div class="opt"><div class="lbl">Engines</div><div class="vol-row"><input type="range" id="mix-eng-menu" class="vol mix" data-mix="eng" min="0" max="150" step="5" aria-label="Engines volume"><span class="vol-val"></span></div></div>
+              <div class="opt"><div class="lbl">Effects</div><div class="vol-row"><input type="range" id="mix-fx-menu" class="vol mix" data-mix="fx" min="0" max="150" step="5" aria-label="Effects volume"><span class="vol-val"></span></div></div>
+              <div class="opt"><div class="lbl">Ambience</div><div class="vol-row"><input type="range" id="mix-amb-menu" class="vol mix" data-mix="amb" min="0" max="150" step="5" aria-label="Ambience volume"><span class="vol-val"></span></div></div>
+              <div class="opt"><div class="lbl">Radio</div><div class="vol-row"><input type="range" id="mix-radio-menu" class="vol mix" data-mix="radio" min="0" max="150" step="5" aria-label="Radio volume"><span class="vol-val"></span></div></div>
               <div class="opt"><div class="lbl">T-cam tilt</div><div class="vol-row"><input type="range" id="tilt-menu" class="vol tilt" min="4" max="16" step="1" aria-label="T-cam tilt"><span class="vol-val"></span></div></div>
               <div class="opt"><div class="lbl">T-cam field of view</div><div class="vol-row"><input type="range" id="fov-menu" class="vol tilt" min="30" max="60" step="1" aria-label="T-cam field of view"><span class="vol-val"></span></div></div>
               <div class="opt drv-only"><div class="lbl">Race start</div><div class="seg k-seg" id="opt-intro"><button data-v="on" class="sel">Build-up</button><button data-v="skip">Straight to lights</button></div></div>
@@ -758,6 +762,10 @@ body.tp #hud-msg { top: 30%; }
   <h2>PAUSED</h2>
   <div class="row center"><button id="btn-resume" class="go">RESUME<span>→</span></button><button id="btn-restart" class="ghost hidden">RESTART RACE</button><button id="btn-tel" class="ghost">TELEMETRY</button><button id="btn-photo" class="ghost">PHOTO MODE</button><button id="btn-finish" class="ghost hidden">FINISH SESSION</button><button id="btn-end" class="ghost hidden">END SESSION</button><button id="btn-quit" class="ghost">QUIT TO MENU</button></div>
   <div class="row center vol-row"><label for="vol-pause">VOLUME</label><input type="range" id="vol-pause" class="vol" min="0" max="100" step="1"><span class="vol-val"></span></div>
+  <div class="row center vol-row"><label for="mix-eng-pause">ENGINES</label><input type="range" id="mix-eng-pause" class="vol mix" data-mix="eng" min="0" max="150" step="5"><span class="vol-val"></span></div>
+  <div class="row center vol-row"><label for="mix-fx-pause">EFFECTS</label><input type="range" id="mix-fx-pause" class="vol mix" data-mix="fx" min="0" max="150" step="5"><span class="vol-val"></span></div>
+  <div class="row center vol-row"><label for="mix-amb-pause">AMBIENCE</label><input type="range" id="mix-amb-pause" class="vol mix" data-mix="amb" min="0" max="150" step="5"><span class="vol-val"></span></div>
+  <div class="row center vol-row"><label for="mix-radio-pause">RADIO</label><input type="range" id="mix-radio-pause" class="vol mix" data-mix="radio" min="0" max="150" step="5"><span class="vol-val"></span></div>
   <div class="row center vol-row"><label for="tilt-pause">T-CAM TILT</label><input type="range" id="tilt-pause" class="vol tilt" min="4" max="16" step="1"><span class="vol-val"></span></div>
   <div class="row center vol-row"><label for="fov-pause">T-CAM FOV</label><input type="range" id="fov-pause" class="vol tilt" min="30" max="60" step="1"><span class="vol-val"></span></div>
   <div class="hint">Photo mode: WASD fly · Q/E down/up · Shift fast · Alt (or Ctrl) fine · drag or arrow keys to look · H toggle HUD · Esc back</div>
@@ -147568,13 +147576,27 @@ class TVDirector {
       //  and then its twin looking down the road after them. Nothing is asked of the walls and fences: it is inside
       //  them, on the road's own edge. The next corner within reach - further when the kerb camera is the one asked
       //  for - or a trackside camera instead.)
-      let s0 = null, sE = null, side = 1; const reach = this.camKind === 'kerb' ? 720 : 330;
-      for (let ds = 45; ds < reach; ds += 12) { const i = tr.idxAtS(tr.wrapS(subject.s + ds)); if (!tr.inCornerZone(i)) continue; let e = ds; while (e < ds + 220 && tr.inCornerZone(tr.idxAtS(tr.wrapS(subject.s + e)))) e += 12; const sm = tr.wrapS(subject.s + (ds + e) / 2), im = tr.idxAtS(sm), n = tr.n, a = (im - 6 + n) % n, b = (im + 6) % n; side = (tr.tx[b] - tr.tx[a]) * tr.nx[im] + (tr.tz[b] - tr.tz[a]) * tr.nz[im] > 0 ? 1 : -1; s0 = sm; sE = e - ds > 30 ? tr.wrapS(subject.s + e - 10) : null; break; }
+      let s0 = null, sE = null, side = 1, kPick = null; const reach = this.camKind === 'kerb' ? 720 : 330;
+      for (let ds = 45; ds < reach; ds += 12) { const i = tr.idxAtS(tr.wrapS(subject.s + ds)); if (!tr.inCornerZone(i)) continue; let e = ds; while (e < ds + 220 && tr.inCornerZone(tr.idxAtS(tr.wrapS(subject.s + e)))) e += 12; const sm = tr.wrapS(subject.s + (ds + e) / 2), im = tr.idxAtS(sm), n = tr.n, a = (im - 6 + n) % n, b = (im + 6) % n; side = (tr.tx[b] - tr.tx[a]) * tr.nx[im] + (tr.tz[b] - tr.tz[a]) * tr.nz[im] > 0 ? 1 : -1; s0 = sm; sE = e - ds > 30 ? tr.wrapS(subject.s + e - 10) : null;
+        // (the kerbs the racing line really runs over: the apex where it comes nearest the inside edge, the exit where it
+        //  runs out nearest the outside one - from the line itself, not the corner's middle and end)
+        const Lo = ctx.d?.line?.offset;
+        if (Lo) {
+          const mg = (s, sd) => { const ii = tr.idxAtS(s), ed = tr.edgeAt ? tr.edgeAt(ii, sd) : tr.halfWidth; return ed - sd * Lo[ii]; };
+          let bA = Infinity, bE = Infinity;
+          for (let q = ds; q <= e; q += 4) { const sq = tr.wrapS(subject.s + q), m = mg(sq, side); if (m < bA) { bA = m; s0 = sq; } }
+          for (let q = (ds + e) / 2; q <= e + 60; q += 4) { const sq = tr.wrapS(subject.s + q), m = mg(sq, -side); if (m < bE) { bE = m; sE = sq; } }
+          kPick = { a: bA, e: bE };
+        }
+        break; }
       // (STATIC: one place, one aim, one lens, the whole shot - in the kerb the car is about to run over: the apex kerb
       //  on the inside, or (every other time) the exit kerb on the outside where the corner opens out - looking back up
       //  the road at the car coming over it. It used to zoom with the car and then swing round after it)
       if (s0 != null) {
-        const exit = (this.cuts & 1) === 1 && sE != null, sK = exit ? sE : s0, sd = exit ? -side : side;
+        // (the one the line touches: the apex kerb or the exit kerb, whichever the line comes nearer - by more than half a
+        //  metre; as near as each other (it runs over both), the two by turns)
+        const turns = (this.cuts & 1) === 1, exit = sE != null && (kPick ? (kPick.e > 2.5 && kPick.a > 2.5 ? turns : kPick.e + 0.5 < kPick.a ? true : kPick.a + 0.5 < kPick.e ? false : turns) : turns);
+        const sK = exit ? sE : s0, sd = exit ? -side : side;
         const i = tr.idxAtS(sK), wK = barD(tr, ctx.pit, i, sd), edge = tr.edgeAt ? tr.edgeAt(i, sd) : wK - 2, off = sd * Math.min(wK - 0.5, edge + (tr.kerbWidth || 1) * 0.3), f = tr.sample(sK, off);
         const a = tr.sample(tr.wrapS(sK - (exit ? 34 : 30)), off * 0.35);   // (up the road, toward the middle of it: the car comes through the picture and over the lens)
         sh.s0 = sK; sh.side = sd; sh.kerb = true; sh.kerbExit = exit; sh.pos = new THREE.Vector3(f.x, G(f.x, f.z) + 0.3, f.z);
@@ -149253,7 +149275,7 @@ function signSupplier(c, key) {
   return c.engineNext ? `${SUPPLIERS[key].name} power for next season: $${SWITCH_FEE}M to change, then ${diff ? `$${Math.abs(diff)}M a season ${diff > 0 ? 'more' : 'less'} than now` : 'the same price'}.` : `Staying with ${SUPPLIERS[key].name}.`;
 }
 
-return { FOCUS, TRACK_DF, SUPPLIERS, NEXT_SHARES, SWITCH_FEE, supplyDiff, ATR_BASE, carEnsure, aeroOf, trackFit, fitText, supplierOf, engineFx, isWorks, atrAllowance, atrCost, atrLeft, buildCheck, onBuilt, rush, carRound, rulesChange, carNewSeason, signSupplier };
+return { FOCUS, TRACK_DF, SUPPLIERS, DEFAULT_SUP, NEXT_SHARES, SWITCH_FEE, supplyDiff, ATR_BASE, carEnsure, aeroOf, trackFit, fitText, supplierOf, engineFx, isWorks, atrAllowance, atrCost, atrLeft, buildCheck, onBuilt, rush, carRound, rulesChange, carNewSeason, signSupplier };
 })();
 
 // ---- src/career/StoryLines.js
@@ -153803,7 +153825,7 @@ const { techEffects, UP, partsCount } = __m['src/career/TechTree.js'];
 const { extraHTML, extraClick, homeExtra, EXTRA_CSS } = __m['src/ui/ManagerHub2.js'];
 const { storyHTML, storyHome, storyAct, storyPump, storyAmbientPlay } = __m['src/ui/ManagerHub3.js'];
 const { eraHTML, eraHome, eraClick, driversHTML } = __m['src/ui/ManagerHub4.js'];
-const { storySigning, storyReleased, storyShown, storyApply, inboxOf, decisionsOf } = __m['src/career/ManagerStory.js'];
+const { storySigning, storyReleased, storyShown, storyApply, inboxOf, decisionsOf, storyPreRace } = __m['src/career/ManagerStory.js'];
 const { PU, SPARES, allocOf, fitNew, orderSpare, FAC, FAC_MAX, facCost, facRounds, facFx, facUpgrade, facMaintain, maintCost, SPONSOR_SLOTS, acceptOdds, propose, sponsorTargets, marketability } = __m['src/career/ManagerOps.js'];
 const { TRACK_MAPS } = __m['src/ui/TrackMaps.js'];
 const { HQ_CSS, FAC_CSS, NAV, ICON, esc, money, pct, sur, panel, kv, meter, ring, seg, person, stat, tag, sw, empty, themeApply, themeHTML, themeSet, fitSheet, tween, techSkin } = __m['src/ui/HQKit.js'];
@@ -153903,7 +153925,7 @@ function render() {
   themeApply(el, c.myTeam, c.team.color, c.team.color2);
   top(c); rail(); stage(body(c)); toast(); mailMark(el, c);
   // (the scenes waiting to be played - those that come up as you go round the HQ - made ready while you read: they start at once)
-  if (H.o.prepare) { clearTimeout(H.prepT); H.prepT = setTimeout(() => { try { for (const m of inboxOf(c).filter((x) => !x.played && !x.done && x.scene).slice(0, 2)) H.o.prepare(m.scene, m.ctx); } catch (e) { /* played from scratch */ } }, 700); }
+  if (H.o.prepare) { clearTimeout(H.prepT); H.prepT = setTimeout(() => { try { for (const m of inboxOf(c).filter((x) => !x.played && !x.done && x.scene).slice(0, 2)) H.o.prepare(m.scene, m.ctx); const pre = storyPreRace(c); if (pre) H.o.prepare(pre.scene, pre.ctx); } catch (e) { /* played from scratch */ } }, 700); }
   el.querySelector('.q-theme').innerHTML = themeHTML(c.myTeam, c.team.color, c.team.color2);
 }
 /** the bar: the team, the season, the four figures (a figure that has changed counts to its new value), the weekend */
@@ -156908,7 +156930,7 @@ class TVExtras {
     if (this.offer) { const left = 1 - (performance.now() - this.offer.shown) / 7000; this.rpo.querySelector('i').style.transform = `scaleX(${Math.max(0, left)})`; if (left <= 0) { this.offer = null; this.rpo.classList.remove('in'); } }
     if (ctx.halted) return;
     if (this.pending && d.time >= this.pending.due) { const e = this.pending; this.pending = null; if (racing || d.leaderFinished) { try { this.o.onClip?.(e); } catch (er) { /* no clip */ } if (ctx.noOffer) return;   /* (a replay is in its window: this one is kept for the highlights, not offered) */
-      this.offer = { ...e, shown: performance.now() }; this.lastOffer = d.time; this.rpo.querySelector('span').textContent = e.text; this.rpo.classList.add('in'); try { this.o.audio?.play?.('radio', { gain: 0.9 }); } catch (er) { /* no sound */ } } }   // (the radio's beep: a replay on offer - not to be missed)
+      this.offer = { ...e, shown: performance.now() }; this.lastOffer = d.time; this.rpo.querySelector('span').textContent = e.text; this.rpo.classList.add('in'); try { this.o.audio?.play?.('radio', { gain: 0.9, bus: 'radio' }); } catch (er) { /* no sound */ } } }   // (the radio's beep: a replay on offer - not to be missed)
     this.acc += dt; if (this.acc < 0.2) return; this.acc = 0;
     // ---- the safety car's and the red flag's own feed ------------------------------------------------------------
     const ph = d.sc?.phase || 'green', lead0 = P.find((c) => !c.retired), neutral = ph === 'sc' || ph === 'scIn' || ph === 'vsc' || ph === 'vscEnd';
@@ -158609,11 +158631,23 @@ const F1_OUT = [[230, 2.6, 0.75], [560, 3.5, 1.0], [820, 3.0, 0.7], [1180, 4.5, 
 const F1_IN = [[160, 2.2, 1.0], [420, 3.0, 0.95], [880, 3.5, 0.7], [1750, 3.5, 0.4], [3600, 2.5, 0.16]];
 const V8 = [[110, 2.0, 1.0], [300, 2.6, 0.9], [720, 3.0, 0.55], [1500, 3.0, 0.3], [3200, 2.4, 0.1]];
 function rng(s) { let x = (s * 2654435761) >>> 0 || 1; return () => { x ^= x << 13; x ^= x >>> 17; x ^= x << 5; return ((x >>> 0) / 4294967296); }; }
+// each maker's engine its own (kind 2..6; 0 the generic, 1 the safety car's V8): the pipe's tune (fs: its resonances'
+// pitch), the rasp (how unequal its cylinders), the top and bottom of it, the turbo's whistle, the noise, the hybrid's
+// whine, the howl in the middle (mid). Mercedes smooth and deep; Ferrari high, raspy, bright; Red Bull Ford sharp, its
+// turbo and the MGU-K loud; Honda a howl; Audi new, harsh, buzzing
+const PROF = {
+  0: { fs: 1, rasp: 0.18, hi: 1, lo: 1, mid: 1, turbo: 1, noise: 1, mgu: 1 },
+  2: { fs: 0.95, rasp: 0.12, hi: 0.82, lo: 1.18, mid: 0.95, turbo: 0.8, noise: 0.85, mgu: 1.1 },
+  3: { fs: 1.09, rasp: 0.25, hi: 1.32, lo: 0.88, mid: 1.05, turbo: 1, noise: 1.1, mgu: 0.9 },
+  4: { fs: 1.03, rasp: 0.17, hi: 1.12, lo: 1, mid: 1, turbo: 1.65, noise: 1, mgu: 1.35 },
+  5: { fs: 1.01, rasp: 0.15, hi: 1.12, lo: 0.95, mid: 1.5, turbo: 1.25, noise: 0.95, mgu: 1 },
+  6: { fs: 0.9, rasp: 0.32, hi: 0.95, lo: 1.3, mid: 0.85, turbo: 1.15, noise: 2.2, mgu: 1 },
+};
 class Voice {
   constructor(seed, kind) {
-    this.kind = kind; this.r = rng(seed + 7); const r = this.r;
+    this.kind = kind; this.P = PROF[kind] || PROF[0]; this.r = rng(seed + 7); const r = this.r;
     this.nFire = kind === 1 ? 8 : 6;
-    this.cyl = []; for (let k = 0; k < this.nFire; k++) this.cyl.push(1 + (r() - 0.5) * (kind === 1 ? 0.34 : 0.18));   // (each cylinder its own)
+    this.cyl = []; for (let k = 0; k < this.nFire; k++) this.cyl.push(1 + (r() - 0.5) * (kind === 1 ? 0.34 : this.P.rasp));   // (each cylinder its own)
     this.ph = r(); this.next = Math.floor(this.ph * this.nFire) + 1; this.carry = 0;
     this.pulse = 0; this.noiseEnv = 0; this.pop = 0; this.popLp = 0; this.hp1 = 0; this.hp0 = 0;
     this.res = (kind === 1 ? V8 : F1_OUT).map(() => ({ x1: 0, x2: 0, y1: 0, y2: 0, b0: 0, a1: 0, a2: 0, g: 0 }));
@@ -158627,8 +158661,8 @@ class Voice {
   }
   coeffs(set, R, dop, ob) {
     for (let i = 0; i < set.length; i++) {
-      const f = Math.min(SR * 0.45, set[i][0] * dop), q = set[i][1], w = TAU * f / SR, al = Math.sin(w) / (2 * q), a0 = 1 + al;
-      const z = R[i]; z.b0 = al / a0; z.a1 = -2 * Math.cos(w) / a0; z.a2 = (1 - al) / a0; z.g = set[i][2] * (i % 2 ? -1 : 1);   // (every other one inverted: between two of them they add, not cancel - no notch)
+      const P = set === V8 ? PROF[0] : this.P, f = Math.min(SR * 0.45, set[i][0] * dop * P.fs), q = set[i][1], w = TAU * f / SR, al = Math.sin(w) / (2 * q), a0 = 1 + al;
+      const z = R[i]; z.b0 = al / a0; z.a1 = -2 * Math.cos(w) / a0; z.a2 = (1 - al) / a0; z.g = set[i][2] * (i % 2 ? -1 : 1) * (i < 2 ? P.lo : i >= 4 ? P.hi : P.mid);   // (every other one inverted: between two of them they add, not cancel - no notch)
     }
   }
 }
@@ -158690,7 +158724,7 @@ class Engines extends AudioWorkletProcessor {
         // the pulse (its bark) and the noise that rides it
         v.pulse = v.pulse * shapeA + ex;
         v.noiseEnv = v.noiseEnv * 0.9965 + ex * 0.6;
-        const wn = r() * 2 - 1, turb = wn * v.noiseEnv * 0.2;   // (not more off the throttle: under braking it was a crackle of foil)
+        const wn = r() * 2 - 1, turb = wn * v.noiseEnv * 0.2 * v.P.noise;   // (not more off the throttle: under braking it was a crackle of foil)
         const x = v.pulse * 0.5 + turb;
         // the pipe (outside) and the airbox and block (on board)
         let yo = 0, yi = 0;
@@ -158702,11 +158736,11 @@ class Engines extends AudioWorkletProcessor {
         // the pop: a bang of noise, dulled
         if (v.pop > 0.002) { v.popLp += ((r() * 2 - 1) * v.pop - v.popLp) * 0.07; v.popLp2 = (v.popLp2 || 0) + (v.popLp - (v.popLp2 || 0)) * 0.07; s += v.popLp2 * 2.6; v.pop *= 0.996; }   // (a dull thump in the pipe, not a crackle: two poles low)
         // the turbo's whistle, the wastegate's breath, the MGU-K, the gears
-        if (turbF > 0) { v.tph += turbF / SR; if (v.tph > 1) v.tph -= 1; s += Math.sin(TAU * v.tph) * 0.018 * v.boost * (0.4 + 0.6 * ob); }
+        if (turbF > 0) { v.tph += turbF / SR; if (v.tph > 1) v.tph -= 1; s += Math.sin(TAU * v.tph) * 0.018 * v.P.turbo * v.boost * (0.4 + 0.6 * ob); }
         if (v.gate > 0.002) { v.hp1 = wn - v.hp0 + 0.9 * v.hp1; v.hp0 = wn; s += v.hp1 * v.gate * 0.05; v.gate *= 0.99985; }
         if (!V8k) {
           v.mph += mguF / SR; if (v.mph > 1) v.mph -= 1; const e = Math.abs(c.ers);
-          if (e > 0.01) s += (Math.sin(TAU * v.mph) + 0.4 * Math.sin(TAU * v.mph * 1.5)) * e * (c.ers < 0 ? 0.03 : 0.018) * (0.35 + 0.65 * ob);
+          if (e > 0.01) s += (Math.sin(TAU * v.mph) + 0.4 * Math.sin(TAU * v.mph * 1.5)) * e * (c.ers < 0 ? 0.03 : 0.018) * v.P.mgu * (0.35 + 0.65 * ob);
           v.gph += gearF / SR; if (v.gph > 1) v.gph -= 1; s += Math.sin(TAU * v.gph) * 0.006 * (0.3 + ob);
         }
         // DC out, the air's lowpass (two poles), the level and the place
@@ -158734,6 +158768,8 @@ const { ENGINE_WORKLET } = __m['src/audio/EngineWorklet.js'];
 // strings under the mourning screen) played on their own bus.
 /** the short recorded sounds (assets/audio/<name>.mp3), decoded up front; the long ones (atmos1-3, strings) are streamed by music() */
 
+/** each engine maker's voice in the worklet (audio/EngineWorklet.js PROF) */
+const EKIND = { merc: 2, ferrari: 3, rbford: 4, honda: 5, audi: 6 };
 const SAMPLES = ['crowd', 'gasp', 'groan', 'horror', 'radio'];   // (radio: the team radio's beep - a replay offered, TVExtras)
 
 class AudioEngine {
@@ -158742,6 +158778,15 @@ class AudioEngine {
     // the master volume (settings: 0-1, kept in the browser): one gain in front of the speakers, after every bus
     let v = 0.8; try { const s = localStorage.getItem('f1.volume'); if (s != null && isFinite(+s)) v = Math.max(0, Math.min(1, +s)); } catch (e) { /* storage off */ }
     this.volume = v;
+    // the mix (settings: engines, effects, ambience, radio - 0 .. 1.5 each, kept in the browser): a gain on each bus
+    this.mix = { eng: 1, fx: 1, amb: 1, radio: 1 }; try { const m = JSON.parse(localStorage.getItem('f1.mix') || 'null'); if (m) for (const k of Object.keys(this.mix)) if (isFinite(+m[k])) this.mix[k] = Math.max(0, Math.min(1.5, +m[k])); } catch (e) { /* storage off */ }
+  }
+  /** one of the mix's four (eng | fx | amb | radio) set (0 .. 1.5) and remembered */
+  setMix(k, v) {
+    if (!(k in this.mix)) return; this.mix[k] = Math.max(0, Math.min(1.5, +v || 0));
+    try { localStorage.setItem('f1.mix', JSON.stringify(this.mix)); } catch (e) { /* storage off */ }
+    if (!this.ready) return; const t = this.ctx.currentTime, M = this.mix;
+    this.fxMix.gain.setTargetAtTime(M.fx, t, 0.03); this.fxMix2.gain.setTargetAtTime(M.fx, t, 0.03); this.ambMix.gain.setTargetAtTime(M.amb, t, 0.03); this.radioMix.gain.setTargetAtTime(M.radio, t, 0.03); this.engMix.gain.setTargetAtTime(M.eng, t, 0.03);
   }
   /** set the master volume (0-1) and remember it */
   setVolume(v) {
@@ -158759,7 +158804,9 @@ class AudioEngine {
     this.master = ctx.createGain(); this.master.gain.value = 0.35;
     this.muffle = ctx.createBiquadFilter(); this.muffle.type = 'lowpass'; this.muffle.frequency.value = 20000; this.muffle.Q.value = 0.7;
     this.master.connect(this.muffle); this.muffle.connect(this.out);
-    this.fx = ctx.createGain(); this.fx.gain.value = 0.45; this.fx.connect(this.out);
+    this.fx = ctx.createGain(); this.fx.gain.value = 0.45; this.fxMix2 = ctx.createGain(); this.fxMix2.gain.value = this.mix.fx; this.fx.connect(this.fxMix2); this.fxMix2.connect(this.out);
+    this.fxMix = ctx.createGain(); this.fxMix.gain.value = this.mix.fx; this.fxMix.connect(this.master);   // (the road, the tyres, the wind, the rain, the hits, the guns: through the world's muffle)
+    this.engMix = ctx.createGain(); this.engMix.gain.value = this.mix.eng; this.engMix.connect(this.master);
     this.noiseBuf = null;
     // engine: two detuned saws + sub square through a lowpass
     this.osc1 = ctx.createOscillator(); this.osc1.type = 'sawtooth';
@@ -158769,17 +158816,17 @@ class AudioEngine {
     this.engGain = ctx.createGain(); this.engGain.gain.value = 0;
     const subGain = ctx.createGain(); subGain.gain.value = 0.35;
     this.osc1.connect(this.filter); this.osc2.connect(this.filter); this.sub.connect(subGain); subGain.connect(this.filter);
-    this.filter.connect(this.engGain); this.engGain.connect(this.master);
+    this.filter.connect(this.engGain); this.engGain.connect(this.engMix);
     this.osc1.start(); this.osc2.start(); this.sub.start();
     // wind/tyre noise
     const buf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate); const d = buf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
     this.noise = ctx.createBufferSource(); this.noise.buffer = buf; this.noise.loop = true;
     this.noiseFilter = ctx.createBiquadFilter(); this.noiseFilter.type = 'bandpass'; this.noiseFilter.frequency.value = 900;
     this.noiseGain = ctx.createGain(); this.noiseGain.gain.value = 0;
-    this.noise.connect(this.noiseFilter); this.noiseFilter.connect(this.noiseGain); this.noiseGain.connect(this.master); this.noise.start();
+    this.noise.connect(this.noiseFilter); this.noiseFilter.connect(this.noiseGain); this.noiseGain.connect(this.fxMix); this.noise.start();
     // the engines (audio/EngineWorklet.js: every car near the microphone, firing by firing) - the oscillators above are
     // only what is heard where an AudioWorklet cannot run
-    this.engBus = ctx.createGain(); this.engBus.gain.value = 0; this.engBus.connect(this.master);
+    this.engBus = ctx.createGain(); this.engBus.gain.value = 0; this.engBus.connect(this.engMix);
     this.wk = null; this.slots = new Map(); this.motion = new Map(); this._L = null;
     if (ctx.audioWorklet && typeof AudioWorkletNode !== 'undefined') {
       // (from a data: URL - the single file opened from disk has a null origin, and a blob: URL from it will not load as a
@@ -158795,17 +158842,19 @@ class AudioEngine {
     // (the squeal a tone - a rubber's howl, wavering - not filtered noise: under braking that was a hiss of foil)
     this.sqO = ctx.createOscillator(); this.sqO.type = 'triangle'; this.sqO.frequency.value = 1050; this.sqO.start();
     this.sqF = ctx.createBiquadFilter(); this.sqF.type = 'bandpass'; this.sqF.frequency.value = 1250; this.sqF.Q.value = 3;
-    this.sqG = ctx.createGain(); this.sqG.gain.value = 0; this.sqO.connect(this.sqF); this.sqF.connect(this.sqG); this.sqG.connect(this.master);
+    this.sqG = ctx.createGain(); this.sqG.gain.value = 0; this.sqO.connect(this.sqF); this.sqF.connect(this.sqG); this.sqG.connect(this.fxMix);
     this.kb = ctx.createOscillator(); this.kb.type = 'square'; this.kb.frequency.value = 40;
     this.kbF = ctx.createBiquadFilter(); this.kbF.type = 'lowpass'; this.kbF.frequency.value = 260; this.kbG = ctx.createGain(); this.kbG.gain.value = 0;
-    this.kb.connect(this.kbF); this.kbF.connect(this.kbG); this.kbG.connect(this.master); this.kb.start();
+    this.kb.connect(this.kbF); this.kbF.connect(this.kbG); this.kbG.connect(this.fxMix); this.kb.start();
     this.grF = ctx.createBiquadFilter(); this.grF.type = 'lowpass'; this.grF.frequency.value = 900; this.grF.Q.value = 0.5;
-    this.grG = ctx.createGain(); this.grG.gain.value = 0; loop(1.1).connect(this.grF); this.grF.connect(this.grG); this.grG.connect(this.master);
+    this.grG = ctx.createGain(); this.grG.gain.value = 0; loop(1.1).connect(this.grF); this.grF.connect(this.grG); this.grG.connect(this.fxMix);
     // the rain: a hiss of drops (louder on a visor)
     const rh = ctx.createBiquadFilter(); rh.type = 'highpass'; rh.frequency.value = 600; const rl = ctx.createBiquadFilter(); rl.type = 'lowpass'; rl.frequency.value = 7000;
-    this.rnG = ctx.createGain(); this.rnG.gain.value = 0; loop(0.7).connect(rh); rh.connect(rl); rl.connect(this.rnG); this.rnG.connect(this.master);
+    this.rnG = ctx.createGain(); this.rnG.gain.value = 0; loop(0.7).connect(rh); rh.connect(rl); rl.connect(this.rnG); this.rnG.connect(this.fxMix);
     // recorded sounds: their own bus, outside silence() (the mourning screen's strings play in the silence)
-    this.sfx = ctx.createGain(); this.sfx.gain.value = 0.6; this.sfx.connect(this.out);
+    this.sfx = ctx.createGain(); this.sfx.gain.value = 0.6; this.ambMix = ctx.createGain(); this.ambMix.gain.value = this.mix.amb; this.sfx.connect(this.ambMix); this.ambMix.connect(this.out);
+    // (the radio's: its beep, the engineer's chime, the lights, the beeps of the screens)
+    this.radio = ctx.createGain(); this.radio.gain.value = 0.6; this.radioMix = ctx.createGain(); this.radioMix.gain.value = this.mix.radio; this.radio.connect(this.radioMix); this.radioMix.connect(this.out);
     this.ready = true;
     // (the tab in the background or the window minimised: every sound stops, and carries on when you are back)
     document.addEventListener('visibilitychange', () => { if (document.hidden) ctx.suspend?.(); else ctx.resume?.(); });
@@ -158861,7 +158910,7 @@ class AudioEngine {
    */
   play(name, o = {}) {
     if (!this.ready) return null;
-    const ctx = this.ctx, g = ctx.createGain(); g.gain.value = 0; g.connect(this.sfx);
+    const ctx = this.ctx, g = ctx.createGain(); g.gain.value = 0; g.connect(o.bus === 'radio' ? this.radio : this.sfx);
     let input = g;
     if (o.lowpass) { const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = o.lowpass; f.Q.value = 0.9; const h = ctx.createBiquadFilter(); h.type = 'highpass'; h.frequency.value = 280; f.connect(h); h.connect(g); input = f; }
     const H = { g, src: null, stopped: false,
@@ -158878,7 +158927,7 @@ class AudioEngine {
     return H;
   }
   resume() { if (this.ctx && this.ctx.state === 'suspended' && !document.hidden) this.ctx.resume(); }   // (not while the tab is in the background)
-  toggleMute() { this.muted = !this.muted; if (this.master) this.master.gain.value = this.muted ? 0 : 0.35; if (this.fx) this.fx.gain.value = this.muted ? 0 : 0.45; if (this.sfx) this.sfx.gain.value = this.muted ? 0 : 0.6; return this.muted; }
+  toggleMute() { this.muted = !this.muted; if (this.master) this.master.gain.value = this.muted ? 0 : 0.35; if (this.fx) this.fx.gain.value = this.muted ? 0 : 0.45; if (this.sfx) this.sfx.gain.value = this.muted ? 0 : 0.6; if (this.radio) this.radio.gain.value = this.muted ? 0 : 0.6; return this.muted; }
   /** the car's engine and wind noise faded out (a cut-away, a pause): tc the fade's time constant (s) */
   quiet(tc = 0.3) { if (!this.ready) return; const t = this.ctx.currentTime; for (const g of [this.engGain, this.noiseGain, this.engBus, this.sqG, this.kbG, this.grG, this.rnG]) g.gain.setTargetAtTime(0, t, tc); }
   /** everything silent (the mourning screen), or back */
@@ -158998,7 +159047,7 @@ class AudioEngine {
     for (const x of take) {
       const c = x.c, M = x.M; let sl = this.slots.get(c);
       if (sl && sl.off) { sl.off = 0; }
-      if (!sl) { let i = 0; while (used.has(i)) i++; if (i > 11) continue; used.add(i); sl = { i, seed: ((typeof c.id === 'number' ? c.id : String(c.id || c.name || '').split('').reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) | 0, 7)) & 0xffff) + 1, kind: c === o.sc ? 1 : 0, gear: M.gear, up: 0, down: 0, off: 0 }; this.slots.set(c, sl); }
+      if (!sl) { let i = 0; while (used.has(i)) i++; if (i > 11) continue; used.add(i); sl = { i, kind: c === o.sc ? 1 : (EKIND[o.engineOf?.(c)] ?? 0), seed: ((typeof c.id === 'number' ? c.id : String(c.id || c.name || '').split('').reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) | 0, 7)) & 0xffff) + 1, gear: M.gear, up: 0, down: 0, off: 0 }; this.slots.set(c, sl); }
       if (M.gear > sl.gear) sl.up++; else if (M.gear < sl.gear && M.gear > 0) sl.down++; sl.gear = M.gear;
       let gain, pan = 0, lp, ob = 0, dop = 1;
       if (x.own && o.inside) { gain = 0.62; lp = 9500; ob = 1; }
@@ -159062,11 +159111,11 @@ class AudioEngine {
     const am = ctx.createGain(); am.gain.value = 0.5; const lfo = ctx.createOscillator(); lfo.type = 'square'; lfo.frequency.value = 42 + Math.random() * 8;
     const lg = ctx.createGain(); lg.gain.value = 0.5; lfo.connect(lg); lg.connect(am.gain);   // (the blows: the level beating 0 .. 1)
     const g = ctx.createGain(); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.55 * k, t + 0.015); g.gain.setValueAtTime(0.55 * k, e); g.gain.exponentialRampToValueAtTime(0.001, e + 0.06);
-    n.connect(bp); bp.connect(am); am.connect(g); g.connect(this.master); n.start(t); lfo.start(t); lfo.stop(e + 0.1);
+    n.connect(bp); bp.connect(am); am.connect(g); g.connect(this.fxMix); n.start(t); lfo.start(t); lfo.stop(e + 0.1);
     const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.setValueAtTime(320, t); o.frequency.exponentialRampToValueAtTime(760, t + dur * 0.7);
     const of = ctx.createBiquadFilter(); of.type = 'bandpass'; of.frequency.value = 1500; of.Q.value = 2;
     const og = ctx.createGain(); og.gain.setValueAtTime(0, t); og.gain.linearRampToValueAtTime(0.08 * k, t + 0.03); og.gain.setValueAtTime(0.08 * k, e); og.gain.exponentialRampToValueAtTime(0.001, e + 0.05);
-    o.connect(of); of.connect(og); og.connect(this.master); o.start(t); o.stop(e + 0.08);
+    o.connect(of); of.connect(og); og.connect(this.fxMix); o.start(t); o.stop(e + 0.08);
   }
   /** a car hitting something at (x, z): its thud (and a crunch, a hard one) by the distance from the microphone */
   impactAt(x, z, sev) {
@@ -159079,7 +159128,7 @@ class AudioEngine {
     const ctx = this.ctx, t = ctx.currentTime;
     const o = ctx.createOscillator(); o.type = 'triangle'; o.frequency.setValueAtTime(120, t); o.frequency.exponentialRampToValueAtTime(30, t + 0.25);
     const g = ctx.createGain(); g.gain.setValueAtTime(0.5 * Math.min(1, sev + 0.2), t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
-    o.connect(g); g.connect(this.master); o.start(t); o.stop(t + 0.32);
+    o.connect(g); g.connect(this.fxMix); o.start(t); o.stop(t + 0.32);
   }
   /** two-tone radio chime before an engineer message */
   chime() { this.beep(1046, 0.09, 0.18); setTimeout(() => this.beep(1318, 0.14, 0.18), 110); }
@@ -159088,7 +159137,7 @@ class AudioEngine {
     const ctx = this.ctx, t = ctx.currentTime;
     const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = freq;
     const g = ctx.createGain(); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
-    o.connect(g); g.connect(this.master); o.start(t); o.stop(t + dur + 0.02);
+    const bg = ctx.createGain(); bg.gain.value = 0.58; o.connect(g); g.connect(bg); bg.connect(this.radio); o.start(t); o.stop(t + dur + 0.02);
   }
 }
 
@@ -198986,6 +199035,7 @@ const { openManagerHub, closeManagerHub, managerHubOpen } = __m['src/ui/ManagerH
 const { storyRuled, storyLive, storyTakeLive, storyTrack, storyTrackScene, storyBeforeRace, storyPreRace, obeyChance, radioFact, traitOf } = __m['src/career/ManagerStory.js'];
 const { driverLine } = __m['src/career/StoryLines.js'];
 const { playScene, prepareScene, cineWarm } = __m['src/ui/CineIndex.js'];
+const { DEFAULT_SUP } = __m['src/career/ManagerCar.js'];
 const { radioReplays, stopRadioReplays } = __m['src/ui/RadioReplay.js'];
 const { TVExtras } = __m['src/ui/TVExtras.js'];
 const { TVStrategy } = __m['src/ui/TVStrategy.js'];
@@ -199111,6 +199161,9 @@ void FAST_MATRIX;
 
 
 
+
+/** a car's engine maker (its sound - audio/EngineWorklet.js): the manager career's own choice for its team, else the team's usual */
+const engineOf = (c) => { const t = c?.team; return (S.mgr && S.mgr.teams?.[t]?.engine) || DEFAULT_SUP[t] || 'ferrari'; };
 
 
 
@@ -200078,6 +200131,8 @@ setTimeout(() => { syncSetupUI(); refreshHome(); }, 0);
 // ---------------------------------------------------------------------------
 function openCareerHub() {
   restoreSettings();
+  // (the title decider's film, if the next round is one: made ready while the hub is up - it starts at once)
+  setTimeout(() => { try { const C = S.career, pre = C && careerDecider(C, true); if (pre) prepareScene(pre.scene, pre.ctx); } catch (e) { /* played from scratch */ } }, 1500);
   $('menu').classList.remove('hidden');
   openCareer({ roster: ROSTER, tracks: Object.keys(TRACKS), currentTrack: W.def?.id, helmet: helmetURL, onRace: careerRace, onHangout: careerHangout, audio, music: (on) => strings(on, { gain: 0.45 }), onClose: () => { S.career = null; syncLooks(null); careerSetup(false); $('step-setup').classList.add('hidden'); $('step-mode').classList.remove('hidden'); $('menu').classList.remove('hidden'); } });
 }
@@ -200103,11 +200158,11 @@ function careerScene(C, rows, me, grave) {
   return out;
 }
 /** the last round with the drivers' title still open between the top two: the film before it -> { scene, ctx } | null */
-function careerDecider(C) {
+function careerDecider(C, peek = false) {   // (peek: which it would be - to make it ready - without marking it shown)
   if (C.round !== C.rounds || C.cineDecider === C.season) return null;
   const D = Object.values(C.drivers).filter((d) => d.team && d.alive !== false).sort((a, b) => (b.points || 0) - (a.points || 0)).slice(0, 2);
   if (D.length < 2 || (D[0].points || 0) - (D[1].points || 0) > 25) return null;
-  C.cineDecider = C.season;
+  if (!peek) C.cineDecider = C.season;
   const of = (d) => ({ name: d.name, team: { name: d.team, color: C.teams[d.team]?.color || '#888888', color2: C.teams[d.team]?.color2 }, pts: d.points || 0, wins: d.wins || 0 });
   return { scene: 'decider', ctx: { T: { name: C.team.name, color: C.team.color, color2: C.team.color2 }, season: C.season, round: C.round, track: shortTrack(C.calendar[C.round - 1]), a: of(D[0]), b: of(D[1]), what: 'drivers', left: 1, rounds: C.rounds } };
 }
@@ -200241,6 +200296,11 @@ $('btn-resume').addEventListener('click', () => setPaused(false));
   const show = () => { for (const s of sliders) { s.value = Math.round(audio.volume * 100); const v = s.parentElement.querySelector('.vol-val'); if (v) v.textContent = `${s.value}%`; } };
   for (const s of sliders) s.addEventListener('input', () => { audio.setVolume(s.value / 100); show(); });
   show();
+  // (and the mix: engines, effects, ambience, radio - each in both places, 0 to 150 %)
+  const mix = [...document.querySelectorAll('input.mix')];
+  const showMix = () => { for (const s of mix) { s.value = Math.round((audio.mix[s.dataset.mix] ?? 1) * 100); const v = s.parentElement.querySelector('.vol-val'); if (v) v.textContent = `${s.value}%`; } };
+  for (const s of mix) s.addEventListener('input', () => { audio.setMix(s.dataset.mix, s.value / 100); showMix(); });
+  showMix();
 }
 // the T-cam's lens (its vertical field of view, degrees): a slider beside the tilt, kept in this browser
 {
@@ -201284,6 +201344,8 @@ function beginRace() {
       const facts = NEWS.cancelled ? null : raceFacts(S.director, rows);   // (Driver of the Day and the race in numbers; not for a race stopped by a death - first: the career wants the fans' vote)
       wk.banNote = null;
       if (wk.mode === 'tp') { for (const r of rows) r.me = r.car.team === settings.tpTeam; tpStop(); }   // (your team's two rows marked; no licence for the pit wall)
+      // (the scene the race left at the track - storyTrackScene, played at the podium: made ready while the results are read)
+      setTimeout(() => { try { const t = wk.mgr?.story?.track; if (t?.scene) prepareScene(t.scene, t.ctx); } catch (e) { /* played from scratch */ } }, 600);
       if (wk.mgr && !NEWS.cancelled) { try { wk.mgrRep = wk.mgr.applyRace(rows, W.def.id, { push: Object.fromEntries(rows.filter((r) => r.car.mgr?.modes?.fuel === 'push').map((r) => [r.car.careerId, true])), live: storyTakeLive(wk.mgr) }); } catch (e) { console.error('[manager] the race into the season', e); } }   // (the team principal's career: points, money, the factories, the board)
       if (wk.career) {
         // (the career: points, starts, money, development, Paddock Rapport, morale, the press, the licence, the next round
@@ -202033,7 +202095,7 @@ function tpListen(dt, motion = false) {
   // (the subject - in a replay its model, where the record has it)
   const rc = motion ? d.replay?.cars?.[TP.rep?.i] : null, subj = motion ? (rc ? S.meshes.get(rc)?.group.position || null : null) : sh?.car || null;
   if (!inside && subj) { const dx = camera.position.x - subj.x, dz = camera.position.z - subj.z, dd = Math.hypot(dx, dz) || 1; if (dd > 70 || (!motion && k === 'heli')) mic = { x: subj.x + dx / dd * 28, y: (subj.y || 0) + 3, z: subj.z + dz / dd * 28 }; }
-  audio.listen({ cam: camera, cars: S.cars, own, inside, mic, sc: d.sc?.car, motion, posOf: motion ? (c) => S.meshes.get(c)?.group.position || null : null, rain: d.weather?.rainAt?.(camera.position.x, camera.position.z) || 0, dt });
+  audio.listen({ cam: camera, cars: S.cars, own, inside, mic, sc: d.sc?.car, engineOf, motion, posOf: motion ? (c) => S.meshes.get(c)?.group.position || null : null, rain: d.weather?.rainAt?.(camera.position.x, camera.position.z) || 0, dt });
 }
 function tpReplayFrame(dt) { if (tpReplayStep(dt) && TP.rep) tpReplayPose(TP.rep); }
 function tpReplayEnd() {
@@ -204350,6 +204412,8 @@ function thBurst(e) {
 /** after the cars are posed for race time T (dt: race seconds since the last frame, 0 paused; jumped: wound to another moment) */
 function thAfter(T, dt, jumped) {
   const tape = TH.tape, px = TH.px; if (!px) return;
+  // (heard: every car near the camera, where the tape has it - its speed and revs from how its model moves; paused, silent)
+  if (dt > 0 && !PHOTO.on) { try { audio.listen({ cam: camera, cars: px, own: null, inside: false, motion: true, engineOf, posOf: (p) => S.meshes.get(tape.cars[p.i])?.group.position || null, dt }); audioLive = true; } catch (e) { /* silent */ } }
   // ---- the stops: each stand-in car says where it is in its stop, the crews do the rest
   for (const p of px) {
     const st = tape.stopAt(p.i, T);
@@ -204544,7 +204608,7 @@ function frame(now) {
     if (FINALE.on) { updateFinale(dt); cockpitVisor(p, false); }
     else if (POV.on) povFrame(dt);
     else if (TP.on && p && !PHOTO.on) { tpCamera(dt); tpListen(dt); audioLive = true; }   // (the team principal's race: the world feed - camera/TVDirector.js)
-    else if (p && !PHOTO.on) { if (crashCam.on) crashCam.update(dt, dt * crashCam.timeScale); else camCtl.update(p, dt, W.track); cockpitVisor(p, camCtl.mode === 'cockpit' && !crashCam.on && !d.done); hud.update(p, { mode: d.mode, lapsTotal: d.lapsTotal, positions: d.positions, time: d.time, qualiStarted: d.qualiStarted, sectors: d.sectors, delta: (c) => d.telemetry?.liveDelta(c, d.time), sc: d.sc?.hudState(), gap: (a, b) => d.radio?.gap(a, b), drs: (c) => d.drs?.state(c) }, dt); hud.drawMinimap(S.cars, p); audio.listen({ cam: camera, cars: S.cars, own: p, inside: !crashCam.on && (camCtl.mode === 'cockpit' || camCtl.mode === 'tcam'), sc: d.sc?.car, rain: d.weather?.rainAt?.(camera.position.x, camera.position.z) || 0, dt }); audioLive = true; }   // (every car near you heard: audio/Audio.js listen)
+    else if (p && !PHOTO.on) { if (crashCam.on) crashCam.update(dt, dt * crashCam.timeScale); else camCtl.update(p, dt, W.track); cockpitVisor(p, camCtl.mode === 'cockpit' && !crashCam.on && !d.done); hud.update(p, { mode: d.mode, lapsTotal: d.lapsTotal, positions: d.positions, time: d.time, qualiStarted: d.qualiStarted, sectors: d.sectors, delta: (c) => d.telemetry?.liveDelta(c, d.time), sc: d.sc?.hudState(), gap: (a, b) => d.radio?.gap(a, b), drs: (c) => d.drs?.state(c) }, dt); hud.drawMinimap(S.cars, p); audio.listen({ cam: camera, cars: S.cars, own: p, inside: !crashCam.on && (camCtl.mode === 'cockpit' || camCtl.mode === 'tcam'), sc: d.sc?.car, engineOf, rain: d.weather?.rainAt?.(camera.position.x, camera.position.z) || 0, dt }); audioLive = true; }   // (every car near you heard: audio/Audio.js listen)
     else if (p && PHOTO.hud) { hud.update(p, { mode: d.mode, lapsTotal: d.lapsTotal, positions: d.positions, time: d.time, qualiStarted: d.qualiStarted, sectors: d.sectors, delta: (c) => d.telemetry?.liveDelta(c, d.time), sc: d.sc?.hudState(), gap: (a, b) => d.radio?.gap(a, b), drs: (c) => d.drs?.state(c) }, dt); hud.drawMinimap(S.cars, p); }
   } else if (d && hud.pit.open && p) {
     hud.update(p, { mode: d.mode, lapsTotal: d.lapsTotal, positions: d.positions, time: d.time, qualiStarted: d.qualiStarted, sectors: d.sectors, delta: (c) => d.telemetry?.liveDelta(c, d.time), sc: d.sc?.hudState(), gap: (a, b) => d.radio?.gap(a, b), drs: (c) => d.drs?.state(c) }, dt);
@@ -204588,7 +204652,7 @@ function frame(now) {
     /** (tests: the crash director, and the camera as drawn - terrainLift() lifts it for the frame and returns the undo; renderView() draws a frame through it) */
     crashCam, terrainLift, renderView,
     /** (tests: the team principal's race - main.js TP; the circuit built ahead in the menus) */
-    TP, PIP, tpReplayCams, cullBuildings, tpAct, tpFormStart, tpFormEnd, tpAway, tpAwayWall, PRE_TRACK, preloadWanted, playScene, tvClear, tvTreeHit, tvInside, tvTrees, tpMoment, tpMomentsCut, mgrRace, FINALE, ManagerCareer, tpReplayStart, tpReplayFull, tpHighlights, tpReplayPose, tpReplayRestore, get scMesh() { return scMesh; }, tvRay: _tvRay, tvGround: (x, z) => TERRAIN.at(x, z),
+    TP, PIP, tpReplayCams, cullBuildings, tpAct, tpFormStart, tpFormEnd, tpAway, tpAwayWall, PRE_TRACK, preloadWanted, playScene, tvClear, tvTreeHit, tvInside, tvTrees, tpMoment, tpMomentsCut, mgrRace, FINALE, ManagerCareer, tpReplayStart, tpReplayFull, tpHighlights, tpReplayPose, tpReplayRestore, endSession, theatreOpen, get scMesh() { return scMesh; }, tvRay: _tvRay, tvGround: (x, z) => TERRAIN.at(x, z),
     /** (tests - tools/regress.mjs: the optimisations that must not change a pixel, switched off and on) */
     fastMatrix, SHADOW_CULL,
     /** (tests: the show clock - simTime - set, so the Sphere's loop can be put on any show) */

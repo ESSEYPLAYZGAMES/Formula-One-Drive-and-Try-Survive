@@ -1,3 +1,32 @@
+# V2.81 (2026-11-17): the theatre heard; each maker's engine; the mix; the last films ready; the kerb the line takes
+
+Asked for: "do 1, 2, 3, 4, 5" - the theatre's sound, engine makers' voices, the mix sliders, the last cutscenes made
+ready, the kerb camera on the kerb the racing line runs over.
+
+## The theatre's sound (main.js thAfter)
+- The full race played back in the theatre was silent: its cars are posed from the tape. Now every car near the
+  camera is heard where the tape has it, its speed and revs from how its model moves; paused, silent.
+
+## Each maker's engine (audio/EngineWorklet.js, audio/Audio.js)
+- Every car had the one engine. Now each maker has its own (by the team's supplier - the manager career's own choice,
+  else the team's usual): Mercedes smooth and deep; Ferrari high, raspy, bright; Red Bull Ford sharp, its turbo and
+  hybrid whine loud; Honda a howl in the middle; Audi lower, rough and buzzing. (Measured on the same pull: Ferrari's
+  sound centred at 3.3 kHz, Mercedes' at 2.9, Audi's at 2.6.)
+
+## The mix (settings: the Driving page and the pause menu)
+- Engines, Effects, Ambience, Radio - beside the master volume, 0 to 150 % each, remembered in the browser. Effects:
+  the tyres, the kerbs, the gravel, the wind, the rain, the hits, the wheel guns, the crash's own sounds. Ambience: the
+  crowds, the music. Radio: the replay offer's beep, the engineer's chime, the lights, the screens' beeps.
+
+## The last films made ready (main.js, ui/ManagerHub.js)
+- The scene a race leaves at the track (played at the podium) is made ready while the results are read; the title
+  decider's film - the manager career's and the driver career's - while the HQ or the hub is up. Each starts at once.
+
+## The kerb camera (camera/TVDirector.js)
+- On the kerb the racing line really runs over: the apex where the line comes nearest the inside edge, the exit where
+  it runs out nearest the outside one - whichever the line comes nearer; as near as each other, the two by turns.
+  (It was the corner's middle and its end, by turns.)
+
 # V2.80 (2026-11-17): box to retire
 
 Asked for: "add a box to retire option in the 'car' menu of the pitwall".

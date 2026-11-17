@@ -16,7 +16,7 @@ import { techEffects, UP, partsCount } from '../career/TechTree.js';
 import { extraHTML, extraClick, homeExtra, EXTRA_CSS } from './ManagerHub2.js';
 import { storyHTML, storyHome, storyAct, storyPump, storyAmbientPlay } from './ManagerHub3.js';
 import { eraHTML, eraHome, eraClick, driversHTML } from './ManagerHub4.js';
-import { storySigning, storyReleased, storyShown, storyApply, inboxOf, decisionsOf } from '../career/ManagerStory.js';
+import { storySigning, storyReleased, storyShown, storyApply, inboxOf, decisionsOf, storyPreRace } from '../career/ManagerStory.js';
 import { PU, SPARES, allocOf, fitNew, orderSpare, FAC, FAC_MAX, facCost, facRounds, facFx, facUpgrade, facMaintain, maintCost, SPONSOR_SLOTS, acceptOdds, propose, sponsorTargets, marketability } from '../career/ManagerOps.js';
 import { TRACK_MAPS } from './TrackMaps.js';
 import { HQ_CSS, FAC_CSS, NAV, ICON, esc, money, pct, sur, panel, kv, meter, ring, seg, person, stat, tag, sw, empty, themeApply, themeHTML, themeSet, fitSheet, tween, techSkin } from './HQKit.js';
@@ -95,7 +95,7 @@ function render() {
   themeApply(el, c.myTeam, c.team.color, c.team.color2);
   top(c); rail(); stage(body(c)); toast(); mailMark(el, c);
   // (the scenes waiting to be played - those that come up as you go round the HQ - made ready while you read: they start at once)
-  if (H.o.prepare) { clearTimeout(H.prepT); H.prepT = setTimeout(() => { try { for (const m of inboxOf(c).filter((x) => !x.played && !x.done && x.scene).slice(0, 2)) H.o.prepare(m.scene, m.ctx); } catch (e) { /* played from scratch */ } }, 700); }
+  if (H.o.prepare) { clearTimeout(H.prepT); H.prepT = setTimeout(() => { try { for (const m of inboxOf(c).filter((x) => !x.played && !x.done && x.scene).slice(0, 2)) H.o.prepare(m.scene, m.ctx); const pre = storyPreRace(c); if (pre) H.o.prepare(pre.scene, pre.ctx); } catch (e) { /* played from scratch */ } }, 700); }
   el.querySelector('.q-theme').innerHTML = themeHTML(c.myTeam, c.team.color, c.team.color2);
 }
 /** the bar: the team, the season, the four figures (a figure that has changed counts to its new value), the weekend */

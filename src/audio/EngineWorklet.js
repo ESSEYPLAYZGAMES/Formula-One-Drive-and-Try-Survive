@@ -25,11 +25,23 @@ const F1_OUT = [[230, 2.6, 0.75], [560, 3.5, 1.0], [820, 3.0, 0.7], [1180, 4.5, 
 const F1_IN = [[160, 2.2, 1.0], [420, 3.0, 0.95], [880, 3.5, 0.7], [1750, 3.5, 0.4], [3600, 2.5, 0.16]];
 const V8 = [[110, 2.0, 1.0], [300, 2.6, 0.9], [720, 3.0, 0.55], [1500, 3.0, 0.3], [3200, 2.4, 0.1]];
 function rng(s) { let x = (s * 2654435761) >>> 0 || 1; return () => { x ^= x << 13; x ^= x >>> 17; x ^= x << 5; return ((x >>> 0) / 4294967296); }; }
+// each maker's engine its own (kind 2..6; 0 the generic, 1 the safety car's V8): the pipe's tune (fs: its resonances'
+// pitch), the rasp (how unequal its cylinders), the top and bottom of it, the turbo's whistle, the noise, the hybrid's
+// whine, the howl in the middle (mid). Mercedes smooth and deep; Ferrari high, raspy, bright; Red Bull Ford sharp, its
+// turbo and the MGU-K loud; Honda a howl; Audi new, harsh, buzzing
+const PROF = {
+  0: { fs: 1, rasp: 0.18, hi: 1, lo: 1, mid: 1, turbo: 1, noise: 1, mgu: 1 },
+  2: { fs: 0.95, rasp: 0.12, hi: 0.82, lo: 1.18, mid: 0.95, turbo: 0.8, noise: 0.85, mgu: 1.1 },
+  3: { fs: 1.09, rasp: 0.25, hi: 1.32, lo: 0.88, mid: 1.05, turbo: 1, noise: 1.1, mgu: 0.9 },
+  4: { fs: 1.03, rasp: 0.17, hi: 1.12, lo: 1, mid: 1, turbo: 1.65, noise: 1, mgu: 1.35 },
+  5: { fs: 1.01, rasp: 0.15, hi: 1.12, lo: 0.95, mid: 1.5, turbo: 1.25, noise: 0.95, mgu: 1 },
+  6: { fs: 0.9, rasp: 0.32, hi: 0.95, lo: 1.3, mid: 0.85, turbo: 1.15, noise: 2.2, mgu: 1 },
+};
 class Voice {
   constructor(seed, kind) {
-    this.kind = kind; this.r = rng(seed + 7); const r = this.r;
+    this.kind = kind; this.P = PROF[kind] || PROF[0]; this.r = rng(seed + 7); const r = this.r;
     this.nFire = kind === 1 ? 8 : 6;
-    this.cyl = []; for (let k = 0; k < this.nFire; k++) this.cyl.push(1 + (r() - 0.5) * (kind === 1 ? 0.34 : 0.18));   // (each cylinder its own)
+    this.cyl = []; for (let k = 0; k < this.nFire; k++) this.cyl.push(1 + (r() - 0.5) * (kind === 1 ? 0.34 : this.P.rasp));   // (each cylinder its own)
     this.ph = r(); this.next = Math.floor(this.ph * this.nFire) + 1; this.carry = 0;
     this.pulse = 0; this.noiseEnv = 0; this.pop = 0; this.popLp = 0; this.hp1 = 0; this.hp0 = 0;
     this.res = (kind === 1 ? V8 : F1_OUT).map(() => ({ x1: 0, x2: 0, y1: 0, y2: 0, b0: 0, a1: 0, a2: 0, g: 0 }));
@@ -43,8 +55,8 @@ class Voice {
   }
   coeffs(set, R, dop, ob) {
     for (let i = 0; i < set.length; i++) {
-      const f = Math.min(SR * 0.45, set[i][0] * dop), q = set[i][1], w = TAU * f / SR, al = Math.sin(w) / (2 * q), a0 = 1 + al;
-      const z = R[i]; z.b0 = al / a0; z.a1 = -2 * Math.cos(w) / a0; z.a2 = (1 - al) / a0; z.g = set[i][2] * (i % 2 ? -1 : 1);   // (every other one inverted: between two of them they add, not cancel - no notch)
+      const P = set === V8 ? PROF[0] : this.P, f = Math.min(SR * 0.45, set[i][0] * dop * P.fs), q = set[i][1], w = TAU * f / SR, al = Math.sin(w) / (2 * q), a0 = 1 + al;
+      const z = R[i]; z.b0 = al / a0; z.a1 = -2 * Math.cos(w) / a0; z.a2 = (1 - al) / a0; z.g = set[i][2] * (i % 2 ? -1 : 1) * (i < 2 ? P.lo : i >= 4 ? P.hi : P.mid);   // (every other one inverted: between two of them they add, not cancel - no notch)
     }
   }
 }
@@ -106,7 +118,7 @@ class Engines extends AudioWorkletProcessor {
         // the pulse (its bark) and the noise that rides it
         v.pulse = v.pulse * shapeA + ex;
         v.noiseEnv = v.noiseEnv * 0.9965 + ex * 0.6;
-        const wn = r() * 2 - 1, turb = wn * v.noiseEnv * 0.2;   // (not more off the throttle: under braking it was a crackle of foil)
+        const wn = r() * 2 - 1, turb = wn * v.noiseEnv * 0.2 * v.P.noise;   // (not more off the throttle: under braking it was a crackle of foil)
         const x = v.pulse * 0.5 + turb;
         // the pipe (outside) and the airbox and block (on board)
         let yo = 0, yi = 0;
@@ -118,11 +130,11 @@ class Engines extends AudioWorkletProcessor {
         // the pop: a bang of noise, dulled
         if (v.pop > 0.002) { v.popLp += ((r() * 2 - 1) * v.pop - v.popLp) * 0.07; v.popLp2 = (v.popLp2 || 0) + (v.popLp - (v.popLp2 || 0)) * 0.07; s += v.popLp2 * 2.6; v.pop *= 0.996; }   // (a dull thump in the pipe, not a crackle: two poles low)
         // the turbo's whistle, the wastegate's breath, the MGU-K, the gears
-        if (turbF > 0) { v.tph += turbF / SR; if (v.tph > 1) v.tph -= 1; s += Math.sin(TAU * v.tph) * 0.018 * v.boost * (0.4 + 0.6 * ob); }
+        if (turbF > 0) { v.tph += turbF / SR; if (v.tph > 1) v.tph -= 1; s += Math.sin(TAU * v.tph) * 0.018 * v.P.turbo * v.boost * (0.4 + 0.6 * ob); }
         if (v.gate > 0.002) { v.hp1 = wn - v.hp0 + 0.9 * v.hp1; v.hp0 = wn; s += v.hp1 * v.gate * 0.05; v.gate *= 0.99985; }
         if (!V8k) {
           v.mph += mguF / SR; if (v.mph > 1) v.mph -= 1; const e = Math.abs(c.ers);
-          if (e > 0.01) s += (Math.sin(TAU * v.mph) + 0.4 * Math.sin(TAU * v.mph * 1.5)) * e * (c.ers < 0 ? 0.03 : 0.018) * (0.35 + 0.65 * ob);
+          if (e > 0.01) s += (Math.sin(TAU * v.mph) + 0.4 * Math.sin(TAU * v.mph * 1.5)) * e * (c.ers < 0 ? 0.03 : 0.018) * v.P.mgu * (0.35 + 0.65 * ob);
           v.gph += gearF / SR; if (v.gph > 1) v.gph -= 1; s += Math.sin(TAU * v.gph) * 0.006 * (0.3 + ob);
         }
         // DC out, the air's lowpass (two poles), the level and the place

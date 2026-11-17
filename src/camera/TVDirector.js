@@ -168,13 +168,27 @@ export class TVDirector {
       //  and then its twin looking down the road after them. Nothing is asked of the walls and fences: it is inside
       //  them, on the road's own edge. The next corner within reach - further when the kerb camera is the one asked
       //  for - or a trackside camera instead.)
-      let s0 = null, sE = null, side = 1; const reach = this.camKind === 'kerb' ? 720 : 330;
-      for (let ds = 45; ds < reach; ds += 12) { const i = tr.idxAtS(tr.wrapS(subject.s + ds)); if (!tr.inCornerZone(i)) continue; let e = ds; while (e < ds + 220 && tr.inCornerZone(tr.idxAtS(tr.wrapS(subject.s + e)))) e += 12; const sm = tr.wrapS(subject.s + (ds + e) / 2), im = tr.idxAtS(sm), n = tr.n, a = (im - 6 + n) % n, b = (im + 6) % n; side = (tr.tx[b] - tr.tx[a]) * tr.nx[im] + (tr.tz[b] - tr.tz[a]) * tr.nz[im] > 0 ? 1 : -1; s0 = sm; sE = e - ds > 30 ? tr.wrapS(subject.s + e - 10) : null; break; }
+      let s0 = null, sE = null, side = 1, kPick = null; const reach = this.camKind === 'kerb' ? 720 : 330;
+      for (let ds = 45; ds < reach; ds += 12) { const i = tr.idxAtS(tr.wrapS(subject.s + ds)); if (!tr.inCornerZone(i)) continue; let e = ds; while (e < ds + 220 && tr.inCornerZone(tr.idxAtS(tr.wrapS(subject.s + e)))) e += 12; const sm = tr.wrapS(subject.s + (ds + e) / 2), im = tr.idxAtS(sm), n = tr.n, a = (im - 6 + n) % n, b = (im + 6) % n; side = (tr.tx[b] - tr.tx[a]) * tr.nx[im] + (tr.tz[b] - tr.tz[a]) * tr.nz[im] > 0 ? 1 : -1; s0 = sm; sE = e - ds > 30 ? tr.wrapS(subject.s + e - 10) : null;
+        // (the kerbs the racing line really runs over: the apex where it comes nearest the inside edge, the exit where it
+        //  runs out nearest the outside one - from the line itself, not the corner's middle and end)
+        const Lo = ctx.d?.line?.offset;
+        if (Lo) {
+          const mg = (s, sd) => { const ii = tr.idxAtS(s), ed = tr.edgeAt ? tr.edgeAt(ii, sd) : tr.halfWidth; return ed - sd * Lo[ii]; };
+          let bA = Infinity, bE = Infinity;
+          for (let q = ds; q <= e; q += 4) { const sq = tr.wrapS(subject.s + q), m = mg(sq, side); if (m < bA) { bA = m; s0 = sq; } }
+          for (let q = (ds + e) / 2; q <= e + 60; q += 4) { const sq = tr.wrapS(subject.s + q), m = mg(sq, -side); if (m < bE) { bE = m; sE = sq; } }
+          kPick = { a: bA, e: bE };
+        }
+        break; }
       // (STATIC: one place, one aim, one lens, the whole shot - in the kerb the car is about to run over: the apex kerb
       //  on the inside, or (every other time) the exit kerb on the outside where the corner opens out - looking back up
       //  the road at the car coming over it. It used to zoom with the car and then swing round after it)
       if (s0 != null) {
-        const exit = (this.cuts & 1) === 1 && sE != null, sK = exit ? sE : s0, sd = exit ? -side : side;
+        // (the one the line touches: the apex kerb or the exit kerb, whichever the line comes nearer - by more than half a
+        //  metre; as near as each other (it runs over both), the two by turns)
+        const turns = (this.cuts & 1) === 1, exit = sE != null && (kPick ? (kPick.e > 2.5 && kPick.a > 2.5 ? turns : kPick.e + 0.5 < kPick.a ? true : kPick.a + 0.5 < kPick.e ? false : turns) : turns);
+        const sK = exit ? sE : s0, sd = exit ? -side : side;
         const i = tr.idxAtS(sK), wK = barD(tr, ctx.pit, i, sd), edge = tr.edgeAt ? tr.edgeAt(i, sd) : wK - 2, off = sd * Math.min(wK - 0.5, edge + (tr.kerbWidth || 1) * 0.3), f = tr.sample(sK, off);
         const a = tr.sample(tr.wrapS(sK - (exit ? 34 : 30)), off * 0.35);   // (up the road, toward the middle of it: the car comes through the picture and over the lens)
         sh.s0 = sK; sh.side = sd; sh.kerb = true; sh.kerbExit = exit; sh.pos = new THREE.Vector3(f.x, G(f.x, f.z) + 0.3, f.z);

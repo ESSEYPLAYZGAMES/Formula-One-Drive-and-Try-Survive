@@ -67,6 +67,9 @@ import { openManagerHub, closeManagerHub, managerHubOpen } from './ui/ManagerHub
 import { storyRuled, storyLive, storyTakeLive, storyTrack, storyTrackScene, storyBeforeRace, storyPreRace, obeyChance, radioFact, traitOf } from './career/ManagerStory.js';
 import { driverLine } from './career/StoryLines.js';
 import { playScene, prepareScene, cineWarm } from './ui/CineIndex.js';
+import { DEFAULT_SUP } from './career/ManagerCar.js';
+/** a car's engine maker (its sound - audio/EngineWorklet.js): the manager career's own choice for its team, else the team's usual */
+const engineOf = (c) => { const t = c?.team; return (S.mgr && S.mgr.teams?.[t]?.engine) || DEFAULT_SUP[t] || 'ferrari'; };
 import { radioReplays, stopRadioReplays } from './ui/RadioReplay.js';
 import { TVExtras } from './ui/TVExtras.js';
 import { TVStrategy } from './ui/TVStrategy.js';
@@ -1035,6 +1038,8 @@ setTimeout(() => { syncSetupUI(); refreshHome(); }, 0);
 // ---------------------------------------------------------------------------
 function openCareerHub() {
   restoreSettings();
+  // (the title decider's film, if the next round is one: made ready while the hub is up - it starts at once)
+  setTimeout(() => { try { const C = S.career, pre = C && careerDecider(C, true); if (pre) prepareScene(pre.scene, pre.ctx); } catch (e) { /* played from scratch */ } }, 1500);
   $('menu').classList.remove('hidden');
   openCareer({ roster: ROSTER, tracks: Object.keys(TRACKS), currentTrack: W.def?.id, helmet: helmetURL, onRace: careerRace, onHangout: careerHangout, audio, music: (on) => strings(on, { gain: 0.45 }), onClose: () => { S.career = null; syncLooks(null); careerSetup(false); $('step-setup').classList.add('hidden'); $('step-mode').classList.remove('hidden'); $('menu').classList.remove('hidden'); } });
 }
@@ -1060,11 +1065,11 @@ function careerScene(C, rows, me, grave) {
   return out;
 }
 /** the last round with the drivers' title still open between the top two: the film before it -> { scene, ctx } | null */
-function careerDecider(C) {
+function careerDecider(C, peek = false) {   // (peek: which it would be - to make it ready - without marking it shown)
   if (C.round !== C.rounds || C.cineDecider === C.season) return null;
   const D = Object.values(C.drivers).filter((d) => d.team && d.alive !== false).sort((a, b) => (b.points || 0) - (a.points || 0)).slice(0, 2);
   if (D.length < 2 || (D[0].points || 0) - (D[1].points || 0) > 25) return null;
-  C.cineDecider = C.season;
+  if (!peek) C.cineDecider = C.season;
   const of = (d) => ({ name: d.name, team: { name: d.team, color: C.teams[d.team]?.color || '#888888', color2: C.teams[d.team]?.color2 }, pts: d.points || 0, wins: d.wins || 0 });
   return { scene: 'decider', ctx: { T: { name: C.team.name, color: C.team.color, color2: C.team.color2 }, season: C.season, round: C.round, track: shortTrack(C.calendar[C.round - 1]), a: of(D[0]), b: of(D[1]), what: 'drivers', left: 1, rounds: C.rounds } };
 }
@@ -1198,6 +1203,11 @@ $('btn-resume').addEventListener('click', () => setPaused(false));
   const show = () => { for (const s of sliders) { s.value = Math.round(audio.volume * 100); const v = s.parentElement.querySelector('.vol-val'); if (v) v.textContent = `${s.value}%`; } };
   for (const s of sliders) s.addEventListener('input', () => { audio.setVolume(s.value / 100); show(); });
   show();
+  // (and the mix: engines, effects, ambience, radio - each in both places, 0 to 150 %)
+  const mix = [...document.querySelectorAll('input.mix')];
+  const showMix = () => { for (const s of mix) { s.value = Math.round((audio.mix[s.dataset.mix] ?? 1) * 100); const v = s.parentElement.querySelector('.vol-val'); if (v) v.textContent = `${s.value}%`; } };
+  for (const s of mix) s.addEventListener('input', () => { audio.setMix(s.dataset.mix, s.value / 100); showMix(); });
+  showMix();
 }
 // the T-cam's lens (its vertical field of view, degrees): a slider beside the tilt, kept in this browser
 {
@@ -2241,6 +2251,8 @@ function beginRace() {
       const facts = NEWS.cancelled ? null : raceFacts(S.director, rows);   // (Driver of the Day and the race in numbers; not for a race stopped by a death - first: the career wants the fans' vote)
       wk.banNote = null;
       if (wk.mode === 'tp') { for (const r of rows) r.me = r.car.team === settings.tpTeam; tpStop(); }   // (your team's two rows marked; no licence for the pit wall)
+      // (the scene the race left at the track - storyTrackScene, played at the podium: made ready while the results are read)
+      setTimeout(() => { try { const t = wk.mgr?.story?.track; if (t?.scene) prepareScene(t.scene, t.ctx); } catch (e) { /* played from scratch */ } }, 600);
       if (wk.mgr && !NEWS.cancelled) { try { wk.mgrRep = wk.mgr.applyRace(rows, W.def.id, { push: Object.fromEntries(rows.filter((r) => r.car.mgr?.modes?.fuel === 'push').map((r) => [r.car.careerId, true])), live: storyTakeLive(wk.mgr) }); } catch (e) { console.error('[manager] the race into the season', e); } }   // (the team principal's career: points, money, the factories, the board)
       if (wk.career) {
         // (the career: points, starts, money, development, Paddock Rapport, morale, the press, the licence, the next round
@@ -2990,7 +3002,7 @@ function tpListen(dt, motion = false) {
   // (the subject - in a replay its model, where the record has it)
   const rc = motion ? d.replay?.cars?.[TP.rep?.i] : null, subj = motion ? (rc ? S.meshes.get(rc)?.group.position || null : null) : sh?.car || null;
   if (!inside && subj) { const dx = camera.position.x - subj.x, dz = camera.position.z - subj.z, dd = Math.hypot(dx, dz) || 1; if (dd > 70 || (!motion && k === 'heli')) mic = { x: subj.x + dx / dd * 28, y: (subj.y || 0) + 3, z: subj.z + dz / dd * 28 }; }
-  audio.listen({ cam: camera, cars: S.cars, own, inside, mic, sc: d.sc?.car, motion, posOf: motion ? (c) => S.meshes.get(c)?.group.position || null : null, rain: d.weather?.rainAt?.(camera.position.x, camera.position.z) || 0, dt });
+  audio.listen({ cam: camera, cars: S.cars, own, inside, mic, sc: d.sc?.car, engineOf, motion, posOf: motion ? (c) => S.meshes.get(c)?.group.position || null : null, rain: d.weather?.rainAt?.(camera.position.x, camera.position.z) || 0, dt });
 }
 function tpReplayFrame(dt) { if (tpReplayStep(dt) && TP.rep) tpReplayPose(TP.rep); }
 function tpReplayEnd() {
@@ -5307,6 +5319,8 @@ function thBurst(e) {
 /** after the cars are posed for race time T (dt: race seconds since the last frame, 0 paused; jumped: wound to another moment) */
 function thAfter(T, dt, jumped) {
   const tape = TH.tape, px = TH.px; if (!px) return;
+  // (heard: every car near the camera, where the tape has it - its speed and revs from how its model moves; paused, silent)
+  if (dt > 0 && !PHOTO.on) { try { audio.listen({ cam: camera, cars: px, own: null, inside: false, motion: true, engineOf, posOf: (p) => S.meshes.get(tape.cars[p.i])?.group.position || null, dt }); audioLive = true; } catch (e) { /* silent */ } }
   // ---- the stops: each stand-in car says where it is in its stop, the crews do the rest
   for (const p of px) {
     const st = tape.stopAt(p.i, T);
@@ -5501,7 +5515,7 @@ function frame(now) {
     if (FINALE.on) { updateFinale(dt); cockpitVisor(p, false); }
     else if (POV.on) povFrame(dt);
     else if (TP.on && p && !PHOTO.on) { tpCamera(dt); tpListen(dt); audioLive = true; }   // (the team principal's race: the world feed - camera/TVDirector.js)
-    else if (p && !PHOTO.on) { if (crashCam.on) crashCam.update(dt, dt * crashCam.timeScale); else camCtl.update(p, dt, W.track); cockpitVisor(p, camCtl.mode === 'cockpit' && !crashCam.on && !d.done); hud.update(p, { mode: d.mode, lapsTotal: d.lapsTotal, positions: d.positions, time: d.time, qualiStarted: d.qualiStarted, sectors: d.sectors, delta: (c) => d.telemetry?.liveDelta(c, d.time), sc: d.sc?.hudState(), gap: (a, b) => d.radio?.gap(a, b), drs: (c) => d.drs?.state(c) }, dt); hud.drawMinimap(S.cars, p); audio.listen({ cam: camera, cars: S.cars, own: p, inside: !crashCam.on && (camCtl.mode === 'cockpit' || camCtl.mode === 'tcam'), sc: d.sc?.car, rain: d.weather?.rainAt?.(camera.position.x, camera.position.z) || 0, dt }); audioLive = true; }   // (every car near you heard: audio/Audio.js listen)
+    else if (p && !PHOTO.on) { if (crashCam.on) crashCam.update(dt, dt * crashCam.timeScale); else camCtl.update(p, dt, W.track); cockpitVisor(p, camCtl.mode === 'cockpit' && !crashCam.on && !d.done); hud.update(p, { mode: d.mode, lapsTotal: d.lapsTotal, positions: d.positions, time: d.time, qualiStarted: d.qualiStarted, sectors: d.sectors, delta: (c) => d.telemetry?.liveDelta(c, d.time), sc: d.sc?.hudState(), gap: (a, b) => d.radio?.gap(a, b), drs: (c) => d.drs?.state(c) }, dt); hud.drawMinimap(S.cars, p); audio.listen({ cam: camera, cars: S.cars, own: p, inside: !crashCam.on && (camCtl.mode === 'cockpit' || camCtl.mode === 'tcam'), sc: d.sc?.car, engineOf, rain: d.weather?.rainAt?.(camera.position.x, camera.position.z) || 0, dt }); audioLive = true; }   // (every car near you heard: audio/Audio.js listen)
     else if (p && PHOTO.hud) { hud.update(p, { mode: d.mode, lapsTotal: d.lapsTotal, positions: d.positions, time: d.time, qualiStarted: d.qualiStarted, sectors: d.sectors, delta: (c) => d.telemetry?.liveDelta(c, d.time), sc: d.sc?.hudState(), gap: (a, b) => d.radio?.gap(a, b), drs: (c) => d.drs?.state(c) }, dt); hud.drawMinimap(S.cars, p); }
   } else if (d && hud.pit.open && p) {
     hud.update(p, { mode: d.mode, lapsTotal: d.lapsTotal, positions: d.positions, time: d.time, qualiStarted: d.qualiStarted, sectors: d.sectors, delta: (c) => d.telemetry?.liveDelta(c, d.time), sc: d.sc?.hudState(), gap: (a, b) => d.radio?.gap(a, b), drs: (c) => d.drs?.state(c) }, dt);
@@ -5545,7 +5559,7 @@ function frame(now) {
     /** (tests: the crash director, and the camera as drawn - terrainLift() lifts it for the frame and returns the undo; renderView() draws a frame through it) */
     crashCam, terrainLift, renderView,
     /** (tests: the team principal's race - main.js TP; the circuit built ahead in the menus) */
-    TP, PIP, tpReplayCams, cullBuildings, tpAct, tpFormStart, tpFormEnd, tpAway, tpAwayWall, PRE_TRACK, preloadWanted, playScene, tvClear, tvTreeHit, tvInside, tvTrees, tpMoment, tpMomentsCut, mgrRace, FINALE, ManagerCareer, tpReplayStart, tpReplayFull, tpHighlights, tpReplayPose, tpReplayRestore, get scMesh() { return scMesh; }, tvRay: _tvRay, tvGround: (x, z) => TERRAIN.at(x, z),
+    TP, PIP, tpReplayCams, cullBuildings, tpAct, tpFormStart, tpFormEnd, tpAway, tpAwayWall, PRE_TRACK, preloadWanted, playScene, tvClear, tvTreeHit, tvInside, tvTrees, tpMoment, tpMomentsCut, mgrRace, FINALE, ManagerCareer, tpReplayStart, tpReplayFull, tpHighlights, tpReplayPose, tpReplayRestore, endSession, theatreOpen, get scMesh() { return scMesh; }, tvRay: _tvRay, tvGround: (x, z) => TERRAIN.at(x, z),
     /** (tests - tools/regress.mjs: the optimisations that must not change a pixel, switched off and on) */
     fastMatrix, SHADOW_CULL,
     /** (tests: the show clock - simTime - set, so the Sphere's loop can be put on any show) */

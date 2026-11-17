@@ -3,6 +3,8 @@
 /** the short recorded sounds (assets/audio/<name>.mp3), decoded up front; the long ones (atmos1-3, strings) are streamed by music() */
 import { ENGINE_WORKLET } from './EngineWorklet.js';
 
+/** each engine maker's voice in the worklet (audio/EngineWorklet.js PROF) */
+const EKIND = { merc: 2, ferrari: 3, rbford: 4, honda: 5, audi: 6 };
 export const SAMPLES = ['crowd', 'gasp', 'groan', 'horror', 'radio'];   // (radio: the team radio's beep - a replay offered, TVExtras)
 
 export class AudioEngine {
@@ -11,6 +13,15 @@ export class AudioEngine {
     // the master volume (settings: 0-1, kept in the browser): one gain in front of the speakers, after every bus
     let v = 0.8; try { const s = localStorage.getItem('f1.volume'); if (s != null && isFinite(+s)) v = Math.max(0, Math.min(1, +s)); } catch (e) { /* storage off */ }
     this.volume = v;
+    // the mix (settings: engines, effects, ambience, radio - 0 .. 1.5 each, kept in the browser): a gain on each bus
+    this.mix = { eng: 1, fx: 1, amb: 1, radio: 1 }; try { const m = JSON.parse(localStorage.getItem('f1.mix') || 'null'); if (m) for (const k of Object.keys(this.mix)) if (isFinite(+m[k])) this.mix[k] = Math.max(0, Math.min(1.5, +m[k])); } catch (e) { /* storage off */ }
+  }
+  /** one of the mix's four (eng | fx | amb | radio) set (0 .. 1.5) and remembered */
+  setMix(k, v) {
+    if (!(k in this.mix)) return; this.mix[k] = Math.max(0, Math.min(1.5, +v || 0));
+    try { localStorage.setItem('f1.mix', JSON.stringify(this.mix)); } catch (e) { /* storage off */ }
+    if (!this.ready) return; const t = this.ctx.currentTime, M = this.mix;
+    this.fxMix.gain.setTargetAtTime(M.fx, t, 0.03); this.fxMix2.gain.setTargetAtTime(M.fx, t, 0.03); this.ambMix.gain.setTargetAtTime(M.amb, t, 0.03); this.radioMix.gain.setTargetAtTime(M.radio, t, 0.03); this.engMix.gain.setTargetAtTime(M.eng, t, 0.03);
   }
   /** set the master volume (0-1) and remember it */
   setVolume(v) {
@@ -28,7 +39,9 @@ export class AudioEngine {
     this.master = ctx.createGain(); this.master.gain.value = 0.35;
     this.muffle = ctx.createBiquadFilter(); this.muffle.type = 'lowpass'; this.muffle.frequency.value = 20000; this.muffle.Q.value = 0.7;
     this.master.connect(this.muffle); this.muffle.connect(this.out);
-    this.fx = ctx.createGain(); this.fx.gain.value = 0.45; this.fx.connect(this.out);
+    this.fx = ctx.createGain(); this.fx.gain.value = 0.45; this.fxMix2 = ctx.createGain(); this.fxMix2.gain.value = this.mix.fx; this.fx.connect(this.fxMix2); this.fxMix2.connect(this.out);
+    this.fxMix = ctx.createGain(); this.fxMix.gain.value = this.mix.fx; this.fxMix.connect(this.master);   // (the road, the tyres, the wind, the rain, the hits, the guns: through the world's muffle)
+    this.engMix = ctx.createGain(); this.engMix.gain.value = this.mix.eng; this.engMix.connect(this.master);
     this.noiseBuf = null;
     // engine: two detuned saws + sub square through a lowpass
     this.osc1 = ctx.createOscillator(); this.osc1.type = 'sawtooth';
@@ -38,17 +51,17 @@ export class AudioEngine {
     this.engGain = ctx.createGain(); this.engGain.gain.value = 0;
     const subGain = ctx.createGain(); subGain.gain.value = 0.35;
     this.osc1.connect(this.filter); this.osc2.connect(this.filter); this.sub.connect(subGain); subGain.connect(this.filter);
-    this.filter.connect(this.engGain); this.engGain.connect(this.master);
+    this.filter.connect(this.engGain); this.engGain.connect(this.engMix);
     this.osc1.start(); this.osc2.start(); this.sub.start();
     // wind/tyre noise
     const buf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate); const d = buf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
     this.noise = ctx.createBufferSource(); this.noise.buffer = buf; this.noise.loop = true;
     this.noiseFilter = ctx.createBiquadFilter(); this.noiseFilter.type = 'bandpass'; this.noiseFilter.frequency.value = 900;
     this.noiseGain = ctx.createGain(); this.noiseGain.gain.value = 0;
-    this.noise.connect(this.noiseFilter); this.noiseFilter.connect(this.noiseGain); this.noiseGain.connect(this.master); this.noise.start();
+    this.noise.connect(this.noiseFilter); this.noiseFilter.connect(this.noiseGain); this.noiseGain.connect(this.fxMix); this.noise.start();
     // the engines (audio/EngineWorklet.js: every car near the microphone, firing by firing) - the oscillators above are
     // only what is heard where an AudioWorklet cannot run
-    this.engBus = ctx.createGain(); this.engBus.gain.value = 0; this.engBus.connect(this.master);
+    this.engBus = ctx.createGain(); this.engBus.gain.value = 0; this.engBus.connect(this.engMix);
     this.wk = null; this.slots = new Map(); this.motion = new Map(); this._L = null;
     if (ctx.audioWorklet && typeof AudioWorkletNode !== 'undefined') {
       // (from a data: URL - the single file opened from disk has a null origin, and a blob: URL from it will not load as a
@@ -64,17 +77,19 @@ export class AudioEngine {
     // (the squeal a tone - a rubber's howl, wavering - not filtered noise: under braking that was a hiss of foil)
     this.sqO = ctx.createOscillator(); this.sqO.type = 'triangle'; this.sqO.frequency.value = 1050; this.sqO.start();
     this.sqF = ctx.createBiquadFilter(); this.sqF.type = 'bandpass'; this.sqF.frequency.value = 1250; this.sqF.Q.value = 3;
-    this.sqG = ctx.createGain(); this.sqG.gain.value = 0; this.sqO.connect(this.sqF); this.sqF.connect(this.sqG); this.sqG.connect(this.master);
+    this.sqG = ctx.createGain(); this.sqG.gain.value = 0; this.sqO.connect(this.sqF); this.sqF.connect(this.sqG); this.sqG.connect(this.fxMix);
     this.kb = ctx.createOscillator(); this.kb.type = 'square'; this.kb.frequency.value = 40;
     this.kbF = ctx.createBiquadFilter(); this.kbF.type = 'lowpass'; this.kbF.frequency.value = 260; this.kbG = ctx.createGain(); this.kbG.gain.value = 0;
-    this.kb.connect(this.kbF); this.kbF.connect(this.kbG); this.kbG.connect(this.master); this.kb.start();
+    this.kb.connect(this.kbF); this.kbF.connect(this.kbG); this.kbG.connect(this.fxMix); this.kb.start();
     this.grF = ctx.createBiquadFilter(); this.grF.type = 'lowpass'; this.grF.frequency.value = 900; this.grF.Q.value = 0.5;
-    this.grG = ctx.createGain(); this.grG.gain.value = 0; loop(1.1).connect(this.grF); this.grF.connect(this.grG); this.grG.connect(this.master);
+    this.grG = ctx.createGain(); this.grG.gain.value = 0; loop(1.1).connect(this.grF); this.grF.connect(this.grG); this.grG.connect(this.fxMix);
     // the rain: a hiss of drops (louder on a visor)
     const rh = ctx.createBiquadFilter(); rh.type = 'highpass'; rh.frequency.value = 600; const rl = ctx.createBiquadFilter(); rl.type = 'lowpass'; rl.frequency.value = 7000;
-    this.rnG = ctx.createGain(); this.rnG.gain.value = 0; loop(0.7).connect(rh); rh.connect(rl); rl.connect(this.rnG); this.rnG.connect(this.master);
+    this.rnG = ctx.createGain(); this.rnG.gain.value = 0; loop(0.7).connect(rh); rh.connect(rl); rl.connect(this.rnG); this.rnG.connect(this.fxMix);
     // recorded sounds: their own bus, outside silence() (the mourning screen's strings play in the silence)
-    this.sfx = ctx.createGain(); this.sfx.gain.value = 0.6; this.sfx.connect(this.out);
+    this.sfx = ctx.createGain(); this.sfx.gain.value = 0.6; this.ambMix = ctx.createGain(); this.ambMix.gain.value = this.mix.amb; this.sfx.connect(this.ambMix); this.ambMix.connect(this.out);
+    // (the radio's: its beep, the engineer's chime, the lights, the beeps of the screens)
+    this.radio = ctx.createGain(); this.radio.gain.value = 0.6; this.radioMix = ctx.createGain(); this.radioMix.gain.value = this.mix.radio; this.radio.connect(this.radioMix); this.radioMix.connect(this.out);
     this.ready = true;
     // (the tab in the background or the window minimised: every sound stops, and carries on when you are back)
     document.addEventListener('visibilitychange', () => { if (document.hidden) ctx.suspend?.(); else ctx.resume?.(); });
@@ -130,7 +145,7 @@ export class AudioEngine {
    */
   play(name, o = {}) {
     if (!this.ready) return null;
-    const ctx = this.ctx, g = ctx.createGain(); g.gain.value = 0; g.connect(this.sfx);
+    const ctx = this.ctx, g = ctx.createGain(); g.gain.value = 0; g.connect(o.bus === 'radio' ? this.radio : this.sfx);
     let input = g;
     if (o.lowpass) { const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = o.lowpass; f.Q.value = 0.9; const h = ctx.createBiquadFilter(); h.type = 'highpass'; h.frequency.value = 280; f.connect(h); h.connect(g); input = f; }
     const H = { g, src: null, stopped: false,
@@ -147,7 +162,7 @@ export class AudioEngine {
     return H;
   }
   resume() { if (this.ctx && this.ctx.state === 'suspended' && !document.hidden) this.ctx.resume(); }   // (not while the tab is in the background)
-  toggleMute() { this.muted = !this.muted; if (this.master) this.master.gain.value = this.muted ? 0 : 0.35; if (this.fx) this.fx.gain.value = this.muted ? 0 : 0.45; if (this.sfx) this.sfx.gain.value = this.muted ? 0 : 0.6; return this.muted; }
+  toggleMute() { this.muted = !this.muted; if (this.master) this.master.gain.value = this.muted ? 0 : 0.35; if (this.fx) this.fx.gain.value = this.muted ? 0 : 0.45; if (this.sfx) this.sfx.gain.value = this.muted ? 0 : 0.6; if (this.radio) this.radio.gain.value = this.muted ? 0 : 0.6; return this.muted; }
   /** the car's engine and wind noise faded out (a cut-away, a pause): tc the fade's time constant (s) */
   quiet(tc = 0.3) { if (!this.ready) return; const t = this.ctx.currentTime; for (const g of [this.engGain, this.noiseGain, this.engBus, this.sqG, this.kbG, this.grG, this.rnG]) g.gain.setTargetAtTime(0, t, tc); }
   /** everything silent (the mourning screen), or back */
@@ -267,7 +282,7 @@ export class AudioEngine {
     for (const x of take) {
       const c = x.c, M = x.M; let sl = this.slots.get(c);
       if (sl && sl.off) { sl.off = 0; }
-      if (!sl) { let i = 0; while (used.has(i)) i++; if (i > 11) continue; used.add(i); sl = { i, seed: ((typeof c.id === 'number' ? c.id : String(c.id || c.name || '').split('').reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) | 0, 7)) & 0xffff) + 1, kind: c === o.sc ? 1 : 0, gear: M.gear, up: 0, down: 0, off: 0 }; this.slots.set(c, sl); }
+      if (!sl) { let i = 0; while (used.has(i)) i++; if (i > 11) continue; used.add(i); sl = { i, kind: c === o.sc ? 1 : (EKIND[o.engineOf?.(c)] ?? 0), seed: ((typeof c.id === 'number' ? c.id : String(c.id || c.name || '').split('').reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) | 0, 7)) & 0xffff) + 1, gear: M.gear, up: 0, down: 0, off: 0 }; this.slots.set(c, sl); }
       if (M.gear > sl.gear) sl.up++; else if (M.gear < sl.gear && M.gear > 0) sl.down++; sl.gear = M.gear;
       let gain, pan = 0, lp, ob = 0, dop = 1;
       if (x.own && o.inside) { gain = 0.62; lp = 9500; ob = 1; }
@@ -331,11 +346,11 @@ export class AudioEngine {
     const am = ctx.createGain(); am.gain.value = 0.5; const lfo = ctx.createOscillator(); lfo.type = 'square'; lfo.frequency.value = 42 + Math.random() * 8;
     const lg = ctx.createGain(); lg.gain.value = 0.5; lfo.connect(lg); lg.connect(am.gain);   // (the blows: the level beating 0 .. 1)
     const g = ctx.createGain(); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.55 * k, t + 0.015); g.gain.setValueAtTime(0.55 * k, e); g.gain.exponentialRampToValueAtTime(0.001, e + 0.06);
-    n.connect(bp); bp.connect(am); am.connect(g); g.connect(this.master); n.start(t); lfo.start(t); lfo.stop(e + 0.1);
+    n.connect(bp); bp.connect(am); am.connect(g); g.connect(this.fxMix); n.start(t); lfo.start(t); lfo.stop(e + 0.1);
     const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.setValueAtTime(320, t); o.frequency.exponentialRampToValueAtTime(760, t + dur * 0.7);
     const of = ctx.createBiquadFilter(); of.type = 'bandpass'; of.frequency.value = 1500; of.Q.value = 2;
     const og = ctx.createGain(); og.gain.setValueAtTime(0, t); og.gain.linearRampToValueAtTime(0.08 * k, t + 0.03); og.gain.setValueAtTime(0.08 * k, e); og.gain.exponentialRampToValueAtTime(0.001, e + 0.05);
-    o.connect(of); of.connect(og); og.connect(this.master); o.start(t); o.stop(e + 0.08);
+    o.connect(of); of.connect(og); og.connect(this.fxMix); o.start(t); o.stop(e + 0.08);
   }
   /** a car hitting something at (x, z): its thud (and a crunch, a hard one) by the distance from the microphone */
   impactAt(x, z, sev) {
@@ -348,7 +363,7 @@ export class AudioEngine {
     const ctx = this.ctx, t = ctx.currentTime;
     const o = ctx.createOscillator(); o.type = 'triangle'; o.frequency.setValueAtTime(120, t); o.frequency.exponentialRampToValueAtTime(30, t + 0.25);
     const g = ctx.createGain(); g.gain.setValueAtTime(0.5 * Math.min(1, sev + 0.2), t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
-    o.connect(g); g.connect(this.master); o.start(t); o.stop(t + 0.32);
+    o.connect(g); g.connect(this.fxMix); o.start(t); o.stop(t + 0.32);
   }
   /** two-tone radio chime before an engineer message */
   chime() { this.beep(1046, 0.09, 0.18); setTimeout(() => this.beep(1318, 0.14, 0.18), 110); }
@@ -357,6 +372,6 @@ export class AudioEngine {
     const ctx = this.ctx, t = ctx.currentTime;
     const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = freq;
     const g = ctx.createGain(); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
-    o.connect(g); g.connect(this.master); o.start(t); o.stop(t + dur + 0.02);
+    const bg = ctx.createGain(); bg.gain.value = 0.58; o.connect(g); g.connect(bg); bg.connect(this.radio); o.start(t); o.stop(t + dur + 0.02);
   }
 }

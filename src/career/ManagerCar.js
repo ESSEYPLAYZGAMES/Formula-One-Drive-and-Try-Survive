@@ -35,7 +35,7 @@ export const SUPPLIERS = {
   honda: { name: 'Honda', power: 0.0005, rel: 0.97, fee: 12, works: 'Aston Martin' },
   audi: { name: 'Audi', power: -0.0002, rel: 1.1, fee: 9, works: 'Audi' },
 };
-const DEFAULT_SUP = { McLaren: 'merc', Mercedes: 'merc', Williams: 'merc', Alpine: 'merc', Ferrari: 'ferrari', Haas: 'ferrari', Cadillac: 'ferrari', 'Red Bull Racing': 'rbford', 'Racing Bulls': 'rbford', 'Aston Martin': 'honda', Audi: 'audi' };
+export const DEFAULT_SUP = { McLaren: 'merc', Mercedes: 'merc', Williams: 'merc', Alpine: 'merc', Ferrari: 'ferrari', Haas: 'ferrari', Cadillac: 'ferrari', 'Red Bull Racing': 'rbford', 'Racing Bulls': 'rbford', 'Aston Martin': 'honda', Audi: 'audi' };
 export const NEXT_SHARES = [0, 0.25, 0.5, 0.75];
 export const SWITCH_FEE = 5;
 /** what a maker's supply costs a season against the deal the team started with ($M, + dearer) */
