@@ -1,3 +1,33 @@
+# V2.76 (2026-11-16): replays run on into the wipe; race pace; the pit wall fits a laptop
+
+Asked for: "have the replay continue playing as it transitions out (do this by extending the replay slightly - dont
+cut off the actual action, to give a sense of continuity"; "and go ahead with the pitwall fit, and 3" (x8 / x16 and
+a skip to the next of the action); "it should be a keybind to make PiP full screen".
+
+## Replays run on into the wipe (main.js tpMomentsCut, tpReplayStep)
+- Each moment's clip is kept a second longer, after its action is over: the run-out. A whole-picture replay starts
+  its closing wipe that much before the clip ends, so the cars keep driving while the slats close over them and the
+  live picture comes in under them. The action itself is never under the wipe.
+
+## Race pace (main.js, ui/PitWall.js)
+- x8 and x16 next to x1 / x2 / x4 (and - / = on the keyboard go up to x16).
+- SKIP: the race as quick as the frame allows until the next of the action, then x1 with a line from the pit wall
+  saying what it is: two cars within half a second in the top six, or with one of yours (not ones already together
+  when it began); one of your cars coming in; a car spinning, in the air or wrecked in the top ten, or one of yours;
+  an overtake for the top six or by one of yours (not a place taken from a car spinning or crawling); a moment the
+  broadcast keeps; the safety car out, in or ending;
+  the last lap; the flag. Never slower than x16. One stop per fight: a pair that has stopped it, the rest of its train,
+  a car's next small pass for 30 s, a car rejoining after a spin, a second car caught in the same accident - not again;
+  on the opening lap, incidents only. Nothing is replayed while it skips. Pressed again, a speed or pause: off. Key: full stop.
+
+## The window replay full screen: F
+- The key for the window replay's FULL SCREEN button (the button says so).
+
+## The pit wall at 1366 x 768 (ui/PitWall.js)
+- The radio's second line was cut through (a box 28 px high for two lines of 13.6 px). Now the newest line in full -
+  two lines at most - and the one before it on one line, dimmed, in a box that is the height of three.
+- TEAM and SET-UP share a row (SAVE / RESET), so the panel is no taller for it.
+
 # V2.75 (2026-11-16): the AI races its plan; the follow camera; replays as it was; the leftovers
 
 Asked for: "Yes I meant all commentary, do all of the 'small leftovers', do number 1" (the AI to plan its race from

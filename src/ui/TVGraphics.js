@@ -128,7 +128,7 @@ export class TVGraphics {
     const lapNow = lead ? Math.min(d.lapsTotal, lead.lap + (lead.finished ? 0 : 1)) : 0;
     this.set(this.el.querySelector('.lap'), d.mode === 'quali' ? 'QUALIFYING' : d.world.racing || d.leaderFinished ? `LAP ${Math.max(1, lapNow)}/${d.lapsTotal}` : 'GRID');
     this.set(this.el.querySelector('.trk'), ctx.track || '');
-    this.set(this.el.querySelector('.cam'), ctx.camName ? ` · ${ctx.camName.toUpperCase()}${ctx.speed && ctx.speed !== 1 ? ` · ×${ctx.speed}` : ''}` : '');
+    this.set(this.el.querySelector('.cam'), ctx.camName ? ` · ${ctx.camName.toUpperCase()}${ctx.speed && ctx.speed !== 1 ? ` · ${typeof ctx.speed === 'string' ? ctx.speed + ' ▸▸' : '×' + ctx.speed}` : ''}` : '');
     const ph = d.sc?.phase || 'green', fl = this.el.querySelector('.flag'); if (fl.dataset.p !== ph) { fl.dataset.p = ph; fl.className = `flag ${ph}`; }
     const bn = this.el.querySelector('.banner'), lbl = d.sc?.hudState?.()?.label;
     if (bn.dataset.l !== (lbl || '')) { bn.dataset.l = lbl || ''; bn.textContent = lbl || ''; bn.className = `banner${lbl && ph !== 'yellow' ? ' on' : ''}${ph === 'red' ? ' red' : ''}`; }

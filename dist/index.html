@@ -602,7 +602,7 @@ body.tp #hud-msg { top: 30%; }
     <div class="brand-line"></div>
     <h1 id="brand-title">FORMULA 1<span id="brand-sub">SIMULATOR</span></h1>
     <!-- the build's version: +0.01 with every build handed out -->
-    <span id="app-ver" title="Version">V2.75</span>
+    <span id="app-ver" title="Version">V2.76</span>
     <div id="menu-sub">Real circuits built from OpenStreetMap</div>
   </div>
   <div id="loading" class="hidden"><div class="ld"><i></i></div><span>Building the circuit from OpenStreetMap…</span></div>
@@ -148289,7 +148289,7 @@ class TVGraphics {
     const lapNow = lead ? Math.min(d.lapsTotal, lead.lap + (lead.finished ? 0 : 1)) : 0;
     this.set(this.el.querySelector('.lap'), d.mode === 'quali' ? 'QUALIFYING' : d.world.racing || d.leaderFinished ? `LAP ${Math.max(1, lapNow)}/${d.lapsTotal}` : 'GRID');
     this.set(this.el.querySelector('.trk'), ctx.track || '');
-    this.set(this.el.querySelector('.cam'), ctx.camName ? ` · ${ctx.camName.toUpperCase()}${ctx.speed && ctx.speed !== 1 ? ` · ×${ctx.speed}` : ''}` : '');
+    this.set(this.el.querySelector('.cam'), ctx.camName ? ` · ${ctx.camName.toUpperCase()}${ctx.speed && ctx.speed !== 1 ? ` · ${typeof ctx.speed === 'string' ? ctx.speed + ' ▸▸' : '×' + ctx.speed}` : ''}` : '');
     const ph = d.sc?.phase || 'green', fl = this.el.querySelector('.flag'); if (fl.dataset.p !== ph) { fl.dataset.p = ph; fl.className = `flag ${ph}`; }
     const bn = this.el.querySelector('.banner'), lbl = d.sc?.hudState?.()?.label;
     if (bn.dataset.l !== (lbl || '')) { bn.dataset.l = lbl || ''; bn.textContent = lbl || ''; bn.className = `banner${lbl && ph !== 'yellow' ? ' on' : ''}${ph === 'red' ? ' red' : ''}`; }
@@ -148548,9 +148548,15 @@ const CSS = `
 #pw .mid { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 #pw .mid .row { display: flex; gap: 2px; flex-wrap: wrap; align-items: center; margin: 0; }   /* (not the menus' .row) */
 #pw .mid .row > span { font: 700 8.5px/1 var(--tvf); letter-spacing: .12em; color: #8b95a3; width: 34px; text-transform: none; }
-#pw .radio { font-size: 10.5px; line-height: 1.3; color: #c9d1db; background: rgba(255,255,255,.04); border-radius: 4px; padding: 3px 6px; height: 28px; overflow: hidden; }
+/* (the radio: the newest line whole - two lines of it at most - and the one before on one line, dimmed. It was a box
+   28 px high for two lines of 13.6 px and its padding: the second line was cut through) */
+#pw .radio { font-size: 10.5px; line-height: 1.3; color: #c9d1db; background: rgba(255,255,255,.04); border-radius: 4px; padding: 3px 6px; box-sizing: border-box; height: 4.5em; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; }
+#pw .radio .r1 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: .62; flex: none; }
+#pw .radio .r0 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; flex: none; }
+#pw .mid .row .sep { width: auto; margin-left: 8px; }
+#pw button.skp { padding: 2px 7px; }
 #pw .radio b { color: #fff; }
-#pw.q .ctl, #pw.q .note, #pw.q [data-g="order"], #pw.q [data-a="sim"]:not([data-v="0"]) { display: none; }
+#pw.q .ctl, #pw.q .note, #pw.q [data-a="order"], #pw.q [data-g="order"] > span:first-child, #pw.q [data-a="sim"]:not([data-v="0"]) { display: none; }
 #pw .tog { position: absolute; right: 8px; top: -22px; font-size: 9px !important; padding: 2px 8px !important; background: rgba(8,10,14,.85) !important; }
 #pw .tog.tg2 { right: 96px; }
 /* COMPACT (the default on a laptop's screen): each instruction shows only what it is set to - point at it and its
@@ -148633,12 +148639,11 @@ class PitWall {
     {
       const C = cars;
       this.el.innerHTML = `${card(C[0], 0)}<div class="mid">
-        <div class="row" data-g="time"><span>TIME</span><button data-a="pause">❚❚</button><button data-a="speed" data-v="1">×1</button><button data-a="speed" data-v="2">×2</button><button data-a="speed" data-v="4">×4</button></div>
+        <div class="row" data-g="time"><span>TIME</span><button data-a="pause">❚❚</button><button data-a="speed" data-v="1">×1</button><button data-a="speed" data-v="2">×2</button><button data-a="speed" data-v="4">×4</button><button data-a="speed" data-v="8">×8</button><button data-a="speed" data-v="16">×16</button><button data-a="skip" class="skp" title="On to the next of the action - a fight, a stop, a spin, the safety car - as quick as it goes, then ×1 (key: .)">SKIP ▸▸</button></div>
         <div class="row" data-g="sim"><span>SIM</span><button data-a="sim" data-v="1">1 LAP</button><button data-a="sim" data-v="5">5 LAPS</button><button data-a="sim" data-v="0">TO FLAG</button></div>
         <div class="row" data-g="cam"><span>CAM</span>${['auto', 'track', 'tcam', 'heli', 'rear'].map((k) => `<button data-a="cam" data-v="${k}" title="${TV_CAM_NAME[k]}">${{ auto: 'DIRECTOR', track: 'TRACK', tcam: 'ONBOARD', heli: 'HELI', rear: 'REAR' }[k]}</button>`).join('')}</div>
         <div class="row" data-g="cam2"><span></span>${['helmet', 'kerb', 'crane'].map((k) => `<button data-a="cam" data-v="${k}" title="${TV_CAM_NAME[k]}">${{ helmet: 'HELMET', kerb: 'KERB', crane: 'CRANE' }[k]}</button>`).join('')}</div>
-        <div class="row" data-g="def"><span>SET-UP</span><button data-a="def" data-v="save" title="Keep the pit wall as it is now - tyres, fuel, ERS, every order, who makes the calls, the camera - for the start of every race from here on">SAVE AS MY DEFAULT</button><button data-a="def" data-v="clear" title="Forget the saved set-up: every race starts on the standard one again">RESET</button></div>
-        <div class="row" data-g="order"><span>TEAM</span><button data-a="order" data-v="swap" title="The car ahead lets its team-mate through">SWAP</button><button data-a="order" data-v="hold" title="The car behind stays behind">HOLD</button><button data-a="order" data-v="free" title="Call the order off: race each other">RACE</button></div>
+        <div class="row" data-g="order"><span>TEAM</span><button data-a="order" data-v="swap" title="The car ahead lets its team-mate through">SWAP</button><button data-a="order" data-v="hold" title="The car behind stays behind">HOLD</button><button data-a="order" data-v="free" title="Call the order off: race each other">RACE</button><span class="sep">SET-UP</span><button data-a="def" data-v="save" title="Save as my default: keep the pit wall as it is now - tyres, fuel, ERS, every order, who makes the calls, the camera - for the start of every race from here on">SAVE</button><button data-a="def" data-v="clear" title="Forget the saved set-up: every race starts on the standard one again">RESET</button></div>
         <div class="radio"></div>
       </div>${card(C[1] || C[0], 1)}<button class="tog" data-a="min">PIT WALL ▾</button><button class="tog tg2" data-a="cpt" title="Compact: each instruction shows only its setting until you point at it">${this.el.classList.contains('cpt') ? 'FULL' : 'COMPACT'}</button>`;
     }
@@ -148663,6 +148668,7 @@ class PitWall {
     else if (a === 'fuel') this.act('fuel', car, +b.dataset.v);
     else if (a === 'strat') this.act('strat', car, b.dataset.v);
     else if (a === 'speed') this.act('speed', +b.dataset.v);
+    else if (a === 'skip') this.act('skip');
     else if (a === 'pause') this.act('pause');
     else if (a === 'sim') this.act('sim', +b.dataset.v);
     else if (a === 'cam') this.act('cam', b.dataset.v);
@@ -148674,7 +148680,7 @@ class PitWall {
   /** a line on the radio (who, what) - the last two kept */
   radio(who, text) {
     this.radioLines.push(`<b>${esc(who)}:</b> ${esc(text)}`); if (this.radioLines.length > 2) this.radioLines.shift();
-    const r = this.el.querySelector('.radio'); if (r) r.innerHTML = this.radioLines.join('<br>');
+    const r = this.el.querySelector('.radio'), L = this.radioLines; if (r) r.innerHTML = `${L.length > 1 ? `<div class="r1">${L[0]}</div>` : ''}<div class="r0">${L[L.length - 1]}</div>`;
   }
   /** the "simulating" card (text, or null to take it down) */
   simCard(text, sub = 'every car from where it is now') {
@@ -148689,7 +148695,9 @@ class PitWall {
     this.acc += dt; if (this.acc < 0.25) return; this.acc = 0;
     const d = st.d; if (!d) return;
     const P = d.positions, racing = d.world.racing;
-    this.mark(this.el, '[data-a="speed"]', (b) => !st.paused && +b.dataset.v === st.speed);
+    this.mark(this.el, '[data-a="speed"]', (b) => !st.paused && !st.skip && +b.dataset.v === st.speed);
+    this.mark(this.el, '[data-a="skip"]', () => !!st.skip);
+    { const b = this.el.querySelector('[data-a="skip"]'); if (b) b.disabled = !racing || d.done || !!d.leaderFinished; }
     this.mark(this.el, '[data-a="pause"]', () => st.paused);
     this.mark(this.el, '[data-a="cam"]', (b) => b.dataset.v === st.cam);
     const green = !d.sc || d.sc.phase === 'green';
@@ -157146,7 +157154,7 @@ class TVShow {
     this.root = root; this.o = o;
     if (!document.getElementById('tvs-css')) { const st = document.createElement('style'); st.id = 'tvs-css'; st.textContent = CSS; document.head.appendChild(st); }
     const mk = (cls, html = '') => { const e = document.createElement('div'); e.className = cls; e.innerHTML = html; root.appendChild(e); return e; };
-    this.sk = mk('sk'); this.rain = mk('rain'); root.insertBefore(this.rain, root.firstChild);   /* (the drops are on the lens: under every graphic) */ this.cm = mk('cm', '<small></small><span></span>'); this.rad = mk('rad'); this.gridg = mk('gridg'); this.cls = mk('cls'); this.pipEl = mk('pip', '<i class="fr"></i><b><span></span></b><u class="pg"></u><em class="tg">SLO-MO</em><button class="pfs" type="button" title="Watch this replay on the whole screen (from the start)"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4"/></svg>FULL SCREEN</button>'); this.pipEl.querySelector('.pfs').addEventListener('click', (e) => { e.stopPropagation(); this.o.onPipFull?.(); });
+    this.sk = mk('sk'); this.rain = mk('rain'); root.insertBefore(this.rain, root.firstChild);   /* (the drops are on the lens: under every graphic) */ this.cm = mk('cm', '<small></small><span></span>'); this.rad = mk('rad'); this.gridg = mk('gridg'); this.cls = mk('cls'); this.pipEl = mk('pip', '<i class="fr"></i><b><span></span></b><u class="pg"></u><em class="tg">SLO-MO</em><button class="pfs" type="button" title="Watch this replay on the whole screen, from the start (key: F)"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4"/></svg>FULL SCREEN · F</button>'); this.pipEl.querySelector('.pfs').addEventListener('click', (e) => { e.stopPropagation(); this.o.onPipFull?.(); });
     this.mapEl = document.createElement('canvas'); this.mapEl.className = 'map'; this.mapEl.width = 380; this.mapEl.height = 256; root.appendChild(this.mapEl);
     this.inf = document.createElement('div'); this.inf.className = 'xc inf'; (root.querySelector('.xr') || root).appendChild(this.inf);
     try { localStorage.removeItem('f1sim-tv-voice'); window.speechSynthesis?.cancel(); } catch (e) { /* nothing kept */ }
@@ -200994,8 +201002,9 @@ function tpAct(a, x, y, z) {
     // (on the plan's own call: that stop a lap later - called again next lap)
     const m = x.mgr, pl = m.plan; if (m.byPlan && pl) { const k = Math.min(x.pitStops, pl.stints.length - 1), cur = pl.stints[k], nx = pl.stints[k + 1]; if (nx && nx.end > cur.end + 1) { cur.end++; nx.start++; } m.planCalled = null; m.warned = k; m.byPlan = false; }
     wall.radio('You', `${sur(x)}, stay out, stay out.`);
-  } else if (a === 'speed') { TP.speed = x; TP.paused = false; }
-  else if (a === 'pause') TP.paused = !TP.paused;
+  } else if (a === 'speed') { TP.speed = x; TP.paused = false; TP.skip = null; }
+  else if (a === 'pause') { TP.paused = !TP.paused; TP.skip = null; }
+  else if (a === 'skip') { if (TP.skip) tpSkipEnd(null); else tpSkipStart(); }
   else if (a === 'cam') { TP.cam = x; TP.tv.setCam(x); }
   else if (a === 'def') tpDefSave(x === 'clear');
   else if (a === 'follow') { TP.tv.follow(TP.tv.followCar === x ? null : x); }
@@ -201072,7 +201081,7 @@ function tpPeople(what, car) { const C = S.weekend?.mgr; if (C?.onRaceEvent) try
 function tpStart() {
   const d = S.director; if (!d) return;
   camCtl.onboardOnly = true; if (PIP.ctl) PIP.ctl.onboardOnly = true; if (camCtl.mode !== 'cockpit') camCtl.mode = 'tcam';
-  TP.on = true; TP.line = false; if (RL.group) RL.group.visible = false; TP.speed = 1; TP.paused = false; TP.cam = 'auto'; TP.seen = new Map(); TP.orderSeen = 0; TP.wxState = {}; TP.scWas = false; TP.alertT = 0;
+  TP.on = true; TP.line = false; if (RL.group) RL.group.visible = false; TP.speed = 1; TP.skip = null; TP.skipPair = null; TP.skipHurt = null; TP.skipCool = null; TP.skipLast = null; TP.rate = 1; TP.paused = false; TP.cam = 'auto'; TP.seen = new Map(); TP.orderSeen = 0; TP.wxState = {}; TP.scWas = false; TP.alertT = 0;
   TP.cars = tpCars(S.cars);
   const story = d.mode === 'race' && S.weekend?.mgr ? (() => { try { return storyTrack(S.weekend.mgr); } catch (e) { return null; } })() : null;   // (the feud, the grudges, the fans: career/ManagerStory.js)
   TP.touch = new Map(); if (d.mode === 'race') TP.log = [];
@@ -201402,6 +201411,12 @@ function tpReplayStep(dt) {
   r.t += Math.min(0.05, dt) * r.speed * sl; const T = F[0].t + r.t; r.slow = sl < 0.8;
   // (a whole-picture replay's end: its last frame held while the wipe closes over it - the live picture, the cars
   //  where they are now, comes in under the closed slats; it used to come in first, the cars gone before the wipe)
+  // (a whole-picture replay goes out playing: its closing wipe starts a little before the clip's end - the slats close
+  //  over the cars still running, the live picture comes in under them. The clip's last second is run-out kept for
+  //  it - tpMomentsCut - so nothing of the action is under the wipe)
+  if (r.hold && !r.win && !r.ending && F[F.length - 1].t - T <= 0.62 * Math.max(0.25, r.speed)) {
+    r.ending = performance.now(); const f = r.onEnd; r.onEnd = null; try { f?.(); } catch (e) { console.warn('[replay] its end', e); } if (TP.rep !== r) return false;
+  }
   if (T >= F[F.length - 1].t) {
     if (!(r.hold && !r.win)) { tpReplayEnd(); return false; }
     if (!r.ending) { r.ending = performance.now(); const f = r.onEnd; r.onEnd = null; try { f?.(); } catch (e) { console.warn('[replay] its end', e); } if (TP.rep !== r) return false; }
@@ -201492,7 +201507,7 @@ function tpBoring(d) {
   return true;
 }
 function tpReplays(d, dt) {
-  if (!TP.on || d.mode !== 'race' || !TP.fx) return;
+  if (!TP.on || d.mode !== 'race' || !TP.fx || TP.skip) return;   // (nothing played again over a skip: after it)
   const ph = d.sc?.phase || 'green'; if (ph === 'sc' && TP.scPh !== 'sc') { TP.scAt = d.time; TP.scFull = 0; } TP.scPh = ph;
   // (a big moment, again in the window - once, when the window is free; not one over another)
   const a = TP.autoRep;
@@ -201516,6 +201531,11 @@ function tpReplays(d, dt) {
  */
 function tpMoment(e) {
   const d = S.director; if (!d || !TP.on || d.mode !== 'race' || !e?.cars?.length) return;
+  // (not one the skip has stopped for already: its cars in trouble when the skip began - the broadcast's line for a
+  //  spin comes a moment after the spin)
+  if (TP.skip && e.kind === 'pass' && (e.score || 0) < 60 && e.cars.some((c) => d.time - (TP.skipCool?.get(c) ?? -99) < 30)) { /* (the same fight's pass: on) */ }
+  else if (TP.skip && e.kind !== 'pass' && tpSkipSame(d, e.cars)) { /* (the accident the skip stopped for already) */ }
+  else if (TP.skip && !e.cars.every((c) => TP.skip.bad.has(c) || d.time - (TP.skipHurt?.get(c) ?? -99) < 3 && d.time - TP.skip.t0 < 3) && ((e.score || 0) >= 40 || e.cars.some((c) => TP.cars.includes(c)))) { if (e.kind !== 'pass') TP.skipLast = { t: d.time, cars: [...e.cars] }; tpSkipEnd(String(e.text || 'something happened')); }
   const M = TP.moments || (TP.moments = []), L = W.track.length, near = (a, b) => { let x = Math.abs(a.s - b.s) % L; if (x > L / 2) x = L - x; return x < 70; };
   const g = M.find((m) => !m.cut && e.t - m.t0 < 10 && (e.t - m.t1 < 4.5 || e.t - (m.tb ?? -99) < 2) && (e.cars.some((c) => m.cars.includes(c)) || e.cars.some((c) => m.cars.some((o) => near(c, o)))));
   if (g) { g.ev.push(e); g.t1 = Math.max(g.t1, e.t); for (const c of e.cars) if (!g.cars.includes(c)) g.cars.push(c); return; }
@@ -201556,7 +201576,8 @@ function tpMomentsCut(d) {
     // (over when nothing of it has been going on for a second and a half - and never longer than eleven seconds
     //  from its first event: the record holds eighteen)
     if (tpMomentBusy(m, d)) m.tb = d.time;
-    if (d.time < Math.min(Math.max(m.t1 + 2.4, (m.tb ?? -99) + 1.6), m.t0 + 11)) continue; m.cut = true;
+    // (and a second more after that: the run-out a replay's closing wipe plays over - tpReplayStep - the action itself never under it)
+    if (d.time < Math.min(Math.max(m.t1 + 3.4, (m.tb ?? -99) + 2.6), m.t0 + 12)) continue; m.cut = true;
     const F = R.frames.filter((f) => f.t >= Math.max(R.frames[0].t, m.t0 - 3.4) && f.t <= d.time); if (F.length < 24) continue;
     const S0 = tpMomentSum(m), lead = m.ev.slice().sort((a, b) => (b.score || 0) - (a.score || 0))[0];
     const C = TP.clips || (TP.clips = []); C.push({ text: S0.text, cars: (m.pair || [lead.cars[0], lead.cars[1] || m.cars.find((c) => c !== lead.cars[0])]).filter(Boolean), t: lead.t, F, score: S0.score });
@@ -201823,7 +201844,7 @@ function tpUi(dt) {
   if (hud.msgTimer > 0) { hud.msgTimer -= dt; if (hud.msgTimer <= 0) hud.msgEl.textContent = ''; }
   if (!show) return;
   document.documentElement.style.setProperty('--pw', `${TP.wall.height()}px`);
-  TP.gfx.update(dt, { d, focus: TP.cars, shot: TP.tv.shot, track: shortTrack(W.def?.id), camName: TP.form && TP.form.ph !== 'grid' ? 'Formation lap' : (TP.tv.shot?.kerb ? TV_CAM_NAME.kerb : TP.tv.shot?.crane ? TV_CAM_NAME.crane : TV_CAM_NAME[TP.tv.shot?.kind]) || '', speed: TP.paused ? 0 : TP.speed, sectors: (c) => sectorChips(d, c), status: TP.stw ? (c) => TP.stw.status(c) : null });
+  TP.gfx.update(dt, { d, focus: TP.cars, shot: TP.tv.shot, track: shortTrack(W.def?.id), camName: TP.form && TP.form.ph !== 'grid' ? 'Formation lap' : (TP.tv.shot?.kerb ? TV_CAM_NAME.kerb : TP.tv.shot?.crane ? TV_CAM_NAME.crane : TV_CAM_NAME[TP.tv.shot?.kind]) || '', speed: TP.paused ? 0 : TP.skip ? 'SKIP' : TP.speed, sectors: (c) => sectorChips(d, c), status: TP.stw ? (c) => TP.stw.status(c) : null });
   TP.stw?.update(dt, { d });
   const held = TP.paused || S.paused || !!S.simming;
   TP.strat?.update(held ? 0 : dt, { d, focus: TP.cars, halted: held || !!TP.form || (!!TP.rep && !TP.rep.win) || !!TP.hl });
@@ -201834,7 +201855,7 @@ function tpUi(dt) {
   tpStewards(); tpMomentsCut(d); tpReplays(d, held ? 0 : dt); tpPip(held ? 0 : dt);
   if (d.mode === 'race') { try { TP.props?.update(held ? 0 : dt); tpAways(held ? 0 : dt); } catch (e) { /* a cutaway that could not be: no cutaway */ } }
   const ord = d.orders?.pairOf?.(TP.cars[0])?.order || null;
-  TP.wall.update(dt, { d, speed: TP.speed, paused: TP.paused, cam: TP.cam, order: ord, tyreLaps: (c) => TP.gfx.tyreLaps(c),
+  TP.wall.update(dt, { d, speed: TP.speed, skip: !!TP.skip, paused: TP.paused, cam: TP.cam, order: ord, tyreLaps: (c) => TP.gfx.tyreLaps(c),
     mustStop: (c) => d.mode === 'race' && d.lapsTotal >= 8 && ((c.pitStops === 0 && !c.usedRain && !d.weather?.everWet) || d.owesCompound(c)), fuelDelta: (c) => tpFuelDelta(c, d),
     sets: (c) => (d.mode === 'race' ? tpSetsOf(c) : null), lifeK: (c) => (d.mode === 'race' ? tpLifeK(c) : 1), fuelSure: (c) => !!c.mgr?.fuelSure });
   if (d.mode === 'race') {
@@ -201851,7 +201872,7 @@ function tpUi(dt) {
     }
     // (the lights out: the set each car starts on comes out of its allocation)
     if (d.world.racing) for (const c of TP.cars) if (!c.mgr.setTaken) { c.mgr.setTaken = true; tpFitSet(c); }
-    if (!TP.paused && !S.paused && !S.simming) tacticsUpdate(dt * TP.speed, { d, cars: TP.cars, radio: (w, t) => TP.wall.radio(w, t), surname: (c) => surname(c.name), reapply: (c) => tpModes(c) });
+    if (!TP.paused && !S.paused && !S.simming) tacticsUpdate(dt * (TP.rate || TP.speed), { d, cars: TP.cars, radio: (w, t) => TP.wall.radio(w, t), surname: (c) => surname(c.name), reapply: (c) => tpModes(c) });
     // (the safety car out or in: the SC order's wear on or off)
     const scNow = !!(d.sc && d.sc.phase !== 'green'); if (scNow !== TP.scWas) { TP.scWas = scNow; for (const c of TP.cars) tpModes(c); }
   }
@@ -201922,6 +201943,68 @@ function tpSim(n) {
     } finally { S.simming = false; TP.wall.simCard(null); }
   }, 60);
 }
+/**
+ * SKIP - on to the next of the action: the race as quick as the frame allows (main loop) until something worth the
+ * watching - two cars within half a second in the top six, or with one of yours (not already together when the skip
+ * began; not on the opening lap), one of your cars coming in, a car spinning, in the air or wrecked in the top ten or
+ * one of yours, an overtake for the top six or by one of yours and any moment the broadcast keeps (tpMoment), the safety car's phase changing, the last lap,
+ * the flag. Then x1 and a line from the pit wall.
+ */
+function tpSkipStart() {
+  const d = S.director; if (!d || d.done || d.leaderFinished || !d.world.racing || S.simming || TP.form || TP.hl || NEWS.cancel) return;
+  if (TP.rep) tpReplayEnd();
+  const P = d.positions, K = { ph: d.sc?.phase || 'green', last: (P[0]?.lap ?? 0) >= d.lapsTotal - 1, bad: new Set(), mine: new Map(), t0: d.time };
+  // (a fight that has ended a skip - or was on when it began - ends one again only after the two have been more than a
+  //  second apart: TP.skipPair, kept from one skip to the next. A train of cars is one stop, not one for every pair in it)
+  const SP = TP.skipPair || (TP.skipPair = new Map());
+  for (const [a, b] of tpSkipPairs(d)) { const g = d.radio?.gap?.(b, a); if (g != null && g < 1) SP.set(tpPairKey(a, b), true); }
+  for (const c of S.cars) if (c.spinning || c.air || c.wreck || c.retired) K.bad.add(c);
+  if (!TP.skipHurt) TP.skipHurt = new Map(); if (!TP.skipCool) TP.skipCool = new Map();   // (skipCool: a car whose fight has ended a skip - its fights and its small passes not again for 30 s of the race)
+  for (const c of TP.cars) K.mine.set(c, !!(c.pitRequested || c.pitLane || c.inPit));
+  TP.skip = K; TP.paused = false; TP.autoRep = null;
+  TP.wall?.radio('Pit wall', 'On to the next of the action.');
+}
+/** the accident the last skip stopped for, within six seconds: one of its cars, or a car within 80 m of one */
+function tpSkipSame(d, C) {
+  const L = TP.skipLast; if (!L || d.time - L.t > 6) return false;
+  return C.some((c) => L.cars.some((o) => o === c || Math.hypot(o.x - c.x, o.z - c.z) < 80));
+}
+const tpPairKey = (a, b) => (a.id < b.id ? a.id + '|' + b.id : b.id + '|' + a.id);   // (the pair whichever is ahead)
+/** the pairs a skip watches: each car and the one ahead in the top seven, and your cars' */
+function tpSkipPairs(d) {
+  const P = d.positions, out = [];
+  for (let i = 1; i < P.length; i++) { const a = P[i - 1], b = P[i]; if (a.retired || b.retired) continue; if (i < 6 || TP.cars.includes(a) || TP.cars.includes(b)) out.push([a, b]); }
+  return out;
+}
+function tpSkipCheck(d) {
+  const K = TP.skip; if (!K) return;
+  const P = d.positions, sn = (c) => surname(c.name), ph = d.sc?.phase || 'green', H = TP.skipHurt, H2 = TP.skipCool;
+  for (const c of P) if (c.spinning || c.offTrack || c.air || c.wreck) H.set(c, d.time);   // (a car in trouble: its rejoining is not a fight)
+  if (d.done || d.leaderFinished) return tpSkipEnd('The chequered flag.');
+  if (ph !== K.ph) { const L = { yellow: 'Yellow flag', sc: 'Safety car', scIn: 'The safety car is in this lap', vsc: 'Virtual safety car', vscEnd: 'The VSC is ending', restart: 'Green at the line', red: 'Red flag', green: 'Green flag' }; return tpSkipEnd(`${L[ph] || ph}.`); }
+  if (!K.last && (P[0]?.lap ?? 0) >= d.lapsTotal - 1) return tpSkipEnd(`Last lap. ${sn(P[0])} leads.`);
+  for (const c of TP.cars) { const was = K.mine.get(c), now = !!(c.pitRequested || c.pitLane || c.inPit); if (now && !was && !c.retired) return tpSkipEnd(`${sn(c)} is coming in.`); K.mine.set(c, now); }
+  for (let i = 0; i < P.length; i++) {
+    const c = P[i]; if (K.bad.has(c)) { if (!(c.spinning || c.air || c.wreck || c.retired)) K.bad.delete(c); continue; }
+    if ((c.spinning || c.air || c.wreck || (c.retired && d.time - K.t0 > 0.5)) && (i < 10 || TP.cars.includes(c))) {
+      if (tpSkipSame(d, [c])) { K.bad.add(c); continue; }   // (the accident the last skip stopped for: a car caught up in it after)
+      TP.skipLast = { t: d.time, cars: [c] }; return tpSkipEnd(c.retired ? `${sn(c)} is out.` : c.spinning ? `${sn(c)} spins.` : `Trouble for ${sn(c)}.`); }
+  }
+  if (ph !== 'green' || (P[0]?.lap ?? 0) < 1) return;   // (behind the safety car the field is together: its phases end the skip - and on the opening lap: incidents only)
+  // (a place in the top six changing hands on the road: the broadcast's own overtake - tpMoment, with a stop, a car
+  //  spinning or crawling home taken out of it)
+  for (const [a, b] of tpSkipPairs(d)) {
+    const k = tpPairKey(a, b), g = d.radio?.gap?.(b, a), SP = TP.skipPair; if (g == null || a.pitLane || b.pitLane) continue;
+    if (d.time - (H.get(a) ?? -99) < 10 || d.time - (H.get(b) ?? -99) < 10 || d.time - (H2.get(a) ?? -99) < 30 || d.time - (H2.get(b) ?? -99) < 30 || Math.abs(a.speed) < Math.abs(b.speed) * 0.62 || Math.abs(b.speed) < Math.abs(a.speed) * 0.62) { if (g < 1) SP.set(k, true); continue; }
+    if (SP.get(k)) { if (g > 1) SP.delete(k); continue; }
+    if (g < 0.5) { SP.set(k, true); for (const [x, y] of tpSkipPairs(d)) { const h = d.radio?.gap?.(y, x); if (h != null && h < 1 && (x === a || x === b || y === a || y === b)) SP.set(tpPairKey(x, y), true); } H2.set(a, d.time); H2.set(b, d.time); return tpSkipEnd(`${sn(b)} is on ${sn(a)}'s gearbox, for P${P.indexOf(a) + 1}.`); }
+  }
+}
+/** the skip over: x1 (why: the pit wall's line - none when it was called off) */
+function tpSkipEnd(why) {
+  if (!TP.skip) return; TP.skip = null; TP.speed = 1;
+  if (why) TP.wall?.radio('Pit wall', why);
+}
 /** the keys of the team principal's race: Space pause, - / = slower / quicker, Tab follow the next car (Esc the menu) */
 function tpKeys() {
   // (the formation lap: Space or Enter - to the grid and the lights)
@@ -201929,11 +202012,14 @@ function tpKeys() {
   // (a cutaway - the crowd, the pit wall, a marshal: X - back to the race)
   if (input.pressed('KeyX')) TP.tv.skipAway();
   // (an instant replay: R takes the one offered; R, Space or Esc ends the one playing)
+  // (F: the replay in the window on the whole screen, from its start - its FULL SCREEN button)
+  if (TP.rep && TP.rep.win && !TP.wiping && input.pressed('KeyF')) { tpReplayFull(); return; }
   if (TP.rep) { if (input.pressed('KeyR') || input.pressed('Escape')) { tpReplayEnd(); return; } }
   else if (input.pressed('KeyR')) TP.fx?.take();
   if (input.pressed('Space')) tpAct('pause');
-  if (input.pressed('Equal') || input.pressed('NumpadAdd')) tpAct('speed', Math.min(4, TP.speed * 2));
+  if (input.pressed('Equal') || input.pressed('NumpadAdd')) tpAct('speed', Math.min(16, TP.speed * 2));
   if (input.pressed('Minus') || input.pressed('NumpadSubtract')) tpAct('speed', Math.max(1, TP.speed / 2));
+  if (input.pressed('Period') || input.pressed('NumpadDecimal')) tpAct('skip');   // (. : on to the next of the action)
   if (input.pressed('Tab')) { const P = S.director.positions.filter((c) => !(c.retired && c.hiddenAway)), i = P.indexOf(TP.tv.followCar);   /* (a car out of the race is still a car with cameras on it, where it stands) */ TP.tv.follow(P[(i + 1) % P.length] || null); }
   if (input.pressed('KeyC')) { const k = TV_CAMS[(TV_CAMS.indexOf(TP.cam) + 1) % TV_CAMS.length]; tpAct('cam', k); }
 }
@@ -203844,8 +203930,13 @@ function frame(now) {
     // while the wreck is still moving - the steering nudges it (aftertouch)
     const ts = crashCam.on ? crashCam.timeScale : 1, sdt = dt * ts, crashing = crashCam.on && !crashCam.resolved;
     if (crashing) crashCam.aftertouch(input.steer, sdt);
-    const simN = TP.on ? TP.speed : S.spectating && S.ff ? 6 : 1;
-    for (let k = simN; k > 0; k--) d.update(sdt, crashing ? CRASH_INPUT : input);   // (TP.speed: the team principal's x1 / x2 / x4)
+    let simN = TP.on ? TP.speed : S.spectating && S.ff ? 6 : 1;
+    if (TP.on && TP.skip && !crashing) {
+      // (SKIP: as quick as the frame allows - never slower than x16, steps for up to 20 ms of it, 48 at most - until the next of the action)
+      const t0 = performance.now(); simN = 0;
+      while (TP.skip && simN < 48 && (simN < 16 || performance.now() - t0 < 20)) { d.update(sdt, input); simN++; tpSkipCheck(d); }
+    } else for (let k = simN; k > 0; k--) d.update(sdt, crashing ? CRASH_INPUT : input);   // (TP.speed: the team principal's x1 / x2 / x4 / x8 / x16)
+    TP.rate = simN;
     if (p && p.crashLog && p.crashLog.length && !S.spectating) {
       for (const e of p.crashLog.splice(0)) { if (!crashCam.on) { if ((e.kind === 'launch' || e.g >= CRASH_G) && !d.done) startCrash(p, e); } else if (!crashCam.resolved) crashHit(p, e); }
     }

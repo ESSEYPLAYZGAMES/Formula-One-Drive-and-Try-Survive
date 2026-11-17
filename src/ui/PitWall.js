@@ -56,9 +56,15 @@ const CSS = `
 #pw .mid { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 #pw .mid .row { display: flex; gap: 2px; flex-wrap: wrap; align-items: center; margin: 0; }   /* (not the menus' .row) */
 #pw .mid .row > span { font: 700 8.5px/1 var(--tvf); letter-spacing: .12em; color: #8b95a3; width: 34px; text-transform: none; }
-#pw .radio { font-size: 10.5px; line-height: 1.3; color: #c9d1db; background: rgba(255,255,255,.04); border-radius: 4px; padding: 3px 6px; height: 28px; overflow: hidden; }
+/* (the radio: the newest line whole - two lines of it at most - and the one before on one line, dimmed. It was a box
+   28 px high for two lines of 13.6 px and its padding: the second line was cut through) */
+#pw .radio { font-size: 10.5px; line-height: 1.3; color: #c9d1db; background: rgba(255,255,255,.04); border-radius: 4px; padding: 3px 6px; box-sizing: border-box; height: 4.5em; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; }
+#pw .radio .r1 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: .62; flex: none; }
+#pw .radio .r0 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; flex: none; }
+#pw .mid .row .sep { width: auto; margin-left: 8px; }
+#pw button.skp { padding: 2px 7px; }
 #pw .radio b { color: #fff; }
-#pw.q .ctl, #pw.q .note, #pw.q [data-g="order"], #pw.q [data-a="sim"]:not([data-v="0"]) { display: none; }
+#pw.q .ctl, #pw.q .note, #pw.q [data-a="order"], #pw.q [data-g="order"] > span:first-child, #pw.q [data-a="sim"]:not([data-v="0"]) { display: none; }
 #pw .tog { position: absolute; right: 8px; top: -22px; font-size: 9px !important; padding: 2px 8px !important; background: rgba(8,10,14,.85) !important; }
 #pw .tog.tg2 { right: 96px; }
 /* COMPACT (the default on a laptop's screen): each instruction shows only what it is set to - point at it and its
@@ -141,12 +147,11 @@ export class PitWall {
     {
       const C = cars;
       this.el.innerHTML = `${card(C[0], 0)}<div class="mid">
-        <div class="row" data-g="time"><span>TIME</span><button data-a="pause">❚❚</button><button data-a="speed" data-v="1">×1</button><button data-a="speed" data-v="2">×2</button><button data-a="speed" data-v="4">×4</button></div>
+        <div class="row" data-g="time"><span>TIME</span><button data-a="pause">❚❚</button><button data-a="speed" data-v="1">×1</button><button data-a="speed" data-v="2">×2</button><button data-a="speed" data-v="4">×4</button><button data-a="speed" data-v="8">×8</button><button data-a="speed" data-v="16">×16</button><button data-a="skip" class="skp" title="On to the next of the action - a fight, a stop, a spin, the safety car - as quick as it goes, then ×1 (key: .)">SKIP ▸▸</button></div>
         <div class="row" data-g="sim"><span>SIM</span><button data-a="sim" data-v="1">1 LAP</button><button data-a="sim" data-v="5">5 LAPS</button><button data-a="sim" data-v="0">TO FLAG</button></div>
         <div class="row" data-g="cam"><span>CAM</span>${['auto', 'track', 'tcam', 'heli', 'rear'].map((k) => `<button data-a="cam" data-v="${k}" title="${TV_CAM_NAME[k]}">${{ auto: 'DIRECTOR', track: 'TRACK', tcam: 'ONBOARD', heli: 'HELI', rear: 'REAR' }[k]}</button>`).join('')}</div>
         <div class="row" data-g="cam2"><span></span>${['helmet', 'kerb', 'crane'].map((k) => `<button data-a="cam" data-v="${k}" title="${TV_CAM_NAME[k]}">${{ helmet: 'HELMET', kerb: 'KERB', crane: 'CRANE' }[k]}</button>`).join('')}</div>
-        <div class="row" data-g="def"><span>SET-UP</span><button data-a="def" data-v="save" title="Keep the pit wall as it is now - tyres, fuel, ERS, every order, who makes the calls, the camera - for the start of every race from here on">SAVE AS MY DEFAULT</button><button data-a="def" data-v="clear" title="Forget the saved set-up: every race starts on the standard one again">RESET</button></div>
-        <div class="row" data-g="order"><span>TEAM</span><button data-a="order" data-v="swap" title="The car ahead lets its team-mate through">SWAP</button><button data-a="order" data-v="hold" title="The car behind stays behind">HOLD</button><button data-a="order" data-v="free" title="Call the order off: race each other">RACE</button></div>
+        <div class="row" data-g="order"><span>TEAM</span><button data-a="order" data-v="swap" title="The car ahead lets its team-mate through">SWAP</button><button data-a="order" data-v="hold" title="The car behind stays behind">HOLD</button><button data-a="order" data-v="free" title="Call the order off: race each other">RACE</button><span class="sep">SET-UP</span><button data-a="def" data-v="save" title="Save as my default: keep the pit wall as it is now - tyres, fuel, ERS, every order, who makes the calls, the camera - for the start of every race from here on">SAVE</button><button data-a="def" data-v="clear" title="Forget the saved set-up: every race starts on the standard one again">RESET</button></div>
         <div class="radio"></div>
       </div>${card(C[1] || C[0], 1)}<button class="tog" data-a="min">PIT WALL ▾</button><button class="tog tg2" data-a="cpt" title="Compact: each instruction shows only its setting until you point at it">${this.el.classList.contains('cpt') ? 'FULL' : 'COMPACT'}</button>`;
     }
@@ -171,6 +176,7 @@ export class PitWall {
     else if (a === 'fuel') this.act('fuel', car, +b.dataset.v);
     else if (a === 'strat') this.act('strat', car, b.dataset.v);
     else if (a === 'speed') this.act('speed', +b.dataset.v);
+    else if (a === 'skip') this.act('skip');
     else if (a === 'pause') this.act('pause');
     else if (a === 'sim') this.act('sim', +b.dataset.v);
     else if (a === 'cam') this.act('cam', b.dataset.v);
@@ -182,7 +188,7 @@ export class PitWall {
   /** a line on the radio (who, what) - the last two kept */
   radio(who, text) {
     this.radioLines.push(`<b>${esc(who)}:</b> ${esc(text)}`); if (this.radioLines.length > 2) this.radioLines.shift();
-    const r = this.el.querySelector('.radio'); if (r) r.innerHTML = this.radioLines.join('<br>');
+    const r = this.el.querySelector('.radio'), L = this.radioLines; if (r) r.innerHTML = `${L.length > 1 ? `<div class="r1">${L[0]}</div>` : ''}<div class="r0">${L[L.length - 1]}</div>`;
   }
   /** the "simulating" card (text, or null to take it down) */
   simCard(text, sub = 'every car from where it is now') {
@@ -197,7 +203,9 @@ export class PitWall {
     this.acc += dt; if (this.acc < 0.25) return; this.acc = 0;
     const d = st.d; if (!d) return;
     const P = d.positions, racing = d.world.racing;
-    this.mark(this.el, '[data-a="speed"]', (b) => !st.paused && +b.dataset.v === st.speed);
+    this.mark(this.el, '[data-a="speed"]', (b) => !st.paused && !st.skip && +b.dataset.v === st.speed);
+    this.mark(this.el, '[data-a="skip"]', () => !!st.skip);
+    { const b = this.el.querySelector('[data-a="skip"]'); if (b) b.disabled = !racing || d.done || !!d.leaderFinished; }
     this.mark(this.el, '[data-a="pause"]', () => st.paused);
     this.mark(this.el, '[data-a="cam"]', (b) => b.dataset.v === st.cam);
     const green = !d.sc || d.sc.phase === 'green';
