@@ -22,7 +22,7 @@ import { storyEnsure, storyAfterRace, storySeasonStart, storyBeforeRace, subOf }
 import { opsEnsure, puEffect, sparesPerf, partsAfterRace, partsNewSeason, takePenalties, facFx, facRound, sponsorRace, sponsorsSeasonEnd } from './ManagerOps.js';
 
 const KEY = 'f1sim-manager-v1';
-import { seasonsEnsure, ageDrivers, retireRound, marketRound, marketWinter, contractAsk, academyRound, academyWinter, regsReset, gapsWinter } from './Seasons.js';
+import { seasonsEnsure, ageDrivers, retireRound, marketRound, midSeasonCuts, marketWinter, contractAsk, academyRound, academyWinter, regsReset, gapsWinter } from './Seasons.js';
 import { rivalsEnsure, rivalFx, rivalDevelop, rivalsLanded, rivalsRound, rivalsWinter } from './Rivals.js';
 import { mailEnsure, mailRound, mailWinter, mailNewSeason } from './ManagerMail.js';
 export const TRACKS_ALL = ['lasvegas', 'silverstone', 'montreal', 'austin'];
@@ -201,7 +201,7 @@ export class ManagerCareer {
     for (const line of rivalsLanded(this, done)) this.addNews(line);
     for (const t of Object.values(this.teams)) if (t.name !== this.myTeam) rivalDevelop(this, t);   // (each in its own way: career/Rivals.js)
     // the paddock: who comes for your people, who signs whom for next year, who is stopping; your juniors' round
-    for (const line of [...rivalsRound(this), ...marketRound(this), ...retireRound(this)]) this.addNews(line);
+    for (const line of [...rivalsRound(this), ...marketRound(this), ...midSeasonCuts(this), ...retireRound(this)]) this.addNews(line);
     academyRound(this);
     // the people and the car: what the team principal's orders did to the drivers; morale, the engineers, fatigue, the
     // press; the pit crew's training; the work on next year's car

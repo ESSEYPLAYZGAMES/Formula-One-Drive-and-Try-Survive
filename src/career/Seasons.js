@@ -98,7 +98,7 @@ export function marketRound(c) {
       d.dec = true; if (planned(c, t) >= 2 && !d.retiring) { d.renew = true; continue; }
       // (the marks: a driver on a run of poor ones is replaced by anyone about as good; the one in form is wanted more)
       const ap = appeal(c, t.name), f = markForm(d), poor = f != null && f <= 5.0;
-      const want = (x) => x.rating + (x.pot - x.rating) * 0.4 + ((markForm(x) ?? 6.3) - 6.3) * 0.006;
+      const want = (x) => x.rating + (x.pot - x.rating) * 0.4 + ((markForm(x) ?? 6.3) - 6.3) * 0.006 + (x.listening === c.season ? 0.01 : 0);   // (listening: a raise refused - career/ManagerMail.js)
       const cands = Object.values(c.drivers).filter((x) => !x.retired && !x.retiring && !x.next && x !== d && x.team !== t.name && (!x.team || x.until <= c.season) && !(x.academy === c.myTeam && !x.team && (x.hold ?? 0) >= c.season)
         && x.rating > (d.retiring ? 0 : d.rating + (poor ? -0.01 : 0.012)) && (!x.team || appeal(c, x.team) < ap + 0.12)).sort((a, b) => want(b) - want(a));
       const x = cands[0];
@@ -107,6 +107,34 @@ export function marketRound(c) {
         if (x.team === c.myTeam) { x.offer = { ...deal, round: c.round }; out.push(`${t.name} have made ${x.name} an offer for next season: extend his contract or lose him.`); d.renew = true; d.until = Math.max(d.until, c.season); }   // (their man stays unless yours comes)
         else { x.next = deal; if (!d.retiring) d.out = true; out.push(`${t.name} sign ${x.name} for ${c.season + 1}${d.retiring ? '' : `: ${sur(d.name)} is out`}.`); }
       } else if (!d.retiring) { d.renew = true; d.until = c.season + 1 + (rnd() < 0.4 ? 1 : 0); d.salary = r1(Math.max(d.salary, ask0(d.rating))); if (d.rating > 0.88) out.push(`${d.name} stays at ${t.name} to the end of ${d.until}.`); }
+    }
+  }
+  return out;
+}
+/**
+ * Mid-season, a rival team out of patience (career/Marks.js): a driver on a run of poor marks - four or more, 5.0 or
+ * worse on average, a point below his team-mate - is dropped, the best free driver not far off him (a reserve, a junior
+ * nobody holds, a man between seats) gets the car for the rest of the season. From the fourth round to the last but
+ * one, one in three rounds such a driver is looked at, two a season at most. Never in your team: that is your call.
+ * -> lines of news
+ */
+export function midSeasonCuts(c) {
+  const out = []; if (c.round < 4 || c.round >= c.rounds) return out;
+  const M = c.midCuts && c.midCuts.s === c.season ? c.midCuts : (c.midCuts = { s: c.season, n: 0 }); if (M.n >= 2) return out;
+  for (const t of Object.values(c.teams)) {
+    if (t.name === c.myTeam || M.n >= 2) continue;
+    const ds = c.seatsOf(t.name); if (ds.length < 2) continue;
+    for (const d of ds) {
+      const f = markForm(d), mate = ds.find((x) => x !== d), mf = markForm(mate);
+      if (f == null || (d.marks || []).length < 4 || f > 5.0 || (mf != null && mf - f < 1.0) || d.cutLook === c.round) continue;
+      d.cutLook = c.round; if (rnd() > 0.34) continue;
+      const pool = Object.values(c.drivers).filter((x) => !x.team && !x.retired && !x.retiring && x.alive !== false && !x.next && !(x.academy === c.myTeam && (x.hold ?? 0) >= c.season) && x.rating >= d.rating - 0.07)
+        .sort((a, b) => (b.rating + (b.academy === t.name ? 0.02 : 0)) - (a.rating + (a.academy === t.name ? 0.02 : 0)));
+      const r = pool[0]; if (!r) continue;
+      t.seats = t.seats.filter((x) => x !== d.id); d.team = null; d.until = null; d.dropped = { season: c.season, round: c.round, team: t.name };
+      r.team = t.name; r.salary = r1(ask0(r.rating) * 0.8); r.until = c.season; t.seats.push(r.id); r.midSeason = { season: c.season, round: c.round };
+      out.push(`${t.name} have seen enough: ${d.name} is dropped after a run of poor races (${f.toFixed(1)} a race in the ratings). ${r.name} has the car for the rest of the season.`);
+      M.n++; break;
     }
   }
   return out;

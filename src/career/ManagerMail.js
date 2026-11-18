@@ -22,6 +22,8 @@ import { crewHire, CREW_ROLES } from './ManagerCrew.js';
 import { hireEngineer, extendBlock } from './ManagerPeople.js';
 import { scout, academyUp, contractAsk, ACADEMY_COST } from './Seasons.js';
 import { signSupplier, SUPPLIERS } from './ManagerCar.js';
+import { markForm } from './Marks.js';
+import { traitFor } from './StoryLines.js';
 
 const r1 = (x) => Math.round(x * 10) / 10, rnd = Math.random, pick = (a) => a[(rnd() * a.length) | 0];
 const sur = (n) => String(n || '').trim().split(/\s+/).pop(), first = (n) => String(n || '').trim().split(/\s+/)[0];
@@ -244,6 +246,16 @@ const KINDS = {
     answer(c, p) { const S = SUPPLIERS[p.data.key], r = signSupplier(c, p.data.key); c.save(); return post(c, { kind: 'note', tag: 'reply', from: S.name, org: 'Customer power units', re: p.subj, subj: `Re: ${p.subj}`, good: true, body: ['The board has approved a customer supply. The contract follows by courier.', r] }); },
   },
   // ---- (not asked by you: a rival after one of your people - the mail it comes in carries the answer)
+  // ---- a driver on a run of good marks: his management wants it in the salary (career/Marks.js; desk below)
+  raise: {
+    act(c, m, id) {
+      const d = m.data, x = c.drivers[d.did]; if (!x || x.team !== c.myTeam) return { text: 'He is no longer your driver.', ok: true };
+      if (id === 'pay') { x.salary = d.sal; x.morale = Math.round(Math.min(100, (x.morale ?? 60) + 6)); c.save(); return { text: `${d.name} is on $${d.sal}M a season now, and happy with it.`, ok: true }; }
+      const hard = d.trait === 'hot' || d.trait === 'mercenary'; x.morale = Math.round(Math.max(0, (x.morale ?? 60) - (hard ? 10 : 6)));
+      if (d.trait === 'mercenary' || d.trait === 'political') x.listening = c.season;   // (he takes the calls now: career/Seasons.js marketRound)
+      c.save(); return { text: `${d.name} stays on $${x.salary}M. ${hard ? 'He did not take it well.' : 'He is disappointed.'}${x.listening === c.season ? ' His management will listen if another team calls.' : ''}`, ok: true };
+    },
+  },
   approach: {
     act(c, m, id) {
       const d = m.data, a = (c.rivals?.approaches || []).find((x) => x.role === d.role && x.team === d.team && x.name === d.name);
@@ -316,6 +328,17 @@ function desk(c, rep) {
   for (const d of c.seatsOf?.(c.myTeam) || []) {
     if (!d.offer || d.offer.mailed) continue; d.offer.mailed = true;
     post(c, { kind: 'note', tag: 'fyi', from: `${sur(d.name)}'s management`, org: d.name, col: teamCol(c, d.offer.team), subj: `${d.offer.team} want ${sur(d.name)} for next season`, good: false, body: [`As a courtesy: ${d.offer.team} have put an offer in front of ${first(d.name)} for next season, at $${d.offer.salary}M.`, `His contract with you ends this year. If ${c.myTeam} want to keep him, an extension before the winter would settle it.`] });
+  }
+  // a driver on a run of good marks: his management asks for more, once a season (career/Marks.js form; his manner)
+  for (const d of c.seatsOf?.(c.myTeam) || []) {
+    const f = markForm(d); if (f == null || f < 7.6 || (d.marks || []).length < 4 || c.round < 3 || d.raiseAsked === c.season) continue;
+    const T = contractAsk(c, d, 1); if (T.no) continue;
+    const sal = r1(Math.max(d.salary * 1.12, T.salary)); if (sal <= d.salary * 1.05) continue;
+    d.raiseAsked = c.season; const trait = traitFor(d.id);
+    post(c, { kind: 'raise', tag: 'offer', from: `${sur(d.name)}'s management`, org: d.name, col: mine.color, subj: `${first(d.name)} wants his form in his contract`, good: false, data: { did: d.id, name: d.name, sal, trait },
+      body: [`${first(d.name)} has averaged ${f.toFixed(1)} in the ratings over his last races. The paddock has noticed, and so have we.`,
+        `We are asking for his salary to reflect it: $${sal}M a season from now, on the same contract.${trait === 'mercenary' || trait === 'political' ? ' Other teams are asking about him. We would rather not have to listen.' : ''}`],
+      terms: [['Asking', `$${sal}M a season`], ['He is on', `$${d.salary}M a season`], ['His form', `${f.toFixed(1)} a race`]], acts: [{ id: 'pay', label: `PAY IT · $${sal}M`, go: true }, { id: 'no', label: 'NOT NOW' }] });
   }
   // the board, when its mood moves
   const conf = c.board?.conf ?? 50;

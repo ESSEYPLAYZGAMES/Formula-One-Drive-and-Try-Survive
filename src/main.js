@@ -116,6 +116,8 @@ import * as People from './world/People.js';
 import * as BrawlMod from './ui/Brawl.js';
 import { makeHelmet, bloodPool } from './world/People.js';
 import { RaceDirector, pitLossAt } from './race/RaceDirector.js';
+import { DriverRadio } from './race/DriverRadio.js';
+import { markForm } from './career/Marks.js';
 import { AIDriver, AI_TUNE } from './ai/AIDriver.js';
 import { AI_CAL, applyCalibration } from './ai/Calibration.js';
 import { HUD, fmtTime } from './ui/HUD.js';
@@ -2572,6 +2574,7 @@ function tpAct(a, x, y, z) {
     if (typeof o === 'string') wall.radio('Pit wall', `No order: ${o}.`);
     else if (o) { if (x === 'swap' && o.Y) tpPeople('yield', o.Y); if (x === 'hold' && o.Bk) tpPeople('held', o.Bk); }
     if (o && typeof o !== 'string') wall.radio('You', x === 'swap' ? `${sur(o.Y)}, let ${sur(o.B)} through. That's an order.` : x === 'hold' ? 'Hold position, both cars. No racing each other.' : 'Order off. You are free to race.');
+    if (o && typeof o !== 'string' && (x === 'swap' || x === 'hold')) try { TP.dvr?.onOrder(x, o, tpVoiceCtx(d)); } catch (e) { /* no reply */ }
   }
 }
 /**
@@ -3495,6 +3498,9 @@ function tpUi(dt) {
     sets: (c) => (d.mode === 'race' ? tpSetsOf(c) : null), lifeK: (c) => (d.mode === 'race' ? tpLifeK(c) : 1), fuelSure: (c) => !!c.mgr?.fuelSure });
   if (d.mode === 'race') {
     tpFuel(d); tpRadio(d); tpPlanCalls(d);
+    // (your drivers talk back - race/DriverRadio.js: the stops, the team-mate, the orders, the places, the flag)
+    if (!TP.dvr || TP.dvr.d !== d) TP.dvr = new DriverRadio(d);
+    if (!TP.paused && !S.paused && !S.simming) try { TP.dvr.update(tpVoiceCtx(d)); } catch (e) { console.warn('[radio]', e); }
     // (the strategist's questions - the undercut, a stop to cover, the weather: race/TeamStrategy.js - twice a second)
     TP.alertT = (TP.alertT || 0) + dt;
     if (TP.alertT > 0.5 && !TP.paused && !S.paused && !S.simming) {
@@ -3513,6 +3519,13 @@ function tpUi(dt) {
   }
 }
 /** what your engineers tell you: the strategist's calls, the tyres going off, damage, a car out, the orders answered */
+/** what race/DriverRadio.js needs of the team principal's race: the wall's radio and questions, the career, the manners */
+function tpVoiceCtx(d) {
+  const C = S.weekend?.mgr || null;
+  return { d, cars: TP.cars, C, say: (w, t) => TP.wall.radio(w, t), order: (x) => tpAct('order', x),
+    traitOf: (c) => traitOf(C, c.careerId || c.name), formOf: (c) => markForm(C?.drivers?.[c.careerId]),
+    ask: (c, q) => { c.mgr.alert = { text: q.text, yes: q.yes, no: q.no, t: d.time, onYes: q.onYes, onNo: q.onNo }; } };
+}
 function tpRadio(d) {
   const W2 = TP.wall, sur = (c) => surname(c.name);
   for (const c of TP.cars) {
