@@ -1,3 +1,27 @@
+# V2.85 (2026-11-18): your drivers talk back; the paddock loses patience mid-season
+
+Asked for: "3 and 4" - driver radio with personality, mid-season driver changes in the team principal's career.
+
+## Your drivers on the radio (race/DriverRadio.js, main.js)
+- In the team principal's race your two drivers talk back, each in his own manner (hot-headed, political, loyal,
+  money-driven, perfectionist, team player) and in his mood - the career's morale and his form in the ratings: up,
+  flat or down. The same moment sounds different from a happy loyal driver and an unhappy hot-headed one.
+- A stop: a lap after it, the cars that stopped too and were behind him and are now ahead ("he undercut me, we were a
+  lap too late") or the other way round ("great call, we jumped him"). One that cost him places costs a little morale.
+- Stuck behind his team-mate, under a second for twenty seconds and quicker on the last lap: he asks to be let by -
+  the question on his card on the pit wall, SWAP or NO. A no is answered, and remembered in the morale (more by the
+  hot-headed and the unhappy).
+- An order: the one told to give way or hold takes it in his own way; the one let through says thanks.
+- A place won or lost on the road, now and then; and at the flag, the result against where he started.
+
+## Mid-season changes (career/Seasons.js, career/ManagerMail.js)
+- A rival team out of patience: a driver on a run of poor marks (four or more, 5.0 or worse on average, a point
+  below his team-mate) may be dropped from the fourth round to the last but one - the best free driver not far off
+  him takes the car for the rest of the season, and the news says so. Two a season at most; never in your team.
+- Your driver on a run of good marks (7.6 or better): his management writes, once a season, asking for a raise on the
+  same contract. PAY IT (morale up) or NOT NOW (morale down, more for the hot-headed and the money-driven; the
+  money-driven and the political then listen when other teams call - they are wanted more in the market).
+
 # V2.84 (2026-11-18): what a stop really costs; the sprint shoot-out; the marks that matter
 
 Asked for: "do 1, 3, 4" - the AI's pit-stop cost corrected, a raced sprint shoot-out, ratings with consequences.
