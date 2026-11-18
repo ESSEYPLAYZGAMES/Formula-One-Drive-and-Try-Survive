@@ -55,12 +55,12 @@ const L = {
   },
   pass: {
     up: ['Got him! {r} done.', 'Yes! Past {r}. Who is next?'],
-    flat: ['Past {r}.', 'That is {r}. Okay.'],
+    flat: ['Past {r}.', 'That is {r}. Okay.', '{r} done. Next one.', 'Got {r} into the braking zone.'],
     down: ['Finally past {r}.', 'Got {r}. Took long enough.'],
   },
   passed: {
     up: ['{r} got me. I will be back at him.', 'Lost one to {r}. No drama.'],
-    flat: ['{r} is through. The tyres are not there.', 'Lost a place to {r}.'],
+    flat: ['{r} is through. The tyres are not there.', 'Lost a place to {r}.', '{r} had the tow, could not hold him.', 'Lost one to {r}. He is quicker on the straights.'],
     down: ['{r} just drove past. This car has nothing!', 'I cannot hold {r}. There is nothing in the car.'],
     T: { hot: '{r} pushed me off! Did you see that?', perfectionist: 'My mistake. {r} got the run on me.' },
   },

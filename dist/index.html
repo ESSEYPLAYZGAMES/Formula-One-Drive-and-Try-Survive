@@ -602,7 +602,7 @@ body.tp #hud-msg { top: 30%; }
     <div class="brand-line"></div>
     <h1 id="brand-title">FORMULA 1<span id="brand-sub">SIMULATOR</span></h1>
     <!-- the build's version: +0.01 with every build handed out -->
-    <span id="app-ver" title="Version">V2.84</span>
+    <span id="app-ver" title="Version">V2.85</span>
     <div id="menu-sub">Real circuits built from OpenStreetMap</div>
   </div>
   <div id="loading" class="hidden"><div class="ld"><i></i></div><span>Building the circuit from OpenStreetMap…</span></div>
@@ -150379,7 +150379,7 @@ function marketRound(c) {
       d.dec = true; if (planned(c, t) >= 2 && !d.retiring) { d.renew = true; continue; }
       // (the marks: a driver on a run of poor ones is replaced by anyone about as good; the one in form is wanted more)
       const ap = appeal(c, t.name), f = markForm(d), poor = f != null && f <= 5.0;
-      const want = (x) => x.rating + (x.pot - x.rating) * 0.4 + ((markForm(x) ?? 6.3) - 6.3) * 0.006;
+      const want = (x) => x.rating + (x.pot - x.rating) * 0.4 + ((markForm(x) ?? 6.3) - 6.3) * 0.006 + (x.listening === c.season ? 0.01 : 0);   // (listening: a raise refused - career/ManagerMail.js)
       const cands = Object.values(c.drivers).filter((x) => !x.retired && !x.retiring && !x.next && x !== d && x.team !== t.name && (!x.team || x.until <= c.season) && !(x.academy === c.myTeam && !x.team && (x.hold ?? 0) >= c.season)
         && x.rating > (d.retiring ? 0 : d.rating + (poor ? -0.01 : 0.012)) && (!x.team || appeal(c, x.team) < ap + 0.12)).sort((a, b) => want(b) - want(a));
       const x = cands[0];
@@ -150388,6 +150388,34 @@ function marketRound(c) {
         if (x.team === c.myTeam) { x.offer = { ...deal, round: c.round }; out.push(`${t.name} have made ${x.name} an offer for next season: extend his contract or lose him.`); d.renew = true; d.until = Math.max(d.until, c.season); }   // (their man stays unless yours comes)
         else { x.next = deal; if (!d.retiring) d.out = true; out.push(`${t.name} sign ${x.name} for ${c.season + 1}${d.retiring ? '' : `: ${sur(d.name)} is out`}.`); }
       } else if (!d.retiring) { d.renew = true; d.until = c.season + 1 + (rnd() < 0.4 ? 1 : 0); d.salary = r1(Math.max(d.salary, ask0(d.rating))); if (d.rating > 0.88) out.push(`${d.name} stays at ${t.name} to the end of ${d.until}.`); }
+    }
+  }
+  return out;
+}
+/**
+ * Mid-season, a rival team out of patience (career/Marks.js): a driver on a run of poor marks - four or more, 5.0 or
+ * worse on average, a point below his team-mate - is dropped, the best free driver not far off him (a reserve, a junior
+ * nobody holds, a man between seats) gets the car for the rest of the season. From the fourth round to the last but
+ * one, one in three rounds such a driver is looked at, two a season at most. Never in your team: that is your call.
+ * -> lines of news
+ */
+function midSeasonCuts(c) {
+  const out = []; if (c.round < 4 || c.round >= c.rounds) return out;
+  const M = c.midCuts && c.midCuts.s === c.season ? c.midCuts : (c.midCuts = { s: c.season, n: 0 }); if (M.n >= 2) return out;
+  for (const t of Object.values(c.teams)) {
+    if (t.name === c.myTeam || M.n >= 2) continue;
+    const ds = c.seatsOf(t.name); if (ds.length < 2) continue;
+    for (const d of ds) {
+      const f = markForm(d), mate = ds.find((x) => x !== d), mf = markForm(mate);
+      if (f == null || (d.marks || []).length < 4 || f > 5.0 || (mf != null && mf - f < 1.0) || d.cutLook === c.round) continue;
+      d.cutLook = c.round; if (rnd() > 0.34) continue;
+      const pool = Object.values(c.drivers).filter((x) => !x.team && !x.retired && !x.retiring && x.alive !== false && !x.next && !(x.academy === c.myTeam && (x.hold ?? 0) >= c.season) && x.rating >= d.rating - 0.07)
+        .sort((a, b) => (b.rating + (b.academy === t.name ? 0.02 : 0)) - (a.rating + (a.academy === t.name ? 0.02 : 0)));
+      const r = pool[0]; if (!r) continue;
+      t.seats = t.seats.filter((x) => x !== d.id); d.team = null; d.until = null; d.dropped = { season: c.season, round: c.round, team: t.name };
+      r.team = t.name; r.salary = r1(ask0(r.rating) * 0.8); r.until = c.season; t.seats.push(r.id); r.midSeason = { season: c.season, round: c.round };
+      out.push(`${t.name} have seen enough: ${d.name} is dropped after a run of poor races (${f.toFixed(1)} a race in the ratings). ${r.name} has the car for the rest of the season.`);
+      M.n++; break;
     }
   }
   return out;
@@ -150503,7 +150531,7 @@ const ord = (n) => ['th', 'st', 'nd', 'rd'][n % 100 > 10 && n % 100 < 14 ? 0 : M
 /** a winter under stable rules: the field closes up a little (everybody learns what the fast cars do) */
 function gapsWinter(c) { for (const t of Object.values(c.teams)) t.gap = +((t.gap || 0) * 0.9).toFixed(5); }
 
-return { TIER_GAP, SERIES, ACADEMY_COST, ageOf, seasonsEnsure, ageDrivers, retireRound, appeal, contractAsk, marketRound, marketWinter, scout, academyUp, juniorRelease, promote, academyRound, academyWinter, regsNext, regsReset, gapsWinter };
+return { TIER_GAP, SERIES, ACADEMY_COST, ageOf, seasonsEnsure, ageDrivers, retireRound, appeal, contractAsk, marketRound, midSeasonCuts, marketWinter, scout, academyUp, juniorRelease, promote, academyRound, academyWinter, regsNext, regsReset, gapsWinter };
 })();
 
 // ---- src/career/Rivals.js
@@ -150715,6 +150743,8 @@ const { crewHire, CREW_ROLES } = __m['src/career/ManagerCrew.js'];
 const { hireEngineer, extendBlock } = __m['src/career/ManagerPeople.js'];
 const { scout, academyUp, contractAsk, ACADEMY_COST } = __m['src/career/Seasons.js'];
 const { signSupplier, SUPPLIERS } = __m['src/career/ManagerCar.js'];
+const { markForm } = __m['src/career/Marks.js'];
+const { traitFor } = __m['src/career/StoryLines.js'];
 // The team principal's mail (career/Manager.js keeps it: c.mail; ui/ManagerMail.js is its page).
 // What you ask of people outside your own office is not answered on the spot. An approach to a rival's pit crew chief
 // goes through an intermediary and he thinks about it; a protest waits for the stewards to sit; a sponsor's board
@@ -150732,6 +150762,8 @@ const { signSupplier, SUPPLIERS } = __m['src/career/ManagerCar.js'];
 // answered after it.
 // Not delayed: signing a free agent into an empty seat (a race cannot start with one), and what is yours alone to
 // decide - a release, a talk with your own driver, the factory's orders (which take their own time already).
+
+
 
 
 
@@ -150960,6 +150992,16 @@ const KINDS = {
     answer(c, p) { const S = SUPPLIERS[p.data.key], r = signSupplier(c, p.data.key); c.save(); return post(c, { kind: 'note', tag: 'reply', from: S.name, org: 'Customer power units', re: p.subj, subj: `Re: ${p.subj}`, good: true, body: ['The board has approved a customer supply. The contract follows by courier.', r] }); },
   },
   // ---- (not asked by you: a rival after one of your people - the mail it comes in carries the answer)
+  // ---- a driver on a run of good marks: his management wants it in the salary (career/Marks.js; desk below)
+  raise: {
+    act(c, m, id) {
+      const d = m.data, x = c.drivers[d.did]; if (!x || x.team !== c.myTeam) return { text: 'He is no longer your driver.', ok: true };
+      if (id === 'pay') { x.salary = d.sal; x.morale = Math.round(Math.min(100, (x.morale ?? 60) + 6)); c.save(); return { text: `${d.name} is on $${d.sal}M a season now, and happy with it.`, ok: true }; }
+      const hard = d.trait === 'hot' || d.trait === 'mercenary'; x.morale = Math.round(Math.max(0, (x.morale ?? 60) - (hard ? 10 : 6)));
+      if (d.trait === 'mercenary' || d.trait === 'political') x.listening = c.season;   // (he takes the calls now: career/Seasons.js marketRound)
+      c.save(); return { text: `${d.name} stays on $${x.salary}M. ${hard ? 'He did not take it well.' : 'He is disappointed.'}${x.listening === c.season ? ' His management will listen if another team calls.' : ''}`, ok: true };
+    },
+  },
   approach: {
     act(c, m, id) {
       const d = m.data, a = (c.rivals?.approaches || []).find((x) => x.role === d.role && x.team === d.team && x.name === d.name);
@@ -151033,6 +151075,17 @@ function desk(c, rep) {
     if (!d.offer || d.offer.mailed) continue; d.offer.mailed = true;
     post(c, { kind: 'note', tag: 'fyi', from: `${sur(d.name)}'s management`, org: d.name, col: teamCol(c, d.offer.team), subj: `${d.offer.team} want ${sur(d.name)} for next season`, good: false, body: [`As a courtesy: ${d.offer.team} have put an offer in front of ${first(d.name)} for next season, at $${d.offer.salary}M.`, `His contract with you ends this year. If ${c.myTeam} want to keep him, an extension before the winter would settle it.`] });
   }
+  // a driver on a run of good marks: his management asks for more, once a season (career/Marks.js form; his manner)
+  for (const d of c.seatsOf?.(c.myTeam) || []) {
+    const f = markForm(d); if (f == null || f < 7.6 || (d.marks || []).length < 4 || c.round < 3 || d.raiseAsked === c.season) continue;
+    const T = contractAsk(c, d, 1); if (T.no) continue;
+    const sal = r1(Math.max(d.salary * 1.12, T.salary)); if (sal <= d.salary * 1.05) continue;
+    d.raiseAsked = c.season; const trait = traitFor(d.id);
+    post(c, { kind: 'raise', tag: 'offer', from: `${sur(d.name)}'s management`, org: d.name, col: mine.color, subj: `${first(d.name)} wants his form in his contract`, good: false, data: { did: d.id, name: d.name, sal, trait },
+      body: [`${first(d.name)} has averaged ${f.toFixed(1)} in the ratings over his last races. The paddock has noticed, and so have we.`,
+        `We are asking for his salary to reflect it: $${sal}M a season from now, on the same contract.${trait === 'mercenary' || trait === 'political' ? ' Other teams are asking about him. We would rather not have to listen.' : ''}`],
+      terms: [['Asking', `$${sal}M a season`], ['He is on', `$${d.salary}M a season`], ['His form', `${f.toFixed(1)} a race`]], acts: [{ id: 'pay', label: `PAY IT · $${sal}M`, go: true }, { id: 'no', label: 'NOT NOW' }] });
+  }
   // the board, when its mood moves
   const conf = c.board?.conf ?? 50;
   if (S.conf != null && Math.abs(conf - S.conf) >= 7) { const up = conf > S.conf; post(c, { kind: 'note', tag: 'fyi', from: 'The Chairman', org: `The board · ${c.myTeam}`, col: mine.color, subj: up ? 'The board is pleased' : 'The board is concerned', good: up, body: [up ? 'A short note to say that the board has noticed. Keep it going.' : conf < 30 ? 'I will be plain: the board is losing patience. We need results, and soon.' : 'The last few races have not been what we were promised. The board would like to see an improvement.', `Confidence in you stands at ${Math.round(conf)}%.`] }); S.conf = conf; }
@@ -151070,7 +151123,7 @@ const { peopleEnsure, peopleAfterRace, peopleSeasonEnd, raceEvent, onExtend, ext
 const { carEnsure, trackFit, engineFx, buildCheck, onBuilt, carRound, carNewSeason, rulesChange } = __m['src/career/ManagerCar.js'];
 const { storyEnsure, storyAfterRace, storySeasonStart, storyBeforeRace, subOf } = __m['src/career/ManagerStory.js'];
 const { opsEnsure, puEffect, sparesPerf, partsAfterRace, partsNewSeason, takePenalties, facFx, facRound, sponsorRace, sponsorsSeasonEnd } = __m['src/career/ManagerOps.js'];
-const { seasonsEnsure, ageDrivers, retireRound, marketRound, marketWinter, contractAsk, academyRound, academyWinter, regsReset, gapsWinter } = __m['src/career/Seasons.js'];
+const { seasonsEnsure, ageDrivers, retireRound, marketRound, midSeasonCuts, marketWinter, contractAsk, academyRound, academyWinter, regsReset, gapsWinter } = __m['src/career/Seasons.js'];
 const { rivalsEnsure, rivalFx, rivalDevelop, rivalsLanded, rivalsRound, rivalsWinter } = __m['src/career/Rivals.js'];
 const { mailEnsure, mailRound, mailWinter, mailNewSeason } = __m['src/career/ManagerMail.js'];
 // The team principal's career: you run a Formula 1 team, season after season - never a driver. The whole paddock lives
@@ -151275,7 +151328,7 @@ class ManagerCareer {
     for (const line of rivalsLanded(this, done)) this.addNews(line);
     for (const t of Object.values(this.teams)) if (t.name !== this.myTeam) rivalDevelop(this, t);   // (each in its own way: career/Rivals.js)
     // the paddock: who comes for your people, who signs whom for next year, who is stopping; your juniors' round
-    for (const line of [...rivalsRound(this), ...marketRound(this), ...retireRound(this)]) this.addNews(line);
+    for (const line of [...rivalsRound(this), ...marketRound(this), ...midSeasonCuts(this), ...retireRound(this)]) this.addNews(line);
     academyRound(this);
     // the people and the car: what the team principal's orders did to the drivers; morale, the engineers, fatigue, the
     // press; the pit crew's training; the work on next year's car
@@ -196876,6 +196929,183 @@ function fmt(t) { if (!isFinite(t) || t <= 0) return '--'; const m = Math.floor(
 return { pitLossAt, RaceDirector };
 })();
 
+// ---- src/race/DriverRadio.js
+__m['src/race/DriverRadio.js'] = (() => {
+
+// Your two drivers on the radio (the team principal's race, main.js tpRadio): they talk back. A stop that cost them
+// places to a rival who stopped first ("he undercut me, we were too late") or one that won them some ("great call");
+// stuck behind the team-mate and quicker, they ask to be let by - the question on the pit wall (SWAP / NO), a no not
+// forgotten; an order to give way or hold, taken in their own way; a place won or lost on the road; the flag, against
+// what the car could do. What they say is their manner (career/StoryLines.js TRAITS: hot-headed, political, loyal,
+// money-driven, perfectionist, team player) in their mood (the career's morale and their form - the marks: up, flat,
+// down). In a career a few of the moments move the morale a little: a stop that cost them, a request refused.
+
+const sur = (c) => String(c?.name || '').split(' ').pop();
+const hash = (s) => { let h = 2166136261; for (const ch of String(s)) h = Math.imul(h ^ ch.charCodeAt(0), 16777619); return h >>> 0; };
+const fill = (t, x) => t.replace(/\{(\w+)\}/g, (_, k) => x[k] ?? '');
+
+// the lines: by moment, then mood (up | flat | down); a trait's own line for some moments (T), said one time in two
+const L = {
+  stopBad: {
+    up: ['{r} got us on the stop. Fine, I will get him back.', 'We lost {r} in the stops. Plenty of race left.'],
+    flat: ['{r} undercut me. We were a lap too late.', 'How is {r} ahead now? We left it too long.'],
+    down: ['Again! {r} stopped first and now he is ahead. Who made that call?', 'We gave that to {r}. Every time, we are too late.'],
+    T: { hot: 'Unbelievable. {r} jumped us in the pits. Wake up out there!', perfectionist: 'We lost {r} by a lap. That is a strategy mistake, write it down.', mercenary: 'That stop just cost me points. {r} says thank you.', loyal: '{r} got us. It happens. Let us get it back.' },
+  },
+  stopGood: {
+    up: ['Yes! We jumped {r}. Great call, guys.', 'That is how you do a stop. {r} is behind!'],
+    flat: ['Good stop. {r} is behind us now.', 'Nice, we got {r} in the stops.'],
+    down: ['Okay, we got {r}. Finally something works.', 'Good. {r} is behind. Keep it like that.'],
+    T: { team: 'Great job by the crew. We got {r}, that is a team result.', political: 'Please thank the strategists for me. {r} will not be happy.' },
+  },
+  letBy: {
+    up: ['I am quicker than {m}. Can we swap? I will give it back if I cannot pull away.', '{m} is holding me up a bit. Let me have a go at the car ahead.'],
+    flat: ['I am stuck behind {m}. I have more pace, let me by.', 'Can you ask {m} to move over? I am losing time here.'],
+    down: ['Why am I still behind {m}? I am much quicker. Do something!', 'I am wasting my race behind {m}. Let me through.'],
+    T: { hot: 'Tell {m} to get out of the way or I go round the outside!', political: 'I think it would be best for the team if {m} let me by. Your call, of course.', mercenary: 'I am quicker and my points pay the same as his. Swap us.', loyal: 'If it helps the team, I can go after the car ahead. Only if you agree.' },
+  },
+  refused: {
+    up: ['Okay, understood. I stay here.', 'Copy. I will race him then.'],
+    flat: ['Copy... not happy, but copy.', 'Understood. We will talk about this later.'],
+    down: ['Of course. Why would anyone listen to me.', 'Great. Brilliant. I stay behind then.'],
+    T: { hot: 'Then I race him. Do not complain if it gets close.', team: 'Understood. Team first.', perfectionist: 'Noted. I think it is the wrong decision.' },
+  },
+  yield: {
+    up: ['Copy, letting {b} through. Make it worth it.', 'Okay, {b} can go. He owes me one.'],
+    flat: ['Copy. Letting {b} by.', 'Understood, {b} through on the straight.'],
+    down: ['Really? Fine. {b} can go.', 'So I am the number two now. Copy.'],
+    T: { team: 'No problem, {b} goes through. Team first.', hot: 'I do this once. Once!', political: 'Of course. Happy to help {b}.', mercenary: 'I hope someone is counting what this costs me.' },
+  },
+  thanks: {
+    up: ['Thanks, guys. Now let me get the car ahead.', 'Thank you. And thank {y}.'],
+    flat: ['Thanks. Pushing now.', 'Copy, past {y}. Going after the next one.'],
+    down: ['About time. Okay, pushing.', 'Finally. Let us go.'],
+  },
+  held: {
+    up: ['Copy, holding position. Good result for the team.', 'Understood, I will bring it home behind {f}.'],
+    flat: ['Copy. Holding.', 'Understood. No racing {f}.'],
+    down: ['I am quicker than {f} and you tell me to hold. Okay.', 'Hold position. Of course.'],
+    T: { hot: 'You are tying my hands here.', loyal: 'For the team. Copy.' },
+  },
+  pass: {
+    up: ['Got him! {r} done.', 'Yes! Past {r}. Who is next?'],
+    flat: ['Past {r}.', 'That is {r}. Okay.', '{r} done. Next one.', 'Got {r} into the braking zone.'],
+    down: ['Finally past {r}.', 'Got {r}. Took long enough.'],
+  },
+  passed: {
+    up: ['{r} got me. I will be back at him.', 'Lost one to {r}. No drama.'],
+    flat: ['{r} is through. The tyres are not there.', 'Lost a place to {r}.', '{r} had the tow, could not hold him.', 'Lost one to {r}. He is quicker on the straights.'],
+    down: ['{r} just drove past. This car has nothing!', 'I cannot hold {r}. There is nothing in the car.'],
+    T: { hot: '{r} pushed me off! Did you see that?', perfectionist: 'My mistake. {r} got the run on me.' },
+  },
+  flagGood: {
+    up: ['P{p}! Amazing job, everyone. Thank you!', 'Yes! P{p}! What a car today!'],
+    flat: ['P{p}. Good job, guys. Good points.', 'P{p}. That is a good day. Thanks, team.'],
+    down: ['P{p}. Okay. That helps. Thanks.', 'P{p}. We needed that.'],
+    T: { loyal: 'P{p}! For this team. Thank you, everyone.', political: 'P{p}. Please thank the factory for me.' },
+  },
+  flagOk: {
+    up: ['P{p}. We take it.', 'P{p}. Not bad, we learn from today.'],
+    flat: ['P{p}. That is about what we had.', 'P{p}. Okay.'],
+    down: ['P{p}. Nothing more in it.', 'P{p}. Another one like that.'],
+  },
+  flagBad: {
+    up: ['P{p}. Not our day. We go again.', 'P{p}. We need to look at that one.'],
+    flat: ['P{p}. That was not good enough.', 'P{p}. We left a lot out there.'],
+    down: ['P{p}. Terrible. We need to talk.', 'P{p}. I do not even know what to say.'],
+    T: { hot: 'P{p}! That is a joke. A joke!', perfectionist: 'P{p}. I want to see all of the data tonight.', mercenary: 'P{p}. That is not what I am here for.' },
+  },
+};
+
+/** the line for a moment: by the driver's manner and mood (x: the names to fill in) */
+function radioLine(kind, trait, mood, x = {}, seed = '') {
+  const K = L[kind]; if (!K) return '';
+  const own = K.T?.[trait], h = hash(`${seed}|${kind}`);
+  const pool = K[mood] || K.flat; const t = own && h % 2 === 0 ? own : pool[h % pool.length];
+  return fill(t, x);
+}
+/** a driver's mood from the career: morale and form (the marks) -> 'up' | 'flat' | 'down' */
+function moodOf(d, form) {
+  if (!d) return 'flat';
+  const m = d.morale ?? 60, f = form ?? 6.3;
+  return m >= 68 || (m >= 55 && f >= 7.3) ? 'up' : m < 40 || (m < 55 && f <= 5.2) ? 'down' : 'flat';
+}
+
+/**
+ * The radio, polled from the race (o: { d, cars (yours), say(who, text), ask(car, q) - a question on the car's card,
+ * C (the career, or null), traitOf(car), formOf(car), now (the race clock) }). State kept on this object, one a race.
+ */
+class DriverRadio {
+  constructor(d) { this.d = d; this.s = new Map(); this.t0 = null; }
+  st(c) { let s = this.s.get(c); if (!s) this.s.set(c, (s = { last: -99, lane: false, snap: null, pos: null, stuck: 0, asked: -999, flag: false, said: {} })); return s; }
+  update(o) {
+    const d = this.d; if (d.mode !== 'race' || !d.world.racing) return;
+    // (twice a race second - at any pace of the race: x16 too)
+    if (this.t0 == null) this.t0 = d.time; const step = d.time - this.t0; if (step < 0.5) return; this.t0 = d.time;
+    const P = d.positions, now = d.time, idx = (c) => P.indexOf(c);
+    for (const c of o.cars) {
+      const s = this.st(c), dv = o.C?.drivers?.[c.careerId], mood = moodOf(dv, o.formOf?.(c)), trait = o.traitOf?.(c) || 'team';
+      const say = (kind, x, force = false) => { if (!force && now - s.last < 22) return false; const t = radioLine(kind, trait, mood, x, `${c.name}|${now.toFixed(0)}`); if (!t) return false; s.last = now; o.say(sur(c), t); return true; };
+      const mor = (n) => { if (dv) dv.morale = Math.round(Math.max(0, Math.min(100, (dv.morale ?? 60) + n))); };
+      if (c.retired) continue;
+      // the flag: the place against what the car could do (its grid slot, as a stand-in) - said once
+      if (c.finished && !s.flag) {
+        s.flag = true; const p = idx(c) + 1, e = c.gridPos || p;
+        say(p <= 3 || p <= e - 3 ? 'flagGood' : p >= e + 3 ? 'flagBad' : 'flagOk', { p }, true); continue;
+      }
+      if (c.finished) continue;
+      // a stop: the cars around it when it went in, against where they are a lap after it came out - the ones that
+      // stopped too (a fair comparison): behind before and ahead now (an undercut), ahead before and behind now
+      const lane = !!(c.pitLane || c.inPit);
+      if (lane && !s.lane) {
+        const i = idx(c), near = P.slice(Math.max(0, i - 4), i + 5).filter((x) => x !== c && !x.retired);
+        s.snap = { lap: null, at: now, near: near.map((x) => ({ x, ahead: idx(x) < i, stops: x.pitStops || 0 })) };
+      }
+      if (!lane && s.lane && s.snap) s.snap.lap = c.lap;
+      s.lane = lane;
+      if (s.snap?.lap != null && c.lap >= s.snap.lap + 1) {
+        const i = idx(c), sn = s.snap; s.snap = null;
+        const stopped = sn.near.filter((n) => !n.x.retired && (n.x.pitStops || 0) > n.stops);
+        const lost = stopped.filter((n) => !n.ahead && idx(n.x) < i), won = stopped.filter((n) => n.ahead && idx(n.x) > i);
+        if (lost.length && !won.length) { if (say('stopBad', { r: sur(lost[0].x) }, true)) mor(mood === 'down' ? -2 : -1); }
+        else if (won.length && !lost.length) { if (say('stopGood', { r: sur(won[0].x) }, true)) mor(1); }
+      }
+      // stuck behind the team-mate and quicker: ask (once in four laps at most; not while an order is on)
+      const mate = o.cars.find((x) => x !== c && !x.retired && !x.finished);
+      const pair = d.orders?.pairOf?.(c), ordered = !!pair?.order;
+      if (mate && !lane && !mate.pitLane && !mate.inPit && !ordered && (!d.sc || d.sc.phase === 'green') && idx(mate) === idx(c) - 1) {
+        const g = d.radio?.gap?.(c, mate);
+        s.stuck = g != null && g > 0 && g < 1.0 ? s.stuck + step : 0;
+        const la = c.lapTimes?.[c.lapTimes.length - 1], lm = mate.lapTimes?.[mate.lapTimes.length - 1];
+        if (s.stuck > 18 && la && lm && lm - la > 0.25 && c.lap - s.asked >= 4 && c.lap < d.lapsTotal - 1) {
+          s.asked = c.lap; s.stuck = 0;
+          say('letBy', { m: sur(mate) }, true);
+          o.ask?.(c, { key: `letby${c.lap}`, text: `${sur(c)} asks to be let past ${sur(mate)}`, yes: 'SWAP', no: 'NO',
+            onYes: () => o.order?.('swap'),
+            onNo: () => { this.st(c).last = -99; say('refused', { m: sur(mate) }, true); mor(trait === 'hot' || mood === 'down' ? -3 : -1); } });
+        }
+      } else s.stuck = 0;
+      // a place won or lost on the road (not in the pits, not on the opening lap): now and then
+      const p = idx(c);
+      if (s.pos != null && p !== s.pos && !lane && c.lap >= 1 && Math.abs(p - s.pos) === 1) {
+        const other = P[p < s.pos ? p + 1 : p - 1];
+        if (other && !other.pitLane && !other.inPit && !other.retired && other !== mate && hash(`${c.name}|${now.toFixed(0)}`) % 3 === 0) say(p < s.pos ? 'pass' : 'passed', { r: sur(other) });
+      }
+      s.pos = p;
+    }
+  }
+  /** an order given on the wall (main.js tpAct): how the two take it - o: the order (Y yields to B; Bk holds behind F) */
+  onOrder(type, ord, o) {
+    const d = this.d, line = (c, kind, x) => { if (!c || c.retired) return; const s = this.st(c), dv = o.C?.drivers?.[c.careerId];
+      const t = radioLine(kind, o.traitOf?.(c) || 'team', moodOf(dv, o.formOf?.(c)), x, `${c.name}|${d.time.toFixed(0)}|${kind}`); if (t) { s.last = d.time; o.say(sur(c), t); } };
+    if (type === 'swap' && ord?.Y) { line(ord.Y, 'yield', { b: sur(ord.B) }); setTimeout(() => line(ord.B, 'thanks', { y: sur(ord.Y) }), 2500); }
+    if (type === 'hold' && ord?.Bk) line(ord.Bk, 'held', { f: sur(ord.F) });
+  }
+}
+
+return { radioLine, moodOf, DriverRadio };
+})();
+
 // ---- src/ui/HUD.js
 __m['src/ui/HUD.js'] = (() => {
 const { rateCol } = __m['src/race/Ratings.js'];
@@ -199373,6 +199603,8 @@ const People = __m['src/world/People.js'];
 const BrawlMod = __m['src/ui/Brawl.js'];
 const { makeHelmet, bloodPool } = __m['src/world/People.js'];
 const { RaceDirector, pitLossAt } = __m['src/race/RaceDirector.js'];
+const { DriverRadio } = __m['src/race/DriverRadio.js'];
+const { markForm } = __m['src/career/Marks.js'];
 const { AIDriver, AI_TUNE } = __m['src/ai/AIDriver.js'];
 const { AI_CAL, applyCalibration } = __m['src/ai/Calibration.js'];
 const { HUD, fmtTime } = __m['src/ui/HUD.js'];
@@ -199459,6 +199691,8 @@ void FAST_MATRIX;
 
 /** a car's engine maker (its sound - audio/EngineWorklet.js): the manager career's own choice for its team, else the team's usual */
 const engineOf = (c) => { const t = c?.team; return (S.mgr && S.mgr.teams?.[t]?.engine) || DEFAULT_SUP[t] || 'ferrari'; };
+
+
 
 
 
@@ -201958,6 +202192,7 @@ function tpAct(a, x, y, z) {
     if (typeof o === 'string') wall.radio('Pit wall', `No order: ${o}.`);
     else if (o) { if (x === 'swap' && o.Y) tpPeople('yield', o.Y); if (x === 'hold' && o.Bk) tpPeople('held', o.Bk); }
     if (o && typeof o !== 'string') wall.radio('You', x === 'swap' ? `${sur(o.Y)}, let ${sur(o.B)} through. That's an order.` : x === 'hold' ? 'Hold position, both cars. No racing each other.' : 'Order off. You are free to race.');
+    if (o && typeof o !== 'string' && (x === 'swap' || x === 'hold')) try { TP.dvr?.onOrder(x, o, tpVoiceCtx(d)); } catch (e) { /* no reply */ }
   }
 }
 /**
@@ -202881,6 +203116,9 @@ function tpUi(dt) {
     sets: (c) => (d.mode === 'race' ? tpSetsOf(c) : null), lifeK: (c) => (d.mode === 'race' ? tpLifeK(c) : 1), fuelSure: (c) => !!c.mgr?.fuelSure });
   if (d.mode === 'race') {
     tpFuel(d); tpRadio(d); tpPlanCalls(d);
+    // (your drivers talk back - race/DriverRadio.js: the stops, the team-mate, the orders, the places, the flag)
+    if (!TP.dvr || TP.dvr.d !== d) TP.dvr = new DriverRadio(d);
+    if (!TP.paused && !S.paused && !S.simming) try { TP.dvr.update(tpVoiceCtx(d)); } catch (e) { console.warn('[radio]', e); }
     // (the strategist's questions - the undercut, a stop to cover, the weather: race/TeamStrategy.js - twice a second)
     TP.alertT = (TP.alertT || 0) + dt;
     if (TP.alertT > 0.5 && !TP.paused && !S.paused && !S.simming) {
@@ -202899,6 +203137,13 @@ function tpUi(dt) {
   }
 }
 /** what your engineers tell you: the strategist's calls, the tyres going off, damage, a car out, the orders answered */
+/** what race/DriverRadio.js needs of the team principal's race: the wall's radio and questions, the career, the manners */
+function tpVoiceCtx(d) {
+  const C = S.weekend?.mgr || null;
+  return { d, cars: TP.cars, C, say: (w, t) => TP.wall.radio(w, t), order: (x) => tpAct('order', x),
+    traitOf: (c) => traitOf(C, c.careerId || c.name), formOf: (c) => markForm(C?.drivers?.[c.careerId]),
+    ask: (c, q) => { c.mgr.alert = { text: q.text, yes: q.yes, no: q.no, t: d.time, onYes: q.onYes, onNo: q.onNo }; } };
+}
 function tpRadio(d) {
   const W2 = TP.wall, sur = (c) => surname(c.name);
   for (const c of TP.cars) {
