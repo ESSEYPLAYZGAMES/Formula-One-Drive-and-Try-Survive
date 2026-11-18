@@ -30,6 +30,7 @@ import { ACADEMY_BY_ID, SEAT_RULES, kindOf, newSeat, seatEnsure, seatRace, seatB
 import { requestOdds, requestUpgrade, requestTick, mateSay, talkAgree, talkWalk, mateRoleFor } from './Say.js';
 import { marketEnsure, marketRace, marketRoundTick, marketSeasonEnd, marketNewSeason, seasonSay, precontractSigned, moveNow } from './Market.js';
 import { statsEnsure, statsRace } from './Stats.js';
+import { noteMarks, markMorale, seasonAwards, awardsLine } from './Marks.js';
 
 const KEY = 'f1sim-career-v2';
 // (a save from before the v67 update, as it was stored, kept once when it is first brought up to date)
@@ -800,10 +801,14 @@ export class Career {
     // the drivers develop: rated on the race (race/Ratings.js - against what the car could do, the passes, the spins,
     // the penalties, the team-mate), the rating moved by the mark; the young ones learning race by race
     const marks = rateRace(rows, rows.every((r) => r.car.perf != null) ? {} : { exp }); this.lastRatings = { season: S0, round: R0, by: {} };
+    // (the marks kept - career/Marks.js: the season's average, the form the market reads, the Driver of the Day: the
+    //  fans' vote in a raced race, the best mark in a simulated one)
+    { const dd = safe('noteMarks', () => noteMarks(this, marks, rows)); this.lastRatings.dotd = dd || null;
+      if (dd) { report.dotd = dd; if (dd.id !== this.playerId) this.addNews(`Driver of the Day: ${dd.name}${dd.score != null ? `, rated ${dd.score}` : ''}.`); }
+      const pm = marks.get(meRow?.car); if (pm?.score != null) { const mm = markMorale(pm.score, false); if (mm) safe('markMorale', () => shiftMorale(this, this.playerId, mm, pm.score >= 8 ? 'a race the ratings loved' : 'a race the ratings did not')); } }
     for (const r of rows) {
       const d = this.drivers[r.car.careerId]; if (!d || !d.alive) continue;
       const young = isYoung(d), m = marks.get(r.car); this.lastRatings.by[d.id] = { score: m?.score ?? null, why: m?.why || [] };
-      if (m?.score != null) d.marks = [...(d.marks || []), m.score].slice(-10);
       if (d.id === this.playerId) { report.mark = m?.score ?? null; report.markWhy = m?.why || []; }
       let dv = m?.score == null ? (young ? 0.0006 : -0.0004) : m.d + (young ? 0.0012 : 0.0002);
       dv = Math.round(dv * 10000) / 10000; d.rating = Math.max(0.6, Math.min(0.995, Math.round((d.rating + dv) * 10000) / 10000)); d.lastDelta = dv;
@@ -1005,7 +1010,7 @@ export class Career {
     const team = this.teams[this.myTeam] || this.teams[S.firedFrom] || null, teamPos = team ? ts.indexOf(team) + 1 : 0, target = team ? BOARD_TARGET[team.tier] ?? 9 : 0;
     return { season: this.season, champion: ds[0] || null, constructor: ts[0] || null, youPos: me ? ds.indexOf(me) + 1 : null, youPts: me?.points ?? 0, team: team?.name || null,
       teamPos, target, prize: team ? PRIZE[teamPos - 1] ?? 1 : 0, verdict: !team ? null : teamPos < target ? 'delighted' : teamPos === target ? 'satisfied' : teamPos <= target + 2 ? 'concerned' : 'unhappy',
-      bonus: team ? (teamPos < target ? 5 : teamPos === target ? 2 : 0) : 0, expiring: [],
+      bonus: team ? (teamPos < target ? 5 : teamPos === target ? 2 : 0) : 0, expiring: [], awards: safe('seasonAwards', () => seasonAwards(this)) || [],
       seat: { status: S.status || 'free', verdict: S.verdict || null, conf: S.status === 'driver' ? Math.round(S.conf) : null, next: S.next || null, offers: (S.offers || []).length, label: S.status === 'driver' ? confLabel(S.conf, S.warn, S.tier).text : null } };
   }
   /**
@@ -1021,6 +1026,7 @@ export class Career {
     safe('prSeasonEnd', () => prSeasonEnd(this, rv));
     const order = this.teamStandings();
     for (const t of Object.values(this.teams)) { const i = order.indexOf(t), tg = BOARD_TARGET[t.tier] ?? 9; t.budget = Math.round((t.budget + (PRIZE[i] ?? 1) + (i + 1 < tg ? 5 : i + 1 === tg ? 2 : 0)) * 10) / 10; }
+    { const ln = awardsLine(rv.season, rv.awards || []); if (ln) this.addNews(ln); }
     if (rv.team) this.addNews(`${rv.team} finished P${rv.teamPos} (the board wanted P${rv.target}): $${rv.prize}M in prize money${rv.bonus ? `, $${rv.bonus}M bonus from a ${rv.verdict} board` : `, the board ${rv.verdict}`}.`);
     // (the drivers over the winter: the young ones step up, everyone else a little either way; morale halfway back to normal)
     for (const d of Object.values(this.drivers)) if (d.alive) {

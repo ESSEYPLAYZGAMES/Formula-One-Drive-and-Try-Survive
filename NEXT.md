@@ -1,3 +1,33 @@
+# V2.84 (2026-11-18): what a stop really costs; the sprint shoot-out; the marks that matter
+
+Asked for: "do 1, 3, 4" - the AI's pit-stop cost corrected, a raced sprint shoot-out, ratings with consequences.
+
+## What a stop costs (race/RaceDirector.js, ai/AIDriver.js, main.js)
+- The race's figure for a stop counted the whole lane - 1.1 km at Silverstone - as if driven at the 80 km/h limit:
+  37.5 s at Silverstone, 30.8 at Montreal, 29.4 at Austin. Measured in the races (every car made to stop once,
+  the time in the lane against racing speed, the uncongested stops): 22, 24, 17 and 17.5 s. Now each circuit's
+  measured figure plus a second of slowing and getting going - Silverstone 23, Montreal 25, Austin 18, Las Vegas 18.5;
+  a new circuit's worked out from its lane as the cars drive it. The AI's undercut and cover sums, the race-time
+  model, the strategy screen, the re-plan and the pit wall's PIT NOW all use it. (A Montreal race: a few more
+  undercuts and covers; the stops themselves are as long as before.)
+
+## The sprint shoot-out (main.js)
+- A sprint weekend now starts with a shoot-out of its own: drive it (or watch it, as team principal) or simulate it;
+  its order is the sprint's grid. No pole counted, nothing saved for the Grand Prix, no grid penalty served on it -
+  qualifying and the Grand Prix come after the sprint as before. (A race without qualifying keeps the seeded grid.)
+
+## The marks matter (career/Marks.js, career/Manager.js, career/Career.js, career/Seasons.js, career/Market.js)
+- Form: the average of a driver's last five marks. A contract asks for more on a run of 8s (to some +14 %) and less
+  on a run of 4s (to some -14 %), and says why. The rival teams read it: a driver on a run of poor marks is replaced
+  by anyone about as good, and more often; the one in form is wanted more. In the driver career the teams' yardstick
+  for keeping, dropping and approaching drivers is half the marks now.
+- Morale: your drivers take a 9 (+4), an 8 (+2) or a 4.5 and below (-3) to heart, and Driver of the Day (+2).
+- Driver of the Day: the fans' vote on the results sheet now weighs the marks; the careers count it (the news, the
+  HQ driver card: the season's average and Drivers of the Day). A simulated race: the best mark.
+- The season's awards from the marks: Driver of the Year (best average, at least half the races), Rookie of the Year,
+  the fans' favourite (most Drivers of the Day), most improved (the OVR's rise) - in the news and on the season
+  review of both careers; one of yours: morale and a point of the board's confidence.
+
 # V2.83 (2026-11-17): the stop worked out on the pit wall; sprint weekends; the drivers rated after every race
 
 Asked for: "do 1,3,5 - affects their OVR" - a pit-now rejoin prediction, sprint weekends, driver ratings that move

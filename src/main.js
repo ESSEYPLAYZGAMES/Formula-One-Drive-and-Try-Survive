@@ -115,8 +115,8 @@ import { showPlayStats } from './ui/StatsScreen.js';
 import * as People from './world/People.js';
 import * as BrawlMod from './ui/Brawl.js';
 import { makeHelmet, bloodPool } from './world/People.js';
-import { RaceDirector } from './race/RaceDirector.js';
-import { AIDriver, AI_TUNE, laneSpeeds } from './ai/AIDriver.js';
+import { RaceDirector, pitLossAt } from './race/RaceDirector.js';
+import { AIDriver, AI_TUNE } from './ai/AIDriver.js';
 import { AI_CAL, applyCalibration } from './ai/Calibration.js';
 import { HUD, fmtTime } from './ui/HUD.js';
 import { TelemetryView } from './ui/TelemetryView.js';
@@ -2025,9 +2025,24 @@ function sprintPanel() {
   const mine = wk.mode === 'tp' ? tpCars(wk.cars) : [wk.player].filter(Boolean);
   $('quali-results').innerHTML = '';
   $('quali-info').textContent = `SPRINT WEEKEND · Round ${(wk.career || wk.mgr)?.round ?? wk.round}/${(wk.career || wk.mgr)?.rounds ?? wk.rounds} · ${W.track.def.name} · the sprint first: ${wk.lapsTotal} laps, no stop, points ${SPRINT_PTS.join('-')} · from the sprint shoot-out: ${mine.map((c) => `${c.name.split(' ').pop()} P${wk.gridOrder.indexOf(c) + 1}`).join(', ')}. Then qualifying and the Grand Prix.`;
-  for (const id of ['btn-practice', 'btn-quali-go', 'btn-quali-sim']) $(id).classList.add('hidden');
-  const b = $('btn-quali-done'); b.classList.remove('hidden'); b.firstChild.textContent = 'RACE THE SPRINT'; b.dataset.sprint = '1';
+  const b = $('btn-quali-done'); b.firstChild.textContent = 'RACE THE SPRINT'; b.dataset.sprint = '1';
+  // (the sprint shoot-out: a qualifying of its own - driven, watched or simulated - its grid the sprint's, not the Grand
+  //  Prix's: no pole counted, nothing saved, no grid penalty served. A race without qualifying: the seeded grid above)
+  const shoot = wk.mode === 'tp' || (settings.grid === 'quali' && !!wk.player); wk.shootout = shoot;
+  $('btn-practice').classList.add('hidden');
+  if (shoot) {
+    $('btn-quali-go').classList.remove('hidden'); $('btn-quali-go').firstChild.textContent = wk.mode === 'tp' ? 'WATCH THE SHOOT-OUT' : 'SPRINT SHOOT-OUT';
+    $('btn-quali-sim').classList.remove('hidden'); $('btn-quali-sim').textContent = 'SIMULATE THE SHOOT-OUT'; b.classList.add('hidden');
+    $('quali-info').textContent = `SPRINT WEEKEND · Round ${C?.round ?? wk.round}/${C?.rounds ?? wk.rounds} · ${W.track.def.name} · Saturday: the sprint shoot-out, then the sprint - ${wk.lapsTotal} laps, no stop, points ${SPRINT_PTS.join('-')}. Qualifying and the Grand Prix after it.`;
+  } else { $('btn-quali-go').classList.add('hidden'); $('btn-quali-sim').classList.add('hidden'); b.classList.remove('hidden'); }
   $('quali-panel').classList.remove('hidden');
+}
+/** the sprint shoot-out over (runQuali / tpQuali): its grid stands for the sprint; the panel says so -> true when it was one */
+function shootoutDone(all, mineText) {
+  const wk = S.weekend; if (!wk?.shootout) return false; wk.shootout = false;
+  $('quali-info').textContent = `Sprint shoot-out: ${mineText}. The sprint next: ${wk.lapsTotal} laps, no stop.`;
+  const b = $('btn-quali-done'); b.firstChild.textContent = 'RACE THE SPRINT'; b.dataset.sprint = '1';
+  return true;
 }
 function startRound() {
   const wk = S.weekend; strings(false); NEWS.cancelled = false;
@@ -2062,7 +2077,7 @@ function startRound() {
     $('quali-info').textContent = `${W.track.def.name} · ${WX_LABEL[settings.weather] || 'Dry'}, ${settings.time === 'night' ? 'night' : 'day'}. You run ${settings.tpTeam}: practice first - set the cars up - then qualifying, two timed laps each, the best counts. Watch it on the feed, or simulate it.${tpSetupLine()}`;
     $('quali-results').innerHTML = ''; $('quali-panel').classList.remove('hidden');
   } else if (settings.grid === 'quali' && wk.player) {
-    $('btn-quali-go').firstChild.textContent = 'QUALIFY';   // (the team principal's weekend names it WATCH)
+    $('btn-quali-go').firstChild.textContent = 'QUALIFY'; $('btn-quali-sim').textContent = 'SIMULATE QUALIFYING';   // (the team principal's weekend names it WATCH; a sprint's shoot-out its own)
     $('btn-practice').classList.remove('hidden'); $('btn-practice').textContent = 'FREE PRACTICE'; $('btn-quali-sim').classList.remove('hidden');
     const cond = `${WX_LABEL[settings.weather] || 'Dry'}${wk.career ? ' forecast' : ''}, ${settings.time === 'night' ? 'night' : 'day'}`;
     $('quali-info').textContent = `Round ${wk.round}/${wk.rounds} · ${W.track.def.name} · ${cond}. Qualifying: the whole field is out with you on flying laps, two timed laps each, the best counts. You start on a straight. When your laps are done, watch the rest (Tab: next car, Enter: ×6) or press F to simulate it. Expected pace: ${fmtTime(estimatePace())}`;
@@ -2194,7 +2209,7 @@ function runQuali() {
     onFinish: () => {
       const all = wk.cars.map((c) => ({ car: c, time: c.bestLap })).sort((a, b) => a.time - b.time);
       const pt = wk.player.bestLap, names = all.map((e) => e.car.name);
-      if (wk.career) {
+      if (wk.career && !wk.shootout) {
         wk.qTrophies = wk.career.recordQuali(all.map((e) => e.car.careerId));   // (poles, the head-to-head, the qualifying objective)
         // (your time at the wheel and your best lap driven, for the stats book - career/Stats.js; saved with the grid below)
         Stats.statsSession(wk.career, S.director, 'quali', W.def.id);
@@ -2205,11 +2220,12 @@ function runQuali() {
       wk.cars = buildField(wk.lapsTotal); wk.player = wk.cars.find((c) => c.isPlayer) || null;
       wk.gridOrder = names.map((n) => wk.cars.find((c) => c.name === n)).filter(Boolean);
       for (const c of wk.cars) if (!wk.gridOrder.includes(c)) wk.gridOrder.push(c);
-      (S.director?.simAll ? (car, title, then) => then() : startFinale)(all[0].car, 'POLE POSITION', () => {
+      (S.director?.simAll ? (car, title, then) => then() : startFinale)(all[0].car, wk.shootout ? 'SPRINT POLE' : 'POLE POSITION', () => {
         let html = '<table class="res"><tr><th>#</th><th>Driver</th><th>Time</th><th>Gap</th></tr>';
         all.forEach((e, i) => { html += `<tr class="${e.car.isPlayer ? 'me' : ''}"><td>${i + 1}</td><td><span class="sw" style="background:${e.car.color}"></span>${e.car.name}</td><td>${fmtTime(e.time)}</td><td>${i === 0 ? '' : isFinite(e.time) ? '+' + (e.time - all[0].time).toFixed(3) : 'no time'}</td></tr>`; });
         $('quali-results').innerHTML = html + '</table>';
-        $('quali-info').textContent = isFinite(pt) ? `You qualified P${all.findIndex((e) => e.car.isPlayer) + 1}` : 'No time set · you start from the back';
+        const qTxt = isFinite(pt) ? `You qualified P${all.findIndex((e) => e.car.isPlayer) + 1}` : 'No time set · you start from the back';
+        if (!shootoutDone(all, qTxt.replace('You qualified', 'you start the sprint').replace('you start from the back', 'from the back'))) $('quali-info').textContent = qTxt;
         $('btn-quali-go').classList.add('hidden'); $('btn-practice').classList.add('hidden'); $('btn-quali-sim').classList.add('hidden'); $('btn-quali-done').classList.remove('hidden'); $('quali-panel').classList.remove('hidden');
         endSession();
       });
@@ -2228,7 +2244,7 @@ function runRace() {
   if (S.choosing) return; S.choosing = true;   // (one strategy screen: a second press of the button opens no second one)
   $('quali-panel').classList.add('hidden');
   const P = W.pit, pace = estimatePace(), L = W.track.length;
-  const laneLen = P ? P.samples.length : 400, pitLoss = P ? Math.max(12, laneLen / P.limiter - laneLen / (L / pace) + 2.4 + 2.2) : 22;
+  const pitLoss = pitLossAt(W.track.def?.id, P, L, pace);
   const gi = wk.gridOrder ? wk.gridOrder.indexOf(p) + 1 : 0;
   showStrategy({ laps: wk.lapsTotal, trackName: W.track.def.name, trackLength: L, pace, pitLoss, wet: wk.wet, forecast: forecastLine(wk, pace), night: W.time === 'night', field: wk.cars.filter((c) => c !== p).map((c) => c.tyres.compound), gridPos: gi > 0 ? gi : null,
     onDone: (plan) => {
@@ -2364,8 +2380,9 @@ function raceFacts(d, rows) {
   if (!d || d.mode !== 'race') return null;
   const fin = rows.filter((r) => !r.car.retired), fl = rows.filter((r) => isFinite(r.car.bestLap)).sort((a, b) => a.car.bestLap - b.car.bestLap)[0];
   const gain = (r) => (r.car.gridPos || r.pos) - r.pos;
-  const score = (r) => (r.car.retired ? -6 : 0) + 2.2 * gain(r) + 1.4 * (r.car.overtakes || 0) + 7 * (1 - (r.car.rating ?? 0.9)) * Math.max(0, 12 - r.pos) / 6 + (r.pos === 1 ? 5 : r.pos <= 3 ? 2 : 0) + (r === fl ? 2 : 0) + Math.random() * 3;
+  const score = (r) => (r.car.retired ? -6 : 0) + 2.2 * gain(r) + 1.4 * (r.car.overtakes || 0) + 7 * (1 - (r.car.rating ?? 0.9)) * Math.max(0, 12 - r.pos) / 6 + (r.pos === 1 ? 5 : r.pos <= 3 ? 2 : 0) + (r === fl ? 2 : 0) + (r.rtg != null ? (r.rtg - 6.3) * 1.6 : 0) + Math.random() * 3;   // (rtg: the mark, race/Ratings.js - the fans see what the ratings see)
   const ranked = rows.map((r) => ({ r, s: score(r) })).sort((a, b) => b.s - a.s).slice(0, 5);
+  for (const r of rows) r.car.dotd = false; if (ranked[0]) ranked[0].r.car.dotd = true;   // (the vote's winner: the careers count it - career/Marks.js)
   const w = ranked.map((x) => Math.exp((x.s - ranked[0].s) / 3)), W = w.reduce((a, b) => a + b, 0);
   const dotd = ranked.map((x, i) => ({ name: x.r.name, color: x.r.color, me: x.r.me, pct: Math.round(100 * w[i] / W), why: gain(x.r) > 2 ? `P${x.r.car.gridPos} to P${x.r.pos}` : x.r.pos === 1 ? 'the win' : (x.r.car.overtakes || 0) >= 3 ? `${x.r.car.overtakes} overtakes` : `P${x.r.pos}` }));
   const climber = [...fin].sort((a, b) => gain(b) - gain(a))[0], passer = [...rows].sort((a, b) => (b.car.overtakes || 0) - (a.car.overtakes || 0))[0];
@@ -2482,7 +2499,7 @@ function tpAct(a, x, y, z) {
   } else if (a === 'replan') {
     // (the rest of the race worked out again - race/TeamStrategy.js: the options offered one after another)
     if (d.mode !== 'race' || !d.world.racing || x.retired || x.finished) return;
-    const P0 = W.pit, pace = estimatePace(), laneLen = P0 ? P0.samples.length : 400, pitLoss = d.world.pitLoss || (P0 ? Math.max(12, laneLen / P0.limiter - laneLen / (W.track.length / pace) + 4.6) : 22);
+    const pitLoss = d.world.pitLoss || pitLossAt(W.track.def?.id, W.pit, W.track.length, estimatePace());
     const opts = replan({ car: x, d, sets: tpSetsOf(x), pitLoss, mustStop: d.lapsTotal >= 8 && x.pitStops === 0 && !x.usedRain && !d.weather?.everWet });
     if (!opts.length) { wall.radio('Strategy', `${sur(x)}: nothing to plan from here.`); return; }
     wall.radio('Strategy', `${sur(x)}: ${opts.map((p, i) => `${'ABC'[i]} ${p.label}${i ? ` (+${p.delta.toFixed(1)} s)` : ''}`).join(' · ')}.`);
@@ -3432,18 +3449,8 @@ function tpCamera(dt) {
  * Every half second. -> { text, warn, ghost: { x, z, color } } | null
  */
 const RJ = new Map();
-// (what a stop costs here: the lane driven as the cars drive it - braking in to the speed line, the limiter to the line
-//  out, then away again at some 8 m/s2 - against the same distance at the lap's average speed, and the car stood in its
-//  box; the director's own figure - the whole lane at the limiter - only when the lane cannot be read)
-function tpLaneLoss(d, lapT) {
-  const P = d.pit || W.pit; if (!P?.samples?.n) return d.world.pitLoss || 22;
-  try {
-    const ps = P.samples, sp = laneSpeeds(P), lim = P.limiter; let t = 0;
-    for (let i = 0; i < ps.n; i++) { const u = i * ps.ds, v = u < P.limitFrom ? sp.vIn[i] : u <= P.limitTo ? lim : Math.min(sp.vOut[i], Math.sqrt(lim * lim + 16 * (u - P.limitTo))); t += ps.ds / Math.max(5, v); }
-    const loss = t - ps.length / (d.track.length / Math.max(30, lapT)) + 2.6;
-    return isFinite(loss) ? Math.max(12, Math.min(d.world.pitLoss || 40, loss)) : (d.world.pitLoss || 22);
-  } catch (e) { return d.world.pitLoss || 22; }
-}
+// (what a stop costs here: the director's own figure - race/RaceDirector.js PIT_LOSS)
+const tpLaneLoss = (d) => d.world.pitLoss || 22;
 function tpRejoin(c) {
   const d = S.director; if (!d || d.mode !== 'race' || !d.world.racing || d.leaderFinished || !c || c.retired || c.finished || c.pitLane || c.inPit) return null;
   const now = performance.now(), k = RJ.get(c); if (k && now - k.at < 500 && k.d === d) return k.r;
@@ -3733,7 +3740,7 @@ function tpStrategy() {
   const wk = S.weekend; if (S.choosing) return; S.choosing = true;
   $('quali-panel').classList.add('hidden');
   const mine = tpCars(wk.cars), P = W.pit, pace = estimatePace(), L = W.track.length;
-  const laneLen = P ? P.samples.length : 400, pitLoss = P ? Math.max(12, laneLen / P.limiter - laneLen / (L / pace) + 2.4 + 2.2) : 22;
+  const pitLoss = pitLossAt(W.track.def?.id, P, L, pace);
   const one = (i) => {
     const car = mine[i]; if (!car) { S.choosing = false; beginRace(); return; }
     const gi = wk.gridOrder ? wk.gridOrder.indexOf(car) + 1 : 0;
@@ -3837,7 +3844,7 @@ function tpQuali(watch) {
       for (const c of wk.cars) if (!wk.gridOrder.includes(c)) wk.gridOrder.push(c);
       // (the team principal's career: grid penalties for power-unit elements beyond the allocation - every car back as
       //  many places as it was given, from where it qualified)
-      const pen = wk.mgr ? takePenalties(wk.mgr) : new Map(); wk.penText = '';
+      const pen = wk.mgr && !wk.shootout ? takePenalties(wk.mgr) : new Map(); wk.penText = '';   // (served on the Grand Prix's grid, not the sprint's)
       if (pen.size) {
         const key = (c, i) => i + (pen.get(c.name) || 0) + (pen.has(c.name) ? 0.5 : 0);
         wk.gridOrder = wk.gridOrder.map((c, i) => ({ c, k: key(c, i) })).sort((a, b) => a.k - b.k).map((x) => x.c);
@@ -3846,13 +3853,13 @@ function tpQuali(watch) {
       const simmed = !watch || !!S.director?.simmed;
       tpStop();
       // (the hub's SIM QUALIFYING - RACE: no table to read - the strategy screen says where each car starts - straight on)
-      if (wk.autoRace) { const f = wk.autoRace; wk.autoRace = null; endSession(); $('quali-panel').classList.add('hidden'); runRace(); f(); return; }
-      (simmed ? (car, title, then) => then() : startFinale)(all[0].car, 'POLE POSITION', () => {
+      if (wk.autoRace) { const f = wk.autoRace; wk.autoRace = null; wk.shootout = false; endSession(); $('quali-panel').classList.add('hidden'); runRace(); f(); return; }
+      (simmed ? (car, title, then) => then() : startFinale)(all[0].car, wk.shootout ? 'SPRINT POLE' : 'POLE POSITION', () => {
         let html = '<table class="res"><tr><th>#</th><th>Driver</th><th>Time</th><th>Gap</th></tr>';
         all.forEach((e, i) => { html += `<tr class="${e.car.team === settings.tpTeam ? 'me' : ''}"><td>${i + 1}</td><td><span class="sw" style="background:${e.car.color}"></span>${htmlEsc(e.car.name)}</td><td>${fmtTime(e.time)}</td><td>${i === 0 ? '' : isFinite(e.time) ? '+' + (e.time - all[0].time).toFixed(3) : 'no time'}</td></tr>`; });
         $('quali-results').innerHTML = html + '</table>';
         const mine = all.map((e, i) => (e.car.team === settings.tpTeam ? `${surname(e.car.name)} P${i + 1}` : null)).filter(Boolean);
-        $('quali-info').textContent = `${settings.tpTeam}: ${mine.join(', ')}.${wk.qualiLines?.length ? ` ${wk.qualiLines.join(' ')}` : ''}${wk.penText || ''} The race next, from the pit wall.`;
+        if (!shootoutDone(all, `${settings.tpTeam} ${mine.join(', ')}`)) $('quali-info').textContent = `${settings.tpTeam}: ${mine.join(', ')}.${wk.qualiLines?.length ? ` ${wk.qualiLines.join(' ')}` : ''}${wk.penText || ''} The race next, from the pit wall.`;
         $('btn-quali-go').classList.add('hidden'); $('btn-practice').classList.add('hidden'); $('btn-quali-sim').classList.add('hidden'); $('btn-quali-done').classList.remove('hidden'); $('quali-panel').classList.remove('hidden');
         endSession();
       });

@@ -2308,12 +2308,17 @@ function briefingHTML(c, S, H) {
     ${calStrip(c)}</div>`;
 }
 /** the season's end: the champions, where you and your team finished against the board's target */
+/** the season's awards (career/Marks.js) as a row of small cards ('' without any); you: the player's id, marked */
+function awardsHTML(A, you) {
+  if (!A?.length) return '';
+  return `<div class="row" style="margin-top:10px;gap:8px;flex-wrap:wrap">${A.map((a) => `<div style="padding:7px 10px;border-radius:8px;background:rgba(255,212,0,${a.id === you ? '.22' : '.08'});border-left:3px solid #ffd400;min-width:150px"><small class="muted" style="letter-spacing:.12em;font-weight:700">${esc(a.title.toUpperCase())}</small><b style="display:block">${esc(a.name)}${a.id === you ? ' · YOU' : ''}</b><span class="muted">${esc(a.what || '')}</span></div>`).join('')}</div>`;
+}
 function reviewHTML(c, rv = c.seasonReview()) {
   const col = { delighted: '#1fae64', satisfied: '#3d7bd9', concerned: '#e39a1b', unhappy: '#e5484d' }[rv.verdict] || '#8a93a0';
   return `<div class="review"><small class="muted" style="letter-spacing:.14em;font-weight:700">SEASON ${rv.season} REVIEW</small>
       <div class="two" style="margin-top:8px"><div><span class="muted">Drivers' champion</span><b style="display:block;font-size:19px">${esc(rv.champion?.name || '-')}</b><span class="muted">${esc(rv.champion?.team || '')} · ${rv.champion?.points ?? 0} pts</span></div>
       <div><span class="muted">Constructors' champions</span><b style="display:block;font-size:19px">${esc(rv.constructor?.name || '-')}</b><span class="muted">${rv.constructor?.points ?? 0} pts</span></div></div>
-      <div class="row" style="margin-top:10px">${rv.team ? `<span class="verdict" style="background:${col}">${esc(rv.team)}'s board is ${rv.verdict}</span>` : ''}<span class="muted">You P${rv.youPos || '-'} with ${rv.youPts} pts${rv.team ? ` · ${esc(rv.team)} P${rv.teamPos}, the target was P${rv.target}` : ''}${rv.seat?.conf != null ? ` · management confidence ${rv.seat.conf}` : ''}</span></div></div>`;
+      <div class="row" style="margin-top:10px">${rv.team ? `<span class="verdict" style="background:${col}">${esc(rv.team)}'s board is ${rv.verdict}</span>` : ''}<span class="muted">You P${rv.youPos || '-'} with ${rv.youPts} pts${rv.team ? ` · ${esc(rv.team)} P${rv.teamPos}, the target was P${rv.target}` : ''}${rv.seat?.conf != null ? ` · management confidence ${rv.seat.conf}` : ''}</span></div>${awardsHTML(rv.awards, c.playerId)}</div>`;
 }
 /** RACE WEEK › Calendar: every round as a card; the chosen one in detail (who scored there, or the forecast and who is coming) */
 function calendarHTML(c, S, H) {

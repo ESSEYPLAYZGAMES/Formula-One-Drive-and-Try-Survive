@@ -13,6 +13,7 @@
 // team, a smaller one, may offer you a way back.
 import { ROSTER, RESERVES, F2, POINTS, PERF_GAIN, dayPerf } from '../race/Roster.js';
 import { rateRace } from '../race/Ratings.js';
+import { noteMarks, markMorale, seasonAwards, awardsLine } from './Marks.js';
 import { startLevels, techEffects, devTick, aiDevelopTeam, upgradeName, UP } from './TechTree.js';
 import { crewEnsure, crewRound, crewNewSeason, crewSalaries } from './ManagerCrew.js';
 import { peopleEnsure, peopleAfterRace, peopleSeasonEnd, raceEvent, onExtend, extendBlock, engineerFx, fatigueQ } from './ManagerPeople.js';
@@ -165,11 +166,14 @@ export class ManagerCareer {
     // pace where it was raced, the entries' where it was simulated
     { const exp = rows.every((r) => r.car.perf != null) ? null : (() => { const o = {}; [...this.entries()].sort((a, b) => b.perf - a.perf).forEach((e, i) => { o[e.careerId] = i + 1; }); return o; })();
       const marks = rateRace(rows, exp ? { exp } : {}); rep.ratings = []; this.lastRatings = { season: this.season, round: this.round, by: {} };
+      // (the marks kept - career/Marks.js: the season's average, the form, the Driver of the Day - and a mark's pride
+      //  or sting in the morale of your own two)
+      const dotd = noteMarks(this, marks, rows); rep.dotd = dotd; this.lastRatings.dotd = dotd;
       for (const r of rows) { const m = marks.get(r.car), d = this.drivers[r.car.careerId]; if (!m || !d) continue; this.lastRatings.by[d.id] = { score: m.score, why: m.why };
         if (m.d) d.rating = +clamp(d.rating + m.d, 0.6, 0.985).toFixed(4);
-        d.marks = [...(d.marks || []), m.score].filter((x) => x != null).slice(-10);
-        if (r.car.team === this.myTeam) rep.ratings.push({ id: d.id, name: d.name, score: m.score, why: m.why, d: m.d }); }
-      if (rep.ratings.length) this.addNews(`Driver ratings: ${rep.ratings.map((x) => `${x.name.split(' ').pop()} ${x.score ?? '-'}${x.why.length ? ` (${x.why.slice(0, 2).join(', ')})` : ''}`).join(' · ')}.`); }
+        if (r.car.team === this.myTeam) { rep.ratings.push({ id: d.id, name: d.name, score: m.score, why: m.why, d: m.d }); const mm = markMorale(m.score, dotd?.id === d.id); if (mm) d.morale = Math.round(clamp((d.morale ?? 60) + mm, 0, 100)); } }
+      if (rep.ratings.length) this.addNews(`Driver ratings: ${rep.ratings.map((x) => `${x.name.split(' ').pop()} ${x.score ?? '-'}${x.why.length ? ` (${x.why.slice(0, 2).join(', ')})` : ''}`).join(' · ')}.`);
+      if (dotd) this.addNews(`Driver of the Day: ${dotd.name}${dotd.team === this.myTeam ? ` - your driver` : ` (${dotd.team})`}${dotd.score != null ? `, rated ${dotd.score}` : ''}.`); }
     // the money: the commercial rights and a share by the points; the salaries; your sponsor's target and your staff
     for (const t of Object.values(this.teams)) {
       const inc = RACE_INCOME[t.tier] + (byTeam[t.name] || 0) * POINT_INCOME, wages = this.seatsOf(t.name).reduce((s, d) => s + (d.salary || 0), 0) / this.rounds;
@@ -309,6 +313,10 @@ export class ManagerCareer {
       this.offers = Object.values(this.teams).filter((t) => t.name !== this.myTeam && t.tier >= this.team.tier).sort(() => Math.random() - 0.5).slice(0, 2).map((t) => t.name);
     }
     rev.sponsorPaid = sponsorsSeasonEnd(this, rev.bpos ?? pos);
+    // the awards (career/Marks.js): from the season's marks; your own driver's a little morale and the board's notice
+    try { rev.awards = seasonAwards(this); const ln = awardsLine(this.season, rev.awards); if (ln) this.addNews(ln);
+      for (const a of rev.awards) { const d = this.drivers[a.id]; if (d && d.team === this.myTeam) { d.morale = Math.round(clamp((d.morale ?? 60) + 4, 0, 100)); this.board.conf = Math.round(clamp(this.board.conf + 1, 0, 100)); } }
+    } catch (e) { rev.awards = []; }
     peopleSeasonEnd(this);
     this.history.push(rev); this.review = rev;
     this.addNews(`Season ${this.season} is over: ${this.myTeam} P${pos} in the constructors' (the board's target P${tgt}). ${rev.champ} is champion, ${rev.champTeam} the constructors' champions.`);

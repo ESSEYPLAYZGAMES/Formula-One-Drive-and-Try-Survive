@@ -1,6 +1,6 @@
 // Race director: grid/lights/start protocol, fixed-step world simulation, car-car
 // collisions, slipstream, pit lane autopilot + stops, laps/penalties/classification.
-import { AIDriver } from '../ai/AIDriver.js';
+import { AIDriver, laneLoss } from '../ai/AIDriver.js';
 import { gridLayout } from '../track/TrackBuilder.js';
 import { CAR, PULSE, SPLIT_G } from '../vehicle/Car.js';
 import { Telemetry } from './Telemetry.js';
@@ -19,6 +19,10 @@ import { setTyreLap, lapLoss, outLapLoss, cliffLaps, RATE_NOM } from '../vehicle
 import { StrategyCalls } from './Calls.js';
 import { TeamOrders } from './TeamOrders.js';
 import { Weather, weatherPlan } from './Weather.js';
+// a stop's cost, s (measured: the lane's time against racing speed, uncongested, plus a second of slowing and getting going)
+const PIT_LOSS = { silverstone: 23, montreal: 25, austin: 18, lasvegas: 18.5 };
+/** what a stop costs at this circuit (s): PIT_LOSS, or a new circuit's from its lane as the cars drive it */
+export const pitLossAt = (id, pit, trackLength, lapT) => PIT_LOSS[id] ?? (pit && lapT ? (laneLoss(pit, trackLength, lapT) ?? 20) + 2 : 22);
 
 const SUB = 1 / 120;
 /** a driver's form when the car carries none (career/Morale.js FORM: every multiplier 1, every addition 0) */
@@ -118,9 +122,10 @@ export class RaceDirector {
       onAIError: (c, type, zone) => this.onAIError(c, type, zone),
       pit: this.pit || null,   // (the AI brakes for the pit lane's speed limit line before it gets there)
       calls: this.calls,
-      // (what a stop costs here - the lane at the limiter against the same stretch at racing speed, the stop and the
-      //  slowing and the getting going - and the reference lap: the AI's undercut sums, AIDriver)
-      lapT: this.lapT, pitLoss: this.pit && this.lapT ? Math.max(12, this.pit.samples.length / this.pit.limiter - this.pit.samples.length / (this.track.length / this.lapT) + 2.4 + 2.2) : 22,
+      // (what a stop costs here - the time in the lane against the same stretch at racing speed, the stop, the slowing
+      //  and the getting going: measured in the races, uncongested stops, at each circuit; a new one's from its lane as
+      //  the cars drive it - and the reference lap: the AI's undercut sums, AIDriver; the strategy screen; the pit wall)
+      lapT: this.lapT, pitLoss: pitLossAt(this.track.def?.id, this.pit, this.track.length, this.lapT),
       obstacles: o.obstacles || null,   // buildings and grandstands the cars can hit (world/Obstacles.js)
     };
     // the weather (race/Weather.js): rain that comes and goes, the track wet and drying stretch by stretch, the dry line,

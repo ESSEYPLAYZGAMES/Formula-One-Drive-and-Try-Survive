@@ -42,6 +42,20 @@ export function laneSpeeds(P) {
   return (P._speeds = { vIn, vOut });
 }
 
+/**
+ * What a stop costs on this lane (s): the lane driven as the cars drive it - braking in to the speed line, the limiter to
+ * the line out, away again at some 8 m/s2 - against the same distance at the lap's average speed, plus the car stood in
+ * its box and the slowing and getting going around it. Measured in the races (uncongested stops): Silverstone 22,
+ * Montreal 24, Austin 17.5, Las Vegas 17.5. -> null when the lane cannot be read
+ */
+export function laneLoss(P, trackLength, lapT) {
+  if (!P?.samples?.n || !(trackLength > 0) || !(lapT > 0)) return null;
+  const ps = P.samples, sp = laneSpeeds(P), lim = P.limiter; let t = 0;
+  for (let i = 0; i < ps.n; i++) { const u = i * ps.ds, v = u < P.limitFrom ? sp.vIn[i] : u <= P.limitTo ? lim : Math.min(sp.vOut[i], Math.sqrt(lim * lim + 16 * (u - P.limitTo))); t += ps.ds / Math.max(5, v); }
+  const loss = t - ps.length / (trackLength / lapT) + 2.6;
+  return isFinite(loss) ? Math.max(12, Math.min(40, loss)) : null;
+}
+
 /** Runtime-tunable AI constants (exposed on window.__F1.AI_TUNE for live balancing). */
 export const AI_TUNE = {
   // ---- driving the plan (the controller tuned against the car's physics)

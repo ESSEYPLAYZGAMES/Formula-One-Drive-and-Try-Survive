@@ -602,7 +602,7 @@ body.tp #hud-msg { top: 30%; }
     <div class="brand-line"></div>
     <h1 id="brand-title">FORMULA 1<span id="brand-sub">SIMULATOR</span></h1>
     <!-- the build's version: +0.01 with every build handed out -->
-    <span id="app-ver" title="Version">V2.83</span>
+    <span id="app-ver" title="Version">V2.84</span>
     <div id="menu-sub">Real circuits built from OpenStreetMap</div>
   </div>
   <div id="loading" class="hidden"><div class="ld"><i></i></div><span>Building the circuit from OpenStreetMap…</span></div>
@@ -148893,6 +148893,83 @@ const rateCol = (s) => (s == null ? '#8b95a3' : s >= 8 ? '#3ddc84' : s >= 6.5 ? 
 return { rateRace, rateCol };
 })();
 
+// ---- src/career/Marks.js
+__m['src/career/Marks.js'] = (() => {
+
+// What the marks (race/Ratings.js) do in a career, both of them (career/Manager.js, career/Career.js): each driver's
+// marks kept for the season - the average, the Drivers of the Day, the rating it began with - and his form (the last
+// five); the fans' Driver of the Day (main.js raceFacts: the vote, the marks in it; a simulated race: the best mark);
+// and at the season's end the awards: Driver of the Year (the best average), Rookie of the Year, the most Drivers of
+// the Day, the most improved (the rating's rise). The form is read by the contracts (career/Seasons.js contractAsk:
+// a run of 8s asks for more, a run of 4s for less), the rivals' market (who is kept, who is wanted: Seasons.js
+// marketRound, Market.js formOf) and the morale.
+
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+const ROOKIES = new Set(['Arvid Lindblad']);   // (the 2026 grid's rookie)
+
+/** a driver's form: the average of his last n marks (null: fewer than three) */
+function markForm(d, n = 5) {
+  const m = (d?.marks || []).filter((x) => x != null).slice(-n);
+  return m.length >= 3 ? m.reduce((a, b) => a + b, 0) / m.length : null;
+}
+/** a driver's average mark this season (null: fewer than two) */
+const seasonMark = (d, season) => (d?.ms && d.ms.s === season && d.ms.n >= 2 ? d.ms.sum / d.ms.n : null);
+/** the form as a price: a run of 8s asks some +10 %, a run of 4s some -12 % (1: no form yet) */
+const formPay = (d) => { const f = markForm(d); return f == null ? 1 : clamp(1 + (f - 6.3) * 0.06, 0.86, 1.14); };
+/** the form in words, for a contract's reasons ('' when there is nothing to say) */
+const formWhy = (d) => { const f = markForm(d); return f == null ? '' : f >= 7.5 ? `On a run of ${f.toFixed(1)}s: he knows his worth.` : f <= 5.2 ? `His marks are down (${f.toFixed(1)}): he asks for less.` : ''; };
+
+/**
+ * A race's marks into the career (C.drivers by careerId; marks: rateRace's Map; rows the classification - a row's
+ * car.dotd: the fans' vote, else the best mark is Driver of the Day). Each driver's marks and season kept; the Driver
+ * of the Day counted. -> { id, name, team, score, why } the Driver of the Day, or null
+ */
+function noteMarks(C, marks, rows) {
+  let best = null, voted = null; if (C.marksFrom == null) C.marksFrom = C.season;
+  for (const r of rows) {
+    const d = C.drivers?.[r.car.careerId], m = marks.get(r.car); if (!d) continue;
+    // (a rookie: in his first season of racing - the grid the career began with knows its own: Lindblad in 2026 - every
+    //  driver who first races later, in the season he first races)
+    if (d.debut == null) d.debut = C.season > C.marksFrom ? C.season : ROOKIES.has(d.name) ? C.season : 0;
+    if (!d.ms || d.ms.s !== C.season) d.ms = { s: C.season, sum: 0, n: 0, dotd: 0, r0: d.rating, rookie: d.debut === C.season };
+    if (m?.score != null) {
+      d.marks = [...(d.marks || []), m.score].slice(-10); d.ms.sum = Math.round((d.ms.sum + m.score) * 10) / 10; d.ms.n++;
+      if (!best || m.score > best.m.score || (m.score === best.m.score && r.pos < best.r.pos)) best = { d, m, r };
+    }
+    if (r.car.dotd) voted = { d, m, r };
+  }
+  const w = voted || best; if (!w) return null;
+  w.d.ms.dotd++; w.d.dotd = (w.d.dotd || 0) + 1;
+  return { id: w.d.id, name: w.d.name, team: w.r.car.team, score: w.m?.score ?? null, why: w.m?.why || [] };
+}
+
+/** the morale a mark is worth to the driver (0..100 scale): a 9 +4, an 8 +2, a 4.5 or less -3, Driver of the Day +2 */
+const markMorale = (score, dotd) => (score == null ? 0 : score >= 9 ? 4 : score >= 8 ? 2 : score <= 4.5 ? -3 : 0) + (dotd ? 2 : 0);
+
+/**
+ * The season's awards from the marks (C.drivers; teamOf(d): his team's name) -> [{ key, title, id, name, team, what }]
+ * (at least half the season's races rated for the Driver and the Rookie of the Year)
+ */
+function seasonAwards(C, teamOf = (d) => d.team) {
+  const S = C.season, all = Object.values(C.drivers || {}).filter((d) => d.ms?.s === S && d.ms.n > 0 && d.alive !== false);
+  const need = Math.max(2, Math.ceil((C.rounds || 4) / 2)), avg = (d) => d.ms.sum / d.ms.n, out = [];
+  const add = (key, title, d, what) => { if (d) out.push({ key, title, id: d.id, name: d.name, team: teamOf(d) || '', what }); };
+  const full = all.filter((d) => d.ms.n >= need).sort((a, b) => avg(b) - avg(a));
+  add('doty', 'Driver of the Year', full[0], full[0] && `${avg(full[0]).toFixed(1)} a race over ${full[0].ms.n}`);
+  const rk = full.filter((d) => d.ms.rookie);
+  add('rookie', 'Rookie of the Year', rk[0], rk[0] && `${avg(rk[0]).toFixed(1)} a race in his first season`);
+  const dd = [...all].sort((a, b) => b.ms.dotd - a.ms.dotd || avg(b) - avg(a))[0];
+  if (dd && dd.ms.dotd >= 2) add('fans', "The fans' favourite", dd, `Driver of the Day ${dd.ms.dotd} times`);
+  const up = [...all].filter((d) => d.ms.r0 != null).sort((a, b) => (b.rating - b.ms.r0) - (a.rating - a.ms.r0))[0];
+  if (up && up.rating - up.ms.r0 >= 0.004) add('improved', 'Most improved', up, `OVR ${Math.round(up.ms.r0 * 100)} to ${Math.round(up.rating * 100)}`);
+  return out;
+}
+/** the awards as one line of news */
+const awardsLine = (S, A) => (A.length ? `The ${S} awards: ${A.map((a) => `${a.title} - ${a.name} (${a.what})`).join('; ')}.` : '');
+
+return { markForm, seasonMark, formPay, formWhy, noteMarks, markMorale, seasonAwards, awardsLine };
+})();
+
 // ---- src/career/ManagerCrew.js
 __m['src/career/ManagerCrew.js'] = (() => {
 
@@ -150202,6 +150279,7 @@ return { PU, SPARES, allocOf, opsEnsure, puEffect, sparesPerf, fitNew, orderSpar
 // ---- src/career/Seasons.js
 __m['src/career/Seasons.js'] = (() => {
 const { UPGRADES, UP, startLevels, techEffects } = __m['src/career/TechTree.js'];
+const { markForm, formPay, formWhy } = __m['src/career/Marks.js'];
 // The years of a team principal's career (career/Manager.js calls in at each round, at the season's end and in the
 // winter): drivers who are born, grow to what they can be, hold it, fade and retire; rookies who come up to replace
 // them; your academy (prospects scouted, juniors raced up through F4, F3 and F2, promoted or lost); contracts that are
@@ -150210,6 +150288,7 @@ const { UPGRADES, UP, startLevels, techEffects } = __m['src/career/TechTree.js']
 // change every third season and send every team back to a new car (its place by how good the old one was, its
 // factory, the work it put in early, and luck); and the wide grid itself (t.gap: the gaps between the tiers that the
 // development tree alone does not make). Plain data on the career, saved with it.
+
 
 const r1 = (x) => Math.round(x * 10) / 10;
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
@@ -150279,8 +150358,9 @@ function contractAsk(c, d, years = 2) {
   if (d.next && d.next.team !== c.myTeam) return { no: `${d.name} has signed for ${d.next.team} for next season.` };
   if (!mine && !jr && d.rating >= 0.92 && ap < 0.3) return { no: `${d.name} will not join a team this far down the order.` };
   const k = (1.25 - 0.33 * ap) * (d.offer ? 1.15 : 1) * (mine ? 1 + (60 - (d.morale ?? 60)) * 0.004 : 1) * (years === 1 ? 0.97 : years === 3 ? (d.rating > 0.9 ? 1.07 : 0.97) : 1) * (jr ? 0.7 : 1);
-  const salary = r1(Math.max(0.4, ask0(d.rating) * k, mine ? d.salary * 1.04 : 0));
-  return { salary, fee: mine ? 0 : r1(salary * 0.5), why: `${d.offer ? `${d.offer.team} want him too. ` : ''}${ap < 0.4 ? 'Your place in the order costs you. ' : ap > 0.75 ? 'A front-running seat: he takes less. ' : ''}${jr ? 'Your own junior.' : ''}`.trim() };
+  // (his marks - career/Marks.js: a run of 8s and he knows his worth, a run of 4s and he asks for less)
+  const fp = formPay(d), salary = r1(Math.max(0.4, ask0(d.rating) * k * fp, mine ? d.salary * (fp < 0.95 ? 1 : 1.04) : 0));
+  return { salary, fee: mine ? 0 : r1(salary * 0.5), why: `${d.offer ? `${d.offer.team} want him too. ` : ''}${ap < 0.4 ? 'Your place in the order costs you. ' : ap > 0.75 ? 'A front-running seat: he takes less. ' : ''}${formWhy(d) ? `${formWhy(d)} ` : ''}${jr ? 'Your own junior.' : ''}`.trim() };
 }
 
 // ---- the market ----------------------------------------------------------------------------------------------------------
@@ -150297,11 +150377,13 @@ function marketRound(c) {
     for (const d of c.seatsOf(t.name)) {
       if (d.dec || (d.until > c.season && !d.retiring)) continue; if (rnd() > 0.45 && c.round < c.rounds) continue;
       d.dec = true; if (planned(c, t) >= 2 && !d.retiring) { d.renew = true; continue; }
-      const ap = appeal(c, t.name);
+      // (the marks: a driver on a run of poor ones is replaced by anyone about as good; the one in form is wanted more)
+      const ap = appeal(c, t.name), f = markForm(d), poor = f != null && f <= 5.0;
+      const want = (x) => x.rating + (x.pot - x.rating) * 0.4 + ((markForm(x) ?? 6.3) - 6.3) * 0.006;
       const cands = Object.values(c.drivers).filter((x) => !x.retired && !x.retiring && !x.next && x !== d && x.team !== t.name && (!x.team || x.until <= c.season) && !(x.academy === c.myTeam && !x.team && (x.hold ?? 0) >= c.season)
-        && x.rating > (d.retiring ? 0 : d.rating + 0.012) && (!x.team || appeal(c, x.team) < ap + 0.12)).sort((a, b) => (b.rating + (b.pot - b.rating) * 0.4) - (a.rating + (a.pot - a.rating) * 0.4));
+        && x.rating > (d.retiring ? 0 : d.rating + (poor ? -0.01 : 0.012)) && (!x.team || appeal(c, x.team) < ap + 0.12)).sort((a, b) => want(b) - want(a));
       const x = cands[0];
-      if (x && (d.retiring || rnd() < 0.62)) {
+      if (x && (d.retiring || rnd() < (poor ? 0.85 : 0.62))) {
         const deal = { team: t.name, salary: r1(ask0(x.rating) * 1.08), until: c.season + 1 + (rnd() < 0.5 ? 1 : 0) };
         if (x.team === c.myTeam) { x.offer = { ...deal, round: c.round }; out.push(`${t.name} have made ${x.name} an offer for next season: extend his contract or lose him.`); d.renew = true; d.until = Math.max(d.until, c.season); }   // (their man stays unless yours comes)
         else { x.next = deal; if (!d.retiring) d.out = true; out.push(`${t.name} sign ${x.name} for ${c.season + 1}${d.retiring ? '' : `: ${sur(d.name)} is out`}.`); }
@@ -150981,6 +151063,7 @@ return { mailEnsure, dueWords, mailUnread, mailNeeds, mailBadge, mailMarks, mail
 __m['src/career/Manager.js'] = (() => {
 const { ROSTER, RESERVES, F2, POINTS, PERF_GAIN, dayPerf } = __m['src/race/Roster.js'];
 const { rateRace } = __m['src/race/Ratings.js'];
+const { noteMarks, markMorale, seasonAwards, awardsLine } = __m['src/career/Marks.js'];
 const { startLevels, techEffects, devTick, aiDevelopTeam, upgradeName, UP } = __m['src/career/TechTree.js'];
 const { crewEnsure, crewRound, crewNewSeason, crewSalaries } = __m['src/career/ManagerCrew.js'];
 const { peopleEnsure, peopleAfterRace, peopleSeasonEnd, raceEvent, onExtend, extendBlock, engineerFx, fatigueQ } = __m['src/career/ManagerPeople.js'];
@@ -151003,6 +151086,7 @@ const { mailEnsure, mailRound, mailWinter, mailNewSeason } = __m['src/career/Man
 // board sets a target (a place in the constructors' championship, by what the team is) and watches: its confidence
 // moves with every result, and a season far short of the target with the board's patience gone is the end - another
 // team, a smaller one, may offer you a way back.
+
 
 
 
@@ -151156,11 +151240,14 @@ class ManagerCareer {
     // pace where it was raced, the entries' where it was simulated
     { const exp = rows.every((r) => r.car.perf != null) ? null : (() => { const o = {}; [...this.entries()].sort((a, b) => b.perf - a.perf).forEach((e, i) => { o[e.careerId] = i + 1; }); return o; })();
       const marks = rateRace(rows, exp ? { exp } : {}); rep.ratings = []; this.lastRatings = { season: this.season, round: this.round, by: {} };
+      // (the marks kept - career/Marks.js: the season's average, the form, the Driver of the Day - and a mark's pride
+      //  or sting in the morale of your own two)
+      const dotd = noteMarks(this, marks, rows); rep.dotd = dotd; this.lastRatings.dotd = dotd;
       for (const r of rows) { const m = marks.get(r.car), d = this.drivers[r.car.careerId]; if (!m || !d) continue; this.lastRatings.by[d.id] = { score: m.score, why: m.why };
         if (m.d) d.rating = +clamp(d.rating + m.d, 0.6, 0.985).toFixed(4);
-        d.marks = [...(d.marks || []), m.score].filter((x) => x != null).slice(-10);
-        if (r.car.team === this.myTeam) rep.ratings.push({ id: d.id, name: d.name, score: m.score, why: m.why, d: m.d }); }
-      if (rep.ratings.length) this.addNews(`Driver ratings: ${rep.ratings.map((x) => `${x.name.split(' ').pop()} ${x.score ?? '-'}${x.why.length ? ` (${x.why.slice(0, 2).join(', ')})` : ''}`).join(' · ')}.`); }
+        if (r.car.team === this.myTeam) { rep.ratings.push({ id: d.id, name: d.name, score: m.score, why: m.why, d: m.d }); const mm = markMorale(m.score, dotd?.id === d.id); if (mm) d.morale = Math.round(clamp((d.morale ?? 60) + mm, 0, 100)); } }
+      if (rep.ratings.length) this.addNews(`Driver ratings: ${rep.ratings.map((x) => `${x.name.split(' ').pop()} ${x.score ?? '-'}${x.why.length ? ` (${x.why.slice(0, 2).join(', ')})` : ''}`).join(' · ')}.`);
+      if (dotd) this.addNews(`Driver of the Day: ${dotd.name}${dotd.team === this.myTeam ? ` - your driver` : ` (${dotd.team})`}${dotd.score != null ? `, rated ${dotd.score}` : ''}.`); }
     // the money: the commercial rights and a share by the points; the salaries; your sponsor's target and your staff
     for (const t of Object.values(this.teams)) {
       const inc = RACE_INCOME[t.tier] + (byTeam[t.name] || 0) * POINT_INCOME, wages = this.seatsOf(t.name).reduce((s, d) => s + (d.salary || 0), 0) / this.rounds;
@@ -151300,6 +151387,10 @@ class ManagerCareer {
       this.offers = Object.values(this.teams).filter((t) => t.name !== this.myTeam && t.tier >= this.team.tier).sort(() => Math.random() - 0.5).slice(0, 2).map((t) => t.name);
     }
     rev.sponsorPaid = sponsorsSeasonEnd(this, rev.bpos ?? pos);
+    // the awards (career/Marks.js): from the season's marks; your own driver's a little morale and the board's notice
+    try { rev.awards = seasonAwards(this); const ln = awardsLine(this.season, rev.awards); if (ln) this.addNews(ln);
+      for (const a of rev.awards) { const d = this.drivers[a.id]; if (d && d.team === this.myTeam) { d.morale = Math.round(clamp((d.morale ?? 60) + 4, 0, 100)); this.board.conf = Math.round(clamp(this.board.conf + 1, 0, 100)); } }
+    } catch (e) { rev.awards = []; }
     peopleSeasonEnd(this);
     this.history.push(rev); this.review = rev;
     this.addNews(`Season ${this.season} is over: ${this.myTeam} P${pos} in the constructors' (the board's target P${tgt}). ${rev.champ} is champion, ${rev.champTeam} the constructors' champions.`);
@@ -154078,7 +154169,7 @@ function homeHTML(c) {
     <div style="max-width:56%">${ST.map((x) => kv(`${esc(x.brand)} wants`, `${esc(x.text)} · ${money(x.bonus)}`)).join('') || kv('Sponsors', 'none signed')}
     <div style="margin-top:8px">${chk(c.seatsReady(), 'Both seats filled', 'A seat is empty', 'drv', 'DRIVERS')}${chk(!short, 'Spares in stock', `${short} part${short === 1 ? '' : 's'} raced damaged`, 'parts', 'PARTS')}${chk(!worn, 'Power units healthy', `${worn} element${worn === 1 ? '' : 's'} worn out`, 'parts', 'PARTS')}${chk((t.dev || []).length > 0, `${(t.dev || []).length} part${(t.dev || []).length === 1 ? '' : 's'} in development`, 'The factory is idle', 'fac', 'FACTORY')}</div></div>`, { w: 5, cls: 'hero', scroll: false });
   const drv = panel('Your drivers', `<div class="q-duo">${D.map((d) => `<div class="q-dc"><div class="hd">${ring(d.rating)}<div style="min-width:0"><b>${esc(d.name)}</b><small>${d.points} pts · ${d.wins || 0} wins</small></div><span class="no">${d.number}</span></div>
-      <div>${kv('Morale', `${d.morale ?? 60}`)}${meter((d.morale ?? 60) / 100)}</div>${(() => { const m = c.lastRatings?.by?.[d.id], f = (d.marks || []).slice(-5), av = f.length ? f.reduce((x, y) => x + y, 0) / f.length : null; return m ? kv('Last race', `${m.score != null ? `${m.score}/10` : '-'}${av != null ? ` · form ${av.toFixed(1)}` : ''}`, m.score != null && m.score < 5 ? 'bad' : '') : ''; })()}${kv('Contract', `to ${d.until}`, d.until <= c.season ? 'bad' : '')}${kv('Salary', `${money(d.salary)}`)}</div>`).join('') || empty('No drivers.')}</div>`, { w: 4, scroll: false, act: '<button class="ghost" data-tab="drv">MANAGE</button>' });
+      <div>${kv('Morale', `${d.morale ?? 60}`)}${meter((d.morale ?? 60) / 100)}</div>${(() => { const m = c.lastRatings?.by?.[d.id], f = (d.marks || []).slice(-5), av = f.length ? f.reduce((x, y) => x + y, 0) / f.length : null; const ms = d.ms?.s === c.season && d.ms.n ? d.ms : null; return (m ? kv('Last race', `${m.score != null ? `${m.score}/10` : '-'}${av != null ? ` · form ${av.toFixed(1)}` : ''}${c.lastRatings?.dotd?.id === d.id ? ' · DotD' : ''}`, m.score != null && m.score < 5 ? 'bad' : '') : '') + (ms ? kv('Season', `${(ms.sum / ms.n).toFixed(1)} a race${ms.dotd ? ` · Driver of the Day ×${ms.dotd}` : ''}`) : ''); })()}${kv('Contract', `to ${d.until}`, d.until <= c.season ? 'bad' : '')}${kv('Salary', `${money(d.salary)}`)}</div>`).join('') || empty('No drivers.')}</div>`, { w: 4, scroll: false, act: '<button class="ghost" data-tab="drv">MANAGE</button>' });
   const fx = techEffects(t), best = Math.max(...Object.values(c.teams).map((x) => techEffects(x).perf)), gap = (best - fx.perf) * 90, P = partsCount(t);
   const car = panel('The car', `<div class="q-huge">${gap < 0.005 ? 'Fastest' : `+${gap.toFixed(2)}<small style="font-size:13px;color:var(--mute);margin-left:4px">s</small>`}</div><p class="q-fine" style="margin:3px 0 9px">${gap < 0.005 ? 'the quickest car on the grid' : 'a lap to the fastest car'}</p>
     ${kv('Parts', `${P.have} / ${P.total}`)}${meter(P.have / Math.max(1, P.total), 'var(--ac)')}
@@ -154095,7 +154186,7 @@ function reviewHTML(c) {
   const r = c.review || c.history[c.history.length - 1] || {};
   const head = r.verdict === 'sacked' ? '<div class="q-verdict bad">The board has let you go.</div>' : r.verdict === 'beaten' ? '<div class="q-verdict good">Target beaten.</div>' : r.verdict === 'met' ? '<div class="q-verdict good">Target met.</div>' : '<div class="q-verdict bad">Target missed.</div>';
   const offers = c.sacked ? `<h3 style="margin:14px 0 6px;font:800 10px/1 var(--f);letter-spacing:.2em;color:var(--dim)">OFFERS</h3>${c.offers.length ? `<p>Not everyone has given up on you.</p><div class="q-acts l">${c.offers.map((n) => `<button class="go" data-a="join" data-v="${esc(n)}">JOIN ${esc(n.toUpperCase())}</button>`).join('')}</div>` : empty('Nobody calls.')}<p><button data-a="erase">END THIS CAREER</button></p>` : '';
-  const rev = panel(`Season ${r.season} review`, `${head}${kv('Constructors\' championship', `P${r.pos} (target P${r.target})`)}${kv('Prize money', money(r.prize || 0), 'good')}${kv('Drivers\' champion', esc(r.champ || '-'))}${kv('Constructors\' champions', esc(r.champTeam || '-'))}${kv('Board confidence', `${c.board.conf}%`)}
+  const rev = panel(`Season ${r.season} review`, `${head}${kv('Constructors\' championship', `P${r.pos} (target P${r.target})`)}${kv('Prize money', money(r.prize || 0), 'good')}${kv('Drivers\' champion', esc(r.champ || '-'))}${kv('Constructors\' champions', esc(r.champTeam || '-'))}${kv('Board confidence', `${c.board.conf}%`)}${(r.awards || []).map((a) => kv(a.title, `${esc(a.name)}${a.team ? ` · ${esc(a.team)}` : ''} (${esc(a.what || '')})`, a.team === c.myTeam ? 'good' : '')).join('')}
     ${c.sacked ? '' : '<p class="q-fine">Contracts that end this season run out when the next one starts: extend the ones you want to keep (DRIVERS) before you start it.</p>'}${offers}`, { w: 4, cls: 'hero' });
   return `<div class="q-g">${rev}${conTable(c, 4)}${drvTable(c, 4)}</div>`;
 }
@@ -162336,6 +162427,7 @@ const { seatEnsure, makeOffer, repOf, agentText, clauseFor, kindOf, liveOffer } 
 const { goodwill, mateRoleFor } = __m['src/career/Say.js'];
 const { prEvent } = __m['src/career/PR.js'];
 const { ageOf } = __m['src/career/Party.js'];
+const { seasonMark } = __m['src/career/Marks.js'];
 // The driver market (a career's silly season): every driver's contract runs out some day, and every team decides. Four
 // moments a season:
 //
@@ -162359,6 +162451,7 @@ const { ageOf } = __m['src/career/Party.js'];
 //
 // Plain functions on the career's plain JSON (c.market, each driver's d.mk); the career's own methods do the signing
 // (Career.sign). Nothing here imports the career itself (the bundle has no cycles).
+
 
 
 
@@ -162403,7 +162496,9 @@ function marketRace(c, rows, exp) {
   }
 }
 /** a driver's form this season: places a race better (+) or worse (-) than his car and rating promised */
-const formOf = (d, season) => (d?.mk && d.mk.s === season && d.mk.n ? d.mk.g / d.mk.n : 0);
+//  - and his marks this season (career/Marks.js), half of it once he has two: a mark a point above the middle some
+//  1.6 places (the teams read the ratings too)
+const formOf = (d, season) => { const g = d?.mk && d.mk.s === season && d.mk.n ? d.mk.g / d.mk.n : 0, m = seasonMark(d, season); return m == null ? g : 0.5 * g + 0.5 * clamp((m - 6.3) * 1.6, -5, 5); };
 /** what a driver is worth to a team: his rating (0.80 = 0, a point = 1), his form this season (x 1.2, ±6), and the young a little more (+2) */
 const valueOf = (c, d) => (num(d.rating, 0.8) - 0.8) * 100 + clamp(formOf(d, c.season), -5, 5) * 1.2 + (young(c, d) ? 2 : 0);
 /** how much a young driver's promise is worth to a team, by its tier: the front-runners want the finished article, the backmarkers blood rookies */
@@ -163203,6 +163298,7 @@ const { ACADEMY_BY_ID, SEAT_RULES, kindOf, newSeat, seatEnsure, seatRace, seatBe
 const { requestOdds, requestUpgrade, requestTick, mateSay, talkAgree, talkWalk, mateRoleFor } = __m['src/career/Say.js'];
 const { marketEnsure, marketRace, marketRoundTick, marketSeasonEnd, marketNewSeason, seasonSay, precontractSigned, moveNow } = __m['src/career/Market.js'];
 const { statsEnsure, statsRace } = __m['src/career/Stats.js'];
+const { noteMarks, markMorale, seasonAwards, awardsLine } = __m['src/career/Marks.js'];
 // The championship career: you are a driver - never the owner. You begin as a rookie of your own making in one of the
 // real junior academies, take one of the seats it can open for you, and from then on hold a contract (a salary, the
 // years it runs, your standing in the garage) with a team that is not yours: its budget, its car and its development
@@ -163218,6 +163314,7 @@ const { statsEnsure, statsRace } = __m['src/career/Stats.js'];
 // right order, and the engines do the rest. You race as your driver until they die - a death is final. An AI driver
 // hurt in an accident misses the next round or two, and a driver who reaches twelve penalty points misses the next
 // one: a stand-in in their seat either way.
+
 
 
 
@@ -164004,10 +164101,14 @@ class Career {
     // the drivers develop: rated on the race (race/Ratings.js - against what the car could do, the passes, the spins,
     // the penalties, the team-mate), the rating moved by the mark; the young ones learning race by race
     const marks = rateRace(rows, rows.every((r) => r.car.perf != null) ? {} : { exp }); this.lastRatings = { season: S0, round: R0, by: {} };
+    // (the marks kept - career/Marks.js: the season's average, the form the market reads, the Driver of the Day: the
+    //  fans' vote in a raced race, the best mark in a simulated one)
+    { const dd = safe('noteMarks', () => noteMarks(this, marks, rows)); this.lastRatings.dotd = dd || null;
+      if (dd) { report.dotd = dd; if (dd.id !== this.playerId) this.addNews(`Driver of the Day: ${dd.name}${dd.score != null ? `, rated ${dd.score}` : ''}.`); }
+      const pm = marks.get(meRow?.car); if (pm?.score != null) { const mm = markMorale(pm.score, false); if (mm) safe('markMorale', () => shiftMorale(this, this.playerId, mm, pm.score >= 8 ? 'a race the ratings loved' : 'a race the ratings did not')); } }
     for (const r of rows) {
       const d = this.drivers[r.car.careerId]; if (!d || !d.alive) continue;
       const young = isYoung(d), m = marks.get(r.car); this.lastRatings.by[d.id] = { score: m?.score ?? null, why: m?.why || [] };
-      if (m?.score != null) d.marks = [...(d.marks || []), m.score].slice(-10);
       if (d.id === this.playerId) { report.mark = m?.score ?? null; report.markWhy = m?.why || []; }
       let dv = m?.score == null ? (young ? 0.0006 : -0.0004) : m.d + (young ? 0.0012 : 0.0002);
       dv = Math.round(dv * 10000) / 10000; d.rating = Math.max(0.6, Math.min(0.995, Math.round((d.rating + dv) * 10000) / 10000)); d.lastDelta = dv;
@@ -164209,7 +164310,7 @@ class Career {
     const team = this.teams[this.myTeam] || this.teams[S.firedFrom] || null, teamPos = team ? ts.indexOf(team) + 1 : 0, target = team ? BOARD_TARGET[team.tier] ?? 9 : 0;
     return { season: this.season, champion: ds[0] || null, constructor: ts[0] || null, youPos: me ? ds.indexOf(me) + 1 : null, youPts: me?.points ?? 0, team: team?.name || null,
       teamPos, target, prize: team ? PRIZE[teamPos - 1] ?? 1 : 0, verdict: !team ? null : teamPos < target ? 'delighted' : teamPos === target ? 'satisfied' : teamPos <= target + 2 ? 'concerned' : 'unhappy',
-      bonus: team ? (teamPos < target ? 5 : teamPos === target ? 2 : 0) : 0, expiring: [],
+      bonus: team ? (teamPos < target ? 5 : teamPos === target ? 2 : 0) : 0, expiring: [], awards: safe('seasonAwards', () => seasonAwards(this)) || [],
       seat: { status: S.status || 'free', verdict: S.verdict || null, conf: S.status === 'driver' ? Math.round(S.conf) : null, next: S.next || null, offers: (S.offers || []).length, label: S.status === 'driver' ? confLabel(S.conf, S.warn, S.tier).text : null } };
   }
   /**
@@ -164225,6 +164326,7 @@ class Career {
     safe('prSeasonEnd', () => prSeasonEnd(this, rv));
     const order = this.teamStandings();
     for (const t of Object.values(this.teams)) { const i = order.indexOf(t), tg = BOARD_TARGET[t.tier] ?? 9; t.budget = Math.round((t.budget + (PRIZE[i] ?? 1) + (i + 1 < tg ? 5 : i + 1 === tg ? 2 : 0)) * 10) / 10; }
+    { const ln = awardsLine(rv.season, rv.awards || []); if (ln) this.addNews(ln); }
     if (rv.team) this.addNews(`${rv.team} finished P${rv.teamPos} (the board wanted P${rv.target}): $${rv.prize}M in prize money${rv.bonus ? `, $${rv.bonus}M bonus from a ${rv.verdict} board` : `, the board ${rv.verdict}`}.`);
     // (the drivers over the winter: the young ones step up, everyone else a little either way; morale halfway back to normal)
     for (const d of Object.values(this.drivers)) if (d.alive) {
@@ -188912,12 +189014,17 @@ function briefingHTML(c, S, H) {
     ${calStrip(c)}</div>`;
 }
 /** the season's end: the champions, where you and your team finished against the board's target */
+/** the season's awards (career/Marks.js) as a row of small cards ('' without any); you: the player's id, marked */
+function awardsHTML(A, you) {
+  if (!A?.length) return '';
+  return `<div class="row" style="margin-top:10px;gap:8px;flex-wrap:wrap">${A.map((a) => `<div style="padding:7px 10px;border-radius:8px;background:rgba(255,212,0,${a.id === you ? '.22' : '.08'});border-left:3px solid #ffd400;min-width:150px"><small class="muted" style="letter-spacing:.12em;font-weight:700">${esc(a.title.toUpperCase())}</small><b style="display:block">${esc(a.name)}${a.id === you ? ' · YOU' : ''}</b><span class="muted">${esc(a.what || '')}</span></div>`).join('')}</div>`;
+}
 function reviewHTML(c, rv = c.seasonReview()) {
   const col = { delighted: '#1fae64', satisfied: '#3d7bd9', concerned: '#e39a1b', unhappy: '#e5484d' }[rv.verdict] || '#8a93a0';
   return `<div class="review"><small class="muted" style="letter-spacing:.14em;font-weight:700">SEASON ${rv.season} REVIEW</small>
       <div class="two" style="margin-top:8px"><div><span class="muted">Drivers' champion</span><b style="display:block;font-size:19px">${esc(rv.champion?.name || '-')}</b><span class="muted">${esc(rv.champion?.team || '')} · ${rv.champion?.points ?? 0} pts</span></div>
       <div><span class="muted">Constructors' champions</span><b style="display:block;font-size:19px">${esc(rv.constructor?.name || '-')}</b><span class="muted">${rv.constructor?.points ?? 0} pts</span></div></div>
-      <div class="row" style="margin-top:10px">${rv.team ? `<span class="verdict" style="background:${col}">${esc(rv.team)}'s board is ${rv.verdict}</span>` : ''}<span class="muted">You P${rv.youPos || '-'} with ${rv.youPts} pts${rv.team ? ` · ${esc(rv.team)} P${rv.teamPos}, the target was P${rv.target}` : ''}${rv.seat?.conf != null ? ` · management confidence ${rv.seat.conf}` : ''}</span></div></div>`;
+      <div class="row" style="margin-top:10px">${rv.team ? `<span class="verdict" style="background:${col}">${esc(rv.team)}'s board is ${rv.verdict}</span>` : ''}<span class="muted">You P${rv.youPos || '-'} with ${rv.youPts} pts${rv.team ? ` · ${esc(rv.team)} P${rv.teamPos}, the target was P${rv.target}` : ''}${rv.seat?.conf != null ? ` · management confidence ${rv.seat.conf}` : ''}</span></div>${awardsHTML(rv.awards, c.playerId)}</div>`;
 }
 /** RACE WEEK › Calendar: every round as a card; the chosen one in detail (who scored there, or the forecast and who is coming) */
 function calendarHTML(c, S, H) {
@@ -191973,6 +192080,20 @@ function laneSpeeds(P) {
   return (P._speeds = { vIn, vOut });
 }
 
+/**
+ * What a stop costs on this lane (s): the lane driven as the cars drive it - braking in to the speed line, the limiter to
+ * the line out, away again at some 8 m/s2 - against the same distance at the lap's average speed, plus the car stood in
+ * its box and the slowing and getting going around it. Measured in the races (uncongested stops): Silverstone 22,
+ * Montreal 24, Austin 17.5, Las Vegas 17.5. -> null when the lane cannot be read
+ */
+function laneLoss(P, trackLength, lapT) {
+  if (!P?.samples?.n || !(trackLength > 0) || !(lapT > 0)) return null;
+  const ps = P.samples, sp = laneSpeeds(P), lim = P.limiter; let t = 0;
+  for (let i = 0; i < ps.n; i++) { const u = i * ps.ds, v = u < P.limitFrom ? sp.vIn[i] : u <= P.limitTo ? lim : Math.min(sp.vOut[i], Math.sqrt(lim * lim + 16 * (u - P.limitTo))); t += ps.ds / Math.max(5, v); }
+  const loss = t - ps.length / (trackLength / lapT) + 2.6;
+  return isFinite(loss) ? Math.max(12, Math.min(40, loss)) : null;
+}
+
 /** Runtime-tunable AI constants (exposed on window.__F1.AI_TUNE for live balancing). */
 const AI_TUNE = {
   // ---- driving the plan (the controller tuned against the car's physics)
@@ -192943,7 +193064,7 @@ class AIDriver {
   }
 }
 
-return { laneSpeeds, AI_TUNE, AIDriver };
+return { laneSpeeds, laneLoss, AI_TUNE, AIDriver };
 })();
 
 // ---- src/race/Telemetry.js
@@ -195436,7 +195557,7 @@ return { WX_LABEL, weatherPlan, nameWetness, Weather };
 
 // ---- src/race/RaceDirector.js
 __m['src/race/RaceDirector.js'] = (() => {
-const { AIDriver } = __m['src/ai/AIDriver.js'];
+const { AIDriver, laneLoss } = __m['src/ai/AIDriver.js'];
 const { gridLayout } = __m['src/track/TrackBuilder.js'];
 const { CAR, PULSE, SPLIT_G } = __m['src/vehicle/Car.js'];
 const { Telemetry } = __m['src/race/Telemetry.js'];
@@ -195475,6 +195596,11 @@ const { Weather, weatherPlan } = __m['src/race/Weather.js'];
 
 
 
+
+// a stop's cost, s (measured: the lane's time against racing speed, uncongested, plus a second of slowing and getting going)
+const PIT_LOSS = { silverstone: 23, montreal: 25, austin: 18, lasvegas: 18.5 };
+/** what a stop costs at this circuit (s): PIT_LOSS, or a new circuit's from its lane as the cars drive it */
+const pitLossAt = (id, pit, trackLength, lapT) => PIT_LOSS[id] ?? (pit && lapT ? (laneLoss(pit, trackLength, lapT) ?? 20) + 2 : 22);
 
 const SUB = 1 / 120;
 /** a driver's form when the car carries none (career/Morale.js FORM: every multiplier 1, every addition 0) */
@@ -195574,9 +195700,10 @@ class RaceDirector {
       onAIError: (c, type, zone) => this.onAIError(c, type, zone),
       pit: this.pit || null,   // (the AI brakes for the pit lane's speed limit line before it gets there)
       calls: this.calls,
-      // (what a stop costs here - the lane at the limiter against the same stretch at racing speed, the stop and the
-      //  slowing and the getting going - and the reference lap: the AI's undercut sums, AIDriver)
-      lapT: this.lapT, pitLoss: this.pit && this.lapT ? Math.max(12, this.pit.samples.length / this.pit.limiter - this.pit.samples.length / (this.track.length / this.lapT) + 2.4 + 2.2) : 22,
+      // (what a stop costs here - the time in the lane against the same stretch at racing speed, the stop, the slowing
+      //  and the getting going: measured in the races, uncongested stops, at each circuit; a new one's from its lane as
+      //  the cars drive it - and the reference lap: the AI's undercut sums, AIDriver; the strategy screen; the pit wall)
+      lapT: this.lapT, pitLoss: pitLossAt(this.track.def?.id, this.pit, this.track.length, this.lapT),
       obstacles: o.obstacles || null,   // buildings and grandstands the cars can hit (world/Obstacles.js)
     };
     // the weather (race/Weather.js): rain that comes and goes, the track wet and drying stretch by stretch, the dry line,
@@ -196746,7 +196873,7 @@ class RaceDirector {
 
 function fmt(t) { if (!isFinite(t) || t <= 0) return '--'; const m = Math.floor(t / 60), s = t - m * 60; return `${m}:${s.toFixed(3).padStart(6, '0')}`; }
 
-return { RaceDirector };
+return { pitLossAt, RaceDirector };
 })();
 
 // ---- src/ui/HUD.js
@@ -199245,8 +199372,8 @@ const { showPlayStats } = __m['src/ui/StatsScreen.js'];
 const People = __m['src/world/People.js'];
 const BrawlMod = __m['src/ui/Brawl.js'];
 const { makeHelmet, bloodPool } = __m['src/world/People.js'];
-const { RaceDirector } = __m['src/race/RaceDirector.js'];
-const { AIDriver, AI_TUNE, laneSpeeds } = __m['src/ai/AIDriver.js'];
+const { RaceDirector, pitLossAt } = __m['src/race/RaceDirector.js'];
+const { AIDriver, AI_TUNE } = __m['src/ai/AIDriver.js'];
 const { AI_CAL, applyCalibration } = __m['src/ai/Calibration.js'];
 const { HUD, fmtTime } = __m['src/ui/HUD.js'];
 const { TelemetryView } = __m['src/ui/TelemetryView.js'];
@@ -201284,9 +201411,24 @@ function sprintPanel() {
   const mine = wk.mode === 'tp' ? tpCars(wk.cars) : [wk.player].filter(Boolean);
   $('quali-results').innerHTML = '';
   $('quali-info').textContent = `SPRINT WEEKEND · Round ${(wk.career || wk.mgr)?.round ?? wk.round}/${(wk.career || wk.mgr)?.rounds ?? wk.rounds} · ${W.track.def.name} · the sprint first: ${wk.lapsTotal} laps, no stop, points ${SPRINT_PTS.join('-')} · from the sprint shoot-out: ${mine.map((c) => `${c.name.split(' ').pop()} P${wk.gridOrder.indexOf(c) + 1}`).join(', ')}. Then qualifying and the Grand Prix.`;
-  for (const id of ['btn-practice', 'btn-quali-go', 'btn-quali-sim']) $(id).classList.add('hidden');
-  const b = $('btn-quali-done'); b.classList.remove('hidden'); b.firstChild.textContent = 'RACE THE SPRINT'; b.dataset.sprint = '1';
+  const b = $('btn-quali-done'); b.firstChild.textContent = 'RACE THE SPRINT'; b.dataset.sprint = '1';
+  // (the sprint shoot-out: a qualifying of its own - driven, watched or simulated - its grid the sprint's, not the Grand
+  //  Prix's: no pole counted, nothing saved, no grid penalty served. A race without qualifying: the seeded grid above)
+  const shoot = wk.mode === 'tp' || (settings.grid === 'quali' && !!wk.player); wk.shootout = shoot;
+  $('btn-practice').classList.add('hidden');
+  if (shoot) {
+    $('btn-quali-go').classList.remove('hidden'); $('btn-quali-go').firstChild.textContent = wk.mode === 'tp' ? 'WATCH THE SHOOT-OUT' : 'SPRINT SHOOT-OUT';
+    $('btn-quali-sim').classList.remove('hidden'); $('btn-quali-sim').textContent = 'SIMULATE THE SHOOT-OUT'; b.classList.add('hidden');
+    $('quali-info').textContent = `SPRINT WEEKEND · Round ${C?.round ?? wk.round}/${C?.rounds ?? wk.rounds} · ${W.track.def.name} · Saturday: the sprint shoot-out, then the sprint - ${wk.lapsTotal} laps, no stop, points ${SPRINT_PTS.join('-')}. Qualifying and the Grand Prix after it.`;
+  } else { $('btn-quali-go').classList.add('hidden'); $('btn-quali-sim').classList.add('hidden'); b.classList.remove('hidden'); }
   $('quali-panel').classList.remove('hidden');
+}
+/** the sprint shoot-out over (runQuali / tpQuali): its grid stands for the sprint; the panel says so -> true when it was one */
+function shootoutDone(all, mineText) {
+  const wk = S.weekend; if (!wk?.shootout) return false; wk.shootout = false;
+  $('quali-info').textContent = `Sprint shoot-out: ${mineText}. The sprint next: ${wk.lapsTotal} laps, no stop.`;
+  const b = $('btn-quali-done'); b.firstChild.textContent = 'RACE THE SPRINT'; b.dataset.sprint = '1';
+  return true;
 }
 function startRound() {
   const wk = S.weekend; strings(false); NEWS.cancelled = false;
@@ -201321,7 +201463,7 @@ function startRound() {
     $('quali-info').textContent = `${W.track.def.name} · ${WX_LABEL[settings.weather] || 'Dry'}, ${settings.time === 'night' ? 'night' : 'day'}. You run ${settings.tpTeam}: practice first - set the cars up - then qualifying, two timed laps each, the best counts. Watch it on the feed, or simulate it.${tpSetupLine()}`;
     $('quali-results').innerHTML = ''; $('quali-panel').classList.remove('hidden');
   } else if (settings.grid === 'quali' && wk.player) {
-    $('btn-quali-go').firstChild.textContent = 'QUALIFY';   // (the team principal's weekend names it WATCH)
+    $('btn-quali-go').firstChild.textContent = 'QUALIFY'; $('btn-quali-sim').textContent = 'SIMULATE QUALIFYING';   // (the team principal's weekend names it WATCH; a sprint's shoot-out its own)
     $('btn-practice').classList.remove('hidden'); $('btn-practice').textContent = 'FREE PRACTICE'; $('btn-quali-sim').classList.remove('hidden');
     const cond = `${WX_LABEL[settings.weather] || 'Dry'}${wk.career ? ' forecast' : ''}, ${settings.time === 'night' ? 'night' : 'day'}`;
     $('quali-info').textContent = `Round ${wk.round}/${wk.rounds} · ${W.track.def.name} · ${cond}. Qualifying: the whole field is out with you on flying laps, two timed laps each, the best counts. You start on a straight. When your laps are done, watch the rest (Tab: next car, Enter: ×6) or press F to simulate it. Expected pace: ${fmtTime(estimatePace())}`;
@@ -201453,7 +201595,7 @@ function runQuali() {
     onFinish: () => {
       const all = wk.cars.map((c) => ({ car: c, time: c.bestLap })).sort((a, b) => a.time - b.time);
       const pt = wk.player.bestLap, names = all.map((e) => e.car.name);
-      if (wk.career) {
+      if (wk.career && !wk.shootout) {
         wk.qTrophies = wk.career.recordQuali(all.map((e) => e.car.careerId));   // (poles, the head-to-head, the qualifying objective)
         // (your time at the wheel and your best lap driven, for the stats book - career/Stats.js; saved with the grid below)
         Stats.statsSession(wk.career, S.director, 'quali', W.def.id);
@@ -201464,11 +201606,12 @@ function runQuali() {
       wk.cars = buildField(wk.lapsTotal); wk.player = wk.cars.find((c) => c.isPlayer) || null;
       wk.gridOrder = names.map((n) => wk.cars.find((c) => c.name === n)).filter(Boolean);
       for (const c of wk.cars) if (!wk.gridOrder.includes(c)) wk.gridOrder.push(c);
-      (S.director?.simAll ? (car, title, then) => then() : startFinale)(all[0].car, 'POLE POSITION', () => {
+      (S.director?.simAll ? (car, title, then) => then() : startFinale)(all[0].car, wk.shootout ? 'SPRINT POLE' : 'POLE POSITION', () => {
         let html = '<table class="res"><tr><th>#</th><th>Driver</th><th>Time</th><th>Gap</th></tr>';
         all.forEach((e, i) => { html += `<tr class="${e.car.isPlayer ? 'me' : ''}"><td>${i + 1}</td><td><span class="sw" style="background:${e.car.color}"></span>${e.car.name}</td><td>${fmtTime(e.time)}</td><td>${i === 0 ? '' : isFinite(e.time) ? '+' + (e.time - all[0].time).toFixed(3) : 'no time'}</td></tr>`; });
         $('quali-results').innerHTML = html + '</table>';
-        $('quali-info').textContent = isFinite(pt) ? `You qualified P${all.findIndex((e) => e.car.isPlayer) + 1}` : 'No time set · you start from the back';
+        const qTxt = isFinite(pt) ? `You qualified P${all.findIndex((e) => e.car.isPlayer) + 1}` : 'No time set · you start from the back';
+        if (!shootoutDone(all, qTxt.replace('You qualified', 'you start the sprint').replace('you start from the back', 'from the back'))) $('quali-info').textContent = qTxt;
         $('btn-quali-go').classList.add('hidden'); $('btn-practice').classList.add('hidden'); $('btn-quali-sim').classList.add('hidden'); $('btn-quali-done').classList.remove('hidden'); $('quali-panel').classList.remove('hidden');
         endSession();
       });
@@ -201487,7 +201630,7 @@ function runRace() {
   if (S.choosing) return; S.choosing = true;   // (one strategy screen: a second press of the button opens no second one)
   $('quali-panel').classList.add('hidden');
   const P = W.pit, pace = estimatePace(), L = W.track.length;
-  const laneLen = P ? P.samples.length : 400, pitLoss = P ? Math.max(12, laneLen / P.limiter - laneLen / (L / pace) + 2.4 + 2.2) : 22;
+  const pitLoss = pitLossAt(W.track.def?.id, P, L, pace);
   const gi = wk.gridOrder ? wk.gridOrder.indexOf(p) + 1 : 0;
   showStrategy({ laps: wk.lapsTotal, trackName: W.track.def.name, trackLength: L, pace, pitLoss, wet: wk.wet, forecast: forecastLine(wk, pace), night: W.time === 'night', field: wk.cars.filter((c) => c !== p).map((c) => c.tyres.compound), gridPos: gi > 0 ? gi : null,
     onDone: (plan) => {
@@ -201623,8 +201766,9 @@ function raceFacts(d, rows) {
   if (!d || d.mode !== 'race') return null;
   const fin = rows.filter((r) => !r.car.retired), fl = rows.filter((r) => isFinite(r.car.bestLap)).sort((a, b) => a.car.bestLap - b.car.bestLap)[0];
   const gain = (r) => (r.car.gridPos || r.pos) - r.pos;
-  const score = (r) => (r.car.retired ? -6 : 0) + 2.2 * gain(r) + 1.4 * (r.car.overtakes || 0) + 7 * (1 - (r.car.rating ?? 0.9)) * Math.max(0, 12 - r.pos) / 6 + (r.pos === 1 ? 5 : r.pos <= 3 ? 2 : 0) + (r === fl ? 2 : 0) + Math.random() * 3;
+  const score = (r) => (r.car.retired ? -6 : 0) + 2.2 * gain(r) + 1.4 * (r.car.overtakes || 0) + 7 * (1 - (r.car.rating ?? 0.9)) * Math.max(0, 12 - r.pos) / 6 + (r.pos === 1 ? 5 : r.pos <= 3 ? 2 : 0) + (r === fl ? 2 : 0) + (r.rtg != null ? (r.rtg - 6.3) * 1.6 : 0) + Math.random() * 3;   // (rtg: the mark, race/Ratings.js - the fans see what the ratings see)
   const ranked = rows.map((r) => ({ r, s: score(r) })).sort((a, b) => b.s - a.s).slice(0, 5);
+  for (const r of rows) r.car.dotd = false; if (ranked[0]) ranked[0].r.car.dotd = true;   // (the vote's winner: the careers count it - career/Marks.js)
   const w = ranked.map((x) => Math.exp((x.s - ranked[0].s) / 3)), W = w.reduce((a, b) => a + b, 0);
   const dotd = ranked.map((x, i) => ({ name: x.r.name, color: x.r.color, me: x.r.me, pct: Math.round(100 * w[i] / W), why: gain(x.r) > 2 ? `P${x.r.car.gridPos} to P${x.r.pos}` : x.r.pos === 1 ? 'the win' : (x.r.car.overtakes || 0) >= 3 ? `${x.r.car.overtakes} overtakes` : `P${x.r.pos}` }));
   const climber = [...fin].sort((a, b) => gain(b) - gain(a))[0], passer = [...rows].sort((a, b) => (b.car.overtakes || 0) - (a.car.overtakes || 0))[0];
@@ -201741,7 +201885,7 @@ function tpAct(a, x, y, z) {
   } else if (a === 'replan') {
     // (the rest of the race worked out again - race/TeamStrategy.js: the options offered one after another)
     if (d.mode !== 'race' || !d.world.racing || x.retired || x.finished) return;
-    const P0 = W.pit, pace = estimatePace(), laneLen = P0 ? P0.samples.length : 400, pitLoss = d.world.pitLoss || (P0 ? Math.max(12, laneLen / P0.limiter - laneLen / (W.track.length / pace) + 4.6) : 22);
+    const pitLoss = d.world.pitLoss || pitLossAt(W.track.def?.id, W.pit, W.track.length, estimatePace());
     const opts = replan({ car: x, d, sets: tpSetsOf(x), pitLoss, mustStop: d.lapsTotal >= 8 && x.pitStops === 0 && !x.usedRain && !d.weather?.everWet });
     if (!opts.length) { wall.radio('Strategy', `${sur(x)}: nothing to plan from here.`); return; }
     wall.radio('Strategy', `${sur(x)}: ${opts.map((p, i) => `${'ABC'[i]} ${p.label}${i ? ` (+${p.delta.toFixed(1)} s)` : ''}`).join(' · ')}.`);
@@ -202691,18 +202835,8 @@ function tpCamera(dt) {
  * Every half second. -> { text, warn, ghost: { x, z, color } } | null
  */
 const RJ = new Map();
-// (what a stop costs here: the lane driven as the cars drive it - braking in to the speed line, the limiter to the line
-//  out, then away again at some 8 m/s2 - against the same distance at the lap's average speed, and the car stood in its
-//  box; the director's own figure - the whole lane at the limiter - only when the lane cannot be read)
-function tpLaneLoss(d, lapT) {
-  const P = d.pit || W.pit; if (!P?.samples?.n) return d.world.pitLoss || 22;
-  try {
-    const ps = P.samples, sp = laneSpeeds(P), lim = P.limiter; let t = 0;
-    for (let i = 0; i < ps.n; i++) { const u = i * ps.ds, v = u < P.limitFrom ? sp.vIn[i] : u <= P.limitTo ? lim : Math.min(sp.vOut[i], Math.sqrt(lim * lim + 16 * (u - P.limitTo))); t += ps.ds / Math.max(5, v); }
-    const loss = t - ps.length / (d.track.length / Math.max(30, lapT)) + 2.6;
-    return isFinite(loss) ? Math.max(12, Math.min(d.world.pitLoss || 40, loss)) : (d.world.pitLoss || 22);
-  } catch (e) { return d.world.pitLoss || 22; }
-}
+// (what a stop costs here: the director's own figure - race/RaceDirector.js PIT_LOSS)
+const tpLaneLoss = (d) => d.world.pitLoss || 22;
 function tpRejoin(c) {
   const d = S.director; if (!d || d.mode !== 'race' || !d.world.racing || d.leaderFinished || !c || c.retired || c.finished || c.pitLane || c.inPit) return null;
   const now = performance.now(), k = RJ.get(c); if (k && now - k.at < 500 && k.d === d) return k.r;
@@ -202992,7 +203126,7 @@ function tpStrategy() {
   const wk = S.weekend; if (S.choosing) return; S.choosing = true;
   $('quali-panel').classList.add('hidden');
   const mine = tpCars(wk.cars), P = W.pit, pace = estimatePace(), L = W.track.length;
-  const laneLen = P ? P.samples.length : 400, pitLoss = P ? Math.max(12, laneLen / P.limiter - laneLen / (L / pace) + 2.4 + 2.2) : 22;
+  const pitLoss = pitLossAt(W.track.def?.id, P, L, pace);
   const one = (i) => {
     const car = mine[i]; if (!car) { S.choosing = false; beginRace(); return; }
     const gi = wk.gridOrder ? wk.gridOrder.indexOf(car) + 1 : 0;
@@ -203096,7 +203230,7 @@ function tpQuali(watch) {
       for (const c of wk.cars) if (!wk.gridOrder.includes(c)) wk.gridOrder.push(c);
       // (the team principal's career: grid penalties for power-unit elements beyond the allocation - every car back as
       //  many places as it was given, from where it qualified)
-      const pen = wk.mgr ? takePenalties(wk.mgr) : new Map(); wk.penText = '';
+      const pen = wk.mgr && !wk.shootout ? takePenalties(wk.mgr) : new Map(); wk.penText = '';   // (served on the Grand Prix's grid, not the sprint's)
       if (pen.size) {
         const key = (c, i) => i + (pen.get(c.name) || 0) + (pen.has(c.name) ? 0.5 : 0);
         wk.gridOrder = wk.gridOrder.map((c, i) => ({ c, k: key(c, i) })).sort((a, b) => a.k - b.k).map((x) => x.c);
@@ -203105,13 +203239,13 @@ function tpQuali(watch) {
       const simmed = !watch || !!S.director?.simmed;
       tpStop();
       // (the hub's SIM QUALIFYING - RACE: no table to read - the strategy screen says where each car starts - straight on)
-      if (wk.autoRace) { const f = wk.autoRace; wk.autoRace = null; endSession(); $('quali-panel').classList.add('hidden'); runRace(); f(); return; }
-      (simmed ? (car, title, then) => then() : startFinale)(all[0].car, 'POLE POSITION', () => {
+      if (wk.autoRace) { const f = wk.autoRace; wk.autoRace = null; wk.shootout = false; endSession(); $('quali-panel').classList.add('hidden'); runRace(); f(); return; }
+      (simmed ? (car, title, then) => then() : startFinale)(all[0].car, wk.shootout ? 'SPRINT POLE' : 'POLE POSITION', () => {
         let html = '<table class="res"><tr><th>#</th><th>Driver</th><th>Time</th><th>Gap</th></tr>';
         all.forEach((e, i) => { html += `<tr class="${e.car.team === settings.tpTeam ? 'me' : ''}"><td>${i + 1}</td><td><span class="sw" style="background:${e.car.color}"></span>${htmlEsc(e.car.name)}</td><td>${fmtTime(e.time)}</td><td>${i === 0 ? '' : isFinite(e.time) ? '+' + (e.time - all[0].time).toFixed(3) : 'no time'}</td></tr>`; });
         $('quali-results').innerHTML = html + '</table>';
         const mine = all.map((e, i) => (e.car.team === settings.tpTeam ? `${surname(e.car.name)} P${i + 1}` : null)).filter(Boolean);
-        $('quali-info').textContent = `${settings.tpTeam}: ${mine.join(', ')}.${wk.qualiLines?.length ? ` ${wk.qualiLines.join(' ')}` : ''}${wk.penText || ''} The race next, from the pit wall.`;
+        if (!shootoutDone(all, `${settings.tpTeam} ${mine.join(', ')}`)) $('quali-info').textContent = `${settings.tpTeam}: ${mine.join(', ')}.${wk.qualiLines?.length ? ` ${wk.qualiLines.join(' ')}` : ''}${wk.penText || ''} The race next, from the pit wall.`;
         $('btn-quali-go').classList.add('hidden'); $('btn-practice').classList.add('hidden'); $('btn-quali-sim').classList.add('hidden'); $('btn-quali-done').classList.remove('hidden'); $('quali-panel').classList.remove('hidden');
         endSession();
       });

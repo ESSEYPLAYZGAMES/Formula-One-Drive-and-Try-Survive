@@ -7,6 +7,7 @@
 // factory, the work it put in early, and luck); and the wide grid itself (t.gap: the gaps between the tiers that the
 // development tree alone does not make). Plain data on the career, saved with it.
 import { UPGRADES, UP, startLevels, techEffects } from './TechTree.js';
+import { markForm, formPay, formWhy } from './Marks.js';
 
 const r1 = (x) => Math.round(x * 10) / 10;
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
@@ -76,8 +77,9 @@ export function contractAsk(c, d, years = 2) {
   if (d.next && d.next.team !== c.myTeam) return { no: `${d.name} has signed for ${d.next.team} for next season.` };
   if (!mine && !jr && d.rating >= 0.92 && ap < 0.3) return { no: `${d.name} will not join a team this far down the order.` };
   const k = (1.25 - 0.33 * ap) * (d.offer ? 1.15 : 1) * (mine ? 1 + (60 - (d.morale ?? 60)) * 0.004 : 1) * (years === 1 ? 0.97 : years === 3 ? (d.rating > 0.9 ? 1.07 : 0.97) : 1) * (jr ? 0.7 : 1);
-  const salary = r1(Math.max(0.4, ask0(d.rating) * k, mine ? d.salary * 1.04 : 0));
-  return { salary, fee: mine ? 0 : r1(salary * 0.5), why: `${d.offer ? `${d.offer.team} want him too. ` : ''}${ap < 0.4 ? 'Your place in the order costs you. ' : ap > 0.75 ? 'A front-running seat: he takes less. ' : ''}${jr ? 'Your own junior.' : ''}`.trim() };
+  // (his marks - career/Marks.js: a run of 8s and he knows his worth, a run of 4s and he asks for less)
+  const fp = formPay(d), salary = r1(Math.max(0.4, ask0(d.rating) * k * fp, mine ? d.salary * (fp < 0.95 ? 1 : 1.04) : 0));
+  return { salary, fee: mine ? 0 : r1(salary * 0.5), why: `${d.offer ? `${d.offer.team} want him too. ` : ''}${ap < 0.4 ? 'Your place in the order costs you. ' : ap > 0.75 ? 'A front-running seat: he takes less. ' : ''}${formWhy(d) ? `${formWhy(d)} ` : ''}${jr ? 'Your own junior.' : ''}`.trim() };
 }
 
 // ---- the market ----------------------------------------------------------------------------------------------------------
@@ -94,11 +96,13 @@ export function marketRound(c) {
     for (const d of c.seatsOf(t.name)) {
       if (d.dec || (d.until > c.season && !d.retiring)) continue; if (rnd() > 0.45 && c.round < c.rounds) continue;
       d.dec = true; if (planned(c, t) >= 2 && !d.retiring) { d.renew = true; continue; }
-      const ap = appeal(c, t.name);
+      // (the marks: a driver on a run of poor ones is replaced by anyone about as good; the one in form is wanted more)
+      const ap = appeal(c, t.name), f = markForm(d), poor = f != null && f <= 5.0;
+      const want = (x) => x.rating + (x.pot - x.rating) * 0.4 + ((markForm(x) ?? 6.3) - 6.3) * 0.006;
       const cands = Object.values(c.drivers).filter((x) => !x.retired && !x.retiring && !x.next && x !== d && x.team !== t.name && (!x.team || x.until <= c.season) && !(x.academy === c.myTeam && !x.team && (x.hold ?? 0) >= c.season)
-        && x.rating > (d.retiring ? 0 : d.rating + 0.012) && (!x.team || appeal(c, x.team) < ap + 0.12)).sort((a, b) => (b.rating + (b.pot - b.rating) * 0.4) - (a.rating + (a.pot - a.rating) * 0.4));
+        && x.rating > (d.retiring ? 0 : d.rating + (poor ? -0.01 : 0.012)) && (!x.team || appeal(c, x.team) < ap + 0.12)).sort((a, b) => want(b) - want(a));
       const x = cands[0];
-      if (x && (d.retiring || rnd() < 0.62)) {
+      if (x && (d.retiring || rnd() < (poor ? 0.85 : 0.62))) {
         const deal = { team: t.name, salary: r1(ask0(x.rating) * 1.08), until: c.season + 1 + (rnd() < 0.5 ? 1 : 0) };
         if (x.team === c.myTeam) { x.offer = { ...deal, round: c.round }; out.push(`${t.name} have made ${x.name} an offer for next season: extend his contract or lose him.`); d.renew = true; d.until = Math.max(d.until, c.season); }   // (their man stays unless yours comes)
         else { x.next = deal; if (!d.retiring) d.out = true; out.push(`${t.name} sign ${x.name} for ${c.season + 1}${d.retiring ? '' : `: ${sur(d.name)} is out`}.`); }

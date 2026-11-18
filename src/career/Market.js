@@ -25,6 +25,7 @@ import { seatEnsure, makeOffer, repOf, agentText, clauseFor, kindOf, liveOffer }
 import { goodwill, mateRoleFor } from './Say.js';
 import { prEvent } from './PR.js';
 import { ageOf } from './Party.js';
+import { seasonMark } from './Marks.js';
 
 // ---- small helpers -------------------------------------------------------------------------------------------------------
 const num = (v, d = 0) => (typeof v === 'number' && isFinite(v) ? v : d);
@@ -66,7 +67,9 @@ export function marketRace(c, rows, exp) {
   }
 }
 /** a driver's form this season: places a race better (+) or worse (-) than his car and rating promised */
-export const formOf = (d, season) => (d?.mk && d.mk.s === season && d.mk.n ? d.mk.g / d.mk.n : 0);
+//  - and his marks this season (career/Marks.js), half of it once he has two: a mark a point above the middle some
+//  1.6 places (the teams read the ratings too)
+export const formOf = (d, season) => { const g = d?.mk && d.mk.s === season && d.mk.n ? d.mk.g / d.mk.n : 0, m = seasonMark(d, season); return m == null ? g : 0.5 * g + 0.5 * clamp((m - 6.3) * 1.6, -5, 5); };
 /** what a driver is worth to a team: his rating (0.80 = 0, a point = 1), his form this season (x 1.2, ±6), and the young a little more (+2) */
 export const valueOf = (c, d) => (num(d.rating, 0.8) - 0.8) * 100 + clamp(formOf(d, c.season), -5, 5) * 1.2 + (young(c, d) ? 2 : 0);
 /** how much a young driver's promise is worth to a team, by its tier: the front-runners want the finished article, the backmarkers blood rookies */
