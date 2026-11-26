@@ -311,7 +311,9 @@ export function showAfterlife(o) {
       me.position.y = 1.4 + Math.sin(t * 2.2) * 0.15;
       // the camera: behind and above, easing after
       // (Hell: drawn in when a spire stands behind you - never inside the rock)
-      let cd = 7; if (rocks.length) while (cd > 1.6 && inRock(me.position.x - Math.sin(heading) * cd, me.position.z - Math.cos(heading) * cd, me.position.y + 2.6 * cd / 7, 0.6)) cd -= 0.4;
+      // (the whole line from the camera to your spirit clear of rock, not just the camera's own spot)
+      const blocked = (c) => [1, 0.75, 0.5, 0.3].some((f) => inRock(me.position.x - Math.sin(heading) * c * f, me.position.z - Math.cos(heading) * c * f, me.position.y + 2.6 * c * f / 7, f === 1 ? 0.6 : 0.2));
+      let cd = 7; if (rocks.length) while (cd > 1.6 && blocked(cd)) cd -= 0.4;
       const want = new THREE.Vector3(me.position.x - Math.sin(heading) * cd, me.position.y + 2.6 * cd / 7 + 0.3 * (1 - cd / 7), me.position.z - Math.cos(heading) * cd);
       camPos.lerp(want, 1 - Math.exp(-dt * 4)); look.lerp(new THREE.Vector3(me.position.x + Math.sin(heading) * 6, 1.6, me.position.z + Math.cos(heading) * 6), 1 - Math.exp(-dt * 5));
       // the nearest portal within reach
