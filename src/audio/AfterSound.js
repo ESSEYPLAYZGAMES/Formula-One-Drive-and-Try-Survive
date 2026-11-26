@@ -200,7 +200,7 @@ export function afterSound(audio) {
   /** porcelain and wood rattling: a burst of hard little knocks */
   function rattle(gain = 0.3, dur = 0.4) {
     if (!alive) return; const t = T(), s = noise(), f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 900 + Math.random() * 900; f.Q.value = 5;
-    const e = gainAt(0), n = Math.round(dur * 40); for (let i = 0; i < n; i++) { const ti = t + i * dur / n + Math.random() * 0.01; e.gain.setValueAtTime(gain * (0.5 + Math.random() * 0.5), ti); e.gain.setValueAtTime(0, ti + 0.008); }
+    const e = gainAt(0), n = Math.round(dur * 40); for (let i = 0; i < n; i++) { const ti = t + i * dur / n + Math.random() * 0.01; e.gain.setValueAtTime(gain * 2.6 * (0.5 + Math.random() * 0.5), ti); e.gain.setValueAtTime(0, ti + 0.012); }
     const p = ctx.createStereoPanner(); p.pan.value = Math.random() * 1.2 - 0.6; s.connect(f); f.connect(e); e.connect(p); p.connect(bus); s.start(t); s.stop(t + dur + 0.05);
   }
   /** a screech - the thing in the doll, through its little mouth */
