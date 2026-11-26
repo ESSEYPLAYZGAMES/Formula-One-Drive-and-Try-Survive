@@ -15,6 +15,7 @@
 // are invented, and a real driver in a love story is only ever 'the <team> driver'. The state is plain JSON on the career
 // (c.pr); the callers save.
 import { shiftMorale, moodOf } from './Morale.js';
+import { deedFromEvent } from './Conscience.js';
 
 // ---- small helpers --------------------------------------------------------------------------------------------------
 const pick = (a) => a[(Math.random() * a.length) | 0];
@@ -1129,6 +1130,7 @@ export function prEvent(c, kind, data = {}) {
   if (!c || typeof kind !== 'string' || GRAVE_KINDS.has(kind)) return none;
   const x = data && typeof data === 'object' ? data : {};
   if (graveData(x)) return none;
+  try { deedFromEvent(c, kind, x); } catch (e) { /* the conscience keeps no count of it */ }   // (career/Conscience.js: what your driver did, weighed one day)
   const mk = EV[kind]; if (!mk) return none;
   const P = ensure(c); if (!P) return none;
   if (PERSONAL.has(kind) && hushed(c)) return none;

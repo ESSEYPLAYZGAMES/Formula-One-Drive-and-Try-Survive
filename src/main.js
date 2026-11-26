@@ -90,6 +90,8 @@ import { ROSTER, customDriver, POINTS, standIn, dayPerf } from './race/Roster.js
 import { showMemorial } from './ui/Memorial.js';
 import { NewsBroadcast } from './ui/NewsBroadcast.js';
 import { openCareer, closeCareer, showMourning, syncLooks } from './ui/CareerHub.js';
+import { judge } from './career/Conscience.js';
+import { showReckoning } from './ui/Reckoning.js';
 import * as Avatar from './career/Avatar.js';
 import { showInterview } from './ui/Interview.js';
 import { showPodium } from './ui/Podium.js';
@@ -4333,8 +4335,11 @@ function afterNews(hurt, then) {
     const d = C.drivers[mine.careerId], l = C.lost.find((x) => x.id === d.id) || {};
     NEWS.results = null; NEWS.abandoned = false; strings(false, { fade: 1.2 }); audio.silence?.(true); $('results').classList.add('hidden');
     audio.play?.('horror', { gain: 1, delay: 0.5 });   // (the strings, as the helmet comes out of the dark - then the silence)
+    // (then the Reckoning - ui/Reckoning.js: the life weighed, Heaven or Hell - and back to the career)
     showMourning({ name: d.name, number: d.number, team: l.team, starts: d.starts, wins: d.wins, podiums: d.podiums }, helmetURL({ name: d.name, helmet: d.helmet, color: l.color, number: d.number }, { blood: true }), () => {
-      audio.silence?.(false); endSession(); S.weekend = null; openCareerHub();
+      let J = null; try { J = judge(C); } catch (e) { J = null; }
+      const after = () => { audio.silence?.(false); endSession(); S.weekend = null; openCareerHub(); };
+      if (J) { audio.silence?.(false); showReckoning(J, d.name, after, { audio }); } else after();
     }, { audio, helmet3d: { name: d.name, helmet: d.helmet, color: l.color, number: d.number } });
   };
   if (others.length) { strings(true); showMemorial(others, next, () => audio.beep?.(146.8, 2.4, 0.1)); } else next();

@@ -31,6 +31,7 @@ import { requestOdds, requestUpgrade, requestTick, mateSay, talkAgree, talkWalk,
 import { marketEnsure, marketRace, marketRoundTick, marketSeasonEnd, marketNewSeason, seasonSay, precontractSigned, moveNow } from './Market.js';
 import { statsEnsure, statsRace } from './Stats.js';
 import { noteMarks, markMorale, seasonAwards, awardsLine } from './Marks.js';
+import { deed } from './Conscience.js';
 
 const KEY = 'f1sim-career-v2';
 // (a save from before the v67 update, as it was stored, kept once when it is first brought up to date)
@@ -821,6 +822,7 @@ export class Career {
     // the press (career/PR.js): your result, your fastest lap, the fans' vote, your overtakes, your penalties - a stand-in's race at most one line
     if (live) {
       const mp = ppOf(meRow), sum = mp.reduce((a, e) => a + e.pts, 0);
+      if (fin && !sum && !meRow.car.blamed) deed(this, 'clean', 0.6, 'Raced clean, lights to flag');   // (career/Conscience.js)
       if (fin && meRow.pos === 1) press('win', { track: trackId });
       else if (fin && meRow.pos <= 3) press('podium', { pos: meRow.pos, track: trackId });
       else if (fin && (POINTS[meRow.pos - 1] || 0) > 0) press('points', { pos: meRow.pos, track: trackId });

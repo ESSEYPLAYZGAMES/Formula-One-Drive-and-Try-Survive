@@ -25,6 +25,7 @@ import { showNegotiation } from './Negotiation.js';
 import { techEffects, upgradeName } from '../career/TechTree.js';
 import { moodOf, moraleLabel, moraleBand, formOf } from '../career/Morale.js';
 import { isBanned, activePoints } from '../career/Licence.js';
+import { compass } from '../career/Conscience.js';
 import { imageLabel, heatLabel, fameText } from '../career/PR.js';
 import { hangoutResult, autoHangout } from '../career/Social.js';
 import { CarMesh } from '../vehicle/CarMesh.js';
@@ -1759,7 +1760,7 @@ function sideCard(X) {
     const w = c.week && c.week.season === c.season && c.week.round === c.round ? c.week : null;
     html = `<h3>${c.seasonOver ? 'THE SEASON' : 'NEXT RACE'}</h3><div class="big">${c.seasonOver ? `Season ${c.season}` : esc(TN(track))}</div><div class="row2"><span>Round</span><b>${c.seasonOver ? 'complete' : `${c.round} of ${c.rounds}`}</b></div>${c.seasonOver ? '' : `<div class="row2"><span>Forecast</span><b>${fcTxt(c.forecastAt())}</b></div>${c.team.none ? `<div class="row2"><span>Your seat</span><b>none: watch or sim</b></div>` : `<div class="row2"><span>Sponsor day</span><b>${w?.sponsorDone ? 'done' : 'still to do'}</b></div>`}`}`;
   } else if (X.sec === 'team') html = safe(() => techSide(c, H), '<h3>THE CAR</h3>');
-  else if (X.sec === 'driver') html = me ? `<h3>YOUR DRIVER</h3><div class="big">${esc(me.name)}</div><div class="row2"><span>Morale</span><b>${m.morale} · ${esc(safe(() => moraleLabel(m.morale), ''))}</b></div><div class="row2"><span>Licence</span><b>${pointsOf(c, me)} / 12 points</b></div>` : '<h3>YOUR DRIVER</h3><div class="big">No driver</div>';
+  else if (X.sec === 'driver') html = me ? `<h3>YOUR DRIVER</h3><div class="big">${esc(me.name)}</div><div class="row2"><span>Morale</span><b>${m.morale} · ${esc(safe(() => moraleLabel(m.morale), ''))}</b></div><div class="row2"><span>Licence</span><b>${pointsOf(c, me)} / 12 points</b></div><div class="row2" title="What your driver has done, good and bad, on the track and off it - weighed if they are killed: Heaven or Hell"><span>Conscience</span><b>${esc(compass(c).word)}</b></div>` : '<h3>YOUR DRIVER</h3><div class="big">No driver</div>';
   else if (X.sec === 'life' && !(X.tab === 'life' && X.sub === 'style')) { const un = safe(() => phoneBadge(c), 0) || 0; html = `<h3>YOUR LIFE</h3><div class="row2"><span>Your own money</span><b>${money(+c.wallet || 0)}</b></div><div class="row2"><span>Messages</span><b>${un ? `${un} unread` : 'none new'}</b></div>`; }
   else if (X.sec === 'media') { const p = c.pr || {}; html = `<h3>THE PUBLIC EYE</h3><div class="row2"><span>Followers</span><b>${esc(safe(() => fameText(p.fame || 0), '-'))}</b></div><div class="row2"><span>Image</span><b>${Math.round(p.image || 0)} · ${esc(safe(() => imageLabel(p.image || 0), ''))}</b></div><div class="row2"><span>Heat</span><b>${Math.round(p.heat || 0)} · ${esc(safe(() => heatLabel(p.heat || 0), ''))}</b></div>`; }
   const hide = !html;
