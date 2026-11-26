@@ -74,7 +74,7 @@ export function runExorcism(o) {
   const kd = (e) => { e.stopPropagation(); if (e.code === 'Space' && !e.repeat) { e.preventDefault(); end1(win); } };
   window.addEventListener('keydown', kd, true);
   const tick = (now) => {
-    const dt = Math.min(1 / 30, (now - last) / 1000); last = now; clock += dt; snd.tick(dt);
+    const dt = Math.max(0, Math.min(window.__f1FastClock ? 0.3 : 1 / 30, (now - last) / 1000)); last = now; clock += dt; snd.tick(dt);
     const u = clock - ph0;
     if (phase === 'still') {
       // (it hangs there, its head down; the hum and nothing else)

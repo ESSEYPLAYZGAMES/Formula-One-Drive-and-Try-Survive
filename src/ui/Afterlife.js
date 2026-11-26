@@ -334,7 +334,7 @@ export function showAfterlife(o) {
   }
   if (!C.length) { const kOnce = (e) => { if (e.key === 'e' || e.key === 'Enter') { window.removeEventListener('keydown', kOnce, true); finish(null); } }; window.addEventListener('keydown', kOnce, true); }
   const tick = (now) => {
-    const dt = Math.min(0.05, (now - last) / 1000); last = now; t += dt;
+    const dt = Math.max(0, Math.min(window.__f1FastClock ? 0.3 : 0.05, (now - last) / 1000)); last = now; t += dt;   // (__f1FastClock: the tests', on a slow machine)
     if (mode === 'walk') {
       const turn = (keys.has('a') || keys.has('arrowleft') ? 1 : 0) - (keys.has('d') || keys.has('arrowright') ? 1 : 0), go = (keys.has('w') || keys.has('arrowup') ? 1 : 0) - (keys.has('s') || keys.has('arrowdown') ? 0.6 : 0);
       heading += turn * dt * 1.9; const sp = 9 * go * dt; me.position.x += Math.sin(heading) * sp; me.position.z += Math.cos(heading) * sp;
