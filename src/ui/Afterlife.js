@@ -167,7 +167,7 @@ export function showAfterlife(o) {
     // the rock and its lava; spires with red-hot tips; flames along the cracks; embers rising
     const floor = lavaFloor(); sc.add(floor); dyn.push({ obj: floor, f: (t) => { floor.material.uniforms.t.value = t; } });
     const rock = new THREE.MeshStandardMaterial({ color: 0x1a0a08, roughness: 0.95, emissive: 0x2a0400, emissiveIntensity: 0.4 });
-    for (let k = 0; k < 110; k++) { const h = 6 + Math.random() * 26, sp = new THREE.Mesh(new THREE.ConeGeometry(1.2 + Math.random() * 3, h, 7), rock); const a = Math.random() * Math.PI * 2, r = 9 + Math.random() * 100;
+    for (let k = 0; k < 85; k++) { const h = 6 + Math.random() * 26, sp = new THREE.Mesh(new THREE.ConeGeometry(1.2 + Math.random() * 3, h, 7), rock); const a = Math.random() * Math.PI * 2, r = 9 + Math.random() * 100;
       sp.position.set(Math.cos(a) * r, h / 2 - 0.5, Math.sin(a) * r); if (clear(sp.position.x, sp.position.z, 9)) continue; sc.add(sp); }
     const flame = softTex('rgba(255,200,80,1)', 'rgba(255,30,0,0)');
     for (let k = 0; k < 90; k++) { const f = new THREE.Sprite(new THREE.SpriteMaterial({ map: flame, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: true })); const x = (Math.random() - 0.5) * 140, z = (Math.random() - 0.5) * 140;
@@ -218,7 +218,7 @@ export function showAfterlife(o) {
   const setHint = () => { hint.innerHTML = C.length ? '<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> &nbsp; <kbd>E</kbd>' : '<kbd>E</kbd>'; hint.classList.remove('gone'); clearTimeout(hint._t); hint._t = setTimeout(() => hint.classList.add('gone'), 7000); };
   setHint(); setTimeout(() => el.querySelector('.al-title').classList.add('in'), 600); setTimeout(() => el.querySelector('.al-title').classList.remove('in'), 4200);
   const camPos = new THREE.Vector3(0, 4, 12), look = new THREE.Vector3(0, 1.5, -10);
-  el.__al = { place: (x, z) => { me.position.set(x, 1.4, z); }, echo: () => { echoAt = 0; }, ports: () => ports.map((p) => [p.G.position.x, p.G.position.z]), face: (x, z) => { heading = Math.atan2(x - me.position.x, z - me.position.z); }, stalkers: ST, scare: () => { scareCool = 0; const s0 = ST[0]; if (s0) { s0.G.position.set(me.position.x + 1.5, 0, me.position.z + 1.5); } } };   // (a test's handles)
+  el.__al = { place: (x, z) => { me.position.set(x, 1.4, z); }, echo: () => { echoAt = 0; }, ports: () => ports.map((p) => [p.G.position.x, p.G.position.z]), face: (x, z) => { heading = Math.atan2(x - me.position.x, z - me.position.z); }, stalkers: ST, show: (i = 1, d = 6) => { const m = ST[i]; if (m) m.G.position.set(me.position.x + Math.sin(heading) * d, 0, me.position.z + Math.cos(heading) * d); }, scare: () => { scareCool = 0; const s0 = ST[0]; if (s0) { s0.G.position.set(me.position.x + 1.5, 0, me.position.z + 1.5); } } };   // (a test's handles)
   const fwd = new THREE.Vector3(), FR = new THREE.Frustum(), PM = new THREE.Matrix4(), BX = new THREE.Vector3();
   const right = new THREE.Vector3();
   /** an echo: the next argument, said around you - each line from near the last, the accuser and you in turn */

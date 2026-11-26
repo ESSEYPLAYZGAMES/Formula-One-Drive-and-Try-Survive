@@ -42,7 +42,7 @@ let MASK = null;
 export function stalker(o = {}) {
   MASK = MASK || maskTex();
   const H = o.h || R(3.4, 4.1), k = H / 3.8;
-  const skin = new THREE.MeshStandardMaterial({ color: 0x060405, roughness: 0.95, emissive: 0x120000, emissiveIntensity: 0.3 });
+  const skin = new THREE.MeshStandardMaterial({ color: 0x0a0607, roughness: 0.9, emissive: 0x2a0303, emissiveIntensity: 0.55 });   // (a dull red sheen off the lava: a silhouette you can just make out)
   const G = new THREE.Group(), body = new THREE.Group(); G.add(body); body.scale.setScalar(k);
   const cyl = (r0, r1, L, x, y, z, rx = 0, rz = 0) => { const m = new THREE.Mesh(new THREE.CylinderGeometry(r0, r1, L, 7), skin); m.position.set(x, y, z); m.rotation.set(rx, 0, rz); body.add(m); return m; };
   // (legs, a torso like a stretched ribcage, the shoulders hunched up and forward, the long neck)
@@ -62,9 +62,9 @@ export function stalker(o = {}) {
   }
   // (the head: the mask, a long nose, the tendrils)
   const head = new THREE.Group(); head.position.set(0, 4.05, 0.2); body.add(head);
-  const face = new THREE.Mesh(new THREE.SphereGeometry(0.17, 24, 16), new THREE.MeshStandardMaterial({ map: MASK, roughness: 0.55, emissive: 0x2a1c12, emissiveIntensity: 0.25 }));
+  const face = new THREE.Mesh(new THREE.SphereGeometry(0.17, 24, 16), new THREE.MeshStandardMaterial({ map: MASK, roughness: 0.55, emissive: 0xffffff, emissiveMap: MASK, emissiveIntensity: 0.55, fog: false }));
   face.scale.set(0.82, 1.38, 0.78); head.add(face);
-  const nose = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.2, 6), new THREE.MeshStandardMaterial({ color: 0xcdb293, roughness: 0.6 })); nose.rotation.x = Math.PI / 2; nose.position.set(0, -0.02, 0.2); head.add(nose);
+  const nose = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.2, 6), new THREE.MeshStandardMaterial({ color: 0xcdb293, roughness: 0.6, emissive: 0x6a5a48, emissiveIntensity: 0.5, fog: false })); nose.rotation.x = Math.PI / 2; nose.position.set(0, -0.02, 0.2); head.add(nose);
   const hair = new THREE.MeshStandardMaterial({ color: 0x020102, roughness: 0.9 }), tend = [];
   for (let i = 0; i < 13; i++) {
     const a = (i / 13) * Math.PI * 2, p0 = new THREE.Vector3(Math.cos(a) * 0.09, 0.2, Math.sin(a) * 0.07 - 0.02), out = R(0.18, 0.42);
