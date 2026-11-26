@@ -32,6 +32,18 @@ no buttons, just space bar - and remove the ability to see the leaderboard after
   accusing and answering, talking over each other - no words on the screen.
 - Hardly any text: the keys (W A S D, E) for a few seconds, a driver's name and E at their portal.
 
+## Scarier (asked for: "make it 10x scarier")
+- HELL is on tape: grain, scanlines, a dark vignette, tracking bars rolling through, the picture tearing (shifted,
+  skewed, the colours wrong) at every scare.
+- Faces in the dark: pale masks hanging in the fog at head height all round, watching - fading as you come near.
+- Your own heartbeat, faster the closer they are, your breath catching when one is near; the light flickering, and now
+  and then going out altogether (only the faces left), a long breath somewhere in the black; your name whispered in one
+  ear; the mask flashed on the screen for a frame (sometimes inverted); one of them standing still at the edge of the
+  light ahead of you, gone the moment you have looked at it. One that reaches you: the stinger with its shriek.
+- The exorcism: the face inside flashed on the screen again and again through the fight; the doll's head turned right
+  round with a crack; the watchers closing in on you from behind it until they stand at either side of you; and when it
+  is over and quiet, its head comes up at you one last time - a last stinger.
+
 ## Heaven
 - Silent. The newspapers that praised you drift along the marble way (bigger now), their front pages your headlines
   (career/Echoes.js headlines: what you did, what you won); no text over the screen.

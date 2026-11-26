@@ -20,7 +20,7 @@
 import * as THREE from 'three';
 import { runExorcism } from './Exorcism.js';
 import { afterSound } from '../audio/AfterSound.js';
-import { stalker, rats, gore, doll, monsterHead } from './HellLife.js';
+import { stalker, rats, gore, doll, monsterHead, faceCanvas } from './HellLife.js';
 import { hellEchoes, spite, headlines } from '../career/Echoes.js';
 
 const CSS = `
@@ -46,6 +46,18 @@ const CSS = `
 #afterlife .al-scare { position: absolute; inset: 0; pointer-events: none; opacity: 0; background: radial-gradient(circle at 50% 50%, rgba(160,0,0,.05) 25%, rgba(90,0,0,.92) 95%); }
 #afterlife .al-scare.on { animation: alScare .8s steps(4) both; }
 @keyframes alScare { 0% { opacity: 1; background-color: rgba(255,255,255,.35); } 25% { opacity: 1; background-color: rgba(160,0,0,.35); } 50% { opacity: .2; } 75% { opacity: .9; background-color: rgba(120,0,0,.25); } 100% { opacity: 0; } }
+/* (HELL on tape: grain, scanlines, a tracking bar rolling through, the picture tearing at a scare) */
+#afterlife .al-vhs { position: absolute; inset: 0; pointer-events: none; display: none; }
+#afterlife.hell .al-vhs, #afterlife.exo .al-vhs { display: block; }
+#afterlife .al-vhs canvas { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; opacity: .16; mix-blend-mode: screen; }
+#afterlife .al-vhs::after { content: ''; position: absolute; inset: 0; background: repeating-linear-gradient(180deg, rgba(0,0,0,.22) 0 1px, transparent 1px 3px), radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(0,0,0,.65) 100%); }
+#afterlife .al-vhs .trk { position: absolute; left: 0; right: 0; height: 9%; top: -12%; background: linear-gradient(180deg, transparent, rgba(255,255,255,.1) 40%, rgba(255,255,255,.18) 50%, rgba(255,255,255,.08) 60%, transparent); filter: blur(1px); }
+#afterlife .al-vhs .trk.on { animation: alTrk 1.6s linear; }
+@keyframes alTrk { from { top: -12%; } to { top: 108%; } }
+#afterlife.glitch canvas.al3d { animation: alGl .18s steps(3) 2; }
+@keyframes alGl { 0% { transform: translate(-14px, 0) skewX(6deg); filter: contrast(1.8) hue-rotate(40deg) saturate(2); } 50% { transform: translate(10px, 3px) skewX(-4deg); filter: contrast(2.2) invert(.15); } 100% { transform: none; filter: none; } }
+#afterlife canvas.al-sub { position: absolute; left: 50%; top: 50%; height: 118vh; transform: translate(-50%, -50%); pointer-events: none; opacity: 0; filter: contrast(1.6) brightness(1.1); }
+#afterlife canvas.al-sub.on { opacity: 1; }
 #afterlife .al-hint.gone { opacity: 0 !important; transition: opacity 2s; }
 #afterlife .al-fade { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; transition: opacity .8s ease; }
 #afterlife.hell .al-fade { background: #300; }
@@ -132,7 +144,7 @@ function portal(c, i) {
 export function showAfterlife(o) {
   if (!injected) { const st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st); injected = true; }
   const heaven = !!o.heaven, el = document.createElement('div'); el.id = 'afterlife'; el.className = heaven ? 'heaven' : 'hell';
-  el.innerHTML = `<canvas class="al3d"></canvas><div class="al-title">${heaven ? 'HEAVEN' : 'HELL'}</div><div class="al-near"></div><div class="al-hint"></div><div class="al-scare"></div><div class="al-fade"></div>`;
+  el.innerHTML = `<canvas class="al3d"></canvas><div class="al-title">${heaven ? 'HEAVEN' : 'HELL'}</div><div class="al-near"></div><div class="al-hint"></div><div class="al-scare"></div><div class="al-vhs"><canvas></canvas><i class="trk"></i></div><canvas class="al-sub"></canvas><div class="al-fade"></div>`;
   document.body.appendChild(el); requestAnimationFrame(() => el.classList.add('show'));
   const hint = el.querySelector('.al-hint'), near = el.querySelector('.al-near'), fade = el.querySelector('.al-fade');
   let R; try { R = new THREE.WebGLRenderer({ canvas: el.querySelector('canvas'), antialias: true }); } catch (e) { R = null; }
@@ -149,7 +161,7 @@ export function showAfterlife(o) {
   const inRock = (x, z, y, m = 0.4) => rocks.some(([rx, rz, rb, h]) => { const rr = rb * Math.max(0, 1 - (y + 0.5) / h) + m; return Math.abs(x - rx) < rr && Math.hypot(x - rx, z - rz) < rr; });
   const clear = (x, z, r = 7) => Math.hypot(x, z - 4) < r || (spots || []).some(([px, pz]) => Math.hypot(x - px, z - pz) < r);
   sc.add(heaven ? skyDome('#fff6dc', '#ffe3a8', '#ffffff') : skyDome('#0a0204', '#5a0c06', '#120202'));
-  sc.add(new THREE.HemisphereLight(heaven ? 0xfff8e8 : 0xff6a3a, heaven ? 0xd8c8a0 : 0x200404, heaven ? 1.6 : 0.9));
+  const hemi = new THREE.HemisphereLight(heaven ? 0xfff8e8 : 0xff6a3a, heaven ? 0xd8c8a0 : 0x200404, heaven ? 1.6 : 0.9); sc.add(hemi);
   const sun = new THREE.DirectionalLight(heaven ? 0xfff0c8 : 0xff4a1a, heaven ? 2.2 : 1.2); sun.position.set(-30, 60, -40); sc.add(sun);
   const dyn = [];   // (what moves: { obj, f(t, dt) })
   const tex = heaven ? softTex('rgba(255,255,255,.95)') : softTex('rgba(255,140,40,1)', 'rgba(255,40,0,0)');
@@ -194,6 +206,20 @@ export function showAfterlife(o) {
   const RAT = heaven ? null : rats(170, { r: 62 }); if (RAT) sc.add(RAT.mesh);
   const ST = heaven ? [] : Array.from({ length: 7 }, () => { const m = stalker(); let x = 0, z = 0; for (let k = 0; k < 30; k++) { const a = Math.random() * Math.PI * 2, r = 16 + Math.random() * 40; x = Math.sin(a) * r; z = Math.cos(a) * r; if (!clear(x, z, 8)) break; } m.G.position.set(x, 0, z); sc.add(m.G); return m; });
   let scareCool = 14, scare = null, breathAt = 2, squeakAt = 1;
+  // (the faces in the dark: pale masks hanging in the fog at head height everywhere, watching - gone when you come near)
+  const FACES = [];
+  if (!heaven) { const ft = new THREE.CanvasTexture(faceCanvas()); ft.colorSpace = THREE.SRGBColorSpace;
+    for (let k = 0; k < 46; k++) { const a = Math.random() * Math.PI * 2, r = 22 + Math.random() * 46, f = new THREE.Sprite(new THREE.SpriteMaterial({ map: ft, transparent: true, depthWrite: false, fog: false, opacity: 0 }));
+      f.position.set(Math.sin(a) * r, 3.2 + Math.random() * 3, Math.cos(a) * r); f.scale.set(0.5, 0.67, 1); f.userData.o = 0.25 + Math.random() * 0.45; sc.add(f); FACES.push(f); } }
+  // (the scares' clocks: a face flashing on the screen, one standing at the edge of the light, the dark, your name in your ear)
+  let subAt = 9 + Math.random() * 10, appearAt = 18 + Math.random() * 15, blackAt = 25 + Math.random() * 20, earAt = 14 + Math.random() * 12, heartAt = 1, black = 0, appear = null, trkAt = 3;
+  const subEl = el.querySelector('canvas.al-sub'), vhsC = el.querySelector('.al-vhs canvas'), trkEl = el.querySelector('.al-vhs .trk');
+  { const fc = faceCanvas(); subEl.width = fc.width; subEl.height = fc.height; subEl.getContext('2d').drawImage(fc, 0, 0); }
+  vhsC.width = 192; vhsC.height = 108; const vg = vhsC.getContext('2d'), vimg = vg.createImageData(192, 108);
+  /** the face, on the screen, for a moment (a frame or two); now and then inverted */
+  const subliminal = (ms = 70) => { subEl.style.filter = Math.random() < 0.3 ? 'invert(1) contrast(1.8)' : 'contrast(1.6) brightness(1.1)'; subEl.classList.add('on'); glitch(); setTimeout(() => subEl.classList.remove('on'), ms); };
+  /** the picture tearing */
+  const glitch = () => { el.classList.remove('glitch'); void el.offsetWidth; el.classList.add('glitch'); trkEl.classList.remove('on'); void trkEl.offsetWidth; trkEl.classList.add('on'); };
   // the motes or embers, rising
   const N = heaven ? 300 : 420, pos = new Float32Array(N * 3), vel = new Float32Array(N);
   for (let k = 0; k < N; k++) { pos[k * 3] = (Math.random() - 0.5) * 140; pos[k * 3 + 1] = Math.random() * 30; pos[k * 3 + 2] = -Math.random() * 130 + 20; vel[k] = (heaven ? 0.3 : 1.5) + Math.random() * (heaven ? 0.6 : 3); }
@@ -279,14 +305,15 @@ export function showAfterlife(o) {
   }
   let tries = 0;
   function enter(p) {
-    tries++; exo.mon = null; exo.punch = 0; exo.lunge = null;
+    tries++; exo.mon = null; exo.punch = 0; exo.lunge = null; exo.spin = null; exo.last = null; appear = null; black = 0;
     exo.v = 0; exo.phase = 'still'; exo.u = 0; for (const h of hums) h.set(0, 0); bleed(p); exo.held = gather(p);
     for (const x of p.frame) x.visible = false;   // (the ring of light, the swirl, the name gone: nothing between you and the body)
     if (heaven && !p.rats) { p.rats = rats(36, { packs: 2, r: 7 }); p.rats.mesh.position.set(p.G.position.x, 0, p.G.position.z); sc.add(p.rats.mesh); }
     mode = 'exorcism'; keys.clear(); near.classList.remove('in'); hint.style.opacity = '0'; el.classList.add('exo'); me.visible = false; for (const s of trail) s.visible = false;
     // (it gives - in Heaven always; in Hell not the first time: it fights you off, and you come back for it)
     runExorcism({ host: el, heaven, sum: o.sum || 0, name: p.cand.name, color: p.cand.color, audio: o.audio, snd, spite: spite({ bad: o.bad, heaven, name: o.name, body: p.cand.name }), win: heaven || tries > 1,
-      onScare: (kind) => { exo.punch = 1;
+      onScare: (kind) => { if (kind === 'flash') { subliminal(80); return; } if (kind === 'spin') { exo.spin = t; snd.click(0, 0.6); snd.rattle(0.5, 0.25); return; }
+        exo.punch = 1; glitch(); if (kind === 'last') { exo.last = t; subliminal(120); return; }
         if (kind === 'snap') p.doll.possess();
         if (kind === 'reveal') { const M = exo.mon = monsterHead(); p.doll.head.getWorldPosition(M.G.position); M.t0 = t; M.from = M.G.position.clone(); sc.add(M.G); p.bl?.emit(120, 2.2); }
         if (kind === 'lunge') exo.lunge = { t0: t, from: p.doll.G.position.clone() }; },
@@ -339,9 +366,11 @@ export function showAfterlife(o) {
     if (mode === 'exorcism' && nearP?.doll) {
       const D = nearP.doll, B = D.G, v = exo.v, q = exo.phase, j = () => (Math.random() - 0.5) * 2;
       if (q === 'still') D.idle(t, dt, 0);
+      else if ((q === 'frail' || q === 'fizzle') && exo.last != null) { D.head.lookAt(cam.position); D.head.rotateZ(j() * 0.2); D.jaw.scale.y = 1.4; D.eyes.forEach((e) => e.scale.setScalar(1.6)); }   // (the last one: its head up at you, after all)
       else if (q === 'snap') { D.head.rotation.set(-0.25 + j() * 0.05, j() * 0.05, 0); D.jaw.scale.y = 1.3; D.strings(); }
       else if (q === 'fight' || q === 'top' || q === 'reveal') {
         D.rattle(q === 'fight' ? v : 1.4, t, dt);
+        if (exo.spin != null && t - exo.spin < 0.45) D.head.rotation.y = ((t - exo.spin) / 0.45) * Math.PI * 2;   // (its head turned right round)
         const lift = q === 'fight' ? v * 0.45 : 0.8;
         B.position.set(j() * 0.04 * (1 + v), 0.75 + lift + Math.sin(t * 9) * 0.04 * v, 0.3 + j() * 0.03);
         B.rotation.set(q === 'fight' ? j() * 0.12 * v : -0.6 + j() * 0.15, j() * 0.25 * v + (q === 'top' ? Math.sin(t * 13) * 0.9 : 0), j() * 0.18 * v);
@@ -361,7 +390,9 @@ export function showAfterlife(o) {
       // (the blood: off the body as it shakes - a spray at the top - into the pool under it)
       const bl = nearP.bl; if (bl) { if (q === 'fight' || q === 'top') { const n = Math.random() < dt * (q === 'top' ? 90 : 30 * v * v) ? (q === 'top' ? 4 : 1) : 0; if (n) bl.emit(n, q === 'top' ? 1.8 : 1); } bl.update(dt); }
       // (the watchers: reaching for it as it builds)
-      for (const m of exo.held || []) m.reach = q === 'top' || q === 'reveal' ? 0.9 + Math.random() * 0.2 : q === 'fight' ? v * 0.6 : 0.15;
+      for (const m of exo.held || []) { m.reach = q === 'top' || q === 'reveal' ? 0.9 + Math.random() * 0.2 : q === 'fight' ? v * 0.6 : 0.15;
+        // (closing in on you as it builds: from behind the doll round to either side of you)
+        if (!m.trip && !m.inside && m.home && (q === 'fight' || q === 'top' || q === 'reveal')) { const k = q === 'fight' ? v * 0.55 : 0.8; BX.lerpVectors(m.home, new THREE.Vector3(camPos.x + (m.home.x - nearP.G.position.x) * 0.35, 0, camPos.z + (m.home.z - nearP.G.position.z) * 0.35), k); m.G.position.x += (BX.x - m.G.position.x) * Math.min(1, dt * 2); m.G.position.z += (BX.z - m.G.position.z) * Math.min(1, dt * 2); } }
       const sh = v * v * (q === 'top' || q === 'reveal' ? 0.35 : 0.12) + exo.punch * 0.25; camPos.x += (Math.random() - 0.5) * sh; camPos.y += (Math.random() - 0.5) * sh;
     }
     cam.position.copy(camPos); cam.lookAt(look);
@@ -387,6 +418,10 @@ export function showAfterlife(o) {
    * is in your face (a shriek, the screen torn red) and then gone, somewhere else in the dark.
    */
   function hellTick(dt) {
+    // (the tape's grain)
+    if (!heaven || mode === 'exorcism') { const d = vimg.data; for (let i = 0; i < d.length; i += 4) { const v = (Math.random() * 255) | 0; d[i] = d[i + 1] = d[i + 2] = v; d[i + 3] = 255; } vg.putImageData(vimg, 0, 0);
+      trkAt -= dt; if (trkAt <= 0) { trkEl.classList.remove('on'); void trkEl.offsetWidth; trkEl.classList.add('on'); trkAt = 4 + Math.random() * 7; } }
+    if (!heaven) hellScares(dt);
     G0?.update(dt, t);
     if (RAT) { RAT.update(dt, t, me.position); squeakAt -= dt; if (RAT.near < 14 && squeakAt <= 0) { snd.squeak(Math.random() * 1.6 - 0.8, 0.04 + 0.12 * (1 - RAT.near / 14)); squeakAt = 0.12 + Math.random() * 0.5; } }
     for (const p of ports) p.rats?.update(dt, t, new THREE.Vector3(cam.position.x - p.G.position.x, 0, cam.position.z - p.G.position.z));
@@ -413,7 +448,7 @@ export function showAfterlife(o) {
         m.G.position.x += (dx / L) * v; m.G.position.z += (dz / L) * v;
       }
       if (ds < nearest) { nearest = ds; nearM = m; }
-      if (mode === 'walk' && !scare && scareCool <= 0 && ds < 3.4) { scare = { m, t0: t }; snd.shriek(0.75); const sx = el.querySelector('.al-scare'); sx.classList.remove('on'); void sx.offsetWidth; sx.classList.add('on'); }
+      if (mode === 'walk' && !scare && scareCool <= 0 && ds < 3.4) { scare = { m, t0: t }; snd.shriek(0.75); snd.stinger(1); glitch(); const sx = el.querySelector('.al-scare'); sx.classList.remove('on'); void sx.offsetWidth; sx.classList.add('on'); }
     }
     // (in your face: right in front of your eyes for a moment, then gone - somewhere else in the dark)
     if (scare) {
@@ -426,6 +461,30 @@ export function showAfterlife(o) {
     }
     // (one close: its breathing)
     breathAt -= dt; if (mode === 'walk' && nearM && nearest < 10 && breathAt <= 0) { snd.voice('hhhhaaaaahhhh', { f0: 46, rate: 0.45, gain: 0.05 + 0.14 * (1 - nearest / 10), ring: 21, dist: 0.3, pan: panOf(nearM.G.position) }); breathAt = 2.2 + Math.random() * 2.5; }
+  }
+  /**
+   * HELL's slower fear, on the walk: your heart (faster the nearer they are; your breath catching when one is close); the
+   * faces in the dark fading as you come near them; the light flickering and, now and then, going out altogether - only
+   * the faces left; one of them standing at the edge of the light ahead of you, gone the moment you have seen it; the face
+   * flashed on the screen for a frame; your own name whispered in one ear.
+   */
+  function hellScares(dt) {
+    let nearest = 99; for (const m of ST) if (m.G.visible && !m.held) nearest = Math.min(nearest, Math.hypot(m.G.position.x - me.position.x, m.G.position.z - me.position.z));
+    heartAt -= dt; if (heartAt <= 0) { const k = Math.max(0, Math.min(1, 1 - (nearest - 3) / 20)); snd.heart(0.15 + k * 0.4); if (k > 0.75 && Math.random() < 0.5) snd.breath(0.12, 0.6); heartAt = 60 / (62 + k * 95); }
+    for (const f of FACES) { const d = Math.hypot(f.position.x - me.position.x, f.position.z - me.position.z); f.material.opacity += ((d > 18 ? f.userData.o : 0) * (black > 0 ? 1.4 : 1) - f.material.opacity) * Math.min(1, dt * (d > 18 ? 0.5 : 4)); }
+    if (mode !== 'walk') { hemi.intensity = 0.9; sun.intensity = 1.2; return; }
+    // (the light: a flicker; the dark)
+    blackAt -= dt; if (blackAt <= 0) { black = 0.6 + Math.random() * 1.4; blackAt = 30 + Math.random() * 30; snd.voice('hhhhhhhaaaaaaaahhhh', { f0: 40, rate: 0.4, gain: 0.2, ring: 18, dist: 0.3, pan: Math.random() * 2 - 1 }); }
+    if (black > 0) { black -= dt; hemi.intensity = 0.02; sun.intensity = 0; if (black <= 0) glitch(); }
+    else { const fl = Math.random() < dt * 1.5 ? 0.25 : 1; hemi.intensity = 0.9 * fl; sun.intensity = 1.2 * fl; }
+    // (a face on the screen, for a frame)
+    subAt -= dt; if (subAt <= 0) { subliminal(Math.random() < 0.5 ? 60 : 110); if (Math.random() < 0.4) snd.click(0, 0.4); subAt = 14 + Math.random() * 22; }
+    // (your name, in your ear)
+    earAt -= dt; if (earAt <= 0) { const nm = String(o.name || '').split(' ')[0] || 'you'; snd.voice(`${nm}... ${nm}...`, { f0: 58 + Math.random() * 20, rate: 0.45, gain: 0.32, ring: 26, dist: 0.25, pan: Math.random() < 0.5 ? -1 : 1 }); earAt = 22 + Math.random() * 20; }
+    // (one of them at the edge of the light ahead, still, facing you - gone the moment you have looked at it)
+    if (!appear) { appearAt -= dt; if (appearAt <= 0) { const m = ST.find((x) => !x.held && !x.trip && scare?.m !== x); if (m) { const a = heading + (Math.random() - 0.5) * 0.5; m.G.position.set(me.position.x + Math.sin(a) * 13, 0, me.position.z + Math.cos(a) * 13); appear = { m, seen: 0 }; } appearAt = 25 + Math.random() * 25; } }
+    else { const m = appear.m; BX.copy(m.G.position); BX.y = 2.6; if (FR.containsPoint(BX)) appear.seen += dt;
+      if (appear.seen > 1.1) { const a = Math.random() * Math.PI * 2; m.G.position.set(me.position.x + Math.sin(a) * 45, 0, me.position.z + Math.cos(a) * 45); glitch(); snd.click(0, 0.5); appear = null; } }
   }
   raf = requestAnimationFrame(tick);
   function cleanup() {

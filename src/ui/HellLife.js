@@ -303,3 +303,11 @@ export function doll(c = {}) {
   me.strings();
   return me;
 }
+
+/** the mask's face alone, as a picture (for what flashes on the screen, and the faces in the dark): -> canvas */
+export function faceCanvas() {
+  MASK = MASK || maskTex();
+  const src = MASK.image, cv = document.createElement('canvas'); cv.width = 180; cv.height = 240; const g = cv.getContext('2d');
+  g.drawImage(src, 128 - 90, 8, 180, 240, 0, 0, 180, 240);
+  return cv;
+}

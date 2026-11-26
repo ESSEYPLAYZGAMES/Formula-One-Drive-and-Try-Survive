@@ -63,7 +63,7 @@ export function runExorcism(o) {
   const flash = () => { flashEl.classList.remove('on'); void flashEl.offsetWidth; flashEl.classList.add('on'); };
   /** a jumpscare: the stinger, the screen torn white and red, blood, the scene told */
   const scare = (kind, big = 1) => { snd.stinger(big); flash(); splash(kind === 'snap' ? 3 : 8, 1.2); o.onScare?.(kind); };
-  let raf = 0, last = performance.now(), clock = 0, phase = 'still', ph0 = 0, out = 0, nextSpite = 0.8, nextScreech = 0.5, nextRattle = 0, nextWh = 0, beats = 0, ended = false;
+  let raf = 0, last = performance.now(), clock = 0, phase = 'still', ph0 = 0, out = 0, nextSpite = 0.8, nextScreech = 0.5, nextRattle = 0, nextWh = 0, beats = 0, ended = false, nextFlash = 2.5, nextSpin = 3, lastDone = false;
   const end1 = (ok) => { if (ended) return; ended = true; phase = 'done'; cleanup(); el.remove(); o.onDone?.(ok); };
   const go = (p) => { phase = p; ph0 = clock; };
   /** a word of the spirits', said somewhere across the dark (heard, never written) */
@@ -90,6 +90,9 @@ export function runExorcism(o) {
       nextScreech -= dt; if (nextScreech <= 0) { snd.screech(0.35 + v * 0.45); nextScreech = 0.6 + Math.random() * (2.2 - v * 1.6); }
       nextRattle -= dt; if (nextRattle <= 0) { snd.rattle(0.2 + v * 0.35, 0.25 + Math.random() * 0.4); nextRattle = 0.15 + Math.random() * 0.5; }
       if (out < SP && u > ((out + 1) / (SP + 0.6)) * FIGHT) tear();
+      // (the face inside, flashed for a frame; the head turned right round)
+      nextFlash -= dt; if (nextFlash <= 0) { o.onScare?.('flash'); snd.clang(0.4); nextFlash = 1.6 + Math.random() * 2.4; }
+      nextSpin -= dt; if (nextSpin <= 0 && v > 0.45) { o.onScare?.('spin'); snd.screech(0.7); nextSpin = 2.5 + Math.random() * 2.5; }
       o.onLevel?.(v, 'fight', u);
       if (u > FIGHT) { go('top'); el.classList.add('top'); splash(6, 1.3); }
     } else if (phase === 'top') {
@@ -115,7 +118,9 @@ export function runExorcism(o) {
       if (u > beats * gap + 0.4) { beats++; snd.heart(Math.min(0.55, 0.12 + beats * 0.05)); if (beats % 2 === 0) snd.breath(0.06 + Math.min(0.1, beats * 0.01), 1.2); }
       nextWh -= dt; if (nextWh <= 0) { nextWh = heaven ? 2.6 + Math.random() * 2 : 0.8 + Math.random() * 1.2; snd.voice(WHISPER[(Math.random() * WHISPER.length) | 0], { f0: 70 + Math.random() * 40, rate: 0.6, gain: 0.09, ring: 30, dist: 0.4, pan: Math.random() * 1.2 - 0.6 }); o.onLevel?.(0, 'spirit', u); }
       o.onLevel?.(0, 'frail', u);
-      if (u > (heaven ? 4.4 : 5.4)) { end1(true); return; }
+      // (and just when it is quiet: its head up at you, one last time)
+      if (!lastDone && u > (heaven ? 3.4 : 4.2)) { lastDone = true; scare('last', heaven ? 0.8 : 1.1); }
+      if (u > (heaven ? 5.2 : 6.2)) { end1(true); return; }
     }
     raf = requestAnimationFrame(tick);
   };
