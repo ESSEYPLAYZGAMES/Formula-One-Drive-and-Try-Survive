@@ -36,7 +36,8 @@ import { mourning3D } from './Mourning3D.js';
 import { TECH_CSS, techHTML, techSide, techClick, techView } from './HubTech.js';
 import { driverHQCSS, driverTheme, DRV_ICON, DRV_GROUPS } from './DriverHQ.js';
 import { sceneHTML } from './ViceScene.js';
-import { themeHTML, themeSet } from './HQKit.js';
+import { themeHTML, themeSet, panel as hqPanelKit } from './HQKit.js';
+import { TRACK_MAPS } from './TrackMaps.js';
 import { dmailHTML } from './DriverMailPage.js';
 import { dmailUnread, dmailRead, dmailReadAll } from '../career/DriverMail.js';
 import { statsHTML, statsClick } from './HubStats.js';
@@ -1468,6 +1469,10 @@ function shell(el, c, o) {
   el.onmouseover = (e) => { const t = e.target.closest?.('[data-tdesc]'); if (!t) return; const L = el.querySelector('.tro-line'); if (L && L.textContent !== t.dataset.tdesc) L.textContent = t.dataset.tdesc; };
   bindKeys(HUB);
 }
+/** a circuit's outline (ui/TrackMaps.js), drawn as a neon tube */
+function mapSVG(id) { const M = TRACK_MAPS?.[id]; if (!M) return ''; const P = M.pts; let d = ''; for (let i = 0; i < P.length; i += 3) d += `${i ? 'L' : 'M'}${P[i][0]} ${P[i][1]}`; return `<svg viewBox="-30 -30 ${M.w + 60} ${M.h + 60}" preserveAspectRatio="xMidYMid meet"><path class="g" d="${d}Z"/><path class="t" pathLength="1" d="${d}Z"/></svg>`; }
+/** an HQ panel on the driver's stage (ui/HQKit.js panel) */
+const hqPanel = (t, body, o) => hqPanelKit(t, body, { scroll: false, ...o });
 /** the colours' panel for this hub's team (ui/HQKit.js themeHTML) */
 const themeOfHub = (c) => { const t = c?.team || {}; return themeHTML(t.name || 'driver', t.color || '#e10600', t.color2); };
 /** the rail in the HQ's way (ui/DriverHQ.js): the sections in their groups, each with its line icon; In Memoriam at the foot */
@@ -2325,12 +2330,11 @@ function briefingHTML(c, S, H) {
   }
   // (no race seat this round: a free agent, a reserve the team does not need)
   if (c.noSeat && !safe(() => c.entries().some((e) => e.isPlayer), false)) return freeHTML(c, S, H);
-  const room0 = Math.max(2, Math.floor((H.fit.h - 104 - 72 - 60 - 3 * 8 - 20) / 45));
-  return `<div class="wk"><div class="wk-hero"><div class="wk-hl"><h2>Round ${c.round} of ${c.rounds} · ${esc(TN(track))}</h2><p class="lead">Qualifying, then the race. The forecast is on the calendar; your sponsors have set their targets.</p></div><div class="wk-brief">${me && me.alive ? briefBoxes(c) : ''}</div></div>
-    ${tilesHTML(c, H)}
-    <div class="wk-obj"><span class="lbl">Sponsor targets · paid after the race</span><div class="obj">${(c.objectives || []).slice(0, 4).map((o) => `<div><i>◇</i><span>${esc(o.text)}</span><em>${money(o.reward)}</em></div>`).join('') || '<div><i>◇</i><span>No targets this round.</span></div>'}</div></div>
-    <div class="wk-al"><span class="lbl">This week</span>${alertsHTML(c, H, room0)}</div>
-    ${calStrip(c)}</div>`;
+  // (the HQ's way - ui/DriverHQ.js: the stage filled, panel by panel. The race next, its circuit drawn in neon and
+  //  what the day holds; your season in figures; the sponsors' targets; what is waiting this week; the calendar)
+  const obj = `<div class="obj">${(c.objectives || []).slice(0, 4).map((o) => `<div><i>◇</i><span>${esc(o.text)}</span><em>${money(o.reward)}</em></div>`).join('') || '<div><i>◇</i><span>No targets this round</span></div>'}</div>`;
+  const next = `<div class="dbr-next"><div class="dbr-map">${mapSVG(track)}</div><div class="dbr-tt"><b>${esc(TN(track))}</b><small>Qualifying, then the race. The forecast is on the calendar; your sponsors have set their targets.</small></div></div><div class="wk-brief dbr-boxes">${me && me.alive ? briefBoxes(c) : ''}</div>`;
+  return `<div class="q-g dbr">${hqPanel(`Round ${c.round} of ${c.rounds} · next race`, next, { w: 6, h: 4, cls: 'hero' })}${hqPanel('Your season', tilesHTML(c, H), { w: 6, h: 2 })}${hqPanel('Sponsor targets · paid after the race', obj, { w: 3, h: 2 })}${hqPanel('This week', `<div class="wk-al">${alertsHTML(c, H, 3)}</div>`, { w: 3, h: 2 })}${hqPanel('The season', calStrip(c), { w: 12, h: 1 })}</div>`;
 }
 /** the season's end: the champions, where you and your team finished against the board's target */
 /** the season's awards (career/Marks.js) as a row of small cards ('' without any); you: the player's id, marked */

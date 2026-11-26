@@ -107,6 +107,25 @@ const VICE_CARDS = `
   background: linear-gradient(180deg, rgba(27,16,58,.80), rgba(20,11,45,.76)) padding-box, linear-gradient(140deg, rgba(255,63,164,.75), rgba(155,92,255,.2) 38%, rgba(155,92,255,.16) 62%, rgba(35,229,255,.7)) border-box;
   box-shadow: 0 14px 34px -20px rgba(0,0,0,.8), 0 0 18px -10px rgba(255,63,164,.7), 0 0 24px -14px rgba(35,229,255,.55); backdrop-filter: blur(10px) saturate(1.25); }
 #career[data-hq] .ch-ui > .q-theme { top: 70px; right: 14px; }
+/* (RACE WEEK > Briefing in panels: the circuit as a neon tube, the race-day boxes under it, the figures, the targets, the week, the calendar) */
+#career[data-hq] .dbr { height: 100%; }
+#career[data-hq] .dbr .q-pb { padding: 10px 14px 12px; display: flex; flex-direction: column; min-height: 0; }
+#career[data-hq] .dbr-next { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 14px; align-items: center; }
+#career[data-hq] .dbr-map { height: 100%; min-height: 0; display: grid; place-items: center; }
+#career[data-hq] .dbr-map svg { width: 100%; height: 100%; max-height: 300px; overflow: visible; }
+#career[data-hq] .dbr-map path { fill: none; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+#career[data-hq] .dbr-map path.g { stroke: var(--ac); stroke-width: 9; opacity: .25; filter: blur(4px); }
+#career[data-hq] .dbr-map path.t { stroke: var(--ac); stroke-width: 3.2; filter: drop-shadow(0 0 6px var(--ac)); stroke-dasharray: 1; stroke-dashoffset: 1; animation: dbrDraw 1.6s var(--ease) .15s forwards; }
+#career[data-hq][data-tone="vice"] .dbr-map path.t { stroke: #ff3fa4; filter: drop-shadow(0 0 5px #ff3fa4) drop-shadow(0 0 14px rgba(35,229,255,.6)); }
+@keyframes dbrDraw { to { stroke-dashoffset: 0; } }
+#career[data-hq] .dbr-tt b { display: block; font: 900 30px/1.05 var(--f); letter-spacing: .01em; color: var(--ink); text-transform: uppercase; }
+#career[data-hq][data-tone="vice"] .dbr-tt b { color: #fff; text-shadow: 0 0 10px rgba(255,63,164,.9), 0 0 26px rgba(255,63,164,.5), 0 0 40px rgba(35,229,255,.35); }
+#career[data-hq] .dbr-tt small { display: block; margin-top: 10px; font-size: 13px; line-height: 1.45; color: var(--dim); }
+#career[data-hq] .dbr-boxes { flex: none; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+#career[data-hq] .dbr .tiles, #career[data-hq] .dbr .wk-tiles { height: 100%; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-rows: minmax(0, 1fr); gap: 8px; }
+#career[data-hq] .dbr .obj, #career[data-hq] .dbr .wk-al { display: flex; flex-direction: column; gap: 6px; }
+#career[data-hq] .dbr .q-p:last-child .q-pb > * { height: 100%; }
+
 #career[data-hq][data-tone="vice"] .ch-title h1 { text-shadow: 0 0 10px rgba(255,63,164,.65); }
 `;
 /** the driver hub's whole stylesheet: its own on the HQ's colours, then the HQ's, then the frame */
