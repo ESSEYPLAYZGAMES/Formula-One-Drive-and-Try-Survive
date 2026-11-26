@@ -2054,7 +2054,7 @@ function startRound() {
   //  it is the circuit's and the day's, not the dice's; any other race rolls one)
   // (a race of eight laps or more - one with a stop in it. A sprint is as it was: its tyres just about last it, nobody
   //  stops; on a quarter-distance soft it would be a race of worn-out tyres)
-  wk.tyreOn = wk.mode !== 'tt' && wk.lapsTotal >= 8;
+  wk.tyreOn = wk.mode !== 'tt' && wk.lapsTotal >= 8 && !(wk.sprint && !wk.sprint.done);   // (a sprint: no stop, so tyres that last it)
   if (wk.tyreOn) { const C = wk.career || wk.mgr || null; let u;
     if (typeof window !== 'undefined' && window.__tyreDay > 0) u = (window.__tyreDay - TYRE_DAY[0]) / (TYRE_DAY[1] - TYRE_DAY[0]);   // (a test's own day)
     else if (C) { let h = 2166136261; for (const ch of `${C.season}|${C.round}|${W.def?.id}`) h = Math.imul(h ^ ch.charCodeAt(0), 16777619); u = ((h >>> 0) % 10007) / 10006; } else u = Math.random();
@@ -2111,7 +2111,7 @@ function makeDirector(mode, cars, player, extra = {}) {
   S.director = new RaceDirector({
     timeOfDay: W.time, fireSources: () => fire.emitters,   // (for the race's tape: day or night, and what burns and smokes on the cars - the fire's to say)
     track: W.track, line: W.line, profile: W.profile, pit: W.pit, obstacles: W.obstacles, cars, player, hud, audio, engineer: mode === 'race' ? engineer : null,
-    settings: { mode, practice: !!extra.practice, lapsTotal: wk.lapsTotal, aggression: settings.aggr, skill: skillOf(settings.diff), wetness: wk.wet, weather: wk.wx || null, weatherFixed: !!settings.weatherFixed, gridOrder: extra.gridOrder, stewards: settings.stewards, safetyCar: settings.sc !== 'off', failures: settings.fail !== 'off', flashbacks: settings.fb, champNext: wk.mode === 'champ' && wk.round < wk.rounds },
+    settings: { mode, practice: !!extra.practice, sprint: mode === 'race' && !!(wk.sprint && !wk.sprint.done), lapsTotal: wk.lapsTotal, aggression: settings.aggr, skill: skillOf(settings.diff), wetness: wk.wet, weather: wk.wx || null, weatherFixed: !!settings.weatherFixed, gridOrder: extra.gridOrder, stewards: settings.stewards, safetyCar: settings.sc !== 'off', failures: settings.fail !== 'off', flashbacks: settings.fb, champNext: wk.mode === 'champ' && wk.round < wk.rounds },
     onFinish: extra.onFinish, onPitDone: (c) => S.meshes.get(c)?.setCompound(c.tyres.compound),
     onContact: (a, b, v) => noteContact(a, b, v), onPlayerDone: (c) => watchSession(c),
     onRedFlag: () => { debris.clear(); fire.clear(); chunks.clear(); },
@@ -2248,7 +2248,7 @@ function runRace() {
   const P = W.pit, pace = estimatePace(), L = W.track.length;
   const pitLoss = pitLossAt(W.track.def?.id, P, L, pace);
   const gi = wk.gridOrder ? wk.gridOrder.indexOf(p) + 1 : 0;
-  showStrategy({ laps: wk.lapsTotal, trackName: W.track.def.name, trackLength: L, pace, pitLoss, wet: wk.wet, forecast: forecastLine(wk, pace), night: W.time === 'night', field: wk.cars.filter((c) => c !== p).map((c) => c.tyres.compound), gridPos: gi > 0 ? gi : null,
+  showStrategy({ laps: wk.lapsTotal, rule: wk.lapsTotal >= 8 && !(wk.sprint && !wk.sprint.done), trackName: W.track.def.name, trackLength: L, pace, pitLoss, wet: wk.wet, forecast: forecastLine(wk, pace), night: W.time === 'night', field: wk.cars.filter((c) => c !== p).map((c) => c.tyres.compound), gridPos: gi > 0 ? gi : null,
     onDone: (plan) => {
       S.choosing = false;
       if (plan) { p.fitTyres(plan.stints[0].compound); p.strategy = { name: plan.name, label: plan.label, stints: plan.stints.map((s) => ({ ...s })), laps: plan.laps }; }
@@ -2502,7 +2502,7 @@ function tpAct(a, x, y, z) {
     // (the rest of the race worked out again - race/TeamStrategy.js: the options offered one after another)
     if (d.mode !== 'race' || !d.world.racing || x.retired || x.finished) return;
     const pitLoss = d.world.pitLoss || pitLossAt(W.track.def?.id, W.pit, W.track.length, estimatePace());
-    const opts = replan({ car: x, d, sets: tpSetsOf(x), pitLoss, mustStop: d.lapsTotal >= 8 && x.pitStops === 0 && !x.usedRain && !d.weather?.everWet });
+    const opts = replan({ car: x, d, sets: tpSetsOf(x), pitLoss, mustStop: !!d.stopRule && x.pitStops === 0 && !x.usedRain && !d.weather?.everWet });
     if (!opts.length) { wall.radio('Strategy', `${sur(x)}: nothing to plan from here.`); return; }
     wall.radio('Strategy', `${sur(x)}: ${opts.map((p, i) => `${'ABC'[i]} ${p.label}${i ? ` (+${p.delta.toFixed(1)} s)` : ''}`).join(' · ')}.`);
     const offer = (i) => { const p = opts[i]; if (!p) return; x.mgr.alert = { text: `${p.name}: ${p.label}${i ? ` (+${p.delta.toFixed(1)} s)` : ' (quickest)'}`, yes: 'TAKE', no: opts[i + 1] ? 'NEXT' : 'KEEP',
@@ -3494,7 +3494,7 @@ function tpUi(dt) {
   if (d.mode === 'race') { try { TP.props?.update(held ? 0 : dt); tpAways(held ? 0 : dt); } catch (e) { /* a cutaway that could not be: no cutaway */ } }
   const ord = d.orders?.pairOf?.(TP.cars[0])?.order || null;
   TP.wall.update(dt, { d, speed: TP.speed, skip: !!TP.skip, rejoin: (c) => tpRejoin(c), paused: TP.paused, cam: TP.cam, order: ord, tyreLaps: (c) => TP.gfx.tyreLaps(c),
-    mustStop: (c) => d.mode === 'race' && d.lapsTotal >= 8 && ((c.pitStops === 0 && !c.usedRain && !d.weather?.everWet) || d.owesCompound(c)), fuelDelta: (c) => tpFuelDelta(c, d),
+    mustStop: (c) => !!d.stopRule && ((c.pitStops === 0 && !c.usedRain && !d.weather?.everWet) || d.owesCompound(c)), fuelDelta: (c) => tpFuelDelta(c, d),
     sets: (c) => (d.mode === 'race' ? tpSetsOf(c) : null), lifeK: (c) => (d.mode === 'race' ? tpLifeK(c) : 1), fuelSure: (c) => !!c.mgr?.fuelSure });
   if (d.mode === 'race') {
     tpFuel(d); tpRadio(d); tpPlanCalls(d);
@@ -3757,7 +3757,7 @@ function tpStrategy() {
   const one = (i) => {
     const car = mine[i]; if (!car) { S.choosing = false; beginRace(); return; }
     const gi = wk.gridOrder ? wk.gridOrder.indexOf(car) + 1 : 0;
-    showStrategy({ laps: wk.lapsTotal, trackName: W.track.def.name, trackLength: L, pace, pitLoss, wet: wk.wet, forecast: forecastLine(wk, pace), night: W.time === 'night', gridPos: gi > 0 ? gi : null,
+    showStrategy({ laps: wk.lapsTotal, rule: wk.lapsTotal >= 8 && !(wk.sprint && !wk.sprint.done), trackName: W.track.def.name, trackLength: L, pace, pitLoss, wet: wk.wet, forecast: forecastLine(wk, pace), night: W.time === 'night', gridPos: gi > 0 ? gi : null,
       field: wk.cars.filter((c) => c !== car && !mine.includes(c)).map((c) => c.tyres.compound),
       who: { name: car.name, color: car.color, step: `car ${i + 1} of ${mine.length}` }, okText: i + 1 < mine.length ? 'CONFIRM · NEXT CAR ▸' : 'CONFIRM · TO THE GRID ▸',
       onDone: (plan) => {

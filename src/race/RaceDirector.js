@@ -97,7 +97,9 @@ export class RaceDirector {
   constructor(o) {
     Object.assign(this, o);
     const s = this.settings;
-    this.mode = s.mode; this.lapsTotal = s.lapsTotal; this.practice = !!s.practice;   // (practice: a qualifying session with no lap limit, ended when you like)
+    this.mode = s.mode; this.lapsTotal = s.lapsTotal; this.practice = !!s.practice;
+    // (the stop rule - a stop at least, two dry compounds - in a race of eight laps or more; never in a sprint, of any length)
+    this.sprint = !!s.sprint; this.stopRule = this.mode === 'race' && this.lapsTotal >= 8 && !this.sprint;   // (practice: a qualifying session with no lap limit, ended when you like)
     this.time = 0; this.stateT = 0; this.acc = 0; this.subCount = 0;
     this.state = this.mode === 'race' ? 'grid' : 'racing';
     this.qualiStarted = false; this.qualiDone = false;
@@ -117,7 +119,7 @@ export class RaceDirector {
     this.lightsOn = 0; this.holdTime = 0; this.lightsOutAt = Infinity; this.lightsHideT = -1;
     for (const c of this.cars) { c.wetness = s.wetness; c.lapStart = 0; c.lap = 0; c.lapTimes = []; c.bestLap = Infinity; }
     this.world = {
-      cars: this.cars, time: 0, racing: this.mode !== 'race', lapsTotal: this.lapsTotal, wetness: s.wetness,
+      cars: this.cars, time: 0, racing: this.mode !== 'race', lapsTotal: this.lapsTotal, wetness: s.wetness, stopRule: this.stopRule, sprint: this.sprint,
       onLine: (c, full) => this.onLine(c, full), onImpact: (c, sev, type) => this.onImpact(c, sev, type),
       onAIError: (c, type, zone) => this.onAIError(c, type, zone),
       pit: this.pit || null,   // (the AI brakes for the pit lane's speed limit line before it gets there)
@@ -660,7 +662,7 @@ export class RaceDirector {
         a.reaction = Infinity; a.rj = null; a.spun = false; a.defend = null; a.error = null; a.pitPlan = null; a.planner.best.n = 0; a.planner.best.spec = null;
         const left = this.lapsTotal - c.lap, soft = left <= 4, wR = this.weather ? this.weather.tyreWet : this.settings.wetness, comp = wR > 0.62 ? 'WET' : wR > 0.27 ? 'INTER' : soft ? 'SOFT' : left <= 9 ? 'MEDIUM' : 'HARD';
         // (a car that has run one dry compound takes another where the road is dry: the rule)
-        const comp2 = this.lapsTotal >= 8 && wR <= 0.27 && c.dryUsed && c.dryUsed.size < 2 && c.dryUsed.has(comp) ? (comp === 'HARD' ? 'MEDIUM' : comp === 'MEDIUM' ? 'HARD' : 'MEDIUM') : comp;
+        const comp2 = this.stopRule && wR <= 0.27 && c.dryUsed && c.dryUsed.size < 2 && c.dryUsed.has(comp) ? (comp === 'HARD' ? 'MEDIUM' : comp === 'MEDIUM' ? 'HARD' : 'MEDIUM') : comp;
         c.fitTyres(c.mgr?.redTyre || comp2); if (c.mgr) c.mgr.redTyre = null;   /* (the team principal's car: the set chosen on the pit wall under the red flag) */ c.tyres.temp = c.tyres.spec.start ?? 0.7; this.onPitDone?.(c);
       }
     });
@@ -674,7 +676,7 @@ export class RaceDirector {
   }
 
   /** the two-compound rule still owed: a race of 8 laps or more, a stop made, one dry compound run, no rain tyre, no wet race declared */
-  owesCompound(c) { return this.mode === 'race' && this.lapsTotal >= 8 && !c.retired && c.pitStops > 0 && !c.usedRain && !this.wetDeclared && !!c.dryUsed && c.dryUsed.size < 2; }
+  owesCompound(c) { return this.stopRule && !c.retired && c.pitStops > 0 && !c.usedRain && !this.wetDeclared && !!c.dryUsed && c.dryUsed.size < 2; }
   /** wrapped distance from s=a to s=b along the lap (b ahead: positive) */
   planDs(a, b) { const L = this.track.length; let x = b - a; if (x > L / 2) x -= L; if (x < -L / 2) x += L; return x; }
   /** how far a car has raced (laps and lap distance) */
@@ -729,20 +731,20 @@ export class RaceDirector {
     const now = this.crossTime(c), t = now - c.lapStart; c.lapTimes.push(t); if (t < c.bestLap) c.bestLap = t; c.lapStart = now; c.lap++;
     if (this.mode === 'race') this.calls.lap(c);
     this.sc.onLine(c);
-    if (!this.wetDeclared && this.mode === 'race' && this.lapsTotal >= 8 && (this.weather ? this.weather.tyreWet : this.settings.wetness) > 0.45) { this.wetDeclared = true; this.sc?.say?.('WET RACE DECLARED · TWO COMPOUNDS NOT REQUIRED', 'warn', 4); }
+    if (!this.wetDeclared && this.stopRule && (this.weather ? this.weather.tyreWet : this.settings.wetness) > 0.45) { this.wetDeclared = true; this.sc?.say?.('WET RACE DECLARED · TWO COMPOUNDS NOT REQUIRED', 'warn', 4); }
     if (c.isPlayer && !c.finished) this.hud?.msg(`LAP ${fmt(t)}${c.lap + 1 === this.lapsTotal ? '\nFINAL LAP' : ''}`, '', 2.2);
     if (c.isPlayer && !c.finished && this.engineer) {
       const pos = this.positions, i = pos.indexOf(c); const ahead = pos[i - 1], behind = pos[i + 1];
       // (time gaps from the timing loops; the gaps during the lap are the briefings' job, Radio.js)
       const gap = (a, b) => { const g = this.radio.gap(b, a); return g != null ? Math.abs(g) : Math.abs(a.totalDist - b.totalDist) / Math.max(12, (a.speed + b.speed) / 2); };
       // (8 laps or more: at least one stop is mandatory - reminded with two laps to go if it is still owed)
-      if (this.lapsTotal >= 8 && !c.pitStops && c.lap + 2 === this.lapsTotal) this.engineer.say('Box this lap or next. We still owe the mandatory stop.', 3);
+      if (this.stopRule && !c.pitStops && c.lap + 2 === this.lapsTotal) this.engineer.say('Box this lap or next. We still owe the mandatory stop.', 3);
       else if (this.owesCompound(c) && c.lap + 2 === this.lapsTotal) this.engineer.say('We have only run one dry compound. Box this lap or next for a different one, or it is thirty seconds.', 3);
       if (c.lap + 1 === this.lapsTotal) this.engineer.say(`Final lap. ${ahead ? `${ahead.short} is ${gap(ahead, c).toFixed(1)} ahead` : 'You are leading'}${behind ? `, ${behind.short} ${gap(c, behind).toFixed(1)} behind` : ''}. Bring it home.`, 3);
     }
     if (!c.finished && (c.lap >= this.lapsTotal || this.leaderFinished)) {
       // (8 laps or more and never stopped: the mandatory stop missed - 30 s added at the flag)
-      if (this.mode === 'race' && this.lapsTotal >= 8 && !c.pitStops && !c.retired) this.stewards.award(c, 30, 'missed mandatory pit stop');
+      if (this.stopRule && !c.pitStops && !c.retired) this.stewards.award(c, 30, 'missed mandatory pit stop');
       // (... and two different dry compounds, as the rules have it - unless the car ran a rain tyre, or race control
       //  declared the race wet: 30 s too. A red flag's change of tyres is a stop, and its set a compound used.)
       else if (this.owesCompound(c)) this.stewards.award(c, 30, 'did not use two dry compounds');
@@ -1172,7 +1174,7 @@ export class RaceDirector {
     if (upTo != null) { this.simPlace(S, t0, model); return true; }
     // ---- the result onto the cars
     // (8 laps or more: the mandatory stop - a car that has not stopped makes it, its time in the pit lane added)
-    if (this.lapsTotal >= 8) for (const s of finishers) if (!s.stops && !s.c.pitStops) { s.forcedStop = true; s.at += 21 + rnd() * 3; }
+    if (this.stopRule) for (const s of finishers) if (!s.stops && !s.c.pitStops) { s.forcedStop = true; s.at += 21 + rnd() * 3; }
     finishers.sort((a, b) => a.at - b.at);
     for (const s of S) {
       const c = s.c;

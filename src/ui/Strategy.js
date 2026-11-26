@@ -9,7 +9,7 @@
 import { COMPOUNDS, cliffLaps, lapLoss, outLapLoss, tyreDay } from '../vehicle/Tyres.js';
 import { ensureMotion, reduced, keys, open, close } from './Motion.js';
 
-const DRY = ['SOFT', 'MEDIUM', 'HARD'];
+const DRY = ['SOFT', 'MEDIUM', 'HARD'], ALL = ['SOFT', 'MEDIUM', 'HARD', 'INTER', 'WET'];   // (ALL: the builder's buttons - every tyre, whatever the day)
 const RATE = 1.05;   // (the wear rate on a racing lap, against the nominal: the AI's, measured 0.98-1.08 - TyreSet.update)
 
 /**
@@ -28,16 +28,17 @@ export function planRace(o) {
   // a stint's lap times: the pace, the seconds lost as the set wears (to the cliff, then the ramp; a set worn through
   // is not a plan), and its cold start - a new set off the blankets, the first stint as the formation lap leaves it
   const pre = {};
-  for (const c of comps) {
+  for (const c of ALL) {   // (every tyre timed - the plans are made from the day's (comps), the builder may pick any)
     const a = [0], per = 0.7 / life(c);
     for (let n = 1; n <= L; n++) { const w = (n - 0.5) * per; a.push(w > 1 ? Infinity : a[n - 1] + T0 + paceOf(c) + lapLoss(c, w, L)); }
     pre[c] = { sum: a, life: life(c) };
   }
   const stint = (c, n, first) => pre[c].sum[n] + (first ? outLapLoss(c, T0, COMPOUNDS[c].start) : outLapLoss(c, T0));
-  const two = wet < 0.2 && L >= 8;   // (the rule: two dry compounds in a dry race of any length)
+  const rule = o.rule ?? L >= 8;   // (o.rule: the director's stop rule - false in a sprint, whatever its length)
+  const two = wet < 0.2 && rule;   // (the rule: two dry compounds in a dry race of any length)
   const out = [];
   // (8 laps or more: a stop is mandatory - RaceDirector adds 30 s at the flag to a car that never made one)
-  const add = (stints, time) => { if (!isFinite(time)) return; if (L >= 8 && stints.length < 2) return; if (two && new Set(stints.map((s) => s.compound)).size < 2) return; out.push({ stints, time, stops: stints.length - 1 }); };
+  const add = (stints, time) => { if (!isFinite(time)) return; if (rule && stints.length < 2) return; if (two && new Set(stints.map((s) => s.compound)).size < 2) return; out.push({ stints, time, stops: stints.length - 1 }); };
   for (const c of comps) add([{ compound: c, start: 1, end: L }], stint(c, L, true));
   for (const a of comps) for (const b of comps) {
     let best = Infinity, bk = 0; for (let k = 1; k < L; k++) { const t = stint(a, k, true) + stint(b, L - k, false) + o.pitLoss; if (t < best) { best = t; bk = k; } }
@@ -49,7 +50,7 @@ export function planRace(o) {
     if (k1b) add([{ compound: a, start: 1, end: k1b }, { compound: b, start: k1b + 1, end: k2b }, { compound: c, start: k2b + 1, end: L }], best);
   }
   out.sort((p, q) => p.time - q.time);
-  if (L < 8 && out.some((p) => !p.stops)) for (let i = out.length - 1; i >= 0; i--) if (out[i].stops) out.splice(i, 1);   // (a sprint: nobody stops if they don't have to)
+  if (!rule && out.some((p) => !p.stops)) for (let i = out.length - 1; i >= 0; i--) if (out[i].stops) out.splice(i, 1);   // (a sprint: nobody stops if they don't have to)
   // A: the quickest; B: the quickest with a different number of stops; C: the quickest with a different start tyre
   const picks = [];
   if (out[0]) picks.push(out[0]);
@@ -59,7 +60,7 @@ export function planRace(o) {
   const b = out.find((p) => !picks.includes(p) && p.stops !== picks[0]?.stops); if (b && picks.length < 3) picks.push(b);
   for (const p of out) { if (picks.length >= 3) break; if (!picks.includes(p)) picks.push(p); }
   picks.forEach((p, i) => { p.name = 'ABC'[i]; p.label = label(p); p.laps = L; });
-  return { plans: picks, retime: (stints) => stints.reduce((t, s, i) => t + stint(s.compound, s.end - s.start + 1, i === 0), 0) + (stints.length - 1) * o.pitLoss, life: (c) => pre[c]?.life || life(c), two, comps, mustStop: L >= 8 };
+  return { plans: picks, retime: (stints) => stints.reduce((t, s, i) => t + stint(s.compound, s.end - s.start + 1, i === 0), 0) + (stints.length - 1) * o.pitLoss, life: (c) => pre[c]?.life || life(c), two, comps, all: ALL, mustStop: rule };
 }
 function label(p) {
   const n = ['No-stop', 'One-stop', 'Two-stop', 'Three-stop'][p.stops] || `${p.stops}-stop`;
@@ -226,7 +227,7 @@ export function showStrategy(o) {
   //  every part of it is yours to change; its time is shown against theirs.)
   const own = { name: 'YOUR STRATEGY', custom: true, laps: plans[0].laps, stints: plans[0].stints.map((s) => ({ ...s })), stops: plans[0].stops, time: plans[0].time };
   const engT = plans[0].time; plans.length = 0; plans.push(own);
-  const ownRows = (p) => `<div class="st-own">${p.stints.map((s, k) => `<div class="st-row"><span>Stint ${k + 1}</span>${R.comps.map((c) => `<button class="cp${s.compound === c ? ' on' : ''}" data-k="${k}" data-c="${c}" style="--c:${COMPOUNDS[c].color}" title="${c[0] + c.slice(1).toLowerCase()}s" aria-label="Stint ${k + 1} on ${c.toLowerCase()}s">${c[0]}</button>`).join('')}${k < p.stints.length - 1 ? `<span class="st-to">to L<button data-k="${k}" data-e="-1" aria-label="Box a lap earlier">−</button><b>${s.end}</b><button data-k="${k}" data-e="1" aria-label="Box a lap later">+</button></span>` : `<span class="st-to">to the flag</span>`}</div>`).join('')}
+  const ownRows = (p) => `<div class="st-own">${p.stints.map((s, k) => `<div class="st-row"><span>Stint ${k + 1}</span>${(R.all || R.comps).map((c) => `<button class="cp${s.compound === c ? ' on' : ''}" data-k="${k}" data-c="${c}" style="--c:${COMPOUNDS[c].color}" title="${c[0] + c.slice(1).toLowerCase()}s" aria-label="Stint ${k + 1} on ${c.toLowerCase()}s">${c[0]}</button>`).join('')}${k < p.stints.length - 1 ? `<span class="st-to">to L<button data-k="${k}" data-e="-1" aria-label="Box a lap earlier">−</button><b>${s.end}</b><button data-k="${k}" data-e="1" aria-label="Box a lap later">+</button></span>` : `<span class="st-to">to the flag</span>`}</div>`).join('')}
       <div class="st-row"><span>Stops</span><button data-n="-1" ${p.stints.length <= 1 ? 'disabled' : ''} aria-label="One stop fewer">−</button><b>${p.stints.length - 1}</b><button data-n="1" ${p.stints.length >= 4 || p.stints.length >= p.laps ? 'disabled' : ''} aria-label="One stop more">+</button></div></div>`;
   const inner = (p, i) => {
     const w = p.custom ? null : pitWindow(R, p), L = p.laps;

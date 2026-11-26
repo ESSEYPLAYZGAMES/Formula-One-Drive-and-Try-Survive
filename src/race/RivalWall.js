@@ -151,7 +151,7 @@ export class RivalWall {
     const P = d.positions, me = P.indexOf(T), c = P.slice(me + 1, me + 3).find((x) => rivals.includes(x));
     if (!c) return; const a = c.ai, t = c.tyres, k = this.sharp(c), left = W.lapsTotal - c.lap;
     if (Math.random() > 0.25 + 0.6 * k) return;
-    const owes = W.lapsTotal >= 8 && c.pitStops === 0 && !c.usedRain && !W.weather?.everWet;
+    const owes = !!W.stopRule && c.pitStops === 0 && !c.usedRain && !W.weather?.everWet;
     if (doing === 'pit') {
       if (owes || t.wear > 0.45 || t.wear + a.perLap() * left > 0.8) return;   // (it needs the stop itself)
       if (c.pitRequested && a.pitReason === 'cheap' && toEntry(c) > 120) { c.pitRequested = false; a.pitPlan = null; a.pitReason = null; }

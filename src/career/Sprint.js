@@ -1,5 +1,5 @@
 // Sprint weekends (both careers): every third round of a season of four or more. Saturday: the sprint - a third of the
-// race's distance, no stop to make, its grid from a sprint shoot-out - points to the first eight, 8-7-6-5-4-3-2-1;
+// race's distance (four laps at least), no stop to make - of any length - its grid from a sprint shoot-out - points to the first eight, 8-7-6-5-4-3-2-1;
 // then qualifying and the Grand Prix as any weekend. Raced (main.js: the weekend's first race) or simulated with the
 // weekend (career/Career.js simWeekend, the HQ's SIMULATE): the points the same way, the round not moved on by it.
 
@@ -7,7 +7,7 @@ export const SPRINT_PTS = [8, 7, 6, 5, 4, 3, 2, 1];
 /** is the career's current round a sprint weekend? */
 export const isSprintRound = (C) => !!C && (C.rounds || 0) >= 4 && C.round % 3 === 0 && C.round <= C.rounds;
 /** the sprint's laps for a race of `laps` */
-export const sprintLaps = (laps) => Math.max(3, Math.round(laps / 3));
+export const sprintLaps = (laps) => Math.max(4, Math.round(laps / 3));   // (four laps at least)
 /**
  * The sprint's result into the career: the points to the drivers and their teams (rows: [{ pos, car: { careerId, team,
  * retired, name } }]), the line in the news. -> [{ id, name, pos, pts }] of the points scorers

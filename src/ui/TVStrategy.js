@@ -45,7 +45,7 @@ export class TVStrategy {
     let n;
     if (c.mgr?.plan && c.mgr.calls === 'plan') { const st = c.mgr.plan.stints[Math.min(c.pitStops, c.mgr.plan.stints.length - 1)]; if (c.pitStops >= c.mgr.plan.stints.length - 1) return null; n = st.end - c.lap; }
     else n = ((c.mgr ? 0.72 : ai?.strat?.wear ?? 0.65) - t.wear) / Math.max(0.004, per);
-    const owes = d.lapsTotal >= 8 && c.pitStops === 0;
+    const owes = !!d.stopRule && c.pitStops === 0;
     if (n > left - 1.5 && !owes) return null;   // (its set sees the flag)
     n = Math.max(0, Math.min(left - 1, n));
     return { a: n - 1, b: n + 1 };

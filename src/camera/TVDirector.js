@@ -192,7 +192,8 @@ export class TVDirector {
         const i = tr.idxAtS(sK), wK = barD(tr, ctx.pit, i, sd), edge = tr.edgeAt ? tr.edgeAt(i, sd) : wK - 2, off = sd * Math.min(wK - 0.5, edge + (tr.kerbWidth || 1) * 0.3), f = tr.sample(sK, off);
         const a = tr.sample(tr.wrapS(sK - (exit ? 34 : 30)), off * 0.35);   // (up the road, toward the middle of it: the car comes through the picture and over the lens)
         sh.s0 = sK; sh.side = sd; sh.kerb = true; sh.kerbExit = exit; sh.pos = new THREE.Vector3(f.x, G(f.x, f.z) + 0.3, f.z);
-        sh.lookA = new THREE.Vector3(a.x, G(a.x, a.z) + 1.5, a.z); sh.dur = 15;
+        const b = tr.sample(tr.wrapS(sK + 34), off * 0.35);   // (its twin, the other way: down the road after the car)
+        sh.lookA = new THREE.Vector3(a.x, G(a.x, a.z) + 1.5, a.z); sh.lookB = new THREE.Vector3(b.x, G(b.x, b.z) + 1.5, b.z); sh.dur = 15;
       }
       if (!sh.pos) { kind = 'track'; sh.kind = 'track'; } else sh.kind = 'track';   // (placed: from here it is a trackside camera, a fixed one)
     }
@@ -397,9 +398,12 @@ export class TVDirector {
       //  between two cameras - and the shot ends a second and a half on)
       if (sh.kerb) {
         const L = ctx.track.length; let ds = car.s - sh.s0; if (ds > L / 2) ds -= L; if (ds < -L / 2) ds += L;
-        if (ds > 1.2 && sh.pastT == null) sh.pastT = sh.t;
-        tgt.copy(sh.lookA); fov = 62;   // (never moves: not the aim, not the lens)
-        if (sh.pastT != null) sh.dur = Math.min(sh.dur, sh.pastT + 1.2); else if (ds < -900 || sh.t > 14) sh.dur = Math.min(sh.dur, sh.t);
+        // (the same kerb, two lenses: facing up the road as the car comes, and - the moment it is over the kerb - a cut
+        //  to the one facing down the road, the car going away from it; that held two and a half seconds. It does not
+        //  move on to the next kerb: the shot is this corner's)
+        if (ds > 0.5 && sh.pastT == null) sh.pastT = sh.t;
+        tgt.copy(sh.pastT != null && sh.lookB ? sh.lookB : sh.lookA); fov = 62;   // (neither lens moves: not the aim, not the lens)
+        if (sh.pastT != null) sh.dur = Math.min(sh.dur, sh.pastT + 2.6); else if (ds < -900 || sh.t > 14) sh.dur = Math.min(sh.dur, sh.t);
       } else
       if (sh.other) {
         // (two cars: the picture's middle is half way between them and it is as wide as they are apart, with room
@@ -472,7 +476,7 @@ export class TVDirector {
     //  change of the aim used to be carried, so every such change was a jump - and over 45 m, a snap: the picture
     //  "teleported to the right frame". Only a cut is a cut)
     const cutNow = this._lookShot !== sh; this._lookShot = sh;
-    if (!this._lookInit || (cutNow && !sh.heliCont)) { this._look.copy(tgt); this._lookInit = true; }   // (the same flight carried on into a new shot: the aim carries on too)
+    if (!this._lookInit || (cutNow && !sh.heliCont) || sh.kerb) { this._look.copy(tgt); this._lookInit = true; }   // (the kerb's two lenses: a cut between them, never a swing)   // (the same flight carried on into a new shot: the aim carries on too)
     else {
       _mv.set(car.x - this._sub0.x, carY + 0.7 - this._sub0.y, car.z - this._sub0.z);
       const follows = !sh.view && !sh.kerb && sh.kind !== 'grid' && !TV_AWAY.has(sh.kind);   // (a fixed view - the kerb's, a cutaway's, the grid's - looks where it looks)
