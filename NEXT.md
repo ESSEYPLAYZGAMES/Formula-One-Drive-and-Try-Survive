@@ -1,3 +1,42 @@
+# V2.89 (2026-11-26): the voices of Hell, the papers of Heaven; an exorcism hard to watch
+
+Asked for: "In hell you hear snippets of conversation ... robotic and scary recalled snippets like someone arguing and
+in heaven you hear nothing, but see the newspapers praising you. The exorcism should be a hard to watch scene with
+great cacophony of robotic noise, chanting picking up into multiple phrases of disgust all layered at once while the
+new life shakes vigorously and finally in a great conclusion all fizzles down... weak and frail picking up as the
+demons enter and leave as they like."
+
+## Hell: the echoes (ui/Afterlife.js, career/Echoes.js hellEchoes)
+- As you walk, snippets of arguments you were in come out of the dark around you: an accusing voice, and your own
+  answering, talking over each other. They are drawn from the deeds that sent you there, worst first (a crash you
+  caused: "There was no room!" - "The door was open." - "They are in the wall. Because of you."; a team-mate taken
+  out, a fight started, orders defied, a ban...), then lines anyone could hear ("You never listened." "Was it worth
+  it?" "Nobody is coming for you.").
+- Every line is said by a robotic voice (audio/AfterSound.js: a buzzing throat ring-modulated into metal, formant
+  filters moving vowel to vowel through the line, crushed, panned to where it came from), with the browser's own
+  voice pitched right down under the first line of each, and the words hang where they were said, in torn red
+  (theirs) and cold white (yours), flickering, rising, gone. Under it all, Hell's air: a low beating drone and a rumble.
+
+## Heaven: the papers (career/Echoes.js headlines)
+- Nothing to hear at all. Newspapers drift along the marble way instead, front pages praising you: by what you did
+  (a day for charity, the fans, walking away from a fight, the team before yourself, racing clean) and what you won
+  (wins, podiums, starts), on mastheads of their own. Come close to one and it is read out on the screen.
+
+## The exorcism (ui/Exorcism.js)
+- The noise builds with every spirit cast out: a choir chanting VA-DE, VA-DE, quickening; a machine's crushed static,
+  stutters and metal hits; and the spirits' words (career/Echoes.js spite - in Hell your own deeds among them: CHEAT,
+  TRAITOR, You put them in the wall; and GET OUT, NOT YOURS, DISGUSTING, SHAME...) said by robotic voices and thrown
+  across the screen, more and more of them at once, layered behind the circle. The body in the portal shakes harder
+  and harder, the camera closing in and trembling, the spirits round it whirling faster; a spirit cast out screams.
+- The last one out: a moment at the top (the screen strobing, everything at once, the body thrashing), then it all
+  fizzles away - every voice's pitch falling to nothing, the words blurring and dying. In the quiet, the body slumped,
+  weak, frail; a faint heart picking up, breath catching; and spirits drifting into it and out again as they please,
+  whispering ("...still here", "...we can wait") - in Hell many, in Heaven one or two. Then THE BODY IS YOURS - in
+  Hell: "But not only yours. They come and go as they please."; in Heaven: "Weak. Frail. It will learn to stand again."
+- Fail, and they laugh, low, as it drains away: THEY HOLD ON.
+- The trials themselves are unchanged (the same difficulty), the circle trembling only a little so the band can still
+  be hit. The sound respects mute and the master volume.
+
 # V2.88 (2026-11-26): Heaven and Hell as places; the exorcism; the next driver yours
 
 Asked for: "i want hell and heaven to be 3d spaces and all and then you gotta like retake the spirit of the new driver

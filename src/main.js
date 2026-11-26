@@ -4347,7 +4347,7 @@ function afterNews(hurt, then) {
         ended = true; endSession(); S.weekend = null; audio.silence?.(false);
         const team = C.team || {}, cands = (team.none ? [] : C.seatsOf(team.name) || []).filter((x) => x && x.alive && x.id !== d.id)
           .map((x) => ({ id: x.id, name: x.name, number: x.number, team: team.name, color: team.color, color2: team.color2 }));
-        try { showAfterlife({ heaven: J.heaven, sum: J.sum, name: d.name, candidates: cands, audio, onDone: (id) => after(id) }); } catch (e) { console.warn('[afterlife]', e); after(null); }
+        try { showAfterlife({ heaven: J.heaven, sum: J.sum, name: d.name, good: J.good, bad: J.bad, life: { wins: d.wins, podiums: d.podiums, starts: d.starts }, mate: cands[0]?.name, candidates: cands, audio, onDone: (id) => after(id) }); } catch (e) { console.warn('[afterlife]', e); after(null); }
       };
       if (J) { audio.silence?.(false); showReckoning(J, d.name, afterlife, { audio }); } else after();
     }, { audio, helmet3d: { name: d.name, helmet: d.helmet, color: l.color, number: d.number } });
