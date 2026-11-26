@@ -239,14 +239,14 @@ export function doll(c = {}) {
   const ball = (r, mat) => new THREE.Mesh(new THREE.SphereGeometry(r, 10, 8), mat);
   const seg = (r0, r1, L, mat) => { const m = new THREE.Mesh(new THREE.CylinderGeometry(r0, r1, L, 8), mat); m.position.y = -L / 2; return m; };
   const pelvis = new THREE.Group(); pelvis.position.y = 0.78; G.add(pelvis); J.pelvis = pelvis;
-  pelvis.add(Object.assign(ball(0.11, suit), { scale: new THREE.Vector3(1.25, 0.8, 0.9) }));
+  { const pb = ball(0.11, suit); pb.scale.set(1.25, 0.8, 0.9); pelvis.add(pb); }
   // (the torso and its chest: the suit, a stripe, the number)
   const torso = new THREE.Group(); torso.position.y = 0.05; pelvis.add(torso); J.torso = torso;
   const tb = new THREE.Mesh(new THREE.CapsuleGeometry(0.12, 0.3, 4, 10), suit); tb.position.y = 0.24; tb.scale.z = 0.75; torso.add(tb);
   const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.245, 0.04, 0.19), trim); stripe.position.y = 0.2; torso.add(stripe);
   const nm = new THREE.Mesh(new THREE.PlaneGeometry(0.13, 0.13), M({ map: numTex(c.number, c.color2 || '#ffffff'), transparent: true, roughness: 0.6 })); nm.position.set(0, 0.32, 0.095); torso.add(nm);
   // (the head on its neck)
-  const neck = new THREE.Group(); neck.position.y = 0.52; torso.add(neck); J.neck = neck; neck.add(Object.assign(ball(0.04, skin), {}));
+  const neck = new THREE.Group(); neck.position.y = 0.52; torso.add(neck); J.neck = neck; neck.add(ball(0.04, skin));
   const head = new THREE.Group(); head.position.y = 0.13; neck.add(head); J.head = head;
   const faceA = dollFace(false), faceB = dollFace(true); const fm = M({ map: faceA, roughness: 0.25, metalness: 0.05 });
   const hd = new THREE.Mesh(new THREE.SphereGeometry(0.12, 24, 16), fm); hd.scale.set(0.92, 1.06, 0.95); head.add(hd);
