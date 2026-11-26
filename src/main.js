@@ -92,6 +92,7 @@ import { NewsBroadcast } from './ui/NewsBroadcast.js';
 import { openCareer, closeCareer, showMourning, syncLooks } from './ui/CareerHub.js';
 import { judge } from './career/Conscience.js';
 import { showReckoning } from './ui/Reckoning.js';
+import { showAfterlife } from './ui/Afterlife.js';
 import * as Avatar from './career/Avatar.js';
 import { showInterview } from './ui/Interview.js';
 import { showPodium } from './ui/Podium.js';
@@ -4338,8 +4339,17 @@ function afterNews(hurt, then) {
     // (then the Reckoning - ui/Reckoning.js: the life weighed, Heaven or Hell - and back to the career)
     showMourning({ name: d.name, number: d.number, team: l.team, starts: d.starts, wins: d.wins, podiums: d.podiums }, helmetURL({ name: d.name, helmet: d.helmet, color: l.color, number: d.number }, { blood: true }), () => {
       let J = null; try { J = judge(C); } catch (e) { J = null; }
-      const after = () => { audio.silence?.(false); endSession(); S.weekend = null; openCareerHub(); };
-      if (J) { audio.silence?.(false); showReckoning(J, d.name, after, { audio }); } else after();
+      let ended = false;
+      const after = (id) => { audio.silence?.(false); if (!ended) { ended = true; endSession(); S.weekend = null; } if (id) { try { C.becomeDriver(id); C.save(); } catch (e) { console.warn('[afterlife] the new driver', e); } } openCareerHub(); };
+      // (then the afterlife - ui/Afterlife.js: Heaven or Hell as a place, the drivers you could become as portals in
+      //  it, an exorcism to take one - ui/Exorcism.js - and your career goes on as them)
+      const afterlife = () => {
+        ended = true; endSession(); S.weekend = null; audio.silence?.(false);
+        const team = C.team || {}, cands = (team.none ? [] : C.seatsOf(team.name) || []).filter((x) => x && x.alive && x.id !== d.id)
+          .map((x) => ({ id: x.id, name: x.name, number: x.number, team: team.name, color: team.color, color2: team.color2 }));
+        try { showAfterlife({ heaven: J.heaven, sum: J.sum, name: d.name, candidates: cands, audio, onDone: (id) => after(id) }); } catch (e) { console.warn('[afterlife]', e); after(null); }
+      };
+      if (J) { audio.silence?.(false); showReckoning(J, d.name, afterlife, { audio }); } else after();
     }, { audio, helmet3d: { name: d.name, helmet: d.helmet, color: l.color, number: d.number } });
   };
   if (others.length) { strings(true); showMemorial(others, next, () => audio.beep?.(146.8, 2.4, 0.1)); } else next();

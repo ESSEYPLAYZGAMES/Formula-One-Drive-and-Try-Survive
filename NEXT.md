@@ -1,3 +1,29 @@
+# V2.88 (2026-11-26): Heaven and Hell as places; the exorcism; the next driver yours
+
+Asked for: "i want hell and heaven to be 3d spaces and all and then you gotta like retake the spirit of the new driver
+and do exorcisms and then u can control the next driver".
+
+## The afterlife (ui/Afterlife.js)
+- After the Reckoning's verdict you wake in it, as a spirit - a glow with a trail - and walk (W/S or up/down to go, A/D
+  or left/right to turn; the camera follows). HEAVEN: a floor of cloud under a sky of white gold, a marble way
+  through it between columns and pillars of light, motes drifting up, golden gates standing open at its end. HELL:
+  black rock split by rivers of moving lava, spires, flames along the cracks, embers rising into a sky of smoke and
+  blood, an iron arch.
+- At the end of the way, a portal for each driver you could become - your team's: your team-mate, and whoever the team
+  brought in for you - each standing in their suit inside a ring of light in the team's colour, their name over it,
+  dark spirits going round them. Walk up to one and press E.
+
+## The exorcism (ui/Exorcism.js)
+- The spirits holding the body must be cast out before yours can take it. A circle of runes over the scene, and two
+  trials in turn: THE SEAL - a ring of light closing on the circle, SPACE (or a click) as it crosses the golden band;
+  THE WORDS - a word of command (VADE, EXI, LUX, CEDE, PAX, ABI) to type before the light fades. Every miss, every
+  wrong letter, darkens the circle.
+- Heaven: three spirits, a slower ring, a wider band, four misses allowed. Hell: six spirits, faster, narrower, the
+  words every other time, three misses. A soul that weighed light is a little steadier.
+- Cast them all out: "THE BODY IS YOURS" - and the career goes on as that driver. Fail: "THEY HOLD ON" - you are thrown
+  back onto the way, to choose again. Nobody left to become: you let go, and the career waits for a new driver as
+  before.
+
 # V2.87 (2026-11-26): palms and a retro sun, no buildings
 
 Asked for: "remove the buildings from the bg but keep large palm silhouettes and sort of sun retro iconography".
