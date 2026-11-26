@@ -127,7 +127,7 @@ function portal(c, i) {
   const wisps = []; for (let k = 0; k < 5; k++) { const w = new THREE.Sprite(new THREE.SpriteMaterial({ map: softTex('rgba(30,0,20,.95)', 'rgba(60,0,30,0)'), transparent: true, depthWrite: false })); w.scale.setScalar(0.7); w.userData.ph = k / 5; G.add(w); wisps.push(w); }
   const lab = new THREE.Sprite(new THREE.SpriteMaterial({ map: labelTex(c.name, `#${c.number ?? ''} · ${c.team || ''}`, c.color || '#fff'), transparent: true, depthWrite: false })); lab.scale.set(5.2, 1.3, 1); lab.position.y = 5.4; G.add(lab);
   const light = new THREE.PointLight(col, 6, 12, 1.6); light.position.set(0, 2.4, 1); G.add(light);
-  return { G, swirl, wisps, person: P, cand: c, i };
+  return { G, swirl, wisps, person: P, cand: c, i, frame: [ring, halo, swirl, lab] };
 }
 
 export function showAfterlife(o) {
@@ -280,6 +280,7 @@ export function showAfterlife(o) {
   }
   function enter(p) {
     exo.v = 0; exo.phase = 'ritual'; exo.u = 0; for (const h of hums) h.set(0, 0); bleed(p); exo.held = gather(p);
+    for (const x of p.frame) x.visible = false;   // (the ring of light, the swirl, the name gone: nothing between you and the body)
     if (heaven && !p.rats) { p.rats = rats(36, { packs: 2, r: 7 }); p.rats.mesh.position.set(p.G.position.x, 0, p.G.position.z); sc.add(p.rats.mesh); }
     mode = 'exorcism'; keys.clear(); near.classList.remove('in'); hint.style.opacity = '0'; el.classList.add('exo'); me.visible = false; for (const s of trail) s.visible = false;
     runExorcism({ host: el, heaven, sum: o.sum || 0, name: p.cand.name, color: p.cand.color, audio: o.audio, snd, spite: spite({ bad: o.bad, heaven, name: o.name, body: p.cand.name }),
@@ -293,6 +294,7 @@ export function showAfterlife(o) {
         if (ok) { fade.classList.add('in'); setTimeout(() => finish(p.cand.id), 900); return; }
         for (const w of p.wisps) w.userData.gone = null;
         exo.v = 0; exo.phase = 'ritual'; if (p.person) { p.person.group.rotation.set(0, Math.PI, 0); p.person.group.position.set(0, 0.6, 0.3); } echoAt = 2.5;
+        for (const x of p.frame) x.visible = true;
         for (const m of ST) { if (m.held) { m.held = false; m.trip = null; m.reach = 0; m.G.scale.setScalar(1); m.G.visible = true; m.inside = false; } }
         mode = 'walk'; hint.style.opacity = '1'; el.classList.remove('exo'); me.visible = true; for (const s of trail) s.visible = true; me.position.set(0, 1.4, 4); heading = Math.PI; setHint();
       } });
