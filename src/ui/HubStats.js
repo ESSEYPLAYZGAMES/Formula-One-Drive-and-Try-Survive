@@ -8,6 +8,7 @@
 // head picks the season (‹ 2026 ›: the arrow keys step through them) or the career; on a phone it sits at the top of
 // the page. In the hub's own look: white tiles and cards, the team's colour, the hub's line charts.
 import { statsEnsure, newBook, figures, seasonsOf, aiOf, paddockRecords } from '../career/Stats.js';
+import { hqSkin } from './DriverHQ.js';
 
 const CSS = `
 #career .hst { display: flex; flex-direction: column; gap: var(--gap); height: 100%; min-height: 0; font-variant-numeric: tabular-nums; }
@@ -121,7 +122,7 @@ const CSS = `
 `;
 const css = () => {
   if (typeof document === 'undefined' || document.getElementById('hub-stats-css')) return;
-  const st = document.createElement('style'); st.id = 'hub-stats-css'; st.textContent = CSS; document.head.appendChild(st);
+  const st = document.createElement('style'); st.id = 'hub-stats-css'; st.textContent = hqSkin(CSS);   /* (on the HQ's colours: ui/DriverHQ.js) */ document.head.appendChild(st);
 };
 // (in at once: the rail's rule above matters before the first stats page is drawn)
 css();

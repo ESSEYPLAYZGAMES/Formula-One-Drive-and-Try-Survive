@@ -71,7 +71,7 @@ ${R}[data-tone="vice"]::before { background:
   linear-gradient(180deg, #0a0524 0%, #1a0a3e 38%, #3b1060 62%, #6e1a6a 82%, #a8325a 100%) !important; }
 ${R}[data-tone="vice"]::after { opacity: .28; }
 /* (the panels: a pane of smoked glass with the city behind it, every edge a tube) */
-${R}[data-tone="vice"] .q-p, ${R}[data-tone="vice"] .glass { backdrop-filter: blur(10px) saturate(1.25); -webkit-backdrop-filter: blur(10px) saturate(1.25); }
+${R}[data-tone="vice"] .q-p, ${R}[data-tone="vice"] .glass:not(.ch-top):not(.ch-rail):not(.ch-panel) { backdrop-filter: blur(10px) saturate(1.25); -webkit-backdrop-filter: blur(10px) saturate(1.25); }
 ${R}[data-tone="vice"] .q-p > header h3 { color: #ffd1f0; text-shadow: 0 0 8px rgba(255,63,164,.8), 0 0 18px rgba(255,63,164,.4); }
 /* (the tubes: every panel's edge brighter, pink into cyan, and a glow off it) */
 ${R}[data-tone="vice"] .q-p { background: linear-gradient(180deg, rgba(27,16,58,.80), rgba(20,11,45,.76)) padding-box, linear-gradient(140deg, rgba(255,63,164,.85), rgba(155,92,255,.22) 38%, rgba(155,92,255,.18) 62%, rgba(35,229,255,.8)) border-box;

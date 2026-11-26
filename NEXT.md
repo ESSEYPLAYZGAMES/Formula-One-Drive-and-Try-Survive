@@ -16,6 +16,20 @@ menu"; "add heaven and hell to give players a sense of a moral compass".
 - The 3D studio only where your look is being made (DRIVER > Look, LIFE > Style); everywhere else it is off and does
   not draw. The side card is gone (the HQ has none; what it said is on the pages and the bar).
 
+## Ocean Drive, your colours, the stage filled (ui/ViceScene.js, ui/DriverHQ.js, ui/CareerHub.js)
+- Asked for: "resize some things (not just scaling but complete rebuild of certain things) to fill the screen fully.
+  Have the theme be customizable like in principal mode - make it more neon and Miami / Vice City Ocean Drive vibes".
+- VICE is Ocean Drive at dusk now, behind both hubs (the team principal's too): the sky from indigo through violet and
+  magenta to a burning orange at the sea, a low striped sun, a row of Art Deco hotels along the front - every edge a
+  neon tube, pink, cyan, tangerine, violet - with lit windows, vertical signs, awnings, palms in silhouette, the sea's
+  glow at the foot. Drawn as one SVG, nothing to load; the names on the signs are invented. The panels are smoked
+  glass with the city behind them, their edges brighter tubes; the buttons and titles glow.
+- The colours, as in the HQ: the button by the settings in the bar - the accent (the team's colour, its second, or
+  one of eight) and the ground (Vice, Midnight, Carbon, Daylight), kept for the team.
+- RACE WEEK > Briefing rebuilt for the whole stage: the next race with its circuit drawn as a neon tube and the
+  race-day boxes under it, your season's six figures, the sponsors' targets, what is waiting this week, the
+  season's rounds along the foot. STATS on the HQ's colours as well.
+
 ## Mail (career/DriverMail.js, ui/DriverMailPage.js)
 - MAIL at the top of the rail, with the unread count: the HQ's mail client - the list on the left, the letter on the
   right. The race engineer's report after every race (the result, the rating and its reasons, Driver of the Day); a

@@ -122,7 +122,10 @@ const VICE_CARDS = `
 #career[data-hq][data-tone="vice"] .dbr-tt b { color: #fff; text-shadow: 0 0 10px rgba(255,63,164,.9), 0 0 26px rgba(255,63,164,.5), 0 0 40px rgba(35,229,255,.35); }
 #career[data-hq] .dbr-tt small { display: block; margin-top: 10px; font-size: 13px; line-height: 1.45; color: var(--dim); }
 #career[data-hq] .dbr-boxes { flex: none; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
-#career[data-hq] .dbr .tiles, #career[data-hq] .dbr .wk-tiles { height: 100%; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-rows: minmax(0, 1fr); gap: 8px; }
+#career[data-hq] .dbr .tiles, #career[data-hq] .dbr .wk-tiles { height: 100%; display: grid; grid-auto-flow: row; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-rows: minmax(0, 1fr); gap: 8px; }
+#career[data-hq] .dbr .wk-brief { height: auto; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+#career[data-hq] .dbr .wk-brief > div { min-height: 64px; }
+#career[data-hq] .dbr .obj span, #career[data-hq] .dbr .wk-al span { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 #career[data-hq] .dbr .obj, #career[data-hq] .dbr .wk-al { display: flex; flex-direction: column; gap: 6px; }
 #career[data-hq] .dbr .q-p:last-child .q-pb > * { height: 100%; }
 

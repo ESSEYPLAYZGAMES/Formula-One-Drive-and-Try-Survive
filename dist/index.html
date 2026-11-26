@@ -602,7 +602,7 @@ body.tp #hud-msg { top: 30%; }
     <div class="brand-line"></div>
     <h1 id="brand-title">FORMULA 1<span id="brand-sub">SIMULATOR</span></h1>
     <!-- the build's version: +0.01 with every build handed out -->
-    <span id="app-ver" title="Version">V2.85</span>
+    <span id="app-ver" title="Version">V2.86</span>
     <div id="menu-sub">Real circuits built from OpenStreetMap</div>
   </div>
   <div id="loading" class="hidden"><div class="ld"><i></i></div><span>Building the circuit from OpenStreetMap…</span></div>
@@ -101652,9 +101652,77 @@ class CrowdLife {
 return { CrowdLife };
 })();
 
+// ---- src/career/Conscience.js
+__m['src/career/Conscience.js'] = (() => {
+
+// Your driver's conscience (the driver career): what they did with the life they had, good and bad, kept as it
+// happens - and, if they are killed, weighed (ui/Reckoning.js): Heaven or Hell. A moral compass, felt while you can
+// still change it (the hub's DRIVER panel: which way the scales lean) and final when you cannot.
+// What counts is what your driver chose to do, on the track and off it (career/PR.js prEvent - every public act of
+// your driver passes through it - and career/Career.js applyRace for a clean race): a day for charity, a donation,
+// time for the fans, walking away from a fight; starting a fight, goading a rival, a crash you caused, a penalty, a
+// ban, defying the team or taking out a team-mate - and the team orders obeyed. Only your own driver is ever judged:
+// never the real drivers on the grid, whatever happens to them.
+//   c.soul = { v: 1, by: { key: { n, w (the total), label, good } }, sum, first: { season, round } }
+
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+const num = (v, d = 0) => (Number.isFinite(+v) ? +v : d);
+
+/** the deeds by what passes through prEvent: kind (and its data) -> [key, weight, label] | null */
+function deedOf(kind, x) {
+  switch (kind) {
+    case 'charity': return num(x.donation) > 0 ? ['donate', 3, 'Gave to charity'] : ['charity', 4, 'Gave a day to a good cause'];
+    case 'fans': return ['fans', 1.5, 'Gave the fans their time'];
+    case 'restraint': return ['restraint', 2.5, 'Walked away from a fight'];
+    case 'brawl': return x.started ? ['brawlStart', -4 - (x.escalated ? 1 : 0), 'Started a fight'] : ['brawl', -1.5 - (x.escalated ? 1 : 0), 'Traded blows in a brawl'];
+    case 'jab': return ['jab', -1.5, 'Goaded a rival'];
+    case 'penalty': { const p = clamp(Math.round(num(x.pts)), 0, 12); return p ? ['penalty', -(0.5 + p * 0.5), 'Penalised by the stewards'] : null; }
+    case 'crash': return x.blame ? ['crashBlame', -2.5, 'Caused a crash'] : null;
+    case 'ban': return ['ban', -3, 'Banned for dangerous driving'];
+    case 'orders': return ({ youObeyed: ['obeyed', 1.5, 'Did as the team asked'], youSacrificed: ['sacrifice', 3, 'Gave way for the team'], youRefused: ['defied', -2.5, 'Defied team orders'],
+      youBrokeHold: ['brokeHold', -2, 'Broke a hold order'], youHeldUp: ['heldUp', -3.5, 'Held a team-mate up on purpose'], youHit: ['hitMate', -4, 'Took out a team-mate'] })[x.sub] || null;
+    default: return null;
+  }
+}
+
+/** a deed into the ledger (key, weight: + good, - bad; label: what it says on the scales) */
+function deed(c, key, w, label) {
+  if (!c || !key || !num(w)) return;
+  const S = c.soul || (c.soul = { v: 1, by: {}, sum: 0, first: { season: c.season, round: c.round } });
+  const e = S.by[key] || (S.by[key] = { n: 0, w: 0, label, good: w > 0 });
+  e.n++; e.w = Math.round((e.w + w) * 10) / 10; S.sum = Math.round((S.sum + w) * 10) / 10;
+}
+/** an event of your driver's (career/PR.js prEvent): its deed, if it is one */
+function deedFromEvent(c, kind, x = {}) {
+  const D = deedOf(kind, x || {}); if (D) deed(c, D[0], D[1], D[2]);
+}
+/** the scales now: -> { sum, lean (-1..1), word } */
+function compass(c) {
+  const s = num(c?.soul?.sum);
+  const word = s >= 6 ? 'Heaven-bound' : s >= 2 ? 'Leaning towards heaven' : s > -2 ? 'In the balance' : s > -6 ? 'Leaning towards hell' : 'Hell-bound';
+  return { sum: s, lean: clamp(s / 12, -1, 1), word };
+}
+/**
+ * The judgement (the driver has died): the deeds on each side, heaviest first, and the verdict - Heaven when the good
+ * weighs at least as much as the harm. -> { heaven, sum, good: [{ label, n, w }], bad: [...], lesson }
+ */
+function judge(c) {
+  const by = Object.values(c?.soul?.by || {}), sum = num(c?.soul?.sum);
+  const good = by.filter((e) => e.w > 0).sort((a, b) => b.w - a.w), bad = by.filter((e) => e.w < 0).sort((a, b) => a.w - b.w);
+  const heaven = sum >= 0, top = (L) => L.slice(0, 2).map((e) => e.label.toLowerCase());
+  const lesson = heaven
+    ? (good.length ? `What lifted you: ${top(good).join(' and ')}. The good you did outweighed the harm.` : 'You did no great good, and no great harm. The scales found nothing against you.')
+    : `What dragged you down: ${top(bad).join(' and ')}. The harm you did, on the track and off it, outweighed the good.`;
+  return { heaven, sum, good, bad, lesson };
+}
+
+return { deed, deedFromEvent, compass, judge };
+})();
+
 // ---- src/career/PR.js
 __m['src/career/PR.js'] = (() => {
 const { shiftMorale, moodOf } = __m['src/career/Morale.js'];
+const { deedFromEvent } = __m['src/career/Conscience.js'];
 // Public relations: how the world beyond the pit wall sees your driver. Nine outlets cover the paddock - GP TV (the
 // host broadcaster), RACE 24, F1 NEWS, the APEX magazine, the PIT LANE podcast, GRID FM radio, Paddock Weekly, the
 // tabloid Paddock Post, and Chequered, the platform where the fans have their say - each with its own reach, its own
@@ -101671,6 +101739,7 @@ const { shiftMorale, moodOf } = __m['src/career/Morale.js'];
 // and gossip copy never pairs a real person with anyone: the celebrities are invented, the men a tabloid links them with
 // are invented, and a real driver in a love story is only ever 'the <team> driver'. The state is plain JSON on the career
 // (c.pr); the callers save.
+
 
 // ---- small helpers --------------------------------------------------------------------------------------------------
 const pick = (a) => a[(Math.random() * a.length) | 0];
@@ -102785,6 +102854,7 @@ function prEvent(c, kind, data = {}) {
   if (!c || typeof kind !== 'string' || GRAVE_KINDS.has(kind)) return none;
   const x = data && typeof data === 'object' ? data : {};
   if (graveData(x)) return none;
+  try { deedFromEvent(c, kind, x); } catch (e) { /* the conscience keeps no count of it */ }   // (career/Conscience.js: what your driver did, weighed one day)
   const mk = EV[kind]; if (!mk) return none;
   const P = ensure(c); if (!P) return none;
   if (PERSONAL.has(kind) && hushed(c)) return none;
@@ -144960,7 +145030,7 @@ const { ensureMotion, reduced, keys, open, close } = __m['src/ui/Motion.js'];
 // stop on its lap (main.js strategyCalls) - box this lap, the next compound already set; P stays out.
 
 
-const DRY = ['SOFT', 'MEDIUM', 'HARD'];
+const DRY = ['SOFT', 'MEDIUM', 'HARD'], ALL = ['SOFT', 'MEDIUM', 'HARD', 'INTER', 'WET'];   // (ALL: the builder's buttons - every tyre, whatever the day)
 const RATE = 1.05;   // (the wear rate on a racing lap, against the nominal: the AI's, measured 0.98-1.08 - TyreSet.update)
 
 /**
@@ -144979,16 +145049,17 @@ function planRace(o) {
   // a stint's lap times: the pace, the seconds lost as the set wears (to the cliff, then the ramp; a set worn through
   // is not a plan), and its cold start - a new set off the blankets, the first stint as the formation lap leaves it
   const pre = {};
-  for (const c of comps) {
+  for (const c of ALL) {   // (every tyre timed - the plans are made from the day's (comps), the builder may pick any)
     const a = [0], per = 0.7 / life(c);
     for (let n = 1; n <= L; n++) { const w = (n - 0.5) * per; a.push(w > 1 ? Infinity : a[n - 1] + T0 + paceOf(c) + lapLoss(c, w, L)); }
     pre[c] = { sum: a, life: life(c) };
   }
   const stint = (c, n, first) => pre[c].sum[n] + (first ? outLapLoss(c, T0, COMPOUNDS[c].start) : outLapLoss(c, T0));
-  const two = wet < 0.2 && L >= 8;   // (the rule: two dry compounds in a dry race of any length)
+  const rule = o.rule ?? L >= 8;   // (o.rule: the director's stop rule - false in a sprint, whatever its length)
+  const two = wet < 0.2 && rule;   // (the rule: two dry compounds in a dry race of any length)
   const out = [];
   // (8 laps or more: a stop is mandatory - RaceDirector adds 30 s at the flag to a car that never made one)
-  const add = (stints, time) => { if (!isFinite(time)) return; if (L >= 8 && stints.length < 2) return; if (two && new Set(stints.map((s) => s.compound)).size < 2) return; out.push({ stints, time, stops: stints.length - 1 }); };
+  const add = (stints, time) => { if (!isFinite(time)) return; if (rule && stints.length < 2) return; if (two && new Set(stints.map((s) => s.compound)).size < 2) return; out.push({ stints, time, stops: stints.length - 1 }); };
   for (const c of comps) add([{ compound: c, start: 1, end: L }], stint(c, L, true));
   for (const a of comps) for (const b of comps) {
     let best = Infinity, bk = 0; for (let k = 1; k < L; k++) { const t = stint(a, k, true) + stint(b, L - k, false) + o.pitLoss; if (t < best) { best = t; bk = k; } }
@@ -145000,7 +145071,7 @@ function planRace(o) {
     if (k1b) add([{ compound: a, start: 1, end: k1b }, { compound: b, start: k1b + 1, end: k2b }, { compound: c, start: k2b + 1, end: L }], best);
   }
   out.sort((p, q) => p.time - q.time);
-  if (L < 8 && out.some((p) => !p.stops)) for (let i = out.length - 1; i >= 0; i--) if (out[i].stops) out.splice(i, 1);   // (a sprint: nobody stops if they don't have to)
+  if (!rule && out.some((p) => !p.stops)) for (let i = out.length - 1; i >= 0; i--) if (out[i].stops) out.splice(i, 1);   // (a sprint: nobody stops if they don't have to)
   // A: the quickest; B: the quickest with a different number of stops; C: the quickest with a different start tyre
   const picks = [];
   if (out[0]) picks.push(out[0]);
@@ -145010,7 +145081,7 @@ function planRace(o) {
   const b = out.find((p) => !picks.includes(p) && p.stops !== picks[0]?.stops); if (b && picks.length < 3) picks.push(b);
   for (const p of out) { if (picks.length >= 3) break; if (!picks.includes(p)) picks.push(p); }
   picks.forEach((p, i) => { p.name = 'ABC'[i]; p.label = label(p); p.laps = L; });
-  return { plans: picks, retime: (stints) => stints.reduce((t, s, i) => t + stint(s.compound, s.end - s.start + 1, i === 0), 0) + (stints.length - 1) * o.pitLoss, life: (c) => pre[c]?.life || life(c), two, comps, mustStop: L >= 8 };
+  return { plans: picks, retime: (stints) => stints.reduce((t, s, i) => t + stint(s.compound, s.end - s.start + 1, i === 0), 0) + (stints.length - 1) * o.pitLoss, life: (c) => pre[c]?.life || life(c), two, comps, all: ALL, mustStop: rule };
 }
 function label(p) {
   const n = ['No-stop', 'One-stop', 'Two-stop', 'Three-stop'][p.stops] || `${p.stops}-stop`;
@@ -145177,7 +145248,7 @@ function showStrategy(o) {
   //  every part of it is yours to change; its time is shown against theirs.)
   const own = { name: 'YOUR STRATEGY', custom: true, laps: plans[0].laps, stints: plans[0].stints.map((s) => ({ ...s })), stops: plans[0].stops, time: plans[0].time };
   const engT = plans[0].time; plans.length = 0; plans.push(own);
-  const ownRows = (p) => `<div class="st-own">${p.stints.map((s, k) => `<div class="st-row"><span>Stint ${k + 1}</span>${R.comps.map((c) => `<button class="cp${s.compound === c ? ' on' : ''}" data-k="${k}" data-c="${c}" style="--c:${COMPOUNDS[c].color}" title="${c[0] + c.slice(1).toLowerCase()}s" aria-label="Stint ${k + 1} on ${c.toLowerCase()}s">${c[0]}</button>`).join('')}${k < p.stints.length - 1 ? `<span class="st-to">to L<button data-k="${k}" data-e="-1" aria-label="Box a lap earlier">−</button><b>${s.end}</b><button data-k="${k}" data-e="1" aria-label="Box a lap later">+</button></span>` : `<span class="st-to">to the flag</span>`}</div>`).join('')}
+  const ownRows = (p) => `<div class="st-own">${p.stints.map((s, k) => `<div class="st-row"><span>Stint ${k + 1}</span>${(R.all || R.comps).map((c) => `<button class="cp${s.compound === c ? ' on' : ''}" data-k="${k}" data-c="${c}" style="--c:${COMPOUNDS[c].color}" title="${c[0] + c.slice(1).toLowerCase()}s" aria-label="Stint ${k + 1} on ${c.toLowerCase()}s">${c[0]}</button>`).join('')}${k < p.stints.length - 1 ? `<span class="st-to">to L<button data-k="${k}" data-e="-1" aria-label="Box a lap earlier">−</button><b>${s.end}</b><button data-k="${k}" data-e="1" aria-label="Box a lap later">+</button></span>` : `<span class="st-to">to the flag</span>`}</div>`).join('')}
       <div class="st-row"><span>Stops</span><button data-n="-1" ${p.stints.length <= 1 ? 'disabled' : ''} aria-label="One stop fewer">−</button><b>${p.stints.length - 1}</b><button data-n="1" ${p.stints.length >= 4 || p.stints.length >= p.laps ? 'disabled' : ''} aria-label="One stop more">+</button></div></div>`;
   const inner = (p, i) => {
     const w = p.custom ? null : pitWindow(R, p), L = p.laps;
@@ -147576,7 +147647,7 @@ class TVDirector {
       //  and then its twin looking down the road after them. Nothing is asked of the walls and fences: it is inside
       //  them, on the road's own edge. The next corner within reach - further when the kerb camera is the one asked
       //  for - or a trackside camera instead.)
-      let s0 = null, sE = null, side = 1, kPick = null; const reach = this.camKind === 'kerb' ? 720 : 330;
+      let s0 = null, sE = null, side = 1, kPick = null; const reach = this.camKind === 'kerb' ? 480 : 330;   // (asked for: the next corner a little further on - not one so far off the road is empty for long)
       for (let ds = 45; ds < reach; ds += 12) { const i = tr.idxAtS(tr.wrapS(subject.s + ds)); if (!tr.inCornerZone(i)) continue; let e = ds; while (e < ds + 220 && tr.inCornerZone(tr.idxAtS(tr.wrapS(subject.s + e)))) e += 12; const sm = tr.wrapS(subject.s + (ds + e) / 2), im = tr.idxAtS(sm), n = tr.n, a = (im - 6 + n) % n, b = (im + 6) % n; side = (tr.tx[b] - tr.tx[a]) * tr.nx[im] + (tr.tz[b] - tr.tz[a]) * tr.nz[im] > 0 ? 1 : -1; s0 = sm; sE = e - ds > 30 ? tr.wrapS(subject.s + e - 10) : null;
         // (the kerbs the racing line really runs over: the apex where it comes nearest the inside edge, the exit where it
         //  runs out nearest the outside one - from the line itself, not the corner's middle and end)
@@ -147600,7 +147671,8 @@ class TVDirector {
         const i = tr.idxAtS(sK), wK = barD(tr, ctx.pit, i, sd), edge = tr.edgeAt ? tr.edgeAt(i, sd) : wK - 2, off = sd * Math.min(wK - 0.5, edge + (tr.kerbWidth || 1) * 0.3), f = tr.sample(sK, off);
         const a = tr.sample(tr.wrapS(sK - (exit ? 34 : 30)), off * 0.35);   // (up the road, toward the middle of it: the car comes through the picture and over the lens)
         sh.s0 = sK; sh.side = sd; sh.kerb = true; sh.kerbExit = exit; sh.pos = new THREE.Vector3(f.x, G(f.x, f.z) + 0.3, f.z);
-        sh.lookA = new THREE.Vector3(a.x, G(a.x, a.z) + 1.5, a.z); sh.dur = 15;
+        const b = tr.sample(tr.wrapS(sK + 34), off * 0.35);   // (its twin, the other way: down the road after the car)
+        sh.lookA = new THREE.Vector3(a.x, G(a.x, a.z) + 1.5, a.z); sh.lookB = new THREE.Vector3(b.x, G(b.x, b.z) + 1.5, b.z); sh.dur = 15;
       }
       if (!sh.pos) { kind = 'track'; sh.kind = 'track'; } else sh.kind = 'track';   // (placed: from here it is a trackside camera, a fixed one)
     }
@@ -147752,7 +147824,7 @@ class TVDirector {
       want = S[0] || null;
     }
     if (!want) return sh?.car || null;
-    const ended = !sh || (gone(sh.car) && !TV_AWAY.has(sh.kind)) || sh.t > sh.dur || (sh.kind === 'track' && this.passed(ctx, sh)) || (sh.kind === 'pit' && !sh.car.pitLane && !sh.car.inPit && sh.t > 2)
+    const ended = !sh || (gone(sh.car) && !TV_AWAY.has(sh.kind)) || sh.t > sh.dur || (sh.kind === 'track' && !sh.kerb && this.passed(ctx, sh))   /* (a kerb shot keeps its own time: its two lenses, then over) */ || (sh.kind === 'pit' && !sh.car.pitLane && !sh.car.inPit && sh.t > 2)
       || (sh.why === 'grid' && d.world.racing && sh.t > 3);
     const urgent = (want.urgent && sh && sh.car !== want.car && sh.t > 1.2 && !(sh.why === 'out' || sh.why === 'spin')) || (want.away && sh && sh.why !== want.why && sh.t > 1.5) || (want.why === 'start' && sh && sh.why !== 'start');
     if (!ended && !urgent && sh && this.followCar && sh.followed && sh.car === this.followCar && want.car === sh.car) { sh.other = want.other || null; sh.third = want.third || null; }   // (the same car's picture: who is in it with him follows the fight)
@@ -147805,9 +147877,12 @@ class TVDirector {
       //  between two cameras - and the shot ends a second and a half on)
       if (sh.kerb) {
         const L = ctx.track.length; let ds = car.s - sh.s0; if (ds > L / 2) ds -= L; if (ds < -L / 2) ds += L;
-        if (ds > 1.2 && sh.pastT == null) sh.pastT = sh.t;
-        tgt.copy(sh.lookA); fov = 62;   // (never moves: not the aim, not the lens)
-        if (sh.pastT != null) sh.dur = Math.min(sh.dur, sh.pastT + 1.2); else if (ds < -900 || sh.t > 14) sh.dur = Math.min(sh.dur, sh.t);
+        // (the same kerb, two lenses: facing up the road as the car comes, and - the moment it is over the kerb - a cut
+        //  to the one facing down the road, the car going away from it; that held two and a half seconds. It does not
+        //  move on to the next kerb: the shot is this corner's)
+        if (ds > 0.5 && sh.pastT == null) sh.pastT = sh.t;
+        tgt.copy(sh.pastT != null && sh.lookB ? sh.lookB : sh.lookA); fov = 62;   // (neither lens moves: not the aim, not the lens)
+        if (sh.pastT != null) sh.dur = Math.min(sh.dur, sh.pastT + 2.6); else if (ds < -900 || sh.t > 14) sh.dur = Math.min(sh.dur, sh.t);
       } else
       if (sh.other) {
         // (two cars: the picture's middle is half way between them and it is as wide as they are apart, with room
@@ -147880,7 +147955,7 @@ class TVDirector {
     //  change of the aim used to be carried, so every such change was a jump - and over 45 m, a snap: the picture
     //  "teleported to the right frame". Only a cut is a cut)
     const cutNow = this._lookShot !== sh; this._lookShot = sh;
-    if (!this._lookInit || (cutNow && !sh.heliCont)) { this._look.copy(tgt); this._lookInit = true; }   // (the same flight carried on into a new shot: the aim carries on too)
+    if (!this._lookInit || (cutNow && !sh.heliCont) || sh.kerb) { this._look.copy(tgt); this._lookInit = true; }   // (the kerb's two lenses: a cut between them, never a swing)   // (the same flight carried on into a new shot: the aim carries on too)
     else {
       _mv.set(car.x - this._sub0.x, carY + 0.7 - this._sub0.y, car.z - this._sub0.z);
       const follows = !sh.view && !sh.kerb && sh.kind !== 'grid' && !TV_AWAY.has(sh.kind);   // (a fixed view - the kerb's, a cutaway's, the grid's - looks where it looks)
@@ -152286,6 +152361,93 @@ const MAIL_CSS = `
 return { mailHTML, mailHome, mailMark, mailClick, MAIL_CSS };
 })();
 
+// ---- src/ui/ViceScene.js
+__m['src/ui/ViceScene.js'] = (() => {
+
+// VICE, the HQ's neon ground, as a place: Ocean Drive at dusk. Behind the panels of both hubs (ui/ManagerHub.js,
+// ui/CareerHub.js - ui/HQKit.js themes them) - a sky going from indigo through violet and magenta to a burning orange
+// at the sea; a low sun cut by bands; a row of Art Deco hotels along the front, every edge a neon tube (pink, cyan,
+// tangerine, violet), lit windows, vertical signs, porches with their awnings; palms in silhouette between them; the
+// sea's glow and the street's light along the foot. Drawn once as an SVG (no images, nothing to load); only shown on
+// the VICE ground. The names on the signs are invented. sceneHTML() -> the layer; SCENE_CSS(root) its stylesheet.
+
+const NEON = ['#ff3fa4', '#23e5ff', '#ff8a3d', '#b36bff', '#3dffb5', '#ffd23f'];
+const rnd = (() => { let s = 20260611; return () => ((s = (s * 16807) % 2147483647) / 2147483647); })();
+const SIGNS = ['HOTEL', 'NEON', 'VICE', 'PALMS', 'TIDE', 'CORAL', 'SUNSET', 'MARINA'];
+
+/** one hotel: a body, a stepped crown or a fin, its tubes, its windows, maybe a vertical sign and an awning */
+function hotel(x, w, h, i) {
+  const base = 300, top = base - h, c = NEON[i % NEON.length], c2 = NEON[(i + 2) % NEON.length], out = [];
+  out.push(`<rect x="${x}" y="${top}" width="${w}" height="${h}" fill="url(#vcB)"/>`);
+  // the crown: steps, a rounded corner, or a fin
+  const k = i % 3;
+  if (k === 0) { out.push(`<path d="M${x + w * 0.2} ${top} v-14 h${w * 0.6} v14 M${x + w * 0.34} ${top - 14} v-10 h${w * 0.32} v10" fill="#120826" stroke="${c}" stroke-width="1.6" filter="url(#vcG)"/>`); }
+  else if (k === 1) { out.push(`<path d="M${x} ${top + 26} q0 -26 26 -26 h${w - 26}" fill="none" stroke="${c}" stroke-width="1.8" filter="url(#vcG)"/>`); }
+  else { out.push(`<rect x="${x + w / 2 - 5}" y="${top - 46}" width="10" height="46" rx="5" fill="#120826" stroke="${c2}" stroke-width="1.6" filter="url(#vcG)"/>`); }
+  // the tubes: the outline and a band under the roof and over the porch
+  out.push(`<rect x="${x}" y="${top}" width="${w}" height="${h}" fill="none" stroke="${c}" stroke-width="1.6" filter="url(#vcG)" opacity=".95"/>`);
+  out.push(`<line x1="${x + 4}" y1="${top + 10}" x2="${x + w - 4}" y2="${top + 10}" stroke="${c2}" stroke-width="2" filter="url(#vcG)"/>`);
+  out.push(`<line x1="${x + 4}" y1="${base - 34}" x2="${x + w - 4}" y2="${base - 34}" stroke="${c}" stroke-width="2.4" filter="url(#vcG)"/>`);
+  // the windows: rows of lit and dark
+  for (let y = top + 20; y < base - 44; y += 15) for (let wx = x + 8; wx < x + w - 10; wx += 13) if (rnd() < 0.55) out.push(`<rect x="${wx}" y="${y}" width="6" height="7" fill="${rnd() < 0.7 ? '#ffd9a0' : c2}" opacity="${(0.35 + rnd() * 0.5).toFixed(2)}"/>`);
+  // a vertical sign down the front
+  if (i % 2 === 0 && h > 140) { const t = SIGNS[i % SIGNS.length], sx = x + w - 20, sh = Math.min(h - 56, t.length * 17 + 12);
+    out.push(`<rect x="${sx}" y="${top + 22}" width="16" height="${sh}" rx="3" fill="#0e0620" stroke="${c2}" stroke-width="1.4" filter="url(#vcG)"/>`);
+    out.push(`<text x="${sx + 8}" y="${top + 38}" fill="${c2}" font-size="13" font-weight="800" text-anchor="middle" font-family="Arial, sans-serif" filter="url(#vcG)">${t.split('').map((ch, j) => `<tspan x="${sx + 8}" dy="${j ? 17 : 0}">${ch}</tspan>`).join('')}</text>`); }
+  // the porch: an awning in stripes
+  out.push(`<rect x="${x + 6}" y="${base - 30}" width="${w - 12}" height="8" fill="${c}" opacity=".55"/><rect x="${x + 6}" y="${base - 22}" width="${w - 12}" height="22" fill="#12071f" opacity=".9"/>`);
+  return out.join('');
+}
+/** a palm in silhouette: a leaning trunk and its fronds */
+function palm(x, h, lean) {
+  const top = 300 - h, tx = x + lean, P = [`<path d="M${x} 300 Q${x + lean * 0.3} ${300 - h * 0.5} ${tx} ${top}" stroke="#07020f" stroke-width="5" fill="none"/>`];
+  for (let a = -160; a <= -20; a += 20) { const r = (a * Math.PI) / 180, L = 34 + rnd() * 16, ex = tx + Math.cos(r) * L, ey = top + Math.sin(r) * L * 0.55 + 18;
+    P.push(`<path d="M${tx} ${top} Q${(tx + ex) / 2} ${top - 12} ${ex} ${ey}" stroke="#07020f" stroke-width="4" fill="none" stroke-linecap="round"/>`); }
+  return P.join('');
+}
+let cached = null;
+/** the scene's layer (made once) */
+function sceneHTML() {
+  if (cached) return cached;
+  const W = 1366, parts = [];
+  let x = -10, i = 0;
+  while (x < W) { const w = 92 + Math.round(rnd() * 70), h = 120 + Math.round(rnd() * 120); parts.push(hotel(x, w, h, i++)); x += w + 18 + Math.round(rnd() * 26); }
+  const palms = []; for (let px = 40; px < W; px += 120 + Math.round(rnd() * 90)) palms.push(palm(px, 150 + rnd() * 80, (rnd() - 0.5) * 50));
+  cached = `<div class="vc-scene" aria-hidden="true"><i class="vc-sun"></i><svg class="vc-city" viewBox="0 0 ${W} 320" preserveAspectRatio="xMidYMax slice">
+    <defs><linearGradient id="vcB" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1d0b3a"/><stop offset="1" stop-color="#0c0420"/></linearGradient>
+      <filter id="vcG" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="2.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+    ${parts.join('')}${palms.join('')}<rect x="0" y="300" width="${W}" height="20" fill="#07020f"/><line x1="0" y1="301" x2="${W}" y2="301" stroke="#ff3fa4" stroke-width="2" filter="url(#vcG)" opacity=".8"/></svg><i class="vc-sea"></i></div>`;
+  return cached;
+}
+/** its stylesheet, for a hub's root (#mgr, #career) */
+const SCENE_CSS = (R) => `
+${R} .vc-scene { display: none; position: absolute; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+${R}[data-tone="vice"] .vc-scene { display: block; }
+${R} .vc-sun { position: absolute; left: 50%; bottom: 150px; width: 380px; height: 380px; margin-left: -190px; border-radius: 50%;
+  background: linear-gradient(180deg, #ffe066 0%, #ff9a3d 38%, #ff3f8e 72%, #b0127a 100%); opacity: .55; filter: blur(.5px);
+  -webkit-mask: repeating-linear-gradient(180deg, #000 0 16px, transparent 16px 21px); mask: repeating-linear-gradient(180deg, #000 0 16px, transparent 16px 21px);
+  box-shadow: 0 0 120px 40px rgba(255,80,150,.25); }
+${R} .vc-city { position: absolute; left: 0; right: 0; bottom: 0; width: 100%; height: 42%; min-height: 230px; opacity: .92; }
+${R} .vc-sea { position: absolute; left: 0; right: 0; bottom: 0; height: 30px; background: linear-gradient(180deg, rgba(255,63,164,.0), rgba(255,63,164,.22) 40%, rgba(35,229,255,.18)); }
+/* (the sky, deeper and warmer at the sea: Ocean Drive at dusk) */
+${R}[data-tone="vice"]::before { background:
+  radial-gradient(70% 40% at 50% 100%, rgba(255,140,60,.42), rgba(255,63,164,.24) 40%, transparent 75%),
+  radial-gradient(40% 50% at 92% 8%, rgba(35,229,255,.18), transparent 70%),
+  radial-gradient(45% 55% at 6% 14%, rgba(155,92,255,.28), transparent 72%),
+  linear-gradient(180deg, #0a0524 0%, #1a0a3e 38%, #3b1060 62%, #6e1a6a 82%, #a8325a 100%) !important; }
+${R}[data-tone="vice"]::after { opacity: .28; }
+/* (the panels: a pane of smoked glass with the city behind it, every edge a tube) */
+${R}[data-tone="vice"] .q-p, ${R}[data-tone="vice"] .glass:not(.ch-top):not(.ch-rail):not(.ch-panel) { backdrop-filter: blur(10px) saturate(1.25); -webkit-backdrop-filter: blur(10px) saturate(1.25); }
+${R}[data-tone="vice"] .q-p > header h3 { color: #ffd1f0; text-shadow: 0 0 8px rgba(255,63,164,.8), 0 0 18px rgba(255,63,164,.4); }
+/* (the tubes: every panel's edge brighter, pink into cyan, and a glow off it) */
+${R}[data-tone="vice"] .q-p { background: linear-gradient(180deg, rgba(27,16,58,.80), rgba(20,11,45,.76)) padding-box, linear-gradient(140deg, rgba(255,63,164,.85), rgba(155,92,255,.22) 38%, rgba(155,92,255,.18) 62%, rgba(35,229,255,.8)) border-box;
+  box-shadow: 0 14px 34px -20px rgba(0,0,0,.8), 0 0 22px -10px rgba(255,63,164,.75), 0 0 28px -14px rgba(35,229,255,.6); }
+${R}[data-tone="vice"] button.go { box-shadow: 0 0 0 1px rgba(255,255,255,.18) inset, 0 0 18px -2px var(--ac), 0 0 34px -8px var(--ac); text-shadow: 0 0 8px rgba(255,255,255,.5); }
+`;
+
+return { sceneHTML, SCENE_CSS };
+})();
+
 // ---- src/career/Seat.js
 __m['src/career/Seat.js'] = (() => {
 const { pushText } = __m['src/career/Social.js'];
@@ -154031,6 +154193,7 @@ return { eraHTML, driversHTML, eraHome, eraClick };
 // ---- src/ui/ManagerHub.js
 __m['src/ui/ManagerHub.js'] = (() => {
 const { mailHTML, mailClick, mailHome, mailMark, MAIL_CSS } = __m['src/ui/ManagerMail.js'];
+const { sceneHTML, SCENE_CSS } = __m['src/ui/ViceScene.js'];
 const { mailBadge } = __m['src/career/ManagerMail.js'];
 const { TECH_CSS, techHTML, techClick } = __m['src/ui/HubTech.js'];
 const { ManagerCareer, TRACKS_ALL, COST_CAP, PRIZE, TIER_NAME, TIER_BUDGET, RACE_INCOME, POINT_INCOME, STAFF_ROLES } = __m['src/career/Manager.js'];
@@ -154052,6 +154215,7 @@ const { HQ_CSS, FAC_CSS, NAV, ICON, esc, money, pct, sur, panel, kv, meter, ring
 // but the inside of a panel with a long list; what a click says comes back as a line at the foot; the colours are the
 // team's (the button by the menu: accent and ground, kept for each team). A new career starts here too.
 //   openManagerHub({ career, teams, trackName, onRace(c), onSim(c), onQuick(), onExit(), play }) / closeManagerHub()
+
 
 
 
@@ -154111,7 +154275,7 @@ let el = null;
 /** the HQ (or, with no career, the new career's set-up) */
 function openManagerHub(o) {
   H.o = o; H.c = o.career || null; H.msg = null; if (!H.c) H.tab = 'new'; else if (H.tab === 'new') H.tab = 'home';
-  if (!document.getElementById('mgr-css')) { const st = document.createElement('style'); st.id = 'mgr-css'; st.textContent = HQ_CSS + PAGE_CSS + EXTRA_CSS + MAIL_CSS + techSkin(TECH_CSS.replaceAll('#career', '#mgr .fac')) + FAC_CSS; document.head.appendChild(st); }
+  if (!document.getElementById('mgr-css')) { const st = document.createElement('style'); st.id = 'mgr-css'; st.textContent = HQ_CSS + PAGE_CSS + EXTRA_CSS + MAIL_CSS + techSkin(TECH_CSS.replaceAll('#career', '#mgr .fac')) + FAC_CSS + SCENE_CSS('#mgr'); document.head.appendChild(st); }
   if (!el) { el = document.createElement('div'); el.id = 'mgr'; el.addEventListener('click', onClick); document.body.appendChild(el); let rt = 0; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if (managerHubOpen()) { fitSheet(el); rail(); } }, 100); }); }
   el.style.display = 'grid'; H.shown = 0; H._tab = null; el.dataset.mode = ''; render(); pump();
 }
@@ -154133,7 +154297,7 @@ function render() {
   const c = H.c; if (!el) return;
   fitSheet(el);
   const mode = c ? 'hq' : 'new';
-  if (el.dataset.mode !== mode) { el.dataset.mode = mode; el.innerHTML = '<div class="q-top"></div><nav class="q-rail"></nav><main class="q-stage"></main><div class="q-toast"></div><div class="q-theme"></div>'; H._tab = null; H.kp = {}; }
+  if (el.dataset.mode !== mode) { el.dataset.mode = mode; el.innerHTML = sceneHTML() + '<div class="q-top"></div><nav class="q-rail"></nav><main class="q-stage"></main><div class="q-toast"></div><div class="q-theme"></div>'; H._tab = null; H.kp = {}; }
   if (!c) { const T = (H.o.teams || []).find((t) => t.name === H.nc.team); themeApply(el, T?.name || null, T?.color || '#e10600', T?.color2); topNew(); stage(newHTML()); toast(); return; }
   themeApply(el, c.myTeam, c.team.color, c.team.color2);
   top(c); rail(); stage(body(c)); toast(); mailMark(el, c);
@@ -156932,7 +157096,7 @@ return { SCENES, prepareScene, playScene, cineLive, cineWarm };
 __m['src/career/Sprint.js'] = (() => {
 
 // Sprint weekends (both careers): every third round of a season of four or more. Saturday: the sprint - a third of the
-// race's distance, no stop to make, its grid from a sprint shoot-out - points to the first eight, 8-7-6-5-4-3-2-1;
+// race's distance (four laps at least), no stop to make - of any length - its grid from a sprint shoot-out - points to the first eight, 8-7-6-5-4-3-2-1;
 // then qualifying and the Grand Prix as any weekend. Raced (main.js: the weekend's first race) or simulated with the
 // weekend (career/Career.js simWeekend, the HQ's SIMULATE): the points the same way, the round not moved on by it.
 
@@ -156940,7 +157104,7 @@ const SPRINT_PTS = [8, 7, 6, 5, 4, 3, 2, 1];
 /** is the career's current round a sprint weekend? */
 const isSprintRound = (C) => !!C && (C.rounds || 0) >= 4 && C.round % 3 === 0 && C.round <= C.rounds;
 /** the sprint's laps for a race of `laps` */
-const sprintLaps = (laps) => Math.max(3, Math.round(laps / 3));
+const sprintLaps = (laps) => Math.max(4, Math.round(laps / 3));   // (four laps at least)
 /**
  * The sprint's result into the career: the points to the drivers and their teams (rows: [{ pos, car: { careerId, team,
  * retired, name } }]), the line in the news. -> [{ id, name, pos, pts }] of the points scorers
@@ -157344,7 +157508,7 @@ class TVStrategy {
     let n;
     if (c.mgr?.plan && c.mgr.calls === 'plan') { const st = c.mgr.plan.stints[Math.min(c.pitStops, c.mgr.plan.stints.length - 1)]; if (c.pitStops >= c.mgr.plan.stints.length - 1) return null; n = st.end - c.lap; }
     else n = ((c.mgr ? 0.72 : ai?.strat?.wear ?? 0.65) - t.wear) / Math.max(0.004, per);
-    const owes = d.lapsTotal >= 8 && c.pitStops === 0;
+    const owes = !!d.stopRule && c.pitStops === 0;
     if (n > left - 1.5 && !owes) return null;   // (its set sees the flag)
     n = Math.max(0, Math.min(left - 1, n));
     return { a: n - 1, b: n + 1 };
@@ -163332,6 +163496,118 @@ function paddockRecords(c) {
 return { STATS_V, AI_KEYS, TRACK_KM, dnfCause, newBook, seasonBook, aiOf, statsEnsure, statsRace, raceStatsOf, statsSession, secOf, figures, seasonsOf, paddockRecords };
 })();
 
+// ---- src/career/DriverMail.js
+__m['src/career/DriverMail.js'] = (() => {
+
+// The driver's mail (the driver career; ui/DriverMailPage.js is its page in the hub, the team principal's own mail -
+// career/ManagerMail.js - is the model). What reaches a race driver's inbox in a season: the race engineer's report
+// after every race (the result, the points, the mark and its reasons, Driver of the Day); a team that wants you,
+// through your agent (career/Seat.js offers and approaches); a brand's offer (career/PR.js deals); the stewards'
+// letter when points go on your licence, and the ban; the team principal when management's confidence in you moves a
+// long way; your agent when your contract has half a season left; the season's awards and its end; a fan's letter on
+// a great day. Each mail that wants something done carries a button to the page where it is done - the offers, the
+// deals, the licence - the mail itself decides nothing.
+//   c.dmail = { box: [mail], seq, snap: { offers, deals, pts, conf, warn, contract } }
+//   mail: { id, from, org, col, subj, body: [paragraphs], terms: [[label, value]], go: [{ label, tab, sub }], tag, good, season, round, read }
+
+const sur = (n) => String(n || '').trim().split(/\s+/).pop(), first = (n) => String(n || '').trim().split(/\s+/)[0];
+const num = (v, d = 0) => (Number.isFinite(+v) ? +v : d);
+const usd = (m) => `$${(Math.round(num(m) * 10) / 10).toFixed(1)}M`;
+const ENG_F = ['Gianpiero', 'Hugh', 'Tom', 'Peter', 'Riccardo', 'Xavier', 'Andrea', 'Jonathan'], ENG_L = ['Lambiase', 'Bird', 'Stallard', 'Bonnington', 'Adami', 'Marcos', 'Stella', 'Eddolls'];
+const AG_F = ['Nicole', 'Raymond', 'Julia', 'Marc', 'Sophie', 'David'], AG_L = ['Hartley', 'Vermeulen', 'Okoro', 'Lindqvist', 'Moreau', 'Castellanos'];
+const pick = (a, s) => { let h = 2166136261; for (const ch of String(s)) h = Math.imul(h ^ ch.charCodeAt(0), 16777619); return a[(h >>> 0) % a.length]; };
+
+function dmailEnsure(c) {
+  if (!c.dmail) c.dmail = { box: [], seq: 1, snap: {} };
+  const M = c.dmail; M.box = M.box || []; M.snap = M.snap || {}; M.seq = M.seq || 1;
+  if (!M.agent) M.agent = `${pick(AG_F, `ag|${c.playerId}`)} ${pick(AG_L, `ag2|${c.playerId}`)}`;
+  if (!M.hello) {
+    M.hello = true;
+    post(c, { from: M.agent, org: 'Your agent', subj: 'Your inbox', tag: 'fyi',
+      body: ['Everything that is business comes here now: the race report after every round, any team that asks about you, the brands, the stewards, the team principal when there is something to say.',
+        'Anything that needs a decision has a button that takes you to it. Your phone is still for the people in your life.'] });
+  }
+  return M;
+}
+function post(c, m) {
+  const M = c.dmail; m.id = `d${M.seq++}`; m.season = c.season; m.round = c.round; m.read = false;
+  M.box.unshift(m); if (M.box.length > 80) M.box.length = 80;
+  return m;
+}
+/** unread mail (the rail's badge) */
+const dmailUnread = (c) => (c?.dmail?.box || []).filter((m) => !m.read).length;
+function dmailRead(c, id) { const m = (c?.dmail?.box || []).find((x) => x.id === id); if (m && !m.read) { m.read = true; return true; } return false; }
+function dmailReadAll(c) { for (const m of c?.dmail?.box || []) m.read = true; }
+
+const engineerOf = (c) => { const t = c.myTeam || c.team?.name || ''; return { from: `${pick(ENG_F, `en|${t}|${c.playerId}`)} ${pick(ENG_L, `en2|${t}|${c.playerId}`)}`, org: `Race engineer · ${t || 'your team'}`, col: c.team?.color }; };
+
+/**
+ * A race has been run (career/Career.js applyRace): the report, and whatever has come in since the last one - offers,
+ * deals, points, management's mood, the contract. rep: the race's report (pos, points, mark, markWhy, dotd, trophies,
+ * ban, salary, bonus...), row: your row (pos, car), trackName.
+ */
+function dmailRound(c, rep = {}, o = {}) {
+  const M = dmailEnsure(c), S = M.snap, me = c.me; if (!me) return;
+  // the race report
+  if (o.row && !rep.grave) {
+    const E = engineerOf(c), r = o.row, dnf = !!r.car?.retired, pos = r.pos, pts = num(rep.points);
+    const res = dnf ? `Out of the race${r.car?.retireReason ? ` (${String(r.car.retireReason).toLowerCase()})` : ''}` : `P${pos}${pts ? `, ${pts} point${pts === 1 ? '' : 's'}` : ''}`;
+    const body = [dnf ? `Not the afternoon we wanted. ${r.car?.retireReason ? `${r.car.retireReason}.` : ''} We will go through it all before the next one.` : pos === 1 ? 'What a drive. A win - thank you, from all of us on the pit wall.' : pos <= 3 ? 'A podium. That was a strong one from start to finish.' : pts ? 'Points on the board. Good work.' : 'No points this time. There was more in it - we will find it.'];
+    if (rep.mark != null) body.push(`The ratings gave you ${rep.mark}/10${rep.markWhy?.length ? `: ${rep.markWhy.join(', ')}` : ''}.`);
+    if (rep.dotd?.id === me.id) body.push('And the fans voted you Driver of the Day.');
+    const terms = [['Result', res]]; if (rep.mark != null) terms.push(['Rating', `${rep.mark}/10`]);
+    if (num(rep.bonus) > 0) terms.push(['Bonus', usd(rep.bonus)]);
+    post(c, { ...E, subj: `${o.trackName || 'The race'}: ${dnf ? 'DNF' : `P${pos}`}`, tag: 'report', good: !dnf && (pos <= 3 || pts > 0), body, terms });
+    if (rep.trophies?.length) post(c, { ...E, subj: `Something for the cabinet: ${rep.trophies.join(', ')}`, tag: 'fyi', good: true, body: [`${rep.trophies.join(', ')} - it is in the trophy room now. Well earned.`], go: [{ label: 'THE TROPHIES', tab: 'trophies', sub: '' }] });
+    if (!dnf && (pos === 1 || rep.dotd?.id === me.id) && Math.random() < 0.7) post(c, { from: 'A fan', org: 'Fan mail', subj: pos === 1 ? 'That win!' : 'Driver of the Day!', tag: 'fyi', good: true, body: [pick([`I have watched every race since I was six and I have never shouted like that. Thank you, ${first(me.name)}.`, `My whole family was on our feet. That is why we watch. Keep going!`, `I made a banner for the next race. You will see it at the first corner.`], `${c.season}|${c.round}|fan`)] });
+  }
+  // a team that wants you (career/Seat.js): each new offer once
+  const seat = c.seat || {}, seen = new Set(S.offers || []);
+  for (const of of seat.offers || []) {
+    if (!of?.id || seen.has(of.id)) continue;
+    const kind = { precontract: 'a pre-contract for next season', buyout: 'to buy out your contract', midseason: 'you, now', reserve: 'you as their reserve', renewal: 'to extend your contract', first: 'you for their seat', seat: 'you for their seat' }[of.kind] || 'you';
+    post(c, { from: M.agent, org: 'Your agent', col: c.teams?.[of.team]?.color, subj: `${of.team} want ${kind}`, tag: 'offer', good: true,
+      body: [`${of.team} have put an offer on the table: ${usd(of.salary)} a season for ${of.years} year${of.years === 1 ? '' : 's'}${of.role && of.role !== 'equal' ? `, as ${of.role === 'lead' ? 'their number one' : of.role}` : ''}.`, of.expect || 'Read it carefully before you answer.'],
+      terms: [['Team', of.team], ['Salary', `${usd(of.salary)} a season`], ['Years', String(of.years)]], go: [{ label: 'SEE THE OFFER', tab: 'drivers', sub: 'offers' }] });
+  }
+  S.offers = (seat.offers || []).map((x) => x?.id).filter(Boolean);
+  // a brand's offer (career/PR.js)
+  const P = c.pr || {}, seenD = new Set(S.deals || []);
+  for (const of of P.offers || []) {
+    if (!of?.id || seenD.has(of.id)) continue;
+    post(c, { from: of.brand || 'A brand', org: 'Partnerships', subj: `${of.brand || 'A brand'} would like to work with you`, tag: 'offer', good: true,
+      body: [of.text || 'An offer to work together.', ...(of.clauses || []).slice(0, 2)], terms: [['Worth', `${usd(of.value)} a round`], ['For', `${of.rounds} rounds`]], go: [{ label: 'THE DEALS', tab: 'pr', sub: 'deals' }] });
+  }
+  S.deals = (P.offers || []).map((x) => x?.id).filter(Boolean);
+  // the stewards: points on your licence, a ban
+  const lic = Array.isArray(me.licence) ? me.licence : [], n0 = num(S.lic, lic.length);
+  for (const e of lic.slice(n0)) post(c, { from: 'The Stewards', org: 'FIA', subj: `${e.pts} penalty point${e.pts === 1 ? '' : 's'} on your licence`, tag: 'fyi', good: false, body: [`For ${String(e.why || 'an offence').toLowerCase()}${e.at ? ` at ${e.at}` : ''}, ${e.pts} point${e.pts === 1 ? '' : 's'} ${e.pts === 1 ? 'has' : 'have'} been added to your super licence. Twelve within a year means a race ban.`], go: [{ label: 'YOUR LICENCE', tab: 'you', sub: 'licence' }] });
+  S.lic = lic.length;
+  if (rep.ban) post(c, { from: 'The Stewards', org: 'FIA', subj: 'Race ban', tag: 'fyi', good: false, body: [typeof rep.ban === 'string' ? rep.ban : 'With twelve points on your licence you will sit out the next race.'], go: [{ label: 'YOUR LICENCE', tab: 'you', sub: 'licence' }] });
+  // the team principal, when management's confidence moves a long way (or a warning is given)
+  if (seat.status === 'driver') {
+    const conf = Math.round(num(seat.conf, 60)), tp = `${c.myTeam || 'The team'}`;
+    if (seat.warn && !S.warn) post(c, { from: 'The team principal', org: tp, col: c.team?.color, subj: 'We need to talk', tag: 'fyi', good: false, body: ['The results are not where they need to be. I have backed you, but the board is asking questions. The next races matter.'], terms: [['Management confidence', String(conf)]], go: [{ label: 'YOUR SEAT', tab: 'drivers', sub: 'offers' }] });
+    else if (S.conf != null && conf - S.conf >= 12) post(c, { from: 'The team principal', org: tp, col: c.team?.color, subj: 'Good work', tag: 'fyi', good: true, body: ['Just a note to say the factory has noticed. Keep doing what you are doing.'], terms: [['Management confidence', String(conf)]] });
+    S.conf = conf; S.warn = !!seat.warn;
+  }
+  // your agent: half a season left on a contract that ends this year
+  const k = me.contract; if (k && num(k.until, 0) <= c.season && c.round > c.rounds / 2 && S.contract !== c.season && !seat.next) {
+    S.contract = c.season;
+    post(c, { from: M.agent, org: 'Your agent', subj: 'Your contract ends this season', tag: 'fyi', good: false, body: [`Your deal with ${me.team || 'the team'} runs out at the end of ${c.season}. Teams are planning next year now - if you want to stay, or to move, this is when it is decided.`], go: [{ label: 'YOUR SEAT', tab: 'drivers', sub: 'offers' }] });
+  }
+}
+/** the season is over: the awards and the review (career/Career.js seasonReview) */
+function dmailSeason(c, rv) {
+  dmailEnsure(c); if (!rv) return;
+  const A = (rv.awards || []).map((a) => `${a.title}: ${a.name} (${a.what})`);
+  post(c, { ...engineerOf(c), subj: `Season ${rv.season}: P${rv.youPos || '-'} in the championship`, tag: 'report', good: (rv.youPos || 99) <= 10,
+    body: [`${rv.champion?.name || 'The champion'} is champion. You finished P${rv.youPos || '-'} with ${rv.youPts} points.`, ...(A.length ? [`The season's awards - ${A.join('; ')}.`] : [])], go: [{ label: 'THE HISTORY', tab: 'trophies', sub: 'seasons' }] });
+}
+
+return { dmailEnsure, dmailUnread, dmailRead, dmailReadAll, dmailRound, dmailSeason };
+})();
+
 // ---- src/career/Career.js
 __m['src/career/Career.js'] = (() => {
 const { ROSTER, RESERVES, F2, PERF_GAIN, dayPerf } = __m['src/race/Roster.js'];
@@ -163352,6 +163628,8 @@ const { requestOdds, requestUpgrade, requestTick, mateSay, talkAgree, talkWalk, 
 const { marketEnsure, marketRace, marketRoundTick, marketSeasonEnd, marketNewSeason, seasonSay, precontractSigned, moveNow } = __m['src/career/Market.js'];
 const { statsEnsure, statsRace } = __m['src/career/Stats.js'];
 const { noteMarks, markMorale, seasonAwards, awardsLine } = __m['src/career/Marks.js'];
+const { deed } = __m['src/career/Conscience.js'];
+const { dmailRound, dmailSeason } = __m['src/career/DriverMail.js'];
 // The championship career: you are a driver - never the owner. You begin as a rookie of your own making in one of the
 // real junior academies, take one of the seats it can open for you, and from then on hold a contract (a salary, the
 // years it runs, your standing in the garage) with a team that is not yours: its budget, its car and its development
@@ -163367,6 +163645,8 @@ const { noteMarks, markMorale, seasonAwards, awardsLine } = __m['src/career/Mark
 // right order, and the engines do the rest. You race as your driver until they die - a death is final. An AI driver
 // hurt in an accident misses the next round or two, and a driver who reaches twelve penalty points misses the next
 // one: a stand-in in their seat either way.
+
+
 
 
 
@@ -164174,6 +164454,7 @@ class Career {
     // the press (career/PR.js): your result, your fastest lap, the fans' vote, your overtakes, your penalties - a stand-in's race at most one line
     if (live) {
       const mp = ppOf(meRow), sum = mp.reduce((a, e) => a + e.pts, 0);
+      if (fin && !sum && !meRow.car.blamed) deed(this, 'clean', 0.6, 'Raced clean, lights to flag');   // (career/Conscience.js)
       if (fin && meRow.pos === 1) press('win', { track: trackId });
       else if (fin && meRow.pos <= 3) press('podium', { pos: meRow.pos, track: trackId });
       else if (fin && (POINTS[meRow.pos - 1] || 0) > 0) press('points', { pos: meRow.pos, track: trackId });
@@ -164245,6 +164526,8 @@ class Career {
     if (live && report.trophies.length) press('trophy', { name: report.trophies[0] });
     report.fastest = flRow === meRow;
     this.report = meRow ? report : null;
+    // (the inbox - career/DriverMail.js: the race engineer's report and whatever has come in since the last race)
+    safe('dmailRound', () => dmailRound(this, grave ? { grave: true } : report, { row: meRow, trackName: ({ silverstone: 'Silverstone', montreal: 'Montreal', austin: 'Austin', lasvegas: 'Las Vegas' })[trackId] || trackId }));
     // (tonight's party needs the race as it was - its city, its guests, its result - before the round moves on: career/Party.js)
     safe('snapAfterRace', () => snapAfterRace(this, { trackId, rows, X, meRow, mateRow, contacts, grave, live }));
     this.round++;
@@ -164380,6 +164663,7 @@ class Career {
     const order = this.teamStandings();
     for (const t of Object.values(this.teams)) { const i = order.indexOf(t), tg = BOARD_TARGET[t.tier] ?? 9; t.budget = Math.round((t.budget + (PRIZE[i] ?? 1) + (i + 1 < tg ? 5 : i + 1 === tg ? 2 : 0)) * 10) / 10; }
     { const ln = awardsLine(rv.season, rv.awards || []); if (ln) this.addNews(ln); }
+    safe('dmailSeason', () => dmailSeason(this, rv));
     if (rv.team) this.addNews(`${rv.team} finished P${rv.teamPos} (the board wanted P${rv.target}): $${rv.prize}M in prize money${rv.bonus ? `, $${rv.bonus}M bonus from a ${rv.verdict} board` : `, the board ${rv.verdict}`}.`);
     // (the drivers over the winter: the young ones step up, everyone else a little either way; morale halfway back to normal)
     for (const d of Object.values(this.drivers)) if (d.alive) {
@@ -166487,9 +166771,194 @@ function mourning3D(canvas, d) {
 return { mourning3D };
 })();
 
+// ---- src/ui/DriverHQ.js
+__m['src/ui/DriverHQ.js'] = (() => {
+const { HQ_CSS, ICON, themeApply } = __m['src/ui/HQKit.js'];
+const { MAIL_CSS } = __m['src/ui/ManagerMail.js'];
+const { SCENE_CSS } = __m['src/ui/ViceScene.js'];
+// The driver career's hub in the team principal's look (ui/CareerHub.js keeps its pages, its router and its studio;
+// this puts them on the HQ's ground): the HQ's own stylesheet (ui/HQKit.js HQ_CSS - its colours, its four grounds with
+// VICE the one it opens on, the team's colour as the accent, its buttons, its panels and their parts) on #career; the
+// frame laid out as the HQ's - a bar across the top, a rail down the left in groups with the HQ's line icons, the
+// stage, the side card on the right - and every page's own stylesheet (written for the old white hub) moved onto the
+// HQ's colours by what each colour IS (hqSkin: a white ground becomes the panel, a near-black ink the ink, a grey line
+// the line, a team or tyre colour stays). The 3D studio shows only where your looks are being changed.
+
+
+
+
+const P = (d) => `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="${d}"/></svg>`;
+/** the rail's icons, by section (the HQ's own where one fits) */
+const DRV_ICON = {
+  mail: ICON.mail, race: ICON.cal, team: ICON.fac, driver: ICON.drv, life: ICON.people, media: P('M2.5 3.5h11v7H7.5l-3 2.5v-2.5h-2zM5 6.2h6M5 8.2h4'),
+  season: ICON.stand, stats: P('M2.5 13.5h11M4 11V8M7 11V5M10 11V7M13 11V3'), lost: P('M8 2v12M4.5 5.5h7'),
+};
+/** the rail's groups: [title, [section keys]] (In Memoriam alone at the foot) */
+const DRV_GROUPS = [['WEEKEND', ['mail', 'race']], ['CAREER', ['team', 'driver']], ['OFF TRACK', ['life', 'media']], ['RECORD', ['season', 'stats']]];
+
+// ---- the skin: a stylesheet for a white page onto the HQ's colours --------------------------------------------------
+const toRGB = (s) => {
+  let m = /^#([0-9a-f]{3,8})$/i.exec(s);
+  if (m) { let x = m[1]; if (x.length === 3 || x.length === 4) x = x.replace(/./g, '$&$&'); return [parseInt(x.slice(0, 2), 16), parseInt(x.slice(2, 4), 16), parseInt(x.slice(4, 6), 16), x.length === 8 ? parseInt(x.slice(6, 8), 16) / 255 : 1]; }
+  m = /^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d.]+)\s*)?\)$/i.exec(s);
+  return m ? [+m[1], +m[2], +m[3], m[4] == null ? 1 : +m[4]] : null;
+};
+const lum = ([r, g, b]) => { const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b); };
+const alpha = (v, a) => (a >= 0.999 ? v : `color-mix(in srgb, ${v} ${Math.round(a * 100)}%, transparent)`);
+/** one colour, by the part it plays (bg | fg | line | any) */
+function skinColour(tok, role) {
+  const c = toRGB(tok); if (!c) return tok;
+  const [r, g, b, a] = c, chroma = Math.max(r, g, b) - Math.min(r, g, b), L = lum(c);
+  if (/^#e10600$|^#f0150c$/i.test(tok)) return 'var(--ac)';   // (the old hub's red: the HQ's accent - the team's colour)
+  if (chroma > 70) return tok;   // (a team's, a tyre's, a state's colour: as it is)
+  if (role === 'fg') return L < 0.06 ? alpha('var(--ink)', a) : L < 0.2 ? alpha('var(--dim)', a) : L < 0.6 ? alpha('var(--mute)', a) : tok;
+  if (role === 'line') return L > 0.5 ? alpha('var(--line2)', Math.max(0.6, a)) : tok;
+  if (role === 'bg') return L > 0.82 ? alpha('var(--panel)', a) : L > 0.45 ? alpha('var(--panel2)', a) : L < 0.05 ? alpha('color-mix(in srgb, var(--ac) 82%, var(--panel))', a) : tok;
+  return L > 0.82 ? alpha('var(--panel)', a) : L < 0.06 ? alpha('var(--ink)', a) : tok;
+}
+const COL = /#[0-9a-f]{3,8}\b|rgba?\([^)]*\)/gi;
+/** the stylesheet's colours onto the HQ's (white text on a colour stays white: a pure white in a colour rule is kept) */
+function hqSkin(css) {
+  return css.replace(/([\w-]+)\s*:\s*([^;{}]+)/g, (m, prop, val) => {
+    if (!COL.test(val)) { COL.lastIndex = 0; return m; } COL.lastIndex = 0;
+    const p = prop.toLowerCase(), role = /^(background|background-color|background-image)$/.test(p) ? 'bg' : /^(color|fill|stroke|caret-color|-webkit-text-fill-color)$/.test(p) ? 'fg'
+      : /^(border|outline|box-shadow)|^border-/.test(p) ? 'line' : p.startsWith('--') ? 'any' : p === 'text-shadow' ? 'keep' : 'any';
+    if (role === 'keep') return m;
+    return `${prop}: ${val.replace(COL, (t) => (role === 'fg' && /^#fff(fff)?$/i.test(t) ? t : skinColour(t, role)))}`;
+  });
+}
+
+// ---- the HQ's stylesheet on #career, and the frame in the HQ's places -----------------------------------------------
+const HQ_ON_CAREER = (HQ_CSS + MAIL_CSS).replace(/#mgr\b/g, '#career');   // (and its mail client's: ui/ManagerMail.js)
+const FRAME = `
+/* (the HQ's root rule laid the HQ out as a grid: the career's own frame is placed by hand, the studio and the UI over it) */
+#career[data-hq] { z-index: 40; display: block; grid-template: none; }
+#career[data-hq] > .ch-3d, #career[data-hq] > .ch-ui { position: absolute; inset: 0; }
+#career[data-hq] > .ch-ui { z-index: 2; }
+#career[data-hq] .ch-3d { opacity: 0; pointer-events: none; transition: opacity .4s ease; }
+#career[data-hq][data-studio] .ch-3d { opacity: 1; pointer-events: auto; }
+#career[data-hq][data-studio]::before, #career[data-hq][data-studio]::after { opacity: 0; }
+#career[data-hq] { --top: 64px; --rail: 196px; --pad: 0px; --gap: 10px; }
+/* the bar */
+#career[data-hq] .ch-top { left: 0; right: 0; top: 0; height: 64px; border-radius: 0; padding: 0 16px 0 0; gap: 14px; border: 0; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--bg2) 86%, transparent); box-shadow: none; backdrop-filter: blur(8px); z-index: 3; }
+#career[data-hq][data-tone="vice"] .ch-top::after { content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: linear-gradient(90deg, var(--n1), var(--n3) 45%, var(--n2)); box-shadow: 0 0 12px rgba(255,63,164,.7), 0 0 26px rgba(35,229,255,.35); opacity: .9; }
+#career[data-hq] .ch-top .ch-badge { width: 34px; height: 34px; margin-left: 14px; border-radius: 9px; background: linear-gradient(140deg, var(--tc), color-mix(in srgb, var(--tc) 55%, var(--tc2))); color: #fff; box-shadow: 0 0 0 1px rgba(255,255,255,.18) inset, 0 6px 16px -6px var(--tc); font: 900 13px/34px var(--f); text-align: center; }
+#career[data-hq] .ch-title { width: 148px; flex: none; min-width: 0; } #career[data-hq] .ch-title h1 { font: 800 14px/1.1 var(--f); letter-spacing: .02em; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#career[data-hq] .ch-title small { font: 700 9px/1.3 var(--f); letter-spacing: .07em; text-transform: uppercase; color: var(--mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+#career[data-hq] .ch-pill { background: color-mix(in srgb, var(--panel2) 80%, transparent); border: 1px solid var(--line2); color: var(--ink); border-radius: 8px; font: 700 11.5px/1 var(--f); }
+#career[data-hq] .ch-ico { color: var(--dim); }
+/* the rail: the HQ's - groups, line icons, the light that slides to the page */
+#career[data-hq] .ch-rail { left: 0; top: 64px; bottom: 0; width: 196px; padding: 10px 8px; gap: 0; border-radius: 0; border: 0; border-right: 1px solid var(--line); background: color-mix(in srgb, var(--bg2) 70%, transparent); box-shadow: none; overflow: hidden auto; scrollbar-width: none; }
+#career[data-hq][data-tone="vice"] .ch-rail { background: linear-gradient(180deg, rgba(19,10,44,.82), rgba(28,12,58,.7)); border-right-color: rgba(200,165,255,.14); }
+#career[data-hq] .ch-rail h5 { margin: 9px 10px 4px; font: 800 8.5px/1 var(--f); letter-spacing: .22em; color: var(--mute); } #career[data-hq] .ch-rail h5:first-of-type { margin-top: 2px; }
+#career[data-hq][data-tone="vice"] .ch-rail h5 { color: #8f7cc4; }
+#career[data-hq] .ch-rail button { flex-direction: row; justify-content: flex-start; gap: 10px; width: 100%; height: 30px; min-height: 30px; padding: 0 10px; border: 0; border-radius: 8px; background: transparent; color: var(--dim); font: 600 12.5px/1 var(--f); letter-spacing: .01em; text-transform: none; box-shadow: none; }
+#career[data-hq] .ch-rail button > i { font-style: normal; display: inline-flex; width: 16px; height: 16px; margin: 0; font-size: 0; }
+#career[data-hq] .ch-rail button svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.35; stroke-linecap: round; stroke-linejoin: round; opacity: .8; }
+#career[data-hq] .ch-rail button:hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); transform: none; }
+#career[data-hq] .ch-rail button.on { color: var(--ink); font-weight: 800; background: transparent; }
+#career[data-hq] .ch-rail button.on svg { color: var(--ac); opacity: 1; }
+#career[data-hq][data-tone="vice"] .ch-rail button.on { text-shadow: 0 0 12px rgba(255,160,215,.75); } #career[data-hq][data-tone="vice"] .ch-rail button.on svg { color: var(--n2); filter: drop-shadow(0 0 5px var(--n2)); }
+#career[data-hq] .ch-rail .ind { left: 8px; right: 8px; width: auto; height: 30px; border-radius: 8px; background: color-mix(in srgb, var(--ac) 16%, transparent); box-shadow: inset 3px 0 0 var(--ac); }
+#career[data-hq][data-tone="vice"] .ch-rail .ind { background: linear-gradient(90deg, rgba(255,63,164,.24), rgba(155,92,255,.10)); box-shadow: inset 3px 0 0 var(--n1), 0 0 18px -6px var(--n1); }
+#career[data-hq] .ch-rail button em { position: static; margin-left: auto; min-width: 17px; height: 17px; padding: 0 5px; border-radius: 9px; display: grid; place-items: center; font: 800 9.5px/1 var(--f); font-style: normal; background: var(--ac); color: var(--ac-ink); }
+#career[data-hq][data-tone="vice"] .ch-rail button em { background: var(--n1); color: #fff; box-shadow: 0 0 10px var(--n1); }
+#career[data-hq] .ch-rail .sp { flex: 1; } #career[data-hq] .ch-rail .dv { display: none; }
+/* the stage: no sheet of its own - the panels stand on the ground, as the HQ's do */
+#career[data-hq] .ch-panel { left: 196px; top: 64px; bottom: 0; right: 0; width: auto; padding: 14px 16px 16px; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+/* (no side card: the HQ has none - what it said is on the pages and the bar - and the stage has the width) */
+#career[data-hq] .ch-side { display: none !important; }
+#career[data-hq] .glass { background: linear-gradient(180deg, color-mix(in srgb, var(--panel) 96%, transparent), color-mix(in srgb, var(--panel) 88%, transparent)); border: 1px solid var(--line); box-shadow: 0 10px 30px -18px rgba(0,0,0,.6); }
+#career[data-hq][data-tone="vice"] .glass, #career[data-hq][data-tone="vice"] .ch-pages :is(.tile, .dcard, .seat, .cl-card, .obj, .chart, .tro, .lostcard, .review, .wk-alw, .al, .st-rw, .rs-row, .teamrow) { border: 1px solid transparent; background: linear-gradient(180deg, rgba(27,16,58,.93), rgba(20,11,45,.9)) padding-box, linear-gradient(140deg, rgba(255,63,164,.45), rgba(155,92,255,.14) 38%, rgba(155,92,255,.1) 62%, rgba(35,229,255,.4)) border-box; box-shadow: 0 14px 34px -20px rgba(0,0,0,.8); }
+#career[data-hq][data-tone="vice"] .ch-top.glass, #career[data-hq][data-tone="vice"] .ch-rail.glass, #career[data-hq] .ch-panel.glass { background: transparent; border-color: transparent; box-shadow: none; }
+#career[data-hq][data-tone="vice"] .ch-top.glass { background: color-mix(in srgb, var(--bg2) 86%, transparent); }
+#career[data-hq][data-tone="vice"] .ch-rail.glass { background: linear-gradient(180deg, rgba(19,10,44,.82), rgba(28,12,58,.7)); }
+#career[data-hq] .ch-pages :is(h2, h3, h4) { color: var(--ink); }
+#career[data-hq] .ch-head .k-seg, #career[data-hq] .ch-sub { background: color-mix(in srgb, var(--panel2) 80%, transparent); border: 1px solid var(--line2); }
+#career[data-hq] .ch-sub button.on, #career[data-hq] .ch-sub button.sel { color: var(--ac-ink); }
+#career[data-hq] .ch-sub::before { background: var(--ac) !important; }
+`;
+/* (the driver hub's own cards as the HQ's panels on VICE: smoked glass, the tubes) */
+const VICE_CARDS = `
+#career[data-hq][data-tone="vice"] .ch-pages :is(.tile, .dcard, .seat, .cl-card, .obj, .chart, .tro, .lostcard, .review, .wk-alw, .al, .st-rw, .rs-row, .teamrow), #career[data-hq][data-tone="vice"] .glass:not(.ch-top):not(.ch-rail):not(.ch-panel) {
+  background: linear-gradient(180deg, rgba(27,16,58,.80), rgba(20,11,45,.76)) padding-box, linear-gradient(140deg, rgba(255,63,164,.75), rgba(155,92,255,.2) 38%, rgba(155,92,255,.16) 62%, rgba(35,229,255,.7)) border-box;
+  box-shadow: 0 14px 34px -20px rgba(0,0,0,.8), 0 0 18px -10px rgba(255,63,164,.7), 0 0 24px -14px rgba(35,229,255,.55); backdrop-filter: blur(10px) saturate(1.25); }
+#career[data-hq] .ch-ui > .q-theme { top: 70px; right: 14px; }
+/* (RACE WEEK > Briefing in panels: the circuit as a neon tube, the race-day boxes under it, the figures, the targets, the week, the calendar) */
+#career[data-hq] .dbr { height: 100%; }
+#career[data-hq] .dbr .q-pb { padding: 10px 14px 12px; display: flex; flex-direction: column; min-height: 0; }
+#career[data-hq] .dbr-next { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 14px; align-items: center; }
+#career[data-hq] .dbr-map { height: 100%; min-height: 0; display: grid; place-items: center; }
+#career[data-hq] .dbr-map svg { width: 100%; height: 100%; max-height: 300px; overflow: visible; }
+#career[data-hq] .dbr-map path { fill: none; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+#career[data-hq] .dbr-map path.g { stroke: var(--ac); stroke-width: 9; opacity: .25; filter: blur(4px); }
+#career[data-hq] .dbr-map path.t { stroke: var(--ac); stroke-width: 3.2; filter: drop-shadow(0 0 6px var(--ac)); stroke-dasharray: 1; stroke-dashoffset: 1; animation: dbrDraw 1.6s var(--ease) .15s forwards; }
+#career[data-hq][data-tone="vice"] .dbr-map path.t { stroke: #ff3fa4; filter: drop-shadow(0 0 5px #ff3fa4) drop-shadow(0 0 14px rgba(35,229,255,.6)); }
+@keyframes dbrDraw { to { stroke-dashoffset: 0; } }
+#career[data-hq] .dbr-tt b { display: block; font: 900 30px/1.05 var(--f); letter-spacing: .01em; color: var(--ink); text-transform: uppercase; }
+#career[data-hq][data-tone="vice"] .dbr-tt b { color: #fff; text-shadow: 0 0 10px rgba(255,63,164,.9), 0 0 26px rgba(255,63,164,.5), 0 0 40px rgba(35,229,255,.35); }
+#career[data-hq] .dbr-tt small { display: block; margin-top: 10px; font-size: 13px; line-height: 1.45; color: var(--dim); }
+#career[data-hq] .dbr-boxes { flex: none; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+#career[data-hq] .dbr .tiles, #career[data-hq] .dbr .wk-tiles { height: 100%; display: grid; grid-auto-flow: row; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-rows: minmax(0, 1fr); gap: 8px; }
+#career[data-hq] .dbr .wk-brief { height: auto; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+#career[data-hq] .dbr .wk-brief > div { min-height: 64px; }
+#career[data-hq] .dbr .obj span, #career[data-hq] .dbr .wk-al span { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+#career[data-hq] .dbr .obj, #career[data-hq] .dbr .wk-al { display: flex; flex-direction: column; gap: 6px; }
+#career[data-hq] .dbr .q-p:last-child .q-pb > * { height: 100%; }
+
+#career[data-hq][data-tone="vice"] .ch-title h1 { text-shadow: 0 0 10px rgba(255,63,164,.65); }
+`;
+/** the driver hub's whole stylesheet: its own on the HQ's colours, then the HQ's, then the frame */
+const driverHQCSS = (own) => `${hqSkin(own)}\n${HQ_ON_CAREER}\n${FRAME}\n${SCENE_CSS('#career')}\n${VICE_CARDS}`;
+/** the HQ's colours onto the hub (the team's colour the accent, the ground kept for the team - ui/HQKit.js) */
+function driverTheme(el, c) {
+  const t = c?.team || c?.teams?.[c?.myTeam] || null;
+  el.dataset.hq = '1'; themeApply(el, t?.name || 'driver', t?.color || '#e10600', t?.color2);
+}
+
+return { DRV_ICON, DRV_GROUPS, hqSkin, driverHQCSS, driverTheme };
+})();
+
+// ---- src/ui/DriverMailPage.js
+__m['src/ui/DriverMailPage.js'] = (() => {
+const { dmailEnsure, dmailRead, dmailUnread } = __m['src/career/DriverMail.js'];
+const { esc, panel, tag, kv, empty } = __m['src/ui/HQKit.js'];
+// The driver career's MAIL page (ui/CareerHub.js routes to it; career/DriverMail.js is what it shows) - the team
+// principal's mail client (ui/ManagerMail.js) on the driver's hub: the list down the left, the letter that is open on
+// the right - who, when, what they say, the terms on a card - and, where something is to be done, the button to the
+// page where it is done.
+
+
+const ini = (n) => { const w = String(n || '?').replace(/^The\s+/i, '').replace(/[^\p{L}\s']/gu, ' ').trim().split(/\s+/); return ((w[0]?.[0] || '?') + (w.length > 1 ? w[w.length - 1][0] : '')).toUpperCase(); };
+const av = (name, col, big) => `<i class="ml-av${big ? ' big' : ''}"${col ? ` style="--c:${esc(col)}"` : ''}>${esc(ini(name))}</i>`;
+const when = (m) => `Round ${m.round} · ${m.season}`;
+const chip = (m) => (m.tag === 'offer' ? tag('Offer', 'ac') : m.tag === 'report' ? tag('Report') : m.good === false ? tag('Note', 'bad') : tag('Note'));
+
+function letter(m) {
+  const go = m.go?.length ? `<div class="ml-acts">${m.go.map((g, i) => `<button class="${i ? 'ghost' : 'go'}" data-tab="${esc(g.tab)}" data-sub="${esc(g.sub || '')}">${esc(g.label)} →</button>`).join('')}</div>` : '';
+  return `<article class="ml-let" data-k="mlread"><header class="ml-hd">${av(m.from, m.col, true)}<div class="ml-who"><b>${esc(m.from)}</b><small>${esc(m.org || '')}</small><small class="ml-to">to you · ${esc(when(m))}</small></div><span>${chip(m)}</span></header>
+    <h2 class="ml-subj">${esc(m.subj)}</h2>
+    <div class="ml-body">${(m.body || []).map((p) => `<p>${esc(p)}</p>`).join('')}<p class="ml-sig">${esc(m.from)}</p></div>
+    ${m.terms?.length ? `<div class="ml-terms">${m.terms.map(([k, v]) => kv(esc(k), esc(v))).join('')}</div>` : ''}${go}</article>`;
+}
+
+/** the page: S.sel the open mail (else the newest) */
+function dmailHTML(c, S = {}) {
+  const M = dmailEnsure(c), box = M.box, un = dmailUnread(c);
+  const cur = box.find((m) => m.id === S.sel) || box[0] || null;
+  if (cur) dmailRead(c, cur.id);
+  const rows = box.map((m) => `<button class="ml-row${m === cur ? ' on' : ''}${m.read && m !== cur ? '' : m === cur ? '' : ' un'}" data-dmail="${esc(m.id)}">${av(m.from, m.col)}<span class="ml-m"><span class="ml-top"><b>${esc(m.from)}</b><em>${esc(`R${m.round}`)}</em></span><span class="ml-sj">${esc(m.subj)}</span><span class="ml-pv">${esc((m.body || [])[0] || '')}</span></span>${m.tag === 'offer' ? tag('Offer', 'ac') : ''}</button>`).join('');
+  const bar = `<div class="ml-bar"><b>Inbox${un ? ` · ${un} unread` : ''}</b>${un > 1 ? '<button class="ghost ml-all" data-dmailall="1">MARK ALL READ</button>' : ''}</div>`;
+  return `<div class="q-g dm-g">${panel('Mail', `${bar}<div class="ml-list q-sc" data-k="mllist">${rows || empty('Nothing yet.')}</div>`, { w: 5, cls: 'ml-lp', scroll: false, pad: false })}${panel('Message', cur ? letter(cur) : empty('No mail.'), { w: 7, cls: 'ml-rp', scroll: false, pad: false })}</div>`;
+}
+
+return { dmailHTML };
+})();
+
 // ---- src/ui/HubStats.js
 __m['src/ui/HubStats.js'] = (() => {
 const { statsEnsure, newBook, figures, seasonsOf, aiOf, paddockRecords } = __m['src/career/Stats.js'];
+const { hqSkin } = __m['src/ui/DriverHQ.js'];
 // The STATS section of the career hub (ui/CareerHub.js draws the frame and routes here; career/Stats.js keeps the book):
 // your driver's figures for one season or the whole career, a page at a time. OVERVIEW: the big numbers - wins,
 // podiums, points, overtakes, the time at the wheel - the next six, and a chart (the grid against the finish race by
@@ -166499,6 +166968,7 @@ const { statsEnsure, newBook, figures, seasonsOf, aiOf, paddockRecords } = __m['
 // best finish, the best race and qualifying laps you drove there. RECORDS: yours and the paddock's. A switch in the
 // head picks the season (‹ 2026 ›: the arrow keys step through them) or the career; on a phone it sits at the top of
 // the page. In the hub's own look: white tiles and cards, the team's colour, the hub's line charts.
+
 
 const CSS = `
 #career .hst { display: flex; flex-direction: column; gap: var(--gap); height: 100%; min-height: 0; font-variant-numeric: tabular-nums; }
@@ -166612,7 +167082,7 @@ const CSS = `
 `;
 const css = () => {
   if (typeof document === 'undefined' || document.getElementById('hub-stats-css')) return;
-  const st = document.createElement('style'); st.id = 'hub-stats-css'; st.textContent = CSS; document.head.appendChild(st);
+  const st = document.createElement('style'); st.id = 'hub-stats-css'; st.textContent = hqSkin(CSS);   /* (on the HQ's colours: ui/DriverHQ.js) */ document.head.appendChild(st);
 };
 // (in at once: the rail's rule above matters before the first stats page is drawn)
 css();
@@ -186735,6 +187205,7 @@ const { showNegotiation } = __m['src/ui/Negotiation.js'];
 const { techEffects, upgradeName } = __m['src/career/TechTree.js'];
 const { moodOf, moraleLabel, moraleBand, formOf } = __m['src/career/Morale.js'];
 const { isBanned, activePoints } = __m['src/career/Licence.js'];
+const { compass } = __m['src/career/Conscience.js'];
 const { imageLabel, heatLabel, fameText } = __m['src/career/PR.js'];
 const { hangoutResult, autoHangout } = __m['src/career/Social.js'];
 const { CarMesh } = __m['src/vehicle/CarMesh.js'];
@@ -186743,6 +187214,12 @@ const { PATTERNS } = __m['src/vehicle/Livery.js'];
 const { makePerson, makeHelmet, bloodPool } = __m['src/world/People.js'];
 const { mourning3D } = __m['src/ui/Mourning3D.js'];
 const { TECH_CSS, techHTML, techSide, techClick, techView } = __m['src/ui/HubTech.js'];
+const { driverHQCSS, driverTheme, DRV_ICON, DRV_GROUPS } = __m['src/ui/DriverHQ.js'];
+const { sceneHTML } = __m['src/ui/ViceScene.js'];
+const { themeHTML, themeSet, panel: hqPanelKit } = __m['src/ui/HQKit.js'];
+const { TRACK_MAPS } = __m['src/ui/TrackMaps.js'];
+const { dmailHTML } = __m['src/ui/DriverMailPage.js'];
+const { dmailUnread, dmailRead, dmailReadAll } = __m['src/career/DriverMail.js'];
 const { statsHTML, statsClick } = __m['src/ui/HubStats.js'];
 const HS = __m['src/ui/HubSocial.js'];
 const { showPhone, phoneBadge } = __m['src/ui/Phone.js'];
@@ -186780,6 +187257,13 @@ const { papsFallout } = __m['src/ui/PapsConfront.js'];
 
 
 // (the contract table and the dismissal as cutscenes: registered with ui/Offers.js as the module loads)
+
+
+
+
+
+
+
 
 
 
@@ -187315,7 +187799,7 @@ const SEAT_CSS = `
 @media (max-width: 899px) { #career .ac-grid, #career .cf-grid, #career .cf-grid.cf-3 { grid-template-columns: 1fr; } #career .cf-page { height: auto; } }
 `;
 /** the hub's CSS with the tech tree's and the social pages' own (each written for #career), injected once */
-const cssText = () => CSS + TECH_CSS + SEAT_CSS + (typeof HS.SOCIAL_CSS === 'string' ? HS.SOCIAL_CSS : '') + LOOK_CSS;
+const cssText = () => driverHQCSS(CSS + TECH_CSS + SEAT_CSS + (typeof HS.SOCIAL_CSS === 'string' ? HS.SOCIAL_CSS : '') + LOOK_CSS);   // (the team principal's look: ui/DriverHQ.js)
 const injectCSS = () => { if (document.getElementById('career-css')) return; const st = document.createElement('style'); st.id = 'career-css'; st.textContent = cssText(); document.head.appendChild(st); };
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const TRACK_NAME = { silverstone: 'Silverstone', lasvegas: 'Las Vegas', montreal: 'Montreal', austin: 'Austin' };
@@ -187799,9 +188283,9 @@ function prewarm(c) {
 function root() {
   ensureMotion(); injectCSS();
   let el = document.getElementById('career');
-  if (!el) { el = document.createElement('div'); el.id = 'career'; el.innerHTML = '<div class="ch-ui"></div>'; document.body.appendChild(el); }
+  if (!el) { el = document.createElement('div'); el.id = 'career'; el.innerHTML = `${sceneHTML()}<div class="ch-ui"></div>`; document.body.appendChild(el); }
   el.classList.add('k-light');
-  if (!roomTried) { roomTried = true; try { room = new Showroom(el); } catch (e) { room = null; } window.addEventListener('resize', () => resized(el)); window.__careerRoom = room; }   // (no WebGL: the panels over the plain studio colour; the room on window for the test console)
+  if (!roomTried) { roomTried = true; try { room = new Showroom(el); } catch (e) { room = null; } window.addEventListener('resize', () => resized(el)); window.__careerRoom = room; if (room) { const st0 = room.start.bind(room); room.start = () => { if (!el.dataset.hq || el.hasAttribute('data-studio')) st0(); }; } }   // (no WebGL: the panels over the plain studio colour; the room on window for the test console)
   return el;
 }
 const ui = (el) => el.querySelector('.ch-ui');
@@ -188155,6 +188639,7 @@ function wireChart(root0) {
  * hands back: { tab: 'week' }); the sub picks a page inside it ('' = its first). IN MEMORIAM has one quiet page.
  */
 const SECTIONS = [
+  ['mail', '✉', 'MAIL', [['mail', '', 'Inbox']]],
   ['race', '◉', 'RACE WEEK', [['overview', '', 'Briefing'], ['week', '', 'The week'], ['overview', 'cal', 'Calendar']]],
   ['team', '⚙', 'TEAM', [['dev', '', 'Tech tree'], ['dev', 'factory', 'Factory'], ['drivers', '', 'Your team'], ['drivers', 'offers', 'Your seat']]],
   ['driver', '☺', 'DRIVER', [['you', '', 'Form'], ['you', 'licence', 'Licence'], ['you', 'record', 'Record'], ['you', 'look', 'Look']]],
@@ -188191,6 +188676,7 @@ function hub(el, c, o, tab = 'overview', S = {}) {
   HUB = { el, c, o, mode: 'hub', sec: null, tab: null, sub: null, S: {}, fit: null, pop: null, drawer: null, scene: false, unkeys: null, unrep: null };
   SEEN.trophies = c.trophies.length - (c.report && !c.report.seen ? (c.report.trophies || []).length : 0);
   shell(el, c, o);
+  driverTheme(el, c);   // (the team's colour the accent, on the HQ's ground)
   go(tab, S);
   prewarm(c);
 }
@@ -188200,12 +188686,12 @@ function shell(el, c, o) {
     <header class="ch-top glass"><div class="ch-badge" data-bind="badge"></div>
       <div class="ch-title"><h1 data-bind="title"></h1><small data-bind="sub"></small></div>
       <div class="ch-pills"><span class="ch-pill" data-bind="pos"></span><span class="ch-pill cf-pill" data-bind="conf" title="Management confidence: what the team thinks of you"></span><span class="ch-pill w" data-bind="wallet" title="Your own money: salary, bonuses, personal sponsors"></span></div>
-      <button class="ch-ico" data-a="phone" title="Your phone (P)">✆<em data-bind="phone" class="hidden"></em></button><button class="ch-ico" data-a="gear" title="Settings">⚙</button>
+      <button class="ch-ico" data-a="phone" title="Your phone (P)">✆<em data-bind="phone" class="hidden"></em></button><button class="ch-ico" data-a="hqtheme" title="Colours: the accent and the ground" aria-label="Colours"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="5.6"/><path d="M8 2.4v11.2M8 2.4a5.6 5.6 0 0 1 0 11.2" fill="currentColor" stroke="none" opacity=".55"/></svg></button><button class="ch-ico" data-a="gear" title="Settings">⚙</button>
       <div class="ch-race" data-bind="race"></div><button data-a="close">MENU</button></header>
-    <nav class="ch-rail ch-nav glass"><span class="ind"></span>${SECTIONS.map(([k, ic, n], i) => `${k === 'lost' ? '<span class="sp"></span><span class="dv"></span>' : ''}<button data-sec="${k}" title="${esc(n)} (${i + 1})"><i>${ic}</i>${esc(n)}<em class="hidden"></em></button>`).join('')}</nav>
+    <nav class="ch-rail ch-nav glass"><span class="ind"></span>${railHTML()}</nav>
     <section class="ch-panel glass"><div class="ch-head"><div class="k-seg ch-sub"></div><div class="slot"></div></div><div class="ch-pages"></div></section>
     <aside class="ch-side glass k-hide"></aside>
-    <div class="ch-modal-host"></div>`;
+    <div class="ch-modal-host"></div><div class="q-theme"></div>`;
   HUB.subKey = null; HUB.raceKey = null; HUB.sideKey = null;
   el.onclick = click;
   el.oninput = (e) => {
@@ -188218,6 +188704,18 @@ function shell(el, c, o) {
   // (the trophy room: pointing at a trophy reads out what it takes)
   el.onmouseover = (e) => { const t = e.target.closest?.('[data-tdesc]'); if (!t) return; const L = el.querySelector('.tro-line'); if (L && L.textContent !== t.dataset.tdesc) L.textContent = t.dataset.tdesc; };
   bindKeys(HUB);
+}
+/** a circuit's outline (ui/TrackMaps.js), drawn as a neon tube */
+function mapSVG(id) { const M = TRACK_MAPS?.[id]; if (!M) return ''; const P = M.pts; let d = ''; for (let i = 0; i < P.length; i += 3) d += `${i ? 'L' : 'M'}${P[i][0]} ${P[i][1]}`; return `<svg viewBox="-30 -30 ${M.w + 60} ${M.h + 60}" preserveAspectRatio="xMidYMid meet"><path class="g" d="${d}Z"/><path class="t" pathLength="1" d="${d}Z"/></svg>`; }
+/** an HQ panel on the driver's stage (ui/HQKit.js panel) */
+const hqPanel = (t, body, o) => hqPanelKit(t, body, { scroll: false, ...o });
+/** the colours' panel for this hub's team (ui/HQKit.js themeHTML) */
+const themeOfHub = (c) => { const t = c?.team || {}; return themeHTML(t.name || 'driver', t.color || '#e10600', t.color2); };
+/** the rail in the HQ's way (ui/DriverHQ.js): the sections in their groups, each with its line icon; In Memoriam at the foot */
+function railHTML() {
+  const S = Object.fromEntries(SECTIONS.map(([k, ic, n], i) => [k, { ic, n, i }]));
+  const btn = (k) => { const x = S[k]; if (!x) return ''; const name = x.n.charAt(0) + x.n.slice(1).toLowerCase(); return `<button data-sec="${k}" title="${esc(name)} (${x.i + 1})"><i>${DRV_ICON[k] || x.ic}</i>${esc(name)}<em class="hidden"></em></button>`; };
+  return `${DRV_GROUPS.map(([g, ks]) => `<h5>${g}</h5>${ks.map(btn).join('')}`).join('')}<span class="sp"></span>${btn('lost')}`;
 }
 /** the hub's keys: 1-8 the sections, Q/E the sub-tabs, the arrows the pages of a list, Esc back out of a step, R the race menu, P the phone */
 function bindKeys(X) {
@@ -188290,6 +188788,7 @@ function go(tab, S0 = {}, g = {}) {
   if (g.how === 'same' && P.tab === tab && P.sub === sub) how = 'same';
   const calm = sec === 'lost';
   X.sec = sec; X.tab = tab; X.sub = sub; X.S = S;
+  { const studio = (tab === 'you' && sub === 'look') || (tab === 'life' && sub === 'style'); el.toggleAttribute('data-studio', studio); if (studio) room?.start(); else room?.stop(); }
   MEM[sec] = [tab, sub]; const keep = { ...S }; delete keep.armed; MEM[`${tab}/${sub}`] = keep;
   if (tab === 'trophies') SEEN.trophies = c.trophies.length;
   // the studio follows at once, and the rail and the sub-tabs move before the page is built
@@ -188320,6 +188819,7 @@ function mkH(c, S, fit) {
 function pageHTML(c, o, tab, S, H) {
   const wait = (t) => `<div class="hub-wait"><h2>${esc(t)}</h2><p class="lead">This page is still being put together.</p></div>`;
   switch (tab) {
+    case 'mail': return dmailHTML(c, S);
     case 'overview': return S.sub === 'cal' ? calendarHTML(c, S, H) : briefingHTML(c, S, H);
     case 'week': return hs('weekHTML', c, S, H) ?? wait('The week');
     case 'dev': return techPage(c, S, H);
@@ -188466,7 +188966,8 @@ function badges(c) {
   const B = c.celebs?.bonds || {}, upset = Object.values(B).some((b) => b && ['partner', 'dating'].includes(b.stage) && (b.upset || 0) > 0), conf = !!c.celebs?.confront;
   const inv = (c.social?.invites || []).filter((v) => v && v.to === 'me' && (!v.status || ['pending', 'open', 'sent', 'waiting'].includes(v.status))).length;
   const life = upset || conf ? '!' : inv ? String(inv) : '', media = c.pr?.crisis ? '!' : '', season = c.trophies.length > SEEN.trophies ? '•' : '';
-  return { race, team, driver, life, media, season, lost: c.lost.length ? String(c.lost.length) : '',
+  const mail = (() => { try { const n = dmailUnread(c); return n ? String(n) : ''; } catch (e) { return ''; } })();
+  return { mail, race, team, driver, life, media, season, lost: c.lost.length ? String(c.lost.length) : '',
     sub: { 'week/': race, 'drivers/offers': team, 'you/licence': driver, 'life/': upset || conf ? '!' : '', 'social/invites': inv ? String(inv) : '', 'pr/': media, 'trophies/': season } };
 }
 const badge = (em, v) => { if (!em) return; const was = em.textContent; em.textContent = v || ''; em.classList.toggle('hidden', !v); if (v && v !== was) { em.classList.remove('k-badge'); void em.offsetWidth; em.classList.add('k-badge'); } };
@@ -188518,7 +189019,7 @@ function sideCard(X) {
     const w = c.week && c.week.season === c.season && c.week.round === c.round ? c.week : null;
     html = `<h3>${c.seasonOver ? 'THE SEASON' : 'NEXT RACE'}</h3><div class="big">${c.seasonOver ? `Season ${c.season}` : esc(TN(track))}</div><div class="row2"><span>Round</span><b>${c.seasonOver ? 'complete' : `${c.round} of ${c.rounds}`}</b></div>${c.seasonOver ? '' : `<div class="row2"><span>Forecast</span><b>${fcTxt(c.forecastAt())}</b></div>${c.team.none ? `<div class="row2"><span>Your seat</span><b>none: watch or sim</b></div>` : `<div class="row2"><span>Sponsor day</span><b>${w?.sponsorDone ? 'done' : 'still to do'}</b></div>`}`}`;
   } else if (X.sec === 'team') html = safe(() => techSide(c, H), '<h3>THE CAR</h3>');
-  else if (X.sec === 'driver') html = me ? `<h3>YOUR DRIVER</h3><div class="big">${esc(me.name)}</div><div class="row2"><span>Morale</span><b>${m.morale} · ${esc(safe(() => moraleLabel(m.morale), ''))}</b></div><div class="row2"><span>Licence</span><b>${pointsOf(c, me)} / 12 points</b></div>` : '<h3>YOUR DRIVER</h3><div class="big">No driver</div>';
+  else if (X.sec === 'driver') html = me ? `<h3>YOUR DRIVER</h3><div class="big">${esc(me.name)}</div><div class="row2"><span>Morale</span><b>${m.morale} · ${esc(safe(() => moraleLabel(m.morale), ''))}</b></div><div class="row2"><span>Licence</span><b>${pointsOf(c, me)} / 12 points</b></div><div class="row2" title="What your driver has done, good and bad, on the track and off it - weighed if they are killed: Heaven or Hell"><span>Conscience</span><b>${esc(compass(c).word)}</b></div>` : '<h3>YOUR DRIVER</h3><div class="big">No driver</div>';
   else if (X.sec === 'life' && !(X.tab === 'life' && X.sub === 'style')) { const un = safe(() => phoneBadge(c), 0) || 0; html = `<h3>YOUR LIFE</h3><div class="row2"><span>Your own money</span><b>${money(+c.wallet || 0)}</b></div><div class="row2"><span>Messages</span><b>${un ? `${un} unread` : 'none new'}</b></div>`; }
   else if (X.sec === 'media') { const p = c.pr || {}; html = `<h3>THE PUBLIC EYE</h3><div class="row2"><span>Followers</span><b>${esc(safe(() => fameText(p.fame || 0), '-'))}</b></div><div class="row2"><span>Image</span><b>${Math.round(p.image || 0)} · ${esc(safe(() => imageLabel(p.image || 0), ''))}</b></div><div class="row2"><span>Heat</span><b>${Math.round(p.heat || 0)} · ${esc(safe(() => heatLabel(p.heat || 0), ''))}</b></div>`; }
   const hide = !html;
@@ -188537,7 +189038,12 @@ function click(e) {
   const { el, c } = X, b = e.target.closest('button'); if (!b || b.disabled || !el.contains(b) || b.classList.contains('k-dx')) return;
   const d = b.dataset, S = X.S || {};
   if (X.lk?.click(e)) return;   // (DRIVER › Look: the editor's own buttons - its tabs, choices and camera)
+  // (the colours - ui/HQKit.js, as the team principal's: an accent, a ground, kept for the team)
+  { const th = el.querySelector('.q-theme'); if (th?.classList.contains('in') && !e.target.closest('.q-theme') && d.a !== 'hqtheme') th.classList.remove('in'); }
+  if (d.th) { const [k, v] = d.th.split('|'); const t = c.team || {}; themeSet(t.name || 'driver', k, v); driverTheme(el, c); const th = el.querySelector('.q-theme'); if (th) th.innerHTML = themeOfHub(c); return; }
   if (d.sec) { goSec(d.sec); return; }
+  if (d.dmail) { dmailRead(c, d.dmail); c.save(); go('mail', { ...S, sel: d.dmail }, { how: 'same' }); return; }
+  if (d.dmailall) { dmailReadAll(c); c.save(); go('mail', { ...S }, { how: 'same' }); return; }
   if (d.tab) {
     const s = d.sub || '';
     if (d.tab === X.tab && s === X.sub && d.cr == null) return;
@@ -188592,6 +189098,7 @@ function action(a, b, d) {
     case 'simweek': closePop(); c.simWeekend(); go('overview', {}, { fresh: true }); return;
     case 'season': c.nextSeason(); go('overview', {}, { fresh: true }); return;
     case 'gear': openGear(b); return;
+    case 'hqtheme': { const th = HUB.el.querySelector('.q-theme'); if (th) { th.innerHTML = themeOfHub(HUB.c); th.classList.toggle('in'); } return; }
     case 'motion': { const on = !document.documentElement.classList.contains('m-off'); setReduced(on); const s = b.querySelector('small'); if (s) s.textContent = motionTxt(); return; }
     case 'abandon':
       // (asked on the button itself, not with the browser's confirm(): a published page may not be allowed to show one)
@@ -189059,12 +189566,11 @@ function briefingHTML(c, S, H) {
   }
   // (no race seat this round: a free agent, a reserve the team does not need)
   if (c.noSeat && !safe(() => c.entries().some((e) => e.isPlayer), false)) return freeHTML(c, S, H);
-  const room0 = Math.max(2, Math.floor((H.fit.h - 104 - 72 - 60 - 3 * 8 - 20) / 45));
-  return `<div class="wk"><div class="wk-hero"><div class="wk-hl"><h2>Round ${c.round} of ${c.rounds} · ${esc(TN(track))}</h2><p class="lead">Qualifying, then the race. The forecast is on the calendar; your sponsors have set their targets.</p></div><div class="wk-brief">${me && me.alive ? briefBoxes(c) : ''}</div></div>
-    ${tilesHTML(c, H)}
-    <div class="wk-obj"><span class="lbl">Sponsor targets · paid after the race</span><div class="obj">${(c.objectives || []).slice(0, 4).map((o) => `<div><i>◇</i><span>${esc(o.text)}</span><em>${money(o.reward)}</em></div>`).join('') || '<div><i>◇</i><span>No targets this round.</span></div>'}</div></div>
-    <div class="wk-al"><span class="lbl">This week</span>${alertsHTML(c, H, room0)}</div>
-    ${calStrip(c)}</div>`;
+  // (the HQ's way - ui/DriverHQ.js: the stage filled, panel by panel. The race next, its circuit drawn in neon and
+  //  what the day holds; your season in figures; the sponsors' targets; what is waiting this week; the calendar)
+  const obj = `<div class="obj">${(c.objectives || []).slice(0, 4).map((o) => `<div><i>◇</i><span>${esc(o.text)}</span><em>${money(o.reward)}</em></div>`).join('') || '<div><i>◇</i><span>No targets this round</span></div>'}</div>`;
+  const next = `<div class="dbr-next"><div class="dbr-map">${mapSVG(track)}</div><div class="dbr-tt"><b>${esc(TN(track))}</b><small>Qualifying, then the race. The forecast is on the calendar; your sponsors have set their targets.</small></div></div><div class="wk-brief dbr-boxes">${me && me.alive ? briefBoxes(c) : ''}</div>`;
+  return `<div class="q-g dbr">${hqPanel(`Round ${c.round} of ${c.rounds} · next race`, next, { w: 6, h: 4, cls: 'hero' })}${hqPanel('Your season', tilesHTML(c, H), { w: 6, h: 2 })}${hqPanel('Sponsor targets · paid after the race', obj, { w: 3, h: 2 })}${hqPanel('This week', `<div class="wk-al">${alertsHTML(c, H, 3)}</div>`, { w: 3, h: 2 })}${hqPanel('The season', calStrip(c), { w: 12, h: 1 })}</div>`;
 }
 /** the season's end: the champions, where you and your team finished against the board's target */
 /** the season's awards (career/Marks.js) as a row of small cards ('' without any); you: the player's id, marked */
@@ -189423,6 +189929,152 @@ function showMourning(d, helmetURL, done, o = {}) {
 }
 
 return { openCareer, syncLooks, closeCareer, showMourning };
+})();
+
+// ---- src/ui/Reckoning.js
+__m['src/ui/Reckoning.js'] = (() => {
+
+// The Reckoning (the driver career, after the mourning screen - main.js afterNews): your driver's life weighed. Out of
+// the dark a balance; the deeds (career/Conscience.js judge) come down onto it one by one - the good on the left in
+// gold, the harm on the right in red - and the beam tips with each. Then the verdict: Heaven - the light rising, the
+// clouds, the gates opening, a slow major chord - or Hell - the floor giving way, the red glow and the embers, a low
+// drone and a tritone. What weighed most, said plainly. CONTINUE (after the verdict) or Esc.
+// showReckoning(J, name, done, { audio }) - J: judge(c).
+
+const CSS = `
+#reckon { position: fixed; inset: 0; z-index: 61; background: #000; color: #ece6d8; font-family: Georgia, 'Times New Roman', serif; overflow: hidden; opacity: 0; transition: opacity 1.6s ease; }
+#reckon.show { opacity: 1; }
+#reckon canvas.fx { position: absolute; inset: 0; width: 100%; height: 100%; }
+#reckon .sky { position: absolute; inset: 0; opacity: 0; transition: opacity 3.2s ease; }
+#reckon.heaven .sky.h { opacity: 1; background: radial-gradient(ellipse at 50% 10%, #fffbe9 0%, #ffe9b0 28%, #d9c08a 55%, #6b5c3e 100%); }
+#reckon.hell .sky.d { opacity: 1; background: radial-gradient(ellipse at 50% 110%, #ff5a1a 0%, #a3170a 30%, #3a0603 62%, #0a0000 100%); }
+#reckon .clouds { position: absolute; left: -20%; right: -20%; bottom: -8%; height: 46%; opacity: 0; transition: opacity 4s ease 1s;
+  background: radial-gradient(closest-side, rgba(255,255,255,.95), rgba(255,255,255,0)) 0 60%/38% 70% no-repeat, radial-gradient(closest-side, rgba(255,250,240,.9), rgba(255,255,255,0)) 30% 80%/44% 80% no-repeat,
+    radial-gradient(closest-side, rgba(255,255,255,.92), rgba(255,255,255,0)) 64% 70%/40% 75% no-repeat, radial-gradient(closest-side, rgba(255,248,235,.9), rgba(255,255,255,0)) 100% 85%/42% 80% no-repeat; animation: rkDrift 40s linear infinite alternate; }
+#reckon.heaven .clouds { opacity: 1; }
+#reckon .rays { position: absolute; left: 50%; top: -30%; width: 160vmax; height: 160vmax; margin-left: -80vmax; opacity: 0; transition: opacity 3s ease 1.2s;
+  background: repeating-conic-gradient(from 0deg, rgba(255,246,214,.22) 0deg 4deg, rgba(255,246,214,0) 4deg 14deg); -webkit-mask: radial-gradient(circle, #000 0%, transparent 58%); mask: radial-gradient(circle, #000 0%, transparent 58%); animation: rkSpin 120s linear infinite; }
+#reckon.heaven .rays { opacity: 1; }
+#reckon .gates { position: absolute; left: 50%; top: 18%; width: min(420px, 70vw); height: min(300px, 40vh); transform: translateX(-50%); opacity: 0; transition: opacity 2.4s ease 1.6s; }
+#reckon.heaven .gates { opacity: 1; }
+#reckon .gates i { position: absolute; top: 0; bottom: 0; width: 50%; border: 3px solid rgba(201,160,62,.85); background: repeating-linear-gradient(90deg, rgba(201,160,62,.75) 0 4px, transparent 4px 26px); transition: transform 4s cubic-bezier(.4,0,.2,1) 3s; }
+#reckon .gates i:first-child { left: 0; border-radius: 120px 0 0 0; transform-origin: left center; }
+#reckon .gates i:last-child { right: 0; border-radius: 0 120px 0 0; transform-origin: right center; }
+#reckon.heaven .gates i:first-child { transform: perspective(600px) rotateY(70deg); }
+#reckon.heaven .gates i:last-child { transform: perspective(600px) rotateY(-70deg); }
+#reckon .crack { position: absolute; left: 0; right: 0; bottom: 0; height: 0; background: linear-gradient(rgba(40,0,0,0), #ff4a10 55%, #ffb347); transition: height 3.5s cubic-bezier(.5,0,.3,1) .6s; filter: blur(2px); }
+#reckon.hell .crack { height: 38%; }
+#reckon .stage { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 16px; text-align: center; transition: transform 3.5s cubic-bezier(.5,0,.3,1), opacity 2s ease; }
+#reckon.heaven .stage { transform: translateY(-6vh); }
+#reckon.hell .stage { transform: translateY(5vh); }
+#reckon .over { font: 600 12px/1 system-ui, sans-serif; letter-spacing: .6em; color: #8f897c; margin-bottom: 10px; }
+#reckon .who { font-size: clamp(22px, 4.6vw, 34px); margin: 0 0 18px; transition: color 2s ease; }
+#reckon.heaven .who { color: #4a3a18; } #reckon.heaven .over { color: #6b5c3e; }
+#reckon svg.scales { width: min(560px, 92vw); height: auto; overflow: visible; }
+#reckon svg .beam { transition: transform 1s cubic-bezier(.3,1.4,.5,1); transform-origin: 280px 70px; }
+#reckon svg .pan { transition: transform 1s cubic-bezier(.3,1.4,.5,1); }
+#reckon .deeds { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 28px; width: min(560px, 92vw); margin-top: 10px; min-height: 120px; }
+#reckon .deeds .col { display: flex; flex-direction: column; gap: 5px; }
+#reckon .deed { font: 500 13px/1.3 system-ui, sans-serif; padding: 5px 9px; border-radius: 4px; opacity: 0; transform: translateY(-14px); transition: opacity .5s ease, transform .5s ease; text-align: left; }
+#reckon .deed.in { opacity: 1; transform: none; }
+#reckon .deed.g { background: rgba(214,172,72,.16); border-left: 3px solid #d6ac48; color: #f3e3b8; }
+#reckon .deed.b { background: rgba(200,40,30,.16); border-left: 3px solid #c8281e; color: #f2c2bb; }
+#reckon .deed small { opacity: .7; margin-left: 6px; }
+#reckon .verdict { font-size: clamp(40px, 10vw, 84px); letter-spacing: .18em; margin: 14px 0 6px; opacity: 0; transition: opacity 2.4s ease 1.8s; }
+#reckon.heaven .verdict { color: #fffaf0; -webkit-text-stroke: 1px rgba(138,106,32,.7); text-shadow: 0 0 30px rgba(255,236,170,.9), 0 2px 6px rgba(90,66,16,.45); opacity: 1; }
+#reckon.hell .verdict { color: #ff6a2a; text-shadow: 0 0 26px rgba(255,60,0,.8); opacity: 1; }
+#reckon .lesson { max-width: 560px; font-size: 16px; line-height: 1.55; opacity: 0; transition: opacity 2s ease 3.4s; }
+#reckon.heaven .lesson { color: #3a2e14; } #reckon.hell .lesson { color: #f0d2c4; }
+#reckon.done .lesson { opacity: 1; }
+#reckon button { margin-top: 22px; background: none; border: 1px solid currentColor; color: inherit; font: 600 11px/1 system-ui, sans-serif; letter-spacing: .3em; padding: 10px 18px; cursor: pointer; opacity: 0; transition: opacity 1.2s ease 4.6s; }
+#reckon.done button { opacity: .8; } #reckon.heaven button { color: #3a2e14; } #reckon.hell button { color: #f0d2c4; }
+#reckon.heaven.done .deeds, #reckon.hell.done .deeds, #reckon.done svg.scales { opacity: .0; transition: opacity 1.5s ease; height: 0; min-height: 0; margin: 0; }
+@keyframes rkSpin { to { transform: rotate(360deg); } }
+@keyframes rkDrift { from { transform: translateX(-4%); } to { transform: translateX(4%); } }
+@media (max-height: 560px) { #reckon .deeds { min-height: 0; } #reckon .deed { font-size: 11px; padding: 3px 7px; } }
+`;
+let injected = false;
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+
+/** the chord or the drone (o.audio: the game's audio, its context when it is running) */
+function score(audio, heaven) {
+  const ctx = audio?.ready ? audio.ctx : null; if (!ctx) return () => {};
+  const out = ctx.createGain(); out.gain.value = 0; out.connect(ctx.destination);
+  const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = heaven ? 2400 : 520; lp.connect(out);
+  const f = heaven ? [220, 277.18, 329.63, 440, 554.37] : [55, 77.78, 110, 155.56];   // (A major, open; A and E-flat: the devil's interval)
+  const osc = f.map((hz, i) => { const o = ctx.createOscillator(); o.type = heaven ? 'sine' : 'sawtooth'; o.frequency.value = hz; o.detune.value = (i % 2 ? 4 : -4); o.connect(lp); o.start(); return o; });
+  const t = ctx.currentTime; out.gain.setValueAtTime(0, t); out.gain.linearRampToValueAtTime(heaven ? 0.05 : 0.07, t + 4);
+  return () => { const n = ctx.currentTime; out.gain.cancelScheduledValues(n); out.gain.setValueAtTime(out.gain.value, n); out.gain.linearRampToValueAtTime(0, n + 2.5); setTimeout(() => { for (const o of osc) try { o.stop(); } catch (e) { /* stopped */ } out.disconnect(); }, 2800); };
+}
+
+/** motes of light rising slowly (heaven), embers rushing up (hell) - on a canvas behind the stage */
+function particles(cv, kind) {
+  const g = cv.getContext('2d'); if (!g) return () => {};
+  let w = 0, h = 0, raf = 0, last = performance.now(); const P = [];
+  const fit = () => { w = cv.width = cv.clientWidth; h = cv.height = cv.clientHeight; };
+  fit(); window.addEventListener('resize', fit);
+  const spawn = () => P.push(kind === 'hell' ? { x: Math.random() * w, y: h + 10, vx: (Math.random() - 0.5) * 40, vy: -(80 + Math.random() * 160), r: 1 + Math.random() * 2.4, life: 2 + Math.random() * 3, t: 0 }
+    : { x: Math.random() * w, y: h * (0.5 + Math.random() * 0.6), vx: (Math.random() - 0.5) * 8, vy: -(10 + Math.random() * 22), r: 1 + Math.random() * 2, life: 5 + Math.random() * 5, t: 0 });
+  const tick = (now) => {
+    const dt = Math.min(0.05, (now - last) / 1000); last = now; g.clearRect(0, 0, w, h);
+    for (let i = 0; i < (kind === 'hell' ? 6 : 2); i++) if (P.length < 260) spawn();
+    for (let i = P.length - 1; i >= 0; i--) {
+      const p = P[i]; p.t += dt; p.x += p.vx * dt + (kind === 'hell' ? Math.sin(p.t * 6 + p.r) * 20 * dt : 0); p.y += p.vy * dt; const a = Math.max(0, 1 - p.t / p.life);
+      if (a <= 0 || p.y < -20) { P.splice(i, 1); continue; }
+      g.fillStyle = kind === 'hell' ? `rgba(255,${120 + (p.r * 40) | 0},40,${a})` : `rgba(255,248,220,${a * 0.8})`; g.beginPath(); g.arc(p.x, p.y, p.r, 0, 6.283); g.fill();
+    }
+    raf = requestAnimationFrame(tick);
+  };
+  raf = requestAnimationFrame(tick);
+  return () => { cancelAnimationFrame(raf); window.removeEventListener('resize', fit); };
+}
+
+function showReckoning(J, name, done, o = {}) {
+  if (!injected) { const st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st); injected = true; }
+  const el = document.createElement('div'); el.id = 'reckon';
+  el.innerHTML = `<div class="sky h"></div><div class="sky d"></div><div class="rays"></div><div class="clouds"></div><div class="gates"><i></i><i></i></div><div class="crack"></div><canvas class="fx"></canvas>
+    <div class="stage"><div class="over">THE RECKONING</div><h2 class="who">${esc(name)}</h2>
+      <svg class="scales" viewBox="0 0 560 230" aria-hidden="true">
+        <line x1="280" y1="70" x2="280" y2="215" stroke="#8f897c" stroke-width="5"/><path d="M230 222 L330 222 L300 205 L260 205 Z" fill="#8f897c"/><circle cx="280" cy="64" r="8" fill="#b9b2a2"/>
+        <g class="beam"><line x1="70" y1="70" x2="490" y2="70" stroke="#b9b2a2" stroke-width="5" stroke-linecap="round"/>
+          <g class="pan l"><line x1="70" y1="70" x2="30" y2="150" stroke="#8f897c"/><line x1="70" y1="70" x2="110" y2="150" stroke="#8f897c"/><path d="M22 150 Q70 182 118 150 Z" fill="#d6ac48"/></g>
+          <g class="pan r"><line x1="490" y1="70" x2="450" y2="150" stroke="#8f897c"/><line x1="490" y1="70" x2="530" y2="150" stroke="#8f897c"/><path d="M442 150 Q490 182 538 150 Z" fill="#c8281e"/></g></g>
+      </svg>
+      <div class="deeds"><div class="col g"></div><div class="col b"></div></div>
+      <div class="verdict"></div><div class="lesson">${esc(J.lesson)}</div><button>CONTINUE</button></div>`;
+  document.body.appendChild(el);
+  requestAnimationFrame(() => el.classList.add('show')); setTimeout(() => el.classList.add('show'), 60);
+  const beam = el.querySelector('.beam'), panL = el.querySelector('.pan.l'), panR = el.querySelector('.pan.r'), colG = el.querySelector('.col.g'), colB = el.querySelector('.col.b');
+  // (the beam tips by the running total, never more than 14 degrees; the pans hang level as it does)
+  const tip = (s) => { const a = Math.max(-14, Math.min(14, -s * 1.6)); beam.style.transform = `rotate(${a}deg)`; panL.style.transform = `rotate(${-a}deg)`; panL.style.transformOrigin = '70px 70px'; panR.style.transform = `rotate(${-a}deg)`; panR.style.transformOrigin = '490px 70px'; };
+  // (the deeds in turns, the heaviest of each side first - at most five a side; the rest are in the totals)
+  const G = J.good.slice(0, 5), B = J.bad.slice(0, 5), order = []; for (let i = 0; i < Math.max(G.length, B.length); i++) { if (G[i]) order.push(G[i]); if (B[i]) order.push(B[i]); }
+  const timers = []; let run = 0, stopSound = () => {}, stopFx = () => {}, closed = false;
+  const step = 1.15;
+  order.forEach((e, i) => timers.push(setTimeout(() => {
+    const d = document.createElement('div'); d.className = `deed ${e.w > 0 ? 'g' : 'b'}`; d.innerHTML = `${esc(e.label)}${e.n > 1 ? `<small>×${e.n}</small>` : ''}`;
+    (e.w > 0 ? colG : colB).appendChild(d); requestAnimationFrame(() => d.classList.add('in'));
+    run += e.w; tip(run); try { o.audio?.beep?.(e.w > 0 ? 660 : 98, 0.25, 0.05); } catch (err) { /* no sound */ }
+  }, 2600 + i * step * 1000)));
+  const tV = 2600 + order.length * step * 1000 + 1400;
+  timers.push(setTimeout(() => { tip(J.sum); }, tV - 700));
+  timers.push(setTimeout(() => {
+    el.querySelector('.verdict').textContent = J.heaven ? 'HEAVEN' : 'HELL'; el.classList.add(J.heaven ? 'heaven' : 'hell');
+    stopSound = score(o.audio, J.heaven); stopFx = particles(el.querySelector('canvas.fx'), J.heaven ? 'heaven' : 'hell');
+    timers.push(setTimeout(() => el.classList.add('done'), 2600));
+  }, tV));
+  const close = () => {
+    if (closed || !el.classList.contains('done')) return; closed = true; for (const t of timers) clearTimeout(t);
+    window.removeEventListener('keydown', kd, true); stopSound(); el.classList.remove('show');
+    setTimeout(() => { stopFx(); el.remove(); done?.(); }, 1700);
+  };
+  const kd = (e) => { if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); close(); } };
+  window.addEventListener('keydown', kd, true);
+  el.querySelector('button').addEventListener('click', close);
+  return { el, close };
+}
+
+return { showReckoning };
 })();
 
 // ---- src/ui/Interview.js
@@ -192855,12 +193507,12 @@ class AIDriver {
     this.plan = null;
     // (a sprint - under eight laps, no stop to make: the plan's first tyre only, as it always was)
     if (type !== 'gamble' && world.lapsTotal < 8) try {
-      const R = planStints({ laps: world.lapsTotal, trackLength: this.track.length, pace: world.lapT || tyreLap(this.track.length), pitLoss: world.pitLoss || 22, wet: c.wetness });
+      const R = planStints({ laps: world.lapsTotal, rule: world.stopRule, trackLength: this.track.length, pace: world.lapT || tyreLap(this.track.length), pitLoss: world.pitLoss || 22, wet: c.wetness });
       const st = R.plans.map((p) => p.stints[0].compound).filter((k) => O.includes(k));
       if (st.length) comp = type === 'early' ? st.reduce((a, b) => (O.indexOf(b) < O.indexOf(a) ? b : a)) : type === 'long' ? st.reduce((a, b) => (O.indexOf(b) > O.indexOf(a) ? b : a)) : rnd() < 0.7 || st.length < 2 ? st[0] : st[1];
     } catch (e) { /* (the plans could not be made: the tyre it has) */ }
     else if (type !== 'gamble') try {
-      const R = planStints({ laps: world.lapsTotal, trackLength: this.track.length, pace: world.lapT || tyreLap(this.track.length), pitLoss: world.pitLoss || 22, wet: c.wetness });
+      const R = planStints({ laps: world.lapsTotal, rule: world.stopRule, trackLength: this.track.length, pace: world.lapT || tyreLap(this.track.length), pitLoss: world.pitLoss || 22, wet: c.wetness });
       const P = R.plans.filter((p) => p.stints.every((x) => O.includes(x.compound)));
       if (P.length) {
         const soft = (p) => O.indexOf(p.stints[0].compound);
@@ -192967,7 +193619,7 @@ class AIDriver {
     // (one cheap stop per neutralisation: a car that has stopped under this one - SafetyCar.neutralT - stays out; it
     //  used to read its new set as "won't last to the flag, a new one would" and come in again, twice)
     if (this._stopN != null && this._stopN === world.sc?.neutralT) return false;
-    const mustStop = world.lapsTotal >= 8 && c.pitStops === 0, lim = S.wear + 0.08;
+    const mustStop = !!world.stopRule && c.pitStops === 0, lim = S.wear + 0.08;
     // (the stop it needs, and its last one: the set it is on will not see the flag - clearly, not by a whisker - and has
     //  done real work, and a new one will)
     const last = t.wear > 0.2 && t.wear + perLap * lapsLeft > lim + 0.04 && perLap * lapsLeft <= lim;
@@ -193030,7 +193682,7 @@ class AIDriver {
     // (8 laps or more: one stop is mandatory - in a short race it is made whatever the wear, and never left too late; a
     //  gambler holds out for a safety car to the last lap, and makes it there)
     // (and none in a wet race: the rule is for dry ones - a car that has run a rain tyre, or a track that has been wet)
-    const mustStop = world.lapsTotal >= 8 && c.pitStops === 0 && lapsLeft >= 0.6 && !c.usedRain && !world.weather?.everWet && (S.type === 'gamble' || PL ? lapsLeft <= 2.05
+    const mustStop = !!world.stopRule && c.pitStops === 0 && lapsLeft >= 0.6 && !c.usedRain && !world.weather?.everWet && (S.type === 'gamble' || PL ? lapsLeft <= 2.05
       : lapsLeft <= Math.ceil(world.lapsTotal * 0.45) && (t.wear > 0.45 || world.lapsTotal < 13 || lapsLeft <= 2.5));
     // (the pit wall gets it wrong now and then - the more often the smaller the team: race/Calls.js FAULT_P. A stop for
     //  worn tyres alone left a lap too late, once a stint; it stays out to the next lap's entry, on the cliff's edge)
@@ -193048,7 +193700,7 @@ class AIDriver {
       if (PL && (damaged || wetMismatch)) this.plan = null;
       else if (PL && PL.stints[c.pitStops + 1]) { const nx = PL.stints[c.pitStops + 1].compound, last = c.pitStops + 2 >= PL.stints.length; comp = !last || cliffLaps(nx, c.raceLaps) * 1.35 >= world.lapsTotal - (c.lap + 1) - 0.3 ? nx : this.nextCompound(lapsLeft); }   /* (the laps after this one: the set goes on at the end of it) */   // (a stop come early - for a rival's, the wear: the plan's last tyre if it still reaches the flag, else one that does)
       if (wxCall) comp = wxCall === 'SLICK' ? this.slickFor(lapsLeft) : wxCall;
-      if ((c.pitStops === 0 || (world.lapsTotal >= 8 && c.dryUsed && c.dryUsed.size < 2 && !c.usedRain)) && comp === t.compound && W < 0.3 && !wxCall) comp = comp === 'HARD' ? 'MEDIUM' : comp === 'MEDIUM' ? 'HARD' : 'MEDIUM';
+      if ((c.pitStops === 0 || (world.stopRule && c.dryUsed && c.dryUsed.size < 2 && !c.usedRain)) && comp === t.compound && W < 0.3 && !wxCall) comp = comp === 'HARD' ? 'MEDIUM' : comp === 'MEDIUM' ? 'HARD' : 'MEDIUM';
       // (... and now and then a set that will not last: one softer than the race wants, it falls away before the flag)
       const softer = { HARD: 'MEDIUM', MEDIUM: 'SOFT' }[comp];
       if (softer && W < 0.3 && !wxCall && lapsLeft > cliffLaps(softer, c.raceLaps) * 1.15 && rnd() < fp * 0.6) { comp = softer; world.calls?.fault(c, 'tyre', { comp }); }
@@ -194788,7 +195440,7 @@ class RivalWall {
     const P = d.positions, me = P.indexOf(T), c = P.slice(me + 1, me + 3).find((x) => rivals.includes(x));
     if (!c) return; const a = c.ai, t = c.tyres, k = this.sharp(c), left = W.lapsTotal - c.lap;
     if (Math.random() > 0.25 + 0.6 * k) return;
-    const owes = W.lapsTotal >= 8 && c.pitStops === 0 && !c.usedRain && !W.weather?.everWet;
+    const owes = !!W.stopRule && c.pitStops === 0 && !c.usedRain && !W.weather?.everWet;
     if (doing === 'pit') {
       if (owes || t.wear > 0.45 || t.wear + a.perLap() * left > 0.8) return;   // (it needs the stop itself)
       if (c.pitRequested && a.pitReason === 'cheap' && toEntry(c) > 120) { c.pitRequested = false; a.pitPlan = null; a.pitReason = null; }
@@ -195728,7 +196380,9 @@ class RaceDirector {
   constructor(o) {
     Object.assign(this, o);
     const s = this.settings;
-    this.mode = s.mode; this.lapsTotal = s.lapsTotal; this.practice = !!s.practice;   // (practice: a qualifying session with no lap limit, ended when you like)
+    this.mode = s.mode; this.lapsTotal = s.lapsTotal; this.practice = !!s.practice;
+    // (the stop rule - a stop at least, two dry compounds - in a race of eight laps or more; never in a sprint, of any length)
+    this.sprint = !!s.sprint; this.stopRule = this.mode === 'race' && this.lapsTotal >= 8 && !this.sprint;   // (practice: a qualifying session with no lap limit, ended when you like)
     this.time = 0; this.stateT = 0; this.acc = 0; this.subCount = 0;
     this.state = this.mode === 'race' ? 'grid' : 'racing';
     this.qualiStarted = false; this.qualiDone = false;
@@ -195748,7 +196402,7 @@ class RaceDirector {
     this.lightsOn = 0; this.holdTime = 0; this.lightsOutAt = Infinity; this.lightsHideT = -1;
     for (const c of this.cars) { c.wetness = s.wetness; c.lapStart = 0; c.lap = 0; c.lapTimes = []; c.bestLap = Infinity; }
     this.world = {
-      cars: this.cars, time: 0, racing: this.mode !== 'race', lapsTotal: this.lapsTotal, wetness: s.wetness,
+      cars: this.cars, time: 0, racing: this.mode !== 'race', lapsTotal: this.lapsTotal, wetness: s.wetness, stopRule: this.stopRule, sprint: this.sprint,
       onLine: (c, full) => this.onLine(c, full), onImpact: (c, sev, type) => this.onImpact(c, sev, type),
       onAIError: (c, type, zone) => this.onAIError(c, type, zone),
       pit: this.pit || null,   // (the AI brakes for the pit lane's speed limit line before it gets there)
@@ -196291,7 +196945,7 @@ class RaceDirector {
         a.reaction = Infinity; a.rj = null; a.spun = false; a.defend = null; a.error = null; a.pitPlan = null; a.planner.best.n = 0; a.planner.best.spec = null;
         const left = this.lapsTotal - c.lap, soft = left <= 4, wR = this.weather ? this.weather.tyreWet : this.settings.wetness, comp = wR > 0.62 ? 'WET' : wR > 0.27 ? 'INTER' : soft ? 'SOFT' : left <= 9 ? 'MEDIUM' : 'HARD';
         // (a car that has run one dry compound takes another where the road is dry: the rule)
-        const comp2 = this.lapsTotal >= 8 && wR <= 0.27 && c.dryUsed && c.dryUsed.size < 2 && c.dryUsed.has(comp) ? (comp === 'HARD' ? 'MEDIUM' : comp === 'MEDIUM' ? 'HARD' : 'MEDIUM') : comp;
+        const comp2 = this.stopRule && wR <= 0.27 && c.dryUsed && c.dryUsed.size < 2 && c.dryUsed.has(comp) ? (comp === 'HARD' ? 'MEDIUM' : comp === 'MEDIUM' ? 'HARD' : 'MEDIUM') : comp;
         c.fitTyres(c.mgr?.redTyre || comp2); if (c.mgr) c.mgr.redTyre = null;   /* (the team principal's car: the set chosen on the pit wall under the red flag) */ c.tyres.temp = c.tyres.spec.start ?? 0.7; this.onPitDone?.(c);
       }
     });
@@ -196305,7 +196959,7 @@ class RaceDirector {
   }
 
   /** the two-compound rule still owed: a race of 8 laps or more, a stop made, one dry compound run, no rain tyre, no wet race declared */
-  owesCompound(c) { return this.mode === 'race' && this.lapsTotal >= 8 && !c.retired && c.pitStops > 0 && !c.usedRain && !this.wetDeclared && !!c.dryUsed && c.dryUsed.size < 2; }
+  owesCompound(c) { return this.stopRule && !c.retired && c.pitStops > 0 && !c.usedRain && !this.wetDeclared && !!c.dryUsed && c.dryUsed.size < 2; }
   /** wrapped distance from s=a to s=b along the lap (b ahead: positive) */
   planDs(a, b) { const L = this.track.length; let x = b - a; if (x > L / 2) x -= L; if (x < -L / 2) x += L; return x; }
   /** how far a car has raced (laps and lap distance) */
@@ -196360,20 +197014,20 @@ class RaceDirector {
     const now = this.crossTime(c), t = now - c.lapStart; c.lapTimes.push(t); if (t < c.bestLap) c.bestLap = t; c.lapStart = now; c.lap++;
     if (this.mode === 'race') this.calls.lap(c);
     this.sc.onLine(c);
-    if (!this.wetDeclared && this.mode === 'race' && this.lapsTotal >= 8 && (this.weather ? this.weather.tyreWet : this.settings.wetness) > 0.45) { this.wetDeclared = true; this.sc?.say?.('WET RACE DECLARED · TWO COMPOUNDS NOT REQUIRED', 'warn', 4); }
+    if (!this.wetDeclared && this.stopRule && (this.weather ? this.weather.tyreWet : this.settings.wetness) > 0.45) { this.wetDeclared = true; this.sc?.say?.('WET RACE DECLARED · TWO COMPOUNDS NOT REQUIRED', 'warn', 4); }
     if (c.isPlayer && !c.finished) this.hud?.msg(`LAP ${fmt(t)}${c.lap + 1 === this.lapsTotal ? '\nFINAL LAP' : ''}`, '', 2.2);
     if (c.isPlayer && !c.finished && this.engineer) {
       const pos = this.positions, i = pos.indexOf(c); const ahead = pos[i - 1], behind = pos[i + 1];
       // (time gaps from the timing loops; the gaps during the lap are the briefings' job, Radio.js)
       const gap = (a, b) => { const g = this.radio.gap(b, a); return g != null ? Math.abs(g) : Math.abs(a.totalDist - b.totalDist) / Math.max(12, (a.speed + b.speed) / 2); };
       // (8 laps or more: at least one stop is mandatory - reminded with two laps to go if it is still owed)
-      if (this.lapsTotal >= 8 && !c.pitStops && c.lap + 2 === this.lapsTotal) this.engineer.say('Box this lap or next. We still owe the mandatory stop.', 3);
+      if (this.stopRule && !c.pitStops && c.lap + 2 === this.lapsTotal) this.engineer.say('Box this lap or next. We still owe the mandatory stop.', 3);
       else if (this.owesCompound(c) && c.lap + 2 === this.lapsTotal) this.engineer.say('We have only run one dry compound. Box this lap or next for a different one, or it is thirty seconds.', 3);
       if (c.lap + 1 === this.lapsTotal) this.engineer.say(`Final lap. ${ahead ? `${ahead.short} is ${gap(ahead, c).toFixed(1)} ahead` : 'You are leading'}${behind ? `, ${behind.short} ${gap(c, behind).toFixed(1)} behind` : ''}. Bring it home.`, 3);
     }
     if (!c.finished && (c.lap >= this.lapsTotal || this.leaderFinished)) {
       // (8 laps or more and never stopped: the mandatory stop missed - 30 s added at the flag)
-      if (this.mode === 'race' && this.lapsTotal >= 8 && !c.pitStops && !c.retired) this.stewards.award(c, 30, 'missed mandatory pit stop');
+      if (this.stopRule && !c.pitStops && !c.retired) this.stewards.award(c, 30, 'missed mandatory pit stop');
       // (... and two different dry compounds, as the rules have it - unless the car ran a rain tyre, or race control
       //  declared the race wet: 30 s too. A red flag's change of tyres is a stop, and its set a compound used.)
       else if (this.owesCompound(c)) this.stewards.award(c, 30, 'did not use two dry compounds');
@@ -196803,7 +197457,7 @@ class RaceDirector {
     if (upTo != null) { this.simPlace(S, t0, model); return true; }
     // ---- the result onto the cars
     // (8 laps or more: the mandatory stop - a car that has not stopped makes it, its time in the pit lane added)
-    if (this.lapsTotal >= 8) for (const s of finishers) if (!s.stops && !s.c.pitStops) { s.forcedStop = true; s.at += 21 + rnd() * 3; }
+    if (this.stopRule) for (const s of finishers) if (!s.stops && !s.c.pitStops) { s.forcedStop = true; s.at += 21 + rnd() * 3; }
     finishers.sort((a, b) => a.at - b.at);
     for (const s of S) {
       const c = s.c;
@@ -199577,6 +200231,8 @@ const { ROSTER, customDriver, POINTS, standIn, dayPerf } = __m['src/race/Roster.
 const { showMemorial } = __m['src/ui/Memorial.js'];
 const { NewsBroadcast } = __m['src/ui/NewsBroadcast.js'];
 const { openCareer, closeCareer, showMourning, syncLooks } = __m['src/ui/CareerHub.js'];
+const { judge } = __m['src/career/Conscience.js'];
+const { showReckoning } = __m['src/ui/Reckoning.js'];
 const Avatar = __m['src/career/Avatar.js'];
 const { showInterview } = __m['src/ui/Interview.js'];
 const { showPodium } = __m['src/ui/Podium.js'];
@@ -199691,6 +200347,8 @@ void FAST_MATRIX;
 
 /** a car's engine maker (its sound - audio/EngineWorklet.js): the manager career's own choice for its team, else the team's usual */
 const engineOf = (c) => { const t = c?.team; return (S.mgr && S.mgr.teams?.[t]?.engine) || DEFAULT_SUP[t] || 'ferrari'; };
+
+
 
 
 
@@ -201672,7 +202330,7 @@ function startRound() {
   //  it is the circuit's and the day's, not the dice's; any other race rolls one)
   // (a race of eight laps or more - one with a stop in it. A sprint is as it was: its tyres just about last it, nobody
   //  stops; on a quarter-distance soft it would be a race of worn-out tyres)
-  wk.tyreOn = wk.mode !== 'tt' && wk.lapsTotal >= 8;
+  wk.tyreOn = wk.mode !== 'tt' && wk.lapsTotal >= 8 && !(wk.sprint && !wk.sprint.done);   // (a sprint: no stop, so tyres that last it)
   if (wk.tyreOn) { const C = wk.career || wk.mgr || null; let u;
     if (typeof window !== 'undefined' && window.__tyreDay > 0) u = (window.__tyreDay - TYRE_DAY[0]) / (TYRE_DAY[1] - TYRE_DAY[0]);   // (a test's own day)
     else if (C) { let h = 2166136261; for (const ch of `${C.season}|${C.round}|${W.def?.id}`) h = Math.imul(h ^ ch.charCodeAt(0), 16777619); u = ((h >>> 0) % 10007) / 10006; } else u = Math.random();
@@ -201729,7 +202387,7 @@ function makeDirector(mode, cars, player, extra = {}) {
   S.director = new RaceDirector({
     timeOfDay: W.time, fireSources: () => fire.emitters,   // (for the race's tape: day or night, and what burns and smokes on the cars - the fire's to say)
     track: W.track, line: W.line, profile: W.profile, pit: W.pit, obstacles: W.obstacles, cars, player, hud, audio, engineer: mode === 'race' ? engineer : null,
-    settings: { mode, practice: !!extra.practice, lapsTotal: wk.lapsTotal, aggression: settings.aggr, skill: skillOf(settings.diff), wetness: wk.wet, weather: wk.wx || null, weatherFixed: !!settings.weatherFixed, gridOrder: extra.gridOrder, stewards: settings.stewards, safetyCar: settings.sc !== 'off', failures: settings.fail !== 'off', flashbacks: settings.fb, champNext: wk.mode === 'champ' && wk.round < wk.rounds },
+    settings: { mode, practice: !!extra.practice, sprint: mode === 'race' && !!(wk.sprint && !wk.sprint.done), lapsTotal: wk.lapsTotal, aggression: settings.aggr, skill: skillOf(settings.diff), wetness: wk.wet, weather: wk.wx || null, weatherFixed: !!settings.weatherFixed, gridOrder: extra.gridOrder, stewards: settings.stewards, safetyCar: settings.sc !== 'off', failures: settings.fail !== 'off', flashbacks: settings.fb, champNext: wk.mode === 'champ' && wk.round < wk.rounds },
     onFinish: extra.onFinish, onPitDone: (c) => S.meshes.get(c)?.setCompound(c.tyres.compound),
     onContact: (a, b, v) => noteContact(a, b, v), onPlayerDone: (c) => watchSession(c),
     onRedFlag: () => { debris.clear(); fire.clear(); chunks.clear(); },
@@ -201866,7 +202524,7 @@ function runRace() {
   const P = W.pit, pace = estimatePace(), L = W.track.length;
   const pitLoss = pitLossAt(W.track.def?.id, P, L, pace);
   const gi = wk.gridOrder ? wk.gridOrder.indexOf(p) + 1 : 0;
-  showStrategy({ laps: wk.lapsTotal, trackName: W.track.def.name, trackLength: L, pace, pitLoss, wet: wk.wet, forecast: forecastLine(wk, pace), night: W.time === 'night', field: wk.cars.filter((c) => c !== p).map((c) => c.tyres.compound), gridPos: gi > 0 ? gi : null,
+  showStrategy({ laps: wk.lapsTotal, rule: wk.lapsTotal >= 8 && !(wk.sprint && !wk.sprint.done), trackName: W.track.def.name, trackLength: L, pace, pitLoss, wet: wk.wet, forecast: forecastLine(wk, pace), night: W.time === 'night', field: wk.cars.filter((c) => c !== p).map((c) => c.tyres.compound), gridPos: gi > 0 ? gi : null,
     onDone: (plan) => {
       S.choosing = false;
       if (plan) { p.fitTyres(plan.stints[0].compound); p.strategy = { name: plan.name, label: plan.label, stints: plan.stints.map((s) => ({ ...s })), laps: plan.laps }; }
@@ -202120,7 +202778,7 @@ function tpAct(a, x, y, z) {
     // (the rest of the race worked out again - race/TeamStrategy.js: the options offered one after another)
     if (d.mode !== 'race' || !d.world.racing || x.retired || x.finished) return;
     const pitLoss = d.world.pitLoss || pitLossAt(W.track.def?.id, W.pit, W.track.length, estimatePace());
-    const opts = replan({ car: x, d, sets: tpSetsOf(x), pitLoss, mustStop: d.lapsTotal >= 8 && x.pitStops === 0 && !x.usedRain && !d.weather?.everWet });
+    const opts = replan({ car: x, d, sets: tpSetsOf(x), pitLoss, mustStop: !!d.stopRule && x.pitStops === 0 && !x.usedRain && !d.weather?.everWet });
     if (!opts.length) { wall.radio('Strategy', `${sur(x)}: nothing to plan from here.`); return; }
     wall.radio('Strategy', `${sur(x)}: ${opts.map((p, i) => `${'ABC'[i]} ${p.label}${i ? ` (+${p.delta.toFixed(1)} s)` : ''}`).join(' · ')}.`);
     const offer = (i) => { const p = opts[i]; if (!p) return; x.mgr.alert = { text: `${p.name}: ${p.label}${i ? ` (+${p.delta.toFixed(1)} s)` : ' (quickest)'}`, yes: 'TAKE', no: opts[i + 1] ? 'NEXT' : 'KEEP',
@@ -203112,7 +203770,7 @@ function tpUi(dt) {
   if (d.mode === 'race') { try { TP.props?.update(held ? 0 : dt); tpAways(held ? 0 : dt); } catch (e) { /* a cutaway that could not be: no cutaway */ } }
   const ord = d.orders?.pairOf?.(TP.cars[0])?.order || null;
   TP.wall.update(dt, { d, speed: TP.speed, skip: !!TP.skip, rejoin: (c) => tpRejoin(c), paused: TP.paused, cam: TP.cam, order: ord, tyreLaps: (c) => TP.gfx.tyreLaps(c),
-    mustStop: (c) => d.mode === 'race' && d.lapsTotal >= 8 && ((c.pitStops === 0 && !c.usedRain && !d.weather?.everWet) || d.owesCompound(c)), fuelDelta: (c) => tpFuelDelta(c, d),
+    mustStop: (c) => !!d.stopRule && ((c.pitStops === 0 && !c.usedRain && !d.weather?.everWet) || d.owesCompound(c)), fuelDelta: (c) => tpFuelDelta(c, d),
     sets: (c) => (d.mode === 'race' ? tpSetsOf(c) : null), lifeK: (c) => (d.mode === 'race' ? tpLifeK(c) : 1), fuelSure: (c) => !!c.mgr?.fuelSure });
   if (d.mode === 'race') {
     tpFuel(d); tpRadio(d); tpPlanCalls(d);
@@ -203375,7 +204033,7 @@ function tpStrategy() {
   const one = (i) => {
     const car = mine[i]; if (!car) { S.choosing = false; beginRace(); return; }
     const gi = wk.gridOrder ? wk.gridOrder.indexOf(car) + 1 : 0;
-    showStrategy({ laps: wk.lapsTotal, trackName: W.track.def.name, trackLength: L, pace, pitLoss, wet: wk.wet, forecast: forecastLine(wk, pace), night: W.time === 'night', gridPos: gi > 0 ? gi : null,
+    showStrategy({ laps: wk.lapsTotal, rule: wk.lapsTotal >= 8 && !(wk.sprint && !wk.sprint.done), trackName: W.track.def.name, trackLength: L, pace, pitLoss, wet: wk.wet, forecast: forecastLine(wk, pace), night: W.time === 'night', gridPos: gi > 0 ? gi : null,
       field: wk.cars.filter((c) => c !== car && !mine.includes(c)).map((c) => c.tyres.compound),
       who: { name: car.name, color: car.color, step: `car ${i + 1} of ${mine.length}` }, okText: i + 1 < mine.length ? 'CONFIRM · NEXT CAR ▸' : 'CONFIRM · TO THE GRID ▸',
       onDone: (plan) => {
@@ -203951,8 +204609,11 @@ function afterNews(hurt, then) {
     const d = C.drivers[mine.careerId], l = C.lost.find((x) => x.id === d.id) || {};
     NEWS.results = null; NEWS.abandoned = false; strings(false, { fade: 1.2 }); audio.silence?.(true); $('results').classList.add('hidden');
     audio.play?.('horror', { gain: 1, delay: 0.5 });   // (the strings, as the helmet comes out of the dark - then the silence)
+    // (then the Reckoning - ui/Reckoning.js: the life weighed, Heaven or Hell - and back to the career)
     showMourning({ name: d.name, number: d.number, team: l.team, starts: d.starts, wins: d.wins, podiums: d.podiums }, helmetURL({ name: d.name, helmet: d.helmet, color: l.color, number: d.number }, { blood: true }), () => {
-      audio.silence?.(false); endSession(); S.weekend = null; openCareerHub();
+      let J = null; try { J = judge(C); } catch (e) { J = null; }
+      const after = () => { audio.silence?.(false); endSession(); S.weekend = null; openCareerHub(); };
+      if (J) { audio.silence?.(false); showReckoning(J, d.name, after, { audio }); } else after();
     }, { audio, helmet3d: { name: d.name, helmet: d.helmet, color: l.color, number: d.number } });
   };
   if (others.length) { strings(true); showMemorial(others, next, () => audio.beep?.(146.8, 2.4, 0.1)); } else next();
