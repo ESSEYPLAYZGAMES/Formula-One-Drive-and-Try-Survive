@@ -1,3 +1,43 @@
+# V2.86 (2026-11-26): the kerb camera's two lenses; sprints without a stop; every tyre in the builder; Heaven and Hell
+
+Asked for: the kerb camera "doesn't switch between forward/backward facing, it's just moving to the next kerb";
+"sprints have no mandatory pits - up the laps to 4"; "always give the full selection of S M H I and W in the strat
+menu"; "add heaven and hell to give players a sense of a moral compass".
+
+## The kerb camera (camera/TVDirector.js)
+- One kerb, two lenses: facing up the road as the car comes, then - the moment it is over the kerb - a cut to the one
+  facing down the road, the car going away; held two and a half seconds. Why it moved on instead: a kerb shot counted
+  as a trackside one, and a trackside shot is over when the car is 400 m off after three seconds - the kerb (up to
+  720 m ahead when the kerb camera was asked for) was dropped before the car got there, and the next one placed further
+  on; and the reverse angle could be cut short by the same rule. A kerb shot keeps its own time now, and the corner
+  it picks is within 480 m.
+
+## Sprints (career/Sprint.js, race/RaceDirector.js, ai/AIDriver.js, ui/Strategy.js and the pit wall)
+- Four laps at least (a third of the race's distance otherwise).
+- No mandatory stop and no two-compound rule in a sprint of any length - before, a sprint of eight laps or more (a
+  Grand Prix of 24 or more) carried both, with the 30 s at the flag. One flag on the race (stopRule) now says whether
+  the rule applies, read by the stewards, the AI, the strategy screen, the pit wall and the broadcast. A sprint's
+  tyres are the ones that last its distance.
+
+## The strategy builder (ui/Strategy.js)
+- Every stint offers all five tyres - soft, medium, hard, intermediate, wet - whatever the forecast; the time shows
+  what a choice costs (a wet tyre on a dry road: "will not last" or a minute and more). The engineers' plans, and the
+  AI's, are still made from the tyres that suit the day.
+
+## Heaven and Hell (career/Conscience.js, ui/Reckoning.js, career/PR.js, ui/CareerHub.js)
+- The driver career keeps your driver's conscience: what they chose to do, on the track and off it. Good: a day for
+  charity (+4), a donation (+3), giving way for the team (+3), walking away from a fight (+2.5), doing as the team
+  asked (+1.5), time for the fans (+1.5), a clean race (+0.6). Harm: starting a fight (-4, more if it escalates),
+  taking out a team-mate (-4), holding one up on purpose (-3.5), a ban (-3), causing a crash (-2.5), defying team
+  orders (-2.5), goading a rival (-1.5), a penalty (by its points).
+- The hub's DRIVER panel shows which way the scales lean: Heaven-bound, leaning towards heaven, in the balance,
+  leaning towards hell, Hell-bound - while it can still be changed.
+- If your driver is killed: after the mourning, the Reckoning. A balance out of the dark; the deeds come down onto it
+  one by one, the good in gold on the left, the harm in red on the right, the beam tipping with each. Then the
+  verdict - Heaven (the light rising, clouds, the gates opening, a slow major chord) when the good weighs at least as
+  much as the harm, Hell (the floor giving way, the red glow and the embers, a low drone) when it does not - and what
+  weighed most, said plainly. Only your own driver is ever judged, never the real drivers on the grid.
+
 # V2.85 (2026-11-18): your drivers talk back; the paddock loses patience mid-season
 
 Asked for: "3 and 4" - driver radio with personality, mid-season driver changes in the team principal's career.

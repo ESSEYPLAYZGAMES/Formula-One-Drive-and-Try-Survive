@@ -168,7 +168,7 @@ export class TVDirector {
       //  and then its twin looking down the road after them. Nothing is asked of the walls and fences: it is inside
       //  them, on the road's own edge. The next corner within reach - further when the kerb camera is the one asked
       //  for - or a trackside camera instead.)
-      let s0 = null, sE = null, side = 1, kPick = null; const reach = this.camKind === 'kerb' ? 720 : 330;
+      let s0 = null, sE = null, side = 1, kPick = null; const reach = this.camKind === 'kerb' ? 480 : 330;   // (asked for: the next corner a little further on - not one so far off the road is empty for long)
       for (let ds = 45; ds < reach; ds += 12) { const i = tr.idxAtS(tr.wrapS(subject.s + ds)); if (!tr.inCornerZone(i)) continue; let e = ds; while (e < ds + 220 && tr.inCornerZone(tr.idxAtS(tr.wrapS(subject.s + e)))) e += 12; const sm = tr.wrapS(subject.s + (ds + e) / 2), im = tr.idxAtS(sm), n = tr.n, a = (im - 6 + n) % n, b = (im + 6) % n; side = (tr.tx[b] - tr.tx[a]) * tr.nx[im] + (tr.tz[b] - tr.tz[a]) * tr.nz[im] > 0 ? 1 : -1; s0 = sm; sE = e - ds > 30 ? tr.wrapS(subject.s + e - 10) : null;
         // (the kerbs the racing line really runs over: the apex where it comes nearest the inside edge, the exit where it
         //  runs out nearest the outside one - from the line itself, not the corner's middle and end)
@@ -345,7 +345,7 @@ export class TVDirector {
       want = S[0] || null;
     }
     if (!want) return sh?.car || null;
-    const ended = !sh || (gone(sh.car) && !TV_AWAY.has(sh.kind)) || sh.t > sh.dur || (sh.kind === 'track' && this.passed(ctx, sh)) || (sh.kind === 'pit' && !sh.car.pitLane && !sh.car.inPit && sh.t > 2)
+    const ended = !sh || (gone(sh.car) && !TV_AWAY.has(sh.kind)) || sh.t > sh.dur || (sh.kind === 'track' && !sh.kerb && this.passed(ctx, sh))   /* (a kerb shot keeps its own time: its two lenses, then over) */ || (sh.kind === 'pit' && !sh.car.pitLane && !sh.car.inPit && sh.t > 2)
       || (sh.why === 'grid' && d.world.racing && sh.t > 3);
     const urgent = (want.urgent && sh && sh.car !== want.car && sh.t > 1.2 && !(sh.why === 'out' || sh.why === 'spin')) || (want.away && sh && sh.why !== want.why && sh.t > 1.5) || (want.why === 'start' && sh && sh.why !== 'start');
     if (!ended && !urgent && sh && this.followCar && sh.followed && sh.car === this.followCar && want.car === sh.car) { sh.other = want.other || null; sh.third = want.third || null; }   // (the same car's picture: who is in it with him follows the fight)
