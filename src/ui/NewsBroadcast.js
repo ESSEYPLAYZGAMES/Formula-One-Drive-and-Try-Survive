@@ -96,7 +96,7 @@ const CSS = `
 #news .silence.in { opacity: 1; }
 #news .silence b { display: block; font: 300 clamp(26px, 3.6vw, 52px)/1 Georgia, 'Times New Roman', serif; letter-spacing: .3em; }
 #news .silence span { display: block; margin-top: 16px; font: 400 clamp(14px, 1.5vw, 20px)/1.5 Georgia, 'Times New Roman', serif; color: #d6d6d6; font-style: italic; }
-#news .skip { position: absolute; right: 3.2vw; top: calc(4vh + 46px); pointer-events: auto; background: rgba(0,0,0,.5); border: 1px solid rgba(255,255,255,.35); color: #ddd; font: 700 11px/1 'Segoe UI', Arial, sans-serif; letter-spacing: .25em; padding: 8px 12px; cursor: pointer; }
+#news .skip { display: none !important; position: absolute; right: 3.2vw; top: calc(4vh + 46px); pointer-events: auto; background: rgba(0,0,0,.5); border: 1px solid rgba(255,255,255,.35); color: #ddd; font: 700 11px/1 'Segoe UI', Arial, sans-serif; letter-spacing: .25em; padding: 8px 12px; cursor: pointer; }
 #news .skip:hover { color: #fff; border-color: #fff; }
 #news .hide { opacity: 0 !important; }
 #news .ob { position: absolute; left: 3.2vw; top: calc(4vh + 46px); display: flex; align-items: stretch; height: 30px; opacity: 0; transition: opacity .3s; box-shadow: 0 2px 10px rgba(0,0,0,.5); }

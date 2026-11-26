@@ -1044,6 +1044,7 @@ setTimeout(() => { syncSetupUI(); refreshHome(); }, 0);
 // race distance are the only settings (the hub's), the rest is not yours to choose
 // ---------------------------------------------------------------------------
 function openCareerHub() {
+  document.body.classList.remove('f1-dead');
   restoreSettings();
   // (the title decider's film, if the next round is one: made ready while the hub is up - it starts at once)
   setTimeout(() => { try { const C = S.career, pre = C && careerDecider(C, true); if (pre) prepareScene(pre.scene, pre.ctx); } catch (e) { /* played from scratch */ } }, 1500);
@@ -1986,7 +1987,7 @@ function setPaused(v) {
  * froze the next race on a still camera with no control.)
  */
 function resetTransient() {
-  killPre();
+  killPre(); document.body.classList.remove('f1-dead');
   if (PHOTO.on) exitPhoto();
   PHOTO.on = false; PHOTO.live = false; PHOTO.ai = null; $('photo-hint')?.classList.add('hidden');
   if (S.paused) setPaused(false); S.paused = false; $('pause').classList.add('hidden');
@@ -4036,6 +4037,7 @@ function crashNews() {
   for (const c of hurt) { c._newsShown = true; if (!c.injuryClip && d.replay) c.injuryClip = d.replay.clip(c); }
   NEWS.wait = 0;
   if (NEWS.cancel) { NEWS.cancel.hurt.push(...hurt); return; }   // (hurt in the same accident, or on the way back: in the same news)
+  if (hurt.some((c) => c.isPlayer && c.fate === 'killed')) document.body.classList.add('f1-dead');   // (no timing tower over a death)
   if (d.mode === 'race' && hurt.some((c) => c.fate === 'killed')) { beginCancel(hurt); return; }
   newsNow(hurt);
 }
@@ -4168,6 +4170,11 @@ function povStart(p) {
     L.tx = Math.max(-0.38, Math.min(0.38, L.tx)); L.ty = Math.max(-0.22, Math.min(0.3, L.ty));
   };
   window.addEventListener('mousemove', POV.onMove);
+  // (SPACE: on - out of the accident replayed into the fire, out of the fire into the dark; no button)
+  POV.onKey = (e) => { if (e.code !== 'Space' || e.repeat) return; e.preventDefault(); e.stopPropagation(); if (POV.rep) povReplayEnd(); else POV.t = POV.T + 0.5; };
+  window.addEventListener('keydown', POV.onKey, true);
+  // your driver is dead: no race around it any more - the timing tower and the HUD gone (body.f1-dead, until the next session)
+  if (p.isPlayer) document.body.classList.add('f1-dead');
   // the accident again first, from the replay (a whole car for every one in it, the real ones out of sight meanwhile)
   const C = p.injuryClip, j = C ? C.cars.indexOf(p) : -1;
   if (C && j >= 0 && C.frames.length > 8 && C.pulses) {
@@ -4275,7 +4282,7 @@ function povEnd() {
   if (!POV.on) return;
   if (POV.rep) povReplayEnd();
   POV.on = false;
-  window.removeEventListener('mousemove', POV.onMove); if (document.pointerLockElement) document.exitPointerLock();
+  window.removeEventListener('mousemove', POV.onMove); window.removeEventListener('keydown', POV.onKey, true); if (document.pointerLockElement) document.exitPointerLock();
   scene.remove(POV.light); POV.light.dispose?.();
   canvas.style.filter = ''; camera.near = POV.near; camera.fov = POV.fov; camera.updateProjectionMatrix();
   const f = blackout(); f.style.transition = 'none'; f.style.opacity = '1';   // (it ends in black; the news comes out of it)
@@ -4317,7 +4324,9 @@ function newsNow(hurt) {
     NEWS.fading = false; NEWS.abandoned = true; d.finish();
     playNews(hurt, () => {
       f.style.transition = 'none'; f.style.opacity = '0'; audio.setMuffle?.(0);
-      afterNews(hurt, () => { const r = NEWS.results; NEWS.results = null; if (r) r(); else toMenu(); });
+      // (you were killed: no results after it - a leaderboard of the race that killed you means nothing - back to the menu)
+      const dead = hurt.some((c) => c.isPlayer && c.fate === 'killed');
+      afterNews(hurt, () => { const r = NEWS.results; NEWS.results = null; if (r && !dead) r(); else toMenu(); });
     });
     f.style.transition = 'opacity .4s'; f.style.opacity = '0';
   }, 1150);
@@ -4996,7 +5005,7 @@ function nextAfterResults() {
   // anyone hurt in the race's last moments, not yet covered (the news and the memorial came straight after the rest)
   const fresh = wk ? (wk.cars || []).filter((c) => c.injured && !c.standInFor && !c._newsShown) : [];
   for (const c of fresh) { c._newsShown = true; decideFate(c); if (!c.injuryClip && S.director?.replay) c.injuryClip = S.director.replay.clip(c); }
-  if (fresh.length && S.director && W.track) { playNews(fresh, () => afterNews(fresh, () => afterResults())); return; }
+  if (fresh.length && S.director && W.track) { playNews(fresh, () => afterNews(fresh, () => (fresh.some((c) => c.isPlayer && c.fate === 'killed') && !wk?.career ? toMenu() : afterResults()))); return; }
   afterResults();
 }
 function afterResults() {

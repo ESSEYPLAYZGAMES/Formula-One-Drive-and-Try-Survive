@@ -142,6 +142,45 @@ export function afterSound(audio) {
       if (Math.random() < dt * 1.6 * mc.v) clang(0.2 + mc.v * 0.3);
     }
   }
+  /** a rat's squeal: a thin chirp wobbling up, now and then a trill */
+  function squeak(pan = 0, gain = 0.12) {
+    if (!alive) return; const t = T(), n = Math.random() < 0.3 ? 3 : 1;
+    for (let i = 0; i < n; i++) { const t0 = t + i * 0.07, o = track(ctx.createOscillator(), t0 + 0.14), f = 2600 + Math.random() * 2400; o.type = 'triangle';
+      o.frequency.setValueAtTime(f, t0); o.frequency.linearRampToValueAtTime(f * 1.35, t0 + 0.05); o.frequency.linearRampToValueAtTime(f * 0.9, t0 + 0.11);
+      const e = gainAt(0), p = ctx.createStereoPanner(); p.pan.value = Math.max(-1, Math.min(1, pan)); e.gain.setValueAtTime(0, t0); e.gain.linearRampToValueAtTime(gain, t0 + 0.01); e.gain.exponentialRampToValueAtTime(0.001, t0 + 0.12);
+      o.connect(e); e.connect(p); p.connect(bus); o.start(t0); }
+  }
+  /** a click in a throat, a joint cracking (a stalker twitching) */
+  function click(pan = 0, gain = 0.3) {
+    if (!alive) return; const t = T(), s = noise(), f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 1400 + Math.random() * 1600; f.Q.value = 6;
+    const e = gainAt(0), p = ctx.createStereoPanner(); p.pan.value = Math.max(-1, Math.min(1, pan));
+    for (let i = 0; i < 3; i++) { const ti = t + i * (0.02 + Math.random() * 0.03); e.gain.setValueAtTime(gain, ti); e.gain.setValueAtTime(0, ti + 0.006); }
+    s.connect(f); f.connect(e); e.connect(p); p.connect(bus); s.start(t); s.stop(t + 0.2);
+  }
+  /** a wet hit: a thump and a smack (blood on the rock, flesh) */
+  function splat(gain = 0.4) {
+    if (!alive) return; const t = T(), s = noise(), f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.setValueAtTime(2400, t); f.frequency.exponentialRampToValueAtTime(260, t + 0.18);
+    const e = gainAt(0); e.gain.setValueAtTime(gain, t); e.gain.exponentialRampToValueAtTime(0.001, t + 0.25); s.connect(f); f.connect(e); e.connect(bus); s.start(t); s.stop(t + 0.3);
+    const o = track(ctx.createOscillator(), t + 0.2); o.frequency.setValueAtTime(120, t); o.frequency.exponentialRampToValueAtTime(40, t + 0.15); const og = gainAt(0); og.gain.setValueAtTime(gain * 1.2, t); og.gain.exponentialRampToValueAtTime(0.001, t + 0.18); o.connect(og); og.connect(bus); o.start(t);
+  }
+  /** a shriek - the thing in your face: a torn voice up high, noise, metal */
+  function shriek(gain = 0.7) {
+    if (!alive) return; voice('IIIIIAAAAAAH', { f0: 420, rate: 0.5, gain, ring: 140, dist: 1 }); voice('AAAAAAAAH', { f0: 95, rate: 0.55, gain: gain * 0.8, ring: 33, dist: 1 }); clang(gain * 0.8);
+    const t = T(), s = noise(), f = ctx.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 1800; const e = gainAt(gain * 0.5); e.gain.setValueAtTime(gain * 0.5, t); e.gain.exponentialRampToValueAtTime(0.001, t + 1.1); s.connect(f); f.connect(e); e.connect(bus); s.start(t); s.stop(t + 1.2);
+  }
+  /**
+   * A portal's hum, to be found by in the dark: a low chord beating, a whisper of noise over it -> { set(pan, gain), stop() }
+   * (the closer, the louder; panned to where it is)
+   */
+  function hum() {
+    if (!alive) return { set() {}, stop() {} };
+    const g = gainAt(0), p = ctx.createStereoPanner(), f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 700; f.connect(g); g.connect(p); p.connect(bus);
+    const os = [65.4, 98.3, 130.1, 155.8].map((hz) => { const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = hz * (1 + (Math.random() - 0.5) * 0.008); const og = gainAt(0.18); o.connect(og); og.connect(f); o.start(); return o; });
+    const lfo = ctx.createOscillator(), lg = gainAt(300); lfo.frequency.value = 0.3 + Math.random() * 0.3; lfo.connect(lg); lg.connect(f.frequency); lfo.start(); os.push(lfo);
+    const w = noise(), wf = ctx.createBiquadFilter(); wf.type = 'bandpass'; wf.frequency.value = 2200; wf.Q.value = 2; const wg = gainAt(0.25); w.connect(wf); wf.connect(wg); wg.connect(g); w.start();
+    return { set(pan, gain) { const t = T(); p.pan.setTargetAtTime(Math.max(-1, Math.min(1, pan)), t, 0.1); g.gain.setTargetAtTime(gain, t, 0.15); },
+      stop() { const t = T(); g.gain.setTargetAtTime(0, t, 0.2); setTimeout(() => { for (const o of os) { try { o.stop(); } catch (e) { /* stopped */ } } try { w.stop(); } catch (e) { /* stopped */ } }, 1200); } };
+  }
   /** a heartbeat - weak (two thumps) */
   function heart(gain = 0.5) {
     const t = T(); for (const [d, g] of [[0, 1], [0.22, 0.6]]) { const o = track(ctx.createOscillator(), t + d + 0.3); o.frequency.setValueAtTime(62, t + d); o.frequency.exponentialRampToValueAtTime(34, t + d + 0.22);
@@ -171,5 +210,5 @@ export function afterSound(audio) {
     try { window.speechSynthesis?.cancel(); } catch (e) { /* none */ }
     setTimeout(() => { for (const o of [...oscs, ...loops, ...(droneN?.os || [])]) { try { o.stop(); } catch (e) { /* stopped */ } } try { bus.disconnect(); comp.disconnect(); } catch (e) { /* gone */ } }, s * 1000 + 200);
   }
-  return { live: true, voice, drone, chant, machine, clang, tick, heart, breath, fizzle, stop, mute: (m) => bus.gain.setTargetAtTime(m ? 0 : 1, T(), 0.05) };
+  return { live: true, voice, drone, chant, machine, clang, tick, heart, breath, fizzle, stop, squeak, click, splat, shriek, hum, mute: (m) => bus.gain.setTargetAtTime(m ? 0 : 1, T(), 0.05) };
 }

@@ -506,3 +506,5 @@ table.res tr.me td { color: var(--accent2); font-weight: 700; }
    (ui/PitWall.js) - the start lights and the messages stay */
 body.tp #hud > :not(#hud-lights):not(#hud-msg) { display: none !important; }
 body.tp #hud-msg { top: 30%; }
+/* (your driver dead: no timing tower, no HUD - main.js body.f1-dead, until the next session) */
+body.f1-dead #hud, body.f1-dead #standings, body.f1-dead #results { display: none !important; }

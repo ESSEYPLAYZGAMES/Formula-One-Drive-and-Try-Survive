@@ -2661,12 +2661,14 @@ export function showMourning(d, helmetURL, done, o = {}) {
     drone = { lp, g, stop: () => { const t = ctx.currentTime; g.gain.cancelScheduledValues(t); g.gain.setTargetAtTime(0, t, 0.05); setTimeout(() => { for (const x of [...oscs, lfo]) { try { x.stop(); } catch (e) { /* stopped */ } } g.disconnect(); }, 600); } };
   }
   const btn = el.querySelector('.hold'), fill = btn.querySelector('.fill'), flame = el.querySelector('.flame'), glow = el.querySelector('.glow'), dark = el.querySelector('.dark'), smoke = el.querySelector('.smoke');
-  setTimeout(() => btn.classList.add('on'), 7000);
+  // (no button: SPACE lets the flame go out - or, after a while, it goes out by itself)
+  btn.style.display = 'none'; let auto = false;
+  setTimeout(() => btn.classList.add('on'), 7000); setTimeout(() => { auto = true; btn.classList.add('on'); }, 18000);
   const HOLD = 4.5; let p = 0, holding = false, last0 = performance.now(), over = false;
   const tick = (now) => {
     if (over) return;
     const dt = Math.min(0.1, (now - last0) / 1000); last0 = now;
-    if (btn.classList.contains('on')) p = Math.max(0, Math.min(1, p + (holding ? dt / HOLD : -dt / 1.5)));
+    if (btn.classList.contains('on')) p = Math.max(0, Math.min(1, p + (auto ? dt / 1.6 : holding ? dt / HOLD : -dt / 1.5)));
     // the drone filtered down (the cutoff falls away to nothing, the level with it), the flame guttering out
     if (drone) { const t = ctx.currentTime; drone.lp.frequency.setTargetAtTime(30 + 870 * Math.pow(1 - p, 2.2), t, 0.08); if (p > 0) drone.g.gain.setTargetAtTime(0.13 * Math.pow(1 - p, 1.6), t, 0.1); else drone.g.gain.setTargetAtTime(0.13, t, 0.5); }
     const f = 1 - p, flick = p > 0.75 ? 0.6 + Math.random() * 0.4 : 1;
@@ -2687,7 +2689,7 @@ export function showMourning(d, helmetURL, done, o = {}) {
   const down = (e) => { if (!btn.classList.contains('on')) return; e.preventDefault?.(); holding = true; btn.classList.add('held'); };
   const up = () => { holding = false; btn.classList.remove('held'); };
   btn.addEventListener('pointerdown', down); window.addEventListener('pointerup', up); btn.addEventListener('pointerleave', up);
-  const kd = (e) => { if ((e.code === 'Space' || e.code === 'Enter') && !e.repeat) { e.preventDefault(); down(e); } };
+  const kd = (e) => { if ((e.code === 'Space' || e.code === 'Enter') && !e.repeat) { e.preventDefault(); e.stopPropagation(); auto = true; btn.classList.add('on'); } };
   const ku = (e) => { if (e.code === 'Space' || e.code === 'Enter') { e.preventDefault(); up(); } };
   window.addEventListener('keydown', kd, true); window.addEventListener('keyup', ku, true);
 }

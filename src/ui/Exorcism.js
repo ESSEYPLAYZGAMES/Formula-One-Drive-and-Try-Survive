@@ -12,6 +12,9 @@
 // weak, frail, a faint heart picking up, breathing; and the spirits drifting in and out of it as they please (in Hell,
 // many; in Heaven, one or two). Heaven is gentler in the trials - fewer spirits, a slower ring, a wider band; Hell is
 // not - and a soul that weighed light (the Reckoning's sum) is a little steadier still.
+// No words on the screen (the sound carries it): the circle, the key to press (SPACE) or the word to type, the spirits
+// left and the corruption as rows of marks; blood thrown across the screen with every failure and at the top. Once it is
+// over - won or lost - SPACE skips what is left of it.
 // runExorcism({ host, heaven, sum, name, color, audio, snd, spite: [words], onSpirit(k), onLevel(v, phase, u), onDone(ok) })
 
 const CSS = `
@@ -35,6 +38,17 @@ const CSS = `
 #exo .ex-end { position: absolute; left: 0; right: 0; top: 44%; text-align: center; font-size: clamp(28px, 6vw, 54px); letter-spacing: .18em; opacity: 0; transition: opacity 1.2s; z-index: 3; }
 #exo .ex-end small { display: block; margin-top: 14px; font: italic 400 clamp(14px, 1.8vw, 19px)/1.5 Georgia, serif; letter-spacing: .04em; opacity: .8; }
 #exo .ex-end.in { opacity: 1; }
+#exo .ex-key { position: absolute; left: 0; right: 0; bottom: 21%; text-align: center; z-index: 2; transition: opacity .2s; }
+#exo .ex-key kbd { font: 700 12px/1 system-ui, sans-serif; letter-spacing: .2em; padding: 7px 14px; border: 1px solid rgba(255,255,255,.6); border-radius: 5px; color: #fff; background: rgba(0,0,0,.35); }
+#exo .ex-key.off { opacity: 0; }
+#exo .ex-foot { gap: 60px; }
+/* (blood on the screen: splashes, running down) */
+#exo .ex-blood { position: absolute; inset: 0; z-index: 4; pointer-events: none; overflow: hidden; }
+#exo .ex-blood i { position: absolute; border-radius: 50%; background: radial-gradient(circle at 45% 40%, rgba(150,0,0,.95), rgba(90,0,0,.9) 45%, rgba(60,0,0,.6) 62%, rgba(60,0,0,0) 72%); transform: translate(-50%, -50%) scale(.2); animation: exSplat .12s ease-out forwards, exFade 6s ease-in 2s forwards; }
+#exo .ex-blood i::after { content: ''; position: absolute; left: 46%; top: 55%; width: 9%; height: 0; border-radius: 0 0 40% 40%; background: linear-gradient(180deg, rgba(110,0,0,.9), rgba(70,0,0,.85)); animation: exDrip 4s ease-in .2s forwards; }
+@keyframes exSplat { to { transform: translate(-50%, -50%) scale(1); } }
+@keyframes exDrip { to { height: 260%; } }
+@keyframes exFade { to { opacity: 0; } }
 /* (the words of the spirits: thrown everywhere, layered, behind the circle) */
 #exo .ex-cac { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
 #exo .ex-cac b { position: absolute; white-space: nowrap; transform: translate(-50%, -50%) rotate(var(--r, 0deg)); font-weight: 700; letter-spacing: .06em; animation: exIn .12s steps(2) both, exJit .09s steps(2) infinite; mix-blend-mode: screen; transition: opacity .5s, filter 1.8s, transform 2.4s; }
@@ -65,68 +79,67 @@ export function runExorcism(o) {
   const SP = heaven ? 3 : 6, MAXC = heaven ? 4 : 3, T = (heaven ? 2.4 : 1.45) * (1 + light * 0.12), TOL = (heaven ? 17 : 10) * (1 + light * 0.15), WT = heaven ? 4.2 : 2.6;
   const el = document.createElement('div'); el.id = 'exo'; el.style.setProperty('--c', o.color || '#fff');
   const runes = Array.from({ length: 12 }, (_, i) => { const a = (i / 12) * Math.PI * 2; return `<text x="${200 + Math.cos(a) * 176}" y="${206 + Math.sin(a) * 176}" text-anchor="middle" font-size="16" fill="rgba(255,255,255,.55)">${'ᚠᚢᚦᚨᚱᚲᚷᚹᚺᚾᛁᛃ'[i]}</text>`; }).join('');
-  el.innerHTML = `<div class="ex-veil"></div><div class="ex-cac"></div><div class="ex-head"><h3>EXORCISM</h3><p>Cast them out of ${esc(o.name)}</p></div>
+  el.innerHTML = `<div class="ex-veil"></div><div class="ex-cac"></div><div class="ex-head"><p hidden></p></div><div class="ex-key"><kbd>SPACE</kbd></div><div class="ex-blood"></div>
     <div class="ex-ring"><svg viewBox="0 0 400 400"><circle cx="200" cy="200" r="190" fill="none" stroke="rgba(255,255,255,.25)" stroke-width="1.5"/>${runes}
       <circle class="band" cx="200" cy="200" r="60" fill="none" stroke="#ffd45a" stroke-width="${(TOL * 2).toFixed(1)}" opacity=".28"/><circle cx="200" cy="200" r="60" fill="none" stroke="#ffd45a" stroke-width="2"/>
       <path d="M200 150 V250 M170 180 H230" stroke="rgba(255,255,255,.7)" stroke-width="4" stroke-linecap="round"/>
       <circle class="closer" cx="200" cy="200" r="180" fill="none" stroke="#fff" stroke-width="4"/></svg><div class="ex-word"></div></div>
-    <div class="ex-foot"><span class="sp">SPIRITS${'<i class="on"></i>'.repeat(SP)}</span><span class="cr">CORRUPTION${'<i></i>'.repeat(MAXC)}</span></div><div class="ex-end"></div>`;
+    <div class="ex-foot"><span class="sp">${'<i class="on"></i>'.repeat(SP)}</span><span class="cr">${'<i></i>'.repeat(MAXC)}</span></div><div class="ex-end"></div>`;
   o.host.appendChild(el);
   const closer = el.querySelector('.closer'), word = el.querySelector('.ex-word'), head = el.querySelector('.ex-head p'), end = el.querySelector('.ex-end'), cac = el.querySelector('.ex-cac'), ringEl = el.querySelector('.ex-ring');
-  const spI = [...el.querySelectorAll('.sp i')], crI = [...el.querySelectorAll('.cr i')];
+  const spI = [...el.querySelectorAll('.sp i')], crI = [...el.querySelectorAll('.cr i')], keyEl = el.querySelector('.ex-key'), bloodEl = el.querySelector('.ex-blood');
+  /** blood thrown on the screen: n splashes, big or small */
+  const splash = (n, big = 1) => { for (let k = 0; k < n; k++) { const b = document.createElement('i'), sz = (40 + Math.random() * 160) * big; b.style.cssText = `left:${(Math.random() * 100).toFixed(1)}%;top:${(Math.random() * 90).toFixed(1)}%;width:${sz.toFixed(0)}px;height:${(sz * (0.7 + Math.random() * 0.5)).toFixed(0)}px`; bloodEl.appendChild(b); setTimeout(() => b.remove(), 8500); } };
+  let ended = false, overAt = 0;
+  const end1 = (ok) => { if (ended) return; ended = true; phase = 'done'; cleanup(); el.remove(); o.onDone?.(ok); };
   let out = 0, corr = 0, trial = null, raf = 0, last = performance.now(), over = false, phase = 'ritual', ph0 = 0, clock = 0, nextSpite = 1.2, nextWh = 0, beats = 0;
   const beep = (f, d, g) => { try { o.audio?.beep?.(f, d, g); } catch (e) { /* no sound */ } };
   const flash = (k) => { el.classList.remove('hit', 'miss'); void el.offsetWidth; el.classList.add(k); setTimeout(() => el.classList.remove(k), 380); };
-  const fail = () => { corr++; crI.forEach((x, i) => x.classList.toggle('on', i < corr)); flash('miss'); beep(70, 0.35, 0.09); snd.clang(0.5); if (corr >= MAXC) finish(false); };
+  const fail = () => { corr++; crI.forEach((x, i) => x.classList.toggle('on', i < corr)); flash('miss'); beep(70, 0.35, 0.09); snd.clang(0.5); snd.splat(0.5); splash(2); if (corr >= MAXC) finish(false); };
   const banish = () => { spI[out]?.classList.replace('on', 'out'); o.onSpirit?.(out); out++; flash('hit'); beep(880, 0.2, 0.06);
     // (a spirit cast out screams on its way: a voice torn upward)
-    snd.voice('AAAAAH', { f0: 220, rate: 0.6, gain: 0.5, ring: 90, dist: 1, pan: Math.random() * 2 - 1 });
+    snd.voice('AAAAAH', { f0: 220, rate: 0.6, gain: 0.5, ring: 90, dist: 1, pan: Math.random() * 2 - 1 }); splash(1, 0.7);
     if (out >= SP) finish(true); else next(); };
   // (how loud and how much, now: rising with every spirit out and every failure)
   const level = () => Math.min(1, 0.22 + 0.62 * (out / SP) + 0.22 * (corr / MAXC)) * (heaven ? 0.8 : 1);
   /** a word of the spirits', thrown somewhere on the screen, and said */
   function throwSpite(v, opts = {}) {
-    const w = SPITE[(Math.random() * SPITE.length) | 0], b = document.createElement('b'), x = 6 + Math.random() * 88, y = 8 + Math.random() * 84, big = Math.random() < 0.15 + v * 0.2;
-    b.textContent = Math.random() < 0.3 ? w.toUpperCase() : w; b.className = `${Math.random() < 0.4 ? 'm ' : ''}${['r', 'w', 'd', 'r'][(Math.random() * 4) | 0]}`;
-    b.style.cssText = `left:${x}%;top:${y}%;font-size:${Math.round((big ? 46 : 14) + Math.random() * (big ? 50 : 26))}px;--r:${((Math.random() - 0.5) * 40).toFixed(1)}deg;opacity:${(0.35 + v * 0.6).toFixed(2)}`;
-    cac.appendChild(b); const life = 900 + Math.random() * 1800; b._out = setTimeout(() => { b.classList.add('out'); setTimeout(() => b.remove(), 520); }, life);
-    if (cac.children.length > 46) cac.firstChild?.remove();
+    const w = SPITE[(Math.random() * SPITE.length) | 0], x = 6 + Math.random() * 88;   // (said - by a voice somewhere across the dark - never written)
     snd.voice(w, { f0: 60 + Math.random() * 150, rate: 0.75 + Math.random() * 0.8, gain: 0.2 + v * 0.4, ring: 25 + Math.random() * 80, dist: 0.5 + Math.random() * 0.5, pan: (x / 50) - 1, say: opts.say ?? Math.random() < 0.3 });
   }
   function next() {
     if (over) return;
     // (the words every third spirit - and in Hell every other one)
     const words = heaven ? out % 3 === 2 : out % 2 === 1;
-    if (words) { const w = WORDS[(out * 7 + Math.floor(Math.random() * 3)) % WORDS.length]; trial = { kind: 'w', w, i: 0, t: 0 }; closer.style.display = 'none'; word.innerHTML = w.split('').map((ch) => `<span>${ch}</span>`).join(''); head.textContent = `Speak it: type ${w} before the light fades`; }
-    else { trial = { kind: 's', t: 0 }; closer.setAttribute('r', '180'); closer.setAttribute('stroke', '#fff'); closer.style.display = ''; word.innerHTML = ''; head.textContent = 'SPACE as the ring crosses the golden band'; }
+    if (words) { const w = WORDS[(out * 7 + Math.floor(Math.random() * 3)) % WORDS.length]; trial = { kind: 'w', w, i: 0, t: 0 }; closer.style.display = 'none'; word.innerHTML = w.split('').map((ch) => `<span>${ch}</span>`).join(''); keyEl.classList.add('off'); }
+    else { trial = { kind: 's', t: 0 }; closer.setAttribute('r', '180'); closer.setAttribute('stroke', '#fff'); closer.style.display = ''; word.innerHTML = ''; keyEl.classList.remove('off'); }
   }
   function finish(ok) {
-    if (over) return; over = true; trial = null; closer.style.display = 'none'; word.innerHTML = '';
+    if (over) return; over = true; overAt = clock; trial = null; closer.style.display = 'none'; word.innerHTML = ''; keyEl.classList.add('off');
     if (!ok) {
       // (they hold on: they laugh, low, and it drains away)
       phase = 'fail'; ph0 = clock; for (let k = 0; k < 4; k++) snd.voice('ha ha ha ha ha', { f0: 55 + k * 18, rate: 0.7 + k * 0.15, gain: 0.45, ring: 30 + k * 11, dist: 1, pan: k / 1.5 - 1, delay: k * 0.18 });
       setTimeout(() => snd.fizzle(1.4), 900);
-      end.innerHTML = 'THEY HOLD ON'; end.style.color = '#ff3a5a'; end.classList.add('in'); beep(55, 0.8, 0.08);
-      setTimeout(() => { cleanup(); el.remove(); o.onDone?.(false); }, 2600);
+      splash(5, 1.3); beep(55, 0.8, 0.08);
+      setTimeout(() => end1(false), 2600);
       return;
     }
     // (the last one out: the top, then the fall)
-    phase = 'top'; ph0 = clock; el.classList.add('top'); for (let k = 0; k < 10; k++) throwSpite(1, { say: k === 0 });
+    phase = 'top'; ph0 = clock; el.classList.add('top'); for (let k = 0; k < 10; k++) throwSpite(1, { say: k === 0 }); splash(7, 1.4);
   }
   /** the end of it: everything fizzling away, then the quiet, the weak heart, the spirits coming and going */
   function toFizzle() {
     phase = 'fizzle'; ph0 = clock; el.classList.remove('top'); el.classList.add('quiet'); snd.fizzle(2.6);
-    for (const b of cac.children) { clearTimeout(b._out); b.classList.add('die'); }
-    setTimeout(() => { for (const b of [...cac.children]) if (!b.classList.contains('wh')) b.remove(); }, 2600);
+
   }
   function toFrail() { phase = 'frail'; ph0 = clock; nextWh = 0.6; beats = 0; }
   function toEnd() {
     phase = 'end'; ph0 = clock;
-    end.innerHTML = `THE BODY IS YOURS<small>${heaven ? 'Weak. Frail. It will learn to stand again.' : 'But not only yours. They come and go as they please.'}</small>`;
-    end.style.color = heaven ? '#fff' : '#ffd0d0'; end.classList.add('in');
+
   }
   const kd = (e) => {
-    if (over || !trial) { e.stopPropagation(); return; } e.preventDefault(); e.stopPropagation();
+    if (over) { e.preventDefault(); e.stopPropagation(); if (e.code === 'Space' && !e.repeat && clock - overAt > 0.6) end1(phase !== 'fail'); return; }
+    if (!trial) { e.stopPropagation(); return; } e.preventDefault(); e.stopPropagation();
     if (trial.kind === 's' && (e.key === ' ' || e.key === 'Enter')) sealPress();
     else if (trial.kind === 'w' && /^[a-z]$/i.test(e.key)) { const want = trial.w[trial.i]; if (e.key.toUpperCase() === want) { word.children[trial.i]?.classList.add('ok'); trial.i++; beep(660 + trial.i * 80, 0.08, 0.05); if (trial.i >= trial.w.length) banish(); } else { fail(); if (!over) next(); } }
   };
@@ -162,14 +175,13 @@ export function runExorcism(o) {
       if (u > beats * gap + 0.4) { beats++; snd.heart(Math.min(0.55, 0.12 + beats * 0.05)); if (beats % 2 === 0) snd.breath(0.06 + Math.min(0.1, beats * 0.01), 1.2); }
       nextWh -= dt; if (nextWh <= 0) {
         nextWh = heaven ? 2.6 + Math.random() * 2 : 0.8 + Math.random() * 1.2;
-        const b = document.createElement('b'), w = WHISPER[(Math.random() * WHISPER.length) | 0], x = 30 + Math.random() * 40, y = 25 + Math.random() * 50; b.className = 'wh'; b.textContent = w;
-        b.style.cssText = `left:${x}%;top:${y}%`; cac.appendChild(b); setTimeout(() => { b.classList.add('out'); setTimeout(() => b.remove(), 600); }, 1600);
+        const w = WHISPER[(Math.random() * WHISPER.length) | 0], x = 30 + Math.random() * 40;
         snd.voice(w, { f0: 70 + Math.random() * 40, rate: 0.6, gain: 0.09, ring: 30, dist: 0.4, pan: x / 50 - 1 });
         o.onLevel?.(0, 'spirit', u);   // (one goes in, or out - the scene draws it)
       }
       o.onLevel?.(0, phase, u);
       if (phase === 'frail' && u > (heaven ? 3.2 : 4.2)) toEnd();
-      else if (phase === 'end' && u > 3.4) { phase = 'done'; cleanup(); el.remove(); o.onDone?.(true); return; }
+      else if (phase === 'end' && u > 1.2) { end1(true); return; }
     } else if (phase === 'fail') o.onLevel?.(Math.max(0, 0.8 - u * 0.4), 'fail', u);
     raf = requestAnimationFrame(tick);
   };

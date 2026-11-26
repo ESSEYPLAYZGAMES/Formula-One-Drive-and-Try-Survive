@@ -2,7 +2,7 @@
 // the dark a balance; the deeds (career/Conscience.js judge) come down onto it one by one - the good on the left in
 // gold, the harm on the right in red - and the beam tips with each. Then the verdict: Heaven - the light rising, the
 // clouds, the gates opening, a slow major chord - or Hell - the floor giving way, the red glow and the embers, a low
-// drone and a tritone. What weighed most, said plainly. CONTINUE (after the verdict) or Esc.
+// drone and a tritone. No words but the deeds and the verdict; on by itself, or SPACE (Enter, Esc) at any time.
 // showReckoning(J, name, done, { audio }) - J: judge(c).
 
 const CSS = `
@@ -105,7 +105,7 @@ export function showReckoning(J, name, done, o = {}) {
           <g class="pan r"><line x1="490" y1="70" x2="450" y2="150" stroke="#8f897c"/><line x1="490" y1="70" x2="530" y2="150" stroke="#8f897c"/><path d="M442 150 Q490 182 538 150 Z" fill="#c8281e"/></g></g>
       </svg>
       <div class="deeds"><div class="col g"></div><div class="col b"></div></div>
-      <div class="verdict"></div><div class="lesson">${esc(J.lesson)}</div><button>CONTINUE</button></div>`;
+      <div class="verdict"></div></div>`;
   document.body.appendChild(el);
   requestAnimationFrame(() => el.classList.add('show')); setTimeout(() => el.classList.add('show'), 60);
   const beam = el.querySelector('.beam'), panL = el.querySelector('.pan.l'), panR = el.querySelector('.pan.r'), colG = el.querySelector('.col.g'), colB = el.querySelector('.col.b');
@@ -125,15 +125,14 @@ export function showReckoning(J, name, done, o = {}) {
   timers.push(setTimeout(() => {
     el.querySelector('.verdict').textContent = J.heaven ? 'HEAVEN' : 'HELL'; el.classList.add(J.heaven ? 'heaven' : 'hell');
     stopSound = score(o.audio, J.heaven); stopFx = particles(el.querySelector('canvas.fx'), J.heaven ? 'heaven' : 'hell');
-    timers.push(setTimeout(() => el.classList.add('done'), 2600));
+    timers.push(setTimeout(() => el.classList.add('done'), 2600)); timers.push(setTimeout(() => close(), 7500));   // (on by itself; SPACE sooner)
   }, tV));
   const close = () => {
-    if (closed || !el.classList.contains('done')) return; closed = true; for (const t of timers) clearTimeout(t);
+    if (closed) return; closed = true; for (const t of timers) clearTimeout(t);
     window.removeEventListener('keydown', kd, true); stopSound(); el.classList.remove('show');
     setTimeout(() => { stopFx(); el.remove(); done?.(); }, 1700);
   };
-  const kd = (e) => { if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); close(); } };
+  const kd = (e) => { if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); close(); } };   // (SPACE: skipped, whenever)
   window.addEventListener('keydown', kd, true);
-  el.querySelector('button').addEventListener('click', close);
   return { el, close };
 }

@@ -22,7 +22,7 @@ const CSS = `
 #memorial .fact { font: 400 13px/1.6 system-ui, sans-serif; color: #9a958a; margin: 26px auto 0; max-width: 470px; padding-top: 16px; border-top: 1px solid #22211e; }
 #memorial .standin { font: 500 12px/1.5 system-ui, sans-serif; letter-spacing: .08em; color: #7f7b72; margin-top: 18px; }
 #memorial .fade { opacity: 0; animation: memIn 1.6s ease forwards; }
-#memorial button { margin-top: 26px; background: none; border: 1px solid #3b3934; color: #a8a398; font: 600 11px/1 system-ui, sans-serif; letter-spacing: .3em; padding: 10px 18px; cursor: pointer; }
+#memorial button { display: none !important; margin-top: 26px; background: none; border: 1px solid #3b3934; color: #a8a398; font: 600 11px/1 system-ui, sans-serif; letter-spacing: .3em; padding: 10px 18px; cursor: pointer; }
 #memorial button:hover { border-color: #7f7b72; color: #e6e2d9; }
 @keyframes memIn { to { opacity: 1; } }
 @keyframes memStripe { to { width: 120px; } }
@@ -50,14 +50,17 @@ export function showMemorial(items, done, chime) {
   if (!document.getElementById('memorial-css')) { const st = document.createElement('style'); st.id = 'memorial-css'; st.textContent = CSS; document.head.appendChild(st); }
   let el = document.getElementById('memorial');
   if (!el) { el = document.createElement('div'); el.id = 'memorial'; document.body.appendChild(el); }
-  let i = 0, timer = null, f = Math.floor(Math.random() * FACTS.length);
+  let i = 0, timer = null, f = Math.floor(Math.random() * FACTS.length), ended = false;
   const next = () => {
     clearTimeout(timer);
-    if (i >= items.length) { el.classList.remove('show'); setTimeout(() => { el.remove(); done?.(); }, 1400); return; }
+    if (i >= items.length) { if (ended) return; ended = true; window.removeEventListener('keydown', kd, true); el.classList.remove('show'); setTimeout(() => { el.remove(); done?.(); }, 1400); return; }
     const m = items[i++]; el.innerHTML = card(m, FACTS[f++ % FACTS.length]); el.classList.add('show'); el.scrollTop = 0; chime?.();
-    el.querySelector('button').addEventListener('click', next);
+    el.querySelector('button')?.addEventListener('click', next);
     timer = setTimeout(next, 16000);
   };
+  // (SPACE: the next card; no button)
+  const kd = (e) => { if (e.code !== 'Space' || e.repeat) return; e.preventDefault(); e.stopPropagation(); next(); };
+  window.addEventListener('keydown', kd, true);
   setTimeout(next, 30);   // (a timer, not a frame callback: it must run even if the tab is in the background)
 }
 

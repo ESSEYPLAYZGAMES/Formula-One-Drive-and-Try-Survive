@@ -1,41 +1,53 @@
-# V2.89 (2026-11-26): the voices of Hell, the papers of Heaven; an exorcism hard to watch
+# V2.89 (2026-11-26): Hell you can get lost in; an exorcism hard to watch; death skippable, no leaderboard
 
-Asked for: "In hell you hear snippets of conversation ... robotic and scary recalled snippets like someone arguing and
-in heaven you hear nothing, but see the newspapers praising you. The exorcism should be a hard to watch scene with
-great cacophony of robotic noise, chanting picking up into multiple phrases of disgust all layered at once while the
-new life shakes vigorously and finally in a great conclusion all fizzles down... weak and frail picking up as the
-demons enter and leave as they like."
+Asked for (two messages): "In hell you hear snippets of conversation ... robotic and scary recalled snippets like
+someone arguing and in heaven you hear nothing, but see the newspapers praising you. The exorcism should be a hard to
+watch scene with great cacophony of robotic noise, chanting picking up into multiple phrases of disgust all layered at
+once while the new life shakes vigorously and finally in a great conclusion all fizzles down... weak and frail picking
+up as the demons enter and leave as they like." Then: "remove all the yappy text and make it more audio based. add
+hellish extremely scary creatures ... that stare at you, make it less linear and more gory/visceral scenes. especially
+the exorcism. rats and all. Make each scene of the death cutscene (including the first person fire cutscene) skipable -
+no buttons, just space bar - and remove the ability to see the leaderboard after death".
 
-## Hell: the echoes (ui/Afterlife.js, career/Echoes.js hellEchoes)
-- As you walk, snippets of arguments you were in come out of the dark around you: an accusing voice, and your own
-  answering, talking over each other. They are drawn from the deeds that sent you there, worst first (a crash you
-  caused: "There was no room!" - "The door was open." - "They are in the wall. Because of you."; a team-mate taken
-  out, a fight started, orders defied, a ban...), then lines anyone could hear ("You never listened." "Was it worth
-  it?" "Nobody is coming for you.").
-- Every line is said by a robotic voice (audio/AfterSound.js: a buzzing throat ring-modulated into metal, formant
-  filters moving vowel to vowel through the line, crushed, panned to where it came from), with the browser's own
-  voice pitched right down under the first line of each, and the words hang where they were said, in torn red
-  (theirs) and cold white (yours), flickering, rising, gone. Under it all, Hell's air: a low beating drone and a rumble.
+## Death: SPACE through it, nothing to read, no leaderboard
+- SPACE skips each scene, no buttons anywhere: the accident replayed through your eyes (into the fire), the fire (into
+  the dark), the news, the memorial cards, the candle (no HOLD TO LEAVE button: SPACE lets the flame go out, or it goes
+  out by itself), the Reckoning (on by itself after the verdict), and the end of the exorcism once it is decided.
+- No leaderboard once you are dead: the timing tower and the HUD are gone from the moment your driver is killed, and a
+  race you died in has no results screen after it (a quick race goes back to the menu; a career to the afterlife).
+- The Reckoning keeps the scales, the deeds and the verdict; the paragraph explaining it is gone.
 
-## Heaven: the papers (career/Echoes.js headlines)
-- Nothing to hear at all. Newspapers drift along the marble way instead, front pages praising you: by what you did
-  (a day for charity, the fans, walking away from a fight, the team before yourself, racing clean) and what you won
-  (wins, podiums, starts), on mastheads of their own. Come close to one and it is read out on the screen.
+## Hell (ui/Afterlife.js, ui/HellLife.js)
+- Not a way any more: an open, round dark of rock and lava, close fog, no path and no arch to walk to. The portals of the
+  drivers you could become are somewhere in it, spread round you - each with a dim red column of light over it and a hum
+  of its own (a low beating chord), louder as you near it and panned to where it is: you find them by ear.
+- THEY are there. Tall, too thin, black, arms hanging past their knees with long fingers, a long neck, a pale mask of a
+  face - hollow eyes weeping dark, a slit of a mouth - under black tendrils. Their heads turn to follow you, all the way
+  round. They do not move while you look at them; look away and they come closer (fast when far, creeping when near).
+  Close to one: its breathing, its joints clicking as it twitches. Too close: it is in your face - a shriek, the screen
+  torn red - and then gone, somewhere else in the dark.
+- The damned on chains from the dark, swinging, dripping into pools; blood pooled and smeared over the rock; heaps of
+  bones and skulls; packs of rats running over it all, scattering from you, squealing when you are near.
+- The arguments you were in (career/Echoes.js) come out of the dark round you as sound only now: robotic voices,
+  accusing and answering, talking over each other - no words on the screen.
+- Hardly any text: the keys (W A S D, E) for a few seconds, a driver's name and E at their portal.
 
-## The exorcism (ui/Exorcism.js)
+## Heaven
+- Silent. The newspapers that praised you drift along the marble way (bigger now), their front pages your headlines
+  (career/Echoes.js headlines: what you did, what you won); no text over the screen.
+
+## The exorcism (ui/Exorcism.js, audio/AfterSound.js)
 - The noise builds with every spirit cast out: a choir chanting VA-DE, VA-DE, quickening; a machine's crushed static,
-  stutters and metal hits; and the spirits' words (career/Echoes.js spite - in Hell your own deeds among them: CHEAT,
-  TRAITOR, You put them in the wall; and GET OUT, NOT YOURS, DISGUSTING, SHAME...) said by robotic voices and thrown
-  across the screen, more and more of them at once, layered behind the circle. The body in the portal shakes harder
-  and harder, the camera closing in and trembling, the spirits round it whirling faster; a spirit cast out screams.
-- The last one out: a moment at the top (the screen strobing, everything at once, the body thrashing), then it all
-  fizzles away - every voice's pitch falling to nothing, the words blurring and dying. In the quiet, the body slumped,
-  weak, frail; a faint heart picking up, breath catching; and spirits drifting into it and out again as they please,
-  whispering ("...still here", "...we can wait") - in Hell many, in Heaven one or two. Then THE BODY IS YOURS - in
-  Hell: "But not only yours. They come and go as they please."; in Heaven: "Weak. Frail. It will learn to stand again."
-- Fail, and they laugh, low, as it drains away: THEY HOLD ON.
-- The trials themselves are unchanged (the same difficulty), the circle trembling only a little so the band can still
-  be hit. The sound respects mute and the master volume.
+  stutters and metal; the spirits' words - your own deeds among them in Hell - said by robotic voices, more and more of
+  them at once, layered (heard, never written). A spirit cast out screams; blood comes off the body and rats pour out of
+  it; one more failure and blood is thrown across the screen, running down.
+- The body shakes harder and harder, wrenched sideways in snaps, blood flung off it into a pool that spreads under it;
+  the watchers stand in an arc behind it (in Hell five, in Heaven two), staring at you, reaching for it as it builds.
+- The last one out: the body lifted off the ground and bent backwards, thrashing, the screen strobing and splashed -
+  then it all fizzles away, every voice's pitch falling to nothing. In the quiet the body slumped, weak, a faint heart
+  picking up, breath catching; and the watchers walking into it and out of it again as they please, whispering.
+- The circle, the key to press (SPACE) or the word to type, and the marks for the spirits and the corruption: nothing
+  else on the screen. Fail, and they laugh, low, and you are thrown back.
 
 # V2.88 (2026-11-26): Heaven and Hell as places; the exorcism; the next driver yours
 
