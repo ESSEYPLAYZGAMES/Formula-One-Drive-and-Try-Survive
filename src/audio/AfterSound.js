@@ -12,7 +12,7 @@
 //   stop(s)      - all of it faded and released.
 // afterSound(audio) -> that object; without a running context (no audio yet, a test) every call does nothing.
 
-const NOOP = new Proxy({}, { get: (_, k) => (k === 'live' ? false : () => NOOP) });
+const NOOP = new Proxy({}, { get: (_, k) => (k === Symbol.toPrimitive ? () => 0 : k === 'live' ? false : () => NOOP) });   // (no sound: every call nothing - and nothing as a number too)
 /** the formants (F1, F2, F3 in Hz) of a vowel */
 const VOW = { a: [760, 1250, 2600], e: [500, 1850, 2550], i: [300, 2250, 3000], o: [500, 880, 2500], u: [330, 850, 2300], y: [300, 2100, 2900] };
 

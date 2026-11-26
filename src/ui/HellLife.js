@@ -19,16 +19,22 @@ function maskTex() {
   // (the face: a waxy pale oval, grimed at the edges)
   const fg = g.createRadialGradient(cx, 120, 10, cx, 125, 86); fg.addColorStop(0, '#e4d2b8'); fg.addColorStop(0.65, '#c9ae8e'); fg.addColorStop(0.9, '#6d5642'); fg.addColorStop(1, 'rgba(5,3,4,0)');
   g.fillStyle = fg; g.beginPath(); g.ellipse(cx, 125, 70, 108, 0, 0, Math.PI * 2); g.fill();
-  // (the sockets: deep, black, weeping down the cheeks)
-  for (const sx of [-24, 24]) {
-    const sg = g.createRadialGradient(cx + sx, 100, 2, cx + sx, 102, 22); sg.addColorStop(0, '#000'); sg.addColorStop(0.55, '#120806'); sg.addColorStop(1, 'rgba(60,30,20,0)');
-    g.fillStyle = sg; g.beginPath(); g.ellipse(cx + sx, 102, 20, 14, sx > 0 ? -0.25 : 0.25, 0, Math.PI * 2); g.fill();
-    g.fillStyle = '#000'; g.beginPath(); g.ellipse(cx + sx, 102, 8, 5, 0, 0, Math.PI * 2); g.fill();
-    g.strokeStyle = 'rgba(40,4,2,.85)'; g.lineWidth = 3; g.beginPath(); g.moveTo(cx + sx + R(-3, 3), 110); g.bezierCurveTo(cx + sx + R(-6, 6), 140, cx + sx + R(-8, 8), 160, cx + sx + R(-6, 6), 196); g.stroke();
+  // (the sockets: deep, black, too big, weeping down the cheeks; a pale pinprick far inside each)
+  for (const sx of [-26, 26]) {
+    const sg = g.createRadialGradient(cx + sx, 100, 2, cx + sx, 102, 28); sg.addColorStop(0, '#000'); sg.addColorStop(0.6, '#0e0605'); sg.addColorStop(1, 'rgba(60,30,20,0)');
+    g.fillStyle = sg; g.beginPath(); g.ellipse(cx + sx, 102, 25, 19, sx > 0 ? -0.3 : 0.3, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#000'; g.beginPath(); g.ellipse(cx + sx, 103, 13, 10, 0, 0, Math.PI * 2); g.fill();
+    g.fillStyle = 'rgba(255,240,220,.95)'; g.beginPath(); g.arc(cx + sx + (sx > 0 ? -2 : 2), 102, 1.6, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = 'rgba(40,4,2,.9)'; g.lineWidth = 3.5; g.beginPath(); g.moveTo(cx + sx + R(-3, 3), 114); g.bezierCurveTo(cx + sx + R(-6, 6), 140, cx + sx + R(-8, 8), 165, cx + sx + R(-6, 6), 200); g.stroke();
   }
-  // (the mouth: a thin dark slit, a little open, wet)
-  g.fillStyle = '#1a0503'; g.beginPath(); g.moveTo(cx - 26, 178); g.quadraticCurveTo(cx, 186, cx + 26, 176); g.quadraticCurveTo(cx, 194, cx - 26, 178); g.fill();
-  g.strokeStyle = 'rgba(90,10,6,.8)'; g.lineWidth = 2; g.beginPath(); g.moveTo(cx - 4, 190); g.lineTo(cx - 6, 228); g.stroke();
+  // (the mouth: torn open, too wide, black inside, a row of uneven teeth top and bottom)
+  g.fillStyle = '#060000'; g.beginPath(); g.moveTo(cx - 34, 168); g.bezierCurveTo(cx - 20, 154, cx + 20, 154, cx + 34, 168); g.bezierCurveTo(cx + 26, 214, cx - 26, 214, cx - 34, 168); g.fill();
+  g.fillStyle = '#d8cbb0';
+  for (let k = 0; k < 9; k++) { const x = cx - 28 + k * 7 + R(-1, 1), h = R(5, 11); g.beginPath(); g.moveTo(x, 162 + Math.abs(k - 4) * 1.2); g.lineTo(x + 3, 162 + Math.abs(k - 4) * 1.2 + h); g.lineTo(x + 6, 162 + Math.abs(k - 4) * 1.2); g.fill(); }
+  for (let k = 0; k < 8; k++) { const x = cx - 24 + k * 7 + R(-1, 1), h = R(4, 9), y = 204 - Math.abs(k - 3.5) * 2; g.beginPath(); g.moveTo(x, y); g.lineTo(x + 3, y - h); g.lineTo(x + 6, y); g.fill(); }
+  g.strokeStyle = 'rgba(90,10,6,.85)'; g.lineWidth = 2.5; for (const dx of [-14, 4, 18]) { g.beginPath(); g.moveTo(cx + dx, 206); g.lineTo(cx + dx + R(-3, 3), 240); g.stroke(); }
+  // (cracks across it)
+  g.strokeStyle = 'rgba(30,10,6,.7)'; g.lineWidth = 1.5; for (let k = 0; k < 5; k++) { let x = cx + R(-50, 50), y = R(40, 220); g.beginPath(); g.moveTo(x, y); for (let q = 0; q < 6; q++) { x += R(-14, 14); y += R(-14, 14); g.lineTo(x, y); } g.stroke(); }
   // (grime, spatter)
   for (let k = 0; k < 160; k++) { g.fillStyle = `rgba(${Math.random() < 0.5 ? '40,10,6' : '20,14,10'},${R(0.1, 0.5).toFixed(2)})`; const a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * 90; g.fillRect(cx + Math.cos(a) * r * 0.75, 125 + Math.sin(a) * r * 1.1, R(1, 3), R(1, 3)); }
   const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return t;

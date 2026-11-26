@@ -258,7 +258,7 @@ export function showAfterlife(o) {
     X.forEach(([who, line], i) => {
       const you = who === 'you', p = base.clone().add(new THREE.Vector3((Math.random() - 0.5) * 4, (Math.random() - 0.5) * 1.2, (Math.random() - 0.5) * 4));
       cam.getWorldDirection(right); right.cross(cam.up).normalize(); const rel = p.clone().sub(cam.position), dist = rel.length(), pan = Math.max(-1, Math.min(1, rel.normalize().dot(right) * 1.3));
-      const len = snd.voice(line, { f0: you ? 92 : f0, rate: you ? 0.95 : 1.05, ring: you ? 63 : 34, dist: you ? 0.9 : 0.65, gain: 0.55 * Math.min(1.2, 9 / Math.max(4, dist)), pan, delay: at, say: i === 0 }) || (0.4 + line.length * 0.055);
+      const said = snd.voice(line, { f0: you ? 92 : f0, rate: you ? 0.95 : 1.05, ring: you ? 63 : 34, dist: you ? 0.9 : 0.65, gain: 0.55 * Math.min(1.2, 9 / Math.max(4, dist)), pan, delay: at, say: i === 0 }) ; const len = typeof said === 'number' && said > 0 ? said : 0.4 + line.length * 0.055;
       at += Math.max(0.5, len - 0.25);   // (they talk over each other: an argument)
     });
     return at + 3 + Math.random() * 4;
