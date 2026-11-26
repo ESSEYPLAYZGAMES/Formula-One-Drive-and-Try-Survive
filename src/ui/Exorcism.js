@@ -27,7 +27,8 @@ const CSS = `
 #exo .ex-black { position: absolute; inset: 0; background: #000; opacity: 0; transition: opacity .08s; }
 #exo .ex-black.on { opacity: 1; }
 #exo .ex-blood { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
-#exo .ex-blood i { position: absolute; border-radius: 50%; background: radial-gradient(circle at 45% 40%, rgba(150,0,0,.95), rgba(90,0,0,.9) 45%, rgba(60,0,0,.6) 62%, rgba(60,0,0,0) 72%); transform: translate(-50%, -50%) scale(.2); animation: exSplat .12s ease-out forwards, exFade 6s ease-in 2s forwards; }
+#exo .ex-blood i { position: absolute; transform: translate(-50%, -50%) scale(.2); animation: exSplat .1s ease-out forwards, exFade 6s ease-in 2.5s forwards; }
+#exo .ex-blood i canvas { width: 100%; height: 100%; display: block; }
 #exo .ex-blood i::after { content: ''; position: absolute; left: 46%; top: 55%; width: 9%; height: 0; border-radius: 0 0 40% 40%; background: linear-gradient(180deg, rgba(110,0,0,.9), rgba(70,0,0,.85)); animation: exDrip 4s ease-in .2s forwards; }
 @keyframes exSplat { to { transform: translate(-50%, -50%) scale(1); } }
 @keyframes exDrip { to { height: 260%; } }
@@ -48,7 +49,17 @@ export function runExorcism(o) {
   o.host.appendChild(el);
   const bloodEl = el.querySelector('.ex-blood'), flashEl = el.querySelector('.ex-flash'), blackEl = el.querySelector('.ex-black');
   /** blood thrown on the screen: n splashes */
-  const splash = (n, big = 1) => { for (let k = 0; k < n; k++) { const b = document.createElement('i'), sz = (40 + Math.random() * 160) * big; b.style.cssText = `left:${(Math.random() * 100).toFixed(1)}%;top:${(Math.random() * 90).toFixed(1)}%;width:${sz.toFixed(0)}px;height:${(sz * (0.7 + Math.random() * 0.5)).toFixed(0)}px`; bloodEl.appendChild(b); setTimeout(() => b.remove(), 8500); } };
+  const splash = (n, big = 1) => { for (let k = 0; k < n; k++) { const sz = Math.round((60 + Math.random() * 200) * big), b = splat(sz); b.style.cssText = `left:${(Math.random() * 100).toFixed(1)}%;top:${(Math.random() * 90).toFixed(1)}%;width:${sz}px;height:${sz}px`; bloodEl.appendChild(b); setTimeout(() => b.remove(), 8500); } };
+  /** one splatter, drawn: a wet blot of overlapping drops, a spray of droplets thrown out of it, streaks where it hit */
+  function splat(sz) {
+    const cv = document.createElement('canvas'); cv.width = cv.height = sz; cv.className = 'sp'; const g = cv.getContext('2d'), c = sz / 2, R = sz * 0.2;
+    const col = () => `rgba(${100 + (Math.random() * 60) | 0},0,${(Math.random() * 12) | 0},${(0.85 + Math.random() * 0.15).toFixed(2)})`;
+    g.fillStyle = col(); for (let k = 0; k < 9; k++) { const a = Math.random() * 6.28, r = Math.random() * R * 0.6; g.beginPath(); g.arc(c + Math.cos(a) * r, c + Math.sin(a) * r, R * (0.35 + Math.random() * 0.5), 0, 6.28); g.fill(); }
+    for (let k = 0; k < 7; k++) { const a = Math.random() * 6.28, L = R * (1.2 + Math.random() * 1.2); g.strokeStyle = col(); g.lineWidth = R * (0.08 + Math.random() * 0.14); g.lineCap = 'round'; g.beginPath(); g.moveTo(c, c); g.lineTo(c + Math.cos(a) * L, c + Math.sin(a) * L); g.stroke(); }
+    for (let k = 0; k < 40; k++) { const a = Math.random() * 6.28, r = R * (0.9 + Math.random() * 1.5); g.fillStyle = col(); g.beginPath(); g.arc(c + Math.cos(a) * r, c + Math.sin(a) * r, Math.max(1, R * Math.random() * 0.12), 0, 6.28); g.fill(); }
+    g.globalCompositeOperation = 'source-atop'; const hl = g.createRadialGradient(c - R * 0.3, c - R * 0.3, 1, c, c, R * 1.4); hl.addColorStop(0, 'rgba(255,120,120,.35)'); hl.addColorStop(0.3, 'rgba(0,0,0,0)'); hl.addColorStop(1, 'rgba(0,0,0,.35)'); g.fillStyle = hl; g.fillRect(0, 0, sz, sz);
+    const w = document.createElement('i'); w.appendChild(cv); return w;
+  }
   const flash = () => { flashEl.classList.remove('on'); void flashEl.offsetWidth; flashEl.classList.add('on'); };
   /** a jumpscare: the stinger, the screen torn white and red, blood, the scene told */
   const scare = (kind, big = 1) => { snd.stinger(big); flash(); splash(kind === 'snap' ? 3 : 8, 1.2); o.onScare?.(kind); };

@@ -331,7 +331,7 @@ export function showAfterlife(o) {
       // (close on the body being fought for)
       const p = nearP.G.position, f = new THREE.Vector3(0, 0, 1).applyQuaternion(nearP.G.quaternion);
       const q = exo.phase, close = (q === 'still' ? 3.8 : q === 'fight' ? 3.6 - exo.v * 0.9 : q === 'top' || q === 'reveal' ? 2.7 : 3.2) - exo.punch * 1.1;   // (close, closing in as it builds; thrown in at a scare)
-      exo.punch = Math.max(0, exo.punch - dt * 2.2);
+      exo.punch = Math.max(0, exo.punch - dt * 2.2); cam.fov = 62 - exo.punch * 30; cam.updateProjectionMatrix();   // (a scare: the lens slammed in on its face)
       camPos.lerp(new THREE.Vector3(p.x + f.x * close, 2.25 + (q === 'top' ? -0.3 : 0), p.z + f.z * close), 1 - Math.exp(-dt * (exo.punch > 0.5 ? 14 : 3))); look.lerp(new THREE.Vector3(p.x, q === 'frail' || q === 'fizzle' ? 1.0 : 2.1, p.z), 1 - Math.exp(-dt * 3));
     }
     // (the doll fought for: still, then its head up at you; rattling on its strings, lifted, bent; the face splitting and
