@@ -49,7 +49,7 @@ const CSS = `
 /* (HELL on tape: grain, scanlines, a tracking bar rolling through, the picture tearing at a scare) */
 #afterlife .al-vhs { position: absolute; inset: 0; pointer-events: none; display: none; }
 #afterlife.hell .al-vhs, #afterlife.exo .al-vhs { display: block; }
-#afterlife .al-vhs canvas { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; opacity: .16; mix-blend-mode: screen; }
+#afterlife .al-vhs canvas { position: absolute; inset: 0; width: 100%; height: 100%; opacity: .07; mix-blend-mode: screen; }
 #afterlife .al-vhs::after { content: ''; position: absolute; inset: 0; background: repeating-linear-gradient(180deg, rgba(0,0,0,.22) 0 1px, transparent 1px 3px), radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(0,0,0,.65) 100%); }
 #afterlife .al-vhs .trk { position: absolute; left: 0; right: 0; height: 9%; top: -12%; background: linear-gradient(180deg, transparent, rgba(255,255,255,.1) 40%, rgba(255,255,255,.18) 50%, rgba(255,255,255,.08) 60%, transparent); filter: blur(1px); }
 #afterlife .al-vhs .trk.on { animation: alTrk 1.6s linear; }
@@ -215,7 +215,7 @@ export function showAfterlife(o) {
   let subAt = 9 + Math.random() * 10, appearAt = 18 + Math.random() * 15, blackAt = 25 + Math.random() * 20, earAt = 14 + Math.random() * 12, heartAt = 1, black = 0, appear = null, trkAt = 3;
   const subEl = el.querySelector('canvas.al-sub'), vhsC = el.querySelector('.al-vhs canvas'), trkEl = el.querySelector('.al-vhs .trk');
   { const fc = faceCanvas(); subEl.width = fc.width; subEl.height = fc.height; subEl.getContext('2d').drawImage(fc, 0, 0); }
-  vhsC.width = 192; vhsC.height = 108; const vg = vhsC.getContext('2d'), vimg = vg.createImageData(192, 108);
+  vhsC.width = 320; vhsC.height = 180; const vg = vhsC.getContext('2d'), vimg = vg.createImageData(320, 180);
   /** the face, on the screen, for a moment (a frame or two); now and then inverted */
   const subliminal = (ms = 70) => { subEl.style.filter = Math.random() < 0.3 ? 'invert(1) contrast(1.8)' : 'contrast(1.6) brightness(1.1)'; subEl.classList.add('on'); glitch(); setTimeout(() => subEl.classList.remove('on'), ms); };
   /** the picture tearing */
