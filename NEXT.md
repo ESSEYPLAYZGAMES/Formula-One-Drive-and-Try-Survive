@@ -1,3 +1,13 @@
+# V2.87 (2026-11-26): palms and a retro sun, no buildings
+
+Asked for: "remove the buildings from the bg but keep large palm silhouettes and sort of sun retro iconography".
+
+## The VICE ground (ui/ViceScene.js)
+- The hotels are gone. In their place: a big retro sun, cut off at the horizon and banded across its lower half, with
+  a glow round it; a neon horizon line (cyan into pink) it sits on; the grid floor running away from it, brighter.
+- Large palms in silhouette framing the scene - two on each side, leaning in, their fronds a drooping rib with
+  leaflets hanging off it, a rim of pink light on every edge - and a few small ones on the horizon.
+
 # V2.86 (2026-11-26): the kerb camera's two lenses; sprints without a stop; every tyre in the builder; Heaven and Hell; the driver career in the HQ's look, with mail
 
 Asked for: the kerb camera "doesn't switch between forward/backward facing, it's just moving to the next kerb";

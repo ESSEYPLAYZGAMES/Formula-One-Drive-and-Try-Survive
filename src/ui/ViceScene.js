@@ -1,76 +1,90 @@
-// VICE, the HQ's neon ground, as a place: Ocean Drive at dusk. Behind the panels of both hubs (ui/ManagerHub.js,
-// ui/CareerHub.js - ui/HQKit.js themes them) - a sky going from indigo through violet and magenta to a burning orange
-// at the sea; a low sun cut by bands; a row of Art Deco hotels along the front, every edge a neon tube (pink, cyan,
-// tangerine, violet), lit windows, vertical signs, porches with their awnings; palms in silhouette between them; the
-// sea's glow and the street's light along the foot. Drawn once as an SVG (no images, nothing to load); only shown on
-// the VICE ground. The names on the signs are invented. sceneHTML() -> the layer; SCENE_CSS(root) its stylesheet.
+// VICE, the HQ's neon ground, as a place: a Miami dusk in the retro way. Behind the panels of both hubs
+// (ui/ManagerHub.js, ui/CareerHub.js - ui/HQKit.js themes them) - a sky going from indigo through violet and magenta
+// to a burning orange at the horizon; a big sun cut by bands, sitting on a neon horizon line; the grid floor running
+// away from it; and palms - large ones in silhouette framing the scene from both sides, a rim of pink light on their
+// edges, a few small ones along the horizon. Drawn once as an SVG (no images, nothing to load); only shown on the VICE
+// ground. sceneHTML() -> the layer; SCENE_CSS(root) its stylesheet.
 
-const NEON = ['#ff3fa4', '#23e5ff', '#ff8a3d', '#b36bff', '#3dffb5', '#ffd23f'];
 const rnd = (() => { let s = 20260611; return () => ((s = (s * 16807) % 2147483647) / 2147483647); })();
-const SIGNS = ['HOTEL', 'NEON', 'VICE', 'PALMS', 'TIDE', 'CORAL', 'SUNSET', 'MARINA'];
+const f1 = (v) => Math.round(v * 10) / 10;
 
-/** one hotel: a body, a stepped crown or a fin, its tubes, its windows, maybe a vertical sign and an awning */
-function hotel(x, w, h, i) {
-  const base = 300, top = base - h, c = NEON[i % NEON.length], c2 = NEON[(i + 2) % NEON.length], out = [];
-  out.push(`<rect x="${x}" y="${top}" width="${w}" height="${h}" fill="url(#vcB)"/>`);
-  // the crown: steps, a rounded corner, or a fin
-  const k = i % 3;
-  if (k === 0) { out.push(`<path d="M${x + w * 0.2} ${top} v-14 h${w * 0.6} v14 M${x + w * 0.34} ${top - 14} v-10 h${w * 0.32} v10" fill="#120826" stroke="${c}" stroke-width="1.6" filter="url(#vcG)"/>`); }
-  else if (k === 1) { out.push(`<path d="M${x} ${top + 26} q0 -26 26 -26 h${w - 26}" fill="none" stroke="${c}" stroke-width="1.8" filter="url(#vcG)"/>`); }
-  else { out.push(`<rect x="${x + w / 2 - 5}" y="${top - 46}" width="10" height="46" rx="5" fill="#120826" stroke="${c2}" stroke-width="1.6" filter="url(#vcG)"/>`); }
-  // the tubes: the outline and a band under the roof and over the porch
-  out.push(`<rect x="${x}" y="${top}" width="${w}" height="${h}" fill="none" stroke="${c}" stroke-width="1.6" filter="url(#vcG)" opacity=".95"/>`);
-  out.push(`<line x1="${x + 4}" y1="${top + 10}" x2="${x + w - 4}" y2="${top + 10}" stroke="${c2}" stroke-width="2" filter="url(#vcG)"/>`);
-  out.push(`<line x1="${x + 4}" y1="${base - 34}" x2="${x + w - 4}" y2="${base - 34}" stroke="${c}" stroke-width="2.4" filter="url(#vcG)"/>`);
-  // the windows: rows of lit and dark
-  for (let y = top + 20; y < base - 44; y += 15) for (let wx = x + 8; wx < x + w - 10; wx += 13) if (rnd() < 0.55) out.push(`<rect x="${wx}" y="${y}" width="6" height="7" fill="${rnd() < 0.7 ? '#ffd9a0' : c2}" opacity="${(0.35 + rnd() * 0.5).toFixed(2)}"/>`);
-  // a vertical sign down the front
-  if (i % 2 === 0 && h > 140) { const t = SIGNS[i % SIGNS.length], sx = x + w - 20, sh = Math.min(h - 56, t.length * 17 + 12);
-    out.push(`<rect x="${sx}" y="${top + 22}" width="16" height="${sh}" rx="3" fill="#0e0620" stroke="${c2}" stroke-width="1.4" filter="url(#vcG)"/>`);
-    out.push(`<text x="${sx + 8}" y="${top + 38}" fill="${c2}" font-size="13" font-weight="800" text-anchor="middle" font-family="Arial, sans-serif" filter="url(#vcG)">${t.split('').map((ch, j) => `<tspan x="${sx + 8}" dy="${j ? 17 : 0}">${ch}</tspan>`).join('')}</text>`); }
-  // the porch: an awning in stripes
-  out.push(`<rect x="${x + 6}" y="${base - 30}" width="${w - 12}" height="8" fill="${c}" opacity=".55"/><rect x="${x + 6}" y="${base - 22}" width="${w - 12}" height="22" fill="#12071f" opacity=".9"/>`);
-  return out.join('');
-}
-/** a palm in silhouette: a leaning trunk and its fronds */
-function palm(x, h, lean) {
-  const top = 300 - h, tx = x + lean, P = [`<path d="M${x} 300 Q${x + lean * 0.3} ${300 - h * 0.5} ${tx} ${top}" stroke="#07020f" stroke-width="5" fill="none"/>`];
-  for (let a = -160; a <= -20; a += 20) { const r = (a * Math.PI) / 180, L = 34 + rnd() * 16, ex = tx + Math.cos(r) * L, ey = top + Math.sin(r) * L * 0.55 + 18;
-    P.push(`<path d="M${tx} ${top} Q${(tx + ex) / 2} ${top - 12} ${ex} ${ey}" stroke="#07020f" stroke-width="4" fill="none" stroke-linecap="round"/>`); }
-  return P.join('');
+/**
+ * A palm: a tapering trunk bending up from (x, y) by lean, and its crown of fronds - each a filled leaf drooping from
+ * the top, notched on its lower edge. s: its size (the trunk's height); flip: mirrored.
+ */
+function palm(x, y, s, lean, flip = false) {
+  const tx = x + lean, ty = y - s, cx = x + lean * 0.15, cy = y - s * 0.55, w0 = s * 0.05, w1 = s * 0.022, L = [], R = [];
+  for (let i = 0; i <= 16; i++) {
+    const t = i / 16, a = 1 - t, px = a * a * x + 2 * a * t * cx + t * t * tx, py = a * a * y + 2 * a * t * cy + t * t * ty;
+    const dx = 2 * a * (cx - x) + 2 * t * (tx - cx), dy = 2 * a * (cy - y) + 2 * t * (ty - cy), n = Math.hypot(dx, dy) || 1, w = w0 + (w1 - w0) * t;
+    L.push(`${f1(px - (dy / n) * w)} ${f1(py + (dx / n) * w)}`); R.unshift(`${f1(px + (dy / n) * w)} ${f1(py - (dx / n) * w)}`);
+  }
+  const out = [`<path d="M${L.join(' L')} L${R.join(' L')}Z" class="pt"/>`];
+  // the trunk's rings
+  for (let i = 2; i < 15; i += 2) { const t = i / 16, a = 1 - t, px = a * a * x + 2 * a * t * cx + t * t * tx, py = a * a * y + 2 * a * t * cy + t * t * ty, w = w0 + (w1 - w0) * t;
+    out.push(`<path d="M${f1(px - w)} ${f1(py)} q${f1(w)} ${f1(w * 0.5)} ${f1(2 * w)} 0" class="pr"/>`); }
+  // the fronds: a rib arching out and drooping, leaflets hanging off it on both sides (stroked: drawn twice - a pink
+  //  rim under, the silhouette over)
+  const N = 10, fr = [];
+  for (let k = 0; k < N; k++) {
+    const ang = (-175 + (k * 170) / (N - 1) + (rnd() - 0.5) * 8) * (Math.PI / 180), side = Math.cos(ang), len = s * (0.48 + rnd() * 0.14) * (Math.abs(side) > 0.5 ? 1 : 0.8);
+    const ex = tx + side * len, ey = ty + Math.sin(ang) * len * 0.35 + s * (0.1 + 0.32 * Math.abs(side));
+    const mx = tx + side * len * 0.55, my = ty + Math.sin(ang) * len * 0.5 - s * 0.04;
+    let d = `M${f1(tx)} ${f1(ty)} Q${f1(mx)} ${f1(my)} ${f1(ex)} ${f1(ey)}`;
+    for (let t = 0.16; t <= 0.98; t += 0.055) {
+      const a = 1 - t, px = a * a * tx + 2 * a * t * mx + t * t * ex, py = a * a * ty + 2 * a * t * my + t * t * ey;
+      const gx = 2 * a * (mx - tx) + 2 * t * (ex - mx), gy = 2 * a * (my - ty) + 2 * t * (ey - my), g = Math.hypot(gx, gy) || 1, ll = s * 0.11 * (1 - t * 0.7);
+      for (const sg of [-1, 1]) { const nx = -gy / g * sg, ny = gx / g * sg, lx = px + (nx * 0.55 + gx / g * 0.35) * ll, ly = py + (Math.abs(ny) * 0.55 + 0.75) * ll; d += ` M${f1(px)} ${f1(py)} L${f1(lx)} ${f1(ly)}`; }
+    }
+    fr.push(d);
+  }
+  const fd = fr.join(' '), sw = Math.max(1.4, s * 0.007);
+  out.push(`<path d="${fd}" class="pg" style="stroke-width:${f1(sw + 2.4)}"/><path d="${fd}" class="pf" style="stroke-width:${f1(sw)}"/>`);
+  out.push(`<circle cx="${f1(tx)}" cy="${f1(ty + s * 0.02)}" r="${f1(s * 0.03)}" class="pt"/>`);
+  return `<g${flip ? ` transform="translate(${2 * x} 0) scale(-1 1)"` : ''}>${out.join('')}</g>`;
 }
 let cached = null;
 /** the scene's layer (made once) */
 export function sceneHTML() {
   if (cached) return cached;
-  const W = 1366, parts = [];
-  let x = -10, i = 0;
-  while (x < W) { const w = 92 + Math.round(rnd() * 70), h = 120 + Math.round(rnd() * 120); parts.push(hotel(x, w, h, i++)); x += w + 18 + Math.round(rnd() * 26); }
-  const palms = []; for (let px = 40; px < W; px += 120 + Math.round(rnd() * 90)) palms.push(palm(px, 150 + rnd() * 80, (rnd() - 0.5) * 50));
-  cached = `<div class="vc-scene" aria-hidden="true"><i class="vc-sun"></i><svg class="vc-city" viewBox="0 0 ${W} 320" preserveAspectRatio="xMidYMax slice">
-    <defs><linearGradient id="vcB" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1d0b3a"/><stop offset="1" stop-color="#0c0420"/></linearGradient>
-      <filter id="vcG" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="2.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
-    ${parts.join('')}${palms.join('')}<rect x="0" y="300" width="${W}" height="20" fill="#07020f"/><line x1="0" y1="301" x2="${W}" y2="301" stroke="#ff3fa4" stroke-width="2" filter="url(#vcG)" opacity=".8"/></svg><i class="vc-sea"></i></div>`;
+  const W = 1366, H = 768, hz = 520;
+  // the small palms along the horizon, then the big ones framing it: two on the left, two on the right
+  const far = [palm(330, hz, 70, -6), palm(360, hz, 52, 8), palm(1010, hz, 64, 6), palm(1048, hz, 48, -7)];
+  const near = [palm(70, H + 20, 560, 130), palm(-10, H + 30, 430, 60), palm(1300, H + 20, 540, 120, true), palm(1395, H + 30, 420, 50, true)];
+  cached = `<div class="vc-scene" aria-hidden="true"><i class="vc-sun"></i><i class="vc-hz"></i><svg class="vc-palms" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMax slice">
+    <g class="far">${far.join('')}</g><g class="near">${near.join('')}</g></svg></div>`;
   return cached;
 }
 /** its stylesheet, for a hub's root (#mgr, #career) */
 export const SCENE_CSS = (R) => `
-${R} .vc-scene { display: none; position: absolute; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+${R} .vc-scene { display: none; position: absolute; inset: 0; z-index: 1; pointer-events: none; overflow: hidden; }
 ${R}[data-tone="vice"] .vc-scene { display: block; }
-${R} .vc-sun { position: absolute; left: 50%; bottom: 150px; width: 380px; height: 380px; margin-left: -190px; border-radius: 50%;
-  background: linear-gradient(180deg, #ffe066 0%, #ff9a3d 38%, #ff3f8e 72%, #b0127a 100%); opacity: .55; filter: blur(.5px);
-  -webkit-mask: repeating-linear-gradient(180deg, #000 0 16px, transparent 16px 21px); mask: repeating-linear-gradient(180deg, #000 0 16px, transparent 16px 21px);
-  box-shadow: 0 0 120px 40px rgba(255,80,150,.25); }
-${R} .vc-city { position: absolute; left: 0; right: 0; bottom: 0; width: 100%; height: 42%; min-height: 230px; opacity: .92; }
-${R} .vc-sea { position: absolute; left: 0; right: 0; bottom: 0; height: 30px; background: linear-gradient(180deg, rgba(255,63,164,.0), rgba(255,63,164,.22) 40%, rgba(35,229,255,.18)); }
-/* (the sky, deeper and warmer at the sea: Ocean Drive at dusk) */
+/* (the sun: big, banded, sitting on the horizon - the retro one) */
+${R} .vc-sun { position: absolute; left: 50%; top: calc(67.7% - 250px); width: 500px; height: 250px; margin-left: -250px; border-radius: 250px 250px 0 0; overflow: hidden;
+  background: linear-gradient(180deg, #fff27a 0%, #ffc34d 28%, #ff8a3d 55%, #ff3f8e 82%, #d4147f 100%); opacity: .85;
+  -webkit-mask: linear-gradient(180deg, #000 0 50%, transparent 50% 53%, #000 53% 62%, transparent 62% 66%, #000 66% 73%, transparent 73% 78%, #000 78% 84%, transparent 84% 90%, #000 90% 94%, transparent 94% 100%);
+  mask: linear-gradient(180deg, #000 0 50%, transparent 50% 53%, #000 53% 62%, transparent 62% 66%, #000 66% 73%, transparent 73% 78%, #000 78% 84%, transparent 84% 90%, #000 90% 94%, transparent 94% 100%);
+  filter: drop-shadow(0 0 40px rgba(255,90,150,.55)); }
+${R} .vc-scene::before { content: ''; position: absolute; left: 50%; top: calc(67.7% - 330px); width: 760px; height: 380px; margin-left: -380px; border-radius: 50%; background: radial-gradient(closest-side, rgba(255,110,140,.35), transparent 75%); }
+/* (the horizon: a neon line, the sun sitting on it) */
+${R} .vc-hz { position: absolute; left: 0; right: 0; top: 67.7%; height: 2px; background: linear-gradient(90deg, transparent, #23e5ff 18%, #ff3fa4 50%, #23e5ff 82%, transparent); box-shadow: 0 0 14px 2px rgba(255,63,164,.6), 0 0 34px 6px rgba(35,229,255,.3); }
+/* (the palms: silhouettes, a rim of pink light on their edges; the far ones dimmer) */
+${R} .vc-palms { position: absolute; inset: 0; width: 100%; height: 100%; }
+${R} .vc-palms .pt { fill: #07020f; stroke: rgba(255,63,164,.55); stroke-width: 1.2; stroke-linejoin: round; }
+${R} .vc-palms .pf { fill: none; stroke: #07020f; stroke-linecap: round; stroke-linejoin: round; }
+${R} .vc-palms .pg { fill: none; stroke: rgba(255,63,164,.5); stroke-linecap: round; stroke-linejoin: round; }
+${R} .vc-palms .near { filter: drop-shadow(0 0 6px rgba(255,63,164,.45)); }
+${R} .vc-palms .pr { fill: none; stroke: rgba(255,63,164,.22); stroke-width: 1.2; }
+${R} .vc-palms .far .pt { fill: #1a0730; stroke: rgba(255,63,164,.35); } ${R} .vc-palms .far .pf { stroke: #1a0730; } ${R} .vc-palms .far .pg { stroke: rgba(255,63,164,.3); }
+/* (the sky, deeper and warmer at the horizon: a Miami dusk) */
 ${R}[data-tone="vice"]::before { background:
-  radial-gradient(70% 40% at 50% 100%, rgba(255,140,60,.42), rgba(255,63,164,.24) 40%, transparent 75%),
+  radial-gradient(60% 34% at 50% 68%, rgba(255,140,60,.45), rgba(255,63,164,.25) 45%, transparent 78%),
   radial-gradient(40% 50% at 92% 8%, rgba(35,229,255,.18), transparent 70%),
   radial-gradient(45% 55% at 6% 14%, rgba(155,92,255,.28), transparent 72%),
-  linear-gradient(180deg, #0a0524 0%, #1a0a3e 38%, #3b1060 62%, #6e1a6a 82%, #a8325a 100%) !important; }
-${R}[data-tone="vice"]::after { opacity: .28; }
-/* (the panels: a pane of smoked glass with the city behind it, every edge a tube) */
+  linear-gradient(180deg, #0a0524 0%, #1a0a3e 34%, #3b1060 54%, #8a2470 67.5%, #1a0632 67.8%, #120428 100%) !important; }
+/* (the floor: the grid running to the horizon, brighter now there is nothing on it) */
+${R}[data-tone="vice"]::after { opacity: .75; height: 32.3%; }
+/* (the panels: a pane of smoked glass with the dusk behind it, every edge a tube) */
 ${R}[data-tone="vice"] .q-p, ${R}[data-tone="vice"] .glass:not(.ch-top):not(.ch-rail):not(.ch-panel) { backdrop-filter: blur(10px) saturate(1.25); -webkit-backdrop-filter: blur(10px) saturate(1.25); }
 ${R}[data-tone="vice"] .q-p > header h3 { color: #ffd1f0; text-shadow: 0 0 8px rgba(255,63,164,.8), 0 0 18px rgba(255,63,164,.4); }
 /* (the tubes: every panel's edge brighter, pink into cyan, and a glow off it) */
