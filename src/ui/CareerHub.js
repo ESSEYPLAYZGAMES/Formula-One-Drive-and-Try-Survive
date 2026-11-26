@@ -34,6 +34,9 @@ import { PATTERNS } from '../vehicle/Livery.js';
 import { makePerson, makeHelmet, bloodPool } from '../world/People.js';
 import { mourning3D } from './Mourning3D.js';
 import { TECH_CSS, techHTML, techSide, techClick, techView } from './HubTech.js';
+import { driverHQCSS, driverTheme, DRV_ICON, DRV_GROUPS } from './DriverHQ.js';
+import { dmailHTML } from './DriverMailPage.js';
+import { dmailUnread, dmailRead, dmailReadAll } from '../career/DriverMail.js';
 import { statsHTML, statsClick } from './HubStats.js';
 import * as HS from './HubSocial.js';
 import { showPhone, phoneBadge } from './Phone.js';
@@ -557,7 +560,7 @@ const SEAT_CSS = `
 @media (max-width: 899px) { #career .ac-grid, #career .cf-grid, #career .cf-grid.cf-3 { grid-template-columns: 1fr; } #career .cf-page { height: auto; } }
 `;
 /** the hub's CSS with the tech tree's and the social pages' own (each written for #career), injected once */
-const cssText = () => CSS + TECH_CSS + SEAT_CSS + (typeof HS.SOCIAL_CSS === 'string' ? HS.SOCIAL_CSS : '') + LOOK_CSS;
+const cssText = () => driverHQCSS(CSS + TECH_CSS + SEAT_CSS + (typeof HS.SOCIAL_CSS === 'string' ? HS.SOCIAL_CSS : '') + LOOK_CSS);   // (the team principal's look: ui/DriverHQ.js)
 const injectCSS = () => { if (document.getElementById('career-css')) return; const st = document.createElement('style'); st.id = 'career-css'; st.textContent = cssText(); document.head.appendChild(st); };
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const TRACK_NAME = { silverstone: 'Silverstone', lasvegas: 'Las Vegas', montreal: 'Montreal', austin: 'Austin' };
@@ -1043,7 +1046,7 @@ function root() {
   let el = document.getElementById('career');
   if (!el) { el = document.createElement('div'); el.id = 'career'; el.innerHTML = '<div class="ch-ui"></div>'; document.body.appendChild(el); }
   el.classList.add('k-light');
-  if (!roomTried) { roomTried = true; try { room = new Showroom(el); } catch (e) { room = null; } window.addEventListener('resize', () => resized(el)); window.__careerRoom = room; }   // (no WebGL: the panels over the plain studio colour; the room on window for the test console)
+  if (!roomTried) { roomTried = true; try { room = new Showroom(el); } catch (e) { room = null; } window.addEventListener('resize', () => resized(el)); window.__careerRoom = room; if (room) { const st0 = room.start.bind(room); room.start = () => { if (!el.dataset.hq || el.hasAttribute('data-studio')) st0(); }; } }   // (no WebGL: the panels over the plain studio colour; the room on window for the test console)
   return el;
 }
 const ui = (el) => el.querySelector('.ch-ui');
@@ -1397,6 +1400,7 @@ function wireChart(root0) {
  * hands back: { tab: 'week' }); the sub picks a page inside it ('' = its first). IN MEMORIAM has one quiet page.
  */
 const SECTIONS = [
+  ['mail', '✉', 'MAIL', [['mail', '', 'Inbox']]],
   ['race', '◉', 'RACE WEEK', [['overview', '', 'Briefing'], ['week', '', 'The week'], ['overview', 'cal', 'Calendar']]],
   ['team', '⚙', 'TEAM', [['dev', '', 'Tech tree'], ['dev', 'factory', 'Factory'], ['drivers', '', 'Your team'], ['drivers', 'offers', 'Your seat']]],
   ['driver', '☺', 'DRIVER', [['you', '', 'Form'], ['you', 'licence', 'Licence'], ['you', 'record', 'Record'], ['you', 'look', 'Look']]],
@@ -1433,6 +1437,7 @@ function hub(el, c, o, tab = 'overview', S = {}) {
   HUB = { el, c, o, mode: 'hub', sec: null, tab: null, sub: null, S: {}, fit: null, pop: null, drawer: null, scene: false, unkeys: null, unrep: null };
   SEEN.trophies = c.trophies.length - (c.report && !c.report.seen ? (c.report.trophies || []).length : 0);
   shell(el, c, o);
+  driverTheme(el, c);   // (the team's colour the accent, on the HQ's ground)
   go(tab, S);
   prewarm(c);
 }
@@ -1444,7 +1449,7 @@ function shell(el, c, o) {
       <div class="ch-pills"><span class="ch-pill" data-bind="pos"></span><span class="ch-pill cf-pill" data-bind="conf" title="Management confidence: what the team thinks of you"></span><span class="ch-pill w" data-bind="wallet" title="Your own money: salary, bonuses, personal sponsors"></span></div>
       <button class="ch-ico" data-a="phone" title="Your phone (P)">✆<em data-bind="phone" class="hidden"></em></button><button class="ch-ico" data-a="gear" title="Settings">⚙</button>
       <div class="ch-race" data-bind="race"></div><button data-a="close">MENU</button></header>
-    <nav class="ch-rail ch-nav glass"><span class="ind"></span>${SECTIONS.map(([k, ic, n], i) => `${k === 'lost' ? '<span class="sp"></span><span class="dv"></span>' : ''}<button data-sec="${k}" title="${esc(n)} (${i + 1})"><i>${ic}</i>${esc(n)}<em class="hidden"></em></button>`).join('')}</nav>
+    <nav class="ch-rail ch-nav glass"><span class="ind"></span>${railHTML()}</nav>
     <section class="ch-panel glass"><div class="ch-head"><div class="k-seg ch-sub"></div><div class="slot"></div></div><div class="ch-pages"></div></section>
     <aside class="ch-side glass k-hide"></aside>
     <div class="ch-modal-host"></div>`;
@@ -1460,6 +1465,12 @@ function shell(el, c, o) {
   // (the trophy room: pointing at a trophy reads out what it takes)
   el.onmouseover = (e) => { const t = e.target.closest?.('[data-tdesc]'); if (!t) return; const L = el.querySelector('.tro-line'); if (L && L.textContent !== t.dataset.tdesc) L.textContent = t.dataset.tdesc; };
   bindKeys(HUB);
+}
+/** the rail in the HQ's way (ui/DriverHQ.js): the sections in their groups, each with its line icon; In Memoriam at the foot */
+function railHTML() {
+  const S = Object.fromEntries(SECTIONS.map(([k, ic, n], i) => [k, { ic, n, i }]));
+  const btn = (k) => { const x = S[k]; if (!x) return ''; const name = x.n.charAt(0) + x.n.slice(1).toLowerCase(); return `<button data-sec="${k}" title="${esc(name)} (${x.i + 1})"><i>${DRV_ICON[k] || x.ic}</i>${esc(name)}<em class="hidden"></em></button>`; };
+  return `${DRV_GROUPS.map(([g, ks]) => `<h5>${g}</h5>${ks.map(btn).join('')}`).join('')}<span class="sp"></span>${btn('lost')}`;
 }
 /** the hub's keys: 1-8 the sections, Q/E the sub-tabs, the arrows the pages of a list, Esc back out of a step, R the race menu, P the phone */
 function bindKeys(X) {
@@ -1532,6 +1543,7 @@ function go(tab, S0 = {}, g = {}) {
   if (g.how === 'same' && P.tab === tab && P.sub === sub) how = 'same';
   const calm = sec === 'lost';
   X.sec = sec; X.tab = tab; X.sub = sub; X.S = S;
+  { const studio = (tab === 'you' && sub === 'look') || (tab === 'life' && sub === 'style'); el.toggleAttribute('data-studio', studio); if (studio) room?.start(); else room?.stop(); }
   MEM[sec] = [tab, sub]; const keep = { ...S }; delete keep.armed; MEM[`${tab}/${sub}`] = keep;
   if (tab === 'trophies') SEEN.trophies = c.trophies.length;
   // the studio follows at once, and the rail and the sub-tabs move before the page is built
@@ -1562,6 +1574,7 @@ function mkH(c, S, fit) {
 function pageHTML(c, o, tab, S, H) {
   const wait = (t) => `<div class="hub-wait"><h2>${esc(t)}</h2><p class="lead">This page is still being put together.</p></div>`;
   switch (tab) {
+    case 'mail': return dmailHTML(c, S);
     case 'overview': return S.sub === 'cal' ? calendarHTML(c, S, H) : briefingHTML(c, S, H);
     case 'week': return hs('weekHTML', c, S, H) ?? wait('The week');
     case 'dev': return techPage(c, S, H);
@@ -1708,7 +1721,8 @@ function badges(c) {
   const B = c.celebs?.bonds || {}, upset = Object.values(B).some((b) => b && ['partner', 'dating'].includes(b.stage) && (b.upset || 0) > 0), conf = !!c.celebs?.confront;
   const inv = (c.social?.invites || []).filter((v) => v && v.to === 'me' && (!v.status || ['pending', 'open', 'sent', 'waiting'].includes(v.status))).length;
   const life = upset || conf ? '!' : inv ? String(inv) : '', media = c.pr?.crisis ? '!' : '', season = c.trophies.length > SEEN.trophies ? '•' : '';
-  return { race, team, driver, life, media, season, lost: c.lost.length ? String(c.lost.length) : '',
+  const mail = (() => { try { const n = dmailUnread(c); return n ? String(n) : ''; } catch (e) { return ''; } })();
+  return { mail, race, team, driver, life, media, season, lost: c.lost.length ? String(c.lost.length) : '',
     sub: { 'week/': race, 'drivers/offers': team, 'you/licence': driver, 'life/': upset || conf ? '!' : '', 'social/invites': inv ? String(inv) : '', 'pr/': media, 'trophies/': season } };
 }
 const badge = (em, v) => { if (!em) return; const was = em.textContent; em.textContent = v || ''; em.classList.toggle('hidden', !v); if (v && v !== was) { em.classList.remove('k-badge'); void em.offsetWidth; em.classList.add('k-badge'); } };
@@ -1780,6 +1794,8 @@ function click(e) {
   const d = b.dataset, S = X.S || {};
   if (X.lk?.click(e)) return;   // (DRIVER › Look: the editor's own buttons - its tabs, choices and camera)
   if (d.sec) { goSec(d.sec); return; }
+  if (d.dmail) { dmailRead(c, d.dmail); c.save(); go('mail', { ...S, sel: d.dmail }, { how: 'same' }); return; }
+  if (d.dmailall) { dmailReadAll(c); c.save(); go('mail', { ...S }, { how: 'same' }); return; }
   if (d.tab) {
     const s = d.sub || '';
     if (d.tab === X.tab && s === X.sub && d.cr == null) return;

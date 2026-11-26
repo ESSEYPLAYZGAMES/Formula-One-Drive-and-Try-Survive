@@ -32,6 +32,7 @@ import { marketEnsure, marketRace, marketRoundTick, marketSeasonEnd, marketNewSe
 import { statsEnsure, statsRace } from './Stats.js';
 import { noteMarks, markMorale, seasonAwards, awardsLine } from './Marks.js';
 import { deed } from './Conscience.js';
+import { dmailRound, dmailSeason } from './DriverMail.js';
 
 const KEY = 'f1sim-career-v2';
 // (a save from before the v67 update, as it was stored, kept once when it is first brought up to date)
@@ -894,6 +895,8 @@ export class Career {
     if (live && report.trophies.length) press('trophy', { name: report.trophies[0] });
     report.fastest = flRow === meRow;
     this.report = meRow ? report : null;
+    // (the inbox - career/DriverMail.js: the race engineer's report and whatever has come in since the last race)
+    safe('dmailRound', () => dmailRound(this, grave ? { grave: true } : report, { row: meRow, trackName: ({ silverstone: 'Silverstone', montreal: 'Montreal', austin: 'Austin', lasvegas: 'Las Vegas' })[trackId] || trackId }));
     // (tonight's party needs the race as it was - its city, its guests, its result - before the round moves on: career/Party.js)
     safe('snapAfterRace', () => snapAfterRace(this, { trackId, rows, X, meRow, mateRow, contacts, grave, live }));
     this.round++;
@@ -1029,6 +1032,7 @@ export class Career {
     const order = this.teamStandings();
     for (const t of Object.values(this.teams)) { const i = order.indexOf(t), tg = BOARD_TARGET[t.tier] ?? 9; t.budget = Math.round((t.budget + (PRIZE[i] ?? 1) + (i + 1 < tg ? 5 : i + 1 === tg ? 2 : 0)) * 10) / 10; }
     { const ln = awardsLine(rv.season, rv.awards || []); if (ln) this.addNews(ln); }
+    safe('dmailSeason', () => dmailSeason(this, rv));
     if (rv.team) this.addNews(`${rv.team} finished P${rv.teamPos} (the board wanted P${rv.target}): $${rv.prize}M in prize money${rv.bonus ? `, $${rv.bonus}M bonus from a ${rv.verdict} board` : `, the board ${rv.verdict}`}.`);
     // (the drivers over the winter: the young ones step up, everyone else a little either way; morale halfway back to normal)
     for (const d of Object.values(this.drivers)) if (d.alive) {
