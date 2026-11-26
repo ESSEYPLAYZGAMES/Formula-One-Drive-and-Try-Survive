@@ -41,7 +41,7 @@ let MASK = null;
  */
 export function stalker(o = {}) {
   MASK = MASK || maskTex();
-  const H = o.h || R(3.4, 4.1), k = H / 3.8;
+  const H = o.h || R(4.4, 5.4), k = H / 3.8;
   const skin = new THREE.MeshStandardMaterial({ color: 0x0a0607, roughness: 0.9, emissive: 0x2a0303, emissiveIntensity: 0.55 });   // (a dull red sheen off the lava: a silhouette you can just make out)
   const G = new THREE.Group(), body = new THREE.Group(); G.add(body); body.scale.setScalar(k);
   const cyl = (r0, r1, L, x, y, z, rx = 0, rz = 0) => { const m = new THREE.Mesh(new THREE.CylinderGeometry(r0, r1, L, 7), skin); m.position.set(x, y, z); m.rotation.set(rx, 0, rz); body.add(m); return m; };

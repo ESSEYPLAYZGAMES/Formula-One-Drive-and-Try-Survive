@@ -262,7 +262,7 @@ export function showAfterlife(o) {
     if (heaven && ST.length < 2) for (let k = 0; k < 2; k++) { const m = stalker(); sc.add(m.G); ST.push(m); }
     const P = p.G.position, f = new THREE.Vector3(0, 0, 1).applyQuaternion(p.G.quaternion), base = Math.atan2(-f.x, -f.z);
     const H = ST.slice().sort((a, b) => a.G.position.distanceTo(P) - b.G.position.distanceTo(P)).slice(0, heaven ? 2 : 5);
-    H.forEach((m, i) => { const a = base + (H.length > 1 ? (i / (H.length - 1) - 0.5) * 2.3 : 0), r = 4.4 + (i % 2) * 1.3;
+    H.forEach((m, i) => { const a = base + (H.length > 1 ? (i / (H.length - 1) - 0.5) * 2.3 : 0), r = 6.2 + (i % 2) * 1.5;   // (far enough back that their faces, high up, are in the picture)
       m.held = true; m.trip = null; m.home = new THREE.Vector3(P.x + Math.sin(a) * r, 0, P.z + Math.cos(a) * r); m.G.position.copy(m.home); m.G.scale.setScalar(1); m.G.visible = true; m.inside = false; });
     return H;
   }
