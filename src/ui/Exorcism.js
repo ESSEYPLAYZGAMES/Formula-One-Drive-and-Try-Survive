@@ -82,7 +82,6 @@ export function runExorcism(o) {
   el.innerHTML = `<div class="ex-veil"></div><div class="ex-cac"></div><div class="ex-head"><p hidden></p></div><div class="ex-key"><kbd>SPACE</kbd></div><div class="ex-blood"></div>
     <div class="ex-ring"><svg viewBox="0 0 400 400"><circle cx="200" cy="200" r="190" fill="none" stroke="rgba(255,255,255,.25)" stroke-width="1.5"/>${runes}
       <circle class="band" cx="200" cy="200" r="60" fill="none" stroke="#ffd45a" stroke-width="${(TOL * 2).toFixed(1)}" opacity=".28"/><circle cx="200" cy="200" r="60" fill="none" stroke="#ffd45a" stroke-width="2"/>
-      <path d="M200 150 V250 M170 180 H230" stroke="rgba(255,255,255,.7)" stroke-width="4" stroke-linecap="round"/>
       <circle class="closer" cx="200" cy="200" r="180" fill="none" stroke="#fff" stroke-width="4"/></svg><div class="ex-word"></div></div>
     <div class="ex-foot"><span class="sp">${'<i class="on"></i>'.repeat(SP)}</span><span class="cr">${'<i></i>'.repeat(MAXC)}</span></div><div class="ex-end"></div>`;
   o.host.appendChild(el);

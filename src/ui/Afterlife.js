@@ -209,7 +209,7 @@ export function showAfterlife(o) {
   const ports = C.map((c, i) => { const p = portal(c, i), n = C.length;
     if (heaven) { p.G.position.set((i - (n - 1) / 2) * 7.5, 0.3, -62 - Math.abs(i - (n - 1) / 2) * 2); p.G.lookAt(0, 0.3, 4); }   // (Heaven: across the end of the way, facing you)
     else { p.G.position.set(spots[i][0], 0.3, spots[i][1]); p.G.lookAt(0, 0.3, 4);   // (Hell: somewhere in the dark - a dim column of light over it, and its hum)
-      const col = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 1.6, 60, 12, 1, true), new THREE.MeshBasicMaterial({ color: 0x8a1010, transparent: true, opacity: 0.1, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false })); col.position.y = 30; p.G.add(col); }
+      const col = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 1.6, 60, 12, 1, true), new THREE.MeshBasicMaterial({ color: 0x8a1010, transparent: true, opacity: 0.1, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false })); col.position.y = 30; p.G.add(col); p.frame.push(col); }
     sc.add(p.G); return p; });
   const hums = heaven ? [] : ports.map(() => snd.hum());
   // the controls
@@ -324,8 +324,8 @@ export function showAfterlife(o) {
     } else if (mode === 'exorcism' && nearP) {
       // (close on the body being fought for)
       const p = nearP.G.position, f = new THREE.Vector3(0, 0, 1).applyQuaternion(nearP.G.quaternion);
-      const close = exo.phase === 'ritual' ? 6.5 - exo.v * 1.6 : exo.phase === 'top' ? 4.4 : 4.8;   // (closing in as it builds)
-      camPos.lerp(new THREE.Vector3(p.x + f.x * close, 2.6 + (exo.phase === 'top' ? -0.3 : 0), p.z + f.z * close), 1 - Math.exp(-dt * 2.5)); look.lerp(new THREE.Vector3(p.x, 2.1, p.z), 1 - Math.exp(-dt * 3));
+      const close = exo.phase === 'ritual' ? 4.6 - exo.v * 1.2 : exo.phase === 'top' ? 3.6 : 3.4;   // (close, and closing in as it builds)
+      camPos.lerp(new THREE.Vector3(p.x + f.x * close, 2.2 + (exo.phase === 'top' ? -0.4 : 0), p.z + f.z * close), 1 - Math.exp(-dt * 2.5)); look.lerp(new THREE.Vector3(p.x, exo.phase === 'top' ? 2.6 : 1.8, p.z), 1 - Math.exp(-dt * 3));
     }
     // (the body fought for: shaking with the ritual, thrashing at its top; then slumped, weak, a tremble, slowly lifting)
     if (mode === 'exorcism' && nearP?.person) {
