@@ -18,10 +18,9 @@
 // showAfterlife({ heaven, sum, name, good, bad, life: { wins, podiums, starts }, mate, candidates: [{ id, name, number,
 //   team, color, color2 }], audio, onDone(id | null) })
 import * as THREE from 'three';
-import { makePerson } from '../world/People.js';
 import { runExorcism } from './Exorcism.js';
 import { afterSound } from '../audio/AfterSound.js';
-import { stalker, rats, gore } from './HellLife.js';
+import { stalker, rats, gore, doll, monsterHead } from './HellLife.js';
 import { hellEchoes, spite, headlines } from '../career/Echoes.js';
 
 const CSS = `
@@ -121,13 +120,13 @@ function portal(c, i) {
     vertexShader: 'varying vec2 vU; void main(){ vU = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
     fragmentShader: 'uniform float t; uniform vec3 c; varying vec2 vU; void main(){ vec2 p = vU - 0.5; float r = length(p) * 2.0, a = atan(p.y, p.x); float s = 0.5 + 0.5 * sin(a * 5.0 + r * 9.0 - t * 2.5); gl_FragColor = vec4(mix(c, vec3(1.0), s * (1.0 - r) * 0.6), (0.25 + 0.35 * s) * smoothstep(1.0, 0.6, r)); }' }));
   ring.position.y = halo.position.y = swirl.position.y = 2.4; G.add(halo, ring, swirl);
-  let P = null; try { P = makePerson({ pose: 'talk', kit: 'suit', color: c.color, accent: c.color2 || '#ffffff', cap: false, driver: c.name, teamName: c.team, jitter: 0 }); } catch (e) { P = null; }
-  if (P) { P.group.position.set(0, 0.6, 0.3); P.group.rotation.y = Math.PI; G.add(P.group); }
+  // (the driver as a doll: ball-jointed porcelain in their racing suit, their number on it, hanging on a marionette's strings)
+  const D = doll({ color: c.color, color2: c.color2, number: c.number }); D.G.position.set(0, 0.75, 0.3); G.add(D.G);
   // (the spirits that hold the body: dark wisps going round it)
   const wisps = []; for (let k = 0; k < 5; k++) { const w = new THREE.Sprite(new THREE.SpriteMaterial({ map: softTex('rgba(30,0,20,.95)', 'rgba(60,0,30,0)'), transparent: true, depthWrite: false })); w.scale.setScalar(0.7); w.userData.ph = k / 5; G.add(w); wisps.push(w); }
   const lab = new THREE.Sprite(new THREE.SpriteMaterial({ map: labelTex(c.name, `#${c.number ?? ''} · ${c.team || ''}`, c.color || '#fff'), transparent: true, depthWrite: false })); lab.scale.set(5.2, 1.3, 1); lab.position.y = 5.4; G.add(lab);
   const light = new THREE.PointLight(col, 6, 12, 1.6); light.position.set(0, 2.4, 1); G.add(light);
-  return { G, swirl, wisps, person: P, cand: c, i, frame: [ring, halo, swirl, lab] };
+  return { G, swirl, wisps, doll: D, cand: c, i, frame: [ring, halo, swirl, lab] };
 }
 
 export function showAfterlife(o) {
@@ -221,7 +220,7 @@ export function showAfterlife(o) {
   const setHint = () => { hint.innerHTML = C.length ? '<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> &nbsp; <kbd>E</kbd>' : '<kbd>E</kbd>'; hint.classList.remove('gone'); clearTimeout(hint._t); hint._t = setTimeout(() => hint.classList.add('gone'), 7000); };
   setHint(); setTimeout(() => el.querySelector('.al-title').classList.add('in'), 600); setTimeout(() => el.querySelector('.al-title').classList.remove('in'), 4200);
   const camPos = new THREE.Vector3(0, 4, 12), look = new THREE.Vector3(0, 1.5, -10);
-  el.__al = { place: (x, z) => { me.position.set(x, 1.4, z); camPos.set(x, 4, z + 7); }, echo: () => { echoAt = 0; }, ports: () => ports.map((p) => [p.G.position.x, p.G.position.z]), face: (x, z) => { heading = Math.atan2(x - me.position.x, z - me.position.z); }, stalkers: ST, show: (i = 1, d = 6) => { const m = ST[i]; if (m) m.G.position.set(me.position.x + Math.sin(heading) * d, 0, me.position.z + Math.cos(heading) * d); }, scare: () => { scareCool = 0; const s0 = ST[0]; if (s0) { s0.G.position.set(me.position.x + 1.5, 0, me.position.z + 1.5); } } };   // (a test's handles)
+  el.__al = { phase: () => (mode === 'exorcism' ? exo.phase : mode), place: (x, z) => { me.position.set(x, 1.4, z); camPos.set(x, 4, z + 7); }, echo: () => { echoAt = 0; }, ports: () => ports.map((p) => [p.G.position.x, p.G.position.z]), face: (x, z) => { heading = Math.atan2(x - me.position.x, z - me.position.z); }, stalkers: ST, show: (i = 1, d = 6) => { const m = ST[i]; if (m) m.G.position.set(me.position.x + Math.sin(heading) * d, 0, me.position.z + Math.cos(heading) * d); }, scare: () => { scareCool = 0; const s0 = ST[0]; if (s0) { s0.G.position.set(me.position.x + 1.5, 0, me.position.z + 1.5); } } };   // (a test's handles)
   const fwd = new THREE.Vector3(), FR = new THREE.Frustum(), PM = new THREE.Matrix4(), BX = new THREE.Vector3();
   const right = new THREE.Vector3();
   /** an echo: the next argument, said around you - each line from near the last, the accuser and you in turn */
@@ -239,7 +238,7 @@ export function showAfterlife(o) {
     return at + 3 + Math.random() * 4;
   }
 
-  const exo = { v: 0, phase: 'ritual', u: 0, flies: [], snap: 0, sr: 0 };
+  const exo = { v: 0, phase: 'still', u: 0, flies: [], snap: 0, sr: 0, punch: 0, mon: null, lunge: null };
   const bloodMat = new THREE.MeshStandardMaterial({ color: 0x3a0202, roughness: 0.12, metalness: 0.25, emissive: 0x1a0000, emissiveIntensity: 0.4, polygonOffset: true, polygonOffsetFactor: -2 });
   /** the body's blood: a pool under it, and the drops flung off it (in the portal's frame: +z towards you) */
   function bleed(p) {
@@ -278,12 +277,19 @@ export function showAfterlife(o) {
     const a = Math.random() * Math.PI * 2, far = new THREE.Vector3(Math.cos(a) * 3.5, 1.5 + Math.random() * 2.5, Math.sin(a) * 3.5 + 0.3), body = new THREE.Vector3(0, 1.7, 0.3), into = Math.random() < 0.5;
     p.G.add(s); exo.flies.push({ s, from: into ? far : body, to: into ? body : far, t0: t, d: 1.1 + Math.random() * 0.6 });
   }
+  let tries = 0;
   function enter(p) {
-    exo.v = 0; exo.phase = 'ritual'; exo.u = 0; for (const h of hums) h.set(0, 0); bleed(p); exo.held = gather(p);
+    tries++; exo.mon = null; exo.punch = 0; exo.lunge = null;
+    exo.v = 0; exo.phase = 'still'; exo.u = 0; for (const h of hums) h.set(0, 0); bleed(p); exo.held = gather(p);
     for (const x of p.frame) x.visible = false;   // (the ring of light, the swirl, the name gone: nothing between you and the body)
     if (heaven && !p.rats) { p.rats = rats(36, { packs: 2, r: 7 }); p.rats.mesh.position.set(p.G.position.x, 0, p.G.position.z); sc.add(p.rats.mesh); }
     mode = 'exorcism'; keys.clear(); near.classList.remove('in'); hint.style.opacity = '0'; el.classList.add('exo'); me.visible = false; for (const s of trail) s.visible = false;
-    runExorcism({ host: el, heaven, sum: o.sum || 0, name: p.cand.name, color: p.cand.color, audio: o.audio, snd, spite: spite({ bad: o.bad, heaven, name: o.name, body: p.cand.name }),
+    // (it gives - in Heaven always; in Hell not the first time: it fights you off, and you come back for it)
+    runExorcism({ host: el, heaven, sum: o.sum || 0, name: p.cand.name, color: p.cand.color, audio: o.audio, snd, spite: spite({ bad: o.bad, heaven, name: o.name, body: p.cand.name }), win: heaven || tries > 1,
+      onScare: (kind) => { exo.punch = 1;
+        if (kind === 'snap') p.doll.possess();
+        if (kind === 'reveal') { const M = exo.mon = monsterHead(); p.doll.head.getWorldPosition(M.G.position); M.t0 = t; M.from = M.G.position.clone(); sc.add(M.G); p.bl?.emit(120, 2.2); }
+        if (kind === 'lunge') exo.lunge = { t0: t, from: p.doll.G.position.clone() }; },
       onSpirit: (k) => { const w = p.wisps[k % p.wisps.length]; if (w) w.userData.gone = t;
         // (a spirit torn out: blood off the body, the rats pouring out of it)
         p.bl?.emit(heaven ? 30 : 60, 1.6); snd.splat(0.6); const at = new THREE.Vector3(0, 0, 0.3).applyMatrix4(p.G.matrixWorld);
@@ -293,7 +299,7 @@ export function showAfterlife(o) {
       onDone: (ok) => {
         if (ok) { fade.classList.add('in'); setTimeout(() => finish(p.cand.id), 900); return; }
         for (const w of p.wisps) w.userData.gone = null;
-        exo.v = 0; exo.phase = 'ritual'; if (p.person) { p.person.group.rotation.set(0, Math.PI, 0); p.person.group.position.set(0, 0.6, 0.3); } echoAt = 2.5;
+        exo.v = 0; exo.phase = 'still'; p.doll.reset(); p.doll.G.position.set(0, 0.75, 0.3); exo.lunge = null; if (exo.mon) { sc.remove(exo.mon.G); exo.mon.dispose(); exo.mon = null; } echoAt = 2.5;
         for (const x of p.frame) x.visible = true;
         for (const m of ST) { if (m.held) { m.held = false; m.trip = null; m.reach = 0; m.G.scale.setScalar(1); m.G.visible = true; m.inside = false; } }
         mode = 'walk'; hint.style.opacity = '1'; el.classList.remove('exo'); me.visible = true; for (const s of trail) s.visible = true; me.position.set(0, 1.4, 4); heading = Math.PI; setHint();
@@ -324,31 +330,39 @@ export function showAfterlife(o) {
     } else if (mode === 'exorcism' && nearP) {
       // (close on the body being fought for)
       const p = nearP.G.position, f = new THREE.Vector3(0, 0, 1).applyQuaternion(nearP.G.quaternion);
-      const close = exo.phase === 'ritual' ? 4.6 - exo.v * 1.2 : exo.phase === 'top' ? 3.6 : 3.4;   // (close, and closing in as it builds)
-      camPos.lerp(new THREE.Vector3(p.x + f.x * close, 2.2 + (exo.phase === 'top' ? -0.4 : 0), p.z + f.z * close), 1 - Math.exp(-dt * 2.5)); look.lerp(new THREE.Vector3(p.x, exo.phase === 'top' ? 2.6 : 1.8, p.z), 1 - Math.exp(-dt * 3));
+      const q = exo.phase, close = (q === 'still' ? 3.8 : q === 'fight' ? 3.6 - exo.v * 0.9 : q === 'top' || q === 'reveal' ? 2.7 : 3.2) - exo.punch * 1.1;   // (close, closing in as it builds; thrown in at a scare)
+      exo.punch = Math.max(0, exo.punch - dt * 2.2);
+      camPos.lerp(new THREE.Vector3(p.x + f.x * close, 2.25 + (q === 'top' ? -0.3 : 0), p.z + f.z * close), 1 - Math.exp(-dt * (exo.punch > 0.5 ? 14 : 3))); look.lerp(new THREE.Vector3(p.x, q === 'frail' || q === 'fizzle' ? 1.0 : 2.1, p.z), 1 - Math.exp(-dt * 3));
     }
-    // (the body fought for: shaking with the ritual, thrashing at its top; then slumped, weak, a tremble, slowly lifting)
-    if (mode === 'exorcism' && nearP?.person) {
-      const B = nearP.person.group, v = exo.v, q = exo.phase;
-      if (q === 'ritual' || q === 'fail') {
-        const a = v * v * 0.22, j = () => (Math.random() - 0.5) * 2;
-        if (Math.random() < dt * 2.5 * v) { exo.snap = 0.14; exo.sr = j() * 0.9; snd.click(j() * 0.5, 0.25 * v); }   // (a snap: the whole body wrenched sideways)
-        exo.snap = Math.max(0, exo.snap - dt);
-        B.position.set(j() * a, 0.6 + Math.abs(j()) * a * 0.8 + v * 0.25, 0.3 + j() * a * 0.5); B.rotation.set(j() * a * 1.6 - v * 0.25, Math.PI + j() * a * 2.2, j() * a * 1.8 + (exo.snap > 0 ? exo.sr : 0));
-      } else if (q === 'top') {
-        // (the top: lifted off the ground, bent backwards, thrashing)
-        const j = () => (Math.random() - 0.5) * 2, lift = Math.min(1, exo.u / 0.5);
-        B.position.set(j() * 0.12, 0.6 + lift * 1.1 + j() * 0.08, 0.3 + j() * 0.08); B.rotation.set(-1.05 * lift + j() * 0.18, Math.PI + j() * 0.35, j() * 0.4);
-      } else {
-        const slump = q === 'fizzle' ? Math.min(1, exo.u / 1.2) : Math.max(0.25, 1 - exo.u * 0.16), tr = (Math.random() - 0.5) * 0.012 * (q === 'fizzle' ? 1 - exo.u / 3 : 1);
-        B.position.set(tr, 0.6 - slump * 0.32, 0.3 + slump * 0.12); B.rotation.set(slump * 0.42 + tr, Math.PI + tr, tr * 2);
+    // (the doll fought for: still, then its head up at you; rattling on its strings, lifted, bent; the face splitting and
+    //  the thing in it coming out at you; then off its strings, crumpled - or, when it does not give, flying at you)
+    if (mode === 'exorcism' && nearP?.doll) {
+      const D = nearP.doll, B = D.G, v = exo.v, q = exo.phase, j = () => (Math.random() - 0.5) * 2;
+      if (q === 'still') D.idle(t, dt, 0);
+      else if (q === 'snap') { D.head.rotation.set(-0.25 + j() * 0.05, j() * 0.05, 0); D.jaw.scale.y = 1.3; D.strings(); }
+      else if (q === 'fight' || q === 'top' || q === 'reveal') {
+        D.rattle(q === 'fight' ? v : 1.4, t, dt);
+        const lift = q === 'fight' ? v * 0.45 : 0.8;
+        B.position.set(j() * 0.04 * (1 + v), 0.75 + lift + Math.sin(t * 9) * 0.04 * v, 0.3 + j() * 0.03);
+        B.rotation.set(q === 'fight' ? j() * 0.12 * v : -0.6 + j() * 0.15, j() * 0.25 * v + (q === 'top' ? Math.sin(t * 13) * 0.9 : 0), j() * 0.18 * v);
+        if (Math.random() < dt * 3 * v) { snd.click(j() * 0.5, 0.3 * v); }
+      } else if (q === 'fizzle' || q === 'frail') { D.crumple(Math.min(1, exo.u / 0.4), t); if (q === 'frail' && Math.random() < dt * 0.7) { D.J.armR.B.rotation.x = j() * 1.2; snd.rattle(0.12, 0.15); } }
+      else if (q === 'lunge' && exo.lunge) {
+        // (straight at you: its world position pulled to just in front of your eyes)
+        const L = exo.lunge, u = Math.min(1, (t - L.t0) / 0.3), to = nearP.G.worldToLocal(cam.position.clone().addScaledVector(new THREE.Vector3().subVectors(cam.position, look).normalize(), -0.55));
+        to.y -= 1.45; B.position.lerpVectors(L.from, to, u * u); D.rattle(1.5, t, dt); D.jaw.scale.y = 1.4;
       }
+      // (the thing inside, out of the doll's face and at you)
+      if (exo.mon) { const M = exo.mon, u = Math.min(1, (t - M.t0) / 0.32), eye = cam.position.clone().addScaledVector(new THREE.Vector3().subVectors(look, cam.position).normalize(), 0.75);
+        M.G.position.lerpVectors(M.from, eye, u * u); M.G.scale.setScalar(0.4 + u * 1.6); M.G.lookAt(cam.position); M.G.rotateZ(j() * 0.3);
+        for (const x of M.tend) x.m.rotation.z = Math.sin(t * 20 + x.ph) * 0.4;
+        if (q === 'fizzle' || q === 'frail' || q === 'still') { sc.remove(M.G); M.dispose(); exo.mon = null; } }
       nearP.wisps.forEach((w) => { if (w.userData.gone == null) w.scale.setScalar(0.7 + v * 0.6); });
       // (the blood: off the body as it shakes - a spray at the top - into the pool under it)
-      const bl = nearP.bl; if (bl) { if (q === 'ritual' || q === 'top') { const n = Math.random() < dt * (q === 'top' ? 90 : 30 * v * v) ? (q === 'top' ? 4 : 1) : 0; if (n) bl.emit(n, q === 'top' ? 1.8 : 1); } bl.update(dt); }
+      const bl = nearP.bl; if (bl) { if (q === 'fight' || q === 'top') { const n = Math.random() < dt * (q === 'top' ? 90 : 30 * v * v) ? (q === 'top' ? 4 : 1) : 0; if (n) bl.emit(n, q === 'top' ? 1.8 : 1); } bl.update(dt); }
       // (the watchers: reaching for it as it builds)
-      for (const m of exo.held || []) m.reach = q === 'top' ? 0.9 + Math.random() * 0.2 : q === 'ritual' ? v * 0.6 : 0.15;
-      const sh = v * v * (exo.phase === 'top' ? 0.35 : 0.12); camPos.x += (Math.random() - 0.5) * sh; camPos.y += (Math.random() - 0.5) * sh;
+      for (const m of exo.held || []) m.reach = q === 'top' || q === 'reveal' ? 0.9 + Math.random() * 0.2 : q === 'fight' ? v * 0.6 : 0.15;
+      const sh = v * v * (q === 'top' || q === 'reveal' ? 0.35 : 0.12) + exo.punch * 0.25; camPos.x += (Math.random() - 0.5) * sh; camPos.y += (Math.random() - 0.5) * sh;
     }
     cam.position.copy(camPos); cam.lookAt(look);
     hellTick(dt);
@@ -362,7 +376,7 @@ export function showAfterlife(o) {
       p.swirl.material.uniforms.t.value = t;
       p.wisps.forEach((w, k) => { const g = w.userData.gone; if (g != null) { const u = Math.min(1, (t - g) / 1.2); w.position.y += dt * 6; w.material.opacity = 1 - u; return; }
         const a = t * (heaven ? 1.2 : 2.2) * (mode === 'exorcism' && p === nearP ? 1 + exo.v * 3 : 1) + w.userData.ph * Math.PI * 2; w.position.set(Math.cos(a) * 0.9, 1.6 + Math.sin(a * 2) * 0.6 + 0.6, Math.sin(a) * 0.9 + 0.3); w.material.opacity = 0.9; });
-      if (p.person && !(mode === 'exorcism' && p === nearP)) p.person.group.position.y = 0.6 + Math.sin(t * 1.4 + p.i) * 0.08;
+      if (!(mode === 'exorcism' && p === nearP)) p.doll.idle(t, dt, p.i * 2);   // (the dolls waiting on their strings, twitching now and then)
     }
     for (const d of dyn) d.f(t, dt);
     R.render(sc, cam); raf = requestAnimationFrame(tick);
@@ -415,7 +429,7 @@ export function showAfterlife(o) {
   }
   raf = requestAnimationFrame(tick);
   function cleanup() {
-    for (const h of hums) h.stop(); RAT?.dispose(); for (const p of ports) p.rats?.dispose(); for (const m of ST) m.dispose();
+    for (const h of hums) h.stop(); RAT?.dispose(); for (const p of ports) p.doll.dispose(); exo.mon?.dispose(); for (const p of ports) p.rats?.dispose(); for (const m of ST) m.dispose();
     snd.stop(1.2); cancelAnimationFrame(raf); window.removeEventListener('keydown', kd, true); window.removeEventListener('keyup', ku, true); removeEventListener('resize', fit);
     sc.traverse((m) => { m.geometry?.dispose?.(); const ms = m.material ? [].concat(m.material) : []; for (const x of ms) { x.map?.dispose?.(); x.dispose?.(); } });
     R.dispose(); R.forceContextLoss?.();

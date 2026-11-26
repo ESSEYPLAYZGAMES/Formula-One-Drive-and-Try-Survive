@@ -181,6 +181,32 @@ export function afterSound(audio) {
     return { set(pan, gain) { const t = T(); p.pan.setTargetAtTime(Math.max(-1, Math.min(1, pan)), t, 0.1); g.gain.setTargetAtTime(gain, t, 0.15); },
       stop() { const t = T(); g.gain.setTargetAtTime(0, t, 0.2); setTimeout(() => { for (const o of os) { try { o.stop(); } catch (e) { /* stopped */ } } try { w.stop(); } catch (e) { /* stopped */ } }, 1200); } };
   }
+  /**
+   * THE STINGER - a jumpscare's sound, as loud as the game goes: round the compressor (nothing holds it down), a slam of
+   * noise and a sub dropping out of the floor, a scream torn up through the top, a metal shriek - all in the same instant.
+   */
+  const loud = ctx.createGain(); loud.gain.value = audio.muted ? 0 : 1; const lsh = ctx.createWaveShaper(); { const c = new Float32Array(1024); for (let i = 0; i < 1024; i++) { const x = i / 511.5 - 1; c[i] = Math.tanh(x * 2.2); } lsh.curve = c; }
+  loud.connect(lsh); lsh.connect(audio.out);
+  function stinger(gain = 1) {
+    if (!alive) return; const t = T();
+    const s = noise(), f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.setValueAtTime(9000, t); f.frequency.exponentialRampToValueAtTime(400, t + 0.9);
+    const e = gainAt(0); e.gain.setValueAtTime(0, t); e.gain.linearRampToValueAtTime(1.1 * gain, t + 0.008); e.gain.exponentialRampToValueAtTime(0.001, t + 1.2); s.connect(f); f.connect(e); e.connect(loud); s.start(t); s.stop(t + 1.3);
+    const o = track(ctx.createOscillator(), t + 1.3); o.type = 'sawtooth'; o.frequency.setValueAtTime(110, t); o.frequency.exponentialRampToValueAtTime(28, t + 1.1);
+    const og = gainAt(0); og.gain.setValueAtTime(0, t); og.gain.linearRampToValueAtTime(0.9 * gain, t + 0.01); og.gain.exponentialRampToValueAtTime(0.001, t + 1.2); o.connect(og); og.connect(loud); o.start(t);
+    for (const [f0, f1, g] of [[900, 2400, 0.45], [1300, 3100, 0.35], [660, 1900, 0.3]]) { const q = track(ctx.createOscillator(), t + 1); q.type = 'square'; q.frequency.setValueAtTime(f0, t); q.frequency.exponentialRampToValueAtTime(f1, t + 0.35); q.frequency.exponentialRampToValueAtTime(f0 * 0.6, t + 0.9);
+      const qg = gainAt(0); qg.gain.setValueAtTime(0, t); qg.gain.linearRampToValueAtTime(g * gain, t + 0.01); qg.gain.exponentialRampToValueAtTime(0.001, t + 0.95); q.connect(qg); qg.connect(loud); q.start(t); }
+    voice('IIIIIIAAAAAAAH', { f0: 380, rate: 0.6, gain: 0.9 * gain, ring: 160, dist: 1 }); clang(0.9 * gain);
+  }
+  /** porcelain and wood rattling: a burst of hard little knocks */
+  function rattle(gain = 0.3, dur = 0.4) {
+    if (!alive) return; const t = T(), s = noise(), f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 900 + Math.random() * 900; f.Q.value = 5;
+    const e = gainAt(0), n = Math.round(dur * 40); for (let i = 0; i < n; i++) { const ti = t + i * dur / n + Math.random() * 0.01; e.gain.setValueAtTime(gain * (0.5 + Math.random() * 0.5), ti); e.gain.setValueAtTime(0, ti + 0.008); }
+    const p = ctx.createStereoPanner(); p.pan.value = Math.random() * 1.2 - 0.6; s.connect(f); f.connect(e); e.connect(p); p.connect(bus); s.start(t); s.stop(t + dur + 0.05);
+  }
+  /** a screech - the thing in the doll, through its little mouth */
+  function screech(gain = 0.6) {
+    if (!alive) return; voice(['IIIIIIIEEEEEE', 'AAAAAIIIIIIIH', 'EEEEEEAAAAH', 'NNNNIIIIIIAAAAH'][(Math.random() * 4) | 0], { f0: 300 + Math.random() * 260, rate: 0.55 + Math.random() * 0.3, gain, ring: 90 + Math.random() * 120, dist: 1, pan: Math.random() * 1.4 - 0.7 });
+  }
   /** a heartbeat - weak (two thumps) */
   function heart(gain = 0.5) {
     const t = T(); for (const [d, g] of [[0, 1], [0.22, 0.6]]) { const o = track(ctx.createOscillator(), t + d + 0.3); o.frequency.setValueAtTime(62, t + d); o.frequency.exponentialRampToValueAtTime(34, t + d + 0.22);
@@ -206,9 +232,9 @@ export function afterSound(audio) {
       if (alive) lp.frequency.setTargetAtTime(18000, T(), 0.05); }, s * 1000 + 300);   // (open again for what comes after: the heart, the breath)
   }
   function stop(s = 1) {
-    if (!alive) return; alive = false; const t = T(); bus.gain.setTargetAtTime(0, t, s / 4);
+    if (!alive) return; alive = false; const t = T(); bus.gain.setTargetAtTime(0, t, s / 4); loud.gain.setTargetAtTime(0, t, s / 4);
     try { window.speechSynthesis?.cancel(); } catch (e) { /* none */ }
     setTimeout(() => { for (const o of [...oscs, ...loops, ...(droneN?.os || [])]) { try { o.stop(); } catch (e) { /* stopped */ } } try { bus.disconnect(); comp.disconnect(); } catch (e) { /* gone */ } }, s * 1000 + 200);
   }
-  return { live: true, voice, drone, chant, machine, clang, tick, heart, breath, fizzle, stop, squeak, click, splat, shriek, hum, mute: (m) => bus.gain.setTargetAtTime(m ? 0 : 1, T(), 0.05) };
+  return { live: true, voice, drone, chant, machine, clang, tick, heart, breath, fizzle, stop, squeak, click, splat, shriek, hum, stinger, rattle, screech, mute: (m) => bus.gain.setTargetAtTime(m ? 0 : 1, T(), 0.05) };
 }

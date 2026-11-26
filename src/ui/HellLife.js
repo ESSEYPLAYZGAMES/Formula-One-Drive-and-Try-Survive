@@ -181,3 +181,125 @@ export function gore(sc, avoid = () => false, o = {}) {
     },
   };
 }
+
+/**
+ * The thing inside (the exorcism's reveal): a stalker's head on its own - the pale mask, the long nose, the tendrils -
+ * to burst out of a doll's face. -> { G, tend, dispose }
+ */
+export function monsterHead() {
+  MASK = MASK || maskTex();
+  const G = new THREE.Group(), mats = [];
+  const face = new THREE.Mesh(new THREE.SphereGeometry(0.17, 24, 16), new THREE.MeshStandardMaterial({ map: MASK, roughness: 0.5, emissive: 0xffffff, emissiveMap: MASK, emissiveIntensity: 0.7, fog: false })); face.scale.set(0.82, 1.38, 0.78); G.add(face); mats.push(face.material);
+  const nose = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.2, 6), new THREE.MeshStandardMaterial({ color: 0xcdb293, emissive: 0x6a5a48, emissiveIntensity: 0.6, fog: false })); nose.rotation.x = Math.PI / 2; nose.position.set(0, -0.02, 0.2); G.add(nose); mats.push(nose.material);
+  const hair = new THREE.MeshStandardMaterial({ color: 0x020102, roughness: 0.9 }), tend = []; mats.push(hair);
+  for (let i = 0; i < 16; i++) {
+    const a = (i / 16) * Math.PI * 2, out = R(0.2, 0.5);
+    const pts = [new THREE.Vector3(Math.cos(a) * 0.09, 0.18, Math.sin(a) * 0.07 - 0.02), new THREE.Vector3(Math.cos(a) * out, R(0.1, 0.4), Math.sin(a) * out * 0.8), new THREE.Vector3(Math.cos(a) * out * R(1, 1.6), R(-0.3, 0.2), Math.sin(a) * out), new THREE.Vector3(Math.cos(a) * out * R(0.8, 1.8), R(-0.8, -0.2), Math.sin(a) * out * 0.7)];
+    const m = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 10, R(0.008, 0.016), 4), hair); G.add(m); tend.push({ m, ph: Math.random() * 6 });
+  }
+  return { G, tend, dispose() { G.traverse((m) => m.geometry?.dispose?.()); for (const x of mats) x.dispose(); } };
+}
+
+/** a doll's porcelain face (u = 0.25 the front): painted - rosy cheeks, glass-bright eyes, a small red mouth; possessed:
+ *  cracked through, black weeping from the eyes and the mouth */
+function dollFace(possessed) {
+  const cv = document.createElement('canvas'); cv.width = 512; cv.height = 256; const g = cv.getContext('2d'), cx = 128;
+  g.fillStyle = '#3a2418'; g.fillRect(0, 0, 512, 256);   // (the painted hair, all round)
+  const fg = g.createRadialGradient(cx, 140, 10, cx, 140, 92); fg.addColorStop(0, possessed ? '#efe6dc' : '#f6ece2'); fg.addColorStop(0.8, possessed ? '#d8cbbd' : '#ecdccc'); fg.addColorStop(1, 'rgba(236,220,204,0)');
+  g.fillStyle = fg; g.beginPath(); g.ellipse(cx, 142, 80, 96, 0, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#3a2418'; g.beginPath(); g.ellipse(cx, 52, 92, 44, 0, 0, Math.PI * 2); g.fill();   // (the fringe)
+  for (const sx of [-34, 34]) { const ch = g.createRadialGradient(cx + sx, 168, 2, cx + sx, 168, 26); ch.addColorStop(0, possessed ? 'rgba(120,10,10,.55)' : 'rgba(230,90,90,.5)'); ch.addColorStop(1, 'rgba(230,90,90,0)'); g.fillStyle = ch; g.fillRect(cx + sx - 30, 138, 60, 60); }
+  g.fillStyle = possessed ? '#2a0000' : '#b8202a'; g.beginPath(); g.ellipse(cx, 196, 12, 6, 0, 0, Math.PI * 2); g.fill();
+  if (possessed) {
+    g.strokeStyle = 'rgba(30,6,4,.9)'; g.lineWidth = 2;
+    for (let k = 0; k < 7; k++) { let x = cx + R(-60, 60), y = R(70, 220); g.beginPath(); g.moveTo(x, y); for (let s = 0; s < 6; s++) { x += R(-16, 16); y += R(-16, 16); g.lineTo(x, y); } g.stroke(); }
+    g.strokeStyle = 'rgba(10,0,0,.95)'; g.lineWidth = 4;
+    for (const sx of [-30, 30]) { g.beginPath(); g.moveTo(cx + sx, 140); g.bezierCurveTo(cx + sx + R(-5, 5), 170, cx + sx + R(-8, 8), 200, cx + sx + R(-6, 6), 240); g.stroke(); }
+    g.beginPath(); g.moveTo(cx, 200); g.lineTo(cx + R(-4, 4), 250); g.stroke();
+  }
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+/** the number on the doll's chest */
+function numTex(num, col) {
+  const cv = document.createElement('canvas'); cv.width = 128; cv.height = 128; const g = cv.getContext('2d');
+  g.font = '900 78px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = col; g.fillText(String(num ?? ''), 64, 70);
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+
+/**
+ * A doll of the driver you would become: a ball-jointed porcelain thing in their racing suit (the team's colours, their
+ * number on its chest), hanging from a marionette's strings. Every joint its own, so it can be shaken apart.
+ * -> { G, J (the joints), possess(), idle(t, dt), rattle(v, t, dt, hard), crumple(u), snap(), strings(on), headTop, dispose }
+ * G's origin is between its feet; its front is +z.
+ */
+export function doll(c = {}) {
+  const mats = [], M = (o) => { const m = new THREE.MeshStandardMaterial(o); mats.push(m); return m; };
+  const suit = M({ color: c.color || '#ff8000', roughness: 0.55 }), trim = M({ color: c.color2 || '#ffffff', roughness: 0.5 }), skin = M({ color: 0xf0e4d6, roughness: 0.3, metalness: 0.05 }), boot = M({ color: 0x111111, roughness: 0.6 });
+  const G = new THREE.Group(), J = {};
+  const ball = (r, mat) => new THREE.Mesh(new THREE.SphereGeometry(r, 10, 8), mat);
+  const seg = (r0, r1, L, mat) => { const m = new THREE.Mesh(new THREE.CylinderGeometry(r0, r1, L, 8), mat); m.position.y = -L / 2; return m; };
+  const pelvis = new THREE.Group(); pelvis.position.y = 0.78; G.add(pelvis); J.pelvis = pelvis;
+  pelvis.add(Object.assign(ball(0.11, suit), { scale: new THREE.Vector3(1.25, 0.8, 0.9) }));
+  // (the torso and its chest: the suit, a stripe, the number)
+  const torso = new THREE.Group(); torso.position.y = 0.05; pelvis.add(torso); J.torso = torso;
+  const tb = new THREE.Mesh(new THREE.CapsuleGeometry(0.12, 0.3, 4, 10), suit); tb.position.y = 0.24; tb.scale.z = 0.75; torso.add(tb);
+  const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.245, 0.04, 0.19), trim); stripe.position.y = 0.2; torso.add(stripe);
+  const nm = new THREE.Mesh(new THREE.PlaneGeometry(0.13, 0.13), M({ map: numTex(c.number, c.color2 || '#ffffff'), transparent: true, roughness: 0.6 })); nm.position.set(0, 0.32, 0.095); torso.add(nm);
+  // (the head on its neck)
+  const neck = new THREE.Group(); neck.position.y = 0.52; torso.add(neck); J.neck = neck; neck.add(Object.assign(ball(0.04, skin), {}));
+  const head = new THREE.Group(); head.position.y = 0.13; neck.add(head); J.head = head;
+  const faceA = dollFace(false), faceB = dollFace(true); const fm = M({ map: faceA, roughness: 0.25, metalness: 0.05 });
+  const hd = new THREE.Mesh(new THREE.SphereGeometry(0.12, 24, 16), fm); hd.scale.set(0.92, 1.06, 0.95); head.add(hd);
+  const eyeM = M({ color: 0x3a2a1a, roughness: 0.05, metalness: 0.3 }), eyes = [-0.042, 0.042].map((x) => { const e = ball(0.019, eyeM); e.position.set(x, 0.0, 0.105); head.add(e); return e; });
+  const jaw = new THREE.Mesh(new THREE.CircleGeometry(0.03, 14), M({ color: 0x050000 })); jaw.position.set(0, -0.058, 0.112); jaw.scale.set(0.6, 0.05, 1); head.add(jaw);
+  // (arms: shoulder, elbow, a hand - ball joints showing)
+  const limb = (side, y, x, L1, L2, r, mat, foot) => {
+    const A = new THREE.Group(); A.position.set(side * x, y, 0); (foot ? pelvis : torso).add(A);
+    A.add(ball(r * 1.25, foot ? suit : skin)); A.add(seg(r, r * 0.85, L1, mat));
+    const B = new THREE.Group(); B.position.y = -L1; A.add(B); B.add(ball(r * 1.1, skin)); B.add(seg(r * 0.85, r * 0.7, L2, mat));
+    const E = foot ? new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.06, 0.16), boot) : ball(r * 1.15, skin); E.position.set(0, -L2 - (foot ? 0.02 : 0.01), foot ? 0.04 : 0); B.add(E);
+    return { A, B, E };
+  };
+  J.armL = limb(-1, 0.42, 0.17, 0.26, 0.24, 0.035, suit, false); J.armR = limb(1, 0.42, 0.17, 0.26, 0.24, 0.035, suit, false);
+  J.legL = limb(-1, -0.02, 0.075, 0.37, 0.36, 0.05, suit, true); J.legR = limb(1, -0.02, 0.075, 0.37, 0.36, 0.05, suit, true);
+  for (const a of [J.armL, J.armR]) a.A.rotation.z = (a === J.armL ? -1 : 1) * 0.12;
+  // (the marionette's cross and its strings: head, hands, knees)
+  const bar = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.03, 0.03), M({ color: 0x3a2618, roughness: 0.8 })); bar.position.y = 2.45; G.add(bar);
+  const bar2 = bar.clone(); bar2.rotation.y = Math.PI / 2; bar2.scale.x = 0.6; G.add(bar2);
+  const ends = [[0, 2.45, 0], [-0.3, 2.45, 0], [0.3, 2.45, 0], [-0.18, 2.45, 0], [0.18, 2.45, 0]], at = [head, J.armL.E, J.armR.E, J.legL.B, J.legR.B];
+  const sp = new Float32Array(30), sg = new THREE.BufferGeometry(); sg.setAttribute('position', new THREE.BufferAttribute(sp, 3));
+  const lines = new THREE.LineSegments(sg, new THREE.LineBasicMaterial({ color: 0xd8d0c0, transparent: true, opacity: 0.55 })); lines.frustumCulled = false; G.add(lines); mats.push(lines.material);
+  const W = new THREE.Vector3(), j = () => Math.random() - 0.5;
+  const sm = new Map();   // (each joint's shaking, smoothed)
+  const shake = (o, k, amp, dt) => { let s = sm.get(o); if (!s) sm.set(o, s = { x: 0, y: 0, z: 0, bx: o.rotation.x, by: o.rotation.y, bz: o.rotation.z }); const f = Math.min(1, dt * 30);
+    s.x += (j() * amp * k.x - s.x) * f; s.y += (j() * amp * k.y - s.y) * f; s.z += (j() * amp * k.z - s.z) * f; o.rotation.set(s.bx + s.x, s.by + s.y, s.bz + s.z); };
+  let cut = false;
+  const me = { G, J, head, headTop: head, eyes, jaw, possessed: false,
+    /** the strings drawn from the cross to where they are tied (until cut) */
+    strings() { if (cut) return; G.updateMatrixWorld(true); at.forEach((o, i) => { o.getWorldPosition(W); G.worldToLocal(W); sp.set(ends[i], i * 6); sp.set([W.x, W.y + (i === 0 ? 0.12 : 0), W.z], i * 6 + 3); }); sg.attributes.position.needsUpdate = true; },
+    /** it is not theirs any more: the face cracked and weeping, the eyes black and lit from inside */
+    possess() { if (me.possessed) return; me.possessed = true; fm.map = faceB; fm.needsUpdate = true; eyeM.color.set(0x000000); eyeM.emissive = new THREE.Color(0x6a0000); eyeM.emissiveIntensity = 1.2; },
+    /** hanging, waiting: a slow sway, the head down, a twitch now and then */
+    idle(t, dt, ph = 0) { pelvis.rotation.z = Math.sin(t * 0.6 + ph) * 0.03; head.rotation.x = 0.55 + Math.sin(t * 0.4 + ph) * 0.05; neck.rotation.z = 0;
+      for (const a of [J.armL, J.armR]) { a.A.rotation.x = Math.sin(t * 0.7 + ph) * 0.05; a.B.rotation.x = -0.15; } for (const l of [J.legL, J.legR]) { l.A.rotation.x = 0.05; l.B.rotation.x = 0.1; }
+      if (Math.random() < dt * 0.25) head.rotation.z = j() * 1.2; else head.rotation.z *= 1 - Math.min(1, dt * 2); me.strings(); },
+    /** shaken - v how hard (0..1+): every joint jerking at once, the head thrown about, the jaw dropping */
+    rattle(v, t, dt) {
+      const a = 0.35 + v * 1.6;
+      shake(head, { x: 1.4, y: 2.2, z: 1.6 }, a, dt); shake(neck, { x: 0.6, y: 0.5, z: 0.8 }, a, dt); shake(torso, { x: 0.5, y: 0.6, z: 0.5 }, a, dt); shake(pelvis, { x: 0.3, y: 0.4, z: 0.3 }, a, dt);
+      for (const L of [J.armL, J.armR, J.legL, J.legR]) { shake(L.A, { x: 2, y: 0.8, z: 1.2 }, a, dt); shake(L.B, { x: 1.6, y: 0.3, z: 0.4 }, a, dt); }
+      jaw.scale.y = Math.min(1.4, 0.05 + v * (0.6 + Math.random() * 0.8)); me.strings();
+    },
+    /** fallen off its strings, crumpled on the ground (u 0..1 how far down) - a twitch left in it */
+    crumple(u, t) {
+      cut = true; lines.visible = false;
+      G.position.y = THREE.MathUtils.lerp(G.position.y, -0.4, Math.min(1, u)); G.rotation.x = THREE.MathUtils.lerp(G.rotation.x, 1.35, Math.min(1, u));
+      head.rotation.set(0.2, 0.9, 0.5 + (Math.random() < 0.02 ? j() * 0.6 : 0)); J.armL.A.rotation.set(-1.2, 0, -0.9); J.armR.A.rotation.set(-0.4, 0, 1.3); J.legL.A.rotation.set(0.3, 0, -0.3); J.legR.A.rotation.set(-0.2, 0, 0.5); J.legR.B.rotation.x = 1.2;
+      jaw.scale.y = 0.5;
+    },
+    reset() { cut = false; lines.visible = true; G.rotation.set(0, 0, 0); for (const [o, s] of sm) o.rotation.set(s.bx, s.by, s.bz); sm.clear(); jaw.scale.y = 0.05; },
+    dispose() { G.traverse((m) => m.geometry?.dispose?.()); for (const x of mats) { x.map?.dispose?.(); x.dispose(); } faceA.dispose(); faceB.dispose(); },
+  };
+  me.strings();
+  return me;
+}

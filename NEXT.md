@@ -36,18 +36,27 @@ no buttons, just space bar - and remove the ability to see the leaderboard after
 - Silent. The newspapers that praised you drift along the marble way (bigger now), their front pages your headlines
   (career/Echoes.js headlines: what you did, what you won); no text over the screen.
 
-## The exorcism (ui/Exorcism.js, audio/AfterSound.js)
-- The noise builds with every spirit cast out: a choir chanting VA-DE, VA-DE, quickening; a machine's crushed static,
-  stutters and metal; the spirits' words - your own deeds among them in Hell - said by robotic voices, more and more of
-  them at once, layered (heard, never written). A spirit cast out screams; blood comes off the body and rats pour out of
-  it; one more failure and blood is thrown across the screen, running down.
-- The body shakes harder and harder, wrenched sideways in snaps, blood flung off it into a pool that spreads under it;
-  the watchers stand in an arc behind it (in Hell five, in Heaven two), staring at you, reaching for it as it builds.
-- The last one out: the body lifted off the ground and bent backwards, thrashing, the screen strobing and splashed -
-  then it all fizzles away, every voice's pitch falling to nothing. In the quiet the body slumped, weak, a faint heart
-  picking up, breath catching; and the watchers walking into it and out of it again as they please, whispering.
-- The circle, the key to press (SPACE) or the word to type, and the marks for the spirits and the corruption: nothing
-  else on the screen. Fail, and they laugh, low, and you are thrown back.
+## The exorcism: no minigame - watched (ui/Exorcism.js, ui/HellLife.js doll, audio/AfterSound.js)
+Asked for after: "add jumpscares with hugely loud and shocking sounds with genuinely visceral scenes when you try an
+exorcism, remove the minigame for exorcisms and make it more just their bodies rattling and screeching and resisting.
+Dolls of the next players that are possessed with monsters and jumpscares".
+- The drivers you could become hang in their portals as DOLLS: ball-jointed porcelain in their racing suits (the
+  team's colours, their number on the chest), on a marionette's strings, swaying, twitching now and then.
+- No circle, no keys, no words: you walk into a portal (E) and watch. The doll hangs still, head down - then its head
+  snaps up at you: the face cracked and weeping black, the eyes black and lit from inside, the jaw dropped - and the
+  first scare, a stinger as loud as the game goes (round the compressor: a slam, a sub falling out of the floor, a scream
+  torn upward, metal shrieking) with the screen torn white and red and the camera thrown in at it.
+- Then it fights: every joint jerking at once on its strings, lifted off the ground, its head thrown about, screeching
+  through its little mouth, porcelain rattling, blood flung off it into a spreading pool, rats pouring out of it each time
+  one of the spirits is torn loose (a scream each); the choir chanting faster, the machine's static and metal, the
+  spirits' words said over each other (your own deeds among them in Hell); the watchers in an arc behind it, reaching.
+- At the top it thrashes bent backwards in the air, the screen strobing - and its face splits: the thing inside comes
+  out of it, straight into your eyes (the second scare).
+- When it gives: all of it fizzles away, the strings go, the doll crumples to the ground with a twitch left in it; the
+  faint heart, the breath, the watchers walking into it and out again; the body is yours.
+- When it does not (in Hell, the first time - it fights you off, and you have to come back for it): the doll comes off
+  its strings straight at your face (the last scare), black, the laughter after, and you are thrown back into the dark.
+- SPACE skips it, whenever (the outcome stands). Heaven: the same, gentler and shorter, and it always gives.
 
 # V2.88 (2026-11-26): Heaven and Hell as places; the exorcism; the next driver yours
 
