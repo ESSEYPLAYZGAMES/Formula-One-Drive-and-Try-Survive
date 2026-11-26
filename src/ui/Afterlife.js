@@ -145,6 +145,9 @@ export function showAfterlife(o) {
   // (Hell: the portals somewhere in the dark, spread round you - not ahead of you, not at the end of anything)
   const C = o.candidates || [], a0 = Math.random() * Math.PI * 2;
   const spots = heaven ? null : C.map((c, i) => { const a = a0 + i * (Math.PI * 2 / Math.max(2, C.length)) + (Math.random() - 0.5) * 0.8, r = 34 + Math.random() * 18; return [Math.sin(a) * r, Math.cos(a) * r]; });
+  const rocks = [];   // (Hell's spires [x, z, base radius, height]: the spirit goes round them, the camera never inside one)
+  /** inside a spire at height y (with a margin)? */
+  const inRock = (x, z, y, m = 0.4) => rocks.some(([rx, rz, rb, h]) => { const rr = rb * Math.max(0, 1 - (y + 0.5) / h) + m; return Math.abs(x - rx) < rr && Math.hypot(x - rx, z - rz) < rr; });
   const clear = (x, z, r = 7) => Math.hypot(x, z - 4) < r || (spots || []).some(([px, pz]) => Math.hypot(x - px, z - pz) < r);
   sc.add(heaven ? skyDome('#fff6dc', '#ffe3a8', '#ffffff') : skyDome('#0a0204', '#5a0c06', '#120202'));
   sc.add(new THREE.HemisphereLight(heaven ? 0xfff8e8 : 0xff6a3a, heaven ? 0xd8c8a0 : 0x200404, heaven ? 1.6 : 0.9));
@@ -167,8 +170,8 @@ export function showAfterlife(o) {
     // the rock and its lava; spires with red-hot tips; flames along the cracks; embers rising
     const floor = lavaFloor(); sc.add(floor); dyn.push({ obj: floor, f: (t) => { floor.material.uniforms.t.value = t; } });
     const rock = new THREE.MeshStandardMaterial({ color: 0x1a0a08, roughness: 0.95, emissive: 0x2a0400, emissiveIntensity: 0.4 });
-    for (let k = 0; k < 85; k++) { const h = 6 + Math.random() * 26, sp = new THREE.Mesh(new THREE.ConeGeometry(1.2 + Math.random() * 3, h, 7), rock); const a = Math.random() * Math.PI * 2, r = 9 + Math.random() * 100;
-      sp.position.set(Math.cos(a) * r, h / 2 - 0.5, Math.sin(a) * r); if (clear(sp.position.x, sp.position.z, 9)) continue; sc.add(sp); }
+    for (let k = 0; k < 85; k++) { const h = 6 + Math.random() * 26, rb = 1.2 + Math.random() * 3, sp = new THREE.Mesh(new THREE.ConeGeometry(rb, h, 7), rock); const a = Math.random() * Math.PI * 2, r = 9 + Math.random() * 100;
+      sp.position.set(Math.cos(a) * r, h / 2 - 0.5, Math.sin(a) * r); if (clear(sp.position.x, sp.position.z, 9)) continue; sc.add(sp); rocks.push([sp.position.x, sp.position.z, rb, h]); }
     const flame = softTex('rgba(255,200,80,1)', 'rgba(255,30,0,0)');
     for (let k = 0; k < 90; k++) { const f = new THREE.Sprite(new THREE.SpriteMaterial({ map: flame, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: true })); const x = (Math.random() - 0.5) * 140, z = (Math.random() - 0.5) * 140;
       if (clear(x, z, 5)) continue; f.position.set(x, 1, z); const s0 = 1.5 + Math.random() * 2.5; sc.add(f); dyn.push({ obj: f, f: (t) => { const k2 = 0.75 + 0.25 * Math.sin(t * 9 + x * 3) + 0.1 * Math.sin(t * 23 + z); f.scale.set(s0 * 0.7, s0 * 1.6 * k2, 1); f.position.y = s0 * 0.7 * k2; } }); }
@@ -218,7 +221,7 @@ export function showAfterlife(o) {
   const setHint = () => { hint.innerHTML = C.length ? '<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> &nbsp; <kbd>E</kbd>' : '<kbd>E</kbd>'; hint.classList.remove('gone'); clearTimeout(hint._t); hint._t = setTimeout(() => hint.classList.add('gone'), 7000); };
   setHint(); setTimeout(() => el.querySelector('.al-title').classList.add('in'), 600); setTimeout(() => el.querySelector('.al-title').classList.remove('in'), 4200);
   const camPos = new THREE.Vector3(0, 4, 12), look = new THREE.Vector3(0, 1.5, -10);
-  el.__al = { place: (x, z) => { me.position.set(x, 1.4, z); }, echo: () => { echoAt = 0; }, ports: () => ports.map((p) => [p.G.position.x, p.G.position.z]), face: (x, z) => { heading = Math.atan2(x - me.position.x, z - me.position.z); }, stalkers: ST, show: (i = 1, d = 6) => { const m = ST[i]; if (m) m.G.position.set(me.position.x + Math.sin(heading) * d, 0, me.position.z + Math.cos(heading) * d); }, scare: () => { scareCool = 0; const s0 = ST[0]; if (s0) { s0.G.position.set(me.position.x + 1.5, 0, me.position.z + 1.5); } } };   // (a test's handles)
+  el.__al = { place: (x, z) => { me.position.set(x, 1.4, z); camPos.set(x, 4, z + 7); }, echo: () => { echoAt = 0; }, ports: () => ports.map((p) => [p.G.position.x, p.G.position.z]), face: (x, z) => { heading = Math.atan2(x - me.position.x, z - me.position.z); }, stalkers: ST, show: (i = 1, d = 6) => { const m = ST[i]; if (m) m.G.position.set(me.position.x + Math.sin(heading) * d, 0, me.position.z + Math.cos(heading) * d); }, scare: () => { scareCool = 0; const s0 = ST[0]; if (s0) { s0.G.position.set(me.position.x + 1.5, 0, me.position.z + 1.5); } } };   // (a test's handles)
   const fwd = new THREE.Vector3(), FR = new THREE.Frustum(), PM = new THREE.Matrix4(), BX = new THREE.Vector3();
   const right = new THREE.Vector3();
   /** an echo: the next argument, said around you - each line from near the last, the accuser and you in turn */
@@ -301,10 +304,13 @@ export function showAfterlife(o) {
       const turn = (keys.has('a') || keys.has('arrowleft') ? 1 : 0) - (keys.has('d') || keys.has('arrowright') ? 1 : 0), go = (keys.has('w') || keys.has('arrowup') ? 1 : 0) - (keys.has('s') || keys.has('arrowdown') ? 0.6 : 0);
       heading += turn * dt * 1.9; const sp = 9 * go * dt; me.position.x += Math.sin(heading) * sp; me.position.z += Math.cos(heading) * sp;
       if (heaven) { me.position.x = Math.max(-40, Math.min(40, me.position.x)); me.position.z = Math.max(-100, Math.min(14, me.position.z)); }
-      else { const rr = Math.hypot(me.position.x, me.position.z); if (rr > 70) { me.position.x *= 70 / rr; me.position.z *= 70 / rr; } }   // (Hell: a round dark, no end to walk to)
+      else { const rr = Math.hypot(me.position.x, me.position.z); if (rr > 70) { me.position.x *= 70 / rr; me.position.z *= 70 / rr; }   // (Hell: a round dark, no end to walk to)
+        for (const [rx, rz, rb, h] of rocks) { const R0 = rb * Math.max(0, 1 - 1.9 / h) + 0.6, dx = me.position.x - rx, dz = me.position.z - rz, d = Math.hypot(dx, dz); if (d < R0 && d > 1e-3) { me.position.x = rx + dx / d * R0; me.position.z = rz + dz / d * R0; } } }   // (round the spires, not through them)
       me.position.y = 1.4 + Math.sin(t * 2.2) * 0.15;
       // the camera: behind and above, easing after
-      const want = new THREE.Vector3(me.position.x - Math.sin(heading) * 7, me.position.y + 2.6, me.position.z - Math.cos(heading) * 7);
+      // (Hell: drawn in when a spire stands behind you - never inside the rock)
+      let cd = 7; if (rocks.length) while (cd > 1.6 && inRock(me.position.x - Math.sin(heading) * cd, me.position.z - Math.cos(heading) * cd, me.position.y + 2.6 * cd / 7, 0.6)) cd -= 0.4;
+      const want = new THREE.Vector3(me.position.x - Math.sin(heading) * cd, me.position.y + 2.6 * cd / 7 + 0.3 * (1 - cd / 7), me.position.z - Math.cos(heading) * cd);
       camPos.lerp(want, 1 - Math.exp(-dt * 4)); look.lerp(new THREE.Vector3(me.position.x + Math.sin(heading) * 6, 1.6, me.position.z + Math.cos(heading) * 6), 1 - Math.exp(-dt * 5));
       // the nearest portal within reach
       nearP = null; let best = 6.5; for (const p of ports) { const d = Math.hypot(p.G.position.x - me.position.x, p.G.position.z - me.position.z); if (d < best) { best = d; nearP = p; } }
@@ -382,13 +388,14 @@ export function showAfterlife(o) {
       }
       if (m.held) { m.frozen = true; continue; }
       if (scare?.m === m) continue;
+      const ds = Math.hypot(m.G.position.x - me.position.x, m.G.position.z - me.position.z);   // (from your spirit, not the camera behind it)
       BX.copy(m.G.position); BX.y = 2.6; const seen = m.d < 48 && FR.containsPoint(BX); m.frozen = seen;
-      if (mode === 'walk' && !seen && m.d > 3 && m.d < 64) {   // (out of your sight: closer)
-        const dx = me.position.x - m.G.position.x, dz = me.position.z - m.G.position.z, L = Math.hypot(dx, dz) || 1, v = (m.d > 22 ? 5 : 2.4) * dt;
+      if (mode === 'walk' && !seen && ds > 2.5 && ds < 64) {   // (out of your sight: closer)
+        const dx = me.position.x - m.G.position.x, dz = me.position.z - m.G.position.z, L = Math.hypot(dx, dz) || 1, v = (ds > 22 ? 5 : 2.4) * dt;
         m.G.position.x += (dx / L) * v; m.G.position.z += (dz / L) * v;
       }
-      if (m.d < nearest) { nearest = m.d; nearM = m; }
-      if (mode === 'walk' && !scare && scareCool <= 0 && m.d < 3.4) { scare = { m, t0: t }; snd.shriek(0.75); const sx = el.querySelector('.al-scare'); sx.classList.remove('on'); void sx.offsetWidth; sx.classList.add('on'); }
+      if (ds < nearest) { nearest = ds; nearM = m; }
+      if (mode === 'walk' && !scare && scareCool <= 0 && ds < 3.4) { scare = { m, t0: t }; snd.shriek(0.75); const sx = el.querySelector('.al-scare'); sx.classList.remove('on'); void sx.offsetWidth; sx.classList.add('on'); }
     }
     // (in your face: right in front of your eyes for a moment, then gone - somewhere else in the dark)
     if (scare) {
