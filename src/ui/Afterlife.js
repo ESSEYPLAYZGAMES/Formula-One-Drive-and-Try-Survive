@@ -44,9 +44,9 @@ const CSS = `
 #afterlife .al-paper i { display: block; font: 700 11px/1 Georgia, serif; letter-spacing: .3em; text-align: center; padding-bottom: 8px; border-bottom: 3px double #1d1a14; }
 #afterlife .al-paper b { display: block; margin: 12px 0 8px; font: 900 clamp(20px, 2.6vw, 28px)/1.1 Georgia, 'Times New Roman', serif; }
 #afterlife .al-paper span { display: block; font: italic 15px/1.45 Georgia, serif; color: #4a4232; }
-#afterlife .al-scare { position: absolute; inset: 0; pointer-events: none; opacity: 0; background: radial-gradient(circle at 50% 50%, rgba(255,0,0,0) 30%, rgba(120,0,0,.85) 100%); mix-blend-mode: multiply; }
-#afterlife .al-scare.on { animation: alScare .7s steps(3) both; }
-@keyframes alScare { 0% { opacity: 1; background-color: rgba(255,255,255,.5); } 40% { opacity: 1; background-color: rgba(120,0,0,.3); } 100% { opacity: 0; } }
+#afterlife .al-scare { position: absolute; inset: 0; pointer-events: none; opacity: 0; background: radial-gradient(circle at 50% 50%, rgba(160,0,0,.05) 25%, rgba(90,0,0,.92) 95%); }
+#afterlife .al-scare.on { animation: alScare .8s steps(4) both; }
+@keyframes alScare { 0% { opacity: 1; background-color: rgba(255,255,255,.35); } 25% { opacity: 1; background-color: rgba(160,0,0,.35); } 50% { opacity: .2; } 75% { opacity: .9; background-color: rgba(120,0,0,.25); } 100% { opacity: 0; } }
 #afterlife .al-hint.gone { opacity: 0 !important; transition: opacity 2s; }
 #afterlife .al-fade { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; transition: opacity .8s ease; }
 #afterlife.hell .al-fade { background: #300; }
@@ -403,8 +403,11 @@ export function showAfterlife(o) {
     }
     // (in your face: right in front of your eyes for a moment, then gone - somewhere else in the dark)
     if (scare) {
-      const m = scare.m, u = t - scare.t0; BX.set(fwd.x, 0, fwd.z).normalize();
-      m.G.position.set(cam.position.x + BX.x * 1.05, cam.position.y - 4.05 * m.H / 3.8 + 0.05, cam.position.z + BX.z * 1.05);
+      const m = scare.m, u = t - scare.t0, k = m.H / 3.8, j = () => (Math.random() - 0.5) * 2;
+      // (its face where you are looking, a metre off, square on - shaking)
+      BX.copy(cam.position).addScaledVector(fwd, 0.95); m.G.position.set(BX.x, BX.y - 4.05 * k, BX.z);
+      m.G.rotation.y = Math.atan2(cam.position.x - BX.x, cam.position.z - BX.z); m.head.lookAt(cam.position); m.head.rotateZ(j() * 0.25); m.head.rotateX(j() * 0.12);
+      near.classList.remove('in');
       if (u > 0.75) { const a = Math.random() * Math.PI * 2, r = 34 + Math.random() * 22; m.G.position.set(me.position.x + Math.sin(a) * r, 0, me.position.z + Math.cos(a) * r); scare = null; scareCool = 12 + Math.random() * 10; }
     }
     // (one close: its breathing)
