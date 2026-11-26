@@ -9,6 +9,7 @@
 // team's (the button by the menu: accent and ground, kept for each team). A new career starts here too.
 //   openManagerHub({ career, teams, trackName, onRace(c), onSim(c), onQuick(), onExit(), play }) / closeManagerHub()
 import { mailHTML, mailClick, mailHome, mailMark, MAIL_CSS } from './ManagerMail.js';
+import { sceneHTML, SCENE_CSS } from './ViceScene.js';
 import { mailBadge } from '../career/ManagerMail.js';
 import { TECH_CSS, techHTML, techClick } from './HubTech.js';
 import { ManagerCareer, TRACKS_ALL, COST_CAP, PRIZE, TIER_NAME, TIER_BUDGET, RACE_INCOME, POINT_INCOME, STAFF_ROLES } from '../career/Manager.js';
@@ -68,7 +69,7 @@ let el = null;
 /** the HQ (or, with no career, the new career's set-up) */
 export function openManagerHub(o) {
   H.o = o; H.c = o.career || null; H.msg = null; if (!H.c) H.tab = 'new'; else if (H.tab === 'new') H.tab = 'home';
-  if (!document.getElementById('mgr-css')) { const st = document.createElement('style'); st.id = 'mgr-css'; st.textContent = HQ_CSS + PAGE_CSS + EXTRA_CSS + MAIL_CSS + techSkin(TECH_CSS.replaceAll('#career', '#mgr .fac')) + FAC_CSS; document.head.appendChild(st); }
+  if (!document.getElementById('mgr-css')) { const st = document.createElement('style'); st.id = 'mgr-css'; st.textContent = HQ_CSS + PAGE_CSS + EXTRA_CSS + MAIL_CSS + techSkin(TECH_CSS.replaceAll('#career', '#mgr .fac')) + FAC_CSS + SCENE_CSS('#mgr'); document.head.appendChild(st); }
   if (!el) { el = document.createElement('div'); el.id = 'mgr'; el.addEventListener('click', onClick); document.body.appendChild(el); let rt = 0; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if (managerHubOpen()) { fitSheet(el); rail(); } }, 100); }); }
   el.style.display = 'grid'; H.shown = 0; H._tab = null; el.dataset.mode = ''; render(); pump();
 }
@@ -90,7 +91,7 @@ function render() {
   const c = H.c; if (!el) return;
   fitSheet(el);
   const mode = c ? 'hq' : 'new';
-  if (el.dataset.mode !== mode) { el.dataset.mode = mode; el.innerHTML = '<div class="q-top"></div><nav class="q-rail"></nav><main class="q-stage"></main><div class="q-toast"></div><div class="q-theme"></div>'; H._tab = null; H.kp = {}; }
+  if (el.dataset.mode !== mode) { el.dataset.mode = mode; el.innerHTML = sceneHTML() + '<div class="q-top"></div><nav class="q-rail"></nav><main class="q-stage"></main><div class="q-toast"></div><div class="q-theme"></div>'; H._tab = null; H.kp = {}; }
   if (!c) { const T = (H.o.teams || []).find((t) => t.name === H.nc.team); themeApply(el, T?.name || null, T?.color || '#e10600', T?.color2); topNew(); stage(newHTML()); toast(); return; }
   themeApply(el, c.myTeam, c.team.color, c.team.color2);
   top(c); rail(); stage(body(c)); toast(); mailMark(el, c);

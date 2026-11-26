@@ -8,6 +8,7 @@
 
 import { HQ_CSS, ICON, themeApply } from './HQKit.js';
 import { MAIL_CSS } from './ManagerMail.js';
+import { SCENE_CSS } from './ViceScene.js';
 
 const P = (d) => `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="${d}"/></svg>`;
 /** the rail's icons, by section (the HQ's own where one fits) */
@@ -100,8 +101,16 @@ const FRAME = `
 #career[data-hq] .ch-sub button.on, #career[data-hq] .ch-sub button.sel { color: var(--ac-ink); }
 #career[data-hq] .ch-sub::before { background: var(--ac) !important; }
 `;
+/* (the driver hub's own cards as the HQ's panels on VICE: smoked glass, the tubes) */
+const VICE_CARDS = `
+#career[data-hq][data-tone="vice"] .ch-pages :is(.tile, .dcard, .seat, .cl-card, .obj, .chart, .tro, .lostcard, .review, .wk-alw, .al, .st-rw, .rs-row, .teamrow), #career[data-hq][data-tone="vice"] .glass:not(.ch-top):not(.ch-rail):not(.ch-panel) {
+  background: linear-gradient(180deg, rgba(27,16,58,.80), rgba(20,11,45,.76)) padding-box, linear-gradient(140deg, rgba(255,63,164,.75), rgba(155,92,255,.2) 38%, rgba(155,92,255,.16) 62%, rgba(35,229,255,.7)) border-box;
+  box-shadow: 0 14px 34px -20px rgba(0,0,0,.8), 0 0 18px -10px rgba(255,63,164,.7), 0 0 24px -14px rgba(35,229,255,.55); backdrop-filter: blur(10px) saturate(1.25); }
+#career[data-hq] .ch-ui > .q-theme { top: 70px; right: 14px; }
+#career[data-hq][data-tone="vice"] .ch-title h1 { text-shadow: 0 0 10px rgba(255,63,164,.65); }
+`;
 /** the driver hub's whole stylesheet: its own on the HQ's colours, then the HQ's, then the frame */
-export const driverHQCSS = (own) => `${hqSkin(own)}\n${HQ_ON_CAREER}\n${FRAME}`;
+export const driverHQCSS = (own) => `${hqSkin(own)}\n${HQ_ON_CAREER}\n${FRAME}\n${SCENE_CSS('#career')}\n${VICE_CARDS}`;
 /** the HQ's colours onto the hub (the team's colour the accent, the ground kept for the team - ui/HQKit.js) */
 export function driverTheme(el, c) {
   const t = c?.team || c?.teams?.[c?.myTeam] || null;

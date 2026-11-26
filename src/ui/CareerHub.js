@@ -35,6 +35,8 @@ import { makePerson, makeHelmet, bloodPool } from '../world/People.js';
 import { mourning3D } from './Mourning3D.js';
 import { TECH_CSS, techHTML, techSide, techClick, techView } from './HubTech.js';
 import { driverHQCSS, driverTheme, DRV_ICON, DRV_GROUPS } from './DriverHQ.js';
+import { sceneHTML } from './ViceScene.js';
+import { themeHTML, themeSet } from './HQKit.js';
 import { dmailHTML } from './DriverMailPage.js';
 import { dmailUnread, dmailRead, dmailReadAll } from '../career/DriverMail.js';
 import { statsHTML, statsClick } from './HubStats.js';
@@ -1044,7 +1046,7 @@ function prewarm(c) {
 function root() {
   ensureMotion(); injectCSS();
   let el = document.getElementById('career');
-  if (!el) { el = document.createElement('div'); el.id = 'career'; el.innerHTML = '<div class="ch-ui"></div>'; document.body.appendChild(el); }
+  if (!el) { el = document.createElement('div'); el.id = 'career'; el.innerHTML = `${sceneHTML()}<div class="ch-ui"></div>`; document.body.appendChild(el); }
   el.classList.add('k-light');
   if (!roomTried) { roomTried = true; try { room = new Showroom(el); } catch (e) { room = null; } window.addEventListener('resize', () => resized(el)); window.__careerRoom = room; if (room) { const st0 = room.start.bind(room); room.start = () => { if (!el.dataset.hq || el.hasAttribute('data-studio')) st0(); }; } }   // (no WebGL: the panels over the plain studio colour; the room on window for the test console)
   return el;
@@ -1447,12 +1449,12 @@ function shell(el, c, o) {
     <header class="ch-top glass"><div class="ch-badge" data-bind="badge"></div>
       <div class="ch-title"><h1 data-bind="title"></h1><small data-bind="sub"></small></div>
       <div class="ch-pills"><span class="ch-pill" data-bind="pos"></span><span class="ch-pill cf-pill" data-bind="conf" title="Management confidence: what the team thinks of you"></span><span class="ch-pill w" data-bind="wallet" title="Your own money: salary, bonuses, personal sponsors"></span></div>
-      <button class="ch-ico" data-a="phone" title="Your phone (P)">✆<em data-bind="phone" class="hidden"></em></button><button class="ch-ico" data-a="gear" title="Settings">⚙</button>
+      <button class="ch-ico" data-a="phone" title="Your phone (P)">✆<em data-bind="phone" class="hidden"></em></button><button class="ch-ico" data-a="hqtheme" title="Colours: the accent and the ground" aria-label="Colours"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="5.6"/><path d="M8 2.4v11.2M8 2.4a5.6 5.6 0 0 1 0 11.2" fill="currentColor" stroke="none" opacity=".55"/></svg></button><button class="ch-ico" data-a="gear" title="Settings">⚙</button>
       <div class="ch-race" data-bind="race"></div><button data-a="close">MENU</button></header>
     <nav class="ch-rail ch-nav glass"><span class="ind"></span>${railHTML()}</nav>
     <section class="ch-panel glass"><div class="ch-head"><div class="k-seg ch-sub"></div><div class="slot"></div></div><div class="ch-pages"></div></section>
     <aside class="ch-side glass k-hide"></aside>
-    <div class="ch-modal-host"></div>`;
+    <div class="ch-modal-host"></div><div class="q-theme"></div>`;
   HUB.subKey = null; HUB.raceKey = null; HUB.sideKey = null;
   el.onclick = click;
   el.oninput = (e) => {
@@ -1466,6 +1468,8 @@ function shell(el, c, o) {
   el.onmouseover = (e) => { const t = e.target.closest?.('[data-tdesc]'); if (!t) return; const L = el.querySelector('.tro-line'); if (L && L.textContent !== t.dataset.tdesc) L.textContent = t.dataset.tdesc; };
   bindKeys(HUB);
 }
+/** the colours' panel for this hub's team (ui/HQKit.js themeHTML) */
+const themeOfHub = (c) => { const t = c?.team || {}; return themeHTML(t.name || 'driver', t.color || '#e10600', t.color2); };
 /** the rail in the HQ's way (ui/DriverHQ.js): the sections in their groups, each with its line icon; In Memoriam at the foot */
 function railHTML() {
   const S = Object.fromEntries(SECTIONS.map(([k, ic, n], i) => [k, { ic, n, i }]));
@@ -1793,6 +1797,9 @@ function click(e) {
   const { el, c } = X, b = e.target.closest('button'); if (!b || b.disabled || !el.contains(b) || b.classList.contains('k-dx')) return;
   const d = b.dataset, S = X.S || {};
   if (X.lk?.click(e)) return;   // (DRIVER › Look: the editor's own buttons - its tabs, choices and camera)
+  // (the colours - ui/HQKit.js, as the team principal's: an accent, a ground, kept for the team)
+  { const th = el.querySelector('.q-theme'); if (th?.classList.contains('in') && !e.target.closest('.q-theme') && d.a !== 'hqtheme') th.classList.remove('in'); }
+  if (d.th) { const [k, v] = d.th.split('|'); const t = c.team || {}; themeSet(t.name || 'driver', k, v); driverTheme(el, c); const th = el.querySelector('.q-theme'); if (th) th.innerHTML = themeOfHub(c); return; }
   if (d.sec) { goSec(d.sec); return; }
   if (d.dmail) { dmailRead(c, d.dmail); c.save(); go('mail', { ...S, sel: d.dmail }, { how: 'same' }); return; }
   if (d.dmailall) { dmailReadAll(c); c.save(); go('mail', { ...S }, { how: 'same' }); return; }
@@ -1850,6 +1857,7 @@ function action(a, b, d) {
     case 'simweek': closePop(); c.simWeekend(); go('overview', {}, { fresh: true }); return;
     case 'season': c.nextSeason(); go('overview', {}, { fresh: true }); return;
     case 'gear': openGear(b); return;
+    case 'hqtheme': { const th = HUB.el.querySelector('.q-theme'); if (th) { th.innerHTML = themeOfHub(HUB.c); th.classList.toggle('in'); } return; }
     case 'motion': { const on = !document.documentElement.classList.contains('m-off'); setReduced(on); const s = b.querySelector('small'); if (s) s.textContent = motionTxt(); return; }
     case 'abandon':
       // (asked on the button itself, not with the browser's confirm(): a published page may not be allowed to show one)
