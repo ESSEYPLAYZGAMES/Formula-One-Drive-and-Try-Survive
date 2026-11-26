@@ -7,6 +7,7 @@
 // the line, a team or tyre colour stays). The 3D studio shows only where your looks are being changed.
 
 import { HQ_CSS, ICON, themeApply } from './HQKit.js';
+import { MAIL_CSS } from './ManagerMail.js';
 
 const P = (d) => `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="${d}"/></svg>`;
 /** the rail's icons, by section (the HQ's own where one fits) */
@@ -50,7 +51,7 @@ export function hqSkin(css) {
 }
 
 // ---- the HQ's stylesheet on #career, and the frame in the HQ's places -----------------------------------------------
-const HQ_ON_CAREER = HQ_CSS.replace(/#mgr\b/g, '#career');
+const HQ_ON_CAREER = (HQ_CSS + MAIL_CSS).replace(/#mgr\b/g, '#career');   // (and its mail client's: ui/ManagerMail.js)
 const FRAME = `
 /* (the HQ's root rule laid the HQ out as a grid: the career's own frame is placed by hand, the studio and the UI over it) */
 #career[data-hq] { z-index: 40; display: block; grid-template: none; }
@@ -87,8 +88,8 @@ const FRAME = `
 #career[data-hq] .ch-rail .sp { flex: 1; } #career[data-hq] .ch-rail .dv { display: none; }
 /* the stage: no sheet of its own - the panels stand on the ground, as the HQ's do */
 #career[data-hq] .ch-panel { left: 196px; top: 64px; bottom: 0; right: 0; width: auto; padding: 14px 16px 16px; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
-#career[data-hq] .ch-panel:has(~ .ch-side:not(.k-hide)) { right: 272px; }
-#career[data-hq] .ch-side { top: 78px; right: 16px; width: 244px; max-height: none; border-radius: var(--r); }
+/* (no side card: the HQ has none - what it said is on the pages and the bar - and the stage has the width) */
+#career[data-hq] .ch-side { display: none !important; }
 #career[data-hq] .glass { background: linear-gradient(180deg, color-mix(in srgb, var(--panel) 96%, transparent), color-mix(in srgb, var(--panel) 88%, transparent)); border: 1px solid var(--line); box-shadow: 0 10px 30px -18px rgba(0,0,0,.6); }
 #career[data-hq][data-tone="vice"] .glass, #career[data-hq][data-tone="vice"] .ch-pages :is(.tile, .dcard, .seat, .cl-card, .obj, .chart, .tro, .lostcard, .review, .wk-alw, .al, .st-rw, .rs-row, .teamrow) { border: 1px solid transparent; background: linear-gradient(180deg, rgba(27,16,58,.93), rgba(20,11,45,.9)) padding-box, linear-gradient(140deg, rgba(255,63,164,.45), rgba(155,92,255,.14) 38%, rgba(155,92,255,.1) 62%, rgba(35,229,255,.4)) border-box; box-shadow: 0 14px 34px -20px rgba(0,0,0,.8); }
 #career[data-hq][data-tone="vice"] .ch-top.glass, #career[data-hq][data-tone="vice"] .ch-rail.glass, #career[data-hq] .ch-panel.glass { background: transparent; border-color: transparent; box-shadow: none; }

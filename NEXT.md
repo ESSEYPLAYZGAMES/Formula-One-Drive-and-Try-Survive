@@ -1,8 +1,28 @@
-# V2.86 (2026-11-26): the kerb camera's two lenses; sprints without a stop; every tyre in the builder; Heaven and Hell
+# V2.86 (2026-11-26): the kerb camera's two lenses; sprints without a stop; every tyre in the builder; Heaven and Hell; the driver career in the HQ's look, with mail
 
 Asked for: the kerb camera "doesn't switch between forward/backward facing, it's just moving to the next kerb";
 "sprints have no mandatory pits - up the laps to 4"; "always give the full selection of S M H I and W in the strat
 menu"; "add heaven and hell to give players a sense of a moral compass".
+
+## The driver career in the team principal's look (ui/DriverHQ.js, ui/CareerHub.js)
+- Asked for: "revamp the driver career mode with the same visuals of the team principal ... and add emails".
+- The hub is on the HQ's ground now: the HQ's stylesheet and its four grounds (VICE, the neon one, first - kept per
+  team), the team's colour as the accent; the bar across the top; the rail down the left in groups - WEEKEND (Mail,
+  Race week), CAREER (Team, Driver), OFF TRACK (Life, Media), RECORD (Season, Stats), In Memoriam at the foot - with
+  the HQ's line icons and its sliding light; the stage across the whole width, its panels with the neon edge.
+- Every page's own colours moved onto the HQ's by what each colour is: a white ground the panel, a near-black ink the
+  ink, a grey line the line; a team's, a tyre's or a state's colour as it was. The post-race report, the pop-ups and
+  the tech tree with them.
+- The 3D studio only where your look is being made (DRIVER > Look, LIFE > Style); everywhere else it is off and does
+  not draw. The side card is gone (the HQ has none; what it said is on the pages and the bar).
+
+## Mail (career/DriverMail.js, ui/DriverMailPage.js)
+- MAIL at the top of the rail, with the unread count: the HQ's mail client - the list on the left, the letter on the
+  right. The race engineer's report after every race (the result, the rating and its reasons, Driver of the Day); a
+  team that wants you, through your agent; a brand's offer; the stewards' letter for points on your licence, and a
+  ban; the team principal when management's confidence falls to a warning or rises a long way; your agent when your
+  contract has half a season left; trophies; the season's end and its awards; a fan's letter on a great day. Whatever
+  wants a decision has a button to the page where it is made.
 
 ## The kerb camera (camera/TVDirector.js)
 - One kerb, two lenses: facing up the road as the car comes, then - the moment it is over the kerb - a cut to the one

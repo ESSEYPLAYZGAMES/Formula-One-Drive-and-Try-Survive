@@ -25,5 +25,5 @@ export function dmailHTML(c, S = {}) {
   if (cur) dmailRead(c, cur.id);
   const rows = box.map((m) => `<button class="ml-row${m === cur ? ' on' : ''}${m.read && m !== cur ? '' : m === cur ? '' : ' un'}" data-dmail="${esc(m.id)}">${av(m.from, m.col)}<span class="ml-m"><span class="ml-top"><b>${esc(m.from)}</b><em>${esc(`R${m.round}`)}</em></span><span class="ml-sj">${esc(m.subj)}</span><span class="ml-pv">${esc((m.body || [])[0] || '')}</span></span>${m.tag === 'offer' ? tag('Offer', 'ac') : ''}</button>`).join('');
   const bar = `<div class="ml-bar"><b>Inbox${un ? ` · ${un} unread` : ''}</b>${un > 1 ? '<button class="ghost ml-all" data-dmailall="1">MARK ALL READ</button>' : ''}</div>`;
-  return `<div class="q-g dm-g">${panel('Mail', `${bar}<div class="ml-list" data-k="mllist">${rows || empty('Nothing yet.')}</div>`, { w: 5, scroll: false, k: 'mllist' })}${panel(cur ? esc(cur.org || 'Mail') : 'Mail', cur ? letter(cur) : empty('No mail.'), { w: 7, scroll: false })}</div>`;
+  return `<div class="q-g dm-g">${panel('Mail', `${bar}<div class="ml-list q-sc" data-k="mllist">${rows || empty('Nothing yet.')}</div>`, { w: 5, cls: 'ml-lp', scroll: false, pad: false })}${panel('Message', cur ? letter(cur) : empty('No mail.'), { w: 7, cls: 'ml-rp', scroll: false, pad: false })}</div>`;
 }
