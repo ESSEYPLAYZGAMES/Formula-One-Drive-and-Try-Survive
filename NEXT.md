@@ -1,3 +1,36 @@
+# V2.94 (2026-11-27): the voices urgent and many; the destination a surprise; Heaven's choir; the menu fixed
+
+Asked for: "still messed it up and add a choir to heaven (pre-hell and real)", then "MAKE THE robotic voice overlap and
+be more urgent, try different robo voices ... make them really urgent and screams and stop showing the track between
+hell cutscenes during loading ... dont reveal heaven or hell before the surprise drop ... remove that stupid 'the
+reckoning' low quali balance".
+
+## The voices (audio/AfterSound.js)
+- Six machines now, not one: GRIND (a throat ring-modulated into metal), BUZZ (a square wave crushed to a few steps,
+  ringing high - a broken intercom), WHISPER (breath through the vowels, no pitch - a voice made of static), CHOIR (three
+  throats a quarter-tone apart and an octave down - many mouths at once), GLITCH (every syllable stuttered, the pitch
+  jumping - a recording skipping), SHRIEK (high, tearing, the vibrato wide).
+- URGENT: faster, louder, hard attacks, the pitch climbing through the line (panic) instead of falling.
+- THE MOB: one line said by several machines at once, a fraction apart, at different pitches, from different places.
+- Hell's recalled arguments: theirs shouted by two or three machines over each other, yours a panicking skipping
+  recording, the next line cutting in before the last is done, screams torn through the middle. The exorcism's taunts
+  shouted by mobs that grow as it builds; a spirit torn out shrieks and a choir of them howls NO; the drop's shouting
+  and your name screamed by mobs of four.
+
+## The surprise
+- The Reckoning (the scales and the verdict) is gone: after the candle you are simply in Heaven - or what looks like
+  it - and find out which there. (The HELL / HEAVEN code works up to the end of the candle.)
+- Black under the whole of a death, from the end of the news until the career is back: nothing of the circuit seen
+  between the scenes or while the next one loads.
+
+## Heaven's choir
+- Six voices singing 'ah' in a cathedral's air, each breathing on its own, moving gently through a long progression.
+  In the false Heaven the same choir holds one chord, perfect, forever - and slides out of tune as the faces come; at
+  the gates it is cut off mid-note. Drawn far back while an exorcism is done.
+
+## The race caret's menu
+- Its lines now wrap inside the glass (the hub's buttons had stopped them wrapping); the menu is wider.
+
 # V2.93 (2026-11-27): the driver hub's menus readable, in neon; the HELL / HEAVEN code
 
 Asked for: "fix this issue rn make it actually visible and neon" (the race caret's menu: pale text on white) and "Put a

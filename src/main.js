@@ -91,7 +91,6 @@ import { showMemorial } from './ui/Memorial.js';
 import { NewsBroadcast } from './ui/NewsBroadcast.js';
 import { openCareer, closeCareer, showMourning, syncLooks } from './ui/CareerHub.js';
 import { judge } from './career/Conscience.js';
-import { showReckoning } from './ui/Reckoning.js';
 import { showAfterlife } from './ui/Afterlife.js';
 import * as Avatar from './career/Avatar.js';
 import { showInterview } from './ui/Interview.js';
@@ -1044,7 +1043,7 @@ setTimeout(() => { syncSetupUI(); refreshHome(); }, 0);
 // race distance are the only settings (the hub's), the rest is not yours to choose
 // ---------------------------------------------------------------------------
 function openCareerHub() {
-  document.body.classList.remove('f1-dead');
+  document.body.classList.remove('f1-dead'); deathVeil(false);
   restoreSettings();
   // (the title decider's film, if the next round is one: made ready while the hub is up - it starts at once)
   setTimeout(() => { try { const C = S.career, pre = C && careerDecider(C, true); if (pre) prepareScene(pre.scene, pre.ctx); } catch (e) { /* played from scratch */ } }, 1500);
@@ -4361,29 +4360,35 @@ function fated(J) {
   const heaven = FATE.force === 'heaven';
   return { ...J, heaven, sum: heaven ? Math.max(12, J.sum) : Math.min(-12, J.sum), lesson: J.lesson };
 }
+/** black under the whole of a death (from the end of the news until the career is back): nothing of the circuit seen between the scenes, or while the next one loads */
+let deathVeilEl = null;
+function deathVeil(on) {
+  if (on) { if (!deathVeilEl) { deathVeilEl = document.createElement('div'); deathVeilEl.style.cssText = 'position:fixed;inset:0;background:#000;z-index:61;pointer-events:none'; } document.body.appendChild(deathVeilEl); }
+  else deathVeilEl?.remove();
+}
 function afterNews(hurt, then) {
   const C = S.weekend?.career, items = memorialItems(hurt), mine = C && hurt.find((c) => c.careerId && c.careerId === C.playerId && c.fate === 'killed');   // (hurt, not killed: the cards, like anyone)
   if (!C) S.lastLost = (S.lastLost || []).concat(hurt.filter((c) => c.fate === 'killed').map((c) => ({ name: c.name, number: c.number, team: c.team, color: c.color, helmet: c.helmet })));   // (remembered before the next race)
   const others = mine ? items.filter((it) => !it.isPlayer) : items;
   const next = () => { if (!mine) { then(); return; }
     const d = C.drivers[mine.careerId], l = C.lost.find((x) => x.id === d.id) || {};
-    NEWS.results = null; NEWS.abandoned = false; strings(false, { fade: 1.2 }); audio.silence?.(true); $('results').classList.add('hidden');
+    NEWS.results = null; NEWS.abandoned = false; strings(false, { fade: 1.2 }); audio.silence?.(true); $('results').classList.add('hidden'); deathVeil(true);
     audio.play?.('horror', { gain: 1, delay: 0.5 });   // (the strings, as the helmet comes out of the dark - then the silence)
-    // (then the Reckoning - ui/Reckoning.js: the life weighed, Heaven or Hell - and back to the career)
+    // (then the afterlife - Heaven, or what looks like it - and back to the career. Nothing says which before you are in it)
     showMourning({ name: d.name, number: d.number, team: l.team, starts: d.starts, wins: d.wins, podiums: d.podiums }, helmetURL({ name: d.name, helmet: d.helmet, color: l.color, number: d.number }, { blood: true }), () => {
       let J = null; try { J = fated(judge(C)); } catch (e) { J = null; }
       let ended = false;
-      const after = (id) => { audio.silence?.(false); if (!ended) { ended = true; endSession(); S.weekend = null; } if (id) { try { C.becomeDriver(id); C.save(); } catch (e) { console.warn('[afterlife] the new driver', e); } } openCareerHub(); };
+      const after = (id) => { audio.silence?.(false); deathVeil(false); if (!ended) { ended = true; endSession(); S.weekend = null; } if (id) { try { C.becomeDriver(id); C.save(); } catch (e) { console.warn('[afterlife] the new driver', e); } } openCareerHub(); };
       // (then the afterlife - ui/Afterlife.js: Heaven or Hell as a place, the drivers you could become as portals in
       //  it, an exorcism to take one - ui/Exorcism.js - and your career goes on as them)
       const afterlife = () => {
         ended = true; endSession(); S.weekend = null; audio.silence?.(false);
         const team = C.team || {}, cands = (team.none ? [] : C.seatsOf(team.name) || []).filter((x) => x && x.alive && x.id !== d.id)
           .map((x) => ({ id: x.id, name: x.name, number: x.number, team: team.name, color: team.color, color2: team.color2 }));
-        J = fated(J); FATE.force = null; FATE.buf = '';   // (the code, if typed as late as the Reckoning)
+        J = fated(J); FATE.force = null; FATE.buf = '';   // (the code, if typed as late as the candle)
         try { showAfterlife({ heaven: J.heaven, sum: J.sum, name: d.name, good: J.good, bad: J.bad, life: { wins: d.wins, podiums: d.podiums, starts: d.starts }, mate: cands[0]?.name, candidates: cands, audio, onDone: (id) => after(id) }); } catch (e) { console.warn('[afterlife]', e); after(null); }
       };
-      if (J) { audio.silence?.(false); showReckoning(J, d.name, afterlife, { audio }); } else after();
+      if (J) { audio.silence?.(false); afterlife(); } else after();   // (no verdict shown: where you are going is found out there)
     }, { audio, helmet3d: { name: d.name, helmet: d.helmet, color: l.color, number: d.number } });
   };
   if (others.length) { strings(true); showMemorial(others, next, () => audio.beep?.(146.8, 2.4, 0.1)); } else next();

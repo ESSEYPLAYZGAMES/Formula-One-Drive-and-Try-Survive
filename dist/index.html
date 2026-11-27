@@ -604,7 +604,7 @@ body.f1-dead #hud, body.f1-dead #standings, body.f1-dead #results { display: non
     <div class="brand-line"></div>
     <h1 id="brand-title">FORMULA 1<span id="brand-sub">SIMULATOR</span></h1>
     <!-- the build's version: +0.01 with every build handed out -->
-    <span id="app-ver" title="Version">V2.93</span>
+    <span id="app-ver" title="Version">V2.94</span>
     <div id="menu-sub">Real circuits built from OpenStreetMap</div>
   </div>
   <div id="loading" class="hidden"><div class="ld"><i></i></div><span>Building the circuit from OpenStreetMap…</span></div>
@@ -101658,7 +101658,7 @@ return { CrowdLife };
 __m['src/career/Conscience.js'] = (() => {
 
 // Your driver's conscience (the driver career): what they did with the life they had, good and bad, kept as it
-// happens - and, if they are killed, weighed (ui/Reckoning.js): Heaven or Hell. A moral compass, felt while you can
+// happens - and, if they are killed, weighed (career/Conscience.js judge - and found out in the afterlife itself): Heaven or Hell. A moral compass, felt while you can
 // still change it (the hub's DRIVER panel: which way the scales lean) and final when you cannot.
 // What counts is what your driver chose to do, on the track and off it (career/PR.js prEvent - every public act of
 // your driver passes through it - and career/Career.js applyRace for a clean race): a day for charity, a donation,
@@ -166905,6 +166905,9 @@ const VICE_CARDS = `
 #career[data-hq] .k-pop::before { content: ''; position: absolute; left: 14px; right: 14px; top: -1px; height: 2px; border-radius: 2px; background: linear-gradient(90deg, transparent, #ff3fa4, #23e5ff, transparent); box-shadow: 0 0 12px #ff3fa4, 0 0 22px rgba(35,229,255,.7); pointer-events: none; }
 #career[data-hq] .k-pop .pop-row b { color: #ffffff !important; text-shadow: 0 0 10px rgba(255,63,164,.55); }
 #career[data-hq] .k-pop .pop-row small { color: #c9b8ec !important; }
+#career[data-hq] .k-pop.race { width: 340px !important; max-width: calc(100vw - 24px); } #career[data-hq] .k-pop.gear { width: 320px !important; }
+#career[data-hq] .k-pop .pop-row, #career[data-hq] .k-pop .pop-row b, #career[data-hq] .k-pop .pop-row small, #career[data-hq] .k-pop .pop-note { white-space: normal !important; overflow-wrap: anywhere; text-overflow: clip !important; overflow: visible !important; max-width: 100%; }
+#career[data-hq] .k-pop .pop-row { height: auto !important; box-sizing: border-box; }   /* (every line inside the glass: wrapped, never spilling past its edge) */
 #career[data-hq] .k-pop .pop-row { border-radius: 10px; transition: background .15s, box-shadow .15s; }
 #career[data-hq] .k-pop .pop-row:hover:not(:disabled), #career[data-hq] .k-pop .pop-row:focus-visible { background: linear-gradient(90deg, rgba(255,63,164,.22), rgba(35,229,255,.12)) !important; box-shadow: inset 0 0 0 1px rgba(255,63,164,.6), 0 0 16px -4px rgba(255,63,164,.8) !important; }
 #career[data-hq] .k-pop .pop-row:hover:not(:disabled) b { text-shadow: 0 0 8px #fff, 0 0 16px #ff3fa4; }
@@ -189966,151 +189969,6 @@ function showMourning(d, helmetURL, done, o = {}) {
 return { openCareer, syncLooks, closeCareer, showMourning };
 })();
 
-// ---- src/ui/Reckoning.js
-__m['src/ui/Reckoning.js'] = (() => {
-
-// The Reckoning (the driver career, after the mourning screen - main.js afterNews): your driver's life weighed. Out of
-// the dark a balance; the deeds (career/Conscience.js judge) come down onto it one by one - the good on the left in
-// gold, the harm on the right in red - and the beam tips with each. Then the verdict: Heaven - the light rising, the
-// clouds, the gates opening, a slow major chord - or Hell - the floor giving way, the red glow and the embers, a low
-// drone and a tritone. No words but the deeds and the verdict; on by itself, or SPACE (Enter, Esc) at any time.
-// showReckoning(J, name, done, { audio }) - J: judge(c).
-
-const CSS = `
-#reckon { position: fixed; inset: 0; z-index: 61; background: #000; color: #ece6d8; font-family: Georgia, 'Times New Roman', serif; overflow: hidden; opacity: 0; transition: opacity 1.6s ease; }
-#reckon.show { opacity: 1; }
-#reckon canvas.fx { position: absolute; inset: 0; width: 100%; height: 100%; }
-#reckon .sky { position: absolute; inset: 0; opacity: 0; transition: opacity 3.2s ease; }
-#reckon.heaven .sky.h { opacity: 1; background: radial-gradient(ellipse at 50% 10%, #fffbe9 0%, #ffe9b0 28%, #d9c08a 55%, #6b5c3e 100%); }
-#reckon.hell .sky.d { opacity: 1; background: radial-gradient(ellipse at 50% 110%, #ff5a1a 0%, #a3170a 30%, #3a0603 62%, #0a0000 100%); }
-#reckon .clouds { position: absolute; left: -20%; right: -20%; bottom: -8%; height: 46%; opacity: 0; transition: opacity 4s ease 1s;
-  background: radial-gradient(closest-side, rgba(255,255,255,.95), rgba(255,255,255,0)) 0 60%/38% 70% no-repeat, radial-gradient(closest-side, rgba(255,250,240,.9), rgba(255,255,255,0)) 30% 80%/44% 80% no-repeat,
-    radial-gradient(closest-side, rgba(255,255,255,.92), rgba(255,255,255,0)) 64% 70%/40% 75% no-repeat, radial-gradient(closest-side, rgba(255,248,235,.9), rgba(255,255,255,0)) 100% 85%/42% 80% no-repeat; animation: rkDrift 40s linear infinite alternate; }
-#reckon.heaven .clouds { opacity: 1; }
-#reckon .rays { position: absolute; left: 50%; top: -30%; width: 160vmax; height: 160vmax; margin-left: -80vmax; opacity: 0; transition: opacity 3s ease 1.2s;
-  background: repeating-conic-gradient(from 0deg, rgba(255,246,214,.22) 0deg 4deg, rgba(255,246,214,0) 4deg 14deg); -webkit-mask: radial-gradient(circle, #000 0%, transparent 58%); mask: radial-gradient(circle, #000 0%, transparent 58%); animation: rkSpin 120s linear infinite; }
-#reckon.heaven .rays { opacity: 1; }
-#reckon .gates { position: absolute; left: 50%; top: 18%; width: min(420px, 70vw); height: min(300px, 40vh); transform: translateX(-50%); opacity: 0; transition: opacity 2.4s ease 1.6s; }
-#reckon.heaven .gates { opacity: 1; }
-#reckon .gates i { position: absolute; top: 0; bottom: 0; width: 50%; border: 3px solid rgba(201,160,62,.85); background: repeating-linear-gradient(90deg, rgba(201,160,62,.75) 0 4px, transparent 4px 26px); transition: transform 4s cubic-bezier(.4,0,.2,1) 3s; }
-#reckon .gates i:first-child { left: 0; border-radius: 120px 0 0 0; transform-origin: left center; }
-#reckon .gates i:last-child { right: 0; border-radius: 0 120px 0 0; transform-origin: right center; }
-#reckon.heaven .gates i:first-child { transform: perspective(600px) rotateY(70deg); }
-#reckon.heaven .gates i:last-child { transform: perspective(600px) rotateY(-70deg); }
-#reckon .crack { position: absolute; left: 0; right: 0; bottom: 0; height: 0; background: linear-gradient(rgba(40,0,0,0), #ff4a10 55%, #ffb347); transition: height 3.5s cubic-bezier(.5,0,.3,1) .6s; filter: blur(2px); }
-#reckon.hell .crack { height: 38%; }
-#reckon .stage { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 16px; text-align: center; transition: transform 3.5s cubic-bezier(.5,0,.3,1), opacity 2s ease; }
-#reckon.heaven .stage { transform: translateY(-6vh); }
-#reckon.hell .stage { transform: translateY(5vh); }
-#reckon .over { font: 600 12px/1 system-ui, sans-serif; letter-spacing: .6em; color: #8f897c; margin-bottom: 10px; }
-#reckon .who { font-size: clamp(22px, 4.6vw, 34px); margin: 0 0 18px; transition: color 2s ease; }
-#reckon.heaven .who { color: #4a3a18; } #reckon.heaven .over { color: #6b5c3e; }
-#reckon svg.scales { width: min(560px, 92vw); height: auto; overflow: visible; }
-#reckon svg .beam { transition: transform 1s cubic-bezier(.3,1.4,.5,1); transform-origin: 280px 70px; }
-#reckon svg .pan { transition: transform 1s cubic-bezier(.3,1.4,.5,1); }
-#reckon .deeds { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 28px; width: min(560px, 92vw); margin-top: 10px; min-height: 120px; }
-#reckon .deeds .col { display: flex; flex-direction: column; gap: 5px; }
-#reckon .deed { font: 500 13px/1.3 system-ui, sans-serif; padding: 5px 9px; border-radius: 4px; opacity: 0; transform: translateY(-14px); transition: opacity .5s ease, transform .5s ease; text-align: left; }
-#reckon .deed.in { opacity: 1; transform: none; }
-#reckon .deed.g { background: rgba(214,172,72,.16); border-left: 3px solid #d6ac48; color: #f3e3b8; }
-#reckon .deed.b { background: rgba(200,40,30,.16); border-left: 3px solid #c8281e; color: #f2c2bb; }
-#reckon .deed small { opacity: .7; margin-left: 6px; }
-#reckon .verdict { font-size: clamp(40px, 10vw, 84px); letter-spacing: .18em; margin: 14px 0 6px; opacity: 0; transition: opacity 2.4s ease 1.8s; }
-#reckon.heaven .verdict { color: #fffaf0; -webkit-text-stroke: 1px rgba(138,106,32,.7); text-shadow: 0 0 30px rgba(255,236,170,.9), 0 2px 6px rgba(90,66,16,.45); opacity: 1; }
-#reckon.hell .verdict { color: #ff6a2a; text-shadow: 0 0 26px rgba(255,60,0,.8); opacity: 1; }
-#reckon .lesson { max-width: 560px; font-size: 16px; line-height: 1.55; opacity: 0; transition: opacity 2s ease 3.4s; }
-#reckon.heaven .lesson { color: #3a2e14; } #reckon.hell .lesson { color: #f0d2c4; }
-#reckon.done .lesson { opacity: 1; }
-#reckon button { margin-top: 22px; background: none; border: 1px solid currentColor; color: inherit; font: 600 11px/1 system-ui, sans-serif; letter-spacing: .3em; padding: 10px 18px; cursor: pointer; opacity: 0; transition: opacity 1.2s ease 4.6s; }
-#reckon.done button { opacity: .8; } #reckon.heaven button { color: #3a2e14; } #reckon.hell button { color: #f0d2c4; }
-#reckon.heaven.done .deeds, #reckon.hell.done .deeds, #reckon.done svg.scales { opacity: .0; transition: opacity 1.5s ease; height: 0; min-height: 0; margin: 0; }
-@keyframes rkSpin { to { transform: rotate(360deg); } }
-@keyframes rkDrift { from { transform: translateX(-4%); } to { transform: translateX(4%); } }
-@media (max-height: 560px) { #reckon .deeds { min-height: 0; } #reckon .deed { font-size: 11px; padding: 3px 7px; } }
-`;
-let injected = false;
-const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
-
-/** the chord or the drone (o.audio: the game's audio, its context when it is running) */
-function score(audio, heaven) {
-  const ctx = audio?.ready ? audio.ctx : null; if (!ctx) return () => {};
-  const out = ctx.createGain(); out.gain.value = 0; out.connect(ctx.destination);
-  const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = heaven ? 2400 : 520; lp.connect(out);
-  const f = heaven ? [220, 277.18, 329.63, 440, 554.37] : [55, 77.78, 110, 155.56];   // (A major, open; A and E-flat: the devil's interval)
-  const osc = f.map((hz, i) => { const o = ctx.createOscillator(); o.type = heaven ? 'sine' : 'sawtooth'; o.frequency.value = hz; o.detune.value = (i % 2 ? 4 : -4); o.connect(lp); o.start(); return o; });
-  const t = ctx.currentTime; out.gain.setValueAtTime(0, t); out.gain.linearRampToValueAtTime(heaven ? 0.05 : 0.07, t + 4);
-  return () => { const n = ctx.currentTime; out.gain.cancelScheduledValues(n); out.gain.setValueAtTime(out.gain.value, n); out.gain.linearRampToValueAtTime(0, n + 2.5); setTimeout(() => { for (const o of osc) try { o.stop(); } catch (e) { /* stopped */ } out.disconnect(); }, 2800); };
-}
-
-/** motes of light rising slowly (heaven), embers rushing up (hell) - on a canvas behind the stage */
-function particles(cv, kind) {
-  const g = cv.getContext('2d'); if (!g) return () => {};
-  let w = 0, h = 0, raf = 0, last = performance.now(); const P = [];
-  const fit = () => { w = cv.width = cv.clientWidth; h = cv.height = cv.clientHeight; };
-  fit(); window.addEventListener('resize', fit);
-  const spawn = () => P.push(kind === 'hell' ? { x: Math.random() * w, y: h + 10, vx: (Math.random() - 0.5) * 40, vy: -(80 + Math.random() * 160), r: 1 + Math.random() * 2.4, life: 2 + Math.random() * 3, t: 0 }
-    : { x: Math.random() * w, y: h * (0.5 + Math.random() * 0.6), vx: (Math.random() - 0.5) * 8, vy: -(10 + Math.random() * 22), r: 1 + Math.random() * 2, life: 5 + Math.random() * 5, t: 0 });
-  const tick = (now) => {
-    const dt = Math.min(0.05, (now - last) / 1000); last = now; g.clearRect(0, 0, w, h);
-    for (let i = 0; i < (kind === 'hell' ? 6 : 2); i++) if (P.length < 260) spawn();
-    for (let i = P.length - 1; i >= 0; i--) {
-      const p = P[i]; p.t += dt; p.x += p.vx * dt + (kind === 'hell' ? Math.sin(p.t * 6 + p.r) * 20 * dt : 0); p.y += p.vy * dt; const a = Math.max(0, 1 - p.t / p.life);
-      if (a <= 0 || p.y < -20) { P.splice(i, 1); continue; }
-      g.fillStyle = kind === 'hell' ? `rgba(255,${120 + (p.r * 40) | 0},40,${a})` : `rgba(255,248,220,${a * 0.8})`; g.beginPath(); g.arc(p.x, p.y, p.r, 0, 6.283); g.fill();
-    }
-    raf = requestAnimationFrame(tick);
-  };
-  raf = requestAnimationFrame(tick);
-  return () => { cancelAnimationFrame(raf); window.removeEventListener('resize', fit); };
-}
-
-function showReckoning(J, name, done, o = {}) {
-  if (!injected) { const st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st); injected = true; }
-  const el = document.createElement('div'); el.id = 'reckon';
-  el.innerHTML = `<div class="sky h"></div><div class="sky d"></div><div class="rays"></div><div class="clouds"></div><div class="gates"><i></i><i></i></div><div class="crack"></div><canvas class="fx"></canvas>
-    <div class="stage"><div class="over">THE RECKONING</div><h2 class="who">${esc(name)}</h2>
-      <svg class="scales" viewBox="0 0 560 230" aria-hidden="true">
-        <line x1="280" y1="70" x2="280" y2="215" stroke="#8f897c" stroke-width="5"/><path d="M230 222 L330 222 L300 205 L260 205 Z" fill="#8f897c"/><circle cx="280" cy="64" r="8" fill="#b9b2a2"/>
-        <g class="beam"><line x1="70" y1="70" x2="490" y2="70" stroke="#b9b2a2" stroke-width="5" stroke-linecap="round"/>
-          <g class="pan l"><line x1="70" y1="70" x2="30" y2="150" stroke="#8f897c"/><line x1="70" y1="70" x2="110" y2="150" stroke="#8f897c"/><path d="M22 150 Q70 182 118 150 Z" fill="#d6ac48"/></g>
-          <g class="pan r"><line x1="490" y1="70" x2="450" y2="150" stroke="#8f897c"/><line x1="490" y1="70" x2="530" y2="150" stroke="#8f897c"/><path d="M442 150 Q490 182 538 150 Z" fill="#c8281e"/></g></g>
-      </svg>
-      <div class="deeds"><div class="col g"></div><div class="col b"></div></div>
-      <div class="verdict"></div></div>`;
-  document.body.appendChild(el);
-  requestAnimationFrame(() => el.classList.add('show')); setTimeout(() => el.classList.add('show'), 60);
-  const beam = el.querySelector('.beam'), panL = el.querySelector('.pan.l'), panR = el.querySelector('.pan.r'), colG = el.querySelector('.col.g'), colB = el.querySelector('.col.b');
-  // (the beam tips by the running total, never more than 14 degrees; the pans hang level as it does)
-  const tip = (s) => { const a = Math.max(-14, Math.min(14, -s * 1.6)); beam.style.transform = `rotate(${a}deg)`; panL.style.transform = `rotate(${-a}deg)`; panL.style.transformOrigin = '70px 70px'; panR.style.transform = `rotate(${-a}deg)`; panR.style.transformOrigin = '490px 70px'; };
-  // (the deeds in turns, the heaviest of each side first - at most five a side; the rest are in the totals)
-  const G = J.good.slice(0, 5), B = J.bad.slice(0, 5), order = []; for (let i = 0; i < Math.max(G.length, B.length); i++) { if (G[i]) order.push(G[i]); if (B[i]) order.push(B[i]); }
-  const timers = []; let run = 0, stopSound = () => {}, stopFx = () => {}, closed = false;
-  const step = 1.15;
-  order.forEach((e, i) => timers.push(setTimeout(() => {
-    const d = document.createElement('div'); d.className = `deed ${e.w > 0 ? 'g' : 'b'}`; d.innerHTML = `${esc(e.label)}${e.n > 1 ? `<small>×${e.n}</small>` : ''}`;
-    (e.w > 0 ? colG : colB).appendChild(d); requestAnimationFrame(() => d.classList.add('in'));
-    run += e.w; tip(run); try { o.audio?.beep?.(e.w > 0 ? 660 : 98, 0.25, 0.05); } catch (err) { /* no sound */ }
-  }, 2600 + i * step * 1000)));
-  const tV = 2600 + order.length * step * 1000 + 1400;
-  timers.push(setTimeout(() => { tip(J.sum); }, tV - 700));
-  timers.push(setTimeout(() => {
-    el.querySelector('.verdict').textContent = J.heaven ? 'HEAVEN' : 'HELL'; el.classList.add(J.heaven ? 'heaven' : 'hell');
-    stopSound = score(o.audio, J.heaven); stopFx = particles(el.querySelector('canvas.fx'), J.heaven ? 'heaven' : 'hell');
-    timers.push(setTimeout(() => el.classList.add('done'), 2600)); timers.push(setTimeout(() => close(), 7500));   // (on by itself; SPACE sooner)
-  }, tV));
-  const close = () => {
-    if (closed) return; closed = true; for (const t of timers) clearTimeout(t);
-    window.removeEventListener('keydown', kd, true); stopSound(); el.classList.remove('show');
-    setTimeout(() => { stopFx(); el.remove(); done?.(); }, 1700);
-  };
-  const kd = (e) => { if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); close(); } };   // (SPACE: skipped, whenever)
-  window.addEventListener('keydown', kd, true);
-  return { el, close };
-}
-
-return { showReckoning };
-})();
-
 // ---- src/ui/Exorcism.js
 __m['src/ui/Exorcism.js'] = (() => {
 
@@ -190185,9 +190043,9 @@ function runExorcism(o) {
   const end1 = (ok) => { if (ended) return; ended = true; phase = 'done'; rs.set(0, 0); cleanup(); el.remove(); o.onDone?.(ok); };
   const go = (p) => { phase = p; ph0 = clock; };
   /** a word of the spirits', said somewhere across the dark (heard, never written) */
-  function spite(v) { const w = SPITE[(Math.random() * SPITE.length) | 0]; snd.voice(w, { f0: 60 + Math.random() * 150, rate: 0.75 + Math.random() * 0.8, gain: 0.2 + v * 0.4, ring: 25 + Math.random() * 80, dist: 0.5 + Math.random() * 0.5, pan: Math.random() * 2 - 1, say: Math.random() < 0.25 }); }
+  function spite(v) { const w = SPITE[(Math.random() * SPITE.length) | 0]; (snd.mob || snd.voice)(w, { n: 2 + ((Math.random() * 2 + v * 2) | 0), urgent: v > 0.35, f0: 60 + Math.random() * 150, rate: 0.75 + Math.random() * 0.8, gain: 0.2 + v * 0.4, ring: 25 + Math.random() * 80, dist: 0.5 + Math.random() * 0.5, pan: Math.random() * 2 - 1, say: Math.random() < 0.25 }); }
   /** one of them torn out of it: a scream, blood, the rats */
-  function tear() { o.onSpirit?.(out); out++; snd.voice('AAAAAH', { f0: 220, rate: 0.6, gain: 0.5, ring: 90, dist: 1, pan: Math.random() * 2 - 1 }); snd.splat(0.6); splash(2, 0.8); }
+  function tear() { o.onSpirit?.(out); out++; snd.voice('AAAAAAAAH', { kind: 'shriek', urgent: true, f0: 160, rate: 0.6, gain: 0.6, ring: 90, dist: 1, pan: Math.random() * 2 - 1 }); snd.voice('NNNOOOOOO', { kind: 'choir', urgent: true, f0: 90, rate: 0.7, gain: 0.45, dist: 1, pan: Math.random() * 2 - 1, delay: 0.1 }); snd.splat(0.6); splash(2, 0.8); }
   // SPACE: skipped, whenever - the outcome is what it would have been
   const kd = (e) => { e.stopPropagation(); if (e.code === 'Space' && !e.repeat) { e.preventDefault(); end1(win); } };
   window.addEventListener('keydown', kd, true);
@@ -190293,43 +190151,72 @@ function afterSound(audio) {
   const loops = new Set(), noise = () => { const s = ctx.createBufferSource(); s.buffer = nb; s.loop = true; s.loopStart = Math.random(); loops.add(s); s.onended = () => loops.delete(s); return s; };
   let alive = true;
 
-  /** a robotic voice speaking the shape of text -> its length (s). o: f0, rate, gain, pan (-1..1), ring (Hz), dist (0..1), say */
+  /**
+   * A robotic voice speaking the shape of text -> its length (s). o: f0, rate, gain, pan (-1..1) or pos (a point round you),
+   * ring (Hz), dist (0..1), say, delay, and:
+   *   kind - which machine it is:  'grind' (a throat ring-modulated into metal, the default) | 'buzz' (a square wave
+   *          crushed to a few steps, ringing high - a broken intercom) | 'whisper' (breath through the vowels, no pitch,
+   *          gated - a voice made of static) | 'choir' (three throats a quarter-tone apart and an octave down - many
+   *          mouths at once) | 'glitch' (every syllable stuttered, jumping pitch - a recording skipping) | 'shriek' (high,
+   *          tearing, the vibrato wide);
+   *   urgent - faster, louder, the pitch climbing through the line instead of falling (panic), the attacks hard.
+   */
+  const KINDS = ['grind', 'buzz', 'whisper', 'choir', 'glitch', 'shriek'];
   function voice(text, o = {}) {
     if (!alive) return 0;
-    const t0 = T() + (o.delay || 0), rate = o.rate || 1, f0 = o.f0 || 110, str = String(text || '');
+    const kind = o.kind === 'any' ? KINDS[(Math.random() * KINDS.length) | 0] : (o.kind || 'grind'), urg = !!o.urgent;
+    const t0 = T() + (o.delay || 0), rate = (o.rate || 1) * (urg ? 1.45 : 1) * (kind === 'glitch' ? 0.9 : 1), f0 = (o.f0 || 110) * (kind === 'shriek' ? 3.2 : kind === 'buzz' ? 1.4 : 1), str = String(text || '');
     // (the syllables: each vowel group, the consonants before it)
     const syl = []; let cons = 0; for (const m of str.toLowerCase().matchAll(/([^aeiouy]*)([aeiouy]+)/g)) { cons = m[1].replace(/[^a-z]/g, '').length; syl.push({ v: m[2][0], cons, pause: /[.,!?;:-]/.test(m[1]) }); }
     if (!syl.length) syl.push({ v: 'a', cons: 1 });
-    const loud = /!|[A-Z]{3,}/.test(str) ? 1.35 : 1, ask = /\?\s*$/.test(str);
-    const sd = 0.15 / rate, dur = syl.reduce((s, x) => s + sd + (x.pause ? 0.14 / rate : 0), 0) + 0.15;
-    const src = track(ctx.createOscillator(), t0 + dur + 0.1); src.type = 'sawtooth';
-    const sub = track(ctx.createOscillator(), t0 + dur + 0.1); sub.type = 'square'; sub.frequency.value = f0 / 2;
-    const ring = track(ctx.createOscillator(), t0 + dur + 0.1); ring.frequency.value = o.ring ?? 47;
-    const rm = gainAt(0); ring.connect(rm.gain); src.connect(rm); const subG = gainAt(0.25); sub.connect(subG); subG.connect(rm);
-    const dry = gainAt(0.5); src.connect(dry);   // (some of the throat untouched, so it is still a voice)
-    const F = [0, 1, 2].map((k) => { const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = [9, 12, 14][k]; return f; });
-    const fsum = gainAt(1); for (const f of F) { rm.connect(f); dry.connect(f); f.connect(fsum); }
-    const sh = ctx.createWaveShaper(); sh.curve = crush.curve; const pre = gainAt(1 + (o.dist ?? 0.6) * 5); fsum.connect(pre); pre.connect(sh);
+    const loud = (/!|[A-Z]{3,}/.test(str) ? 1.35 : 1) * (urg ? 1.3 : 1), ask = /\?\s*$/.test(str);
+    const sd = 0.15 / rate, dur = syl.reduce((s, x) => s + sd + (x.pause ? 0.14 / rate : 0), 0) + 0.15, end = t0 + dur + 0.1;
+    // the throat(s)
+    const srcs = [], mul = kind === 'choir' ? [1, 1.029, 0.5] : [1];
+    for (const m of mul) { const sx = track(ctx.createOscillator(), end); sx.type = kind === 'buzz' ? 'square' : 'sawtooth'; srcs.push({ o: sx, m }); }
+    const sub = track(ctx.createOscillator(), end); sub.type = 'square'; sub.frequency.value = f0 / 2;
+    const ring = track(ctx.createOscillator(), end); ring.frequency.value = kind === 'buzz' ? 260 + Math.random() * 380 : kind === 'shriek' ? 90 + Math.random() * 60 : (o.ring ?? 47);
+    const rm = gainAt(0); ring.connect(rm.gain); const dry = gainAt(kind === 'buzz' ? 0.2 : 0.5);
+    if (kind === 'whisper') { const n = noise(); n.connect(rm); n.connect(dry); n.start(t0); n.stop(end); }   // (no pitch: breath, made to speak)
+    else { for (const x of srcs) { x.o.connect(rm); x.o.connect(dry); } const subG = gainAt(kind === 'shriek' ? 0 : 0.25); sub.connect(subG); subG.connect(rm); }
+    // (the shriek's wide vibrato)
+    if (kind === 'shriek') { const vb = track(ctx.createOscillator(), end), vg = gainAt(f0 * 0.06); vb.frequency.value = 7 + Math.random() * 4; vb.connect(vg); for (const x of srcs) vg.connect(x.o.frequency); vb.start(t0); }
+    const F = [0, 1, 2].map((k) => { const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = (kind === 'whisper' ? [5, 7, 9] : [9, 12, 14])[k]; return f; });
+    const fsum = gainAt(kind === 'whisper' ? 3 : 1); for (const f of F) { rm.connect(f); dry.connect(f); f.connect(fsum); }
+    const sh = ctx.createWaveShaper(); sh.curve = crush.curve; const pre = gainAt(1 + (o.dist ?? 0.6) * (kind === 'buzz' ? 9 : 5)); fsum.connect(pre); pre.connect(sh);
     const env = gainAt(0), pan = o.pos ? p3(o.pos) : ctx.createStereoPanner(); if (!o.pos) pan.pan.value = Math.max(-1, Math.min(1, o.pan || 0));   // (o.pos: there, in the space round you)
-    const out = gainAt((o.gain ?? 0.5) * loud * 0.6); sh.connect(env); env.connect(out); out.connect(pan); pan.connect(bus);
+    const out = gainAt((o.gain ?? 0.5) * loud * 0.6 * (kind === 'buzz' ? 0.7 : 1)); sh.connect(env); env.connect(out); out.connect(pan); pan.connect(bus);
     // (the hiss of the consonants)
-    const hs = noise(), hf = ctx.createBiquadFilter(); hf.type = 'highpass'; hf.frequency.value = 3200; const hg = gainAt(0); hs.connect(hf); hf.connect(hg); hg.connect(pan); hs.start(t0); hs.stop(t0 + dur + 0.1);
-    let t = t0; const fp = src.frequency; fp.setValueAtTime(f0, t0);
+    const hs = noise(), hf = ctx.createBiquadFilter(); hf.type = 'highpass'; hf.frequency.value = 3200; const hg = gainAt(0); hs.connect(hf); hf.connect(hg); hg.connect(pan); hs.start(t0); hs.stop(end);
+    let t = t0; for (const x of srcs) x.o.frequency.setValueAtTime(f0 * x.m, t0);
     syl.forEach((s, i) => {
       if (s.pause) { env.gain.setTargetAtTime(0, t, 0.02); t += 0.14 / rate; }
       const V = VOW[s.v] || VOW.a, j = 1 + (Math.random() - 0.5) * 0.12;
-      if (s.cons) { hg.gain.setValueAtTime(0, t); hg.gain.linearRampToValueAtTime(0.05 * Math.min(3, s.cons) * (o.gain ?? 0.5), t + 0.012); hg.gain.linearRampToValueAtTime(0, t + 0.05); }
+      if (s.cons) { hg.gain.setValueAtTime(0, t); hg.gain.linearRampToValueAtTime(0.05 * Math.min(3, s.cons) * (o.gain ?? 0.5) * (urg ? 1.6 : 1), t + 0.012); hg.gain.linearRampToValueAtTime(0, t + 0.05); }
       F.forEach((f, k) => f.frequency.setTargetAtTime(V[k] * j, t, 0.025));
-      // (the pitch: falling through a sentence, rising at a question, a wobble on every syllable)
-      const k = i / Math.max(1, syl.length - 1), p = f0 * (ask ? 0.95 + k * 0.4 : 1.12 - k * 0.3) * (1 + (Math.random() - 0.5) * 0.14);
-      fp.setTargetAtTime(p, t, 0.03); sub.frequency.setTargetAtTime(p / 2, t, 0.03);
-      env.gain.setTargetAtTime(1, t + (s.cons ? 0.03 : 0), 0.015); env.gain.setTargetAtTime(0.25, t + sd * 0.7, 0.03);
+      // (the pitch: calm - falling through a sentence, rising at a question; urgent - climbing all the way, panicking;
+      //  glitch - jumping about between syllables)
+      const k = i / Math.max(1, syl.length - 1);
+      let p = f0 * (urg ? 0.92 + k * 0.6 : ask ? 0.95 + k * 0.4 : 1.12 - k * 0.3) * (1 + (Math.random() - 0.5) * (urg ? 0.22 : 0.14));
+      if (kind === 'glitch') p *= Math.pow(2, ((Math.random() * 10) | 0) / 12 - 0.4);
+      for (const x of srcs) x.o.frequency.setTargetAtTime(p * x.m, t, urg ? 0.015 : 0.03); sub.frequency.setTargetAtTime(p / 2, t, 0.03);
+      if (kind === 'glitch') { const n = 2 + ((Math.random() * 3) | 0), w = sd / (n * 2); for (let q = 0; q < n; q++) { env.gain.setValueAtTime(1, t + q * 2 * w); env.gain.setValueAtTime(0, t + q * 2 * w + w); } }   // (the syllable skipping, over and over)
+      else { env.gain.setTargetAtTime(1, t + (s.cons ? 0.03 : 0), urg ? 0.006 : 0.015); env.gain.setTargetAtTime(urg ? 0.55 : 0.25, t + sd * 0.7, 0.03); }
       t += sd;
     });
     env.gain.setTargetAtTime(0, t, 0.05);
-    src.start(t0); sub.start(t0); ring.start(t0);
+    for (const x of srcs) x.o.start(t0); sub.start(t0); ring.start(t0);
     if (o.say) speak(str, o);
     return dur + (o.delay || 0);
+  }
+  /**
+   * The same line, said by several of them at once, over each other - a little apart, in different machines, at
+   * different pitches, from different places -> its length. o as voice(); o.n how many (default 3).
+   */
+  function mob(text, o = {}) {
+    let L = 0; const n = o.n || 3;
+    for (let k = 0; k < n; k++) L = Math.max(L, voice(text, { ...o, kind: o.kinds ? o.kinds[k % o.kinds.length] : 'any', f0: (o.f0 || 110) * (0.75 + Math.random() * 0.6), delay: (o.delay || 0) + k * (0.05 + Math.random() * 0.12), pan: o.pos ? undefined : Math.random() * 2 - 1, gain: (o.gain ?? 0.5) * (k ? 0.65 : 1), say: !k && o.say }));
+    return L;
   }
   /** the browser's own voice, pitched right down, under the robot (one at a time; none if muted) */
   function speak(str, o) {
@@ -190392,6 +190279,7 @@ function afterSound(audio) {
   /** each frame: the chant's pulse, the machine's sweeps and stutters, the odd clang - by how loud they are now */
   function tick(dt) {
     if (!alive) return;
+    for (const C of choirs) { if (C.frozen) continue; C.t += dt; if (C.t > 7.5) { C.t = 0; C.k = (C.k + 1) % C.PROG.length; C.retune(); } }   // (the next chord, every few breaths)
     for (const Rr of risers) { Rr.ph = (Rr.ph + Rr.dir * Rr.speed * dt + Rr.N) % Rr.N; const t = T();
       Rr.os.forEach((x, i) => { const oct = (Rr.ph + i) % Rr.N, hz = 32 * Math.pow(2, oct), a = Math.exp(-Math.pow((oct - Rr.N / 2) / 1.3, 2)); x.o.frequency.setTargetAtTime(hz, t, 0.03); x.og.gain.setTargetAtTime(a, t, 0.03); }); }
     if (ch && ch.v > 0.01) {
@@ -190527,6 +190415,35 @@ function afterSound(audio) {
     const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 900 + Math.random() * 900; bp.Q.value = 9; const e = gainAt(0); e.gain.setValueAtTime(0, t); e.gain.linearRampToValueAtTime(gain, t + 0.05); e.gain.setValueAtTime(gain, t + d - 0.08); e.gain.linearRampToValueAtTime(0, t + d);
     o.connect(lg); lg.connect(bp); bp.connect(e); e.connect(out); o.start(t); lfo.start(t);
   }
+  /**
+   * THE CHOIR of Heaven: six voices singing 'ah' - each a soft throat through two vowel formants, a slow vibrato, a breath
+   * of swell of its own - moving gently through a long progression (I - vi - IV - V - I - iii - IV - V), every chord
+   * sliding into the next. -> { set(level), freeze(on) (one chord held, unchanging, forever), sour(k) (the voices drifting
+   * off their notes, out of tune with each other), stop() }
+   */
+  const choirs = [];
+  function angels() {
+    if (!alive) return { set() {}, freeze() {}, sour() {}, stop() {} };
+    const PROG = [[48, 55, 60, 64, 67, 72], [45, 52, 57, 60, 64, 69], [41, 53, 57, 60, 65, 69], [43, 55, 59, 62, 67, 71], [48, 55, 60, 64, 67, 76], [40, 52, 55, 59, 64, 67], [41, 48, 57, 60, 65, 72], [43, 50, 59, 62, 67, 74]];
+    const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12), g = gainAt(0); g.connect(amb);
+    const V = PROG[0].map((m, i) => {
+      const o = ctx.createOscillator(), o2 = ctx.createOscillator(); o.type = 'sawtooth'; o2.type = 'sine'; o.frequency.value = o2.frequency.value = mtof(m);
+      const vib = ctx.createOscillator(), vg = gainAt(mtof(m) * 0.006); vib.frequency.value = 4.6 + Math.random() * 0.8; vib.connect(vg); vg.connect(o.frequency); vg.connect(o2.frequency);
+      const f1 = ctx.createBiquadFilter(), f2 = ctx.createBiquadFilter(), f3 = ctx.createBiquadFilter(); f1.type = f2.type = f3.type = 'bandpass'; f1.frequency.value = 730; f2.frequency.value = 1090; f3.frequency.value = 2440; f1.Q.value = 7; f2.Q.value = 9; f3.Q.value = 12;
+      const sw = gainAt(0.6), lfo = ctx.createOscillator(), lg = gainAt(0.35); lfo.frequency.value = 0.08 + Math.random() * 0.07; lfo.connect(lg); lg.connect(sw.gain);   // (each voice breathing on its own)
+      const mix = gainAt(i < 2 ? 0.55 : 0.4), pan = ctx.createStereoPanner(); pan.pan.value = (i / 5) * 1.4 - 0.7;
+      o.connect(f1); o.connect(f2); o.connect(f3); const sg = gainAt(0.5); o2.connect(sg); sg.connect(sw); f1.connect(sw); f2.connect(sw); const f3g = gainAt(0.4); f3.connect(f3g); f3g.connect(sw);
+      sw.connect(mix); mix.connect(pan); pan.connect(g); for (const x of [o, o2, vib, lfo]) x.start();
+      return { o, o2, vg, m, stops: [o, o2, vib, lfo], off: (Math.random() - 0.5) * 2 };
+    });
+    const C = { g, V, k: 0, t: 0, frozen: false, sourK: 0, PROG, mtof,
+      set(level) { g.gain.setTargetAtTime(level * 0.14, T(), 1.2); },
+      freeze(on) { C.frozen = !!on; },
+      sour(k) { C.sourK = k; C.retune(); },
+      retune() { const t = T(); C.V.forEach((v, i) => { const hz = C.mtof(C.PROG[C.k][i] + v.off * C.sourK * 0.9); v.o.frequency.setTargetAtTime(hz, t, C.frozen ? 0.8 : 1.6); v.o2.frequency.setTargetAtTime(hz, t, C.frozen ? 0.8 : 1.6); }); },
+      stop() { const t = T(); g.gain.setTargetAtTime(0, t, 0.05); setTimeout(() => { for (const v of C.V) for (const x of v.stops) { try { x.stop(); } catch (e) { /* stopped */ } } }, 600); } };
+    choirs.push(C); return C;
+  }
   /** a heartbeat - weak (two thumps) */
   function heart(gain = 0.5) {
     const t = T(); for (const [d, g] of [[0, 1], [0.22, 0.6]]) { const o = track(ctx.createOscillator(), t + d + 0.3); o.frequency.setValueAtTime(62, t + d); o.frequency.exponentialRampToValueAtTime(34, t + d + 0.22);
@@ -190554,9 +190471,9 @@ function afterSound(audio) {
   function stop(s = 1) {
     if (!alive) return; alive = false; const t = T(); bus.gain.setTargetAtTime(0, t, s / 4); loud.gain.setTargetAtTime(0, t, s / 4);
     try { window.speechSynthesis?.cancel(); } catch (e) { /* none */ }
-    setTimeout(() => { for (const Rr of risers) Rr.stop(); for (const o of [...oscs, ...loops, ...(droneN?.os || [])]) { try { o.stop(); } catch (e) { /* stopped */ } } try { bus.disconnect(); comp.disconnect(); } catch (e) { /* gone */ } }, s * 1000 + 200);
+    setTimeout(() => { for (const Rr of risers) Rr.stop(); for (const C of choirs) C.stop(); for (const o of [...oscs, ...loops, ...(droneN?.os || [])]) { try { o.stop(); } catch (e) { /* stopped */ } } try { bus.disconnect(); comp.disconnect(); } catch (e) { /* gone */ } }, s * 1000 + 200);
   }
-  return { live: true, voice, drone, chant, machine, clang, tick, heart, breath, fizzle, stop, squeak, click, splat, shriek, hum, stinger, rattle, screech, tone, listen, space, duck, suck, riser, step, creak, mute: (m) => bus.gain.setTargetAtTime(m ? 0 : 1, T(), 0.05) };
+  return { live: true, voice, drone, chant, machine, clang, tick, heart, breath, fizzle, stop, squeak, click, splat, shriek, hum, stinger, rattle, screech, tone, angels, mob, listen, space, duck, suck, riser, step, creak, mute: (m) => bus.gain.setTargetAtTime(m ? 0 : 1, T(), 0.05) };
 }
 
 return { afterSound };
@@ -191088,7 +191005,7 @@ const { afterSound } = __m['src/audio/AfterSound.js'];
 const { stalker, rats, gore, doll, monsterHead, faceCanvas } = __m['src/ui/HellLife.js'];
 const { heavenDecor } = __m['src/ui/HeavenLife.js'];
 const { hellEchoes, spite, headlines } = __m['src/career/Echoes.js'];
-// The afterlife (the driver career: your driver killed, mourned, weighed - ui/Reckoning.js - and sent on). A 3D place
+// The afterlife (the driver career: your driver killed, mourned, weighed - career/Conscience.js judge, never shown - and sent on). A 3D place
 // you walk in as the spirit you are now: HEAVEN - a floor of cloud under a sky of white gold, a marble way through it,
 // pillars of light, motes drifting up, golden gates standing open at its end - or HELL - black rock split by rivers of
 // lava, spires with red-hot tips, flames along the cracks, embers rising into a sky of smoke and blood. Your spirit: a
@@ -191285,7 +191202,10 @@ function showAfterlife(o) {
   const snd = afterSound(o.audio), echoes = heaven ? [] : hellEchoes({ bad: o.bad, name: o.name, mate: o.mate }), lines = [];
   // (the sound of the place: Hell a cave - everything in it ringing back off rock you cannot see; the false Heaven a hall.
   //  And under it, the tension: a tone that rises and rises and never arrives - louder the nearer one of them is, unseen)
-  snd.space(heaven ? (fake ? 0.25 : 0) : 0.55); const tension = !heaven || fake ? snd.riser(1) : null;
+  snd.space(heaven ? (fake ? 0.32 : 0.4) : 0.55); const tension = !heaven || fake ? snd.riser(1) : null;
+  // (Heaven's choir, in a cathedral's air: in the real one moving gently from chord to chord; in the false one one chord
+  //  held, perfect, forever - and going out of tune as the faces come)
+  const choir = heaven ? snd.angels() : null; if (choir) { choir.set(fake ? 0.8 : 1); choir.freeze(fake); }
   let echoAt = 3.6, echoK = 0;
   if (!heaven) snd.drone(0.95);
   const papers = [];
@@ -191356,8 +191276,14 @@ function showAfterlife(o) {
     X.forEach(([who, line], i) => {
       const you = who === 'you', p = base.clone().add(new THREE.Vector3((Math.random() - 0.5) * 4, (Math.random() - 0.5) * 1.2, (Math.random() - 0.5) * 4));
       cam.getWorldDirection(right); right.cross(cam.up).normalize(); const rel = p.clone().sub(cam.position), dist = rel.length(), pan = Math.max(-1, Math.min(1, rel.normalize().dot(right) * 1.3));
-      const said = snd.voice(line, { f0: you ? 92 : f0, rate: you ? 0.95 : 1.05, ring: you ? 63 : 34, dist: you ? 0.9 : 0.65, gain: 0.55 * Math.min(1.2, 9 / Math.max(4, dist)), pan, delay: at, say: i === 0 }) ; const len = typeof said === 'number' && said > 0 ? said : 0.4 + line.length * 0.055;
-      at += Math.max(0.5, len - 0.25);   // (they talk over each other: an argument)
+      // (urgent, all of it: theirs shouted by several machines at once, over each other; yours a recording skipping,
+      //  panicking; the next line coming in before the last is done - and now and then a scream torn through the middle)
+      const g0 = 0.6 * Math.min(1.3, 9 / Math.max(4, dist));
+      const said = you ? snd.voice(line, { kind: 'glitch', urgent: true, f0: 120, ring: 63, dist: 0.9, gain: g0, pos: p, delay: at, say: i === 0 })
+        : snd.mob(line, { n: 2 + ((Math.random() * 2) | 0), urgent: true, f0, dist: 0.75, gain: g0, pos: p, delay: at, say: i === 0 });
+      const len = typeof said === 'number' && said > 0 ? said : 0.4 + line.length * 0.055;
+      if (Math.random() < 0.35) snd.voice('AAAAAAH', { kind: Math.random() < 0.5 ? 'shriek' : 'buzz', urgent: true, f0: 160 + Math.random() * 120, gain: g0 * 0.8, pos: base, delay: at + len * 0.5 });
+      at += Math.max(0.3, len * 0.45);   // (talking over each other, frantic)
     });
     return at + 3 + Math.random() * 4;
   }
@@ -191404,7 +191330,7 @@ function showAfterlife(o) {
   let tries = 0;
   function enter(p) {
     tries++; exo.mon = null; exo.punch = 0; exo.lunge = null; exo.spin = null; exo.last = null; appear = null; black = 0;
-    exo.v = 0; exo.phase = 'still'; exo.u = 0; for (const h of hums) h.set(0, 0); bleed(p); exo.held = gather(p);
+    exo.v = 0; exo.phase = 'still'; exo.u = 0; for (const h of hums) h.set(0, 0); choir?.set(0.12);   // (the choir drawn far back while it is done) bleed(p); exo.held = gather(p);
     for (const x of p.frame) x.visible = false;   // (the ring of light, the swirl, the name gone: nothing between you and the body)
     if (heaven && !p.rats) { p.rats = rats(36, { packs: 2, r: 7 }); p.rats.mesh.position.set(p.G.position.x, 0, p.G.position.z); sc.add(p.rats.mesh); }
     mode = 'exorcism'; keys.clear(); near.classList.remove('in'); hint.style.opacity = '0'; el.classList.add('exo'); me.visible = false; for (const s of trail) s.visible = false;
@@ -191425,7 +191351,7 @@ function showAfterlife(o) {
         if (ok) { fade.classList.add('in'); setTimeout(() => finish(p.cand.id), 900); return; }
         for (const w of p.wisps) w.userData.gone = null;
         exo.v = 0; exo.phase = 'still'; p.doll.reset(); p.doll.G.position.set(0, 0.75, 0.3); exo.lunge = null; if (exo.mon) { sc.remove(exo.mon.G); exo.mon.dispose(); exo.mon = null; } echoAt = 2.5;
-        for (const x of p.frame) x.visible = true;
+        for (const x of p.frame) x.visible = true; choir?.set(1);
         for (const m of ST) { if (m.held) { m.held = false; m.trip = null; m.reach = 0; m.G.scale.setScalar(1); m.G.visible = true; m.inside = false; } }
         mode = 'walk'; hint.style.opacity = '1'; el.classList.remove('exo'); me.visible = true; for (const s of trail) s.visible = true; me.position.set(0, 1.4, 4); heading = Math.PI; setHint();
       } });
@@ -191611,7 +191537,7 @@ function showAfterlife(o) {
     // (a face on the screen, for a frame)
     subAt -= dt; if (subAt <= 0) { subliminal(Math.random() < 0.5 ? 60 : 110); if (Math.random() < 0.4) snd.click(0, 0.4); subAt = 14 + Math.random() * 14; }
     // (your name, in your ear)
-    earAt -= dt; if (earAt <= 0) { const nm = String(o.name || '').split(' ')[0] || 'you'; snd.voice(`${nm}... ${nm}...`, { f0: 58 + Math.random() * 20, rate: 0.45, gain: 0.32, ring: 26, dist: 0.25, pan: Math.random() < 0.5 ? -1 : 1 }); earAt = 15 + Math.random() * 14; }
+    earAt -= dt; if (earAt <= 0) { const nm = String(o.name || '').split(' ')[0] || 'you'; snd.voice(`${nm}... ${nm}...`, { kind: 'whisper', f0: 58 + Math.random() * 20, rate: 0.45, gain: 0.32, ring: 26, dist: 0.25, pan: Math.random() < 0.5 ? -1 : 1 }); earAt = 15 + Math.random() * 14; }
     // (one of them at the edge of the light ahead, still, facing you - gone the moment you have looked at it)
     if (!appear) { appearAt -= dt; if (appearAt <= 0) { const m = ST.find((x) => !x.held && !x.trip && scare?.m !== x); if (m) { const a = heading + (Math.random() - 0.5) * 0.5; m.G.position.set(me.position.x + Math.sin(a) * 13, 0, me.position.z + Math.cos(a) * 13); appear = { m, seen: 0 }; } appearAt = 20 + Math.random() * 15; } }
     else { const m = appear.m; BX.copy(m.G.position); BX.y = 2.6; if (FR.containsPoint(BX)) appear.seen += dt;
@@ -191632,18 +191558,18 @@ function showAfterlife(o) {
   function fakeTick(dt) {
     const p = Math.max(0, Math.min(1, (4 - me.position.z) / 86));
     for (const f of FF) f.material.opacity += ((f.userData.k < Math.pow(p, 1.25) * 1.05 ? 0.6 : 0) - f.material.opacity) * Math.min(1, dt * 0.8);
-    tone.set(0.035 + p * 0.02, Math.max(0, (p - 0.35) / 0.65)); tension?.set(Math.max(0, (p - 0.4) / 0.6) * 0.55, 0.03 + p * 0.08);
+    tone.set(0.035 + p * 0.02, Math.max(0, (p - 0.35) / 0.65)); choir?.sour(Math.max(0, (p - 0.3) / 0.7)); tension?.set(Math.max(0, (p - 0.4) / 0.6) * 0.55, 0.03 + p * 0.08);
     if (p > 0.55 && Math.random() < dt * 0.4 * p) snd.voice('hhhhhhh', { f0: 50, rate: 0.5, gain: 0.05 * p, ring: 20, dist: 0.2, pan: Math.random() * 2 - 1 });
     if (me.position.z < -82 || t > 90) hush();
   }
   /** at the gates: the hush - the tone gone, dead silence, every face sliding in round you, the gates swinging shut */
   function hush() {
-    if (fall) return; tension?.set(0, 0); snd.duck(1.95); fall = { t0: t, ph: 'hush', arms: [], from: me.position.clone(), out: false, jerk: new THREE.Vector3(), jerkAt: 0 }; mode = 'fall'; keys.clear(); hint.classList.add('gone'); tone.stop();
+    if (fall) return; tension?.set(0, 0); snd.duck(1.95); choir?.stop();   // (the choir cut off mid-note) fall = { t0: t, ph: 'hush', arms: [], from: me.position.clone(), out: false, jerk: new THREE.Vector3(), jerkAt: 0 }; mode = 'fall'; keys.clear(); hint.classList.add('gone'); tone.stop();
     FF.forEach((f, i) => { const a = (i / FF.length) * Math.PI * 2, r = 5.5 + (i % 3) * 1.4; f.userData.ring = new THREE.Vector3(me.position.x + Math.sin(a) * r, 0.9 + (i % 5) * 0.55, me.position.z + Math.cos(a) * r); });
   }
   /** then: arms out of the floor all round you, and a face up out of it in front of yours */
   function grab() {
-    const F = fall; F.ph = 'grab'; F.tg = t; snd.stinger(1.25); snd.shriek(0.95); snd.voice('NOOOOOOOOO', { f0: 150, rate: 0.45, gain: 0.55, ring: 70, dist: 0.8 }); el.classList.add('hell'); glitch();
+    const F = fall; F.ph = 'grab'; F.tg = t; snd.stinger(1.25); snd.shriek(0.95); snd.mob('NOOOOOOOOO', { n: 3, urgent: true, f0: 150, rate: 0.6, gain: 0.6, ring: 70, dist: 0.8 }); el.classList.add('hell'); glitch();
     const sx = el.querySelector('.al-scare'); sx.classList.remove('on'); void sx.offsetWidth; sx.classList.add('on');
     const skin = new THREE.MeshStandardMaterial({ color: 0x050203, roughness: 0.8, emissive: 0x2a0000, emissiveIntensity: 0.6 });
     for (let k = 0; k < 22; k++) {
@@ -191699,9 +191625,9 @@ function showAfterlife(o) {
     let down = 0;
     if (g2 < 3.2) {
       // the wrestle: yanked, again and again, every way
-      if (t > F.jerkAt) { F.jerk.set(j() * 1.5, j() * 0.7, j() * 1.5); F.jerkAt = t + 0.1 + Math.random() * 0.12; snd.rattle(0.45, 0.14); if (Math.random() < 0.45) { const sx = el.querySelector('.al-scare'); sx.classList.remove('on'); void sx.offsetWidth; sx.classList.add('on'); } if (Math.random() < 0.6) snd.voice(['GET DOWN', 'MINE', 'DOWN', 'NO', 'LIAR', 'COME'][(Math.random() * 6) | 0], { f0: 60 + Math.random() * 120, rate: 1.2, gain: 0.45, ring: 40, dist: 1, pan: j() }); }
+      if (t > F.jerkAt) { F.jerk.set(j() * 1.5, j() * 0.7, j() * 1.5); F.jerkAt = t + 0.1 + Math.random() * 0.12; snd.rattle(0.45, 0.14); if (Math.random() < 0.45) { const sx = el.querySelector('.al-scare'); sx.classList.remove('on'); void sx.offsetWidth; sx.classList.add('on'); } if (Math.random() < 0.6) snd.mob(['GET DOWN', 'MINE', 'DOWN', 'NO', 'LIAR', 'COME', 'NOW', 'HOLD HIM'][(Math.random() * 8) | 0], { n: 3, urgent: true, f0: 60 + Math.random() * 120, rate: 1.2, gain: 0.45, ring: 40, dist: 1, pan: j() }); }
       me.position.lerp(new THREE.Vector3(F.from.x + F.jerk.x, 1.4 + F.jerk.y, F.from.z + F.jerk.z), Math.min(1, dt * 16));
-      if (g2 > 1.7 && !F.st2) { F.st2 = true; snd.stinger(1.1); const nm = String(o.name || 'you').split(' ')[0].toUpperCase(); snd.voice(`${nm}! ${nm}!`, { f0: 200, rate: 0.7, gain: 0.7, ring: 120, dist: 1 }); glitch(); subliminal(140); }
+      if (g2 > 1.7 && !F.st2) { F.st2 = true; snd.stinger(1.1); const nm = String(o.name || 'you').split(' ')[0].toUpperCase(); snd.mob(`${nm}! ${nm}! ${nm}!`, { n: 4, urgent: true, f0: 200, rate: 0.7, gain: 0.7, ring: 120, dist: 1 }); glitch(); subliminal(140); }
       camPos.set(me.position.x + j() * 0.45, me.position.y + 2.6 + j() * 0.45, me.position.z + 3.6 + j() * 0.3); look.copy(me.position);
     } else {
       // the fall: down the shaft, tumbling, the light above going
@@ -201899,7 +201825,6 @@ const { showMemorial } = __m['src/ui/Memorial.js'];
 const { NewsBroadcast } = __m['src/ui/NewsBroadcast.js'];
 const { openCareer, closeCareer, showMourning, syncLooks } = __m['src/ui/CareerHub.js'];
 const { judge } = __m['src/career/Conscience.js'];
-const { showReckoning } = __m['src/ui/Reckoning.js'];
 const { showAfterlife } = __m['src/ui/Afterlife.js'];
 const Avatar = __m['src/career/Avatar.js'];
 const { showInterview } = __m['src/ui/Interview.js'];
@@ -202015,7 +201940,6 @@ void FAST_MATRIX;
 
 /** a car's engine maker (its sound - audio/EngineWorklet.js): the manager career's own choice for its team, else the team's usual */
 const engineOf = (c) => { const t = c?.team; return (S.mgr && S.mgr.teams?.[t]?.engine) || DEFAULT_SUP[t] || 'ferrari'; };
-
 
 
 
@@ -202986,7 +202910,7 @@ setTimeout(() => { syncSetupUI(); refreshHome(); }, 0);
 // race distance are the only settings (the hub's), the rest is not yours to choose
 // ---------------------------------------------------------------------------
 function openCareerHub() {
-  document.body.classList.remove('f1-dead');
+  document.body.classList.remove('f1-dead'); deathVeil(false);
   restoreSettings();
   // (the title decider's film, if the next round is one: made ready while the hub is up - it starts at once)
   setTimeout(() => { try { const C = S.career, pre = C && careerDecider(C, true); if (pre) prepareScene(pre.scene, pre.ctx); } catch (e) { /* played from scratch */ } }, 1500);
@@ -206303,29 +206227,35 @@ function fated(J) {
   const heaven = FATE.force === 'heaven';
   return { ...J, heaven, sum: heaven ? Math.max(12, J.sum) : Math.min(-12, J.sum), lesson: J.lesson };
 }
+/** black under the whole of a death (from the end of the news until the career is back): nothing of the circuit seen between the scenes, or while the next one loads */
+let deathVeilEl = null;
+function deathVeil(on) {
+  if (on) { if (!deathVeilEl) { deathVeilEl = document.createElement('div'); deathVeilEl.style.cssText = 'position:fixed;inset:0;background:#000;z-index:61;pointer-events:none'; } document.body.appendChild(deathVeilEl); }
+  else deathVeilEl?.remove();
+}
 function afterNews(hurt, then) {
   const C = S.weekend?.career, items = memorialItems(hurt), mine = C && hurt.find((c) => c.careerId && c.careerId === C.playerId && c.fate === 'killed');   // (hurt, not killed: the cards, like anyone)
   if (!C) S.lastLost = (S.lastLost || []).concat(hurt.filter((c) => c.fate === 'killed').map((c) => ({ name: c.name, number: c.number, team: c.team, color: c.color, helmet: c.helmet })));   // (remembered before the next race)
   const others = mine ? items.filter((it) => !it.isPlayer) : items;
   const next = () => { if (!mine) { then(); return; }
     const d = C.drivers[mine.careerId], l = C.lost.find((x) => x.id === d.id) || {};
-    NEWS.results = null; NEWS.abandoned = false; strings(false, { fade: 1.2 }); audio.silence?.(true); $('results').classList.add('hidden');
+    NEWS.results = null; NEWS.abandoned = false; strings(false, { fade: 1.2 }); audio.silence?.(true); $('results').classList.add('hidden'); deathVeil(true);
     audio.play?.('horror', { gain: 1, delay: 0.5 });   // (the strings, as the helmet comes out of the dark - then the silence)
-    // (then the Reckoning - ui/Reckoning.js: the life weighed, Heaven or Hell - and back to the career)
+    // (then the afterlife - Heaven, or what looks like it - and back to the career. Nothing says which before you are in it)
     showMourning({ name: d.name, number: d.number, team: l.team, starts: d.starts, wins: d.wins, podiums: d.podiums }, helmetURL({ name: d.name, helmet: d.helmet, color: l.color, number: d.number }, { blood: true }), () => {
       let J = null; try { J = fated(judge(C)); } catch (e) { J = null; }
       let ended = false;
-      const after = (id) => { audio.silence?.(false); if (!ended) { ended = true; endSession(); S.weekend = null; } if (id) { try { C.becomeDriver(id); C.save(); } catch (e) { console.warn('[afterlife] the new driver', e); } } openCareerHub(); };
+      const after = (id) => { audio.silence?.(false); deathVeil(false); if (!ended) { ended = true; endSession(); S.weekend = null; } if (id) { try { C.becomeDriver(id); C.save(); } catch (e) { console.warn('[afterlife] the new driver', e); } } openCareerHub(); };
       // (then the afterlife - ui/Afterlife.js: Heaven or Hell as a place, the drivers you could become as portals in
       //  it, an exorcism to take one - ui/Exorcism.js - and your career goes on as them)
       const afterlife = () => {
         ended = true; endSession(); S.weekend = null; audio.silence?.(false);
         const team = C.team || {}, cands = (team.none ? [] : C.seatsOf(team.name) || []).filter((x) => x && x.alive && x.id !== d.id)
           .map((x) => ({ id: x.id, name: x.name, number: x.number, team: team.name, color: team.color, color2: team.color2 }));
-        J = fated(J); FATE.force = null; FATE.buf = '';   // (the code, if typed as late as the Reckoning)
+        J = fated(J); FATE.force = null; FATE.buf = '';   // (the code, if typed as late as the candle)
         try { showAfterlife({ heaven: J.heaven, sum: J.sum, name: d.name, good: J.good, bad: J.bad, life: { wins: d.wins, podiums: d.podiums, starts: d.starts }, mate: cands[0]?.name, candidates: cands, audio, onDone: (id) => after(id) }); } catch (e) { console.warn('[afterlife]', e); after(null); }
       };
-      if (J) { audio.silence?.(false); showReckoning(J, d.name, afterlife, { audio }); } else after();
+      if (J) { audio.silence?.(false); afterlife(); } else after();   // (no verdict shown: where you are going is found out there)
     }, { audio, helmet3d: { name: d.name, helmet: d.helmet, color: l.color, number: d.number } });
   };
   if (others.length) { strings(true); showMemorial(others, next, () => audio.beep?.(146.8, 2.4, 0.1)); } else next();

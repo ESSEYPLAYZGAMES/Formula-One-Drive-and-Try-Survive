@@ -36,43 +36,72 @@ export function afterSound(audio) {
   const loops = new Set(), noise = () => { const s = ctx.createBufferSource(); s.buffer = nb; s.loop = true; s.loopStart = Math.random(); loops.add(s); s.onended = () => loops.delete(s); return s; };
   let alive = true;
 
-  /** a robotic voice speaking the shape of text -> its length (s). o: f0, rate, gain, pan (-1..1), ring (Hz), dist (0..1), say */
+  /**
+   * A robotic voice speaking the shape of text -> its length (s). o: f0, rate, gain, pan (-1..1) or pos (a point round you),
+   * ring (Hz), dist (0..1), say, delay, and:
+   *   kind - which machine it is:  'grind' (a throat ring-modulated into metal, the default) | 'buzz' (a square wave
+   *          crushed to a few steps, ringing high - a broken intercom) | 'whisper' (breath through the vowels, no pitch,
+   *          gated - a voice made of static) | 'choir' (three throats a quarter-tone apart and an octave down - many
+   *          mouths at once) | 'glitch' (every syllable stuttered, jumping pitch - a recording skipping) | 'shriek' (high,
+   *          tearing, the vibrato wide);
+   *   urgent - faster, louder, the pitch climbing through the line instead of falling (panic), the attacks hard.
+   */
+  const KINDS = ['grind', 'buzz', 'whisper', 'choir', 'glitch', 'shriek'];
   function voice(text, o = {}) {
     if (!alive) return 0;
-    const t0 = T() + (o.delay || 0), rate = o.rate || 1, f0 = o.f0 || 110, str = String(text || '');
+    const kind = o.kind === 'any' ? KINDS[(Math.random() * KINDS.length) | 0] : (o.kind || 'grind'), urg = !!o.urgent;
+    const t0 = T() + (o.delay || 0), rate = (o.rate || 1) * (urg ? 1.45 : 1) * (kind === 'glitch' ? 0.9 : 1), f0 = (o.f0 || 110) * (kind === 'shriek' ? 3.2 : kind === 'buzz' ? 1.4 : 1), str = String(text || '');
     // (the syllables: each vowel group, the consonants before it)
     const syl = []; let cons = 0; for (const m of str.toLowerCase().matchAll(/([^aeiouy]*)([aeiouy]+)/g)) { cons = m[1].replace(/[^a-z]/g, '').length; syl.push({ v: m[2][0], cons, pause: /[.,!?;:-]/.test(m[1]) }); }
     if (!syl.length) syl.push({ v: 'a', cons: 1 });
-    const loud = /!|[A-Z]{3,}/.test(str) ? 1.35 : 1, ask = /\?\s*$/.test(str);
-    const sd = 0.15 / rate, dur = syl.reduce((s, x) => s + sd + (x.pause ? 0.14 / rate : 0), 0) + 0.15;
-    const src = track(ctx.createOscillator(), t0 + dur + 0.1); src.type = 'sawtooth';
-    const sub = track(ctx.createOscillator(), t0 + dur + 0.1); sub.type = 'square'; sub.frequency.value = f0 / 2;
-    const ring = track(ctx.createOscillator(), t0 + dur + 0.1); ring.frequency.value = o.ring ?? 47;
-    const rm = gainAt(0); ring.connect(rm.gain); src.connect(rm); const subG = gainAt(0.25); sub.connect(subG); subG.connect(rm);
-    const dry = gainAt(0.5); src.connect(dry);   // (some of the throat untouched, so it is still a voice)
-    const F = [0, 1, 2].map((k) => { const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = [9, 12, 14][k]; return f; });
-    const fsum = gainAt(1); for (const f of F) { rm.connect(f); dry.connect(f); f.connect(fsum); }
-    const sh = ctx.createWaveShaper(); sh.curve = crush.curve; const pre = gainAt(1 + (o.dist ?? 0.6) * 5); fsum.connect(pre); pre.connect(sh);
+    const loud = (/!|[A-Z]{3,}/.test(str) ? 1.35 : 1) * (urg ? 1.3 : 1), ask = /\?\s*$/.test(str);
+    const sd = 0.15 / rate, dur = syl.reduce((s, x) => s + sd + (x.pause ? 0.14 / rate : 0), 0) + 0.15, end = t0 + dur + 0.1;
+    // the throat(s)
+    const srcs = [], mul = kind === 'choir' ? [1, 1.029, 0.5] : [1];
+    for (const m of mul) { const sx = track(ctx.createOscillator(), end); sx.type = kind === 'buzz' ? 'square' : 'sawtooth'; srcs.push({ o: sx, m }); }
+    const sub = track(ctx.createOscillator(), end); sub.type = 'square'; sub.frequency.value = f0 / 2;
+    const ring = track(ctx.createOscillator(), end); ring.frequency.value = kind === 'buzz' ? 260 + Math.random() * 380 : kind === 'shriek' ? 90 + Math.random() * 60 : (o.ring ?? 47);
+    const rm = gainAt(0); ring.connect(rm.gain); const dry = gainAt(kind === 'buzz' ? 0.2 : 0.5);
+    if (kind === 'whisper') { const n = noise(); n.connect(rm); n.connect(dry); n.start(t0); n.stop(end); }   // (no pitch: breath, made to speak)
+    else { for (const x of srcs) { x.o.connect(rm); x.o.connect(dry); } const subG = gainAt(kind === 'shriek' ? 0 : 0.25); sub.connect(subG); subG.connect(rm); }
+    // (the shriek's wide vibrato)
+    if (kind === 'shriek') { const vb = track(ctx.createOscillator(), end), vg = gainAt(f0 * 0.06); vb.frequency.value = 7 + Math.random() * 4; vb.connect(vg); for (const x of srcs) vg.connect(x.o.frequency); vb.start(t0); }
+    const F = [0, 1, 2].map((k) => { const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = (kind === 'whisper' ? [5, 7, 9] : [9, 12, 14])[k]; return f; });
+    const fsum = gainAt(kind === 'whisper' ? 3 : 1); for (const f of F) { rm.connect(f); dry.connect(f); f.connect(fsum); }
+    const sh = ctx.createWaveShaper(); sh.curve = crush.curve; const pre = gainAt(1 + (o.dist ?? 0.6) * (kind === 'buzz' ? 9 : 5)); fsum.connect(pre); pre.connect(sh);
     const env = gainAt(0), pan = o.pos ? p3(o.pos) : ctx.createStereoPanner(); if (!o.pos) pan.pan.value = Math.max(-1, Math.min(1, o.pan || 0));   // (o.pos: there, in the space round you)
-    const out = gainAt((o.gain ?? 0.5) * loud * 0.6); sh.connect(env); env.connect(out); out.connect(pan); pan.connect(bus);
+    const out = gainAt((o.gain ?? 0.5) * loud * 0.6 * (kind === 'buzz' ? 0.7 : 1)); sh.connect(env); env.connect(out); out.connect(pan); pan.connect(bus);
     // (the hiss of the consonants)
-    const hs = noise(), hf = ctx.createBiquadFilter(); hf.type = 'highpass'; hf.frequency.value = 3200; const hg = gainAt(0); hs.connect(hf); hf.connect(hg); hg.connect(pan); hs.start(t0); hs.stop(t0 + dur + 0.1);
-    let t = t0; const fp = src.frequency; fp.setValueAtTime(f0, t0);
+    const hs = noise(), hf = ctx.createBiquadFilter(); hf.type = 'highpass'; hf.frequency.value = 3200; const hg = gainAt(0); hs.connect(hf); hf.connect(hg); hg.connect(pan); hs.start(t0); hs.stop(end);
+    let t = t0; for (const x of srcs) x.o.frequency.setValueAtTime(f0 * x.m, t0);
     syl.forEach((s, i) => {
       if (s.pause) { env.gain.setTargetAtTime(0, t, 0.02); t += 0.14 / rate; }
       const V = VOW[s.v] || VOW.a, j = 1 + (Math.random() - 0.5) * 0.12;
-      if (s.cons) { hg.gain.setValueAtTime(0, t); hg.gain.linearRampToValueAtTime(0.05 * Math.min(3, s.cons) * (o.gain ?? 0.5), t + 0.012); hg.gain.linearRampToValueAtTime(0, t + 0.05); }
+      if (s.cons) { hg.gain.setValueAtTime(0, t); hg.gain.linearRampToValueAtTime(0.05 * Math.min(3, s.cons) * (o.gain ?? 0.5) * (urg ? 1.6 : 1), t + 0.012); hg.gain.linearRampToValueAtTime(0, t + 0.05); }
       F.forEach((f, k) => f.frequency.setTargetAtTime(V[k] * j, t, 0.025));
-      // (the pitch: falling through a sentence, rising at a question, a wobble on every syllable)
-      const k = i / Math.max(1, syl.length - 1), p = f0 * (ask ? 0.95 + k * 0.4 : 1.12 - k * 0.3) * (1 + (Math.random() - 0.5) * 0.14);
-      fp.setTargetAtTime(p, t, 0.03); sub.frequency.setTargetAtTime(p / 2, t, 0.03);
-      env.gain.setTargetAtTime(1, t + (s.cons ? 0.03 : 0), 0.015); env.gain.setTargetAtTime(0.25, t + sd * 0.7, 0.03);
+      // (the pitch: calm - falling through a sentence, rising at a question; urgent - climbing all the way, panicking;
+      //  glitch - jumping about between syllables)
+      const k = i / Math.max(1, syl.length - 1);
+      let p = f0 * (urg ? 0.92 + k * 0.6 : ask ? 0.95 + k * 0.4 : 1.12 - k * 0.3) * (1 + (Math.random() - 0.5) * (urg ? 0.22 : 0.14));
+      if (kind === 'glitch') p *= Math.pow(2, ((Math.random() * 10) | 0) / 12 - 0.4);
+      for (const x of srcs) x.o.frequency.setTargetAtTime(p * x.m, t, urg ? 0.015 : 0.03); sub.frequency.setTargetAtTime(p / 2, t, 0.03);
+      if (kind === 'glitch') { const n = 2 + ((Math.random() * 3) | 0), w = sd / (n * 2); for (let q = 0; q < n; q++) { env.gain.setValueAtTime(1, t + q * 2 * w); env.gain.setValueAtTime(0, t + q * 2 * w + w); } }   // (the syllable skipping, over and over)
+      else { env.gain.setTargetAtTime(1, t + (s.cons ? 0.03 : 0), urg ? 0.006 : 0.015); env.gain.setTargetAtTime(urg ? 0.55 : 0.25, t + sd * 0.7, 0.03); }
       t += sd;
     });
     env.gain.setTargetAtTime(0, t, 0.05);
-    src.start(t0); sub.start(t0); ring.start(t0);
+    for (const x of srcs) x.o.start(t0); sub.start(t0); ring.start(t0);
     if (o.say) speak(str, o);
     return dur + (o.delay || 0);
+  }
+  /**
+   * The same line, said by several of them at once, over each other - a little apart, in different machines, at
+   * different pitches, from different places -> its length. o as voice(); o.n how many (default 3).
+   */
+  function mob(text, o = {}) {
+    let L = 0; const n = o.n || 3;
+    for (let k = 0; k < n; k++) L = Math.max(L, voice(text, { ...o, kind: o.kinds ? o.kinds[k % o.kinds.length] : 'any', f0: (o.f0 || 110) * (0.75 + Math.random() * 0.6), delay: (o.delay || 0) + k * (0.05 + Math.random() * 0.12), pan: o.pos ? undefined : Math.random() * 2 - 1, gain: (o.gain ?? 0.5) * (k ? 0.65 : 1), say: !k && o.say }));
+    return L;
   }
   /** the browser's own voice, pitched right down, under the robot (one at a time; none if muted) */
   function speak(str, o) {
@@ -329,5 +358,5 @@ export function afterSound(audio) {
     try { window.speechSynthesis?.cancel(); } catch (e) { /* none */ }
     setTimeout(() => { for (const Rr of risers) Rr.stop(); for (const C of choirs) C.stop(); for (const o of [...oscs, ...loops, ...(droneN?.os || [])]) { try { o.stop(); } catch (e) { /* stopped */ } } try { bus.disconnect(); comp.disconnect(); } catch (e) { /* gone */ } }, s * 1000 + 200);
   }
-  return { live: true, voice, drone, chant, machine, clang, tick, heart, breath, fizzle, stop, squeak, click, splat, shriek, hum, stinger, rattle, screech, tone, angels, listen, space, duck, suck, riser, step, creak, mute: (m) => bus.gain.setTargetAtTime(m ? 0 : 1, T(), 0.05) };
+  return { live: true, voice, drone, chant, machine, clang, tick, heart, breath, fizzle, stop, squeak, click, splat, shriek, hum, stinger, rattle, screech, tone, angels, mob, listen, space, duck, suck, riser, step, creak, mute: (m) => bus.gain.setTargetAtTime(m ? 0 : 1, T(), 0.05) };
 }

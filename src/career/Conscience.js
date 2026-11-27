@@ -1,5 +1,5 @@
 // Your driver's conscience (the driver career): what they did with the life they had, good and bad, kept as it
-// happens - and, if they are killed, weighed (ui/Reckoning.js): Heaven or Hell. A moral compass, felt while you can
+// happens - and, if they are killed, weighed (career/Conscience.js judge - and found out in the afterlife itself): Heaven or Hell. A moral compass, felt while you can
 // still change it (the hub's DRIVER panel: which way the scales lean) and final when you cannot.
 // What counts is what your driver chose to do, on the track and off it (career/PR.js prEvent - every public act of
 // your driver passes through it - and career/Career.js applyRace for a clean race): a day for charity, a donation,

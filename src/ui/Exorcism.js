@@ -69,9 +69,9 @@ export function runExorcism(o) {
   const end1 = (ok) => { if (ended) return; ended = true; phase = 'done'; rs.set(0, 0); cleanup(); el.remove(); o.onDone?.(ok); };
   const go = (p) => { phase = p; ph0 = clock; };
   /** a word of the spirits', said somewhere across the dark (heard, never written) */
-  function spite(v) { const w = SPITE[(Math.random() * SPITE.length) | 0]; snd.voice(w, { f0: 60 + Math.random() * 150, rate: 0.75 + Math.random() * 0.8, gain: 0.2 + v * 0.4, ring: 25 + Math.random() * 80, dist: 0.5 + Math.random() * 0.5, pan: Math.random() * 2 - 1, say: Math.random() < 0.25 }); }
+  function spite(v) { const w = SPITE[(Math.random() * SPITE.length) | 0]; (snd.mob || snd.voice)(w, { n: 2 + ((Math.random() * 2 + v * 2) | 0), urgent: v > 0.35, f0: 60 + Math.random() * 150, rate: 0.75 + Math.random() * 0.8, gain: 0.2 + v * 0.4, ring: 25 + Math.random() * 80, dist: 0.5 + Math.random() * 0.5, pan: Math.random() * 2 - 1, say: Math.random() < 0.25 }); }
   /** one of them torn out of it: a scream, blood, the rats */
-  function tear() { o.onSpirit?.(out); out++; snd.voice('AAAAAH', { f0: 220, rate: 0.6, gain: 0.5, ring: 90, dist: 1, pan: Math.random() * 2 - 1 }); snd.splat(0.6); splash(2, 0.8); }
+  function tear() { o.onSpirit?.(out); out++; snd.voice('AAAAAAAAH', { kind: 'shriek', urgent: true, f0: 160, rate: 0.6, gain: 0.6, ring: 90, dist: 1, pan: Math.random() * 2 - 1 }); snd.voice('NNNOOOOOO', { kind: 'choir', urgent: true, f0: 90, rate: 0.7, gain: 0.45, dist: 1, pan: Math.random() * 2 - 1, delay: 0.1 }); snd.splat(0.6); splash(2, 0.8); }
   // SPACE: skipped, whenever - the outcome is what it would have been
   const kd = (e) => { e.stopPropagation(); if (e.code === 'Space' && !e.repeat) { e.preventDefault(); end1(win); } };
   window.addEventListener('keydown', kd, true);

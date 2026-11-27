@@ -1,4 +1,4 @@
-// The afterlife (the driver career: your driver killed, mourned, weighed - ui/Reckoning.js - and sent on). A 3D place
+// The afterlife (the driver career: your driver killed, mourned, weighed - career/Conscience.js judge, never shown - and sent on). A 3D place
 // you walk in as the spirit you are now: HEAVEN - a floor of cloud under a sky of white gold, a marble way through it,
 // pillars of light, motes drifting up, golden gates standing open at its end - or HELL - black rock split by rivers of
 // lava, spires with red-hot tips, flames along the cracks, embers rising into a sky of smoke and blood. Your spirit: a
@@ -270,8 +270,14 @@ export function showAfterlife(o) {
     X.forEach(([who, line], i) => {
       const you = who === 'you', p = base.clone().add(new THREE.Vector3((Math.random() - 0.5) * 4, (Math.random() - 0.5) * 1.2, (Math.random() - 0.5) * 4));
       cam.getWorldDirection(right); right.cross(cam.up).normalize(); const rel = p.clone().sub(cam.position), dist = rel.length(), pan = Math.max(-1, Math.min(1, rel.normalize().dot(right) * 1.3));
-      const said = snd.voice(line, { f0: you ? 92 : f0, rate: you ? 0.95 : 1.05, ring: you ? 63 : 34, dist: you ? 0.9 : 0.65, gain: 0.55 * Math.min(1.2, 9 / Math.max(4, dist)), pan, delay: at, say: i === 0 }) ; const len = typeof said === 'number' && said > 0 ? said : 0.4 + line.length * 0.055;
-      at += Math.max(0.5, len - 0.25);   // (they talk over each other: an argument)
+      // (urgent, all of it: theirs shouted by several machines at once, over each other; yours a recording skipping,
+      //  panicking; the next line coming in before the last is done - and now and then a scream torn through the middle)
+      const g0 = 0.6 * Math.min(1.3, 9 / Math.max(4, dist));
+      const said = you ? snd.voice(line, { kind: 'glitch', urgent: true, f0: 120, ring: 63, dist: 0.9, gain: g0, pos: p, delay: at, say: i === 0 })
+        : snd.mob(line, { n: 2 + ((Math.random() * 2) | 0), urgent: true, f0, dist: 0.75, gain: g0, pos: p, delay: at, say: i === 0 });
+      const len = typeof said === 'number' && said > 0 ? said : 0.4 + line.length * 0.055;
+      if (Math.random() < 0.35) snd.voice('AAAAAAH', { kind: Math.random() < 0.5 ? 'shriek' : 'buzz', urgent: true, f0: 160 + Math.random() * 120, gain: g0 * 0.8, pos: base, delay: at + len * 0.5 });
+      at += Math.max(0.3, len * 0.45);   // (talking over each other, frantic)
     });
     return at + 3 + Math.random() * 4;
   }
@@ -525,7 +531,7 @@ export function showAfterlife(o) {
     // (a face on the screen, for a frame)
     subAt -= dt; if (subAt <= 0) { subliminal(Math.random() < 0.5 ? 60 : 110); if (Math.random() < 0.4) snd.click(0, 0.4); subAt = 14 + Math.random() * 14; }
     // (your name, in your ear)
-    earAt -= dt; if (earAt <= 0) { const nm = String(o.name || '').split(' ')[0] || 'you'; snd.voice(`${nm}... ${nm}...`, { f0: 58 + Math.random() * 20, rate: 0.45, gain: 0.32, ring: 26, dist: 0.25, pan: Math.random() < 0.5 ? -1 : 1 }); earAt = 15 + Math.random() * 14; }
+    earAt -= dt; if (earAt <= 0) { const nm = String(o.name || '').split(' ')[0] || 'you'; snd.voice(`${nm}... ${nm}...`, { kind: 'whisper', f0: 58 + Math.random() * 20, rate: 0.45, gain: 0.32, ring: 26, dist: 0.25, pan: Math.random() < 0.5 ? -1 : 1 }); earAt = 15 + Math.random() * 14; }
     // (one of them at the edge of the light ahead, still, facing you - gone the moment you have looked at it)
     if (!appear) { appearAt -= dt; if (appearAt <= 0) { const m = ST.find((x) => !x.held && !x.trip && scare?.m !== x); if (m) { const a = heading + (Math.random() - 0.5) * 0.5; m.G.position.set(me.position.x + Math.sin(a) * 13, 0, me.position.z + Math.cos(a) * 13); appear = { m, seen: 0 }; } appearAt = 20 + Math.random() * 15; } }
     else { const m = appear.m; BX.copy(m.G.position); BX.y = 2.6; if (FR.containsPoint(BX)) appear.seen += dt;
@@ -557,7 +563,7 @@ export function showAfterlife(o) {
   }
   /** then: arms out of the floor all round you, and a face up out of it in front of yours */
   function grab() {
-    const F = fall; F.ph = 'grab'; F.tg = t; snd.stinger(1.25); snd.shriek(0.95); snd.voice('NOOOOOOOOO', { f0: 150, rate: 0.45, gain: 0.55, ring: 70, dist: 0.8 }); el.classList.add('hell'); glitch();
+    const F = fall; F.ph = 'grab'; F.tg = t; snd.stinger(1.25); snd.shriek(0.95); snd.mob('NOOOOOOOOO', { n: 3, urgent: true, f0: 150, rate: 0.6, gain: 0.6, ring: 70, dist: 0.8 }); el.classList.add('hell'); glitch();
     const sx = el.querySelector('.al-scare'); sx.classList.remove('on'); void sx.offsetWidth; sx.classList.add('on');
     const skin = new THREE.MeshStandardMaterial({ color: 0x050203, roughness: 0.8, emissive: 0x2a0000, emissiveIntensity: 0.6 });
     for (let k = 0; k < 22; k++) {
@@ -613,9 +619,9 @@ export function showAfterlife(o) {
     let down = 0;
     if (g2 < 3.2) {
       // the wrestle: yanked, again and again, every way
-      if (t > F.jerkAt) { F.jerk.set(j() * 1.5, j() * 0.7, j() * 1.5); F.jerkAt = t + 0.1 + Math.random() * 0.12; snd.rattle(0.45, 0.14); if (Math.random() < 0.45) { const sx = el.querySelector('.al-scare'); sx.classList.remove('on'); void sx.offsetWidth; sx.classList.add('on'); } if (Math.random() < 0.6) snd.voice(['GET DOWN', 'MINE', 'DOWN', 'NO', 'LIAR', 'COME'][(Math.random() * 6) | 0], { f0: 60 + Math.random() * 120, rate: 1.2, gain: 0.45, ring: 40, dist: 1, pan: j() }); }
+      if (t > F.jerkAt) { F.jerk.set(j() * 1.5, j() * 0.7, j() * 1.5); F.jerkAt = t + 0.1 + Math.random() * 0.12; snd.rattle(0.45, 0.14); if (Math.random() < 0.45) { const sx = el.querySelector('.al-scare'); sx.classList.remove('on'); void sx.offsetWidth; sx.classList.add('on'); } if (Math.random() < 0.6) snd.mob(['GET DOWN', 'MINE', 'DOWN', 'NO', 'LIAR', 'COME', 'NOW', 'HOLD HIM'][(Math.random() * 8) | 0], { n: 3, urgent: true, f0: 60 + Math.random() * 120, rate: 1.2, gain: 0.45, ring: 40, dist: 1, pan: j() }); }
       me.position.lerp(new THREE.Vector3(F.from.x + F.jerk.x, 1.4 + F.jerk.y, F.from.z + F.jerk.z), Math.min(1, dt * 16));
-      if (g2 > 1.7 && !F.st2) { F.st2 = true; snd.stinger(1.1); const nm = String(o.name || 'you').split(' ')[0].toUpperCase(); snd.voice(`${nm}! ${nm}!`, { f0: 200, rate: 0.7, gain: 0.7, ring: 120, dist: 1 }); glitch(); subliminal(140); }
+      if (g2 > 1.7 && !F.st2) { F.st2 = true; snd.stinger(1.1); const nm = String(o.name || 'you').split(' ')[0].toUpperCase(); snd.mob(`${nm}! ${nm}! ${nm}!`, { n: 4, urgent: true, f0: 200, rate: 0.7, gain: 0.7, ring: 120, dist: 1 }); glitch(); subliminal(140); }
       camPos.set(me.position.x + j() * 0.45, me.position.y + 2.6 + j() * 0.45, me.position.z + 3.6 + j() * 0.3); look.copy(me.position);
     } else {
       // the fall: down the shaft, tumbling, the light above going
