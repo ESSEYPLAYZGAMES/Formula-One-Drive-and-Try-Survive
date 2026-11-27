@@ -21,6 +21,7 @@ import * as THREE from 'three';
 import { runExorcism } from './Exorcism.js';
 import { afterSound } from '../audio/AfterSound.js';
 import { stalker, rats, gore, doll, monsterHead, faceCanvas } from './HellLife.js';
+import { heavenDecor } from './HeavenLife.js';
 import { hellEchoes, spite, headlines } from '../career/Echoes.js';
 
 const CSS = `
@@ -155,7 +156,7 @@ export function showAfterlife(o) {
   if (!R) { setTimeout(() => finish(o.candidates?.[0]?.id ?? null), 1200); return; }   // (no WebGL: straight on)
   R.setPixelRatio(Math.min(2, devicePixelRatio || 1)); R.toneMapping = THREE.ACESFilmicToneMapping; R.outputColorSpace = THREE.SRGBColorSpace;
   const sc = new THREE.Scene(), cam = new THREE.PerspectiveCamera(62, 1, 0.1, 900);
-  sc.fog = heaven ? new THREE.Fog(0xfff3dc, 40, 190) : new THREE.Fog(0x160302, 6, 68);
+  sc.fog = heaven ? new THREE.Fog(0xfff3dc, 40, 190) : new THREE.Fog(0x120202, 4, 52);
   // (Hell: the portals somewhere in the dark, spread round you - not ahead of you, not at the end of anything)
   const C = o.candidates || [], a0 = Math.random() * Math.PI * 2;
   const spots = heaven ? null : C.map((c, i) => { const a = a0 + i * (Math.PI * 2 / Math.max(2, C.length)) + (Math.random() - 0.5) * 0.8, r = 34 + Math.random() * 18; return [Math.sin(a) * r, Math.cos(a) * r]; });
@@ -166,7 +167,7 @@ export function showAfterlife(o) {
   const sky = heaven ? skyDome('#fff6dc', '#ffe3a8', '#ffffff') : skyDome('#0a0204', '#5a0c06', '#120202'); sc.add(sky);
   const hemi = new THREE.HemisphereLight(heaven ? 0xfff8e8 : 0xff6a3a, heaven ? 0xd8c8a0 : 0x200404, heaven ? 1.6 : 0.9); sc.add(hemi);
   const sun = new THREE.DirectionalLight(heaven ? 0xfff0c8 : 0xff4a1a, heaven ? 2.2 : 1.2); sun.position.set(-30, 60, -40); sc.add(sun);
-  const dyn = [];   // (what moves: { obj, f(t, dt) })
+  const dyn = [], doors = [];   // (what moves: { obj, f(t, dt) }; Heaven's gates)
   const tex = heaven ? softTex('rgba(255,255,255,.95)') : softTex('rgba(255,140,40,1)', 'rgba(255,40,0,0)');
   if (heaven) {
     // the cloud floor: great soft puffs, drifting; the marble way through them; pillars of light; the gates; motes
@@ -179,7 +180,8 @@ export function showAfterlife(o) {
     const gold = new THREE.MeshStandardMaterial({ color: 0xd9b24a, metalness: 0.9, roughness: 0.25, emissive: 0x6a4a10, emissiveIntensity: 0.5 });
     for (const sx of [-1, 1]) { const arch = new THREE.Mesh(new THREE.TorusGeometry(7, 0.35, 12, 48, Math.PI), gold); arch.position.set(0, 9, -96); sc.add(arch);
       const door = new THREE.Group(); for (let b = 0; b < 7; b++) { const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 9, 8), gold); bar.position.set(sx * (0.5 + b * 0.95), 4.5, 0); door.add(bar); }
-      door.position.set(sx * 0.2, 0, -96); door.rotation.y = sx * 1.25; sc.add(door); }
+      door.position.set(sx * 0.2, 0, -96); door.rotation.y = sx * 1.25; sc.add(door); doors.push({ door, sx }); }
+    const HV = heavenDecor(sc, { frozen: fake }); dyn.push({ obj: null, f: (t, dt) => HV.update(t, dt) });
   } else {
     // the rock and its lava; spires with red-hot tips; flames along the cracks; embers rising
     const floor = lavaFloor(); sc.add(floor); dyn.push({ obj: floor, f: (t) => { floor.material.uniforms.t.value = t; } });
@@ -193,7 +195,7 @@ export function showAfterlife(o) {
   // what you hear (Hell: its air, and the echoes - the arguments you were in) and what you read (Heaven: the papers)
   const snd = afterSound(o.audio), echoes = heaven ? [] : hellEchoes({ bad: o.bad, name: o.name, mate: o.mate }), lines = [];
   let echoAt = 3.6, echoK = 0;
-  if (!heaven) snd.drone(0.6);
+  if (!heaven) snd.drone(0.95);
   const papers = [];
   if (heaven) {
     const NM = String(o.name || 'You').toUpperCase(), H = fake ? [{ paper: 'THE PADDOCK TIMES', head: `${NM} WAS A GOOD PERSON`, sub: 'Everyone agrees. Everyone agrees. Everyone agrees. Everyone agrees. Everyone agrees.' }] : headlines({ good: o.good, name: o.name, life: o.life || {} });
@@ -205,17 +207,17 @@ export function showAfterlife(o) {
     }
   }
   // HELL's own (ui/HellLife.js): the blood, the hanging dead, the bones; the rats; the things that watch
-  const G0 = heaven ? null : gore(sc, (x, z) => clear(x, z, 6));
-  const RAT = heaven ? null : rats(170, { r: 62 }); if (RAT) sc.add(RAT.mesh);
-  const ST = heaven ? [] : Array.from({ length: 7 }, () => { const m = stalker(); let x = 0, z = 0; for (let k = 0; k < 30; k++) { const a = Math.random() * Math.PI * 2, r = 16 + Math.random() * 40; x = Math.sin(a) * r; z = Math.cos(a) * r; if (!clear(x, z, 8)) break; } m.G.position.set(x, 0, z); sc.add(m.G); return m; });
+  const G0 = heaven ? null : gore(sc, (x, z) => clear(x, z, 6), { pools: 64, hang: 22, heaps: 16 });
+  const RAT = heaven ? null : rats(320, { r: 62, packs: 12 }); if (RAT) sc.add(RAT.mesh);
+  const ST = heaven ? [] : Array.from({ length: 12 }, () => { const m = stalker(); let x = 0, z = 0; for (let k = 0; k < 30; k++) { const a = Math.random() * Math.PI * 2, r = 16 + Math.random() * 40; x = Math.sin(a) * r; z = Math.cos(a) * r; if (!clear(x, z, 8)) break; } m.G.position.set(x, 0, z); sc.add(m.G); return m; });
   let scareCool = 14, scare = null, breathAt = 2, squeakAt = 1;
   // (the faces in the dark: pale masks hanging in the fog at head height everywhere, watching - gone when you come near)
   const FACES = [];
   if (!heaven) { const ft = new THREE.CanvasTexture(faceCanvas()); ft.colorSpace = THREE.SRGBColorSpace;
-    for (let k = 0; k < 46; k++) { const a = Math.random() * Math.PI * 2, r = 22 + Math.random() * 46, f = new THREE.Sprite(new THREE.SpriteMaterial({ map: ft, transparent: true, depthWrite: false, fog: false, opacity: 0 }));
+    for (let k = 0; k < 96; k++) { const a = Math.random() * Math.PI * 2, r = 16 + Math.random() * 50, f = new THREE.Sprite(new THREE.SpriteMaterial({ map: ft, transparent: true, depthWrite: false, fog: false, opacity: 0 }));
       f.position.set(Math.sin(a) * r, 3.2 + Math.random() * 3, Math.cos(a) * r); f.scale.set(0.5, 0.67, 1); f.userData.o = 0.25 + Math.random() * 0.45; sc.add(f); FACES.push(f); } }
   // (the scares' clocks: a face flashing on the screen, one standing at the edge of the light, the dark, your name in your ear)
-  let subAt = 9 + Math.random() * 10, appearAt = 18 + Math.random() * 15, blackAt = 25 + Math.random() * 20, earAt = 14 + Math.random() * 12, heartAt = 1, black = 0, appear = null, trkAt = 3;
+  let subAt = 5 + Math.random() * 6, appearAt = 9 + Math.random() * 8, blackAt = 13 + Math.random() * 10, earAt = 7 + Math.random() * 6, heartAt = 1, black = 0, appear = null, trkAt = 3;
   const subEl = el.querySelector('canvas.al-sub'), vhsC = el.querySelector('.al-vhs canvas'), trkEl = el.querySelector('.al-vhs .trk');
   { const fc = faceCanvas(); subEl.width = fc.width; subEl.height = fc.height; subEl.getContext('2d').drawImage(fc, 0, 0); }
   vhsC.width = 320; vhsC.height = 180; const vg = vhsC.getContext('2d'), vimg = vg.createImageData(320, 180);
@@ -249,7 +251,7 @@ export function showAfterlife(o) {
   const setHint = () => { hint.innerHTML = fake ? '<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>' : C.length ? '<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> &nbsp; <kbd>E</kbd>' : '<kbd>E</kbd>'; hint.classList.remove('gone'); clearTimeout(hint._t); hint._t = setTimeout(() => hint.classList.add('gone'), 7000); };
   setHint(); setTimeout(() => el.querySelector('.al-title').classList.add('in'), 600); setTimeout(() => el.querySelector('.al-title').classList.remove('in'), 4200);
   const camPos = new THREE.Vector3(0, 4, 12), look = new THREE.Vector3(0, 1.5, -10);
-  el.__al = { dbg: () => ({ me: [me.position.x, me.position.z], near: nearP?.cand?.name || null, t, mode }), phase: () => (mode === 'exorcism' ? exo.phase : mode), place: (x, z) => { me.position.set(x, 1.4, z); camPos.set(x, 4, z + 7); }, echo: () => { echoAt = 0; }, ports: () => ports.map((p) => [p.G.position.x, p.G.position.z]), face: (x, z) => { heading = Math.atan2(x - me.position.x, z - me.position.z); }, stalkers: ST, show: (i = 1, d = 6) => { const m = ST[i]; if (m) m.G.position.set(me.position.x + Math.sin(heading) * d, 0, me.position.z + Math.cos(heading) * d); }, scare: () => { scareCool = 0; const s0 = ST[0]; if (s0) { s0.G.position.set(me.position.x + 1.5, 0, me.position.z + 1.5); } } };   // (a test's handles)
+  el.__al = { fallAt: () => (fall ? (fall.ph === 'hush' ? -1 : t - fall.tg) : null), dbg: () => ({ me: [me.position.x, me.position.z], near: nearP?.cand?.name || null, t, mode }), phase: () => (mode === 'exorcism' ? exo.phase : mode), place: (x, z) => { me.position.set(x, 1.4, z); camPos.set(x, 4, z + 7); }, echo: () => { echoAt = 0; }, ports: () => ports.map((p) => [p.G.position.x, p.G.position.z]), face: (x, z) => { heading = Math.atan2(x - me.position.x, z - me.position.z); }, stalkers: ST, show: (i = 1, d = 6) => { const m = ST[i]; if (m) m.G.position.set(me.position.x + Math.sin(heading) * d, 0, me.position.z + Math.cos(heading) * d); }, scare: () => { scareCool = 0; const s0 = ST[0]; if (s0) { s0.G.position.set(me.position.x + 1.5, 0, me.position.z + 1.5); } } };   // (a test's handles)
   const fwd = new THREE.Vector3(), FR = new THREE.Frustum(), PM = new THREE.Matrix4(), BX = new THREE.Vector3();
   const right = new THREE.Vector3();
   /** an echo: the next argument, said around you - each line from near the last, the accuser and you in turn */
@@ -264,7 +266,7 @@ export function showAfterlife(o) {
       const said = snd.voice(line, { f0: you ? 92 : f0, rate: you ? 0.95 : 1.05, ring: you ? 63 : 34, dist: you ? 0.9 : 0.65, gain: 0.55 * Math.min(1.2, 9 / Math.max(4, dist)), pan, delay: at, say: i === 0 }) ; const len = typeof said === 'number' && said > 0 ? said : 0.4 + line.length * 0.055;
       at += Math.max(0.5, len - 0.25);   // (they talk over each other: an argument)
     });
-    return at + 3 + Math.random() * 4;
+    return at + 1.4 + Math.random() * 2.2;
   }
 
   const exo = { v: 0, phase: 'still', u: 0, flies: [], snap: 0, sr: 0, punch: 0, mon: null, lunge: null };
@@ -449,11 +451,11 @@ export function showAfterlife(o) {
       const ds = Math.hypot(m.G.position.x - me.position.x, m.G.position.z - me.position.z);   // (from your spirit, not the camera behind it)
       BX.copy(m.G.position); BX.y = 2.6; const seen = m.d < 48 && FR.containsPoint(BX); m.frozen = seen;
       if (mode === 'walk' && !seen && ds > 2.5 && ds < 64) {   // (out of your sight: closer)
-        const dx = me.position.x - m.G.position.x, dz = me.position.z - m.G.position.z, L = Math.hypot(dx, dz) || 1, v = (ds > 22 ? 5 : 2.4) * dt;
+        const dx = me.position.x - m.G.position.x, dz = me.position.z - m.G.position.z, L = Math.hypot(dx, dz) || 1, v = (ds > 22 ? 8 : 3.9) * dt;
         m.G.position.x += (dx / L) * v; m.G.position.z += (dz / L) * v;
       }
       if (ds < nearest) { nearest = ds; nearM = m; }
-      if (mode === 'walk' && !scare && scareCool <= 0 && ds < 3.4) { scare = { m, t0: t }; snd.shriek(0.75); snd.stinger(1); glitch(); const sx = el.querySelector('.al-scare'); sx.classList.remove('on'); void sx.offsetWidth; sx.classList.add('on'); }
+      if (mode === 'walk' && !scare && scareCool <= 0 && ds < 4.3) { scare = { m, t0: t }; snd.shriek(0.9); snd.stinger(1.2); setTimeout(() => snd.stinger(0.8), 260); glitch(); const sx = el.querySelector('.al-scare'); sx.classList.remove('on'); void sx.offsetWidth; sx.classList.add('on'); }
     }
     // (in your face: right in front of your eyes for a moment, then gone - somewhere else in the dark)
     if (scare) {
@@ -462,7 +464,7 @@ export function showAfterlife(o) {
       BX.copy(cam.position).addScaledVector(fwd, 0.95); m.G.position.set(BX.x, BX.y - 4.05 * k, BX.z);
       m.G.rotation.y = Math.atan2(cam.position.x - BX.x, cam.position.z - BX.z); m.head.lookAt(cam.position); m.head.rotateZ(j() * 0.25); m.head.rotateX(j() * 0.12);
       near.classList.remove('in');
-      if (u > 0.75) { const a = Math.random() * Math.PI * 2, r = 34 + Math.random() * 22; m.G.position.set(me.position.x + Math.sin(a) * r, 0, me.position.z + Math.cos(a) * r); scare = null; scareCool = 12 + Math.random() * 10; }
+      if (u > 0.75) { const a = Math.random() * Math.PI * 2, r = 34 + Math.random() * 22; m.G.position.set(me.position.x + Math.sin(a) * r, 0, me.position.z + Math.cos(a) * r); scare = null; scareCool = 7 + Math.random() * 7; }
     }
     // (one close: its breathing)
     breathAt -= dt; if (mode === 'walk' && nearM && nearest < 10 && breathAt <= 0) { snd.voice('hhhhaaaaahhhh', { f0: 46, rate: 0.45, gain: 0.05 + 0.14 * (1 - nearest / 10), ring: 21, dist: 0.3, pan: panOf(nearM.G.position) }); breathAt = 2.2 + Math.random() * 2.5; }
@@ -479,15 +481,15 @@ export function showAfterlife(o) {
     for (const f of FACES) { const d = Math.hypot(f.position.x - me.position.x, f.position.z - me.position.z); f.material.opacity += ((d > 18 ? f.userData.o : 0) * (black > 0 ? 1.4 : 1) - f.material.opacity) * Math.min(1, dt * (d > 18 ? 0.5 : 4)); }
     if (mode !== 'walk') { hemi.intensity = 0.9; sun.intensity = 1.2; return; }
     // (the light: a flicker; the dark)
-    blackAt -= dt; if (blackAt <= 0) { black = 0.6 + Math.random() * 1.4; blackAt = 30 + Math.random() * 30; snd.voice('hhhhhhhaaaaaaaahhhh', { f0: 40, rate: 0.4, gain: 0.2, ring: 18, dist: 0.3, pan: Math.random() * 2 - 1 }); }
+    blackAt -= dt; if (blackAt <= 0) { black = 1 + Math.random() * 2.2; blackAt = 15 + Math.random() * 15; snd.voice('hhhhhhhaaaaaaaahhhh', { f0: 40, rate: 0.4, gain: 0.2, ring: 18, dist: 0.3, pan: Math.random() * 2 - 1 }); }
     if (black > 0) { black -= dt; hemi.intensity = 0.02; sun.intensity = 0; if (black <= 0) glitch(); }
-    else { const fl = Math.random() < dt * 1.5 ? 0.25 : 1; hemi.intensity = 0.9 * fl; sun.intensity = 1.2 * fl; }
+    else { const fl = Math.random() < dt * 3.5 ? 0.15 : 1; hemi.intensity = 0.9 * fl; sun.intensity = 1.2 * fl; }
     // (a face on the screen, for a frame)
-    subAt -= dt; if (subAt <= 0) { subliminal(Math.random() < 0.5 ? 60 : 110); if (Math.random() < 0.4) snd.click(0, 0.4); subAt = 14 + Math.random() * 22; }
+    subAt -= dt; if (subAt <= 0) { subliminal(Math.random() < 0.5 ? 60 : 110); if (Math.random() < 0.4) snd.click(0, 0.4); subAt = 7 + Math.random() * 11; }
     // (your name, in your ear)
-    earAt -= dt; if (earAt <= 0) { const nm = String(o.name || '').split(' ')[0] || 'you'; snd.voice(`${nm}... ${nm}...`, { f0: 58 + Math.random() * 20, rate: 0.45, gain: 0.32, ring: 26, dist: 0.25, pan: Math.random() < 0.5 ? -1 : 1 }); earAt = 22 + Math.random() * 20; }
+    earAt -= dt; if (earAt <= 0) { const nm = String(o.name || '').split(' ')[0] || 'you'; snd.voice(`${nm}... ${nm}...`, { f0: 58 + Math.random() * 20, rate: 0.45, gain: 0.32, ring: 26, dist: 0.25, pan: Math.random() < 0.5 ? -1 : 1 }); earAt = 10 + Math.random() * 10; }
     // (one of them at the edge of the light ahead, still, facing you - gone the moment you have looked at it)
-    if (!appear) { appearAt -= dt; if (appearAt <= 0) { const m = ST.find((x) => !x.held && !x.trip && scare?.m !== x); if (m) { const a = heading + (Math.random() - 0.5) * 0.5; m.G.position.set(me.position.x + Math.sin(a) * 13, 0, me.position.z + Math.cos(a) * 13); appear = { m, seen: 0 }; } appearAt = 25 + Math.random() * 25; } }
+    if (!appear) { appearAt -= dt; if (appearAt <= 0) { const m = ST.find((x) => !x.held && !x.trip && scare?.m !== x); if (m) { const a = heading + (Math.random() - 0.5) * 0.5; m.G.position.set(me.position.x + Math.sin(a) * 13, 0, me.position.z + Math.cos(a) * 13); appear = { m, seen: 0 }; } appearAt = 12 + Math.random() * 13; } }
     else { const m = appear.m; BX.copy(m.G.position); BX.y = 2.6; if (FR.containsPoint(BX)) appear.seen += dt;
       if (appear.seen > 1.1) { const a = Math.random() * Math.PI * 2; m.G.position.set(me.position.x + Math.sin(a) * 45, 0, me.position.z + Math.cos(a) * 45); glitch(); snd.click(0, 0.5); appear = null; } }
   }
@@ -499,7 +501,7 @@ export function showAfterlife(o) {
     for (let k = 0; k < 44; k++) { const f = new THREE.Sprite(new THREE.SpriteMaterial({ map: ft, transparent: true, depthWrite: false, fog: false, opacity: 0 }));
       const gate = k >= 38, side = k % 2 ? 1 : -1;   // (the last of them behind the gates' bars)
       f.position.set(gate ? (k - 41) * 1.4 : side * (6 + Math.random() * 24), gate ? 3 + Math.random() * 4 : 0.2 + Math.random() * 5, gate ? -97.5 : -14 - (k / 38) * 80 - Math.random() * 6); f.scale.set(0.8, 1.07, 1); f.userData.k = k / 44; sc.add(f); FF.push(f); }
-    const fk = (e) => { if (e.code !== 'Space' || e.repeat) return; e.preventDefault(); e.stopPropagation(); if (mode === 'walk') grab(); else if (mode === 'fall') fallOut(); };
+    const fk = (e) => { if (e.code !== 'Space' || e.repeat) return; e.preventDefault(); e.stopPropagation(); if (mode === 'walk') hush(); else if (mode === 'fall') fallOut(); };
     window.addEventListener('keydown', fk, true); el.__fk = fk;
   }
   /** the false Heaven as you walk it: the faces coming as you near the gates (in the clouds, along the way, behind the bars), the tone souring; at the gates - or if you will not go - the grab */
@@ -508,43 +510,97 @@ export function showAfterlife(o) {
     for (const f of FF) f.material.opacity += ((f.userData.k < Math.pow(p, 1.25) * 1.05 ? 0.6 : 0) - f.material.opacity) * Math.min(1, dt * 0.8);
     tone.set(0.035 + p * 0.02, Math.max(0, (p - 0.35) / 0.65));
     if (p > 0.55 && Math.random() < dt * 0.4 * p) snd.voice('hhhhhhh', { f0: 50, rate: 0.5, gain: 0.05 * p, ring: 20, dist: 0.2, pan: Math.random() * 2 - 1 });
-    if (me.position.z < -82 || t > 90) grab();
+    if (me.position.z < -82 || t > 90) hush();
   }
-  /** at the gates: arms out of the floor, round you, and down */
+  /** at the gates: the hush - the tone gone, dead silence, every face sliding in round you, the gates swinging shut */
+  function hush() {
+    if (fall) return; fall = { t0: t, ph: 'hush', arms: [], from: me.position.clone(), out: false, jerk: new THREE.Vector3(), jerkAt: 0 }; mode = 'fall'; keys.clear(); hint.classList.add('gone'); tone.stop();
+    FF.forEach((f, i) => { const a = (i / FF.length) * Math.PI * 2, r = 5.5 + (i % 3) * 1.4; f.userData.ring = new THREE.Vector3(me.position.x + Math.sin(a) * r, 0.9 + (i % 5) * 0.55, me.position.z + Math.cos(a) * r); });
+  }
+  /** then: arms out of the floor all round you, and a face up out of it in front of yours */
   function grab() {
-    if (fall) return; fall = { t0: t, arms: [], from: me.position.clone(), out: false }; mode = 'fall'; keys.clear(); hint.classList.add('gone'); tone.stop();
-    snd.stinger(1.1); snd.shriek(0.8); snd.voice('NOOOOOOOOO', { f0: 150, rate: 0.45, gain: 0.5, ring: 70, dist: 0.8 }); el.classList.add('hell'); glitch();
+    const F = fall; F.ph = 'grab'; F.tg = t; snd.stinger(1.25); snd.shriek(0.95); snd.voice('NOOOOOOOOO', { f0: 150, rate: 0.45, gain: 0.55, ring: 70, dist: 0.8 }); el.classList.add('hell'); glitch();
     const sx = el.querySelector('.al-scare'); sx.classList.remove('on'); void sx.offsetWidth; sx.classList.add('on');
     const skin = new THREE.MeshStandardMaterial({ color: 0x050203, roughness: 0.8, emissive: 0x2a0000, emissiveIntensity: 0.6 });
-    for (let k = 0; k < 12; k++) {
-      const a = (k / 12) * Math.PI * 2 + Math.random() * 0.3, r = 1.4 + Math.random() * 1.1, G = new THREE.Group(); G.position.set(me.position.x + Math.cos(a) * r, -2, me.position.z + Math.sin(a) * r);
-      const top = 3.4 + (Math.random() - 0.5) * 0.8, pts = [new THREE.Vector3(0, 0, 0), new THREE.Vector3(Math.cos(a) * 0.3, 2.2, Math.sin(a) * 0.3), new THREE.Vector3(-Math.cos(a) * r * 0.4, top + 0.5, -Math.sin(a) * r * 0.4), new THREE.Vector3(-Math.cos(a) * r * 0.92, top, -Math.sin(a) * r * 0.92)];
-      G.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 16, 0.07 + Math.random() * 0.04, 6), skin));
+    for (let k = 0; k < 22; k++) {
+      const a = (k / 22) * Math.PI * 2 + Math.random() * 0.3, r = 1.2 + Math.random() * 1.6, G = new THREE.Group(); G.position.set(me.position.x + Math.cos(a) * r, -2, me.position.z + Math.sin(a) * r);
+      const top = 3.4 + (Math.random() - 0.5) * 1.2, pts = [new THREE.Vector3(0, 0, 0), new THREE.Vector3(Math.cos(a) * 0.3, 2.2, Math.sin(a) * 0.3), new THREE.Vector3(-Math.cos(a) * r * 0.4, top + 0.5, -Math.sin(a) * r * 0.4), new THREE.Vector3(-Math.cos(a) * r * 0.92, top, -Math.sin(a) * r * 0.92)];
+      G.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 16, 0.06 + Math.random() * 0.05, 6), skin));
       for (let q = 0; q < 4; q++) { const fi = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.008, 0.34, 4), skin); fi.position.copy(pts[3]); fi.rotation.set((Math.random() - 0.5) * 2, a, (Math.random() - 0.5) * 2); G.add(fi); }
-      G.scale.setScalar(0.01); sc.add(G); fall.arms.push({ G, d: k * 0.035, y0: -2 });
+      G.scale.setScalar(0.01); sc.add(G); F.arms.push({ G, d: k * 0.02, y0: -2, x0: G.position.x, z0: G.position.z });
     }
+    const M = F.mon = monsterHead(); M.from = new THREE.Vector3(me.position.x, -1.5, me.position.z + 1.2); M.G.position.copy(M.from); sc.add(M.G);
   }
-  /** the fall: held there, wrestled; then dragged down through the floor of Heaven as its light dies; the faces coming with you; black */
+  /** the shaft you are dragged down: flesh, veined, wet, faces in its walls, arms reaching out of them */
+  function shaft() {
+    const F = fall, cv = document.createElement('canvas'); cv.width = 256; cv.height = 512; const g = cv.getContext('2d');
+    g.fillStyle = '#2a0303'; g.fillRect(0, 0, 256, 512);
+    for (let k = 0; k < 900; k++) { g.fillStyle = `rgba(${90 + (Math.random() * 90) | 0},${(Math.random() * 20) | 0},${(Math.random() * 12) | 0},${(0.2 + Math.random() * 0.5).toFixed(2)})`; g.beginPath(); g.arc(Math.random() * 256, Math.random() * 512, 2 + Math.random() * 10, 0, 6.28); g.fill(); }
+    g.strokeStyle = 'rgba(10,0,0,.8)'; g.lineWidth = 2; for (let k = 0; k < 40; k++) { let x = Math.random() * 256, y = Math.random() * 512; g.beginPath(); g.moveTo(x, y); for (let q = 0; q < 8; q++) { x += (Math.random() - 0.5) * 30; y += Math.random() * 30; g.lineTo(x, y); } g.stroke(); }
+    const map = new THREE.CanvasTexture(cv); map.colorSpace = THREE.SRGBColorSpace; map.wrapS = map.wrapT = THREE.RepeatWrapping; map.repeat.set(3, 10);
+    const S = new THREE.Mesh(new THREE.CylinderGeometry(3.4, 3.4, 100, 32, 1, true), new THREE.MeshStandardMaterial({ map, side: THREE.BackSide, roughness: 0.35, metalness: 0.1, emissive: 0xffffff, emissiveMap: map, emissiveIntensity: 0.55 }));
+    S.position.set(F.from.x, -52, F.from.z); sc.add(S);
+    const ft = new THREE.CanvasTexture(faceCanvas()); ft.colorSpace = THREE.SRGBColorSpace;
+    for (let k = 0; k < 70; k++) { const a = Math.random() * Math.PI * 2, f = new THREE.Sprite(new THREE.SpriteMaterial({ map: ft, transparent: true, depthWrite: false, fog: false })); f.position.set(F.from.x + Math.sin(a) * 3.1, -3 - Math.random() * 96, F.from.z + Math.cos(a) * 3.1); f.scale.set(0.7, 0.93, 1); sc.add(f); }
+    const skin = new THREE.MeshStandardMaterial({ color: 0x050203, roughness: 0.8, emissive: 0x2a0000, emissiveIntensity: 0.6 });
+    for (let k = 0; k < 26; k++) { const a = Math.random() * Math.PI * 2, y = -6 - Math.random() * 92, w = new THREE.Vector3(Math.sin(a) * 3.3, 0, Math.cos(a) * 3.3);
+      const pts = [w.clone(), w.clone().multiplyScalar(0.6).add(new THREE.Vector3(0, 0.6, 0)), w.clone().multiplyScalar(0.2).add(new THREE.Vector3(0, 1.6, 0))];
+      const m = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 8, 0.07, 5), skin); m.position.set(F.from.x, y, F.from.z); sc.add(m); }
+    F.red = new THREE.PointLight(0xff2010, 30, 18, 1.6); sc.add(F.red); F.shaft = S;
+  }
+  /**
+   * The drop: the hush (silence; the faces round you; the gates slammed shut) - the grab (arms, a face up out of the floor
+   * into yours, the stinger) - the wrestle (yanked this way and that, red, your name screamed, a second stinger) - the
+   * fall down the shaft of flesh, tumbling, Heaven's light a shrinking circle above - the impact: black.
+   */
   function fallTick(dt) {
     const F = fall, u = t - F.t0, j = () => (Math.random() - 0.5) * 2;
-    for (const A of F.arms) A.G.scale.setScalar(Math.min(1, Math.max(0.01, (u - A.d) / 0.28)));
-    const down = u < 0.7 ? 0 : Math.pow(Math.min(1, (u - 0.7) / 3.4), 2.2) * 30, fight = u < 3.6 ? 0.35 : 0.15;
-    me.position.set(F.from.x + j() * fight, 1.4 - down + j() * fight * 0.6, F.from.z + j() * fight);
-    for (const A of F.arms) A.G.position.y = A.y0 - down;
-    camPos.lerp(new THREE.Vector3(me.position.x, me.position.y + 4.2 + Math.min(4, down * 0.25), me.position.z + 3.2), 1 - Math.exp(-dt * 5)); camPos.x += j() * 0.15; camPos.y += j() * 0.15;
-    look.lerp(me.position, 1 - Math.exp(-dt * 8));
-    // (Heaven's light going out above you)
-    const k = Math.min(1, Math.max(0, (u - 0.4) / 2.6)); hemi.intensity = 1.6 * (1 - k); sun.intensity = 2.2 * (1 - k);
-    sc.fog.color.setRGB(1 - k * 0.96, (0.953 - k * 0.94) * (1 - k * 0.3), (0.86 - k * 0.85) * (1 - k * 0.5)); sc.fog.near = 40 - k * 36; sc.fog.far = 190 - k * 170;
+    if (F.ph === 'hush') {
+      for (const f of FF) { f.material.opacity += (0.95 - f.material.opacity) * Math.min(1, dt * 3); f.position.lerp(f.userData.ring, Math.min(1, dt * 2.4)); }
+      me.position.set(F.from.x, 1.4, F.from.z);
+      camPos.lerp(new THREE.Vector3(me.position.x, me.position.y + 1.6, me.position.z + 4.2), 1 - Math.exp(-dt * 1.5)); look.lerp(me.position, 1 - Math.exp(-dt * 3));
+      // (the gates: swinging shut, and the slam)
+      for (const D of doors) D.door.rotation.y += (0 - D.door.rotation.y) * Math.min(1, dt * (u > 1.15 ? 30 : 0.8));
+      if (u > 1.25 && !F.slam) { F.slam = true; snd.clang(1); snd.splat(1); glitch(); }
+      if (u > 1.9) grab();
+      return;
+    }
+    const g2 = t - F.tg;
+    for (const A of F.arms) A.G.scale.setScalar(Math.min(1, Math.max(0.01, (g2 - A.d) / 0.22)));
+    // (the face up out of the floor, into yours)
+    if (F.mon) { const M = F.mon, k = Math.min(1, g2 / 0.3), eye = cam.position.clone().addScaledVector(new THREE.Vector3().subVectors(look, cam.position).normalize(), 0.9);
+      M.G.position.lerpVectors(M.from, eye, k * k); M.G.scale.setScalar(0.5 + k * 1.5); M.G.lookAt(cam.position); M.G.rotateZ(j() * 0.35);
+      if (g2 > 1.05) { sc.remove(M.G); M.dispose(); F.mon = null; } }
+    let down = 0;
+    if (g2 < 3.2) {
+      // the wrestle: yanked, again and again, every way
+      if (t > F.jerkAt) { F.jerk.set(j() * 1.5, j() * 0.7, j() * 1.5); F.jerkAt = t + 0.1 + Math.random() * 0.12; snd.rattle(0.45, 0.14); if (Math.random() < 0.45) { const sx = el.querySelector('.al-scare'); sx.classList.remove('on'); void sx.offsetWidth; sx.classList.add('on'); } if (Math.random() < 0.6) snd.voice(['GET DOWN', 'MINE', 'DOWN', 'NO', 'LIAR', 'COME'][(Math.random() * 6) | 0], { f0: 60 + Math.random() * 120, rate: 1.2, gain: 0.45, ring: 40, dist: 1, pan: j() }); }
+      me.position.lerp(new THREE.Vector3(F.from.x + F.jerk.x, 1.4 + F.jerk.y, F.from.z + F.jerk.z), Math.min(1, dt * 16));
+      if (g2 > 1.7 && !F.st2) { F.st2 = true; snd.stinger(1.1); const nm = String(o.name || 'you').split(' ')[0].toUpperCase(); snd.voice(`${nm}! ${nm}!`, { f0: 200, rate: 0.7, gain: 0.7, ring: 120, dist: 1 }); glitch(); subliminal(140); }
+      camPos.set(me.position.x + j() * 0.45, me.position.y + 2.6 + j() * 0.45, me.position.z + 3.6 + j() * 0.3); look.copy(me.position);
+    } else {
+      // the fall: down the shaft, tumbling, the light above going
+      if (!F.shaft) shaft();
+      down = Math.pow(Math.min(1, (g2 - 3.2) / 3.2), 1.7) * 92;
+      me.position.set(F.from.x + j() * 0.15, 1.4 - down, F.from.z + j() * 0.15);
+      const roll = (g2 - 3.2) * 2.6; cam.up.set(Math.sin(roll), Math.cos(roll), 0);
+      camPos.set(me.position.x + Math.sin(t * 2.5) * 0.8, me.position.y + 2.4, me.position.z + Math.cos(t * 2.5) * 0.8); look.copy(me.position);
+      F.red.position.copy(me.position);
+      if (Math.random() < dt * 4) snd.screech(0.6); if (Math.random() < dt * 5) snd.rattle(0.4, 0.25);
+    }
+    for (const A of F.arms) { A.G.position.set(A.x0 + (me.position.x - F.from.x), A.y0 - down + (g2 < 3.2 ? me.position.y - 1.4 : 0), A.z0 + (me.position.z - F.from.z)); }
+    // (Heaven's light dying above you)
+    const k = Math.min(1, Math.max(0, (g2 - 0.2) / 3.2)); hemi.intensity = 1.6 * (1 - k); sun.intensity = 2.2 * (1 - k);
+    sc.fog.color.setRGB(1 - k * 0.96, (0.953 - k * 0.94) * (1 - k * 0.3), (0.86 - k * 0.85) * (1 - k * 0.5)); sc.fog.near = 40 - k * 36; sc.fog.far = 190 - k * 150;
     const U = sky.material.uniforms; U.a.value.set(0xfff6dc).lerp(new THREE.Color(0x080000), k); U.b.value.set(0xffe3a8).lerp(new THREE.Color(0x200000), k); U.c.value.set(0xffffff).lerp(new THREE.Color(0x000000), k);
-    for (const f of FF) { f.material.opacity = Math.min(0.9, f.material.opacity + dt); f.position.lerp(me.position, dt * 0.25 * k); }
-    if (Math.random() < dt * 2.5) snd.screech(0.5); if (Math.random() < dt * 3) snd.rattle(0.4, 0.3); snd.drone(Math.min(1, u / 2));
-    if (u > 3.9 && !F.blk) { F.blk = true; fade.style.background = '#000'; fade.classList.add('in'); subliminal(120); }
-    if (u > 5.4) fallOut();
+    if (Math.random() < dt * 2.5) snd.screech(0.5); snd.drone(Math.min(1, g2 / 1.5)); snd.chant(Math.min(1, g2 / 4)); snd.machine(Math.min(1, g2 / 3)); snd.tick(dt);
+    // (the impact)
+    if (g2 > 6.4 && !F.blk) { F.blk = true; snd.stinger(1.3); fade.style.transition = 'none'; fade.style.background = '#000'; fade.classList.add('in'); }
+    if (g2 > 7.3) fallOut();
   }
   /** out of it: into Hell (the black held while it comes up) */
   function fallOut() {
-    if (fall?.out) return; if (!fall) grab(); fall.out = true;
+    if (fall?.out) return; if (!fall) hush(); fall.out = true;
     fade.style.transition = 'none'; fade.style.background = '#000'; fade.classList.add('in');
     window.removeEventListener('keydown', el.__fk, true); cleanup(); el.id = 'afterlife-falling'; el.style.background = '#000';
     o.onDone?.(null); setTimeout(() => el.remove(), 2400);

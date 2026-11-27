@@ -1,3 +1,38 @@
+# V2.91 (2026-11-27): the drop five times worse, Hell twice, Heaven ten times better
+
+Asked for: "make the drop 5 x scarier, hell twice as scary - make everything individually worse and more vigorous and
+make heaven 10 x nicer".
+
+## The drop (ui/Afterlife.js: hush, grab, the wrestle, the fall, the impact)
+- THE HUSH: at the gates everything stops - the tone gone, dead silence - and every face in that Heaven slides in to
+  stand round you in a ring at the height of your eyes; the golden gates swing shut in front of you and slam.
+- THE GRAB: twenty-two arms out of the floor all round you, and a face up out of the floor straight into yours - the
+  stinger, a scream, the screen torn red.
+- THE WRESTLE: yanked this way and that, again and again, red flashing, voices shouting at you from everywhere (GET
+  DOWN, MINE, LIAR...), your own name screamed, a second stinger and the face flashed on the screen.
+- THE FALL: dragged down a shaft of flesh - veined, wet, faces set in its walls, arms reaching out of them - falling
+  faster and faster, tumbling, a red light falling with you, Heaven's light dying above, the choir and the machine
+  rising out of the dark.
+- THE IMPACT: a last stinger; black; then Hell.
+
+## Hell, twice as bad, every part of it
+- Twelve of them instead of seven, faster (8 m/s far, 3.9 near), reaching you from further (4.3 m), back sooner after a
+  lunge (7-14 s), each lunge a double stinger; their faces in the dark doubled (96), nearer.
+- The fog closer (4-52 m), the drone louder; the light flickering twice as often and going out twice as often, for
+  longer; the face on the screen, your name in your ear, the one at the edge of the light - each twice as often; the
+  recalled arguments coming back to back.
+- Rats nearly doubled (320, in 12 packs); blood pools 64, the hanging dead 22, the heaps of bones 16.
+- The exorcism: eight spirits torn out instead of six (eight floods of rats), a longer fight, every joint thrown about
+  half as hard again, the screeching, the flashed face and the head spinning round each about twice as often.
+
+## Heaven, ten times better (ui/HeavenLife.js)
+- God's light in great soft rays slanting down through the air, a low warm sun, a radiance beyond the open gates and a
+  rainbow standing over them.
+- Meadows on banks of cloud all along the way - 3,200 flowers in white, blush, gold and lilac; twelve trees in white and
+  pink blossom with petals drifting down off them; sixteen doves wheeling overhead; a still lake shining with the sky.
+- Still silent (as asked for before).
+- The false Heaven has all of it too - and all of it stopped: the doves held mid-wingbeat, the petals hanging in the air.
+
 # V2.90 (2026-11-27): the way into Hell is through Heaven
 
 Asked for: "Make the intro to hell be heaven, uncannily perfect - then you see the faces and you are grabbed and wrestled

@@ -291,7 +291,7 @@ export function doll(c = {}) {
       if (Math.random() < dt * 0.25) head.rotation.z = j() * 1.2; else head.rotation.z *= 1 - Math.min(1, dt * 2); me.strings(); },
     /** shaken - v how hard (0..1+): every joint jerking at once, the head thrown about, the jaw dropping */
     rattle(v, t, dt) {
-      const a = 0.35 + v * 1.6;
+      const a = 0.5 + v * 2.4;   // (every joint: thrown about hard)
       shake(head, { x: 1.4, y: 2.2, z: 1.6 }, a, dt); shake(neck, { x: 0.6, y: 0.5, z: 0.8 }, a, dt); shake(torso, { x: 0.5, y: 0.6, z: 0.5 }, a, dt); shake(pelvis, { x: 0.3, y: 0.4, z: 0.3 }, a, dt);
       for (const L of [J.armL, J.armR, J.legL, J.legR]) { shake(L.A, { x: 2, y: 0.8, z: 1.2 }, a, dt); shake(L.B, { x: 1.6, y: 0.3, z: 0.4 }, a, dt); }
       jaw.scale.y = Math.min(1.4, 0.05 + v * (0.6 + Math.random() * 0.8)); me.strings();

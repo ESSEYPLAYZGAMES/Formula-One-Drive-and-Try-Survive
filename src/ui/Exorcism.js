@@ -43,7 +43,7 @@ export function runExorcism(o) {
   const heaven = !!o.heaven, snd = o.snd || NOOP_SND, win = o.win !== false;
   const SPITE = (o.spite && o.spite.length ? o.spite : ['GET OUT', 'NOT YOURS', 'DISGUSTING', 'SHAME']);
   // (the shape of it: how long it fights, how many are torn out of it)
-  const SP = heaven ? 3 : 6, FIGHT = heaven ? 6.5 : 10;
+  const SP = heaven ? 3 : 8, FIGHT = heaven ? 6.5 : 11;
   const el = document.createElement('div'); el.id = 'exo';
   el.innerHTML = '<div class="ex-veil"></div><div class="ex-blood"></div><div class="ex-flash"></div><div class="ex-black"></div>';
   o.host.appendChild(el);
@@ -87,12 +87,12 @@ export function runExorcism(o) {
       const v = Math.min(1, 0.25 + 0.75 * (u / FIGHT)) * (heaven ? 0.85 : 1);
       snd.chant(0.25 + v * 0.75); snd.machine(Math.pow(v, 1.3)); if (!heaven) snd.drone(0.6 + v * 0.4);
       nextSpite -= dt; if (nextSpite <= 0) { spite(v); if (v > 0.6) spite(v); nextSpite = Math.max(0.1, 1.4 - v * 1.3) * (0.6 + Math.random() * 0.8); }
-      nextScreech -= dt; if (nextScreech <= 0) { snd.screech(0.35 + v * 0.45); nextScreech = 0.6 + Math.random() * (2.2 - v * 1.6); }
+      nextScreech -= dt; if (nextScreech <= 0) { snd.screech(0.35 + v * 0.45); nextScreech = 0.35 + Math.random() * (1.3 - v * 1); }
       nextRattle -= dt; if (nextRattle <= 0) { snd.rattle(0.2 + v * 0.35, 0.25 + Math.random() * 0.4); nextRattle = 0.15 + Math.random() * 0.5; }
       if (out < SP && u > ((out + 1) / (SP + 0.6)) * FIGHT) tear();
       // (the face inside, flashed for a frame; the head turned right round)
-      nextFlash -= dt; if (nextFlash <= 0) { o.onScare?.('flash'); snd.clang(0.4); nextFlash = 1.6 + Math.random() * 2.4; }
-      nextSpin -= dt; if (nextSpin <= 0 && v > 0.45) { o.onScare?.('spin'); snd.screech(0.7); nextSpin = 2.5 + Math.random() * 2.5; }
+      nextFlash -= dt; if (nextFlash <= 0) { o.onScare?.('flash'); snd.clang(0.4); nextFlash = 0.8 + Math.random() * 1.4; }
+      nextSpin -= dt; if (nextSpin <= 0 && v > 0.45) { o.onScare?.('spin'); snd.screech(0.7); nextSpin = 1.4 + Math.random() * 1.6; }
       o.onLevel?.(v, 'fight', u);
       if (u > FIGHT) { go('top'); el.classList.add('top'); splash(6, 1.3); }
     } else if (phase === 'top') {
