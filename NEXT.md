@@ -1,3 +1,31 @@
+# V2.95 (2026-11-27): Hell's sound no longer drops out; the fall at the gates works again
+
+Asked for: "also in hell all the sounds go silent from lag half the time and only like some voice lines get thru the
+silence".
+
+## Why it went quiet
+- The pre-scare silence only pulled out the bed (drone, choir, risers), and for too long: a blackout cut it for 5-6 s
+  every half minute, a lunge for 2.4 s - while voices, rats and footsteps carried on over the gap. That is the "only
+  some voice lines get through".
+- The audio thread was overloaded: every footstep, click and creak made its own HRTF panner (the costliest node there
+  is), with up to twelve creatures stepping every third of a second; no limit on voices at once; finished sounds never
+  disconnected; nine listener values and fourteen riser values rescheduled every frame; a 3.6 s stereo reverb.
+
+## The fix (audio/AfterSound.js, ui/Afterlife.js)
+- A TALK bus beside the bed: a silence now takes both out together - a real silence - and comes back quickly (blackout:
+  only while it is dark; lunge 0.9-1.6 s). The scare's own sounds (the breath at your neck, the steps circling you in
+  the dark, the stinger, the shriek, the dolls' screeches, the grab's NO) go round it. No new echo starts in a silence.
+- At most 14 voices at once; past that a new one is not started (the scare's own always are).
+- Equal-power panning by default; HRTF only for the close, behind-you sounds.
+- Finished voices, steps, clicks, creaks, rattles, squeaks and clangs disconnected after they end.
+- The listener set only when the camera moved; the risers set directly; drone, chant, machine and riser levels only
+  rescheduled when they change. Reverb tail 2.6 s.
+- Footfalls from the two nearest unseen creatures only; rat squeaks at least 0.3 s apart.
+
+## Fixed
+- The false Heaven's hush at the gates: a comment had swallowed the line that starts the fall, so the hush fired every
+  frame (more silence) and the drop never began. The fall plays end to end again.
+
 # V2.94 (2026-11-27): the voices urgent and many; the destination a surprise; Heaven's choir; the menu fixed
 
 Asked for: "still messed it up and add a choir to heaven (pre-hell and real)", then "MAKE THE robotic voice overlap and

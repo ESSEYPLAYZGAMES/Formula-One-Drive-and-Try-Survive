@@ -24,10 +24,19 @@ export function afterSound(audio) {
   const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -18; comp.ratio.value = 6; comp.attack.value = 0.004; comp.release.value = 0.2;
   bus.connect(lp); lp.connect(comp); comp.connect(audio.out);
   // (the SPACE: a long dark reverb - a cave - fed from everything; space(w) how much of it)
-  const conv = ctx.createConvolver(); { const n = Math.floor(ctx.sampleRate * 3.6), ir = ctx.createBuffer(2, n, ctx.sampleRate); for (let c = 0; c < 2; c++) { const d = ir.getChannelData(c); for (let i = 0; i < n; i++) { const u = i / n; d[i] = (Math.random() * 2 - 1) * Math.pow(1 - u, 1.9) * Math.min(1, i / (ctx.sampleRate * 0.012)); } } conv.buffer = ir; }
+  const conv = ctx.createConvolver(); { const n = Math.floor(ctx.sampleRate * 2.6), ir = ctx.createBuffer(2, n, ctx.sampleRate); for (let c = 0; c < 2; c++) { const d = ir.getChannelData(c); for (let i = 0; i < n; i++) { const u = i / n; d[i] = (Math.random() * 2 - 1) * Math.pow(1 - u, 1.9) * Math.min(1, i / (ctx.sampleRate * 0.012)); } } conv.buffer = ir; }
   const wet = ctx.createGain(); wet.gain.value = 0; bus.connect(wet); wet.connect(conv); conv.connect(comp);
   // (the BED: drone, choir, machine, hums, the tone, the risers - on a gain of their own, to be pulled out from under you)
   const amb = ctx.createGain(); amb.connect(bus);
+  // (the TALK: voices, steps, clicks, rats, metal - on a gain of their own too, so a silence is a silence; the scare's own
+  //  sounds (o.thru) go round it, straight to the bus)
+  const talk = ctx.createGain(); talk.connect(bus);
+  let quietUntil = 0; const quiet = () => T() < quietUntil;
+  const to = (thru) => (thru ? bus : talk);
+  /** after (s) seconds, the nodes let go (a finished sound costs nothing) */
+  const drop = (s, ...ns) => setTimeout(() => { for (const n of ns) { try { n.disconnect(); } catch (e) { /* gone */ } } }, Math.max(50, s * 1000 + 200));
+  // (how many voices are sounding: past MAXV, a new one is not started - the audio thread never drowns)
+  const MAXV = 14; const vEnds = []; const vBusy = () => { const t = T(); for (let i = vEnds.length - 1; i >= 0; i--) if (vEnds[i] < t) vEnds.splice(i, 1); return vEnds.length; };
   const nb = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate); { const d = nb.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; }
   const crush = ctx.createWaveShaper(); { const c = new Float32Array(1024); for (let i = 0; i < 1024; i++) { const x = i / 511.5 - 1; c[i] = Math.round(Math.tanh(x * 3) * 6) / 6; } crush.curve = c; }   // (hard, stepped: a voice through a broken machine)
   const oscs = new Set();   // (every pitched thing still sounding: fizzle() drops them all)
@@ -49,6 +58,7 @@ export function afterSound(audio) {
   const KINDS = ['grind', 'buzz', 'whisper', 'choir', 'glitch', 'shriek'];
   function voice(text, o = {}) {
     if (!alive) return 0;
+    if (!o.thru && (quiet() || vBusy() >= MAXV)) return 0;
     const kind = o.kind === 'any' ? KINDS[(Math.random() * KINDS.length) | 0] : (o.kind || 'grind'), urg = !!o.urgent;
     const t0 = T() + (o.delay || 0), rate = (o.rate || 1) * (urg ? 1.45 : 1) * (kind === 'glitch' ? 0.9 : 1), f0 = (o.f0 || 110) * (kind === 'shriek' ? 3.2 : kind === 'buzz' ? 1.4 : 1), str = String(text || '');
     // (the syllables: each vowel group, the consonants before it)
@@ -69,8 +79,8 @@ export function afterSound(audio) {
     const F = [0, 1, 2].map((k) => { const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = (kind === 'whisper' ? [5, 7, 9] : [9, 12, 14])[k]; return f; });
     const fsum = gainAt(kind === 'whisper' ? 3 : 1); for (const f of F) { rm.connect(f); dry.connect(f); f.connect(fsum); }
     const sh = ctx.createWaveShaper(); sh.curve = crush.curve; const pre = gainAt(1 + (o.dist ?? 0.6) * (kind === 'buzz' ? 9 : 5)); fsum.connect(pre); pre.connect(sh);
-    const env = gainAt(0), pan = o.pos ? p3(o.pos) : ctx.createStereoPanner(); if (!o.pos) pan.pan.value = Math.max(-1, Math.min(1, o.pan || 0));   // (o.pos: there, in the space round you)
-    const out = gainAt((o.gain ?? 0.5) * loud * 0.6 * (kind === 'buzz' ? 0.7 : 1)); sh.connect(env); env.connect(out); out.connect(pan); pan.connect(bus);
+    const env = gainAt(0), pan = o.pos ? p3(o.pos, o.hrtf, o.thru) : ctx.createStereoPanner(); if (!o.pos) pan.pan.value = Math.max(-1, Math.min(1, o.pan || 0));   // (o.pos: there, in the space round you)
+    const out = gainAt((o.gain ?? 0.5) * loud * 0.6 * (kind === 'buzz' ? 0.7 : 1)); sh.connect(env); env.connect(out); out.connect(pan); pan.connect(to(o.thru));
     // (the hiss of the consonants)
     const hs = noise(), hf = ctx.createBiquadFilter(); hf.type = 'highpass'; hf.frequency.value = 3200; const hg = gainAt(0); hs.connect(hf); hf.connect(hg); hg.connect(pan); hs.start(t0); hs.stop(end);
     let t = t0; for (const x of srcs) x.o.frequency.setValueAtTime(f0 * x.m, t0);
@@ -92,6 +102,7 @@ export function afterSound(audio) {
     env.gain.setTargetAtTime(0, t, 0.05);
     for (const x of srcs) x.o.start(t0); sub.start(t0); ring.start(t0);
     if (o.say) speak(str, o);
+    vEnds.push(end); drop(end - T(), out, pan, hg, sh, fsum, rm, dry, ...F);
     return dur + (o.delay || 0);
   }
   /**
@@ -122,7 +133,7 @@ export function afterSound(audio) {
       const r = noise(), rf = ctx.createBiquadFilter(); rf.type = 'lowpass'; rf.frequency.value = 110; const rg = gainAt(1.6); r.connect(rf); rf.connect(rg); rg.connect(g); r.start();
       droneN = { g, r, os };
     }
-    droneN.g.gain.setTargetAtTime(v * 0.5, T(), 0.8);
+    if (Math.abs(v - (droneN.v ?? -1)) < 0.01) return; droneN.v = v; droneN.g.gain.setTargetAtTime(v * 0.5, T(), 0.8);
   }
 
   // the CHOIR: four throats on D minor, a vowel pulse - VA-DE, VA-DE
@@ -140,7 +151,7 @@ export function afterSound(audio) {
       const pg = gainAt(1); g.connect(pg); pg.connect(amb);
       ch = { g, pg, voices, stops, beat: 0, t: 0 };
     }
-    ch.g.gain.setTargetAtTime(v * 0.5, T(), 0.5); ch.v = v;
+    if (Math.abs(v - ch.v) < 0.01) return; ch.g.gain.setTargetAtTime(v * 0.5, T(), 0.5); ch.v = v;
   }
 
   // the MACHINE: crushed static through a sweeping filter, its stutters and metal hits fired by tick()
@@ -153,20 +164,20 @@ export function afterSound(audio) {
       s.connect(f); f.connect(pre); pre.connect(sh); sh.connect(stut); stut.connect(g); g.connect(amb); s.start();
       mc = { f, g, stut, v: 0, stops: [s] };
     }
-    mc.g.gain.setTargetAtTime(v * 0.1, T(), 0.25); mc.v = v;
+    if (Math.abs(v - mc.v) < 0.01 && v) return; mc.g.gain.setTargetAtTime(v * 0.1, T(), 0.25); mc.v = v;
   }
   /** a hit of metal: a short ring-modulated clang, panned */
-  function clang(gain = 0.4) {
-    const t = T(), o = track(ctx.createOscillator(), t + 0.6), r = track(ctx.createOscillator(), t + 0.6); o.type = 'square'; o.frequency.value = 180 + Math.random() * 500; r.frequency.value = 700 + Math.random() * 1600;
+  function clang(gain = 0.4, thru = false) {
+    if (!alive || (!thru && quiet())) return; const t = T(), o = track(ctx.createOscillator(), t + 0.6), r = track(ctx.createOscillator(), t + 0.6); o.type = 'square'; o.frequency.value = 180 + Math.random() * 500; r.frequency.value = 700 + Math.random() * 1600;
     const rm = gainAt(0); r.connect(rm.gain); o.connect(rm); const e = gainAt(gain), p = ctx.createStereoPanner(); p.pan.value = Math.random() * 2 - 1;
-    e.gain.setValueAtTime(gain, t); e.gain.exponentialRampToValueAtTime(0.001, t + 0.5); rm.connect(e); e.connect(p); p.connect(bus); o.start(t); r.start(t);
+    e.gain.setValueAtTime(gain, t); e.gain.exponentialRampToValueAtTime(0.001, t + 0.5); rm.connect(e); e.connect(p); p.connect(to(thru)); o.start(t); r.start(t); drop(0.7, p, e, rm);
   }
   /** each frame: the chant's pulse, the machine's sweeps and stutters, the odd clang - by how loud they are now */
   function tick(dt) {
     if (!alive) return;
     for (const C of choirs) { if (C.frozen) continue; C.t += dt; if (C.t > 7.5) { C.t = 0; C.k = (C.k + 1) % C.PROG.length; C.retune(); } }   // (the next chord, every few breaths)
     for (const Rr of risers) { Rr.ph = (Rr.ph + Rr.dir * Rr.speed * dt + Rr.N) % Rr.N; const t = T();
-      Rr.os.forEach((x, i) => { const oct = (Rr.ph + i) % Rr.N, hz = 32 * Math.pow(2, oct), a = Math.exp(-Math.pow((oct - Rr.N / 2) / 1.3, 2)); x.o.frequency.setTargetAtTime(hz, t, 0.03); x.og.gain.setTargetAtTime(a, t, 0.03); }); }
+      Rr.os.forEach((x, i) => { const oct = (Rr.ph + i) % Rr.N, hz = 32 * Math.pow(2, oct), a = Math.exp(-Math.pow((oct - Rr.N / 2) / 1.3, 2)); x.o.frequency.value = hz; x.og.gain.value = a; }); }
     if (ch && ch.v > 0.01) {
       ch.t += dt; const beat = Math.floor(ch.t * (1.4 + ch.v * 1.6));   // (the chant quickening as it builds)
       if (beat !== ch.beat) { ch.beat = beat; const V = beat % 2 ? VOW.e : VOW.a, t = T();
@@ -181,18 +192,18 @@ export function afterSound(audio) {
   }
   /** a rat's squeal: a thin chirp wobbling up, now and then a trill */
   function squeak(pan = 0, gain = 0.12) {
-    if (!alive) return; const t = T(), n = Math.random() < 0.3 ? 3 : 1;
+    if (!alive || quiet()) return; const t = T(), n = Math.random() < 0.3 ? 3 : 1;
     for (let i = 0; i < n; i++) { const t0 = t + i * 0.07, o = track(ctx.createOscillator(), t0 + 0.14), f = 2600 + Math.random() * 2400; o.type = 'triangle';
       o.frequency.setValueAtTime(f, t0); o.frequency.linearRampToValueAtTime(f * 1.35, t0 + 0.05); o.frequency.linearRampToValueAtTime(f * 0.9, t0 + 0.11);
       const e = gainAt(0), p = ctx.createStereoPanner(); p.pan.value = Math.max(-1, Math.min(1, pan)); e.gain.setValueAtTime(0, t0); e.gain.linearRampToValueAtTime(gain, t0 + 0.01); e.gain.exponentialRampToValueAtTime(0.001, t0 + 0.12);
-      o.connect(e); e.connect(p); p.connect(bus); o.start(t0); }
+      o.connect(e); e.connect(p); p.connect(talk); o.start(t0); drop(0.4, p, e); }
   }
   /** a click in a throat, a joint cracking (a stalker twitching) */
-  function click(pan = 0, gain = 0.3, pos = null) {
-    if (!alive) return; const t = T(), s = noise(), f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 1400 + Math.random() * 1600; f.Q.value = 6;
-    const e = gainAt(0), p = pos ? p3(pos) : ctx.createStereoPanner(); if (!pos) p.pan.value = Math.max(-1, Math.min(1, pan));
+  function click(pan = 0, gain = 0.3, pos = null, thru = false) {
+    if (!alive || (!thru && quiet())) return; const t = T(), s = noise(), f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 1400 + Math.random() * 1600; f.Q.value = 6;
+    const e = gainAt(0), p = pos ? p3(pos, false, thru) : ctx.createStereoPanner(); if (!pos) p.pan.value = Math.max(-1, Math.min(1, pan));
     for (let i = 0; i < 3; i++) { const ti = t + i * (0.02 + Math.random() * 0.03); e.gain.setValueAtTime(gain, ti); e.gain.setValueAtTime(0, ti + 0.006); }
-    s.connect(f); f.connect(e); e.connect(p); p.connect(bus); s.start(t); s.stop(t + 0.2);
+    s.connect(f); f.connect(e); e.connect(p); p.connect(to(thru)); s.start(t); s.stop(t + 0.2); drop(0.3, p, e, f);
   }
   /** a wet hit: a thump and a smack (blood on the rock, flesh) */
   function splat(gain = 0.4) {
@@ -202,7 +213,7 @@ export function afterSound(audio) {
   }
   /** a shriek - the thing in your face: a torn voice up high, noise, metal */
   function shriek(gain = 0.7) {
-    if (!alive) return; voice('IIIIIAAAAAAH', { f0: 420, rate: 0.5, gain, ring: 140, dist: 1 }); voice('AAAAAAAAH', { f0: 95, rate: 0.55, gain: gain * 0.8, ring: 33, dist: 1 }); clang(gain * 0.8);
+    if (!alive) return; voice('IIIIIAAAAAAH', { f0: 420, rate: 0.5, gain, ring: 140, dist: 1, thru: true }); voice('AAAAAAAAH', { f0: 95, rate: 0.55, gain: gain * 0.8, ring: 33, dist: 1, thru: true }); clang(gain * 0.8, true);
     const t = T(), s = noise(), f = ctx.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 1800; const e = gainAt(gain * 0.5); e.gain.setValueAtTime(gain * 0.5, t); e.gain.exponentialRampToValueAtTime(0.001, t + 1.1); s.connect(f); f.connect(e); e.connect(bus); s.start(t); s.stop(t + 1.2);
   }
   /**
@@ -232,17 +243,17 @@ export function afterSound(audio) {
     const og = gainAt(0); og.gain.setValueAtTime(0, t); og.gain.linearRampToValueAtTime(0.9 * gain, t + 0.01); og.gain.exponentialRampToValueAtTime(0.001, t + 1.2); o.connect(og); og.connect(loud); o.start(t);
     for (const [f0, f1, g] of [[900, 2400, 0.45], [1300, 3100, 0.35], [660, 1900, 0.3]]) { const q = track(ctx.createOscillator(), t + 1); q.type = 'square'; q.frequency.setValueAtTime(f0, t); q.frequency.exponentialRampToValueAtTime(f1, t + 0.35); q.frequency.exponentialRampToValueAtTime(f0 * 0.6, t + 0.9);
       const qg = gainAt(0); qg.gain.setValueAtTime(0, t); qg.gain.linearRampToValueAtTime(g * gain, t + 0.01); qg.gain.exponentialRampToValueAtTime(0.001, t + 0.95); q.connect(qg); qg.connect(loud); q.start(t); }
-    voice('IIIIIIAAAAAAAH', { f0: 380, rate: 0.6, gain: 0.9 * gain, ring: 160, dist: 1 }); clang(0.9 * gain);
+    voice('IIIIIIAAAAAAAH', { f0: 380, rate: 0.6, gain: 0.9 * gain, ring: 160, dist: 1, thru: true }); clang(0.9 * gain, true);
   }
   /** porcelain and wood rattling: a burst of hard little knocks */
   function rattle(gain = 0.3, dur = 0.4) {
-    if (!alive) return; const t = T(), s = noise(), f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 900 + Math.random() * 900; f.Q.value = 5;
+    if (!alive || quiet()) return; const t = T(), s = noise(), f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 900 + Math.random() * 900; f.Q.value = 5;
     const e = gainAt(0), n = Math.round(dur * 40); for (let i = 0; i < n; i++) { const ti = t + i * dur / n + Math.random() * 0.01; e.gain.setValueAtTime(gain * 2.6 * (0.5 + Math.random() * 0.5), ti); e.gain.setValueAtTime(0, ti + 0.012); }
-    const p = ctx.createStereoPanner(); p.pan.value = Math.random() * 1.2 - 0.6; s.connect(f); f.connect(e); e.connect(p); p.connect(bus); s.start(t); s.stop(t + dur + 0.05);
+    const p = ctx.createStereoPanner(); p.pan.value = Math.random() * 1.2 - 0.6; s.connect(f); f.connect(e); e.connect(p); p.connect(talk); s.start(t); s.stop(t + dur + 0.05); drop(dur + 0.1, p, e, f);
   }
   /** a screech - the thing in the doll, through its little mouth */
   function screech(gain = 0.6) {
-    if (!alive) return; voice(['IIIIIIIEEEEEE', 'AAAAAIIIIIIIH', 'EEEEEEAAAAH', 'NNNNIIIIIIAAAAH'][(Math.random() * 4) | 0], { f0: 300 + Math.random() * 260, rate: 0.55 + Math.random() * 0.3, gain, ring: 90 + Math.random() * 120, dist: 1, pan: Math.random() * 1.4 - 0.7 });
+    if (!alive) return; voice(['IIIIIIIEEEEEE', 'AAAAAIIIIIIIH', 'EEEEEEAAAAH', 'NNNNIIIIIIAAAAH'][(Math.random() * 4) | 0], { f0: 300 + Math.random() * 260, rate: 0.55 + Math.random() * 0.3, gain, ring: 90 + Math.random() * 120, dist: 1, pan: Math.random() * 1.4 - 0.7, thru: true });
   }
   /** a pure tone, high and thin, hanging in the air (the false Heaven's only sound) -> { set(gain, sour 0..1), stop() } */
   function tone(hz = 1568) {
@@ -253,21 +264,27 @@ export function afterSound(audio) {
       stop() { const t = T(); g.gain.setTargetAtTime(0, t, 0.05); setTimeout(() => { try { a.stop(); b.stop(); } catch (e) { /* stopped */ } }, 400); } };
   }
   /** a point in the space round you (HRTF: in front, behind, above, below - and how far) */
-  function p3(pos) {
-    const p = ctx.createPanner(); p.panningModel = 'HRTF'; p.distanceModel = 'inverse'; p.refDistance = 1.5; p.rolloffFactor = 1.1; p.maxDistance = 80;
+  function p3(pos, hrtf = false, thru = false) {
+    const p = ctx.createPanner(); p.panningModel = hrtf ? 'HRTF' : 'equalpower'; p.distanceModel = 'inverse'; p.refDistance = 1.5; p.rolloffFactor = 1.1; p.maxDistance = 80;
     if (p.positionX) { p.positionX.value = pos.x; p.positionY.value = pos.y; p.positionZ.value = pos.z; } else p.setPosition(pos.x, pos.y, pos.z);
-    p.connect(bus); return p;
+    p.connect(to(thru)); return p;
   }
   /** where your ears are, and which way they face (the camera) */
+  const LV = new Float32Array(9).fill(NaN);
   function listen(pos, fwd, up) {
-    const L = ctx.listener, t = T();
-    if (L.positionX) { L.positionX.setTargetAtTime(pos.x, t, 0.02); L.positionY.setTargetAtTime(pos.y, t, 0.02); L.positionZ.setTargetAtTime(pos.z, t, 0.02); L.forwardX.setTargetAtTime(fwd.x, t, 0.02); L.forwardY.setTargetAtTime(fwd.y, t, 0.02); L.forwardZ.setTargetAtTime(fwd.z, t, 0.02); L.upX.setTargetAtTime(up.x, t, 0.02); L.upY.setTargetAtTime(up.y, t, 0.02); L.upZ.setTargetAtTime(up.z, t, 0.02); }
+    const L = ctx.listener, v = [pos.x, pos.y, pos.z, fwd.x, fwd.y, fwd.z, up.x, up.y, up.z];
+    let moved = false; for (let i = 0; i < 9; i++) if (Math.abs(v[i] - LV[i]) > 0.004 || LV[i] !== LV[i]) { moved = true; break; }
+    if (!moved) return; LV.set(v);
+    if (L.positionX) { const P = [L.positionX, L.positionY, L.positionZ, L.forwardX, L.forwardY, L.forwardZ, L.upX, L.upY, L.upZ]; for (let i = 0; i < 9; i++) P[i].value = v[i]; }
     else { L.setPosition(pos.x, pos.y, pos.z); L.setOrientation(fwd.x, fwd.y, fwd.z, up.x, up.y, up.z); }
   }
   /** how much of the cave there is (0..1) */
   function space(w) { wet.gain.setTargetAtTime(w, T(), 0.3); }
   /** the bed pulled out from under you - all of it, at once - for dur seconds, then let back in slowly */
-  function duck(dur = 1, to = 0) { const t = T(); amb.gain.cancelScheduledValues(t); amb.gain.setTargetAtTime(to, t, 0.03); amb.gain.setTargetAtTime(1, t + dur, 0.8); }
+  function duck(dur = 1, lvl = 0) {
+    const t = T(); quietUntil = Math.max(quietUntil, t + dur);
+    for (const g of [amb, talk]) { g.gain.cancelScheduledValues(t); g.gain.setValueAtTime(g.gain.value, t); g.gain.setTargetAtTime(lvl, t, 0.03); g.gain.setTargetAtTime(1, quietUntil, 0.3); }
+  }
   /** the intake: a breath of air drawn backwards, rising to nothing - and the hit lands where it stops (dur seconds on) */
   function suck(dur = 0.6, gain = 0.5) {
     if (!alive) return; const t = T(), s = noise(), f = ctx.createBiquadFilter(); f.type = 'highpass'; f.frequency.setValueAtTime(400, t); f.frequency.exponentialRampToValueAtTime(5000, t + dur);
@@ -283,18 +300,18 @@ export function afterSound(audio) {
     const N = 7, g = gainAt(0), f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 3500; f.connect(g); g.connect(amb);
     const os = Array.from({ length: N }, () => { const o = ctx.createOscillator(), og = gainAt(0); o.type = 'sine'; o.connect(og); og.connect(f); o.start(); return { o, og }; });
     const R0 = { g, os, ph: Math.random(), speed: 0.06, dir, N, stop() { for (const x of os) { try { x.o.stop(); } catch (e) { /* stopped */ } } },
-      set(level, speed) { g.gain.setTargetAtTime(level * 0.11, T(), 0.25); if (speed != null) R0.speed = speed; } };
+      set(level, speed) { if (speed != null) R0.speed = speed; if (Math.abs(level - (R0.lv ?? -1)) < 0.01) return; R0.lv = level; g.gain.setTargetAtTime(level * 0.11, T(), 0.25); } };
     risers.push(R0); return R0;
   }
   /** a footfall: something heavy and long put down on rock, a scrape after it - there (pos) */
-  function step(pos, gain = 0.5) {
-    if (!alive) return; const t = T(), out = p3(pos); gain *= 1.6;
+  function step(pos, gain = 0.5, op = {}) {
+    if (!alive || (!op.thru && quiet())) return; const t = T(), out = p3(pos, op.hrtf, op.thru); gain *= 1.6; drop(0.4, out);
     const o = track(ctx.createOscillator(), t + 0.2); o.frequency.setValueAtTime(90, t); o.frequency.exponentialRampToValueAtTime(40, t + 0.12); const og = gainAt(0); og.gain.setValueAtTime(gain, t); og.gain.exponentialRampToValueAtTime(0.001, t + 0.16); o.connect(og); og.connect(out); o.start(t);
     const s = noise(), f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 2400; f.Q.value = 1.5; const e = gainAt(0); e.gain.setValueAtTime(0, t + 0.04); e.gain.linearRampToValueAtTime(gain * 0.25, t + 0.08); e.gain.exponentialRampToValueAtTime(0.001, t + 0.3); s.connect(f); f.connect(e); e.connect(out); s.start(t); s.stop(t + 0.32);
   }
   /** a creak: a joint bending further than it should - wood, gristle - there (pos) */
-  function creak(pos, gain = 0.35) {
-    if (!alive) return; const t = T(), d = 0.35 + Math.random() * 0.5, out = pos ? p3(pos) : bus;
+  function creak(pos, gain = 0.35, op = {}) {
+    if (!alive || (!op.thru && quiet())) return; const t = T(), d = 0.35 + Math.random() * 0.5, out = pos ? p3(pos, op.hrtf, op.thru) : to(op.thru); if (pos) drop(d + 0.2, out);
     const o = track(ctx.createOscillator(), t + d + 0.05); o.type = 'sawtooth'; const f0 = 60 + Math.random() * 60; o.frequency.setValueAtTime(f0, t); o.frequency.linearRampToValueAtTime(f0 * (0.7 + Math.random() * 0.8), t + d);
     const lfo = track(ctx.createOscillator(), t + d + 0.05); lfo.frequency.value = 20 + Math.random() * 30; const lg = gainAt(0); lfo.connect(lg.gain);
     const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 900 + Math.random() * 900; bp.Q.value = 9; const e = gainAt(0); e.gain.setValueAtTime(0, t); e.gain.linearRampToValueAtTime(gain, t + 0.05); e.gain.setValueAtTime(gain, t + d - 0.08); e.gain.linearRampToValueAtTime(0, t + d);
@@ -337,7 +354,7 @@ export function afterSound(audio) {
   /** a breath - thin, catching */
   function breath(gain = 0.12, dur = 1.4, pos = null) {
     const t = T(), s = noise(), f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = pos ? 700 : 1100; f.Q.value = 0.8; const e = gainAt(0);
-    e.gain.setValueAtTime(0, t); e.gain.linearRampToValueAtTime(gain, t + dur * 0.4); e.gain.linearRampToValueAtTime(0, t + dur); s.connect(f); f.connect(e); e.connect(pos ? p3(pos) : bus); s.start(t); s.stop(t + dur + 0.05);
+    e.gain.setValueAtTime(0, t); e.gain.linearRampToValueAtTime(gain, t + dur * 0.4); e.gain.linearRampToValueAtTime(0, t + dur); s.connect(f); f.connect(e); e.connect(pos ? p3(pos, true, true) : bus); s.start(t); s.stop(t + dur + 0.05);
   }
   /**
    * It all collapses over s seconds: every pitch falls away (a tape stopping), the filter closes, the noise thins to
@@ -358,5 +375,5 @@ export function afterSound(audio) {
     try { window.speechSynthesis?.cancel(); } catch (e) { /* none */ }
     setTimeout(() => { for (const Rr of risers) Rr.stop(); for (const C of choirs) C.stop(); for (const o of [...oscs, ...loops, ...(droneN?.os || [])]) { try { o.stop(); } catch (e) { /* stopped */ } } try { bus.disconnect(); comp.disconnect(); } catch (e) { /* gone */ } }, s * 1000 + 200);
   }
-  return { live: true, voice, drone, chant, machine, clang, tick, heart, breath, fizzle, stop, squeak, click, splat, shriek, hum, stinger, rattle, screech, tone, angels, mob, listen, space, duck, suck, riser, step, creak, mute: (m) => bus.gain.setTargetAtTime(m ? 0 : 1, T(), 0.05) };
+  return { live: true, voice, drone, chant, machine, clang, tick, heart, breath, fizzle, stop, squeak, click, splat, shriek, hum, stinger, rattle, screech, tone, angels, mob, quiet, listen, space, duck, suck, riser, step, creak, mute: (m) => bus.gain.setTargetAtTime(m ? 0 : 1, T(), 0.05) };
 }
