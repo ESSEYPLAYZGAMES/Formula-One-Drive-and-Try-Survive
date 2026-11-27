@@ -23,6 +23,11 @@ export function afterSound(audio) {
   const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 18000; lp.Q.value = 0.8;
   const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -18; comp.ratio.value = 6; comp.attack.value = 0.004; comp.release.value = 0.2;
   bus.connect(lp); lp.connect(comp); comp.connect(audio.out);
+  // (the SPACE: a long dark reverb - a cave - fed from everything; space(w) how much of it)
+  const conv = ctx.createConvolver(); { const n = Math.floor(ctx.sampleRate * 3.6), ir = ctx.createBuffer(2, n, ctx.sampleRate); for (let c = 0; c < 2; c++) { const d = ir.getChannelData(c); for (let i = 0; i < n; i++) { const u = i / n; d[i] = (Math.random() * 2 - 1) * Math.pow(1 - u, 1.9) * Math.min(1, i / (ctx.sampleRate * 0.012)); } } conv.buffer = ir; }
+  const wet = ctx.createGain(); wet.gain.value = 0; bus.connect(wet); wet.connect(conv); conv.connect(comp);
+  // (the BED: drone, choir, machine, hums, the tone, the risers - on a gain of their own, to be pulled out from under you)
+  const amb = ctx.createGain(); amb.connect(bus);
   const nb = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate); { const d = nb.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; }
   const crush = ctx.createWaveShaper(); { const c = new Float32Array(1024); for (let i = 0; i < 1024; i++) { const x = i / 511.5 - 1; c[i] = Math.round(Math.tanh(x * 3) * 6) / 6; } crush.curve = c; }   // (hard, stepped: a voice through a broken machine)
   const oscs = new Set();   // (every pitched thing still sounding: fizzle() drops them all)
@@ -48,7 +53,7 @@ export function afterSound(audio) {
     const F = [0, 1, 2].map((k) => { const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = [9, 12, 14][k]; return f; });
     const fsum = gainAt(1); for (const f of F) { rm.connect(f); dry.connect(f); f.connect(fsum); }
     const sh = ctx.createWaveShaper(); sh.curve = crush.curve; const pre = gainAt(1 + (o.dist ?? 0.6) * 5); fsum.connect(pre); pre.connect(sh);
-    const env = gainAt(0), pan = ctx.createStereoPanner(); pan.pan.value = Math.max(-1, Math.min(1, o.pan || 0));
+    const env = gainAt(0), pan = o.pos ? p3(o.pos) : ctx.createStereoPanner(); if (!o.pos) pan.pan.value = Math.max(-1, Math.min(1, o.pan || 0));   // (o.pos: there, in the space round you)
     const out = gainAt((o.gain ?? 0.5) * loud * 0.6); sh.connect(env); env.connect(out); out.connect(pan); pan.connect(bus);
     // (the hiss of the consonants)
     const hs = noise(), hf = ctx.createBiquadFilter(); hf.type = 'highpass'; hf.frequency.value = 3200; const hg = gainAt(0); hs.connect(hf); hf.connect(hg); hg.connect(pan); hs.start(t0); hs.stop(t0 + dur + 0.1);
@@ -83,7 +88,7 @@ export function afterSound(audio) {
   function drone(v) {
     if (!alive) return;
     if (!droneN) {
-      const g = gainAt(0), f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 220; f.connect(g); g.connect(bus);
+      const g = gainAt(0), f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 220; f.connect(g); g.connect(amb);
       const os = []; for (const hz of [41.2, 41.9, 61.7]) { const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = hz; const og = gainAt(0.3); o.connect(og); og.connect(f); o.start(); os.push(o); }
       const r = noise(), rf = ctx.createBiquadFilter(); rf.type = 'lowpass'; rf.frequency.value = 110; const rg = gainAt(1.6); r.connect(rf); rf.connect(rg); rg.connect(g); r.start();
       droneN = { g, r, os };
@@ -103,7 +108,7 @@ export function afterSound(audio) {
         const F = [0, 1].map((k) => { const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 7; f.frequency.value = VOW.a[k]; return f; });
         const s = gainAt(1); for (const f of F) { o.connect(f); f.connect(s); } s.connect(g); o.start(); vib.start(); voices.push({ o, F }); stops.push(o, vib);
       }
-      const pg = gainAt(1); g.connect(pg); pg.connect(bus);
+      const pg = gainAt(1); g.connect(pg); pg.connect(amb);
       ch = { g, pg, voices, stops, beat: 0, t: 0 };
     }
     ch.g.gain.setTargetAtTime(v * 0.5, T(), 0.5); ch.v = v;
@@ -116,7 +121,7 @@ export function afterSound(audio) {
     if (!mc) {
       const s = noise(), f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 4; f.frequency.value = 900;
       const pre = gainAt(4), sh = ctx.createWaveShaper(); sh.curve = crush.curve; const stut = gainAt(1), g = gainAt(0);
-      s.connect(f); f.connect(pre); pre.connect(sh); sh.connect(stut); stut.connect(g); g.connect(bus); s.start();
+      s.connect(f); f.connect(pre); pre.connect(sh); sh.connect(stut); stut.connect(g); g.connect(amb); s.start();
       mc = { f, g, stut, v: 0, stops: [s] };
     }
     mc.g.gain.setTargetAtTime(v * 0.1, T(), 0.25); mc.v = v;
@@ -130,6 +135,8 @@ export function afterSound(audio) {
   /** each frame: the chant's pulse, the machine's sweeps and stutters, the odd clang - by how loud they are now */
   function tick(dt) {
     if (!alive) return;
+    for (const Rr of risers) { Rr.ph = (Rr.ph + Rr.dir * Rr.speed * dt + Rr.N) % Rr.N; const t = T();
+      Rr.os.forEach((x, i) => { const oct = (Rr.ph + i) % Rr.N, hz = 32 * Math.pow(2, oct), a = Math.exp(-Math.pow((oct - Rr.N / 2) / 1.3, 2)); x.o.frequency.setTargetAtTime(hz, t, 0.03); x.og.gain.setTargetAtTime(a, t, 0.03); }); }
     if (ch && ch.v > 0.01) {
       ch.t += dt; const beat = Math.floor(ch.t * (1.4 + ch.v * 1.6));   // (the chant quickening as it builds)
       if (beat !== ch.beat) { ch.beat = beat; const V = beat % 2 ? VOW.e : VOW.a, t = T();
@@ -151,9 +158,9 @@ export function afterSound(audio) {
       o.connect(e); e.connect(p); p.connect(bus); o.start(t0); }
   }
   /** a click in a throat, a joint cracking (a stalker twitching) */
-  function click(pan = 0, gain = 0.3) {
+  function click(pan = 0, gain = 0.3, pos = null) {
     if (!alive) return; const t = T(), s = noise(), f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 1400 + Math.random() * 1600; f.Q.value = 6;
-    const e = gainAt(0), p = ctx.createStereoPanner(); p.pan.value = Math.max(-1, Math.min(1, pan));
+    const e = gainAt(0), p = pos ? p3(pos) : ctx.createStereoPanner(); if (!pos) p.pan.value = Math.max(-1, Math.min(1, pan));
     for (let i = 0; i < 3; i++) { const ti = t + i * (0.02 + Math.random() * 0.03); e.gain.setValueAtTime(gain, ti); e.gain.setValueAtTime(0, ti + 0.006); }
     s.connect(f); f.connect(e); e.connect(p); p.connect(bus); s.start(t); s.stop(t + 0.2);
   }
@@ -174,7 +181,7 @@ export function afterSound(audio) {
    */
   function hum() {
     if (!alive) return { set() {}, stop() {} };
-    const g = gainAt(0), p = ctx.createStereoPanner(), f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 700; f.connect(g); g.connect(p); p.connect(bus);
+    const g = gainAt(0), p = ctx.createStereoPanner(), f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 700; f.connect(g); g.connect(p); p.connect(amb);
     const os = [65.4, 98.3, 130.1, 155.8].map((hz) => { const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = hz * (1 + (Math.random() - 0.5) * 0.008); const og = gainAt(0.18); o.connect(og); og.connect(f); o.start(); return o; });
     const lfo = ctx.createOscillator(), lg = gainAt(300); lfo.frequency.value = 0.3 + Math.random() * 0.3; lfo.connect(lg); lg.connect(f.frequency); lfo.start(); os.push(lfo);
     const w = noise(), wf = ctx.createBiquadFilter(); wf.type = 'bandpass'; wf.frequency.value = 2200; wf.Q.value = 2; const wg = gainAt(0.25); w.connect(wf); wf.connect(wg); wg.connect(g); w.start();
@@ -211,9 +218,57 @@ export function afterSound(audio) {
   function tone(hz = 1568) {
     if (!alive) return { set() {}, stop() {} };
     const a = ctx.createOscillator(), b = ctx.createOscillator(), g = gainAt(0); a.type = b.type = 'sine'; a.frequency.value = hz; b.frequency.value = hz * 1.0005;
-    a.connect(g); b.connect(g); g.connect(bus); a.start(); b.start();
+    a.connect(g); b.connect(g); g.connect(amb); a.start(); b.start();
     return { set(gain, sour = 0) { const t = T(); g.gain.setTargetAtTime(gain, t, 0.4); b.frequency.setTargetAtTime(hz * (1.0005 + sour * 0.058), t, 0.6); },   // (sour: the second voice sliding a semitone off - the beating turning to a grind)
       stop() { const t = T(); g.gain.setTargetAtTime(0, t, 0.05); setTimeout(() => { try { a.stop(); b.stop(); } catch (e) { /* stopped */ } }, 400); } };
+  }
+  /** a point in the space round you (HRTF: in front, behind, above, below - and how far) */
+  function p3(pos) {
+    const p = ctx.createPanner(); p.panningModel = 'HRTF'; p.distanceModel = 'inverse'; p.refDistance = 1.5; p.rolloffFactor = 1.1; p.maxDistance = 80;
+    if (p.positionX) { p.positionX.value = pos.x; p.positionY.value = pos.y; p.positionZ.value = pos.z; } else p.setPosition(pos.x, pos.y, pos.z);
+    p.connect(bus); return p;
+  }
+  /** where your ears are, and which way they face (the camera) */
+  function listen(pos, fwd, up) {
+    const L = ctx.listener, t = T();
+    if (L.positionX) { L.positionX.setTargetAtTime(pos.x, t, 0.02); L.positionY.setTargetAtTime(pos.y, t, 0.02); L.positionZ.setTargetAtTime(pos.z, t, 0.02); L.forwardX.setTargetAtTime(fwd.x, t, 0.02); L.forwardY.setTargetAtTime(fwd.y, t, 0.02); L.forwardZ.setTargetAtTime(fwd.z, t, 0.02); L.upX.setTargetAtTime(up.x, t, 0.02); L.upY.setTargetAtTime(up.y, t, 0.02); L.upZ.setTargetAtTime(up.z, t, 0.02); }
+    else { L.setPosition(pos.x, pos.y, pos.z); L.setOrientation(fwd.x, fwd.y, fwd.z, up.x, up.y, up.z); }
+  }
+  /** how much of the cave there is (0..1) */
+  function space(w) { wet.gain.setTargetAtTime(w, T(), 0.3); }
+  /** the bed pulled out from under you - all of it, at once - for dur seconds, then let back in slowly */
+  function duck(dur = 1, to = 0) { const t = T(); amb.gain.cancelScheduledValues(t); amb.gain.setTargetAtTime(to, t, 0.03); amb.gain.setTargetAtTime(1, t + dur, 0.8); }
+  /** the intake: a breath of air drawn backwards, rising to nothing - and the hit lands where it stops (dur seconds on) */
+  function suck(dur = 0.6, gain = 0.5) {
+    if (!alive) return; const t = T(), s = noise(), f = ctx.createBiquadFilter(); f.type = 'highpass'; f.frequency.setValueAtTime(400, t); f.frequency.exponentialRampToValueAtTime(5000, t + dur);
+    const e = gainAt(0); e.gain.setValueAtTime(0.0001, t); e.gain.exponentialRampToValueAtTime(gain, t + dur); e.gain.setValueAtTime(0, t + dur + 0.005); s.connect(f); f.connect(e); e.connect(loud); s.start(t); s.stop(t + dur + 0.05);
+  }
+  /**
+   * The SHEPARD tone: octaves of sine gliding forever up (dir 1) or forever down (dir -1) - it never arrives, never stops
+   * rising (or falling). -> { set(level, speed) }; moved on by tick()
+   */
+  const risers = [];
+  function riser(dir = 1) {
+    if (!alive) return { set() {} };
+    const N = 7, g = gainAt(0), f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 3500; f.connect(g); g.connect(amb);
+    const os = Array.from({ length: N }, () => { const o = ctx.createOscillator(), og = gainAt(0); o.type = 'sine'; o.connect(og); og.connect(f); o.start(); return { o, og }; });
+    const R0 = { g, os, ph: Math.random(), speed: 0.06, dir, N, stop() { for (const x of os) { try { x.o.stop(); } catch (e) { /* stopped */ } } },
+      set(level, speed) { g.gain.setTargetAtTime(level * 0.11, T(), 0.25); if (speed != null) R0.speed = speed; } };
+    risers.push(R0); return R0;
+  }
+  /** a footfall: something heavy and long put down on rock, a scrape after it - there (pos) */
+  function step(pos, gain = 0.5) {
+    if (!alive) return; const t = T(), out = p3(pos); gain *= 1.6;
+    const o = track(ctx.createOscillator(), t + 0.2); o.frequency.setValueAtTime(90, t); o.frequency.exponentialRampToValueAtTime(40, t + 0.12); const og = gainAt(0); og.gain.setValueAtTime(gain, t); og.gain.exponentialRampToValueAtTime(0.001, t + 0.16); o.connect(og); og.connect(out); o.start(t);
+    const s = noise(), f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 2400; f.Q.value = 1.5; const e = gainAt(0); e.gain.setValueAtTime(0, t + 0.04); e.gain.linearRampToValueAtTime(gain * 0.25, t + 0.08); e.gain.exponentialRampToValueAtTime(0.001, t + 0.3); s.connect(f); f.connect(e); e.connect(out); s.start(t); s.stop(t + 0.32);
+  }
+  /** a creak: a joint bending further than it should - wood, gristle - there (pos) */
+  function creak(pos, gain = 0.35) {
+    if (!alive) return; const t = T(), d = 0.35 + Math.random() * 0.5, out = pos ? p3(pos) : bus;
+    const o = track(ctx.createOscillator(), t + d + 0.05); o.type = 'sawtooth'; const f0 = 60 + Math.random() * 60; o.frequency.setValueAtTime(f0, t); o.frequency.linearRampToValueAtTime(f0 * (0.7 + Math.random() * 0.8), t + d);
+    const lfo = track(ctx.createOscillator(), t + d + 0.05); lfo.frequency.value = 20 + Math.random() * 30; const lg = gainAt(0); lfo.connect(lg.gain);
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 900 + Math.random() * 900; bp.Q.value = 9; const e = gainAt(0); e.gain.setValueAtTime(0, t); e.gain.linearRampToValueAtTime(gain, t + 0.05); e.gain.setValueAtTime(gain, t + d - 0.08); e.gain.linearRampToValueAtTime(0, t + d);
+    o.connect(lg); lg.connect(bp); bp.connect(e); e.connect(out); o.start(t); lfo.start(t);
   }
   /** a heartbeat - weak (two thumps) */
   function heart(gain = 0.5) {
@@ -221,9 +276,9 @@ export function afterSound(audio) {
       const e = gainAt(0); e.gain.setValueAtTime(0, t + d); e.gain.linearRampToValueAtTime(gain * g, t + d + 0.02); e.gain.exponentialRampToValueAtTime(0.001, t + d + 0.25); o.connect(e); e.connect(bus); o.start(t + d); }
   }
   /** a breath - thin, catching */
-  function breath(gain = 0.12, dur = 1.4) {
-    const t = T(), s = noise(), f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 1100; f.Q.value = 0.8; const e = gainAt(0);
-    e.gain.setValueAtTime(0, t); e.gain.linearRampToValueAtTime(gain, t + dur * 0.4); e.gain.linearRampToValueAtTime(0, t + dur); s.connect(f); f.connect(e); e.connect(bus); s.start(t); s.stop(t + dur + 0.05);
+  function breath(gain = 0.12, dur = 1.4, pos = null) {
+    const t = T(), s = noise(), f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = pos ? 700 : 1100; f.Q.value = 0.8; const e = gainAt(0);
+    e.gain.setValueAtTime(0, t); e.gain.linearRampToValueAtTime(gain, t + dur * 0.4); e.gain.linearRampToValueAtTime(0, t + dur); s.connect(f); f.connect(e); e.connect(pos ? p3(pos) : bus); s.start(t); s.stop(t + dur + 0.05);
   }
   /**
    * It all collapses over s seconds: every pitch falls away (a tape stopping), the filter closes, the noise thins to
@@ -242,7 +297,7 @@ export function afterSound(audio) {
   function stop(s = 1) {
     if (!alive) return; alive = false; const t = T(); bus.gain.setTargetAtTime(0, t, s / 4); loud.gain.setTargetAtTime(0, t, s / 4);
     try { window.speechSynthesis?.cancel(); } catch (e) { /* none */ }
-    setTimeout(() => { for (const o of [...oscs, ...loops, ...(droneN?.os || [])]) { try { o.stop(); } catch (e) { /* stopped */ } } try { bus.disconnect(); comp.disconnect(); } catch (e) { /* gone */ } }, s * 1000 + 200);
+    setTimeout(() => { for (const Rr of risers) Rr.stop(); for (const o of [...oscs, ...loops, ...(droneN?.os || [])]) { try { o.stop(); } catch (e) { /* stopped */ } } try { bus.disconnect(); comp.disconnect(); } catch (e) { /* gone */ } }, s * 1000 + 200);
   }
-  return { live: true, voice, drone, chant, machine, clang, tick, heart, breath, fizzle, stop, squeak, click, splat, shriek, hum, stinger, rattle, screech, tone, mute: (m) => bus.gain.setTargetAtTime(m ? 0 : 1, T(), 0.05) };
+  return { live: true, voice, drone, chant, machine, clang, tick, heart, breath, fizzle, stop, squeak, click, splat, shriek, hum, stinger, rattle, screech, tone, listen, space, duck, suck, riser, step, creak, mute: (m) => bus.gain.setTargetAtTime(m ? 0 : 1, T(), 0.05) };
 }

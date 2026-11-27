@@ -194,6 +194,9 @@ export function showAfterlife(o) {
   }
   // what you hear (Hell: its air, and the echoes - the arguments you were in) and what you read (Heaven: the papers)
   const snd = afterSound(o.audio), echoes = heaven ? [] : hellEchoes({ bad: o.bad, name: o.name, mate: o.mate }), lines = [];
+  // (the sound of the place: Hell a cave - everything in it ringing back off rock you cannot see; the false Heaven a hall.
+  //  And under it, the tension: a tone that rises and rises and never arrives - louder the nearer one of them is, unseen)
+  snd.space(heaven ? (fake ? 0.25 : 0) : 0.55); const tension = !heaven || fake ? snd.riser(1) : null;
   let echoAt = 3.6, echoK = 0;
   if (!heaven) snd.drone(0.95);
   const papers = [];
@@ -210,14 +213,14 @@ export function showAfterlife(o) {
   const G0 = heaven ? null : gore(sc, (x, z) => clear(x, z, 6), { pools: 64, hang: 22, heaps: 16 });
   const RAT = heaven ? null : rats(320, { r: 62, packs: 12 }); if (RAT) sc.add(RAT.mesh);
   const ST = heaven ? [] : Array.from({ length: 12 }, () => { const m = stalker(); let x = 0, z = 0; for (let k = 0; k < 30; k++) { const a = Math.random() * Math.PI * 2, r = 16 + Math.random() * 40; x = Math.sin(a) * r; z = Math.cos(a) * r; if (!clear(x, z, 8)) break; } m.G.position.set(x, 0, z); sc.add(m.G); return m; });
-  let scareCool = 14, scare = null, breathAt = 2, squeakAt = 1;
+  let scareCool = 14, scare = null, breathAt = 2, squeakAt = 1, blk = null;
   // (the faces in the dark: pale masks hanging in the fog at head height everywhere, watching - gone when you come near)
   const FACES = [];
   if (!heaven) { const ft = new THREE.CanvasTexture(faceCanvas()); ft.colorSpace = THREE.SRGBColorSpace;
     for (let k = 0; k < 96; k++) { const a = Math.random() * Math.PI * 2, r = 16 + Math.random() * 50, f = new THREE.Sprite(new THREE.SpriteMaterial({ map: ft, transparent: true, depthWrite: false, fog: false, opacity: 0 }));
       f.position.set(Math.sin(a) * r, 3.2 + Math.random() * 3, Math.cos(a) * r); f.scale.set(0.5, 0.67, 1); f.userData.o = 0.25 + Math.random() * 0.45; sc.add(f); FACES.push(f); } }
   // (the scares' clocks: a face flashing on the screen, one standing at the edge of the light, the dark, your name in your ear)
-  let subAt = 5 + Math.random() * 6, appearAt = 9 + Math.random() * 8, blackAt = 13 + Math.random() * 10, earAt = 7 + Math.random() * 6, heartAt = 1, black = 0, appear = null, trkAt = 3;
+  let subAt = 14 + Math.random() * 10, appearAt = 16 + Math.random() * 12, blackAt = 24 + Math.random() * 14, earAt = 12 + Math.random() * 10, heartAt = 1, black = 0, appear = null, trkAt = 3;
   const subEl = el.querySelector('canvas.al-sub'), vhsC = el.querySelector('.al-vhs canvas'), trkEl = el.querySelector('.al-vhs .trk');
   { const fc = faceCanvas(); subEl.width = fc.width; subEl.height = fc.height; subEl.getContext('2d').drawImage(fc, 0, 0); }
   vhsC.width = 320; vhsC.height = 180; const vg = vhsC.getContext('2d'), vimg = vg.createImageData(320, 180);
@@ -251,6 +254,7 @@ export function showAfterlife(o) {
   const setHint = () => { hint.innerHTML = fake ? '<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>' : C.length ? '<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> &nbsp; <kbd>E</kbd>' : '<kbd>E</kbd>'; hint.classList.remove('gone'); clearTimeout(hint._t); hint._t = setTimeout(() => hint.classList.add('gone'), 7000); };
   setHint(); setTimeout(() => el.querySelector('.al-title').classList.add('in'), 600); setTimeout(() => el.querySelector('.al-title').classList.remove('in'), 4200);
   const camPos = new THREE.Vector3(0, 4, 12), look = new THREE.Vector3(0, 1.5, -10);
+  el.__scarePh = () => scare?.ph || null;
   el.__al = { fallAt: () => (fall ? (fall.ph === 'hush' ? -1 : t - fall.tg) : null), dbg: () => ({ me: [me.position.x, me.position.z], near: nearP?.cand?.name || null, t, mode }), phase: () => (mode === 'exorcism' ? exo.phase : mode), place: (x, z) => { me.position.set(x, 1.4, z); camPos.set(x, 4, z + 7); }, echo: () => { echoAt = 0; }, ports: () => ports.map((p) => [p.G.position.x, p.G.position.z]), face: (x, z) => { heading = Math.atan2(x - me.position.x, z - me.position.z); }, stalkers: ST, show: (i = 1, d = 6) => { const m = ST[i]; if (m) m.G.position.set(me.position.x + Math.sin(heading) * d, 0, me.position.z + Math.cos(heading) * d); }, scare: () => { scareCool = 0; const s0 = ST[0]; if (s0) { s0.G.position.set(me.position.x + 1.5, 0, me.position.z + 1.5); } } };   // (a test's handles)
   const fwd = new THREE.Vector3(), FR = new THREE.Frustum(), PM = new THREE.Matrix4(), BX = new THREE.Vector3();
   const right = new THREE.Vector3();
@@ -266,7 +270,7 @@ export function showAfterlife(o) {
       const said = snd.voice(line, { f0: you ? 92 : f0, rate: you ? 0.95 : 1.05, ring: you ? 63 : 34, dist: you ? 0.9 : 0.65, gain: 0.55 * Math.min(1.2, 9 / Math.max(4, dist)), pan, delay: at, say: i === 0 }) ; const len = typeof said === 'number' && said > 0 ? said : 0.4 + line.length * 0.055;
       at += Math.max(0.5, len - 0.25);   // (they talk over each other: an argument)
     });
-    return at + 1.4 + Math.random() * 2.2;
+    return at + 3 + Math.random() * 4;
   }
 
   const exo = { v: 0, phase: 'still', u: 0, flies: [], snap: 0, sr: 0, punch: 0, mon: null, lunge: null };
@@ -342,7 +346,8 @@ export function showAfterlife(o) {
     const dt = Math.max(0, Math.min(window.__f1FastClock ? 0.3 : 0.05, (now - last) / 1000)); last = now; t += dt;   // (__f1FastClock: the tests', on a slow machine)
     if (mode === 'walk') {
       const turn = (keys.has('a') || keys.has('arrowleft') ? 1 : 0) - (keys.has('d') || keys.has('arrowright') ? 1 : 0), go = (keys.has('w') || keys.has('arrowup') ? 1 : 0) - (keys.has('s') || keys.has('arrowdown') ? 0.6 : 0);
-      heading += turn * dt * 1.9; const sp = 9 * go * dt; me.position.x += Math.sin(heading) * sp; me.position.z += Math.cos(heading) * sp;
+      const fear = scare ? 0 : 1;   // (one at your back: you do not move)
+      heading += turn * dt * 1.9 * fear; const sp = 9 * go * dt * fear; me.position.x += Math.sin(heading) * sp; me.position.z += Math.cos(heading) * sp;
       if (heaven) { me.position.x = Math.max(-40, Math.min(40, me.position.x)); me.position.z = Math.max(-100, Math.min(14, me.position.z)); }
       else { const rr = Math.hypot(me.position.x, me.position.z); if (rr > 70) { me.position.x *= 70 / rr; me.position.z *= 70 / rr; }   // (Hell: a round dark, no end to walk to)
         for (const [rx, rz, rb, h] of rocks) { const R0 = rb * Math.max(0, 1 - 1.9 / h) + 0.6, dx = me.position.x - rx, dz = me.position.z - rz, d = Math.hypot(dx, dz); if (d < R0 && d > 1e-3) { me.position.x = rx + dx / d * R0; me.position.z = rz + dz / d * R0; } } }   // (round the spires, not through them)
@@ -433,12 +438,12 @@ export function showAfterlife(o) {
     if (RAT) { RAT.update(dt, t, me.position); squeakAt -= dt; if (RAT.near < 14 && squeakAt <= 0) { snd.squeak(Math.random() * 1.6 - 0.8, 0.04 + 0.12 * (1 - RAT.near / 14)); squeakAt = 0.12 + Math.random() * 0.5; } }
     for (const p of ports) p.rats?.update(dt, t, new THREE.Vector3(cam.position.x - p.G.position.x, 0, cam.position.z - p.G.position.z));
     cam.updateMatrixWorld(); PM.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse); FR.setFromProjectionMatrix(PM);
-    cam.getWorldDirection(fwd); right.crossVectors(fwd, cam.up).normalize();
+    cam.getWorldDirection(fwd); right.crossVectors(fwd, cam.up).normalize(); snd.listen(cam.position, fwd, cam.up); if (mode !== 'exorcism' && mode !== 'fall') snd.tick(dt);
     const panOf = (v3) => { BX.copy(v3).sub(cam.position).normalize(); return Math.max(-1, Math.min(1, BX.dot(right) * 1.3)); };
     if (mode === 'walk') hums.forEach((h, i) => { const P = ports[i].G.position, d = Math.hypot(P.x - me.position.x, P.z - me.position.z); h.set(panOf(P), Math.min(0.32, 3.2 / Math.max(4, d))); });
     let nearest = 99, nearM = null; scareCool -= dt;
     for (const m of ST) {
-      if (!m.onTwitch) m.onTwitch = (mm) => { if (mm.d < 24 && mm.G.visible) snd.click(panOf(mm.G.position), 0.35 * (1 - mm.d / 24)); };
+      if (!m.onTwitch) m.onTwitch = (mm) => { if (mm.d < 26 && mm.G.visible) { mm.head.getWorldPosition(BX); const P = BX.clone(); snd.click(0, 0.5 * (1 - mm.d / 26), P); if (Math.random() < 0.5) snd.creak(P, 0.3 * (1 - mm.d / 26)); } };   // (its neck: there, where it is)
       m.update(dt, t, cam.position);
       if (m.trip) {
         const T = m.trip, u = Math.min(1, (t - T.t0) / T.d); m.G.position.lerpVectors(T.from, T.to, u);
@@ -453,18 +458,34 @@ export function showAfterlife(o) {
       if (mode === 'walk' && !seen && ds > 2.5 && ds < 64) {   // (out of your sight: closer)
         const dx = me.position.x - m.G.position.x, dz = me.position.z - m.G.position.z, L = Math.hypot(dx, dz) || 1, v = (ds > 22 ? 8 : 3.9) * dt;
         m.G.position.x += (dx / L) * v; m.G.position.z += (dz / L) * v;
+        // (its footfalls - heavy, slow, from exactly where it is: you hear it coming, and from where)
+        m.stepAt = (m.stepAt ?? 0) - dt; if (ds < 28 && m.stepAt <= 0) { snd.step(m.G.position.clone(), 0.18 + 0.6 * (1 - ds / 28)); m.stepAt = ds > 22 ? 0.3 : 0.7; }
       }
       if (ds < nearest) { nearest = ds; nearM = m; }
-      if (mode === 'walk' && !scare && scareCool <= 0 && ds < 4.3) { scare = { m, t0: t }; snd.shriek(0.9); snd.stinger(1.2); setTimeout(() => snd.stinger(0.8), 260); glitch(); const sx = el.querySelector('.al-scare'); sx.classList.remove('on'); void sx.offsetWidth; sx.classList.add('on'); }
+      if (mode === 'walk' && !scare && scareCool <= 0 && (seen ? ds < 4.3 : m.d < 3.4)) {   // (in front of you: on you; behind: right at the back of your eyes)
+        // (it is behind you: everything else gone quiet; its breath at the back of your neck; then you turn)
+        scare = { m, t0: t, ph: seen ? 'turn' : 'behind', from: heading, to: Math.atan2(m.G.position.x - me.position.x, m.G.position.z - me.position.z) };
+        snd.duck(seen ? 1.2 : 2.4); m.head.getWorldPosition(BX); const P = BX.clone();
+        if (!seen) { snd.breath(0.7, 1.1, P); snd.voice('hhhhhhhaaaaahhhh', { f0: 42, rate: 0.5, gain: 0.35, ring: 20, dist: 0.25, pos: P }); snd.creak(P, 0.4); heartAt = 99; }
+        snd.suck(seen ? 0.35 : 1.25, 0.6);
+      }
     }
     // (in your face: right in front of your eyes for a moment, then gone - somewhere else in the dark)
-    if (scare) {
+    if (scare && scare.ph !== 'face') {
+      // (behind you, then the turn: the camera brought round to it)
+      const u = t - scare.t0, S0 = scare;
+      if (S0.ph === 'behind' && u > 0.95) { S0.ph = 'turn'; S0.t1 = t; }
+      if (S0.ph === 'turn') { const k = Math.min(1, (t - (S0.t1 ?? S0.t0)) / 0.28); let d = S0.to - S0.from; d = Math.atan2(Math.sin(d), Math.cos(d)); heading = S0.from + d * (k * k * (3 - 2 * k));
+        camPos.set(me.position.x - Math.sin(heading) * 1.2, me.position.y + 1.2, me.position.z - Math.cos(heading) * 1.2); look.set(me.position.x + Math.sin(heading) * 4, 2.2, me.position.z + Math.cos(heading) * 4);
+        if (k >= 1 || u > 1.3) { S0.ph = 'face'; S0.t0 = t; snd.stinger(1.3); snd.shriek(1); glitch(); const sx = el.querySelector('.al-scare'); sx.classList.remove('on'); void sx.offsetWidth; sx.classList.add('on'); heartAt = 0.3; } }
+    }
+    if (scare && scare.ph === 'face') {
       const m = scare.m, u = t - scare.t0, k = m.H / 3.8, j = () => (Math.random() - 0.5) * 2;
       // (its face where you are looking, a metre off, square on - shaking)
       BX.copy(cam.position).addScaledVector(fwd, 0.95); m.G.position.set(BX.x, BX.y - 4.05 * k, BX.z);
       m.G.rotation.y = Math.atan2(cam.position.x - BX.x, cam.position.z - BX.z); m.head.lookAt(cam.position); m.head.rotateZ(j() * 0.25); m.head.rotateX(j() * 0.12);
       near.classList.remove('in');
-      if (u > 0.75) { const a = Math.random() * Math.PI * 2, r = 34 + Math.random() * 22; m.G.position.set(me.position.x + Math.sin(a) * r, 0, me.position.z + Math.cos(a) * r); scare = null; scareCool = 7 + Math.random() * 7; }
+      if (u > 0.75) { const a = Math.random() * Math.PI * 2, r = 34 + Math.random() * 22; m.G.position.set(me.position.x + Math.sin(a) * r, 0, me.position.z + Math.cos(a) * r); scare = null; scareCool = 11 + Math.random() * 9; }
     }
     // (one close: its breathing)
     breathAt -= dt; if (mode === 'walk' && nearM && nearest < 10 && breathAt <= 0) { snd.voice('hhhhaaaaahhhh', { f0: 46, rate: 0.45, gain: 0.05 + 0.14 * (1 - nearest / 10), ring: 21, dist: 0.3, pan: panOf(nearM.G.position) }); breathAt = 2.2 + Math.random() * 2.5; }
@@ -476,20 +497,34 @@ export function showAfterlife(o) {
    * flashed on the screen for a frame; your own name whispered in one ear.
    */
   function hellScares(dt) {
-    let nearest = 99; for (const m of ST) if (m.G.visible && !m.held) nearest = Math.min(nearest, Math.hypot(m.G.position.x - me.position.x, m.G.position.z - me.position.z));
+    let nearest = 99, unseen = 99; for (const m of ST) if (m.G.visible && !m.held) { const d = Math.hypot(m.G.position.x - me.position.x, m.G.position.z - me.position.z); nearest = Math.min(nearest, d); if (!m.frozen) unseen = Math.min(unseen, d); }
+    { const k = mode === 'walk' && !scare ? Math.max(0, Math.min(1, 1 - (unseen - 4) / 26)) : 0; tension?.set(k * 0.9, 0.04 + k * 0.3); if (mode === 'walk') snd.drone(0.45 + k * 0.5); }   // (something coming - you cannot see it - you can hear the air tighten)
     heartAt -= dt; if (heartAt <= 0) { const k = Math.max(0, Math.min(1, 1 - (nearest - 3) / 20)); snd.heart(0.15 + k * 0.4); if (k > 0.75 && Math.random() < 0.5) snd.breath(0.12, 0.6); heartAt = 60 / (62 + k * 95); }
     for (const f of FACES) { const d = Math.hypot(f.position.x - me.position.x, f.position.z - me.position.z); f.material.opacity += ((d > 18 ? f.userData.o : 0) * (black > 0 ? 1.4 : 1) - f.material.opacity) * Math.min(1, dt * (d > 18 ? 0.5 : 4)); }
     if (mode !== 'walk') { hemi.intensity = 0.9; sun.intensity = 1.2; return; }
     // (the light: a flicker; the dark)
-    blackAt -= dt; if (blackAt <= 0) { black = 1 + Math.random() * 2.2; blackAt = 15 + Math.random() * 15; snd.voice('hhhhhhhaaaaaaaahhhh', { f0: 40, rate: 0.4, gain: 0.2, ring: 18, dist: 0.3, pan: Math.random() * 2 - 1 }); }
-    if (black > 0) { black -= dt; hemi.intensity = 0.02; sun.intensity = 0; if (black <= 0) glitch(); }
+    blackAt -= dt; if (blackAt <= 0 && !scare && !blk) { blk = { t0: t, dur: 2.6 + Math.random() * 1.6, a: Math.random() * 6, stepAt: 0.4, ph: 'dark' }; black = 1; blackAt = 28 + Math.random() * 17; snd.duck(blk.dur + 2.2); }
+    if (blk) {
+      const u = t - blk.t0;
+      if (blk.ph === 'dark') {
+        // (the dark: and something walking round you in it - you can hear exactly where, and it is going round)
+        hemi.intensity = 0.02; sun.intensity = 0; blk.a += dt * 1.6; blk.stepAt -= dt;
+        if (blk.stepAt <= 0) { blk.stepAt = 0.42; snd.step(new THREE.Vector3(me.position.x + Math.sin(blk.a) * 3.2, 0, me.position.z + Math.cos(blk.a) * 3.2), 0.6); }
+        if (u > blk.dur) { const m = ST.find((x) => !x.held && !x.trip && scare?.m !== x); blk.ph = 'stare'; blk.t1 = t; black = 0; hemi.intensity = 0.9; sun.intensity = 1.2;
+          if (m) { blk.m = m; m.G.position.set(me.position.x + Math.sin(heading) * 2.4, 0, me.position.z + Math.cos(heading) * 2.4); } heartAt = 0.2; }
+      } else if (blk.ph === 'stare') {
+        // (the light back, and it is there - right in front of you - not moving, not making a sound)
+        if (t - blk.t1 > 1.5) { blk.ph = 'gone'; blk.t1 = t; hemi.intensity = 0.02; sun.intensity = 0; black = 1; }
+      } else if (t - blk.t1 > 0.35) { if (blk.m) { const a = Math.random() * Math.PI * 2; blk.m.G.position.set(me.position.x + Math.sin(a) * 40, 0, me.position.z + Math.cos(a) * 40); } black = 0; blk = null; glitch(); }
+    }
+    else if (black > 0) { black -= dt; hemi.intensity = 0.02; sun.intensity = 0; if (black <= 0) glitch(); }
     else { const fl = Math.random() < dt * 3.5 ? 0.15 : 1; hemi.intensity = 0.9 * fl; sun.intensity = 1.2 * fl; }
     // (a face on the screen, for a frame)
-    subAt -= dt; if (subAt <= 0) { subliminal(Math.random() < 0.5 ? 60 : 110); if (Math.random() < 0.4) snd.click(0, 0.4); subAt = 7 + Math.random() * 11; }
+    subAt -= dt; if (subAt <= 0) { subliminal(Math.random() < 0.5 ? 60 : 110); if (Math.random() < 0.4) snd.click(0, 0.4); subAt = 14 + Math.random() * 14; }
     // (your name, in your ear)
-    earAt -= dt; if (earAt <= 0) { const nm = String(o.name || '').split(' ')[0] || 'you'; snd.voice(`${nm}... ${nm}...`, { f0: 58 + Math.random() * 20, rate: 0.45, gain: 0.32, ring: 26, dist: 0.25, pan: Math.random() < 0.5 ? -1 : 1 }); earAt = 10 + Math.random() * 10; }
+    earAt -= dt; if (earAt <= 0) { const nm = String(o.name || '').split(' ')[0] || 'you'; snd.voice(`${nm}... ${nm}...`, { f0: 58 + Math.random() * 20, rate: 0.45, gain: 0.32, ring: 26, dist: 0.25, pan: Math.random() < 0.5 ? -1 : 1 }); earAt = 15 + Math.random() * 14; }
     // (one of them at the edge of the light ahead, still, facing you - gone the moment you have looked at it)
-    if (!appear) { appearAt -= dt; if (appearAt <= 0) { const m = ST.find((x) => !x.held && !x.trip && scare?.m !== x); if (m) { const a = heading + (Math.random() - 0.5) * 0.5; m.G.position.set(me.position.x + Math.sin(a) * 13, 0, me.position.z + Math.cos(a) * 13); appear = { m, seen: 0 }; } appearAt = 12 + Math.random() * 13; } }
+    if (!appear) { appearAt -= dt; if (appearAt <= 0) { const m = ST.find((x) => !x.held && !x.trip && scare?.m !== x); if (m) { const a = heading + (Math.random() - 0.5) * 0.5; m.G.position.set(me.position.x + Math.sin(a) * 13, 0, me.position.z + Math.cos(a) * 13); appear = { m, seen: 0 }; } appearAt = 20 + Math.random() * 15; } }
     else { const m = appear.m; BX.copy(m.G.position); BX.y = 2.6; if (FR.containsPoint(BX)) appear.seen += dt;
       if (appear.seen > 1.1) { const a = Math.random() * Math.PI * 2; m.G.position.set(me.position.x + Math.sin(a) * 45, 0, me.position.z + Math.cos(a) * 45); glitch(); snd.click(0, 0.5); appear = null; } }
   }
@@ -508,13 +543,13 @@ export function showAfterlife(o) {
   function fakeTick(dt) {
     const p = Math.max(0, Math.min(1, (4 - me.position.z) / 86));
     for (const f of FF) f.material.opacity += ((f.userData.k < Math.pow(p, 1.25) * 1.05 ? 0.6 : 0) - f.material.opacity) * Math.min(1, dt * 0.8);
-    tone.set(0.035 + p * 0.02, Math.max(0, (p - 0.35) / 0.65));
+    tone.set(0.035 + p * 0.02, Math.max(0, (p - 0.35) / 0.65)); tension?.set(Math.max(0, (p - 0.4) / 0.6) * 0.55, 0.03 + p * 0.08);
     if (p > 0.55 && Math.random() < dt * 0.4 * p) snd.voice('hhhhhhh', { f0: 50, rate: 0.5, gain: 0.05 * p, ring: 20, dist: 0.2, pan: Math.random() * 2 - 1 });
     if (me.position.z < -82 || t > 90) hush();
   }
   /** at the gates: the hush - the tone gone, dead silence, every face sliding in round you, the gates swinging shut */
   function hush() {
-    if (fall) return; fall = { t0: t, ph: 'hush', arms: [], from: me.position.clone(), out: false, jerk: new THREE.Vector3(), jerkAt: 0 }; mode = 'fall'; keys.clear(); hint.classList.add('gone'); tone.stop();
+    if (fall) return; tension?.set(0, 0); snd.duck(1.95); fall = { t0: t, ph: 'hush', arms: [], from: me.position.clone(), out: false, jerk: new THREE.Vector3(), jerkAt: 0 }; mode = 'fall'; keys.clear(); hint.classList.add('gone'); tone.stop();
     FF.forEach((f, i) => { const a = (i / FF.length) * Math.PI * 2, r = 5.5 + (i % 3) * 1.4; f.userData.ring = new THREE.Vector3(me.position.x + Math.sin(a) * r, 0.9 + (i % 5) * 0.55, me.position.z + Math.cos(a) * r); });
   }
   /** then: arms out of the floor all round you, and a face up out of it in front of yours */
@@ -562,6 +597,7 @@ export function showAfterlife(o) {
       // (the gates: swinging shut, and the slam)
       for (const D of doors) D.door.rotation.y += (0 - D.door.rotation.y) * Math.min(1, dt * (u > 1.15 ? 30 : 0.8));
       if (u > 1.25 && !F.slam) { F.slam = true; snd.clang(1); snd.splat(1); glitch(); }
+      if (u > 1.35 && !F.in) { F.in = true; snd.suck(0.55, 0.7); }   // (the intake - and the hit lands on the grab)
       if (u > 1.9) grab();
       return;
     }
@@ -580,7 +616,7 @@ export function showAfterlife(o) {
       camPos.set(me.position.x + j() * 0.45, me.position.y + 2.6 + j() * 0.45, me.position.z + 3.6 + j() * 0.3); look.copy(me.position);
     } else {
       // the fall: down the shaft, tumbling, the light above going
-      if (!F.shaft) shaft();
+      if (!F.shaft) { shaft(); F.down = snd.riser(-1); F.down.set(1, 0.5); }   // (falling: and a tone that falls and falls and never reaches the bottom)
       down = Math.pow(Math.min(1, (g2 - 3.2) / 3.2), 1.7) * 92;
       me.position.set(F.from.x + j() * 0.15, 1.4 - down, F.from.z + j() * 0.15);
       const roll = (g2 - 3.2) * 2.6; cam.up.set(Math.sin(roll), Math.cos(roll), 0);
@@ -595,7 +631,8 @@ export function showAfterlife(o) {
     const U = sky.material.uniforms; U.a.value.set(0xfff6dc).lerp(new THREE.Color(0x080000), k); U.b.value.set(0xffe3a8).lerp(new THREE.Color(0x200000), k); U.c.value.set(0xffffff).lerp(new THREE.Color(0x000000), k);
     if (Math.random() < dt * 2.5) snd.screech(0.5); snd.drone(Math.min(1, g2 / 1.5)); snd.chant(Math.min(1, g2 / 4)); snd.machine(Math.min(1, g2 / 3)); snd.tick(dt);
     // (the impact)
-    if (g2 > 6.4 && !F.blk) { F.blk = true; snd.stinger(1.3); fade.style.transition = 'none'; fade.style.background = '#000'; fade.classList.add('in'); }
+    if (g2 > 5.9 && !F.pre) { F.pre = true; snd.duck(3); F.down?.set(0, 0); snd.suck(0.5, 0.8); }   // (a breath of nothing before the bottom)
+    if (g2 > 6.4 && !F.blk) { F.blk = true; snd.stinger(1.4); fade.style.transition = 'none'; fade.style.background = '#000'; fade.classList.add('in'); }
     if (g2 > 7.3) fallOut();
   }
   /** out of it: into Hell (the black held while it comes up) */

@@ -63,8 +63,10 @@ export function runExorcism(o) {
   const flash = () => { flashEl.classList.remove('on'); void flashEl.offsetWidth; flashEl.classList.add('on'); };
   /** a jumpscare: the stinger, the screen torn white and red, blood, the scene told */
   const scare = (kind, big = 1) => { snd.stinger(big); flash(); splash(kind === 'snap' ? 3 : 8, 1.2); o.onScare?.(kind); };
+  const rs = snd.riser?.(1) || { set() {} };   // (the fight's tension: rising, rising)
   let raf = 0, last = performance.now(), clock = 0, phase = 'still', ph0 = 0, out = 0, nextSpite = 0.8, nextScreech = 0.5, nextRattle = 0, nextWh = 0, beats = 0, ended = false, nextFlash = 2.5, nextSpin = 3, lastDone = false;
-  const end1 = (ok) => { if (ended) return; ended = true; phase = 'done'; cleanup(); el.remove(); o.onDone?.(ok); };
+  const S = {};   // (which silences have been kept)
+  const end1 = (ok) => { if (ended) return; ended = true; phase = 'done'; rs.set(0, 0); cleanup(); el.remove(); o.onDone?.(ok); };
   const go = (p) => { phase = p; ph0 = clock; };
   /** a word of the spirits', said somewhere across the dark (heard, never written) */
   function spite(v) { const w = SPITE[(Math.random() * SPITE.length) | 0]; snd.voice(w, { f0: 60 + Math.random() * 150, rate: 0.75 + Math.random() * 0.8, gain: 0.2 + v * 0.4, ring: 25 + Math.random() * 80, dist: 0.5 + Math.random() * 0.5, pan: Math.random() * 2 - 1, say: Math.random() < 0.25 }); }
@@ -79,6 +81,7 @@ export function runExorcism(o) {
     if (phase === 'still') {
       // (it hangs there, its head down; the hum and nothing else)
       if (!heaven) snd.drone(0.5); o.onLevel?.(0, 'still', u);
+      if (u > 0.9 && !S.sn) { S.sn = true; snd.duck?.(1.4); snd.suck?.(0.7, 0.6); }   // (all of it gone quiet - the intake - and its head comes up on the hit)
       if (u > 1.6) { go('snap'); scare('snap', 0.9); }
     } else if (phase === 'snap') {
       o.onLevel?.(0.3, 'snap', u); if (u > 0.9) go('fight');
@@ -93,12 +96,13 @@ export function runExorcism(o) {
       // (the face inside, flashed for a frame; the head turned right round)
       nextFlash -= dt; if (nextFlash <= 0) { o.onScare?.('flash'); snd.clang(0.4); nextFlash = 0.8 + Math.random() * 1.4; }
       nextSpin -= dt; if (nextSpin <= 0 && v > 0.45) { o.onScare?.('spin'); snd.screech(0.7); nextSpin = 1.4 + Math.random() * 1.6; }
-      o.onLevel?.(v, 'fight', u);
+      o.onLevel?.(v, 'fight', u); rs.set(0.25 + v * 0.75, 0.06 + v * 0.35);
       if (u > FIGHT) { go('top'); el.classList.add('top'); splash(6, 1.3); }
     } else if (phase === 'top') {
       // (the top: everything at once, the doll thrashing - then the face splits and the thing in it comes at you)
       snd.chant(1); snd.machine(1); if (Math.random() < dt * 10) spite(1); if (Math.random() < dt * 5) snd.screech(0.8); if (Math.random() < dt * 6) snd.rattle(0.5, 0.3);
-      o.onLevel?.(1.2, 'top', u);
+      o.onLevel?.(1.2, 'top', u); rs.set(1, 0.7);
+      if (u > 0.85 && !S.rv) { S.rv = true; snd.duck?.(0.9); rs.set(0, 0); snd.suck?.(0.55, 0.7); }   // (the drop-out: a half-second of nothing; then its face)
       if (u > 1.4) { go('reveal'); scare('reveal', 1); }
     } else if (phase === 'reveal') {
       o.onLevel?.(1.2, 'reveal', u);
@@ -119,6 +123,7 @@ export function runExorcism(o) {
       nextWh -= dt; if (nextWh <= 0) { nextWh = heaven ? 2.6 + Math.random() * 2 : 0.8 + Math.random() * 1.2; snd.voice(WHISPER[(Math.random() * WHISPER.length) | 0], { f0: 70 + Math.random() * 40, rate: 0.6, gain: 0.09, ring: 30, dist: 0.4, pan: Math.random() * 1.2 - 0.6 }); o.onLevel?.(0, 'spirit', u); }
       o.onLevel?.(0, 'frail', u);
       // (and just when it is quiet: its head up at you, one last time)
+      if (!S.ls && u > (heaven ? 2.6 : 3.4)) { S.ls = true; snd.duck?.(2); beats = 999; snd.suck?.(0.8, 0.5); }   // (the heart stops; nothing; the intake)
       if (!lastDone && u > (heaven ? 3.4 : 4.2)) { lastDone = true; scare('last', heaven ? 0.8 : 1.1); }
       if (u > (heaven ? 5.2 : 6.2)) { end1(true); return; }
     }

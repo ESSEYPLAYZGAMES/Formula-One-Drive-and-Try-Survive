@@ -1,3 +1,35 @@
+# V2.92 (2026-11-27): scarier per scare - the sound designed, each fright set up and paid off
+
+Asked for: "not just more stuff but higher level of scariness per thing, smart sound design".
+
+## The sound (audio/AfterSound.js)
+- SPACE: a long dark reverb, generated - Hell rings like a cave, every sound coming back off rock you cannot see; the
+  false Heaven like a hall.
+- WHERE: sounds placed in the space round you (HRTF - in front, behind, either side, how far), your ears on the camera:
+  their footfalls - heavy, slow, a scrape after each - from exactly where each one is as it comes for you unseen; their
+  necks creaking and clicking where they stand; the breath at your back.
+- SILENCE: the bed of sound (drone, choir, machine, hums, tones) on a gain of its own, pulled out from under you all at
+  once before a fright - the moment of nothing that tells you something is coming.
+- THE INTAKE: a breath of air drawn backwards, rising to nothing - and the hit lands exactly where it stops.
+- THE SHEPARD TONE: octaves gliding up forever, never arriving - the tension in Hell, louder and faster the nearer one
+  of them is while you cannot see it; and, falling into Hell, the same tone falling forever.
+
+## The frights, one by one
+- THE LUNGE, from behind: it reaches the back of your eyes - everything goes quiet; its breath, its neck creaking, at
+  the back of you; you cannot move; the camera brought round to it - and its face, on the hit. (In front of you, it is
+  just on you: silence, the intake, its face.)
+- THE BLACKOUT: the light goes and all the sound with it; something walking round you in the dark, its footfalls going
+  round, exactly where; the light comes back - and it is right in front of you, still, silent, staring, your heart
+  going; the light goes again; it is gone. No stinger at all.
+- The background frights back to being rare, so each one lands: the flashed face 14-28 s, the whisper 15-29 s, the one
+  at the edge of the light 20-35 s, the blackouts 24-45 s, the recalled arguments with room between them.
+- THE DROP: the hush - every sound gone, not just the tone; the intake drawn in through it - and the grab lands on the
+  hit; the fall with its tone falling forever under it; a breath of nothing just before the bottom; the impact.
+- THE FALSE HEAVEN: the rising tone coming up, faintly, under its one pure note as the faces come.
+- THE EXORCISM: everything gone quiet before the doll's head comes up, the intake into it; a riser climbing through the
+  whole fight; a drop-out of half a second, then the face out of it; and at the end, in the quiet, the heart stopping,
+  nothing, the intake - and the last scare.
+
 # V2.91 (2026-11-27): the drop five times worse, Hell twice, Heaven ten times better
 
 Asked for: "make the drop 5 x scarier, hell twice as scary - make everything individually worse and more vigorous and
