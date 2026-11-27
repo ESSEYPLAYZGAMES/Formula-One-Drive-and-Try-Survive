@@ -1,3 +1,21 @@
+# V2.93 (2026-11-27): the driver hub's menus readable, in neon; the HELL / HEAVEN code
+
+Asked for: "fix this issue rn make it actually visible and neon" (the race caret's menu: pale text on white) and "Put a
+secret develop code to make my hell points max so im guaranteed hell (same for heaven) how about i just type HELL while
+in the death cutscene for it".
+
+## The menus off the driver hub's bar (ui/DriverHQ.js)
+- The race caret's menu and the gear's were white panels whose text the hub's dark skin had turned pale - unreadable.
+  Now a pane of dark glass with a neon tube round it (pink into violet into cyan, glowing, a lit bar along the top):
+  titles in white with a pink glow, the lines under them in lilac, notes in pink, the hovered row lit in a pink-to-cyan
+  wash, Abandon career in red. In every colour theme.
+
+## The code (main.js)
+- While your driver's death plays out - the fire, the news, the candle, the Reckoning - type HELL and you go to Hell,
+  or HEAVEN and you go to Heaven, whatever the scales said (the verdict pushed to the very bottom or top of them). It
+  answers with a low toll and a red wash (Hell) or a chime and a white one (Heaven). Typed before the Reckoning, the
+  Reckoning shows it; typed during it, the afterlife follows it. Nothing happens at any other time.
+
 # V2.92 (2026-11-27): scarier per scare - the sound designed, each fright set up and paid off
 
 Asked for: "not just more stuff but higher level of scariness per thing, smart sound design".

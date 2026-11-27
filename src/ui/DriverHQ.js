@@ -103,6 +103,20 @@ const FRAME = `
 `;
 /* (the driver hub's own cards as the HQ's panels on VICE: smoked glass, the tubes) */
 const VICE_CARDS = `
+/* (the menus off the bar - the race caret, the gear: a pane of dark glass with a neon tube round it, every line readable) */
+#career[data-hq] .k-pop { background: linear-gradient(180deg, rgba(24,12,48,.97), rgba(14,7,32,.97)) padding-box, linear-gradient(140deg, #ff3fa4, rgba(155,92,255,.55) 45%, #23e5ff) border-box !important;
+  border: 2px solid transparent !important; border-radius: 14px; color: #f4ecff !important; box-shadow: 0 18px 44px -14px rgba(0,0,0,.85), 0 0 18px 0 rgba(255,63,164,.55), 0 0 42px -4px rgba(255,63,164,.45), 0 0 60px -10px rgba(35,229,255,.5) !important; backdrop-filter: blur(14px) saturate(1.3); }
+#career[data-hq] .k-pop::before { content: ''; position: absolute; left: 14px; right: 14px; top: -1px; height: 2px; border-radius: 2px; background: linear-gradient(90deg, transparent, #ff3fa4, #23e5ff, transparent); box-shadow: 0 0 12px #ff3fa4, 0 0 22px rgba(35,229,255,.7); pointer-events: none; }
+#career[data-hq] .k-pop .pop-row b { color: #ffffff !important; text-shadow: 0 0 10px rgba(255,63,164,.55); }
+#career[data-hq] .k-pop .pop-row small { color: #c9b8ec !important; }
+#career[data-hq] .k-pop .pop-row { border-radius: 10px; transition: background .15s, box-shadow .15s; }
+#career[data-hq] .k-pop .pop-row:hover:not(:disabled), #career[data-hq] .k-pop .pop-row:focus-visible { background: linear-gradient(90deg, rgba(255,63,164,.22), rgba(35,229,255,.12)) !important; box-shadow: inset 0 0 0 1px rgba(255,63,164,.6), 0 0 16px -4px rgba(255,63,164,.8) !important; }
+#career[data-hq] .k-pop .pop-row:hover:not(:disabled) b { text-shadow: 0 0 8px #fff, 0 0 16px #ff3fa4; }
+#career[data-hq] .k-pop .pop-row.danger b, #career[data-hq] .k-pop .pop-row.k-armed { color: #ff5a7a !important; }
+#career[data-hq] .k-pop .pop-note { color: #ffd1f0 !important; border-bottom: 1px solid rgba(255,63,164,.35) !important; }
+#career[data-hq] .k-pop .pop-sec { border-bottom: 1px solid rgba(255,63,164,.3) !important; color: #e8dcff; }
+#career[data-hq] .k-pop hr, #career[data-hq] .k-pop .pop-sep { border-color: rgba(255,63,164,.3) !important; background: rgba(255,63,164,.3) !important; }
+
 #career[data-hq][data-tone="vice"] .ch-pages :is(.tile, .dcard, .seat, .cl-card, .obj, .chart, .tro, .lostcard, .review, .wk-alw, .al, .st-rw, .rs-row, .teamrow), #career[data-hq][data-tone="vice"] .glass:not(.ch-top):not(.ch-rail):not(.ch-panel) {
   background: linear-gradient(180deg, rgba(27,16,58,.80), rgba(20,11,45,.76)) padding-box, linear-gradient(140deg, rgba(255,63,164,.75), rgba(155,92,255,.2) 38%, rgba(155,92,255,.16) 62%, rgba(35,229,255,.7)) border-box;
   box-shadow: 0 14px 34px -20px rgba(0,0,0,.8), 0 0 18px -10px rgba(255,63,164,.7), 0 0 24px -14px rgba(35,229,255,.55); backdrop-filter: blur(10px) saturate(1.25); }

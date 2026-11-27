@@ -4337,6 +4337,30 @@ function blackout() { if (!blackEl) { blackEl = document.createElement('div'); b
  * After the news: the memorial cards; your own driver killed in a career - the mourning screen instead, in silence,
  * and no results: the weekend is over, the driver gone for good, back to the career to choose who you are now.
  */
+/**
+ * A developer's code (the driver career): typed while your driver's death plays out - the fire, the news, the candle,
+ * the Reckoning - HELL or HEAVEN, and that is where you go, whatever the scales said. A low toll for one, a chime for the
+ * other, and the screen washed red or white for an instant, so you know it took.
+ */
+const FATE = { buf: '', force: null };
+window.addEventListener('keydown', (e) => {
+  if (!/^[a-z]$/i.test(e.key || '')) return;
+  const dying = document.body.classList.contains('f1-dead') || document.getElementById('mourning') || document.getElementById('reckon') || document.getElementById('news');
+  if (!dying || !S.weekend?.career) { FATE.buf = ''; return; }
+  FATE.buf = (FATE.buf + e.key.toUpperCase()).slice(-6);
+  const hit = FATE.buf.endsWith('HEAVEN') ? 'heaven' : FATE.buf.endsWith('HELL') ? 'hell' : null;
+  if (!hit) return;
+  FATE.force = hit; FATE.buf = '';
+  try { if (hit === 'hell') { audio.beep?.(55, 1.6, 0.2); audio.beep?.(77.8, 1.6, 0.14); } else { audio.beep?.(1046.5, 0.9, 0.08); setTimeout(() => audio.beep?.(1568, 1.2, 0.07), 160); } } catch (err) { /* no sound */ }
+  const w = document.createElement('div'); w.style.cssText = `position:fixed;inset:0;z-index:99;pointer-events:none;background:${hit === 'hell' ? 'rgba(160,0,0,.55)' : 'rgba(255,250,230,.6)'};opacity:1;transition:opacity .9s ease`;
+  document.body.appendChild(w); requestAnimationFrame(() => requestAnimationFrame(() => { w.style.opacity = '0'; })); setTimeout(() => w.remove(), 1100);
+}, true);
+/** the verdict, with the code's say over it: forced to the bottom of the scales (HELL) or the top (HEAVEN) */
+function fated(J) {
+  if (!J || !FATE.force) return J;
+  const heaven = FATE.force === 'heaven';
+  return { ...J, heaven, sum: heaven ? Math.max(12, J.sum) : Math.min(-12, J.sum), lesson: J.lesson };
+}
 function afterNews(hurt, then) {
   const C = S.weekend?.career, items = memorialItems(hurt), mine = C && hurt.find((c) => c.careerId && c.careerId === C.playerId && c.fate === 'killed');   // (hurt, not killed: the cards, like anyone)
   if (!C) S.lastLost = (S.lastLost || []).concat(hurt.filter((c) => c.fate === 'killed').map((c) => ({ name: c.name, number: c.number, team: c.team, color: c.color, helmet: c.helmet })));   // (remembered before the next race)
@@ -4347,7 +4371,7 @@ function afterNews(hurt, then) {
     audio.play?.('horror', { gain: 1, delay: 0.5 });   // (the strings, as the helmet comes out of the dark - then the silence)
     // (then the Reckoning - ui/Reckoning.js: the life weighed, Heaven or Hell - and back to the career)
     showMourning({ name: d.name, number: d.number, team: l.team, starts: d.starts, wins: d.wins, podiums: d.podiums }, helmetURL({ name: d.name, helmet: d.helmet, color: l.color, number: d.number }, { blood: true }), () => {
-      let J = null; try { J = judge(C); } catch (e) { J = null; }
+      let J = null; try { J = fated(judge(C)); } catch (e) { J = null; }
       let ended = false;
       const after = (id) => { audio.silence?.(false); if (!ended) { ended = true; endSession(); S.weekend = null; } if (id) { try { C.becomeDriver(id); C.save(); } catch (e) { console.warn('[afterlife] the new driver', e); } } openCareerHub(); };
       // (then the afterlife - ui/Afterlife.js: Heaven or Hell as a place, the drivers you could become as portals in
@@ -4356,6 +4380,7 @@ function afterNews(hurt, then) {
         ended = true; endSession(); S.weekend = null; audio.silence?.(false);
         const team = C.team || {}, cands = (team.none ? [] : C.seatsOf(team.name) || []).filter((x) => x && x.alive && x.id !== d.id)
           .map((x) => ({ id: x.id, name: x.name, number: x.number, team: team.name, color: team.color, color2: team.color2 }));
+        J = fated(J); FATE.force = null; FATE.buf = '';   // (the code, if typed as late as the Reckoning)
         try { showAfterlife({ heaven: J.heaven, sum: J.sum, name: d.name, good: J.good, bad: J.bad, life: { wins: d.wins, podiums: d.podiums, starts: d.starts }, mate: cands[0]?.name, candidates: cands, audio, onDone: (id) => after(id) }); } catch (e) { console.warn('[afterlife]', e); after(null); }
       };
       if (J) { audio.silence?.(false); showReckoning(J, d.name, afterlife, { audio }); } else after();
