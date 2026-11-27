@@ -604,7 +604,7 @@ body.f1-dead #hud, body.f1-dead #standings, body.f1-dead #results { display: non
     <div class="brand-line"></div>
     <h1 id="brand-title">FORMULA 1<span id="brand-sub">SIMULATOR</span></h1>
     <!-- the build's version: +0.01 with every build handed out -->
-    <span id="app-ver" title="Version">V2.89</span>
+    <span id="app-ver" title="Version">V2.90</span>
     <div id="menu-sub">Real circuits built from OpenStreetMap</div>
   </div>
   <div id="loading" class="hidden"><div class="ld"><i></i></div><span>Building the circuit from OpenStreetMap…</span></div>
@@ -190445,6 +190445,14 @@ function afterSound(audio) {
   function screech(gain = 0.6) {
     if (!alive) return; voice(['IIIIIIIEEEEEE', 'AAAAAIIIIIIIH', 'EEEEEEAAAAH', 'NNNNIIIIIIAAAAH'][(Math.random() * 4) | 0], { f0: 300 + Math.random() * 260, rate: 0.55 + Math.random() * 0.3, gain, ring: 90 + Math.random() * 120, dist: 1, pan: Math.random() * 1.4 - 0.7 });
   }
+  /** a pure tone, high and thin, hanging in the air (the false Heaven's only sound) -> { set(gain, sour 0..1), stop() } */
+  function tone(hz = 1568) {
+    if (!alive) return { set() {}, stop() {} };
+    const a = ctx.createOscillator(), b = ctx.createOscillator(), g = gainAt(0); a.type = b.type = 'sine'; a.frequency.value = hz; b.frequency.value = hz * 1.0005;
+    a.connect(g); b.connect(g); g.connect(bus); a.start(); b.start();
+    return { set(gain, sour = 0) { const t = T(); g.gain.setTargetAtTime(gain, t, 0.4); b.frequency.setTargetAtTime(hz * (1.0005 + sour * 0.058), t, 0.6); },   // (sour: the second voice sliding a semitone off - the beating turning to a grind)
+      stop() { const t = T(); g.gain.setTargetAtTime(0, t, 0.05); setTimeout(() => { try { a.stop(); b.stop(); } catch (e) { /* stopped */ } }, 400); } };
+  }
   /** a heartbeat - weak (two thumps) */
   function heart(gain = 0.5) {
     const t = T(); for (const [d, g] of [[0, 1], [0.22, 0.6]]) { const o = track(ctx.createOscillator(), t + d + 0.3); o.frequency.setValueAtTime(62, t + d); o.frequency.exponentialRampToValueAtTime(34, t + d + 0.22);
@@ -190474,7 +190482,7 @@ function afterSound(audio) {
     try { window.speechSynthesis?.cancel(); } catch (e) { /* none */ }
     setTimeout(() => { for (const o of [...oscs, ...loops, ...(droneN?.os || [])]) { try { o.stop(); } catch (e) { /* stopped */ } } try { bus.disconnect(); comp.disconnect(); } catch (e) { /* gone */ } }, s * 1000 + 200);
   }
-  return { live: true, voice, drone, chant, machine, clang, tick, heart, breath, fizzle, stop, squeak, click, splat, shriek, hum, stinger, rattle, screech, mute: (m) => bus.gain.setTargetAtTime(m ? 0 : 1, T(), 0.05) };
+  return { live: true, voice, drone, chant, machine, clang, tick, heart, breath, fizzle, stop, squeak, click, splat, shriek, hum, stinger, rattle, screech, tone, mute: (m) => bus.gain.setTargetAtTime(m ? 0 : 1, T(), 0.05) };
 }
 
 return { afterSound };
@@ -190798,6 +190806,7 @@ function doll(c = {}) {
 function faceCanvas() {
   MASK = MASK || maskTex();
   const src = MASK.image, cv = document.createElement('canvas'); cv.width = 180; cv.height = 240; const g = cv.getContext('2d');
+  g.beginPath(); g.ellipse(90, 117, 68, 104, 0, 0, Math.PI * 2); g.clip();   // (the mask alone, cut out: nothing round it - it hangs in the air)
   g.drawImage(src, 128 - 90, 8, 180, 240, 0, 0, 180, 240);
   return cv;
 }
@@ -191043,6 +191052,9 @@ function portal(c, i) {
 }
 
 function showAfterlife(o) {
+  // (Hell is not where it begins: a Heaven first - too perfect - and the fall out of it. o.fake: that Heaven; o.fell: Hell itself)
+  if (!o.heaven && !o.fell && !o.fake) return showAfterlife({ ...o, heaven: true, fake: true, candidates: [], onDone: () => showAfterlife({ ...o, fell: true }) });
+  const fake = !!o.fake;
   if (!injected) { const st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st); injected = true; }
   const heaven = !!o.heaven, el = document.createElement('div'); el.id = 'afterlife'; el.className = heaven ? 'heaven' : 'hell';
   el.innerHTML = `<canvas class="al3d"></canvas><div class="al-title">${heaven ? 'HEAVEN' : 'HELL'}</div><div class="al-near"></div><div class="al-hint"></div><div class="al-scare"></div><div class="al-vhs"><canvas></canvas><i class="trk"></i></div><canvas class="al-sub"></canvas><div class="al-fade"></div>`;
@@ -191061,7 +191073,7 @@ function showAfterlife(o) {
   /** inside a spire at height y (with a margin)? */
   const inRock = (x, z, y, m = 0.4) => rocks.some(([rx, rz, rb, h]) => { const rr = rb * Math.max(0, 1 - (y + 0.5) / h) + m; return Math.abs(x - rx) < rr && Math.hypot(x - rx, z - rz) < rr; });
   const clear = (x, z, r = 7) => Math.hypot(x, z - 4) < r || (spots || []).some(([px, pz]) => Math.hypot(x - px, z - pz) < r);
-  sc.add(heaven ? skyDome('#fff6dc', '#ffe3a8', '#ffffff') : skyDome('#0a0204', '#5a0c06', '#120202'));
+  const sky = heaven ? skyDome('#fff6dc', '#ffe3a8', '#ffffff') : skyDome('#0a0204', '#5a0c06', '#120202'); sc.add(sky);
   const hemi = new THREE.HemisphereLight(heaven ? 0xfff8e8 : 0xff6a3a, heaven ? 0xd8c8a0 : 0x200404, heaven ? 1.6 : 0.9); sc.add(hemi);
   const sun = new THREE.DirectionalLight(heaven ? 0xfff0c8 : 0xff4a1a, heaven ? 2.2 : 1.2); sun.position.set(-30, 60, -40); sc.add(sun);
   const dyn = [];   // (what moves: { obj, f(t, dt) })
@@ -191070,7 +191082,7 @@ function showAfterlife(o) {
     // the cloud floor: great soft puffs, drifting; the marble way through them; pillars of light; the gates; motes
     const cloud = softTex('rgba(255,255,255,.9)', 'rgba(255,250,240,0)');
     for (let k = 0; k < 260; k++) { const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: cloud, transparent: true, depthWrite: false, opacity: 0.85, fog: true })); const r = 6 + Math.random() * 120, a = Math.random() * Math.PI * 2;
-      s.position.set(Math.cos(a) * r, -1.2 - Math.random() * 2.5, Math.sin(a) * r - 30); if (Math.abs(s.position.x) < 16 && s.position.z > -100 && s.position.z < 12) s.position.x += Math.sign(s.position.x || 1) * 16; s.scale.setScalar(8 + Math.random() * 14); sc.add(s); dyn.push({ obj: s, f: (t) => { s.position.x += Math.sin(t * 0.1 + k) * 0.004; } }); }
+      s.position.set(Math.cos(a) * r, -1.2 - Math.random() * 2.5, Math.sin(a) * r - 30); if (Math.abs(s.position.x) < 16 && s.position.z > -100 && s.position.z < 12) s.position.x += Math.sign(s.position.x || 1) * 16; s.scale.setScalar(8 + Math.random() * 14); sc.add(s); if (!fake) dyn.push({ obj: s, f: (t) => { s.position.x += Math.sin(t * 0.1 + k) * 0.004; } }); }   // (the false one: the clouds do not move at all)
     const way = new THREE.Mesh(new THREE.BoxGeometry(5, 0.3, 90), new THREE.MeshStandardMaterial({ color: 0xfffaf0, roughness: 0.25, metalness: 0.1, emissive: 0x6a5a30, emissiveIntensity: 0.25 })); way.position.set(0, -0.15, -40); sc.add(way);
     for (let z = -6; z > -80; z -= 12) for (const x of [-6, 6]) { const pl = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 40, 16, 1, true), new THREE.MeshBasicMaterial({ color: 0xfff2c0, transparent: true, opacity: 0.18, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide })); pl.position.set(x, 19, z); sc.add(pl);
       const col = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.55, 6, 16), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3 })); col.position.set(x, 3, z); sc.add(col); }
@@ -191094,12 +191106,12 @@ function showAfterlife(o) {
   if (!heaven) snd.drone(0.6);
   const papers = [];
   if (heaven) {
-    const H = headlines({ good: o.good, name: o.name, life: o.life || {} });
+    const NM = String(o.name || 'You').toUpperCase(), H = fake ? [{ paper: 'THE PADDOCK TIMES', head: `${NM} WAS A GOOD PERSON`, sub: 'Everyone agrees. Everyone agrees. Everyone agrees. Everyone agrees. Everyone agrees.' }] : headlines({ good: o.good, name: o.name, life: o.life || {} });
     for (let i = 0; i < Math.max(8, H.length * 2) && i < 14; i++) {
       const P = H[i % H.length], side = i % 2 ? 1 : -1, m = new THREE.Mesh(new THREE.PlaneGeometry(2.1, 2.8), new THREE.MeshStandardMaterial({ map: paperTex(P, o.name || ''), side: THREE.DoubleSide, roughness: 0.9, emissive: 0xffffff, emissiveIntensity: 0.12 }));
-      emissiveMap(m); m.position.set(side * (3.9 + Math.random() * 1.8), 2 + Math.random() * 1.3, -6 - i * 6.2 - Math.random() * 2); m.rotation.y = -side * 0.75; sc.add(m);
+      emissiveMap(m); if (fake) m.position.set(side * 4.6, 2.6, -6 - Math.floor(i / 2) * 11); else m.position.set(side * (3.9 + Math.random() * 1.8), 2 + Math.random() * 1.3, -6 - i * 6.2 - Math.random() * 2); m.rotation.y = -side * 0.75; sc.add(m);
       const ph = Math.random() * 6, y0 = m.position.y, r0 = m.rotation.y; papers.push({ m, P });
-      dyn.push({ obj: m, f: (t) => { m.position.y = y0 + Math.sin(t * 0.7 + ph) * 0.25; m.rotation.y = r0 + Math.sin(t * 0.4 + ph) * 0.25; m.rotation.z = Math.sin(t * 1.3 + ph) * 0.06; m.rotation.x = Math.sin(t * 0.9 + ph) * 0.08; } });
+      if (!fake) dyn.push({ obj: m, f: (t) => { m.position.y = y0 + Math.sin(t * 0.7 + ph) * 0.25; m.rotation.y = r0 + Math.sin(t * 0.4 + ph) * 0.25; m.rotation.z = Math.sin(t * 1.3 + ph) * 0.06; m.rotation.x = Math.sin(t * 0.9 + ph) * 0.08; } });
     }
   }
   // HELL's own (ui/HellLife.js): the blood, the hanging dead, the bones; the rats; the things that watch
@@ -191144,7 +191156,7 @@ function showAfterlife(o) {
   const ku = (e) => { keys.delete(e.key.toLowerCase()); };
   window.addEventListener('keydown', kd, true); window.addEventListener('keyup', ku, true);
   const fit = () => { const w = el.clientWidth || innerWidth, h = el.clientHeight || innerHeight; R.setSize(w, h, false); cam.aspect = w / h; cam.updateProjectionMatrix(); }; fit(); addEventListener('resize', fit);
-  const setHint = () => { hint.innerHTML = C.length ? '<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> &nbsp; <kbd>E</kbd>' : '<kbd>E</kbd>'; hint.classList.remove('gone'); clearTimeout(hint._t); hint._t = setTimeout(() => hint.classList.add('gone'), 7000); };
+  const setHint = () => { hint.innerHTML = fake ? '<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>' : C.length ? '<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> &nbsp; <kbd>E</kbd>' : '<kbd>E</kbd>'; hint.classList.remove('gone'); clearTimeout(hint._t); hint._t = setTimeout(() => hint.classList.add('gone'), 7000); };
   setHint(); setTimeout(() => el.querySelector('.al-title').classList.add('in'), 600); setTimeout(() => el.querySelector('.al-title').classList.remove('in'), 4200);
   const camPos = new THREE.Vector3(0, 4, 12), look = new THREE.Vector3(0, 1.5, -10);
   el.__al = { dbg: () => ({ me: [me.position.x, me.position.z], near: nearP?.cand?.name || null, t, mode }), phase: () => (mode === 'exorcism' ? exo.phase : mode), place: (x, z) => { me.position.set(x, 1.4, z); camPos.set(x, 4, z + 7); }, echo: () => { echoAt = 0; }, ports: () => ports.map((p) => [p.G.position.x, p.G.position.z]), face: (x, z) => { heading = Math.atan2(x - me.position.x, z - me.position.z); }, stalkers: ST, show: (i = 1, d = 6) => { const m = ST[i]; if (m) m.G.position.set(me.position.x + Math.sin(heading) * d, 0, me.position.z + Math.cos(heading) * d); }, scare: () => { scareCool = 0; const s0 = ST[0]; if (s0) { s0.G.position.set(me.position.x + 1.5, 0, me.position.z + 1.5); } } };   // (a test's handles)
@@ -191233,7 +191245,7 @@ function showAfterlife(o) {
         mode = 'walk'; hint.style.opacity = '1'; el.classList.remove('exo'); me.visible = true; for (const s of trail) s.visible = true; me.position.set(0, 1.4, 4); heading = Math.PI; setHint();
       } });
   }
-  if (!C.length) { const kOnce = (e) => { if (e.key === 'e' || e.key === 'Enter') { window.removeEventListener('keydown', kOnce, true); finish(null); } }; window.addEventListener('keydown', kOnce, true); }
+  if (!C.length && !fake) { const kOnce = (e) => { if (e.key === 'e' || e.key === 'Enter') { window.removeEventListener('keydown', kOnce, true); finish(null); } }; window.addEventListener('keydown', kOnce, true); }
   const tick = (now) => {
     const dt = Math.max(0, Math.min(window.__f1FastClock ? 0.3 : 0.05, (now - last) / 1000)); last = now; t += dt;   // (__f1FastClock: the tests', on a slow machine)
     if (mode === 'walk') {
@@ -191255,6 +191267,8 @@ function showAfterlife(o) {
       if (nearP) { near.style.setProperty('--c', nearP.cand.color || '#fff'); near.innerHTML = `${esc(nearP.cand.name)}<small><kbd>E</kbd></small>`; near.classList.add('in'); } else near.classList.remove('in');
       // (Hell: the next echo, when it is time)
       if (echoes.length) { echoAt -= dt; if (echoAt <= 0) echoAt = playEcho(); }
+      if (fake) fakeTick(dt);
+    } else if (mode === 'fall') { fallTick(dt); if (fall.out) return;   // (gone on into Hell this frame: nothing more drawn here)
     } else if (mode === 'exorcism' && nearP) {
       // (close on the body being fought for)
       const p = nearP.G.position, f = new THREE.Vector3(0, 0, 1).applyQuaternion(nearP.G.quaternion);
@@ -191320,7 +191334,7 @@ function showAfterlife(o) {
    */
   function hellTick(dt) {
     // (the tape's grain)
-    if (!heaven || mode === 'exorcism') { const d = vimg.data; for (let i = 0; i < d.length; i += 4) { const v = (Math.random() * 255) | 0; d[i] = d[i + 1] = d[i + 2] = v; d[i + 3] = 255; } vg.putImageData(vimg, 0, 0);
+    if (!heaven || mode === 'exorcism' || mode === 'fall') { const d = vimg.data; for (let i = 0; i < d.length; i += 4) { const v = (Math.random() * 255) | 0; d[i] = d[i + 1] = d[i + 2] = v; d[i + 3] = 255; } vg.putImageData(vimg, 0, 0);
       trkAt -= dt; if (trkAt <= 0) { trkEl.classList.remove('on'); void trkEl.offsetWidth; trkEl.classList.add('on'); trkAt = 4 + Math.random() * 7; } }
     if (!heaven) hellScares(dt);
     G0?.update(dt, t);
@@ -191387,8 +191401,67 @@ function showAfterlife(o) {
     else { const m = appear.m; BX.copy(m.G.position); BX.y = 2.6; if (FR.containsPoint(BX)) appear.seen += dt;
       if (appear.seen > 1.1) { const a = Math.random() * Math.PI * 2; m.G.position.set(me.position.x + Math.sin(a) * 45, 0, me.position.z + Math.cos(a) * 45); glitch(); snd.click(0, 0.5); appear = null; } }
   }
+  // THE FALSE HEAVEN: perfect - nothing moving, one pure tone, every paper the same - until the faces; at the gates, the arms
+  const FF = [], tone = fake ? snd.tone(1568) : null; let fall = null;
+  if (fake) {
+    tone.set(0.035, 0);
+    const ft = new THREE.CanvasTexture(faceCanvas()); ft.colorSpace = THREE.SRGBColorSpace;
+    for (let k = 0; k < 44; k++) { const f = new THREE.Sprite(new THREE.SpriteMaterial({ map: ft, transparent: true, depthWrite: false, fog: false, opacity: 0 }));
+      const gate = k >= 38, side = k % 2 ? 1 : -1;   // (the last of them behind the gates' bars)
+      f.position.set(gate ? (k - 41) * 1.4 : side * (6 + Math.random() * 24), gate ? 3 + Math.random() * 4 : 0.2 + Math.random() * 5, gate ? -97.5 : -14 - (k / 38) * 80 - Math.random() * 6); f.scale.set(0.8, 1.07, 1); f.userData.k = k / 44; sc.add(f); FF.push(f); }
+    const fk = (e) => { if (e.code !== 'Space' || e.repeat) return; e.preventDefault(); e.stopPropagation(); if (mode === 'walk') grab(); else if (mode === 'fall') fallOut(); };
+    window.addEventListener('keydown', fk, true); el.__fk = fk;
+  }
+  /** the false Heaven as you walk it: the faces coming as you near the gates (in the clouds, along the way, behind the bars), the tone souring; at the gates - or if you will not go - the grab */
+  function fakeTick(dt) {
+    const p = Math.max(0, Math.min(1, (4 - me.position.z) / 86));
+    for (const f of FF) f.material.opacity += ((f.userData.k < Math.pow(p, 1.25) * 1.05 ? 0.6 : 0) - f.material.opacity) * Math.min(1, dt * 0.8);
+    tone.set(0.035 + p * 0.02, Math.max(0, (p - 0.35) / 0.65));
+    if (p > 0.55 && Math.random() < dt * 0.4 * p) snd.voice('hhhhhhh', { f0: 50, rate: 0.5, gain: 0.05 * p, ring: 20, dist: 0.2, pan: Math.random() * 2 - 1 });
+    if (me.position.z < -82 || t > 90) grab();
+  }
+  /** at the gates: arms out of the floor, round you, and down */
+  function grab() {
+    if (fall) return; fall = { t0: t, arms: [], from: me.position.clone(), out: false }; mode = 'fall'; keys.clear(); hint.classList.add('gone'); tone.stop();
+    snd.stinger(1.1); snd.shriek(0.8); snd.voice('NOOOOOOOOO', { f0: 150, rate: 0.45, gain: 0.5, ring: 70, dist: 0.8 }); el.classList.add('hell'); glitch();
+    const sx = el.querySelector('.al-scare'); sx.classList.remove('on'); void sx.offsetWidth; sx.classList.add('on');
+    const skin = new THREE.MeshStandardMaterial({ color: 0x050203, roughness: 0.8, emissive: 0x2a0000, emissiveIntensity: 0.6 });
+    for (let k = 0; k < 12; k++) {
+      const a = (k / 12) * Math.PI * 2 + Math.random() * 0.3, r = 1.4 + Math.random() * 1.1, G = new THREE.Group(); G.position.set(me.position.x + Math.cos(a) * r, -2, me.position.z + Math.sin(a) * r);
+      const top = 3.4 + (Math.random() - 0.5) * 0.8, pts = [new THREE.Vector3(0, 0, 0), new THREE.Vector3(Math.cos(a) * 0.3, 2.2, Math.sin(a) * 0.3), new THREE.Vector3(-Math.cos(a) * r * 0.4, top + 0.5, -Math.sin(a) * r * 0.4), new THREE.Vector3(-Math.cos(a) * r * 0.92, top, -Math.sin(a) * r * 0.92)];
+      G.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 16, 0.07 + Math.random() * 0.04, 6), skin));
+      for (let q = 0; q < 4; q++) { const fi = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.008, 0.34, 4), skin); fi.position.copy(pts[3]); fi.rotation.set((Math.random() - 0.5) * 2, a, (Math.random() - 0.5) * 2); G.add(fi); }
+      G.scale.setScalar(0.01); sc.add(G); fall.arms.push({ G, d: k * 0.035, y0: -2 });
+    }
+  }
+  /** the fall: held there, wrestled; then dragged down through the floor of Heaven as its light dies; the faces coming with you; black */
+  function fallTick(dt) {
+    const F = fall, u = t - F.t0, j = () => (Math.random() - 0.5) * 2;
+    for (const A of F.arms) A.G.scale.setScalar(Math.min(1, Math.max(0.01, (u - A.d) / 0.28)));
+    const down = u < 0.7 ? 0 : Math.pow(Math.min(1, (u - 0.7) / 3.4), 2.2) * 30, fight = u < 3.6 ? 0.35 : 0.15;
+    me.position.set(F.from.x + j() * fight, 1.4 - down + j() * fight * 0.6, F.from.z + j() * fight);
+    for (const A of F.arms) A.G.position.y = A.y0 - down;
+    camPos.lerp(new THREE.Vector3(me.position.x, me.position.y + 4.2 + Math.min(4, down * 0.25), me.position.z + 3.2), 1 - Math.exp(-dt * 5)); camPos.x += j() * 0.15; camPos.y += j() * 0.15;
+    look.lerp(me.position, 1 - Math.exp(-dt * 8));
+    // (Heaven's light going out above you)
+    const k = Math.min(1, Math.max(0, (u - 0.4) / 2.6)); hemi.intensity = 1.6 * (1 - k); sun.intensity = 2.2 * (1 - k);
+    sc.fog.color.setRGB(1 - k * 0.96, (0.953 - k * 0.94) * (1 - k * 0.3), (0.86 - k * 0.85) * (1 - k * 0.5)); sc.fog.near = 40 - k * 36; sc.fog.far = 190 - k * 170;
+    const U = sky.material.uniforms; U.a.value.set(0xfff6dc).lerp(new THREE.Color(0x080000), k); U.b.value.set(0xffe3a8).lerp(new THREE.Color(0x200000), k); U.c.value.set(0xffffff).lerp(new THREE.Color(0x000000), k);
+    for (const f of FF) { f.material.opacity = Math.min(0.9, f.material.opacity + dt); f.position.lerp(me.position, dt * 0.25 * k); }
+    if (Math.random() < dt * 2.5) snd.screech(0.5); if (Math.random() < dt * 3) snd.rattle(0.4, 0.3); snd.drone(Math.min(1, u / 2));
+    if (u > 3.9 && !F.blk) { F.blk = true; fade.style.background = '#000'; fade.classList.add('in'); subliminal(120); }
+    if (u > 5.4) fallOut();
+  }
+  /** out of it: into Hell (the black held while it comes up) */
+  function fallOut() {
+    if (fall?.out) return; if (!fall) grab(); fall.out = true;
+    fade.style.transition = 'none'; fade.style.background = '#000'; fade.classList.add('in');
+    window.removeEventListener('keydown', el.__fk, true); cleanup(); el.id = 'afterlife-falling'; el.style.background = '#000';
+    o.onDone?.(null); setTimeout(() => el.remove(), 2400);
+  }
   raf = requestAnimationFrame(tick);
   function cleanup() {
+    if (el.__fk) window.removeEventListener('keydown', el.__fk, true);
     for (const h of hums) h.stop(); RAT?.dispose(); for (const p of ports) p.doll.dispose(); exo.mon?.dispose(); for (const p of ports) p.rats?.dispose(); for (const m of ST) m.dispose();
     snd.stop(1.2); cancelAnimationFrame(raf); window.removeEventListener('keydown', kd, true); window.removeEventListener('keyup', ku, true); removeEventListener('resize', fit);
     sc.traverse((m) => { m.geometry?.dispose?.(); const ms = m.material ? [].concat(m.material) : []; for (const x of ms) { x.map?.dispose?.(); x.dispose?.(); } });

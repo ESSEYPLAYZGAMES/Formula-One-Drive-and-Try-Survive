@@ -358,7 +358,7 @@ export function showAfterlife(o) {
       // (Hell: the next echo, when it is time)
       if (echoes.length) { echoAt -= dt; if (echoAt <= 0) echoAt = playEcho(); }
       if (fake) fakeTick(dt);
-    } else if (mode === 'fall') { fallTick(dt);
+    } else if (mode === 'fall') { fallTick(dt); if (fall.out) return;   // (gone on into Hell this frame: nothing more drawn here)
     } else if (mode === 'exorcism' && nearP) {
       // (close on the body being fought for)
       const p = nearP.G.position, f = new THREE.Vector3(0, 0, 1).applyQuaternion(nearP.G.quaternion);
