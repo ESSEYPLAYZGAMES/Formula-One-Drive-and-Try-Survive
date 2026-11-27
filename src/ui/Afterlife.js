@@ -167,14 +167,14 @@ export function showAfterlife(o) {
   const sky = heaven ? skyDome('#fff6dc', '#ffe3a8', '#ffffff') : skyDome('#0a0204', '#5a0c06', '#120202'); sc.add(sky);
   const hemi = new THREE.HemisphereLight(heaven ? 0xfff8e8 : 0xff6a3a, heaven ? 0xd8c8a0 : 0x200404, heaven ? 1.6 : 0.9); sc.add(hemi);
   const sun = new THREE.DirectionalLight(heaven ? 0xfff0c8 : 0xff4a1a, heaven ? 2.2 : 1.2); sun.position.set(-30, 60, -40); sc.add(sun);
-  const dyn = [], doors = [];   // (what moves: { obj, f(t, dt) }; Heaven's gates)
+  let wayM = null; const dyn = [], doors = [];   // (what moves: { obj, f(t, dt) }; Heaven's gates)
   const tex = heaven ? softTex('rgba(255,255,255,.95)') : softTex('rgba(255,140,40,1)', 'rgba(255,40,0,0)');
   if (heaven) {
     // the cloud floor: great soft puffs, drifting; the marble way through them; pillars of light; the gates; motes
     const cloud = softTex('rgba(255,255,255,.9)', 'rgba(255,250,240,0)');
     for (let k = 0; k < 260; k++) { const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: cloud, transparent: true, depthWrite: false, opacity: 0.85, fog: true })); const r = 6 + Math.random() * 120, a = Math.random() * Math.PI * 2;
       s.position.set(Math.cos(a) * r, -1.2 - Math.random() * 2.5, Math.sin(a) * r - 30); if (Math.abs(s.position.x) < 16 && s.position.z > -100 && s.position.z < 12) s.position.x += Math.sign(s.position.x || 1) * 16; s.scale.setScalar(8 + Math.random() * 14); sc.add(s); if (!fake) dyn.push({ obj: s, f: (t) => { s.position.x += Math.sin(t * 0.1 + k) * 0.004; } }); }   // (the false one: the clouds do not move at all)
-    const way = new THREE.Mesh(new THREE.BoxGeometry(5, 0.3, 90), new THREE.MeshStandardMaterial({ color: 0xfffaf0, roughness: 0.25, metalness: 0.1, emissive: 0x6a5a30, emissiveIntensity: 0.25 })); way.position.set(0, -0.15, -40); sc.add(way);
+    const way = new THREE.Mesh(new THREE.BoxGeometry(5, 0.3, 90), new THREE.MeshStandardMaterial({ color: 0xfffaf0, roughness: 0.25, metalness: 0.1, emissive: 0x6a5a30, emissiveIntensity: 0.25 })); way.position.set(0, -0.15, -40); sc.add(way); wayM = way;
     for (let z = -6; z > -80; z -= 12) for (const x of [-6, 6]) { const pl = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 40, 16, 1, true), new THREE.MeshBasicMaterial({ color: 0xfff2c0, transparent: true, opacity: 0.18, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide })); pl.position.set(x, 19, z); sc.add(pl);
       const col = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.55, 6, 16), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3 })); col.position.set(x, 3, z); sc.add(col); }
     const gold = new THREE.MeshStandardMaterial({ color: 0xd9b24a, metalness: 0.9, roughness: 0.25, emissive: 0x6a4a10, emissiveIntensity: 0.5 });
@@ -546,7 +546,7 @@ export function showAfterlife(o) {
     for (let k = 0; k < 26; k++) { const a = Math.random() * Math.PI * 2, y = -6 - Math.random() * 92, w = new THREE.Vector3(Math.sin(a) * 3.3, 0, Math.cos(a) * 3.3);
       const pts = [w.clone(), w.clone().multiplyScalar(0.6).add(new THREE.Vector3(0, 0.6, 0)), w.clone().multiplyScalar(0.2).add(new THREE.Vector3(0, 1.6, 0))];
       const m = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 8, 0.07, 5), skin); m.position.set(F.from.x, y, F.from.z); sc.add(m); }
-    F.red = new THREE.PointLight(0xff2010, 30, 18, 1.6); sc.add(F.red); F.shaft = S;
+    F.red = new THREE.PointLight(0xff2010, 30, 18, 1.6); sc.add(F.red); F.shaft = S; if (wayM) wayM.visible = false;   // (through the floor: the way gone from under you)
   }
   /**
    * The drop: the hush (silence; the faces round you; the gates slammed shut) - the grab (arms, a face up out of the floor
