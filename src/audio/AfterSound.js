@@ -135,6 +135,7 @@ export function afterSound(audio) {
   /** each frame: the chant's pulse, the machine's sweeps and stutters, the odd clang - by how loud they are now */
   function tick(dt) {
     if (!alive) return;
+    for (const C of choirs) { if (C.frozen) continue; C.t += dt; if (C.t > 7.5) { C.t = 0; C.k = (C.k + 1) % C.PROG.length; C.retune(); } }   // (the next chord, every few breaths)
     for (const Rr of risers) { Rr.ph = (Rr.ph + Rr.dir * Rr.speed * dt + Rr.N) % Rr.N; const t = T();
       Rr.os.forEach((x, i) => { const oct = (Rr.ph + i) % Rr.N, hz = 32 * Math.pow(2, oct), a = Math.exp(-Math.pow((oct - Rr.N / 2) / 1.3, 2)); x.o.frequency.setTargetAtTime(hz, t, 0.03); x.og.gain.setTargetAtTime(a, t, 0.03); }); }
     if (ch && ch.v > 0.01) {
@@ -270,6 +271,35 @@ export function afterSound(audio) {
     const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 900 + Math.random() * 900; bp.Q.value = 9; const e = gainAt(0); e.gain.setValueAtTime(0, t); e.gain.linearRampToValueAtTime(gain, t + 0.05); e.gain.setValueAtTime(gain, t + d - 0.08); e.gain.linearRampToValueAtTime(0, t + d);
     o.connect(lg); lg.connect(bp); bp.connect(e); e.connect(out); o.start(t); lfo.start(t);
   }
+  /**
+   * THE CHOIR of Heaven: six voices singing 'ah' - each a soft throat through two vowel formants, a slow vibrato, a breath
+   * of swell of its own - moving gently through a long progression (I - vi - IV - V - I - iii - IV - V), every chord
+   * sliding into the next. -> { set(level), freeze(on) (one chord held, unchanging, forever), sour(k) (the voices drifting
+   * off their notes, out of tune with each other), stop() }
+   */
+  const choirs = [];
+  function angels() {
+    if (!alive) return { set() {}, freeze() {}, sour() {}, stop() {} };
+    const PROG = [[48, 55, 60, 64, 67, 72], [45, 52, 57, 60, 64, 69], [41, 53, 57, 60, 65, 69], [43, 55, 59, 62, 67, 71], [48, 55, 60, 64, 67, 76], [40, 52, 55, 59, 64, 67], [41, 48, 57, 60, 65, 72], [43, 50, 59, 62, 67, 74]];
+    const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12), g = gainAt(0); g.connect(amb);
+    const V = PROG[0].map((m, i) => {
+      const o = ctx.createOscillator(), o2 = ctx.createOscillator(); o.type = 'sawtooth'; o2.type = 'sine'; o.frequency.value = o2.frequency.value = mtof(m);
+      const vib = ctx.createOscillator(), vg = gainAt(mtof(m) * 0.006); vib.frequency.value = 4.6 + Math.random() * 0.8; vib.connect(vg); vg.connect(o.frequency); vg.connect(o2.frequency);
+      const f1 = ctx.createBiquadFilter(), f2 = ctx.createBiquadFilter(), f3 = ctx.createBiquadFilter(); f1.type = f2.type = f3.type = 'bandpass'; f1.frequency.value = 730; f2.frequency.value = 1090; f3.frequency.value = 2440; f1.Q.value = 7; f2.Q.value = 9; f3.Q.value = 12;
+      const sw = gainAt(0.6), lfo = ctx.createOscillator(), lg = gainAt(0.35); lfo.frequency.value = 0.08 + Math.random() * 0.07; lfo.connect(lg); lg.connect(sw.gain);   // (each voice breathing on its own)
+      const mix = gainAt(i < 2 ? 0.55 : 0.4), pan = ctx.createStereoPanner(); pan.pan.value = (i / 5) * 1.4 - 0.7;
+      o.connect(f1); o.connect(f2); o.connect(f3); const sg = gainAt(0.5); o2.connect(sg); sg.connect(sw); f1.connect(sw); f2.connect(sw); const f3g = gainAt(0.4); f3.connect(f3g); f3g.connect(sw);
+      sw.connect(mix); mix.connect(pan); pan.connect(g); for (const x of [o, o2, vib, lfo]) x.start();
+      return { o, o2, vg, m, stops: [o, o2, vib, lfo], off: (Math.random() - 0.5) * 2 };
+    });
+    const C = { g, V, k: 0, t: 0, frozen: false, sourK: 0, PROG, mtof,
+      set(level) { g.gain.setTargetAtTime(level * 0.14, T(), 1.2); },
+      freeze(on) { C.frozen = !!on; },
+      sour(k) { C.sourK = k; C.retune(); },
+      retune() { const t = T(); C.V.forEach((v, i) => { const hz = C.mtof(C.PROG[C.k][i] + v.off * C.sourK * 0.9); v.o.frequency.setTargetAtTime(hz, t, C.frozen ? 0.8 : 1.6); v.o2.frequency.setTargetAtTime(hz, t, C.frozen ? 0.8 : 1.6); }); },
+      stop() { const t = T(); g.gain.setTargetAtTime(0, t, 0.05); setTimeout(() => { for (const v of C.V) for (const x of v.stops) { try { x.stop(); } catch (e) { /* stopped */ } } }, 600); } };
+    choirs.push(C); return C;
+  }
   /** a heartbeat - weak (two thumps) */
   function heart(gain = 0.5) {
     const t = T(); for (const [d, g] of [[0, 1], [0.22, 0.6]]) { const o = track(ctx.createOscillator(), t + d + 0.3); o.frequency.setValueAtTime(62, t + d); o.frequency.exponentialRampToValueAtTime(34, t + d + 0.22);
@@ -297,7 +327,7 @@ export function afterSound(audio) {
   function stop(s = 1) {
     if (!alive) return; alive = false; const t = T(); bus.gain.setTargetAtTime(0, t, s / 4); loud.gain.setTargetAtTime(0, t, s / 4);
     try { window.speechSynthesis?.cancel(); } catch (e) { /* none */ }
-    setTimeout(() => { for (const Rr of risers) Rr.stop(); for (const o of [...oscs, ...loops, ...(droneN?.os || [])]) { try { o.stop(); } catch (e) { /* stopped */ } } try { bus.disconnect(); comp.disconnect(); } catch (e) { /* gone */ } }, s * 1000 + 200);
+    setTimeout(() => { for (const Rr of risers) Rr.stop(); for (const C of choirs) C.stop(); for (const o of [...oscs, ...loops, ...(droneN?.os || [])]) { try { o.stop(); } catch (e) { /* stopped */ } } try { bus.disconnect(); comp.disconnect(); } catch (e) { /* gone */ } }, s * 1000 + 200);
   }
-  return { live: true, voice, drone, chant, machine, clang, tick, heart, breath, fizzle, stop, squeak, click, splat, shriek, hum, stinger, rattle, screech, tone, listen, space, duck, suck, riser, step, creak, mute: (m) => bus.gain.setTargetAtTime(m ? 0 : 1, T(), 0.05) };
+  return { live: true, voice, drone, chant, machine, clang, tick, heart, breath, fizzle, stop, squeak, click, splat, shriek, hum, stinger, rattle, screech, tone, angels, listen, space, duck, suck, riser, step, creak, mute: (m) => bus.gain.setTargetAtTime(m ? 0 : 1, T(), 0.05) };
 }

@@ -109,6 +109,9 @@ const VICE_CARDS = `
 #career[data-hq] .k-pop::before { content: ''; position: absolute; left: 14px; right: 14px; top: -1px; height: 2px; border-radius: 2px; background: linear-gradient(90deg, transparent, #ff3fa4, #23e5ff, transparent); box-shadow: 0 0 12px #ff3fa4, 0 0 22px rgba(35,229,255,.7); pointer-events: none; }
 #career[data-hq] .k-pop .pop-row b { color: #ffffff !important; text-shadow: 0 0 10px rgba(255,63,164,.55); }
 #career[data-hq] .k-pop .pop-row small { color: #c9b8ec !important; }
+#career[data-hq] .k-pop.race { width: 340px !important; max-width: calc(100vw - 24px); } #career[data-hq] .k-pop.gear { width: 320px !important; }
+#career[data-hq] .k-pop .pop-row, #career[data-hq] .k-pop .pop-row b, #career[data-hq] .k-pop .pop-row small, #career[data-hq] .k-pop .pop-note { white-space: normal !important; overflow-wrap: anywhere; text-overflow: clip !important; overflow: visible !important; max-width: 100%; }
+#career[data-hq] .k-pop .pop-row { height: auto !important; box-sizing: border-box; }   /* (every line inside the glass: wrapped, never spilling past its edge) */
 #career[data-hq] .k-pop .pop-row { border-radius: 10px; transition: background .15s, box-shadow .15s; }
 #career[data-hq] .k-pop .pop-row:hover:not(:disabled), #career[data-hq] .k-pop .pop-row:focus-visible { background: linear-gradient(90deg, rgba(255,63,164,.22), rgba(35,229,255,.12)) !important; box-shadow: inset 0 0 0 1px rgba(255,63,164,.6), 0 0 16px -4px rgba(255,63,164,.8) !important; }
 #career[data-hq] .k-pop .pop-row:hover:not(:disabled) b { text-shadow: 0 0 8px #fff, 0 0 16px #ff3fa4; }

@@ -196,7 +196,10 @@ export function showAfterlife(o) {
   const snd = afterSound(o.audio), echoes = heaven ? [] : hellEchoes({ bad: o.bad, name: o.name, mate: o.mate }), lines = [];
   // (the sound of the place: Hell a cave - everything in it ringing back off rock you cannot see; the false Heaven a hall.
   //  And under it, the tension: a tone that rises and rises and never arrives - louder the nearer one of them is, unseen)
-  snd.space(heaven ? (fake ? 0.25 : 0) : 0.55); const tension = !heaven || fake ? snd.riser(1) : null;
+  snd.space(heaven ? (fake ? 0.32 : 0.4) : 0.55); const tension = !heaven || fake ? snd.riser(1) : null;
+  // (Heaven's choir, in a cathedral's air: in the real one moving gently from chord to chord; in the false one one chord
+  //  held, perfect, forever - and going out of tune as the faces come)
+  const choir = heaven ? snd.angels() : null; if (choir) { choir.set(fake ? 0.8 : 1); choir.freeze(fake); }
   let echoAt = 3.6, echoK = 0;
   if (!heaven) snd.drone(0.95);
   const papers = [];
@@ -315,7 +318,7 @@ export function showAfterlife(o) {
   let tries = 0;
   function enter(p) {
     tries++; exo.mon = null; exo.punch = 0; exo.lunge = null; exo.spin = null; exo.last = null; appear = null; black = 0;
-    exo.v = 0; exo.phase = 'still'; exo.u = 0; for (const h of hums) h.set(0, 0); bleed(p); exo.held = gather(p);
+    exo.v = 0; exo.phase = 'still'; exo.u = 0; for (const h of hums) h.set(0, 0); choir?.set(0.12);   // (the choir drawn far back while it is done) bleed(p); exo.held = gather(p);
     for (const x of p.frame) x.visible = false;   // (the ring of light, the swirl, the name gone: nothing between you and the body)
     if (heaven && !p.rats) { p.rats = rats(36, { packs: 2, r: 7 }); p.rats.mesh.position.set(p.G.position.x, 0, p.G.position.z); sc.add(p.rats.mesh); }
     mode = 'exorcism'; keys.clear(); near.classList.remove('in'); hint.style.opacity = '0'; el.classList.add('exo'); me.visible = false; for (const s of trail) s.visible = false;
@@ -336,7 +339,7 @@ export function showAfterlife(o) {
         if (ok) { fade.classList.add('in'); setTimeout(() => finish(p.cand.id), 900); return; }
         for (const w of p.wisps) w.userData.gone = null;
         exo.v = 0; exo.phase = 'still'; p.doll.reset(); p.doll.G.position.set(0, 0.75, 0.3); exo.lunge = null; if (exo.mon) { sc.remove(exo.mon.G); exo.mon.dispose(); exo.mon = null; } echoAt = 2.5;
-        for (const x of p.frame) x.visible = true;
+        for (const x of p.frame) x.visible = true; choir?.set(1);
         for (const m of ST) { if (m.held) { m.held = false; m.trip = null; m.reach = 0; m.G.scale.setScalar(1); m.G.visible = true; m.inside = false; } }
         mode = 'walk'; hint.style.opacity = '1'; el.classList.remove('exo'); me.visible = true; for (const s of trail) s.visible = true; me.position.set(0, 1.4, 4); heading = Math.PI; setHint();
       } });
@@ -543,13 +546,13 @@ export function showAfterlife(o) {
   function fakeTick(dt) {
     const p = Math.max(0, Math.min(1, (4 - me.position.z) / 86));
     for (const f of FF) f.material.opacity += ((f.userData.k < Math.pow(p, 1.25) * 1.05 ? 0.6 : 0) - f.material.opacity) * Math.min(1, dt * 0.8);
-    tone.set(0.035 + p * 0.02, Math.max(0, (p - 0.35) / 0.65)); tension?.set(Math.max(0, (p - 0.4) / 0.6) * 0.55, 0.03 + p * 0.08);
+    tone.set(0.035 + p * 0.02, Math.max(0, (p - 0.35) / 0.65)); choir?.sour(Math.max(0, (p - 0.3) / 0.7)); tension?.set(Math.max(0, (p - 0.4) / 0.6) * 0.55, 0.03 + p * 0.08);
     if (p > 0.55 && Math.random() < dt * 0.4 * p) snd.voice('hhhhhhh', { f0: 50, rate: 0.5, gain: 0.05 * p, ring: 20, dist: 0.2, pan: Math.random() * 2 - 1 });
     if (me.position.z < -82 || t > 90) hush();
   }
   /** at the gates: the hush - the tone gone, dead silence, every face sliding in round you, the gates swinging shut */
   function hush() {
-    if (fall) return; tension?.set(0, 0); snd.duck(1.95); fall = { t0: t, ph: 'hush', arms: [], from: me.position.clone(), out: false, jerk: new THREE.Vector3(), jerkAt: 0 }; mode = 'fall'; keys.clear(); hint.classList.add('gone'); tone.stop();
+    if (fall) return; tension?.set(0, 0); snd.duck(1.95); choir?.stop();   // (the choir cut off mid-note) fall = { t0: t, ph: 'hush', arms: [], from: me.position.clone(), out: false, jerk: new THREE.Vector3(), jerkAt: 0 }; mode = 'fall'; keys.clear(); hint.classList.add('gone'); tone.stop();
     FF.forEach((f, i) => { const a = (i / FF.length) * Math.PI * 2, r = 5.5 + (i % 3) * 1.4; f.userData.ring = new THREE.Vector3(me.position.x + Math.sin(a) * r, 0.9 + (i % 5) * 0.55, me.position.z + Math.cos(a) * r); });
   }
   /** then: arms out of the floor all round you, and a face up out of it in front of yours */
