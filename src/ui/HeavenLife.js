@@ -47,7 +47,7 @@ export function heavenDecor(sc, o = {}) {
   const bank = new THREE.MeshStandardMaterial({ map: glowTex('rgba(255,255,255,1)', 'rgba(255,252,244,0)', 256), transparent: true, depthWrite: false, roughness: 1, emissive: 0xfff6e6, emissiveIntensity: 0.35 });
   for (let k = 0; k < 22; k++) { const side = k % 2 ? 1 : -1, m = new THREE.Mesh(new THREE.CircleGeometry(1, 32), bank); m.rotation.x = -Math.PI / 2; m.position.set(side * R(9, 20), -0.32, 8 - k * 4.6 - R(0, 3)); m.scale.set(R(9, 15), R(7, 11), 1); sc.add(m); }
   const fg = new THREE.PlaneGeometry(0.34, 0.34); fg.translate(0, 0.17, 0); const fg2 = fg.clone(); fg2.rotateY(Math.PI / 2);
-  const FN = 1600, fmat = new THREE.MeshStandardMaterial({ map: flowerTex(), alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.8, emissive: 0xffffff, emissiveIntensity: 0.25 });
+  const ftx = flowerTex(), FN = 1600, fmat = new THREE.MeshBasicMaterial({ map: ftx, alphaTest: 0.5, side: THREE.DoubleSide });   // (unlit: bright in their own colours, white, blush, gold, lilac)
   const pal = [0xffffff, 0xffe0ec, 0xfff0b0, 0xe6dcff, 0xffd6e6, 0xffffff];
   for (const geo of [fg, fg2]) {
     const F = new THREE.InstancedMesh(geo, fmat, FN), M = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3(), c = new THREE.Color();
@@ -60,19 +60,19 @@ export function heavenDecor(sc, o = {}) {
   const bloom = [glowTex('rgba(255,236,244,1)', 'rgba(255,214,232,0)'), glowTex('rgba(255,255,255,1)', 'rgba(255,248,236,0)')];
   const trees = [];
   for (let k = 0; k < 12; k++) {
-    const side = k % 2 ? 1 : -1, x = side * R(8.5, 13), z = -2 - k * 7.6, T = new THREE.Group(); T.position.set(x, -0.3, z);
-    const lean = R(-0.4, 0.4), pts = [new THREE.Vector3(0, 0, 0), new THREE.Vector3(lean * 0.4, 2.2, 0.2), new THREE.Vector3(lean, 4.2, -0.2), new THREE.Vector3(lean * 1.4, 5.6, 0)];
+    const side = k % 2 ? 1 : -1, x = side * R(9, 14), z = -2 - k * 7.6, T = new THREE.Group(); T.position.set(x, -0.3, z);
+    const lean = R(-0.4, 0.4), pts = [new THREE.Vector3(0, 0, 0), new THREE.Vector3(lean * 0.4, 1.2, 0.2), new THREE.Vector3(lean, 2.2, -0.2), new THREE.Vector3(lean * 1.3, 2.9, 0)];
     T.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 12, 0.22, 7), bark));
-    for (let b = 0; b < 46; b++) { const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: bloom[b % 2], transparent: true, depthWrite: false, opacity: 0.92 })); const a = Math.random() * 6.28, r = Math.sqrt(Math.random()) * 3;
-      s.position.set(lean * 1.3 + Math.cos(a) * r, 5.4 + R(-1.2, 1.4), Math.sin(a) * r); s.scale.setScalar(R(1.4, 2.4)); T.add(s); }
+    for (let b = 0; b < 60; b++) { const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: bloom[b % 2], transparent: true, depthWrite: false, opacity: 0.92 })); const a = Math.random() * 6.28, r = Math.sqrt(Math.random()) * 3;
+      s.position.set(lean * 1.3 + Math.cos(a) * r, 3.3 + R(-0.9, 1.2), Math.sin(a) * r); s.scale.setScalar(R(1.6, 2.8)); T.add(s); }   // (a full head of blossom, at the height of your eyes)
     sc.add(T); trees.push(T);
   }
   const PN = 700, pp = new Float32Array(PN * 3), pv = new Float32Array(PN * 3);
-  for (let i = 0; i < PN; i++) { const T = trees[i % trees.length]; pp.set([T.position.x + R(-4, 4), R(0, 7), T.position.z + R(-4, 4)], i * 3); pv.set([R(0.2, 0.7), R(-0.9, -0.4), R(-0.2, 0.2)], i * 3); }
+  for (let i = 0; i < PN; i++) { const T = trees[i % trees.length]; pp.set([T.position.x + R(-4, 4), R(0, 4.5), T.position.z + R(-4, 4)], i * 3); pv.set([R(0.2, 0.7), R(-0.9, -0.4), R(-0.2, 0.2)], i * 3); }
   const pg = new THREE.BufferGeometry(); pg.setAttribute('position', new THREE.BufferAttribute(pp, 3));
   sc.add(new THREE.Points(pg, new THREE.PointsMaterial({ map: bloom[0], size: 0.22, transparent: true, depthWrite: false, color: 0xffe6ef })));
   if (!frozen) upd.push((t, dt) => { for (let i = 0; i < PN; i++) { const k = i * 3; pp[k] += (pv[k] + Math.sin(t * 1.3 + i) * 0.4) * dt; pp[k + 1] += pv[k + 1] * dt; pp[k + 2] += (pv[k + 2] + Math.cos(t * 1.1 + i) * 0.3) * dt;
-    if (pp[k + 1] < -0.3) { const T = trees[i % trees.length]; pp[k] = T.position.x + R(-3, 3); pp[k + 1] = R(5, 7); pp[k + 2] = T.position.z + R(-3, 3); } } pg.attributes.position.needsUpdate = true; });
+    if (pp[k + 1] < -0.3) { const T = trees[i % trees.length]; pp[k] = T.position.x + R(-3, 3); pp[k + 1] = R(3, 4.6); pp[k + 2] = T.position.z + R(-3, 3); } } pg.attributes.position.needsUpdate = true; });
   // DOVES wheeling overhead
   const dove = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.6, emissive: 0xffffff, emissiveIntensity: 0.35, side: THREE.DoubleSide });
   for (let k = 0; k < 16; k++) {
