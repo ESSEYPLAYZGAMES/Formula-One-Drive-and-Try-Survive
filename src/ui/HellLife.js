@@ -314,6 +314,7 @@ export function doll(c = {}) {
 export function faceCanvas() {
   MASK = MASK || maskTex();
   const src = MASK.image, cv = document.createElement('canvas'); cv.width = 180; cv.height = 240; const g = cv.getContext('2d');
+  g.beginPath(); g.ellipse(90, 117, 68, 104, 0, 0, Math.PI * 2); g.clip();   // (the mask alone, cut out: nothing round it - it hangs in the air)
   g.drawImage(src, 128 - 90, 8, 180, 240, 0, 0, 180, 240);
   return cv;
 }

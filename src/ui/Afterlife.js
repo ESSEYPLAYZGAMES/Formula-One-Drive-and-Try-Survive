@@ -498,7 +498,7 @@ export function showAfterlife(o) {
     const ft = new THREE.CanvasTexture(faceCanvas()); ft.colorSpace = THREE.SRGBColorSpace;
     for (let k = 0; k < 44; k++) { const f = new THREE.Sprite(new THREE.SpriteMaterial({ map: ft, transparent: true, depthWrite: false, fog: false, opacity: 0 }));
       const gate = k >= 38, side = k % 2 ? 1 : -1;   // (the last of them behind the gates' bars)
-      f.position.set(gate ? (k - 41) * 1.4 : side * (6 + Math.random() * 24), gate ? 3 + Math.random() * 4 : 0.2 + Math.random() * 5, gate ? -97.5 : -14 - (k / 38) * 80 - Math.random() * 6); f.scale.set(0.6, 0.8, 1); f.userData.k = k / 44; sc.add(f); FF.push(f); }
+      f.position.set(gate ? (k - 41) * 1.4 : side * (6 + Math.random() * 24), gate ? 3 + Math.random() * 4 : 0.2 + Math.random() * 5, gate ? -97.5 : -14 - (k / 38) * 80 - Math.random() * 6); f.scale.set(0.8, 1.07, 1); f.userData.k = k / 44; sc.add(f); FF.push(f); }
     const fk = (e) => { if (e.code !== 'Space' || e.repeat) return; e.preventDefault(); e.stopPropagation(); if (mode === 'walk') grab(); else if (mode === 'fall') fallOut(); };
     window.addEventListener('keydown', fk, true); el.__fk = fk;
   }
