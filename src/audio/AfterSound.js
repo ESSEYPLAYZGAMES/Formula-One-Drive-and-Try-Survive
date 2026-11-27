@@ -207,6 +207,14 @@ export function afterSound(audio) {
   function screech(gain = 0.6) {
     if (!alive) return; voice(['IIIIIIIEEEEEE', 'AAAAAIIIIIIIH', 'EEEEEEAAAAH', 'NNNNIIIIIIAAAAH'][(Math.random() * 4) | 0], { f0: 300 + Math.random() * 260, rate: 0.55 + Math.random() * 0.3, gain, ring: 90 + Math.random() * 120, dist: 1, pan: Math.random() * 1.4 - 0.7 });
   }
+  /** a pure tone, high and thin, hanging in the air (the false Heaven's only sound) -> { set(gain, sour 0..1), stop() } */
+  function tone(hz = 1568) {
+    if (!alive) return { set() {}, stop() {} };
+    const a = ctx.createOscillator(), b = ctx.createOscillator(), g = gainAt(0); a.type = b.type = 'sine'; a.frequency.value = hz; b.frequency.value = hz * 1.0005;
+    a.connect(g); b.connect(g); g.connect(bus); a.start(); b.start();
+    return { set(gain, sour = 0) { const t = T(); g.gain.setTargetAtTime(gain, t, 0.4); b.frequency.setTargetAtTime(hz * (1.0005 + sour * 0.058), t, 0.6); },   // (sour: the second voice sliding a semitone off - the beating turning to a grind)
+      stop() { const t = T(); g.gain.setTargetAtTime(0, t, 0.05); setTimeout(() => { try { a.stop(); b.stop(); } catch (e) { /* stopped */ } }, 400); } };
+  }
   /** a heartbeat - weak (two thumps) */
   function heart(gain = 0.5) {
     const t = T(); for (const [d, g] of [[0, 1], [0.22, 0.6]]) { const o = track(ctx.createOscillator(), t + d + 0.3); o.frequency.setValueAtTime(62, t + d); o.frequency.exponentialRampToValueAtTime(34, t + d + 0.22);
@@ -236,5 +244,5 @@ export function afterSound(audio) {
     try { window.speechSynthesis?.cancel(); } catch (e) { /* none */ }
     setTimeout(() => { for (const o of [...oscs, ...loops, ...(droneN?.os || [])]) { try { o.stop(); } catch (e) { /* stopped */ } } try { bus.disconnect(); comp.disconnect(); } catch (e) { /* gone */ } }, s * 1000 + 200);
   }
-  return { live: true, voice, drone, chant, machine, clang, tick, heart, breath, fizzle, stop, squeak, click, splat, shriek, hum, stinger, rattle, screech, mute: (m) => bus.gain.setTargetAtTime(m ? 0 : 1, T(), 0.05) };
+  return { live: true, voice, drone, chant, machine, clang, tick, heart, breath, fizzle, stop, squeak, click, splat, shriek, hum, stinger, rattle, screech, tone, mute: (m) => bus.gain.setTargetAtTime(m ? 0 : 1, T(), 0.05) };
 }

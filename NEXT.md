@@ -1,3 +1,20 @@
+# V2.90 (2026-11-27): the way into Hell is through Heaven
+
+Asked for: "Make the intro to hell be heaven, uncannily perfect - then you see the faces and you are grabbed and wrestled
+into the depths - right before the pearly gates and your life is ruined - introducing hell".
+
+## The false Heaven (ui/Afterlife.js, o.fake)
+- When the scales send you down, the afterlife does not open on Hell: it opens on HEAVEN - the clouds, the marble way,
+  the pillars of light, the golden gates open at the end. Only too perfect: nothing moves (not a cloud), the newspapers
+  stand in exact pairs along the way, all of them the same front page - "<YOUR NAME> WAS A GOOD PERSON", "Everyone
+  agrees. Everyone agrees. Everyone agrees." - and instead of Heaven's silence, one thin pure tone hanging in the air.
+- Walk towards the gates and the faces come: pale masks in the clouds, along the way, then behind the gates' bars,
+  more of them the nearer you get; the tone souring as they do, a breath somewhere close.
+- Right before the gates (or if you will not walk on): black arms burst out of the floor all round you - the stinger, a
+  scream, the screen torn red - and you are held, wrestled, and dragged down through the floor of Heaven as its light
+  goes out above you, the faces coming down with you, into black. Then: HELL.
+- SPACE: straight to the grab; again, straight on into Hell.
+
 # V2.89 (2026-11-26): Hell you can get lost in; an exorcism hard to watch; death skippable, no leaderboard
 
 Asked for (two messages): "In hell you hear snippets of conversation ... robotic and scary recalled snippets like
